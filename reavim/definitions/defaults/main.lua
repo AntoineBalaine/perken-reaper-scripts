@@ -74,6 +74,8 @@ return {
     ["s"] = "SelectedItems",
   },
   timeline_motion = {
+    ["<TAB>"] = "NextTransientInItem",
+    ["<S-TAB>"] = "PrevTransientInItem",
     ["B"] = "PrevBigItemStart",
     ["E"] = "NextBigItemEnd",
     ["W"] = "NextBigItemStart",
@@ -83,7 +85,6 @@ return {
     ["$"] = "LastItemEnd",
   },
   command = {
-    ["<TAB>"] = "CycleFolderCollapsedState",
     ["zp"] = "ZoomProject",
     ["D"] = "CutSelectedItems",
     ["Y"] = "CopySelectedItems",
