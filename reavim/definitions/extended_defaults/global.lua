@@ -18,6 +18,8 @@ return {
     ["l"] = "RightGridDivision",
     ["H"] = "PrevMeasure",
     ["L"] = "NextMeasure",
+    ["<S-right>"] = "NextMeasure",
+    ["<S-left>"] = "PrevMeasure",
     ["<C-i>"] = "MoveRedo",
     ["<C-o>"] = "MoveUndo",
     ["<C-h>"] = "Prev4Beats",

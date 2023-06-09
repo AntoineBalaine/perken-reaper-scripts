@@ -14,6 +14,8 @@ return {
   timeline_motion = {
     ["l"] = "RightMidiGridDivision",
     ["h"] = "LeftMidiGridDivision",
+    ["<right>"] = {"RightMidiGridDivision", "MoveNoteRight"},
+    ["<left>"] = {"LeftMidiGridDivision", "MoveNoteLeft"},
     ["("] = "MidiTimeSelectionStart",
     [")"] = "MidiTimeSelectionEnd",
     ["w"] = "NextNoteStart",
@@ -21,6 +23,12 @@ return {
     ["W"] = "NextNoteSamePitchStart",
     ["B"] = "PrevNoteSamePitchStart",
     ["e"] = "EventSelectionEnd",
+    ["<up>"] = "MoveNoteUpSemitone",
+    ["<down>"] = "MoveNoteDownSemitone",
+    ["<S-up>"] = "MoveNoteUpOctave",
+    ["<S-down>"] = "MoveNoteDownOctave",
+    ["<S-right>"] = "LengthenNotes",
+    ["<S-left>"] = "ShortenNotes",
   },
   command = {
     ["n"] = "AddNextNoteToSelection",

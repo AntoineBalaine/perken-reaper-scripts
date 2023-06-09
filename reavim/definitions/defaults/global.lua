@@ -9,6 +9,8 @@ return {
     ["<left>"] = "LeftGridDivision",
     ["l"] = "RightGridDivision",
     ["<right>"] = "RightGridDivision",
+    ["<S-left>"] = "PrevMeasure",
+    ["<S-right>"] = "NextMeasure",
     ["H"] = "PrevMeasure",
     ["L"] = "NextMeasure",
     ["<C-H>"] = "Prev4Measures",
@@ -24,8 +26,6 @@ return {
   },
   timeline_selector = {
     ["~"] = "MarkedRegion",
-    ["<S-right>"] = "NextRegion",
-    ["<S-left>"] = "PrevRegion",
     ["!"] = "LoopSelection",
     ["i"] = {"+inner", {
                ["<M-w>"] = "AutomationItem",
@@ -37,7 +37,6 @@ return {
     }},
   },
   visual_timeline_command = {
-    ["v"] = "SetModeNormal",
     ["o"] = "SwitchTimelineSelectionSide",
   },
   command = {
@@ -47,8 +46,6 @@ return {
     ["m"] = "Mark",
     ["~"] = "MarkedRegion",
     ["<C-'>"] = "DeleteMark",
-    ["<S-right>"] = "NextRegion",
-    ["<S-left>"] = "PrevRegion",
     ["<C-r>"] = "Redo",
     ["u"] = "Undo",
     ["R"] = "ToggleRecord",
@@ -120,7 +117,7 @@ return {
                   ["t"] = "SetAutomationModeTouch",
                   ["w"] = "SetAutomationModeWrite",
       }},
-      ["s"] = { "+selected items", {
+      ["i"] = { "+items", {
                   ["j"] = "NextTake",
                   ["k"] = "PrevTake",
                   ["m"] = "ToggleMuteItem",
@@ -128,6 +125,7 @@ return {
                   ["c"] = "CropToActiveTake",
                   ["o"] = "OpenInMidiEditor",
                   ["n"] = "ItemNormalize",
+                  ["g"] = "GlueItemsIgnoringTimeSelection",
                   ["x"] = {"+explode takes", {
                              ["p"] = "ExplodeTakesInPlace",
                              ["o"] = "ExplodeTakesInOrder",

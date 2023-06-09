@@ -329,7 +329,7 @@ return {
       ResetAllMidiDevices = 41175,
       ResetControlDevices = {"ResetAllMidiDevices", "ResetAllControlSurfaceDevices"},
       ResetSelection = {"SelectOnlyCurrentTrack", "UnselectItems", "UnselectEnvelopePoints", "UnselectAllEvents"},
-      Reset = {"Stop", "SetModeNormal", "SetRecordModeNormal", "ResetSelection"},
+      Reset = {"Stop", "SetModeNormal", "SetRecordModeNormal", "ResetSelection", "RemoveTimeSelection"},
       ResetTrackToNormal = {"UnarmSelectedTracks", "UnarmAllEnvelopes", "SetAutomationModeTrimRead"},
       RestoreEditCursorPosition = "_BR_RESTORE_CURSOR_POS_SLOT_16",
       RestoreItemSelection = "_SWS_RESTALLSELITEMS1",
@@ -364,7 +364,7 @@ return {
       SelectFolderParent = "_SWS_SELPARENTS",
       SelectFolder = "_SWS_SELCHILDREN2",
       Selection = "NoOp",
-      SelectItemsAndSplit = {"OnlySelectItemsCrossingTimeAndTrackSelection", "SplitItemsAtTimeSelection"},
+      SelectItemsAndSplit = {"OnlySelectItemsCrossingTimeAndTrackSelection"},
       SelectItemsCrossingTimeAndTrackSelection = 40718,
       SelectItemsInGroups = 40034,
       SelectItemsOnTrack = 40421,
@@ -600,4 +600,6 @@ return {
       ZoomUndo = {"_SWS_UNDOZOOM", prefixRepetitionCount=true},
       NudgeTrackVolumeDown = 40116, -- 0.05 dB
       PlayAndSkipTimeSelection = 40317,
+      LengthenNotes = 40446,
+      ShortenNotes = 40447,
 }

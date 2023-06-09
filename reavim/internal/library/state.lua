@@ -21,9 +21,10 @@ end
 
 function state.setModeVisualTimeline()
   state_interface.setMode('visual_timeline')
-  if state_interface.getTimelineSelectionSide() == 'left' then
-    state_interface.setTimelineSelectionSide('right')
-  end
+  reaper.Main_OnCommand(40625, 0)
+  -- if state_interface.getTimelineSelectionSide() == 'left' then
+  --   state_interface.setTimelineSelectionSide('right')
+  -- end
 end
 
 function state.switchTimelineSelectionSide()

@@ -16,7 +16,7 @@ return {
     ["<C-u>"] = "Prev5Track",
   },
   visual_track_command = {
-    ["V"] = "SetModeNormal",
+    ["V"] = {"SetModeNormal"},
     ["<C-h>"] = "NudgeTrackPanLeft",
     ["<C-l>"] = "NudgeTrackPanRight",
     ["<C-H>"] = "NudgeTrackPanLeft10Times",
