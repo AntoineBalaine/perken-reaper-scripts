@@ -3,7 +3,8 @@ local format = require('utils.format')
 
 local custom_actions = {
   move = require('custom_actions.movement'),
-  select = require('custom_actions.selection')
+  select = require('custom_actions.selection'),
+  midi = require('custom_actions.midi')
 }
 
 function custom_actions.clearTimeSelection()

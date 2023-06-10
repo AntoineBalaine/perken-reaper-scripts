@@ -87,6 +87,10 @@ return {
     ["$"] = "LastItemEnd",
   },
   command = {
+    ["<M-n>"] = "ShowNextFx",
+    ["<M-N>"] = "ShowPrevFx",
+    ["<M-f>"] = "ToggleShowFx",
+    ["<M-F>"] = "CloseFx",
     ["zp"] = "ZoomProject",
     ["D"] = "CutSelectedItems",
     ["Y"] = "CopySelectedItems",

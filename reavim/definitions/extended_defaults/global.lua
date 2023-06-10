@@ -81,7 +81,7 @@ return {
     ["<C-SPC>"] = "ToggleViewMixer",
     ["<ESC>"] = "Reset",
     ["<return>"] = "StartStop",
-    ["X"] = "MoveToMousePositionAndPlay",
+    -- ["X"] = "MoveToMousePositionAndPlay",
     ["dr"] = "RemoveRegion",
     ["!"] = "ToggleLoop",
     ["<C-a>"] = "ToggleBetweenReadAndTouchAutomationMode",
