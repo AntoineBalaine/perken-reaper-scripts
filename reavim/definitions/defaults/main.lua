@@ -14,6 +14,7 @@ return {
     ["<up>"] = "PrevTrack",
     ["<C-d>"] = "Next5Track",
     ["<C-u>"] = "Prev5Track",
+    ["t"] = "CurrentTrack",
   },
   visual_track_command = {
     ["V"] = "SetModeNormal",

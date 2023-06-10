@@ -38,6 +38,9 @@ return {
     ["o"] = "SwitchTimelineSelectionSide",
   },
   command = {
+    ["<M-+>"] = "IncreaseGrid",
+    ["<M-->"] = "DecreaseGrid",
+    ["<C-s>"] = "SaveProject",
     ["."] = "RepeatLastCommand",
     ["@"] = "PlayMacro",
     [","] = "RecordMacro",

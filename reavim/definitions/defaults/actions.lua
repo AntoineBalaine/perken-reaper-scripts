@@ -611,8 +611,8 @@ return {
       ShortenNotes = { 40447, midiCommand=true },
       ToggleUsedCC = {"_S&M_ME_PIANO_CYCLACTION3", midiCommand=true},
       PitchCursorToSelectedNote = {custom.midi.PitchCursorToSelectedNote, midiCommand=true},
-      JumpToNextNote = {custom.midi.jump_to_next_note, midiCommand=true},
-      JumpToPrevNote = {custom.midi.jump_to_prev_note, midiCommand=true},
+      JumpToNextNote = {custom.midi.jump_to_next_note, midiCommand=true, prefixRepetitionCount=true},
+      JumpToPrevNote = {custom.midi.jump_to_prev_note, midiCommand=true, prefixRepetitionCount=true},
       InsertG = { "UnselectAllEvents", 41089, midiCommand=true},
       InsertGb = { "UnselectAllEvents", 41088, midiCommand=true},
       InsertF = { "UnselectAllEvents", 41087, midiCommand=true},
@@ -625,4 +625,7 @@ return {
       InsertBb = { "UnselectAllEvents", 41092, midiCommand=true},
       InsertA = { "UnselectAllEvents", 41091, midiCommand=true},
       InsertAb = { "UnselectAllEvents", 41090, midiCommand=true},
+      CurrentTrack = {},
+      IncreaseGrid = {40786},
+      DecreaseGrid = {40783},
 }

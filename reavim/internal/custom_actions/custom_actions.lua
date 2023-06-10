@@ -34,6 +34,7 @@ function custom_actions.setMidiGridDivision()
   local division = getUserGridDivisionInput()
   if division then
     reaper.SetMIDIEditorGrid(0, division)
+    reaper.Main_OnCommand(reaper.NamedCommandLookup("_SN_FOCUS_MIDI_EDITOR"), 0)
   end
 end
 
