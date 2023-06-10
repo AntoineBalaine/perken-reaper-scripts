@@ -14,8 +14,8 @@ return {
   timeline_motion = {
     ["l"] = "RightMidiGridDivision",
     ["h"] = "LeftMidiGridDivision",
-    ["<right>"] = {"RightMidiGridDivision", "MoveNoteRight"},
-    ["<left>"] = {"LeftMidiGridDivision", "MoveNoteLeft"},
+    ["<right>"] = "MoveNoteAndCursorRight",
+    ["<left>"] = "MoveNoteAndCursorLeft",
     ["("] = "MidiTimeSelectionStart",
     [")"] = "MidiTimeSelectionEnd",
     ["w"] = "NextNoteStart",
