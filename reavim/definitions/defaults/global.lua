@@ -9,8 +9,6 @@ return {
     ["<left>"] = "LeftGridDivision",
     ["l"] = "RightGridDivision",
     ["<right>"] = "RightGridDivision",
-    ["<S-left>"] = "PrevMeasure",
-    ["<S-right>"] = "NextMeasure",
     ["H"] = "PrevMeasure",
     ["L"] = "NextMeasure",
     ["<C-H>"] = "Prev4Measures",

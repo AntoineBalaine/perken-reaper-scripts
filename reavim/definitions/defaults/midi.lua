@@ -29,10 +29,10 @@ return {
     ["<S-down>"] = "MoveNoteDownOctave",
     ["<S-right>"] = "LengthenNotes",
     ["<S-left>"] = "ShortenNotes",
-  },
-  command = {
     ["n"] = "AddNextNoteToSelection",
     ["N"] = "AddPrevNoteToSelection",
+  },
+  command = {
     ["+"] = "MidiZoomInVert",
     ["-"] = "MidiZoomOutVert",
     ["<C-+>"] = "MidiZoomInHoriz",

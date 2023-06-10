@@ -76,6 +76,8 @@ return {
   timeline_motion = {
     ["<TAB>"] = "NextTransientInItem",
     ["<S-TAB>"] = "PrevTransientInItem",
+    ["<S-left>"] = "PrevMeasure",
+    ["<S-right>"] = "NextMeasure",
     ["B"] = "PrevBigItemStart",
     ["E"] = "NextBigItemEnd",
     ["W"] = "NextBigItemStart",
