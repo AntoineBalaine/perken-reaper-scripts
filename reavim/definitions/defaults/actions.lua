@@ -456,6 +456,7 @@ return {
       TimeSelectionShiftedLeft = 40037,
       TimeSelectionShiftedRight = 40038,
       ShowActionList = 40605,
+      ShowMidiActionList = { 40420, midiCommand=true },
       ShowNextFx= {"_S&M_WNONLY2", prefixRepetitionCount=true},
       ShowPreferences = 40016,
       ShowPrevFx = {"_S&M_WNONLY1", prefixRepetitionCount=true},
@@ -604,4 +605,5 @@ return {
       PlayAndSkipTimeSelection = 40317,
       LengthenNotes = { 40446, midiCommand=true },
       ShortenNotes = { 40447, midiCommand=true },
+      ToggleUsedCC = {"_S&M_ME_PIANO_CYCLACTION3", midiCommand=true},
 }

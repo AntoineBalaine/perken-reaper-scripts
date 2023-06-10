@@ -58,6 +58,16 @@ return {
     ["<M-J>"] = "MoveNoteDownOctave",
     ["<M-l>"] = "MoveNoteRight",
     ["<M-h>"] = "MoveNoteLeft",
+    ["<SPC>"] = { "+leader commands", {
+      ["<SPC>"] = "ShowMidiActionList",
+      ["m"] = { "+midi", {
+                  ["g"] = "SetMidiGridDivision",
+                  ["q"] = "Quantize",
+      }},
+      ["c"] = { "+CCs", {
+                  ["t"] = "ToggleUsedCC"
+      }}
+    }},
   },
 }
 
