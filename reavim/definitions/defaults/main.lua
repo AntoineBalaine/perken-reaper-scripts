@@ -165,6 +165,10 @@ return {
                   ["o"] = "OpenInMidiEditor",
                   ["n"] = "ItemNormalize",
                   ["g"] = "GlueItemsIgnoringTimeSelection",
+                  ["s"] = {"+stretch", {
+                             ["a"] = "AddStretchMarker",
+                             ["d"] = "DeleteStretchMarker",
+                  }},
                   ["x"] = {"+explode takes", {
                              ["p"] = "ExplodeTakesInPlace",
                              ["o"] = "ExplodeTakesInOrder",
