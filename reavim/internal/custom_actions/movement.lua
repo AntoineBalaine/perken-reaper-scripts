@@ -1,4 +1,5 @@
 local utils = require("custom_actions.utils")
+local reaper_state = require("../utils/reaper_state")
 
 local movement = {}
 
@@ -145,6 +146,28 @@ function movement.snap()
   local pos = reaper.GetCursorPosition()
   local snapped_pos = reaper.SnapToGrid(0, pos)
   reaper.SetEditCurPos(snapped_pos, false, false)
+end
+
+function movement.storeCursorPosition() -- add cursor position to "cursorPositionStack"
+  local cursorPos = reaper.GetCursorPosition()
+  local stack = reaper_state.get("cursorPositionStack")
+  if stack==nil then
+    stack = {}
+  end
+  table.insert(stack, cursorPos)
+  reaper_state.set("cursorPositionStack", stack)
+end
+
+function movement.restoreCursorPosition() -- retrieve previous cursor position from "cursorPositionStack"
+  local stack = reaper_state.get("cursorPositionStack")
+  if stack and #stack>0 then
+    local prevPos = stack[#stack]
+    if prevPos then
+      table.remove(stack, #stack)
+      reaper_state.set("cursorPositionStack", stack)
+      reaper.SetEditCurPos(prevPos, true, false)
+    end
+  end
 end
 
 return movement
