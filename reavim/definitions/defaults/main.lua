@@ -75,8 +75,6 @@ return {
     ["s"] = "SelectedItems",
   },
   timeline_motion = {
-    ["<M-+>"] = "DecreaseGrid",
-    ["<M-->"] = "IncreaseGrid",
     ["<TAB>"] = "NextTransientInItem",
     ["<S-TAB>"] = "PrevTransientInItem",
     ["<S-left>"] = "PrevMeasure",
