@@ -14,7 +14,7 @@ end
 function movement.lastItemEnd()
   local item_positions = utils.getBigItemPositionsOnSelectedTracks()
   if #item_positions > 0 then
-    local last_item  = item_positions[#item_positions]
+    local last_item = item_positions[#item_positions]
     reaper.SetEditCurPos(last_item.right, true, false)
   end
 end
@@ -22,7 +22,7 @@ end
 function movement.firstItemStart()
   local item_positions = utils.getBigItemPositionsOnSelectedTracks()
   if #item_positions > 0 then
-    local first_item  = item_positions[1]
+    local first_item = item_positions[1]
     reaper.SetEditCurPos(first_item.left, true, false)
   end
 end
@@ -30,7 +30,7 @@ end
 function moveToPrevItemStart(item_positions)
   local current_position = reaper.GetCursorPosition()
   local next_position = nil
-  for i,item in pairs(item_positions) do
+  for i, item in pairs(item_positions) do
     if not next_position and item.left < current_position and item.right >= current_position then
       next_position = item.left
     end
@@ -39,7 +39,7 @@ function moveToPrevItemStart(item_positions)
       next_position = item.left
     end
 
-    local next_item = item_positions[i+1]
+    local next_item = item_positions[i + 1]
     if not next_item or next_item.left >= current_position then
       next_position = item.left
       break
@@ -62,8 +62,8 @@ end
 function moveToNextItemStart(item_positions)
   local current_position = reaper.GetCursorPosition()
   local next_position = nil
-  for i,item_position in pairs(item_positions) do
-    if not next_position and current_position < item_position.left  then
+  for i, item_position in pairs(item_positions) do
+    if not next_position and current_position < item_position.left then
       next_position = item_position.left
     end
     if next_position and item_position.left < next_position then
@@ -87,7 +87,7 @@ function moveToNextItemEnd(item_positions)
   local current_position = reaper.GetCursorPosition()
   local next_position = nil
   local tolerance = .002
-  for _,item_position in pairs(item_positions) do
+  for _, item_position in pairs(item_positions) do
     if not next_position and item_position.right - tolerance > current_position then
       next_position = item_position.right
     elseif next_position and item_position.right < next_position and item_position.right > current_position then
@@ -114,7 +114,7 @@ end
 
 function movement.lastTrack()
   local num_tracks = reaper.GetNumTracks()
-  local last_track = reaper.GetTrack(0, num_tracks-1)
+  local last_track = reaper.GetTrack(0, num_tracks - 1)
   reaper.SetOnlyTrackSelected(last_track)
 end
 
@@ -124,7 +124,7 @@ function movement.trackWithNumber()
     return
   end
 
-  local track = reaper.GetTrack(0, number-1)
+  local track = reaper.GetTrack(0, number - 1)
   if track then
     reaper.SetOnlyTrackSelected(track)
   end
@@ -132,7 +132,7 @@ end
 
 function movement.firstTrackWithItem()
   local num_tracks = reaper.GetNumTracks()
-  for i=0,num_tracks-1 do
+  for i = 0, num_tracks - 1 do
     local track = reaper.GetTrack(0, i)
     if reaper.GetTrackNumMediaItems(track) > 0 then
       reaper.SetOnlyTrackSelected(track)

@@ -23,26 +23,26 @@ end
 function midi.jump_to_next_note()
   local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
   local _, notes, _, _ = reaper.MIDI_CountEvts(take)
-  for note_idx = 0, notes -1 do
+  for note_idx = 0, notes - 1 do
     local _, _, _, startppqposOut, _, _, _, _ = reaper.MIDI_GetNote(take, note_idx)
     local next_note_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, startppqposOut)
-      if next_note_pos > reaper.GetCursorPosition()  then
-        reaper.SetEditCurPos(next_note_pos, 1, 0)
-        break
-      end
+    if next_note_pos > reaper.GetCursorPosition() then
+      reaper.SetEditCurPos(next_note_pos, 1, 0)
+      break
+    end
   end
 end
 
 function midi.jump_to_prev_note()
   local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
   local _, notes, _, _ = reaper.MIDI_CountEvts(take)
-  for note_idx = notes-1, 0, -1 do
+  for note_idx = notes - 1, 0, -1 do
     local _, _, _, start_pos, endpos, _, _, _ = reaper.MIDI_GetNote(take, note_idx)
     local prev_note_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, start_pos)
-      if prev_note_pos < reaper.GetCursorPosition()  then
-        reaper.SetEditCurPos(prev_note_pos, 1, 0)
-        break
-      end
+    if prev_note_pos < reaper.GetCursorPosition() then
+      reaper.SetEditCurPos(prev_note_pos, 1, 0)
+      break
+    end
   end
 end
 
