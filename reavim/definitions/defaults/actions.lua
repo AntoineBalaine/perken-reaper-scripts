@@ -626,6 +626,6 @@ return {
       InsertA = { "UnselectAllEvents", 41091, midiCommand=true},
       InsertAb = { "UnselectAllEvents", 41090, midiCommand=true},
       CurrentTrack = {},
-      IncreaseGrid = {40786},
-      DecreaseGrid = {40783},
+      IncreaseGrid = {40786, prefixRepetitionCount=true},
+      DecreaseGrid = {40783, prefixRepetitionCount=true},
 }
