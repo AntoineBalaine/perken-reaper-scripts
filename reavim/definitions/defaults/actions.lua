@@ -629,5 +629,9 @@ return {
       IncreaseGrid = {40786, prefixRepetitionCount=true},
       DecreaseGrid = {40783, prefixRepetitionCount=true},
       StoreCursorPosition = {custom.move.storeCursorPosition, prefixRepetitionCount=true},
-      RestoreCursorPosition = {custom.move.restoreCursorPosition, prefixRepetitionCount=true}
+      RestoreCursorPosition = {custom.move.restoreCursorPosition, prefixRepetitionCount=true},
+      NextBigNoteEnd = {custom.midi.nextBigNoteEnd, midiCommand=true, prefixRepetitionCount=true},
+      NextBigNoteStart = {custom.midi.nextBigNoteStart, midiCommand = true, prefixRepetitionCount = true},
+      PrevBigNoteEnd = {custom.midi.prevBigNoteEnd, midiCommand=true, prefixRepetitionCount=true},
+      PrevBigNoteStart = {custom.midi.prevBigNoteStart, midiCommand = true, prefixRepetitionCount = true},
 }
