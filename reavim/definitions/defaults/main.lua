@@ -249,7 +249,7 @@ return {
       }},
       ["f"] = { "+fx", {
                   ["a"] = "AddFx",
-                  ["c"] = "ToggleShowFxChain",
+                  ["s"] = "ToggleShowFxChain",
                   ["d"] = "CutFxChain",
                   ["y"] = "CopyFxChain",
                   ["p"] = "PasteFxChain",
@@ -258,7 +258,7 @@ return {
                              ["s"] = "ToggleShowInputFxChain",
                              ["d"] = "CutInputFxChain",
                   }},
-                  ["s"] = {"+show", {
+                  ["c"] = {"+show", {
                              ["1"] = "ToggleShowFx1",
                              ["2"] = "ToggleShowFx2",
                              ["3"] = "ToggleShowFx3",
