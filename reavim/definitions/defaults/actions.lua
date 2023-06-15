@@ -646,4 +646,5 @@ return {
       NextBigNoteStart = {custom.midi.nextBigNoteStart, midiCommand = true, prefixRepetitionCount = true},
       PrevBigNoteEnd = {custom.midi.prevBigNoteEnd, midiCommand=true, prefixRepetitionCount=true},
       PrevBigNoteStart = {custom.midi.prevBigNoteStart, midiCommand = true, prefixRepetitionCount = true},
+      QuitReaper = 40004,
 }

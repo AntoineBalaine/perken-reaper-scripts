@@ -270,6 +270,7 @@ return {
                   }},
       }},
       ["g"] = { "+global", {
+                  ["q"] = "QuitReaper",
                   ["g"] = "SetGridDivision",
                   ["r"] = "ResetControlDevices",
                   [","] = "ShowPreferences",
