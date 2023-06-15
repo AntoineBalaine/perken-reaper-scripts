@@ -56,6 +56,7 @@ return {
     ["<M-K>"] = "MoveNoteUpOctave",
     ["<M-J>"] = "MoveNoteDownOctave",
     ["<SPC>"] = { "+leader commands", {
+      ["q"] = "CloseUndockedMidiEditorOrPassToMainWindow",
       ["<SPC>"] = "ShowMidiActionList",
       ["m"] = { "+midi", {
                   ["g"] = "SetMidiGridDivision",
@@ -63,7 +64,13 @@ return {
       }},
       ["c"] = { "+CCs", {
                   ["t"] = "ToggleUsedCC"
-      }}
+      }},
+      ["v"]= {"+view", {
+                  ["d"]="DrumsView" ,
+                  ["e"]="EventView" ,
+                  ["n"]="NotationView" ,
+                  ["p"]="PianoRollView" ,
+      }},
     }},
     ["<M-g>"] = "InsertG",
     ["<M-s>"] = "InsertGb",
