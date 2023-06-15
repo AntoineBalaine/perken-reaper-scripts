@@ -63,6 +63,7 @@ return {
     ["#"] = "SetItemFadeBoundaries",
     ["z"] = "ZoomTimeSelection",
     ["Z"] = "ZoomTimeAndTrackSelection",
+    ["i"] = "InsertOrExtendMidiItem",
     ["c"] = {"+change/fit", {
                ["a"] = "InsertOrExtendMidiItem",
                ["c"] = "FitByLoopingNoExtend",
