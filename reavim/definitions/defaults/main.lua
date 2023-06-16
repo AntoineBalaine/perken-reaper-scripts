@@ -9,6 +9,7 @@ return {
     ["n"] = "NextTrackMatchForward",
     ["N"] = "NextTrackMatchBackward",
     ["j"] = "NextTrack",
+    [":"] = "TrackWithNumber",
     ["<down>"] = "NextTrack",
     ["k"] = "PrevTrack",
     ["<up>"] = "PrevTrack",
@@ -164,7 +165,7 @@ return {
                   ["o"] = "OpenInMidiEditor",
                   ["n"] = "ItemNormalize",
                   ["g"] = "GlueItemsIgnoringTimeSelection",
-                  ["s"] = {"+stretch", {
+                  ["S"] = {"+stretch", {
                              ["a"] = "AddStretchMarker",
                              ["d"] = "DeleteStretchMarker",
                   }},

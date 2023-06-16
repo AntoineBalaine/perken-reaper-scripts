@@ -44,7 +44,7 @@ return {
     ["p"] = "MidiPaste",
     ["S"] = "UnselectAllEvents",
     ["Y"] = "CopySelectedEvents",
-    ["x"] = "CutSelectedEvents",
+    ["D"] = "CutSelectedEvents",
     ["k"] = "PitchUp",
     ["j"] = "PitchDown",
     ["K"] = "PitchUpOctave",

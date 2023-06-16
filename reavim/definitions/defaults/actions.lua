@@ -224,7 +224,7 @@ return {
       NextNoteEnd = {"SelectNextNote", "EventSelectionEnd", prefixRepetitionCount=true},
       NextNoteSamePitchEnd = {"SelectNextNoteSamePitch", "EventSelectionEnd", prefixRepetitionCount=true},
       NextNoteSamePitchStart = {"SelectNextNoteSamePitch", "EventSelectionStart", prefixRepetitionCount=true},
-      NextNoteStart = {"SelectNextNote",  "EventSelectionStart", prefixRepetitionCount=true},
+      NextNoteStart = {"SelectNextNote", "EventSelectionStart", prefixRepetitionCount=true},
       NextRegion = {"SetLoopRegionToNextRegion", "LoopStart", "SetTimeSelectionToLoopSelection", prefixRepetitionCount=true},
       NextTab = {40861, prefixRepetitionCount=true},
       NextTake = {40125, prefixRepetitionCount=true},
