@@ -4,15 +4,14 @@
 
 -- provides functions which are specific to reaper-keys, such as macros
 -- search for 'lib' in the default actions file to see examples
-local lib = require('library')
+local lib = require("library")
 -- provides custom functions which make use of the reaper api
 -- search for 'custom' in the default actions file to see examples
-local custom = require('custom_actions')
+local custom = require("custom_actions")
 
 -- naming conventions:
 -- a noun implies an action which selects the noun, or a movement to it's position
 -- simple verbs are usually operators, such as 'change'
 -- longer verbs are usually commands
 
-return {
-}
+return {}
