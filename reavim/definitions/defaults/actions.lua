@@ -648,4 +648,6 @@ return {
       PrevBigNoteStart = {custom.midi.prevBigNoteStart, midiCommand = true, prefixRepetitionCount = true},
       QuitReaper = 40004,
       CloseUndockedMidiEditorOrPassToMainWindow = {40477, midiCommand=true},
+      NextTransientInItems = {"SaveItemSelection", "SelectItemsOnTrack", 40375, "RestoreItemSelection", prefixRepetitionCount=true },
+      PrevTransientInItems = {"SaveItemSelection", "SelectItemsOnTrack", 40376, "RestoreItemSelection", prefixRepetitionCount=true }
 }
