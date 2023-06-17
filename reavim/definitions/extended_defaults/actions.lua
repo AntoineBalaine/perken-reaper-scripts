@@ -775,4 +775,6 @@ return {
 		"RestoreItemSelection",
 		prefixRepetitionCount = true,
 	},
+	ActivateNextMidiTrack = { 40835, midiCommand = true, prefixRepetitionCount = true },
+	ActivatePrevMidiTrack = { 40836, midiCommand = true, prefixRepetitionCount = true },
 }

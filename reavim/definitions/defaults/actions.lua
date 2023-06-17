@@ -746,11 +746,19 @@ return {
 		midiCommand = true,
 		prefixRepetitionCount = true
 	},
-	NextBigNoteStart = { "UnselectAllEvents", custom.midi.nextBigNoteStart, midiCommand = true,
-		prefixRepetitionCount = true },
+	NextBigNoteStart = {
+		"UnselectAllEvents",
+		custom.midi.nextBigNoteStart,
+		midiCommand = true,
+		prefixRepetitionCount = true
+	},
 	PrevBigNoteEnd = { "UnselectAllEvents", custom.midi.prevBigNoteEnd, midiCommand = true, prefixRepetitionCount = true },
-	PrevBigNoteStart = { "UnselectAllEvents", custom.midi.prevBigNoteStart, midiCommand = true,
-		prefixRepetitionCount = true },
+	PrevBigNoteStart = {
+		"UnselectAllEvents",
+		custom.midi.prevBigNoteStart,
+		midiCommand = true,
+		prefixRepetitionCount = true
+	},
 	QuitReaper = 40004,
 	CloseUndockedMidiEditorOrPassToMainWindow = { 40477, midiCommand = true },
 	NextTransientInItems = {
@@ -767,4 +775,6 @@ return {
 		"RestoreItemSelection",
 		prefixRepetitionCount = true,
 	},
+	ActivateNextMidiTrack = { 40835, midiCommand = true, prefixRepetitionCount = true },
+	ActivatePrevMidiTrack = { 40836, midiCommand = true, prefixRepetitionCount = true },
 }

@@ -34,6 +34,8 @@ return {
 		["N"] = "AddPrevNoteToSelection",
 		["<TAB>"] = "JumpToNextNote",
 		["<S-TAB>"] = "JumpToPrevNote",
+		["<C-w>"] = "ActivateNextMidiTrack",
+		["<C-W>"] = "ActivatePrevMidiTrack",
 	},
 	command = {
 		["+"] = "MidiZoomInVert",
