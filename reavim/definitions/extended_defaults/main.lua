@@ -9,6 +9,7 @@ return {
 		["n"] = "NextTrackMatchForward",
 		["N"] = "NextTrackMatchBackward",
 		[":"] = "TrackWithNumber",
+		["<down>"] = "NextTrack",
 		["j"] = "NextTrack",
 		["k"] = "PrevTrack",
 		["<up>"] = "PrevTrack",

@@ -740,10 +740,25 @@ return {
 	DecreaseGrid = { 40783, prefixRepetitionCount = true },
 	StoreCursorPosition = { custom.move.storeCursorPosition, prefixRepetitionCount = true },
 	RestoreCursorPosition = { custom.move.restoreCursorPosition, prefixRepetitionCount = true },
-	NextBigNoteEnd = { custom.midi.nextBigNoteEnd, midiCommand = true, prefixRepetitionCount = true },
-	NextBigNoteStart = { custom.midi.nextBigNoteStart, midiCommand = true, prefixRepetitionCount = true },
-	PrevBigNoteEnd = { custom.midi.prevBigNoteEnd, midiCommand = true, prefixRepetitionCount = true },
-	PrevBigNoteStart = { custom.midi.prevBigNoteStart, midiCommand = true, prefixRepetitionCount = true },
+	NextBigNoteEnd = {
+		"UnselectAllEvents",
+		custom.midi.nextBigNoteEnd,
+		midiCommand = true,
+		prefixRepetitionCount = true
+	},
+	NextBigNoteStart = {
+		"UnselectAllEvents",
+		custom.midi.nextBigNoteStart,
+		midiCommand = true,
+		prefixRepetitionCount = true
+	},
+	PrevBigNoteEnd = { "UnselectAllEvents", custom.midi.prevBigNoteEnd, midiCommand = true, prefixRepetitionCount = true },
+	PrevBigNoteStart = {
+		"UnselectAllEvents",
+		custom.midi.prevBigNoteStart,
+		midiCommand = true,
+		prefixRepetitionCount = true
+	},
 	QuitReaper = 40004,
 	CloseUndockedMidiEditorOrPassToMainWindow = { 40477, midiCommand = true },
 	NextTransientInItems = {
