@@ -60,7 +60,7 @@ return {
 		["<M-c>"] = "ColorTrack",
 	},
 	timeline_operator = {
-		["s"] = "SelectItemsAndSplit",
+		["s"] = "SelectItems",
 		["<M-p>"] = "CopyAndFitByLooping",
 		["<M-s>"] = "SelectEnvelopePoints",
 		["d"] = "CutItems",

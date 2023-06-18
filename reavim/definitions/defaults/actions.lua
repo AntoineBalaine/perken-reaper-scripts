@@ -448,7 +448,7 @@ return {
 	SelectFolderParent = "_SWS_SELPARENTS",
 	SelectFolder = "_SWS_SELCHILDREN2",
 	Selection = "NoOp",
-	SelectItemsAndSplit = { "OnlySelectItemsCrossingTimeAndTrackSelection" },
+	SelectItemsAndSplit = { "OnlySelectItemsCrossingTimeAndTrackSelection", "SplitItemsAtTimeSelection" },
 	SelectItemsCrossingTimeAndTrackSelection = 40718,
 	SelectItemsInGroups = 40034,
 	SelectItemsOnTrack = 40421,
