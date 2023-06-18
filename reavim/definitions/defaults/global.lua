@@ -64,7 +64,6 @@ return {
 		["v"] = "SetModeVisualTimeline",
 		["<M-v>"] = "ClearTimelineSelectionAndSetModeVisualTimeline",
 		["<C-SPC>"] = "ToggleViewMixer",
-		["<ESC>"] = "Reset",
 		["<return>"] = "StartStop",
 		["X"] = "MoveToMousePositionAndPlay",
 		["dr"] = "RemoveRegion",

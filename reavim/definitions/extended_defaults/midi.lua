@@ -38,6 +38,7 @@ return {
 		["<C-W>"] = "ActivatePrevMidiTrack",
 	},
 	command = {
+		["<ESC>"] = "ResetMidi",
 		["n"] = "AddNextNoteToSelection",
 		["N"] = "AddPrevNoteToSelection",
 		["+"] = "MidiZoomInVert",

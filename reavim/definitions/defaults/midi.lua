@@ -38,6 +38,7 @@ return {
 		["<C-W>"] = "ActivatePrevMidiTrack",
 	},
 	command = {
+		["<ESC>"] = "ResetMidi",
 		["+"] = "MidiZoomInVert",
 		["-"] = "MidiZoomOutVert",
 		["<C-+>"] = "MidiZoomInHoriz",

@@ -109,6 +109,7 @@ return {
 		[")"] = "TimeSelectionEnd",
 	},
 	command = {
+		["<ESC>"] = "Reset",
 		[">"] = "TrimItemRightEdge",
 		["<"] = "TrimItemLeftEdge",
 		["<M-n>"] = "ShowNextFx",

@@ -99,6 +99,7 @@ return {
 		["$"] = "LastItemEnd",
 	},
 	command = {
+		["<ESC>"] = "Reset",
 		["<M-n>"] = "ShowNextFx",
 		["<M-N>"] = "ShowPrevFx",
 		["<M-f>"] = "ToggleShowFx",
