@@ -310,6 +310,7 @@ return {
 						["v"] = "ToggleVolumeEnvelope",
 						["p"] = "TogglePanEnvelope",
 						["w"] = "SelectWidthEnvelope",
+						["l"] = "ShowEnvelopeLastTouchedFxParam",
 						["s"] = {
 							"+selected",
 							{

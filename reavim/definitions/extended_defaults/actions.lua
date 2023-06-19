@@ -785,4 +785,5 @@ return {
 	PitchItemUpSemi = { 40204, prefixRepetitionCount = true },
 	PitchItemDownOct = { 40516, prefixRepetitionCount = true },
 	PitchItemUpOct = { 40515, prefixRepetitionCount = true },
+	ShowEnvelopeLastTouchedFxParam = 41142,
 }
