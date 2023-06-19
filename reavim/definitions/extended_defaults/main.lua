@@ -107,6 +107,10 @@ return {
 		["$"] = "LastItemEnd",
 		["("] = "TimeSelectionStart",
 		[")"] = "TimeSelectionEnd",
+		["<S-down>"] = "PitchItemDownSemi",
+		["<S-up>"] = "PitchItemUpSemi",
+		["<CS-down>"] = "PitchItemDownOct",
+		["<CS-up>"] = "PitchItemUpOct",
 	},
 	command = {
 		["<ESC>"] = "Reset",
