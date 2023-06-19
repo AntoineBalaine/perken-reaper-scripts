@@ -1,7 +1,10 @@
 local log = require("utils.log")
 
 local utils = {}
+---@alias ItemPosition {left: number, right: number}
 
+---@param item_positions_list table<number, table<number, ItemPosition>>
+---@return table<number, ItemPosition>
 function mergeItemPositionsLists(item_positions_list)
 	local merged_list = {}
 
@@ -33,11 +36,16 @@ function mergeItemPositionsLists(item_positions_list)
 	return merged_list
 end
 
+---@param tracks table<number, MediaTrack>
+---@return table<number, ItemPosition>
 function getItemPositionsOnTracks(tracks)
+	---@type table<number, table<number, ItemPosition>>
 	local item_positions_lists = {}
 	for i = 1, #tracks do
 		local current_track = tracks[i]
+		---@type table<number, ItemPosition>
 		local item_positions = {}
+		---@type number
 		local num_items_on_track = reaper.GetTrackNumMediaItems(current_track)
 
 		for j = 1, num_items_on_track do
@@ -54,7 +62,9 @@ function getItemPositionsOnTracks(tracks)
 	return merged_list
 end
 
+---@return table<number, ItemPosition>
 function utils.getItemPositionsOnSelectedTracks()
+	---@type table<number, MediaTrack>
 	local selected_tracks = {}
 	for i = 0, reaper.CountSelectedTracks() do
 		selected_tracks[i] = reaper.GetSelectedTrack(0, i - 1)
@@ -63,6 +73,7 @@ function utils.getItemPositionsOnSelectedTracks()
 	return getItemPositionsOnTracks(selected_tracks)
 end
 
+---@return table<number, ItemPosition>
 function utils.getBigItemPositionsOnSelectedTracks()
 	local item_positions = utils.getItemPositionsOnSelectedTracks()
 	local big_item_positions = {}
@@ -90,6 +101,8 @@ function utils.getBigItemPositionsOnSelectedTracks()
 	return big_item_positions
 end
 
+---@param id number
+---@return boolean
 function utils.selectRegion(id)
 	local ok, is_region, start_pos, end_pos, _, got_id = reaper.EnumProjectMarkers(id)
 	if ok and is_region then
@@ -99,6 +112,9 @@ function utils.selectRegion(id)
 	return false
 end
 
+---@param search_name string
+---@param forward boolean
+---@return MediaTrack | nil
 function utils.getMatchedTrack(search_name, forward)
 	if not search_name then
 		return nil
@@ -150,6 +166,7 @@ function utils.getTrackPosition()
 	return 0
 end
 
+---@return table<number, MediaTrack>
 function utils.getSelectedTracks()
 	local selected_tracks = {}
 	local n_tracks = reaper.CountSelectedTracks()
@@ -160,6 +177,7 @@ function utils.getSelectedTracks()
 	return selected_tracks
 end
 
+---@param indices table<number, number>
 function utils.setTrackSelection(indices)
 	local ScrollToSelectedTracks = 40913
 	utils.unselectTracks()
@@ -174,12 +192,14 @@ function utils.setTrackSelection(indices)
 	end
 end
 
+---@param pos number
 function utils.scrollToPosition(pos)
 	local current_position = reaper.GetCursorPosition()
 	reaper.SetEditCurPos(pos, true, false)
 	reaper.SetEditCurPos(current_position, false, false)
 end
 
+---@param index number
 function utils.setCurrentTrack(index)
 	local previously_selected = utils.getSelectedTrackIndices()
 	local previous_position = utils.getTrackPosition()
@@ -213,6 +233,7 @@ function utils.unselectAllButLastTouchedTrack()
 	end
 end
 
+---@return table<number, number>
 function utils.getSelectedTrackIndices()
 	local selected_tracks = utils.getSelectedTracks()
 	local selected_track_indices = {}
