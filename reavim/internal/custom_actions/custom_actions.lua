@@ -3,6 +3,7 @@ local format = require("utils.format")
 
 local custom_actions = {
 	move = require("custom_actions.movement"),
+	items = require("custom_actions.items"),
 	select = require("custom_actions.selection"),
 	midi = require("custom_actions.midi"),
 }

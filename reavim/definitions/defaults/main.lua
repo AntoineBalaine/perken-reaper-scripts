@@ -183,6 +183,7 @@ return {
 				["i"] = {
 					"+items",
 					{
+						["P"] = "PasteItemBeforeCursor",
 						["j"] = "NextTake",
 						["k"] = "PrevTake",
 						["m"] = "ToggleMuteItem",
@@ -243,7 +244,8 @@ return {
 								["b"] = "ToggleTakeFxBypass",
 							},
 						},
-						["r"] = {
+						["r"] = "ReverseItems",
+						["R"] = {
 							"+rename",
 							{
 								["s"] = "RenameTakeSourceFile",

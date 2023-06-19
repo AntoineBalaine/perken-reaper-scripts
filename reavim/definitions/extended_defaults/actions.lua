@@ -779,4 +779,6 @@ return {
 	},
 	ActivateNextMidiTrack = { 40835, midiCommand = true, prefixRepetitionCount = true },
 	ActivatePrevMidiTrack = { 40836, midiCommand = true, prefixRepetitionCount = true },
+	ReverseItems = 41051,
+	PasteItemBeforeCursor = { items.paste_before, prefixRepetitionCount = true },
 }
