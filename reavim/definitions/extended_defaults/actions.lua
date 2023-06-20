@@ -275,7 +275,7 @@ return {
 	CalculateTransientGuides = 42028,
 	SplitItemAtTransients = "_XENAKIOS_SPLIT_ITEMSATRANSIENTS",
 	ClearTransientGuides = 42027,
-	AddStretchMarker = 41842,
+	InsertStretchMarker = 41842,
 	DeleteStretchMarker = 41859,
 	NextStretchMarker = 41860,
 	PrevStretchMarker = 41861,
@@ -791,4 +791,9 @@ return {
 	Ras5 = { custom.drums.ras5 },
 	Crescendo = { custom.drums.crescendo },
 	Decrescendo = { custom.drums.decrescendo },
+	DynamicSplit = 40760,
+	QuantizeTool = custom.drums.quantizeTool,
+	SplitAtStretchMarkers = "_BR_SPLIT_SEL_ITEM_STRETCH_MARKERS",
+	ClearItemStretchMarkers = 41844,
+	ClearTransientsAndStretchMarkers = { "ClearItemStretchMarkers", "ClearItemTransients" },
 }

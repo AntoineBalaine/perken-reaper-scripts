@@ -116,4 +116,8 @@ function DecrescendoTrackSelectedItems(track)
   end
 end
 
+function drums.quantizeTool()
+  reaper.Main_OnCommand(reaper.NamedCommandLookup("_RS61423f4f1224e18018576b5e3e1af80ebbd67f7e"), 0)
+end
+
 return drums

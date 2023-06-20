@@ -216,7 +216,7 @@ return {
 						["P"] = "PasteItemBeforeCursor",
 						["j"] = "NextTake",
 						["k"] = "PrevTake",
-						["m"] = "ToggleMuteItem",
+						["M"] = "ToggleMuteItem",
 						["d"] = "DeleteActiveTake",
 						["c"] = "CropToActiveTake",
 						["o"] = "OpenInMidiEditor",
@@ -224,7 +224,7 @@ return {
 						["g"] = "GlueItemsIgnoringTimeSelection",
 						["q"] = "QuantizeItems",
 						["h"] = "HealItemsSplits",
-						["s"] = "ToggleSoloItem",
+						["S"] = "ToggleSoloItem",
 						["B"] = "MoveItemContentToEditCursor",
 						["x"] = {
 							"+explode takes",
@@ -234,11 +234,16 @@ return {
 								["a"] = "ExplodeTakesInAcrossTracks",
 							},
 						},
-						["S"] = {
+						["s"] = {
 							"+stretch",
 							{
-								["a"] = "AddStretchMarker",
+								["a"] = "AdjustTransientDetection",
+								["c"] = "ClearTransientsAndStretchMarkers",
 								["d"] = "DeleteStretchMarker",
+								["i"] = "InsertStretchMarker",
+								["s"] = "SplitItemAtTransients",
+								["t"] = "CalculateTransientGuides",
+								["D"] = "DynamicSplit",
 							},
 						},
 						["#"] = {
@@ -251,10 +256,6 @@ return {
 						["t"] = {
 							"+transients",
 							{
-								["a"] = "AdjustTransientDetection",
-								["t"] = "CalculateTransientGuides",
-								["c"] = "ClearTransientGuides",
-								["s"] = "SplitItemAtTransients",
 							},
 						},
 						["e"] = {
@@ -526,6 +527,8 @@ return {
 						["5"] = "Ras5",
 						["c"] = "Crescendo",
 						["d"] = "Decrescendo",
+						["D"] = "DynamicSplit",
+						["q"] = "QuantizeTool",
 					}
 				},
 			},
