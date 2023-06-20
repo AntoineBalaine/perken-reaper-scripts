@@ -1,6 +1,6 @@
 local utils = require("custom_actions.utils")
 
-items = {}
+local items = {}
 
 -- paste item before edit cursor position
 
