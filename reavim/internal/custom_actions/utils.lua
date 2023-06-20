@@ -294,4 +294,17 @@ function utils.CopyMediaItemToTrack(item, track, position)
 	return new_item
 end
 
+---@param cb fun(item: MediaItem, track: MediaTrack) nil
+function utils.cycleSelectedItemsInSelectedTracks(cb)
+	local tracks = utils.getSelectedTracks()
+	for i = 1, #tracks do
+		local track = tracks[i]
+
+		local items = utils.getSelectedItemsInTrack(track)
+		for _, item in ipairs(items) do
+			cb(item, track)
+		end
+	end
+end
+
 return utils
