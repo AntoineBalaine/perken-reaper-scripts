@@ -786,4 +786,5 @@ return {
 	PitchItemDownOct = { 40516, prefixRepetitionCount = true },
 	PitchItemUpOct = { 40515, prefixRepetitionCount = true },
 	ShowEnvelopeLastTouchedFxParam = 41142,
+	Flam = { custom.drums.flam },
 }
