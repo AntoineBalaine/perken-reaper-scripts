@@ -249,4 +249,49 @@ function utils.unselectTracks()
 	end
 end
 
+---comment
+---@param track MediaTrack
+---@return table<number, MediaItem>
+function utils.getSelectedItemsInTrack(track)
+	---@type MediaItem
+	local items = {}
+	-- Get the number of selected items in the track
+	local numItems = reaper.CountTrackMediaItems(track)
+
+	-- Iterate over the items in the track
+	for i = 0, numItems - 1 do
+		-- Get the item at index i
+		local item = reaper.GetTrackMediaItem(track, i)
+
+		-- Check if the item is selected
+		if reaper.IsMediaItemSelected(item) then
+			table.insert(items, item)
+		end
+	end
+	return items
+end
+
+---@param item MediaItem
+---@param db number
+function utils.nudgeItemVolume(item, db)
+	local it_vol = reaper.GetMediaItemInfo_Value(item, 'D_VOL')
+	reaper.SetMediaItemInfo_Value(item, 'D_VOL', it_vol * 10 ^ (0.05 * db))
+	reaper.UpdateItemInProject(item)
+end
+
+---@param item MediaItem
+---@param track MediaTrack
+---@param position number
+---@return MediaItem
+function utils.CopyMediaItemToTrack(item, track, position)
+	local _, chunk = reaper.GetItemStateChunk(item, "", false)
+	chunk = chunk:gsub("{.-}", "") -- Reaper auto-generates all GUIDs
+	local new_item = reaper.AddMediaItemToTrack(track)
+	reaper.PreventUIRefresh(1)
+	reaper.SetItemStateChunk(new_item, chunk, false)
+	reaper.SetMediaItemInfo_Value(new_item, "D_POSITION", position)
+	reaper.PreventUIRefresh(-1)
+	return new_item
+end
+
 return utils
