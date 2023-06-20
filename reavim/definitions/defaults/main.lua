@@ -434,6 +434,8 @@ return {
 						["f"] = "Flam",
 						["3"] = "Ras3",
 						["5"] = "Ras5",
+						["c"] = "Crescendo",
+						["d"] = "Decrescendo",
 					}
 				},
 			},

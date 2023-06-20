@@ -65,4 +65,55 @@ function drums.ras5()
   utils.cycleSelectedItemsInSelectedTracks(ras)
 end
 
+function drums.crescendo()
+  utils.cycleSelectedTracks(CrescendoTrackSelectedItems)
+end
+
+function drums.decrescendo()
+  utils.cycleSelectedTracks(DecrescendoTrackSelectedItems)
+end
+
+---@param track MediaTrack
+function CrescendoTrackSelectedItems(track)
+  local items = utils.getSelectedItemsInTrack(track)
+  local lastItem = items[#items]
+  local lastItemVol = reaper.GetMediaItemInfo_Value(lastItem, "D_VOL")
+  local diminutionValue = 0.1
+  -- subdivide the distance between 0 and the lastItemVol by the number of items
+  local increment = (lastItemVol - diminutionValue) / #items
+  local pitchTransposeAmount = -0.15 * #items
+
+  -- loop in reverse of items
+  for i = #items, 1, -1 do
+    local item = items[i]
+    -- local itemVol = reaper.GetMediaItemInfo_Value(item, "D_VOL")
+    reaper.SetMediaItemInfo_Value(item, "D_VOL", lastItemVol - diminutionValue)
+    local take = reaper.GetActiveTake(item) ---@type MediaItem_Take
+    reaper.SetMediaItemTakeInfo_Value(take, "D_PITCH", pitchTransposeAmount)
+    diminutionValue = diminutionValue + increment
+    pitchTransposeAmount = pitchTransposeAmount - 0.15
+  end
+end
+
+function DecrescendoTrackSelectedItems(track)
+  local items = utils.getSelectedItemsInTrack(track)
+  local firstItem = items[1]
+  local firstItemVol = reaper.GetMediaItemInfo_Value(firstItem, "D_VOL")
+  local diminutionValue = 0.1
+  -- subdivide the distance between 0 and the lastItemVol by the number of items
+  local increment = (firstItemVol - diminutionValue) / #items
+  local pitchTransposeAmount = -0.01 * #items
+
+  -- loop in reverse of items
+  for i = 1, #items do
+    local item = items[i]
+    -- local itemVol = reaper.GetMediaItemInfo_Value(item, "D_VOL")
+    reaper.SetMediaItemInfo_Value(item, "D_VOL", firstItemVol - diminutionValue)
+    local take = reaper.GetActiveTake(item) ---@type MediaItem_Take
+    reaper.SetMediaItemTakeInfo_Value(take, "D_PITCH", pitchTransposeAmount)
+    diminutionValue = diminutionValue + increment
+    pitchTransposeAmount = pitchTransposeAmount - 0.05
+  end
+end
+
 return drums

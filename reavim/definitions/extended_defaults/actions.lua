@@ -789,4 +789,6 @@ return {
 	Flam = { custom.drums.flam },
 	Ras3 = { custom.drums.ras3 },
 	Ras5 = { custom.drums.ras5 },
+	Crescendo = { custom.drums.crescendo },
+	Decrescendo = { custom.drums.decrescendo },
 }

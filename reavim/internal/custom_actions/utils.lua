@@ -307,4 +307,13 @@ function utils.cycleSelectedItemsInSelectedTracks(cb)
 	end
 end
 
+---@param cb fun(track: MediaTrack) nil
+function utils.cycleSelectedTracks(cb)
+	local tracks = utils.getSelectedTracks()
+	for i = 1, #tracks do
+		local track = tracks[i]
+		cb(track)
+	end
+end
+
 return utils
