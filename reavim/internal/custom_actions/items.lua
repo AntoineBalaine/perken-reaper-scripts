@@ -24,4 +24,14 @@ function items.paste_before()
   reaper.Main_OnCommand(40058, 0)                                                 -- paste item
 end
 
+---@param item MediaItem
+local function Set2msFadesAtEnds(item)
+  reaper.SetMediaItemInfo_Value(item, "D_FADEINLEN", 0.002)
+  reaper.SetMediaItemInfo_Value(item, "D_FADEOUTLEN", 0.002)
+end
+
+function items.set2msFades()
+  utils.cycleSelectedItemsInSelectedTracks(Set2msFadesAtEnds)
+end
+
 return items

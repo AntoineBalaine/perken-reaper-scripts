@@ -125,21 +125,5 @@ return {
 				},
 			},
 		},
-		["q"] = {
-			"+options",
-			{
-				["p"] = "TogglePlaybackPreroll",
-				["r"] = "ToggleRecordingPreroll",
-				["z"] = "TogglePlaybackAutoScroll",
-				["v"] = "ToggleLoopSelectionFollowsTimeSelection",
-				["s"] = "ToggleSnap",
-				["m"] = "ToggleMetronome",
-				["t"] = "ToggleStopAtEndOfTimeSelectionIfNoRepeat",
-				["x"] = "ToggleAutoCrossfade",
-				["e"] = "ToggleEnvelopePointsMoveWithItems",
-				["c"] = "CycleRippleEditMode",
-				["f"] = "ResetFeedbackWindow",
-			},
-		},
 	},
 }

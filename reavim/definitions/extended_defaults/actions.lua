@@ -796,4 +796,5 @@ return {
 	SplitAtStretchMarkers = "_BR_SPLIT_SEL_ITEM_STRETCH_MARKERS",
 	ClearItemStretchMarkers = 41844,
 	ClearTransientsAndStretchMarkers = { "ClearItemStretchMarkers", "ClearItemTransients" },
+	Set2msFades = { custom.items.set2msFades },
 }

@@ -143,6 +143,29 @@ return {
 			"+leader commands",
 			{
 				["<SPC>"] = "ShowActionList",
+				["g"] = {
+					"+grid",
+					{
+						["d"] = "SetGridDivision",
+						["s"] = "ToggleSnap",
+					}
+				},
+				["o"] = {
+					"+options",
+					{
+						["p"] = "TogglePlaybackPreroll",
+						["r"] = "ToggleRecordingPreroll",
+						["z"] = "TogglePlaybackAutoScroll",
+						["v"] = "ToggleLoopSelectionFollowsTimeSelection",
+						["s"] = "ToggleSnap",
+						["m"] = "ToggleMetronome",
+						["t"] = "ToggleStopAtEndOfTimeSelectionIfNoRepeat",
+						["x"] = "ToggleAutoCrossfade",
+						["e"] = "ToggleEnvelopePointsMoveWithItems",
+						["c"] = "CycleRippleEditMode",
+						["f"] = "ResetFeedbackWindow",
+					},
+				},
 				["m"] = {
 					"+midi",
 					{
@@ -196,6 +219,7 @@ return {
 						["o"] = "OpenInMidiEditor",
 						["n"] = "ItemNormalize",
 						["g"] = "GlueItemsIgnoringTimeSelection",
+						["F"] = "Set2msFades",
 						["s"] = {
 							"+stretch",
 							{
@@ -353,7 +377,7 @@ return {
 						},
 					},
 				},
-				["g"] = {
+				["G"] = {
 					"+global",
 					{
 						["q"] = "QuitReaper",

@@ -155,6 +155,28 @@ return {
 			"+leader commands",
 			{
 				["<SPC>"] = "ShowActionList",
+				["g"] = { "+grid",
+					{
+						["d"] = "SetGridDivision",
+						["s"] = "ToggleSnap",
+					}
+				},
+				["o"] = {
+					"+options",
+					{
+						["p"] = "TogglePlaybackPreroll",
+						["r"] = "ToggleRecordingPreroll",
+						["z"] = "TogglePlaybackAutoScroll",
+						["v"] = "ToggleLoopSelectionFollowsTimeSelection",
+						["s"] = "ToggleSnap",
+						["m"] = "ToggleMetronome",
+						["t"] = "ToggleStopAtEndOfTimeSelectionIfNoRepeat",
+						["x"] = "ToggleAutoCrossfade",
+						["e"] = "ToggleEnvelopePointsMoveWithItems",
+						["c"] = "CycleRippleEditMode",
+						["f"] = "ResetFeedbackWindow",
+					},
+				},
 				["z"] = {
 					"+zoom/scroll",
 					{
@@ -226,6 +248,7 @@ return {
 						["h"] = "HealItemsSplits",
 						["S"] = "ToggleSoloItem",
 						["B"] = "MoveItemContentToEditCursor",
+						["F"] = "Set2msFades",
 						["x"] = {
 							"+explode takes",
 							{
@@ -413,7 +436,7 @@ return {
 						["s"] = "ToggleShowTempoEnvelope",
 					},
 				},
-				["g"] = {
+				["G"] = {
 					"+global",
 					{
 						["g"] = "SetGridDivision",
