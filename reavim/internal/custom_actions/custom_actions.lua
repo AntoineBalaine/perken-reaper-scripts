@@ -7,6 +7,7 @@ local custom_actions = {
 	select = require("custom_actions.selection"),
 	midi = require("custom_actions.midi"),
 	drums = require("custom_actions.drums"),
+	tracks = require("custom_actions.tracks"),
 }
 
 function custom_actions.clearTimeSelection()

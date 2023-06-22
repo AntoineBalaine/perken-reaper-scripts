@@ -124,6 +124,8 @@ return {
 		["D"] = "CutSelectedItems",
 		["Y"] = "CopySelectedItems",
 		["V"] = "SetModeVisualTrack",
+		["<C-w>"] = "NextEnvelope",
+		["<C-W>"] = "PrevEnvelope",
 		["<M-j>"] = "NextEnvelope",
 		["<M-k>"] = "PrevEnvelope",
 		["<C-+>"] = "ZoomInVert",
@@ -155,6 +157,7 @@ return {
 			"+leader commands",
 			{
 				["<SPC>"] = "ShowActionList",
+				["B"] = "MediaExplorer",
 				["g"] = { "+grid",
 					{
 						["d"] = "SetGridDivision",
@@ -238,6 +241,7 @@ return {
 						["P"] = "PasteItemBeforeCursor",
 						["j"] = "NextTake",
 						["k"] = "PrevTake",
+						["l"] = "LoopItem",
 						["M"] = "ToggleMuteItem",
 						["d"] = "DeleteActiveTake",
 						["c"] = "CropToActiveTake",
@@ -333,6 +337,8 @@ return {
 						["f"] = "CycleFolderState",
 						["I"] = "SetTrackInputToMatchFirstSelected",
 						["y"] = "SaveTrackAsTemplate",
+						["V"] = "TrackVolumeUp3",
+						["v"] = "TrackVolumeDown3",
 						["i"] = {
 							"+insert",
 							{
