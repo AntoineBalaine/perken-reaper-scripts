@@ -23,6 +23,7 @@ return {
 		["<C-l>"] = "NudgeTrackPanRight",
 		["<C-H>"] = "NudgeTrackPanLeft10Times",
 		["<C-L>"] = "NudgeTrackPanRight10Times",
+		["<M-i>"] = "InsertEnvelopePointsAtSelection",
 	},
 	track_selector = {
 		["'"] = "MarkedTracks",
@@ -108,6 +109,7 @@ return {
 		["<M-N>"] = "ShowPrevFx",
 		["<M-f>"] = "ToggleShowFx",
 		["<M-F>"] = "CloseFx",
+		["<M-i>"] = "InsertEnvelopePoint",
 		["zp"] = "ZoomProject",
 		["D"] = "CutSelectedItems",
 		["Y"] = "CopySelectedItems",
@@ -333,12 +335,21 @@ return {
 				["e"] = {
 					"+envelopes",
 					{
+						["p"] = { "+point shapes",
+							{
+								["b"] = "BezierPointShape",
+								["e"] = "FastEndPointShape",
+								["s"] = "FastStartPointShape",
+								["l"] = "LinearPointShape",
+								["E"] = "SlowStartEndPointShape",
+								["S"] = "SquarePointShape",
+							} },
 						["t"] = "ToggleShowAllEnvelope",
 						["a"] = "ToggleArmAllEnvelopes",
 						["A"] = "UnarmAllEnvelopes",
 						["d"] = "ClearAllEnvelope",
 						["v"] = "ToggleVolumeEnvelope",
-						["p"] = "TogglePanEnvelope",
+						["P"] = "TogglePanEnvelope",
 						["w"] = "SelectWidthEnvelope",
 						["l"] = "ShowEnvelopeLastTouchedFxParam",
 						["s"] = {

@@ -53,6 +53,7 @@ return {
 				["p"] = "ProjectTimeline",
 				["w"] = "Item",
 				["W"] = "BigItem",
+				["<M-l>"] = "AllTrackEnvelopePoints"
 			},
 		},
 	},
