@@ -339,8 +339,8 @@ return {
 						["f"] = "CycleFolderState",
 						["I"] = "SetTrackInputToMatchFirstSelected",
 						["y"] = "SaveTrackAsTemplate",
-						["V"] = "TrackVolumeUp3",
-						["v"] = "TrackVolumeDown3",
+						["+"] = "TrackVolumeUp3",
+						["-"] = "TrackVolumeDown3",
 						["i"] = {
 							"+insert",
 							{

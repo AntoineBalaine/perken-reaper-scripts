@@ -313,8 +313,8 @@ return {
 						["3"] = "InsertTrackFromTemplateSlot3",
 						["4"] = "InsertTrackFromTemplateSlot4",
 						["c"] = "InsertClickTrack",
-						["V"] = "TrackVolumeUp3",
-						["v"] = "TrackVolumeDown3",
+						["+"] = "TrackVolumeUp3",
+						["-"] = "TrackVolumeDown3",
 						["x"] = {
 							"+routing",
 							{
