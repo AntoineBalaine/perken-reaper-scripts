@@ -40,8 +40,6 @@ return {
 	timeline_selector = {
 		["~"] = "MarkedRegion",
 		["!"] = "LoopSelection",
-		["<S-right>"] = "NextRegion",
-		["<S-left>"] = "PrevRegion",
 		["<CS-right>"] = "TimeSelectionShiftedRight",
 		["<CS-left>"] = "TimeSelectionShiftedLeft",
 		["i"] = {

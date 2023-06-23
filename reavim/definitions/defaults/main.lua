@@ -147,7 +147,7 @@ return {
 			"+leader commands",
 			{
 				["<SPC>"] = "ShowActionList",
-				["B"] = "MediaExplorer",
+				["b"] = "MediaExplorer",
 				["g"] = {
 					"+grid",
 					{
