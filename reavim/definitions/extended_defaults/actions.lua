@@ -808,4 +808,9 @@ return {
 	SelectedPoints = { "RemoveTimeSelection", custom.envelope.setTimeSelectionToSelectedEnvelopePoints },
 	SelectAllPoints = 40332,
 	AllTrackEnvelopePoints = { "SavePointSelection", "SelectAllPoints", "SelectedPoints", "RestorePointSelection" },
+	SetPointMin = { custom.envelope.setPointMin },
+	SetPointMax = { custom.envelope.setPointMax },
+	SetPointCenter = { custom.envelope.setPointCenter },
+	MoveEnvelopePointDown = { custom.envelope.moveEnvelopePointDown, prefixRepetitionCount = true },
+	MoveEnvelopePointUp = { custom.envelope.moveEnvelopePointUp, prefixRepetitionCount = true },
 }
