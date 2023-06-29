@@ -814,4 +814,5 @@ return {
 	MoveEnvelopePointDown = { custom.envelope.moveEnvelopePointDown, prefixRepetitionCount = true },
 	MoveEnvelopePointUp = { custom.envelope.moveEnvelopePointUp, prefixRepetitionCount = true },
 	Repl = { custom.dev.repl },
+	RenameTrackToVstiPresetName = { custom.tracks.renameTrackToVstiPresetName },
 }

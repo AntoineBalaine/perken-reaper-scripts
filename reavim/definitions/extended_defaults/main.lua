@@ -331,6 +331,7 @@ return {
 				["t"] = {
 					"+track",
 					{
+						["v"] = "RenameTrackToVstiPresetName",
 						["n"] = "ResetTrackToNormal",
 						["R"] = "RenderTrack",
 						["r"] = "RenameTrack",

@@ -306,6 +306,7 @@ return {
 				["t"] = {
 					"+track",
 					{
+						["v"] = "RenameTrackToVstiPresetName",
 						["R"] = "RenderTrack",
 						["r"] = "RenameTrack",
 						["m"] = "CycleRecordMonitor",

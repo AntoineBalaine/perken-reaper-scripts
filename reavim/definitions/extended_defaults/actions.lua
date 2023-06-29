@@ -815,4 +815,5 @@ return {
 	MoveEnvelopePointUp = { custom.envelope.moveEnvelopePointUp, prefixRepetitionCount = true },
 	FxDevices = { custom.dev.fxDevices },
 	Repl = { custom.dev.repl },
+	RenameTrackToVstiPresetName = { custom.tracks.renameTrackToVstiPresetName },
 }
