@@ -813,4 +813,5 @@ return {
 	SetPointCenter = { custom.envelope.setPointCenter },
 	MoveEnvelopePointDown = { custom.envelope.moveEnvelopePointDown, prefixRepetitionCount = true },
 	MoveEnvelopePointUp = { custom.envelope.moveEnvelopePointUp, prefixRepetitionCount = true },
+	Repl = { custom.dev.repl },
 }

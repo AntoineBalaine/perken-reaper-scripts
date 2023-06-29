@@ -813,4 +813,6 @@ return {
 	SetPointCenter = { custom.envelope.setPointCenter },
 	MoveEnvelopePointDown = { custom.envelope.moveEnvelopePointDown, prefixRepetitionCount = true },
 	MoveEnvelopePointUp = { custom.envelope.moveEnvelopePointUp, prefixRepetitionCount = true },
+	FxDevices = { custom.dev.fxDevices },
+	Repl = { custom.dev.repl },
 }

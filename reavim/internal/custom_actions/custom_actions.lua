@@ -9,6 +9,7 @@ local custom_actions = {
 	drums = require("custom_actions.drums"),
 	tracks = require("custom_actions.tracks"),
 	envelope = require("custom_actions.envelope"),
+	dev = require("custom_actions.dev")
 }
 
 function custom_actions.clearTimeSelection()

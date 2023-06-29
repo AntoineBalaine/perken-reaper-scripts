@@ -147,6 +147,10 @@ return {
 			"+leader commands",
 			{
 				["<SPC>"] = "ShowActionList",
+				["D"] = { "+dev", {
+					["f"] = "FxDevices",
+					["r"] = "Repl",
+				} },
 				["b"] = "MediaExplorer",
 				["g"] = {
 					"+grid",
