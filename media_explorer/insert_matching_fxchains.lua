@@ -155,9 +155,11 @@ end
 
 ---@param sample_name string
 local function processTemplate(sample_name)
+	local foundMatch = false
 	for i = 1, #src.template_list do
 		local template_name = src.template_list[i].name ---@type string
 		if sample_name == template_name then
+			foundMatch = true
 			local path = src.template_list[i].path
 
 			--- select the last track so that the template is inserted at the bottom
@@ -174,6 +176,13 @@ local function processTemplate(sample_name)
 			--- set track name to that.
 			reaper.JS_Window_SetFocus(getMediaBrowser()) -- focus back to the media browser
 		end
+	end
+	if foundMatch == false then
+		local title = "Warning"
+		local message = "Chain unfound."
+		local messageType = 2 -- 2 displays a warning icon
+
+		reaper.ShowMessageBox(message, title, messageType)
 	end
 end
 
