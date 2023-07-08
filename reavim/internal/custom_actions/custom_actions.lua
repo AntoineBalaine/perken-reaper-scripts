@@ -9,6 +9,7 @@ local custom_actions = {
 	drums = require("custom_actions.drums"),
 	tracks = require("custom_actions.tracks"),
 	envelope = require("custom_actions.envelope"),
+	routing = require("custom_actions.routing"),
 	dev = require("custom_actions.dev")
 }
 
@@ -17,7 +18,7 @@ function custom_actions.clearTimeSelection()
 	reaper.GetSet_LoopTimeRange(true, false, current_position, current_position, false)
 end
 
-function getUserGridDivisionInput()
+local function getUserGridDivisionInput()
 	local _, num_string = reaper.GetUserInputs("Set Grid Division", 1, "Fraction/Number", "")
 	local first_num = num_string:match("[0-9.]+")
 	local divider = num_string:match("/([0-9.]+)")

@@ -49,13 +49,13 @@ function tracks.renameTrackToVstiPresetName()
       local vsti_id = reaper.TrackFX_GetInstrument(track)
 
       if vsti_id >= 0 then
-        local retval, fx_name = reaper.TrackFX_GetFXName(track, vsti_id, "")
+        local retval, fx_name = reaper.TrackFX_GetFXName(track, vsti_id)
 
         fx_name = fx_name:gsub("VSTi: ", "")
 
         fx_name = fx_name:gsub(" %(.-%)", "")
 
-        local retval, presetname = reaper.TrackFX_GetPreset(track, vsti_id, "")
+        local retval, presetname = reaper.TrackFX_GetPreset(track, vsti_id)
 
         if retval == 0 then
           local track_name_retval, track_name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", fx_name, true)

@@ -30,7 +30,7 @@ return {
 	track_selector = {
 		["'"] = "MarkedTracks",
 		["F"] = "FolderParent",
-		["F"] = "Folder",
+		["f"] = "Folder",
 		["i"] = {
 			"+inner",
 			{
@@ -427,6 +427,7 @@ return {
 						["y"] = "CopyFxChain",
 						["p"] = "PasteFxChain",
 						["b"] = "ToggleFxBypass",
+						["m"] = "ModulateLastTouchedFxParam",
 						["i"] = {
 							"+input",
 							{
@@ -468,11 +469,11 @@ return {
 						["s"] = {
 							"+show/hide",
 							{
-								["x"] = "ToggleShowRoutingMatrix",
+								["x"] = "RoutingMatrix",
 								["w"] = "ToggleShowWiringDiagram",
 								["t"] = "ToggleShowTrackManager",
-								["m"] = "ShowMasterTrack",
-								["M"] = "HideMasterTrack",
+								["m"] = "MasterTrack",
+								["p"] = "RegionPlaylist",
 								["r"] = "ToggleShowRegionMarkerManager",
 							},
 						},
@@ -538,6 +539,10 @@ return {
 				["p"] = {
 					"+project",
 					{
+						["B"] = "BuildBusses",
+						["m"] = "RoutingMatrix",
+						["R"] = "RouteToBusses",
+						["b"] = "ProjectBay",
 						[","] = "ShowProjectSettings",
 						["n"] = "NextTab",
 						["p"] = "PrevTab",
