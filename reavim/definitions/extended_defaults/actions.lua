@@ -817,5 +817,6 @@ return {
 	RouteToBusses = { custom.routing.routeTracksToBusses },
 	BuildBusses = { custom.routing.buildBusses },
 	AddTextOrnament = { 41780, midiCommand = true },
-	ExplodeRoutineFromAnnotations = { custom.midi_arranging.assignOneTrackPerTag, midiCommand = true }
+	ExplodeRoutineFromAnnotations = { custom.midi_arranging.assignOneTrackPerTag, midiCommand = true },
+	ImplodeItemsOntoSingleTrack = { 40644, "GlueItemsIgnoringTimeSelection" },
 }

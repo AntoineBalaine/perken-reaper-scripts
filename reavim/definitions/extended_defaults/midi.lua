@@ -67,7 +67,7 @@ return {
 						["q"] = "Quantize",
 					},
 				},
-				["r"] = { "+Routine", {
+				["A"] = { "+Arrange", {
 					["t"] = "AddTextOrnament",
 					["e"] = "ExplodeRoutineFromAnnotations"
 				} },

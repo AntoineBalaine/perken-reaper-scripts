@@ -160,6 +160,9 @@ return {
 			{
 				["<SPC>"] = "ShowActionList",
 				["b"] = "MediaExplorer",
+				["A"] = { "+arrange", {
+					["i"] = "ImplodeItemsOntoSingleTrack"
+				} },
 				["g"] = { "+grid",
 					{
 						["d"] = "SetGridDivision",
