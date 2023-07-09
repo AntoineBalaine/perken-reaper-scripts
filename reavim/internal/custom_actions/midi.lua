@@ -1,14 +1,21 @@
 local midi = {}
 
-function midi.PitchCursorToSelectedNote()
-	-- reaper.Undo_BeginBlock() -- to create a consolidated undo point in the Undo History
+---@return number notes
+---@return MediaItem_Take take
+---@return HWND midieditor
+function midi.listNotes()
 	local midieditor = reaper.MIDIEditor_GetActive()
 	local take = reaper.MIDIEditor_GetTake(midieditor)
 	local _, notes, _, _ = reaper.MIDI_CountEvts(take)
+	return notes, take, midieditor
+end
 
+function midi.PitchCursorToSelectedNote()
+	-- reaper.Undo_BeginBlock() -- to create a consolidated undo point in the Undo History
+	local notes, take, midieditor = midi.listNotes()
 	-- count selected notes, find the first selected one
 	for note_idx = 0, notes - 1 do
-		_, sel, _, _, _, _, pitch, _ = reaper.MIDI_GetNote(take, note_idx)
+		local _, sel, _, _, _, _, pitch, _ = reaper.MIDI_GetNote(take, note_idx)
 
 		if sel == true then
 			reaper.MIDIEditor_SetSetting_int(midieditor, "active_note_row", pitch)
@@ -20,8 +27,7 @@ function midi.PitchCursorToSelectedNote()
 end
 
 function midi.jump_to_next_note()
-	local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
-	local _, notes, _, _ = reaper.MIDI_CountEvts(take)
+	local notes, take, _ = midi.listNotes()
 	for note_idx = 0, notes - 1 do
 		local _, _, _, startppqposOut, _, _, _, _ = reaper.MIDI_GetNote(take, note_idx)
 		local next_note_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, startppqposOut)
@@ -33,8 +39,7 @@ function midi.jump_to_next_note()
 end
 
 function midi.jump_to_prev_note()
-	local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
-	local _, notes, _, _ = reaper.MIDI_CountEvts(take)
+	local notes, take, _ = midi.listNotes()
 	for note_idx = notes - 1, 0, -1 do
 		local _, _, _, start_pos, endpos, _, _, _ = reaper.MIDI_GetNote(take, note_idx)
 		local prev_note_pos = reaper.MIDI_GetProjTimeFromPPQPos(take, start_pos)
@@ -50,9 +55,7 @@ end
 ---comment
 ---@return Table<number, NotePosition>
 function midi.getNotePositionsInEditor()
-	local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
-	local _, notes, _, _ = reaper.MIDI_CountEvts(take)
-
+	local notes, take, _ = midi.listNotes()
 	local note_positions = {}
 	for i = 1, notes do
 		local _, _, _, startpos, endpos, _, _, _ = reaper.MIDI_GetNote(take, i - 1)

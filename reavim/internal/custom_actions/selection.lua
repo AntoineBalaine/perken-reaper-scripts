@@ -40,7 +40,7 @@ end
 
 function selection.innerRegion()
 	local current_position = reaper.GetCursorPosition()
-	_, region_id = reaper.GetLastMarkerAndCurRegion(0, current_position)
+	local _, region_id = reaper.GetLastMarkerAndCurRegion(0, current_position)
 	utils.selectRegion(region_id)
 end
 

@@ -6,6 +6,7 @@ local custom_actions = {
 	items = require("custom_actions.items"),
 	select = require("custom_actions.selection"),
 	midi = require("custom_actions.midi"),
+	midi_arranging = require("custom_actions.midi_arranging"),
 	drums = require("custom_actions.drums"),
 	tracks = require("custom_actions.tracks"),
 	envelope = require("custom_actions.envelope"),
