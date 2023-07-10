@@ -185,6 +185,7 @@ return {
 				["r"] = {
 					"+recording",
 					{
+						["a"] = "ArmTracks",
 						["o"] = "SetRecordMidiOutput",
 						["d"] = "SetRecordMidiOverdub",
 						["t"] = "SetRecordMidiTouchReplace",
