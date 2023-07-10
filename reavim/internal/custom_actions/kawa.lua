@@ -379,16 +379,6 @@ function kawa.select_middle_note()
   )
 end
 
-function kawa.select_note_2()
-  local chords_2 = get_chords_only_notes_at_idx({ [2] = 2 })
-  --unselect all other events
-  reaper.MIDIEditor_OnCommand(reaper.MIDIEditor_GetActive(), 40214)
-  Table.forEach(chords_2,
-    function(chord)
-      select_notes(chord.notes)
-    end)
-end
-
 ---@param note KawaNote
 ---@param semitones number
 local function transpose_notes(note, semitones)
@@ -399,6 +389,26 @@ local function transpose_notes(note, semitones)
 end
 
 
+function kawa.drop2_4()
+  local chords_2 = get_chords_only_notes_at_idx({ [2] = 2, [4] = 4 })
+  Table.forEach(chords_2,
+    function(chord)
+      Table.forEach(chord.notes, function(note)
+        transpose_notes(note, -12)
+      end)
+    end)
+end
+
+function kawa.drop_3()
+  local chords_2 = get_chords_only_notes_at_idx({ [3] = 3 })
+  Table.forEach(chords_2,
+    function(chord)
+      Table.forEach(chord.notes, function(note)
+        transpose_notes(note, -12)
+      end)
+    end)
+end
+
 function kawa.drop_2()
   -- get notes 2 and transpose them an octave lower
   local chords_2 = get_chords_only_notes_at_idx({ [2] = 2 })
@@ -408,6 +418,32 @@ function kawa.drop_2()
         transpose_notes(note, -12)
       end)
     end)
+end
+
+function kawa.doubleTopNotesUp()
+  -- get top notes and insert a copy of them an octave higher
+  local top_notes = get_top_notes()
+  Table.forEach(top_notes,
+    ---@param note KawaNote
+    function(note)
+      reaper.MIDI_InsertNote(note.take, note.selection, note.mute,
+        reaper.MIDI_GetPPQPosFromProjQN(note.take, note.startQn),
+        reaper.MIDI_GetPPQPosFromProjQN(note.take, note.endQn), note.chan, note.pitch + 12, note.vel, true)
+    end
+  )
+end
+
+function kawa.doubleBottomNotesDown()
+  -- get top notes and insert a copy of them an octave higher
+  local top_notes = get_bottom_notes()
+  Table.forEach(top_notes,
+    ---@param note KawaNote
+    function(note)
+      reaper.MIDI_InsertNote(note.take, note.selection, note.mute,
+        reaper.MIDI_GetPPQPosFromProjQN(note.take, note.startQn),
+        reaper.MIDI_GetPPQPosFromProjQN(note.take, note.endQn), note.chan, note.pitch - 12, note.vel, true)
+    end
+  )
 end
 
 return kawa
