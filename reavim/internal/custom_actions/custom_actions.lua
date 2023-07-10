@@ -11,7 +11,8 @@ local custom_actions = {
 	tracks = require("custom_actions.tracks"),
 	envelope = require("custom_actions.envelope"),
 	routing = require("custom_actions.routing"),
-	dev = require("custom_actions.dev")
+	dev = require("custom_actions.dev"),
+	kawa = require("custom_actions.kawa"),
 }
 
 function custom_actions.clearTimeSelection()
