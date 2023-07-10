@@ -339,19 +339,8 @@ end
 
 ---@param indexes number[] put the values as the table's keys eg. { 1=1, 2=2, 6=6}
 ---@return KawaChord[]
-local function get_notes_index(indexes)
-  local chords = sort_chords()
-  reaper.ShowConsoleMsg("chords: " .. #chords .. "\n")
-  for i, chord in ipairs(chords) do
-    for n, note in ipairs(chord.notes) do
-      if (indexes[n] == nil) then
-        table.remove(chord.notes, n)
-      end
-    end
-  end
-  reaper.ShowConsoleMsg("chords: " .. #chords .. "\n")
-  return chords
-  --[[   local t = Table.map(sort_chords(),
+local function get_chords_only_notes_at_idx(indexes)
+  return Table.map(sort_chords(),
     ---@param chord KawaChord
     ---@return KawaChord
     function(chord)
@@ -360,27 +349,8 @@ local function get_notes_index(indexes)
           table.remove(chord.notes, i)
         end
       end
-      reaper.ShowConsoleMsg(#chord.notes .. "\n")
       return chord
     end)
-  reaper.ShowConsoleMsg("t: " .. #t .. "\n")
-  return t ]]
-end
-
-local function get_notes_2()
-  -- get only second note of each in sort_chords()
-  -- return get_notes_index({ [2] = 2 })
-  local mapped = Table.map(sort_chords(),
-    ---@param chord KawaChord
-    ---@return KawaNote | nil
-    function(chord)
-      --- check if chord has more than 1 note
-      if (#chord.notes < 2) then
-        return nil
-      end
-      return chord.notes[2]
-    end)
-  return Table.filter(mapped, function(note) return note ~= nil end)
 end
 
 function kawa.select_bottom_note()
@@ -410,13 +380,13 @@ function kawa.select_middle_note()
 end
 
 function kawa.select_note_2()
-  local notes_2 = get_notes_index({ [2] = 2 })
-  reaper.ShowConsoleMsg("notes_2: " .. #notes_2 .. "\n")
+  local chords_2 = get_chords_only_notes_at_idx({ [2] = 2 })
   --unselect all other events
-  -- reaper.MIDIEditor_OnCommand(reaper.MIDIEditor_GetActive(), 40214)
-  for i, chord in ipairs(notes_2) do
-    select_notes(chord.notes)
-  end
+  reaper.MIDIEditor_OnCommand(reaper.MIDIEditor_GetActive(), 40214)
+  Table.forEach(chords_2,
+    function(chord)
+      select_notes(chord.notes)
+    end)
 end
 
 ---@param note KawaNote
@@ -431,10 +401,12 @@ end
 
 function kawa.drop_2()
   -- get notes 2 and transpose them an octave lower
-  local notes_2 = get_notes_2()
-  Table.forEach(notes_2,
-    function(note)
-      transpose_notes(note, -12)
+  local chords_2 = get_chords_only_notes_at_idx({ [2] = 2 })
+  Table.forEach(chords_2,
+    function(chord)
+      Table.forEach(chord.notes, function(note)
+        transpose_notes(note, -12)
+      end)
     end)
 end
 
