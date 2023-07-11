@@ -74,6 +74,24 @@ return {
 				["c"] = { "+CCs", {
 					["t"] = "ToggleUsedCC",
 				} },
+				["C"] = { "+Chord", {
+					["s"] = { "+select", {
+						["b"] = "SelectBottomNotes",
+						["t"] = "SelectTopNotes",
+						["m"] = "SelectMiddleNotes",
+					} },
+					["d"] = { "+drop", {
+						["2"] = "drop2",
+						["3"] = "drop3",
+						["4"] = "drop24",
+					} },
+					["D"] = { "+doublings", {
+						["t"] = "doubleTopOctUp",
+						["b"] = "doubleBottomOctDown",
+						["d"] = "doubleOctDown",
+						["u"] = "doubleOctUp",
+					} },
+				} },
 				["v"] = {
 					"+view",
 					{

@@ -446,4 +446,25 @@ function kawa.doubleBottomNotesDown()
   )
 end
 
+local function double_notes(semitones)
+  local midi_obj = createMIDIFunc3()
+  local selected_notes = midi_obj:detectTargetNote()
+  Table.forEach(selected_notes,
+    ---@param note KawaNote
+    function(note)
+      reaper.MIDI_InsertNote(note.take, note.selection, note.mute,
+        reaper.MIDI_GetPPQPosFromProjQN(note.take, note.startQn),
+        reaper.MIDI_GetPPQPosFromProjQN(note.take, note.endQn), note.chan, note.pitch + semitones, note.vel, true)
+    end
+  )
+end
+
+function kawa.doubleOctUp()
+  double_notes(12)
+end
+
+function kawa.doubleOctDown()
+  double_notes(-12)
+end
+
 return kawa
