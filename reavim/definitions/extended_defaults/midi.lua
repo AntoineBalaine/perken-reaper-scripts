@@ -74,6 +74,10 @@ return {
 				["c"] = { "+CCs", {
 					["t"] = "ToggleUsedCC",
 				} },
+				["k"] = { "+key", {
+					["s"] = "toggleKeySnap",
+					["f"] = "forceSelectedNotesToKey"
+				} },
 				["C"] = { "+Chord", {
 					["s"] = { "+select", {
 						["b"] = "SelectBottomNotes",
@@ -86,10 +90,24 @@ return {
 						["4"] = "drop24",
 					} },
 					["D"] = { "+doublings", {
+						["u"] = { "+up", {
+							["8"] = "doubleOctUp",
+							["7"] = "doubleSeventhUp",
+							["6"] = "doubleSixthUp",
+							["5"] = "doubleFifthUp",
+							["4"] = "doubleFourthUp",
+							["3"] = "doubleThirdUp",
+						} },
+						["d"] = { "+down", {
+							["8"] = "doubleOctDown",
+							["7"] = "doubleSeventhDown",
+							["6"] = "doubleSixthDown",
+							["5"] = "doubleFifthDown",
+							["4"] = "doubleFourthDown",
+							["3"] = "doubleThirdDown",
+						} },
 						["t"] = "doubleTopOctUp",
 						["b"] = "doubleBottomOctDown",
-						["d"] = "doubleOctDown",
-						["u"] = "doubleOctUp",
 					} },
 				} },
 				["v"] = {

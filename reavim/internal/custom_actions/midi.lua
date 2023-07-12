@@ -178,4 +178,13 @@ function midi.prevBigNoteStart()
 	moveToPrevNoteStart(midi.getBigNotePositions())
 end
 
+function midi.toggleKeySnap()
+	-- Toggle Key Snap - Requires midi editor to be open!
+	local hwnd = reaper.MIDIEditor_GetActive()                                -- get active ME
+	local chk = reaper.JS_Window_FindChildByID(hwnd, 0x4EC)                   -- handle to KeySnap checkbox
+	local state = reaper.JS_WindowMessage_Send(chk, "BM_GETCHECK", 0, 0, 0, 0) -- get KeySnap checked state
+	reaper.JS_WindowMessage_Send(chk, "BM_SETCHECK", 1 - state, 0, 0, 0)      -- toggle KeySnap checked state
+	reaper.JS_WindowMessage_Send(hwnd, "WM_COMMAND", 1260, 0, 0, 0)           -- ME action to set KeySnap state
+end
+
 return midi

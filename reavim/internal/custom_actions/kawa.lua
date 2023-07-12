@@ -467,4 +467,44 @@ function kawa.doubleOctDown()
   double_notes(-12)
 end
 
+function kawa.doubleSeventhUp()
+  double_notes(10)
+end
+
+function kawa.doubleSeventhDown()
+  double_notes(-10)
+end
+
+function kawa.doubleSixthUp()
+  double_notes(9)
+end
+
+function kawa.doubleSixthDown()
+  double_notes(-9)
+end
+
+function kawa.doubleFifthUp()
+  double_notes(7)
+end
+
+function kawa.doubleFifthDown()
+  double_notes(-7)
+end
+
+function kawa.doubleFourthUp()
+  double_notes(5)
+end
+
+function kawa.doubleFourthDown()
+  double_notes(-5)
+end
+
+function kawa.doubleThirdUp()
+  double_notes(4)
+end
+
+function kawa.doubleThirdDown()
+  double_notes(-4)
+end
+
 return kawa

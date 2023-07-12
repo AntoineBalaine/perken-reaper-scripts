@@ -44,6 +44,7 @@ function handleCommand(state, command)
 	end
 
 	reaper.Undo_EndBlock("reaper-keys: " .. format.commandDescription(command), 1)
+	reaper.UpdateArrange()
 	local command_description = format.commandDescription(command)
 	return new_state, command_description
 end
