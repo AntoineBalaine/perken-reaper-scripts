@@ -79,6 +79,7 @@ return {
 					["f"] = "forceSelectedNotesToKey"
 				} },
 				["C"] = { "+Chord", {
+					["i"] = "insertChordSymbol",
 					["s"] = { "+select", {
 						["b"] = "SelectBottomNotes",
 						["t"] = "SelectTopNotes",
