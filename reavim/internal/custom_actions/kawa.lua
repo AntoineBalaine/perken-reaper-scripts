@@ -314,7 +314,7 @@ local function get_bottom_notes()
 end
 
 ---@return KawaNote[]
-local function get_top_notes()
+function kawa.get_top_notes()
   return Table.map(sort_chords(),
     ---@param chord KawaChord
     ---@return KawaNote
@@ -361,7 +361,7 @@ function kawa.select_bottom_note()
 end
 
 function kawa.select_top_note()
-  local top_notes = get_top_notes()
+  local top_notes = kawa.get_top_notes()
   --unselect all other events
   reaper.MIDIEditor_OnCommand(reaper.MIDIEditor_GetActive(), 40214)
   select_notes(top_notes)
@@ -422,7 +422,7 @@ end
 
 function kawa.doubleTopNotesUp()
   -- get top notes and insert a copy of them an octave higher
-  local top_notes = get_top_notes()
+  local top_notes = kawa.get_top_notes()
   Table.forEach(top_notes,
     ---@param note KawaNote
     function(note)

@@ -840,4 +840,5 @@ return {
 	doubleThirdUp = { custom.kawa.doubleThirdUp, midiCommand = true },
 	toggleKeySnap = { custom.midi.toggleKeySnap, midiCommand = true },
 	forceSelectedNotesToKey = { 40767, midiCommand = true },
+	soliHarmonize = { custom.midi_arranging.soli_close_position, midiCommand = true },
 }

@@ -109,6 +109,7 @@ return {
 						["t"] = "doubleTopOctUp",
 						["b"] = "doubleBottomOctDown",
 					} },
+					["S"] = "soliHarmonize",
 				} },
 				["v"] = {
 					"+view",

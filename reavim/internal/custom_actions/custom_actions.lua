@@ -13,6 +13,7 @@ local custom_actions = {
 	routing = require("custom_actions.routing"),
 	dev = require("custom_actions.dev"),
 	kawa = require("custom_actions.kawa"),
+	harmonizer = require("custom_actions.harmonizer"),
 }
 
 function custom_actions.clearTimeSelection()

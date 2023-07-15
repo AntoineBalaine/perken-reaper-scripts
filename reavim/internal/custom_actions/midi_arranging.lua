@@ -1,6 +1,8 @@
 local midi = require("custom_actions.midi")
 local Table = require("public.table")
 local String = require("public.string")
+local kawa = require("custom_actions.kawa")
+local harmonizer = require("custom_actions.harmonizer")
 
 local midi_arranging = {}
 
@@ -244,6 +246,53 @@ end
 function midi_arranging.assignOneTrackPerTag()
   local tags, take = midi_arranging.getNotesTags()
   assignOneTrackPerTag(tags, take)
+end
+
+---close position soli harmonization
+function midi_arranging.soli_close_position()
+  --[[
+  get top notes / target notes
+  get chord symbols
+  for each chord symbol, get the notes in the period covered by the chord
+    for each note in the chord,
+      harmonize (note, chord symbol)
+  ]]
+  local top_notes = kawa.get_top_notes()
+  -- print text events for current take
+  local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
+  ---@type Sysexevt[]
+  local evts = Table.filter(getSysexEvts(), function(evt)
+    -- pull midi chord events
+    return evt.type == 6
+  end)
+  Table.forEach(evts,
+    ---@param chord_symbol Sysexevt
+    ---@param idx number
+    ---@param collection Sysexevt[]
+    function(chord_symbol, idx, collection)
+      -- find start and end of chord
+      local chord_start_ppq = chord_symbol.ppqpos
+      local is_last = idx == #collection
+      local chord_end_ppq = nil
+      if is_last then
+        chord_end_ppq = reaper.BR_GetMidiSourceLenPPQ(take)
+      else
+        chord_end_ppq = collection[idx + 1].ppqpos
+      end
+      for i, note in pairs(top_notes) do
+        local note_start_ppq = reaper.MIDI_GetPPQPosFromProjQN(take, note.startQn)
+        local note_end_ppq = reaper.MIDI_GetPPQPosFromProjQN(take, note.endQn)
+        -- if note is within the chord period, try to harmonize it
+        if note_start_ppq >= chord_start_ppq and note_start_ppq < chord_end_ppq then
+          local chord_pitches = harmonizer.harmonize(note.pitch, chord_symbol.msg)
+          Table.forEach(chord_pitches,
+            ---@param pitch number
+            function(pitch)
+              reaper.MIDI_InsertNote(take, true, false, note_start_ppq, note_end_ppq, note.chan, pitch, note.vel, true)
+            end)
+        end
+      end
+    end)
 end
 
 return midi_arranging
