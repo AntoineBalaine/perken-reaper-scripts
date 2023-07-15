@@ -336,7 +336,48 @@ local function get_middle_notes()
       return chord
     end)
 end
+---@return KawaChord[]
+local function get_all_but_top()
+  return Table.map(sort_chords(),
+    ---@param chord KawaChord
+    ---@return KawaNote[]
+    function(chord)
+      ---@type KawaNote[]
+      -- remove first and last note of chord
+      table.remove(chord.notes, 1)
+      return chord
+    end)
+end
 
+---@return KawaChord[]
+local function get_all_but_middle()
+  return Table.map(sort_chords(),
+    ---@param chord KawaChord
+    ---@return KawaNote[]
+    function(chord)
+      ---@type KawaNote[]
+      -- remove first and last note of chord
+      local top = Table.deepCopy(chord.notes[1])
+      local bottom = Table.deepCopy(chord.notes[#chord.notes])
+      chord.notes = {}
+      table.insert(chord.notes, top)
+      table.insert(chord.notes, bottom)
+      return chord
+    end)
+end
+
+---@return KawaChord[]
+local function get_all_but_bottom()
+  return Table.map(sort_chords(),
+    ---@param chord KawaChord
+    ---@return KawaNote[]
+    function(chord)
+      ---@type KawaNote[]
+      -- remove first and last note of chord
+      table.remove(chord.notes, #chord.notes)
+      return chord
+    end)
+end
 ---@param indexes number[] put the values as the table's keys eg. { 1=1, 2=2, 6=6}
 ---@return KawaChord[]
 local function get_chords_only_notes_at_idx(indexes)
@@ -373,6 +414,42 @@ function kawa.select_middle_note()
   reaper.MIDIEditor_OnCommand(reaper.MIDIEditor_GetActive(), 40214)
   -- iterate of mid_notes, for each KawaNote[], call select_notes()
   Table.forEach(mid_notes,
+    function(chord)
+      select_notes(chord.notes)
+    end
+  )
+end
+
+function kawa.select_all_but_top()
+  local notes = get_all_but_top()
+  --unselect all other events
+  reaper.MIDIEditor_OnCommand(reaper.MIDIEditor_GetActive(), 40214)
+  Table.forEach(notes,
+    function(chord)
+      select_notes(chord.notes)
+    end
+  )
+end
+
+function kawa.select_all_but_bottom()
+  local notes = get_all_but_bottom()
+  -- concatenated mid_notes and bottom_notes
+  --unselect all other events
+  reaper.MIDIEditor_OnCommand(reaper.MIDIEditor_GetActive(), 40214)
+  -- iterate of mid_notes, for each KawaNote[], call select_notes()
+  Table.forEach(notes,
+    function(chord)
+      select_notes(chord.notes)
+    end
+  )
+end
+
+function kawa.select_all_but_middle()
+  local notes = get_all_but_middle()
+  --unselect all other events
+  reaper.MIDIEditor_OnCommand(reaper.MIDIEditor_GetActive(), 40214)
+  -- iterate of mid_notes, for each KawaNote[], call select_notes()
+  Table.forEach(notes,
     function(chord)
       select_notes(chord.notes)
     end

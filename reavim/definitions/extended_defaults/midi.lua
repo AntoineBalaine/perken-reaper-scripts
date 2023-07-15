@@ -83,6 +83,9 @@ return {
 						["b"] = "SelectBottomNotes",
 						["t"] = "SelectTopNotes",
 						["m"] = "SelectMiddleNotes",
+						["et"] = "SelectAllButTop",
+						["eb"] = "SelectAllButBottom",
+						["em"] = "SelectAllButMiddle",
 					} },
 					["d"] = { "+drop", {
 						["2"] = "drop2",
