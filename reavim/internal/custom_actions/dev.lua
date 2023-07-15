@@ -8,4 +8,10 @@ function dev.repl()
   reaper.Main_OnCommand(reaper.NamedCommandLookup("_RS9aebe6a6a706099d8a0af623f132ce89ed88ac10"), 0)
 end
 
+function dev.commandIdLookup()
+  reaper.Main_OnCommand(
+    reaper.NamedCommandLookup("_RS87865bad1f6c8e1d0edea2d722aabf96fdad47f3"), 0
+  )
+end
+
 return dev

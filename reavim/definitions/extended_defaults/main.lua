@@ -421,6 +421,7 @@ return {
 				["D"] = { "+dev", {
 					["f"] = "FxDevices",
 					["r"] = "Repl",
+					["c"] = "commandIdLookup",
 				} },
 				["f"] = {
 					"+fx",

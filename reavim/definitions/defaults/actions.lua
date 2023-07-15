@@ -811,6 +811,7 @@ return {
 	MoveEnvelopePointDown = { custom.envelope.moveEnvelopePointDown, prefixRepetitionCount = true },
 	MoveEnvelopePointUp = { custom.envelope.moveEnvelopePointUp, prefixRepetitionCount = true },
 	Repl = { custom.dev.repl },
+	commandIdLookup = { custom.dev.commandIdLookup },
 	RenameTrackToVstiPresetName = { custom.tracks.renameTrackToVstiPresetName },
 	ProjectBay = 41157,
 	RouteToBusses = { custom.routing.routeTracksToBusses },
