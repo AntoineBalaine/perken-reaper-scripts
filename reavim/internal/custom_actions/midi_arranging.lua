@@ -26,8 +26,8 @@ Midi_Evt_Type = {
   EndOfTrack = 12,
   SetTempo = 13,
   SMPTEOffset = 14,
-  ---events 14 and further ARE NOT SUPPORTED BY REAPER
-  ---event 15 REFERS TO NOTATION EVENTS
+  ---Events 14 and further ARE NOT SUPPORTED BY REAPER.
+  ---Event 15 REFERS TO NOTATION EVENTS
   TimeSignature = 15,
   KeySignature = 16,
   SequencerSpecific = 17,
@@ -294,7 +294,9 @@ function midi_arranging.assignOneTrackPerTag()
   assignOneTrackPerTag(tags, take)
 end
 
----close position soli harmonization
+---Create close-position soli harmonization.
+---
+---Chord symbols are pulled from midi item take's markers (sysex evt type 6).
 function midi_arranging.soli_close_position()
   --[[
   get top notes / target notes
@@ -309,7 +311,7 @@ function midi_arranging.soli_close_position()
   ---@type Sysexevt[]
   local evts = Table.filter(getSysexEvts(), function(evt)
     -- pull midi chord events
-    return evt.type == 6
+    return evt.type == Midi_Evt_Type.Marker
   end)
   Table.forEach(evts,
     ---@param chord_symbol Sysexevt
