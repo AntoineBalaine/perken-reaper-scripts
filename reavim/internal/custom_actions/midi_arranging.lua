@@ -346,7 +346,7 @@ end
 function midi_arranging.insert_chord()
   -- insert sysex at cursor position
   local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
-  local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, reaper.GetCursorPositionEx(0))
+  local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, reaper.GetCursorPosition())
   local evts = getSysexEvts()
 
   -- find events at cursor position
@@ -355,26 +355,33 @@ function midi_arranging.insert_chord()
     function(evt)
       return evt.ppqpos == cursor_ppq and evt.msg:match("NOTE") == nil
     end)
+
+  local retval, chord_symbol = reaper.GetUserInputs("Insert chord", 1, "Chord symbol", "")
+  if not retval then return end
+  -- get item start in ppq
+  -- insert chord
+  --[[ if has multiple events, remove them]]
   if (#evts_at_cursor >= 1) then
-    local retval, chord_symbol = reaper.GetUserInputs("Insert chord", 1, "Chord symbol", evts_at_cursor[1].msg)
-    -- replace chord
-    if not retval then return end
-    Table.forEach(evts_at_cursor,
+    local notation_evt = Table.find(evts_at_cursor,
       ---@param evt Sysexevt
       function(evt)
-        local fmt_symbol = chord_symbol
-        if evt.type == 15 then
-          fmt_symbol = "TRAC custom " .. chord_symbol
-        end
-        reaper.MIDI_SetTextSysexEvt(take, evt.idx, false, false, cursor_ppq, evt.type, fmt_symbol)
+        return evt.type == 15
       end)
-  else
-    local retval, chord_symbol = reaper.GetUserInputs("Insert chord", 1, "Chord symbol", "")
-    if not retval then return end
-    -- insert chord
-    reaper.MIDI_InsertTextSysexEvt(take, true, false, cursor_ppq, Midi_Evt_Type.Marker, chord_symbol)
-    reaper.MIDI_SetTextSysexEvt(take, 0, false, false, cursor_ppq, 15, "TRAC custom " .. chord_symbol)
+    if notation_evt ~= nil then
+      reaper.MIDI_DeleteTextSysexEvt(take, notation_evt.idx)
+    end
+
+    local notation_evt = Table.find(evts_at_cursor,
+      ---@param evt Sysexevt
+      function(evt)
+        return evt.type == Midi_Evt_Type.Marker
+      end)
+    if notation_evt ~= nil then
+      reaper.MIDI_DeleteTextSysexEvt(take, notation_evt.idx)
+    end
   end
+  reaper.MIDI_InsertTextSysexEvt(take, false, false, cursor_ppq, Midi_Evt_Type.Marker, chord_symbol)
+  reaper.MIDI_InsertTextSysexEvt(take, false, false, cursor_ppq, 15, "TRAC custom " .. chord_symbol)
 end
 
 return midi_arranging
