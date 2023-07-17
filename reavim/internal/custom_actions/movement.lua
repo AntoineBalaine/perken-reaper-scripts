@@ -121,7 +121,7 @@ end
 
 function movement.trackWithNumber()
 	local _, number = reaper.GetUserInputs("Match Forward", 1, "Track Number", "")
-	if type(number) ~= "number" then
+	if type(tonumber(number)) ~= "number" then
 		return
 	end
 
