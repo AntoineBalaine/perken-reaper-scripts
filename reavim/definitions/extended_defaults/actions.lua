@@ -847,4 +847,8 @@ return {
 	forceSelectedNotesToKey = { 40767, midiCommand = true },
 	soliHarmonize = { custom.midi_arranging.soli_close_position, midiCommand = true },
 	insertChordSymbol = { custom.midi_arranging.insert_chord, midiCommand = true },
+	TrimRightEdgeFromMouse = { custom.items.trimRightEdgeFromMouse },
+	TrimLeftEdgeFromMouse = { custom.items.trimLeftEdgeFromMouse },
+	FadeItemInFromMouse = { custom.items.fadeItemInFromMouse },
+	FadeItemOutFromMouse = { custom.items.fadeItemOutFromMouse },
 }

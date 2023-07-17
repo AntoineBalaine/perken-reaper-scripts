@@ -13,7 +13,6 @@ return {
 		["j"] = "NextTrack",
 		["k"] = "PrevTrack",
 		["<up>"] = "PrevTrack",
-		["<C-b>"] = "Prev10Track",
 		["<C-f>"] = "Next10Track",
 		["<C-d>"] = "Next5Track",
 		["<C-u>"] = "Prev5Track",
@@ -114,6 +113,10 @@ return {
 		["<CS-up>"] = "PitchItemUpOct",
 	},
 	command = {
+		["<C-B>"] = "FadeItemInFromMouse",
+		["<C-E>"] = "FadeItemOutFromMouse",
+		["<C-b>"] = "TrimLeftEdgeFromMouse",
+		["<C-e>"] = "TrimRightEdgeFromMouse",
 		["<ESC>"] = "Reset",
 		[">"] = "TrimItemRightEdge",
 		["<"] = "TrimItemLeftEdge",
