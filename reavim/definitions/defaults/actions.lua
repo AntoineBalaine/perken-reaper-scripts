@@ -850,4 +850,5 @@ return {
 	TrimLeftEdgeFromMouse = { custom.items.trimLeftEdgeFromMouse },
 	FadeItemInFromMouse = { custom.items.fadeItemInFromMouse },
 	FadeItemOutFromMouse = { custom.items.fadeItemOutFromMouse },
+	devAction = { custom.pasteRhythm.pasteRhythm },
 }
