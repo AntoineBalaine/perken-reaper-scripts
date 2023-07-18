@@ -170,4 +170,13 @@ function movement.restoreCursorPosition() -- retrieve previous cursor position f
 	end
 end
 
+function movement.jumpToBarNumber()
+	local retval, num_string = reaper.GetUserInputs("Jump to bar number", 1, "Bar number", "")
+	if retval == false then return end
+	local barNumber = tonumber(num_string)
+	-- get cursor position
+	local cursorPos = reaper.GetCursorPosition()
+	reaper.MoveEditCursor(reaper.TimeMap2_beatsToTime(0, 0, barNumber - 1) - cursorPos, false)
+end
+
 return movement

@@ -39,6 +39,7 @@ return {
 	},
 	command = {
 		["<ESC>"] = "ResetMidi",
+		[":"] = "jumpToBar",
 		["n"] = "AddNextNoteToSelection",
 		["N"] = "AddPrevNoteToSelection",
 		["+"] = "MidiZoomInVert",
