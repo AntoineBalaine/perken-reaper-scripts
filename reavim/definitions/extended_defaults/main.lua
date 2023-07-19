@@ -247,6 +247,7 @@ return {
 				["i"] = {
 					"+selected items",
 					{
+						["p"] = "pasteRhythmToPitches",
 						["P"] = "PasteItemBeforeCursor",
 						["j"] = "NextTake",
 						["k"] = "PrevTake",
