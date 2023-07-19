@@ -294,7 +294,7 @@ return {
 	NudgeTrackVolumeUpBy1 = { "NudgeTrackVolumeUp", repetitions = 20, prefixRepetitionCount = true },
 	NudgeTrackVolumeUpBy1Tenth = { "NudgeTrackVolumeUp", repetitions = 2, prefixRepetitionCount = true },
 	OnlySelectItemsCrossingTimeAndTrackSelection = { "UnselectItems", "SelectItemsCrossingTimeAndTrackSelection" },
-	OpenInMidiEditor = 40153,
+	OpenInMidiEditor = { "ZoomItemSelection", 40153 },
 	OpenProject = 40025,
 	PasteAbove = { "PrevTrack", "Paste", prefixRepetitionCount = true },
 	PasteFxChain = { "_S&M_SMART_PST_FXCHAIN", prefixRepetitionCount = true },
