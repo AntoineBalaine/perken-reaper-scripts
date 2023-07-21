@@ -1,3 +1,4 @@
+local utils = require("custom_actions.utils")
 local midi = require("custom_actions.midi")
 local Table = require("public.table")
 local String = require("public.string")
@@ -222,21 +223,7 @@ local function assignOneChannelPerTag(tags, take)
   reaper.MIDI_Sort(take)
 end
 
----@param tracknumber number
-local function getTrackIndex(tracknumber)
-  local trackCount = reaper.CountTracks(0) -- Get the total number of tracks in the project
 
-  for i = 0, trackCount - 1 do
-    local t = reaper.GetTrack(0, i)
-    if t then
-      local cur_tr_num = reaper.GetMediaTrackInfo_Value(t, "IP_TRACKNUMBER")
-      if cur_tr_num == tracknumber then
-        return i
-      end
-    end
-  end
-  return nil
-end
 
 
 ---@param tags table<string, Note[]>
@@ -253,7 +240,7 @@ local function assignOneTrackPerTag(tags, take)
 
     local track = reaper.GetMediaItemTake_Track(take)                           -- duplicate track
     local trackNumber = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER") -- get track number
-    local trackIndex = getTrackIndex(trackNumber)
+    local trackIndex = utils.getTrackIndex(trackNumber)
     reaper.InsertTrackAtIndex(trackIndex + 1, true)                             -- insert new track (duplicate)
     local new_tr = reaper.GetTrack(0, trackIndex + 1)                           -- get new track
 

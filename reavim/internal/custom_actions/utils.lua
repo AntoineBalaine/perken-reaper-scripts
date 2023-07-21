@@ -307,6 +307,15 @@ function utils.cycleSelectedItemsInSelectedTracks(cb)
 	end
 end
 
+---@param cb fun(item: MediaItem) nil
+function utils.cycleSelectedItems(cb)
+	local items = reaper.CountSelectedMediaItems(0)
+	for i = 0, items - 1 do
+		local item = reaper.GetSelectedMediaItem(0, i)
+		cb(item)
+	end
+end
+
 ---@param cb fun(track: MediaTrack) nil
 function utils.cycleSelectedTracks(cb)
 	local tracks = utils.getSelectedTracks()
@@ -314,6 +323,22 @@ function utils.cycleSelectedTracks(cb)
 		local track = tracks[i]
 		cb(track)
 	end
+end
+
+---@param tracknumber number
+function utils.getTrackIndex(tracknumber)
+	local trackCount = reaper.CountTracks(0) -- Get the total number of tracks in the project
+
+	for i = 0, trackCount - 1 do
+		local t = reaper.GetTrack(0, i)
+		if t then
+			local cur_tr_num = reaper.GetMediaTrackInfo_Value(t, "IP_TRACKNUMBER")
+			if cur_tr_num == tracknumber then
+				return i
+			end
+		end
+	end
+	return nil
 end
 
 return utils

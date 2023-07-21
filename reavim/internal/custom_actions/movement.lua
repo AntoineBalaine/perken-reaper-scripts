@@ -203,24 +203,16 @@ end
 
 ---@param direction "up" | "down"
 local function moveItem(direction)
-	--- get selected items
-	---for each item
-	--- if direction === up
-	--- move selected items to track above their tracks
-	--- else if direction === down
-	--- move selected items to track below their tracks
-	--- else if direction === left
-	--- move selected items to previous grid line (left grid line from start of item)
-	--- else if direction === right
-	--- move selected items to next grid line (right line from start of item)
-	utils.cycleSelectedItemsInSelectedTracks(function(item, track)
-		local trackIndex = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+	utils.cycleSelectedItems(function(item)
+		local track = reaper.GetMediaItem_Track(item)
+		local tracknumber = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+		local trackIndex = utils.getTrackIndex(tracknumber)
 		if direction == "up" then
-			local trk = reaper.GetTrack(0, trackIndex - 2)
+			local trk = reaper.GetTrack(0, trackIndex - 1)
 			reaper.MoveMediaItemToTrack(item, trk)
 			reaper.SetOnlyTrackSelected(trk)
 		else
-			local trk = reaper.GetTrack(0, trackIndex)
+			local trk = reaper.GetTrack(0, trackIndex + 1)
 			reaper.MoveMediaItemToTrack(item, trk)
 			reaper.SetOnlyTrackSelected(trk)
 		end
