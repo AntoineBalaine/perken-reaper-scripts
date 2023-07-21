@@ -153,6 +153,22 @@ local function pegPoint(val)
   end
 end
 
+function envelope.insertToggleAtTimeSelection()
+  -- get edges of time selection
+  local startTime, endTime = reaper.GetSet_LoopTimeRange2(0, false, false, 0, 0, false)
+  if startTime ~= endTime then
+    -- get selected envelope
+    local envelope = reaper.GetSelectedEnvelope(0)
+    if envelope then
+      --get envelope max value
+      local _, minValue, maxValue, centerValue = getEnvelopeMinMaxValues()
+      -- insert points in envelope at start and endtimes
+      reaper.InsertEnvelopePoint(envelope, startTime, minValue or 0, 1, 0, true, true)
+      reaper.InsertEnvelopePoint(envelope, endTime, maxValue or 100, 1, 0, true, true)
+    end
+  end
+end
+
 function envelope.moveEnvelopePointDown()
   pegPoint("down")
 end

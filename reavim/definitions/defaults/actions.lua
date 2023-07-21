@@ -864,4 +864,6 @@ return {
 	MoveItemUp = { custom.move.moveItemUp, prefixRepetitionCount = true },
 	MoveItemDown = { custom.move.moveItemDown, prefixRepetitionCount = true },
 	SelectPointsTimeSelection = 40330,
+	InsertToggleAtTimeSelection = { custom.envelope.insertToggleAtTimeSelection },
+	InvertSelectedPoints = 40334,
 }

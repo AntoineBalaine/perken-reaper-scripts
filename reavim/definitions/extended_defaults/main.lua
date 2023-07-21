@@ -399,9 +399,11 @@ return {
 								["E"] = "SlowStartEndPointShape",
 								["S"] = "SquarePointShape",
 							} },
+						["I"] = "InsertToggleAtTimeSelection",
 						["i"] = "InsertEnvelopePoint",
 						["v"] = { "+point value",
 							{
+								["i"] = "InvertSelectedPoints",
 								["-"] = "MoveEnvelopePointDown",
 								["+"] = "MoveEnvelopePointUp",
 								["m"] = "SetPointMin",
