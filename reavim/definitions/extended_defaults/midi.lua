@@ -12,6 +12,8 @@ return {
 		["z"] = "MidiZoomTimeSelection",
 	},
 	timeline_motion = {
+		["0"] = "MidiItemStart",
+		["$"] = "MidiItemEnd",
 		["<right>"] = "RightMidiGridDivision",
 		["<left>"] = "LeftMidiGridDivision",
 		["l"] = "MoveNoteAndCursorRight",

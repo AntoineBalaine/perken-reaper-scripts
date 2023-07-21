@@ -73,6 +73,53 @@ local function editItemFromMouse(action, edge)
   reaper.Main_OnCommand(reaper.NamedCommandLookup("_XENAKIOS_DORECALLCURPOS"), 0)
 end
 
+function items.splitItemsAtNoteStart()
+  reaper.Main_OnCommand(40153, 0)            -- Item: Open in built-in MIDI editor
+
+  local hwnd = reaper.MIDIEditor_GetActive() -- get active MIDI editor
+  -- run MIDI editor actions:
+  reaper.MIDIEditor_OnCommand(hwnd, 40006)   -- Edit: Select all events
+
+
+  function Elem_in_tb(elem, tb)
+    local found
+    for eit = 1, #tb do
+      if tb[eit] == elem then
+        found = 1
+        break
+      end
+    end
+    return found
+  end
+
+  local items = reaper.CountSelectedMediaItems(0)
+  if items == 0 then return end
+
+  for i = items - 1, 0, -1 do
+    local item = reaper.GetSelectedMediaItem(0, i)
+    local t = {}
+    if item then
+      local take = reaper.GetActiveTake(item)
+      if take then
+        if reaper.TakeIsMIDI(take) then
+          local _, notes = reaper.MIDI_CountEvts(take)
+
+          for i = 0, notes - 1 do
+            local start_note = ({ reaper.MIDI_GetNote(take, i) })[4]
+            --          local _, _, _, start_note = reaper.MIDI_GetNote(take, i) -- alternatively
+            local start_note = reaper.MIDI_GetProjTimeFromPPQPos(take, start_note)
+            if not Elem_in_tb(start_note, t) then
+              t[#t + 1] = start_note
+            end
+          end
+          for i = 2, #t do item = reaper.SplitMediaItem(item, t[i]) end
+        end
+      end
+    end
+  end
+  reaper.MIDIEditor_OnCommand(hwnd, 40477) -- File: Close window or change focus if docked
+end
+
 function items.fadeItemInFromMouse()
   editItemFromMouse("fade", "left")
 end

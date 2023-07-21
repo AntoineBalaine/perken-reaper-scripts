@@ -90,6 +90,7 @@ return {
 		["s"] = "SelectedItems",
 	},
 	timeline_motion = {
+		["0"] = "ProjectStart",
 		["<TAB>"] = "NextTransientInItems",
 		["<S-TAB>"] = "PrevTransientInItems",
 		["<S-left>"] = "PrevMeasure",
@@ -261,6 +262,7 @@ return {
 						["q"] = "QuantizeItems",
 						["h"] = "HealItemsSplits",
 						["S"] = "ToggleSoloItem",
+						["%"] = "SplitItemsAtNoteStart",
 						["B"] = "MoveItemContentToEditCursor",
 						["F"] = "Set2msFades",
 						["x"] = {
@@ -581,6 +583,7 @@ return {
 				["d"] = {
 					"+drums",
 					{
+						["e"] = "ExplodeNoteRows",
 						["f"] = "Flam",
 						["3"] = "Ras3",
 						["5"] = "Ras5",

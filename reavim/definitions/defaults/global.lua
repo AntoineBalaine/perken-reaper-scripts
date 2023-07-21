@@ -2,7 +2,6 @@ return {
 	timeline_motion = {
 		["<M-+>"] = "DecreaseGrid",
 		["<M-->"] = "IncreaseGrid",
-		["0"] = "ProjectStart",
 		["<C-$>"] = "ProjectEnd",
 		["f"] = "PlayPosition",
 		["x"] = "MousePosition",

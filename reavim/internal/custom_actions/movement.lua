@@ -28,6 +28,28 @@ function movement.firstItemStart()
 	end
 end
 
+movement.midi = {}
+
+function movement.midi.takeStart()
+	-- get start of take
+	local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
+	-- local take_start = reaper.GetMediaItemTakeInfo_Value(take, "D_STARTOFFS")
+	-- position of start of item
+	local item_start = reaper.GetMediaItemInfo_Value(reaper.GetMediaItemTake_Item(take), "D_POSITION")
+	reaper.SetEditCurPos(item_start, true, false)
+end
+
+function movement.midi.takeEnd()
+	-- get end of take
+	local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
+	local itm = reaper.GetMediaItemTake_Item(take)
+
+	local takeLength = reaper.GetMediaItemInfo_Value(itm, "D_LENGTH")       -- get current item length and position
+	local takePosition = reaper.GetMediaItemInfo_Value(itm, "D_POSITION")   -- Get the position of the take in seconds
+	-- position of start of item
+	reaper.SetEditCurPos(takePosition + takeLength, true, false)
+end
+
 function moveToPrevItemStart(item_positions)
 	local current_position = reaper.GetCursorPosition()
 	local next_position = nil
@@ -178,5 +200,32 @@ function movement.jumpToBarNumber()
 	local cursorPos = reaper.GetCursorPosition()
 	reaper.MoveEditCursor(reaper.TimeMap2_beatsToTime(0, 0, barNumber - 1) - cursorPos, false)
 end
+
+---@param direction "up" | "down" | "left" | "right	"
+local function moveItem(direction)
+	--- get selected items
+	---for each item
+	--- if direction === up
+	--- move selected items to track above their tracks
+	--- else if direction === down
+	--- move selected items to track below their tracks
+	--- else if direction === left
+	--- move selected items to previous grid line (left grid line from start of item)
+	--- else if direction === right
+	--- move selected items to next grid line (right line from start of item)
+	local selectedItems = getSelectedItems()
+end
+
+local function getSelectedItems()
+	local numSelectedItems = reaper.CountSelectedMediaItems(0)
+	---@type MediaItem[]
+	local selectedItems = {}
+	for i = 0, numSelectedItems - 1 do
+		local item = reaper.GetSelectedMediaItem(0, i)
+		table.insert(selectedItems, item)
+	end
+	return selectedItems
+end
+
 
 return movement

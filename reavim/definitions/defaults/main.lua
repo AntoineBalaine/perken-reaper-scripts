@@ -87,6 +87,7 @@ return {
 		["s"] = "SelectedItems",
 	},
 	timeline_motion = {
+		["0"] = "ProjectStart",
 		["<TAB>"] = "NextTransientInItems",
 		["<S-TAB>"] = "PrevTransientInItems",
 		["<S-left>"] = "PrevMeasure",
