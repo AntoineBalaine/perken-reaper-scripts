@@ -335,6 +335,8 @@ return {
 	PrevEnvelopePoint = { "_SWS_BRMOVEEDITTOPREVENV", prefixRepetitionCount = true },
 	SelNextEnvelopePoint = { "_SWS_BRMOVEEDITSELNEXTENV", prefixRepetitionCount = true },
 	SelPrevEnvelopePoint = { "_SWS_BRMOVEEDITSELPREVENV", prefixRepetitionCount = true },
+	AddNextEnvelopePointSel = { "_SWS_BRMOVEEDITTONEXTENVADDSELL", prefixRepetitionCount = true },
+	AddPrevEnvelopePointSel = { "_SWS_BRMOVEEDITTOPREVENVADDSELL", prefixRepetitionCount = true },
 	PrevFolderNear = { "_SWS_SELNEARESTPREVFOLDER", "ScrollToSelectedTracks", prefixRepetitionCount = true },
 	PrevItemStart = { custom.move.prevItemStart, prefixRepetitionCount = true },
 	PrevMarker = { 40172, prefixRepetitionCount = true },

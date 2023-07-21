@@ -105,6 +105,8 @@ return {
 		["<M-w>"] = "NextEnvelopePoint",
 		["<M-B>"] = "SelPrevEnvelopePoint",
 		["<M-W>"] = "SelNextEnvelopePoint",
+		["<M-n>"] = "AddNextEnvelopePointSel",
+		["<M-N>"] = "AddPrevEnvelopePointSel",
 		["e"] = "NextItemEnd",
 		["w"] = "NextItemStart",
 		["$"] = "LastItemEnd",
