@@ -333,6 +333,8 @@ return {
 	PrevBigItemStart = { custom.move.prevBigItemStart, prefixRepetitionCount = true },
 	PrevEnvelope = { 41863, prefixRepetitionCount = true },
 	PrevEnvelopePoint = { "_SWS_BRMOVEEDITTOPREVENV", prefixRepetitionCount = true },
+	SelNextEnvelopePoint = { "_BR_ENV_SEL_NEXT_POINT", prefixRepetitionCount = true },
+	SelPrevEnvelopePoint = { "_BR_ENV_SEL_PREV_POINT", prefixRepetitionCount = true },
 	PrevFolderNear = { "_SWS_SELNEARESTPREVFOLDER", "ScrollToSelectedTracks", prefixRepetitionCount = true },
 	PrevItemStart = { custom.move.prevItemStart, prefixRepetitionCount = true },
 	PrevMarker = { 40172, prefixRepetitionCount = true },
@@ -860,4 +862,5 @@ return {
 	MidiItemEnd = { custom.move.midi.takeEnd, midiCommand = true },
 	MoveItemUp = { custom.move.moveItemUp, prefixRepetitionCount = true },
 	MoveItemDown = { custom.move.moveItemDown, prefixRepetitionCount = true },
+	SelectPointsTimeSelection = 40330,
 }
