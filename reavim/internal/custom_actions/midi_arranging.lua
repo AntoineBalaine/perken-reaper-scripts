@@ -346,6 +346,8 @@ end
 function midi_arranging.insert_chord()
   -- insert sysex at cursor position
   local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
+  local editor = reaper.MIDIEditor_GetActive()
+  reaper.MIDIEditor_GetTake(editor)
   local cursor_ppq = reaper.MIDI_GetPPQPosFromProjTime(take, reaper.GetCursorPosition())
   local evts = getSysexEvts()
 

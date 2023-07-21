@@ -858,4 +858,6 @@ return {
 	SplitItemsAtNoteStart = { custom.items.splitItemsAtNoteStart },
 	MidiItemStart = { custom.move.midi.takeStart, midiCommand = true },
 	MidiItemEnd = { custom.move.midi.takeEnd, midiCommand = true },
+	MoveItemUp = { custom.move.moveItemUp, prefixRepetitionCount = true },
+	MoveItemDown = { custom.move.moveItemDown, prefixRepetitionCount = true },
 }

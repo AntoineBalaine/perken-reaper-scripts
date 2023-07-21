@@ -44,8 +44,8 @@ function movement.midi.takeEnd()
 	local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
 	local itm = reaper.GetMediaItemTake_Item(take)
 
-	local takeLength = reaper.GetMediaItemInfo_Value(itm, "D_LENGTH")       -- get current item length and position
-	local takePosition = reaper.GetMediaItemInfo_Value(itm, "D_POSITION")   -- Get the position of the take in seconds
+	local takeLength = reaper.GetMediaItemInfo_Value(itm, "D_LENGTH")    -- get current item length and position
+	local takePosition = reaper.GetMediaItemInfo_Value(itm, "D_POSITION") -- Get the position of the take in seconds
 	-- position of start of item
 	reaper.SetEditCurPos(takePosition + takeLength, true, false)
 end
@@ -201,7 +201,7 @@ function movement.jumpToBarNumber()
 	reaper.MoveEditCursor(reaper.TimeMap2_beatsToTime(0, 0, barNumber - 1) - cursorPos, false)
 end
 
----@param direction "up" | "down" | "left" | "right	"
+---@param direction "up" | "down"
 local function moveItem(direction)
 	--- get selected items
 	---for each item
@@ -213,19 +213,26 @@ local function moveItem(direction)
 	--- move selected items to previous grid line (left grid line from start of item)
 	--- else if direction === right
 	--- move selected items to next grid line (right line from start of item)
-	local selectedItems = getSelectedItems()
+	utils.cycleSelectedItemsInSelectedTracks(function(item, track)
+		local trackIndex = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+		if direction == "up" then
+			local trk = reaper.GetTrack(0, trackIndex - 2)
+			reaper.MoveMediaItemToTrack(item, trk)
+			reaper.SetOnlyTrackSelected(trk)
+		else
+			local trk = reaper.GetTrack(0, trackIndex)
+			reaper.MoveMediaItemToTrack(item, trk)
+			reaper.SetOnlyTrackSelected(trk)
+		end
+	end)
 end
 
-local function getSelectedItems()
-	local numSelectedItems = reaper.CountSelectedMediaItems(0)
-	---@type MediaItem[]
-	local selectedItems = {}
-	for i = 0, numSelectedItems - 1 do
-		local item = reaper.GetSelectedMediaItem(0, i)
-		table.insert(selectedItems, item)
-	end
-	return selectedItems
+function movement.moveItemUp()
+	moveItem("up")
 end
 
+function movement.moveItemDown()
+	moveItem("down")
+end
 
 return movement

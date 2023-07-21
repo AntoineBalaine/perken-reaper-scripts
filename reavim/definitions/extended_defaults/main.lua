@@ -248,6 +248,8 @@ return {
 				["i"] = {
 					"+selected items",
 					{
+						["<down>"] = "MoveItemDown",
+						["<up>"] = "MoveItemUp",
 						["p"] = "pasteRhythmToPitches",
 						["P"] = "PasteItemBeforeCursor",
 						["j"] = "NextTake",
