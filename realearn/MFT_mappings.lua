@@ -1,4 +1,4 @@
-Bank_selectors = {
+local Bank_selectors = {
     {
         id = "05qt6I1vMb2VAB_iIcA4u",
         name = "B1_Select",
@@ -52,7 +52,8 @@ Bank_selectors = {
         },
     },
 }
-B1_mappings = {
+
+local B1_mappings = {
     {
         id = "GKr6XIMDomfdBvdUgBWq2",
         name = "V1_B1",
@@ -334,9 +335,9 @@ B1_mappings = {
             command = "RSf6dd39666432405992d1b844b90fd19ea3fb27b1",
         },
     },
-
 }
-B2_mappings = {
+
+local B2_mappings = {
     {
         id = "xymAWh9XDME-gCzIVUdYq",
         name = "V1_B2",
@@ -365,6 +366,12 @@ B2_mappings = {
     },
 }
 
+local mappings = {
+    table.unpack(B1_mappings),
+    table.unpack(B2_mappings),
+    table.unpack(Bank_selectors),
+}
+
 local main_compartment = {
     kind = "MainCompartment",
     version = "2.15.0",
@@ -389,12 +396,7 @@ local main_compartment = {
                 },
             },
         },
-        mappings = {
-            table.unpack(B1_mappings),
-            table.unpack(B2_mappings),
-            table.unpack(Bank_selectors),
-
-        },
+        mappings = mappings,
     },
 }
 return main_compartment
