@@ -118,6 +118,7 @@ return {
 		["<CS-up>"] = "PitchItemUpOct",
 	},
 	command = {
+		["<C-a>"] = "devAction",
 		["<C-B>"] = "FadeItemInFromMouse",
 		["<C-E>"] = "FadeItemOutFromMouse",
 		["<C-b>"] = "TrimLeftEdgeFromMouse",

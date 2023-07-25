@@ -857,7 +857,6 @@ return {
 	FadeItemOutFromMouse = { custom.items.fadeItemOutFromMouse },
 	jumpToBar = { custom.move.jumpToBarNumber, midiCommand = true },
 	pasteRhythmToPitches = { custom.pasteRhythm.pasteRhythm },
-	devAction = { custom.move.jumpToBarNumber, midiCommand = true },
 	ExplodeNoteRows = 40920,
 	SplitItemsAtNoteStart = { custom.items.splitItemsAtNoteStart },
 	MidiItemStart = { custom.move.midi.takeStart, midiCommand = true },
@@ -867,4 +866,5 @@ return {
 	SelectPointsTimeSelection = 40330,
 	InsertToggleAtTimeSelection = { custom.envelope.insertToggleAtTimeSelection },
 	InvertSelectedPoints = 40334,
+	devAction = { custom.midi_controller.devAction },
 }

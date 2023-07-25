@@ -40,6 +40,7 @@ return {
 		["<C-W>"] = "ActivatePrevMidiTrack",
 	},
 	command = {
+		["<C-a>"] = "devAction",
 		["<ESC>"] = "ResetMidi",
 		[":"] = "jumpToBar",
 		["n"] = "AddNextNoteToSelection",
