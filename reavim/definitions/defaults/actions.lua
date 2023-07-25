@@ -866,4 +866,25 @@ return {
 	InsertToggleAtTimeSelection = { custom.envelope.insertToggleAtTimeSelection },
 	InvertSelectedPoints = 40334,
 	devAction = { custom.midi_controller.devAction },
+	VrtlBtn1 = { custom.midi_controller.devAction },
+	VrtlBtn2 = { custom.midi_controller.devAction },
+	VrtlBtn3 = {
+		function()
+			custom.midi_controller.setModDestination("JS: Use slider1 for parameter modulation linking. [Dummy]",
+				"JS: Use slider1 for parameter modulation linking. [Dummy]", 0)
+		end },
+	VrtlBtn4 = { custom.midi_controller.devAction },
+	VrtlBtn5 = { custom.midi_controller.devAction },
+	VrtlBtn6 = { custom.midi_controller.devAction },
+	VrtlBtn7 = { custom.midi_controller.devAction },
+	VrtlBtn8 = { custom.midi_controller.devAction },
+	VrtlBtn9 = { custom.midi_controller.devAction },
+	VrtlBtn10 = { custom.midi_controller.devAction },
+	VrtlBtn11 = { custom.midi_controller.devAction },
+	VrtlBtn12 = { custom.midi_controller.devAction },
+	VrtlBtn13 = { function() custom.midi_controller.setModSource("LFO", "LFO_ALIAS", 10) end },
+	VrtlBtn14 = { custom.midi_controller.devAction },
+	VrtlBtn15 = { custom.midi_controller.devAction },
+	VrtlBtn16 = { custom.midi_controller.devAction },
+
 }
