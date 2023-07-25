@@ -500,7 +500,6 @@ SCR 4 0 RSe104407239b4d42cb7e811bd388b47c50a0f93c2 "Custom: gen_Envelope-based D
 SCR 4 0 RSe936c6b17fd68927eb857a9b64975c60fd94b7a1 "Custom: gen_Envelope-based Compressor v2.eel" "EUGENE27771-ReaScripts/Various/Envelope-based Compressor/gen_Envelope-based Compressor v2.eel"
 ACT 0 0 "543457ada9470e48be938015f07e8745" "Custom: reverse hall" 41042 40626 41043 41043 40625 _SWS_AWRENDERSTEREOSMART _XENAKIOS_SELFIRSTITEMSOFTRACKS 40270 40108 40131 _XEN_MOVE_EDCUR32NDRIGHT 41205 41042 41311 _XEN_MOVE_EDCUR32NDLEFT 40509 41518 40510 41525 40285 40731 41043
 ACT 0 0 "295a9f56d8914fef9cc8fabdbca7c9c6" "Custom: AB - Reverse Swell " 41173 _XENAKIOS_DOSTORECURPOS 40698 40001 _25f79e6600784ada97bedb3ddea3448e 41174 41051 _S&M_PASTE_TAKEFXCHAIN1 _XENAKIOS_RENDERITEMNEWTAKEWITHTAIL 40612 41051 41307 _XENAKIOS_DORECALLCURPOS 41311 _SWS_NORMPEAKRMS 41173 40699 _XENAKIOS_SELPREVTRACK 40058 _XENAKIOS_SELNEXTTRACK 40005
-SCR 4 0 RS38e22b12061e467b6ded2fe1e17a3d27fcc1feed "Custom: LBX Stripper.lua" "LBX/LBX Stripper.lua"
 ACT 0 0 "b348a5882a7b4011af37504128db10a2" "Custom: AB - Paste on Grid and Adjust Item Length to Grid" 41121 40698 40513 40058 41173 40647 41311 41120
 SCR 4 0 RS5bbc0a03b23ec4148de643394d9978f2765a1adb "Custom: me2beats_Nudge active take volume.lua" "me2beats Scripts/Items/me2beats_Nudge active take volume.lua"
 SCR 4 0 RSdc4f9e79ffa40d94b0ce94a93b2763b464f96e77 "Custom: me2beats_Increase selected items volume linearly.lua" "me2beats Scripts/Items/me2beats_Increase selected items volume linearly.lua"
@@ -563,8 +562,6 @@ SCR 4 0 RS21fbadaed844213c5ea07c70bbc8a60e4140f19c "Custom: AB -  MIDI editor an
 ACT 0 0 "2a5326c3efe34a419c0064714d75eba2" "Custom: AB - Drums - replace midi with selected item and randomize" 41173 _RS04dc410a9f4d38281fd395cb226eb82058a34536 _XENAKIOS_SELITEMSUNDEDCURSELTX 40006 40421 41588 _RSb5fb7f8758c5bd7871a1c8232aca66404876e234 40421 41639 _RS41e59f1f2577cdecefe3d3e5552b96d1dc70ae7d
 SCR 4 0 RSa626f0bbe80c01be552d2a1f2bcf56fa08e7dd5f "Custom: AB - randomize pitch.eel" "AB/AB - randomize pitch.eel"
 SCR 4 0 RSf71e33b5cb05999603ce2b73de9a3b8e346ccded "Custom: Loop count.lua" "AB/Loop count.lua"
-SCR 4 0 RSe3b9c1e67aebd6435bf6901a80b3b89919d493f8 "Custom: practice 1.lua" "AB/practice 1.lua"
-SCR 4 0 RSc29276b98a930f4df8dff50645edaf3705fff534 "Custom: practice 2.lua" "AB/practice 2.lua"
 ACT 0 0 "9ffc83586f634f9ca248e0e66088af96" "Custom: AB - replace script" _S&M_CYCLACTION_25
 SCR 4 32060 RS7d3c_90af1fd1133e72cb194699eb6c55bde13aad6103 "Custom: me2beats_Select only note under mouse.lua" "me2beats Scripts/MIDI Editor/me2beats_Select only note under mouse.lua"
 ACT 0 32060 "44f75b2e55a74a50a452050e03764364" "Custom: AB - scale adjust value for selected events " _RS7d3c_90af1fd1133e72cb194699eb6c55bde13aad6103 2005 2005 2005 2005 2005 2005 2005 2005 2005 2005 999
@@ -645,7 +642,6 @@ SCR 4 0 RS7f7eea36e242629a8b8acab0a684aceccf877348 "Custom: mpl_set_render_filen
 SCR 4 0 RSac4a70b96027af34a31ab3fb9218356e09ee3dbc "Custom: mpl_set_render_filename_VxLead.lua" MPL_custom/mpl_set_render_filename_VxLead.lua
 SCR 4 0 RS8e9441c6c0ed5e930b16ef491b3a426b0efaba22 "Custom: mpl_set_render_filename_Woodwinds.lua" MPL_custom/mpl_set_render_filename_Woodwinds.lua
 SCR 4 0 RS6309b03d5661abcd74665ac05bf84511cd96dccb "Custom: mpl_set_render_filename_NoPlucks.lua" MPL_custom/mpl_set_render_filename_NoPlucks.lua
-SCR 4 0 RS5b7ce059f3e9169f9457bf236c0f121a87308729 "Custom: practice 3.lua" "AB/practice 3.lua"
 SCR 4 0 RS377d3c7722c4181cb18d343dee40790be33bbdec "Custom: AB - stretch marker rate ramp up slope.lua" "AB/AB - stretch marker rate ramp up slope.lua"
 SCR 4 0 RSae632b33bba904e0ec740906de056b68b1a1f40a "Custom: AB - stretch marker rate ramp down slope.lua" "AB/AB - stretch marker rate ramp down slope.lua"
 SCR 4 32060 RS7d3c_b6f705813eba9f7b9fc976f12444d85423e6a046 "Custom: cfillion_Step sequencing (options).lua" "ReaTeam Scripts/MIDI Editor/cfillion_Step sequencing (options).lua"
@@ -809,7 +805,6 @@ SCR 4 32060 RS7d3c_fc83a7ac9caaf39f3d44b242dc1440165903e287 "Custom: AB - Snap c
 SCR 4 32060 RS7d3c_ed7caffb63f9d053027021a1f0e5e516f1ecce7d "Custom: mpl_Paste selected CC.lua" "MPL Scripts/MIDI editor/mpl_Paste selected CC.lua"
 SCR 4 0 RScae56e5d977cfb432ebc1598820929e678c76837 "Custom: X-Raym_Invert envelope points selection.lua" "X-Raym Scripts/Envelopes/On Tracks/X-Raym_Invert envelope points selection.lua"
 SCR 4 0 RSd35e7de1509502300539c309cd730328f7455ab5 "Custom: me2beats_Move cursor to last selected envelope selected point.lua" "me2beats Scripts/Envelopes/me2beats_Move cursor to last selected envelope selected point.lua"
-SCR 4 0 RS904758516aecb215edeadb5fe9b146f4e6be33d7 "Custom: practice 6.lua" "AB/practice 6.lua"
 SCR 4 0 RS9ed0bd40f25703508f9e0aa07515340232870918 "Custom: kawa_ENV_SelectHigherValuePointsThanFirstPt.lua" "kawa Scripts/ENVELOPE section/kawa_ENV_SelectHigherValuePointsThanFirstPt.lua"
 SCR 4 0 RS772311554b8c027d62823574604ff5162b5bc297 "Custom: mpl_Prepare MIDI input for last touched track.lua" "MPL Scripts/Tracks Properties/mpl_Prepare MIDI input for last touched track.lua"
 SCR 4 0 RS97d1ce0b6478f61dbf35a765f4ef5724dd9c0a2a "Custom: mpl_Route FX chain followed by focused FX to 3-4 pair.lua" "MPL Scripts/FX/mpl_Route FX chain followed by focused FX to 3-4 pair.lua"
@@ -899,7 +894,7 @@ SCR 4 0 RS9c8f9da0d0273312cdb335e20d7a6d6cc70290cc "Custom: velo tool.eel" "AB/v
 SCR 4 0 RS9d51376a7c375e8482600aa8d11f1dc06dcb66ef "Custom: mpl_Send tracks (background).lua" "MPL Scripts/Tracks Properties/mpl_Send tracks (background).lua"
 SCR 4 0 RS5e28fb7502657b3b504d2570b39b01f5ceb53fc1 "Custom: bfo - Add track special b0se.lua" "/Users/antoinebalaine/Downloads/bfo - Add track special b0se.lua"
 SCR 4 0 RSb1424ca525a0d47ec90a00c9bdc3b0389dbb68ae "Custom: X-Raym_Propagate last focused FX parameters values but bypass to similarly named FX on child tracks (real-time).lua" "X-Raym Scripts/FX/X-Raym_Propagate last focused FX parameters values but bypass to similarly named FX on child tracks (real-time).lua"
-SCR 4 32060 reaper_keys_midi_<left> "[reaper-keys] [key_press] [<left>]" ./reaper-keys/key_scripts/midi_left.lua
+SCR 516 32060 reaper_keys_midi_<left> "[reaper-keys] [key_press] [<left>]" ./reaper-keys/key_scripts/midi_left.lua
 SCR 4 32060 reaper_keys_midi_<C-left> "[reaper-keys] [key_press] [<C-left>]" ./reaper-keys/key_scripts/midi_(C-left).lua
 SCR 4 32060 reaper_keys_midi_<M-left> "[reaper-keys] [key_press] [<M-left>]" ./reaper-keys/key_scripts/midi_(M-left).lua
 SCR 4 32060 reaper_keys_midi_<S-left> "[reaper-keys] [key_press] [<S-left>]" ./reaper-keys/key_scripts/midi_(S-left).lua
@@ -1019,7 +1014,7 @@ SCR 4 32060 reaper_keys_midi_<MS-backspace> "[reaper-keys] [key_press] [<MS-back
 SCR 4 32060 reaper_keys_midi_<CS-backspace> "[reaper-keys] [key_press] [<CS-backspace>]" ./reaper-keys/key_scripts/midi_(CS-backspace).lua
 SCR 4 32060 reaper_keys_midi_<CM-backspace> "[reaper-keys] [key_press] [<CM-backspace>]" ./reaper-keys/key_scripts/midi_(CM-backspace).lua
 SCR 4 32060 reaper_keys_midi_<CMS-backspace> "[reaper-keys] [key_press] [<CMS-backspace>]" ./reaper-keys/key_scripts/midi_(CMS-backspace).lua
-SCR 4 32060 reaper_keys_midi_<SPC> "[reaper-keys] [key_press] [<SPC>]" ./reaper-keys/key_scripts/midi_SPC.lua
+SCR 516 32060 reaper_keys_midi_<SPC> "[reaper-keys] [key_press] [<SPC>]" ./reaper-keys/key_scripts/midi_SPC.lua
 SCR 4 32060 reaper_keys_midi_<C-SPC> "[reaper-keys] [key_press] [<C-SPC>]" ./reaper-keys/key_scripts/midi_(C-SPC).lua
 SCR 4 32060 reaper_keys_midi_<M-SPC> "[reaper-keys] [key_press] [<M-SPC>]" ./reaper-keys/key_scripts/midi_(M-SPC).lua
 SCR 4 32060 reaper_keys_midi_<S-SPC> "[reaper-keys] [key_press] [<S-SPC>]" ./reaper-keys/key_scripts/midi_(S-SPC).lua
@@ -1035,7 +1030,7 @@ SCR 4 32060 reaper_keys_midi_<MS-TAB> "[reaper-keys] [key_press] [<MS-TAB>]" ./r
 SCR 4 32060 reaper_keys_midi_<CS-TAB> "[reaper-keys] [key_press] [<CS-TAB>]" ./reaper-keys/key_scripts/midi_(CS-TAB).lua
 SCR 4 32060 reaper_keys_midi_<CM-TAB> "[reaper-keys] [key_press] [<CM-TAB>]" ./reaper-keys/key_scripts/midi_(CM-TAB).lua
 SCR 4 32060 reaper_keys_midi_<CMS-TAB> "[reaper-keys] [key_press] [<CMS-TAB>]" ./reaper-keys/key_scripts/midi_(CMS-TAB).lua
-SCR 4 32060 reaper_keys_midi_<ESC> "[reaper-keys] [key_press] [<ESC>]" ./reaper-keys/key_scripts/midi_ESC.lua
+SCR 516 32060 reaper_keys_midi_<ESC> "[reaper-keys] [key_press] [<ESC>]" ./reaper-keys/key_scripts/midi_ESC.lua
 SCR 4 32060 reaper_keys_midi_<C-ESC> "[reaper-keys] [key_press] [<C-ESC>]" ./reaper-keys/key_scripts/midi_(C-ESC).lua
 SCR 4 32060 reaper_keys_midi_<M-ESC> "[reaper-keys] [key_press] [<M-ESC>]" ./reaper-keys/key_scripts/midi_(M-ESC).lua
 SCR 4 32060 reaper_keys_midi_<S-ESC> "[reaper-keys] [key_press] [<S-ESC>]" ./reaper-keys/key_scripts/midi_(S-ESC).lua
@@ -1211,7 +1206,7 @@ SCR 4 32060 RS7d3c_506b94e0654074889fd05d11dd25cc4b5abd51ce "[reaper-keys] [key_
 SCR 4 32060 RS7d3c_45e4755f034b7f16e5b761dbf05ce5bd09412baf "[reaper-keys] [key_press] [<C-T>]" ./reaper-keys/key_scripts/midi_(CS-t).lua
 SCR 4 32060 reaper_keys_midi_<CM-t> "[reaper-keys] [key_press] [<CM-t>]" ./reaper-keys/key_scripts/midi_(CM-t).lua
 SCR 4 32060 RS7d3c_5824ff45133c5473e853ffce39a05eae32cb80ae "[reaper-keys] [key_press] [<CM-T>]" ./reaper-keys/key_scripts/midi_(CMS-t).lua
-SCR 4 32060 reaper_keys_midi_u "[reaper-keys] [key_press] [u]" ./reaper-keys/key_scripts/midi_u.lua
+SCR 516 32060 reaper_keys_midi_u "[reaper-keys] [key_press] [u]" ./reaper-keys/key_scripts/midi_u.lua
 SCR 4 32060 reaper_keys_midi_<C-u> "[reaper-keys] [key_press] [<C-u>]" ./reaper-keys/key_scripts/midi_(C-u).lua
 SCR 4 32060 reaper_keys_midi_<M-u> "[reaper-keys] [key_press] [<M-u>]" ./reaper-keys/key_scripts/midi_(M-u).lua
 SCR 4 32060 RS7d3c_cdb48682ecc90b8b23e8c583ee2676ec39ff16c1 "[reaper-keys] [key_press] [U]" ./reaper-keys/key_scripts/midi_(S-u).lua
@@ -1228,7 +1223,7 @@ SCR 4 32060 RS7d3c_f8e618d8a78ba9377653c65a2c85c156d27691dd "[reaper-keys] [key_
 SCR 4 32060 reaper_keys_midi_<CM-v> "[reaper-keys] [key_press] [<CM-v>]" ./reaper-keys/key_scripts/midi_(CM-v).lua
 SCR 4 32060 RS7d3c_cf36fb942eeea24a7a60564e83275123acf64192 "[reaper-keys] [key_press] [<CM-V>]" ./reaper-keys/key_scripts/midi_(CMS-v).lua
 SCR 4 32060 reaper_keys_midi_w "[reaper-keys] [key_press] [w]" ./reaper-keys/key_scripts/midi_w.lua
-SCR 4 32060 reaper_keys_midi_<C-w> "[reaper-keys] [key_press] [<C-w>]" ./reaper-keys/key_scripts/midi_(C-w).lua
+SCR 516 32060 reaper_keys_midi_<C-w> "[reaper-keys] [key_press] [<C-w>]" ./reaper-keys/key_scripts/midi_(C-w).lua
 SCR 4 32060 reaper_keys_midi_<M-w> "[reaper-keys] [key_press] [<M-w>]" ./reaper-keys/key_scripts/midi_(M-w).lua
 SCR 4 32060 RS7d3c_478c8d37db044b2e6894a1477c509fe53f8a41e9 "[reaper-keys] [key_press] [W]" ./reaper-keys/key_scripts/midi_(S-w).lua
 SCR 4 32060 RS7d3c_0311ccc2d6cabe8285ed27c458b492d0d4a7c7d9 "[reaper-keys] [key_press] [<M-W>]" ./reaper-keys/key_scripts/midi_(MS-w).lua
@@ -1443,7 +1438,7 @@ SCR 4 32060 reaper_keys_midi_` "[reaper-keys] [key_press] [`]" ./reaper-keys/key
 SCR 4 32060 reaper_keys_midi_<C-`> "[reaper-keys] [key_press] [<C-`>]" ./reaper-keys/key_scripts/midi_(C-backtick).lua
 SCR 4 32060 reaper_keys_midi_<M-`> "[reaper-keys] [key_press] [<M-`>]" ./reaper-keys/key_scripts/midi_(M-backtick).lua
 SCR 4 32060 reaper_keys_midi_<CM-`> "[reaper-keys] [key_press] [<CM-`>]" ./reaper-keys/key_scripts/midi_(CM-backtick).lua
-SCR 4 0 reaper_keys_main_<left> "[reaper-keys] [key_press] [<left>]" ./reaper-keys/key_scripts/main_left.lua
+SCR 516 0 reaper_keys_main_<left> "[reaper-keys] [key_press] [<left>]" ./reaper-keys/key_scripts/main_left.lua
 SCR 4 0 reaper_keys_main_<C-left> "[reaper-keys] [key_press] [<C-left>]" ./reaper-keys/key_scripts/main_(C-left).lua
 SCR 4 0 reaper_keys_main_<M-left> "[reaper-keys] [key_press] [<M-left>]" ./reaper-keys/key_scripts/main_(M-left).lua
 SCR 4 0 reaper_keys_main_<S-left> "[reaper-keys] [key_press] [<S-left>]" ./reaper-keys/key_scripts/main_(S-left).lua
@@ -1467,7 +1462,7 @@ SCR 4 0 reaper_keys_main_<MS-right> "[reaper-keys] [key_press] [<MS-right>]" ./r
 SCR 4 0 reaper_keys_main_<CS-right> "[reaper-keys] [key_press] [<CS-right>]" ./reaper-keys/key_scripts/main_(CS-right).lua
 SCR 4 0 reaper_keys_main_<CM-right> "[reaper-keys] [key_press] [<CM-right>]" ./reaper-keys/key_scripts/main_(CM-right).lua
 SCR 4 0 reaper_keys_main_<CMS-right> "[reaper-keys] [key_press] [<CMS-right>]" ./reaper-keys/key_scripts/main_(CMS-right).lua
-SCR 4 0 reaper_keys_main_<down> "[reaper-keys] [key_press] [<down>]" ./reaper-keys/key_scripts/main_down.lua
+SCR 516 0 reaper_keys_main_<down> "[reaper-keys] [key_press] [<down>]" ./reaper-keys/key_scripts/main_down.lua
 SCR 4 0 reaper_keys_main_<C-down> "[reaper-keys] [key_press] [<C-down>]" ./reaper-keys/key_scripts/main_(C-down).lua
 SCR 4 0 reaper_keys_main_<M-down> "[reaper-keys] [key_press] [<M-down>]" ./reaper-keys/key_scripts/main_(M-down).lua
 SCR 4 0 reaper_keys_main_<S-down> "[reaper-keys] [key_press] [<S-down>]" ./reaper-keys/key_scripts/main_(S-down).lua
@@ -1587,7 +1582,7 @@ SCR 4 0 reaper_keys_main_<MS-ESC> "[reaper-keys] [key_press] [<MS-ESC>]" ./reape
 SCR 4 0 reaper_keys_main_<CS-ESC> "[reaper-keys] [key_press] [<CS-ESC>]" ./reaper-keys/key_scripts/main_(CS-ESC).lua
 SCR 4 0 reaper_keys_main_<CM-ESC> "[reaper-keys] [key_press] [<CM-ESC>]" ./reaper-keys/key_scripts/main_(CM-ESC).lua
 SCR 4 0 reaper_keys_main_<CMS-ESC> "[reaper-keys] [key_press] [<CMS-ESC>]" ./reaper-keys/key_scripts/main_(CMS-ESC).lua
-SCR 4 0 reaper_keys_main_<return> "[reaper-keys] [key_press] [<return>]" ./reaper-keys/key_scripts/main_return.lua
+SCR 516 0 reaper_keys_main_<return> "[reaper-keys] [key_press] [<return>]" ./reaper-keys/key_scripts/main_return.lua
 SCR 4 0 reaper_keys_main_<C-return> "[reaper-keys] [key_press] [<C-return>]" ./reaper-keys/key_scripts/main_(C-return).lua
 SCR 4 0 reaper_keys_main_<M-return> "[reaper-keys] [key_press] [<M-return>]" ./reaper-keys/key_scripts/main_(M-return).lua
 SCR 4 0 reaper_keys_main_<S-return> "[reaper-keys] [key_press] [<S-return>]" ./reaper-keys/key_scripts/main_(S-return).lua
@@ -1605,13 +1600,13 @@ SCR 4 0 reaper_keys_main_<CM-a> "[reaper-keys] [key_press] [<CM-a>]" ./reaper-ke
 SCR 4 0 RS3b9baf1ca253a69774e64e02f2c101779c9ff060 "[reaper-keys] [key_press] [<CM-A>]" ./reaper-keys/key_scripts/main_(CMS-a).lua
 SCR 516 0 reaper_keys_main_b "[reaper-keys] [key_press] [b]" ./reaper-keys/key_scripts/main_b.lua
 SCR 4 0 reaper_keys_main_<C-b> "[reaper-keys] [key_press] [<C-b>]" ./reaper-keys/key_scripts/main_(C-b).lua
-SCR 4 0 reaper_keys_main_<M-b> "[reaper-keys] [key_press] [<M-b>]" ./reaper-keys/key_scripts/main_(M-b).lua
-SCR 4 0 RSc41767739f75481dbc0582d7f7710aeebf4f33a8 "[reaper-keys] [key_press] [B]" ./reaper-keys/key_scripts/main_(S-b).lua
+SCR 516 0 reaper_keys_main_<M-b> "[reaper-keys] [key_press] [<M-b>]" ./reaper-keys/key_scripts/main_(M-b).lua
+SCR 516 0 RSc41767739f75481dbc0582d7f7710aeebf4f33a8 "[reaper-keys] [key_press] [B]" ./reaper-keys/key_scripts/main_(S-b).lua
 SCR 4 0 RSc34c7626573b4a4f358b929c1e8e4ad3f2f55b1c "[reaper-keys] [key_press] [<M-B>]" ./reaper-keys/key_scripts/main_(MS-b).lua
 SCR 4 0 RS6cfcf934dbf589f838867df7d0675603c328d54f "[reaper-keys] [key_press] [<C-B>]" ./reaper-keys/key_scripts/main_(CS-b).lua
 SCR 4 0 reaper_keys_main_<CM-b> "[reaper-keys] [key_press] [<CM-b>]" ./reaper-keys/key_scripts/main_(CM-b).lua
 SCR 4 0 RS3880437a2b92460ceee013eff481db89f70fe320 "[reaper-keys] [key_press] [<CM-B>]" ./reaper-keys/key_scripts/main_(CMS-b).lua
-SCR 4 0 reaper_keys_main_c "[reaper-keys] [key_press] [c]" ./reaper-keys/key_scripts/main_c.lua
+SCR 516 0 reaper_keys_main_c "[reaper-keys] [key_press] [c]" ./reaper-keys/key_scripts/main_c.lua
 SCR 4 0 reaper_keys_main_<C-c> "[reaper-keys] [key_press] [<C-c>]" ./reaper-keys/key_scripts/main_(C-c).lua
 SCR 4 0 reaper_keys_main_<M-c> "[reaper-keys] [key_press] [<M-c>]" ./reaper-keys/key_scripts/main_(M-c).lua
 SCR 4 0 RS35922dc70ab2e11b741be02aed779ead79e9403b "[reaper-keys] [key_press] [C]" ./reaper-keys/key_scripts/main_(S-c).lua
@@ -1628,14 +1623,14 @@ SCR 4 0 RS1e297a628362329e2f2c30819d9e71e032b13572 "[reaper-keys] [key_press] [<
 SCR 4 0 reaper_keys_main_<CM-d> "[reaper-keys] [key_press] [<CM-d>]" ./reaper-keys/key_scripts/main_(CM-d).lua
 SCR 4 0 RS271441928403dc369ba5cdafad9a2608fe7ca950 "[reaper-keys] [key_press] [<CM-D>]" ./reaper-keys/key_scripts/main_(CMS-d).lua
 SCR 516 0 reaper_keys_main_e "[reaper-keys] [key_press] [e]" ./reaper-keys/key_scripts/main_e.lua
-SCR 4 0 reaper_keys_main_<C-e> "[reaper-keys] [key_press] [<C-e>]" ./reaper-keys/key_scripts/main_(C-e).lua
+SCR 516 0 reaper_keys_main_<C-e> "[reaper-keys] [key_press] [<C-e>]" ./reaper-keys/key_scripts/main_(C-e).lua
 SCR 4 0 reaper_keys_main_<M-e> "[reaper-keys] [key_press] [<M-e>]" ./reaper-keys/key_scripts/main_(M-e).lua
 SCR 4 0 RS0b8fa817fa790e50479c8463262a19f773bc36bc "[reaper-keys] [key_press] [E]" ./reaper-keys/key_scripts/main_(S-e).lua
 SCR 4 0 RSa53187d328946e873775cd6505fd1c117bc0e3c5 "[reaper-keys] [key_press] [<M-E>]" ./reaper-keys/key_scripts/main_(MS-e).lua
 SCR 4 0 RS0e315c30ee69d16acc43f82346daab75b09c116e "[reaper-keys] [key_press] [<C-E>]" ./reaper-keys/key_scripts/main_(CS-e).lua
 SCR 4 0 reaper_keys_main_<CM-e> "[reaper-keys] [key_press] [<CM-e>]" ./reaper-keys/key_scripts/main_(CM-e).lua
 SCR 4 0 RS4664fae7e66f8b850d929dcbbfd62c1098d5ce3e "[reaper-keys] [key_press] [<CM-E>]" ./reaper-keys/key_scripts/main_(CMS-e).lua
-SCR 4 0 reaper_keys_main_f "[reaper-keys] [key_press] [f]" ./reaper-keys/key_scripts/main_f.lua
+SCR 516 0 reaper_keys_main_f "[reaper-keys] [key_press] [f]" ./reaper-keys/key_scripts/main_f.lua
 SCR 4 0 reaper_keys_main_<C-f> "[reaper-keys] [key_press] [<C-f>]" ./reaper-keys/key_scripts/main_(C-f).lua
 SCR 4 0 reaper_keys_main_<M-f> "[reaper-keys] [key_press] [<M-f>]" ./reaper-keys/key_scripts/main_(M-f).lua
 SCR 4 0 RSfd3c7f13865675ee01df487c1ae3dcef6abb1f0b "[reaper-keys] [key_press] [F]" ./reaper-keys/key_scripts/main_(S-f).lua
@@ -1659,7 +1654,7 @@ SCR 4 0 RS6bfc78fedbb2497dab7b87a98f1c9fec19a0a50d "[reaper-keys] [key_press] [<
 SCR 4 0 RS6202c9d6d7e61cac7bec8767227d3acdccdc502a "[reaper-keys] [key_press] [<C-H>]" ./reaper-keys/key_scripts/main_(CS-h).lua
 SCR 4 0 reaper_keys_main_<CM-h> "[reaper-keys] [key_press] [<CM-h>]" ./reaper-keys/key_scripts/main_(CM-h).lua
 SCR 4 0 RS6531546b074f585075b0a0bde795925d8c8fba50 "[reaper-keys] [key_press] [<CM-H>]" ./reaper-keys/key_scripts/main_(CMS-h).lua
-SCR 4 0 reaper_keys_main_i "[reaper-keys] [key_press] [i]" ./reaper-keys/key_scripts/main_i.lua
+SCR 516 0 reaper_keys_main_i "[reaper-keys] [key_press] [i]" ./reaper-keys/key_scripts/main_i.lua
 SCR 4 0 reaper_keys_main_<C-i> "[reaper-keys] [key_press] [<C-i>]" ./reaper-keys/key_scripts/main_(C-i).lua
 SCR 4 0 reaper_keys_main_<M-i> "[reaper-keys] [key_press] [<M-i>]" ./reaper-keys/key_scripts/main_(M-i).lua
 SCR 4 0 RS895839735d619616765f398ceb23bcb867050e9a "[reaper-keys] [key_press] [I]" ./reaper-keys/key_scripts/main_(S-i).lua
@@ -1739,7 +1734,7 @@ SCR 4 0 RSad901d3f4a7592b841c24cb970f2758beffec791 "[reaper-keys] [key_press] [<
 SCR 4 0 RS3aa5d0c98f6b01ade0327c3510a9c35d5ad1f79b "[reaper-keys] [key_press] [<C-R>]" ./reaper-keys/key_scripts/main_(CS-r).lua
 SCR 4 0 reaper_keys_main_<CM-r> "[reaper-keys] [key_press] [<CM-r>]" ./reaper-keys/key_scripts/main_(CM-r).lua
 SCR 4 0 RSe8b4d8c2b6a26a3054bd490c098ddfeda2329e13 "[reaper-keys] [key_press] [<CM-R>]" ./reaper-keys/key_scripts/main_(CMS-r).lua
-SCR 4 0 reaper_keys_main_s "[reaper-keys] [key_press] [s]" ./reaper-keys/key_scripts/main_s.lua
+SCR 516 0 reaper_keys_main_s "[reaper-keys] [key_press] [s]" ./reaper-keys/key_scripts/main_s.lua
 SCR 4 0 reaper_keys_main_<C-s> "[reaper-keys] [key_press] [<C-s>]" ./reaper-keys/key_scripts/main_(C-s).lua
 SCR 4 0 reaper_keys_main_<M-s> "[reaper-keys] [key_press] [<M-s>]" ./reaper-keys/key_scripts/main_(M-s).lua
 SCR 4 0 RSc8e8ab7b1fad422a6e19380fdd05e1e5443e8f5e "[reaper-keys] [key_press] [S]" ./reaper-keys/key_scripts/main_(S-s).lua
@@ -1755,7 +1750,7 @@ SCR 4 0 RS7169e34f5726e37f2d4100014091c6f7201db5a7 "[reaper-keys] [key_press] [<
 SCR 4 0 RS37f3d2555addb630d886aef0e0b90b9016ca1f40 "[reaper-keys] [key_press] [<C-T>]" ./reaper-keys/key_scripts/main_(CS-t).lua
 SCR 4 0 reaper_keys_main_<CM-t> "[reaper-keys] [key_press] [<CM-t>]" ./reaper-keys/key_scripts/main_(CM-t).lua
 SCR 4 0 RS935809dbd8149ee2f711f47abdf681e081f2cb10 "[reaper-keys] [key_press] [<CM-T>]" ./reaper-keys/key_scripts/main_(CMS-t).lua
-SCR 4 0 reaper_keys_main_u "[reaper-keys] [key_press] [u]" ./reaper-keys/key_scripts/main_u.lua
+SCR 516 0 reaper_keys_main_u "[reaper-keys] [key_press] [u]" ./reaper-keys/key_scripts/main_u.lua
 SCR 4 0 reaper_keys_main_<C-u> "[reaper-keys] [key_press] [<C-u>]" ./reaper-keys/key_scripts/main_(C-u).lua
 SCR 4 0 reaper_keys_main_<M-u> "[reaper-keys] [key_press] [<M-u>]" ./reaper-keys/key_scripts/main_(M-u).lua
 SCR 4 0 RS8013f0ccc7ff5718255c83c424dcaac208050cd9 "[reaper-keys] [key_press] [U]" ./reaper-keys/key_scripts/main_(S-u).lua
@@ -1763,7 +1758,7 @@ SCR 4 0 RS31520719fc852a01ed1b7c2ff5a8e8fa4bd1d127 "[reaper-keys] [key_press] [<
 SCR 4 0 RS535859f8090fa742684db744bbd92bad5f8765f2 "[reaper-keys] [key_press] [<C-U>]" ./reaper-keys/key_scripts/main_(CS-u).lua
 SCR 4 0 reaper_keys_main_<CM-u> "[reaper-keys] [key_press] [<CM-u>]" ./reaper-keys/key_scripts/main_(CM-u).lua
 SCR 4 0 RS59e2949c14b4f73a416a767d40633fce3db250b8 "[reaper-keys] [key_press] [<CM-U>]" ./reaper-keys/key_scripts/main_(CMS-u).lua
-SCR 4 0 reaper_keys_main_v "[reaper-keys] [key_press] [v]" ./reaper-keys/key_scripts/main_v.lua
+SCR 516 0 reaper_keys_main_v "[reaper-keys] [key_press] [v]" ./reaper-keys/key_scripts/main_v.lua
 SCR 4 0 reaper_keys_main_<C-v> "[reaper-keys] [key_press] [<C-v>]" ./reaper-keys/key_scripts/main_(C-v).lua
 SCR 4 0 reaper_keys_main_<M-v> "[reaper-keys] [key_press] [<M-v>]" ./reaper-keys/key_scripts/main_(M-v).lua
 SCR 4 0 RS611899b56347e0a8e6190ce6404f55b04675bd9b "[reaper-keys] [key_press] [V]" ./reaper-keys/key_scripts/main_(S-v).lua
@@ -1787,7 +1782,7 @@ SCR 4 0 RS641ec8fd79b259047a375b33900899f282f7c320 "[reaper-keys] [key_press] [<
 SCR 4 0 RSd65675b153c404aa8d90d35ff0ecb4e1d56b03f4 "[reaper-keys] [key_press] [<C-X>]" ./reaper-keys/key_scripts/main_(CS-x).lua
 SCR 4 0 reaper_keys_main_<CM-x> "[reaper-keys] [key_press] [<CM-x>]" ./reaper-keys/key_scripts/main_(CM-x).lua
 SCR 4 0 RS514b1f3f02d5561a6913dc1a4d5375c7bdd4eebe "[reaper-keys] [key_press] [<CM-X>]" ./reaper-keys/key_scripts/main_(CMS-x).lua
-SCR 4 0 reaper_keys_main_y "[reaper-keys] [key_press] [y]" ./reaper-keys/key_scripts/main_y.lua
+SCR 516 0 reaper_keys_main_y "[reaper-keys] [key_press] [y]" ./reaper-keys/key_scripts/main_y.lua
 SCR 4 0 reaper_keys_main_<C-y> "[reaper-keys] [key_press] [<C-y>]" ./reaper-keys/key_scripts/main_(C-y).lua
 SCR 4 0 reaper_keys_main_<M-y> "[reaper-keys] [key_press] [<M-y>]" ./reaper-keys/key_scripts/main_(M-y).lua
 SCR 4 0 RS9dec85397fa715d37283e83d5e597a102d40209b "[reaper-keys] [key_press] [Y]" ./reaper-keys/key_scripts/main_(S-y).lua
@@ -1795,7 +1790,7 @@ SCR 4 0 RS6b9a8cfd9a7cddd740af23beb307d89519907550 "[reaper-keys] [key_press] [<
 SCR 4 0 RS8429bd99dc958b1a13c0cf1491551c50c52143cc "[reaper-keys] [key_press] [<C-Y>]" ./reaper-keys/key_scripts/main_(CS-y).lua
 SCR 4 0 reaper_keys_main_<CM-y> "[reaper-keys] [key_press] [<CM-y>]" ./reaper-keys/key_scripts/main_(CM-y).lua
 SCR 4 0 RS341121253a876705132dc3009180cb690ace458e "[reaper-keys] [key_press] [<CM-Y>]" ./reaper-keys/key_scripts/main_(CMS-y).lua
-SCR 4 0 reaper_keys_main_z "[reaper-keys] [key_press] [z]" ./reaper-keys/key_scripts/main_z.lua
+SCR 516 0 reaper_keys_main_z "[reaper-keys] [key_press] [z]" ./reaper-keys/key_scripts/main_z.lua
 SCR 4 0 reaper_keys_main_<C-z> "[reaper-keys] [key_press] [<C-z>]" ./reaper-keys/key_scripts/main_(C-z).lua
 SCR 4 0 reaper_keys_main_<M-z> "[reaper-keys] [key_press] [<M-z>]" ./reaper-keys/key_scripts/main_(M-z).lua
 SCR 4 0 RS466061a49246cd613a81dd6812430661b1a488f1 "[reaper-keys] [key_press] [Z]" ./reaper-keys/key_scripts/main_(S-z).lua
@@ -1863,7 +1858,7 @@ SCR 4 0 reaper_keys_main__ "[reaper-keys] [key_press] [_]" ./reaper-keys/key_scr
 SCR 4 0 reaper_keys_main_<C-_> "[reaper-keys] [key_press] [<C-_>]" ./reaper-keys/key_scripts/main_(C-underscore).lua
 SCR 4 0 reaper_keys_main_<M-_> "[reaper-keys] [key_press] [<M-_>]" ./reaper-keys/key_scripts/main_(M-underscore).lua
 SCR 4 0 reaper_keys_main_<CM-_> "[reaper-keys] [key_press] [<CM-_>]" ./reaper-keys/key_scripts/main_(CM-underscore).lua
-SCR 4 0 reaper_keys_main_: "[reaper-keys] [key_press] [:]" ./reaper-keys/key_scripts/main_colon.lua
+SCR 516 0 reaper_keys_main_: "[reaper-keys] [key_press] [:]" ./reaper-keys/key_scripts/main_colon.lua
 SCR 4 0 reaper_keys_main_<C-:> "[reaper-keys] [key_press] [<C-:>]" ./reaper-keys/key_scripts/main_(C-colon).lua
 SCR 4 0 reaper_keys_main_<M-:> "[reaper-keys] [key_press] [<M-:>]" ./reaper-keys/key_scripts/main_(M-colon).lua
 SCR 4 0 reaper_keys_main_<CM-:> "[reaper-keys] [key_press] [<CM-:>]" ./reaper-keys/key_scripts/main_(CM-colon).lua
@@ -1987,66 +1982,236 @@ SCR 4 0 reaper_keys_main_` "[reaper-keys] [key_press] [`]" ./reaper-keys/key_scr
 SCR 4 0 reaper_keys_main_<C-`> "[reaper-keys] [key_press] [<C-`>]" ./reaper-keys/key_scripts/main_(C-backtick).lua
 SCR 4 0 reaper_keys_main_<M-`> "[reaper-keys] [key_press] [<M-`>]" ./reaper-keys/key_scripts/main_(M-backtick).lua
 SCR 4 0 reaper_keys_main_<CM-`> "[reaper-keys] [key_press] [<CM-`>]" ./reaper-keys/key_scripts/main_(CM-backtick).lua
+SCR 4 32060 RS7d3c_f186d6c026de595420309acbe78b9908629bd578 "Custom: setPitchCursorToSelectedNote_AB.lua" AB/midi/setPitchCursorToSelectedNote_AB.lua
+SCR 4 0 RS87865bad1f6c8e1d0edea2d722aabf96fdad47f3 "Custom: amagalma_Find action or script name by its Command ID.lua" "ReaTeam Scripts/Development/amagalma_Find action or script name by its Command ID.lua"
+SCR 4 0 RSb51cc05fba82b9da13b6ac0376675a974cb1fa05 "Custom: Mavriq_Debugging_Tools.lua" "Mavriq ReaScript Repository/Various/Debugging/Mavriq_Debugging_Tools.lua"
+SCR 4 0 RS6b4644d86854e10895485f184942fb69ecc26177 "Custom: ReaImGui_Demo.lua" "ReaTeam Extensions/API/ReaImGui_Demo.lua"
+SCR 4 0 RS8d1d4d5aa237fa78901739fc0d444859590becbf "Custom: ReaImGui_Hello World (legacy syntax).eel" "ReaTeam Extensions/API/ReaImGui_Hello World (legacy syntax).eel"
+SCR 4 0 RS18e23f6591d35b91b2818bdb3f1d47ec9c5446b3 "Custom: ReaImGui_Hello World.eel" "ReaTeam Extensions/API/ReaImGui_Hello World.eel"
+SCR 4 32060 RS7d3c_6a81be7802c188725c00063030cefab8d9444d33 "Custom: practice 1.lua" "AB/practice/practice 1.lua"
+SCR 4 0 RS6a81be7802c188725c00063030cefab8d9444d33 "Custom: practice 1.lua" "AB/practice/practice 1.lua"
+SCR 516 0 RS9aebe6a6a706099d8a0af623f132ce89ed88ac10 "Custom: cfillion_Interactive ReaScript.lua" "ReaTeam Scripts/Development/cfillion_Interactive ReaScript.lua"
+SCR 4 0 RSe3b9c1e67aebd6435bf6901a80b3b89919d493f8 "Custom: practice 1.lua" "AB/practice 1.lua"
+SCR 4 0 RSc29276b98a930f4df8dff50645edaf3705fff534 "Custom: practice 2.lua" "AB/practice 2.lua"
+SCR 4 0 RS5b7ce059f3e9169f9457bf236c0f121a87308729 "Custom: practice 3.lua" "AB/practice 3.lua"
+SCR 4 0 RS904758516aecb215edeadb5fe9b146f4e6be33d7 "Custom: practice 6.lua" "AB/practice 6.lua"
+ACT 1 0 "0ca5e4f52776f656477047ad08cf6b3c" "Custom: CUSTOM - Pro Tools Tab to Transient (Copy)" 40421 40375
+SCR 4 0 RS9f63e44f39e35280383c76dae910159f99e4d6bd "Custom: js_Envelope LFO generator and shaper.lua" "ReaTeam Scripts/Envelopes/js_Envelope LFO generator and shaper.lua"
+SCR 516 0 RS61423f4f1224e18018576b5e3e1af80ebbd67f7e "Custom: mpl_Quantize Tool.lua" "MPL Scripts/Various/mpl_Quantize Tool.lua"
+SCR 4 0 RSd9ac37ae63fccc645e1859cd3d3ed63ea43835f2 "Custom: neutronic_Insert matching track templates.lua" "neutronic/neutronic_Insert matching track templates.lua"
+SCR 4 32063 RS7d3f_6a81be7802c188725c00063030cefab8d9444d33 "Custom: practice 1.lua" "AB/practice/practice 1.lua"
+SCR 4 0 RSd6469a48e0c6b3b63b0ad78152d5e6541973522a "Custom: insert_matching_track_templates.lua" AB/media_explorer/insert_matching_track_templates.lua
+SCR 4 0 RSbb6fa8056fdb527f1fa1bd83e60551fa267a174c "Custom: LBX Stripper 2.lua" "LBX/LBX Stripper 2.lua"
+SCR 4 0 RSbf4965afd0bd1888dd092dff0bd6afe753a69ca4 "Custom: Ultraschall_API_Settings.lua" Ultraschall-API/Ultraschall-API-category/Ultraschall_API_Settings.lua
+SCR 4 0 RS26538f3fae42e34352bf428b1a6a4e0f906db566 "Custom: ultraschall_Add_Developertools_To_Reaper.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Add_Developertools_To_Reaper.lua
+SCR 4 0 RS7f6f82fb34ee59fb7551ea6a1ebb72725018c235 "Custom: ultraschall_Add_ExampleScripts_To_Reaper.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Add_ExampleScripts_To_Reaper.lua
+SCR 4 0 RSae2e523af11731eb5cbc7770be1b7ac1a2ccbcc1 "Custom: ultraschall_Help_Lua_Reference_Manual.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Help_Lua_Reference_Manual.lua
+SCR 4 0 RS67d0d52f97e2e3aca141c3c65c1fee8a50db780c "Custom: ultraschall_Help_Reaper_Api_Documentation.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Help_Reaper_Api_Documentation.lua
+SCR 4 0 RSe6555be3e85a777bf6bc7d1931903a99964a30bb "Custom: ultraschall_Help_Reaper_Api_Video_Documentation.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Help_Reaper_Api_Video_Documentation.lua
+SCR 4 0 RS26a05c23d334b241b9f6a433b1efc5867ab83945 "Custom: ultraschall_Help_Reaper_Api_Web_Documentation.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Help_Reaper_Api_Web_Documentation.lua
+SCR 4 0 RSe150c531a6c157238bb0948518bd0539b47d8bbc "Custom: ultraschall_Help_Reaper_ConfigVars_Documentation.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Help_Reaper_ConfigVars_Documentation.lua
+SCR 4 0 RSe44dd6a20d4c46daa7c61ebd6c252920e0b43ac5 "Custom: ultraschall_Help_Ultraschall_Api_Functions_Reference.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Help_Ultraschall_Api_Functions_Reference.lua
+SCR 4 0 RScfbe34b1da2b25d2ad82c15d37bf4d4fa61216db "Custom: ultraschall_Help_Ultraschall_Api_Introduction_and_Concepts.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Help_Ultraschall_Api_Introduction_and_Concepts.lua
+SCR 4 0 RS06102da583f5572b954291e82c11d6f26ae749a1 "Custom: ultraschall_OpenFolder_Api_Documentation.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_OpenFolder_Api_Documentation.lua
+SCR 4 0 RS8c79cc012b49b3cddb24699ad7446cbe856a919b "Custom: ultraschall_OpenFolder_Api_ExampleScripts.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_OpenFolder_Api_ExampleScripts.lua
+SCR 4 0 RS139b81f8cd422a8b4d456297aa8d9daa74ee8b28 "Custom: ultraschall_Remove_Developertools_From_Reaper.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Remove_Developertools_From_Reaper.lua
+SCR 4 0 RS2f38d0e8d49c4089643f5e272dba95871a11ccb9 "Custom: ultraschall_Remove_ExampleScripts_From_Reaper.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_Remove_ExampleScripts_From_Reaper.lua
+SCR 4 0 RS40b9b3ab36518ea0cf3745b058a67e1b1c91ddea "Custom: ultraschall_developertool_ActionlistToIni-Converter.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_ActionlistToIni-Converter.lua
+SCR 4 0 RSe6e8d8ad195f867316d5f2d331f5fed11c6af18e "Custom: ultraschall_developertool_CheckForNewConfigVars.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_CheckForNewConfigVars.lua
+SCR 4 0 RSe7145b248aa7dfbe93f9fc56263fbfea1ef69a21 "Custom: ultraschall_developertool_CheckPlugins.h_ForNewAndMissingFunctions.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_CheckPlugins.h_ForNewAndMissingFunctions.lua
+SCR 4 0 RSbe30bb93111bd17e4d937349ba543a82d6b55d20 "Custom: ultraschall_developertool_Check_scripts_in_folder_for_deprecated_functions.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Check_scripts_in_folder_for_deprecated_functions.lua
+SCR 4 0 RS04de34938d214309211231b0493f2d443cfb0d93 "Custom: ultraschall_developertool_Compare_LangPacks.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Compare_LangPacks.lua
+SCR 4 0 RS10a1ddec91db61c9c8566ab8f0b214843870d8c4 "Custom: ultraschall_developertool_Copy_Descriptions_and_IDs_from_Listview_of_opened_MetaData-Dialog.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Copy_Descriptions_and_IDs_from_Listview_of_opened_MetaData-Dialog.lua
+SCR 4 0 RSa23b964e7f19af499756efa400a90f6edc77549f "Custom: ultraschall_developertool_Create_New_Script_With_Dialog.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Create_New_Script_With_Dialog.lua
+SCR 4 0 RS9b33d21228ffd1610d212cd2893091a60198bf2d "Custom: ultraschall_developertool_Create_New_Temporary_Unlisted_Lua_ReaScript.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Create_New_Temporary_Unlisted_Lua_ReaScript.lua
+SCR 4 0 RS748839823054c969d5f12d65fc669952c6e2c13a "Custom: ultraschall_developertool_Display-Altered-Config-Vars.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Display-Altered-Config-Vars.lua
+SCR 4 0 RS01c5d4731613e7f8d29a5c786c73535917c92144 "Custom: ultraschall_developertool_Display-Altered-ConfigFile-Entries.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Display-Altered-ConfigFile-Entries.lua
+SCR 4 0 RS9d5d393b8896545062b267ab1646b05aea580e18 "Custom: ultraschall_developertool_Display_All_Marker_Region_Guids.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Display_All_Marker_Region_Guids.lua
+SCR 4 0 RSe39020e078b318cdc769f429325d17c4a857b3f0 "Custom: ultraschall_developertool_Display_ExtStateSectionsOfScriptsInFolder.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Display_ExtStateSectionsOfScriptsInFolder.lua
+SCR 4 0 RS89f3123467d9d1bd677ba59a163fbbbaf93bf4c6 "Custom: ultraschall_developertool_Display_ProjExtStateSectionsOfScriptsInFolder.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Display_ProjExtStateSectionsOfScriptsInFolder.lua
+SCR 4 0 RSf73e9cfb1fa8a2dc5be4134a7a0fc7c2ffaa5813 "Custom: ultraschall_developertool_Env_State_Diffs_Monitor.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Env_State_Diffs_Monitor.lua
+SCR 4 0 RS7819c73bbd2286e5f23e66214b4429fcab887d7d "Custom: ultraschall_developertool_EnvelopeStateChunk_from_Clipboard_to_envelope_under_mouse.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_EnvelopeStateChunk_from_Clipboard_to_envelope_under_mouse.lua
+SCR 4 0 RS8adf18af730b1007edaa5ac4fafb01f8895063d3 "Custom: ultraschall_developertool_EnvelopeStateChunk_from_Clipboard_to_selected_envelope.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_EnvelopeStateChunk_from_Clipboard_to_selected_envelope.lua
+SCR 4 0 RS0622c2bd3b46ac5e43eb0f329ed35a9ee4875c2e "Custom: ultraschall_developertool_EnvelopeStateChunk_to_Clipboard_from_envelope_under_mouse_to_clipboard.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_EnvelopeStateChunk_to_Clipboard_from_envelope_under_mouse_to_clipboard.lua
+SCR 4 0 RSc65a3f5f0ff04e53f522920fadfb2399cd4d3063 "Custom: ultraschall_developertool_EnvelopeStateChunk_to_Clipboard_from_selected_envelope.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_EnvelopeStateChunk_to_Clipboard_from_selected_envelope.lua
+SCR 4 0 RS9a687491ef72da867d79fd5fc3b4eebabd14182a "Custom: ultraschall_developertool_FindCurrentlyUsedExtstatesNamesInAFile.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_FindCurrentlyUsedExtstatesNamesInAFile.lua
+SCR 4 0 RS0c2e395c55a88c1c50bda07cbd1353dbe91bbd7f "Custom: ultraschall_developertool_Find_Duplicated_Lines_In_Clipboard.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Find_Duplicated_Lines_In_Clipboard.lua
+SCR 4 0 RS7aa213cbbb0620a064a3eedb09ef7af5d307f705 "Custom: ultraschall_developertool_GetPitchShiftModes.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_GetPitchShiftModes.lua
+SCR 4 0 RS3aafcb1c72872701d23b5333cb157eea75ffae56 "Custom: ultraschall_developertool_HWND-Displayer.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_HWND-Displayer.lua
+SCR 4 0 RSb10643c4ac482962fae7f48d2470b934d825f512 "Custom: ultraschall_developertool_ItemStateChunk_from_Clipboard_to_first_selected_item.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_ItemStateChunk_from_Clipboard_to_first_selected_item.lua
+SCR 4 0 RSdc32266863416f0dbf58f5b6502bf399ef7ed42a "Custom: ultraschall_developertool_ItemStateChunk_from_Clipboard_to_item_under_mouse.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_ItemStateChunk_from_Clipboard_to_item_under_mouse.lua
+SCR 4 0 RS34786339d2b2667b7893fa2c22b9789322a6cf22 "Custom: ultraschall_developertool_ItemStateChunk_to_Clipboard_first_selected_item.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_ItemStateChunk_to_Clipboard_first_selected_item.lua
+SCR 4 0 RS6284e473bcf418a7a5f15650d1f1cb1a5e1e2553 "Custom: ultraschall_developertool_ItemStateChunk_to_Clipboard_item_under_mouse.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_ItemStateChunk_to_Clipboard_item_under_mouse.lua
+SCR 4 0 RS451b7533d06b51c73ded688bf17cb4501dfce262 "Custom: ultraschall_developertool_Item_State_Diffs_Monitor.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Item_State_Diffs_Monitor.lua
+SCR 4 0 RSa98aaf2323e6343e1ad6abc46f8b91a9d74f28bf "Custom: ultraschall_developertool_LangPack2Developer_langpack_converter.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_LangPack2Developer_langpack_converter.lua
+SCR 4 0 RS80286f5bb7901d31a66c68cf829a1283b049c5fa "Custom: ultraschall_developertool_MonitorParmModulation.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_MonitorParmModulation.lua
+SCR 4 0 RS7bb00ee5e6b5c13003fcc33a25fd6107fe0269d1 "Custom: ultraschall_developertool_MonitorRenderString_Diff.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_MonitorRenderString_Diff.lua
+SCR 4 0 RS0ae653495bc63fa73be11583c665359800c7b37c "Custom: ultraschall_developertool_MonitorRenderTable.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_MonitorRenderTable.lua
+SCR 4 0 RScf04be4bbbd8877bb481c7689f467f13d0558162 "Custom: ultraschall_developertool_Monitor_EventManager.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Monitor_EventManager.lua
+SCR 4 0 RS83ba50e02efaf86825beb5f6426b1ff8d2faeba7 "Custom: ultraschall_developertool_Open_A_ReaScript_with_Dialog.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Open_A_ReaScript_with_Dialog.lua
+SCR 4 0 RSb4c9bbc77bd130c1ca80bd620a945e1229aa3ff7 "Custom: ultraschall_developertool_Open_Last_ReaScript.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Open_Last_ReaScript.lua
+SCR 4 0 RScbad370de2c107e20b01114dc5d53e180f5addfc "Custom: ultraschall_developertool_Project_State_Diffs_Monitor.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Project_State_Diffs_Monitor.lua
+SCR 4 0 RS4f31a8a6b332dc9e2f77c7f27fe9334f6d620d31 "Custom: ultraschall_developertool_ReaScript_DocFile_CheckForMissingAndDuplicateFunctions.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_ReaScript_DocFile_CheckForMissingAndDuplicateFunctions.lua
+SCR 4 0 RSe3bde81e2aee9841a275ef60fb4a0e94940471f6 "Custom: ultraschall_developertool_SortLinesInClipboardText.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_SortLinesInClipboardText.lua
+SCR 4 0 RS05e153c210ca9c429a2e968da640bcad5b607d7f "Custom: ultraschall_developertool_StateInspector.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_StateInspector.lua
+SCR 4 0 RS92537a92eb82c8da5ac5dcba26b0a29c074ebb6b "Custom: ultraschall_developertool_Theme_Parameter_Monitor.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Theme_Parameter_Monitor.lua
+SCR 4 0 RS2c101d047b47203da675ac5bbcc9b5834cbb2ebc "Custom: ultraschall_developertool_Toggle_Logging_SetExtState_SetProjExtState_access.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Toggle_Logging_SetExtState_SetProjExtState_access.lua
+SCR 4 0 RSb80f7a8b052580c3d0fa51d46508c342f8b1a0d3 "Custom: ultraschall_developertool_TrackStateChunk_from_Clipboard_to_first_selected_track.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_TrackStateChunk_from_Clipboard_to_first_selected_track.lua
+SCR 4 0 RS1af9e8af5c013ebfcdbbccdb1695ee54e7450596 "Custom: ultraschall_developertool_TrackStateChunk_from_Clipboard_to_track_under_mouse.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_TrackStateChunk_from_Clipboard_to_track_under_mouse.lua
+SCR 4 0 RS0a872cc61bc65268cdb438cde20456012450a986 "Custom: ultraschall_developertool_TrackStateChunk_to_Clipboard_first_selected_track.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_TrackStateChunk_to_Clipboard_first_selected_track.lua
+SCR 4 0 RS03ead6b4e35c0a1e3df3f2ad89d0adb72554fa04 "Custom: ultraschall_developertool_TrackStateChunk_to_Clipboard_track_under_mouse.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_TrackStateChunk_to_Clipboard_track_under_mouse.lua
+SCR 4 0 RS9057693eb4ab2c497b96367b039b99b834e5a47a "Custom: ultraschall_developertool_Track_State_Diffs_Monitor.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_Track_State_Diffs_Monitor.lua
+SCR 4 0 RSd4bca45dc32dff6a22a785c1bca9a43b70a073da "Custom: ultraschall_developertool_findConfigVarsToggledByActions.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_findConfigVarsToggledByActions.lua
+SCR 4 0 RSbf9ebc1efb786080003d0682bd2c4ce2bbaf3d4d "Custom: ultraschall_developertool_gfx_deltablit_displayer.lua" Ultraschall-API/Ultraschall-API-category/ultraschall_developertool_gfx_deltablit_displayer.lua
+SCR 4 0 RSa0b0ec0b58437033fddcf576a71873629fafcdc7 "Custom: BryanChi_FX Devices.lua" "ReaTeam Scripts/FX/BryanChi_FX Devices.lua"
+SCR 4 0 RS86fb6ba4fe28459816a1937af8723e83eed60fdc "Custom: pandabot_ChordGun decrement chord inversion.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement chord inversion.lua"
+SCR 4 32060 RS7d3c_86fb6ba4fe28459816a1937af8723e83eed60fdc "Custom: pandabot_ChordGun decrement chord inversion.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement chord inversion.lua"
+SCR 4 0 RS5a808693f62d570bbda6fc4042c0579e10539098 "Custom: pandabot_ChordGun decrement chord type.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement chord type.lua"
+SCR 4 32060 RS7d3c_5a808693f62d570bbda6fc4042c0579e10539098 "Custom: pandabot_ChordGun decrement chord type.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement chord type.lua"
+SCR 4 0 RS9fad3a998ee7ea3460bb68be4ee688f5d28ff3e2 "Custom: pandabot_ChordGun decrement octave.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement octave.lua"
+SCR 4 32060 RS7d3c_9fad3a998ee7ea3460bb68be4ee688f5d28ff3e2 "Custom: pandabot_ChordGun decrement octave.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement octave.lua"
+SCR 4 0 RS3c18dd0f35d3a7211f5ba1b2f4846ce3bfa3c7f8 "Custom: pandabot_ChordGun decrement scale tonic note.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement scale tonic note.lua"
+SCR 4 32060 RS7d3c_3c18dd0f35d3a7211f5ba1b2f4846ce3bfa3c7f8 "Custom: pandabot_ChordGun decrement scale tonic note.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement scale tonic note.lua"
+SCR 4 0 RS59d0020e69a76e374a61a11a4f87bb866bad537b "Custom: pandabot_ChordGun decrement scale type.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement scale type.lua"
+SCR 4 32060 RS7d3c_59d0020e69a76e374a61a11a4f87bb866bad537b "Custom: pandabot_ChordGun decrement scale type.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun decrement scale type.lua"
+SCR 4 0 RSe1d3e11937e9331ff1a314254e85a838aebcfc70 "Custom: pandabot_ChordGun double grid size.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun double grid size.lua"
+SCR 4 32060 RS7d3c_e1d3e11937e9331ff1a314254e85a838aebcfc70 "Custom: pandabot_ChordGun double grid size.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun double grid size.lua"
+SCR 4 0 RSbd50ef003f0d6f4cd7ad40444cf032a4cab35fbc "Custom: pandabot_ChordGun halve grid size.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun halve grid size.lua"
+SCR 4 32060 RS7d3c_bd50ef003f0d6f4cd7ad40444cf032a4cab35fbc "Custom: pandabot_ChordGun halve grid size.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun halve grid size.lua"
+SCR 4 0 RS10555bb8b8497591248f36633f501dc7cac9174e "Custom: pandabot_ChordGun higher scale note 1.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 1.lua"
+SCR 4 32060 RS7d3c_10555bb8b8497591248f36633f501dc7cac9174e "Custom: pandabot_ChordGun higher scale note 1.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 1.lua"
+SCR 4 0 RSaebcbf809f6c1322c771a08c3d174c32a5297136 "Custom: pandabot_ChordGun higher scale note 2.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 2.lua"
+SCR 4 32060 RS7d3c_aebcbf809f6c1322c771a08c3d174c32a5297136 "Custom: pandabot_ChordGun higher scale note 2.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 2.lua"
+SCR 4 0 RS9eabdfdb66cfb4fe063a2737f6ee95dd8c278ebe "Custom: pandabot_ChordGun higher scale note 3.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 3.lua"
+SCR 4 32060 RS7d3c_9eabdfdb66cfb4fe063a2737f6ee95dd8c278ebe "Custom: pandabot_ChordGun higher scale note 3.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 3.lua"
+SCR 4 0 RSc16043c8181fac421bbefa06315b3b607d67b3a4 "Custom: pandabot_ChordGun higher scale note 4.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 4.lua"
+SCR 4 32060 RS7d3c_c16043c8181fac421bbefa06315b3b607d67b3a4 "Custom: pandabot_ChordGun higher scale note 4.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 4.lua"
+SCR 4 0 RS568a3ca62451a4a10d30cae5605d5136f2a618bb "Custom: pandabot_ChordGun higher scale note 5.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 5.lua"
+SCR 4 32060 RS7d3c_568a3ca62451a4a10d30cae5605d5136f2a618bb "Custom: pandabot_ChordGun higher scale note 5.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 5.lua"
+SCR 4 0 RS8425406de17c1ca4c71d9dd06150c4ca5ee8eed6 "Custom: pandabot_ChordGun higher scale note 6.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 6.lua"
+SCR 4 32060 RS7d3c_8425406de17c1ca4c71d9dd06150c4ca5ee8eed6 "Custom: pandabot_ChordGun higher scale note 6.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 6.lua"
+SCR 4 0 RSb5a4a663ecdff915bad81bb4728dda25304c99ed "Custom: pandabot_ChordGun higher scale note 7.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 7.lua"
+SCR 4 32060 RS7d3c_b5a4a663ecdff915bad81bb4728dda25304c99ed "Custom: pandabot_ChordGun higher scale note 7.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun higher scale note 7.lua"
+SCR 4 0 RSe36b8abe1b7b39e318796930224a7c10a873666f "Custom: pandabot_ChordGun increment chord inversion.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment chord inversion.lua"
+SCR 4 32060 RS7d3c_e36b8abe1b7b39e318796930224a7c10a873666f "Custom: pandabot_ChordGun increment chord inversion.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment chord inversion.lua"
+SCR 4 0 RS48e83ef1313e7156e96fe5208404749c4650464b "Custom: pandabot_ChordGun increment chord type.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment chord type.lua"
+SCR 4 32060 RS7d3c_48e83ef1313e7156e96fe5208404749c4650464b "Custom: pandabot_ChordGun increment chord type.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment chord type.lua"
+SCR 4 0 RS6dd5125905a5a5ff0fabebcfe806067710727f0e "Custom: pandabot_ChordGun increment octave.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment octave.lua"
+SCR 4 32060 RS7d3c_6dd5125905a5a5ff0fabebcfe806067710727f0e "Custom: pandabot_ChordGun increment octave.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment octave.lua"
+SCR 4 0 RS1889b37c3977f8a7d1e88cd6eb5d84f84f55ab9d "Custom: pandabot_ChordGun increment scale tonic note.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment scale tonic note.lua"
+SCR 4 32060 RS7d3c_1889b37c3977f8a7d1e88cd6eb5d84f84f55ab9d "Custom: pandabot_ChordGun increment scale tonic note.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment scale tonic note.lua"
+SCR 4 0 RS48964096f458065ee11fac74df3d615e7e753466 "Custom: pandabot_ChordGun increment scale type.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment scale type.lua"
+SCR 4 32060 RS7d3c_48964096f458065ee11fac74df3d615e7e753466 "Custom: pandabot_ChordGun increment scale type.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun increment scale type.lua"
+SCR 4 0 RS6dc82890a6a5d01d98c9aee29723c478d054bb36 "Custom: pandabot_ChordGun lower scale note 1.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 1.lua"
+SCR 4 32060 RS7d3c_6dc82890a6a5d01d98c9aee29723c478d054bb36 "Custom: pandabot_ChordGun lower scale note 1.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 1.lua"
+SCR 4 0 RS6c625ec1c8de16d0a63df1e301ea2a886c85e1bc "Custom: pandabot_ChordGun lower scale note 2.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 2.lua"
+SCR 4 32060 RS7d3c_6c625ec1c8de16d0a63df1e301ea2a886c85e1bc "Custom: pandabot_ChordGun lower scale note 2.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 2.lua"
+SCR 4 0 RSd9c8113e64a6c9d47f80e0705449729cf4eb2889 "Custom: pandabot_ChordGun lower scale note 3.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 3.lua"
+SCR 4 32060 RS7d3c_d9c8113e64a6c9d47f80e0705449729cf4eb2889 "Custom: pandabot_ChordGun lower scale note 3.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 3.lua"
+SCR 4 0 RS18db3a8ef96bf2dece33a282869a4a2147ad5497 "Custom: pandabot_ChordGun lower scale note 4.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 4.lua"
+SCR 4 32060 RS7d3c_18db3a8ef96bf2dece33a282869a4a2147ad5497 "Custom: pandabot_ChordGun lower scale note 4.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 4.lua"
+SCR 4 0 RSe674089f8d2b969bddc53819f7f84a8d0d55757e "Custom: pandabot_ChordGun lower scale note 5.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 5.lua"
+SCR 4 32060 RS7d3c_e674089f8d2b969bddc53819f7f84a8d0d55757e "Custom: pandabot_ChordGun lower scale note 5.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 5.lua"
+SCR 4 0 RSc50b21f209a48b73ab78b1c31aaa7f7678eb3d33 "Custom: pandabot_ChordGun lower scale note 6.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 6.lua"
+SCR 4 32060 RS7d3c_c50b21f209a48b73ab78b1c31aaa7f7678eb3d33 "Custom: pandabot_ChordGun lower scale note 6.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 6.lua"
+SCR 4 0 RSedf36859cfbf858a7ae7d49af7ee5c9bb4eda3cd "Custom: pandabot_ChordGun lower scale note 7.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 7.lua"
+SCR 4 32060 RS7d3c_edf36859cfbf858a7ae7d49af7ee5c9bb4eda3cd "Custom: pandabot_ChordGun lower scale note 7.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun lower scale note 7.lua"
+SCR 4 0 RSd1f1b275193eb1d4e46d1a6a5c5f26bf2e2013b9 "Custom: pandabot_ChordGun scale chord 1.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 1.lua"
+SCR 4 32060 RS7d3c_d1f1b275193eb1d4e46d1a6a5c5f26bf2e2013b9 "Custom: pandabot_ChordGun scale chord 1.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 1.lua"
+SCR 4 0 RS2af61506929edb297be28616408ae9089f820bf2 "Custom: pandabot_ChordGun scale chord 2.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 2.lua"
+SCR 4 32060 RS7d3c_2af61506929edb297be28616408ae9089f820bf2 "Custom: pandabot_ChordGun scale chord 2.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 2.lua"
+SCR 4 0 RS4afbc5a9a7441634573709e50696bdc80f954309 "Custom: pandabot_ChordGun scale chord 3.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 3.lua"
+SCR 4 32060 RS7d3c_4afbc5a9a7441634573709e50696bdc80f954309 "Custom: pandabot_ChordGun scale chord 3.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 3.lua"
+SCR 4 0 RS9bc53b51c925282f29ff08ac3c84f375b6f49736 "Custom: pandabot_ChordGun scale chord 4.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 4.lua"
+SCR 4 32060 RS7d3c_9bc53b51c925282f29ff08ac3c84f375b6f49736 "Custom: pandabot_ChordGun scale chord 4.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 4.lua"
+SCR 4 0 RS493d533a7e57cc7e8a24642d75d3b9ed9d6c8f80 "Custom: pandabot_ChordGun scale chord 5.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 5.lua"
+SCR 4 32060 RS7d3c_493d533a7e57cc7e8a24642d75d3b9ed9d6c8f80 "Custom: pandabot_ChordGun scale chord 5.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 5.lua"
+SCR 4 0 RSef3dff52939bac1200aac994254bc3ec1c21ad72 "Custom: pandabot_ChordGun scale chord 6.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 6.lua"
+SCR 4 32060 RS7d3c_ef3dff52939bac1200aac994254bc3ec1c21ad72 "Custom: pandabot_ChordGun scale chord 6.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 6.lua"
+SCR 4 0 RSf938bed3ba2ff6511d3a24ae81b387feb6a7fc71 "Custom: pandabot_ChordGun scale chord 7.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 7.lua"
+SCR 4 32060 RS7d3c_f938bed3ba2ff6511d3a24ae81b387feb6a7fc71 "Custom: pandabot_ChordGun scale chord 7.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale chord 7.lua"
+SCR 4 0 RS60303617ec284db1f7f168103293c41a0fbd5d57 "Custom: pandabot_ChordGun scale note 1.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 1.lua"
+SCR 4 32060 RS7d3c_60303617ec284db1f7f168103293c41a0fbd5d57 "Custom: pandabot_ChordGun scale note 1.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 1.lua"
+SCR 4 0 RS2f79e1d98804bd8172a1463ffb8acc6d12199250 "Custom: pandabot_ChordGun scale note 2.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 2.lua"
+SCR 4 32060 RS7d3c_2f79e1d98804bd8172a1463ffb8acc6d12199250 "Custom: pandabot_ChordGun scale note 2.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 2.lua"
+SCR 4 0 RS3670c59221b148e9223413939034969d434baead "Custom: pandabot_ChordGun scale note 3.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 3.lua"
+SCR 4 32060 RS7d3c_3670c59221b148e9223413939034969d434baead "Custom: pandabot_ChordGun scale note 3.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 3.lua"
+SCR 4 0 RS785d31c1de4aff0234425f22edbaaf6d84028954 "Custom: pandabot_ChordGun scale note 4.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 4.lua"
+SCR 4 32060 RS7d3c_785d31c1de4aff0234425f22edbaaf6d84028954 "Custom: pandabot_ChordGun scale note 4.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 4.lua"
+SCR 4 0 RS83300f822be07bddee0abf222ad3922c258dd220 "Custom: pandabot_ChordGun scale note 5.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 5.lua"
+SCR 4 32060 RS7d3c_83300f822be07bddee0abf222ad3922c258dd220 "Custom: pandabot_ChordGun scale note 5.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 5.lua"
+SCR 4 0 RS34fe226f088960269183d87b3ac73e6fa532cb7f "Custom: pandabot_ChordGun scale note 6.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 6.lua"
+SCR 4 32060 RS7d3c_34fe226f088960269183d87b3ac73e6fa532cb7f "Custom: pandabot_ChordGun scale note 6.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 6.lua"
+SCR 4 0 RS6e0389b1ecdc70abc87e873760f37be71d5dbf65 "Custom: pandabot_ChordGun scale note 7.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 7.lua"
+SCR 4 32060 RS7d3c_6e0389b1ecdc70abc87e873760f37be71d5dbf65 "Custom: pandabot_ChordGun scale note 7.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun scale note 7.lua"
+SCR 4 0 RS944dd8d967942d55db9e177c95701c1a94f67bae "Custom: pandabot_ChordGun stop all notes from playing.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun stop all notes from playing.lua"
+SCR 4 32060 RS7d3c_944dd8d967942d55db9e177c95701c1a94f67bae "Custom: pandabot_ChordGun stop all notes from playing.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun stop all notes from playing.lua"
+SCR 4 0 RSb370f6c4cd5313cb240c43395093e685a8b1c2c2 "Custom: pandabot_ChordGun.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun.lua"
+SCR 4 32060 RS7d3c_b370f6c4cd5313cb240c43395093e685a8b1c2c2 "Custom: pandabot_ChordGun.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGun.lua"
+SCR 4 0 RS79f196f580b27694fc304fbc8fc82271f22d3e66 "Custom: pandabot_ChordGunMini.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGunMini.lua"
+SCR 4 32060 RS7d3c_79f196f580b27694fc304fbc8fc82271f22d3e66 "Custom: pandabot_ChordGunMini.lua" "ReaTeam Scripts/Various/pandabot_ChordGun/pandabot_ChordGunMini.lua"
+SCR 4 0 RSff0957acd908ac1a809c8b9aa70a0aa73d2ce162 "Custom: Lil Chordbox.lua" "FTC Tools/MIDI editor/Lil Chordbox.lua"
+SCR 4 32060 RS7d3c_ff0957acd908ac1a809c8b9aa70a0aa73d2ce162 "Custom: Lil Chordbox.lua" "FTC Tools/MIDI editor/Lil Chordbox.lua"
+SCR 4 32060 RS7d3c_2440c9665bce294cb8d825975c316e4585a00073 "Custom: Copy Paste MIDI.lua" "Daniel Lumertz Scripts/MIDI/Copy Paste MIDI/Copy Paste MIDI.lua"
+SCR 4 0 RSf909d410d8e8960646240824b14d88a397588afd "Custom: pandabot_Copy rhythm.lua" "ReaTeam Scripts/Items Editing/pandabot_Copy and paste rhythm/pandabot_Copy rhythm.lua"
+SCR 4 0 RS3cf83dee6dbee88a5d7d0813f4ce906b8f34f232 "Custom: pandabot_Paste rhythm.lua" "ReaTeam Scripts/Items Editing/pandabot_Copy and paste rhythm/pandabot_Paste rhythm.lua"
+SCR 4 0 RS61acfe8d7fda4faafb1195c923f18f5652b4e9a1 "Custom: js_Mouse editing - Multi tool.lua" "ReaTeam Scripts/MIDI Editor/js_Mouse editing - Multi tool.lua"
+SCR 4 32060 RS7d3c_61acfe8d7fda4faafb1195c923f18f5652b4e9a1 "Custom: js_Mouse editing - Multi tool.lua" "ReaTeam Scripts/MIDI Editor/js_Mouse editing - Multi tool.lua"
+SCR 4 32062 RS7d3e_61acfe8d7fda4faafb1195c923f18f5652b4e9a1 "Custom: js_Mouse editing - Multi tool.lua" "ReaTeam Scripts/MIDI Editor/js_Mouse editing - Multi tool.lua"
+SCR 4 0 RS9046b9e404c280177dd4309db8cca88a6fac66ef "Custom: cool_MK Slicer.lua" "ReaTeam Scripts/Items Editing/cool_MK Slicer.lua"
+SCR 516 0 RS86a658f69fadfd0c116968a473ed6b519f4c58cd "Custom: VirtualBtn1.lua" reaper-keys/key_scripts/VirtualBtn1.lua
+SCR 4 0 RS3588e08b70e293b90143c06f4c7b8f1b5afe950c "Custom: VirtualBtn10.lua" reaper-keys/key_scripts/VirtualBtn10.lua
+SCR 4 0 RS1eac7a16f7d2356133a11c30ed1cfc25a5f71229 "Custom: VirtualBtn11.lua" reaper-keys/key_scripts/VirtualBtn11.lua
+SCR 4 0 RS4c645ceca8f3d4ee8ead639378be705c07b7692f "Custom: VirtualBtn12.lua" reaper-keys/key_scripts/VirtualBtn12.lua
+SCR 4 0 RSf0e6daa0f6f654158be9723ed1c862cedb3cb074 "Custom: VirtualBtn13.lua" reaper-keys/key_scripts/VirtualBtn13.lua
+SCR 4 0 RSacc0bd3a37bd607e5cc3267d2f73c2bb53e2ba1e "Custom: VirtualBtn14.lua" reaper-keys/key_scripts/VirtualBtn14.lua
+SCR 4 0 RSdb7cd88f6a4eeb04bdf368ea9d020504dc42f86f "Custom: VirtualBtn15.lua" reaper-keys/key_scripts/VirtualBtn15.lua
+SCR 4 0 RSf6dd39666432405992d1b844b90fd19ea3fb27b1 "Custom: VirtualBtn16.lua" reaper-keys/key_scripts/VirtualBtn16.lua
+SCR 4 0 RS830a2f5bc01f783a8420b014d40d85ce347e6f9b "Custom: VirtualBtn2.lua" reaper-keys/key_scripts/VirtualBtn2.lua
+SCR 4 0 RS7ad216177f674727876f6db23cd4ec198c041924 "Custom: VirtualBtn3.lua" reaper-keys/key_scripts/VirtualBtn3.lua
+SCR 4 0 RScad496a247fdbb534da3a99df0b31f12c6195699 "Custom: VirtualBtn4.lua" reaper-keys/key_scripts/VirtualBtn4.lua
+SCR 4 0 RS32313842f86d8a75dd381cd4a388d9c9101142d9 "Custom: VirtualBtn5.lua" reaper-keys/key_scripts/VirtualBtn5.lua
+SCR 4 0 RS616a6d79328be95d99b095362456360bce9573dc "Custom: VirtualBtn6.lua" reaper-keys/key_scripts/VirtualBtn6.lua
+SCR 4 0 RSb9c4a112e8da743767779d4ef215fda6e77f7944 "Custom: VirtualBtn7.lua" reaper-keys/key_scripts/VirtualBtn7.lua
+SCR 4 0 RS5e00b697a621faca3c972d40b8490d284d28eba2 "Custom: VirtualBtn8.lua" reaper-keys/key_scripts/VirtualBtn8.lua
+SCR 4 0 RSdc0e41cf2f89ed30e2937a6966919cd3b39c5525 "Custom: VirtualBtn9.lua" reaper-keys/key_scripts/VirtualBtn9.lua
 KEY 9 32801 0 0
 KEY 255 184 0 0
 KEY 255 218 0 0
 KEY 1 104 0 0
 KEY 1 98 0 0
 KEY 1 97 0 0
-KEY 255 8435 969 0
-KEY 1 32781 40157 0
-KEY 1 32814 40184 0
-KEY 17 46 40201 0
-KEY 17 99 40209 0
-KEY 37 83 40315 0
-KEY 1 106 40364 0
-KEY 33 86 40603 0
-KEY 17 97 40638 0
-KEY 17 104 40641 0
-KEY 17 105 40740 0
-KEY 17 96 40760 0
-KEY 9 109 40783 0
-KEY 9 107 40786 0
-KEY 1 109 40926 0
-KEY 17 102 41142 0
-KEY 1 107 41150 0
-KEY 1 125 41172 0
-KEY 21 99 41588 0
-KEY 17 110 41846 0
-KEY 1 126 42023 0
-KEY 17 101 42033 0
-KEY 57 82 _SWS_REGIONSFROMITEMS 0
-KEY 57 67 _SWSCONSOLE 0
-KEY 17 100 _XENAKIOS_SETITEMFADES 0
-KEY 33 82 _XENAKIOS_RENAMETRAXDLG 0
-KEY 1 32802 _XENAKIOS_TVPAGEDOWN 0
-KEY 1 32801 _XENAKIOS_TVPAGEUP 0
-KEY 33 72 _BR_MOVE_FX_WINDOW_TO_MOUSE_H_L_V_M 0
-KEY 1 108 _S&M_WNCLS4 0
-KEY 9 97 _S&M_SHOWFXCHAINSLOTS 0
-KEY 17 103 _S&M_OPEN_ITEM_PATH 0
-KEY 1 111 _S&M_NEXT_PRESET_FX1 0
-KEY 9 32802 _3481f6486c626d4eb851ac66ef6ad8e8 0
-KEY 8 61 _RSd678b1d6a4682f6795c7d21c19b12bbfaa9e99d6 0
-KEY 8 95 _RS7da738f2e5664d340a212851d02956fec64883a8 0
-KEY 255 220 _9b1dc70c4eaa44e19f7a27177d298bad 0
-KEY 255 7646 _a43d1a0a28bc4fd9b818adde676aedf2 0
-KEY 33 65 _a514fe272775455b9fc8928854cd5ec9 0
-KEY 33 83 _68db0468925349a48687d001e0a3bdf0 0
-KEY 1 32804 _e03d6b6a2fac4533a7ad405bdc41d158 0
-KEY 1 32803 _373a1194b24046afa23b61dee67fd734 0
-KEY 255 250 _1508d46267304d1a9c0d70b0db030bf6 0
-KEY 1 99 _74cb10456e9b45ae9b862fab2a7c8e4a 0
-KEY 255 248 _228bb7df71f14b5bbe266c907da15386 0
-KEY 255 249 _74ca6851559545e3a334adbcbb014bae 0
-KEY 33 66 _1273c4170b384f84926eb5b0eda81714 0
-KEY 33 32 _f526dbb24ab04eb28c78d8d798fa7510 0
-KEY 17 98 _6d869a4b8ac84d4fbdcc74461a90338c 0
-KEY 49 65 _RS1ec9ab1b4ff08bc6f116768e9e126fc3fe67a812 0
-KEY 255 251 _RS25186e1371c86df3558d81cab8e03e5b7af5efed 0
-KEY 33 81 _RS4025ae9a82ad3a070c63c41a0bf73df8e4cd9ca5 0
-KEY 1 124 _8b04ae9dfecc42228a554893523e308e 0
-KEY 255 8413 _RS2f9402d4e4f721b77ae730ab9fd6d50e03a1e116 0
+KEY 255 253 0 0
+KEY 255 216 0 0
+KEY 1 32813 0 0
+KEY 1 102 0 0
+KEY 1 100 0 0
+KEY 1 103 0 0
+KEY 1 105 0 0
+KEY 1 32814 0 0
+KEY 9 100 0 0
+KEY 9 102 0 0
+KEY 9 32814 0 0
+KEY 8 91 0 0
+KEY 8 93 0 0
+KEY 1 122 0 0
+KEY 25 32802 0 0
+KEY 25 32801 0 0
+KEY 9 107 0 0
+KEY 1 109 0 0
+KEY 17 102 0 0
+KEY 1 107 0 0
+KEY 17 100 0 0
+KEY 1 32802 0 0
+KEY 1 32801 0 0
+KEY 9 32802 0 0
+KEY 1 32804 0 0
+KEY 1 32803 0 0
+KEY 255 250 0 0
+KEY 1 99 0 0
+KEY 255 248 0 0
+KEY 255 249 0 0
+KEY 255 251 0 0
 KEY 1 32805 _reaper_keys_main_<left> 0
 KEY 1 37 _reaper_keys_main_<left> 0
 KEY 9 32805 _reaper_keys_main_<C-left> 0
@@ -2654,20 +2819,32 @@ KEY 1 107 0 32060
 KEY 17 104 0 32060
 KEY 1 100 0 32060
 KEY 1 102 0 32060
-KEY 1 125 40018 32060
-KEY 9 107 40210 32060
-KEY 9 109 40212 32060
-KEY 255 250 40430 32060
-KEY 255 220 40660 32060
-KEY 33 82 40902 32060
-KEY 33 72 _BR_ME_MOVE_WINDOW_TO_MOUSE_H_L_V_B 32060
-KEY 255 248 _6c101506e6c24cddb18cbdcfdd9c1568 32060
-KEY 33 86 _RS7d3c_c595295b5c40099f5cfed6d96febea5806405452 32060
-KEY 255 249 _973a56d8f6a84e2f98646f4b92565e83 32060
-KEY 255 8413 _44f75b2e55a74a50a452050e03764364 32060
-KEY 255 251 _df9161f8642648b3b8012a48f31bc83a 32060
-KEY 57 86 _RS7d3c_78d7851f21dfb6bd4b1c5cba11aa57e08dde94d1 32060
-KEY 255 8415 _fae09cbda24b455f94061c3c56ac590e 32060
+KEY 255 252 0 32060
+KEY 1 109 0 32060
+KEY 1 32813 0 32060
+KEY 1 32804 0 32060
+KEY 1 32803 0 32060
+KEY 9 100 0 32060
+KEY 9 102 0 32060
+KEY 9 104 0 32060
+KEY 9 98 0 32060
+KEY 9 101 0 32060
+KEY 1 32802 0 32060
+KEY 1 104 0 32060
+KEY 1 98 0 32060
+KEY 17 98 0 32060
+KEY 17 100 0 32060
+KEY 17 102 0 32060
+KEY 25 100 0 32060
+KEY 25 102 0 32060
+KEY 255 250 0 32060
+KEY 255 220 0 32060
+KEY 1 32814 0 32060
+KEY 25 104 0 32060
+KEY 25 98 0 32060
+KEY 255 248 0 32060
+KEY 255 249 0 32060
+KEY 255 251 0 32060
 KEY 1 32805 _reaper_keys_midi_<left> 32060
 KEY 1 37 _reaper_keys_midi_<left> 32060
 KEY 9 32805 _reaper_keys_midi_<C-left> 32060
@@ -3320,26 +3497,123 @@ KEY 0 96 _reaper_keys_midi_` 32060
 KEY 8 96 _reaper_keys_midi_<C-`> 32060
 KEY 16 96 _reaper_keys_midi_<M-`> 32060
 KEY 24 96 _reaper_keys_midi_<CM-`> 32060
+KEY 255 220 0 32061
+KEY 255 252 0 32061
+KEY 9 83 0 32061
+KEY 17 82 0 32061
+KEY 1 82 0 32061
+KEY 9 113 0 32061
+KEY 9 65 0 32061
+KEY 1 81 0 32061
+KEY 9 67 0 32061
+KEY 9 86 0 32061
+KEY 9 88 0 32061
+KEY 9 90 0 32061
+KEY 13 90 0 32061
+KEY 1 32 0 32061
+KEY 9 32 0 32061
+KEY 1 32803 0 32061
+KEY 17 49 0 32061
+KEY 17 50 0 32061
+KEY 1 73 0 32061
+KEY 1 32813 0 32061
+KEY 9 101 0 32061
+KEY 17 77 0 32061
+KEY 17 51 0 32061
+KEY 9 32806 0 32061
+KEY 1 104 0 32061
+KEY 9 32808 0 32061
+KEY 1 98 0 32061
+KEY 17 104 0 32061
+KEY 17 98 0 32061
+KEY 0 63 0 32061
+KEY 13 86 0 32061
+KEY 1 114 0 32061
+KEY 1 72 0 32061
+KEY 1 27 0 32061
+KEY 9 73 0 32061
+KEY 1 32814 0 32061
+KEY 17 52 0 32061
 KEY 1 69 0 32062
-KEY 17 81 2 32062
-KEY 1 67 40010 32062
-KEY 1 86 40011 32062
-KEY 1 88 40012 32062
-KEY 1 50 40055 32062
-KEY 5 32806 40179 32062
-KEY 5 32808 40180 32062
-KEY 1 32805 40183 32062
-KEY 1 32807 40184 32062
-KEY 5 70 40405 32062
-KEY 1 70 40405 32062
-KEY 9 32807 40446 32062
-KEY 9 32805 40447 32062
-KEY 1 81 40728 32062
-KEY 1 38 41026 32062
-KEY 1 40 41027 32062
-KEY 1 32802 _1e3a4b16668b4c58b56a86bd69c1b222 32062
-KEY 1 32801 _7c92446359c34044be712f2ceebb03a0 32062
-KEY 17 34 _b7ecd1ff99da45f09e6696f3e31ac19c 32062
-KEY 17 33 _9d9e215f54e14d4eaeb9424d31ca81aa 32062
-KEY 1 32805 1004 32063
-KEY 1 32807 1013 32063
+KEY 1 32813 0 32062
+KEY 9 113 0 32062
+KEY 9 65 0 32062
+KEY 9 67 0 32062
+KEY 9 86 0 32062
+KEY 9 88 0 32062
+KEY 17 57 0 32062
+KEY 17 48 0 32062
+KEY 1 83 0 32062
+KEY 9 100 0 32062
+KEY 9 102 0 32062
+KEY 9 104 0 32062
+KEY 9 98 0 32062
+KEY 1 73 0 32062
+KEY 5 73 0 32062
+KEY 9 101 0 32062
+KEY 5 83 0 32062
+KEY 17 77 0 32062
+KEY 13 32806 0 32062
+KEY 13 32808 0 32062
+KEY 17 32806 0 32062
+KEY 17 32808 0 32062
+KEY 1 104 0 32062
+KEY 9 32806 0 32062
+KEY 9 32808 0 32062
+KEY 1 98 0 32062
+KEY 17 104 0 32062
+KEY 5 32806 0 32062
+KEY 17 98 0 32062
+KEY 5 32808 0 32062
+KEY 13 32805 0 32062
+KEY 17 100 0 32062
+KEY 17 102 0 32062
+KEY 13 32807 0 32062
+KEY 1 100 0 32062
+KEY 1 32805 0 32062
+KEY 1 102 0 32062
+KEY 1 32807 0 32062
+KEY 5 32805 0 32062
+KEY 25 100 0 32062
+KEY 25 102 0 32062
+KEY 5 32807 0 32062
+KEY 21 32806 0 32062
+KEY 21 32808 0 32062
+KEY 13 86 0 32062
+KEY 9 32807 0 32062
+KEY 9 32805 0 32062
+KEY 17 54 0 32062
+KEY 17 53 0 32062
+KEY 17 55 0 32062
+KEY 1 74 0 32062
+KEY 1 72 0 32062
+KEY 25 50 0 32062
+KEY 9 73 0 32062
+KEY 1 32814 0 32062
+KEY 1 81 0 32062
+KEY 9 68 0 32062
+KEY 25 104 0 32062
+KEY 29 32806 0 32062
+KEY 29 32808 0 32062
+KEY 25 98 0 32062
+KEY 1 32802 0 32062
+KEY 1 32801 0 32062
+KEY 1 8 0 32063
+KEY 1 32805 0 32063
+KEY 1 13 0 32063
+KEY 1 32807 0 32063
+KEY 0 63 0 32063
+KEY 1 116 0 32063
+KEY 1 32 0 32063
+KEY 9 32 0 32063
+KEY 1 32806 0 32063
+KEY 1 32808 0 32063
+KEY 1 32804 0 32063
+KEY 9 65 0 32063
+KEY 9 86 0 32063
+KEY 9 67 0 32063
+KEY 0 43 0 32063
+KEY 0 45 0 32063
+KEY 5 32805 0 32063
+KEY 5 32807 0 32063
+KEY 9 70 0 32063
