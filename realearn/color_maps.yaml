@@ -1,0 +1,46 @@
+on_activate:
+  send_midi_feedback:
+    - raw: "
+    B1 00 10  
+    B1 01 10  
+    B1 02 10  
+    B1 03 10  
+    B1 04 33  
+    B1 05 33  
+    B1 06 33  
+    B1 07 33  
+    B1 08 62  
+    B1 09 62  
+    B1 0A 62  
+    B1 0B 62  
+    B1 0C 2C  
+    B1 0D 2C  
+    B1 0E 2C  
+    B1 0F 2C
+"
+
+
+on_activate:
+  send_midi_feedback:
+    - raw: "
+    B1 00 03 
+    B1 01 03 
+    B1 02 03 
+    B1 03 03 
+    B1 04 65 
+    B1 05 65 
+    B1 06 65 
+    B1 07 65 
+    B1 08 45 
+    B1 09 45 
+    B1 0A 45 
+    B1 0B 45 
+    B1 0C 4F 
+    B1 0D 4F 
+    B1 0E 4F 
+    B1 0F 4F
+"
+
+
+
+
