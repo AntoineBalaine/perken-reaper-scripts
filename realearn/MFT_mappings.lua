@@ -2,20 +2,10 @@ local mapping = {
     kind = "MainCompartment",
     version = "2.15.0",
     value = {
-        default_group = {
-            name = "",
-            tags = nil,
-            control_enabled = true,
-            feedback_enabled = true,
-        },
-        parameters = nil,
         groups = {
             {
                 id = "S4vSFtoLZyctXfOkWqd_7",
-                name = "env1",
-                tags = nil,
-                control_enabled = true,
-                feedback_enabled = true,
+                name = "BANK1",
                 activation_condition = {
                     kind = "Bank",
                     parameter = 0,
@@ -24,10 +14,7 @@ local mapping = {
             },
             {
                 id = "o4DaBaqXAgKHOezxw0fFl",
-                name = "env2",
-                tags = nil,
-                control_enabled = true,
-                feedback_enabled = true,
+                name = "BANK2",
                 activation_condition = {
                     kind = "Bank",
                     parameter = 0,
@@ -38,13 +25,8 @@ local mapping = {
         mappings = {
             {
                 id = "GKr6XIMDomfdBvdUgBWq2",
-                name = "1",
-                tags = nil,
+                name = "V1_B1",
                 group = "S4vSFtoLZyctXfOkWqd_7",
-                visible_in_projection = true,
-                enabled = true,
-                control_enabled = true,
-                feedback_enabled = true,
                 on_activate = {
                     send_midi_feedback = {
                         {
@@ -54,72 +36,23 @@ local mapping = {
                         },
                     },
                 },
-                on_deactivate = {
-                    send_midi_feedback = nil,
-                },
                 source = {
                     kind = "Virtual",
                     id = 0,
-                    character = "Multi",
                 },
                 glue = {
-                    absolute_mode = "Normal",
-                    source_interval = { 0, 1 },
-                    target_interval = { 0, 1 },
-                    reverse = false,
-                    out_of_range_behavior = "MinOrMax",
-                    target_value_sequence = "",
-                    round_target_value = false,
-                    wrap = false,
-                    jump_interval = { 0, 1 },
-                    takeover_mode = "Off",
-                    control_transformation = "",
                     step_size_interval = { 0.01, 0.05 },
                     step_factor_interval = { 1, 5 },
-                    relative_mode = "Normal",
-                    fire_mode = {
-                        kind = "Normal",
-                        press_duration_interval = { 0, 0 },
-                    },
-                    feedback = {
-                        kind = "Numeric",
-                        transformation = "",
-                    },
                 },
                 target = {
-                    kind = "FxParameterValue",
-                    unit = "Native",
-                    parameter = {
-                        address = "ById",
-                        fx = {
-                            address = "ById",
-                            fx_must_have_focus = false,
-                            chain = {
-                                address = "Track",
-                                track = {
-                                    address = "This",
-                                    track_must_be_selected = false,
-                                },
-                                chain = "Normal",
-                            },
-                            id = "A426FFC7-5363-3045-862C-25F886D1BFC2",
-                        },
-                        index = 0,
-                    },
-                    poll_for_feedback = true,
-                    retrigger = false,
+                    kind = "ReaperAction",
+                    command = "RS86a658f69fadfd0c116968a473ed6b519f4c58cd",
                 },
-                unprocessed = {},
             },
             {
                 id = "xymAWh9XDME-gCzIVUdYq",
-                name = "2",
-                tags = nil,
+                name = "V1_B2",
                 group = "o4DaBaqXAgKHOezxw0fFl",
-                visible_in_projection = true,
-                enabled = true,
-                control_enabled = true,
-                feedback_enabled = true,
                 on_activate = {
                     send_midi_feedback = {
                         {
@@ -129,72 +62,22 @@ local mapping = {
                         },
                     },
                 },
-                on_deactivate = {
-                    send_midi_feedback = nil,
-                },
                 source = {
                     kind = "Virtual",
                     id = 0,
-                    character = "Multi",
                 },
                 glue = {
-                    absolute_mode = "Normal",
-                    source_interval = { 0, 1 },
-                    target_interval = { 0, 1 },
-                    reverse = false,
-                    out_of_range_behavior = "MinOrMax",
-                    target_value_sequence = "",
-                    round_target_value = false,
-                    wrap = false,
-                    jump_interval = { 0, 1 },
-                    takeover_mode = "Off",
-                    control_transformation = "",
                     step_size_interval = { 0.01, 0.05 },
                     step_factor_interval = { 1, 5 },
-                    relative_mode = "Normal",
-                    fire_mode = {
-                        kind = "Normal",
-                        press_duration_interval = { 0, 0 },
-                    },
-                    feedback = {
-                        kind = "Numeric",
-                        transformation = "",
-                    },
                 },
                 target = {
-                    kind = "FxParameterValue",
-                    unit = "Native",
-                    parameter = {
-                        address = "ById",
-                        fx = {
-                            address = "ById",
-                            fx_must_have_focus = false,
-                            chain = {
-                                address = "Track",
-                                track = {
-                                    address = "This",
-                                    track_must_be_selected = false,
-                                },
-                                chain = "Normal",
-                            },
-                            id = "A426FFC7-5363-3045-862C-25F886D1BFC2",
-                        },
-                        index = 1,
-                    },
-                    poll_for_feedback = true,
-                    retrigger = false,
+                    kind = "ReaperAction",
+                    command = "RS830a2f5bc01f783a8420b014d40d85ce347e6f9b",
                 },
-                unprocessed = {},
             },
             {
                 id = "05qt6I1vMb2VAB_iIcA4u",
-                name = "3",
-                tags = nil,
-                group = "",
-                visible_in_projection = true,
-                enabled = true,
-                control_enabled = true,
-                feedback_enabled = true,
+                name = "B1_Select",
                 on_activate = {
                     send_midi_feedback = {
                         {
@@ -204,113 +87,47 @@ local mapping = {
                         },
                     },
                 },
-                on_deactivate = {
-                    send_midi_feedback = nil,
-                },
                 source = {
                     kind = "Virtual",
                     id = "bank-left",
                     character = "Button",
                 },
                 glue = {
-                    absolute_mode = "Normal",
-                    source_interval = { 0, 1 },
                     target_interval = { 0, 0 },
-                    reverse = false,
                     out_of_range_behavior = "Min",
-                    target_value_sequence = "",
-                    round_target_value = false,
-                    wrap = false,
-                    jump_interval = { 0, 1 },
-                    takeover_mode = "Off",
-                    control_transformation = "",
                     step_size_interval = { 0.01, 0.05 },
                     step_factor_interval = { 1, 5 },
-                    relative_mode = "Normal",
-                    fire_mode = {
-                        kind = "Normal",
-                        press_duration_interval = { 0, 0 },
-                    },
-                    feedback = {
-                        kind = "Numeric",
-                        transformation = "",
-                    },
                 },
                 target = {
                     kind = "FxParameterValue",
-                    unit = "Native",
                     parameter = {
                         address = "ById",
-                        fx = {
-                            address = "This",
-                            fx_must_have_focus = false,
-                        },
                         index = 0,
                     },
-                    poll_for_feedback = true,
-                    retrigger = false,
                 },
-                unprocessed = {},
             },
             {
                 id = "a2y2AMUJMsKwoxsijcLXM",
-                name = "4",
-                tags = nil,
-                group = "",
-                visible_in_projection = true,
-                enabled = true,
-                control_enabled = true,
-                feedback_enabled = true,
-                on_activate = {},
-                on_deactivate = {},
+                name = "B2_Select",
                 source = {
                     kind = "Virtual",
                     id = "bank-right",
                     character = "Button",
                 },
                 glue = {
-                    absolute_mode = "Normal",
                     source_interval = { 0.01, 0.01 },
                     target_interval = { 0.01, 0.01 },
-                    reverse = false,
-                    out_of_range_behavior = "MinOrMax",
-                    target_value_sequence = "",
-                    round_target_value = false,
-                    wrap = false,
-                    jump_interval = { 0, 1 },
-                    takeover_mode = "Off",
-                    control_transformation = "",
                     step_size_interval = { 0.01, 0.05 },
-                    step_factor_interval = { 1, 1 },
-                    relative_mode = "Normal",
-                    fire_mode = {
-                        kind = "Normal",
-                        press_duration_interval = { 0, 0 },
-                    },
-                    feedback = {
-                        kind = "Numeric",
-                        transformation = "",
-                    },
                 },
                 target = {
                     kind = "FxParameterValue",
-                    unit = "Native",
                     parameter = {
                         address = "ById",
-                        fx = {
-                            address = "This",
-                            fx_must_have_focus = false,
-                        },
                         index = 0,
                     },
-                    poll_for_feedback = true,
-                    retrigger = false,
                 },
-                unprocessed = {},
             },
         },
-        custom_data = {},
-        notes = "",
     },
 }
 return mapping
