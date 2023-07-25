@@ -1,0 +1,316 @@
+local mapping = {
+	kind = "MainCompartment",
+	version = "2.15.0",
+	value = {
+		default_group = {
+			name = "",
+			tags = nil,
+			control_enabled = true,
+			feedback_enabled = true,
+		},
+		parameters = nil,
+		groups = {
+			{
+				id = "S4vSFtoLZyctXfOkWqd_7",
+				name = "env1",
+				tags = nil,
+				control_enabled = true,
+				feedback_enabled = true,
+				activation_condition = {
+					kind = "Bank",
+					parameter = 0,
+					bank_index = 0,
+				},
+			},
+			{
+				id = "o4DaBaqXAgKHOezxw0fFl",
+				name = "env2",
+				tags = nil,
+				control_enabled = true,
+				feedback_enabled = true,
+				activation_condition = {
+					kind = "Bank",
+					parameter = 0,
+					bank_index = 1,
+				},
+			},
+		},
+		mappings = {
+			{
+				id = "GKr6XIMDomfdBvdUgBWq2",
+				name = "1",
+				tags = nil,
+				group = "S4vSFtoLZyctXfOkWqd_7",
+				visible_in_projection = true,
+				enabled = true,
+				control_enabled = true,
+				feedback_enabled = true,
+				on_activate = {
+					send_midi_feedback = {
+						{
+							kind = "Raw",
+							message =
+							"B1 00 10 B1 01 10 B1 02 10 B1 03 10 B1 04 33 B1 05 33 B1 06 33 B1 07 33 B1 08 62 B1 09 62 B1 0A 62 B1 0B 62 B1 0C 2C B1 0D 2C B1 0E 2C B1 0F 2C",
+						},
+					},
+				},
+				on_deactivate = {
+					send_midi_feedback = nil,
+				},
+				source = {
+					kind = "Virtual",
+					id = 0,
+					character = "Multi",
+				},
+				glue = {
+					absolute_mode = "Normal",
+					source_interval = { 0, 1 },
+					target_interval = { 0, 1 },
+					reverse = false,
+					out_of_range_behavior = "MinOrMax",
+					target_value_sequence = "",
+					round_target_value = false,
+					wrap = false,
+					jump_interval = { 0, 1 },
+					takeover_mode = "Off",
+					control_transformation = "",
+					step_size_interval = { 0.01, 0.05 },
+					step_factor_interval = { 1, 5 },
+					relative_mode = "Normal",
+					fire_mode = {
+						kind = "Normal",
+						press_duration_interval = { 0, 0 },
+					},
+					feedback = {
+						kind = "Numeric",
+						transformation = "",
+					},
+				},
+				target = {
+					kind = "FxParameterValue",
+					unit = "Native",
+					parameter = {
+						address = "ById",
+						fx = {
+							address = "ById",
+							fx_must_have_focus = false,
+							chain = {
+								address = "Track",
+								track = {
+									address = "This",
+									track_must_be_selected = false,
+								},
+								chain = "Normal",
+							},
+							id = "A426FFC7-5363-3045-862C-25F886D1BFC2",
+						},
+						index = 0,
+					},
+					poll_for_feedback = true,
+					retrigger = false,
+				},
+				unprocessed = {},
+			},
+			{
+				id = "xymAWh9XDME-gCzIVUdYq",
+				name = "2",
+				tags = nil,
+				group = "o4DaBaqXAgKHOezxw0fFl",
+				visible_in_projection = true,
+				enabled = true,
+				control_enabled = true,
+				feedback_enabled = true,
+				on_activate = {
+					send_midi_feedback = {
+						{
+							kind = "Raw",
+							message =
+							"B1 00 03 B1 01 03 B1 02 03 B1 03 03 B1 04 65 B1 05 65 B1 06 65 B1 07 65 B1 08 45 B1 09 45 B1 0A 45 B1 0B 45 B1 0C 4F B1 0D 4F B1 0E 4F B1 0F 4F",
+						},
+					},
+				},
+				on_deactivate = {
+					send_midi_feedback = nil,
+				},
+				source = {
+					kind = "Virtual",
+					id = 0,
+					character = "Multi",
+				},
+				glue = {
+					absolute_mode = "Normal",
+					source_interval = { 0, 1 },
+					target_interval = { 0, 1 },
+					reverse = false,
+					out_of_range_behavior = "MinOrMax",
+					target_value_sequence = "",
+					round_target_value = false,
+					wrap = false,
+					jump_interval = { 0, 1 },
+					takeover_mode = "Off",
+					control_transformation = "",
+					step_size_interval = { 0.01, 0.05 },
+					step_factor_interval = { 1, 5 },
+					relative_mode = "Normal",
+					fire_mode = {
+						kind = "Normal",
+						press_duration_interval = { 0, 0 },
+					},
+					feedback = {
+						kind = "Numeric",
+						transformation = "",
+					},
+				},
+				target = {
+					kind = "FxParameterValue",
+					unit = "Native",
+					parameter = {
+						address = "ById",
+						fx = {
+							address = "ById",
+							fx_must_have_focus = false,
+							chain = {
+								address = "Track",
+								track = {
+									address = "This",
+									track_must_be_selected = false,
+								},
+								chain = "Normal",
+							},
+							id = "A426FFC7-5363-3045-862C-25F886D1BFC2",
+						},
+						index = 1,
+					},
+					poll_for_feedback = true,
+					retrigger = false,
+				},
+				unprocessed = {},
+			},
+			{
+				id = "05qt6I1vMb2VAB_iIcA4u",
+				name = "3",
+				tags = nil,
+				group = "",
+				visible_in_projection = true,
+				enabled = true,
+				control_enabled = true,
+				feedback_enabled = true,
+				on_activate = {
+					send_midi_feedback = {
+						{
+							kind = "Raw",
+							message =
+							"B1 00 10 B1 01 10 B1 02 10 B1 03 10 B1 04 33 B1 05 33 B1 06 33 B1 07 33 B1 08 62 B1 09 62 B1 0A 62 B1 0B 62 B1 0C 2C B1 0D 2C B1 0E 2C B1 0F 2C",
+						},
+					},
+				},
+				on_deactivate = {
+					send_midi_feedback = nil,
+				},
+				source = {
+					kind = "Virtual",
+					id = "bank-left",
+					character = "Button",
+				},
+				glue = {
+					absolute_mode = "Normal",
+					source_interval = { 0, 1 },
+					target_interval = { 0, 0 },
+					reverse = false,
+					out_of_range_behavior = "Min",
+					target_value_sequence = "",
+					round_target_value = false,
+					wrap = false,
+					jump_interval = { 0, 1 },
+					takeover_mode = "Off",
+					control_transformation = "",
+					step_size_interval = { 0.01, 0.05 },
+					step_factor_interval = { 1, 5 },
+					relative_mode = "Normal",
+					fire_mode = {
+						kind = "Normal",
+						press_duration_interval = { 0, 0 },
+					},
+					feedback = {
+						kind = "Numeric",
+						transformation = "",
+					},
+				},
+				target = {
+					kind = "FxParameterValue",
+					unit = "Native",
+					parameter = {
+						address = "ById",
+						fx = {
+							address = "This",
+							fx_must_have_focus = false,
+						},
+						index = 0,
+					},
+					poll_for_feedback = true,
+					retrigger = false,
+				},
+				unprocessed = {},
+			},
+			{
+				id = "a2y2AMUJMsKwoxsijcLXM",
+				name = "4",
+				tags = nil,
+				group = "",
+				visible_in_projection = true,
+				enabled = true,
+				control_enabled = true,
+				feedback_enabled = true,
+				on_activate = {},
+				on_deactivate = {},
+				source = {
+					kind = "Virtual",
+					id = "bank-right",
+					character = "Button",
+				},
+				glue = {
+					absolute_mode = "Normal",
+					source_interval = { 0.01, 0.01 },
+					target_interval = { 0.01, 0.01 },
+					reverse = false,
+					out_of_range_behavior = "MinOrMax",
+					target_value_sequence = "",
+					round_target_value = false,
+					wrap = false,
+					jump_interval = { 0, 1 },
+					takeover_mode = "Off",
+					control_transformation = "",
+					step_size_interval = { 0.01, 0.05 },
+					step_factor_interval = { 1, 1 },
+					relative_mode = "Normal",
+					fire_mode = {
+						kind = "Normal",
+						press_duration_interval = { 0, 0 },
+					},
+					feedback = {
+						kind = "Numeric",
+						transformation = "",
+					},
+				},
+				target = {
+					kind = "FxParameterValue",
+					unit = "Native",
+					parameter = {
+						address = "ById",
+						fx = {
+							address = "This",
+							fx_must_have_focus = false,
+						},
+						index = 0,
+					},
+					poll_for_feedback = true,
+					retrigger = false,
+				},
+				unprocessed = {},
+			},
+		},
+		custom_data = {},
+		notes = "",
+	},
+}
+return mapping
