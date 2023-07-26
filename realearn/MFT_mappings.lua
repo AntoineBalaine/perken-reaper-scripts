@@ -1,3 +1,56 @@
+---HELPER - concat a variable number of tables
+---@param ... table[]
+local function TableConcat(...)
+    local t = {}
+    ---@type number, table
+    for _, v in ipairs({ ... }) do
+        for i = 1, #v do
+            t[#t + 1] = v[i]
+        end
+    end
+    return t
+end
+
+--- Iterates over the given table, calling `cb(value, key, t)` for each element
+---and collecting the returned values into a new table with the original keys.
+--
+---Entries are **not** guaranteed to be called in any specific order.
+---@param t     table       A table
+---@param cb    function    Will be called for each entry in the table and passed
+---the arguments [value, key, t]. Should return a value.
+---@return      table
+local Tablemap = function(t, cb)
+    local mapped = {}
+
+    for k, v in pairs(t) do
+        mapped[k] = cb(v, k, t)
+    end
+
+    return mapped
+end
+
+---HELPER - trim whitespace from string
+function string.trim(s)
+    return s:gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+---HELPER - Separator can be one or more chars long in a single string. e.g.
+---```lua
+---string.split("a\nb", "\n\r")
+---```
+---returns `{"a", "b"}`
+---@param s string
+---@param separator string
+function string.split(s, separator)
+    ---@type string[]
+    local arr = {}
+    for line in s:gmatch("[^" .. separator .. "]+") do
+        table.insert(arr, line)
+    end
+    return arr
+end
+
+---Bank selectors refers to side buttons on the MFT
 local Bank_selectors = {
     {
         id = "05qt6I1vMb2VAB_iIcA4u",
@@ -53,6 +106,48 @@ local Bank_selectors = {
     },
 }
 
+--- mapping groups, named as Banks to match the MFT terminology
+local Banks = {
+    {
+        id = "S4vSFtoLZyctXfOkWqd_7",
+        name = "BANK1",
+        activation_condition = {
+            kind = "Bank",
+            parameter = 0,
+            bank_index = 0,
+        },
+    },
+    {
+        id = "o4DaBaqXAgKHOezxw0fFl",
+        name = "BANK2",
+        activation_condition = {
+            kind = "Bank",
+            parameter = 0,
+            bank_index = 1,
+        },
+    },
+}
+
+---Bank 1 colors
+B1_colors = [[
+    B1 00 10
+    B1 01 10
+    B1 02 10
+    B1 03 10
+    B1 04 33
+    B1 05 33
+    B1 06 33
+    B1 07 33
+    B1 08 62
+    B1 09 62
+    B1 0A 62
+    B1 0B 62
+    B1 0C 2C
+    B1 0D 2C
+    B1 0E 2C
+    B1 0F 2C ]]
+
+---Bank 1 mappings, all triggering the virtual button actions in Reaper
 local B1_mappings = {
     {
         id = "GKr6XIMDomfdBvdUgBWq2",
@@ -62,8 +157,7 @@ local B1_mappings = {
             send_midi_feedback = {
                 {
                     kind = "Raw",
-                    message =
-                    "B1 00 10 B1 01 10 B1 02 10 B1 03 10 B1 04 33 B1 05 33 B1 06 33 B1 07 33 B1 08 62 B1 09 62 B1 0A 62 B1 0B 62 B1 0C 2C B1 0D 2C B1 0E 2C B1 0F 2C",
+                    message = B1_colors,
                 },
             },
         },
@@ -337,6 +431,38 @@ local B1_mappings = {
     },
 }
 
+--[[ ---assign LED colours to buttons
+B1_mappings = Tablemap(B1_mappings, function(v, k, t)
+    v.on_activate = {
+        send_midi_feedback = {
+            {
+                kind = "Raw",
+                message = B1_colors:trim():split("\n\r")[k]
+            },
+        },
+    }
+    return v
+end) ]]
+
+---Bank 2 colors
+local B2_colors = [[
+    B1 00 03
+    B1 01 03
+    B1 02 03
+    B1 03 03
+    B1 04 65
+    B1 05 65
+    B1 06 65
+    B1 07 65
+    B1 08 45
+    B1 09 45
+    B1 0A 45
+    B1 0B 45
+    B1 0C 4F
+    B1 0D 4F
+    B1 0E 4F
+    B1 0F 4F ]]
+---Bank 2 mappings, all triggering the virtual button actions in Reaper
 local B2_mappings = {
     {
         id = "xymAWh9XDME-gCzIVUdYq",
@@ -346,8 +472,7 @@ local B2_mappings = {
             send_midi_feedback = {
                 {
                     kind = "Raw",
-                    message =
-                    "B1 00 03 B1 01 03 B1 02 03 B1 03 03 B1 04 65 B1 05 65 B1 06 65 B1 07 65 B1 08 45 B1 09 45 B1 0A 45 B1 0B 45 B1 0C 4F B1 0D 4F B1 0E 4F B1 0F 4F",
+                    message = B2_colors
                 },
             },
         },
@@ -366,36 +491,23 @@ local B2_mappings = {
     },
 }
 
-local mappings = {
-    table.unpack(B1_mappings),
-    table.unpack(B2_mappings),
-    table.unpack(Bank_selectors),
-}
+
+
+--[[ All controller mappings here.
+Bank selectors and bank mappings all go together
+]]
+local mappings = TableConcat(
+    B1_mappings,
+    B2_mappings,
+    Bank_selectors
+)
+
 
 local main_compartment = {
     kind = "MainCompartment",
     version = "2.15.0",
     value = {
-        groups = {
-            {
-                id = "S4vSFtoLZyctXfOkWqd_7",
-                name = "BANK1",
-                activation_condition = {
-                    kind = "Bank",
-                    parameter = 0,
-                    bank_index = 0,
-                },
-            },
-            {
-                id = "o4DaBaqXAgKHOezxw0fFl",
-                name = "BANK2",
-                activation_condition = {
-                    kind = "Bank",
-                    parameter = 0,
-                    bank_index = 1,
-                },
-            },
-        },
+        groups = Banks,
         mappings = mappings,
     },
 }
