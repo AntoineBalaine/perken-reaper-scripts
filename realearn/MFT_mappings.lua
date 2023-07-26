@@ -11,15 +11,14 @@ local function TableConcat(...)
     return t
 end
 
---- Iterates over the given table, calling `cb(value, key, t)` for each element
+---HELPER - Iterates over the given table, calling `cb(value, key, t)` for each element
 ---and collecting the returned values into a new table with the original keys.
 --
 ---Entries are **not** guaranteed to be called in any specific order.
----@param t     table       A table
----@param cb    function    Will be called for each entry in the table and passed
----the arguments [value, key, t]. Should return a value.
----@return      table
-local Tablemap = function(t, cb)
+---@param t table
+---@param cb function    Will be called for each entry in the table and passed the arguments [value, key, t]. Should return a value.
+---@return table
+function Tablemap(t, cb)
     local mapped = {}
 
     for k, v in pairs(t) do
@@ -431,18 +430,18 @@ local B1_mappings = {
     },
 }
 
---[[ ---assign LED colours to buttons
+---assign LED colours to Bank1 buttons
 B1_mappings = Tablemap(B1_mappings, function(v, k, t)
     v.on_activate = {
         send_midi_feedback = {
             {
                 kind = "Raw",
-                message = B1_colors:trim():split("\n\r")[k]
+                message = string.split(string.trim(B1_colors), "\n\r")[k]
             },
         },
     }
     return v
-end) ]]
+end)
 
 ---Bank 2 colors
 local B2_colors = [[
@@ -490,8 +489,18 @@ local B2_mappings = {
         },
     },
 }
-
-
+---assign LED colours to Bank2 buttons
+B2_mappings = Tablemap(B2_mappings, function(v, k, t)
+    v.on_activate = {
+        send_midi_feedback = {
+            {
+                kind = "Raw",
+                message = string.split(string.trim(B2_colors), "\n\r")[k]
+            },
+        },
+    }
+    return v
+end)
 
 --[[ All controller mappings here.
 Bank selectors and bank mappings all go together
