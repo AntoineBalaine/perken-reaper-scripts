@@ -502,13 +502,80 @@ B2_mappings = Tablemap(B2_mappings, function(v, k, t)
     return v
 end)
 
+local enable_selectTag = {
+    kind = "Mapping",
+    version = "2.15.0",
+    value = {
+        id = "GsGIrpIfvaAGLA66FXl8E",
+        name = "21",
+        group = "1W2CM4HFJT2vuuPXu5fn_",
+        source = {
+            kind = "Virtual",
+            id = 12,
+            character = "Button",
+        },
+        glue = {
+            out_of_range_behavior = "Ignore",
+            step_size_interval = { 0.01, 0.05 },
+            step_factor_interval = { 1, 5 },
+        },
+        target = {
+            kind = "EnableMappings",
+            tags = {
+                "select",
+            },
+            exclusivity = "Exclusive",
+        },
+    },
+}
+local map_RED_during_select_enable = {
+    kind = "Mapping",
+    version = "2.15.0",
+    value = {
+        id = "yrG1get-yMWFTT-EYpCzt",
+        name = "COLORS",
+        tags = {
+            "select",
+        },
+        enabled = false,
+        control_enabled = false,
+        on_activate = {
+            send_midi_feedback = {
+                {
+                    kind = "Raw",
+                    message =
+                    "B1 00 4F B1 01 4F B1 02 4F B1 03 4F B1 04 4F B1 05 4F B1 06 4F B1 07 4F B1 08 4F B1 09 4F B1 0A 4F B1 0B 4F B1 0C 4F B1 0D 4F B1 0E 4F B1 0F 4F",
+                },
+            },
+        },
+        on_deactivate = {
+            send_midi_feedback = {
+                {
+                    kind = "Raw",
+                    message = nil,
+                },
+            },
+        },
+        glue = {
+            source_interval = { 0, 0.01 },
+            target_interval = { 0.01, 0.01 },
+            step_size_interval = { 0.01, 0.05 },
+        },
+        target = {
+            kind = "Dummy",
+        },
+    },
+}
+
 --[[ All controller mappings here.
 Bank selectors and bank mappings all go together
 ]]
 local mappings = TableConcat(
     B1_mappings,
     B2_mappings,
-    Bank_selectors
+    Bank_selectors,
+    enable_selectTag,
+    map_RED_during_select_enable
 )
 
 
