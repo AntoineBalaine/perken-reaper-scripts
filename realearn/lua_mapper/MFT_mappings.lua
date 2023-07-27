@@ -125,6 +125,10 @@ local Banks = {
             bank_index = 1,
         },
     },
+    {
+        id = "1W2CM4HFJT2vuuPXu5fn_",
+        name = "dummies",
+    },
 }
 
 ---Bank 1 colors
@@ -147,7 +151,7 @@ B1_colors = [[
     B1 0F 2C ]]
 
 ---Bank 1 mappings, all triggering the virtual button actions in Reaper
-local B1_mappings = {
+local Map_B1 = {
     {
         id = "GKr6XIMDomfdBvdUgBWq2",
         name = "V1_B1",
@@ -431,7 +435,7 @@ local B1_mappings = {
 }
 
 ---assign LED colours to Bank1 buttons
-B1_mappings = Tablemap(B1_mappings, function(v, k, t)
+Map_B1 = Tablemap(Map_B1, function(v, k, t)
     v.on_activate = {
         send_midi_feedback = {
             {
@@ -462,7 +466,7 @@ local B2_colors = [[
     B1 0E 4F
     B1 0F 4F ]]
 ---Bank 2 mappings, all triggering the virtual button actions in Reaper
-local B2_mappings = {
+local map_B2 = {
     {
         id = "xymAWh9XDME-gCzIVUdYq",
         name = "V1_B2",
@@ -490,7 +494,7 @@ local B2_mappings = {
     },
 }
 ---assign LED colours to Bank2 buttons
-B2_mappings = Tablemap(B2_mappings, function(v, k, t)
+map_B2 = Tablemap(map_B2, function(v, k, t)
     v.on_activate = {
         send_midi_feedback = {
             {
@@ -502,68 +506,69 @@ B2_mappings = Tablemap(B2_mappings, function(v, k, t)
     return v
 end)
 
-local enable_selectTag = {
-    kind = "Mapping",
-    version = "2.15.0",
-    value = {
-        id = "GsGIrpIfvaAGLA66FXl8E",
-        name = "21",
-        group = "1W2CM4HFJT2vuuPXu5fn_",
-        source = {
-            kind = "Virtual",
-            id = 12,
-            character = "Button",
-        },
-        glue = {
-            out_of_range_behavior = "Ignore",
-            step_size_interval = { 0.01, 0.05 },
-            step_factor_interval = { 1, 5 },
-        },
-        target = {
-            kind = "EnableMappings",
-            tags = {
-                "select",
-            },
-            exclusivity = "Exclusive",
-        },
+local Enable_selectTag = {
+    id = "GsGIrpIfvaAGLA66FXl8E",
+    name = "Enable_selectTag",
+    group = "1W2CM4HFJT2vuuPXu5fn_",
+    source = {
+        kind = "Virtual",
+        id = 12,
+        character = "Button",
     },
-}
-local map_RED_during_select_enable = {
-    kind = "Mapping",
-    version = "2.15.0",
-    value = {
-        id = "yrG1get-yMWFTT-EYpCzt",
-        name = "COLORS",
+    glue = {
+        out_of_range_behavior = "Ignore",
+        step_size_interval = { 0.01, 0.05 },
+        step_factor_interval = { 1, 5 },
+    },
+    target = {
+        kind = "EnableMappings",
         tags = {
             "select",
         },
-        enabled = false,
-        control_enabled = false,
-        on_activate = {
-            send_midi_feedback = {
-                {
-                    kind = "Raw",
-                    message =
-                    "B1 00 4F B1 01 4F B1 02 4F B1 03 4F B1 04 4F B1 05 4F B1 06 4F B1 07 4F B1 08 4F B1 09 4F B1 0A 4F B1 0B 4F B1 0C 4F B1 0D 4F B1 0E 4F B1 0F 4F",
-                },
+        exclusivity = "Exclusive",
+    },
+}
+
+local RED_map_colors = [[
+    B1 00 4F
+    B1 01 4F
+    B1 02 4F
+    B1 03 4F
+    B1 04 4F
+    B1 05 4F
+    B1 06 4F
+    B1 07 4F
+    B1 08 4F
+    B1 09 4F
+    B1 0A 4F
+    B1 0B 4F
+    B1 0C 4F
+    B1 0D 4F
+    B1 0E 4F
+    B1 0F 4F ]]
+
+local Map_RED_during_select_enable = {
+    id = "yrG1get-yMWFTT-EYpCzt",
+    name = "COLORS",
+    tags = {
+        "select",
+    },
+    control_enabled = false,
+    on_activate = {
+        send_midi_feedback = {
+            {
+                kind = "Raw",
+                message = RED_map_colors,
             },
         },
-        on_deactivate = {
-            send_midi_feedback = {
-                {
-                    kind = "Raw",
-                    message = nil,
-                },
-            },
-        },
-        glue = {
-            source_interval = { 0, 0.01 },
-            target_interval = { 0.01, 0.01 },
-            step_size_interval = { 0.01, 0.05 },
-        },
-        target = {
-            kind = "Dummy",
-        },
+    },
+    glue = {
+        source_interval = { 0, 0.01 },
+        target_interval = { 0.01, 0.01 },
+        step_size_interval = { 0.01, 0.05 },
+    },
+    target = {
+        kind = "Dummy",
     },
 }
 
@@ -571,11 +576,11 @@ local map_RED_during_select_enable = {
 Bank selectors and bank mappings all go together
 ]]
 local mappings = TableConcat(
-    B1_mappings,
-    B2_mappings,
+    Map_B1,
+    map_B2,
     Bank_selectors,
-    enable_selectTag,
-    map_RED_during_select_enable
+    Map_RED_during_select_enable,
+    Enable_selectTag
 )
 
 
