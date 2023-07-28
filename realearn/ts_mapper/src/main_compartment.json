@@ -29,7 +29,8 @@
         "name": "V1_B1",
         "groupId": "S4vSFtoLZyctXfOkWqd_7",
         "source": {
-          "category": "virtual"
+          "category": "virtual",
+          "controlElementIndex": 1
         },
         "mode": {
           "maxStepSize": 0.05,
@@ -828,18 +829,6 @@
           "takeMappingSnapshot": {
             "kind": "ById",
             "id": ""
-          }
-        },
-        "advanced": {
-          "on_activate": {
-            "send_midi_feedback": [
-              {
-                "raw": "B1 00 10 B1 01 10 B1 02 10 B1 03 10 B1 04 33 B1 05 33 B1 06 33 B1 07 33 B1 08 62 B1 09 62 B1 0A 62 B1 0B 62 B1 0C 2C B1 0D 2C B1 0E 2C B1 0F 2C"
-              }
-            ]
-          },
-          "on_deactivate": {
-            "send_midi_feedback": []
           }
         }
       },

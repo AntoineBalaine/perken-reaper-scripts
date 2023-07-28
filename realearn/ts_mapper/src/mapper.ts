@@ -153,99 +153,24 @@ const color_dummy_select_tag = {
   },
 };
 
-const B2_select_btn = {
-  id: "a2y2AMUJMsKwoxsijcLXM",
-  name: "B2_Select",
-  source: {
-    category: "virtual",
-    controlElementType: "button",
-    controlElementIndex: "bank-right",
-  },
-  mode: {
-    minSourceValue: 0.01,
-    maxSourceValue: 0.01,
-    minTargetValue: 0.01,
-    maxTargetValue: 0.01,
-    maxStepSize: 0.05,
-    minStepFactor: 1,
-    maxStepFactor: 1,
-  },
-  target: {
-    fxAnchor: "this",
-    useSelectionGanging: false,
-    useTrackGrouping: false,
-    seekBehavior: "Immediate",
-    mouseAction: {
-      kind: "MoveTo",
-      axis: "Y",
-    },
-    takeMappingSnapshot: {
-      kind: "ById",
-      id: "",
-    },
-  },
-};
-
-const B1_select_btn = {
-  id: "05qt6I1vMb2VAB_iIcA4u",
-  name: "B1_Select",
-  source: {
-    category: "virtual",
-    controlElementType: "button",
-    controlElementIndex: "bank-left",
-  },
-  mode: {
-    maxTargetValue: 0.0,
-    maxStepSize: 0.05,
-    minStepFactor: 1,
-    maxStepFactor: 5,
-    outOfRangeBehavior: "min",
-  },
-  target: {
-    fxAnchor: "this",
-    useSelectionGanging: false,
-    useTrackGrouping: false,
-    seekBehavior: "Immediate",
-    mouseAction: {
-      kind: "MoveTo",
-      axis: "Y",
-    },
-    takeMappingSnapshot: {
-      kind: "ById",
-      id: "",
-    },
-  },
-  advanced: {
-    on_activate: {
-      send_midi_feedback: [
-        {
-          raw: "B1 00 10 B1 01 10 B1 02 10 B1 03 10 B1 04 33 B1 05 33 B1 06 33 B1 07 33 B1 08 62 B1 09 62 B1 0A 62 B1 0B 62 B1 0C 2C B1 0D 2C B1 0E 2C B1 0F 2C",
-        },
-      ],
-    },
-    on_deactivate: {
-      send_midi_feedback: [],
-    },
-  },
-};
-
-const Bank2 = [
+const Bank_Selectors = [
   {
-    id: "xymAWh9XDME-gCzIVUdYq",
-    name: "V1_B2",
-    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    id: "05qt6I1vMb2VAB_iIcA4u",
+    name: "B1_Select",
     source: {
       category: "virtual",
+      controlElementType: "button",
+      controlElementIndex: "bank-left",
     },
     mode: {
+      maxTargetValue: 0.0,
       maxStepSize: 0.05,
       minStepFactor: 1,
       maxStepFactor: 5,
+      outOfRangeBehavior: "min",
     },
     target: {
-      type: 0,
-      commandName: "RS830a2f5bc01f783a8420b014d40d85ce347e6f9b",
-      fxAnchor: "id",
+      fxAnchor: "this",
       useSelectionGanging: false,
       useTrackGrouping: false,
       seekBehavior: "Immediate",
@@ -253,22 +178,41 @@ const Bank2 = [
         kind: "MoveTo",
         axis: "Y",
       },
-      pollForFeedback: false,
       takeMappingSnapshot: {
         kind: "ById",
         id: "",
       },
     },
-    advanced: {
-      on_activate: {
-        send_midi_feedback: [
-          {
-            raw: "B1 00 03",
-          },
-        ],
+  },
+  {
+    id: "a2y2AMUJMsKwoxsijcLXM",
+    name: "B2_Select",
+    source: {
+      category: "virtual",
+      controlElementType: "button",
+      controlElementIndex: "bank-right",
+    },
+    mode: {
+      minSourceValue: 0.01,
+      maxSourceValue: 0.01,
+      minTargetValue: 0.01,
+      maxTargetValue: 0.01,
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 1,
+    },
+    target: {
+      fxAnchor: "this",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
       },
-      on_deactivate: {
-        send_midi_feedback: [],
+      takeMappingSnapshot: {
+        kind: "ById",
+        id: "",
       },
     },
   },
@@ -294,6 +238,7 @@ const Bank1 = [
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
+      controlElementIndex: 1,
     },
     mode: {
       maxStepSize: 0.05,
@@ -791,11 +736,55 @@ const Bank1 = [
   };
 });
 
+const Bank2 = [
+  {
+    id: "xymAWh9XDME-gCzIVUdYq",
+    name: "V1_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 0,
+      commandName: "RS830a2f5bc01f783a8420b014d40d85ce347e6f9b",
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      pollForFeedback: false,
+      takeMappingSnapshot: {
+        kind: "ById",
+        id: "",
+      },
+    },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 00 03",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
+  },
+];
+
 const mappings = [
   ...Bank1,
   ...Bank2,
-  B1_select_btn,
-  B2_select_btn,
+  ...Bank_Selectors,
   color_dummy_select_tag,
   tag_selector,
 ];
