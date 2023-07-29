@@ -1,5 +1,6 @@
 {
   "Lua.workspace.library": [
-    "/home/antoine/.vscode-oss/extensions/antoinebalaine.reascript-docs-0.0.10/resources/reaper-types.lua"
+    "/home/antoine/.vscode-oss/extensions/antoinebalaine.reascript-docs-0.0.10/resources/reaper-types.lua",
+"/home/antoine/.config/REAPER/Scripts/perken/realearn/controller-mapper/MFT/Lua_Types/Mapping.lua"
   ]
 }
