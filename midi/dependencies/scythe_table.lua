@@ -1,7 +1,7 @@
 --- @module Table
 
 local Table = {}
-setmetatable(Table, {__index = table})
+setmetatable(Table, { __index = table })
 
 --- Sets a table's metatable to allow it to access both the Table module and
 -- Lua's native table functions via : syntax.
@@ -23,7 +23,7 @@ setmetatable(Table, {__index = table})
 -- ```
 -- @param t     table
 -- @return      table   The original table reference
-Table.T = function(t) return setmetatable(t, {__index = Table}) end
+Table.T = function(t) return setmetatable(t, { __index = Table }) end
 local T = Table.T
 
 --- Iterates over a given table, passing each entry to the callback.
@@ -61,7 +61,7 @@ end
 -- the arguments [value, key, t]. Should return a value.
 -- @return      table
 Table.map = function(t, cb)
-  local mapped = T{}
+  local mapped = T {}
 
   for k, v in pairs(t) do
     mapped[k] = cb(v, k, t)
@@ -77,7 +77,7 @@ end
 -- the arguments [value, key, t]. Should return a value.
 -- @return      table
 Table.orderedMap = function(t, cb)
-  local mapped = T{}
+  local mapped = T {}
   local l = #t
 
   for i = 1, l do
@@ -96,7 +96,7 @@ end
 -- the arguments [value, key, t]. Should return a boolean.
 -- @return      table
 Table.filter = function(t, cb)
-  local filtered, l = T{}, 1
+  local filtered, l = T {}, 1
 
   for k, v in pairs(t) do
     if cb(v, k, t) then
@@ -115,7 +115,7 @@ end
 -- the arguments [value, key, t]. Should return a boolean.
 -- @return      table
 Table.orderedFilter = function(t, cb)
-  local filtered, fl = T{}, 1
+  local filtered, fl = T {}, 1
   local l = #t
 
   for i = 1, l do
@@ -178,7 +178,7 @@ Table.shallowCopy = function(t)
   if type(t) == "table" then
     copy = {}
     for k, v in pairs(t) do
-        copy[k] = v
+      copy[k] = v
     end
   else -- number, string, boolean, etc
     copy = t
@@ -203,8 +203,7 @@ Table.deepCopy = function(t, copies)
   local copy
   if type(t) == "table" then
     if copies[t] then
-        copy = copies[t]
-
+      copy = copies[t]
     else
       -- Override so we don't end up working through circular references for
       -- elements, layers, etc
@@ -236,19 +235,19 @@ end
 -- @param t     table
 -- @option maxDepth  integer  Maximum depth of nested tables to process. Defaults to 2.
 -- @return      string
-Table.stringify = function (t, maxDepth, currentDepth)
+Table.stringify = function(t, maxDepth, currentDepth)
   local ret = {}
   maxDepth = maxDepth or 2
   currentDepth = currentDepth or 0
 
-  for n,v in pairs(t) do
-    ret[#ret+1] = string.rep("  ", currentDepth) .. tostring(n) .. " = "
+  for n, v in pairs(t) do
+    ret[#ret + 1] = string.rep("  ", currentDepth) .. tostring(n) .. " = "
 
     if type(v) == "table" then
       ret[#ret] = ret[#ret] .. "table:"
 
       if (not maxDepth or currentDepth < maxDepth) and not v.__noRecursion then
-        ret[#ret+1] = Table.stringify(v, maxDepth, currentDepth + 1)
+        ret[#ret + 1] = Table.stringify(v, maxDepth, currentDepth + 1)
       end
     else
       ret[#ret] = ret[#ret] .. tostring(v)
@@ -263,7 +262,7 @@ end
 -- @param a     table
 -- @param b     table
 -- @return      boolean
-Table.shallowEquals = function (a, b)
+Table.shallowEquals = function(a, b)
   if type(a) ~= "table" or type(b) ~= "table" then return false end
 
   local seenKeys = {}
@@ -283,7 +282,7 @@ end
 -- @param a     table
 -- @param b     table
 -- @return      boolean
-Table.deepEquals = function (a, b)
+Table.deepEquals = function(a, b)
   if type(a) ~= "table" or type(b) ~= "table" then return false end
   if a == b then return true end
 
@@ -308,11 +307,11 @@ Table.deepEquals = function (a, b)
 end
 
 local fullSortTypes = {
-  boolean = {number = true, string = true, ["function"] = true, table = true},
-  number = {boolean = false, string = true, ["function"] = true, table = true},
-  string = {boolean = false, number = false, ["function"] = true, table = true},
-  ["function"] = {boolean = false, number = false, string = false, table = true},
-  table = {boolean = false, number = false, string = false, ["function"] = false},
+  boolean = { number = true, string = true, ["function"] = true, table = true },
+  number = { boolean = false, string = true, ["function"] = true, table = true },
+  string = { boolean = false, number = false, ["function"] = true, table = true },
+  ["function"] = { boolean = false, number = false, string = false, table = true },
+  table = { boolean = false, number = false, string = false, ["function"] = false },
 }
 
 --- Sorts values of different types (bool < num < string < reference), e.g. for
@@ -326,14 +325,14 @@ local fullSortTypes = {
 -- @param a     boolean|num|string|reference
 -- @param b     boolean|num|string|reference
 -- @return      boolean
-Table.fullSort = function (a, b)
+Table.fullSort = function(a, b)
   -- Sort strings that begin with a number as if they were numbers,
   -- i.e. so that 12 > "6 apples"
   if type(a) == "string" and string.match(a, "^(%-?%d+)") then
-    a = tonumber( string.match(a, "^(%-?%d+)") )
+    a = tonumber(string.match(a, "^(%-?%d+)"))
   end
   if type(b) == "string" and string.match(b, "^(%-?%d+)") then
-    b = tonumber( string.match(b, "^(%-?%d+)") )
+    b = tonumber(string.match(b, "^(%-?%d+)"))
   end
 
   local typeA, typeB = type(a), type(b)
@@ -347,7 +346,6 @@ Table.fullSort = function (a, b)
   else
     return tostring(a) < tostring(b) --cmp by address
   end
-
 end
 
 --- Iterates through all table values in alphanumeric order.
@@ -357,22 +355,20 @@ end
 -- Adapted from Programming In Lua, chapter 19.3.
 -- @param t     table
 -- @return      iterator
-Table.kpairs = function (t)
+Table.kpairs = function(t)
   local a = {}
   for n in pairs(t) do table.insert(a, n) end
 
   table.sort(a, Table.fullSort)
 
-  local i = 0      -- iterator variable
-  local iter = function ()   -- iterator function
-
+  local i = 0              -- iterator variable
+  local iter = function()  -- iterator function
     i = i + 1
     if a[i] == nil then
       return nil
     else
       return a[i], t[a[i]]
     end
-
   end
 
   return iter
@@ -389,7 +385,7 @@ end
 -- @param t     table
 -- @return      table
 Table.invert = function(t)
-  local inv = T{}
+  local inv = T {}
 
   for k, v in pairs(t) do
     inv[v] = k
@@ -481,13 +477,13 @@ end
 -- @param key   any     A key present in all of the tables
 -- @return      table
 Table.sortByKey = function(t, key)
-  local sorted = T{}
+  local sorted = T {}
 
   for _, child in pairs(t) do
     sorted[#sorted + 1] = child
   end
 
-  sorted:sort( function(a, b) return a[key] < b[key] end )
+  sorted:sort(function(a, b) return a[key] < b[key] end)
 
   return sorted
 end
@@ -533,10 +529,10 @@ end
 -- @param ...   table
 -- @return      table
 Table.join = function(...)
-  local out = T{}
-  for _, t in ipairs({...}) do
+  local out = T {}
+  for _, t in ipairs({ ... }) do
     for _, entry in ipairs(t) do
-      out[#out+1] = entry
+      out[#out + 1] = entry
     end
   end
 
@@ -554,13 +550,13 @@ end
 -- @param  ...  table
 -- @return      table
 Table.zip = function(...)
-  local tIn = {...}
+  local tIn = { ... }
 
-  local tOut = T{}
+  local tOut = T {}
 
   local nonEmpty = {}
   for k in pairs(tIn) do
-    nonEmpty[#nonEmpty+1] = k
+    nonEmpty[#nonEmpty + 1] = k
   end
 
   local index = 1
@@ -570,7 +566,7 @@ Table.zip = function(...)
       local val = tIn[nonEmpty[lookingAt]][index]
 
       if val ~= nil then
-        tOut[#tOut+1] = val
+        tOut[#tOut + 1] = val
         lookingAt = lookingAt + 1
       else
         table.remove(nonEmpty, lookingAt)

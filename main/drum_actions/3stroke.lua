@@ -1,6 +1,6 @@
 local info = debug.getinfo(1, "S")
 
-local internal_root_path = info.source:match(".*AB.main."):sub(2) .. "utilities"
+local internal_root_path = info.source:match(".*perken.main."):sub(2) .. "utilities"
 
 local windows_files = internal_root_path:match("\\$")
 if windows_files then
