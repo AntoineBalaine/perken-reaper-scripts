@@ -13,7 +13,6 @@ local function getTracksNamesContainBus()
   return busses
 end
 
-
 ---Route all tracks to their corresponding busses.
 ---In order to find the tracks that should be routed to a bus,
 ---the function will look for tracks with the same color as the bus.
@@ -44,4 +43,64 @@ local function routeTracksToBusses()
   end
 end
 
-routeTracksToBusses()
+Busses = {
+  "BA",
+  "BGV",
+  "BR",
+  "Choir",
+  "DR",
+  "FX",
+  "FullMix",
+  "GTR",
+  "Keys",
+  "LD",
+  "PD",
+  "PL",
+  "PNO",
+  "PRC ",
+  "STR",
+  "TXT",
+  "WD",
+}
+
+
+---Create busses with all common prefixes found in "Busses" list.
+---
+---Then route all tracks to their corresponding busses, using matching colors.
+---
+---Remove any unused busses.
+---Common Prefixes are:
+---"BA",
+---"BGV",
+---"BR",
+---"Choir",
+---"DR",
+---"FX",
+---"FullMix",
+---"GTR",
+---"Keys",
+---"LD",
+---"PD",
+---"PL",
+---"PNO",
+---"PRC ",
+---"STR",
+---"TXT",
+---"WD",
+local function buildBusses()
+  -- insert busses from Busses list
+  for _, bus_name in ipairs(Busses) do
+    reaper.InsertTrackAtIndex(0, true)                                         -- insert track
+    local bus_tr = reaper.GetTrack(0, 0)                                       -- get track
+    reaper.GetSetMediaTrackInfo_String(bus_tr, "P_NAME", bus_name, true)       -- rename to bus_name
+    reaper.Main_OnCommand(reaper.NamedCommandLookup("_SWSAUTOCOLOR_APPLY"), 0) -- apply auto-color
+    sendColorToMatchingBuss(bus_tr)                                            -- send all matching colored-tracks to bus
+    -- if bus_tr gets not receives, then remove it
+    local num_sends = reaper.GetTrackNumSends(bus_tr, -1)                      -- count receives
+    if num_sends == 0 then                                                     -- if no receives
+      reaper.DeleteTrack(bus_tr)                                               -- remove track
+    end
+  end
+end
+
+buildBusses()
