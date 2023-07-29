@@ -235,10 +235,10 @@ const Bank1 = [
   {
     id: "GKr6XIMDomfdBvdUgBWq2",
     name: "V1_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
-      controlElementIndex: 1,
     },
     mode: {
       maxStepSize: 0.05,
@@ -246,9 +246,9 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RS86a658f69fadfd0c116968a473ed6b519f4c58cd",
       fxAnchor: "id",
+      fxIndex: 2,
+      fxGUID: "5F05DAD4-8E3E-A1F4-FD0C-E995B7EEEAC0",
       useSelectionGanging: false,
       useTrackGrouping: false,
       seekBehavior: "Immediate",
@@ -260,12 +260,25 @@ const Bank1 = [
       takeMappingSnapshot: {
         kind: "ById",
         id: "",
+      },
+    },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 00 10",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
       },
     },
   },
   {
     id: "3tICfLtgYaMUrEtRF-j0-",
     name: "V2_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -277,11 +290,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RS830a2f5bc01f783a8420b014d40d85ce347e6f9b",
       fxAnchor: "id",
+      fxIndex: 2,
+      fxGUID: "5F05DAD4-8E3E-A1F4-FD0C-E995B7EEEAC0",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 6,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -293,10 +307,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 01 10",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "VEGCtvC7As8JvuwAT7MDL",
     name: "V3_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -308,11 +335,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RS7ad216177f674727876f6db23cd4ec198c041924",
       fxAnchor: "id",
+      fxIndex: 2,
+      fxGUID: "5F05DAD4-8E3E-A1F4-FD0C-E995B7EEEAC0",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 9,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -324,10 +352,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 02 10",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "f6s6xksXI1P5ORtfttJUQ",
     name: "V4_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -339,11 +380,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RScad496a247fdbb534da3a99df0b31f12c6195699",
       fxAnchor: "id",
+      fxIndex: 2,
+      fxGUID: "5F05DAD4-8E3E-A1F4-FD0C-E995B7EEEAC0",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 1,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -353,28 +395,43 @@ const Bank1 = [
       takeMappingSnapshot: {
         kind: "ById",
         id: "",
+      },
+    },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 03 10",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
       },
     },
   },
   {
     id: "O1TA84rxsfsXcWa9mt2gZ",
     name: "V5_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
       controlElementIndex: 4,
     },
     mode: {
-      maxStepSize: 0.05,
-      minStepFactor: 1,
-      maxStepFactor: 5,
+      minStepSize: 0.0,
+      maxStepSize: 0.38,
+      minStepFactor: 20,
+      maxStepFactor: 1900,
     },
     target: {
-      type: 0,
-      commandName: "RS32313842f86d8a75dd381cd4a388d9c9101142d9",
       fxAnchor: "id",
+      fxIndex: 4,
+      fxGUID: "99C573E8-8FA5-6207-36F8-14A52E26C61A",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 1,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -386,10 +443,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 04 33",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "3oGY61kvfdZkxdErl6YKW",
     name: "V6_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -401,11 +471,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RS616a6d79328be95d99b095362456360bce9573dc",
       fxAnchor: "id",
+      fxIndex: 4,
+      fxGUID: "99C573E8-8FA5-6207-36F8-14A52E26C61A",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 2,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -417,10 +488,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 05 33",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "T3ykjm7UmcEmWYhmrjl7i",
     name: "V7_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -432,11 +516,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RSb9c4a112e8da743767779d4ef215fda6e77f7944",
       fxAnchor: "id",
+      fxIndex: 4,
+      fxGUID: "99C573E8-8FA5-6207-36F8-14A52E26C61A",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 3,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -448,10 +533,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 06 33",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "T0PYrvAkeHortwH7pppcf",
     name: "V8_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -463,11 +561,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RS5e00b697a621faca3c972d40b8490d284d28eba2",
       fxAnchor: "id",
+      fxIndex: 4,
+      fxGUID: "99C573E8-8FA5-6207-36F8-14A52E26C61A",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 4,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -479,10 +578,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 07 33",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "1NXUfzIkeBH4g6bKDwPIC",
     name: "V9_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -494,11 +606,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RSdc0e41cf2f89ed30e2937a6966919cd3b39c5525",
       fxAnchor: "id",
+      fxIndex: 4,
+      fxGUID: "99C573E8-8FA5-6207-36F8-14A52E26C61A",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 9,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -510,10 +623,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 08 62",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "T3FPLb9UG3VsW-8nfVbK-",
     name: "V10_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -525,11 +651,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RS3588e08b70e293b90143c06f4c7b8f1b5afe950c",
       fxAnchor: "id",
+      fxIndex: 4,
+      fxGUID: "99C573E8-8FA5-6207-36F8-14A52E26C61A",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 10,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -541,10 +668,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 09 62",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "haeJA4ZU5996BpNFSMu2D",
     name: "V11_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -556,11 +696,12 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
-      commandName: "RS1eac7a16f7d2356133a11c30ed1cfc25a5f71229",
       fxAnchor: "id",
+      fxIndex: 5,
+      fxGUID: "E8A29F5F-763D-1133-99E7-7D2B02FCABD7",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 3,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -572,10 +713,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 0A 62",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "0P-Hgcp8JmmvF7o7ruBM5",
     name: "V12_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -603,10 +757,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 0B 62",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "dgPhcTy6G2NPNco8TJjBT",
     name: "V13_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -618,9 +785,10 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
       commandName: "RSf0e6daa0f6f654158be9723ed1c862cedb3cb074",
       fxAnchor: "id",
+      fxIndex: 3,
+      fxGUID: "328DF19D-BB4B-6E5A-E064-22B8E7FD361D",
       useSelectionGanging: false,
       useTrackGrouping: false,
       seekBehavior: "Immediate",
@@ -634,10 +802,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 0C 2C",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "glcJ-aIJw_BtgwdA1gc92",
     name: "V14_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -649,11 +830,13 @@ const Bank1 = [
       maxStepFactor: 5,
     },
     target: {
-      type: 0,
       commandName: "RSacc0bd3a37bd607e5cc3267d2f73c2bb53e2ba1e",
       fxAnchor: "id",
+      fxIndex: 3,
+      fxGUID: "328DF19D-BB4B-6E5A-E064-22B8E7FD361D",
       useSelectionGanging: false,
       useTrackGrouping: false,
+      paramIndex: 5,
       seekBehavior: "Immediate",
       mouseAction: {
         kind: "MoveTo",
@@ -665,10 +848,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 0D 2C",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "0US_gNl6HQE_r4horXCXn",
     name: "V15_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -696,10 +892,23 @@ const Bank1 = [
         id: "",
       },
     },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 0E 2C",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
+      },
+    },
   },
   {
     id: "D_XTLXBMT0ujklhHfmLsq",
     name: "V16_B1",
+    tags: ["b1"],
     groupId: "S4vSFtoLZyctXfOkWqd_7",
     source: {
       category: "virtual",
@@ -725,6 +934,18 @@ const Bank1 = [
       takeMappingSnapshot: {
         kind: "ById",
         id: "",
+      },
+    },
+    advanced: {
+      on_activate: {
+        send_midi_feedback: [
+          {
+            raw: "B1 0F 2C",
+          },
+        ],
+      },
+      on_deactivate: {
+        send_midi_feedback: [],
       },
     },
   },
@@ -779,7 +1000,503 @@ const Bank2 = [
       },
     },
   },
-];
+  {
+    id: "knL6HGEOKTPRfuFBJTJvs",
+    name: "V2_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 1,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "Ul8f1xIBq7E12JhnCQPSQ",
+    name: "V3_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 2,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "61nsSmOKcMPumYBsWRz50",
+    name: "V4_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 3,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "vebWewx10DJ7wkuYBFv2Z",
+    name: "V5_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 4,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "6BKeXsnh7zvVT1fHtcNj0",
+    name: "V6_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 5,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "8VSoj3z-Xot17HOlaL7IA",
+    name: "V7_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 6,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "Km6reBxNs0Wc3lWU_DqVl",
+    name: "V8_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 7,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "9Odip0mP3FawE9HfGr-5u",
+    name: "V9_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 8,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "hF9alShQKBJjIbTSxDAOT",
+    name: "V10_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 9,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "bU2FITrD9Ld-ooQx1NjB2",
+    name: "V11_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 10,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "6D6CFUGFqEaZM5v5XIy4d",
+    name: "V13_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 11,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "KGr4fh-gqkBhAb0UUYNwh",
+    name: "V14_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 12,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "tiCcoWL9R7RoiEPlqq5IK",
+    name: "V15_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 13,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+  {
+    id: "mfu65YmECWo6QJ6rGoBLr",
+    name: "V16_B2",
+    groupId: "o4DaBaqXAgKHOezxw0fFl",
+    source: {
+      category: "virtual",
+      isRegistered: false,
+      is14Bit: false,
+      oscArgIndex: 0,
+      controlElementIndex: 14,
+    },
+    mode: {
+      maxStepSize: 0.05,
+      minStepFactor: 1,
+      maxStepFactor: 5,
+    },
+    target: {
+      type: 53,
+      fxAnchor: "id",
+      useSelectionGanging: false,
+      useTrackGrouping: false,
+      seekBehavior: "Immediate",
+      useProject: true,
+      moveView: true,
+      seekPlay: true,
+      oscArgIndex: 0,
+      mouseAction: {
+        kind: "MoveTo",
+        axis: "Y",
+      },
+      takeMappingSnapshot: {
+        kind: "LastLoaded",
+      },
+    },
+  },
+].map((mapping, index) => {
+  return {
+    ...mapping,
+    tag: ["b2"],
+    advanced: advanced(B2_colors.trim().split("\n")[index]),
+  };
+});
 
 const mappings = [
   ...Bank1,
