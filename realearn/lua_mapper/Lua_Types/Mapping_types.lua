@@ -32,7 +32,7 @@
 ---@field send_midi_feedback {kind: string, message: string}[] | nil
 
 ---@class Source --- typically a virtual control, if you're using a preset from the controller compartment, or a CC message
----@field character string, such as "Multi"
+---@field character string | nil such as "Multi"
 ---@field id number | string | nil
 ---@field kind string
 
