@@ -49,82 +49,54 @@ function string.split(s, separator)
     return arr
 end
 
----Bank selectors refers to side buttons on the MFT
-local Bank_selectors = {
-    {
-        id = "05qt6I1vMb2VAB_iIcA4u",
-        name = "B1_Select",
-        source = {
-            kind = "Virtual",
-            id = "bank-left",
-            character = "Button",
-        },
-        glue = {
-            target_interval = { 0, 0 },
-            out_of_range_behavior = "Min",
-            step_size_interval = { 0.01, 0.05 },
-            step_factor_interval = { 1, 5 },
-        },
-        target = {
-            kind = "FxParameterValue",
-            parameter = {
-                address = "ById",
-                index = 0,
-            },
-        },
-    },
-    {
-        id = "a2y2AMUJMsKwoxsijcLXM",
-        name = "B2_Select",
-        source = {
-            kind = "Virtual",
-            id = "bank-right",
-            character = "Button",
-        },
-        glue = {
-            source_interval = { 0.01, 0.01 },
-            target_interval = { 0.01, 0.01 },
-            step_size_interval = { 0.01, 0.05 },
-        },
-        target = {
-            kind = "FxParameterValue",
-            parameter = {
-                address = "ById",
-                index = 0,
-            },
-        },
-    },
-}
+local bank_ids = { "S4vSFtoLZyctXfOkWqd_7", "o4DaBaqXAgKHOezxw0fFl" --[[ , "1W2CM4HFJT2vuuPXu5fn_"  ]] }
+local side_buttons = { "bank-left", "bank-right", "ch-left", "ch-right" }
 
-local BankId1 = "S4vSFtoLZyctXfOkWqd_7"
-local BankId2 = "o4DaBaqXAgKHOezxw0fFl"
-local BankId3 = "1W2CM4HFJT2vuuPXu5fn_"
+---Bank selectors are to be switched with side buttons of MFT
+local function createBankSelectors()
+    local selectors = {}
+    for i = 1, #bank_ids do
+        local selector = {
+            -- id = Bank_selectors[i].id,
+            name = "Bank_selector" .. i,
+            source = {
+                kind = "Virtual",
+                id = side_buttons[i],
+                character = "Button",
+            },
+            glue = {
+                target_interval = { (i - 1) / 100, (i - 1) / 100 },
+                step_size_interval = { 0.01, 0.05 },
+            },
+            target = {
+                kind = "FxParameterValue",
+                parameter = {
+                    address = "ById",
+                    index = 0,
+                },
+            },
+        }
+        table.insert(selectors, selector)
+    end
+    return selectors
+end
 
---- mapping groups, named as Banks to match the MFT terminology
-local Banks = {
-    {
-        id = BankId1,
-        name = "BANK1",
-        activation_condition = {
-            kind = "Bank",
-            parameter = 0,
-            bank_index = 0,
-        },
-    },
-    {
-        id = BankId2,
-        name = "BANK2",
-        activation_condition = {
-            kind = "Bank",
-            parameter = 0,
-            bank_index = 1,
-        },
-    },
-    {
-        id = BankId3,
-        name = "dummies",
-    },
-}
+local function createBanks()
+    local banks = {}
+    for i = 1, #bank_ids do
+        local bank = {
+            id = bank_ids[i],
+            name = "BANK" .. i,
+            activation_condition = {
+                kind = "Bank",
+                parameter = 0,
+                bank_index = i - 1,
+            },
+        }
+        table.insert(banks, bank)
+    end
+    return banks
+end
 
 ---Bank 1 colors
 B1_colors = [[
@@ -190,7 +162,7 @@ local function createMappings()
     local encoders = 16
     for bnk_idx = 1, banks do
         local bank_name = "B" .. bnk_idx
-        local group_id = bnk_idx == 1 and BankId1 or BankId2
+        local group_id = bank_ids[bnk_idx]
         for map_idx = 1, encoders do
             local name = "V" .. map_idx .. "_" .. bank_name
             ---@type Mapping
@@ -231,7 +203,6 @@ end
 local Enable_selectTag = {
     id = "GsGIrpIfvaAGLA66FXl8E",
     name = "Enable_selectTag",
-    group = BankId3,
     source = {
         kind = "Virtual",
         id = 12,
@@ -280,8 +251,8 @@ local Map_RED_during_select_enable = {
 Bank selectors and bank mappings all go together
 ]]
 local mappings = TableConcat(
+    createBankSelectors(),
     createMappings(),
-    Bank_selectors,
     Map_RED_during_select_enable,
     Enable_selectTag
 )
@@ -291,7 +262,7 @@ local main_compartment = {
     kind = "MainCompartment",
     version = "2.15.0",
     value = {
-        groups = Banks,
+        groups = createBanks(),
         mappings = mappings,
     },
 }
