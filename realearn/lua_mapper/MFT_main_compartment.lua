@@ -28,29 +28,12 @@ function Tablemap(t, cb)
     return mapped
 end
 
----HELPER - trim whitespace from string
-function string.trim(s)
-    return s:gsub("^%s+", ""):gsub("%s+$", "")
-end
-
----HELPER - Separator can be one or more chars long in a single string. e.g.
----```lua
----string.split("a\nb", "\n\r")
----```
----returns `{"a", "b"}`
----@param s string
----@param separator string
-function string.split(s, separator)
-    ---@type string[]
-    local arr = {}
-    for line in s:gmatch("[^" .. separator .. "]+") do
-        table.insert(arr, line)
-    end
-    return arr
-end
-
 local bank_ids = { "S4vSFtoLZyctXfOkWqd_7", "o4DaBaqXAgKHOezxw0fFl" --[[ , "1W2CM4HFJT2vuuPXu5fn_"  ]] }
 local side_buttons = { "bank-left", "bank-right", "ch-left", "ch-right" }
+local Colour = {
+    { "10", "33", "62", "45", }, ---cyan, green, purple, yellow
+    { "03", "65", "45", "4F", }  ---navy, purple, yellow, red
+}
 
 ---Bank selectors are to be switched with side buttons of MFT
 local function createBankSelectors()
@@ -98,78 +81,41 @@ local function createBanks()
     return banks
 end
 
----Bank 1 colors
-B1_colors = [[
-    B1 00 10
-    B1 01 10
-    B1 02 10
-    B1 03 10
-    B1 04 33
-    B1 05 33
-    B1 06 33
-    B1 07 33
-    B1 08 62
-    B1 09 62
-    B1 0A 62
-    B1 0B 62
-    B1 0C 45
-    B1 0D 45
-    B1 0E 45
-    B1 0F 45 ]]
+---@param input number
+local function toHex(input)
+    return string.format("%x", input)
+end
 
----Bank 2 colors
-local B2_colors = [[
-    B1 00 03
-    B1 01 03
-    B1 02 03
-    B1 03 03
-    B1 04 65
-    B1 05 65
-    B1 06 65
-    B1 07 65
-    B1 08 45
-    B1 09 45
-    B1 0A 45
-    B1 0B 45
-    B1 0C 4F
-    B1 0D 4F
-    B1 0E 4F
-    B1 0F 4F ]]
-
-local RED_map_colors = [[
-    B1 00 4F
-    B1 01 4F
-    B1 02 4F
-    B1 03 4F
-    B1 04 4F
-    B1 05 4F
-    B1 06 4F
-    B1 07 4F
-    B1 08 4F
-    B1 09 4F
-    B1 0A 4F
-    B1 0B 4F
-    B1 0C 4F
-    B1 0D 4F
-    B1 0E 4F
-    B1 0F 4F ]]
-
-
+---For each of the banks listed in `banks`, create a mapping for each of the `encoders`.
+---
+---Assign a mapping name following the pattern `V{encoder}_B{bank}` eg `V1_B1` for the first encoder in bank 1.
+---Assign one colour per bank per row, pull the colours from the `Colour` table.
+---
+---All targets are `Dummy` targets, so they don't do anything.
 ---@return Mapping[]
 local function createMappings()
     local mappings = {}
     local banks = 2
     local encoders = 16
     for bnk_idx = 1, banks do
-        local bank_name = "B" .. bnk_idx
-        local group_id = bank_ids[bnk_idx]
         for map_idx = 1, encoders do
-            local name = "V" .. map_idx .. "_" .. bank_name
+            local name = "V" .. map_idx .. "_" .. "B" .. bnk_idx
+            ---Model the LED feedback
+            ---using `B1 00 4F` as an example.
+            ---
+            ---B1 refers to Bank 1, which is the only bank we'll use internally from the MFT (the bank logic is re-implemented at relearn's level)
+            ---
+            ---00 is the encoder/knob number,
+            ---
+            ---4F is the colour
+            local color = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. Colour[bnk_idx]
+                [math.floor((map_idx - 1) / 4) + 1]
+
             ---@type Mapping
             local map = {
                 id = name,
                 name = name,
-                group = group_id,
+                group = bank_ids[bnk_idx],
                 source = {
                     kind = "Virtual",
                     id = map_idx,
@@ -186,8 +132,7 @@ local function createMappings()
                         {
                             kind = "Raw",
                             ---assign LED colours to buttons
-                            message = string.split(string.trim(bnk_idx == 1 and B1_colors or B2_colors), "\n\r")
-                                [map_idx]
+                            message = color
                         },
                     },
                 }
@@ -222,6 +167,21 @@ local Enable_selectTag = {
     },
 }
 
+---create the `raw` MIDI feedback for the MFT
+---containing all the colours for all the encoders
+---on a single line
+---@param colour string
+local function single_colour_all_encoders(colour)
+    local rv = ""
+    for bnk_idx = 1, 16 do
+        for map_idx = 1, 4 do
+            local c = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. colour
+            rv      = rv .. " " .. c
+        end
+    end
+    return rv
+end
+
 local Map_RED_during_select_enable = {
     id = "yrG1get-yMWFTT-EYpCzt",
     name = "COLORS",
@@ -233,7 +193,7 @@ local Map_RED_during_select_enable = {
         send_midi_feedback = {
             {
                 kind = "Raw",
-                message = RED_map_colors,
+                message = single_colour_all_encoders("4F"),
             },
         },
     },
@@ -247,14 +207,13 @@ local Map_RED_during_select_enable = {
     },
 }
 
---[[ All controller mappings here.
-Bank selectors and bank mappings all go together
-]]
+---All controller mappings here.
+---Bank selectors and bank mappings all go together.
 local mappings = TableConcat(
     createBankSelectors(),
-    createMappings(),
-    Map_RED_during_select_enable,
-    Enable_selectTag
+    createMappings()
+-- Map_RED_during_select_enable,
+-- Enable_selectTag
 )
 
 
