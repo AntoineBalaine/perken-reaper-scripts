@@ -111,6 +111,10 @@ local function createMappings()
             local color = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. Colour[bnk_idx]
                 [math.floor((map_idx - 1) / 4) + 1]
 
+            local tags = {}
+            table.insert(tags, "B" .. bnk_idx)
+            local source_or_dest = (map_idx % 11 == 0 and "source" or "dest") .. bnk_idx
+            table.insert(tags, source_or_dest)
             ---@type Mapping
             local map = {
                 id = name,
@@ -118,9 +122,7 @@ local function createMappings()
                 group = bank_ids[bnk_idx],
                 ---In order to use `EnableMappings` to switch between banks and conditionnally activate/deactivate mappings,
                 ---**EVERY MAPPING MUST BE TAGGED**
-                tags = {
-                    "B" .. bnk_idx,
-                },
+                tags = tags,
                 source = {
                     kind = "Virtual",
                     id = map_idx - 1,
@@ -153,7 +155,28 @@ local Enable_selectTag = {
     name = "Enable_selectTag",
     source = {
         kind = "Virtual",
-        id = side_buttons[4],
+        id = 12,
+        character = "Button",
+    },
+    glue = {
+        absolute_mode = "ToggleButton",
+        out_of_range_behavior = "Ignore",
+        step_size_interval = { 0.01, 0.05 },
+    },
+    target = {
+        kind = "EnableMappings",
+        tags = {
+            "select",
+        },
+        exclusivity = "Exclusive",
+    },
+}
+local Disable_selectTag = {
+    id = "Disable_selectTag",
+    name = "Disable_selectTag",
+    source = {
+        kind = "Virtual",
+        id = 3,
         character = "Button",
     },
     glue = {
@@ -167,14 +190,14 @@ local Enable_selectTag = {
             "select",
         },
         exclusivity = "Exclusive",
-    },
+    }
 }
 
 ---create the `raw` MIDI feedback for the MFT
 ---containing all the colours for all the encoders
 ---on a single line
 ---@param colour string
-local function single_colour_all_encoders(colour)
+local function color_all_encoders(colour)
     local rv = ""
     for map_idx = 1, 16 do
         local c = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. colour
@@ -182,6 +205,17 @@ local function single_colour_all_encoders(colour)
     end
     return rv
 end
+
+local function color_half_encoders(colour1, colour2)
+    local rv = ""
+    for map_idx = 1, 16 do
+        local colour = math.floor((map_idx - 1) / 8) == 0 and colour1 or colour2
+        local c      = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. colour
+        rv           = rv .. " " .. c
+    end
+    return rv
+end
+
 
 local Map_RED_during_select_enable = {
     id = "yrG1get-yMWFTT-EYpCzt",
@@ -194,7 +228,8 @@ local Map_RED_during_select_enable = {
         send_midi_feedback = {
             {
                 kind = "Raw",
-                message = single_colour_all_encoders("4F"),
+                message = color_half_encoders("4F", "00"),
+                -- message = single_colour_all_encoders("4F"),
             },
         },
     },
@@ -213,7 +248,7 @@ local Map_RED_during_select_enable = {
 local mappings = TableConcat(
     createBankSelectors(),
     { Map_RED_during_select_enable,
-        Enable_selectTag },
+        Enable_selectTag, Disable_selectTag },
     createMappings()
 )
 
