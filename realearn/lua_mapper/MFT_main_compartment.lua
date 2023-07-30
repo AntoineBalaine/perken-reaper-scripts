@@ -118,7 +118,7 @@ local function createMappings()
                 group = bank_ids[bnk_idx],
                 source = {
                     kind = "Virtual",
-                    id = map_idx,
+                    id = map_idx - 1,
                 },
                 target = {
                     kind = "Dummy"
@@ -143,14 +143,12 @@ local function createMappings()
     return mappings
 end
 
-
-
 local Enable_selectTag = {
-    id = "GsGIrpIfvaAGLA66FXl8E",
+    id = "Enable_selectTag",
     name = "Enable_selectTag",
     source = {
         kind = "Virtual",
-        id = 12,
+        id = side_buttons[4],
         character = "Button",
     },
     glue = {
@@ -173,11 +171,9 @@ local Enable_selectTag = {
 ---@param colour string
 local function single_colour_all_encoders(colour)
     local rv = ""
-    for bnk_idx = 1, 16 do
-        for map_idx = 1, 4 do
-            local c = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. colour
-            rv      = rv .. " " .. c
-        end
+    for map_idx = 1, 16 do
+        local c = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. colour
+        rv      = rv .. " " .. c
     end
     return rv
 end
@@ -211,9 +207,9 @@ local Map_RED_during_select_enable = {
 ---Bank selectors and bank mappings all go together.
 local mappings = TableConcat(
     createBankSelectors(),
+    { Map_RED_during_select_enable,
+        Enable_selectTag },
     createMappings()
--- Map_RED_during_select_enable,
--- Enable_selectTag
 )
 
 
