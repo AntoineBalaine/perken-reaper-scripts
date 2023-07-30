@@ -116,6 +116,11 @@ local function createMappings()
                 id = name,
                 name = name,
                 group = bank_ids[bnk_idx],
+                ---In order to use `EnableMappings` to switch between banks and conditionnally activate/deactivate mappings,
+                ---**EVERY MAPPING MUST BE TAGGED**
+                tags = {
+                    "B" .. bnk_idx,
+                },
                 source = {
                     kind = "Virtual",
                     id = map_idx - 1,
