@@ -108,12 +108,13 @@ local function createMappings()
             ---00 is the encoder/knob number,
             ---
             ---4F is the colour
+            local color_deactivate = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. "00"
             local color = "B1 " .. "0" .. toHex(map_idx - 1) .. " " .. Colour[bnk_idx]
                 [math.floor((map_idx - 1) / 4) + 1]
 
             local tags = {}
             table.insert(tags, "B" .. bnk_idx)
-            local source_or_dest = (map_idx % 11 == 0 and "source" or "dest") .. bnk_idx
+            local source_or_dest = (math.floor(map_idx / 9) == 0 and "dest" or "source")
             table.insert(tags, source_or_dest)
             ---@type Mapping
             local map = {
@@ -142,6 +143,15 @@ local function createMappings()
                             message = color
                         },
                     },
+                },
+                on_deactivate = {
+                    send_midi_feedback = {
+                        {
+                            kind = "Raw",
+                            ---assign LED colours to buttons
+                            message = color_deactivate
+                        },
+                    },
                 }
             }
             table.insert(mappings, map)
@@ -166,9 +176,9 @@ local Enable_selectTag = {
     target = {
         kind = "EnableMappings",
         tags = {
-            "select",
+            -- "select",
+            "source",
         },
-        exclusivity = "Exclusive",
     },
 }
 local Disable_selectTag = {
