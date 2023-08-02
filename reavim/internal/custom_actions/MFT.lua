@@ -254,9 +254,17 @@ function MFT.create_fx_map()
             if paramIdx % 16 == 0 then
                 bnk_idx = bnk_idx + 1
             end
-            if paramIdx == #fx[fxIdx].params then
+            local isDeltaParam = fx[fxIdx].params[paramIdx].param_name == "Delta"
+            if paramIdx == #fx[fxIdx].params or isDeltaParam then
+                local loopIdx = paramIdx % 16 + 1
+                if isDeltaParam then
+                    -- remove last entry from maps
+                    table.remove(maps, #maps)
+                    --set start idx of upcoming loop to be the delta param's idx
+                    loopIdx = loopIdx - 1
+                end
                 -- create dummy mappings for the rest of the encoders
-                for i = paramIdx % 16 + 1, 16 do
+                for i = loopIdx, 16 do
                     local dummy_mapping = createDummyMapping()
                     dummy_mapping.name = "_"
                     dummy_mapping.group = bnks[fxIdx].id
