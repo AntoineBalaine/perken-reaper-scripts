@@ -178,7 +178,7 @@ function MFT.create_fx_map()
     local fx = getFx2()
     local pagers = createLeftRightBankPagers()
     local bnk_idx = 0
-    local bnks = {}
+    local bnks = {} ---@type Bank[]
     local maps = {}
     -- iterate fx
     for fxIdx = 1, #fx do
@@ -188,9 +188,9 @@ function MFT.create_fx_map()
         for paramIdx = 1, #fx[fxIdx].params do
             -- create a mapping for each param
             local map = createDummyMapping()
-            map.name = fx[fxIdx].name .. " " .. fx[fxIdx].params[paramIdx].param_name
+            map.name = --[[ fx[fxIdx].name .. " " ..  ]] fx[fxIdx].params[paramIdx].param_name
             -- add mapping to bank
-            map.group = "BANK" .. bnk_idx
+            map.group = bnks[fxIdx].id
             map.source = {
                 kind = "Virtual",
                 id = paramIdx % 16 - 1, --- only 16 encoders on MFT
@@ -209,14 +209,15 @@ function MFT.create_fx_map()
                     index = paramIdx - 1,
                 },
             }
+            local colournum = Colour[bnk_idx % 2 > 0 and bnk_idx % 2 or 1]
+                [paramIdx % 4 + 1]
             map.on_activate = {
                 send_midi_feedback = {
                     {
                         kind = "Raw",
                         ---assign LED colours to buttons
                         message = "B1 " ..
-                            "0" .. toHex(paramIdx - 1) .. " " .. Colour[bnk_idx % 2 > 0 and bnk_idx % 2 or 1]
-                            [math.floor((paramIdx - 1) / 4) + 1]
+                            "0" .. toHex(paramIdx - 1) .. " " .. colournum
                     },
                 },
             }
