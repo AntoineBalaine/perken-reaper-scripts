@@ -104,8 +104,8 @@ end
 local bank_ids = { "S4vSFtoLZyctXfOkWqd_7", "o4DaBaqXAgKHOezxw0fFl" --[[ , "1W2CM4HFJT2vuuPXu5fn_"  ]] }
 local side_buttons = { "bank-left", "bank-right", "ch-left", "ch-right" }
 local Colour = {
-    { "10", "33", "62", "45", }, ---cyan, green, purple, yellow
-    { "03", "65", "45", "4F", }  ---navy, purple, yellow, red
+    { "62", "33", "10", "45", }, ---cyan, green, purple, yellow
+    { "65", "45", "03", "4F", }  ---navy, purple, yellow, red
 }
 
 local function enumSelectedTrackFX(track) ---@param track MediaTrack
@@ -192,6 +192,11 @@ function MFT.create_fx_map()
             map.name = --[[ fx[fxIdx].name .. " " ..  ]] fx[fxIdx].params[paramIdx].param_name
             -- add mapping to bank
             map.group = bnks[fxIdx].id
+            map.activation_condition = {
+                kind = "Bank",
+                parameter = 0,
+                bank_index = fxIdx - 1,
+            }
             map.source = {
                 kind = "Virtual",
                 id = paramIdx % 16 - 1, --- only 16 encoders on MFT
@@ -219,6 +224,16 @@ function MFT.create_fx_map()
                         ---assign LED colours to buttons
                         message = "B1 " ..
                             "0" .. toHex(paramIdx - 1) .. " " .. colournum
+                    },
+                },
+            }
+            map.on_deactivate = {
+                send_midi_feedback = {
+                    {
+                        kind = "Raw",
+                        ---assign LED colours to buttons
+                        message = "B1 " ..
+                            "0" .. toHex(paramIdx - 1) .. " 00"
                     },
                 },
             }
