@@ -186,6 +186,7 @@ function MFT.create_fx_map()
         table.insert(bnks, createBank(fxIdx))
         -- for each fx, iterate params
         for paramIdx = 1, #fx[fxIdx].params do
+            if fx[fxIdx].params[paramIdx].param_name == "Delta" then goto continue end
             -- create a mapping for each param
             local map = createDummyMapping()
             map.name = --[[ fx[fxIdx].name .. " " ..  ]] fx[fxIdx].params[paramIdx].param_name
@@ -221,11 +222,22 @@ function MFT.create_fx_map()
                     },
                 },
             }
+            if string.match(fx[fxIdx].params[paramIdx].param_name, "Bypass") then
+                map.source["character"] = "Button"
+                map.glue = {
+                    absolute_mode = "ToggleButton",
+                    step_size_interval = { 0.01, 0.05 },
+                }
+                ---would be nice to be able to set the knob color to red when bypassed
+                map.on_activate.send_midi_feedback.message = "B1 " ..
+                    "0" .. toHex(paramIdx - 1) .. " 4F"
+            end
             table.insert(maps, map)
             -- if there are more than 16 params, create a new bank
             if paramIdx % 16 == 0 then
                 bnk_idx = bnk_idx + 1
             end
+            ::continue::
         end
     end
     ---All controller mappings here.

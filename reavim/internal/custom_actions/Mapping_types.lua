@@ -42,7 +42,7 @@
 ---@field kind string
 
 ---@class Glue
----@field absolute_mode  "Normal" | "ToggleButton" |  nil
+---@field absolute_mode  "Normal" | "ToggleButton" | "IncrementalButton" | nil
 ---@field control_transformation  "" | nil
 ---@field feedback  { kind : "Numeric",transformation : "",} | nil
 ---@field fire_mode  { kind: string, press_duration_interval : { number: number, number: number }} | nil
