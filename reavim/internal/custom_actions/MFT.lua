@@ -186,7 +186,6 @@ function MFT.create_fx_map()
         table.insert(bnks, createBank(fxIdx))
         -- for each fx, iterate params
         for paramIdx = 1, #fx[fxIdx].params do
-            if fx[fxIdx].params[paramIdx].param_name == "Delta" then goto continue end
             -- create a mapping for each param
             local map = createDummyMapping()
             map.name = --[[ fx[fxIdx].name .. " " ..  ]] fx[fxIdx].params[paramIdx].param_name
@@ -227,7 +226,10 @@ function MFT.create_fx_map()
                     },
                 },
             }
-            map.on_deactivate = {
+            --[[removing the deactivate feedback for now,
+            as it it suffers from a bug I've reported here: https://github.com/helgoboss/realearn/issues/879
+            ]]
+            --[[             map.on_deactivate = {
                 send_midi_feedback = {
                     {
                         kind = "Raw",
@@ -236,7 +238,7 @@ function MFT.create_fx_map()
                             "0" .. toHex(paramIdx - 1) .. " 00"
                     },
                 },
-            }
+            } ]]
             if string.match(fx[fxIdx].params[paramIdx].param_name, "Bypass") then
                 map.source["character"] = "Button"
                 map.glue = {
@@ -252,7 +254,34 @@ function MFT.create_fx_map()
             if paramIdx % 16 == 0 then
                 bnk_idx = bnk_idx + 1
             end
-            ::continue::
+            if paramIdx == #fx[fxIdx].params then
+                -- create dummy mappings for the rest of the encoders
+                for i = paramIdx % 16 + 1, 16 do
+                    local dummy_mapping = createDummyMapping()
+                    dummy_mapping.name = "_"
+                    dummy_mapping.group = bnks[fxIdx].id
+                    dummy_mapping.activation_condition = {
+                        kind = "Bank",
+                        parameter = 0,
+                        bank_index = fxIdx - 1,
+                    }
+                    dummy_mapping.source = {
+                        kind = "Virtual",
+                        id = i - 1,
+                    }
+                    dummy_mapping.on_activate = {
+                        send_midi_feedback = {
+                            {
+                                kind = "Raw",
+                                ---assign black to dummy params
+                                message = "B1 " ..
+                                    "0" .. toHex(i - 1) .. " " .. "00"
+                            },
+                        },
+                    }
+                    table.insert(maps, dummy_mapping)
+                end
+            end
         end
     end
     ---All controller mappings here.
