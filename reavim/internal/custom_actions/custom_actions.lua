@@ -16,6 +16,7 @@ local custom_actions = {
 	kawa = require("custom_actions.kawa"),
 	harmonizer = require("custom_actions.harmonizer"),
 	pasteRhythm = require("custom_actions.pasteRhythm"),
+	MFT = require("custom_actions.MFT"),
 }
 
 function custom_actions.clearTimeSelection()

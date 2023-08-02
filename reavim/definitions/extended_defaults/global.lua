@@ -75,7 +75,6 @@ return {
 		["<V-14>"] = "VrtlBtn14",
 		["<V-15>"] = "VrtlBtn15",
 		["<V-16>"] = "VrtlBtn16",
-		["<V-17>"] = "VrtlBtn17",
 		["<C-s>"] = "SaveProject",
 		["."] = "RepeatLastCommand",
 		["@"] = "PlayMacro",
