@@ -1,8 +1,7 @@
+local info = debug.getinfo(1, "S")
+local root_path = info.source:match([[([^@]*reaper.keys[^\\/]*[\\/])]])
+package.path = package.path .. ";" .. root_path .. "?.lua"
 
-local info = debug.getinfo(1,'S');
-local root_path = info.source:match[[([^@]*reaper.keys[^\\/]*[\\/])]]
-package.path = package.path .. ';' .. root_path .. '?.lua'
+local doInput = require("internal.reaper-keys")
 
-local doInput = require('internal.reaper-keys')
-
-doInput({['key'] = '<C-c>', ['context'] = 'main'})
+doInput({ ["key"] = "<C-c>", ["context"] = "main" })
