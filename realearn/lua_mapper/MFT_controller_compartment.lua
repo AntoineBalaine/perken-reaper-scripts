@@ -1,5 +1,5 @@
 ---@type Compartment
-local comp = {
+local MFT_controller_compartment = {
   kind = "ControllerCompartment",
   version = "2.15.0",
   value = {
@@ -26,7 +26,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -44,7 +44,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -64,7 +64,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -82,7 +82,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -102,7 +102,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -120,7 +120,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -140,7 +140,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -158,7 +158,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -178,7 +178,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -196,7 +196,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -216,7 +216,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -234,7 +234,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -254,7 +254,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -272,7 +272,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -292,7 +292,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -310,7 +310,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -330,7 +330,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -348,7 +348,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -368,7 +368,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -386,7 +386,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -406,7 +406,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -424,7 +424,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -444,7 +444,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -462,7 +462,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -482,7 +482,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -500,7 +500,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -520,7 +520,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -538,7 +538,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -558,7 +558,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -576,7 +576,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -596,7 +596,7 @@ local comp = {
         },
         glue = {
           step_size_interval = { 0.01, 1 },
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -614,7 +614,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -634,7 +634,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -654,7 +654,7 @@ local comp = {
           character = "Button",
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -675,7 +675,7 @@ local comp = {
           fourteen_bit = false,
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -696,7 +696,7 @@ local comp = {
           fourteen_bit = false,
         },
         glue = {
-          step_factor_interval = { 1, 6000 },
+          step_factor_interval = { 1, 5 },
         },
         target = {
           kind = "Virtual",
@@ -1152,4 +1152,4 @@ local comp = {
   },
 }
 
-return comp
+return MFT_controller_compartment
