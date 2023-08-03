@@ -96,7 +96,6 @@ function GetAllFloatingFXWindows()
   return hwnds
 end
 
----@alias FX_param {param_name: string, value: number, minval: number, maxval: number, param_idx: number}
 function dev.devAction()
   -- add "hello world" to system clipboard
   reaper.CF_SetClipboard("hello world")
