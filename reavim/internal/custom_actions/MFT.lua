@@ -107,6 +107,29 @@ local Colour = {
     { "62", "33", "10", "45", }, ---cyan, green, purple, yellow
     { "65", "45", "03", "4F", }  ---navy, purple, yellow, red
 }
+---not sure about the color descriptions here
+local C = {
+    "03", -- yellow
+    "10", -- green
+    "33", -- cyan
+    "45", -- purple
+    "4F", -- red
+    "62", -- navy
+    "65", -- orange
+    "7F", -- white
+
+}
+
+---generate a random colour in hex format.
+---This is unused for now, I dunno why but realearn won't eat its output
+local function randomColour()
+    math.randomseed(os.time())
+    -- Generate a random number between 1 and 127
+    local randomNumber = math.random(126)
+
+    return string.upper(string.format("%02x", randomNumber))
+end
+
 
 local function enumSelectedTrackFX(track) ---@param track MediaTrack
     local fxChain = reaper.CF_GetTrackFXChain(track)
@@ -182,6 +205,8 @@ function MFT.create_fx_map()
     local maps = {}
     -- iterate fx
     for fxIdx = 1, #fx do
+        ---pick a random index from C
+        local fx_colour = C[math.random(#C)]
         -- create bank for each fx
         table.insert(bnks, createBank(fxIdx))
         -- for each fx, iterate params
@@ -214,19 +239,17 @@ function MFT.create_fx_map()
                     index = paramIdx - 1,
                 },
             }
-            local colournum = Colour[bnk_idx % 2 > 0 and bnk_idx % 2 or 1]
-                [paramIdx % 4 + 1]
             map.on_activate = {
                 send_midi_feedback = {
                     {
                         kind = "Raw",
                         ---assign LED colours to buttons
                         message = "B1 " ..
-                            "0" .. toHex(paramIdx - 1) .. " " .. colournum
+                            "0" .. toHex(paramIdx - 1) .. " " .. fx_colour
                     },
                 },
             }
-            --[[removing the deactivate feedback for now,
+            --[[removing the «deactivate» feedback for now,
             as it it suffers from a bug I've reported here: https://github.com/helgoboss/realearn/issues/879
             ]]
             --[[             map.on_deactivate = {
