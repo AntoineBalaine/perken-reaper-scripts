@@ -8,6 +8,11 @@
 ---@field groups Group[]
 ---@field mappings Mapping[]
 
+---@class Bank
+---@field id string
+---@field name string
+---@field activation_condition {kind: string, parameter: integer, bank_index: integer|nil} | nil
+
 ---@class Mapping
 ---@field control_enabled boolean|nil
 ---@field enabled boolean|nil
@@ -18,7 +23,7 @@
 ---@field name string name is not the same as id
 ---@field on_activate OnActivate|nil
 ---@field on_deactivate OnActivate|nil
----@field source Source
+---@field source Source|nil
 ---@field tags string[]|nil tags are used to find mappings, can be used to group mappings without a dedicated Group
 ---@field target Target
 ---@field visible_in_projection boolean|nil
@@ -37,12 +42,12 @@
 ---@field kind string
 
 ---@class Glue
----@field absolute_mode  "Normal" | nil
+---@field absolute_mode  "Normal" | "ToggleButton" | "IncrementalButton" | nil
 ---@field control_transformation  "" | nil
 ---@field feedback  { kind : "Numeric",transformation : "",} | nil
 ---@field fire_mode  { kind: string, press_duration_interval : { number: number, number: number }} | nil
 ---@field jump_interval  { number: number, number:number } |nil
----@field out_of_range_behavior  "MinOrMax" | "Min" | nil
+---@field out_of_range_behavior  "MinOrMax" | "Min" | "Ignore" | nil
 ---@field relative_mode  "Normal" | nil
 ---@field reverse  boolean | nil
 ---@field round_target_value  boolean | nil
@@ -68,7 +73,7 @@
 ---@class Fx
 ---@field address string
 ---@field chain Chain
----@field id string
+---@field id string | nil
 
 ---@class Chain
 ---@field address string
