@@ -1,3 +1,5 @@
+  -- @noindex
+  
 --[[
 ReaScript name: js_Convert all stretch markers in selected items to slopes with starting rate 1.0, to protect transients.lua
 Version: 1.00

@@ -1,3 +1,5 @@
+  -- @noindex
+  
 local utils = require("utils")
 
 local drums = {}

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="perken" commit="315c6ba06d63f169fa4af45f6cf457de8fe06270">
+  <category name="realearn/lua_mapper">
+    <reapack name="MFT_map_selected_fx_in_visible_fx_chain.lua" type="script" desc="Midi-fighter-twister: map selected fx in visible fx chain">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 MFT_map_selected_fx_in_visible_fx_chain\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 HOW TO USE:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab have a realearn instance with the Midi fighter's preset loaded in the main compartment.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab select some FX in current chain,\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab focus the arrange view,\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab call the script\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab focus realearn\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab click button \u171 ?import from clipboard\u187 ?\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Each parameter of the selected FX\u160 ?gets assigned a knob on the Midi Fighter Twister. Paging is done with side-buttons. Only basic jsfx seem to work correctly atm.\par}
+}
+]]></description>
+        <link rel="website" href="https://github.com/AntoineBalaine/perken-reaper-scripts">Perken Scripts repo</link>
+      </metadata>
+      <version name="0.0.1" author="Perken" time="2023-08-04T17:46:27Z">
+        <changelog><![CDATA[0.0.1 Setup the script]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/MFT_map_selected_fx_in_visible_fx_chain.lua</source>
+        <source file="dependencies/serpent.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/dependencies/serpent.lua</source>
+        <source file="dependencies/utils.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/dependencies/utils.lua</source>
+        <source file="main_compartment_mapper.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/main_compartment_mapper.lua</source>
+        <source file="MFT_controller_compartment.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/MFT_controller_compartment.lua</source>
+      </version>
+    </reapack>
+  </category>
+</index>

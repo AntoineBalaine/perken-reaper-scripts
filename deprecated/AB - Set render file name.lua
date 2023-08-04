@@ -1,3 +1,5 @@
+  -- @noindex
+  
 -- @description Set render filename
 -- @version 1.0
 -- @author MPL

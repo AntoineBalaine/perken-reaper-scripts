@@ -1,3 +1,5 @@
+  -- @noindex
+  
 -- @description Change volume for item under mouse cursor (mousewheel)
 -- @version 1.02
 -- @author MPL

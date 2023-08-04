@@ -1,3 +1,5 @@
+  -- @noindex
+  
 -- @description Send selected track(s) to BUS track and remove master send (bundle)
 -- @version 1.2
 -- @changelog

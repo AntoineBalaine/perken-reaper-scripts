@@ -1,3 +1,5 @@
+  -- @noindex
+  
 local function getRhythmNoteIndex(rhythmNotes, startingNotePosition, endingNotePosition)
   for i = 1, #rhythmNotes do
     local rhythmNote = rhythmNotes[i]

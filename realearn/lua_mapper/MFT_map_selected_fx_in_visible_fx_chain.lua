@@ -1,4 +1,32 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- @description Midi-fighter-twister: map selected fx in visible fx chain
+-- @version 0.0.1
+-- @author Perken
+-- @provides 
+--  dependencies/serpent.lua
+--  dependencies/utils.lua
+--  main_compartment_mapper.lua
+--  MFT_controller_compartment.lua
+-- @about
+--   # MFT_map_selected_fx_in_visible_fx_chain
+--   HOW TO USE: 
+--   - have a realearn instance with the Midi fighter's preset loaded in the main compartment.
+--   - select some FX in current chain, 
+--   - focus the arrange view, 
+--   - call the script
+--   - focus realearn
+--   - click button «import from clipboard» 
+--
+--   Each parameter of the selected FX gets assigned a knob on the Midi Fighter Twister.
+--   Paging is done with side-buttons. 
+--   Only basic jsfx seem to work correctly atm.
+-- @links
+--  Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
+-- @changelog
+--   0.0.1 Setup the script
+
+
+
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local info = debug.getinfo(1, "S")
 
 local internal_root_path = info.source:match(".*perken.realearn.lua_mapper."):sub(2)

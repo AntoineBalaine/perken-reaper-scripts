@@ -1,3 +1,5 @@
+  -- @noindex
+  
 -- local log = require("utils.log")
 
 local utils = {}
