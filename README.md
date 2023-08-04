@@ -9,7 +9,8 @@ Scripts for the Reaper DAW.
 
 `$REAPERPATH/Scripts/perken/realearn/lua_mapper/MFT_map_selected_fx_in_visible_fx_chain.lua`
 ##### HOW TO USE: 
-  - have a realearn instance with the Midi fighter's preset loaded in the main compartment.
+  - have a realearn instance on the current track with the Midi fighter's preset loaded in the controller compartment.
+  - open the FXchain
   - select some FX in current chain, 
   - focus the arrange view, 
   - call the script
