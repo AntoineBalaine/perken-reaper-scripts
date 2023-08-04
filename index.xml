@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="Perken Scripts" commit="ef6052b73dbbcd8c331aae5fe41bf6216ec9d572">
+  <category name="deprecated">
+    <reapack name="AB - Set render file name.lua" type="script" desc="Set render filename">
+      <metadata>
+        <link rel="website">http://forum.cockos.com/showthread.php?t=188335</link>
+      </metadata>
+      <version name="1.0" author="MPL" time="2023-07-28T13:56:50Z">
+        <changelog><![CDATA[+ init]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/b8ae497015e7811edbcb85793a7532687300d0bf/deprecated/AB%20-%20Set%20render%20file%20name.lua</source>
+      </version>
+    </reapack>
+    <reapack name="AB - Snap cursor to grid.lua" type="script" desc="Snap edit cursor to nearest grid if snap is enabled">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 For custom action usage\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.1" author="X-Raym" time="2023-07-28T13:56:50Z">
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/b8ae497015e7811edbcb85793a7532687300d0bf/deprecated/AB%20-%20Snap%20cursor%20to%20grid.lua</source>
+      </version>
+    </reapack>
+    <reapack name="AB - stretch marker rate ramp down slope.lua" type="script" desc="js_Convert all stretch markers in selected items to slopes with starting rate 1.0, to protect transients.lua">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 DESCRIPTION\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A script for easy, one-click conversion of stretch markers in selected items to slopes with starting rate 1.0.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 By setting a starting rate of 1.0, time-stretching artefacts on the transient immediately after the marker are minimized.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 (Of course, as is the case for any time-stretch tactic, other artefacts may still arise.)\par}
+}
+]]></description>
+        <link rel="website">https://forum.cockos.com/showthread.php?p=1932922&amp;postcount=77</link>
+        <link rel="screenshot">https://stash.reaper.fm/32594/Convert%20all%20stretch%20markers%20to%20slopes.JPG</link>
+        <link rel="donation">https://www.paypal.me/juliansader</link>
+      </metadata>
+      <version name="1.00" author="juliansader" time="2023-07-28T13:56:50Z">
+        <changelog><![CDATA[+ Initial Release]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/b8ae497015e7811edbcb85793a7532687300d0bf/deprecated/AB%20-%20stretch%20marker%20rate%20ramp%20down%20slope.lua</source>
+      </version>
+    </reapack>
+    <reapack name="AB - stretch marker rate ramp up slope.lua" type="script" desc="js_Convert all stretch markers in selected items to slopes with starting rate 1.0, to protect transients.lua">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 DESCRIPTION\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A script for easy, one-click conversion of stretch markers in selected items to slopes with starting rate 1.0.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 By setting a starting rate of 1.0, time-stretching artefacts on the transient immediately after the marker are minimized.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 (Of course, as is the case for any time-stretch tactic, other artefacts may still arise.)\par}
+}
+]]></description>
+        <link rel="website">https://forum.cockos.com/showthread.php?p=1932922&amp;postcount=77</link>
+        <link rel="screenshot">https://stash.reaper.fm/32594/Convert%20all%20stretch%20markers%20to%20slopes.JPG</link>
+        <link rel="donation">https://www.paypal.me/juliansader</link>
+      </metadata>
+      <version name="1.00" author="juliansader" time="2023-07-28T13:56:50Z">
+        <changelog><![CDATA[+ Initial Release]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/b8ae497015e7811edbcb85793a7532687300d0bf/deprecated/AB%20-%20stretch%20marker%20rate%20ramp%20up%20slope.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Item Volume with mousewheel.lua" type="script" desc="Change volume for item under mouse cursor (mousewheel)">
+      <metadata>
+        <link rel="website">http://forum.cockos.com/showthread.php?t=188335</link>
+      </metadata>
+      <version name="1.02" author="MPL" time="2023-07-28T13:56:50Z">
+        <changelog><![CDATA[# update for use with REAPER 5.981+]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/b8ae497015e7811edbcb85793a7532687300d0bf/deprecated/Item%20Volume%20with%20mousewheel.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Nudge volume -13db.lua" type="script" desc="Nudge selected items volume down by 13 db">
+      <version name="1.0" author="me2beats" time="2023-07-28T13:56:50Z">
+        <changelog><![CDATA[+ init]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/b8ae497015e7811edbcb85793a7532687300d0bf/deprecated/Nudge%20volume%20-13db.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Nudge volume -4db.lua" type="script" desc="Nudge selected items volume down by 4 db">
+      <version name="1.0" author="me2beats" time="2023-07-28T13:56:50Z">
+        <changelog><![CDATA[+ init]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/b8ae497015e7811edbcb85793a7532687300d0bf/deprecated/Nudge%20volume%20-4db.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Nudge volume -6db.lua" type="script" desc="Nudge selected items volume down by 6 db">
+      <version name="1.0" author="me2beats" time="2023-07-28T13:56:50Z">
+        <changelog><![CDATA[+ init]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/b8ae497015e7811edbcb85793a7532687300d0bf/deprecated/Nudge%20volume%20-6db.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="media_explorer">
+    <reapack name="insert_matching_fxchains.lua" type="script" desc="Insert matching track templates">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Insert track templates that match media explorer's selected items\par}
+}
+]]></description>
+        <link rel="website" href="https://forum.cockos.com/member.php?u=66313">Neutronic's REAPER forum profile</link>
+      </metadata>
+      <version name="2.0" author="Neutronic, mod by Perken" time="2023-06-30T22:21:15Z">
+        <changelog><![CDATA[+ pull match from media explorer selection
++ init realease]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/8b41b52ae6e4957de2095ce13ef193dd3e835e2c/media_explorer/insert_matching_fxchains.lua</source>
+      </version>
+    </reapack>
+    <reapack name="insert_matching_track_templates.lua" type="script" desc="Insert matching track templates">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Insert track templates that match media explorer's selected items\par}
+}
+]]></description>
+        <link rel="website" href="https://forum.cockos.com/member.php?u=66313">Neutronic's REAPER forum profile</link>
+      </metadata>
+      <version name="2.0" author="Neutronic, mod by Perken" time="2023-06-24T02:08:18Z">
+        <changelog><![CDATA[+ pull match from media explorer selection
++ init realease]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/7577f36785730788bdd06f7e3cec5b9771a7dc0c/media_explorer/insert_matching_track_templates.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="realearn/lua_mapper">
+    <reapack name="MFT_map_selected_fx_in_visible_fx_chain.lua" type="script" desc="Midi-fighter-twister: map selected fx in visible fx chain">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 MFT_map_selected_fx_in_visible_fx_chain\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 HOW TO USE:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab have a realearn instance with the Midi fighter's preset loaded in the main compartment.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab select some FX in current chain,\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab focus the arrange view,\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab call the script\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab focus realearn\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab click button \u171 ?import from clipboard\u187 ?\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Each parameter of the selected FX\u160 ?gets assigned a knob on the Midi Fighter Twister. Paging is done with side-buttons. Only basic jsfx seem to work correctly atm.\par}
+}
+]]></description>
+        <link rel="website" href="https://github.com/AntoineBalaine/perken-reaper-scripts">Perken Scripts repo</link>
+      </metadata>
+      <version name="0.0.1" author="Perken" time="2023-08-04T17:46:27Z">
+        <changelog><![CDATA[0.0.1 Setup the script]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/MFT_map_selected_fx_in_visible_fx_chain.lua</source>
+        <source file="dependencies/serpent.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/dependencies/serpent.lua</source>
+        <source file="dependencies/utils.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/dependencies/utils.lua</source>
+        <source file="main_compartment_mapper.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/main_compartment_mapper.lua</source>
+        <source file="MFT_controller_compartment.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/MFT_controller_compartment.lua</source>
+      </version>
+    </reapack>
+  </category>
+</index>
