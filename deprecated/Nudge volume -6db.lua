@@ -1,3 +1,5 @@
+  -- @noindex
+  
 -- @description Nudge selected items volume down by 6 db
 -- @version 1.0
 -- @author me2beats

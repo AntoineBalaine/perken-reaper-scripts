@@ -1,3 +1,5 @@
+  -- @noindex
+  
 --[[
  * ReaScript Name: Snap edit cursor to nearest grid if snap is enabled
  * About: For custom action usage

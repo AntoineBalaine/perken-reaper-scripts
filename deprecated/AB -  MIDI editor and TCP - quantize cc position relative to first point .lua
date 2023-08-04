@@ -1,3 +1,5 @@
+  -- @noindex
+  
 reaper.Undo_BeginBlock() -- to create a consolidated undo point in the Undo History
 
 

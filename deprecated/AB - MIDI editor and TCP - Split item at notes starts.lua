@@ -1,3 +1,5 @@
+  -- @noindex
+  
 reaper.Main_OnCommand(40153, 0) -- Item: Open in built-in MIDI editor
 
 hwnd = reaper.MIDIEditor_GetActive() -- get active MIDI editor
