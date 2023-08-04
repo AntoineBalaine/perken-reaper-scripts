@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Perken Scripts" commit="315c6ba06d63f169fa4af45f6cf457de8fe06270">
+<index version="1" name="perken" commit="315c6ba06d63f169fa4af45f6cf457de8fe06270">
   <category name="realearn/lua_mapper">
     <reapack name="MFT_map_selected_fx_in_visible_fx_chain.lua" type="script" desc="Midi-fighter-twister: map selected fx in visible fx chain">
       <metadata>
