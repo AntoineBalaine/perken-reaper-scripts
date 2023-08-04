@@ -1,3 +1,4 @@
+-- @noindex
 ---@type Compartment
 local MFT_controller_compartment = {
   kind = "ControllerCompartment",

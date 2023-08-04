@@ -1,3 +1,4 @@
+-- @noindex
 local utils = {}
 
 ---convert a number to hex.

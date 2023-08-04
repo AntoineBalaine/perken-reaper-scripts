@@ -1,3 +1,4 @@
+-- @noindex
 ---@meta
 
 ---@class Compartment

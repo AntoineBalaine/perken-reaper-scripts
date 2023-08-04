@@ -1,3 +1,4 @@
+-- @noindex
 local utils = require("dependencies.utils")
 
 local Main_compartment_mapper = {}
