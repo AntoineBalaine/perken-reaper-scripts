@@ -73,10 +73,50 @@ Scripts for the Reaper DAW.
 <details>
  <summary>Decrescendo selected items's volumes</summary> 
 
-`$REAPERPATH/Scripts/perken/main/drum_actions/crescendo_items_volumes.lua`
+`$REAPERPATH/Scripts/perken/main/drum_actions/decrescendo_items_volumes.lua`
 ##### HOW TO USE: 
 - in arrange view, select some items (preferably next to each other) and call the action
 ##### What it does: 
 - Tweaks the volume of the selected items to create a decrescendo
-![Drum Crescendo script demo](./gifs/drums_decresc.gif)
+![Drum DeCrescendo script demo](./gifs/drums_decresc.gif)
+</details>
+
+
+#### Routing utilities
+<details>
+ <summary>Auto-route tracks: Create busses with all common prefixes found in "Busses" list, route tracks to their corresponding colours.</summary> 
+
+`$REAPERPATH/Scripts/perken/main/Routing/CreateBusses.lua`
+##### HOW TO USE: 
+- call action from arrange view
+##### What it does: 
+- Creates busses with all common prefixes found in "Busses" list.
+- Then routes all tracks to their corresponding busses, using matching colors.
+- Removes any unused busses.
+- Common Prefixes are:
+- "BA", "BGV", "BR", "Choir", "DR", "FX", "FullMix", "GTR", "Keys", "LD", "PD", "PL", "PNO", "PRC ", "STR", "TXT", "WD",
+![Auto-route busses demo](./gifs/build_busses.gif)
+</details>
+<details>
+ <summary>Route tracks to busses with same colours</summary> 
+
+`$REAPERPATH/Scripts/perken/main/Routing/routeColoursToBusses.lua`
+##### HOW TO USE: 
+- call action from arrange view
+##### What it does: 
+- assuming all the needed busses are already in the session,
+- route all tracks with "bus" in name to receive from other tracks with same color
+</details>
+
+#### Arranging utilities
+<details>
+ <summary>Paste rhythm to pitches</summary> 
+Mod from Pandabot's excellent [Paste Rhythm](https://forum.cockos.com/showthread.php?t=214231). Difference is, my version doesn't require a special copy action
+
+`$REAPERPATH/Scripts/perken/main/pasteRhythmToPitches.lua`
+##### HOW TO USE: 
+- copy an item in arrange view
+- select another item, call the action
+##### What it does: 
+- pastes the copied item's rhythm to current item's pitches
 </details>

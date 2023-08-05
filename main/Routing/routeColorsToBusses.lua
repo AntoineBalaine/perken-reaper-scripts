@@ -1,5 +1,19 @@
-  -- @noindex
-  
+-- @description Route tracks to busses with same colours
+-- @version 0.0.1
+-- @author Perken
+-- @about
+--   # Route colours to busses
+--   HOW TO USE:
+--   - call action from arrange view
+--
+--   BEHAVIOUR:
+--   - assuming all the needed busses are already in the session,
+--   - route all tracks with "bus" in name to receive from other tracks with same color
+-- @links
+--  Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
+-- @changelog
+--   0.0.1 Setup the script
+
 ---get all tracks with "bus" in name
 ---@return MediaTrack[]
 local function getTracksNamesContainBus()

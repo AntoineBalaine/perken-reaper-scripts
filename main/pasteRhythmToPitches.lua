@@ -1,5 +1,20 @@
-  -- @noindex
-  
+-- @description Paste Rhythm To Pitches
+-- @version 0.0.1
+-- @author Perken
+-- @about
+--   # Paste Rhythm to Pitches
+--   Mod from Pandabot's excellent [Paste Rhythm](https://forum.cockos.com/showthread.php?t=214231). Difference is, my version doesn't require a special copy action
+--   HOW TO USE:
+--   - call action from arrange view
+--
+--   BEHAVIOUR:
+--   - assuming all the needed busses are already in the session,
+--   - route all tracks with "bus" in name to receive from other tracks with same color
+-- @links
+--  Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
+-- @changelog
+--   0.0.1 Setup the script
+
 local function getRhythmNoteIndex(rhythmNotes, startingNotePosition, endingNotePosition)
   for i = 1, #rhythmNotes do
     local rhythmNote = rhythmNotes[i]

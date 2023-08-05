@@ -1,5 +1,22 @@
-  -- @noindex
-  
+-- @description Create busses: auto-route tracks to all common prefixes found in "Busses" list.
+-- @version 0.0.1
+-- @author Perken
+-- @about
+--   # Create busses and auto-route tracks by colour
+--   HOW TO USE:
+--   - call action from arrange view
+--
+--   BEHAVIOUR:
+--   - Create busses with all common prefixes found in "Busses" list.
+--   - Then route all tracks to their corresponding busses, using matching colors.
+--   - Remove any unused busses.
+--   - Common Prefixes are:
+--   - "BA", "BGV", "BR", "Choir", "DR", "FX", "FullMix", "GTR", "Keys", "LD", "PD", "PL", "PNO", "PRC ", "STR", "TXT", "WD",
+-- @links
+--  Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
+-- @changelog
+--   0.0.1 Setup the script
+
 ---get all tracks with "bus" in name
 ---@return MediaTrack[]
 local function getTracksNamesContainBus()
