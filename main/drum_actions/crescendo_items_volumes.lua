@@ -1,4 +1,4 @@
--- @description 2 stroke: create a drum 2 stroke-flush on the selected item
+-- @description Decrescendo: Crescendo item volumes
 -- @version 0.0.1
 -- @author Perken
 -- @provides
@@ -6,15 +6,15 @@
 -- @about
 --   # flam
 --   HOW TO USE:
---   - in arrange view, select an item and call the action
---   - works with midi too
+--   - in arrange view, select some items (preferably next to each other) and call the action
 --
 --   BEHAVIOUR:
---   - create a 2stroke right before the selected item
+--   - Tweaks the volume of the selected items to create a crescendo
 -- @links
 --  Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
 -- @changelog
 --   0.0.1 Setup the script
+
 
 local info = debug.getinfo(1, "S")
 
@@ -29,4 +29,4 @@ end
 
 local drums = require("drums")
 
-drums.ras3()
+drums.crescendo()

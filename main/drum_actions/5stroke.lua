@@ -1,5 +1,21 @@
-  -- @noindex
-  
+-- @description 5 stroke: create a drum 4 stroke-flush on the selected item
+-- @version 0.0.1
+-- @author Perken
+-- @provides
+--  utilities/drums.lua
+-- @about
+--   # flam
+--   HOW TO USE:
+--   - in arrange view, select an item and call the action
+--   - works with midi too
+--
+--   BEHAVIOUR:
+--   - create a 4stroke right before the selected item
+-- @links
+--  Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
+-- @changelog
+--   0.0.1 Setup the script
+
 local info = debug.getinfo(1, "S")
 
 local internal_root_path = info.source:match(".*perken.main."):sub(2) .. "utilities"
