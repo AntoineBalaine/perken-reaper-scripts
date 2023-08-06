@@ -1,5 +1,5 @@
 -- @description Midi-fighter-twister: map selected fx in visible fx chain
--- @version 0.0.1
+-- @version 0.0.2
 -- @author Perken
 -- @provides
 --  dependencies/serpent.lua
@@ -22,6 +22,7 @@
 -- @links
 --  Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
 -- @changelog
+--   0.0.2 Fix paging in auto-mapper
 --   0.0.1 Setup the script
 
 
