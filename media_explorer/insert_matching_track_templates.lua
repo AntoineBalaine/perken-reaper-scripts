@@ -1,5 +1,5 @@
-  -- @noindex
-  
+-- @noindex
+
 --[[
 Description: Insert matching track templates
 About: Insert track templates that match media explorer's selected items

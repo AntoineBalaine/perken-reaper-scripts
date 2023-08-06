@@ -1,3 +1,4 @@
+-- @noindex
 -- @description 5 stroke: create a drum 4 stroke-flush on the selected item
 -- @version 0.0.1
 -- @author Perken

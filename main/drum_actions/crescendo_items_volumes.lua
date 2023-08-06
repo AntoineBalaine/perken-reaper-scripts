@@ -1,3 +1,4 @@
+-- @noindex
 -- @description Decrescendo: Crescendo item volumes
 -- @version 0.0.1
 -- @author Perken

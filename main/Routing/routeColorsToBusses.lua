@@ -1,3 +1,4 @@
+-- @noindex
 -- @description Route tracks to busses with same colours
 -- @version 0.0.1
 -- @author Perken

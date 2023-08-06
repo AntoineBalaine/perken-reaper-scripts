@@ -1,3 +1,4 @@
+-- @noindex
 -- @description Drum flam: create a flam on the selected item
 -- @version 0.0.1
 -- @author Perken

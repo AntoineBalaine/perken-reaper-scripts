@@ -1,5 +1,7 @@
 -- @description 2 stroke: create a drum 2 stroke-flush on the selected item
 -- @version 0.0.1
+-- @noindex
+
 -- @author Perken
 -- @provides
 --  utilities/drums.lua
