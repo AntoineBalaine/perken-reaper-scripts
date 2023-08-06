@@ -1,5 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="perken" commit="315c6ba06d63f169fa4af45f6cf457de8fe06270">
+<index version="1" name="perken" commit="a39ced182a527f37a21174e6ae51f317e11c8f6e">
+  <category name="main">
+    <reapack name="pasteRhythmToPitches.lua" type="script" desc="Paste Rhythm To Pitches">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Paste Rhythm to Pitches\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Mod from Pandabot's excellent {\field{\*\fldinst{HYPERLINK "https://forum.cockos.com/showthread.php?t=214231"}}{\fldrslt{\ul
+Paste Rhythm
+}}}
+. Difference is, my version doesn't require a special copy action HOW TO USE:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab call action from arrange view\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 BEHAVIOUR:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab assuming all the needed busses are already in the session,\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab route all tracks with "bus" in name to receive from other tracks with same color\sa180\par}
+}
+]]></description>
+        <link rel="website" href="https://github.com/AntoineBalaine/perken-reaper-scripts">Perken Scripts repo</link>
+      </metadata>
+      <version name="0.0.1" author="Perken" time="2023-08-05T15:27:05Z">
+        <changelog><![CDATA[0.0.1 Setup the script]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/78b7d63e3fb1c9eb59a817ebd715cddaa7f4f5c4/main/pasteRhythmToPitches.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="main/Routing">
+    <reapack name="CreateBusses.lua" type="script" desc="Create busses: auto-route tracks to all common prefixes found in &quot;Busses&quot; list.">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Create busses and auto-route tracks by colour\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 HOW TO USE:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab call action from arrange view\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 BEHAVIOUR:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Create busses with all common prefixes found in "Busses" list.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Then route all tracks to their corresponding busses, using matching colors.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Remove any unused busses.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Common Prefixes are:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab "BA", "BGV", "BR", "Choir", "DR", "FX", "FullMix", "GTR", "Keys", "LD", "PD", "PL", "PNO", "PRC ", "STR", "TXT", "WD",\sa180\par}
+}
+]]></description>
+        <link rel="website" href="https://github.com/AntoineBalaine/perken-reaper-scripts">Perken Scripts repo</link>
+      </metadata>
+      <version name="0.0.1" author="Perken" time="2023-08-05T15:27:05Z">
+        <changelog><![CDATA[0.0.1 Setup the script]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/78b7d63e3fb1c9eb59a817ebd715cddaa7f4f5c4/main/Routing/CreateBusses.lua</source>
+      </version>
+    </reapack>
+  </category>
   <category name="realearn/lua_mapper">
     <reapack name="MFT_map_selected_fx_in_visible_fx_chain.lua" type="script" desc="Midi-fighter-twister: map selected fx in visible fx chain">
       <metadata>
@@ -27,6 +79,15 @@
         <source file="dependencies/utils.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/dependencies/utils.lua</source>
         <source file="main_compartment_mapper.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/main_compartment_mapper.lua</source>
         <source file="MFT_controller_compartment.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/ef6052b73dbbcd8c331aae5fe41bf6216ec9d572/realearn/lua_mapper/MFT_controller_compartment.lua</source>
+      </version>
+      <version name="0.0.2" author="Perken" time="2023-08-06T19:06:50Z">
+        <changelog><![CDATA[0.0.2 Fix paging in auto-mapper
+0.0.1 Setup the script]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/393dc08d5e26c2eea54e6ddaad4c19d524c9242e/realearn/lua_mapper/MFT_map_selected_fx_in_visible_fx_chain.lua</source>
+        <source file="dependencies/serpent.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/393dc08d5e26c2eea54e6ddaad4c19d524c9242e/realearn/lua_mapper/dependencies/serpent.lua</source>
+        <source file="dependencies/utils.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/393dc08d5e26c2eea54e6ddaad4c19d524c9242e/realearn/lua_mapper/dependencies/utils.lua</source>
+        <source file="main_compartment_mapper.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/393dc08d5e26c2eea54e6ddaad4c19d524c9242e/realearn/lua_mapper/main_compartment_mapper.lua</source>
+        <source file="MFT_controller_compartment.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/393dc08d5e26c2eea54e6ddaad4c19d524c9242e/realearn/lua_mapper/MFT_controller_compartment.lua</source>
       </version>
     </reapack>
   </category>
