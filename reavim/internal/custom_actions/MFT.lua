@@ -233,15 +233,6 @@ local function Bankk(ENCODERS_COUNT)
 
     ---@param fx FxDescr
     function B:insert_fx(fx)
-        -- how many pages are we going to need for this FX?
-        -- create as many pages as needed
-        -- local pages_needed = math.ceil(valid_mappings_count / ENCODERS_COUNT)
-        -- if current FX is only one page,
-        -- check that it can fit with previous FX in current page
-        --[[         if self:cur_maps_in_page() + valid_mappings_count > ENCODERS_COUNT then
-            self:new_page()
-        end ]]
-        ---pick a random index from C
         local fx_colour = self:increment_color()
         for i, param in pairs(fx.params) do
             if param.mapping == nil then goto continue end ---if fx has no mapping, continue
@@ -252,13 +243,7 @@ local function Bankk(ENCODERS_COUNT)
     end
 
     function B:find_available_idx()
-        local encoder_id = 0
-        for i, m in pairs(self.data[self.pageIdx].maps) do
-            if m.target.kind == "Dummy" then
-                encoder_id = i
-            end
-        end
-        return encoder_id
+        return #self.data[self.pageIdx].maps + 1
     end
 
     ---@param map Mapping
@@ -267,12 +252,13 @@ local function Bankk(ENCODERS_COUNT)
         if fx_colour == nil then fx_colour = "00" end
         -- if current bank is full, create a new one
         -- else, add to current bank
-        if self:cur_maps_in_page() > ENCODERS_COUNT then
+        if self:cur_maps_in_page() >= ENCODERS_COUNT then
             self:new_page()
         end
         local encoder_id = self:find_available_idx()
+        -- TODO IS THIS THE PROBLEM
         map.activation_condition.bank_index = self.pageIdx
-        map.source.id = encoder_id
+        map.source.id = encoder_id - 1 -- does this need to be zero-indexed
         -- map.source = { kind = "Virtual", id = encoder_id }
         map.on_activate = {
             send_midi_feedback = { {
@@ -284,7 +270,7 @@ local function Bankk(ENCODERS_COUNT)
         }
         -- insert into maps
         -- replace dummy mapping with new mapping
-        self.data[self.pageIdx].maps[encoder_id] = map
+        table.insert(self.data[self.pageIdx].maps, map)
     end
 
     function B:new_page()
@@ -292,7 +278,7 @@ local function Bankk(ENCODERS_COUNT)
         local bnk = createBank(self.pageIdx)
         bnk.activation_condition.bank_index = self.pageIdx
         self.data[self.pageIdx] = {
-            maps = create_dummies(bnk.id, self.pageIdx, 1, ENCODERS_COUNT), -- fill page with dumies
+            maps = {},
             bnk = bnk,
         }
     end
@@ -326,7 +312,7 @@ function Main_compartment_mapper.Map_selected_fx_in_visible_chain(ENCODERS_COUNT
     ---@return Bank[] bnks
     ---@return Mapping[] fx
     local function build(fx)
-        local bnks = Bankk(ENCODERS_COUNT):init()
+        local bnks = Bankk(ENCODERS_COUNT)
         for _, fx in pairs(fx) do
             bnks:insert_fx(fx)
         end
