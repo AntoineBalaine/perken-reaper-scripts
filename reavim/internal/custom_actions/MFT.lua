@@ -231,6 +231,24 @@ local function Bankk(ENCODERS_COUNT)
         return count
     end
 
+    function B:fill_left_over_space_in_last_bank_with_dummies()
+        local last_bank = self.data[self.pageIdx].bnk
+        local last_bank_idx = #self.data[self.pageIdx].maps
+        local dummies_start_idx = last_bank_idx + 1
+        local dummies = create_dummies(last_bank.id, last_bank_idx, dummies_start_idx, ENCODERS_COUNT)
+        for _, dummy in ipairs(dummies) do
+            table.insert(self.data[self.pageIdx].maps, dummy)
+        end
+    end
+
+    function B:add_dummies_page()
+        self:new_page()
+        local dummies = create_dummies(self.data[self.pageIdx].bnk.id, self.pageIdx, 1, ENCODERS_COUNT)
+        for _, dummy in ipairs(dummies) do
+            table.insert(self.data[self.pageIdx].maps, dummy)
+        end
+    end
+
     ---@param fx FxDescr
     function B:insert_fx(fx)
         local fx_colour = self:increment_color()
@@ -316,6 +334,8 @@ function Main_compartment_mapper.Map_selected_fx_in_visible_chain(ENCODERS_COUNT
         for _, fx in pairs(fx) do
             bnks:insert_fx(fx)
         end
+        bnks:fill_left_over_space_in_last_bank_with_dummies()
+        bnks:add_dummies_page()
         return bnks:get_bnks(), bnks:get_maps()
     end
 
