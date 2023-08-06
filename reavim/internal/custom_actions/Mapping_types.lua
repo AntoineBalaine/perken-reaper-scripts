@@ -27,6 +27,7 @@
 ---@field tags string[]|nil tags are used to find mappings, can be used to group mappings without a dedicated Group
 ---@field target Target
 ---@field visible_in_projection boolean|nil
+---@field activation_condition { bank_index: number, parameter: number, kind: string } | nil
 
 ---@class Group mapping group, such as "BANK1"
 ---@field activation_condition table|nil
