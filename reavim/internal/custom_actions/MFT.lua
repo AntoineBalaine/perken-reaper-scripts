@@ -26,6 +26,24 @@ local function createDummyMapping()
     }
 end
 
+---Create a «do nothing» mapping, containing a unique ID and the base glue and target sections.
+---@return Mapping
+local function createIdleMapping()
+    local id = utils.uuid()
+    return {
+        id = id,
+        name = id,
+        target = {
+            kind = "Track",
+            track = {
+                address = "This",
+                track_must_be_selected = true,
+            },
+            action = "DoNothing",
+        }
+    }
+end
+
 local function createLeftRightBankPagers() ---@return Mapping[]
     return {
         {
@@ -41,10 +59,18 @@ local function createLeftRightBankPagers() ---@return Mapping[]
                 step_size_interval = { 0.01, 0.05 },
             },
             target = {
+                track_must_be_selected = true,
                 kind = "FxParameterValue",
                 parameter = {
                     address = "ById",
                     index = 0,
+                    chain = {
+                        address = "Track",
+                        track = {
+                            address = "This",
+                            track_must_be_selected = true,
+                        }
+                    },
                 },
             },
         },
@@ -64,6 +90,13 @@ local function createLeftRightBankPagers() ---@return Mapping[]
                 parameter = {
                     address = "ById",
                     index = 0,
+                    chain = {
+                        address = "Track",
+                        track = {
+                            address = "This",
+                            track_must_be_selected = true,
+                        }
+                    },
                 },
             }
         }
@@ -158,19 +191,15 @@ local function create_dummies(bnk_id, bnk_idx, dummies_start_idx, ENCODERS_COUNT
     local dummies = {} ---@type Mapping[]
     -- create dummy mappings for the rest of the encoders
     for i = dummies_start_idx, ENCODERS_COUNT do
-        local dummy_mapping = createDummyMapping()
-        dummy_mapping.name = "_"
-        -- dummy_mapping.group = bnk_id
-        dummy_mapping.activation_condition = {
+        local idle_mapping = createIdleMapping()
+        idle_mapping.name = "_"
+        idle_mapping.group = bnk_id
+        idle_mapping.activation_condition = {
             kind = "Bank",
             parameter = 0,
             bank_index = bnk_idx,
         }
-        dummy_mapping.source = {
-            kind = "Virtual",
-            id = i - 1,
-        }
-        dummy_mapping.on_activate = {
+        idle_mapping.on_activate = {
             send_midi_feedback = {
                 {
                     kind = "Raw",
@@ -180,7 +209,7 @@ local function create_dummies(bnk_id, bnk_idx, dummies_start_idx, ENCODERS_COUNT
                 },
             },
         }
-        table.insert(dummies, dummy_mapping)
+        table.insert(dummies, idle_mapping)
     end
     return dummies
 end
@@ -275,6 +304,8 @@ local function Bankk(ENCODERS_COUNT)
         end
         local encoder_id = self:find_available_idx()
         -- TODO IS THIS THE PROBLEM
+
+        map.group = self.data[self.pageIdx].bnk.id
         map.activation_condition.bank_index = self.pageIdx
         map.source.id = encoder_id - 1 -- does this need to be zero-indexed
         -- map.source = { kind = "Virtual", id = encoder_id }
