@@ -160,7 +160,7 @@ local function create_dummies(bnk_id, bnk_idx, dummies_start_idx, ENCODERS_COUNT
     for i = dummies_start_idx, ENCODERS_COUNT do
         local dummy_mapping = createDummyMapping()
         dummy_mapping.name = "_"
-        dummy_mapping.group = bnk_id
+        -- dummy_mapping.group = bnk_id
         dummy_mapping.activation_condition = {
             kind = "Bank",
             parameter = 0,
@@ -235,7 +235,7 @@ local function Bankk(ENCODERS_COUNT)
         local last_bank = self.data[self.pageIdx].bnk
         local last_bank_idx = #self.data[self.pageIdx].maps
         local dummies_start_idx = last_bank_idx + 1
-        local dummies = create_dummies(last_bank.id, last_bank_idx, dummies_start_idx, ENCODERS_COUNT)
+        local dummies = create_dummies(last_bank.id, self.pageIdx, dummies_start_idx, ENCODERS_COUNT)
         for _, dummy in ipairs(dummies) do
             table.insert(self.data[self.pageIdx].maps, dummy)
         end
@@ -254,7 +254,7 @@ local function Bankk(ENCODERS_COUNT)
         local fx_colour = self:increment_color()
         for i, param in pairs(fx.params) do
             if param.mapping == nil then goto continue end ---if fx has no mapping, continue
-            -- REPLACE THE DUMMIES, DON'T JUST ADD TO THEM
+            -- REPLACE THE DUMMIES, DON'T JUST ADD TO THEM
             self:insert(param.mapping, fx_colour)
             ::continue::
         end
@@ -274,7 +274,7 @@ local function Bankk(ENCODERS_COUNT)
             self:new_page()
         end
         local encoder_id = self:find_available_idx()
-        -- TODO IS THIS THE PROBLEM
+        -- TODO IS THIS THE PROBLEM
         map.activation_condition.bank_index = self.pageIdx
         map.source.id = encoder_id - 1 -- does this need to be zero-indexed
         -- map.source = { kind = "Virtual", id = encoder_id }
@@ -282,7 +282,7 @@ local function Bankk(ENCODERS_COUNT)
             send_midi_feedback = { {
                 kind = "Raw",
                 message = "B1 " ..
-                    utils.toHex(encoder_id % ENCODERS_COUNT) ..
+                    utils.toHex((encoder_id - 1) % ENCODERS_COUNT) ..
                     " " .. fx_colour ---assign LED colours to buttons here
             } }
         }
@@ -497,6 +497,10 @@ function Main_compartment_mapper.Map_selected_fx_in_visible_chain(ENCODERS_COUNT
                             address = "ByIndex",
                             chain = {
                                 address = "Track",
+                                track = {
+                                    address = "This",
+                                    track_must_be_selected = true,
+                                }
                             },
                             index = fx[fxIdx].idx,
                         },

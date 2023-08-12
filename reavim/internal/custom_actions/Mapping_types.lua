@@ -77,4 +77,5 @@
 ---@field id string | nil
 
 ---@class Chain
----@field address string
+---@field address string eg. "Track"
+---@field track {address: string, track_must_be_selected: boolean} | nil
