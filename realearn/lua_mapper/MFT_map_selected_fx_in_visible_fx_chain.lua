@@ -22,6 +22,7 @@
 -- @links
 --  Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
 -- @changelog
+--   0.0.3 Fix coloring per fx in pages
 --   0.0.2 Fix paging in auto-mapper
 --   0.0.1 Setup the script
 

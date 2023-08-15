@@ -24,6 +24,24 @@ local function createDummyMapping()
   }
 end
 
+---Create a «do nothing» mapping, containing a unique ID and the base glue and target sections.
+---@return Mapping
+local function createIdleMapping()
+  local id = utils.uuid()
+  return {
+    id = id,
+    name = id,
+    target = {
+      kind = "Track",
+      track = {
+        address = "This",
+        track_must_be_selected = true,
+      },
+      action = "DoNothing",
+    }
+  }
+end
+
 local function createLeftRightBankPagers() ---@return Mapping[]
   return {
     {
@@ -39,10 +57,18 @@ local function createLeftRightBankPagers() ---@return Mapping[]
         step_size_interval = { 0.01, 0.05 },
       },
       target = {
+        track_must_be_selected = true,
         kind = "FxParameterValue",
         parameter = {
           address = "ById",
           index = 0,
+          chain = {
+            address = "Track",
+            track = {
+              address = "This",
+              track_must_be_selected = true,
+            }
+          },
         },
       },
     },
@@ -62,6 +88,13 @@ local function createLeftRightBankPagers() ---@return Mapping[]
         parameter = {
           address = "ById",
           index = 0,
+          chain = {
+            address = "Track",
+            track = {
+              address = "This",
+              track_must_be_selected = true,
+            }
+          },
         },
       }
     }
@@ -156,19 +189,15 @@ local function create_dummies(bnk_id, bnk_idx, dummies_start_idx, ENCODERS_COUNT
   local dummies = {} ---@type Mapping[]
   -- create dummy mappings for the rest of the encoders
   for i = dummies_start_idx, ENCODERS_COUNT do
-    local dummy_mapping = createDummyMapping()
-    dummy_mapping.name = "_"
-    dummy_mapping.group = bnk_id
-    dummy_mapping.activation_condition = {
+    local idle_mapping = createIdleMapping()
+    idle_mapping.name = "_"
+    idle_mapping.group = bnk_id
+    idle_mapping.activation_condition = {
       kind = "Bank",
       parameter = 0,
       bank_index = bnk_idx,
     }
-    dummy_mapping.source = {
-      kind = "Virtual",
-      id = i - 1,
-    }
-    dummy_mapping.on_activate = {
+    idle_mapping.on_activate = {
       send_midi_feedback = {
         {
           kind = "Raw",
@@ -178,7 +207,7 @@ local function create_dummies(bnk_id, bnk_idx, dummies_start_idx, ENCODERS_COUNT
         },
       },
     }
-    table.insert(dummies, dummy_mapping)
+    table.insert(dummies, idle_mapping)
   end
   return dummies
 end
@@ -233,7 +262,7 @@ local function Bankk(ENCODERS_COUNT)
     local last_bank = self.data[self.pageIdx].bnk
     local last_bank_idx = #self.data[self.pageIdx].maps
     local dummies_start_idx = last_bank_idx + 1
-    local dummies = create_dummies(last_bank.id, last_bank_idx, dummies_start_idx, ENCODERS_COUNT)
+    local dummies = create_dummies(last_bank.id, self.pageIdx, dummies_start_idx, ENCODERS_COUNT)
     for _, dummy in ipairs(dummies) do
       table.insert(self.data[self.pageIdx].maps, dummy)
     end
@@ -252,7 +281,7 @@ local function Bankk(ENCODERS_COUNT)
     local fx_colour = self:increment_color()
     for i, param in pairs(fx.params) do
       if param.mapping == nil then goto continue end ---if fx has no mapping, continue
-      -- REPLACE THE DUMMIES, DON'T JUST ADD TO THEM
+      -- REPLACE THE DUMMIES, DON'T JUST ADD TO THEM
       self:insert(param.mapping, fx_colour)
       ::continue::
     end
@@ -272,7 +301,9 @@ local function Bankk(ENCODERS_COUNT)
       self:new_page()
     end
     local encoder_id = self:find_available_idx()
-    -- TODO IS THIS THE PROBLEM
+    -- TODO IS THIS THE PROBLEM
+
+    map.group = self.data[self.pageIdx].bnk.id
     map.activation_condition.bank_index = self.pageIdx
     map.source.id = encoder_id - 1 -- does this need to be zero-indexed
     -- map.source = { kind = "Virtual", id = encoder_id }
@@ -280,7 +311,7 @@ local function Bankk(ENCODERS_COUNT)
       send_midi_feedback = { {
         kind = "Raw",
         message = "B1 " ..
-            utils.toHex(encoder_id % ENCODERS_COUNT) ..
+            utils.toHex((encoder_id - 1) % ENCODERS_COUNT) ..
             " " .. fx_colour ---assign LED colours to buttons here
       } }
     }
@@ -350,111 +381,6 @@ function Main_compartment_mapper.Map_selected_fx_in_visible_chain(ENCODERS_COUNT
     return count
   end
 
-  ---Create banks for the FX, and update mappings to assign pages to the FX's params
-  ---
-  ---Each page contains one or multiple FX, and the breakout of the pages
-  ---tries to avoid having to break an FX across multiple pages.
-  ---
-  ---Each FX is assigned its own colour.
-  ---
-  ---Add an empty page at the end, to signal the last page
-  ---@param fx FxDescr[]
-  ---@return Bank[] bnks
-  ---@return Mapping[] fx
-  local function build_banks(fx)
-    local bnk_idx = -1
-    local bnks = {} ---@type Bank[]
-    local mappings_in_current_bank = 0
-    local maps = {} ---@type Mapping[]
-    local paramidx_in_bnk = -1
-    local colorIdx = 0
-    --[[
-        for each fx, check whether the next fx and the current one can fit in the current bank.
-        if so, include them
-        if not, only include the current fx in the current bank
-            increment bank
-    ]]
-    for fxIdx = 1, #fx do
-      colorIdx = colorIdx + 1
-      ---pick a random index from C
-      local fx_colour = Color_list[colorIdx % #Color_list]
-      --[[ if remaining slots in bank >= #fx[fxIdx].params
-            include fx[fxIdx] in current bank
-        else
-            increment bank
-            update each param to be assigned to current bank
-            include fx[fxIdx] in current bank
-      ]]
-      local valid_maps = countValidMappings(fx[fxIdx])
-      local maps_in_cur_bnk = count_maps_in_bank(maps, bnk_idx)
-      ---TODO: check if there are enough slots in the current bank
-      --- what happens if bank is empty but it doesn't have enough slots for current FXparams?
-      if maps_in_cur_bnk + valid_maps <= ENCODERS_COUNT and bnk_idx ~= -1 then
-        -- include fx[fxIdx] in current bank
-        maps_in_cur_bnk = maps_in_cur_bnk + valid_maps
-      else
-        -- increment bank
-        bnk_idx = bnk_idx + 1
-        maps_in_cur_bnk = 0
-        paramidx_in_bnk = -1
-        local bnk = createBank(bnk_idx)
-        bnk.activation_condition.bank_index = bnk_idx
-        table.insert(bnks, bnk)
-      end
-      -- create bank for each fx
-      -- for each fx, iterate params
-      for paramIdx = 1, #fx[fxIdx].params do
-        local param = fx[fxIdx].params[paramIdx]
-        if param.mapping == nil then goto continue end ---if fx has no mapping, continue
-        --- once we go over the capacity of the current bank,
-        -- create a new one
-        if (maps_in_cur_bnk + paramIdx) % ENCODERS_COUNT == 0 then
-          -- increment bank
-          bnk_idx = bnk_idx + 1
-          paramidx_in_bnk = -1
-          local bnk = createBank(bnk_idx)
-          bnk.activation_condition.bank_index = bnk_idx
-          table.insert(bnks, bnk)
-        end
-
-
-        param.mapping.activation_condition.bank_index = bnk_idx
-        paramidx_in_bnk = paramidx_in_bnk + 1
-        param.mapping.source.id = paramidx_in_bnk
-        param.mapping.on_activate.send_midi_feedback[1].message = "B1 " ..
-            utils.toHex(paramidx_in_bnk % ENCODERS_COUNT) ..
-            " " .. fx_colour ---assign LED colours to buttons here
-        table.insert(maps, param.mapping)
-        ::continue::
-      end
-
-      local maps_in_cur_bnk = count_maps_in_bank(maps, bnk_idx)
-      -- if next page is going to go to a new bank, fill left over slots in current bank with dummies
-      if fx[fxIdx + 1] == nil or maps_in_cur_bnk + countValidMappings(fx[fxIdx + 1]) > ENCODERS_COUNT then
-        local loopIdx = paramidx_in_bnk + 1
-        local dummies = create_dummies(bnks[#bnks].id, bnk_idx, loopIdx, ENCODERS_COUNT)
-        --- insert each dummy into the current bank
-        maps_in_cur_bnk = maps_in_cur_bnk + #dummies
-        for _, dummy in ipairs(dummies) do
-          paramidx_in_bnk = paramidx_in_bnk + 1
-          table.insert(maps, dummy)
-        end
-      end
-    end
-    -- add a page of empty mappings
-    local empty_bnk = createBank(bnk_idx + 1)
-    empty_bnk.activation_condition.bank_index = bnk_idx + 1
-    table.insert(bnks, empty_bnk)
-    -- add a page of empty mappings
-    local dummies = create_dummies(bnks[#bnks].id, bnk_idx + 1, 1, ENCODERS_COUNT)
-    for _, dummy in ipairs(dummies) do
-      paramidx_in_bnk = paramidx_in_bnk + 1
-      table.insert(maps, dummy)
-    end
-
-    return bnks, maps
-  end
-
   ---Create main compartment mapping for the selected FX in the visible FX chain.
   ---Add a mapping for each parameter of the selected FX, assign bank pages to them,
   ---assign colours to the encoders LEDs, and copy the resulting main compartment mapping
@@ -495,6 +421,10 @@ function Main_compartment_mapper.Map_selected_fx_in_visible_chain(ENCODERS_COUNT
               address = "ByIndex",
               chain = {
                 address = "Track",
+                track = {
+                  address = "This",
+                  track_must_be_selected = true,
+                }
               },
               index = fx[fxIdx].idx,
             },
