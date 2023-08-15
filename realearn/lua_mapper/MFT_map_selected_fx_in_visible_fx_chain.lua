@@ -1,5 +1,5 @@
 -- @description Midi-fighter-twister: map selected fx in visible fx chain
--- @version 0.0.2
+-- @version 0.0.3
 -- @author Perken
 -- @provides
 --  dependencies/serpent.lua

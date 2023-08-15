@@ -1,3 +1,4 @@
+-- @noindex
 ---get all tracks with "bus" in name
 ---@return MediaTrack[]
 local function getTracksNamesContainBus()
