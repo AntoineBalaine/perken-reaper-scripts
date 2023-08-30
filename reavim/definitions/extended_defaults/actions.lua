@@ -437,6 +437,7 @@ return {
 	ScrollToPlayPosition = 40150,
 	ScrollToEditCursor = "_SWS_HSCROLL10",
 	ScrollToSelectedTracks = 40913,
+	CenterCursor = { "ScrollToSelectedTracks", "_SWS_HSCROLL50" },
 	SelectAllItems = 40182,
 	SelectAllNotesAtPitch = { 41746, midiCommand = true },
 	SelectAllTracks = 40296,
@@ -855,6 +856,7 @@ return {
 	TrimLeftEdgeFromMouse = { custom.items.trimLeftEdgeFromMouse },
 	FadeItemInFromMouse = { custom.items.fadeItemInFromMouse },
 	FadeItemOutFromMouse = { custom.items.fadeItemOutFromMouse },
+	SplitAtMouse = 42575,
 	jumpToBar = { custom.move.jumpToBarNumber, midiCommand = true },
 	pasteRhythmToPitches = { custom.pasteRhythm.pasteRhythm },
 	ExplodeNoteRows = 40920,
@@ -866,7 +868,7 @@ return {
 	SelectPointsTimeSelection = 40330,
 	InsertToggleAtTimeSelection = { custom.envelope.insertToggleAtTimeSelection },
 	InvertSelectedPoints = 40334,
-	devAction = { custom.MFT.create_fx_map },
+	devAction = { custom.dev.pasteToSlot },
 	VrtlBtn1 = { custom.midi_controller.devAction },
 	VrtlBtn2 = { custom.midi_controller.devAction },
 	VrtlBtn3 = {
@@ -887,5 +889,6 @@ return {
 	VrtlBtn14 = { custom.midi_controller.devAction },
 	VrtlBtn15 = { custom.midi_controller.devAction },
 	VrtlBtn16 = { custom.midi_controller.devAction },
-
+	ToggleShowEnvelopesForTracks = 40890,
+	InsertFxAtSlot = { custom.fx.insertFXAtSlot },
 }
