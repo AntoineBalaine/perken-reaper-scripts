@@ -1,3 +1,4 @@
+local utils = require("custom_actions.utils")
 local dev = {}
 
 function dev.fxDevices()
@@ -97,8 +98,7 @@ function GetAllFloatingFXWindows()
 end
 
 function dev.devAction()
-  -- add "hello world" to system clipboard
-  reaper.CF_SetClipboard("hello world")
+  -- dev.pasteToSlot()
 end
 
 return dev

@@ -121,6 +121,7 @@ return {
 		["<C-a>"] = "devAction",
 		["<C-B>"] = "FadeItemInFromMouse",
 		["<C-E>"] = "FadeItemOutFromMouse",
+		["<C-y>"] = "SplitAtMouse",
 		["<C-b>"] = "TrimLeftEdgeFromMouse",
 		["<C-e>"] = "TrimRightEdgeFromMouse",
 		["<ESC>"] = "Reset",
@@ -391,6 +392,7 @@ return {
 				["e"] = {
 					"+envelopes",
 					{
+						["h"] = "ToggleShowEnvelopesForTracks",
 						["p"] = { "+point shapes",
 							{
 								["b"] = "BezierPointShape",
@@ -441,6 +443,7 @@ return {
 				["f"] = {
 					"+fx",
 					{
+						["i"] = "InsertFxAtSlot",
 						["a"] = "AddFx",
 						["s"] = "ToggleShowFxChain",
 						["d"] = "CutFxChain",
@@ -448,7 +451,7 @@ return {
 						["p"] = "PasteFxChain",
 						["b"] = "ToggleFxBypass",
 						["m"] = "ModulateLastTouchedFxParam",
-						["i"] = {
+						["I"] = {
 							"+input",
 							{
 								["s"] = "ToggleShowInputFxChain",
