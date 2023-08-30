@@ -437,6 +437,7 @@ return {
 	ScrollToPlayPosition = 40150,
 	ScrollToEditCursor = "_SWS_HSCROLL10",
 	ScrollToSelectedTracks = 40913,
+	CenterCursor = "_SWS_HSCROLL50",
 	SelectAllItems = 40182,
 	SelectAllNotesAtPitch = { 41746, midiCommand = true },
 	SelectAllTracks = 40296,

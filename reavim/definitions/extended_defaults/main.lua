@@ -153,6 +153,7 @@ return {
 		["<C-v>"] = "Paste",
 		["yy"] = "CopyTrack",
 		["zz"] = "ScrollToSelectedTracks",
+		["zc"] = "CenterCursor",
 		["%"] = "SplitItemsAtEditCursor",
 		["~"] = "MarkedTracks",
 		["<C-j>"] = "NudgeTrackVolumeDownBy1Tenth",
