@@ -67,4 +67,13 @@ function tracks.renameTrackToVstiPresetName()
   )
 end
 
+function tracks.soloExclusive()
+  local tr = reaper.GetSelectedTrack(0, 0)
+  local num = reaper.GetMediaTrackInfo_Value(tr, "I_SOLO")
+  reaper.Main_OnCommand(40340, 0) -- unsolo all tracks
+  if num == 0 then
+    reaper.SetMediaTrackInfo_Value(tr, "I_SOLO", 1)
+  end
+end
+
 return tracks

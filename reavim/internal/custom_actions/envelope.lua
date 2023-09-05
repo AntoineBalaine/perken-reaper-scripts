@@ -169,6 +169,59 @@ function envelope.insertToggleAtTimeSelection()
   end
 end
 
+local function DeleteAtTimeSelection(time_selection, point_time, start_time, end_time, env, env_points_count)
+  if time_selection == true then
+    if point_time > start_time and point_time < end_time then
+      reaper.DeleteEnvelopePointRange(env, start_time, end_time)
+    end
+  else
+    local retval_last, time_last, valueSource_last, shape_last, tension_last, selectedOut_last = reaper.GetEnvelopePoint(
+      env,
+      env_points_count - 1)
+    reaper.DeleteEnvelopePointRange(env, 0, time_last + 1)
+  end
+end
+
+function envelope.deletePoints()
+  -- if there are selected points, delete them
+  -- are there any envelope lanes selected?
+  local env = reaper.GetSelectedEnvelope(0)
+  if env then
+    local time_selection = false
+    local start_time, end_time = reaper.GetSet_LoopTimeRange2(0, false, false, 0, 0, false)
+    if start_time ~= end_time then
+      time_selection = true
+    end
+    -- if there is a time selection, delete points for selected envelope lanes in time selection
+    -- otherwise, deletpoints
+    local env_points_count = reaper.CountEnvelopePoints(env)
+    if env_points_count > 0 and time_selection then
+      for k = 0, env_points_count - 1 do
+        local retval, point_time, valueOut, shapeOutOptional, tensionOutOptional, selectedOutOptional = reaper
+            .GetEnvelopePoint(env, k)
+        DeleteAtTimeSelection()
+      end
+    else
+      local has_selected_points = false
+      for k = 0, env_points_count - 1 do
+        local _, _, _, _, _, selected = reaper
+            .GetEnvelopePoint(env, k)
+        if selected then
+          has_selected_points = true
+          break
+        end
+      end
+      if has_selected_points then
+        reaper.Main_OnCommand(40333, 0)
+      else
+        reaper.Main_OnCommand(40325, 0)
+      end
+    end
+  else
+    return
+  end
+end
+
 function envelope.moveEnvelopePointDown()
   pegPoint("down")
 end

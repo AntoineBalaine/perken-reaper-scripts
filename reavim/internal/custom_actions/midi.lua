@@ -187,4 +187,8 @@ function midi.toggleKeySnap()
 	reaper.JS_WindowMessage_Send(hwnd, "WM_COMMAND", 1260, 0, 0, 0)           -- ME action to set KeySnap state
 end
 
+function midi.LoadScreenSetWhenClosingEditor()
+	reaper.Main_OnCommand(40444, 0)
+end
+
 return midi

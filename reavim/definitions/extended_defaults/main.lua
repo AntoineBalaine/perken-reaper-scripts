@@ -52,7 +52,7 @@ return {
 		["<TAB>"] = "MakeFolder",
 		["d"] = "CutTrack",
 		["a"] = "ArmTracks",
-		["s"] = "SelectTracks",
+		["s"] = "toggleSoloExclusive",
 		["S"] = "ToggleSolo",
 		["M"] = "ToggleMute",
 		["y"] = "CopyTrack",
@@ -204,6 +204,13 @@ return {
 					},
 				},
 				["m"] = {
+					"+marker", {
+					["i"] = "InsertProjectMarker",
+					["w"] = "NextProjectMarker",
+					["b"] = "PreviousProjectMarker"
+				}
+				},
+				["M"] = {
 					"+midi",
 					{
 						["g"] = "SetMidiGridDivision",
@@ -396,6 +403,7 @@ return {
 						["h"] = "ToggleShowEnvelopesForTracks",
 						["p"] = { "+point shapes",
 							{
+								["d"] = "DeleteEnvelopePoints",
 								["b"] = "BezierPointShape",
 								["e"] = "FastEndPointShape",
 								["s"] = "FastStartPointShape",
@@ -486,6 +494,7 @@ return {
 				["G"] = {
 					"+global",
 					{
+						["q"] = "QuitReaper",
 						["g"] = "SetGridDivision",
 						["r"] = "ResetControlDevices",
 						[","] = "ShowPreferences",
