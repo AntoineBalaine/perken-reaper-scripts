@@ -893,8 +893,11 @@ return {
 	ToggleShowEnvelopesForTracks = 40890,
 	InsertFxAtSlot = { custom.fx.insertFXAtSlot },
 	InsertProjectMarker = 40157,
-	NextProjectMarker = 40173,
-	PreviousProjectMarker = 40172,
+	InsertTakeMarker = 42385,
+	NextProjectMarker = { 40173, prefixRepetitionCount = true },
+	PreviousProjectMarker = { 40172, prefixRepetitionCount = true },
+	NextTakeMarker = { 42394, prefixRepetitionCount = true },
+	PrevTakeMarker = { 42393, prefixRepetitionCount = true },
 	SaveTrkScreenSet1 = 40464,
 	LoadTrkScreenSet1 = 40444,
 }

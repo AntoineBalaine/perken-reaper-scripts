@@ -207,7 +207,13 @@ return {
 					"+marker", {
 					["i"] = "InsertProjectMarker",
 					["w"] = "NextProjectMarker",
-					["b"] = "PreviousProjectMarker"
+					["b"] = "PreviousProjectMarker",
+					["t"] = { "+TakeMarkers", {
+						["i"] = "InsertTakeMarker",
+						["w"] = "NextTakeMarker",
+						["b"] = "PrevTakeMarker",
+					}
+					}
 				}
 				},
 				["M"] = {
