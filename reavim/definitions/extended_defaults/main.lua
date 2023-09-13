@@ -336,7 +336,7 @@ return {
 								["p"] = "PasteItemFxChain",
 								["d"] = "CutItemFxChain",
 								["y"] = "CopyItemFxChain",
-								["c"] = "ToggleShowTakeFxChain",
+								["s"] = "ToggleShowTakeFxChain",
 								["b"] = "ToggleTakeFxBypass",
 							},
 						},

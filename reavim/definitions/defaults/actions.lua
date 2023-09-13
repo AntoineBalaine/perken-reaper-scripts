@@ -900,4 +900,5 @@ return {
 	PrevTakeMarker = { 42393, prefixRepetitionCount = true },
 	SaveTrkScreenSet1 = 40464,
 	LoadTrkScreenSet1 = 40444,
+	MuteEvents = { 40055, midiCommand = true },
 }

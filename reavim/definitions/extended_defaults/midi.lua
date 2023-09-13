@@ -59,6 +59,7 @@ return {
 		["K"] = "PitchUpOctave",
 		["zp"] = "MidiZoomContent",
 		["J"] = "PitchDownOctave",
+		["M"] = "MuteEvents",
 		["<SPC>"] = {
 			"+leader commands",
 			{
