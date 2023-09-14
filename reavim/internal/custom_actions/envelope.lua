@@ -195,6 +195,8 @@ function envelope.deletePoints()
     -- if there is a time selection, delete points for selected envelope lanes in time selection
     -- otherwise, deletpoints
     local env_points_count = reaper.CountEnvelopePoints(env)
+
+    reaper.Main_OnCommand(40335, 0) -- copy selected points
     if env_points_count > 0 and time_selection then
       for k = 0, env_points_count - 1 do
         local retval, point_time, valueOut, shapeOutOptional, tensionOutOptional, selectedOutOptional = reaper

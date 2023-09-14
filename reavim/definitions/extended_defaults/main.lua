@@ -118,6 +118,7 @@ return {
 		["<CS-up>"] = "PitchItemUpOct",
 	},
 	command = {
+		["<M-D>"] = "DeleteEnvelopePoints",
 		["<C-a>"] = "devAction",
 		["<C-B>"] = "FadeItemInFromMouse",
 		["<C-E>"] = "FadeItemOutFromMouse",
@@ -131,7 +132,8 @@ return {
 		["<M-N>"] = "ShowPrevFx",
 		["<M-f>"] = "ToggleShowFx",
 		["<M-F>"] = "CloseFx",
-		["<M-i>"] = "InsertEnvelopePointsAtSelection",
+		["<M-i>"] = "InsertEnvelopePoint",
+		["<M-I>"] = "InsertToggleAtTimeSelection",
 		["zp"] = "ZoomProject",
 		["D"] = "CutSelectedItems",
 		["Y"] = "CopySelectedItems",
