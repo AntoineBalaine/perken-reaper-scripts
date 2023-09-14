@@ -41,6 +41,7 @@ return {
 	CopyAndFitByLooping = 41319,
 	CopyEnvelope = 40035,
 	CopyEnvelopePoints = 40324,
+	CopySelectedEnvelopePoints = 40335,
 	CopyFxChain = "_S&M_SMART_CPY_FXCHAIN",
 	CopyItems = {
 		"SaveItemSelection",
@@ -799,7 +800,8 @@ return {
 	LoopItem = "_SWS_LOOPITEMSECTION",
 	TrackVolumeUp3 = { custom.tracks.trackVolumeUp3, prefixRepetitionCount = true },
 	TrackVolumeDown3 = { custom.tracks.trackVolumeDown3, prefixRepetitionCount = true },
-	InsertEnvelopePoint = 40106,
+	ClearEnvelopePointSelection = 40331,
+	InsertEnvelopePoint = { "ClearEnvelopePointSelection", 40106 },
 	InsertEnvelopePointsAtSelection = "_BR_INSERT_2_ENV_POINT_TIME_SEL",
 	BezierPointShape = 40683,
 	FastEndPointShape = 40429,

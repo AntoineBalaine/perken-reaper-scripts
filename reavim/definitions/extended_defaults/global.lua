@@ -78,7 +78,7 @@ return {
 		["<C-s>"] = "SaveProject",
 		["."] = "RepeatLastCommand",
 		["@"] = "PlayMacro",
-		[","] = "RecordMacro",
+		["q"] = "RecordMacro",
 		["m"] = "Mark",
 		["~"] = "MarkedRegion",
 		["<C-'>"] = "DeleteMark",

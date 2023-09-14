@@ -42,6 +42,7 @@ return {
 	CopyAndFitByLooping = 41319,
 	CopyEnvelope = 40035,
 	CopyEnvelopePoints = 40324,
+	CopySelectedEnvelopePoints = 40335,
 	CopyFxChain = "_S&M_SMART_CPY_FXCHAIN",
 	CopyItems = {
 		"SaveItemSelection",
@@ -301,8 +302,12 @@ return {
 	PasteAbove = { "PrevTrack", "Paste", prefixRepetitionCount = true },
 	PasteFxChain = { "_S&M_SMART_PST_FXCHAIN", prefixRepetitionCount = true },
 	PasteItem = { 40058, prefixRepetitionCount = true },
-	Paste = { "_SWS_AWPASTE", prefixRepetitionCount = true, pre_action = "SaveEditCursorPosition",
-		post_action = "RestoreEditCursorPosition" },
+	Paste = {
+		"_SWS_AWPASTE",
+		prefixRepetitionCount = true,
+		pre_action = "SaveEditCursorPosition",
+		post_action = "RestoreEditCursorPosition"
+	},
 	Pause = 1008,
 	PitchDown = { 40050, midiCommand = true, prefixRepetitionCount = true },
 	PitchDown7 = { "PitchDown", repetitions = 7, prefixRepetitionCount = true },
@@ -801,7 +806,8 @@ return {
 	LoopItem = "_SWS_LOOPITEMSECTION",
 	TrackVolumeUp3 = { custom.tracks.trackVolumeUp3, prefixRepetitionCount = true },
 	TrackVolumeDown3 = { custom.tracks.trackVolumeDown3, prefixRepetitionCount = true },
-	InsertEnvelopePoint = 40106,
+	ClearEnvelopePointSelection = 40331,
+	InsertEnvelopePoint = { "ClearEnvelopePointSelection", 40106 },
 	InsertEnvelopePointsAtSelection = "_BR_INSERT_2_ENV_POINT_TIME_SEL",
 	BezierPointShape = 40683,
 	FastEndPointShape = 40429,
