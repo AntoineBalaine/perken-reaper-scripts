@@ -3,7 +3,7 @@ local log = require('utils.log')
 local constants = require('state_machine.constants')
 local utils = require('command.utils')
 
-local state_interface= {}
+local state_interface = {}
 local state_table_name = "state"
 
 function state_interface.set(state)
@@ -16,17 +16,19 @@ function state_interface.setKey(key, value)
   state_interface.set(state)
 end
 
+---@param key string
+---@return string | boolean | Command
 function state_interface.getKey(key)
   local state = state_interface.get()
   return state[key]
 end
 
-function state_interface.get()
-    local state = reaper_state.get(state_table_name)
-    if not state then
-      log.info("Could not read state data. Returning reset state.")
-      state = constants['reset_state']
-    end
+function state_interface.get() ---@return State
+  local state = reaper_state.get(state_table_name)
+  if not state then
+    log.info("Could not read state data. Returning reset state.")
+    state = constants['reset_state']
+  end
   return state
 end
 
@@ -46,13 +48,13 @@ end
 
 function state_interface.checkIfConsistentState(state)
   local current_state = state_interface.get()
-  for k,value in pairs(current_state) do
+  for k, value in pairs(current_state) do
     if k == 'last_command' then
       if not utils.checkIfCommandsAreEqual(state.last_command, current_state.last_command) then
         return false
       end
     elseif value ~= state[k] then
-        return false
+      return false
     end
   end
   return true
@@ -94,7 +96,8 @@ end
 
 function state_interface.setModeToNormal()
   local state = state_interface.get()
-  state['key_sequence'] = ""
+  state['key_sequence'] = ""
+
   state['context'] = "main"
   state['mode'] = "normal"
   state['timeline_selection_side'] = "left"

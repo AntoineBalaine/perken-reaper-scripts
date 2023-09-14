@@ -8,12 +8,12 @@ local log = require("utils.log")
 function getActionKey(key_sequence, entries)
 	local action_name = utils.getEntryForKeySequence(key_sequence, entries)
 	if
-		action_name
-		and not utils.isFolder(action_name)
-		and (
-			not utils.checkIfActionHasOptionSet(action_name, "registerAction")
-			or utils.checkIfActionHasOptionSet(action_name, "registerOptional")
-		)
+			action_name
+			and not utils.isFolder(action_name)
+			and (
+				not utils.checkIfActionHasOptionSet(action_name, "registerAction")
+				or utils.checkIfActionHasOptionSet(action_name, "registerOptional")
+			)
 	then
 		return action_name
 	end
@@ -43,6 +43,8 @@ function getActionKey(key_sequence, entries)
 	return nil
 end
 
+---@param key_sequence string|nil
+---@param action_type_entries Definition
 function stripNextActionKeyInKeySequence(key_sequence, action_type_entries)
 	if not action_type_entries then
 		return nil, nil, false
@@ -63,16 +65,21 @@ function stripNextActionKeyInKeySequence(key_sequence, action_type_entries)
 	return nil, nil, false
 end
 
+---@param key_sequence string
+---@param action_sequence string[][]
+---@param entries Definition[]
+---@return {action_sequence: string[], action_keys: string[]} | nil
 function buildCommandWithSequence(key_sequence, action_sequence, entries)
 	local command = {
 		action_sequence = {},
 		action_keys = {},
 	}
 
+	---@type string|nil
 	local rest_of_key_sequence = key_sequence
 	for _, action_type in pairs(action_sequence) do
 		rest_of_key_sequence, action_key, found =
-			stripNextActionKeyInKeySequence(rest_of_key_sequence, entries[action_type])
+				stripNextActionKeyInKeySequence(rest_of_key_sequence, entries[action_type])
 		if not found then
 			return nil
 		else
@@ -88,12 +95,14 @@ function buildCommandWithSequence(key_sequence, action_sequence, entries)
 	return command
 end
 
+---@param state State
+---@return Command | nil
 function buildCommand(state)
 	local action_sequences = action_sequences.getPossibleActionSequences(state["context"], state["mode"])
 	local entries = definitions.getPossibleEntries(state["context"])
 
 	for _, action_sequence in pairs(action_sequences) do
-		local command = buildCommandWithSequence(state["key_sequence"], action_sequence, entries)
+		local command = buildCommandWithSequence(state["key_sequence"], action_sequence, entries) ---@as Command
 		if command then
 			command["mode"] = state["mode"]
 			command["context"] = state["context"]

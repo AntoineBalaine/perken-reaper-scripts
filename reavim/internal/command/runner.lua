@@ -52,6 +52,7 @@ function runRegisterAction(registerAction)
 	registerAction[1](register)
 end
 
+---@param action Action
 function runner.runAction(action)
 	if type(action) ~= "table" then
 		runActionPart(action, false)
@@ -77,6 +78,9 @@ function runner.runAction(action)
 	if action["midiCommand"] then
 		midi_command = true
 	end
+	if action["pre_action"] then
+		runner.runAction(action["pre_action"])
+	end
 
 	for i = 1, repetitions * prefixedRepetitions do
 		for _, sub_action in ipairs(action) do
@@ -86,6 +90,9 @@ function runner.runAction(action)
 				runActionPart(sub_action, midi_command)
 			end
 		end
+	end
+	if action["post_action"] then
+		runner.runAction(action["post_action"])
 	end
 end
 

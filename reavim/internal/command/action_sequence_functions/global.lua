@@ -8,10 +8,13 @@ function invalidSequenceCall(...)
   log.trace(debug.traceback())
 end
 
+---@type ActionModes
 return {
   all_modes = {
     {
       { 'command' },
+      ---comment
+      ---@param action Action
       function(action)
         runner.runAction(action)
       end
@@ -74,7 +77,7 @@ return {
     {
       { 'timeline_motion' },
       function(timeline_motion)
-        local args = {timeline_motion}
+        local args = { timeline_motion }
         local move_function = runner.runAction
         runner.extendTimelineSelection(move_function, args)
       end

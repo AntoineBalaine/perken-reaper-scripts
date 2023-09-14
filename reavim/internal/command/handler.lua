@@ -19,6 +19,8 @@ function utils.qualifiesAsRepeatableCommand(command)
 	return false
 end
 
+---@param state State
+---@parameter command Command
 function handleCommand(state, command)
 	reaper.Undo_BeginBlock()
 	local new_state = state

@@ -3,6 +3,7 @@ local state_interface = require('state_machine.state_interface')
 local config = require('definitions.config')
 local reaper_utils = require('custom_actions.utils')
 
+---@type ActionModes
 return {
   all_modes = {
     {
@@ -62,7 +63,7 @@ return {
     {
       { 'track_motion' },
       function(track_motion)
-        local args = {track_motion, 1}
+        local args = { track_motion, 1 }
         local sel_function = runner.makeSelectionFromTrackMotion
         runner.extendTrackSelection(sel_function, args)
       end

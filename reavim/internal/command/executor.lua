@@ -3,6 +3,7 @@ local format = require("utils.format")
 local action_sequences = require("command.action_sequences")
 local utils = require("command.utils")
 
+---@param command Command
 function executeCommand(command)
 	local action_values = utils.getActionValues(command)
 	if not action_values then

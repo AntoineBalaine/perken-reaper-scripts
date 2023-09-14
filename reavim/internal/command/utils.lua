@@ -178,6 +178,10 @@ function table.shallow_copy(t)
 	return t2
 end
 
+---comment
+---@param action_key string | table
+---@param action_type string
+---@return string[] | nil
 function utils.getActionValue(action_key, action_type)
 	if type(action_key) ~= "table" then
 		action_key = { action_key }
@@ -202,8 +206,10 @@ function utils.getActionValue(action_key, action_type)
 	return action_value
 end
 
+---@param command Command
+---@return string[][] | nil
 function utils.getActionValues(command)
-	local action_values = {}
+	local action_values = {} ---@type string[][]
 	for i, action_type in pairs(command.action_sequence) do
 		local action_value = utils.getActionValue(command.action_keys[i], action_type)
 		if not action_value then

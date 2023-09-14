@@ -60,6 +60,9 @@ local definition_tables = {
 	midi = concatEntryTables(require(default_tables_dir .. "midi"), user_definitions.midi),
 }
 
+---get all possible keybindings for a given context (includes global and "midi" or "main")
+---@param context "main" | "midi" | "global"
+---@return Definition[]
 function definitions.getPossibleEntries(context)
 	local merged_table = {}
 	merged_table = concatEntryTables(merged_table, definition_tables["global"])

@@ -1,5 +1,6 @@
 local action_sequences = {}
 
+---@type {global: ActionModes, main: ActionModes, midi: ActionModes}
 local action_sequence_definitions = {
 	global = require("command.action_sequence_functions.global"),
 	main = require("command.action_sequence_functions.main"),
@@ -21,6 +22,9 @@ function concatTables(...)
 	return t
 end
 
+---@param context "main"| "midi" | "global"
+---@param mode string
+---@return ActionSequence[]
 function getPossibleActionSequenceFunctionPairs(context, mode)
 	local possible_sequence_function_pairs = concatTables(
 		action_sequence_definitions[context][mode],
@@ -32,10 +36,13 @@ function getPossibleActionSequenceFunctionPairs(context, mode)
 	return possible_sequence_function_pairs
 end
 
+---@param context "main"| "midi" | "global"
+---@param mode string "normal"|"visual_timeline", etc
+---@return string[][]
 function action_sequences.getPossibleActionSequences(context, mode)
 	local action_sequence_function_pairs = getPossibleActionSequenceFunctionPairs(context, mode)
 
-	local action_sequences = {}
+	local action_sequences = {} ---@type string[][]
 	for _, action_sequence_function_pair in ipairs(action_sequence_function_pairs) do
 		local action_sequence = action_sequence_function_pair[1]
 		table.insert(action_sequences, action_sequence)
@@ -57,6 +64,9 @@ function checkIfActionSequencesAreEqual(seq1, seq2)
 	return true
 end
 
+---comment
+---@param command Command
+---@return fun(action: Action) | nil
 function action_sequences.getFunctionForCommand(command)
 	local action_sequence_function_pairs = getPossibleActionSequenceFunctionPairs(command.context, command.mode)
 

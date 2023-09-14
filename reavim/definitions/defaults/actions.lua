@@ -1,6 +1,7 @@
 local lib = require("library")
 local custom = require("custom_actions")
 
+---@type Action[]
 return {
 	ActivateNextMidiItem = { 40833, midiCommand = true },
 	ActivatePrevMidiItem = { 40834, midiCommand = true },
@@ -300,7 +301,8 @@ return {
 	PasteAbove = { "PrevTrack", "Paste", prefixRepetitionCount = true },
 	PasteFxChain = { "_S&M_SMART_PST_FXCHAIN", prefixRepetitionCount = true },
 	PasteItem = { 40058, prefixRepetitionCount = true },
-	Paste = { "_SWS_AWPASTE", prefixRepetitionCount = true },
+	Paste = { "_SWS_AWPASTE", prefixRepetitionCount = true, pre_action = "SaveEditCursorPosition",
+		post_action = "RestoreEditCursorPosition" },
 	Pause = 1008,
 	PitchDown = { 40050, midiCommand = true, prefixRepetitionCount = true },
 	PitchDown7 = { "PitchDown", repetitions = 7, prefixRepetitionCount = true },

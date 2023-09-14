@@ -1,3 +1,4 @@
+---@type Definition
 return {
 	track_motion = {
 		["G"] = "LastTrack",

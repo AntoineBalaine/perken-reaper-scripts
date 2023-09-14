@@ -1,3 +1,4 @@
+---@type Definition
 return {
 	timeline_selector = {
 		["s"] = "SelectedNotes",

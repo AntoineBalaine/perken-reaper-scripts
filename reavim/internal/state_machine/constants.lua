@@ -1,4 +1,5 @@
 -- TODO rename this file to reset and just return reset state
+---@type {reset_state: State}
 local constants = {
 	reset_state = {
 		key_sequence = "",

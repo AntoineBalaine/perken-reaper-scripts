@@ -13,6 +13,9 @@ local log = require("utils.log")
 local format = require("utils.format")
 local feedback = require("gui.feedback.controller")
 
+---@param state State
+---@param key_press KeyPress
+---@return State|nil, string|nil
 function updateWithKeyPress(state, key_press)
 	local new_state = state
 	if state["key_sequence"] == "" then
@@ -27,10 +30,12 @@ function updateWithKeyPress(state, key_press)
 	return new_state, nil
 end
 
+---@param state State
+---@param key_press KeyPress
 function step(state, key_press)
 	local message = ""
 	local new_state, err = updateWithKeyPress(state, key_press)
-	if err ~= nil then
+	if err ~= nil or new_state == nil then
 		new_state = state
 		new_state["key_sequence"] = ""
 		feedback.displayMessage(err)
@@ -61,6 +66,7 @@ function step(state, key_press)
 	return new_state
 end
 
+---@param key_press KeyPress
 function input(key_press)
 	log.info("\n++++\ninput: " .. format.line(key_press))
 	if config.show_feedback_window then
