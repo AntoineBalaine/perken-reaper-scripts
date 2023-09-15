@@ -128,6 +128,8 @@ return {
 		["<ESC>"] = "Reset",
 		[">"] = "TrimItemRightEdge",
 		["<"] = "TrimItemLeftEdge",
+		["<M-)>"] = "StretchItemEndToCursor",
+		["<M-(>"] = "StretchItemStartToCursor",
 		["<M-n>"] = "ShowNextFx",
 		["<M-N>"] = "ShowPrevFx",
 		["<M-f>"] = "ToggleShowFx",

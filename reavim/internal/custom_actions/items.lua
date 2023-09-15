@@ -120,6 +120,34 @@ function items.splitItemsAtNoteStart()
   reaper.MIDIEditor_OnCommand(hwnd, 40477) -- File: Close window or change focus if docked
 end
 
+---@param isStart "start"|"end" is the item start to be stretched, or the end?
+function items.stretchItem(isStart)
+  local start = isStart == "start"
+  local items = reaper.CountSelectedMediaItems(0)
+  local cur_pos = reaper.GetCursorPosition()
+  if items > 0 then
+    for i = 0, items - 1 do
+      local item = reaper.GetSelectedMediaItem(0, i)
+      local item_pos = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+      local mustExtendItem = start and cur_pos < item_pos or cur_pos > item_pos
+      if mustExtendItem then
+        local old_it_len = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+        local new_it_len = start and (item_pos + old_it_len) - cur_pos or cur_pos - item_pos
+        local takes = reaper.CountTakes(item)
+        for t = 0, takes - 1 do
+          local take = reaper.GetTake(item, t)
+          local old_take_rate = reaper.GetMediaItemTakeInfo_Value(take, 'D_PLAYRATE')
+          local new_take_rate = old_it_len * old_take_rate / new_it_len
+          reaper.SetMediaItemTakeInfo_Value(take, 'D_PLAYRATE', new_take_rate)
+        end
+        if start then reaper.Main_OnCommand(41205, 0) end
+        reaper.SetMediaItemInfo_Value(item, 'D_LENGTH', new_it_len)
+        reaper.UpdateItemInProject(item)
+      end
+    end
+  end
+end
+
 function items.fadeItemInFromMouse()
   editItemFromMouse("fade", "left")
 end
