@@ -25,7 +25,7 @@ function utils.stripBegginingKeys(full_key_sequence, start_key_sequence)
 	return rest_of_sequence
 end
 
-function noNextTableEntry(t1)
+local function noNextTableEntry(t1)
 	if next(t1) == nil then
 		return true
 	end

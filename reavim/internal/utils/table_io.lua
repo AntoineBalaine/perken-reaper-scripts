@@ -4,10 +4,14 @@ local serpent = require("serpent")
 
 function table_io.write(path, lua_table)
 	local file = io.open(path .. ".lua", "w+")
+	if not file then return end
 	file:write(serpent.block(lua_table, { comment = false }))
 	file:close()
 end
 
+---@param path string
+---@return boolean
+---@return string
 function table_io.read(path)
 	local full_path = path .. ".lua"
 	local file = io.open(full_path, "r")

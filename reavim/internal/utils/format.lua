@@ -1,11 +1,10 @@
 local utils = require("command.utils")
 local ser = require("serpent")
 local string_util = require("string")
-local log = require("utils.log")
 
 local format = {}
 
-function pairsByKeys(t, f)
+local function pairsByKeys(t, f)
 	local a = {}
 	for n in pairs(t) do
 		table.insert(a, n)
@@ -23,7 +22,7 @@ function pairsByKeys(t, f)
 	return iter
 end
 
-function sortTableAlphabetically(table_to_sort)
+local function sortTableAlphabetically(table_to_sort)
 	local t = {}
 	for title, value in pairsByKeys(table_to_sort) do
 		table.insert(t, { title = title, value = value })
@@ -39,7 +38,7 @@ function format.block(data)
 	return ser.block(data, { comment = false })
 end
 
-function removeUglyBrackets(key)
+local function removeUglyBrackets(key)
 	local pretty_key = key
 	if string_util.sub(key, 1, 1) == "<" and string_util.sub(key, #key, #key) == ">" then
 		pretty_key = string_util.sub(key, 2, #key - 1)

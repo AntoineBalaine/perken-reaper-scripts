@@ -8,6 +8,8 @@ local meta_command = require("command.meta_command")
 local executeCommand = require("command.executor")
 local config = require("definitions.config")
 
+---@param command Command
+---@return boolean
 function utils.qualifiesAsRepeatableCommand(command)
 	for _, action_type in ipairs(command.action_sequence) do
 		for _, action_type_match in ipairs(config.repeatable_commands_action_type_match) do
@@ -21,7 +23,7 @@ end
 
 ---@param state State
 ---@parameter command Command
-function handleCommand(state, command)
+local function handleCommand(state, command)
 	reaper.Undo_BeginBlock()
 	local new_state = state
 

@@ -14,16 +14,16 @@ local runner = require('command.runner')
 
 local binding_list = {}
 
-function createBindingList(state)
+local function createBindingList(state)
   local data = {}
   local state_entries = getPossibleFutureEntries(state)
   local bindings = definitions.getAllBindings()
 
-  for context,context_bindings in pairs(bindings) do
-    for action_type,action_type_bindings in pairs(context_bindings) do
+  for context, context_bindings in pairs(bindings) do
+    for action_type, action_type_bindings in pairs(context_bindings) do
       local state_bindings = definitions.getBindings(state_entries[action_type])
 
-      for action_name,action_binding in pairs(action_type_bindings) do
+      for action_name, action_binding in pairs(action_type_bindings) do
         local row = {
           match_score = 0,
           matched_indices = {},
@@ -46,23 +46,22 @@ function createBindingList(state)
   return data
 end
 
-function rowIsFiltered(row, element_values)
+local function rowIsFiltered(row, element_values)
   if (element_values.query ~= "" and row.match_score < -3) or
-    (element_values.state_filter_active and not row.is_valid_in_state) or
-    (element_values.context_filter_active and row.context ~= element_values.context) or
-    (element_values.action_type_filter_active and row.action_type ~= element_values.action_type) then
-      return true
+      (element_values.state_filter_active and not row.is_valid_in_state) or
+      (element_values.context_filter_active and row.context ~= element_values.context) or
+      (element_values.action_type_filter_active and row.action_type ~= element_values.action_type) then
+    return true
   end
 
   return false
 end
 
-function getElementValues(view)
+local function getElementValues(view)
   local context_i, context = view.elements.context_filter:val()
   local action_type_i, action_type = view.elements.action_type_filter:val()
   return {
     binding_list_box = view.elements.binding_list_box:val(),
-    query = view.elements.query:val(),
     state_filter_active = view.elements.state_filter_active:val(nil, true),
     context_filter_active = view.elements.context_filter_active:val(nil, true),
     context = context,
@@ -74,9 +73,9 @@ function getElementValues(view)
   }
 end
 
-function createDisplayedList(full_binding_list, element_values)
+local function createDisplayedList(full_binding_list, element_values)
   local displayed_list = {}
-  for _,row in ipairs(full_binding_list) do
+  for _, row in ipairs(full_binding_list) do
     row.sequential_match, row.match_score, row.matched_indices = fuzzy_match(element_values.query, row.action_name)
     if not rowIsFiltered(row, element_values) then
       table.insert(displayed_list, row)
@@ -116,7 +115,7 @@ function binding_list.open(state)
   local function updateLoop()
     local new_element_values = getElementValues(view)
     local update_list = false
-    for element_name,new_value in pairs(new_element_values) do
+    for element_name, new_value in pairs(new_element_values) do
       if element_values[element_name] ~= new_value then
         element_values[element_name] = new_value
         update_list = true

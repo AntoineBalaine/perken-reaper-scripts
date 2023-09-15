@@ -5,7 +5,7 @@ local getAction = require("utils.get_action")
 local format = require("utils.format")
 local log = require("utils.log")
 
-function getActionKey(key_sequence, entries)
+local function getActionKey(key_sequence, entries)
 	local action_name = utils.getEntryForKeySequence(key_sequence, entries)
 	if
 			action_name
@@ -45,7 +45,7 @@ end
 
 ---@param key_sequence string|nil
 ---@param action_type_entries Definition
-function stripNextActionKeyInKeySequence(key_sequence, action_type_entries)
+local function stripNextActionKeyInKeySequence(key_sequence, action_type_entries)
 	if not action_type_entries then
 		return nil, nil, false
 	end
@@ -58,8 +58,8 @@ function stripNextActionKeyInKeySequence(key_sequence, action_type_entries)
 			return rest_of_key_sequence, action_key, true
 		end
 
-		key_sequence_for_action_type, last_key = utils.splitLastKey(key_sequence_for_action_type)
-		rest_of_key_sequence = last_key .. rest_of_key_sequence
+		key_sequence_for_action_type, Last_key = utils.splitLastKey(key_sequence_for_action_type)
+		rest_of_key_sequence = Last_key .. rest_of_key_sequence
 	end
 
 	return nil, nil, false
@@ -69,7 +69,7 @@ end
 ---@param action_sequence string[][]
 ---@param entries Definition[]
 ---@return {action_sequence: string[], action_keys: string[]} | nil
-function buildCommandWithSequence(key_sequence, action_sequence, entries)
+local function buildCommandWithSequence(key_sequence, action_sequence, entries)
 	local command = {
 		action_sequence = {},
 		action_keys = {},
@@ -78,13 +78,13 @@ function buildCommandWithSequence(key_sequence, action_sequence, entries)
 	---@type string|nil
 	local rest_of_key_sequence = key_sequence
 	for _, action_type in pairs(action_sequence) do
-		rest_of_key_sequence, action_key, found =
+		rest_of_key_sequence, Action_key, Found =
 				stripNextActionKeyInKeySequence(rest_of_key_sequence, entries[action_type])
-		if not found then
+		if not Found then
 			return nil
 		else
 			table.insert(command.action_sequence, action_type)
-			table.insert(command.action_keys, action_key)
+			table.insert(command.action_keys, Action_key)
 		end
 	end
 
@@ -97,7 +97,7 @@ end
 
 ---@param state State
 ---@return Command | nil
-function buildCommand(state)
+local function buildCommand(state)
 	local action_sequences = action_sequences.getPossibleActionSequences(state["context"], state["mode"])
 	local entries = definitions.getPossibleEntries(state["context"])
 

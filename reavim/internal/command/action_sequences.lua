@@ -7,7 +7,7 @@ local action_sequence_definitions = {
 	midi = require("command.action_sequence_functions.midi"),
 }
 
-function concatTables(...)
+local function concatTables(...)
 	local t = {}
 	for n = 1, select("#", ...) do
 		local arg = select(n, ...)
@@ -25,7 +25,7 @@ end
 ---@param context "main"| "midi" | "global"
 ---@param mode string
 ---@return ActionSequence[]
-function getPossibleActionSequenceFunctionPairs(context, mode)
+local function getPossibleActionSequenceFunctionPairs(context, mode)
 	local possible_sequence_function_pairs = concatTables(
 		action_sequence_definitions[context][mode],
 		action_sequence_definitions["global"][mode],
@@ -51,7 +51,7 @@ function action_sequences.getPossibleActionSequences(context, mode)
 	return action_sequences
 end
 
-function checkIfActionSequencesAreEqual(seq1, seq2)
+local function checkIfActionSequencesAreEqual(seq1, seq2)
 	if #seq1 ~= #seq2 then
 		return false
 	end

@@ -5,13 +5,14 @@ local executeCommand = require("command.executor")
 local utils = require("command.utils")
 local format = require("utils.format")
 local saved = require("saved")
-local definitions = require("utils.definitions")
 local state_machine_constants = require("state_machine.constants")
-local action_sequences = require("command.action_sequences")
 local log = require("utils.log")
 local reaper_state = require("utils.reaper_state")
 
-function executeMacroCommands(state, command, macro_commands, repetitions)
+---@param state State
+---@param macro_commands Command[]
+---@param repetitions number
+local function executeMacroCommands(state, macro_commands, repetitions)
 	for i = 1, repetitions do
 		for i, macro_command in pairs(macro_commands) do
 			if meta_command.isMetaCommand(macro_command) then
@@ -23,7 +24,10 @@ function executeMacroCommands(state, command, macro_commands, repetitions)
 	end
 end
 
-function executeCommandOrMetaCommand(state, command, repetitions)
+---@param state State
+---@param command Command
+---@param repetitions number
+local function executeCommandOrMetaCommand(state, command, repetitions)
 	for i = 1, repetitions do
 		if meta_command.isMetaCommand(command) then
 			meta_command.executeMetaCommand(state, command)
@@ -49,7 +53,7 @@ local meta_commands = {
 
 		local macro_commands = reaper_state.getKey("macros", register)
 		if macro_commands then
-			executeMacroCommands(state, command, macro_commands, repetitions)
+			executeMacroCommands(state, macro_commands, repetitions)
 			if state["macro_recording"] then
 				saved.append("macros", state["macro_register"], command)
 			end
@@ -105,7 +109,9 @@ local meta_commands = {
 	end,
 }
 
-function getMetaCommandFunctionForCommand(command)
+---@param command Command
+---@return nil | function
+local function getMetaCommandFunctionForCommand(command)
 	local cmd_i = utils.getActionTypeIndex(command, "command")
 	local command_key = command.action_keys[cmd_i]
 	if not command_key then
@@ -124,6 +130,7 @@ function getMetaCommandFunctionForCommand(command)
 	return meta_commands[meta_command_name]
 end
 
+---@param command Command
 function meta_command.isMetaCommand(command)
 	if getMetaCommandFunctionForCommand(command) then
 		return true
@@ -131,6 +138,9 @@ function meta_command.isMetaCommand(command)
 	return false
 end
 
+---@param state State
+---@param command Command
+---@return State
 function meta_command.executeMetaCommand(state, command)
 	local meta_command_function = getMetaCommandFunctionForCommand(command)
 	if not meta_command_function then

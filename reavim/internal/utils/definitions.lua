@@ -3,7 +3,9 @@ local config = require("definitions.config")
 
 local definitions = {}
 
-function concatEntries(t1, t2)
+---@param t1 table
+---@param t2 table
+local function concatEntries(t1, t2)
 	local merged_entries = {}
 	for key_sequence, entry_value in pairs(t1) do
 		merged_entries[key_sequence] = entry_value
@@ -31,7 +33,9 @@ function concatEntries(t1, t2)
 	return merged_entries
 end
 
-function concatEntryTables(t1, t2)
+---@param t1 table
+---@param t2 table
+local function concatEntryTables(t1, t2)
 	local merged_tables = t1
 	for action_type, entries in pairs(t1) do
 		if t2[action_type] then
@@ -49,7 +53,7 @@ function concatEntryTables(t1, t2)
 	return merged_tables
 end
 
-default_tables_dir = "definitions.defaults."
+local default_tables_dir = "definitions.defaults."
 if config.use_extended_defaults then
 	default_tables_dir = "definitions.extended_defaults."
 end

@@ -1,14 +1,11 @@
-local definitions = require("utils.definitions")
-
 local getAction = require("utils.get_action")
 local log = require("utils.log")
-local format = require("utils.format")
 local reaper_utils = require("custom_actions.utils")
 local state_interface = require("state_machine.state_interface")
 
 local runner = {}
 
-function runActionPart(id, midi_command)
+local function runActionPart(id, midi_command)
 	if type(id) == "function" then
 		id()
 		return
@@ -36,7 +33,7 @@ function runActionPart(id, midi_command)
 	end
 end
 
-function runRegisterAction(registerAction)
+local function runRegisterAction(registerAction)
 	local register = registerAction["register"]
 	if not register then
 		log.error("Tried to run a register action but got no register!")
@@ -96,6 +93,8 @@ function runner.runAction(action)
 	end
 end
 
+---@param action Action
+---@param times integer
 function runner.runActionNTimes(action, times)
 	for i = 1, times, 1 do
 		runner.runAction(action)
@@ -111,6 +110,8 @@ function runner.makeSelectionFromTimelineMotion(timeline_motion, repetitions)
 	reaper.GetSet_LoopTimeRange(true, false, sel_start, sel_end, false)
 end
 
+---@param movement fun(table: table)
+---@param args table
 function runner.extendTimelineSelection(movement, args)
 	local left, right = reaper.GetSet_LoopTimeRange(false, false, 0, 0, false)
 	if not left or not right then
@@ -138,6 +139,8 @@ function runner.extendTimelineSelection(movement, args)
 	end
 end
 
+---@param movement fun(table: table)
+---@param args table
 function runner.extendTrackSelection(movement, args)
 	movement(table.unpack(args))
 	local end_pos = reaper_utils.getTrackPosition()

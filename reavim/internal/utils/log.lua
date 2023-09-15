@@ -22,9 +22,9 @@ end
 local modes = {
 	{ name = "trace", color = "\27[34m" },
 	{ name = "debug", color = "\27[36m" },
-	{ name = "info", color = "\27[32m" },
-	{ name = "warn", color = "\27[33m" },
-	{ name = "user", color = "\27[35m" },
+	{ name = "info",  color = "\27[32m" },
+	{ name = "warn",  color = "\27[33m" },
+	{ name = "user",  color = "\27[35m" },
 	{ name = "error", color = "\27[31m" },
 	{ name = "fatal", color = "\27[35m" },
 }
@@ -56,6 +56,7 @@ end
 
 for i, x in ipairs(modes) do
 	local nameupper = x.name:upper()
+	---@type function
 	log[x.name] = function(...)
 		-- Return early if we're below the log level
 		if i < levels[log.level] then
@@ -78,6 +79,7 @@ for i, x in ipairs(modes) do
 		if log.outfile then
 			local fp = io.open(log.outfile, "a")
 			local str = string.format("[%-6s%s] %s: %s\n", nameupper, os.date(), lineinfo, msg)
+			if not fp then return end
 			fp:write(str)
 			fp:close()
 		end

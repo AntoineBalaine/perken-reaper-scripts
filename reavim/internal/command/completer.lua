@@ -4,14 +4,14 @@ local definitions = require("utils.definitions")
 local log = require("utils.log")
 local format = require("utils.format")
 
-function entryToString(entry)
+local function entryToString(entry)
 	if utils.isFolder(entry) then
 		return entry[1]
 	end
 	return entry
 end
 
-function mergeEntries(t1, t2)
+local function mergeEntries(t1, t2)
 	if not t2 then
 		return t1
 	end
@@ -19,18 +19,18 @@ function mergeEntries(t1, t2)
 		if t1[key_seq] then
 			log.warn(
 				"Found key clash for action_sequence "
-					.. key_seq
-					.. " : "
-					.. entryToString(t1[key_seq])
-					.. " and "
-					.. entryToString(entry_val)
+				.. key_seq
+				.. " : "
+				.. entryToString(t1[key_seq])
+				.. " and "
+				.. entryToString(entry_val)
 			)
 		end
 		t1[key_seq] = entry_val
 	end
 end
 
-function mergeFutureEntriesWithFolder(possible_future_entries, key_sequence, folder_key_sequence, folder)
+local function mergeFutureEntriesWithFolder(possible_future_entries, key_sequence, folder_key_sequence, folder)
 	local folder_table = folder[2]
 	if folder_key_sequence == key_sequence then
 		mergeEntries(possible_future_entries, folder_table)
@@ -39,13 +39,13 @@ function mergeFutureEntriesWithFolder(possible_future_entries, key_sequence, fol
 
 	local first_key, rest_of_sequence = utils.splitFirstKey(key_sequence)
 	if folder_key_sequence == first_key then
-		local future_entries_from_folder = getPossibleFutureEntriesForKeySequence(rest_of_sequence, folder_table)
+		local future_entries_from_folder = GetPossibleFutureEntriesForKeySequence(rest_of_sequence, folder_table)
 		mergeEntries(possible_future_entries, future_entries_from_folder)
 		return
 	end
 end
 
-function getPossibleFutureEntriesForKeySequence(key_sequence, entries)
+function GetPossibleFutureEntriesForKeySequence(key_sequence, entries)
 	if not entries then
 		return nil
 	end
@@ -63,7 +63,7 @@ function getPossibleFutureEntriesForKeySequence(key_sequence, entries)
 	if number_match then
 		local number_prefix_entries = utils.filterEntries({ "prefixRepetitionCount" }, entries)
 		local possible_future_entries_if_number_prefix =
-			getPossibleFutureEntriesForKeySequence(key_sequence_no_number, number_prefix_entries)
+				GetPossibleFutureEntriesForKeySequence(key_sequence_no_number, number_prefix_entries)
 		mergeEntries(possible_future_entries, possible_future_entries_if_number_prefix)
 	end
 
@@ -78,7 +78,7 @@ function getPossibleFutureEntriesForKeySequence(key_sequence, entries)
 		else
 			local action_name = entry_val
 			if
-				key_sequence == entry_key_sequence and utils.checkIfActionHasOptionSet(action_name, "registerAction")
+					key_sequence == entry_key_sequence and utils.checkIfActionHasOptionSet(action_name, "registerAction")
 			then
 				possible_future_entries["(key)"] = "(register)"
 			end
@@ -92,7 +92,7 @@ function getPossibleFutureEntriesForKeySequence(key_sequence, entries)
 	return possible_future_entries
 end
 
-function getFutureEntriesOnActionSequence(key_sequence, action_sequence, entries)
+local function getFutureEntriesOnActionSequence(key_sequence, action_sequence, entries)
 	if #action_sequence == 0 then
 		return nil
 	end
@@ -107,7 +107,7 @@ function getFutureEntriesOnActionSequence(key_sequence, action_sequence, entries
 		return current_action_type, entries_for_current_action_type
 	end
 
-	local completions = getPossibleFutureEntriesForKeySequence(key_sequence, entries_for_current_action_type)
+	local completions = GetPossibleFutureEntriesForKeySequence(key_sequence, entries_for_current_action_type)
 	if completions then
 		return current_action_type, completions
 	end
@@ -128,7 +128,7 @@ function getFutureEntriesOnActionSequence(key_sequence, action_sequence, entries
 	return nil
 end
 
-function getPossibleFutureEntries(state)
+local function getPossibleFutureEntries(state)
 	local action_sequences = action_sequences.getPossibleActionSequences(state["context"], state["mode"])
 	if not action_sequences then
 		return nil
@@ -142,11 +142,11 @@ function getPossibleFutureEntries(state)
 	local future_entry_exists = false
 	for _, action_sequence in pairs(action_sequences) do
 		local next_action_type_for_sequence, entries_for_sequence =
-			getFutureEntriesOnActionSequence(state["key_sequence"], action_sequence, entries)
+				getFutureEntriesOnActionSequence(state["key_sequence"], action_sequence, entries)
 
 		if entries_for_sequence then
 			future_entry_exists = true
-			if not future_entries[next_action_type_for_sequence] then
+			if not future_entries[next_action_type_for_sequence] and next_action_type_for_sequence then
 				future_entries[next_action_type_for_sequence] = entries_for_sequence
 			else
 				for key, entry in pairs(entries_for_sequence) do
