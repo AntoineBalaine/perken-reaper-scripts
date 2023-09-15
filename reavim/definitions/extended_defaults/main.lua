@@ -191,17 +191,17 @@ return {
 				["o"] = {
 					"+options",
 					{
+						["c"] = "CycleRippleEditMode",
+						["e"] = "ToggleEnvelopePointsMoveWithItems",
+						["f"] = "ResetFeedbackWindow",
+						["m"] = "ToggleMetronome",
 						["p"] = "TogglePlaybackPreroll",
 						["r"] = "ToggleRecordingPreroll",
-						["z"] = "TogglePlaybackAutoScroll",
-						["v"] = "ToggleLoopSelectionFollowsTimeSelection",
 						["s"] = "ToggleSnap",
-						["m"] = "ToggleMetronome",
 						["t"] = "ToggleStopAtEndOfTimeSelectionIfNoRepeat",
+						["v"] = "ToggleLoopSelectionFollowsTimeSelection",
 						["x"] = "ToggleAutoCrossfade",
-						["e"] = "ToggleEnvelopePointsMoveWithItems",
-						["c"] = "CycleRippleEditMode",
-						["f"] = "ResetFeedbackWindow",
+						["z"] = "TogglePlaybackAutoScroll",
 					},
 				},
 				["z"] = {

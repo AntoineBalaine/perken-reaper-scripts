@@ -797,7 +797,7 @@ return {
 	ClearTransientsAndStretchMarkers = { "ClearItemStretchMarkers", "ClearItemTransients" },
 	Set2msFades = { custom.items.set2msFades },
 	MediaExplorer = 50124,
-	LoopItem = "_SWS_LOOPITEMSECTION",
+	LoopItem = 40636,
 	TrackVolumeUp3 = { custom.tracks.trackVolumeUp3, prefixRepetitionCount = true },
 	TrackVolumeDown3 = { custom.tracks.trackVolumeDown3, prefixRepetitionCount = true },
 	ClearEnvelopePointSelection = 40331,
