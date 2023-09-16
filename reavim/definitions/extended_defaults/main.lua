@@ -177,7 +177,8 @@ return {
 				["<SPC>"] = "ShowActionList",
 				["b"] = "MediaExplorer",
 				["A"] = { "+arrange", {
-					["i"] = "ImplodeItemsOntoSingleTrack",
+					["I"] = "ImplodeItemsOntoSingleTrack",
+					["i"] = "InsertSilence",
 					["d"] = "RemoveContentsOfTimeSel",
 					["m"] = "MoveTimeSelToCursor",
 					["c"] = "CopyTimeSelToCursor",
