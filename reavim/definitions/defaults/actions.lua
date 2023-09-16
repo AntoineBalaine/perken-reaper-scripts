@@ -803,7 +803,7 @@ return {
 	ClearTransientsAndStretchMarkers = { "ClearItemStretchMarkers", "ClearItemTransients" },
 	Set2msFades = { custom.items.set2msFades },
 	MediaExplorer = 50124,
-	LoopItem = 40636,
+	LoopItem = "_SWS_LOOPITEMSECTION",
 	TrackVolumeUp3 = { custom.tracks.trackVolumeUp3, prefixRepetitionCount = true },
 	TrackVolumeDown3 = { custom.tracks.trackVolumeDown3, prefixRepetitionCount = true },
 	ClearEnvelopePointSelection = 40331,
@@ -914,4 +914,5 @@ return {
 	CopyTimeSelToCursor = 40397,
 	StretchItemEndToCursor = { function() custom.items.stretchItem("end") end },
 	StretchItemStartToCursor = { function() custom.items.stretchItem("start") end },
+	InsertSilence = "_S&M_INSERT_SILENCE_MB"
 }
