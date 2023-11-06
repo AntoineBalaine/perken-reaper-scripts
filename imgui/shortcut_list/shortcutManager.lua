@@ -111,7 +111,7 @@ AllAvailableKeys = {
 Usage:
 -------------------
 ```lua
-local shortcuts = SM(ctx, { "quit" }, "/path/to/shortcuts/file") -- initiate, and ask ShortcutManager to create a "quit" action, it will assign `ESC` by default. If a config file is provided, it will load the shortcuts from it. Don't put this in your `loop()` funtion
+local shortcuts = ShortcutManager(ctx, { "quit" }, "/path/to/shortcuts/file") -- initiate, and ask ShortcutManager to create a "quit" action, it will assign `ESC` by default. If a config file is provided, it will load the shortcuts from it. Don't put this in your `loop()` funtion
 local programRun = true
 if shortcuts:Read("quit") then -- will return true if the shortcut for this action has been pressed
   programRun = false -- then tell the program to quit or whatever else you need to do
@@ -158,6 +158,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
     if actions_list ~= nil and actions_list[1] == "quit" then
       self:Create("quit", { [reaper.ImGui_Key_Escape() .. ""] = true })
     end
+    ---TODO fix this
     --[[     for i, action in ipairs(actions_list) do
       self:Create(action)
     end ]]
@@ -185,25 +186,6 @@ local function ShortcutManager(ctx, actions_list, config_path)
       end
     end
     return keysPressed
-  end
-
-  function S:isShortcutListOpen()
-    return self.shortcutListOpen
-  end
-
-  ---display ImGui window with list of shortcuts and their mappings
-  function S:DisplayShortcutList()
-    if not r.ImGui_IsPopupOpen(ctx, "Shortcut List") then
-      r.ImGui_OpenPopup(ctx, "Shortcut List")
-      self.shortcutListOpen = true
-    end
-    local center = { r.ImGui_Viewport_GetCenter(r.ImGui_GetWindowViewport(ctx)) }
-    r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
-    r.ImGui_SetNextWindowSize(ctx, 400, 300)
-    if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost() |  r.ImGui_WindowFlags_NoResize()) then
-      r.ImGui_Text(ctx, "Shortcut List")
-      r.ImGui_EndPopup(ctx)
-    end
   end
 
   function S:lookUp(action)
@@ -253,6 +235,64 @@ local function ShortcutManager(ctx, actions_list, config_path)
   ---@param action string
   function S:Delete(action)
     self.actions[action] = nil
+  end
+
+  function S:isShortcutListOpen()
+    return self.shortcutListOpen
+  end
+
+  ---format shortcut for display in table
+  ---@param shortcut Shortcut
+  ---@return string
+  function S:displayShortcut(shortcut)
+    local rv = ""
+    local idx = 0
+    for keyCode, _ in pairs(shortcut) do
+      if idx > 0 then rv = rv .. " + " end
+      idx = idx + 1
+      local key = ""
+      -- find k in all availablekeys, use the key
+      for availkey, availKeyCode in pairs(AllAvailableKeys) do
+        if keyCode == availKeyCode .. "" then key = availkey end
+      end
+      rv = rv .. key ~= "" and key or keyCode
+    end
+    return rv
+  end
+
+  ---display ImGui window with list of shortcuts and their mappings
+  function S:DisplayShortcutList()
+    if not r.ImGui_IsPopupOpen(ctx, "Shortcut List") then
+      r.ImGui_OpenPopup(ctx, "Shortcut List")
+      self.shortcutListOpen = true
+    end
+    local center = { r.ImGui_Viewport_GetCenter(r.ImGui_GetWindowViewport(ctx)) } ---window styling
+    r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
+    r.ImGui_SetNextWindowSize(ctx, 400, 300)
+    if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost() |  r.ImGui_WindowFlags_NoResize()) then ---begin popup
+      ---iterate every shortcut in the actions table
+      ---display the action name
+      ---display the shortcut
+      if r.ImGui_BeginTable(ctx, "Shortcut List", 3, r.ImGui_TableFlags_RowBg()) then
+        ---display the headers of the table
+        r.ImGui_TableSetupColumn(ctx, "Shortcut")
+        r.ImGui_TableSetupColumn(ctx, "Action")
+        r.ImGui_TableHeadersRow(ctx)
+
+        ---display rows
+        for action, shortcut in pairs(self.actions) do
+          r.ImGui_TableNextRow(ctx)
+          ---Shortcut row
+          r.ImGui_TableSetColumnIndex(ctx, 0)
+          r.ImGui_Text(ctx, S:displayShortcut(shortcut))
+          ---Action row
+          r.ImGui_TableSetColumnIndex(ctx, 1)
+          r.ImGui_Text(ctx, action)
+        end
+        r.ImGui_EndTable(ctx)
+      end
+      r.ImGui_EndPopup(ctx)
+    end
   end
 
   return S:init()
