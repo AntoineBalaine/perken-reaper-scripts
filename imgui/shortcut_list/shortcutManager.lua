@@ -111,7 +111,7 @@ AllAvailableKeys = {
 Usage:
 -------------------
 ```lua
-local shortcuts = SM(ctx, { "quit" }, "/path/to/shortcuts/file") -- initiate, and ask ShortcutManager to create a "quit" action, it will assign `ESC` by default. If a config file is provided, it will load the shortcuts from it.
+local shortcuts = SM(ctx, { "quit" }, "/path/to/shortcuts/file") -- initiate, and ask ShortcutManager to create a "quit" action, it will assign `ESC` by default. If a config file is provided, it will load the shortcuts from it. Don't put this in your `loop()` funtion
 local programRun = true
 if shortcuts:Read("quit") then -- will return true if the shortcut for this action has been pressed
   programRun = false -- then tell the program to quit or whatever else you need to do
@@ -119,15 +119,25 @@ end
 shortcuts:Create("save", { [reaper.ImGui_Key_S() .. ""] = true }) -- will create a shortcut for this action, and assign `s` to it.
 ---note that the key must be a string, and that the value must be `true`. ShortcutManager uses key-indices internally.
 shortcuts:Delete("quit") -- will delete the shortcut for this action
-shortcuts:DisplayShortcutList() -- open a pop-up window that contains the action list, and its corresponding shortcuts
+```
+
+-------------------
+If you want to display the actions list to the user:
+-------------------
+```lua
+shortcuts:Create("display action list") .. ""] = true })
+-- in your loop() function:
+if shortcuts:Read("display action list") or shortcuts.isShortcutListOpen() then
+  shortcuts:DisplayShortcutList()-- open a pop-up window that contains the action list, and its corresponding shortcuts
+end
 ```
 
 -------------------
 In case you'd like to create a table of shortcuts from the caller script, you can do:
 -------------------
 ```lua
-local shortcuts = SM(ctx, ) -- initiate, but don't pass anything.
-local actions = {"quit"= reaper.ImGui_Key_Escape(), "save"=reaper.ImGui_Key_S()} -- your list of actions
+local shortcuts = ShortcutManager(ctx) -- initiate, but don't pass anything.
+local actions = {"quit" = reaper.ImGui_Key_Escape(), "save" = reaper.ImGui_Key_S()} -- your list of actions
 for k, v in pairs(actions) do
   shortcuts:Create(k, {[v .. ""] = true})
 end
@@ -143,6 +153,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
   ---@alias Shortcut {string: boolean|nil}
   ---@type table<string, Shortcut[]>
   S.actions = {}
+  S.shortcutListOpen = false
   function S:init()
     if actions_list ~= nil and actions_list[1] == "quit" then
       self:Create("quit", { [reaper.ImGui_Key_Escape() .. ""] = true })
@@ -176,18 +187,23 @@ local function ShortcutManager(ctx, actions_list, config_path)
     return keysPressed
   end
 
+  function S:isShortcutListOpen()
+    return self.shortcutListOpen
+  end
+
   ---display ImGui window with list of shortcuts and their mappings
   function S:DisplayShortcutList()
-    --[[     if not r.ImGui_IsPopupOpen(ctx, "Shortcut List") then
+    if not r.ImGui_IsPopupOpen(ctx, "Shortcut List") then
       r.ImGui_OpenPopup(ctx, "Shortcut List")
+      self.shortcutListOpen = true
     end
     local center = { r.ImGui_Viewport_GetCenter(r.ImGui_GetWindowViewport(ctx)) }
     r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
-    r.ImGui_SetNextWindowSizeConstraints(ctx, 400, 300, 400, 300)
+    r.ImGui_SetNextWindowSize(ctx, 400, 300)
     if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost() |  r.ImGui_WindowFlags_NoResize()) then
+      r.ImGui_Text(ctx, "Shortcut List")
       r.ImGui_EndPopup(ctx)
     end
-    r.ImGui_End(ctx) ]]
   end
 
   function S:lookUp(action)
