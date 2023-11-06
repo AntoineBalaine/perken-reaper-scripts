@@ -105,16 +105,46 @@ AllAvailableKeys = {
 
 ---@alias ActionName unknown
 
+--[[Returns ShortcutManager, a class with methods to create, delete, and save shortcuts in the ImGui context.
+
+-------------------
+Usage:
+-------------------
+```lua
+local shortcuts = SM(ctx, { "quit" }, "/path/to/shortcuts/file") -- initiate, and ask ShortcutManager to create a "quit" action, it will assign `ESC` by default. If a config file is provided, it will load the shortcuts from it.
+local programRun = true
+if shortcuts:Read("quit") then -- will return true if the shortcut for this action has been pressed
+  programRun = false -- then tell the program to quit or whatever else you need to do
+end
+shortcuts:Create("save", { [reaper.ImGui_Key_S() .. ""] = true }) -- will create a shortcut for this action, and assign `s` to it.
+---note that the key must be a string, and that the value must be `true`. ShortcutManager uses key-indices internally.
+shortcuts:Delete("quit") -- will delete the shortcut for this action
+shortcuts:DisplayShortcutList() -- open a pop-up window that contains the action list, and its corresponding shortcuts
+```
+
+-------------------
+In case you'd like to create a table of shortcuts from the caller script, you can do:
+-------------------
+```lua
+local shortcuts = SM(ctx, ) -- initiate, but don't pass anything.
+local actions = {"quit"= reaper.ImGui_Key_Escape(), "save"=reaper.ImGui_Key_S()} -- your list of actions
+for k, v in pairs(actions) do
+  shortcuts:Create(k, {[v .. ""] = true})
+end
+```
+TODO create shorthand aliases for crud functions
+TODO include modifier keys
+]]
 ---@param ctx ImGui_Context
----@param actions_list ActionName[]
----@param config_path? string
+---@param actions_list? ActionName[] list of actions for which to create shortcuts
+---@param config_path? string path to config file that contains pre-recorded shortcuts
 local function ShortcutManager(ctx, actions_list, config_path)
   local S = {}
   ---@alias Shortcut {string: boolean|nil}
   ---@type table<string, Shortcut[]>
   S.actions = {}
   function S:init()
-    if actions_list[1] == "quit" then
+    if actions_list ~= nil and actions_list[1] == "quit" then
       self:Create("quit", { [reaper.ImGui_Key_Escape() .. ""] = true })
     end
     --[[     for i, action in ipairs(actions_list) do
@@ -126,7 +156,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
   --- Upon hitting key in the keyboard, record the shortcut.
   --- Check all the keys in AllAvailableKeys.
   --- Whichever ones have been hit, add them to the shortcut.
-  ---TODO show a confirm message before including in the table/writing to config file
+  ---TODO show a confirmation message before including in the table/writing to config file
   ---@param action string
   function S:recordShortcut(action)
     for i, shortCut in ipairs(self:getKeysPressed()) do
@@ -147,7 +177,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
   end
 
   ---display ImGui window with list of shortcuts and their mappings
-  function S:displayShortcutList()
+  function S:DisplayShortcutList()
     --[[     if not r.ImGui_IsPopupOpen(ctx, "Shortcut List") then
       r.ImGui_OpenPopup(ctx, "Shortcut List")
     end
