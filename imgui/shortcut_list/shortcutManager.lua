@@ -3,7 +3,6 @@ command id+name
 hover: display shortcut?
 api register an acion and its context: return  shortcut caller function
 
-  TODO keymap
 ]]
 ---from FX constants
 AllAvailableKeys = {
@@ -142,7 +141,9 @@ for k, v in pairs(actions) do
   shortcuts:Create(k, {[v .. ""] = true})
 end
 ```
+
 TODO create shorthand aliases for crud functions
+
 TODO include modifier keys
 ]]
 ---@param ctx ImGui_Context
@@ -154,6 +155,9 @@ local function ShortcutManager(ctx, actions_list, config_path)
   ---@type table<string, Shortcut[]>
   S.actions = {}
   S.shortcutListOpen = false
+  S.openRecordPopup = false
+  S.recordActionShortcut = nil
+  S.isRecordPopupOpen = false
   function S:init()
     if actions_list ~= nil and actions_list[1] == "quit" then
       self:Create("quit", { [reaper.ImGui_Key_Escape() .. ""] = true })
@@ -168,12 +172,30 @@ local function ShortcutManager(ctx, actions_list, config_path)
   --- Upon hitting key in the keyboard, record the shortcut.
   --- Check all the keys in AllAvailableKeys.
   --- Whichever ones have been hit, add them to the shortcut.
+  ---TODO check that the shortcut doesn't already exist
   ---TODO show a confirmation message before including in the table/writing to config file
   ---@param action string
   function S:recordShortcut(action)
-    for i, shortCut in ipairs(self:getKeysPressed()) do
-      table.insert(S.actions[action], shortCut)
+    local alreadyTaken = false
+    local keysPressed = self:getKeysPressed()
+    local hasPressed = false
+    -- if keysPressed[reaper.ImGui_Key_Escape() .. ""] then
+    if keysPressed[reaper.ImGui_Key_A() .. ""] then
+      self.openRecordPopup = false
+      self.recordActionShortcut = nil
+      return true, false
     end
+    for keyCode, val in pairs(keysPressed) do
+      if not hasPressed then
+        hasPressed = true
+      end
+      --[[       if self.actions[action] == nil then
+        self.actions[action] = {}
+      end ]]
+      self.actions[action] = {}
+      table.insert(self.actions[action], { [keyCode] = val })
+    end
+    return hasPressed, alreadyTaken
   end
 
   ---check all the keys that have been pressed
@@ -188,6 +210,8 @@ local function ShortcutManager(ctx, actions_list, config_path)
     return keysPressed
   end
 
+  ---@param action string
+  ---@return Shortcut
   function S:lookUp(action)
     return self.actions[action] or { nil }
   end
@@ -196,6 +220,9 @@ local function ShortcutManager(ctx, actions_list, config_path)
   ---@param action string
   ---@return boolean
   function S:Read(action)
+    if self.isRecordPopupOpen then
+      return false
+    end
     ---check all the keys that have been pressed
     ---iterate them
     ---if one of the keys is not in the shortcut, return false
@@ -260,23 +287,66 @@ local function ShortcutManager(ctx, actions_list, config_path)
     return rv
   end
 
+  function S:openShortcutList()
+    self.shortcutListOpen = true
+  end
+
+  function S:DisplayRecordPopup()
+    if self.openRecordPopup then
+      self.openRecordPopup = false
+      if not r.ImGui_IsPopupOpen(ctx, "Record Shortcut") then
+        r.ImGui_OpenPopup(ctx, "Record Shortcut")
+        if self.isRecordPopupOpen then
+          self.isRecordPopupOpen = false
+        end
+      end
+    elseif not r.ImGui_IsPopupOpen(ctx, "Record Shortcut") then
+      if self.isRecordPopupOpen then
+        self.isRecordPopupOpen = false
+      end
+    end
+    local center = { r.ImGui_Viewport_GetCenter(r.ImGui_GetWindowViewport(ctx)) } ---window styling
+    r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
+    r.ImGui_SetNextWindowSize(ctx, 270, 100)
+    if r.ImGui_BeginPopupModal(ctx, "Record Shortcut", true, r.ImGui_WindowFlags_TopMost() |  r.ImGui_WindowFlags_NoResize()) then ---begin popup
+      if not self.isRecordPopupOpen then
+        self.isRecordPopupOpen = true
+      end
+      r.ImGui_PushStyleColor(ctx, r.ImGui_Col_FrameBg(), 0xFFFF)
+      r.ImGui_InputText(ctx, "shortcut", "<<Type key>>", r.ImGui_InputTextFlags_ReadOnly())
+      r.ImGui_PopStyleColor(ctx, 1)
+      r.ImGui_Checkbox(ctx, "Automatically close on key input", true)
+      local hasPressed, alreadyTaken = self:recordShortcut(self.recordActionShortcut)
+      if hasPressed then
+        self.isRecordPopupOpen = false
+        r.ImGui_CloseCurrentPopup(ctx)
+      end
+      r.ImGui_EndPopup(ctx)
+    end
+  end
+
   ---display ImGui window with list of shortcuts and their mappings
   function S:DisplayShortcutList()
-    if not r.ImGui_IsPopupOpen(ctx, "Shortcut List") then
-      r.ImGui_OpenPopup(ctx, "Shortcut List")
-      self.shortcutListOpen = true
+    if self.shortcutListOpen then
+      self.shortcutListOpen = false
+      if not r.ImGui_IsPopupOpen(ctx, "Shortcut List") then
+        r.ImGui_OpenPopup(ctx, "Shortcut List")
+      end
     end
     local center = { r.ImGui_Viewport_GetCenter(r.ImGui_GetWindowViewport(ctx)) } ---window styling
     r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
     r.ImGui_SetNextWindowSize(ctx, 400, 300)
     if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost() |  r.ImGui_WindowFlags_NoResize()) then ---begin popup
+      ---TABLE
       ---iterate every shortcut in the actions table
       ---display the action name
       ---display the shortcut
       if r.ImGui_BeginTable(ctx, "Shortcut List", 3, r.ImGui_TableFlags_RowBg()) then
+        ---COLUMNS
         ---display the headers of the table
         r.ImGui_TableSetupColumn(ctx, "Shortcut")
         r.ImGui_TableSetupColumn(ctx, "Action")
+        r.ImGui_TableSetupColumn(ctx, "Context")
         r.ImGui_TableHeadersRow(ctx)
 
         ---display rows
@@ -284,12 +354,17 @@ local function ShortcutManager(ctx, actions_list, config_path)
           r.ImGui_TableNextRow(ctx)
           ---Shortcut row
           r.ImGui_TableSetColumnIndex(ctx, 0)
-          r.ImGui_Text(ctx, S:displayShortcut(shortcut))
+          -- r.ImGui_Button(ctx, S:displayShortcut(shortcut), 0, 0)
+          if r.ImGui_Selectable(ctx, self:displayShortcut(shortcut), false, r.ImGui_SelectableFlags_DontClosePopups()) then
+            self.openRecordPopup = true
+            self.recordActionShortcut = action
+          end
           ---Action row
           r.ImGui_TableSetColumnIndex(ctx, 1)
           r.ImGui_Text(ctx, action)
         end
         r.ImGui_EndTable(ctx)
+        self:DisplayRecordPopup()
       end
       r.ImGui_EndPopup(ctx)
     end

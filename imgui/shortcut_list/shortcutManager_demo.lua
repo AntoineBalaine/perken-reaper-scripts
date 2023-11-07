@@ -25,9 +25,10 @@ function Main()
     if shortcuts:Read("quit") then
       open = false
     end
-    if shortcuts:Read(list_action) or shortcuts:isShortcutListOpen() then
-      shortcuts:DisplayShortcutList()
+    if shortcuts:Read(list_action) then
+      shortcuts:openShortcutList()
     end
+    shortcuts:DisplayShortcutList()
     r.ImGui_End(ctx)
   end
   if open then
