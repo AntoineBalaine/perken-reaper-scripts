@@ -1,3 +1,5 @@
+local utils = require("custom_actions.utils")
+
 local envelope = {}
 
 function envelope.setTimeSelectionToSelectedEnvelopePoints()
@@ -242,6 +244,65 @@ end
 
 function envelope.setPointCenter()
   pegPoint("center")
+end
+
+local function toggleVisible(tr_env)
+  local br_env = reaper.BR_EnvAlloc(tr_env, false)
+  local active, visible, armed, inLane, laneHeight, defaultShape, _, _, _, _, faderScaling = reaper.BR_EnvGetProperties(
+    br_env)
+  if active then -- A.K.A. ByPassed ???
+    visible = not visible
+    reaper.BR_EnvSetProperties(br_env, active, visible, armed, inLane, laneHeight, defaultShape, faderScaling)
+    reaper.BR_EnvFree(br_env, true)
+  else
+    reaper.BR_EnvFree(br_env, false)
+  end
+end
+-- Function to hide an envelope by modifying its state chunk
+function HideEnvelope(envelope)
+  local _, envelopeStateChunk = reaper.GetEnvelopeStateChunk(envelope, "", false)
+
+  -- Check if the envelope is not already hidden
+  if not envelopeStateChunk:match("VIS 1") then
+    -- Add visibility information to the state chunk to hide the envelope
+    envelopeStateChunk = envelopeStateChunk:gsub("VIS %d", "VIS 0")
+
+    -- Set the modified state chunk back to the envelope
+    reaper.SetEnvelopeStateChunk(envelope, envelopeStateChunk, false)
+    reaper.UpdateArrange()
+  end
+end
+
+-- always show an envelope for the last touched param
+function envelope.autoMode()
+  local retval, fx_tracknumber, fxnumber, paramIndex = reaper.GetLastTouchedFX()
+  if not retval then return end
+  local tr_idx = utils.getTrackIndex(fx_tracknumber)
+
+  local sel_tr = reaper.GetSelectedTrack(0, 0)
+  local sel_tr_num = reaper.GetMediaTrackInfo_Value(sel_tr, "IP_TRACKNUMBER")
+
+  -- if selected track is same as track of last touched fx, then proceed
+  if fx_tracknumber == sel_tr_num and tr_idx then
+    local track = reaper.GetTrack(0, tr_idx)                            -- get media track
+    local env_count = reaper.CountTrackEnvelopes(track)                 --get selected track's envelopes
+    local env = reaper.GetFXEnvelope(track, fxnumber, paramIndex, true) -- get the fx Envelopes
+    for i = 0, env_count - 1 do                                         -- iterate
+      local open_env = reaper.GetTrackEnvelope(track, i)                -- get tr env
+      local br_env = reaper.BR_EnvAlloc(open_env, false)
+      local _, visible, _, _, _, _, _, _, _, _, _, _ =
+          reaper.BR_EnvGetProperties(br_env)
+      if open_env ~= env and visible then
+        reaper.SetCursorContext(2, open_env)                          -- select env
+        reaper.Main_OnCommand(40884, 0)                               -- Toggle hide/display selected envelope
+        local env_points_count = reaper.CountEnvelopePoints(open_env) -- find if there's any points
+        if env_points_count <= 1 then                                 -- if only one point, then bypass
+          reaper.SetEnvelopeStateChunk(open_env, "BYPASS 1", false)   -- empty bypassed envelopes get cleared
+        end
+      end
+      reaper.BR_EnvFree(br_env, false)
+    end
+  end
 end
 
 return envelope

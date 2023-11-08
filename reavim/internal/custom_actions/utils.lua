@@ -233,7 +233,7 @@ function utils.unselectAllButLastTouchedTrack()
 	end
 end
 
----@return table<number, number>
+---@return number[]
 function utils.getSelectedTrackIndices()
 	local selected_tracks = utils.getSelectedTracks()
 	local selected_track_indices = {}
@@ -251,7 +251,7 @@ end
 
 ---comment
 ---@param track MediaTrack
----@return table<number, MediaItem>
+---@return MediaItem[]
 function utils.getSelectedItemsInTrack(track)
 	---@type MediaItem
 	local items = {}
@@ -325,6 +325,7 @@ function utils.cycleSelectedTracks(cb)
 	end
 end
 
+---0-indexed
 ---@param tracknumber number
 function utils.getTrackIndex(tracknumber)
 	local trackCount = reaper.CountTracks(0) -- Get the total number of tracks in the project
@@ -336,6 +337,21 @@ function utils.getTrackIndex(tracknumber)
 			if cur_tr_num == tracknumber then
 				return i
 			end
+		end
+	end
+	return nil
+end
+
+---comment
+---@param track MediaTrack
+---@return integer | nil
+function utils.getTrackIdx(track)
+	--iterate all tracks and return the index of the track that matches
+	local trackCount = reaper.CountTracks(0) -- Get the total number of tracks in the project
+	for i = 1, trackCount do
+		local t = reaper.GetTrack(0, i)
+		if t == track then
+			return i
 		end
 	end
 	return nil

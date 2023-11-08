@@ -1,4 +1,5 @@
 local utils = require("custom_actions.utils")
+local envelope = require("custom_actions.envelope")
 local dev = {}
 
 function dev.fxDevices()
@@ -99,6 +100,15 @@ end
 
 function dev.devAction()
   -- dev.pasteToSlot()
+  -- envelope.autoMode()
+
+  ---filemanager imgui project
+  -- reaper.Main_OnCommand(reaper.NamedCommandLookup("_RS6e1dd02ebbb0dfd179ef1435a55cfc895d0c8f40"), 0)
+
+  ---shortcutManager demo
+  reaper.Main_OnCommand(reaper.NamedCommandLookup("_RS114902ed228531973d119e1f8fbf47639e9097c6"),0)
+
+  -- MFT.create_fx_map()
 end
 
 return dev
