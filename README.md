@@ -21,6 +21,20 @@ Scripts for the Reaper DAW.
   Paging is done with side-buttons. 
   Only basic jsfx seem to work correctly atm.
 </details>
+<details>
+ <summary>MFT Synth map</summary> 
+
+`$REAPERPATH/Scripts/perken/realearn/synth_map/synth_map_midiFighter.lua`
+##### HOW TO USE: 
+- have a realearn instance with the Midi fighter's preset loaded in the controller compartment.
+- call the script
+- focus the realearn window,
+- click «import from clipboard»
+- NB LINUX USERS: realearn struggles to read from clipboard directly, you might have to paste into a text editor first, and then copy from there.
+##### What it does: 
+See full description at [the forum post](https://forum.cockos.com/showpost.php?p=2731732&postcount=3803)
+</details>
+
 
 #### Drums utilities
 <details>
