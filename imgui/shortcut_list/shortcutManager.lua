@@ -1,132 +1,14 @@
+local os_separator = package.config:sub(1, 1)
+package.path = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;" -- GET DIRECTORY FOR REQUIRE
+local helpers = require("shortcutManager_helpers")
+
+local r = reaper
 --[[
 command id+name
 hover: display shortcut?
 api register an acion and its context: return  shortcut caller function
 
 ]]
----from FX constants
-AllAvailableKeys = {
-  ['0'] = reaper.ImGui_Key_0(),
-  ['1'] = reaper.ImGui_Key_1(),
-  ['2'] = reaper.ImGui_Key_2(),
-  ['3'] = reaper.ImGui_Key_3(),
-  ['4'] = reaper.ImGui_Key_4(),
-  ['5'] = reaper.ImGui_Key_5(),
-  ['6'] = reaper.ImGui_Key_6(),
-  ['7'] = reaper.ImGui_Key_7(),
-  ['8'] = reaper.ImGui_Key_8(),
-  ['9'] = reaper.ImGui_Key_9(),
-  A = reaper.ImGui_Key_A(),
-  B = reaper.ImGui_Key_B(),
-  C = reaper.ImGui_Key_C(),
-  D = reaper.ImGui_Key_D(),
-  E = reaper.ImGui_Key_E(),
-  F = reaper.ImGui_Key_F(),
-  G = reaper.ImGui_Key_G(),
-  H = reaper.ImGui_Key_H(),
-  I = reaper.ImGui_Key_I(),
-  J = reaper.ImGui_Key_J(),
-  K = reaper.ImGui_Key_K(),
-  L = reaper.ImGui_Key_L(),
-  M = reaper.ImGui_Key_M(),
-  N = reaper.ImGui_Key_N(),
-  O = reaper.ImGui_Key_O(),
-  P = reaper.ImGui_Key_P(),
-  Q = reaper.ImGui_Key_Q(),
-  R = reaper.ImGui_Key_R(),
-  S = reaper.ImGui_Key_S(),
-  T = reaper.ImGui_Key_T(),
-  U = reaper.ImGui_Key_U(),
-  V = reaper.ImGui_Key_V(),
-  W = reaper.ImGui_Key_W(),
-  X = reaper.ImGui_Key_X(),
-  Y = reaper.ImGui_Key_Y(),
-  Z = reaper.ImGui_Key_Z(),
-  Esc = reaper.ImGui_Key_Escape(),
-  F1 = reaper.ImGui_Key_F1(),
-  F2 = reaper.ImGui_Key_F2(),
-  F3 = reaper.ImGui_Key_F3(),
-  F4 = reaper.ImGui_Key_F4(),
-  F5 = reaper.ImGui_Key_F5(),
-  F6 = reaper.ImGui_Key_F6(),
-  F7 = reaper.ImGui_Key_F7(),
-  F8 = reaper.ImGui_Key_F8(),
-  F9 = reaper.ImGui_Key_F9(),
-  F10 = reaper.ImGui_Key_F10(),
-  F11 = reaper.ImGui_Key_F11(),
-  F12 = reaper.ImGui_Key_F12(),
-  Apostrophe = reaper.ImGui_Key_Apostrophe(),
-  Backslash = reaper.ImGui_Key_Backslash(),
-  Backspace = reaper.ImGui_Key_Backspace(),
-  Comma = reaper.ImGui_Key_Comma(),
-  Delete = reaper.ImGui_Key_Delete(),
-  DownArrow = reaper.ImGui_Key_DownArrow(),
-  Enter = reaper.ImGui_Key_Enter(),
-  End = reaper.ImGui_Key_End(),
-  Equal = reaper.ImGui_Key_Equal(),
-  GraveAccent = reaper.ImGui_Key_GraveAccent(),
-  Home = reaper.ImGui_Key_Home(),
-  ScrollLock = reaper.ImGui_Key_ScrollLock(),
-  Insert = reaper.ImGui_Key_Insert(),
-  Minus = reaper.ImGui_Key_Minus(),
-  LeftArrow = reaper.ImGui_Key_LeftArrow(),
-  LeftBracket = reaper.ImGui_Key_LeftBracket(),
-  Period = reaper.ImGui_Key_Period(),
-  PageDown = reaper.ImGui_Key_PageDown(),
-  PageUp = reaper.ImGui_Key_PageUp(),
-  Pause = reaper.ImGui_Key_Pause(),
-  RightBracket = reaper.ImGui_Key_RightBracket(),
-  RightArrow = reaper.ImGui_Key_RightArrow(),
-  SemiColon = reaper.ImGui_Key_Semicolon(),
-  Slash = reaper.ImGui_Key_Slash(),
-  Space = reaper.ImGui_Key_Space(),
-  Tab = reaper.ImGui_Key_Tab(),
-  UpArrow = reaper.ImGui_Key_UpArrow(),
-  Pad0 = reaper.ImGui_Key_Keypad0(),
-  Pad1 = reaper.ImGui_Key_Keypad1(),
-  Pad2 = reaper.ImGui_Key_Keypad2(),
-  Pad3 = reaper.ImGui_Key_Keypad3(),
-  Pad4 = reaper.ImGui_Key_Keypad4(),
-  Pad5 = reaper.ImGui_Key_Keypad5(),
-  Pad6 = reaper.ImGui_Key_Keypad6(),
-  Pad7 = reaper.ImGui_Key_Keypad7(),
-  Pad8 = reaper.ImGui_Key_Keypad8(),
-  Pad9 = reaper.ImGui_Key_Keypad9(),
-  PadAdd = reaper.ImGui_Key_KeypadAdd(),
-  PadDecimal = reaper.ImGui_Key_KeypadDecimal(),
-  PadDivide = reaper.ImGui_Key_KeypadDivide(),
-  PadEnter = reaper.ImGui_Key_KeypadEnter(),
-  PadEqual = reaper.ImGui_Key_KeypadEqual(),
-  PadMultiply = reaper.ImGui_Key_KeypadMultiply(),
-  PadSubtract = reaper.ImGui_Key_KeypadSubtract(),
-}
-
----return true if shortcuts are same
----@param shortcutA Shortcut
----@param shortcutB Shortcut
-local function compareShortcuts(shortcutA, shortcutB)
-  if shortcutA == nil or shortcutB == nil then
-    return false
-  else
-    local hasKeys = false
-    for keyCode, val in pairs(shortcutA) do
-      if not hasKeys then hasKeys = true end
-      if shortcutB[keyCode] == nil then
-        return false
-      end
-    end
-    for keyCode, val in pairs(shortcutB) do
-      if shortcutA[keyCode] == nil then
-        return false
-      end
-    end
-    return hasKeys
-  end
-end
-
-
----@alias ActionName unknown
-
 --[[Returns ShortcutManager, a class with methods to create, delete, and save shortcuts in the ImGui context.
 
 -------------------
@@ -204,7 +86,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
   function S:recordShortcut(action)
     local ActionTaken = nil ---@type nil|string  ---name of the action that's using the currently-pressed shortcut
     local keysPressed = self:getKeysPressed()
-    if keysPressed == nil then
+    if keysPressed == nil or helpers.onlyModKeys(keysPressed) then
       return false
     end
     ---close popup if user presses escape
@@ -221,7 +103,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
         ]]
     --iterate all actions, and check compareShortcuts
     for actionName, val in pairs(self.actions) do
-      if compareShortcuts(keysPressed, val) then
+      if helpers.compareShortcuts(keysPressed, val) then
         ActionTaken = actionName
         return true, ActionTaken
       end
@@ -229,7 +111,6 @@ local function ShortcutManager(ctx, actions_list, config_path)
     ---Since there is no existing shortcut, we can add the new one to the table
     self.actions[action]      = keysPressed
     self.recordActionShortcut = nil
-    self.isRecordPopupOpen    = false
     return true
   end
 
@@ -237,8 +118,11 @@ local function ShortcutManager(ctx, actions_list, config_path)
   ---@return Shortcut|nil keys_pressed array of key codes, each at the index of the code, i.e. key code 1 is at index 1, key code 2 is at index 2, etc.
   function S:getKeysPressed()
     local keysPressed = {} ---@type Shortcut
-    for keyName, keyCode in pairs(AllAvailableKeys) do
-      if reaper.ImGui_IsKeyPressed(ctx, keyCode) then
+    for keyName, keyCode in pairs(helpers.AllAvailableKeys) do
+      if helpers.isModifier(keyCode) and r.ImGui_IsKeyDown(ctx, keyCode) then
+        keysPressed[keyCode .. ""] = true
+      end
+      if r.ImGui_IsKeyPressed(ctx, keyCode) then
         keysPressed[keyCode .. ""] = true
       end
     end
@@ -301,25 +185,6 @@ local function ShortcutManager(ctx, actions_list, config_path)
 
   function S:isShortcutListOpen()
     return self.shortcutListOpen
-  end
-
-  ---format shortcut for display in shortcuts list
-  ---@param shortcut Shortcut
-  ---@return string
-  function S:displayShortcut(shortcut)
-    local rv = ""
-    local idx = 0
-    for keyCode, _ in pairs(shortcut) do
-      if idx > 0 then rv = rv .. " + " end
-      idx = idx + 1
-      local key = ""
-      -- find k in all availablekeys, use the key
-      for availkey, availKeyCode in pairs(AllAvailableKeys) do
-        if keyCode == availKeyCode .. "" then key = availkey end
-      end
-      rv = rv .. key ~= "" and key or keyCode
-    end
-    return rv
   end
 
   function S:openShortcutList()
@@ -389,7 +254,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
     local center = { r.ImGui_Viewport_GetCenter(r.ImGui_GetWindowViewport(ctx)) } ---window styling
     r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
     r.ImGui_SetNextWindowSize(ctx, 400, 300)
-    if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost()) then  ---begin popup
+    if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost()) then ---begin popup
       ---TABLE
       ---iterate every shortcut in the actions table
       ---display the action name
@@ -408,7 +273,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
           ---Shortcut row
           r.ImGui_TableSetColumnIndex(ctx, 0)
           -- r.ImGui_Button(ctx, S:displayShortcut(shortcut), 0, 0)
-          if r.ImGui_Selectable(ctx, self:displayShortcut(shortcut), false, r.ImGui_SelectableFlags_DontClosePopups()) then
+          if r.ImGui_Selectable(ctx, helpers.displayShortcut(shortcut), false, r.ImGui_SelectableFlags_DontClosePopups()) then
             self.openRecordPopup = true
             self.recordActionShortcut = action
           end

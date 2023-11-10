@@ -4,7 +4,7 @@ local os_separator = package.config:sub(1, 1)
 package.path = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;" -- GET DIRECTORY FOR REQUIRE
 local SM = require("shortcutManager")
 
-r = reaper
+local r = reaper
 
 -- -- CTX MUST BE GLOBAL
 ctx = r.ImGui_CreateContext("shortcut manager")
@@ -15,7 +15,7 @@ local shortcuts = SM(ctx, { "quit" })
 local list_action = "shortcut_lst"
 local dummy_action = "dummy_action"
 shortcuts:Create(list_action, { [reaper.ImGui_Key_L() .. ""] = true })
-shortcuts:Create(dummy_action, { [reaper.ImGui_Key_X() .. ""] = true })
+shortcuts:Create(dummy_action, { [reaper.ImGui_Key_X() .. ""] = true, [reaper.ImGui_Mod_Ctrl() .. ""] = true })
 
 function Main()
   r.ImGui_SetWindowSize(ctx, 400, 300)
@@ -27,6 +27,9 @@ function Main()
     if shortcuts:Read("quit") then
       open = false
     end
+    --[[     if r.ImGui_GetKeyMods(ctx) then
+      r.ShowConsoleMsg("found ")
+    end ]]
     if shortcuts:Read(list_action) then
       shortcuts:openShortcutList()
     end
