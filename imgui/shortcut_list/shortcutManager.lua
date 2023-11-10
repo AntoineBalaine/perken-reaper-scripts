@@ -3,12 +3,7 @@ package.path = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.l
 local helpers = require("shortcutManager_helpers")
 
 local r = reaper
---[[
-command id+name
-hover: display shortcut?
-api register an acion and its context: return  shortcut caller function
 
-]]
 --[[Returns ShortcutManager, a class with methods to create, delete, and save shortcuts in the ImGui context.
 
 -------------------
@@ -47,12 +42,10 @@ for k, v in pairs(actions) do
 end
 ```
 
-TODO create shorthand aliases for crud functions
 
-TODO include modifier keys
 ]]
 ---@param ctx ImGui_Context
----@param actions_list? ActionName[] list of actions for which to create shortcuts
+---@param actions_list? string[] list of actions for which to create shortcuts
 ---@param config_path? string path to config file that contains pre-recorded shortcuts
 local function ShortcutManager(ctx, actions_list, config_path)
   local S = {}
@@ -61,25 +54,20 @@ local function ShortcutManager(ctx, actions_list, config_path)
   S.actions = {}
   S.shortcutListOpen = false
   S.openRecordPopup = false
-  S.recordActionShortcut = nil
+  S.recordedAction = nil
   S.isRecordPopupOpen = false
   function S:init()
-    ----TODO remove this temporary code
-    if actions_list ~= nil and actions_list[1] == "quit" then
-      self:Create("quit", { [reaper.ImGui_Key_Escape() .. ""] = true })
+    if actions_list then
+      for i, action in ipairs(actions_list) do
+        self:Create(action)
+      end
     end
-    ---TODO fix this
-    --[[     for i, action in ipairs(actions_list) do
-      self:Create(action)
-    end ]]
     return self
   end
 
   --- Upon hitting key in the keyboard, record the shortcut.
   --- Check all the keys in AllAvailableKeys.
   --- Whichever ones have been hit, add them to the shortcut.
-  ---TODO check that the shortcut doesn't already exist
-  ---TODO show a confirmation message before including in the table/writing to config file
   ---@param action string
   ---@return boolean hasPressed false while the user doesn't press any key
   ---@return string|nil takenAction name of the action that's using the currently-pressed shortcut. Prompt the user to replace
@@ -92,7 +80,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
     ---close popup if user presses escape
     if keysPressed[reaper.ImGui_Key_Escape() .. ""] then
       self.openRecordPopup = false
-      self.recordActionShortcut = nil
+      self.recordedAction = nil
       return true
     end
     --[[
@@ -104,13 +92,17 @@ local function ShortcutManager(ctx, actions_list, config_path)
     --iterate all actions, and check compareShortcuts
     for actionName, val in pairs(self.actions) do
       if helpers.compareShortcuts(keysPressed, val) then
-        ActionTaken = actionName
-        return true, ActionTaken
+        if actionName == action then
+          return true
+        else
+          ActionTaken = actionName
+          return true, ActionTaken
+        end
       end
     end
     ---Since there is no existing shortcut, we can add the new one to the table
-    self.actions[action]      = keysPressed
-    self.recordActionShortcut = nil
+    self.actions[action] = keysPressed
+    self.recordedAction  = nil
     return true
   end
 
@@ -165,11 +157,10 @@ local function ShortcutManager(ctx, actions_list, config_path)
     -- insert in the action table with value nil.
     -- if user opens the shortcut list, he can update the value
     -- when user adds the value
-    self.actions[action] = shortcut
+    self.actions[action] = shortcut or { [""] = true }
   end
 
   ---update Action
-  ---TODO is this really useful?
   ---@param action string
   ---@param shortcut? Shortcut[]
   function S:Update(action, shortcut)
@@ -180,6 +171,33 @@ local function ShortcutManager(ctx, actions_list, config_path)
   ---delete Action
   ---@param action string
   function S:Delete(action)
+    self.actions[action] = { [""] = true }
+  end
+
+  ---shorthand alias of «read Action»
+  ---@param action string
+  ---@return boolean
+  function S:R(action)
+    return self:Read(action)
+  end
+
+  ---shorthand alias of «create Action»
+  ---@param action string
+  ---@param shortcut? Shortcut
+  function S:C(action, shortcut)
+    return self:Create(action, shortcut)
+  end
+
+  ---shorthand alias of «update Action»
+  ---@param action string
+  ---@param shortcut? Shortcut[]
+  function S:U(action, shortcut)
+    return self:Update(action, shortcut)
+  end
+
+  ---shorthand alias of «delete Action»
+  ---@param action string
+  function S:D(action)
     self.actions[action] = nil
   end
 
@@ -218,7 +236,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
         r.ImGui_PopStyleColor(ctx, 1)
         r.ImGui_Checkbox(ctx, "Automatically close on key input", true)
         ---I hate leaving globals behind, but this is a case where it's needed.
-        HasPressed, ActionTaken = self:recordShortcut(self.recordActionShortcut)
+        HasPressed, ActionTaken = self:recordShortcut(self.recordedAction)
         if HasPressed and not ActionTaken then
           self.isRecordPopupOpen = false
           r.ImGui_CloseCurrentPopup(ctx)
@@ -229,12 +247,20 @@ local function ShortcutManager(ctx, actions_list, config_path)
 
         r.ImGui_Text(ctx, "Do you want to replace the shortcut ?")
         if r.ImGui_Button(ctx, "Yes") then
-          self.actions[self.recordActionShortcut] = self.actions[ActionTaken]
-          self.actions[ActionTaken]               = { [""] = true }
-          self.recordActionShortcut               = nil
-          self.isRecordPopupOpen                  = false
-          ActionTaken                             = nil
-          HasPressed                              = false
+          self:Update(self.recordedAction, self.actions[ActionTaken])
+          self:Delete(ActionTaken)
+          self.recordedAction    = nil
+          self.isRecordPopupOpen = false
+          ActionTaken            = nil
+          HasPressed             = nil
+          r.ImGui_CloseCurrentPopup(ctx)
+        end
+        r.ImGui_SameLine(ctx)
+        if r.ImGui_Button(ctx, "Cancel") then
+          self.recordedAction    = nil
+          self.isRecordPopupOpen = false
+          ActionTaken            = nil
+          HasPressed             = nil
           r.ImGui_CloseCurrentPopup(ctx)
         end
       end
@@ -255,6 +281,12 @@ local function ShortcutManager(ctx, actions_list, config_path)
     r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
     r.ImGui_SetNextWindowSize(ctx, 400, 300)
     if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost()) then ---begin popup
+      ---click/dblClick on shortcut: update
+      ---ctrl+click: delete
+      ---add indication as text
+      r.ImGui_Text(ctx, "Click/double click on a shortcut to update it")
+      r.ImGui_Text(ctx, "Ctrl+click on a shortcut to delete it")
+
       ---TABLE
       ---iterate every shortcut in the actions table
       ---display the action name
@@ -274,8 +306,13 @@ local function ShortcutManager(ctx, actions_list, config_path)
           r.ImGui_TableSetColumnIndex(ctx, 0)
           -- r.ImGui_Button(ctx, S:displayShortcut(shortcut), 0, 0)
           if r.ImGui_Selectable(ctx, helpers.displayShortcut(shortcut), false, r.ImGui_SelectableFlags_DontClosePopups()) then
-            self.openRecordPopup = true
-            self.recordActionShortcut = action
+            ---delete the shortcut if user held «ctrl» down while clicking
+            if r.ImGui_IsKeyDown(ctx, helpers.AllAvailableKeys.Ctrl) then
+              self:Delete(action)
+            else
+              self.openRecordPopup = true
+              self.recordedAction = action
+            end
           end
           ---Action row
           r.ImGui_TableSetColumnIndex(ctx, 1)

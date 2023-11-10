@@ -166,6 +166,4 @@ function helpers.displayShortcut(shortcut)
   return rv
 end
 
----@alias ActionName unknown
-
 return helpers
