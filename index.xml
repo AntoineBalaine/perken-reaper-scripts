@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="perken" commit="7bbee7cf7d6acc98cd8ef6b8973d06ee5477bd04">
+<index version="1" name="perken" commit="5a1d4643b77c89b60259ba6283e867fb2de70f5b">
   <category name="main">
     <reapack name="pasteRhythmToPitches.lua" type="script" desc="Paste Rhythm To Pitches">
       <metadata>
@@ -72,6 +72,44 @@ Paste Rhythm
         <source file="dependencies/utils.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/7bbee7cf7d6acc98cd8ef6b8973d06ee5477bd04/realearn/lua_mapper/dependencies/utils.lua</source>
         <source file="main_compartment_mapper.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/7bbee7cf7d6acc98cd8ef6b8973d06ee5477bd04/realearn/lua_mapper/main_compartment_mapper.lua</source>
         <source file="MFT_controller_compartment.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/7bbee7cf7d6acc98cd8ef6b8973d06ee5477bd04/realearn/lua_mapper/MFT_controller_compartment.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="realearn/synth_map">
+    <reapack name="synth_map_midiFighter.lua" type="script" desc="Midi-fighter-twister: Synth map">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 synth_map_midiFighter.lua\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 HOW TO USE:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab have a realearn instance with the Midi fighter's preset loaded in the controller compartment.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab call the script\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab focus the realearn window,\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab click \u171 ?import from clipboard\u187 ?\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab NB LINUX USERS: realearn struggles to read from clipboard directly, you might have to paste into a text editor first, and then copy from there.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Here's how it's designed: 2 pages of mappings: Synth page: One row for oscillators One row for Filters One row for Envelopes One row for LFOs FX page: One row for Distortion One row for Chorus One row for Delay One row for Reverb\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Each row contains 4 encoders, and 1 param is assigned per encoder. Let's take the Oscillators row for example: If the midi-fighter's row has only 4 encoders, how can I control 3 oscillators X4 params with it? The solution is to use layers. So, pressing the first button of the row will switch between the controls of each of the oscillators of the Synth: Row1: Layer 1: Osc1 (navy LED) Layer 2: Osc2 (yellow LED) Layer 3: Sub (green LED) Layer 4: Noise Osc (cyan LED) Row2: Layer 1: FilterA (red LED) Layer 2: FilterB (purple LED) Row3: Layer 1: Filter Envelope (red LED) Layer 2: Amp Envelope (yellow LED) Layer 2: Pitch Envelope (purple LED) Row4: Layer 1: LFO1 (light blue LED) Layer 2: LFO2 (navy LED)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 for each row, the controls of each layer are the same: Encoders: Row1 (Osc): Octave | Coarse | wave shape | level/volume Row2 (Flt): cutoff | res. | ??? | drive/mix Row3 (Env): attack | decay | sustain | release / amount(press and turn) Row4 (LFO): shape | rate | ??? | amount / destination(on click)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Now that you get the gist of how I've imagined the layers, here's the layout of the synth page as structured text: Synth page: OSC 4layers(#1, #2, sub, noise) Encoders(Oct, Coarse, WaveShape, Volume) FLT 2layers(#A, #B, /, / ) Encoders(Cutoff, Res., Drive, Mix) ENV 3layers(Flt, Amp, ptch, / ) Encoders(Atk, Decay, Sstn, Release) BtnPress(/, /, /, Amount) LFO 2layers(lf1, lf2, /, / ) Encoders(Shape, Rate, ???, Amount) BtnPress(/, /, /, Destination)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The mapping has a second page, dedicated to FX, with the classics: distortion, chorus, delay and reverb. FX page: row1 (Distortion) Drive | ??? | ??? | ??? /Mix(press and turn) row2 (Chorus) Rate | Dly1 | Dly2 | Fdbk/Mix(press and turn) row3 (Delay) Speed | ??? | ??? | Fdbk/Mix(press and turn) row4 (Reverb) Size | Densty | HiCut | LoCut/Mix(press and turn)\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The mapping provides some visual feedback by showing the LEDs of the layer that are active at the moment: Layer1 will activate the first LED of the row. When it's active, all the other LEDs are turned off in the row Layer2 will activate the second LED of the row. etc. Also, since the Envelopes and LFOs have an amount button, the color of that button matches the destination: Red is for Filter A, Yellow is for Amp, Cyan is for Pitch, Purple is for Filter B.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Please let me know if this explanation was clear enough, and if you'd like to make a donation, please send it to Helgoboss ; You'll find the lua script for this mapping in my reapack handle.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Usage:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab run the script (it will copy the mapping to your clipboard),\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab add Realearn to your track,\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab in realearn's window, click the \u171 ?Import from Clipboard\u187 ? button.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab You'll have to work the assignments from there.\sa180\par}
+}
+]]></description>
+        <link rel="website" href="https://github.com/AntoineBalaine/perken-reaper-scripts">Perken Scripts repo</link>
+      </metadata>
+      <version name="0.0.1" author="Perken" time="2023-11-09T21:36:54Z">
+        <changelog><![CDATA[0.0.1 Setup the script]]></changelog>
+        <source file="utils/serpent.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/5a1d4643b77c89b60259ba6283e867fb2de70f5b/realearn/synth_map/utils/serpent.lua</source>
+        <source file="utils/utils.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/5a1d4643b77c89b60259ba6283e867fb2de70f5b/realearn/synth_map/utils/utils.lua</source>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/5a1d4643b77c89b60259ba6283e867fb2de70f5b/realearn/synth_map/synth_map_midiFighter.lua</source>
       </version>
     </reapack>
   </category>
