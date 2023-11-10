@@ -13,7 +13,9 @@ ctx = r.ImGui_CreateContext("shortcut manager")
 
 local shortcuts = SM(ctx, { "quit" })
 local list_action = "shortcut_lst"
+local dummy_action = "dummy_action"
 shortcuts:Create(list_action, { [reaper.ImGui_Key_L() .. ""] = true })
+shortcuts:Create(dummy_action, { [reaper.ImGui_Key_X() .. ""] = true })
 
 function Main()
   r.ImGui_SetWindowSize(ctx, 400, 300)

@@ -101,6 +101,29 @@ AllAvailableKeys = {
   PadSubtract = reaper.ImGui_Key_KeypadSubtract(),
 }
 
+---return true if shortcuts are same
+---@param shortcutA Shortcut
+---@param shortcutB Shortcut
+local function compareShortcuts(shortcutA, shortcutB)
+  if shortcutA == nil or shortcutB == nil then
+    return false
+  else
+    local hasKeys = false
+    for keyCode, val in pairs(shortcutA) do
+      if not hasKeys then hasKeys = true end
+      if shortcutB[keyCode] == nil then
+        return false
+      end
+    end
+    for keyCode, val in pairs(shortcutB) do
+      if shortcutA[keyCode] == nil then
+        return false
+      end
+    end
+    return hasKeys
+  end
+end
+
 
 ---@alias ActionName unknown
 
@@ -151,14 +174,15 @@ TODO include modifier keys
 ---@param config_path? string path to config file that contains pre-recorded shortcuts
 local function ShortcutManager(ctx, actions_list, config_path)
   local S = {}
-  ---@alias Shortcut {string: boolean|nil}
-  ---@type table<string, Shortcut[]>
+  ---@alias Shortcut table<string, boolean|nil>
+  ---@type table<string, Shortcut>
   S.actions = {}
   S.shortcutListOpen = false
   S.openRecordPopup = false
   S.recordActionShortcut = nil
   S.isRecordPopupOpen = false
   function S:init()
+    ----TODO remove this temporary code
     if actions_list ~= nil and actions_list[1] == "quit" then
       self:Create("quit", { [reaper.ImGui_Key_Escape() .. ""] = true })
     end
@@ -175,31 +199,42 @@ local function ShortcutManager(ctx, actions_list, config_path)
   ---TODO check that the shortcut doesn't already exist
   ---TODO show a confirmation message before including in the table/writing to config file
   ---@param action string
+  ---@return boolean hasPressed false while the user doesn't press any key
+  ---@return string|nil takenAction name of the action that's using the currently-pressed shortcut. Prompt the user to replace
   function S:recordShortcut(action)
-    local alreadyTaken = false
+    local ActionTaken = nil ---@type nil|string  ---name of the action that's using the currently-pressed shortcut
     local keysPressed = self:getKeysPressed()
-    local hasPressed = false
-    -- if keysPressed[reaper.ImGui_Key_Escape() .. ""] then
-    if keysPressed[reaper.ImGui_Key_A() .. ""] then
+    if keysPressed == nil then
+      return false
+    end
+    ---close popup if user presses escape
+    if keysPressed[reaper.ImGui_Key_Escape() .. ""] then
       self.openRecordPopup = false
       self.recordActionShortcut = nil
-      return true, false
+      return true
     end
-    for keyCode, val in pairs(keysPressed) do
-      if not hasPressed then
-        hasPressed = true
+    --[[
+        if there's already a shortcut for this action, we're going to replace it.
+        We need to first check whether this shortcut isn't already used.
+        If so, prompt the user to confirm that they want to replace the existing shortcut.
+        If so, remove the existing shortcut, and add the new one to the table
+        ]]
+    --iterate all actions, and check compareShortcuts
+    for actionName, val in pairs(self.actions) do
+      if compareShortcuts(keysPressed, val) then
+        ActionTaken = actionName
+        return true, ActionTaken
       end
-      --[[       if self.actions[action] == nil then
-        self.actions[action] = {}
-      end ]]
-      self.actions[action] = {}
-      table.insert(self.actions[action], { [keyCode] = val })
     end
-    return hasPressed, alreadyTaken
+    ---Since there is no existing shortcut, we can add the new one to the table
+    self.actions[action]      = keysPressed
+    self.recordActionShortcut = nil
+    self.isRecordPopupOpen    = false
+    return true
   end
 
   ---check all the keys that have been pressed
-  ---@return Shortcut keys_pressed array of key codes, each at the index of the code, i.e. key code 1 is at index 1, key code 2 is at index 2, etc.
+  ---@return Shortcut|nil keys_pressed array of key codes, each at the index of the code, i.e. key code 1 is at index 1, key code 2 is at index 2, etc.
   function S:getKeysPressed()
     local keysPressed = {} ---@type Shortcut
     for keyName, keyCode in pairs(AllAvailableKeys) do
@@ -207,7 +242,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
         keysPressed[keyCode .. ""] = true
       end
     end
-    return keysPressed
+    return next(keysPressed) and keysPressed or nil
   end
 
   ---@param action string
@@ -229,7 +264,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
     ---reciprocal is also true: if one of the keys of keypressed is not in shortcut, return false
     local keysPressed = self:getKeysPressed()
     local shortcut = self:lookUp(action)
-    if next(keysPressed) == nil or next(shortcut) == nil then return false end
+    if keysPressed == nil or next(keysPressed) == nil or next(shortcut) == nil then return false end
     for k, _ in pairs(shortcut) do
       if not keysPressed[k] then return false end
     end
@@ -268,7 +303,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
     return self.shortcutListOpen
   end
 
-  ---format shortcut for display in table
+  ---format shortcut for display in shortcuts list
   ---@param shortcut Shortcut
   ---@return string
   function S:displayShortcut(shortcut)
@@ -308,19 +343,37 @@ local function ShortcutManager(ctx, actions_list, config_path)
     local center = { r.ImGui_Viewport_GetCenter(r.ImGui_GetWindowViewport(ctx)) } ---window styling
     r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
     r.ImGui_SetNextWindowSize(ctx, 270, 100)
-    if r.ImGui_BeginPopupModal(ctx, "Record Shortcut", true, r.ImGui_WindowFlags_TopMost() |  r.ImGui_WindowFlags_NoResize()) then ---begin popup
+    if r.ImGui_BeginPopupModal(ctx, "Record Shortcut", true, r.ImGui_WindowFlags_TopMost()) then ---begin popup
       if not self.isRecordPopupOpen then
         self.isRecordPopupOpen = true
       end
-      r.ImGui_PushStyleColor(ctx, r.ImGui_Col_FrameBg(), 0xFFFF)
-      r.ImGui_InputText(ctx, "shortcut", "<<Type key>>", r.ImGui_InputTextFlags_ReadOnly())
-      r.ImGui_PopStyleColor(ctx, 1)
-      r.ImGui_Checkbox(ctx, "Automatically close on key input", true)
-      local hasPressed, alreadyTaken = self:recordShortcut(self.recordActionShortcut)
-      if hasPressed then
-        self.isRecordPopupOpen = false
-        r.ImGui_CloseCurrentPopup(ctx)
+      if not ActionTaken then
+        r.ImGui_PushStyleColor(ctx, r.ImGui_Col_FrameBg(), 0xFFFF)
+        r.ImGui_InputText(ctx, "shortcut", "<<Type key>>", r.ImGui_InputTextFlags_ReadOnly())
+        r.ImGui_PopStyleColor(ctx, 1)
+        r.ImGui_Checkbox(ctx, "Automatically close on key input", true)
+        ---I hate leaving globals behind, but this is a case where it's needed.
+        HasPressed, ActionTaken = self:recordShortcut(self.recordActionShortcut)
+        if HasPressed and not ActionTaken then
+          self.isRecordPopupOpen = false
+          r.ImGui_CloseCurrentPopup(ctx)
+        end
+      else
+        r.ImGui_Text(ctx, "Shortcut already taken by action: ")
+        r.ImGui_Text(ctx, ActionTaken or "")
+
+        r.ImGui_Text(ctx, "Do you want to replace the shortcut ?")
+        if r.ImGui_Button(ctx, "Yes") then
+          self.actions[self.recordActionShortcut] = self.actions[ActionTaken]
+          self.actions[ActionTaken]               = { [""] = true }
+          self.recordActionShortcut               = nil
+          self.isRecordPopupOpen                  = false
+          ActionTaken                             = nil
+          HasPressed                              = false
+          r.ImGui_CloseCurrentPopup(ctx)
+        end
       end
+
       r.ImGui_EndPopup(ctx)
     end
   end
@@ -336,7 +389,7 @@ local function ShortcutManager(ctx, actions_list, config_path)
     local center = { r.ImGui_Viewport_GetCenter(r.ImGui_GetWindowViewport(ctx)) } ---window styling
     r.ImGui_SetNextWindowPos(ctx, center[1], center[2], r.ImGui_Cond_Appearing(), 0.5, 0.5)
     r.ImGui_SetNextWindowSize(ctx, 400, 300)
-    if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost() |  r.ImGui_WindowFlags_NoResize()) then ---begin popup
+    if r.ImGui_BeginPopupModal(ctx, "Shortcut List", true, r.ImGui_WindowFlags_TopMost()) then  ---begin popup
       ---TABLE
       ---iterate every shortcut in the actions table
       ---display the action name
