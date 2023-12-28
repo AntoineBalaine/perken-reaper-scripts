@@ -1,12 +1,5 @@
 local Table = require("public.table")
 local kawa = {}
---[[
-* ReaScript Name: kawa_MIDI_SelectBottomNotes.
-* Version: 2017/02/03
-* Author: kawa_
-* Author URI: http://forum.cockos.com/member.php?u=105939
-* link: https://bitbucket.org/kawaCat/reascript-m2bpack/
---]]
 
 ---@alias KawaNote {selection: boolean, mute: boolean, startQn: number, endQn: number, chan: number, pitch: number, vel: number, take: MediaItem_Take, idx: number, length: number}
 
