@@ -111,15 +111,17 @@ Check out the [documentation](https://gwatcha.github.io/reaper-keys) to learn mo
 ## Perken addenda 
 ### Notes on this modded version
 Since using reavim might be difficult without a full cheat-sheet of what it can do, consider taking a look at [the extended defaults section](https://github.com/AntoineBalaine/perken-reaper-scripts/tree/main/reavim/definitions/extended_defaults) of the code. Should be fairly readable, even for beginners: 
+
+
 ``` bash
 # $REAPERPATH/Scripts/perken/reavim/definitions/extended_defaults
 .
 ├── actions.lua
-|       # contains all the actions that reavim can use.
+│       # contains all the actions that reavim can use.
 ├── global.lua
-|       # contains keybindings that apply to all scopes (both arrange view, and midi editor).
+│       # contains keybindings that apply to all scopes (both arrange view, and midi editor).
 ├── main.lua
-|       # contains keybindings that apply only to the arrange view
+│       # contains keybindings that apply only to the arrange view
 └── midi.lua
         # contains keybindings that apply only to the midi editor
 ```
