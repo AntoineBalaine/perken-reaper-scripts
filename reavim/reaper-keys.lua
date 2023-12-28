@@ -4,9 +4,9 @@
   0.0.1
 @author Perken
 @provides
-    ../**/*.lua
-    ../reaper-keys-unix.ReaperKeyMap
-    ../reaper-keys-windows.ReaperKeyMap
+    ./**/*.lua
+    ./reaper-keys-unix.ReaperKeyMap
+    ./reaper-keys-windows.ReaperKeyMap
 @about
     # reavim
     HOW TO USE:
