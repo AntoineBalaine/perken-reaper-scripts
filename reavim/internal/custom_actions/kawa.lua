@@ -1,3 +1,4 @@
+--@noindex
 local Table = require("public.table")
 local kawa = {}
 

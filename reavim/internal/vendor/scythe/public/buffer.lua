@@ -1,3 +1,4 @@
+--@noindex
 --- @module Buffer
 -- Manages the graphics buffers available to a script
 

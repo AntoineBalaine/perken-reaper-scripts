@@ -1,3 +1,4 @@
+--@noindex
 local Config = {}
 
 Config.doubleclickTime = 0.30

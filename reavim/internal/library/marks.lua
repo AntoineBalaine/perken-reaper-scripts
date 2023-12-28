@@ -1,3 +1,4 @@
+--@noindex
 local project_state = require("utils.project_state")
 local state_interface = require("state_machine.state_interface")
 local reaper_utils = require("custom_actions.utils")

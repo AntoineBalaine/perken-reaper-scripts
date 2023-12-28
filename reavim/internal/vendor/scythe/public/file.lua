@@ -1,3 +1,4 @@
+--@noindex
 --- @module File
 
 local T = require("public.table").T

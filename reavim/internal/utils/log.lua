@@ -1,3 +1,4 @@
+--@noindex
 --
 -- log.lua
 --

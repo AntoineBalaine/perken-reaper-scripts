@@ -1,3 +1,4 @@
+--@noindex
 local log = require("utils.log")
 local serpent = require("serpent")
 

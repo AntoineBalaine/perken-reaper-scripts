@@ -1,3 +1,4 @@
+--@noindex
 local action_sequences = require("command.action_sequences")
 local utils = require("command.utils")
 local definitions = require("utils.definitions")

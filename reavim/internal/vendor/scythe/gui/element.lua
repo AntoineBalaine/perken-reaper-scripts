@@ -1,3 +1,4 @@
+--@noindex
 --- @module Element
 -- A base class for all GUI elements. This module is typically only used by other
 -- elements, and will rarely be needed for scripts that aren't implementing their

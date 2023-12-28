@@ -1,3 +1,4 @@
+--@noindex
 ---@alias tbparsed "min" | "maj" | "-" | "dim" | "aug" | "sus2" | "sus4" | "7" | "maj7" | "min7" | "dim7" | "aug7" | "minmaj7" | "6" | "min6" | "9" | "maj9" | "min9" | "11" | "maj11" | "min11" | "13" | "maj13" | "min13" | "add9" | "minadd9" | "6add9" | "min6add9" | "7sus2" | "7sus4" | "7dim5" | "7dim9" | "7aug5" | "7aug9" | "7dim5dim9" | "7dim5aug9" | "7aug5dim9" | "7aug5aug9" | "7dim5dim9dim11" | "7dim5dim9aug11" | "7dim5aug9dim11" | "7dim5aug9aug11" | "7aug5dim9dim11" | "7aug5dim9aug11" | "7aug5aug9dim11" | "7aug5aug9aug11" | "7dim5dim9dim13" | "7dim5dim9aug13" | "7dim5aug9dim13" | "7dim5aug9aug13" | "7aug5dim9dim13" | "7aug5dim9aug13" | "7aug5aug9dim13" | "7aug5aug9aug13"
 
 ---@alias note_name "C" | "Db" | "C#" | "D" | "Eb" | "D#" | "E" | "F" | "Gb" | "F#" | "G"|"G#"|"Ab"|"A"|"A#"|"Bb"|"B"

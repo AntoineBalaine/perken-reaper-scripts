@@ -1,3 +1,4 @@
+--@noindex
 local os_default_fonts = {
 	windows = "Lucida Console",
 	osx = "Andale Mono",

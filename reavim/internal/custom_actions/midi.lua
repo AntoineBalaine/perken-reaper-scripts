@@ -1,3 +1,4 @@
+--@noindex
 local midi = {}
 
 ---@return number notes

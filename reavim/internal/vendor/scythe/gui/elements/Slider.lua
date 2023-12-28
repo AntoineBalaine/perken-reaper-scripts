@@ -1,3 +1,4 @@
+--@noindex
 --- @module Slider
 -- A slider with one or more handles
 -- @commonParams

@@ -1,3 +1,4 @@
+--@noindex
 -- behaviour configuration options, see
 -- https://gwatcha.github.io/reaper-keys/configuration/behaviour.html
 

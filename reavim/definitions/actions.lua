@@ -1,3 +1,4 @@
+--@noindex
 -- if you need to define a new action for use in reaper keys, do so here
 -- if you need help check out the documentation https://gwatcha.github.io/reaper-keys/configuration/actions.html
 -- see ./defaults/actions.lua for examples, as well as actions you can call

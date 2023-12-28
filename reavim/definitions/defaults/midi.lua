@@ -1,3 +1,4 @@
+--@noindex
 ---@type Definition
 return {
 	timeline_selector = {

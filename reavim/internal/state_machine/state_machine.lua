@@ -1,3 +1,4 @@
+--@noindex
 local state_machine = {}
 
 local state_interface = require("state_machine.state_interface")

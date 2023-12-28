@@ -1,3 +1,4 @@
+--@noindex
 local action_sequences = {}
 
 ---@type {global: ActionModes, main: ActionModes, midi: ActionModes}

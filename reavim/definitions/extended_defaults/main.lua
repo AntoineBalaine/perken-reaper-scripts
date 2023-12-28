@@ -1,3 +1,4 @@
+--@noindex
 return {
 	track_motion = {
 		["G"] = "LastTrack",

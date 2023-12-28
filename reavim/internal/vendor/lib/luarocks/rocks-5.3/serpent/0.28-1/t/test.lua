@@ -1,3 +1,4 @@
+--@noindex
 local serpent = require("serpent")
 local serialize = serpent.dump
 

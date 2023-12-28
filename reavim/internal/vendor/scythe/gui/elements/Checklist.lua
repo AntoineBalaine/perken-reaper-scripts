@@ -1,3 +1,4 @@
+--@noindex
 --- @module Checklist
 -- One or more options that can be individually toggled
 -- @commonParams

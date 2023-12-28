@@ -1,3 +1,4 @@
+--@noindex
 --- @module Frame
 -- A simple frame, often used for visually grouping or separating other elements.
 -- Can also be given text, which will be wrapped to fit.

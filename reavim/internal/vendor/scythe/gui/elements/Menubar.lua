@@ -1,3 +1,4 @@
+--@noindex
 --- @module Menubar
 -- Provides a standard menubar. The `menus` property uses the form:
 -- ```lua

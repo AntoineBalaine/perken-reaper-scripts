@@ -1,3 +1,4 @@
+--@noindex
 local state_interface = require("state_machine.state_interface")
 local config = require("definitions.config")
 

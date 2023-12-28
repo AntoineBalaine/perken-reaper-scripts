@@ -1,3 +1,4 @@
+--@noindex
 local runner = require('command.runner')
 local log = require('utils.log')
 local state_interface = require('state_machine.state_interface')

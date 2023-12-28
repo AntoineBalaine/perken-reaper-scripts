@@ -1,3 +1,4 @@
+--@noindex
 local reaper_state = require('utils.reaper_state')
 local log = require('utils.log')
 local constants = require('state_machine.constants')

@@ -1,3 +1,4 @@
+--@noindex
 local utils = require("custom_actions.utils")
 local envelope = require("custom_actions.envelope")
 local dev = {}

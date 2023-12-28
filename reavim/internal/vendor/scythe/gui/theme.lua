@@ -1,3 +1,4 @@
+--@noindex
 local Theme = {}
 
 Theme.colors = {

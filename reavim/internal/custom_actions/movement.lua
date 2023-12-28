@@ -1,3 +1,4 @@
+--@noindex
 local utils = require("custom_actions.utils")
 local reaper_state = require("../utils/reaper_state")
 

@@ -1,3 +1,4 @@
+--@noindex
 local config = require("definitions.gui_config")
 local log = require("utils.log")
 local Color = require("public.color")

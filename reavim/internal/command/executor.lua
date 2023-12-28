@@ -1,3 +1,4 @@
+--@noindex
 local log = require("utils.log")
 local format = require("utils.format")
 local action_sequences = require("command.action_sequences")

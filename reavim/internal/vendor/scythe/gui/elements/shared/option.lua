@@ -1,3 +1,4 @@
+--@noindex
 local Buffer = require("public.buffer")
 local Font = require("public.font")
 local Color = require("public.color")
