@@ -110,7 +110,7 @@ Check out the [documentation](https://gwatcha.github.io/reaper-keys) to learn mo
 
 ## Perken addenda 
 ### Notes on this modded version
-Since using reavim might be difficult without a full cheat-sheet of what it can do, consider taking a look at [the extended defaults section](https://github.com/AntoineBalaine/perken-reaper-scripts/tree/main/reavim/definitions/extended_defaults) of the code. Should be fairly readable for, even for beginners: 
+Since using reavim might be difficult without a full cheat-sheet of what it can do, consider taking a look at [the extended defaults section](https://github.com/AntoineBalaine/perken-reaper-scripts/tree/main/reavim/definitions/extended_defaults) of the code. Should be fairly readable, even for beginners: 
 ``` bash
 # $REAPERPATH/Scripts/perken/reavim/definitions/extended_defaults
 .
