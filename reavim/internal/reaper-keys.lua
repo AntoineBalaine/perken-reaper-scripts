@@ -1,20 +1,20 @@
 --[[
-    @description ReaVim: Vim mode for reaper
-    @version 
-      0.0.1
-    @author Perken
-    @provides
+@description ReaVim: Vim mode for reaper
+@version
+  0.0.1
+@author Perken
+@provides
     ../**/*.lua
     ../reaper-keys-unix.ReaperKeyMap
     ../reaper-keys-windows.ReaperKeyMap
-    @about
+@about
     # reavim
     HOW TO USE:
     Since this project is a fork of https://github.com/gwatcha/reaper-keys, please refer to the original documentation for installation and usage.
-    @links
+@links
     Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
     Gwatcha's original reaper-keys repo https://github.com/gwatcha/reaper-keys
-    @changelog
+@changelog
     0.0.1 Setup the script
 ]]
 local info = debug.getinfo(1, "S")
