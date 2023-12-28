@@ -1,3 +1,4 @@
+# @noindex
 SCR 516 32060 reaper_keys_midi_<left> "[reaper-keys] [key_press] [<left>]" ./perken/reavim/key_scripts/midi_left.lua
 SCR 4 32060 reaper_keys_midi_<C-left> "[reaper-keys] [key_press] [<C-left>]" ./perken/reavim/key_scripts/midi_(C-left).lua
 SCR 4 32060 reaper_keys_midi_<M-left> "[reaper-keys] [key_press] [<M-left>]" ./perken/reavim/key_scripts/midi_(M-left).lua

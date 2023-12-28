@@ -5,8 +5,8 @@
 @author Perken
 @provides
     ./**/*.lua
-    ./reaper-keys-unix.ReaperKeyMap
-    ./reaper-keys-windows.ReaperKeyMap
+    ./reavim-unix.ReaperKeyMap
+    ./reavim-windows.ReaperKeyMap
 @about
     # reavim
     HOW TO USE:
