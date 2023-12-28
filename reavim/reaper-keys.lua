@@ -19,7 +19,9 @@
 ]]
 local info = debug.getinfo(1, "S")
 
-local internal_root_path = info.source:match(".*reavim[^\\/]*[\\/]internal[\\/]"):sub(2)
+local Os_separator = package.config:sub(1, 1)
+local source = table.concat({ info.source:match(".*reavim"), Os_separator, "internal", Os_separator, })
+local internal_root_path = source:sub(2)
 package.path = package.path .. ";" .. internal_root_path .. "?.lua"
 
 local windows_files = internal_root_path:match("\\$")
