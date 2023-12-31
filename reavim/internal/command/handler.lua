@@ -24,6 +24,7 @@ end
 
 ---@param state State
 ---@parameter command Command
+---@return State new_state, string command_description
 local function handleCommand(state, command)
 	reaper.Undo_BeginBlock()
 	local new_state = state

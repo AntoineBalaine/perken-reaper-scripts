@@ -48,6 +48,7 @@ function errorHandler(err)
     log.error(debug.traceback())
 end
 
+---@param key_press KeyPress
 function doInput(key_press)
     xpcall(input, errorHandler, key_press)
 end
