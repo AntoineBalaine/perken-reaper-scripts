@@ -1,61 +1,66 @@
-# LIP - Lua INI Parser
-*Lua INI Parser* is a tiny Lua library allowing to handle *.ini* files.
+# INI-parse
+A small parser based on [Lua_INI_Parser](https://github.com/Dynodzzo/Lua_INI_Parser) using [ini.lua](https://github.com/lzubiaur/ini.lua)'s test suite
+
+### Why another ini parser? 
+My first reference - [Lua_INI_Parser](https://github.com/Dynodzzo/Lua_INI_Parser) - doesn't really support comments, and [ini.lua](https://github.com/lzubiaur/ini.lua) depends on [LPEG](https://www.inf.puc-rio.br/~roberto/lpeg/). I wanted a middle ground: no runtime dependencies, and inline comments. Plus, writing a small parser's fun.
 
 # Usage
-Add [LIP.lua](https://github.com/Dynodzzo/Lua_INI_Parser/blob/master/LIP.lua) file into your project folder.<br />
-Call it using __require__ function.<br />
+Add `LIP.lua` file into your project folder.
+Call it using __require__ function.
 It will return a table containing read & write functions.
 
-# Full overview
-* __LIP.load(fileName)__ : Returns a table containing all the values from the file.
-* __LIP.save(fileName, data)__ : Saves the data into the specified file.
+```lua
+local LIP = require("LIP")
+LIP.load(fileName) -- Return a table containing key/value pairs from the file
+LIP.save(fileName, data) -- writes data object into the file.
+```
 
-# Examples
-Here's how to save some data :
+## Examples
+### Writing an *ini* file:
 
 ```lua
 local LIP = require 'LIP';
 
 local data =
 {
-	sound =
+	first_header =
 	{
-		left = 70,
-		right = 80,
+		something1 = 1,
+		something2 = 2,
 	},
-	screen =
+	second_header =
 	{
-		width = 960,
-		height = 544,
-		caption = 'Window\'s caption',
-		focused = true,
+		something3 = 3,
+		a_string = "here's a string",
+		a_boolean = true,
 	},
 };
 
 -- Data saving
 LIP.save('savedata.ini', data);
-````
-And the *.ini* file created :
+```
+results in the following *.ini* file:
 ```ini
-[sound]
-left=70
-right=80
+[first_hedaer]
+something1=1
+something2=2
 
 [screen]
-width=960
-height=544
-caption=Window's caption
-focused=true
-````
+something3=3,
+a_string="here's a string",
+a_boolean=true,
+```
 
-Now let's get all this data :
+### Reading an *ini* file:
 
 ```lua
 local LIP = require 'LIP';
 
 -- Data loading
 local data = LIP.load('savedata.ini');
+assert.same({
 
+})
 print(data.sound.right); --> 80
 print(data.screen.caption); --> Window's caption
 print(data.screen.focused); --> true
@@ -76,7 +81,7 @@ local data =
 		true,
 	},
 };
-````
+```
 
 And we have to retrieve data using these indexes :
 
@@ -85,28 +90,72 @@ print(data[1][1]); --> 50
 print(data[1].right) --> 40
 print(data[2][1]); --> Some text
 print(data[2][3]); --> true
-````
+```
+# Things to know 
 
-# Licence
-This project is under [MIT Licence][]<br />
-Copyright © Carreras Nicolas
+Comments starts with the semicolon (;) or number character (#). Comment-characters can be changed using the ini.config function (see configuration below). Blank lines and comment lines are ignored in the conversion.
 
-	Permission is hereby granted, free of charge, to any person obtaining a copy
-	of this software and associated documentation files (the "Software"), to deal
-	in the Software without restriction, including without limitation the rights
-	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-	copies of the Software, and to permit persons to whom the Software is
-	furnished to do so, subject to the following conditions:
+```ini
+; comment
+mykey = myvalue # inline comments are ok.
+```
+# Config
+The parser accepts a config object when instantiated. The config follows this shape:
+```lua 
+---default config object for the INI parser
+---@class CONFIG
+---@field separator string String to define the separator character. Default is the equal character (=).
+---@field comment string String to specify the comment characters. Default is semicolon (;) and number sign (#).
+---@field trim boolean By default, leading and trailing white spaces are trimmed. This can be overridden by setting false to this parameter.
+---@field lowercase_keys boolean By default, the keys are not case sensitive. This can be changed by forcing the keys to be lowercase_keys by setting this parameter to true.
+---@field escape false By default. C-like escape sequences are interpreted. If set to false, then escape sequences are left unchanged.
+{
+    separator = '=',
+    comment = ';#',
+    trim = true,
+    lowercase_keys = false,
+    escape = false
+}
+```
 
-	The above copyright notice and this permission notice shall be included in all
-	copies or substantial portions of the Software.
+# Known issues
+1. This parser does __not__ support line breaks in strings:
+```ini
+mykey = "myvalue\n"
+```
+2. Duplicate sections __do__ overwrite each other. __But__, if an INI file has duplicate sections, their key/value pairs are cumulated. 
+```ini
+[window]
+fullscreen = true
+size = 200
 
-	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-	SOFTWARE.
+[window]
+version = 1.0
+fullscreen = false
+version = 2.0
+```
+will result in 
+```lua
+{
+    window = {
+        fullscreen = 'false',
+        version = '2.0',
+        size = '200'
+    }
+}
+```
+2. Single quotes are __not__ accepted as string delimiters.
+```ini
+mykey = 'myvalue'
+```
+ will yield
+ ```lua
+{mykey = "'myvalue'"}
+ ```
 
-[MIT Licence]: http://opensource.org/licenses/MIT
+# Testing
+You may optionally install busted to run the test suite.
+```bash
+sudo luarocks install busted
+busted
+```
