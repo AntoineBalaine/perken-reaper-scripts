@@ -23,9 +23,19 @@ S.curWord = ""
 S.separator_already_found = false
 
 
----@param config CONFIG
+---@param config? CONFIG
 function S:new(config)
-    self.config = config
+    if config then
+        self.config = config
+    else
+        self.config = {
+            separator = '=',
+            comment = ';#',
+            trim = true,
+            lowercase = false,
+            escape = false
+        }
+    end
     self.lines = {}
     self.curLineIdx = 0
     self.curLine = ""
@@ -43,6 +53,16 @@ function S:resetScan(line)
     self.curChar = 0
     self.curWord = ""
     self.separator_already_found = false
+end
+
+---@param source string
+function S:scan(source)
+    --split source into list of lines
+    local lines = {}
+    for line in source:gmatch('[^\r\n]+') do
+        table.insert(lines, line)
+    end
+    return self:scanLines(lines)
 end
 
 ---@param lines string[]
@@ -124,7 +144,7 @@ function S:scanLine()
             self.curWord = ""
             goto continue
         elseif self:isComment() then
-            while not self:isAtEnd() or not self:isLineBrk() do
+            while not self:isAtEnd() do
                 self:advance()
             end
             self.curWord = ""
@@ -134,8 +154,13 @@ function S:scanLine()
             self:newToken(self.section, TokenType.section)
             goto continue
         else
-            if self:isSeparator() and not self.separator_already_found then
-                self:newToken(self.curWord, TokenType.key)
+            if self:isSeparator() then
+                if not self.separator_already_found then
+                    self.separator_already_found = true
+                    self:newToken(self.curWord, TokenType.key)
+                else
+                    self.curWord = self.curWord .. self:peek()
+                end
             elseif self:isLineBrk() then
                 self:newToken(self.curWord, TokenType.value)
                 break;
@@ -145,6 +170,9 @@ function S:scanLine()
         end
 
         ::continue::
+    end
+    if self:isAtEnd() and self.curWord ~= "" then
+        self:newToken(self.curWord, TokenType.value)
     end
     return self.scans
 end
@@ -157,8 +185,9 @@ function S:sectionName()
         if self:isCloseBrkt() then
             self:advance()
             return string.sub(self.curLine, start, self.curChar - 1)
+        else
+            self:advance()
         end
-        self:advance()
     end
 
     self.curWord = ""
@@ -175,7 +204,7 @@ function S:isSpace()
 end
 
 function S:isAtEnd()
-    return self.curChar >= #self.curLine
+    return self.curChar > #self.curLine
 end
 
 function S:peek()
