@@ -26,7 +26,9 @@ S.separator_already_found = false
 ---@param config? CONFIG
 function S:new(config)
     if config then
-        self.config = config
+        for k, v in pairs(config) do
+            self.config[k] = v
+        end
     else
         self.config = {
             separator = '=',
@@ -178,13 +180,14 @@ function S:scanLine()
 end
 
 function S:sectionName()
+    self:advance() ---skip the open bracket
     local start = self.curChar
-    self:advance()
 
     while not self:isAtEnd() do
         if self:isCloseBrkt() then
+            local str = string.sub(self.curLine, start, self.curChar - 1)
             self:advance()
-            return string.sub(self.curLine, start, self.curChar - 1)
+            return str
         else
             self:advance()
         end
