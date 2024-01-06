@@ -48,7 +48,7 @@ name2 =value test
     it('#comment test', function()
         assert.same({}, LIP:parse('; comment'))
         assert.same({}, LIP:parse(' ; comment'))
-        assert.same({ name = 'value ; comment' }, LIP:parse('name = value ; comment'))
+        assert.same({ name = 'value' }, LIP:parse('name = value ; comment'))
         assert.same({}, LIP:parse('# comment'))
         assert.same({}, LIP:parse [[
 ; comment
