@@ -47,4 +47,8 @@ describe('Test the scanner', function()
 name = 'value with quote
 ]])[2].lexeme)
     end)
+
+    it('#ignore invalid section names', function()
+        assert.same({}, scanner:new():scan('[test_section'))
+    end)
 end)

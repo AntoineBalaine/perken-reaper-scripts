@@ -89,7 +89,7 @@ name = 'value with quote
         })
         assert.same({ name = 'value' }, LIP:parse('name : value'))
         assert.same({ name = ': value' }, LIP:parse('name :: value'))
-        assert.is_nil(LIP:parse('name = value')) -- Must fail
+        assert.equal(0, #LIP:parse('name = value')) -- Invalid key value-pairs are to be discarded
         assert.same({}, LIP:parse('! this is a comment test'))
         assert.same({}, LIP:parse('% this is a comment test'))
     end)
@@ -103,14 +103,14 @@ name = 'value with quote
         assert.same({ section_test = {} }, LIP:parse('[ section_test ] # comment')) -- For some reason this works ?!
         -- assert.same({ section_test = {} }, ini.parse('[ section_test ] name = value\nname2 = value')) -- this works too
         -- Fail tests
-        assert.is_nil(LIP:parse('[[ section_test ]'))
-        assert.is_nil(LIP:parse('[ section_test ]]'))
-        assert.is_nil(LIP:parse('[[ section_test ]]'))
-        assert.is_nil(LIP:parse('[test_section'))
-        assert.is_nil(LIP:parse('test_section]'))
-        assert.is_nil(LIP:parse('[ section test ]'))
-        assert.is_nil(LIP:parse('[ section test ] trash'))
-        assert.is_nil(LIP:parse('[1my_section_test]')) -- fail because starts with a digit
+        assert.same({ ["[ section_test"] = {} }, LIP:parse('[[ section_test ]'))    -- allow brackets in section name
+        assert.same({ ["section_test"] = {} }, LIP:parse('[ section_test ]]'))
+        assert.same({ ["[ section_test"] = {} }, LIP:parse('[[ section_test ]]'))   -- ignore any chars after the first bracket in a section name
+        assert.same({}, LIP:parse('[test_section'))
+        assert.same({}, LIP:parse('test_section]'))                                 -- ignore invalid lines that dont have a k/v pair
+        assert.same({ ["section test"] = {} }, LIP:parse('[ section test ]'))
+        assert.same({ ["section test"] = {} }, LIP:parse('[ section test ] trash')) -- don't fail if invalid strings are found in a section's name's line
+        assert.same({}, LIP:parse('[1my_section_test]'))                            -- disallow section names that start with a digit
     end)
 
     it('Multi-lines no section', function()
@@ -193,10 +193,13 @@ version = 1.0.0
     end)
 
     it('test #duplicate', function()
+        -- if an INI file has duplicate sections, cumulate all their key/value pairs
+        -- of some are overwritten, keep the last one
         assert.same({
             window = {
                 fullscreen = 'false',
-                version = '2.0'
+                version = '2.0',
+                size = '200'
             }
         }, LIP:parse [[
 [window]

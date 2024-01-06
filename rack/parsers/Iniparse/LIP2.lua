@@ -91,6 +91,10 @@ function LIP2:parse_lines(lines)
             if LIP2.config.lowercase_keys then --- lowercase_keys should apply to section names as well
                 section = section:lower()
             end
+            if section:match("^%d") then --- section names should not start with a digit
+                section = nil
+                goto continue
+            end
             data[section] = data[section] or {}
         elseif token.type == 2 then
             if not scan[i + 1] or scan[i + 1].type ~= 3 then

@@ -199,7 +199,11 @@ function S:scanLine()
             goto continue
         elseif self:isOpenBrkt() then
             self.section = self:sectionName()
-            self:newToken(self.section, TokenType.section)
+            ---if the section didn't have a closing bracket,
+            -- the section name will be nil - don't create a token for it.
+            if self.section then
+                self:newToken(self.section, TokenType.section)
+            end
             goto continue
         else
             if self:isSeparator() then
