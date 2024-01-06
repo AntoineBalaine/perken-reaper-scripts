@@ -5,21 +5,21 @@ A small parser based on [Lua_INI_Parser](https://github.com/Dynodzzo/Lua_INI_Par
 My first reference - [Lua_INI_Parser](https://github.com/Dynodzzo/Lua_INI_Parser) - doesn't really support comments, and [ini.lua](https://github.com/lzubiaur/ini.lua) depends on [LPEG](https://www.inf.puc-rio.br/~roberto/lpeg/). I wanted a middle ground: no runtime dependencies, and inline comments. Plus, writing a small parser's fun.
 
 # Usage
-Add `LIP.lua` file into your project folder.
+Add `IniParse.lua` file into your project folder.
 Call it using __require__ function.
 It will return a table containing read & write functions.
 
 ```lua
-local LIP = require("LIP")
-LIP.load(fileName) -- Return a table containing key/value pairs from the file
-LIP.save(fileName, data) -- writes data object into the file.
+local IniParse = require("IniParse")
+IniParse.load(fileName) -- Return a table containing key/value pairs from the file
+IniParse.save(fileName, data) -- writes data object into the file.
 ```
 
 ## Examples
 ### Writing an *ini* file:
 
 ```lua
-local LIP = require 'LIP';
+local IniParse = require 'IniParse';
 
 local data =
 {
@@ -37,7 +37,7 @@ local data =
 };
 
 -- Data saving
-LIP.save('savedata.ini', data);
+IniParse.save('savedata.ini', data);
 ```
 results in the following *.ini* file:
 ```ini
@@ -54,10 +54,10 @@ a_boolean=true,
 ### Reading an *ini* file:
 
 ```lua
-local LIP = require 'LIP';
+local IniParse = require 'IniParse';
 
 -- Data loading
-local data = LIP.load('savedata.ini');
+local data = IniParse.load('savedata.ini');
 assert.same({
 
 })
