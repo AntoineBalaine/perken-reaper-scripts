@@ -3,7 +3,7 @@ if os.getenv("LOCAL_LUA_DEBUGGER_VSCODE") == "1" then
 end
 
 describe('Test the scanner', function()
-    local scanner = require('Scanner')
+    local scanner = require('IniScan')
 
     before_each(function()
         -- Default settings

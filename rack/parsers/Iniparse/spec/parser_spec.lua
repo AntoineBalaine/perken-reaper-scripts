@@ -2,122 +2,122 @@ if os.getenv("LOCAL_LUA_DEBUGGER_VSCODE") == "1" then
     require("lldebugger").start()
 end
 describe('Test the parser', function()
-    local LIP = require 'LIP2'
+    local IniParse = require 'IniParse'
 
     before_each(function()
         -- Default settings
-        LIP:new()
+        IniParse:new()
     end)
 
     it('#basic test', function()
-        assert.same({ name = 'value' }, LIP:parse('name = value'))
-        assert.same({ name = '= value' }, LIP:parse('name == value'))
-        assert.same({ name = ': value' }, LIP:parse('name =: value'))
-        assert.same({ section_test = {} }, LIP:parse('[section_test]'))
-        assert.same({}, LIP:parse('; this is a comment test'))
+        assert.same({ name = 'value' }, IniParse:parse('name = value'))
+        assert.same({ name = '= value' }, IniParse:parse('name == value'))
+        assert.same({ name = ': value' }, IniParse:parse('name =: value'))
+        assert.same({ section_test = {} }, IniParse:parse('[section_test]'))
+        assert.same({}, IniParse:parse('; this is a comment test'))
     end)
 
     it('#trim whitespaces test', function()
-        assert.same({ name = 'value' }, LIP:parse('name = value '))
-        local z = LIP:parse(' name = value ')
+        assert.same({ name = 'value' }, IniParse:parse('name = value '))
+        local z = IniParse:parse(' name = value ')
         assert.same({ name = 'value' }, z)
-        local x = LIP:parse('name =   value  ')
+        local x = IniParse:parse('name =   value  ')
         assert.same({ name = 'value' }, x)
-        local p = LIP:parse('name = value test ')
+        local p = IniParse:parse('name = value test ')
         assert.same({ name = 'value test' }, p)
-        assert.same({ name = 'value test', name2 = 'value test' }, LIP:parse([[
+        assert.same({ name = 'value test', name2 = 'value test' }, IniParse:parse([[
 name = value test
 name2 = value test
 ]]))
     end)
 
     it('#notrim test', function()
-        LIP:new({
+        IniParse:new({
             trim = false
         })
-        assert.same({ name = ' value ' }, LIP:parse('name = value '))
-        assert.same({ name = '  value  ' }, LIP:parse('name =  value  '))
-        assert.same({ name = ' value test ' }, LIP:parse('name = value test '))
-        assert.same({ name = 'value test' }, LIP:parse('name =value test'))
-        assert.same({ name = ' value test', name2 = 'value test' }, LIP:parse([[
+        assert.same({ name = ' value ' }, IniParse:parse('name = value '))
+        assert.same({ name = '  value  ' }, IniParse:parse('name =  value  '))
+        assert.same({ name = ' value test ' }, IniParse:parse('name = value test '))
+        assert.same({ name = 'value test' }, IniParse:parse('name =value test'))
+        assert.same({ name = ' value test', name2 = 'value test' }, IniParse:parse([[
 name = value test
 name2 =value test
 ]]))
     end)
 
     it('#comment test', function()
-        assert.same({}, LIP:parse('; comment'))
-        assert.same({}, LIP:parse(' ; comment'))
-        assert.same({ name = 'value' }, LIP:parse('name = value ; comment'))
-        assert.same({}, LIP:parse('# comment'))
-        assert.same({}, LIP:parse [[
+        assert.same({}, IniParse:parse('; comment'))
+        assert.same({}, IniParse:parse(' ; comment'))
+        assert.same({ name = 'value' }, IniParse:parse('name = value ; comment'))
+        assert.same({}, IniParse:parse('# comment'))
+        assert.same({}, IniParse:parse [[
 ; comment
 # comment
 ]])
     end)
 
     it('#lowercase test', function()
-        LIP:new({
+        IniParse:new({
             lowercase_keys = true
         })
-        assert.same({ name = 'value' }, LIP:parse('NAME = value'))
-        assert.same({ _name = 'value' }, LIP:parse('_Name = value'))
+        assert.same({ name = 'value' }, IniParse:parse('NAME = value'))
+        assert.same({ _name = 'value' }, IniParse:parse('_Name = value'))
         assert.same({
             window = {
                 size = '200,200'
             }
-        }, LIP:parse [[
+        }, IniParse:parse [[
 [ WINDOW ]
 Size = 200,200
 ]])
     end)
 
     it('#string test', function()
-        assert.same({ name = '  value ' }, LIP:parse('name = "  value "'))  -- add explicit whitespaces to string
-        assert.same({ name = 'value' }, LIP:parse('name =" ""value"'))      -- Ignore empty strings
-        assert.same({ name = 'value' }, LIP:parse('name = "value" '))       -- Whitespace before and after double quotes are trimmed
-        assert.same({ name = ' \'value' }, LIP:parse('name = " \'value" ')) -- test quote
-        assert.same({ name = '\'value with quote' }, LIP:parse [[
+        assert.same({ name = '  value ' }, IniParse:parse('name = "  value "'))  -- add explicit whitespaces to string
+        assert.same({ name = 'value' }, IniParse:parse('name =" ""value"'))      -- Ignore empty strings
+        assert.same({ name = 'value' }, IniParse:parse('name = "value" '))       -- Whitespace before and after double quotes are trimmed
+        assert.same({ name = ' \'value' }, IniParse:parse('name = " \'value" ')) -- test quote
+        assert.same({ name = '\'value with quote' }, IniParse:parse [[
 name = 'value with quote
 ]])
     end)
 
     it('custom #settings', function()
-        LIP:new({
+        IniParse:new({
             separator = ':',
             comment = '%!'
         })
-        assert.same({ name = 'value' }, LIP:parse('name : value'))
-        assert.same({ name = ': value' }, LIP:parse('name :: value'))
-        assert.equal(0, #LIP:parse('name = value')) -- Invalid key value-pairs are to be discarded
-        assert.same({}, LIP:parse('! this is a comment test'))
-        assert.same({}, LIP:parse('% this is a comment test'))
+        assert.same({ name = 'value' }, IniParse:parse('name : value'))
+        assert.same({ name = ': value' }, IniParse:parse('name :: value'))
+        assert.equal(0, #IniParse:parse('name = value')) -- Invalid key value-pairs are to be discarded
+        assert.same({}, IniParse:parse('! this is a comment test'))
+        assert.same({}, IniParse:parse('% this is a comment test'))
     end)
 
     it('#section label', function()
-        assert.same({ section_test = {} }, LIP:parse('[section_test]'))
-        assert.same({ section_test1 = {} }, LIP:parse('[section_test1]'))           -- test digit
-        assert.same({ s1ection_test = {} }, LIP:parse('[s1ection_test]'))           -- test digit
-        assert.same({ section_test = {} }, LIP:parse('[ section_test ]  '))         -- test space
+        assert.same({ section_test = {} }, IniParse:parse('[section_test]'))
+        assert.same({ section_test1 = {} }, IniParse:parse('[section_test1]'))           -- test digit
+        assert.same({ s1ection_test = {} }, IniParse:parse('[s1ection_test]'))           -- test digit
+        assert.same({ section_test = {} }, IniParse:parse('[ section_test ]  '))         -- test space
 
-        assert.same({ section_test = {} }, LIP:parse('[ section_test ] # comment')) -- For some reason this works ?!
+        assert.same({ section_test = {} }, IniParse:parse('[ section_test ] # comment')) -- For some reason this works ?!
         -- assert.same({ section_test = {} }, ini.parse('[ section_test ] name = value\nname2 = value')) -- this works too
         -- Fail tests
-        assert.same({ ["[ section_test"] = {} }, LIP:parse('[[ section_test ]'))    -- allow brackets in section name
-        assert.same({ ["section_test"] = {} }, LIP:parse('[ section_test ]]'))
-        assert.same({ ["[ section_test"] = {} }, LIP:parse('[[ section_test ]]'))   -- ignore any chars after the first bracket in a section name
-        assert.same({}, LIP:parse('[test_section'))
-        assert.same({}, LIP:parse('test_section]'))                                 -- ignore invalid lines that dont have a k/v pair
-        assert.same({ ["section test"] = {} }, LIP:parse('[ section test ]'))
-        assert.same({ ["section test"] = {} }, LIP:parse('[ section test ] trash')) -- don't fail if invalid strings are found in a section's name's line
-        assert.same({}, LIP:parse('[1my_section_test]'))                            -- disallow section names that start with a digit
+        assert.same({ ["[ section_test"] = {} }, IniParse:parse('[[ section_test ]'))    -- allow brackets in section name
+        assert.same({ ["section_test"] = {} }, IniParse:parse('[ section_test ]]'))
+        assert.same({ ["[ section_test"] = {} }, IniParse:parse('[[ section_test ]]'))   -- ignore any chars after the first bracket in a section name
+        assert.same({}, IniParse:parse('[test_section'))
+        assert.same({}, IniParse:parse('test_section]'))                                 -- ignore invalid lines that dont have a k/v pair
+        assert.same({ ["section test"] = {} }, IniParse:parse('[ section test ]'))
+        assert.same({ ["section test"] = {} }, IniParse:parse('[ section test ] trash')) -- don't fail if invalid strings are found in a section's name's line
+        assert.same({}, IniParse:parse('[1my_section_test]'))                            -- disallow section names that start with a digit
     end)
 
     it('Multi-lines no section', function()
         assert.same({
             project = 'My Game',
             version = '1.0.0'
-        }, LIP:parse [[
+        }, IniParse:parse [[
 ; Default
 project = My Game
 version = 1.0.0
@@ -132,7 +132,7 @@ version = 1.0.0
                 fullscreen = 'true',
                 size = '200,200'
             }
-        }, LIP:parse [[
+        }, IniParse:parse [[
 ; Default
 project = My Game
 version = 1.0.0
@@ -148,7 +148,7 @@ size = 200,200
                 fullscreen = 'true',
                 size = '200,200'
             }
-        }, LIP:parse [[
+        }, IniParse:parse [[
 [window]
 fullscreen = true
 size = 200,200
@@ -165,7 +165,7 @@ size = 200,200
                 name = 'My Game',
                 version = '1.0.0'
             }
-        }, LIP:parse [[
+        }, IniParse:parse [[
 [window]
 ; comment with space
 fullscreen = true
@@ -182,7 +182,7 @@ version = 1.0.0
                 fullscreen = 'true',
                 size = '200,200'
             }
-        }, LIP:parse [[
+        }, IniParse:parse [[
 
   [window]
 
@@ -201,7 +201,7 @@ version = 1.0.0
                 version = '2.0',
                 size = '200'
             }
-        }, LIP:parse [[
+        }, IniParse:parse [[
 [window]
 fullscreen = true
 size = 200
@@ -214,16 +214,16 @@ version = 2.0
     end)
 
     it('test #escape', function()
-        assert.same({ name = 'value' }, LIP:parse('name = value\n'))
-        assert.same({ name = 'value\n' }, LIP:parse('name = "value\n"'))
-        assert.same({ name = 'value\\n' }, LIP:parse('name = value\\n'))
-        assert.same({ name = '\t value \n \\n' }, LIP:parse [[
+        assert.same({ name = 'value' }, IniParse:parse('name = value\n'))
+        assert.same({ name = 'value\n' }, IniParse:parse('name = "value\n"'))
+        assert.same({ name = 'value\\n' }, IniParse:parse('name = value\\n'))
+        assert.same({ name = '\t value \n \\n' }, IniParse:parse [[
 name = "\t value \n \\n"
 ]])
-        LIP.config {
+        IniParse.config {
             escape = false
         }
-        assert.same({ name = '\\n \\\\t' }, LIP:parse [[
+        assert.same({ name = '\\n \\\\t' }, IniParse:parse [[
 name = "\n \\t"
 ]])
     end)
@@ -241,7 +241,7 @@ name = "\n \\t"
         version = '1.0.0',
         escaped_literal = '\n \\n'
       }
-    }, LIP:parse_file('spec/test_win32.ini'))
+    }, IniParse:parse_file('spec/test_win32.ini'))
     assert.same({
       foo = 'Hello',
       bar = 'World',
@@ -254,8 +254,8 @@ name = "\n \\t"
         version = '1.0.0',
         escaped_literal = '\n \\n'
       }
-    }, LIP:parse_file('spec/test_unix.ini'))
+    }, IniParse:parse_file('spec/test_unix.ini'))
     -- assert.same({},ini.parse_file('spec/invalid.ini'))
-    assert_has_error(function() LIP:parse_file('spec/does_not_exist.ini') end)
+    assert_has_error(function() IniParse:parse_file('spec/does_not_exist.ini') end)
   end) ]]
 end)

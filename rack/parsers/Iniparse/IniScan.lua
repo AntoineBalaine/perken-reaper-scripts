@@ -4,7 +4,7 @@
 --scanner:new()
 
 -- ```
-local S = {}
+local Scanner = {}
 
 ---@enum TokenType
 TokenType = {
@@ -19,16 +19,16 @@ TokenType = {
 ---@field lexeme string
 ---@field isString? boolean
 
-S.config = {}
-S.lines = {} ---@type string[]
-S.curLineIdx = 0
-S.curLine = ""
-S.curChar = 0
+Scanner.config = {}
+Scanner.lines = {} ---@type string[]
+Scanner.curLineIdx = 0
+Scanner.curLine = ""
+Scanner.curChar = 0
 ---@type Token[]
-S.scans = {}
-S.isInQuotes = false
-S.curWord = ""
-S.separator_already_found = false
+Scanner.scans = {}
+Scanner.isInQuotes = false
+Scanner.curWord = ""
+Scanner.separator_already_found = false
 
 
 ---use this method to initialize the scanner
@@ -51,7 +51,7 @@ S.separator_already_found = false
 --```
 ---@see CONFIG
 ---@param config? CONFIG
-function S:new(config)
+function Scanner:new(config)
     if config then
         for k, v in pairs(config) do
             self.config[k] = v
@@ -77,7 +77,7 @@ function S:new(config)
 end
 
 ---@param line string
-function S:resetScan(line)
+function Scanner:resetScan(line)
     self.curLine = line
     self.curChar = 0
     self.curWord = ""
@@ -87,7 +87,7 @@ end
 ---scan the source string and return a list of tokens
 ---@param source string
 ---@return TokenType[]
-function S:scan(source)
+function Scanner:scan(source)
     --split source into list of lines
     local lines = {}
     for line in source:gmatch('[^\r\n]+') do
@@ -98,7 +98,7 @@ end
 
 ---@param lines string[]
 ---@return TokenType[]
-function S:scanLines(lines)
+function Scanner:scanLines(lines)
     self.lines = lines
     for lineIdx, line in ipairs(self.lines) do
         self.curLineIdx = lineIdx
@@ -108,15 +108,15 @@ function S:scanLines(lines)
     return self.scans
 end
 
-function S:isQuote()
+function Scanner:isQuote()
     return self.curLine[self.curChar] == "\""
 end
 
-function S:isSeparator()
+function Scanner:isSeparator()
     return string.sub(self.curLine, self.curChar, self.curChar) == self.config.separator
 end
 
-function S:isComment()
+function Scanner:isComment()
     ---split self.config.comment into a table of chars
     ---and check if the current char is one of them
     ---@type {string: nil|boolean}
@@ -129,22 +129,22 @@ function S:isComment()
 end
 
 ---@param str string
-function S:trim_str(str)
+function Scanner:trim_str(str)
     return str:match('^%s*(.-)%s*$')
 end
 
-function S:isOpenBrkt()
+function Scanner:isOpenBrkt()
     return string.sub(self.curLine, self.curChar, self.curChar) == "["
 end
 
-function S:isCloseBrkt()
+function Scanner:isCloseBrkt()
     return string.sub(self.curLine, self.curChar, self.curChar) == "]"
 end
 
 ---if param is passed in, check if it's lineBreak
 ---else
 ---check if char at current posiiton is lineBreak
-function S:isLineBrk(char)
+function Scanner:isLineBrk(char)
     if char then
         return char == "\n"
     end
@@ -155,7 +155,7 @@ end
 ---else
 ---check if char at current posiiton is WS
 ---@param char? string
-function S:isWS(char)
+function Scanner:isWS(char)
     if char then
         return char == " " or char == "\t"
     end
@@ -166,7 +166,7 @@ end
 ---else
 ---check if char at current posiiton is WS
 ---@param char? string
-function S:isDoubleQuote(char)
+function Scanner:isDoubleQuote(char)
     if char then
         return char == " " or char == "\t"
     end
@@ -176,7 +176,7 @@ end
 ---scan all tokens in current line,
 ---and once the line is put together as a string[],
 ---push it to the list of tokens `self.scans`
-function S:scanLine()
+function Scanner:scanLine()
     while not self:isAtEnd() do
         self:advance()
 
@@ -229,7 +229,7 @@ function S:scanLine()
     return self.scans
 end
 
-function S:string()
+function Scanner:string()
     local start = self.curChar
     self:advance()
     while not self:isAtEnd() do
@@ -245,7 +245,7 @@ function S:string()
     return string.sub(self.curLine, start + 1, self.curChar - 1)
 end
 
-function S:sectionName()
+function Scanner:sectionName()
     self:advance() ---skip the open bracket
     local start = self.curChar
 
@@ -263,7 +263,7 @@ function S:sectionName()
     return nil
 end
 
-function S:comment()
+function Scanner:comment()
     self:advance() ---skip the comment char
     local start = self.curChar
     while not self:isAtEnd() do
@@ -272,31 +272,31 @@ function S:comment()
     return string.sub(self.curLine, start, self.curChar)
 end
 
-function S:advance()
+function Scanner:advance()
     self.curChar = self.curChar + 1
 end
 
-function S:isSpace()
+function Scanner:isSpace()
     local char = self.curLine[self.curChar]
     return char == " " or char == "\t"
 end
 
-function S:isAtEnd()
+function Scanner:isAtEnd()
     return self.curChar > #self.curLine
 end
 
-function S:peek()
+function Scanner:peek()
     return string.sub(self.curLine, self.curChar, self.curChar)
 end
 
 ---@param lexeme string
 ---@param tokenType TokenType
 ---@param isString? boolean indicate this is if the token was between double quotes - to prevent it from being trimmed
-function S:newToken(lexeme, tokenType, isString)
+function Scanner:newToken(lexeme, tokenType, isString)
     ---@type Token
     local token = { type = tokenType, lexeme = lexeme, isString = isString }
     table.insert(self.scans, token)
     self.curWord = ""
 end
 
-return S
+return Scanner

@@ -1,5 +1,5 @@
 local Scanner = require('Scanner')
-local LIP2 = {}
+local IniParse = {}
 
 ---default config object for the INI parser
 ---@class CONFIG
@@ -10,7 +10,7 @@ local LIP2 = {}
 ---@field escape false By default. C-like escape sequences are interpreted. If set to false, then escape sequences are left unchanged.
 
 ---@type CONFIG
-LIP2.config = {
+IniParse.config = {
     separator = '=',
     comment = ';#',
     trim = true,
@@ -41,7 +41,7 @@ LIP2.config = {
 --    :parse(sourceStr)
 --```
 ---@param config? user_config
-function LIP2:new(config)
+function IniParse:new(config)
     self.config = {
         separator = '=',
         comment = ';#',
@@ -57,27 +57,27 @@ function LIP2:new(config)
 end
 
 ---@param str string
-function LIP2:trim(str)
+function IniParse:trim(str)
     return str:match('^%s*(.-)%s*$')
 end
 
 ---parse an INI source string and return a lua table
 --containing the data.
 ---@param str string The string to parse. [string]
-function LIP2:parse(str)
+function IniParse:parse(str)
     assert(type(str) == 'string', 'Parameter "str" must be a string.');
     local lines = {}
     for line in str:gmatch('[^\r\n]+') do
         table.insert(lines, line)
     end
-    local data = LIP2:parse_lines(lines)
+    local data = IniParse:parse_lines(lines)
     return data;
 end
 
 ---@param lines string[] The line to be parsed. [string]
-function LIP2:parse_lines(lines)
+function IniParse:parse_lines(lines)
     ---@type Token[]
-    local scan = Scanner:new(LIP2.config):scanLines(lines)
+    local scan = Scanner:new(IniParse.config):scanLines(lines)
     self.curWord = ""
     local i = 0
     local data = {}
@@ -86,9 +86,9 @@ function LIP2:parse_lines(lines)
     while not (i >= #scan) do
         i = i + 1
         local token = scan[i]
-        if token.type == 1 then                --- expect section
-            section = LIP2:trim(token.lexeme)  --- section names should be trimmed
-            if LIP2.config.lowercase_keys then --- lowercase_keys should apply to section names as well
+        if token.type == 1 then                    --- expect section
+            section = IniParse:trim(token.lexeme)  --- section names should be trimmed
+            if IniParse.config.lowercase_keys then --- lowercase_keys should apply to section names as well
                 section = section:lower()
             end
             if section:match("^%d") then --- section names should not start with a digit
@@ -100,13 +100,13 @@ function LIP2:parse_lines(lines)
             if not scan[i + 1] or scan[i + 1].type ~= 3 then
                 goto continue
             end
-            local key = LIP2:trim(token.lexeme)
-            if LIP2.config.lowercase_keys then
+            local key = IniParse:trim(token.lexeme)
+            if IniParse.config.lowercase_keys then
                 key = key:lower()
             end
             local value = scan[i + 1]
-            if LIP2.config.trim and not value.isString then
-                value.lexeme = LIP2:trim(value.lexeme)
+            if IniParse.config.trim and not value.isString then
+                value.lexeme = IniParse:trim(value.lexeme)
             end
             if section then
                 data[section][key] = value.lexeme
@@ -120,4 +120,4 @@ function LIP2:parse_lines(lines)
     return data
 end
 
-return LIP2
+return IniParse
