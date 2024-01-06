@@ -16,7 +16,8 @@ TokenType = {
 
 ---@class Token
 ---@field type TokenType
----@field value string
+---@field lexeme string
+---@field isString? boolean
 
 S.config = {}
 S.lines = {} ---@type string[]
@@ -161,6 +162,17 @@ function S:isWS(char)
     return string.sub(self.curLine, self.curChar, self.curChar) == " "
 end
 
+---if param is passed in, check if it's WS
+---else
+---check if char at current posiiton is WS
+---@param char? string
+function S:isDoubleQuote(char)
+    if char then
+        return char == " " or char == "\t"
+    end
+    return string.sub(self.curLine, self.curChar, self.curChar) == '"'
+end
+
 ---scan all tokens in current line,
 ---and once the line is put together as a string[],
 ---push it to the list of tokens `self.scans`
@@ -172,6 +184,12 @@ function S:scanLine()
             self.section = nil
             self:advance()
             self.curWord = ""
+            goto continue
+        elseif self:isDoubleQuote() then
+            local scannedstr = self:string()
+            if not scannedstr:match("^%s*$") then
+                self:newToken(scannedstr, TokenType.value, true)
+            end
             goto continue
         elseif self:isComment() then
             if self.curWord ~= "" then
@@ -205,6 +223,22 @@ function S:scanLine()
         self:newToken(self.curWord, TokenType.value)
     end
     return self.scans
+end
+
+function S:string()
+    local start = self.curChar
+    self:advance()
+    while not self:isAtEnd() do
+        if self:isDoubleQuote() then
+            local str = string.sub(self.curLine, start + 1, self.curChar - 1)
+            return str
+        else
+            self:advance()
+        end
+    end
+
+    self.curWord = ""
+    return string.sub(self.curLine, start + 1, self.curChar - 1)
 end
 
 function S:sectionName()
@@ -251,10 +285,13 @@ function S:peek()
     return string.sub(self.curLine, self.curChar, self.curChar)
 end
 
+---@param lexeme string
 ---@param tokenType TokenType
----@param str string
-function S:newToken(str, tokenType)
-    table.insert(self.scans, { type = tokenType, value = str })
+---@param isString? boolean indicate this is if the token was between double quotes - to prevent it from being trimmed
+function S:newToken(lexeme, tokenType, isString)
+    ---@type Token
+    local token = { type = tokenType, lexeme = lexeme, isString = isString }
+    table.insert(self.scans, token)
     self.curWord = ""
 end
 

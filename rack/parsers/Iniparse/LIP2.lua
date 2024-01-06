@@ -7,7 +7,7 @@ local LIP2 = {}
 ---@field comment string String to specify the comment characters. Default is semicolon (;) and number sign (#).
 ---@field trim boolean By default, leading and trailing white spaces are trimmed. This can be overridden by setting false to this parameter.
 ---@field lowercase_keys boolean By default, the keys are not case sensitive. This can be changed by forcing the keys to be lowercase_keys by setting this parameter to true.
----@field escape false By default. C-like escape sequences are interpreted. If set to false then escape sequences are left unchanged.
+---@field escape false By default. C-like escape sequences are interpreted. If set to false, then escape sequences are left unchanged.
 
 ---@type CONFIG
 LIP2.config = {
@@ -87,7 +87,7 @@ function LIP2:parse_lines(lines)
         i = i + 1
         local token = scan[i]
         if token.type == 1 then                --- expect section
-            section = LIP2:trim(token.value)   --- section names should be trimmed
+            section = LIP2:trim(token.lexeme)  --- section names should be trimmed
             if LIP2.config.lowercase_keys then --- lowercase_keys should apply to section names as well
                 section = section:lower()
             end
@@ -96,18 +96,18 @@ function LIP2:parse_lines(lines)
             if not scan[i + 1] or scan[i + 1].type ~= 3 then
                 goto continue
             end
-            local key = LIP2:trim(token.value)
+            local key = LIP2:trim(token.lexeme)
             if LIP2.config.lowercase_keys then
                 key = key:lower()
             end
-            local value = scan[i + 1].value
-            if LIP2.config.trim then
-                value = LIP2:trim(value)
+            local value = scan[i + 1]
+            if LIP2.config.trim and not value.isString then
+                value.lexeme = LIP2:trim(value.lexeme)
             end
             if section then
-                data[section][key] = value
+                data[section][key] = value.lexeme
             else
-                data[key] = value
+                data[key] = value.lexeme
             end
             i = i + 1
         end
@@ -117,4 +117,3 @@ function LIP2:parse_lines(lines)
 end
 
 return LIP2
-

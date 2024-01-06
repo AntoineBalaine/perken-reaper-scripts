@@ -74,9 +74,8 @@ Size = 200,200
 
     it('#string test', function()
         assert.same({ name = '  value ' }, LIP:parse('name = "  value "'))  -- add explicit whitespaces to string
-        assert.same({ name = ' "value' }, LIP:parse('name =" ""value"'))    -- Escaping double quotes
+        assert.same({ name = 'value' }, LIP:parse('name =" ""value"'))      -- Ignore empty strings
         assert.same({ name = 'value' }, LIP:parse('name = "value" '))       -- Whitespace before and after double quotes are trimmed
-        assert.same({ name = ' "value' }, LIP:parse('name = " ""value" '))
         assert.same({ name = ' \'value' }, LIP:parse('name = " \'value" ')) -- test quote
         assert.same({ name = '\'value with quote' }, LIP:parse [[
 name = 'value with quote
