@@ -1,10 +1,11 @@
 local S = {}
 
 ---@enum TokenType
-local TokenType = {
+TokenType = {
     section = 1,
     key = 2,
-    value = 3
+    value = 3,
+    comment = 4
 }
 
 ---@class Token
@@ -146,10 +147,10 @@ function S:scanLine()
             self.curWord = ""
             goto continue
         elseif self:isComment() then
-            while not self:isAtEnd() do
-                self:advance()
+            if self.curWord ~= "" then
+                self:newToken(self.curWord, TokenType.value)
             end
-            self.curWord = ""
+            self:newToken(self:comment(), TokenType.comment)
             goto continue
         elseif self:isOpenBrkt() then
             self.section = self:sectionName()
@@ -195,6 +196,15 @@ function S:sectionName()
 
     self.curWord = ""
     return nil
+end
+
+function S:comment()
+    self:advance() ---skip the comment char
+    local start = self.curChar
+    while not self:isAtEnd() do
+        self:advance()
+    end
+    return string.sub(self.curLine, start, self.curChar)
 end
 
 function S:advance()

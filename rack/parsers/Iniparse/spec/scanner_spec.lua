@@ -22,7 +22,19 @@ describe('Test the scanner', function()
         local section_token = scanner:new():scan('[section_test]')
         assert.equal(1, section_token[1].type)
         assert.equal('section_test', section_token[1].value)
-        ---assert that the scanner will return an empty table if there only comments in the source
-        assert.same(0, #scanner:new():scan('; this is a comment test'))
+        ---assert that the scanner will return tokens for comments
+        assert.same(1, #scanner:new():scan('; this is a comment test'))
+    end)
+
+    it('#scanner - scan key/value pairs with comments at ends of lines', function()
+        local scan = scanner:new():scan('name = value ; comment')
+        -- { name = 'value ' }
+        assert.equal(3, #scan)
+        local key = scan[1]
+        local value = scan[2]
+        local comment = scan[3]
+        assert.equal(TokenType.key, key.type)
+        assert.equal(TokenType.value, value.type)
+        assert.equal(TokenType.comment, comment.type)
     end)
 end)
