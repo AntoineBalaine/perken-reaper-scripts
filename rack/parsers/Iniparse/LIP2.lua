@@ -29,7 +29,17 @@ LIP2.config = {
 
 ---pass an optionnal CONFIG object with all its params as optional.
 ---user can get a new parser, and any params that are passed
----in the config object will override the default params.
+---in the config obj
+--```lua
+--local parser = LIP2:new({
+--    separator = '=',
+--    comment = ';#',
+--    trim = true,
+--    lowercase_keys = false,
+--    escape = false
+--    })
+--    :parse(sourceStr)
+--```
 ---@param config? user_config
 function LIP2:new(config)
     self.config = {
@@ -51,6 +61,8 @@ function LIP2:trim(str)
     return str:match('^%s*(.-)%s*$')
 end
 
+---parse an INI source string and return a lua table
+--containing the data.
 ---@param str string The string to parse. [string]
 function LIP2:parse(str)
     assert(type(str) == 'string', 'Parameter "str" must be a string.');
@@ -62,7 +74,7 @@ function LIP2:parse(str)
     return data;
 end
 
----@param lines string[] The line to parse. [string]
+---@param lines string[] The line to be parsed. [string]
 function LIP2:parse_lines(lines)
     ---@type Token[]
     local scan = Scanner:new(LIP2.config):scanLines(lines)
@@ -105,3 +117,4 @@ function LIP2:parse_lines(lines)
 end
 
 return LIP2
+

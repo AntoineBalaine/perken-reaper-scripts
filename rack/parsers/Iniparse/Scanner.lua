@@ -1,3 +1,9 @@
+---INI scanner.
+-- initialize with
+--```lua
+--scanner:new()
+
+-- ```
 local S = {}
 
 ---@enum TokenType
@@ -24,6 +30,25 @@ S.curWord = ""
 S.separator_already_found = false
 
 
+---use this method to initialize the scanner
+--it sets up the config and resets all the fields
+--after calling this function, you can call `scan(sourceStr)`
+--e.g.:
+--```lua
+--scanner:new():scan(sourceStr)
+--```
+--config params can be passed in as a table, such as:
+--```lua
+--scanner:new({
+--    separator = '=',
+--    comment = ';#',
+--    trim = true,
+--    lowercase = false,
+--    escape = false
+--    })
+--    :scan(sourceStr)
+--```
+---@see CONFIG
 ---@param config? CONFIG
 function S:new(config)
     if config then
@@ -58,7 +83,9 @@ function S:resetScan(line)
     self.separator_already_found = false
 end
 
+---scan the source string and return a list of tokens
 ---@param source string
+---@return TokenType[]
 function S:scan(source)
     --split source into list of lines
     local lines = {}
@@ -69,7 +96,7 @@ function S:scan(source)
 end
 
 ---@param lines string[]
----@return string[][]
+---@return TokenType[]
 function S:scanLines(lines)
     self.lines = lines
     for lineIdx, line in ipairs(self.lines) do
@@ -136,7 +163,7 @@ end
 
 ---scan all tokens in current line,
 ---and once the line is put together as a string[],
----push it to the list of scanned lines
+---push it to the list of tokens `self.scans`
 function S:scanLine()
     while not self:isAtEnd() do
         self:advance()
