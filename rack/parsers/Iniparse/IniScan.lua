@@ -1,8 +1,7 @@
 ---INI scanner.
--- initialize with
+--initialize and scan with
 --```lua
---scanner:new()
-
+--scanner:new():scan(sourceStr)
 -- ```
 local Scanner = {}
 
