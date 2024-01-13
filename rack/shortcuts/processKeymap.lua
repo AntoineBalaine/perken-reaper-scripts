@@ -59,31 +59,6 @@ local function processAction(action_line)
     }
 end
 
----get the daw's section corresponding to a section_id
---
---Section IDs are found in actions, scripts, and keys from the reaper-kb.ini file
----@param section_id number
----@return "Main" | "invisible" | "Main (alt recording)" | "Midi editor" | "Midi event list editor" | "Midi inline editor" | "Media explorer" | "unknown"
-local function getSection(section_id)
-    if section_id == 0 then
-        return "Main"
-    elseif section_id == 1 then
-        return "invisible"
-    elseif section_id == 100 then
-        return "Main (alt recording)"
-    elseif section_id == 32060 then
-        return "Midi editor"
-    elseif section_id == 32061 then
-        return "Midi event list editor"
-    elseif section_id == 32062 then
-        return "Midi inline editor"
-    elseif section_id == 32063 then
-        return "Media explorer"
-    else
-        return "unknown"
-    end
-end
-
 
 ---@class KeyMapping
 ---@field modifier number
@@ -128,6 +103,8 @@ end
 ---@param script_line string[]
 ---@return Script|Error
 local function processScript(script_line)
+    assert(#script_line >= 6,
+        "script-line's length does not match the expected length, expected at least 6 elements")
     -- local prefix = script_line[1] -- we can get rid of the prefix
     local on_new_instance = tonumber(script_line[2])
     local section_id = tonumber(script_line[3])
@@ -183,6 +160,32 @@ local function processKeymap(key_map)
         end
     end
     return actions, keys, scripts
+end
+
+
+---get the daw's section corresponding to a section_id
+--
+--Section IDs are found in actions, scripts, and keys from the reaper-kb.ini file
+---@param section_id number
+---@return "Main" | "invisible" | "Main (alt recording)" | "Midi editor" | "Midi event list editor" | "Midi inline editor" | "Media explorer" | "unknown"
+local function getSection(section_id)
+    if section_id == 0 then
+        return "Main"
+    elseif section_id == 1 then
+        return "invisible"
+    elseif section_id == 100 then
+        return "Main (alt recording)"
+    elseif section_id == 32060 then
+        return "Midi editor"
+    elseif section_id == 32061 then
+        return "Midi event list editor"
+    elseif section_id == 32062 then
+        return "Midi inline editor"
+    elseif section_id == 32063 then
+        return "Media explorer"
+    else
+        return "unknown"
+    end
 end
 
 return {
