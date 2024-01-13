@@ -1,4 +1,5 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+--@noindex
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 
 local os_separator = package.config:sub(1, 1)
 package.path = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;" -- GET DIRECTORY FOR REQUIRE

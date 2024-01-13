@@ -1,3 +1,4 @@
+--@noindex
 local helpers = {}
 ---from FX constants
 helpers.AllAvailableKeys = {

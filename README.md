@@ -16,6 +16,18 @@ A vim mode for reaper, forked from [Michael Gwatcha's version](https://github.co
 ##### HOW TO USE: 
 [Manual, demo and links to docs are here](reavim/README.md)
 </details>
+
+#### Shortcut Manager 
+<details>
+ <summary>A utility for ImGui projects</summary> 
+
+`$REAPERPATH/Scripts/perken/imgui/shortcut_list`
+##### What is it: 
+A tiny library for managing shortcuts inside of your applications. It's basically a wannabe of reaper's actions list.
+##### HOW TO USE: 
+[See the readme of the project](imgui/shortcut_list/shortcutManager.md)
+</details>
+
 #### Realearn - Midi Fighter Twister utilities
 <details>
  <summary>MFT map selected fx in visible fx chain</summary> 
