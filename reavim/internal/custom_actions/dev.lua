@@ -107,7 +107,7 @@ function dev.devAction()
     -- reaper.Main_OnCommand(reaper.NamedCommandLookup("_RS6e1dd02ebbb0dfd179ef1435a55cfc895d0c8f40"), 0)
 
     ---shortcutManager demo
-    reaper.Main_OnCommand(reaper.NamedCommandLookup("_RSfae4247b93871094e972e0b605ca7cba5e41ea3d"), 0)
+    reaper.Main_OnCommand(reaper.NamedCommandLookup("_RSb038b231a657afb36aa0a3ee30744ce0cad482d3"), 0)
 
     -- MFT.create_fx_map()
 end
