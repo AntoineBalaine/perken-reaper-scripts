@@ -1,3 +1,4 @@
+--@noindex
 -- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 -- @noindex
 local utils = require("custom_actions.utils")

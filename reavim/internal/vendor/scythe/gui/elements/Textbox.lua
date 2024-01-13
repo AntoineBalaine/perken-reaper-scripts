@@ -1,3 +1,4 @@
+--@noindex
 --- @module Textbox
 -- @option caption string
 -- @option retval string The textbox's content

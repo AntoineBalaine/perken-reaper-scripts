@@ -1,3 +1,4 @@
+--@noindex
 --- @module Menubox
 -- @commonParams
 -- @option options array A list of options: `{"a", "b", "c"}`. Options use the

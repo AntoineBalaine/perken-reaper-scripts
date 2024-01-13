@@ -1,3 +1,4 @@
+--@noindex
 local action_sequences = {}
 
 ---@type {global: ActionModes, main: ActionModes, midi: ActionModes}
@@ -36,19 +37,19 @@ local function getPossibleActionSequenceFunctionPairs(context, mode)
 	return possible_sequence_function_pairs
 end
 
----@param context "main"| "midi" | "global"
+---@param context Context
 ---@param mode string "normal"|"visual_timeline", etc
 ---@return string[][]
 function action_sequences.getPossibleActionSequences(context, mode)
 	local action_sequence_function_pairs = getPossibleActionSequenceFunctionPairs(context, mode)
 
-	local action_sequences = {} ---@type string[][]
+	local poss_action_sequences = {} ---@type string[][]
 	for _, action_sequence_function_pair in ipairs(action_sequence_function_pairs) do
 		local action_sequence = action_sequence_function_pair[1]
-		table.insert(action_sequences, action_sequence)
+		table.insert(poss_action_sequences, action_sequence)
 	end
 
-	return action_sequences
+	return poss_action_sequences
 end
 
 local function checkIfActionSequencesAreEqual(seq1, seq2)
@@ -64,7 +65,6 @@ local function checkIfActionSequencesAreEqual(seq1, seq2)
 	return true
 end
 
----comment
 ---@param command Command
 ---@return fun(action: Action) | nil
 function action_sequences.getFunctionForCommand(command)

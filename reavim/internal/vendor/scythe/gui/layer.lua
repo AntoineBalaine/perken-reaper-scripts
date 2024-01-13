@@ -1,3 +1,4 @@
+--@noindex
 --- @module Layer
 -- A container that manages GUI elements
 -- @param name string

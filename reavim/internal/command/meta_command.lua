@@ -1,3 +1,4 @@
+--@noindex
 local meta_command = {}
 
 local binding_list = require("gui.binding_list.controller")

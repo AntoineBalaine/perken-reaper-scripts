@@ -1,3 +1,4 @@
+--@noindex
 local ITERS = 1000
 local TESTS = {
   serpent = function() return require("serpent").dump end,

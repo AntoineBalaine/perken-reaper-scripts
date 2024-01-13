@@ -3,6 +3,19 @@ Scripts for the Reaper DAW.
 [Scripts list](#scripts-list) 
 
 ### Scripts list
+#### ReaVim - a vim mode for reaper
+<details>
+ <summary>Vim mode for reaper</summary> 
+
+`$REAPERPATH/Scripts/perken/reavim`
+##### What is it: 
+A vim mode for reaper, forked from [Michael Gwatcha's version](https://github.com/gwatcha/reaper-keys). This forked-version includes the following changes:
+- now available on reapack!
+- updates to keybindings that make things a little more intuitive, coming from vim.
+- extra scripts to handle moving around envelopes using the keyboard.
+##### HOW TO USE: 
+[Manual, demo and links to docs are here](reavim/README.md)
+</details>
 #### Realearn - Midi Fighter Twister utilities
 <details>
  <summary>MFT map selected fx in visible fx chain</summary> 

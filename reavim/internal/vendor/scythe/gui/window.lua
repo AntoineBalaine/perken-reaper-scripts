@@ -1,3 +1,4 @@
+--@noindex
 --- @module Window
 -- The basis of any GUI. Scripts are limited to a single window at the moment,
 -- but this will hopefully change in the future.

@@ -1,2 +1,3 @@
+--@noindex
 return {
 }

@@ -1,5 +1,6 @@
+--@noindex
 local utils = require("command.utils")
-local action_sequences = require("command.action_sequences")
+local Action_sequences = require("command.action_sequences")
 local definitions = require("utils.definitions")
 local getAction = require("utils.get_action")
 local format = require("utils.format")
@@ -98,7 +99,7 @@ end
 ---@param state State
 ---@return Command | nil
 local function buildCommand(state)
-	local action_sequences = action_sequences.getPossibleActionSequences(state["context"], state["mode"])
+	local action_sequences = Action_sequences.getPossibleActionSequences(state["context"], state["mode"])
 	local entries = definitions.getPossibleEntries(state["context"])
 
 	for _, action_sequence in pairs(action_sequences) do

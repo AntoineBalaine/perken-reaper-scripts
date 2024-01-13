@@ -1,3 +1,4 @@
+--@noindex
 --- @module Text
 
 local Font = require("public.font")

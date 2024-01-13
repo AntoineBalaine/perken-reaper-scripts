@@ -1,3 +1,4 @@
+--@noindex
 local utils = require("command.utils")
 local config = require("definitions.config")
 

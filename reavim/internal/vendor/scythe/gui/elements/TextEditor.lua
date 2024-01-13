@@ -1,3 +1,4 @@
+--@noindex
 --- @module TextEditor
 -- A multiline text editor
 -- @option retval string Text content

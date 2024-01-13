@@ -1,3 +1,4 @@
+--@noindex
 local args = {...}
 
 -- If the library is inadvertently loaded from multiple files, just add any

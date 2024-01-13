@@ -1,3 +1,4 @@
+--@noindex
 --- @module Listbox
 -- @commonParams
 -- @option list string|array A list of items to display, either as a CSV or an

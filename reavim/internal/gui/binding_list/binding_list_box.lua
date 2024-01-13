@@ -1,3 +1,4 @@
+--@noindex
 local gui_utils = require('gui.utils')
 local log = require('utils.log')
 local config = require('definitions.gui_config')

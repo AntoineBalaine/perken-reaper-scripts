@@ -1,3 +1,4 @@
+--@noindex
 local lib = require("library")
 local custom = require("custom_actions")
 

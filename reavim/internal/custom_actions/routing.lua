@@ -1,3 +1,4 @@
+--@noindex
 local routing = {}
 Busses = {
   "BA",

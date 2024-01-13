@@ -1,3 +1,4 @@
+--@noindex
 --- @module Knob
 -- @commonParams
 -- @option caption string

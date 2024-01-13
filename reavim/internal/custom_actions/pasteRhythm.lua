@@ -1,3 +1,4 @@
+--@noindex
 local paste = {}
 local function getRhythmNoteIndex(rhythmNotes, startingNotePosition, endingNotePosition)
   for i = 1, #rhythmNotes do

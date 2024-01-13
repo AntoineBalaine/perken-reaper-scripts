@@ -1,3 +1,4 @@
+--@noindex
 --- @module Label
 -- @commonParams
 -- @option caption string

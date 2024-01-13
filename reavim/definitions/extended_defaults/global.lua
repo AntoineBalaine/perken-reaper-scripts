@@ -1,3 +1,4 @@
+--@noindex
 return {
 	timeline_motion = {
 		["<M-+>"] = "DecreaseGrid",

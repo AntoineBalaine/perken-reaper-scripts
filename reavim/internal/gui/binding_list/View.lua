@@ -1,3 +1,4 @@
+--@noindex
 -- FIXME refractor me
 
 local config = require('definitions.gui_config')

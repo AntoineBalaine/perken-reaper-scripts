@@ -1,3 +1,4 @@
+--@noindex
 local Const = {}
 
 Const.chars = {

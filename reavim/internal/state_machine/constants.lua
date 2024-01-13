@@ -1,3 +1,4 @@
+--@noindex
 -- TODO rename this file to reset and just return reset state
 ---@type {reset_state: State}
 local constants = {

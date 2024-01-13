@@ -1,3 +1,4 @@
+--@noindex
 local serpent = require("serpent")
 local namespace = "reaper_keys"
 local table_name = "mod_source"

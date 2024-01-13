@@ -1,3 +1,4 @@
+--@noindex
 local table_io = {}
 
 local serpent = require("serpent")

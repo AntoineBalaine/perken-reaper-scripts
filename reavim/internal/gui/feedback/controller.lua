@@ -1,3 +1,4 @@
+--@noindex
 local utils = require('command.utils')
 local string_util = require('string')
 local FeedbackView = require('gui.feedback.View')

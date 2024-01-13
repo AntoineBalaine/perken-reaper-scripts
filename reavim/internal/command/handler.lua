@@ -1,3 +1,4 @@
+--@noindex
 local state_interface = require("state_machine.state_interface")
 local reaper_state = require("utils.reaper_state")
 local log = require("utils.log")
@@ -23,6 +24,7 @@ end
 
 ---@param state State
 ---@parameter command Command
+---@return State new_state, string command_description
 local function handleCommand(state, command)
 	reaper.Undo_BeginBlock()
 	local new_state = state

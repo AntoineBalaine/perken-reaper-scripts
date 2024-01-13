@@ -1,3 +1,4 @@
+--@noindex
 local reaper_state = require('utils.reaper_state')
 local log = require('utils.log')
 local constants = require('state_machine.constants')
@@ -72,6 +73,7 @@ function state_interface.getVisualTrackPivotIndex()
   return visual_track_pivot_i
 end
 
+---@param left_or_right "left"|"right"
 function state_interface.setTimelineSelectionSide(left_or_right)
   local state = state_interface.get()
   state['timeline_selection_side'] = left_or_right
@@ -88,6 +90,7 @@ function state_interface.getMode()
   return state.mode
 end
 
+---@param mode Mode
 function state_interface.setMode(mode)
   local state = state_interface.get()
   state.mode = mode

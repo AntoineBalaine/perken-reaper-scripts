@@ -1,3 +1,4 @@
+--@noindex
 local gui_utils = require('gui.utils')
 local scale = gui_utils.scale
 

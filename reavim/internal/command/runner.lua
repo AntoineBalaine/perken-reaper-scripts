@@ -1,3 +1,4 @@
+--@noindex
 local getAction = require("utils.get_action")
 local log = require("utils.log")
 local reaper_utils = require("custom_actions.utils")

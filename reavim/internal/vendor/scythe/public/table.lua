@@ -1,3 +1,4 @@
+--@noindex
 --- @module Table
 
 local Table = {}

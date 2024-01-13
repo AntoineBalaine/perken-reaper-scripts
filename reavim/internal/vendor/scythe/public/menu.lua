@@ -1,3 +1,4 @@
+--@noindex
 -- @module Menu
 
 require("public.string")

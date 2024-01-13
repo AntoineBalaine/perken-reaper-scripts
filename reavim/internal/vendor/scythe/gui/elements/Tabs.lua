@@ -1,3 +1,4 @@
+--@noindex
 --- @module Tabs
 -- A set of tabs that can be used to manage the visibility of multiple layers.
 -- Tabs are specified using the following structure:

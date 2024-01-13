@@ -1,3 +1,4 @@
+--@noindex
 -- @module Message
 
 local Message = {}

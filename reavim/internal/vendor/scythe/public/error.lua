@@ -1,3 +1,4 @@
+--@noindex
 --- @module Error
 
 local Error = {}

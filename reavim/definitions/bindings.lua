@@ -1,3 +1,4 @@
+--@noindex
 -- bindings in this file are prioritized over the default bindings
 -- if you need help, check out the documentation https://gwatcha.github.io/reaper-keys/configuration/bindings.html
 -- check out the ./defaults directory to see examples

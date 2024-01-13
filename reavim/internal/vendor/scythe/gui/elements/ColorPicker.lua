@@ -1,3 +1,4 @@
+--@noindex
 --- @module ColorPicker
 -- Allows users to choose colors from a palette
 -- @commonParams
