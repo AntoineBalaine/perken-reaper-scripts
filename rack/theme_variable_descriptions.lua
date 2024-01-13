@@ -1,7 +1,3 @@
----@class VariableDescription_byVar
----@field k string variable name
----@field v string description
-
 ---@type VariableDescription_byVar[]
 local theme_var_descriptions_sorted = {
     { k = 'col_main_bg2',                      v = 'Main window/transport background' },
@@ -362,7 +358,8 @@ local theme_var_descriptions_sorted = {
 }
 
 
----@type table<string, string> K: theme variable name -> V: description
+
+---@type table<string, string> K: theme variable name -> V: description. This is a ThemeColor without the color field.
 local theme_var_descriptions = {}
 for i, entry in ipairs(theme_var_descriptions_sorted) do
     entry.v = reaper.LocalizeString(entry.v, "theme")

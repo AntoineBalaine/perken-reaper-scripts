@@ -5,8 +5,6 @@ local ThemeReader = {}
 ---@field colors ColorTable colors
 ---@field fonts table<string, string> fonts
 
----@alias ColorTable table<string, {description: string, color: integer}>
-
 local info = debug.getinfo(1, "S")
 
 local Os_separator = package.config:sub(1, 1)
@@ -69,11 +67,13 @@ local function FilterTab(t, str, or_mode)
     if str == "" then return t, {} end
     local words = SplitSTR(str, " ")
     local out, filtered_out = {}, {}
-    for _, v in ipairs(t) do
-        if (theme_var_descriptions and theme_var_descriptions[v] and FindByWordsInSTR(theme_var_descriptions[v], words, or_mode)) or FindByWordsInSTR(v, words, or_mode) then
-            table.insert(out, v)
+    for k, v in ipairs(t) do
+        if (theme_var_descriptions[v] and FindByWordsInSTR(theme_var_descriptions[v], words, or_mode)) or FindByWordsInSTR(v, words, or_mode) then
+            out[v] = theme_var_descriptions[v]
+            -- table.insert(out, v)
         else
-            table.insert(filtered_out, v)
+            filtered_out[v] = theme_var_descriptions[v]
+            -- table.insert(filtered_out, v)
         end
     end
     return out, filtered_out
@@ -105,10 +105,9 @@ function ThemeReader.readTheme(theme_path)
 
     local modes_tab, items = FilterTab(theme_vars, "mode dm", true)
     -- K: theme variable name -> V: description
-    ---@type ColorTable
     local colors = {}
-    for var_name, description in ipairs(items) do
-        local col = reaper.GetThemeColor(description, 0) -- NOTE: Flag doesn't seem to work (v6.78). Channel are swapped on MacOS and Linux.
+    for var_name, description in pairs(items) do
+        local col = reaper.GetThemeColor(var_name, 0) -- NOTE: Flag doesn't seem to work (v6.78). Channel are swapped on MacOS and Linux.
         -- if os_sep == "/" then col = SwapINTrgba( col ) end -- in fact, better staus with channel swap cause at least it works
         colors[var_name] = { description = description, color = col }
     end
@@ -160,7 +159,7 @@ end
 ---@param theme Theme
 function ThemeReader.Comp_ShowVars(ctx, theme)
     local colors = theme.colors
-    for var_name, element in ipairs(colors) do
+    for var_name, element in pairs(colors) do
         local description, color = element.description, element.color
         reaper.ImGui_PushItemWidth(ctx, 92) -- Set max width of inputs
         if type(color) ~= "number" then
@@ -173,18 +172,22 @@ function ThemeReader.Comp_ShowVars(ctx, theme)
 
         reaper.ImGui_PopItemWidth(ctx) -- Restore max with of input
     end
+
+    hasPrinted = true
 end
 
 ---@param ctx ImGui_Context
 ---@param theme Theme
 function ThemeReader.display(ctx, theme)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_WindowBg(), 0x0F0F0FFF) -- Black opaque background
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_WindowBg(),
+        reaper.ImGui_ColorConvertNative(theme.colors.group_59.color))
 
     local imgui_visible, imgui_open = reaper.ImGui_Begin(ctx, "Theme Display", true,
         reaper.ImGui_WindowFlags_AlwaysVerticalScrollbar())
     if imgui_visible then
         ThemeReader.Comp_ShowVars(ctx, theme)
     end
+
     reaper.ImGui_PopStyleColor(ctx) -- Remove black opack background
 
     reaper.ImGui_End(ctx)
