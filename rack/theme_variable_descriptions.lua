@@ -1,3 +1,8 @@
+---@class VariableDescription_byVar
+---@field k string variable name
+---@field v string description
+
+---@type VariableDescription_byVar[]
 local theme_var_descriptions_sorted = {
     { k = 'col_main_bg2',                      v = 'Main window/transport background' },
     { k = 'col_main_text2',                    v = 'Main window/transport text' },
@@ -357,7 +362,8 @@ local theme_var_descriptions_sorted = {
 }
 
 
-local theme_var_descriptions = {} -- original variable name, non-sorted, for backward compatibility
+---@type table<string, string> K: theme variable name -> V: description
+local theme_var_descriptions = {}
 for i, entry in ipairs(theme_var_descriptions_sorted) do
     entry.v = reaper.LocalizeString(entry.v, "theme")
     theme_var_descriptions[entry.k] = entry.v

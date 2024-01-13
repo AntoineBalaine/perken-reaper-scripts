@@ -1,9 +1,11 @@
--- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local ThemeReader = {}
 
 ---@class Theme
----@field colors table<string, integer> colors
+---@field colors ColorTable colors
 ---@field fonts table<string, string> fonts
+
+---@alias ColorTable table<string, {description: string, color: integer}>
 
 local info = debug.getinfo(1, "S")
 
@@ -89,10 +91,11 @@ local function splitFileName(strfilename)
     return path, file_name, extension
 end
 
+---Read the theme from the provided file,
+---and return a table containing its colors and fonts
 ---@param theme_path string
----@return table<string, integer> colors
----@return table<string, string> fonts
-function ThemeReader.LoadTheme(theme_path)
+---@return Theme theme
+function ThemeReader.readTheme(theme_path)
     -- local theme_is_zip = not reaper.file_exists(theme_path)
     local _, theme_name, _ = splitFileName(theme_path)
     local theme_prefix, theme_version_str = theme_name:match("(.+) %- Mod (%d+)")
@@ -101,12 +104,13 @@ function ThemeReader.LoadTheme(theme_path)
     theme_version_num = theme_version_num + 1
 
     local modes_tab, items = FilterTab(theme_vars, "mode dm", true)
-
-    local colors = {} ---@type table<string, integer>
-    for _, v in ipairs(items) do
-        local col = reaper.GetThemeColor(v, 0) -- NOTE: Flag doesn't seem to work (v6.78). Channel are swapped on MacOS and Linux.
+    -- K: theme variable name -> V: description
+    ---@type ColorTable
+    local colors = {}
+    for var_name, description in ipairs(items) do
+        local col = reaper.GetThemeColor(description, 0) -- NOTE: Flag doesn't seem to work (v6.78). Channel are swapped on MacOS and Linux.
         -- if os_sep == "/" then col = SwapINTrgba( col ) end -- in fact, better staus with channel swap cause at least it works
-        colors[v] = col
+        colors[var_name] = { description = description, color = col }
     end
 
     --[[leaving this section for now]]
@@ -127,7 +131,7 @@ function ThemeReader.LoadTheme(theme_path)
         fonts[v] = val
     end
 
-    return colors, fonts
+    return { colors = colors, fonts = fonts }
 end
 
 ---Get path of the current theme
@@ -151,22 +155,20 @@ function ThemeReader.SetupImGui()
 end
 
 ---A component that displays the theme variables
+---It iterates through the list of colors in the theme and displays them
 ---@param ctx ImGui_Context
 ---@param theme Theme
 function ThemeReader.Comp_ShowVars(ctx, theme)
     local colors = theme.colors
-    for _, v in ipairs(theme_vars) do
+    for var_name, element in ipairs(colors) do
+        local description, color = element.description, element.color
         reaper.ImGui_PushItemWidth(ctx, 92) -- Set max width of inputs
-
-        local found = theme_var_descriptions[v]
-        ---COLORS DISPLAY
-        local cur_color = colors[v]
-        if not cur_color or type(cur_color) ~= "number" then
+        if type(color) ~= "number" then
             reaper.ImGui_Text(ctx, "ounfound")
         else
             retval, edit = reaper.ImGui_ColorEdit3(ctx,
-                found or v,
-                reaper.ImGui_ColorConvertNative(cur_color), reaper.ImGui_ColorEditFlags_DisplayHex())
+                description,
+                reaper.ImGui_ColorConvertNative(color), reaper.ImGui_ColorEditFlags_DisplayHex())
         end
 
         reaper.ImGui_PopItemWidth(ctx) -- Restore max with of input
@@ -194,9 +196,6 @@ function ThemeReader.display(ctx, theme)
 end
 
 local theme_path = ThemeReader.GetThemePath()
-local colors, fonts = ThemeReader.LoadTheme(theme_path)
-local theme = { colors = colors, fonts = fonts } ---@type Theme
+local theme = ThemeReader.readTheme(theme_path)
 local ctx = ThemeReader.SetupImGui()
 ThemeReader.display(ctx, theme)
-ThemeReader.display(ctx, theme)
-
