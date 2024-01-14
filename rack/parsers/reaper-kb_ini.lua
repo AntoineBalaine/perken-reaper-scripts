@@ -96,12 +96,20 @@ local function KeyMapScanner(lines)
         return string.sub(S.curLine, S.curChar, S.curChar) == "\""
     end
 
+    function S:isComment()
+        return string.sub(S.curLine, S.curChar - 1, S.curChar - 1) == " " and
+            string.sub(S.curLine, S.curChar, S.curChar) == "#"
+    end
+
     ---scan all tokens in current line,
     ---and once the line is put together as a string[],
     ---push it to the list of scanned lines
     function S:scanLine(line)
         while not self:isAtEnd() do
             S:advance()
+            if S:isComment() and not S.isInQuotes then
+                break
+            end
             if S:isSpace() and not S.isInQuotes then
                 S:insertCurWord()
             elseif S:isQuote() then
