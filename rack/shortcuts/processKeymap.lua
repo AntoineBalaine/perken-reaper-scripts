@@ -29,7 +29,7 @@ function reaper.kbd_enumerateActions(section, idx) end
 ---@class Error
 
 ---@class Action
----@field type "action"
+---@field type "action" -- adding the type field, just in case I later want to merge actions, keys, and scripts into one table
 ---@field settings string this might have to be converted to a number
 ---@field section_id number
 ---@field command_id string
@@ -60,7 +60,7 @@ end
 
 
 ---@class KeyMapping
----@field type "key-mapping"
+---@field type "key-mapping" -- adding the type field, just in case I later want to merge actions, keys, and scripts into one table
 ---@field modifier number
 ---@field key_note_value number
 ---@field command_id string
@@ -93,7 +93,7 @@ local function processKey(key_line)
 end
 
 ---@class Script
----@field type "script"
+---@field type "script" -- adding the type field, just in case I later want to merge actions, keys, and scripts into one table
 ---@field on_new_instance number
 ---@field section_id number
 ---@field command_id number
