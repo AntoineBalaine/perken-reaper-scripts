@@ -74,31 +74,31 @@ local function KeyMapScanner(lines)
     S.curWord = ""
     ---@param line string
     function S:resetScan(line)
-        S.curLine = line
-        S.curChar = 0
-        S.curScan = {}
+        self.curLine = line
+        self.curChar = 0
+        self.curScan = {}
     end
 
     function S:scanLines()
         for _, line in ipairs(self.lines) do
-            S:resetScan(line)
+            self:resetScan(line)
             self:scanLine(line)
         end
-        return S.scans
+        return self.scans
     end
 
     function S:insertCurWord()
-        table.insert(S.curScan, S.curWord)
-        S.curWord = ""
+        table.insert(self.curScan, self.curWord)
+        self.curWord = ""
     end
 
     function S:isQuote()
-        return string.sub(S.curLine, S.curChar, S.curChar) == "\""
+        return string.sub(self.curLine, self.curChar, self.curChar) == "\""
     end
 
     function S:isComment()
-        return string.sub(S.curLine, S.curChar - 1, S.curChar - 1) == " " and
-            string.sub(S.curLine, S.curChar, S.curChar) == "#"
+        return string.sub(self.curLine, self.curChar - 1, self.curChar - 1) == " " and
+            string.sub(self.curLine, self.curChar, self.curChar) == "#"
     end
 
     ---scan all tokens in current line,
@@ -106,39 +106,39 @@ local function KeyMapScanner(lines)
     ---push it to the list of scanned lines
     function S:scanLine(line)
         while not self:isAtEnd() do
-            S:advance()
-            if S:isComment() and not S.isInQuotes then
+            self:advance()
+            if self:isComment() and not self.isInQuotes then
                 break
             end
-            if S:isSpace() and not S.isInQuotes then
-                S:insertCurWord()
-            elseif S:isQuote() then
-                if S.isInQuotes then
-                    S.isInQuotes = false
-                    S:insertCurWord()
-                    S:advance()
+            if self:isSpace() and not self.isInQuotes then
+                self:insertCurWord()
+            elseif self:isQuote() then
+                if self.isInQuotes then
+                    self.isInQuotes = false
+                    self:insertCurWord()
+                    self:advance()
                 else
-                    S.isInQuotes = true
+                    self.isInQuotes = true
                 end
                 goto continue
             else
                 local curChar = string.sub(self.curLine, self.curChar, self.curChar)
-                S.curWord = S.curWord .. curChar
+                self.curWord = self.curWord .. curChar
             end
             ::continue::
         end
-        if #S.curWord > 0 then
-            S:insertCurWord()
+        if #self.curWord > 0 then
+            self:insertCurWord()
         end
 
-        if #S.curScan > 0 then
-            table.insert(S.scans, S.curScan)
+        if #self.curScan > 0 then
+            table.insert(self.scans, self.curScan)
         end
-        return S.curScan
+        return self.curScan
     end
 
     function S:advance()
-        S.curChar = S.curChar + 1
+        self.curChar = self.curChar + 1
     end
 
     function S:isSpace()
@@ -151,7 +151,7 @@ local function KeyMapScanner(lines)
     end
 
     function S:peek()
-        return string.sub(S.curLine, S.curChar, S.curChar)
+        return string.sub(self.curLine, self.curChar, self.curChar)
     end
 
     return S
