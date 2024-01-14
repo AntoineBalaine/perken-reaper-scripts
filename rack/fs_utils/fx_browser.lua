@@ -24,6 +24,8 @@ local AU_INFO, AU, AUi                 = {}, {}, {}
 local CLAP_INFO, CLAP, CLAPi           = {}, {}, {}
 local LV2_INFO, LV2, LV2i              = {}, {}, {}
 
+local fx_browser                       = {}
+
 local function ResetTables()
     CAT = {}
     DEVELOPER_LIST = { " (Waves)" }
@@ -36,7 +38,7 @@ local function ResetTables()
     LV2_INFO, LV2, LV2i = {}, {}, {}
 end
 
-function MakeFXFiles()
+function fx_browser.MakeFXFiles()
     GetFXTbl()
     local serialized_fx = TableToString(PLUGIN_LIST)
     WriteToFile(FX_FILE, serialized_fx)
@@ -50,7 +52,7 @@ function MakeFXFiles()
     return PLUGIN_LIST, CAT
 end
 
-function ReadFXFile()
+function fx_browser.ReadFXFile()
     local fx_file = io.open(FX_FILE, "r")
     if fx_file then
         PLUGIN_LIST = {}
@@ -78,7 +80,7 @@ function ReadFXFile()
     return PLUGIN_LIST, CAT
 end
 
-function WriteToFile(path, data)
+function fx_browser.WriteToFile(path, data)
     local file_cat = io.open(path, "w")
     if file_cat then
         file_cat:write(data)
@@ -86,7 +88,7 @@ function WriteToFile(path, data)
     end
 end
 
-function SerializeToFile(val, name, skipnewlines, depth)
+function fx_browser.SerializeToFile(val, name, skipnewlines, depth)
     skipnewlines = skipnewlines or false
     depth = depth or 0
     local tmp = string.rep(" ", depth)
@@ -120,7 +122,7 @@ function SerializeToFile(val, name, skipnewlines, depth)
     return tmp
 end
 
-function StringToTable(str)
+function fx_browser.StringToTable(str)
     local f, err = load("return " .. str)
     if err then
         reaper.ShowConsoleMsg("\nerror" .. err)
@@ -128,13 +130,13 @@ function StringToTable(str)
     return f ~= nil and f() or nil
 end
 
-function TableToString(table) return SerializeToFile(table) end
+function fx_browser.TableToString(table) return SerializeToFile(table) end
 
-function Literalize(str)
+function fx_browser.Literalize(str)
     return str:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", function(c) return "%" .. c end)
 end
 
-function GetFileContext(fp)
+function fx_browser.GetFileContext(fp)
     local str = "\n"
     -- DONT CRASH SCRIPT IF PATH IS NOT PROVIDED
     if not fp then return str end
@@ -180,13 +182,13 @@ local function FindFXIDName(tbl, id, js)
     end
 end
 
-function InTbl(tbl, val)
+function fx_browser.InTbl(tbl, val)
     for i = 1, #tbl do
         if tbl[i].name == val then return tbl[i].fx end
     end
 end
 
-function AddDevList(val)
+function fx_browser.AddDevList(val)
     for i = 1, #DEVELOPER_LIST do
         if DEVELOPER_LIST[i] == " (" .. val .. ")" then return end
     end
@@ -579,7 +581,7 @@ local function AllPluginsCategory()
     table.sort(CAT, function(a, b) if a.name and b.name then return a.name:lower() < b.name:lower() end end)
 end
 
-function GenerateFxList()
+function fx_browser.GenerateFxList()
     PLUGIN_LIST[#PLUGIN_LIST + 1] = "Container"
     PLUGIN_LIST[#PLUGIN_LIST + 1] = "Video processor"
 
@@ -609,7 +611,7 @@ function GenerateFxList()
     return PLUGIN_LIST
 end
 
-function Stripname(name, prefix, suffix)
+function fx_browser.Stripname(name, prefix, suffix)
     if not DEVELOPER_LIST then return name end
     -- REMOVE DEVELOPER
     if suffix then
@@ -631,12 +633,12 @@ function Stripname(name, prefix, suffix)
     return name
 end
 
-function GetFXTbl()
+function fx_browser.GetFXTbl()
     ResetTables()
     return GenerateFxList(), CAT, DEVELOPER_LIST
 end
 
-function UpdateChainsTrackTemplates(cat_tbl)
+function fx_browser.UpdateChainsTrackTemplates(cat_tbl)
     if not cat_tbl then return end
     local FX_CHAINS = ParseFXChains()
     local TRACK_TEMPLATES = ParseTrackTemplates()
@@ -649,18 +651,4 @@ function UpdateChainsTrackTemplates(cat_tbl)
     end
 end
 
--- return {
--- MakeFXFiles=MakeFXFiles,
--- ReadFXFile=ReadFXFile,
--- WriteToFile=WriteToFile,
--- SerializeToFile=SerializeToFile,
--- StringToTable=StringToTable,
--- TableToString=TableToString,
--- Literalize=Literalize,
--- GetFileContext=GetFileContext,
--- InTbl=InTbl,
--- AddDevList=AddDevList,
--- GenerateFxList=GenerateFxList,
--- Stripname=Stripname,
--- UpdateChainsTrackTemplates=UpdateChainsTrackTemplates,
--- }
+return fx_browser
