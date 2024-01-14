@@ -108,10 +108,10 @@ local function KeyMapScanner(lines)
                 if S.isInQuotes then
                     S.isInQuotes = false
                     S:insertCurWord()
+                    S:advance()
                 else
                     S.isInQuotes = true
                 end
-                S:advance()
                 goto continue
             else
                 local curChar = string.sub(self.curLine, self.curChar, self.curChar)
@@ -262,4 +262,9 @@ local function ParseKeyMapFile()
     return parsedLines
 end
 
-return { ParseKeyMapFile, KeyMapScanner, KeyMapParser }
+return {
+    ParseKeyMapFile = ParseKeyMapFile,
+    KeyMapScanner = KeyMapScanner,
+    KeyMapParser = KeyMapParser,
+    readFile = readFile,
+}

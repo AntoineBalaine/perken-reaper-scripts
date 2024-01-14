@@ -29,11 +29,11 @@ function reaper.kbd_enumerateActions(section, idx) end
 ---@class Error
 
 ---@class Action
+---@field type "action"
 ---@field settings string this might have to be converted to a number
 ---@field section_id number
 ---@field command_id string
 ---@field action_name string
----@field composed_of string[]
 
 ---convert an action-line from the parsed keymap into a named table
 --
@@ -47,20 +47,20 @@ local function processAction(action_line)
     local section_id = tonumber(action_line[3])
     local command_id = action_line[4]
     local action_name = action_line[5]
-    local composed_of = select(6, action_line)
     assert(type(section_id) == "number", "section_id couldn't be converted to a number")
     ---@type Action
     return {
+        type = "action",
         settings = settings,
         section_id = section_id,
         command_id = command_id,
         action_name = action_name,
-        composed_of = composed_of,
     }
 end
 
 
 ---@class KeyMapping
+---@field type "key-mapping"
 ---@field modifier number
 ---@field key_note_value number
 ---@field command_id string
@@ -82,7 +82,9 @@ local function processKey(key_line)
     assert(type(modifier) == "number", "modifier couldn't be converted to a number")
     assert(type(key_note_value) == "number", "key_note_value couldn't be converted to a number")
     assert(type(section_id) == "number", "section_id couldn't be converted to a number")
+    ---@type KeyMapping
     return {
+        type = "key-mapping",
         modifier = modifier,
         key_note_value = key_note_value,
         command_id = command_id,
@@ -91,6 +93,7 @@ local function processKey(key_line)
 end
 
 ---@class Script
+---@field type "script"
 ---@field on_new_instance number
 ---@field section_id number
 ---@field command_id number
@@ -115,8 +118,9 @@ local function processScript(script_line)
     assert(type(on_new_instance) == "number", "on_new_instance couldn't be converted to a number")
     assert(type(section_id) == "number", "section_id couldn't be converted to a number")
     assert(type(command_id) == "number", "command_id couldn't be converted to a number")
-
+    ---@type Script
     return {
+        type = "script",
         on_new_instance = on_new_instance,
         section_id = section_id,
         command_id = command_id,
