@@ -147,7 +147,7 @@ end
 local function LoadTemplate(template, replace)
     local track_template_path = r.GetResourcePath() .. "/TrackTemplates" .. template
     if replace then
-        local chunk = GetFileContext(track_template_path)
+        local chunk = fx_browser.GetFileContext(track_template_path)
         r.SetTrackStateChunk(TRACK, chunk, true)
     else
         r.Main_openProject(track_template_path)

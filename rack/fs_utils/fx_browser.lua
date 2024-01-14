@@ -39,15 +39,15 @@ local function ResetTables()
 end
 
 function fx_browser.MakeFXFiles()
-    GetFXTbl()
-    local serialized_fx = TableToString(PLUGIN_LIST)
-    WriteToFile(FX_FILE, serialized_fx)
+    fx_browser.GetFXTbl()
+    local serialized_fx = fx_browser.TableToString(PLUGIN_LIST)
+    fx_browser.WriteToFile(FX_FILE, serialized_fx)
 
-    local serialized_cat = TableToString(CAT)
-    WriteToFile(FX_CAT_FILE, serialized_cat)
+    local serialized_cat = fx_browser.TableToString(CAT)
+    fx_browser.WriteToFile(FX_CAT_FILE, serialized_cat)
 
-    local serialized_dev_list = TableToString(DEVELOPER_LIST)
-    WriteToFile(FX_DEV_LIST_FILE, serialized_dev_list)
+    local serialized_dev_list = fx_browser.TableToString(DEVELOPER_LIST)
+    fx_browser.WriteToFile(FX_DEV_LIST_FILE, serialized_dev_list)
 
     return PLUGIN_LIST, CAT
 end
