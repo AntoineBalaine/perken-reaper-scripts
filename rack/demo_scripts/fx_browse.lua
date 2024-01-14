@@ -12,7 +12,7 @@
 
 local os_separator = package.config:sub(1, 1)
 package.path = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;" -- GET DIRECTORY FOR REQUIRE
-require("Sexan_FX_Browser")
+local fx_browser = require("fs_utils.fx_browser")
 
 local r = reaper
 local ctx = r.ImGui_CreateContext('FX INI PARSER')
@@ -23,9 +23,9 @@ local ctx = r.ImGui_CreateContext('FX INI PARSER')
 --local FX_LIST_TEST, CAT_TEST = GetFXTbl()
 
 --CACHIN TO FILE - USE IF YOU WANT TO SCAN ONLY ONCE THEN USE THAT TXT FILE FOR FASTER LOADS
-local FX_LIST_TEST, CAT_TEST = ReadFXFile()
+local FX_LIST_TEST, CAT_TEST = fx_browser.ReadFXFile()
 if not FX_LIST_TEST or not CAT_TEST then
-    FX_LIST_TEST, CAT_TEST = MakeFXFiles()
+    FX_LIST_TEST, CAT_TEST = fx_browser.MakeFXFiles()
 end
 --CACHIN TO FILE
 
@@ -188,7 +188,7 @@ local function DrawItems(tbl, main_cat_name)
                         name = name:gsub("^(%S+:)", "")
                     elseif main_cat_name == "DEVELOPER" then
                         -- STRIP SUFFIX (DEVELOPER) FROM THESE CATEGORIES
-                        name = name:gsub(' %(' .. Literalize(tbl[i].name) .. '%)', "")
+                        name = name:gsub(' %(' .. fx_browser.Literalize(tbl[i].name) .. '%)', "")
                     end
                     if r.ImGui_Selectable(ctx, name) then
                         if TRACK then
@@ -245,11 +245,11 @@ function Main()
             --UPDATE FX CHAINS (WE DONT NEED TO RESCAN EVERYTHING IF NEW CHAIN WAS CREATED BY SCRIPT)
             if WANT_REFRESH then
                 WANT_REFRESH = nil
-                UpdateChainsTrackTemplates(CAT)
+                fx_browser.UpdateChainsTrackTemplates(fx_browser.CAT)
             end
             -- RESCAN FILE LIST
             if r.ImGui_Button(ctx, "RESCAN PLUGIN LIST") then
-                FX_LIST_TEST, CAT_TEST = MakeFXFiles()
+                FX_LIST_TEST, CAT_TEST = fx_browser.MakeFXFiles()
             end
             Frame()
         else
