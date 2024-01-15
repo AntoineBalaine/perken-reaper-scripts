@@ -96,7 +96,7 @@ end
 ---@field type "script" -- adding the type field, just in case I later want to merge actions, keys, and scripts into one table
 ---@field on_new_instance number
 ---@field section_id number
----@field command_id number
+---@field command_id string
 ---@field description string
 ---@field script_path string
 
@@ -111,13 +111,12 @@ local function processScript(script_line)
     -- local prefix = script_line[1] -- we can get rid of the prefix
     local on_new_instance = tonumber(script_line[2])
     local section_id = tonumber(script_line[3])
-    local command_id = tonumber(script_line[4])
+    local command_id = script_line[4]
     local description = script_line[5]
     local script_path = script_line[6]
 
     assert(type(on_new_instance) == "number", "on_new_instance couldn't be converted to a number")
     assert(type(section_id) == "number", "section_id couldn't be converted to a number")
-    assert(type(command_id) == "number", "command_id couldn't be converted to a number")
     ---@type Script
     return {
         type = "script",
