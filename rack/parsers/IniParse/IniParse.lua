@@ -128,7 +128,7 @@ end
 ---Takes an ABSOLUTE file path and parses the file.
 --
 --Will return nil if the file is not found.
----@param path any
+---@param path string
 ---@return table|nil
 function IniParse:parse_file(path)
     --get contents of file at path
