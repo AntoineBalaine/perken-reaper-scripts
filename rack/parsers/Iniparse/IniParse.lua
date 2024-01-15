@@ -125,4 +125,20 @@ function IniParse:parse_lines(lines)
     return data
 end
 
+---Takes an ABSOLUTE file path and parses the file.
+--
+--Will return nil if the file is not found.
+---@param path any
+---@return table|nil
+function IniParse:parse_file(path)
+    --get contents of file at path
+    local file = io.open(path, 'r')
+    if not file then
+        return nil
+    end
+    local str = file:read('*a')
+    file:close()
+    return IniParse:parse(str)
+end
+
 return IniParse

@@ -228,34 +228,35 @@ name = "\n \\t"
 ]])
     end)
 
-    --[[   it('test #file input', function()
-    assert.same({
-      foo = 'Hello',
-      bar = 'World',
-      window = {
-        fullscreen = 'true',
-        size = '200,200',
-      },
-      app = {
-        name = 'My Game',
-        version = '1.0.0',
-        escaped_literal = '\n \\n'
-      }
-    }, IniParse:parse_file('spec/test_win32.ini'))
-    assert.same({
-      foo = 'Hello',
-      bar = 'World',
-      window = {
-        fullscreen = 'true',
-        size = '200,200',
-      },
-      app = {
-        name = 'My Game',
-        version = '1.0.0',
-        escaped_literal = '\n \\n'
-      }
-    }, IniParse:parse_file('spec/test_unix.ini'))
-    -- assert.same({},ini.parse_file('spec/invalid.ini'))
-    assert_has_error(function() IniParse:parse_file('spec/does_not_exist.ini') end)
-  end) ]]
+    it('test #file input', function()
+        assert.same({
+            foo = 'Hello',
+            bar = 'World',
+            window = {
+                fullscreen = 'true',
+                size = '200,200',
+            },
+            app = {
+                name = 'My Game',
+                version = '1.0.0',
+                -- escaped_literal = '\n \\n' -- NOT IMPLEMENTED, I'm not handling escaped literals
+            }
+            -- MAKE sure to replace with absolute path
+        }, IniParse:parse_file('/spec/test_windows.ini'))
+        assert.same({
+            foo = 'Hello',
+            bar = 'World',
+            window = {
+                fullscreen = 'true',
+                size = '200,200',
+            },
+            app = {
+                name = 'My Game',
+                version = '1.0.0',
+                -- escaped_literal = '\n \\n' -- NOT IMPLEMENTED, I'm not handling escaped literals
+            }
+            -- MAKE sure to replace with absolute path
+        }, IniParse:parse_file('/spec/test_unix.ini'))
+        assert.is_nil(IniParse:parse_file('spec/does_not_exist.ini'))
+    end)
 end)
