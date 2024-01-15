@@ -87,23 +87,6 @@ local function KeyMapScanner(lines)
         return self.scans
     end
 
-    function S:insertCurWord()
-        table.insert(self.curScan, self.curWord)
-        self.curWord = ""
-    end
-
-    function S:isQuote()
-        local found = string.find(self.curLine, "^[\"]", self.curChar)
-        return found ~= nil
-        -- return string.sub(self.curLine, self.curChar, self.curChar) == "\""
-    end
-
-    function S:isComment()
-        return string.find(self.curLine, "^ #", self.curChar - 1) ~= nil
-        -- return string.sub(self.curLine, self.curChar - 1, self.curChar - 1) == " " and
-        -- string.sub(self.curLine, self.curChar, self.curChar) == "#"
-    end
-
     ---scan all tokens in current line,
     ---and once the line is put together as a string[],
     ---push it to the list of scanned lines
@@ -152,26 +135,6 @@ local function KeyMapScanner(lines)
             table.insert(self.scans, self.curScan)
         end
         return self.curScan
-    end
-
-    function S:advance()
-        self.curChar = self.curChar + 1
-    end
-
-    function S:isSpace()
-        local char = string.find(self.curLine, "^[%s]", self.curChar) ~= nil
-        return char
-        -- local char = string.sub(self.curLine, self.curChar, self.curChar)
-        -- return char == " " or char == "\t"
-    end
-
-    function S:isAtEnd()
-        return self.curChar >= #self.curLine
-    end
-
-    function S:peek()
-        return string.find(self.curLine, "^.", self.curChar)
-        -- return string.sub(self.curLine, self.curChar, self.curChar)
     end
 
     return S
@@ -296,3 +259,4 @@ return {
     KeyMapParser = KeyMapParser,
     readFile = readFile,
 }
+
