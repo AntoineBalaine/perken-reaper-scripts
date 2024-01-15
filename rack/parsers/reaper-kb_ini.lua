@@ -82,76 +82,59 @@ local function KeyMapScanner(lines)
     function S:scanLines()
         for _, line in ipairs(self.lines) do
             self:resetScan(line)
-            self:scanLine(line)
+            self:scanLine()
         end
         return self.scans
-    end
-
-    function S:insertCurWord()
-        table.insert(self.curScan, self.curWord)
-        self.curWord = ""
-    end
-
-    function S:isQuote()
-        return string.sub(self.curLine, self.curChar, self.curChar) == "\""
-    end
-
-    function S:isComment()
-        return string.sub(self.curLine, self.curChar - 1, self.curChar - 1) == " " and
-            string.sub(self.curLine, self.curChar, self.curChar) == "#"
     end
 
     ---scan all tokens in current line,
     ---and once the line is put together as a string[],
     ---push it to the list of scanned lines
-    function S:scanLine(line)
-        while not self:isAtEnd() do
-            self:advance()
-            if self:isComment() and not self.isInQuotes then
+    function S:scanLine()
+        -- while is not at end
+        while not (self.curChar >= #self.curLine) do
+            --advance the cursor
+            self.curChar = self.curChar + 1
+            -- if is comment
+            if string.find(self.curLine, "^ #", self.curChar - 1) ~= nil and not self.isInQuotes then
                 break
             end
-            if self:isSpace() and not self.isInQuotes then
-                self:insertCurWord()
-            elseif self:isQuote() then
+            -- if is space
+            if string.find(self.curLine, "^[%s]", self.curChar) ~= nil and not self.isInQuotes then
+                --insert curWord into curScan
+                table.insert(self.curScan, self.curWord)
+                self.curWord = ""
+                -- if is quote
+            elseif string.find(self.curLine, "^[\"]", self.curChar) ~= nil then
                 if self.isInQuotes then
                     self.isInQuotes = false
-                    self:insertCurWord()
-                    self:advance()
+                    --insert curWord into curScan
+                    table.insert(self.curScan, self.curWord)
+                    self.curWord = ""
+                    --advance the cursor
+                    self.curChar = self.curChar + 1
                 else
                     self.isInQuotes = true
                 end
                 goto continue
             else
+                -- TODO convert curWord to a table that contains the start and end indexes of the word
+                -- local curChar = string.find(self.curLine, "^.", self.curChar) ~= nil
                 local curChar = string.sub(self.curLine, self.curChar, self.curChar)
                 self.curWord = self.curWord .. curChar
             end
             ::continue::
         end
         if #self.curWord > 0 then
-            self:insertCurWord()
+            --insert curWord into curScan
+            table.insert(self.curScan, self.curWord)
+            self.curWord = ""
         end
 
         if #self.curScan > 0 then
             table.insert(self.scans, self.curScan)
         end
         return self.curScan
-    end
-
-    function S:advance()
-        self.curChar = self.curChar + 1
-    end
-
-    function S:isSpace()
-        local char = string.sub(self.curLine, self.curChar, self.curChar)
-        return char == " " or char == "\t"
-    end
-
-    function S:isAtEnd()
-        return self.curChar >= #self.curLine
-    end
-
-    function S:peek()
-        return string.sub(self.curLine, self.curChar, self.curChar)
     end
 
     return S
@@ -276,3 +259,4 @@ return {
     KeyMapParser = KeyMapParser,
     readFile = readFile,
 }
+
