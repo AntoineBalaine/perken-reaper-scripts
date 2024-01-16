@@ -342,6 +342,13 @@ local function to_plugins_by_type(plugin_list)
     return plugins_by_type
 end
 
+
+---@return FX[] plugin_list
+---@return { categories: table<string, string[]>, developers: table<string, string[]> } fx_tags
+---@return { categories: table<string, string[]>, folders: FxFolder[] } custom_categories
+---@return Directory fx_chains
+---@return Directory track_templates
+---@return PluginsByType plugin_by_type
 function fx_browser.GenerateFxList()
     local plugin_list = parsePluginList()
     local rv, fx_tags = pcall(parseFXTags)
