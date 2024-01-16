@@ -2,7 +2,7 @@ local os           = reaper.GetOS()
 local os_separator = package.config:sub(1, 1)
 local info         = debug.getinfo(1, "S")
 local source       = info.source:match(".*rack" .. os_separator):sub(2)
-package.path       = package.path .. ";" .. source .. "?.lua"                  ---FIXME remove this one integrated
+package.path       = package.path .. ";" .. source .. "?.lua"                  ---FIXME remove this once integrated
 ---@type string
 CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
 local IniParse     = require("parsers.IniParse.IniParse")
@@ -12,6 +12,8 @@ local fx_browser   = {}
 ---parse the reaper-fxtags.ini file and return its contents:
 --A list of categories and a list of developers,
 --each containing their respective plugins
+--
+--This function can fail, so make sure to call with `pcall(parseFXTags)`
 local function parseFXTags()
     ---@type table
     local parse = IniParse:parseFile(reaper.GetResourcePath() .. os_separator .. "reaper-fxtags.ini")
@@ -22,13 +24,25 @@ local function parseFXTags()
     local categories = {}
     --each key in parse.category is the name of a plugin
     --so we're having to iterate all the plugins to find the list of categories
-    for plugin, category in pairs(parse.category) do
-        table.insert(categories, category)
-        local current_cat = categories[category]
-        if current_cat then
-            table.insert(current_cat, plugin)
+    for plugin, category_string in pairs(parse.category) do
+        --if the category contains a pipe, this plugin belongs to multiple categories
+        local multiple_categories = string.find(category_string, "|")
+        local category_table = {} ---@type string[]
+        -- put the list of categories contained in category_string into category_table
+        if multiple_categories then
+            for category_type in category_string:gmatch('[^%|]+') do
+                table.insert(category_table, category_type)
+            end
         else
-            categories[category] = { plugin }
+            category_table = { category_string }
+        end
+        -- iterate category_table and add the plugin to each category
+        for _, category in ipairs(category_table) do
+            if categories[category] then
+                table.insert(categories[category], plugin)
+            else
+                categories[category] = { plugin }
+            end
         end
     end
 
@@ -37,15 +51,139 @@ local function parseFXTags()
     ---@type table<string, string[]>
     local developers = {}
     for plugin, developer in pairs(parse.developer) do
-        table.insert(developers, developer)
-        local current_cat = developers[developer]
-        if current_cat then
-            table.insert(current_cat, plugin)
+        local cur_dev = developers[developer]
+        if cur_dev then
+            table.insert(developers[developer], plugin)
         else
             developers[developer] = { plugin }
         end
     end
-    return categories, developers
+    return { categories = categories, developers = developers }
+end
+
+
+---@enum FxFolderEntryType
+local FxFolderEntryType = {
+    lv2 = "lv2",
+    jsfx = "jsfx",
+    vst = "vst",
+    external_editor = "external_editor",
+    video_processor = "video_processor",
+    au = "au",
+    clap = "clap",
+    fx_chain = "fx_chain",
+    smartfolder = "smartfolder",
+}
+
+---@class FxFolderEntry
+---@field type FxFolderEntryType
+---@field path string
+
+---Each folder section in reaper-fxfolders.ini follows the format:
+---```ini
+---Nb=1300 #the number of entries in the current folder
+---Item0=VST:ReaComp (Cockos)
+---Type0=1000 # the type for the first entry
+---```
+---This function reads the folder section and returns a list of entries
+---each containing its type and path.
+---
+---For types enum, see `FxFolderEntryType`
+---@see FxFolderEntryType
+---@param folder table<string, string>|nil
+---@return FxFolderEntry[]|nil
+local function parseFolder(folder)
+    if not folder then
+        return
+    end
+
+    ---@type FxFolderEntry[]
+    local fx_in_folder = {}
+    -- property "Nb" exists in the folder section of reaper-fxfolders.ini
+    local length = tonumber(folder.Nb) or 0
+    for i = 0, length - 1 do
+        local cur_item = {}
+        local itemPrefix = "Item" .. i
+        local typePrefix = "Type" .. i
+        local plugin_type = folder[typePrefix]
+        local itemPath = folder[itemPrefix]
+
+        if plugin_type == "1" then           -- lv2
+            cur_item.type = FxFolderEntryType.lv2
+        elseif plugin_type == "2" then       -- jsfx
+            cur_item.type = FxFolderEntryType.jsfx
+        elseif plugin_type == "3" then       -- vst
+            cur_item.type = FxFolderEntryType.vst
+        elseif plugin_type == "4" then       -- external_editor
+            cur_item.type = FxFolderEntryType.external_editor
+        elseif plugin_type == "6" then       -- video_processor
+            cur_item.type = FxFolderEntryType.video_processor
+        elseif plugin_type == "5" then       -- au
+            cur_item.type = FxFolderEntryType.au
+        elseif plugin_type == "7" then       -- clap
+            cur_item.type = FxFolderEntryType.clap
+        elseif plugin_type == "1000" then    --rfx_chain
+            cur_item.type = FxFolderEntryType.rfx_chain
+        elseif plugin_type == "1048576" then -- smartfolder
+            cur_item.type = FxFolderEntryType.smartfolder
+        end
+        cur_item.path = itemPath
+        table.insert(fx_in_folder, cur_item)
+    end
+end
+
+---@class FxFolder
+---@field name string
+---@field id string
+---@field fx FxFolderEntry[]
+
+---Parse custom categories found in reaper-fxfolders.ini
+--
+---This includes the list of user-defined fx-categories
+---and the list of user-defined folders
+---@return {categories: table<string, string[]>, folders: FxFolder[]}
+local function parseCustomCategories()
+    local fxfolders_path = reaper.GetResourcePath() .. os_separator .. "reaper-fxfolders.ini"
+    local parse = IniParse:parseFile(fxfolders_path)
+
+    assert(parse.categories and parse.category and parse.Folders,
+        "reaper-fxfolders.ini is missing some sections")
+
+    local categories = {} ---@type table<string, string[]>
+    for plugin, category in pairs(parse.category) do
+        if categories[category] then
+            table.insert(categories[category], plugin)
+        else
+            categories[category] = { plugin }
+        end
+    end
+    -- remove parse.categories and parse.category
+    parse.categories = nil
+    parse.category = nil
+    --[[
+the Folders section indicates the setup of folders:
+[Folders]
+Id0=0
+Name0=Favorites
+NbFolders=1
+    ]]
+    ---@type FxFolder[]
+    local folders = {}
+    for i = 0, parse.Folders.NbFolders - 1 do
+        local folder = parse.Folders["Folder" .. i]
+        local name = parse.Folders["Name" .. i]
+        local id = parse.Folders["Id" .. i]
+        local fx = parseFolder(folder)
+        if fx then
+            ---@type FxFolder
+            local mapped_folder = { name = name, id = id, fx = fx }
+            table.insert(folders, mapped_folder)
+        end
+    end
+    return {
+        categories,
+        folders
+    }
 end
 
 ---@class FX
@@ -105,10 +243,7 @@ local function parseFX(name, ident)
     return fx
 end
 
----@return FX[] plugins list
----@return table<string, string[]> categories
----@return table<string, string[]> developers
-function fx_browser.GenerateFxList()
+local function parsePluginList()
     local plugin_list = {} ---@type FX[]
     table.insert(plugin_list, { name = "Container", id = "Container", type = FxType.Container })
     table.insert(plugin_list, { name = "Video processor", id = "Video processor", type = FxType.VideoProcessor })
@@ -121,33 +256,113 @@ function fx_browser.GenerateFxList()
         ---@type string
         ident = reaper.EnumInstalledFX(i)
         if not retval then
-            goto continue
+            break -- If no more plugins are found, exit the loop
         end
         local fx = parseFX(name, ident)
         if fx then
-            table.insert(fx)
+            table.insert(plugin_list, fx)
         end
-        ::continue::
+    end
+    return plugin_list
+end
+
+---@class Directory
+---@field path string
+---@field subdirs? Directory[]
+---@field files? string[]
+
+---@param path string
+---@param file_extension string
+---@return Directory
+local function directoryRead(path, file_extension)
+    ---@type Directory
+    local directory = { path = path }
+    for index = 0, math.huge do
+        local subdir = reaper.EnumerateSubdirectories(path, index)
+        if not subdir then break end -- break if no more sub-directories are found
+        local subdir_path = path .. os_separator .. subdir
+        if directory.subdirs then
+            table.insert(directory.subdirs, directoryRead(subdir_path, file_extension))
+        else
+            directory.subdirs = { directoryRead(subdir_path, file_extension) }
+        end
     end
 
-    local rv, categories, developers = pcall(parseFXTags)
+    for index = 0, math.huge do
+        local file = reaper.EnumerateFiles(path, index)
+        if not file then break end -- break if no more files are found
+        if file:find(file_extension, nil, true) then
+            local file_name = file:gsub(file_extension, "")
+            if directory.files then
+                table.insert(directory.files, file_name)
+            else
+                directory.files = { file_name }
+            end
+        end
+    end
+    return directory
+end
+
+local function parseFxChains()
+    local fxChainsPath = reaper.GetResourcePath() .. os_separator .. "FXChains"
+    return directoryRead(fxChainsPath, ".RfxChain")
+end
+
+local function parseTrackTemplates()
+    local trackTemplatesPath = reaper.GetResourcePath() .. os_separator .. "TrackTemplates"
+    return directoryRead(trackTemplatesPath, ".RTrackTemplate")
+end
+
+---sort plugins by type, such as {VST = {plugin1, plugin2}, JS = {plugin3}}
+---@param plugin_list FX[]
+local function to_plugins_by_type(plugin_list)
+    ---@class PluginsByType
+    ---@field VST? FX[]
+    ---@field VSTi? FX[]
+    ---@field VST3? FX[]
+    ---@field VST3i? FX[]
+    ---@field JS? FX[]
+    ---@field AU? FX[]
+    ---@field AUi? FX[]
+    ---@field CLAP? FX[]
+    ---@field CLAPi? FX[]
+    ---@field LV2? FX[]
+    ---@field LV2i? FX[]
+    ---@field Container? FX[]
+    ---@field VideoProcessor? FX[]
+    local plugins_by_type = {}
+
+    for _, plugin in ipairs(plugin_list) do
+        if plugins_by_type[plugin.type] then
+            table.insert(plugins_by_type[plugin.type], plugin)
+        else
+            plugins_by_type[plugin.type] = { plugin }
+        end
+    end
+    return plugins_by_type
+end
+
+function fx_browser.GenerateFxList()
+    local plugin_list = parsePluginList()
+    local rv, fx_tags = pcall(parseFXTags)
     if not rv then
-        categories = {} ---@type table<string, string[]>
-        developers = {} ---@type table<string, string[]>
+        fx_tags = {
+            categories = {}, ---@type table<string, string[]>
+            developers = {} ---@type table<string, string[]>
+        }
     end
-    -- ParseCustomCategories()
-    -- ParseFavorites()
-    -- local FX_CHAINS = ParseFXChains()
-    -- if #FX_CHAINS ~= 0 then
-    --     fx_browser.CAT[#fx_browser.CAT + 1] = { name = "FX CHAINS", list = FX_CHAINS }
-    -- end
-    -- local TRACK_TEMPLATES = ParseTrackTemplates()
-    -- if #TRACK_TEMPLATES ~= 0 then
-    --     fx_browser.CAT[#fx_browser.CAT + 1] = { name = "TRACK TEMPLATES", list = TRACK_TEMPLATES }
-    -- end
-    -- AllPluginsCategory()
+    local retval, custom_categories = pcall(parseCustomCategories)
+    if not rv then
+        custom_categories = {
+            categories = {}, ---@type table<string, string[]>
+            folders = {} ---@type FxFolder[]
+        }
+    end
+    local fx_chains = parseFxChains()
+    local track_templates = parseTrackTemplates()
+    local plugin_by_type = to_plugins_by_type(plugin_list)
 
-    return plugin_list, categories, developers
+    return plugin_list, fx_tags, custom_categories, fx_chains, track_templates, plugin_by_type
 end
 
 return fx_browser
