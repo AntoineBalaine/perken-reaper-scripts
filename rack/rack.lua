@@ -8,67 +8,68 @@ CurrentDirectory = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- 
 package.path = CurrentDirectory .. "?.lua;"
 
 local menubar = require("components.menubar")
-local actions = require("actions")
+local state = require("state.state")
 
----@alias Rack_Context table
-
----This the rack's global context. It is NOT the same as the ImGui_Context
--- The rack's context is used to store global variables
----@type Rack_Context
-local Ctx = { actions = actions }
 
 ---Rack module
-local rack = {}
+local Rack = {}
+
+---draw the fx list
+function Rack:drawFxList()
+    if not self.state.Track then
+        return
+    end
+end
+
+function Rack:main()
+    if self.actions.dock ~= nil then                       -- if the user clicked «dock» or «undock»
+        if self.actions.dock then
+            reaper.ImGui_SetNextWindowDockID(self.ctx, -1) -- set to docked
+            self.actions.dock = nil
+        else
+            reaper.ImGui_SetNextWindowDockID(self.ctx, 0) -- set to undocked
+            self.actions.dock = nil
+        end
+    end
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), --background color
+        0x0000000)
+
+    local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
+    if imgui_visible then
+        --display the rack
+        menubar:display()
+        self:drawFxList()
+    end
+
+
+    reaper.ImGui_PopStyleColor(self.ctx) -- Remove background
+    reaper.ImGui_End(self.ctx)
+    if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
+        reaper.ImGui_DestroyContext(self.ctx)
+    else
+        reaper.defer(function() self:main() end)
+    end
+end
 
 ---Create the ImGui context and setup the window size
 ---@return ImGui_Context
-function rack.SetupImGui()
-    local flags = reaper.ImGui_ConfigFlags_DockingEnable()
-    local ctx = reaper.ImGui_CreateContext("rack",
-        flags)
-    reaper.ImGui_SetNextWindowSize(ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
-    return ctx
-end
-
----@param IgCtx ImGui_Context
-function rack.display(IgCtx)
-    if actions.dock ~= nil then                         -- if the user clicked «dock» or «undock»
-        if actions.dock then
-            reaper.ImGui_SetNextWindowDockID(IgCtx, -1) -- set to docked
-            Ctx.actions.dock = nil
-        else
-            reaper.ImGui_SetNextWindowDockID(IgCtx, 0) -- set to undocked
-            Ctx.actions.dock = nil
-        end
-    end
-    reaper.ImGui_PushStyleColor(IgCtx, reaper.ImGui_Col_WindowBg(), --background color
-        0x0000000)
-
+function Rack:init()
     local window_flags =
         reaper.ImGui_WindowFlags_NoScrollWithMouse()
         + reaper.ImGui_WindowFlags_NoScrollbar()
         + reaper.ImGui_WindowFlags_MenuBar()
         + reaper.ImGui_WindowFlags_NoCollapse()
         + reaper.ImGui_WindowFlags_NoNav()
-    local imgui_visible, imgui_open = reaper.ImGui_Begin(IgCtx, "rack", true,
-        window_flags)
-    if imgui_visible then
-        --display the rack
-        menubar:display()
-    end
-
-
-    reaper.ImGui_PopStyleColor(IgCtx) -- Remove background
-    reaper.ImGui_End(IgCtx)
-    if not imgui_open or reaper.ImGui_IsKeyPressed(IgCtx, 27) then
-        reaper.ImGui_DestroyContext(IgCtx)
-    else
-        reaper.defer(function() rack.display(IgCtx) end)
-    end
+    self.window_flags = window_flags
+    self.actions = { dock = false }
+    local flags = reaper.ImGui_ConfigFlags_DockingEnable()
+    local ctx = reaper.ImGui_CreateContext("rack",
+        flags)
+    reaper.ImGui_SetNextWindowSize(ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
+    self.ctx = ctx
+    self.state = state:init()
+    menubar:init(self) -- pass the rack to the menubar, so that it can access its internal state.
+    return self
 end
 
---- ImGuiContext
-local IgCtx = rack.SetupImGui()
-menubar:init(IgCtx, Ctx)
-
-rack.display(IgCtx)
+reaper.defer(function() Rack:init():main() end)
