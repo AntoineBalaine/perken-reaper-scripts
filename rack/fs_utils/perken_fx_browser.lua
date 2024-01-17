@@ -5,8 +5,8 @@ local os_separator = package.config:sub(1, 1)
 -- package.path       = package.path .. ";" .. source .. "?.lua"                  ---FIXME remove this once integrated
 -- ---@type string
 -- CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
-local IniParse     = require("parsers.IniParse.IniParse")
 local fx_browser   = {}
+local IniParse     = require("parsers.IniParse.IniParse")
 
 
 ---parse the reaper-fxtags.ini file and return its contents:
@@ -15,10 +15,10 @@ local fx_browser   = {}
 --
 --This function can fail, so make sure to call with `pcall(parseFXTags)`
 local function parseFXTags()
-    ---@type table
-    local parse = IniParse:parseFile(reaper.GetResourcePath() .. os_separator .. "reaper-fxtags.ini")
+    ---@type table|nil
+    local parse = IniParse:parse_file(reaper.GetResourcePath() .. os_separator .. "reaper-fxtags.ini")
     ---expect `parse` to have two methods: category and developer
-    assert(parse.category and parse.developer, "reaper-fxtags.ini is missing category or developer section")
+    assert(parse and parse.category and parse.developer, "reaper-fxtags.ini is missing category or developer section")
 
     ---@type table<string, string[]>
     local categories = {}
@@ -144,9 +144,10 @@ end
 ---@return {categories: table<string, string[]>, folders: FxFolder[]}
 local function parseCustomCategories()
     local fxfolders_path = reaper.GetResourcePath() .. os_separator .. "reaper-fxfolders.ini"
-    local parse = IniParse:parseFile(fxfolders_path)
+    ---@type table|nil
+    local parse = IniParse:parse_file(fxfolders_path)
 
-    assert(parse.categories and parse.category and parse.Folders,
+    assert(parse and parse.categories and parse.category and parse.Folders,
         "reaper-fxfolders.ini is missing some sections")
 
     local categories = {} ---@type table<string, string[]>

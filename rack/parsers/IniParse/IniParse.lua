@@ -1,10 +1,10 @@
-local Scanner = require('IniScan')
+local Scanner   = require("parsers.IniParse.IniScan")
 ---INI parser.
 --initialize and parse with
 --```lua
 --IniParse:new():parse(sourceStr)
 -- ```
-local IniParse = {}
+local IniParse  = {}
 
 ---default config object for the INI parser
 ---@class CONFIG

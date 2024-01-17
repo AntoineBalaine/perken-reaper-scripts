@@ -80,16 +80,44 @@ end
 
 ---Draw the full plugins list.
 --Not very useful atm, might be better to split between types of plugins (instruments, fx, etc.).
-function Browser:drawFX()
-    if reaper.ImGui_BeginMenu(self.ctx, "all plugins") then
-        for i, plugin in ipairs(self.plugin_list) do
-            if reaper.ImGui_Selectable(self.ctx, plugin.name) then
-                reaper.TrackFX_AddByName(self.track, plugin.name, false,
+---@param list (FX|string)[]
+---@param menu_name string
+function Browser:drawFX(list, menu_name)
+    if reaper.ImGui_BeginMenu(self.ctx, menu_name) then
+        for _, plugin in ipairs(list) do
+            local name = type(plugin) == "string" and plugin or plugin.name
+            if reaper.ImGui_Selectable(self.ctx, name) then
+                reaper.TrackFX_AddByName(self.track, name, false,
                     -1000 - reaper.TrackFX_GetCount(self.track))
-                self.LAST_USED_FX = plugin.name
+                self.LAST_USED_FX = name
             end
         end
 
+        reaper.ImGui_EndMenu(self.ctx)
+    end
+end
+
+---draw fx categories menu eg. "CLAP", "vst", "VSTi", etc.
+function Browser:drawAllPlugins()
+    if reaper.ImGui_BeginMenu(self.ctx, "all plugins") then
+        for category_name, category in pairs(self.plugin_by_type) do
+            self:drawFX(category, category_name)
+        end
+        reaper.ImGui_EndMenu(self.ctx)
+    end
+end
+
+function Browser:drawFxTags()
+    if reaper.ImGui_BeginMenu(self.ctx, "developers") then
+        for developer_name, developer in pairs(self.fx_tags.developers) do
+            self:drawFX(developer, developer_name)
+        end
+        reaper.ImGui_EndMenu(self.ctx)
+    end
+    if reaper.ImGui_BeginMenu(self.ctx, "custom categories") then
+        for category_name, category in pairs(self.fx_tags.categories) do
+            self:drawFX(category, category_name)
+        end
         reaper.ImGui_EndMenu(self.ctx)
     end
 end
@@ -104,7 +132,8 @@ function Browser:drawMenus()
         reaper.ImGui_EndMenu(self.ctx)
     end
 
-    self:drawFX()                                          -- draw all plugins menu
+    self:drawAllPlugins()                                  -- draw all plugin menu
+    self:drawFxTags()                                      -- draw plugin developers menu
 
     if reaper.ImGui_Selectable(self.ctx, "container") then -- add container if clicked
         reaper.TrackFX_AddByName(self.track, "Container", false,
@@ -116,7 +145,7 @@ function Browser:drawMenus()
             -1000 - reaper.TrackFX_GetCount(self.track))
         self.LAST_USED_FX = "Video processor"
     end
-    if self.LAST_USED_FX then
+    if self.LAST_USED_FX then -- draw last used fx
         if reaper.ImGui_Selectable(self.ctx, "recent: " .. self.LAST_USED_FX) then
             reaper.TrackFX_AddByName(self.track, self.LAST_USED_FX, false,
                 -1000 - reaper.TrackFX_GetCount(self.track))
