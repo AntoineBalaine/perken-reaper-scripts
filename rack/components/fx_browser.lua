@@ -1,8 +1,8 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local reaper = reaper
 local os_separator = package.config:sub(1, 1)
 package.path = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;" -- GET DIRECTORY FOR REQUIRE
-local fx_browser = require("fs_utils.perken_fx_browser")
+local fx_parser = require("parsers.fx_parser")
 
 ---Coerce `Input` number to be between `Min` and `Max`
 ---@param Input number
@@ -57,7 +57,7 @@ function Browser:init()
     self.fx_chains,
     self.track_templates,
     self.plugin_by_type =
-        fx_browser
+        fx_parser
         .GenerateFxList() ---pull the data from the fx parser module
     return self
 end
@@ -285,7 +285,7 @@ function Browser:main()
                 self.fx_chains,
                 self.track_templates,
                 self.plugin_by_type =
-                    fx_browser
+                    fx_parser
                     .GenerateFxList() ---pull the data from the fx parser module, i.e. re-parse
             end
             self:drawMenus()
