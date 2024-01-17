@@ -1,10 +1,10 @@
 local os           = reaper.GetOS()
 local os_separator = package.config:sub(1, 1)
-local info         = debug.getinfo(1, "S")
-local source       = info.source:match(".*rack" .. os_separator):sub(2)
-package.path       = package.path .. ";" .. source .. "?.lua"                  ---FIXME remove this once integrated
----@type string
-CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
+-- local info         = debug.getinfo(1, "S")
+-- local source       = info.source:match(".*rack" .. os_separator):sub(2)
+-- package.path       = package.path .. ";" .. source .. "?.lua"                  ---FIXME remove this once integrated
+-- ---@type string
+-- CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
 local IniParse     = require("parsers.IniParse.IniParse")
 local fx_browser   = {}
 
@@ -359,7 +359,7 @@ function fx_browser.GenerateFxList()
         }
     end
     local retval, custom_categories = pcall(parseCustomCategories)
-    if not rv then
+    if not retval then
         custom_categories = {
             categories = {}, ---@type table<string, string[]>
             folders = {} ---@type FxFolder[]
