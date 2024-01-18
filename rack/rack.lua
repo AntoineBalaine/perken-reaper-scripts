@@ -1,3 +1,4 @@
+dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local info = debug.getinfo(1, "S")
 
 local Os_separator = package.config:sub(1, 1)
@@ -19,9 +20,14 @@ function Rack:drawFxList()
     if not self.state.Track then
         return
     end
+    reaper.ImGui_Text(self.ctx, "Track: " .. self.state.Track.name)
+    for idx, fx in ipairs(self.state.Track.fx_list) do
+        reaper.ImGui_Text(self.ctx, "FX: " .. fx.name)
+    end
 end
 
 function Rack:main()
+    self.state:update():getTrackFx()
     if self.actions.dock ~= nil then                       -- if the user clicked «dock» or «undock»
         if self.actions.dock then
             reaper.ImGui_SetNextWindowDockID(self.ctx, -1) -- set to docked
@@ -54,19 +60,19 @@ end
 ---Create the ImGui context and setup the window size
 ---@return ImGui_Context
 function Rack:init()
+    local ctx_flags = reaper.ImGui_ConfigFlags_DockingEnable()
+    local ctx = reaper.ImGui_CreateContext("rack",
+        ctx_flags)
+    reaper.ImGui_SetNextWindowSize(ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
+    self.ctx = ctx
     local window_flags =
         reaper.ImGui_WindowFlags_NoScrollWithMouse()
         + reaper.ImGui_WindowFlags_NoScrollbar()
         + reaper.ImGui_WindowFlags_MenuBar()
         + reaper.ImGui_WindowFlags_NoCollapse()
         + reaper.ImGui_WindowFlags_NoNav()
-    self.window_flags = window_flags
-    self.actions = { dock = false }
-    local flags = reaper.ImGui_ConfigFlags_DockingEnable()
-    local ctx = reaper.ImGui_CreateContext("rack",
-        flags)
-    reaper.ImGui_SetNextWindowSize(ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
-    self.ctx = ctx
+    self.window_flags = window_flags -- tb used in main()
+    self.actions = { dock = true }
     self.state = state:init()
     menubar:init(self) -- pass the rack to the menubar, so that it can access its internal state.
     return self

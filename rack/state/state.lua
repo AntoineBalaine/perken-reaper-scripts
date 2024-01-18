@@ -10,10 +10,12 @@ local r = reaper
 ---@field name string
 ---@field number integer
 ---@field param? table
+---@field index integer
 
 ---@class Track
 ---@field last_fx TrackFX --- last touched fx
----@field fx_list table<string, TrackFX> --- all fx in the track, using GUID as key
+---@field fx_by_guid table<string, TrackFX> --- all fx in the track, using GUID as key. Duplicate of fx_list for easier access.
+---@field fx_list TrackFX[] --- array of fx in the track. duplicate of fx_by_guid for easier iteration.
 ---@field fx_count integer
 ---@field guid string
 ---@field name string
@@ -24,7 +26,7 @@ local r = reaper
 -- the last touched fx,
 -- the fx list for current track and parameters,
 -- and store them in the state.
-function state:updateState()
+function state:update()
     local track = reaper.GetSelectedTrack2(0, 0, false)
     if not track then return self end                                      -- if there's no selected track, move on
     local trackGuid                                = r.GetTrackGUID(track) -- get the track's GUID
@@ -57,7 +59,8 @@ function state:updateState()
                     name = paramName
                 }
             },
-            fx_list = {}
+            fx_list = {},
+            fx_by_guid = {}
         }
     else
         self.Track.track = track
@@ -81,10 +84,24 @@ function state:getTrackFx()
     if not self.Track then
         return self
     end
+    local updated_fx_list
     for idx = 0, self.Track.fx_count - 1 do
         local fxGuid = r.TrackFX_GetFXGUID(self.Track.track, idx)
-        local exists = self.Track.fx_list[fxGuid] ~= nil
-        if exists then
+        local index = idx + 1 -- lua is 1-indexed
+        local item = self.Track.fx_by_guid[fxGuid]
+        local exists_in_fx_list = self.Track.fx_list[index] ~= nil and self.Track.fx_list[index].guid == fxGuid
+        -- what to do if fx exists but is at the wrong index?
+        -- update the table
+        -- how to update the table?
+        if item and not exists_in_fx_list then -- fx has been moved
+            -- assign all the items after current idx into updated_fx_list
+            if not updated_fx_list then        -- assign all the items up to current idx into updated_fx_list
+                updated_fx_list = { table.unpack(self.Track.fx_list, 1, idx) }
+            end
+            item.index = index
+            table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
+        end
+        if item then
             goto continue
         else
             local _, fxName = r.TrackFX_GetFXName(self.Track.track, idx)
@@ -94,11 +111,16 @@ function state:getTrackFx()
                 number = idx,
                 name = fxName,
                 guid = fxGuid,
-                enabled = fxEnabled
+                enabled = fxEnabled,
+                index = index
             }
-            self.Track.fx_list[fxGuid] = Fx
+            self.Track.fx_by_guid[fxGuid] = Fx
+            self.Track.fx_list[index] = Fx
         end
         ::continue::
+    end
+    if updated_fx_list then
+        self.Track.fx_list = updated_fx_list
     end
     return self
 end
@@ -109,7 +131,7 @@ end
 function state:init()
     ---@type Track|nil
     self.Track = nil
-    self:updateState():getTrackFx()
+    self:update():getTrackFx()
     return self
 end
 
