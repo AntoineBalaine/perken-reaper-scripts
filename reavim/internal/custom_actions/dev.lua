@@ -107,7 +107,17 @@ function dev.devAction()
     -- reaper.Main_OnCommand(reaper.NamedCommandLookup("_RS6e1dd02ebbb0dfd179ef1435a55cfc895d0c8f40"), 0)
 
     ---shortcutManager demo
-    reaper.Main_OnCommand(reaper.NamedCommandLookup("_RSb038b231a657afb36aa0a3ee30744ce0cad482d3"), 0)
+    -- reaper.Main_OnCommand(reaper.NamedCommandLookup("_RSb038b231a657afb36aa0a3ee30744ce0cad482d3"), 0)
+    --sexan Fx parser
+    -- reaper.Main_OnCommand(reaper.NamedCommandLookup("_RS96526cd72fa20d36de59acdceeda90ecce0b97f9"), 0)
+    --perken Fx parser
+    -- reaper.Main_OnCommand(reaper.NamedCommandLookup("_RS6a5543e019f209d27f511676802f466143d30db6"), 0)
+    --perken rack
+    -- reaper.Main_OnCommand(reaper.NamedCommandLookup("_RSb038b231a657afb36aa0a3ee30744ce0cad482d3"), 0)
+    --fx devices
+    reaper.Main_OnCommand(reaper.NamedCommandLookup("_RSbff5adaa2f20b1abb3d4da0cf4e4c30fccc7c88a"), 0)
+
+
 
     -- MFT.create_fx_map()
 end
