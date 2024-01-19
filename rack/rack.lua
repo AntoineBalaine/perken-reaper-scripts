@@ -32,16 +32,8 @@ function Rack:main()
     -- update state and actions at every loop
     self.state:update():getTrackFx()
     self.actions:update()
+    self.actions:manageDock()
 
-    if self.actions.dock ~= nil then                       -- if the user clicked «dock» or «undock»
-        if self.actions.dock then
-            reaper.ImGui_SetNextWindowDockID(self.ctx, -1) -- set to docked
-            self.actions.dock = nil
-        else
-            reaper.ImGui_SetNextWindowDockID(self.ctx, 0) -- set to undocked
-            self.actions.dock = nil
-        end
-    end
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), --background color
         0x0000000)
 

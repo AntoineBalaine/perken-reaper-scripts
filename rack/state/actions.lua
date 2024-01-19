@@ -2,6 +2,7 @@
 local actions = {}
 local r = reaper
 
+---Retrieve all of the user's mouse movements
 function actions:update()
     self.isAnyMouseDown         = r.ImGui_IsAnyMouseDown(self.ctx)
     self.IsLeftClicked          = r.ImGui_IsMouseClicked(self.ctx, 0)       --- left mouse button
@@ -14,6 +15,19 @@ function actions:update()
     self.LeftReleased           = r.ImGui_IsMouseReleased(self.ctx, 0)      --- left mouse button
     self.Left_MouseDownDuration = r.ImGui_GetMouseDownDuration(self.ctx, 0) --- left mouse button
     self.RightReleased          = r.ImGui_IsMouseReleased(self.ctx, 1)      --- right mouse button
+end
+
+---Determine wether or not to dock the window
+function actions:manageDock()
+    if self.actions.dock ~= nil then                       -- if the user clicked «dock» or «undock»
+        if self.actions.dock then
+            reaper.ImGui_SetNextWindowDockID(self.ctx, -1) -- set to docked
+            self.actions.dock = nil
+        else
+            reaper.ImGui_SetNextWindowDockID(self.ctx, 0) -- set to undocked
+            self.actions.dock = nil
+        end
+    end
 end
 
 ---@param ctx ImGui_Context
