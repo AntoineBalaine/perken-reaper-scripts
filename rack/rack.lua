@@ -8,11 +8,13 @@ package.path = package.path .. ";" .. source .. "?.lua"
 CurrentDirectory = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
 package.path = CurrentDirectory .. "?.lua;"
 
+local Fx_box = require("components.Fx_box")
 local menubar = require("components.menubar")
 local state = require("state.state")
-
+local actions = require("state.actions")
 
 ---Rack module
+---@class Rack
 local Rack = {}
 
 ---draw the fx list
@@ -20,14 +22,17 @@ function Rack:drawFxList()
     if not self.state.Track then
         return
     end
-    reaper.ImGui_Text(self.ctx, "Track: " .. self.state.Track.name)
-    for idx, fx in ipairs(self.state.Track.fx_list) do
-        reaper.ImGui_Text(self.ctx, "FX: " .. fx.name)
+
+    for _, fx in ipairs(self.state.Track.fx_list) do
+        Fx_box:display(fx)
     end
 end
 
 function Rack:main()
+    -- update state and actions at every loop
     self.state:update():getTrackFx()
+    self.actions:update()
+
     if self.actions.dock ~= nil then                       -- if the user clicked «dock» or «undock»
         if self.actions.dock then
             reaper.ImGui_SetNextWindowDockID(self.ctx, -1) -- set to docked
@@ -48,7 +53,7 @@ function Rack:main()
     end
 
 
-    reaper.ImGui_PopStyleColor(self.ctx) -- Remove background
+    reaper.ImGui_PopStyleColor(self.ctx) -- Remove background color
     reaper.ImGui_End(self.ctx)
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
         reaper.ImGui_DestroyContext(self.ctx)
@@ -58,13 +63,11 @@ function Rack:main()
 end
 
 ---Create the ImGui context and setup the window size
----@return ImGui_Context
 function Rack:init()
     local ctx_flags = reaper.ImGui_ConfigFlags_DockingEnable()
-    local ctx = reaper.ImGui_CreateContext("rack",
+    self.ctx = reaper.ImGui_CreateContext("rack",
         ctx_flags)
-    reaper.ImGui_SetNextWindowSize(ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
-    self.ctx = ctx
+    reaper.ImGui_SetNextWindowSize(self.ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
     local window_flags =
         reaper.ImGui_WindowFlags_NoScrollWithMouse()
         + reaper.ImGui_WindowFlags_NoScrollbar()
@@ -72,9 +75,14 @@ function Rack:init()
         + reaper.ImGui_WindowFlags_NoCollapse()
         + reaper.ImGui_WindowFlags_NoNav()
     self.window_flags = window_flags -- tb used in main()
-    self.actions = { dock = true }
-    self.state = state:init()
-    menubar:init(self) -- pass the rack to the menubar, so that it can access its internal state.
+
+
+    self.state = state:init()                               -- initialize state, query selected track and its fx
+    self.actions = actions:init(self.ctx, self.state.Track) -- always init actions after state
+
+    -- initialize components by passing them the rack's state
+    Fx_box:init(self)
+    menubar:init(self)
     return self
 end
 
