@@ -20,8 +20,6 @@ end
 function fx_box:display(fx)
     self.fx = fx
 
-    local is_first = fx.index == 1
-
     reaper.ImGui_BeginGroup(self.ctx)
 
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ChildBg(), BG_COL)
@@ -32,8 +30,8 @@ function fx_box:display(fx)
         local btn_height = 20
         if reaper.ImGui_Button(self.ctx, display_name, btn_width, btn_height) then        -- create window name button
             local is_remove_fx = reaper.ImGui_IsKeyDown(self.ctx, reaper.ImGui_Mod_Alt()) -- if ALT is held when clicking, remove fx
-            if is_remove_fx then                                                          -- FIXME : state doesn’t update when removing fx
-                reaper.TrackFX_Delete(self.state.Track.track, fx.index - 1)
+            if is_remove_fx then
+                self.state:deleteFx(fx.index)
             else
                 local focused_fx_idx = reaper.TrackFX_GetChainVisible(self.state.Track.track) -- if not ALT, show fx
                 local show_flag = focused_fx_idx == fx.index - 1 and 0 or

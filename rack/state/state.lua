@@ -125,6 +125,22 @@ function state:getTrackFx()
     return self
 end
 
+function state:deleteFx(idx)
+    if not self.Track then
+        return self
+    end
+    local fx = self.Track.fx_list[idx]
+    if not fx then
+        return self
+    end
+    local has_deleted = reaper.TrackFX_Delete(self.Track.track, fx.index - 1)
+    if has_deleted then
+        self.Track.fx_by_guid[fx.guid] = nil
+        table.remove(self.Track.fx_list, idx)
+    end
+    return self
+end
+
 --- Initialize the state: get the selected track,
 -- the last touched fx,
 -- the fx list for current track and parameters.
