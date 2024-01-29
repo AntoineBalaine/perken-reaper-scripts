@@ -19,13 +19,13 @@ end
 
 ---Determine wether or not to dock the window
 function actions:manageDock()
-    if self.actions.dock ~= nil then                       -- if the user clicked «dock» or «undock»
-        if self.actions.dock then
+    if self.dock ~= nil then                               -- if the user clicked «dock» or «undock»
+        if self.dock then
             reaper.ImGui_SetNextWindowDockID(self.ctx, -1) -- set to docked
-            self.actions.dock = nil
+            self.dock = nil
         else
             reaper.ImGui_SetNextWindowDockID(self.ctx, 0) -- set to undocked
-            self.actions.dock = nil
+            self.dock = nil
         end
     end
 end
@@ -35,7 +35,7 @@ end
 function actions:init(ctx, Track)
     self.ctx   = ctx
     self.Track = Track
-    self.dock  = false ---@type boolean|nil
+    self.dock  = true ---@type boolean|nil
     return self
 end
 
