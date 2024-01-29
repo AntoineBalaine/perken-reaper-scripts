@@ -1,4 +1,4 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local ThemeReader = {}
 
 ---@class Theme

@@ -1,4 +1,4 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local info = debug.getinfo(1, "S")
 
 local Os_separator = package.config:sub(1, 1)
@@ -23,8 +23,10 @@ function Rack:drawFxList()
         return
     end
 
-    for _, fx in ipairs(self.state.Track.fx_list) do
+    for n, fx in ipairs(self.state.Track.fx_list) do
+        reaper.ImGui_PushID(self.ctx, n)
         Fx_box:display(fx)
+        reaper.ImGui_PopID(self.ctx)
     end
 end
 
