@@ -1,21 +1,22 @@
 -- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
-local info = debug.getinfo(1, "S")
+local info         = debug.getinfo(1, "S")
 
 local Os_separator = package.config:sub(1, 1)
-local source = info.source:match(".*rack" .. Os_separator):sub(2)
-package.path = package.path .. ";" .. source .. "?.lua"
+local source       = info.source:match(".*rack" .. Os_separator):sub(2)
+package.path       = package.path .. ";" .. source .. "?.lua"
 ---@type string
-CurrentDirectory = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
-package.path = CurrentDirectory .. "?.lua;"
+CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
+package.path       = CurrentDirectory .. "?.lua;"
 
-local Fx_box = require("components.Fx_box")
-local menubar = require("components.menubar")
-local state = require("state.state")
-local actions = require("state.actions")
+local Fx_box       = require("components.Fx_box")
+local Fx_separator = require("components.fx_separator")
+local menubar      = require("components.menubar")
+local state        = require("state.state")
+local actions      = require("state.actions")
 
 ---Rack module
 ---@class Rack
-local Rack = {}
+local Rack         = {}
 
 ---draw the fx list
 function Rack:drawFxList()
@@ -23,16 +24,13 @@ function Rack:drawFxList()
         return
     end
 
-    if self.state.Track.fx_list == nil or #self.state.Track.fx_list == 0 then
-        --- pass `is_last` to `spaceBtwFx` to display the fx browser on click
-        local is_last = true
-        Fx_box:spaceBtwFx(is_last)
-    end
     for n, fx in ipairs(self.state.Track.fx_list) do
         reaper.ImGui_PushID(self.ctx, n)
+        Fx_separator:spaceBtwFx(fx.number)
         Fx_box:display(fx)
         reaper.ImGui_PopID(self.ctx)
     end
+    Fx_separator:spaceBtwFx(#self.state.Track.fx_list, true)
 end
 
 function Rack:main()
@@ -81,8 +79,10 @@ function Rack:init()
 
     -- initialize components by passing them the rack's state
     Fx_box:init(self)
+    Fx_separator:init(self)
     menubar:init(self)
     return self
 end
 
-reaper.defer(function() Rack:init():main() end)
+local rack = Rack:init()
+reaper.defer(function() rack:main() end)
