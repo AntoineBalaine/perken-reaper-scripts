@@ -11,11 +11,13 @@ local CLR_BtwnFXs_Btn_Active = 0x777777aa
 
 --- call from fx_box:display() to insert spaces between fx windows,
 --- display the fx browser, and drag and drop fx
-function fx_box:spaceBtwFx()
+---@param is_last? boolean
+function fx_box:spaceBtwFx(is_last)
     local ctx = self.ctx
 
-    if reaper.ImGui_Button(ctx, '##Button between Windows', 10, 220) then
+    if reaper.ImGui_Button(ctx, '##Button between FX', 10, 220) and is_last then
         --- DISPLAY FX BROWSER
+        reaper.Main_OnCommand(40271, 0)
     end
     fx_box:dragDropTarget()
 
@@ -24,12 +26,13 @@ end
 
 function fx_box:dragDropTarget()
     if reaper.ImGui_BeginDragDropTarget(self.ctx) then
-        Rv, Payload_fxIdx = reaper.ImGui_AcceptDragDropPayload(self.ctx, drag_drop.types.drag_fx)
-        local src_fx_idx = tonumber(Payload_fxIdx)
-        if Rv and src_fx_idx then
+        local rv, payload_fxNumber = reaper.ImGui_AcceptDragDropPayload(self.ctx, drag_drop.types.drag_fx)
+        ---fx number of the dragged fx: fx.number is 0-indexed, fx_idx is 1-indexed
+        local src_fx_number = tonumber(payload_fxNumber)
+        if rv and src_fx_number then
             local is_copy = reaper.ImGui_IsKeyDown(self.ctx, reaper.ImGui_Mod_Alt())
             -- move FX
-            reaper.TrackFX_CopyToTrack(self.state.Track.track, src_fx_idx - 1, self.state.Track.track, self.fx.index - 1,
+            reaper.TrackFX_CopyToTrack(self.state.Track.track, src_fx_number, self.state.Track.track, self.fx.number,
                 not is_copy)
         end
         reaper.ImGui_EndDragDropTarget(self.ctx)
@@ -37,18 +40,10 @@ function fx_box:dragDropTarget()
 end
 
 function fx_box:dragDropSource()
-    ----==  Drag and drop----
     if reaper.ImGui_BeginDragDropSource(self.ctx, reaper.ImGui_DragDropFlags_None()) then
-        local fx_guid = self.state.Track.last_fx.guid
-        reaper.ImGui_SetDragDropPayload(self.ctx, drag_drop.types.drag_fx, tostring(self.fx.index))
+        reaper.ImGui_SetDragDropPayload(self.ctx, drag_drop.types.drag_fx, tostring(self.fx.number))
         reaper.ImGui_EndDragDropSource(self.ctx)
     end
-
-    if self.actions.isAnyMouseDown == false and DragDroppingFX == true then
-        DragDroppingFX = false
-    end
-
-    ----Drag and drop END----
 end
 
 ---@param fx TrackFX
@@ -56,9 +51,6 @@ function fx_box:display(fx)
     self.fx = fx
 
     local is_first = fx.index == 1
-    if is_first then
-        self:spaceBtwFx() -- since we're adding space after each fx, let's also have that zone before the first fx
-    end
 
     reaper.ImGui_BeginGroup(self.ctx)
 
@@ -87,7 +79,7 @@ function fx_box:display(fx)
     reaper.ImGui_EndGroup(self.ctx)
 
     reaper.ImGui_SameLine(self.ctx, nil, 5)
-    self:spaceBtwFx() -- add a space between fx windows after each effect
+    self:spaceBtwFx(self.fx.index == #self.state.Track.fx_list) -- add a space between fx windows after each effect, let the last one display the fx browser
 end
 
 ---@param parent_state Rack

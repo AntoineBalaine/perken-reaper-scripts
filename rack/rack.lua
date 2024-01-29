@@ -23,6 +23,11 @@ function Rack:drawFxList()
         return
     end
 
+    if self.state.Track.fx_list == nil or #self.state.Track.fx_list == 0 then
+        --- pass `is_last` to `spaceBtwFx` to display the fx browser on click
+        local is_last = true
+        Fx_box:spaceBtwFx(is_last)
+    end
     for n, fx in ipairs(self.state.Track.fx_list) do
         reaper.ImGui_PushID(self.ctx, n)
         Fx_box:display(fx)
