@@ -24,13 +24,13 @@ function Rack:drawFxList()
         return
     end
 
-    for n, fx in ipairs(self.state.Track.fx_list) do
-        reaper.ImGui_PushID(self.ctx, n)
-        Fx_separator:spaceBtwFx(fx.number)
+    for idx, fx in ipairs(self.state.Track.fx_list) do
+        reaper.ImGui_PushID(self.ctx, idx)
+        Fx_separator:spaceBtwFx(idx)
         Fx_box:display(fx)
         reaper.ImGui_PopID(self.ctx)
     end
-    Fx_separator:spaceBtwFx(#self.state.Track.fx_list, true)
+    Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1, true)
 end
 
 function Rack:main()

@@ -11,7 +11,7 @@ local CLR_BtwnFXs_Btn_Active = 0x777777aa
 
 function fx_box:dragDropSource()
     if reaper.ImGui_BeginDragDropSource(self.ctx, reaper.ImGui_DragDropFlags_None()) then
-        reaper.ImGui_SetDragDropPayload(self.ctx, drag_drop.types.drag_fx, tostring(self.fx.number))
+        reaper.ImGui_SetDragDropPayload(self.ctx, drag_drop.types.drag_fx, tostring(self.fx.index))
         reaper.ImGui_EndDragDropSource(self.ctx)
     end
 end
