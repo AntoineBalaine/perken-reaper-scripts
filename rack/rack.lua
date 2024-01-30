@@ -58,6 +58,12 @@ function Rack:main()
     reaper.ImGui_PopStyleColor(self.ctx) -- Remove background color
     reaper.ImGui_End(self.ctx)
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
+        -- if the fx_browser is open,
+        -- set it to be closed
+        -- so that it doesn’t throw an error when the rack closes
+        if not Browser.closed then
+            Browser.closed = true
+        end
         reaper.ImGui_DestroyContext(self.ctx)
     else
         reaper.defer(function() self:main() end)
