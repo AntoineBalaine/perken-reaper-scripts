@@ -35,17 +35,24 @@ function Rack:drawFxList()
     Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1, true)
 end
 
+function Rack:RackStyleStart()
+    reaper.ImGui_PushStyleColor(
+        self.ctx,
+        reaper.ImGui_Col_WindowBg(), --background color
+        ThemeReader.IntToRgba(self.theme.colors.col_main_bg2.color))
+end
+
+function Rack:RackStyleEnd()
+    reaper.ImGui_PopStyleColor(self.ctx) -- Remove background color
+end
+
 function Rack:main()
     -- update state and actions at every loop
     self.state:update():getTrackFx()
     self.actions:update()
     self.actions:manageDock()
 
-
-    reaper.ImGui_PushStyleColor(
-        self.ctx,
-        reaper.ImGui_Col_WindowBg(), --background color
-        ThemeReader.IntToRgba(self.theme.colors.col_main_bg2.color))
+    self:RackStyleStart()
 
     local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
     if imgui_visible then
@@ -54,8 +61,7 @@ function Rack:main()
         self:drawFxList()
     end
 
-
-    reaper.ImGui_PopStyleColor(self.ctx) -- Remove background color
+    self:RackStyleEnd()
     reaper.ImGui_End(self.ctx)
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
         -- if the fx_browser is open,
