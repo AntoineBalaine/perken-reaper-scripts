@@ -1,13 +1,11 @@
-local fx_box_helpers = require("helpers.fx_box_helpers")
-local drag_drop = require("state.dragAndDrop")
-local fx_box = {}
-local winFlg = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
-local DefaultWidth = 220
-local Default_FX_Width = 200
-local Width = DefaultWidth
-local BG_COL = 0x151515ff
-local CLR_BtwnFXs_Btn_Hover = 0x77777744
-local CLR_BtwnFXs_Btn_Active = 0x777777aa
+local ThemeReader            = require("themeReader.theme_read")
+local fx_box_helpers         = require("helpers.fx_box_helpers")
+local drag_drop              = require("state.dragAndDrop")
+local fx_box                 = {}
+local winFlg                 = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
+local DefaultWidth           = 220
+local Default_FX_Width       = 200
+local Width                  = DefaultWidth
 
 function fx_box:dragDropSource()
     if reaper.ImGui_BeginDragDropSource(self.ctx, reaper.ImGui_DragDropFlags_None()) then
@@ -22,10 +20,14 @@ function fx_box:display(fx)
 
     reaper.ImGui_BeginGroup(self.ctx)
 
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ChildBg(), BG_COL)
 
-    if reaper.ImGui_BeginChild(self.ctx, fx.name, Width, 220, nil, winFlg) then ----START CHILD WINDOW
-        local display_name = fx_box_helpers.getDisplayName(fx.name)             -- get name of fx
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ChildBg(),
+        ThemeReader.IntToRgba(self.theme.colors.selcol_tr2_bg.color))                                                                -- fx’s bg color
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Border(),
+        ThemeReader.IntToRgba(self.theme.colors.col_gridlines2.color))                                                               -- fx box’s border color
+
+    if reaper.ImGui_BeginChild(self.ctx, fx.name, Width, DefaultWidth, true, winFlg) then                                            ----START CHILD WINDOW
+        local display_name = fx_box_helpers.getDisplayName(fx.name)                                                                  -- get name of fx
         local btn_width = Default_FX_Width - 30
         local btn_height = 20
         if reaper.ImGui_Button(self.ctx, display_name, btn_width, btn_height) then        -- create window name button
@@ -40,13 +42,13 @@ function fx_box:display(fx)
             end
         end
 
-        fx_box:dragDropSource()         -- attach the drag/drop source to the preceding button
-        reaper.ImGui_EndChild(self.ctx) -- END CHILD WINDOW
+        fx_box:dragDropSource()             -- attach the drag/drop source to the preceding button
+        reaper.ImGui_EndChild(self.ctx)     -- END CHILD WINDOW
     end
-    reaper.ImGui_PopStyleColor(self.ctx)
+    reaper.ImGui_PopStyleColor(self.ctx, 2) -- pop the bg and border colors
     reaper.ImGui_EndGroup(self.ctx)
 
-    reaper.ImGui_SameLine(self.ctx, nil, 5)
+    reaper.ImGui_SameLine(self.ctx, nil, 0)
 end
 
 ---@param parent_state Rack
@@ -54,6 +56,7 @@ function fx_box:init(parent_state)
     self.state = parent_state.state
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
+    self.theme = parent_state.theme
 end
 
 return fx_box

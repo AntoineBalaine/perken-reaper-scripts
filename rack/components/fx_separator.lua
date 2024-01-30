@@ -22,7 +22,7 @@ function fx_separator:spaceBtwFx(idx, is_last)
     end
     fx_separator:dragDropTarget(idx)
 
-    reaper.ImGui_SameLine(self.ctx, nil, 5)
+    reaper.ImGui_SameLine(self.ctx, nil, 0)
 end
 
 ---@param dest_idx integer
