@@ -13,6 +13,7 @@ local Fx_separator = require("components.fx_separator")
 local menubar      = require("components.menubar")
 local state        = require("state.state")
 local actions      = require("state.actions")
+local Browser      = require("components.fx_browser")
 
 ---Rack module
 ---@class Rack
@@ -76,6 +77,9 @@ function Rack:init()
 
     self.state = state:init()                               -- initialize state, query selected track and its fx
     self.actions = actions:init(self.ctx, self.state.Track) -- always init actions after state
+    Browser:init(self.ctx)                                  -- initialize the fx browser
+    ---@type FXBrowser
+    self.Browser = Browser                                  -- set the fx browser as a property of the rack, always init before the Fx_separator
 
     -- initialize components by passing them the rack's state
     Fx_box:init(self)
