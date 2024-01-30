@@ -8,6 +8,7 @@ package.path       = package.path .. ";" .. source .. "?.lua"
 CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
 package.path       = CurrentDirectory .. "?.lua;"
 
+local ThemeReader  = require("themeReader.theme_read")
 local Fx_box       = require("components.Fx_box")
 local Fx_separator = require("components.fx_separator")
 local menubar      = require("components.menubar")
@@ -26,7 +27,7 @@ function Rack:drawFxList()
     end
 
     for idx, fx in ipairs(self.state.Track.fx_list) do
-        reaper.ImGui_PushID(self.ctx, idx)
+        reaper.ImGui_PushID(self.ctx, tostring(idx))
         Fx_separator:spaceBtwFx(idx)
         Fx_box:display(fx)
         reaper.ImGui_PopID(self.ctx)
@@ -40,8 +41,11 @@ function Rack:main()
     self.actions:update()
     self.actions:manageDock()
 
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), --background color
-        0x0000000)
+
+    reaper.ImGui_PushStyleColor(
+        self.ctx,
+        reaper.ImGui_Col_WindowBg(), --background color
+        ThemeReader.IntToRgba(self.theme.colors.col_main_bg2.color))
 
     local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
     if imgui_visible then
@@ -75,11 +79,13 @@ function Rack:init()
     self.window_flags = window_flags -- tb used in main()
 
 
-    self.state = state:init()                               -- initialize state, query selected track and its fx
-    self.actions = actions:init(self.ctx, self.state.Track) -- always init actions after state
-    Browser:init(self.ctx)                                  -- initialize the fx browser
+    self.state = state:init()                                      -- initialize state, query selected track and its fx
+    self.actions = actions:init(self.ctx, self.state.Track)        -- always init actions after state
+    self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath()) -- get and store the user's theme
+    Browser:init(self.ctx)                                         -- initialize the fx browser
     ---@type FXBrowser
-    self.Browser = Browser                                  -- set the fx browser as a property of the rack, always init before the Fx_separator
+    self.Browser =
+        Browser -- set the fx browser as a property of the rack, always init before the Fx_separator
 
     -- initialize components by passing them the rack's state
     Fx_box:init(self)
