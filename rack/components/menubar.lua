@@ -15,7 +15,7 @@ function menubar:display()
     reaper.ImGui_PushStyleColor(
         self.ctx,
         reaper.ImGui_Col_MenuBarBg(),
-        ThemeReader.IntToRgba(self.theme.colors.selcol_tr2_bg.color)) -- menu bar’s bg color
+        self.theme.colors.selcol_tr2_bg.color) -- menu bar’s bg color
     reaper.ImGui_BeginMenuBar(self.ctx)
 
     if reaper.ImGui_BeginMenu(self.ctx, 'Settings') then

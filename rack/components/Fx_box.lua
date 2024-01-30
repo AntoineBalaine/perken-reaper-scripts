@@ -16,9 +16,9 @@ end
 
 function fx_box:fxBoxStyleStart()
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ChildBg(),
-        ThemeReader.IntToRgba(self.theme.colors.selcol_tr2_bg.color))  -- fx’s bg color
+        self.theme.colors.selcol_tr2_bg.color)  -- fx’s bg color
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Border(),
-        ThemeReader.IntToRgba(self.theme.colors.col_gridlines2.color)) -- fx box’s border color
+        self.theme.colors.col_gridlines2.color) -- fx box’s border color
 end
 
 function fx_box:fxBoxStyleEnd()
@@ -27,13 +27,13 @@ end
 
 function fx_box:buttonStyleStart()
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(),
-        ThemeReader.IntToRgba(self.theme.colors.col_buttonbg.color)) -- fx’s bg color
+        self.theme.colors.col_buttonbg.color) -- fx’s bg color
     local button_text_color ---@type number
 
     if self.fx.enabled then -- set a dark-colored text if the fx is bypassed
-        button_text_color = ThemeReader.IntToRgba(self.theme.colors.col_toolbar_text_on.color)
+        button_text_color = self.theme.colors.col_toolbar_text_on.color
     else
-        button_text_color = ThemeReader.IntToRgba(self.theme.colors.col_tcp_textsel.color)
+        button_text_color = self.theme.colors.col_tcp_textsel.color
     end
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
         button_text_color) -- fx’s bg color

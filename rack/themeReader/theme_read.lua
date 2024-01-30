@@ -94,8 +94,9 @@ end
 ---Read the theme from the provided file,
 ---and return a table containing its colors and fonts
 ---@param theme_path string
+---@param convert_colors? boolean convert colors so they can be used in ImGui
 ---@return Theme theme
-function ThemeReader.readTheme(theme_path)
+function ThemeReader.readTheme(theme_path, convert_colors)
     -- local theme_is_zip = not reaper.file_exists(theme_path)
     local _, theme_name, _ = splitFileName(theme_path)
     local theme_prefix, theme_version_str = theme_name:match("(.+) %- Mod (%d+)")
@@ -105,10 +106,14 @@ function ThemeReader.readTheme(theme_path)
 
     local modes_tab, items = FilterTab(theme_vars, "mode dm", true)
     -- K: theme variable name -> V: description
+    ---@type ColorTable
     local colors = {}
     for var_name, description in pairs(items) do
         local col = reaper.GetThemeColor(var_name, 0) -- NOTE: Flag doesn't seem to work (v6.78). Channel are swapped on MacOS and Linux.
         -- if os_sep == "/" then col = SwapINTrgba( col ) end -- in fact, better staus with channel swap cause at least it works
+        if convert_colors then
+            col = ThemeReader.IntToRgba(col)
+        end
         colors[var_name] = { description = description, color = col }
     end
 

@@ -39,7 +39,7 @@ function Rack:RackStyleStart()
     reaper.ImGui_PushStyleColor(
         self.ctx,
         reaper.ImGui_Col_WindowBg(), --background color
-        ThemeReader.IntToRgba(self.theme.colors.col_main_bg2.color))
+        self.theme.colors.col_main_bg2.color)
 end
 
 function Rack:RackStyleEnd()
@@ -93,7 +93,7 @@ function Rack:init()
 
     self.state = state:init()                                      -- initialize state, query selected track and its fx
     self.actions = actions:init(self.ctx, self.state.Track)        -- always init actions after state
-    self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath()) -- get and store the user's theme
+    self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
     Browser:init(self.ctx)                                         -- initialize the fx browser
     ---@type FXBrowser
     self.Browser =
