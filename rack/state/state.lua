@@ -123,6 +123,9 @@ function state:getTrackFx()
         end
         local index = idx + 1 -- lua is 1-indexed
         local item = self.Track.fx_by_guid[fxGuid]
+        if item and item.index ~= index then
+            item.index = index
+        end
         local exists_in_fx_list = self.Track.fx_list[index] ~= nil and self.Track.fx_list[index].guid == fxGuid
         -- what to do if fx exists but is at the wrong index?
         -- update the table
@@ -192,4 +195,3 @@ function state:init()
 end
 
 return state
-
