@@ -1,4 +1,4 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local ThemeReader = {}
 
 ---@class Theme
@@ -10,7 +10,7 @@ local info = debug.getinfo(1, "S")
 local Os_separator = package.config:sub(1, 1)
 local source = info.source:match(".*rack" .. Os_separator):sub(2)
 package.path = package.path .. ";" .. source .. "?.lua"
-local theme_variable_descriptions = require("theme_variable_descriptions")
+local theme_variable_descriptions = require("themeReader.theme_variable_descriptions")
 
 local theme_var_descriptions = theme_variable_descriptions.theme_var_descriptions
 local theme_var_descriptions_sorted = theme_variable_descriptions.theme_var_descriptions_sorted
@@ -94,8 +94,9 @@ end
 ---Read the theme from the provided file,
 ---and return a table containing its colors and fonts
 ---@param theme_path string
+---@param convert_colors? boolean convert colors so they can be used in ImGui
 ---@return Theme theme
-function ThemeReader.readTheme(theme_path)
+function ThemeReader.readTheme(theme_path, convert_colors)
     -- local theme_is_zip = not reaper.file_exists(theme_path)
     local _, theme_name, _ = splitFileName(theme_path)
     local theme_prefix, theme_version_str = theme_name:match("(.+) %- Mod (%d+)")
@@ -105,10 +106,14 @@ function ThemeReader.readTheme(theme_path)
 
     local modes_tab, items = FilterTab(theme_vars, "mode dm", true)
     -- K: theme variable name -> V: description
+    ---@type ColorTable
     local colors = {}
     for var_name, description in pairs(items) do
         local col = reaper.GetThemeColor(var_name, 0) -- NOTE: Flag doesn't seem to work (v6.78). Channel are swapped on MacOS and Linux.
         -- if os_sep == "/" then col = SwapINTrgba( col ) end -- in fact, better staus with channel swap cause at least it works
+        if convert_colors then
+            col = ThemeReader.IntToRgba(col)
+        end
         colors[var_name] = { description = description, color = col }
     end
 
@@ -159,28 +164,40 @@ end
 ---@param theme Theme
 function ThemeReader.Comp_ShowVars(ctx, theme)
     local colors = theme.colors
-    for var_name, element in pairs(colors) do
+    for _, element in pairs(colors) do
         local description, color = element.description, element.color
         reaper.ImGui_PushItemWidth(ctx, 92) -- Set max width of inputs
         if type(color) ~= "number" then
             reaper.ImGui_Text(ctx, "ounfound")
         else
-            retval, edit = reaper.ImGui_ColorEdit3(ctx,
+            reaper.ImGui_ColorEdit3(
+                ctx,
                 description,
-                reaper.ImGui_ColorConvertNative(color), reaper.ImGui_ColorEditFlags_DisplayHex())
+                reaper.ImGui_ColorConvertNative(color),
+                reaper.ImGui_ColorEditFlags_DisplayHex())
         end
 
         reaper.ImGui_PopItemWidth(ctx) -- Restore max with of input
     end
-
-    hasPrinted = true
 end
 
+---Convert a color from reaper's theme into a color usable by ImGui
+---@param Int_color integer
+---@return integer
+function ThemeReader.IntToRgba(Int_color)
+    local r, g, b = reaper.ColorFromNative(Int_color)
+    local a = nil
+    return reaper.ImGui_ColorConvertDouble4ToU32(r / 255, g / 255, b / 255, a or 1.0)
+end
+
+---Display the theme variables, with color selectors
 ---@param ctx ImGui_Context
 ---@param theme Theme
 function ThemeReader.display(ctx, theme)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_WindowBg(),
-        reaper.ImGui_ColorConvertNative(theme.colors.group_59.color))
+    reaper.ImGui_PushStyleColor(
+        ctx,
+        reaper.ImGui_Col_WindowBg(),
+        theme.colors.col_main_bg2.color)
 
     local imgui_visible, imgui_open = reaper.ImGui_Begin(ctx, "Theme Display", true,
         reaper.ImGui_WindowFlags_AlwaysVerticalScrollbar())
@@ -198,7 +215,12 @@ function ThemeReader.display(ctx, theme)
     end
 end
 
-local theme_path = ThemeReader.GetThemePath()
-local theme = ThemeReader.readTheme(theme_path)
-local ctx = ThemeReader.SetupImGui()
-ThemeReader.display(ctx, theme)
+---A demo component using the `ThemeReader.display()`
+function ThemeReader.demo()
+    local theme_path = ThemeReader.GetThemePath()
+    local theme = ThemeReader.readTheme(theme_path)
+    local ctx = ThemeReader.SetupImGui()
+    ThemeReader.display(ctx, theme)
+end
+
+return ThemeReader

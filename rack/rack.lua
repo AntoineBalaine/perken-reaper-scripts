@@ -1,74 +1,110 @@
-local info = debug.getinfo(1, "S")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+local info         = debug.getinfo(1, "S")
 
 local Os_separator = package.config:sub(1, 1)
-local source = info.source:match(".*rack" .. Os_separator):sub(2)
-package.path = package.path .. ";" .. source .. "?.lua"
+local source       = info.source:match(".*rack" .. Os_separator):sub(2)
+package.path       = package.path .. ";" .. source .. "?.lua"
 ---@type string
-CurrentDirectory = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
-package.path = CurrentDirectory .. "?.lua;"
+CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
+package.path       = CurrentDirectory .. "?.lua;"
 
-local menubar = require("components.menubar")
-local actions = require("actions")
-
----@alias Rack_Context table
-
----This the rack's global context. It is NOT the same as the ImGui_Context
--- The rack's context is used to store global variables
----@type Rack_Context
-local Ctx = { actions = actions }
+local ThemeReader  = require("themeReader.theme_read")
+local Fx_box       = require("components.Fx_box")
+local Fx_separator = require("components.fx_separator")
+local menubar      = require("components.menubar")
+local state        = require("state.state")
+local actions      = require("state.actions")
+local Browser      = require("components.fx_browser")
 
 ---Rack module
-local rack = {}
+---@class Rack
+local Rack         = {}
 
----Create the ImGui context and setup the window size
----@return ImGui_Context
-function rack.SetupImGui()
-    local flags = reaper.ImGui_ConfigFlags_DockingEnable()
-    local ctx = reaper.ImGui_CreateContext("rack",
-        flags)
-    reaper.ImGui_SetNextWindowSize(ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
-    return ctx
+---draw the fx list
+function Rack:drawFxList()
+    if not self.state.Track then
+        return
+    end
+
+    for idx, fx in ipairs(self.state.Track.fx_list) do
+        reaper.ImGui_PushID(self.ctx, tostring(idx))
+        Fx_separator:spaceBtwFx(idx)
+        Fx_box:display(fx)
+        reaper.ImGui_PopID(self.ctx)
+    end
+    Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1, true)
 end
 
----@param IgCtx ImGui_Context
-function rack.display(IgCtx)
-    if actions.dock ~= nil then                         -- if the user clicked «dock» or «undock»
-        if actions.dock then
-            reaper.ImGui_SetNextWindowDockID(IgCtx, -1) -- set to docked
-            Ctx.actions.dock = nil
-        else
-            reaper.ImGui_SetNextWindowDockID(IgCtx, 0) -- set to undocked
-            Ctx.actions.dock = nil
-        end
-    end
-    reaper.ImGui_PushStyleColor(IgCtx, reaper.ImGui_Col_WindowBg(), --background color
-        0x0000000)
+function Rack:RackStyleStart()
+    reaper.ImGui_PushStyleColor(
+        self.ctx,
+        reaper.ImGui_Col_WindowBg(), --background color
+        self.theme.colors.col_main_bg2.color)
+end
 
+function Rack:RackStyleEnd()
+    reaper.ImGui_PopStyleColor(self.ctx) -- Remove background color
+end
+
+function Rack:main()
+    -- update state and actions at every loop
+    self.state:update():getTrackFx()
+    self.actions:update()
+    self.actions:manageDock()
+
+    self:RackStyleStart()
+
+    local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
+    if imgui_visible then
+        --display the rack
+        menubar:display()
+        self:drawFxList()
+    end
+
+    self:RackStyleEnd()
+    reaper.ImGui_End(self.ctx)
+    if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
+        -- if the fx_browser is open,
+        -- set it to be closed
+        -- so that it doesn’t throw an error when the rack closes
+        if not Browser.closed then
+            Browser.closed = true
+        end
+        reaper.ImGui_DestroyContext(self.ctx)
+    else
+        reaper.defer(function() self:main() end)
+    end
+end
+
+---Create the ImGui context and setup the window size
+function Rack:init()
+    local ctx_flags = reaper.ImGui_ConfigFlags_DockingEnable()
+    self.ctx = reaper.ImGui_CreateContext("rack",
+        ctx_flags)
+    reaper.ImGui_SetNextWindowSize(self.ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
     local window_flags =
         reaper.ImGui_WindowFlags_NoScrollWithMouse()
         + reaper.ImGui_WindowFlags_NoScrollbar()
         + reaper.ImGui_WindowFlags_MenuBar()
         + reaper.ImGui_WindowFlags_NoCollapse()
         + reaper.ImGui_WindowFlags_NoNav()
-    local imgui_visible, imgui_open = reaper.ImGui_Begin(IgCtx, "rack", true,
-        window_flags)
-    if imgui_visible then
-        --display the rack
-        menubar:display()
-    end
+    self.window_flags = window_flags -- tb used in main()
 
 
-    reaper.ImGui_PopStyleColor(IgCtx) -- Remove background
-    reaper.ImGui_End(IgCtx)
-    if not imgui_open or reaper.ImGui_IsKeyPressed(IgCtx, 27) then
-        reaper.ImGui_DestroyContext(IgCtx)
-    else
-        reaper.defer(function() rack.display(IgCtx) end)
-    end
+    self.state = state:init()                                      -- initialize state, query selected track and its fx
+    self.actions = actions:init(self.ctx, self.state.Track)        -- always init actions after state
+    self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
+    Browser:init(self.ctx)                                         -- initialize the fx browser
+    ---@type FXBrowser
+    self.Browser =
+        Browser -- set the fx browser as a property of the rack, always init before the Fx_separator
+
+    -- initialize components by passing them the rack's state
+    Fx_box:init(self)
+    Fx_separator:init(self)
+    menubar:init(self)
+    return self
 end
 
---- ImGuiContext
-local IgCtx = rack.SetupImGui()
-menubar:init(IgCtx, Ctx)
-
-rack.display(IgCtx)
+local rack = Rack:init()
+reaper.defer(function() rack:main() end)

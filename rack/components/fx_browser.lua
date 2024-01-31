@@ -1,7 +1,5 @@
 -- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
-local reaper = reaper
 local os_separator = package.config:sub(1, 1)
-package.path = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] .. "?.lua;" -- GET DIRECTORY FOR REQUIRE
 local fx_parser = require("parsers.fx_parser")
 
 ---Coerce `Input` number to be between `Min` and `Max`
@@ -20,6 +18,7 @@ local function fitBetweenMinMax(Input, Min, Max)
     return Input
 end
 
+---@class FXBrowser
 local Browser = {}
 
 ---@param template string template's file name
@@ -45,12 +44,18 @@ end
 
 ---Initialize the state of the Fx-Browser component.
 --Pull the data from the fx parser module and create the ImGui context.
-function Browser:init()
+---@param ctx? ImGui_Context
+function Browser:init(ctx)
+    if not ctx then
+        self.ctx = reaper.ImGui_CreateContext("fx browser")
+    else
+        self.ctx = ctx
+    end
+    self.closed = false ---use this flag to trigger `Browser:close()` in `Browser:main()`
     self.last_used_fx = nil ---@type string last used fx name
     self.filter = "" ---@type string filter string from the user input
     self.selected_entry = nil ---@type number selected entry in the filtered fx list (used for keyboard navigation)
     self.filtered_fx = {} ---@type FX[]
-    self.ctx = reaper.ImGui_CreateContext("fx browser")
     self.plugin_list,
     self.fx_tags,
     self.custom_categories,
@@ -127,6 +132,7 @@ function Browser:filterBox()
                     reaper.TrackFX_AddByName(self.track, fx.name, false, -1000 - reaper.TrackFX_GetCount(self.track))
                     reaper.ImGui_CloseCurrentPopup(self.ctx)
                     self.last_used_fx = fx.name
+                    self.closed = true
                 end
             end
             reaper.ImGui_EndChild(self.ctx)
@@ -140,6 +146,7 @@ function Browser:filterBox()
             self.selected_entry = nil
             self.filter = ""
             reaper.ImGui_CloseCurrentPopup(self.ctx)
+            self.closed = true
         elseif reaper.ImGui_IsKeyPressed(self.ctx, reaper.ImGui_Key_UpArrow()) then -- navigate the filter list with arrows
             local updatedIdx = self.selected_entry - 1
             if updatedIdx > 0 then
@@ -180,6 +187,7 @@ function Browser:drawFxChainOrTrackTemplate(directory, isFxChain)
                 reaper.TrackFX_AddByName(self.track, table.concat({ directory.path, os_separator, file, extension }),
                     false,
                     -1000 - reaper.TrackFX_GetCount(self.track))
+                self.closed = true
             else
                 local template_str = table.concat({ directory.path, os_separator, file, extension })
                 ---TODO figure out why Sexan calls this function twice in his implementation
@@ -187,6 +195,7 @@ function Browser:drawFxChainOrTrackTemplate(directory, isFxChain)
                 local rv = self:loadTrackTemplate(template_str) -- ADD NEW TRACK FROM TEMPLATE
                 if rv then
                     self:loadTrackTemplate(template_str, true)  -- REPLACE CURRENT TRACK WITH TEMPLATE
+                    self.closed = true
                 end
             end
         end
@@ -204,6 +213,7 @@ function Browser:drawFX(list, menu_name)
                 reaper.TrackFX_AddByName(self.track, name, false,
                     -1000 - reaper.TrackFX_GetCount(self.track))
                 self.last_used_fx = name
+                self.closed = true
             end
         end
 
@@ -257,16 +267,19 @@ function Browser:drawMenus()
         reaper.TrackFX_AddByName(self.track, "Container", false,
             -1000 - reaper.TrackFX_GetCount(self.track))
         self.last_used_fx = "Container"
+        self.closed = true
     end
     if reaper.ImGui_Selectable(self.ctx, "video processor") then -- add video processor if clicked
         reaper.TrackFX_AddByName(self.track, "Video processor", false,
             -1000 - reaper.TrackFX_GetCount(self.track))
         self.last_used_fx = "Video processor"
+        self.closed = true
     end
     if self.last_used_fx then -- draw last used fx
         if reaper.ImGui_Selectable(self.ctx, "recent: " .. self.last_used_fx) then
             reaper.TrackFX_AddByName(self.track, self.last_used_fx, false,
                 -1000 - reaper.TrackFX_GetCount(self.track))
+            self.closed = true
         end
     end
 end
@@ -274,6 +287,10 @@ end
 ---Main loop function
 --This runs at every defer cycle (every frame).
 function Browser:main()
+    if self.closed then
+        self.closed = false ---reset flag `self.closed` to false and return
+        return
+    end
     self.track = reaper.GetSelectedTrack(0, 0)
     local visible, open = reaper.ImGui_Begin(self.ctx, "fx browser", true)
     if visible then
@@ -299,4 +316,4 @@ function Browser:main()
     end
 end
 
-reaper.defer(function() Browser:init():main() end)
+return Browser
