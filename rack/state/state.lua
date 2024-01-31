@@ -3,8 +3,6 @@
 ---@class State
 local state = {}
 
-local r = reaper
-
 ---@class TrackFX
 ---@field enabled boolean
 ---@field guid string
@@ -27,20 +25,20 @@ local r = reaper
 ---@return Track|nil
 function state:query()
     local track = reaper.GetSelectedTrack2(0, 0, false)
-    if not track then return nil end                                       -- if there's no selected track, move on
-    local trackGuid                                = r.GetTrackGUID(track) -- get the track's GUID
+    if not track then return nil end                                            -- if there's no selected track, move on
+    local trackGuid                                = reaper.GetTrackGUID(track) -- get the track's GUID
     local _, trackName                             = reaper.GetTrackName(track)
 
-    local trackFxCount                             = r.TrackFX_GetCount(track)
+    local trackFxCount                             = reaper.TrackFX_GetCount(track)
     local _,
     trackNumber, --- 0-indexed track index (0 is for master track)
     fxNumber,    --- last touched fx number
     paramNumber  --- last touched parameter number
-                                                   = r.GetLastTouchedFX()
-    local _, fxName                                = r.TrackFX_GetFXName(track, fxNumber)
-    local _, paramName                             = r.TrackFX_GetParamName(track, fxNumber, paramNumber)
-    local fxGuid                                   = r.TrackFX_GetFXGUID(track, fxNumber or 0)
-    local fxEnabled                                = r.TrackFX_GetEnabled(track, fxNumber)
+                                                   = reaper.GetLastTouchedFX()
+    local _, fxName                                = reaper.TrackFX_GetFXName(track, fxNumber)
+    local _, paramName                             = reaper.TrackFX_GetParamName(track, fxNumber, paramNumber)
+    local fxGuid                                   = reaper.TrackFX_GetFXGUID(track, fxNumber or 0)
+    local fxEnabled                                = reaper.TrackFX_GetEnabled(track, fxNumber)
 
     return {
         track = track,
@@ -115,7 +113,7 @@ function state:getTrackFx()
     end
 
     for idx = 0, self.Track.fx_count - 1 do
-        local fxGuid = r.TrackFX_GetFXGUID(self.Track.track, idx)
+        local fxGuid = reaper.TrackFX_GetFXGUID(self.Track.track, idx)
         -- if an item has been deleted,
         -- we want to find which one it is by removing all the guids that have been found
         if guids then
@@ -140,8 +138,8 @@ function state:getTrackFx()
                 table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
             end
         else                                        -- fx is new
-            local _, fxName = r.TrackFX_GetFXName(self.Track.track, idx)
-            local fxEnabled = r.TrackFX_GetEnabled(self.Track.track, idx)
+            local _, fxName = reaper.TrackFX_GetFXName(self.Track.track, idx)
+            local fxEnabled = reaper.TrackFX_GetEnabled(self.Track.track, idx)
             ---@type TrackFX
             local Fx = {
                 number = idx,
