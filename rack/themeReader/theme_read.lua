@@ -67,7 +67,7 @@ local function FilterTab(t, str, or_mode)
     if str == "" then return t, {} end
     local words = SplitSTR(str, " ")
     local out, filtered_out = {}, {}
-    for k, v in ipairs(t) do
+    for _, v in ipairs(t) do
         if (theme_var_descriptions[v] and FindByWordsInSTR(theme_var_descriptions[v], words, or_mode)) or FindByWordsInSTR(v, words, or_mode) then
             out[v] = theme_var_descriptions[v]
             -- table.insert(out, v)
@@ -104,7 +104,7 @@ function ThemeReader.readTheme(theme_path, convert_colors)
     local theme_version_num = theme_version_str and tonumber(theme_version_str) or 0
     theme_version_num = theme_version_num + 1
 
-    local modes_tab, items = FilterTab(theme_vars, "mode dm", true)
+    local _, items = FilterTab(theme_vars, "mode dm", true)
     -- K: theme variable name -> V: description
     ---@type ColorTable
     local colors = {}
@@ -112,7 +112,9 @@ function ThemeReader.readTheme(theme_path, convert_colors)
         local col = reaper.GetThemeColor(var_name, 0) -- NOTE: Flag doesn't seem to work (v6.78). Channel are swapped on MacOS and Linux.
         -- if os_sep == "/" then col = SwapINTrgba( col ) end -- in fact, better staus with channel swap cause at least it works
         if convert_colors then
-            col = ThemeReader.IntToRgba(col)
+            -- convert into ImGui-compatible color
+            -- aka 1) convert BGR or RGB to RGB 2) shift it 1 byte to the left to get RGB0 3) set alpha from 0 to max
+            col = (reaper.ImGui_ColorConvertNative(col) << 8) | 0xFF
         end
         colors[var_name] = { description = description, color = col }
     end
@@ -179,15 +181,6 @@ function ThemeReader.Comp_ShowVars(ctx, theme)
 
         reaper.ImGui_PopItemWidth(ctx) -- Restore max with of input
     end
-end
-
----Convert a color from reaper's theme into a color usable by ImGui
----@param Int_color integer
----@return integer
-function ThemeReader.IntToRgba(Int_color)
-    local r, g, b = reaper.ColorFromNative(Int_color)
-    local a = nil
-    return reaper.ImGui_ColorConvertDouble4ToU32(r / 255, g / 255, b / 255, a or 1.0)
 end
 
 ---Display the theme variables, with color selectors
