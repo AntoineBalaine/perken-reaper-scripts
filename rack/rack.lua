@@ -35,6 +35,7 @@ function Rack:drawFxList()
     Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1, true)
 end
 
+--- start any styling for the rack, i.e. `ImGui_PushStyleColor`
 function Rack:RackStyleStart()
     reaper.ImGui_PushStyleColor(
         self.ctx,
@@ -42,6 +43,7 @@ function Rack:RackStyleStart()
         self.theme.colors.col_main_bg2.color)
 end
 
+--- end any styling for the rack, i.e. `ImGui_PopStyleColor`
 function Rack:RackStyleEnd()
     reaper.ImGui_PopStyleColor(self.ctx) -- Remove background color
 end
@@ -91,10 +93,10 @@ function Rack:init()
     self.window_flags = window_flags -- tb used in main()
 
 
-    self.state = state:init()                                      -- initialize state, query selected track and its fx
-    self.actions = actions:init(self.ctx, self.state.Track)        -- always init actions after state
+    self.state = state:init()                                            -- initialize state, query selected track and its fx
+    self.actions = actions:init(self.ctx, self.state.Track)              -- always init actions after state
     self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
-    Browser:init(self.ctx)                                         -- initialize the fx browser
+    Browser:init(self.ctx)                                               -- initialize the fx browser
     ---@type FXBrowser
     self.Browser =
         Browser -- set the fx browser as a property of the rack, always init before the Fx_separator

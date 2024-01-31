@@ -1,4 +1,3 @@
-local ThemeReader      = require("themeReader.theme_read")
 local fx_box_helpers   = require("helpers.fx_box_helpers")
 local drag_drop        = require("state.dragAndDrop")
 local fx_box           = {}

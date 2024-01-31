@@ -1,7 +1,6 @@
-local menubar     = {}
-local ThemeReader = require("themeReader.theme_read")
+local menubar = {}
 
----@param state table
+---@param state Rack
 ---@return self
 function menubar:init(state)
     self.state = state --- the rack's context
