@@ -1,5 +1,24 @@
 require 'busted.runner' ()
 local State = require("state.state")
+local table_helpers = require("helpers.table")
+
+local function create_fx()
+    ---Setup some FX to pass into the state
+    ---@type TrackFX[]
+    local fx = {}
+    for idx = 1, 3 do
+        ---@type TrackFX
+        local cur_fx = {
+            number = idx,
+            name = "fxname" .. idx,
+            guid = "fx_guid" .. idx,
+            enabled = true,
+            index = idx
+        }
+        table.insert(fx, cur_fx)
+    end
+    return fx
+end
 describe("State tests", function()
     _G.reaper = {
         GetLastTouchedFX = function() --[[ last_fx]] end,
@@ -14,6 +33,7 @@ describe("State tests", function()
         TrackFX_GetParamName = function() --[[_, paramName]] end,
     }
 
+    -- these are the calls that state:update() makes
     -- local track        = reaper.GetSelectedTrack2(0, 0, false)
     -- local _, trackName = reaper.GetTrackName(track)
     -- local has_deleted  = reaper.TrackFX_Delete(self.Track.track, fx.index - 1)
@@ -27,26 +47,12 @@ describe("State tests", function()
     -- local fxGuid       = reaper.TrackFX_GetFXGUID(self.Track.track, idx)
     -- local _, fxName    = reaper.TrackFX_GetFXName(self.Track.track, idx)
     -- local fxEnabled    = reaper.TrackFX_GetEnabled(self.Track.track, idx)
-    -- --
-    it("should initialize the state and fetch its values", function()
-        ---initialize state and pass the correct values
-        local state = State:init()
-        assert.is_nil(state.Track)
 
-        ---Setup some FX to pass into the state
-        ---@type TrackFX[]
-        local fx = {}
-        for idx = 1, 3 do
-            ---@type TrackFX
-            local cur_fx = {
-                number = idx,
-                name = "fxname" .. idx,
-                guid = "fx_guid" .. idx,
-                enabled = true,
-                index = idx
-            }
-            table.insert(fx, cur_fx)
-        end
+    ---initialize state and pass the correct values
+    local state = State:init()
+    it("should initialize the state and fetch its values", function()
+        assert.is_nil(state.Track)
+        local fx = create_fx()
 
         _G.reaper.GetSelectedTrack2 = function() return {} end
         _G.reaper.TrackFX_GetCount = function() return #fx end
@@ -71,36 +77,23 @@ describe("State tests", function()
         assert.spy(TrackFX_GetFXName).was.called(4)
         assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
         assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
+        assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
+        assert.are.same(state.Track.fx_list[3].guid, fx[3].guid)
     end)
-end)
-describe("Busted unit testing framework", function()
-    describe("should be awesome", function()
-        it("should be easy to use", function()
-            assert.truthy("Yup.")
-        end)
+    it("should handle removing fx using internal functions", function()
+        _G.reaper.TrackFX_Delete = function(_, _) return true end
+        local TrackFX_Delete = spy.on(_G.reaper, "TrackFX_Delete")
+        local fx = create_fx()
 
-        it("should have lots of features", function()
-            -- deep check comparisons!
-            assert.are.same({ table = "great" }, { table = "great" })
+        state:deleteFx(2)
+        assert.True(state.Track.fx_count == 2)
+        assert.True(#state.Track.fx_list == 2)
+        assert.True(table_helpers.namedTableLength(state.Track.fx_by_guid) == 2)
 
-            -- or check by reference!
-            assert.are_not.equal({ table = "great" }, { table = "great" })
-
-            assert.truthy("this is a string") -- truthy: not false or nil
-
-            assert.True(1 == 1)
-            assert.is_true(1 == 1)
-
-            assert.falsy(nil)
-            assert.has_error(function() error("Wat") end, "Wat")
-        end)
-
-        it("should provide some shortcuts to common functions", function()
-            assert.are.unique({ { thing = 1 }, { thing = 2 }, { thing = 3 } })
-        end)
+        assert.spy(TrackFX_Delete).was.called(1)
+        assert.is_not["nil"](state.Track.fx_by_guid[fx[1].guid].guid)
+        assert.is_not["nil"](state.Track.fx_by_guid[fx[3].guid].guid)
     end)
-end)
 
-describe("busted pending tests", function()
-    pending("I should finish this test later")
+    pending("it should handle updating the state with new fx")
 end)

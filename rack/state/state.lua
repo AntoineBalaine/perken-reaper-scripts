@@ -178,6 +178,7 @@ function state:deleteFx(idx)
     if has_deleted then
         self.Track.fx_by_guid[fx.guid] = nil
         table.remove(self.Track.fx_list, idx)
+        self.Track.fx_count = self.Track.fx_count - 1
     end
     return self
 end
