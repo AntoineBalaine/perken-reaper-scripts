@@ -48,7 +48,7 @@ describe("State tests", function()
             table.insert(fx, cur_fx)
         end
 
-        _G.reaper.GetSelectedTrack2 = function() return nil end
+        _G.reaper.GetSelectedTrack2 = function() return {} end
         _G.reaper.TrackFX_GetCount = function() return #fx end
         _G.reaper.TrackFX_GetFXGUID = function(_, idx) return fx[idx + 1].guid end
         _G.reaper.TrackFX_GetFXName = function(_, idx)
@@ -67,10 +67,10 @@ describe("State tests", function()
 
         assert.spy(GetSelectedTrack2).was.called(1)
         assert.spy(TrackFX_GetCount).was.called(1)
-        assert.spy(TrackFX_GetFXGUID).was.called(1)
-        assert.spy(TrackFX_GetFXName).was.called(1)
+        assert.spy(TrackFX_GetFXGUID).was.called(4)
+        assert.spy(TrackFX_GetFXName).was.called(4)
         assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
-        assert.are.same(state.Track.fx_list[1].guid, fx[1])
+        assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
     end)
 end)
 describe("Busted unit testing framework", function()
