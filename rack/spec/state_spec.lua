@@ -50,19 +50,20 @@ describe("State tests", function()
 
     ---initialize state and pass the correct values
     local state = State:init()
-    it("should initialize the state and fetch its values", function()
+    local fx = create_fx()
+    _G.reaper.GetSelectedTrack2 = function() return {} end
+    _G.reaper.TrackFX_GetCount = function() return #fx end
+    _G.reaper.TrackFX_GetFXGUID = function(_, idx) return fx[idx + 1].guid end
+    _G.reaper.TrackFX_GetFXName = function(_, idx)
+        if not idx then return "" end
+        return fx[idx + 1].name
+    end
+    _G.reaper.TrackFX_Delete = function(_, _) return true end
+
+    it("state initialize #state_update", function()
         assert.is_nil(state.Track)
-        local fx = create_fx()
-
-        _G.reaper.GetSelectedTrack2 = function() return {} end
-        _G.reaper.TrackFX_GetCount = function() return #fx end
-        _G.reaper.TrackFX_GetFXGUID = function(_, idx) return fx[idx + 1].guid end
-        _G.reaper.TrackFX_GetFXName = function(_, idx)
-            if not idx then return "" end
-            return fx[idx + 1].name
-        end
-
-
+    end)
+    it("update fx - update fx_list when reaper adds fx #state_update", function()
         local GetSelectedTrack2 = spy.on(_G.reaper, "GetSelectedTrack2")
         local TrackFX_GetCount = spy.on(_G.reaper, "TrackFX_GetCount")
         local TrackFX_GetFXGUID = spy.on(_G.reaper, "TrackFX_GetFXGUID")
@@ -80,8 +81,8 @@ describe("State tests", function()
         assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
         assert.are.same(state.Track.fx_list[3].guid, fx[3].guid)
     end)
-    it("should handle removing fx using internal functions", function()
-        _G.reaper.TrackFX_Delete = function(_, _) return true end
+
+    it("remove fx - state:deleteFx (from inside the rack) #state_update", function()
         local TrackFX_Delete = spy.on(_G.reaper, "TrackFX_Delete")
         local fx = create_fx()
 
@@ -94,6 +95,32 @@ describe("State tests", function()
         assert.is_not["nil"](state.Track.fx_by_guid[fx[1].guid].guid)
         assert.is_not["nil"](state.Track.fx_by_guid[fx[3].guid].guid)
     end)
+    it("remove fx (from outside)", function()
+        local guid_to_be_removed = fx[2].guid
+        table.remove(fx, 2)
+        state:update():getTrackFx()
+        assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
+        assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
+        assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
+        assert.True(state.Track.fx_by_guid[guid_to_be_removed] == nil)
+    end)
 
-    pending("it should handle updating the state with new fx")
+
+    it("update fx - handle updating the state with new fx #state_update", function()
+        fx = create_fx()
+        state:update():getTrackFx()
+        assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
+        assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
+        assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
+        assert.are.same(state.Track.fx_list[3].guid, fx[3].guid)
+    end)
+
+    it("update fx - change order of fx (from outside) #state_update", function()
+        fx[1], fx[2] = fx[2], fx[1]
+        assert.True(#fx == 3)
+        state:update():getTrackFx()
+        assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
+        assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
+        assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
+    end)
 end)
