@@ -2,7 +2,7 @@ if os.getenv("LOCAL_LUA_DEBUGGER_VSCODE") == "1" then
     require("lldebugger").start()
 end
 describe('Test the parser', function()
-    local IniParse = require 'parsers.IniParse.IniParse'
+    local IniParse = require 'parsers.Iniparse.IniParse'
 
     before_each(function()
         -- Default settings

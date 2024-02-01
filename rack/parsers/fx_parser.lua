@@ -6,7 +6,7 @@ local os_separator = package.config:sub(1, 1)
 -- ---@type string
 -- CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
 local fx_browser   = {}
-local IniParse     = require("parsers.IniParse.IniParse")
+local IniParse     = require("parsers.Iniparse.IniParse")
 
 
 ---parse the reaper-fxtags.ini file and return its contents:
