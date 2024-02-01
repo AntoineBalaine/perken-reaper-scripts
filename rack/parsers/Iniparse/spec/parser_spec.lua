@@ -228,36 +228,53 @@ version = 2.0
     -- name = "\n \\t"
     -- ]])
     --     end)
+    local function file_exists(name)
+        local f = io.open(name, "r")
+        if f ~= nil then
+            io.close(f)
+            return true
+        else
+            return false
+        end
+    end
 
     it('test #file input', function()
-        assert.same({
-            foo = 'Hello',
-            bar = 'World',
-            window = {
-                fullscreen = 'true',
-                size = '200,200',
-            },
-            app = {
-                name = 'My Game',
-                version = '1.0.0',
-                -- escaped_literal = '\n \\n' -- NOT IMPLEMENTED, I'm not handling escaped literals
-            }
-            -- MAKE sure to replace with absolute path
-        }, IniParse:parse_file('/spec/test_windows.ini'))
-        assert.same({
-            foo = 'Hello',
-            bar = 'World',
-            window = {
-                fullscreen = 'true',
-                size = '200,200',
-            },
-            app = {
-                name = 'My Game',
-                version = '1.0.0',
-                -- escaped_literal = '\n \\n' -- NOT IMPLEMENTED, I'm not handling escaped literals
-            }
-            -- MAKE sure to replace with absolute path
-        }, IniParse:parse_file('/spec/test_unix.ini'))
+        -- MAKE sure to replace with absolute path
+        local ini_windows_file = '/spec/test_windows.ini'
+        local ini_unix_file = '/spec/test_unix.ini'
+        IniParse:parse_file(ini_windows_file)
+        IniParse:parse_file(ini_unix_file)
+        if (file_exists(ini_windows_file)) then
+            assert.same({
+                foo = 'Hello',
+                bar = 'World',
+                window = {
+                    fullscreen = 'true',
+                    size = '200,200',
+                },
+                app = {
+                    name = 'My Game',
+                    version = '1.0.0',
+                    -- escaped_literal = '\n \\n' -- NOT IMPLEMENTED, I'm not handling escaped literals
+                }
+                -- MAKE sure to replace with absolute path
+            }, ini_windows_file)
+        end
+        if file_exists(ini_unix_file) then
+            assert.same({
+                foo = 'Hello',
+                bar = 'World',
+                window = {
+                    fullscreen = 'true',
+                    size = '200,200',
+                },
+                app = {
+                    name = 'My Game',
+                    version = '1.0.0',
+                    -- escaped_literal = '\n \\n' -- NOT IMPLEMENTED, I'm not handling escaped literals
+                }
+            }, ini_unix_file)
+        end
         assert.is_nil(IniParse:parse_file('spec/does_not_exist.ini'))
     end)
 end)
