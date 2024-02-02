@@ -1,24 +1,9 @@
 require 'busted.runner' ()
 local State = require("state.state")
 local table_helpers = require("helpers.table")
+local spec_helpers = require("spec.spec_helpers")
+local create_fx = spec_helpers.create_fx
 
-local function create_fx()
-    ---Setup some FX to pass into the state
-    ---@type TrackFX[]
-    local fx = {}
-    for idx = 1, 3 do
-        ---@type TrackFX
-        local cur_fx = {
-            number = idx,
-            name = "fxname" .. idx,
-            guid = "fx_guid" .. idx,
-            enabled = true,
-            index = idx
-        }
-        table.insert(fx, cur_fx)
-    end
-    return fx
-end
 describe("State tests", function()
     _G.reaper = {
         GetLastTouchedFX = function() --[[ last_fx]] end,
