@@ -105,7 +105,6 @@ function state:getTrackFx()
     local guids
     --- if one of the fx has been deleted
     if self.Track.fx_count < #self.Track.fx_list then
-        updated_fx_list = {}
         guids = {}
         for guid, _ in pairs(self.Track.fx_by_guid) do
             guids[guid] = true
@@ -121,10 +120,10 @@ function state:getTrackFx()
         end
         local index = idx + 1 -- lua is 1-indexed
         local item = self.Track.fx_by_guid[fxGuid]
+        local exists_in_fx_list = self.Track.fx_list[index] ~= nil and self.Track.fx_list[index].guid == fxGuid
         if item and item.index ~= index then
             item.index = index
         end
-        local exists_in_fx_list = self.Track.fx_list[index] ~= nil and self.Track.fx_list[index].guid == fxGuid
         -- what to do if fx exists but is at the wrong index?
         -- update the table
         -- how to update the table?
@@ -143,7 +142,7 @@ function state:getTrackFx()
             ---@type TrackFX
             local Fx = {
                 number = idx,
-                name = fxName,
+                name = fxName or "",
                 guid = fxGuid,
                 enabled = fxEnabled,
                 index = index
@@ -179,6 +178,10 @@ function state:deleteFx(idx)
         self.Track.fx_by_guid[fx.guid] = nil
         table.remove(self.Track.fx_list, idx)
         self.Track.fx_count = self.Track.fx_count - 1
+        --- update all indexes in the fx_list
+        for idx, fx in ipairs(self.Track.fx_list) do
+            fx.index = idx
+        end
     end
     return self
 end

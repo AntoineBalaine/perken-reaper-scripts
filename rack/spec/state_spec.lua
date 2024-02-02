@@ -75,7 +75,8 @@ describe("State tests", function()
         assert.spy(TrackFX_GetCount).was.called(1)
         assert.spy(TrackFX_GetFXGUID).was.called(4)
         assert.spy(TrackFX_GetFXName).was.called(4)
-        assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
+        assert.are.same(state.Track.fx_count, #fx)
+        assert.are.same(#state.Track.fx_list, #fx)
 
         assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
         assert.True(state.Track.fx_by_guid[fx[1].guid].index == 1)
@@ -92,7 +93,7 @@ describe("State tests", function()
 
     it("remove fx - state:deleteFx (from inside the rack) #state_update", function()
         local TrackFX_Delete = spy.on(_G.reaper, "TrackFX_Delete")
-        local fx = create_fx()
+        fx = create_fx()
 
         state:deleteFx(2)
         assert.True(state.Track.fx_count == 2)
@@ -115,11 +116,13 @@ describe("State tests", function()
     end)
 
     it("remove fx - remove fx from fx_list if reaper removes one #state_update", function()
+        fx = create_fx()
         state:update():getTrackFx() -- update state to contain all fx again
         local guid_to_be_removed = fx[2].guid
         table.remove(fx, 2)         -- remove one from fx
         state:update():getTrackFx() -- update state
         assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
+        assert.are.same(#state.Track.fx_list, #fx)
         assert.True(state.Track.fx_by_guid[guid_to_be_removed] == nil)
 
         -- same as previous test
@@ -128,10 +131,10 @@ describe("State tests", function()
         assert.True(state.Track.fx_list[1].index == 1)
         assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
 
-        assert.Truthy(state.Track.fx_by_guid[fx[3].guid]) -- check that fx[3] is now in second position in fx_list and fx_guid
-        assert.True(state.Track.fx_by_guid[fx[3].guid].index == 2)
+        assert.Truthy(state.Track.fx_by_guid[fx[2].guid]) -- check that fx[3] is now in second position in fx_list and fx_guid
+        assert.True(state.Track.fx_by_guid[fx[2].guid].index == 2)
         assert.True(state.Track.fx_list[2].index == 2)
-        assert.are.same(state.Track.fx_list[2].guid, fx[3].guid)
+        assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
     end)
 
 
@@ -148,5 +151,9 @@ describe("State tests", function()
         assert.True(state.Track.fx_list[2].index == 2)
         assert.are.same(state.Track.fx_list[3].guid, fx[3].guid)
         assert.True(state.Track.fx_by_guid[fx[3].guid].index == 3)
+    end)
+
+    pending(": what if an fx's 'name' or 'enabled' are changed, can the state handle that? #state_update", function()
+        -- this is not implemented yet
     end)
 end)
