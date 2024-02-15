@@ -1,4 +1,5 @@
 {
+    "$schema": "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
     "runtime.version": "Lua 5.4",
     "diagnostics.globals": [
         "reaper",
@@ -6,7 +7,12 @@
     ],
     "workspace": {
         "library": [
-            "/home/antoine/.vscode-oss/extensions/antoinebalaine.reascript-docs-0.1.2/resources/reaper-types.lua"
+            "/home/antoine/.vscode-oss/extensions/antoinebalaine.reascript-docs-0.1.2/resources/reaper-types.lua",
+            "/Users/a266836/.vscode/extensions/antoinebalaine.reascript-docs-0.1.2/resources/reaper-types.lua",
+            "/opt/homebrew/Cellar/luarocks/3.9.2/share/lua/5.4/busted",
+            "/github/workspace/deps/neodev.nvim/types/stable",
+            "${3rd}/busted/library",
+            "${3rd}/luassert/library"
         ]
     }
 }

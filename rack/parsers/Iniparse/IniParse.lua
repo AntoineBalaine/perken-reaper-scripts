@@ -1,10 +1,10 @@
-local Scanner   = require("parsers.IniParse.IniScan")
+local Scanner = require('parsers.Iniparse.IniScan')
 ---INI parser.
 --initialize and parse with
 --```lua
 --IniParse:new():parse(sourceStr)
 -- ```
-local IniParse  = {}
+local IniParse = {}
 
 ---default config object for the INI parser
 ---@class CONFIG
@@ -128,7 +128,7 @@ end
 ---Takes an ABSOLUTE file path and parses the file.
 --
 --Will return nil if the file is not found.
----@param path string
+---@param path any
 ---@return table|nil
 function IniParse:parse_file(path)
     --get contents of file at path
