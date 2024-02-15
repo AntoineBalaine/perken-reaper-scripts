@@ -100,11 +100,11 @@ describe("State tests", function()
         assert.are.same(state.Track.fx_list[2].guid, fx[3].guid)
     end)
 
-    it("remove fx - remove fx from fx_list if reaper removes one #state_update", function()
-        fx = create_fx()
+    ---@param idx number
+    local function removeFX(idx)
         state:update():getTrackFx() -- update state to contain all fx again
-        local guid_to_be_removed = fx[2].guid
-        table.remove(fx, 2)         -- remove one from fx
+        local guid_to_be_removed = fx[idx].guid
+        table.remove(fx, idx)       -- remove middle one from fx
         state:update():getTrackFx() -- update state
         assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
         assert.are.same(#state.Track.fx_list, #fx)
@@ -120,11 +120,20 @@ describe("State tests", function()
         assert.True(state.Track.fx_by_guid[fx[2].guid].index == 2)
         assert.True(state.Track.fx_list[2].index == 2)
         assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
+    end
+    ---FIXME if reaper removes an fx, this state doesn’t get updated correctly
+    it("remove fx - remove middle fx from fx_list (from outside) #state_update", function()
+        fx = create_fx()
+        removeFX(2)
     end)
-
+    it("remove fx - remove last fx from fx_list (from outside) #state_update", function()
+        fx = create_fx()
+        removeFX(3)
+    end)
 
     it("update fx - change order of fx (from outside) #state_update", function()
         fx = create_fx()
+        state:update():getTrackFx()
         fx[1], fx[2] = fx[2], fx[1]
         assert.True(#fx == 3)
         state:update():getTrackFx()

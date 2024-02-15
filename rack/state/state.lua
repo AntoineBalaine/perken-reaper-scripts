@@ -73,6 +73,14 @@ function state:update()
         self.Track.track = state_query.track
         self.Track.number = state_query.number
         self.Track.name = state_query.name
+        ---TODO: would it be worth saving any previous track’s state into a «other_tracks» table?
+        ---That way we wouldn’t have to re-allocate a table every time the track changes.
+        if self.Track.guid ~= state_query.guid then
+            for i in ipairs(self.Track.fx_list) do
+                self.Track.fx_by_guid[self.Track.fx_list[i].guid] = nil
+                self.Track.fx_list[i] = nil
+            end
+        end
         self.Track.guid = state_query.guid
         self.Track.fx_count = state_query.fx_count
         self.Track.last_fx.number = state_query.last_fx.number
@@ -157,6 +165,8 @@ function state:getTrackFx()
     -- find the leftover guids, which points to any deleted fx
     if guids then
         for guid, _ in pairs(guids) do
+            local deleted_fx = self.Track.fx_by_guid[guid]
+            self.Track.fx_list[deleted_fx.index] = nil
             self.Track.fx_by_guid[guid] = nil
         end
     end
