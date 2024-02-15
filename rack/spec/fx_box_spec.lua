@@ -1,21 +1,13 @@
+if os.getenv("LOCAL_LUA_DEBUGGER_VSCODE") == "1" then
+    require("lldebugger").start()
+end
 require 'busted.runner' ()
-local Rack = require("components.Rack")
-local State = require("state.state")
-local Fx_box = require("components.Fx_box")
-local Fx_separator = require("components.fx_separator")
+
 local spec_helpers = require("spec.spec_helpers")
 local create_fx = spec_helpers.create_fx
-local drag_drop = require("state.dragAndDrop")
-
-function Rack:mockInit()
-    self.state = State:init() -- initialize state, query selected track and its fx
-    self.ctx = {}
-    self.Browser = nil
-    return self
-end
-
 local fx = create_fx()
 _G.reaper = {
+    TrackFX_GetCount = function() return #fx end,
     GetLastTouchedFX = function() --[[ last_fx]] end,
     GetTrackGUID = function() --[[trackGuid]] end,
     GetTrackName = function() --[[_, trackname]] end,
@@ -23,7 +15,6 @@ _G.reaper = {
     TrackFX_GetEnabled = function() --[[fxEnabled]] end,
     TrackFX_GetParamName = function() --[[_, paramName]] end,
     GetSelectedTrack2 = function() return {} end,
-    TrackFX_GetCount = function() return #fx end,
     TrackFX_GetFXGUID = function(_, idx) return fx[idx + 1].guid end,
     TrackFX_GetFXName = function(_, idx)
         if not idx then return "" end
@@ -32,6 +23,7 @@ _G.reaper = {
     ImGui_SameLine = function() end,
     ImGui_Button = function() end, -- return something on click?,e
     ImGui_BeginDragDropTarget = function(_) return true end,
+    ImGui_EndDragDropTarget = function() return true end,
     ImGui_AcceptDragDropPayload =
     ---@param drag_type DragDropType
     ---@param payload_fxNumber number
@@ -40,56 +32,90 @@ _G.reaper = {
                  payload_fxNumber)
             return true, payload_fxNumber
         end,
+    ImGui_WindowFlags_NoScrollWithMouse = function() return 0 end,
+    ImGui_WindowFlags_NoScrollbar = function() return 0 end,
+    ImGui_Mod_Alt = function() return 0 end,
+    LocalizeString = function() return "" end,
 }
---     local rv, payload_fxNumber = reaper.ImGui_AcceptDragDropPayload(self.ctx, drag_drop.types.drag_fx)
---     ---fx number of the dragged fx: fx.number is 0-indexed, fx_idx is 1-indexed
---     local src_fx_idx = tonumber(payload_fxNumber)
---     if rv and src_fx_idx then
---         local is_copy = reaper.ImGui_IsKeyDown(self.ctx, reaper.ImGui_Mod_Alt())
---         --- if fx is dropped on a space adjacent to itself
---         local is_adjacent = dest_idx == src_fx_idx or dest_idx == src_fx_idx + 1
---         if is_adjacent then -- if trying to COPY to adjacent spaces (can’t move to adjacent spaces)
---             if is_copy then
---                 reaper.TrackFX_CopyToTrack(self.state.Track.track, src_fx_idx - 1, self.state.Track.track,
---                     dest_idx - 1,
---                     not is_copy)
---             end
---         else                                            -- if trying to move OR copy to non-adjacent spaces
---             local is_descending = dest_idx > src_fx_idx -- adjust the destination index if moving fx down
---             if is_descending then
---                 dest_idx = dest_idx - 1
---             end
---             reaper.TrackFX_CopyToTrack(self.state.Track.track, src_fx_idx - 1, self.state.Track.track, dest_idx - 1,
---                 not is_copy)
---         end
---     end
---     reaper.ImGui_EndDragDropTarget(self.ctx)
--- end
 
+local State = require("state.state")
+local Fx_box = require("components.Fx_box")
+local Fx_separator = require("components.fx_separator")
+local drag_drop = require("state.dragAndDrop")
 
-
-fx_separator:dragDropTarget(idx)
-
----draw the fx list
-local function MockDrawFxList()
-    if not self.state.Track then
-        return
-    end
-
-    for idx, fx in ipairs(self.state.Track.fx_list) do
-        reaper.ImGui_PushID(self.ctx, tostring(idx))
-        Fx_separator:spaceBtwFx(idx)
-        Fx_box:display(fx)
-        reaper.ImGui_PopID(self.ctx)
-    end
-    Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1, true)
+local MockRack = {}
+function MockRack:mockInit()
+    self.state = State:init() -- initialize state, query selected track and its fx
+    self.ctx = {}
+    self.Browser = nil
+    return self
 end
 
-
 describe("Drag and Drop tests", function()
-    local rack = Rack:mockInit()
+    local rack = MockRack:mockInit()
     Fx_box:init(rack)
     Fx_separator:init(rack)
-    pending("drag and drop: reorder fx up")
+    rack.state:update():getTrackFx()
+
+    --- move fx[1] to last position
+    -- then move fx[1] to middle position
+    ---@param origin_fx integer current index of the fx to be moved
+    ---@param destination_position integer the destination-fx_separator’s index - don’t confuse with fx.index
+    local function moveFX(origin_fx, destination_position)
+        local Track = rack.state.Track
+        assert.truthy(Track)
+        if not Track then return end
+        assert.True(
+            fx[1].guid == Track.fx_list[1].guid
+            and fx[2].guid == Track.fx_list[2].guid
+            and fx[3].guid == Track.fx_list[3].guid
+        ) --- assert fx_by_guid was also updated
+
+        function _G.reaper.ImGui_BeginDragDropTarget() return true end
+
+        ---feed the component the index of the fx we want to move
+        function _G.reaper.ImGui_AcceptDragDropPayload()
+            return true, origin_fx
+        end
+
+        ---Since we’re only re-ordering, don’t activate the «copy» key-modifier
+        function _G.reaper.ImGui_IsKeyDown() return false end
+
+        function _G.reaper.TrackFX_CopyToTrack(_, src_fx, _, dest_fx, is_move)
+            src_fx = src_fx + 1
+            dest_fx = dest_fx + 2
+            --- insert src_fx at dest_fx position, then remove src_fx.
+            --- find fx_by_guid and update the index
+            table.insert(fx, dest_fx, Track.fx_list[src_fx])
+            if is_move then
+                table.remove(fx, src_fx)
+            end
+        end
+
+        --- move fx[1] to last position
+        Fx_separator:dragDropTarget(destination_position)
+        rack.state:update():getTrackFx()
+
+        local fx_list = Track.fx_list
+        assert.are.same(fx_list[#fx_list].guid, fx[#fx].guid)                    --- assert fx[1] has been moved to end of fx_list
+        assert.True(rack.state.Track.fx_by_guid[fx[#fx].guid].index == #fx_list) --- assert fx_by_guid was also updated
+        assert.True(fx[1].guid == "fx_guid" .. 2)                                --- assert fx[1] has been moved to end of fx_list
+
+        assert.are.same(fx_list[1].guid, fx[1].guid)
+        assert.True(rack.state.Track.fx_by_guid[fx[1].guid].index == 1)
+
+        assert.are.same(fx_list[2].guid, fx[2].guid)
+        assert.True(rack.state.Track.fx_by_guid[fx[2].guid].index == 2)
+    end
+    describe("drag and drop: move fx up #drag_drop", function()
+        it("drag and drop: move first fx to end of list", function()
+            fx = create_fx()
+            local origin_fx = 1
+            local destination_position = #fx + 1
+            moveFX(origin_fx, destination_position)
+        end)
+        -- it("drag and drop: move first fx to middle of list", moveFirstFXToMiddleOfList)
+    end)
     pending("drag and drop: reorder fx down")
+    pending("drag and drop: move last fx to start of list" --[[ , moveLastFXToStartOfList ]])
 end)
