@@ -83,12 +83,16 @@ describe("Drag and Drop tests", function()
         function _G.reaper.ImGui_IsKeyDown() return false end
 
         function _G.reaper.TrackFX_CopyToTrack(_, src_fx, _, dest_fx, is_move)
+            local is_descending = dest_fx > src_fx
             src_fx = src_fx + 1
-            dest_fx = dest_fx + 2
+            dest_fx = dest_fx + (is_descending and 2 or 1)
             --- insert src_fx at dest_fx position, then remove src_fx.
             --- find fx_by_guid and update the index
             table.insert(fx, dest_fx, Track.fx_list[src_fx])
             if is_move then
+                if not is_descending then
+                    src_fx = src_fx + 1
+                end
                 table.remove(fx, src_fx)
             end
         end
@@ -107,7 +111,7 @@ describe("Drag and Drop tests", function()
         assert.are.same(fx_list[2].guid, fx[2].guid)
         assert.True(rack.state.Track.fx_by_guid[fx[2].guid].index == 2)
     end
-    describe("drag and drop: move fx up #drag_drop", function()
+    describe("drag and drop: move fx down #drag_drop", function()
         it("drag and drop: move first fx to end of list", function()
             fx = create_fx()
             local origin_fx = 1
@@ -138,6 +142,34 @@ describe("Drag and Drop tests", function()
             assert.True(fx[1].guid == "fx_guid" .. 1)
         end)
     end)
-    pending("drag and drop: reorder fx down")
-    pending("drag and drop: move last fx to start of list" --[[ , moveLastFXToStartOfList ]])
+    describe("drag and drop: move fx up #drag_drop", function()
+        it("drag and drop: move last fx to start of list", function()
+            fx = create_fx()
+            local origin_fx = 3
+            local destination_position = 1
+            moveFX(origin_fx, destination_position)
+            assert.True(fx[1].guid == "fx_guid" .. 3)
+        end)
+        it("drag and drop: move last fx to middle of list", function()
+            fx = create_fx()
+            local origin_fx = 3
+            local destination_position = 2
+            moveFX(origin_fx, destination_position)
+            assert.True(fx[2].guid == "fx_guid" .. 3)
+        end)
+        it("drag and drop: move last fx to adjacent position", function()
+            fx = create_fx()
+            local origin_fx = 3
+            local destination_position = 3
+            moveFX(origin_fx, destination_position)
+            assert.True(fx[3].guid == "fx_guid" .. 3)
+        end)
+        it("drag and drop: move middle fx to first position", function()
+            fx = create_fx()
+            local origin_fx = 2
+            local destination_position = 1
+            moveFX(origin_fx, destination_position)
+            assert.True(fx[1].guid == "fx_guid" .. 2)
+        end)
+    end)
 end)
