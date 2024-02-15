@@ -48,6 +48,16 @@ describe("State tests", function()
     it("state initialize #state_update", function()
         assert.is_nil(state.Track)
     end)
+    it("state sets to nil if no track is selected #state_update", function()
+        state:update():getTrackFx()
+        assert.is_truthy(state.Track)
+
+        _G.reaper.GetSelectedTrack2 = function() return nil end
+        state:update():getTrackFx()
+        assert.is_nil(state.Track)
+
+        _G.reaper.GetSelectedTrack2 = function() return {} end -- set the function back
+    end)
     it("read fx - read fx_list from reaper #state_update", function()
         local GetSelectedTrack2 = spy.on(_G.reaper, "GetSelectedTrack2")
         local TrackFX_GetCount = spy.on(_G.reaper, "TrackFX_GetCount")

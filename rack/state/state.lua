@@ -25,7 +25,9 @@ local state = {}
 ---@return Track|nil
 function state:query()
     local track = reaper.GetSelectedTrack2(0, 0, false)
-    if not track then return nil end                                            -- if there's no selected track, move on
+    if not track then
+        return nil
+    end                                                                         -- if there's no selected track, move on
     local trackGuid                                = reaper.GetTrackGUID(track) -- get the track's GUID
     local _, trackName                             = reaper.GetTrackName(track)
 
@@ -89,6 +91,8 @@ function state:update()
         self.Track.last_fx.enabled = state_query.last_fx.enabled
         self.Track.last_fx.param.number = state_query.last_fx.param.number
         self.Track.last_fx.param.name = state_query.last_fx.param.name
+    else
+        self.Track = nil
     end
 
     return self
