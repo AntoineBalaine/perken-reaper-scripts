@@ -135,6 +135,8 @@ function state:getTrackFx()
                 end
                 item.index = index
                 table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
+            elseif updated_fx_list then
+                table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
             end
         else                                        -- fx is new
             local _, fxName = reaper.TrackFX_GetFXName(self.Track.track, idx)

@@ -62,6 +62,7 @@ describe("Drag and Drop tests", function()
     ---@param origin_fx integer current index of the fx to be moved
     ---@param destination_position integer the destination-fx_separator’s index - don’t confuse with fx.index
     local function moveFX(origin_fx, destination_position)
+        rack.state:update():getTrackFx()
         local Track = rack.state.Track
         assert.truthy(Track)
         if not Track then return end
@@ -99,7 +100,6 @@ describe("Drag and Drop tests", function()
         local fx_list = Track.fx_list
         assert.are.same(fx_list[#fx_list].guid, fx[#fx].guid)                    --- assert fx[1] has been moved to end of fx_list
         assert.True(rack.state.Track.fx_by_guid[fx[#fx].guid].index == #fx_list) --- assert fx_by_guid was also updated
-        assert.True(fx[1].guid == "fx_guid" .. 2)                                --- assert fx[1] has been moved to end of fx_list
 
         assert.are.same(fx_list[1].guid, fx[1].guid)
         assert.True(rack.state.Track.fx_by_guid[fx[1].guid].index == 1)
@@ -113,8 +113,30 @@ describe("Drag and Drop tests", function()
             local origin_fx = 1
             local destination_position = #fx + 1
             moveFX(origin_fx, destination_position)
+            assert.True(fx[1].guid == "fx_guid" .. 2) --- assert fx[1] has been moved to end of fx_list
         end)
-        -- it("drag and drop: move first fx to middle of list", moveFirstFXToMiddleOfList)
+        it("drag and drop: move first fx to middle of list", function()
+            fx = create_fx()
+            local origin_fx = 1
+            local destination_position = 3
+            moveFX(origin_fx, destination_position)
+            assert.True(fx[1].guid == "fx_guid" .. 2)
+        end)
+        it("drag and drop: move first fx to adjacent position", function()
+            --- try to move the fx to the position immediately RIGHT of the current one
+            fx = create_fx()
+            local origin_fx = 1
+            local destination_position = 2
+            moveFX(origin_fx, destination_position)
+            assert.True(fx[1].guid == "fx_guid" .. 1)
+
+            --- Do it again, trying to move to the position immediately LEFT of the current one
+            fx = create_fx()
+            local origin_fx = 1
+            local destination_position = 1
+            moveFX(origin_fx, destination_position)
+            assert.True(fx[1].guid == "fx_guid" .. 1)
+        end)
     end)
     pending("drag and drop: reorder fx down")
     pending("drag and drop: move last fx to start of list" --[[ , moveLastFXToStartOfList ]])
