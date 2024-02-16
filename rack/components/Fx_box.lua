@@ -42,6 +42,48 @@ function fx_box:buttonStyleEnd()
     reaper.ImGui_PopStyleColor(self.ctx, 2)
 end
 
+function fx_box:toggleButton()
+    local is_enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.fx.index - 1)
+    if reaper.ImGui_Checkbox(self.ctx, "##bypass", is_enabled) then
+        reaper.TrackFX_SetEnabled(self.state.Track.track, self.fx.index - 1,
+            not is_enabled)
+    end
+    -- --leaving the toggle button as WIP for now
+    -- local round_flag = reaper.ImGui_DrawFlags_RoundCornersAll()
+    -- local draw_list = reaper.ImGui_GetWindowDrawList(self.ctx)
+    -- local xs, ys = reaper.ImGui_GetCursorScreenPos(self.ctx)
+    -- local xe, ye = xs + 20, ys + 20
+
+
+    -- reaper.ImGui_DrawList_AddRectFilled(draw_list, xs, ys, xe, ye, 0x00000000, 10,
+    --     round_flag)
+    -- reaper.ImGui_DrawList_AddRectFilled(draw_list, xs + 5, ys + 5, xe - 5, ye - 5, 0xFFFFFFFF, 10,
+    --     round_flag)
+
+    -- if reaper.ImGui_InvisibleButton(self.ctx, "##fx_toggle", 20, 20) then
+    --     reaper.TrackFX_SetEnabled(self.state.Track.track, self.fx.index - 1,
+    --         not is_enabled)
+    -- end
+
+    -- local button_color = is_enabled and self.theme.colors.col_toolbar_text.color or
+    --     self.theme.colors.col_toolbar_text_on.color
+    -- if reaper.ImGui_IsItemHovered(self.ctx) then
+    --     button_color = button_color + self.theme.colors.col_toolbar_text.color
+    -- end
+
+    -- local circle_x_center = xs + 10
+    -- local circle_y_center = ys + 10
+    -- reaper.ImGui_DrawList_AddCircle(draw_list, circle_x_center, circle_y_center, 10, 0x00000FFF, nil, nil)
+    -- reaper.ImGui_DrawList_AddCircle(draw_list, circle_x_center, circle_y_center, 8, button_color, nil, 2)
+
+    -- local rect_x_start, rect_y_start = xs + 8, ys + 8
+    -- local rect_x_end, rect_y_end = rect_x_start + 2, rect_y_start + 5
+
+    -- reaper.ImGui_DrawList_AddRectFilled(draw_list, rect_x_start, rect_y_start, rect_x_end, rect_y_end, 0xFFFFFFFF, 10,
+    --     round_flag)
+    reaper.ImGui_SameLine(self.ctx, nil, 5)
+end
+
 ---@param fx TrackFX
 function fx_box:display(fx)
     self.fx = fx
@@ -54,6 +96,7 @@ function fx_box:display(fx)
         local display_name = fx_box_helpers.getDisplayName(fx.name)                       -- get name of fx
         local btn_width = Default_FX_Width - 30
         local btn_height = 20
+        fx_box:toggleButton()
         self:buttonStyleStart()
         if reaper.ImGui_Button(self.ctx, display_name, btn_width, btn_height) then        -- create window name button
             local is_remove_fx = reaper.ImGui_IsKeyDown(self.ctx, reaper.ImGui_Mod_Alt()) -- if ALT is held when clicking, remove fx
