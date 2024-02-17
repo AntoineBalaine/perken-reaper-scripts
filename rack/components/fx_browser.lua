@@ -51,7 +51,7 @@ function Browser:init(ctx)
     else
         self.ctx = ctx
     end
-    self.closed = false ---use this flag to trigger `Browser:close()` in `Browser:main()`
+    self.open = false
     self.last_used_fx = nil ---@type string last used fx name
     self.filter = "" ---@type string filter string from the user input
     self.selected_entry = nil ---@type number selected entry in the filtered fx list (used for keyboard navigation)
@@ -132,7 +132,7 @@ function Browser:filterBox()
                     reaper.TrackFX_AddByName(self.track, fx.name, false, -1000 - reaper.TrackFX_GetCount(self.track))
                     reaper.ImGui_CloseCurrentPopup(self.ctx)
                     self.last_used_fx = fx.name
-                    self.closed = true
+                    self.open = false
                 end
             end
             reaper.ImGui_EndChild(self.ctx)
@@ -146,7 +146,7 @@ function Browser:filterBox()
             self.selected_entry = nil
             self.filter = ""
             reaper.ImGui_CloseCurrentPopup(self.ctx)
-            self.closed = true
+            self.open = false
         elseif reaper.ImGui_IsKeyPressed(self.ctx, reaper.ImGui_Key_UpArrow()) then -- navigate the filter list with arrows
             local updatedIdx = self.selected_entry - 1
             if updatedIdx > 0 then
@@ -187,7 +187,7 @@ function Browser:drawFxChainOrTrackTemplate(directory, isFxChain)
                 reaper.TrackFX_AddByName(self.track, table.concat({ directory.path, os_separator, file, extension }),
                     false,
                     -1000 - reaper.TrackFX_GetCount(self.track))
-                self.closed = true
+                self.open = false
             else
                 local template_str = table.concat({ directory.path, os_separator, file, extension })
                 ---TODO figure out why Sexan calls this function twice in his implementation
@@ -195,7 +195,7 @@ function Browser:drawFxChainOrTrackTemplate(directory, isFxChain)
                 local rv = self:loadTrackTemplate(template_str) -- ADD NEW TRACK FROM TEMPLATE
                 if rv then
                     self:loadTrackTemplate(template_str, true)  -- REPLACE CURRENT TRACK WITH TEMPLATE
-                    self.closed = true
+                    self.open = false
                 end
             end
         end
@@ -213,7 +213,7 @@ function Browser:drawFX(list, menu_name)
                 reaper.TrackFX_AddByName(self.track, name, false,
                     -1000 - reaper.TrackFX_GetCount(self.track))
                 self.last_used_fx = name
-                self.closed = true
+                self.open = false
             end
         end
 
@@ -267,19 +267,19 @@ function Browser:drawMenus()
         reaper.TrackFX_AddByName(self.track, "Container", false,
             -1000 - reaper.TrackFX_GetCount(self.track))
         self.last_used_fx = "Container"
-        self.closed = true
+        self.open = false
     end
     if reaper.ImGui_Selectable(self.ctx, "video processor") then -- add video processor if clicked
         reaper.TrackFX_AddByName(self.track, "Video processor", false,
             -1000 - reaper.TrackFX_GetCount(self.track))
         self.last_used_fx = "Video processor"
-        self.closed = true
+        self.open = false
     end
     if self.last_used_fx then -- draw last used fx
         if reaper.ImGui_Selectable(self.ctx, "recent: " .. self.last_used_fx) then
             reaper.TrackFX_AddByName(self.track, self.last_used_fx, false,
                 -1000 - reaper.TrackFX_GetCount(self.track))
-            self.closed = true
+            self.open = false
         end
     end
 end
@@ -287,12 +287,12 @@ end
 ---Main loop function
 --This runs at every defer cycle (every frame).
 function Browser:main()
-    if self.closed then
-        self.closed = false ---reset flag `self.closed` to false and return
+    if not self.open then
         return
     end
     self.track = reaper.GetSelectedTrack(0, 0)
     local visible, open = reaper.ImGui_Begin(self.ctx, "fx browser", true)
+    self.open = open
     if visible then
         if self.track then
             if reaper.ImGui_Button(self.ctx, "RESCAN PLUGIN LIST") then -- "rescan" button
