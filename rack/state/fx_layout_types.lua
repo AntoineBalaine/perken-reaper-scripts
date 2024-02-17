@@ -21,7 +21,7 @@ local PositionType = {
     free = "free"
 }
 
----@class GlobalSettings
+---@class FxDisplaySettings
 ---@field Edge_Rounding number
 ---@field Grb_Rounding number
 ---@field BgClr number

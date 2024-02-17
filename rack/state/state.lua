@@ -205,7 +205,9 @@ end
 --- Initialize the state: get the selected track,
 -- the last touched fx,
 -- the fx list for current track and parameters.
-function state:init()
+---@param project_directory string
+function state:init(project_directory)
+    self.project_directory = project_directory
     ---@type Track|nil
     self.Track = nil
     self:update():getTrackFx()

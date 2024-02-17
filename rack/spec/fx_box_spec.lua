@@ -45,7 +45,7 @@ local drag_drop = require("state.dragAndDrop")
 
 local MockRack = {}
 function MockRack:mockInit()
-    self.state = State:init() -- initialize state, query selected track and its fx
+    self.state = State:init("") -- initialize state, query selected track and its fx
     self.ctx = {}
     self.Browser = nil
     return self

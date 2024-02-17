@@ -69,7 +69,8 @@ function Rack:main()
 end
 
 ---Create the ImGui context and setup the window size
-function Rack:init()
+---@param project_directory string
+function Rack:init(project_directory)
     local ctx_flags = reaper.ImGui_ConfigFlags_DockingEnable()
     self.ctx = reaper.ImGui_CreateContext("rack",
         ctx_flags)
@@ -83,7 +84,7 @@ function Rack:init()
     self.window_flags = window_flags -- tb used in main()
 
 
-    self.state = state:init()                                            -- initialize state, query selected track and its fx
+    self.state = state:init(project_directory)                           -- initialize state, query selected track and its fx
     self.actions = actions:init(self.ctx, self.state.Track)              -- always init actions after state
     self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
     Browser:init(self.ctx)                                               -- initialize the fx browser
