@@ -1,4 +1,5 @@
 local IniParse = require("parsers.Iniparse.IniParse")
+local table_helpers = require("helpers.table")
 ---@class FxInstance
 local fx = {}
 fx.__index = fx
@@ -84,7 +85,7 @@ function fx:editLayout()
     if user closes without saving, replace the original displaySettings with the copy, but do no write to file
     if user discards, discard the copy.
     ]]
-    self.displaySettings_copy = deepCopy(self.displaySettings)
+    self.displaySettings_copy = table_helpers.deepCopy(self.displaySettings)
 end
 
 ---@enum EditLayoutCloseAction
@@ -100,15 +101,15 @@ local EditLayoutCloseAction = {
 ---if user discards, discard the copy.
 ---@param action EditLayoutCloseAction
 function fx:onEditLayoutClose(action)
-    if action == EditLayoutCloseAction.save then
+    if action == EditLayoutCloseAction.save then -- save
         self.displaySettings = self.displaySettings_copy
         local file_name = self.state.project_directory .. self.name .. ".ini"
-        Iniparse.save(displaySettings, file_name)
+        IniParse.save(file_name, self.displaySettings)
         self.displaySettings_copy = nil
-    elseif action == EditLayoutCloseAction.close then
+    elseif action == EditLayoutCloseAction.close then -- close without saving
         self.displaySettings = self.displaySettings_copy
         self.displaySettings_copy = nil
-    else
+    else -- discard
         self.displaySettings_copy = nil
     end
 end

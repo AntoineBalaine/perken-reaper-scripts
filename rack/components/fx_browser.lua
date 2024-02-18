@@ -284,6 +284,19 @@ function Browser:drawMenus()
     end
 end
 
+function Browser:RescanButton()
+    if reaper.ImGui_Button(self.ctx, "RESCAN PLUGIN LIST") then -- "rescan" button
+        self.plugin_list,
+        self.fx_tags,
+        self.custom_categories,
+        self.fx_chains,
+        self.track_templates,
+        self.plugin_by_type =
+            fx_parser
+            .GenerateFxList() ---pull the data from the fx parser module, i.e. re-parse
+    end
+end
+
 ---Main loop function
 --This runs at every defer cycle (every frame).
 function Browser:main()
@@ -295,16 +308,7 @@ function Browser:main()
     self.open = open
     if visible then
         if self.track then
-            if reaper.ImGui_Button(self.ctx, "RESCAN PLUGIN LIST") then -- "rescan" button
-                self.plugin_list,
-                self.fx_tags,
-                self.custom_categories,
-                self.fx_chains,
-                self.track_templates,
-                self.plugin_by_type =
-                    fx_parser
-                    .GenerateFxList() ---pull the data from the fx parser module, i.e. re-parse
-            end
+            self:RescanButton()
             self:drawMenus()
         else
             reaper.ImGui_Text(self.ctx, "please select a track")

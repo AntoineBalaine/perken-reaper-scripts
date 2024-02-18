@@ -1,3 +1,8 @@
+--[[
+App-wide state. The rack's state contains a description of the currently selected track, as well as a table of fx - their internal states and their layouts.
+--]]
+
+
 ---This the rack's global state. It is NOT the same as the ImGui_Context
 -- The rack's state is used to store global variables
 ---@class State
