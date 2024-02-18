@@ -108,19 +108,6 @@ local function calculateTriangleVertices(centerX, centerY, radius)
     return vertices
 end
 
--- Example usage
-local centerX = 0
-local centerY = 0
-local radius = 3
-
-local triangleVertices = calculateTriangleVertices(centerX, centerY, radius)
-
--- Print the calculated vertices
-for i, vertex in ipairs(triangleVertices) do
-    print(string.format("Vertex %d: x = %.2f, y = %.2f", i, vertex.x, vertex.y))
-end
-
-
 function fx_box:slider()
     reaper.ImGui_NewLine(self.ctx)
     reaper.ImGui_Button(self.ctx, "hello")

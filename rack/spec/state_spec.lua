@@ -34,7 +34,7 @@ describe("State tests", function()
     -- local fxEnabled    = reaper.TrackFX_GetEnabled(self.Track.track, idx)
 
     ---initialize state and pass the correct values
-    local state = State:init()
+    local state = State:init("")
     local fx = create_fx()
     _G.reaper.GetSelectedTrack2 = function() return {} end
     _G.reaper.TrackFX_GetCount = function() return #fx end
