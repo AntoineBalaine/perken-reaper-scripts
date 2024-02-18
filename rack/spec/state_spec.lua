@@ -6,6 +6,7 @@ local create_fx = spec_helpers.create_fx
 
 describe("State tests", function()
     _G.reaper = {
+        GetMediaTrackInfo_Value = function() return "trackNumber" end,
         GetLastTouchedFX = function() --[[ last_fx]] end,
         GetSelectedTrack2 = function() --[[MediaTrack]] end,
         GetTrackGUID = function() --[[trackGuid]] end,
@@ -68,8 +69,8 @@ describe("State tests", function()
 
         assert.spy(GetSelectedTrack2).was.called(1)
         assert.spy(TrackFX_GetCount).was.called(1)
-        assert.spy(TrackFX_GetFXGUID).was.called(4)
-        assert.spy(TrackFX_GetFXName).was.called(4)
+        assert.spy(TrackFX_GetFXGUID).was.called(3)
+        assert.spy(TrackFX_GetFXName).was.called(3)
         assert.are.same(state.Track.fx_count, #fx)
         assert.are.same(#state.Track.fx_list, #fx)
 

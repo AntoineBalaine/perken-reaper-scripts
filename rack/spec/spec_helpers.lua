@@ -1,10 +1,10 @@
 local spec_helpers = {}
 function spec_helpers.create_fx()
     ---Setup some FX to pass into the state
-    ---@type TrackFX[]
+    ---@type FxData[]
     local fx = {}
     for idx = 1, 3 do
-        ---@type TrackFX
+        ---@type FxData
         local cur_fx = {
             number = idx,
             name = "fxname" .. idx,

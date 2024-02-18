@@ -52,7 +52,7 @@ function LayoutEditor:close(action)
     self.displaySettings = nil
 end
 
----@param fx FxInstance
+---@param fx TrackFX
 function LayoutEditor:edit(fx)
     --[[
    display a pop-up window with a widget for each of the settings.

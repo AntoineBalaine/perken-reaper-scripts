@@ -1,15 +1,15 @@
 local IniParse = require("parsers.Iniparse.IniParse")
 local table_helpers = require("helpers.table")
----@class FxInstance
+---@class TrackFX
 local fx = {}
 fx.__index = fx
 
 ---create a new fx instance,
 ---to store state and layout information
 ---@param state State
----@param data TrackFX
+---@param data FxData
 function fx.new(state, data)
-    ---@class FxInstance
+    ---@class TrackFX
     local self = setmetatable({}, fx)
     self.state = state
     self.enabled = data.enabled
@@ -19,14 +19,6 @@ function fx.new(state, data)
     self.param = data.param
     self.index = data.index
     self.displaySettings = nil
-    ---last touched param
-    ---TODO I might get rid of this in the future.
-    self.LTP = {
-        param = {
-            number = state.Track.last_fx.param.number,
-            name = state.Track.last_fx.param.name
-        }
-    }
     -- self.param_list
     -- number retval, number minval, number maxval = reaper.TrackFX_GetParam(MediaTrack track, integer fx, integer param)
     --
