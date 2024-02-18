@@ -27,11 +27,8 @@ function LayoutEditor:main()
     if not self.open then
         return
     end
-    local center = { reaper.ImGui_Viewport_GetCenter(reaper.ImGui_GetWindowViewport(self.ctx)) } ---window styling
-    reaper.ImGui_SetNextWindowPos(self.ctx, center[1], center[2], reaper.ImGui_Cond_Appearing(), 0.5, 0.5)
     reaper.ImGui_SetNextWindowSize(self.ctx, 400, 300)
-    ---TODO replace the popup modal with something morne appropriate
-    local visible, open = reaper.ImGui_Begin(self.ctx, "Shortcut List", true, reaper.ImGui_WindowFlags_TopMost()) ---begin popup
+    local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, reaper.ImGui_WindowFlags_TopMost()) ---begin popup
     self.open = open
     if visible then
         -- iterate display settings
@@ -60,6 +57,7 @@ function LayoutEditor:edit(fx)
     self.fx = fx
     self.displaySettings = fx.displaySettings_copy
     self.open = true
+    self.windowLabel = self.fx.name .. self.fx.index .. " - Layout Editor"
     self:main()
 end
 

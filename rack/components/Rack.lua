@@ -19,7 +19,7 @@ function Rack:drawFxList()
     for idx, fx in ipairs(self.state.Track.fx_list) do
         reaper.ImGui_PushID(self.ctx, tostring(idx))
         Fx_separator:spaceBtwFx(idx)
-        Fx_box:display(fx)
+        Fx_box:main(fx)
         reaper.ImGui_PopID(self.ctx)
     end
     Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1, true)
