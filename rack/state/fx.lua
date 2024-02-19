@@ -19,6 +19,7 @@ function fx.new(state, data)
     self.param = data.param
     self.index = data.index
     self.displaySettings = nil
+    self.displaySettings_copy = nil
     -- self.param_list
     -- number retval, number minval, number maxval = reaper.TrackFX_GetParam(MediaTrack track, integer fx, integer param)
     --

@@ -21,16 +21,6 @@ local PositionType = {
     free = "free"
 }
 
----@class FxDisplaySettings
----@field Edge_Rounding number
----@field Grb_Rounding number
----@field BgClr number
----@field Window_Width number
----@field Title_Width number
----@field Title_Clr number
----@field Custom_Title number
----@field Param_Instance number
-
 ---@class Common
 ---@field type Param_Display_Type
 ---@field Pos_X number -- x-axis position in fx box

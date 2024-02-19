@@ -1,11 +1,9 @@
-local fx_box_helpers   = require("helpers.fx_box_helpers")
-local LayoutEditor     = require("components.LayoutEditor")
-local drag_drop        = require("state.dragAndDrop")
-local fx_box           = {}
-local winFlg           = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
-local DefaultWidth     = 220
-local Default_FX_Width = 200
-local Width            = DefaultWidth
+dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+local fx_box_helpers = require("helpers.fx_box_helpers")
+local LayoutEditor   = require("components.LayoutEditor")
+local drag_drop      = require("state.dragAndDrop")
+local fx_box         = {}
+local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
 function fx_box:dragDropSource()
     if reaper.ImGui_BeginDragDropSource(self.ctx, reaper.ImGui_DragDropFlags_None()) then
@@ -16,9 +14,9 @@ end
 
 function fx_box:fxBoxStyleStart()
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ChildBg(),
-        self.theme.colors.selcol_tr2_bg.color)  -- fx’s bg color
+        self.displaySettings.background)  -- fx’s bg color
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Border(),
-        self.theme.colors.col_gridlines2.color) -- fx box’s border color
+        self.displaySettings.BorderColor) -- fx box’s border color
 end
 
 function fx_box:fxBoxStyleEnd()
@@ -26,14 +24,16 @@ function fx_box:fxBoxStyleEnd()
 end
 
 function fx_box:buttonStyleStart()
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(),
-        self.theme.colors.col_buttonbg.color) -- fx’s bg color
+    reaper.ImGui_PushStyleColor(self.ctx,
+        reaper.ImGui_Col_Button(),
+        self.displaySettings.buttonStyle.background) -- fx’s bg color
+
     local button_text_color ---@type number
 
     if self.fx.enabled then -- set a dark-colored text if the fx is bypassed
-        button_text_color = self.theme.colors.col_toolbar_text_on.color
+        button_text_color = self.displaySettings.buttonStyle.text_enabled
     else
-        button_text_color = self.theme.colors.col_tcp_textsel.color
+        button_text_color = self.displaySettings.buttonStyle.text_disabled
     end
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
         button_text_color) -- fx’s bg color
@@ -238,7 +238,7 @@ end
 
 function fx_box:LabelButton()
     local display_name = fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
-    local btn_width = Default_FX_Width - 30
+    local btn_width = self.displaySettings.Title_Width
     local btn_height = 20
     self:buttonStyleStart()
     if reaper.ImGui_Button(self.ctx, display_name, btn_width, btn_height) then        -- create window name button
@@ -262,12 +262,26 @@ end
 ---@param fx TrackFX
 function fx_box:main(fx)
     self.fx = fx
+    -- use the displaySettings_copy if it's not null: this means that the user is editing the layout and we should work on a copy of state.
+    if fx.displaySettings_copy then
+        self.displaySettings = fx.displaySettings_copy
+    elseif fx.displaySettings then
+        self.displaySettings = fx.displaySettings
+    else
+        self.displaySettings = self.defaultDisplaySettings
+    end
 
     reaper.ImGui_BeginGroup(self.ctx)
 
     self:fxBoxStyleStart()
 
-    if reaper.ImGui_BeginChild(self.ctx, fx.name, Width, DefaultWidth, true, winFlg) then
+    if reaper.ImGui_BeginChild(self.ctx,
+            fx.name,
+            self.displaySettings.Window_Width,
+            self.displaySettings.height,
+            true,
+            winFlg)
+    then
         fx_box:BypassToggle()
         fx_box:LabelButton()
         fx_box:dragDropSource()                             -- attach the drag/drop source to the preceding button
@@ -292,7 +306,27 @@ function fx_box:init(parent_state)
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
+    ---@class FxDisplaySettings
+    self.defaultDisplaySettings = {
+        height         = 220,
+        Window_Width   = 220,
+        fx_width       = 200,
+        Title_Width    = 220 - 30,
+        Edge_Rounding  = 0,
+        Grb_Rounding   = 0,
+        background     = self.theme.colors.selcol_tr2_bg.color,
+        BorderColor    = self.theme.colors.col_gridlines2.color,
+        Title_Clr      = 0x000000FF,
+        Custom_Title   = nil,
+        Param_Instance = nil,
+        buttonStyle    = {
+            background = self.theme.colors.col_buttonbg.color,
+            text_enabled = self.theme.colors.col_toolbar_text_on.color,
+            text_disabled = self.theme.colors.col_tcp_textsel.color
+        }
+    }
     LayoutEditor:init(parent_state.ctx)
 end
 
 return fx_box
+
