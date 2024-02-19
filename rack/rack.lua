@@ -1,3 +1,8 @@
+--[[
+Entry point into the rack.
+Add the current the project’s path to lua’s package path,
+load the rack component, and call rack:main() in a defer loop.
+]]
 local info             = debug.getinfo(1, "S")
 
 local Os_separator     = package.config:sub(1, 1)

@@ -1,4 +1,13 @@
 -- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+--[[
+This component is the display for each FX.
+order of steps are:
+- instantiate with init() from the parent component.
+- display using the main() function
+
+Bear in mind that this component is a singleton, so it’s a single instance that is re-used for each FX.
+As a result, its internal state has to be updated every time it’s called. I’m not sure yet whether I like this or would rather have one instance per appearance.
+]]
 local fx_box_helpers = require("helpers.fx_box_helpers")
 local LayoutEditor   = require("components.LayoutEditor")
 local drag_drop      = require("state.dragAndDrop")
@@ -308,4 +317,3 @@ function fx_box:init(parent_state)
 end
 
 return fx_box
-

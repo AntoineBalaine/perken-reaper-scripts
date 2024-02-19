@@ -1,3 +1,7 @@
+--[[
+This class keeps track of an FX’s internal state (list of parameters, custom layouts, etc.)
+Each FX represented in the parent `state` gets its own instance of this class, instantiated with `fx.new()`.
+]]
 local IniParse = require("parsers.Iniparse.IniParse")
 local table_helpers = require("helpers.table")
 ---@class TrackFX

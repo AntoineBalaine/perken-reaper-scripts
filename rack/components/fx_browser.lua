@@ -1,4 +1,11 @@
 -- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+--[[
+Based off Sexan’s fx browser.
+Read the fx list from reaper’s api and display it in an ImGui window.
+When user selects a plugin from the list, the component calls the reaper api load it.
+Bear in mind that this runs on its own defer cycle,
+The fx rack only invokes it from the outside, it doesn’t call its draw function directly.
+]]
 local os_separator = package.config:sub(1, 1)
 local fx_parser = require("parsers.fx_parser")
 

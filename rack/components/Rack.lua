@@ -1,3 +1,17 @@
+--[[
+This is the main component:
+steps are:
+- initialize the component with rack:init()
+- set up the state,
+- read the theme,
+- manage whether the component is docked
+- initialize the dependent component such as:
+    - the fx browser,
+    - the menu bar,
+    - the fx box,
+    - the fx separator (space between fx for drag and drop)
+- and then display the rack with rack:main()
+]]
 local ThemeReader  = require("themeReader.theme_read")
 local Fx_box       = require("components.Fx_box")
 local Fx_separator = require("components.fx_separator")

@@ -1,3 +1,6 @@
+--[[
+Data types for the FX parameter’s layout.
+]]
 ---@enum Param_Display_Type
 local Param_Display_Type = {
     Slider = "Slider",

@@ -1,3 +1,6 @@
+--[[
+The menu bar at the top of the rack window.
+]]
 local menubar = {}
 
 ---@param state Rack

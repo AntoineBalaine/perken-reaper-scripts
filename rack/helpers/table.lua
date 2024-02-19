@@ -1,3 +1,6 @@
+--[[
+table helpers, to fill in some special needs that might be missing from the lua’s standard library.
+]]
 local table_helpers = {}
 
 ---@param T table<string, unknown>

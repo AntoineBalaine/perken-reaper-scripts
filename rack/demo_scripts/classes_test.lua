@@ -1,6 +1,6 @@
 --[[
 This file demonstrates how to create classes that can be instantiated.
---]]
+]]
 local module = {}
 module.__index = module
 

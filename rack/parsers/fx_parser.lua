@@ -1,3 +1,6 @@
+--[[
+parse the list of fx in reaper-fxtags.ini for use in the fx_browser
+]]
 local os           = reaper.GetOS()
 local os_separator = package.config:sub(1, 1)
 -- local info         = debug.getinfo(1, "S")

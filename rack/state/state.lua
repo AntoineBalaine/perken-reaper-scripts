@@ -1,6 +1,17 @@
 --[[
-App-wide state. The rack's state contains a description of the currently selected track, as well as a table of fx - their internal states and their layouts.
---]]
+App-wide state. The rack's state contains a description of the currently selected track, as well as a table of track fx - their internal states and their layouts.
+
+The state gets updated at every defer cycle:
+At the beginning of the cycle, the state module queries the reaper api to find out
+- what’s the currently-selected track
+- what FX it has, have the FX changed (any deletions/additions) and do we need to update any of the data.
+
+Tests for this module can be found in `spec/state_spec.lua`
+
+TODO
+- Q: what if there are multiple tracks selected?
+- when selected track changes, should we store the previously-selected track’s data, so we can re-use it later?
+]]
 local fx_state = require("state.fx")
 
 ---This the rack's global state. It is NOT the same as the ImGui_Context
