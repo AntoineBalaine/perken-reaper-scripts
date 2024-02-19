@@ -8,7 +8,8 @@ fx.__index = fx
 ---to store state and layout information
 ---@param state State
 ---@param data FxData
-function fx.new(state, data)
+---@param theme Theme
+function fx.new(state, data, theme)
     ---@class TrackFX
     local self = setmetatable({}, fx)
     self.state = state
@@ -18,7 +19,25 @@ function fx.new(state, data)
     self.number = data.number
     self.param = data.param
     self.index = data.index
-    self.displaySettings = nil
+    ---@class FxDisplaySettings
+    self.displaySettings = {
+        height         = 220,
+        Window_Width   = 220,
+        fx_width       = 200,
+        Title_Width    = 220 - 30,
+        Edge_Rounding  = 0,
+        Grb_Rounding   = 0,
+        background     = theme.colors.selcol_tr2_bg.color,
+        BorderColor    = theme.colors.col_gridlines2.color,
+        Title_Clr      = 0x000000FF,
+        Custom_Title   = nil,
+        Param_Instance = nil,
+        buttonStyle    = {
+            background = theme.colors.col_buttonbg.color,
+            text_enabled = theme.colors.col_toolbar_text_on.color,
+            text_disabled = theme.colors.col_tcp_textsel.color
+        }
+    }
     self.displaySettings_copy = nil
     -- self.param_list
     -- number retval, number minval, number maxval = reaper.TrackFX_GetParam(MediaTrack track, integer fx, integer param)

@@ -142,7 +142,7 @@ function state:getTrackFx()
                 index = index
             }
 
-            local my_fx = fx_state.new(self, Fx)
+            local my_fx = fx_state.new(self, Fx, self.theme)
             self.Track.fx_by_guid[fxGuid] = my_fx
             self.Track.fx_list[index] = my_fx
         end
@@ -188,8 +188,10 @@ end
 -- the last touched fx,
 -- the fx list for current track and parameters.
 ---@param project_directory string
-function state:init(project_directory)
+---@param theme Theme
+function state:init(project_directory, theme)
     self.project_directory = project_directory
+    self.theme = theme
     ---@type Track|nil
     self.Track = nil
     self:update():getTrackFx()

@@ -3,6 +3,8 @@ local State = require("state.state")
 local table_helpers = require("helpers.table")
 local spec_helpers = require("spec.spec_helpers")
 local create_fx = spec_helpers.create_fx
+local dummy_theme = require("spec.dummy_theme")
+local theme = dummy_theme.theme
 
 describe("State tests", function()
     _G.reaper = {
@@ -35,7 +37,7 @@ describe("State tests", function()
     -- local fxEnabled    = reaper.TrackFX_GetEnabled(self.Track.track, idx)
 
     ---initialize state and pass the correct values
-    local state = State:init("")
+    local state = State:init("", theme)
     local fx = create_fx()
     _G.reaper.GetSelectedTrack2 = function() return {} end
     _G.reaper.TrackFX_GetCount = function() return #fx end

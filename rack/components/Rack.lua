@@ -84,9 +84,9 @@ function Rack:init(project_directory)
     self.window_flags = window_flags -- tb used in main()
 
 
-    self.state = state:init(project_directory)                           -- initialize state, query selected track and its fx
-    self.actions = actions:init(self.ctx, self.state.Track)              -- always init actions after state
     self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
+    self.state = state:init(project_directory, self.theme)               -- initialize state, query selected track and its fx
+    self.actions = actions:init(self.ctx, self.state.Track)              -- always init actions after state
     Browser:init(self.ctx)                                               -- initialize the fx browser
     ---@type FXBrowser
     self.Browser =

@@ -1,4 +1,4 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local fx_box_helpers = require("helpers.fx_box_helpers")
 local LayoutEditor   = require("components.LayoutEditor")
 local drag_drop      = require("state.dragAndDrop")
@@ -265,10 +265,8 @@ function fx_box:main(fx)
     -- use the displaySettings_copy if it's not null: this means that the user is editing the layout and we should work on a copy of state.
     if fx.displaySettings_copy then
         self.displaySettings = fx.displaySettings_copy
-    elseif fx.displaySettings then
-        self.displaySettings = fx.displaySettings
     else
-        self.displaySettings = self.defaultDisplaySettings
+        self.displaySettings = fx.displaySettings
     end
 
     reaper.ImGui_BeginGroup(self.ctx)
@@ -306,25 +304,6 @@ function fx_box:init(parent_state)
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
-    ---@class FxDisplaySettings
-    self.defaultDisplaySettings = {
-        height         = 220,
-        Window_Width   = 220,
-        fx_width       = 200,
-        Title_Width    = 220 - 30,
-        Edge_Rounding  = 0,
-        Grb_Rounding   = 0,
-        background     = self.theme.colors.selcol_tr2_bg.color,
-        BorderColor    = self.theme.colors.col_gridlines2.color,
-        Title_Clr      = 0x000000FF,
-        Custom_Title   = nil,
-        Param_Instance = nil,
-        buttonStyle    = {
-            background = self.theme.colors.col_buttonbg.color,
-            text_enabled = self.theme.colors.col_toolbar_text_on.color,
-            text_disabled = self.theme.colors.col_tcp_textsel.color
-        }
-    }
     LayoutEditor:init(parent_state.ctx)
 end
 
