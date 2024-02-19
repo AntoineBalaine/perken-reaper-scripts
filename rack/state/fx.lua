@@ -4,6 +4,8 @@ Each FX represented in the parent `state` gets its own instance of this class, i
 ]]
 local IniParse = require("parsers.Iniparse.IniParse")
 local table_helpers = require("helpers.table")
+local layout_enums = require("state.fx_layout_types")
+
 ---@class TrackFX
 local fx = {}
 fx.__index = fx
@@ -28,7 +30,7 @@ function fx.new(state, data, theme)
         height         = 220,
         Window_Width   = 220,
         fx_width       = 200,
-        Title_Width    = 220 - 30,
+        Title_Width    = 220 - 60,
         Edge_Rounding  = 0,
         Grb_Rounding   = 0,
         background     = theme.colors.selcol_tr2_bg.color,
@@ -104,25 +106,18 @@ function fx:editLayout()
     self.displaySettings_copy = table_helpers.deepCopy(self.displaySettings)
 end
 
----@enum EditLayoutCloseAction
-local EditLayoutCloseAction = {
-    "save",
-    "close",
-    "discard"
-}
-
 ---When user closes the layout editor,
 ---if user saves, replace the original displaySettings with the copy, and write to file.
 ---if user closes without saving, replace the original displaySettings with the copy, but do not write to file.
 ---if user discards, discard the copy.
 ---@param action EditLayoutCloseAction
 function fx:onEditLayoutClose(action)
-    if action == EditLayoutCloseAction.save then -- save
+    if action == layout_enums.EditLayoutCloseAction.save then -- save
         self.displaySettings = self.displaySettings_copy
         local file_name = self.state.project_directory .. self.name .. ".ini"
         IniParse.save(file_name, self.displaySettings)
         self.displaySettings_copy = nil
-    elseif action == EditLayoutCloseAction.close then -- close without saving
+    elseif action == layout_enums.EditLayoutCloseAction.close then -- close without saving
         self.displaySettings = self.displaySettings_copy
         self.displaySettings_copy = nil
     else -- discard

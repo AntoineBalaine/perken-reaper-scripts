@@ -1,6 +1,16 @@
 --[[
 Data types for the FX parameter’s layout.
 ]]
+
+local layout_enums = {}
+
+---@enum EditLayoutCloseAction
+layout_enums.EditLayoutCloseAction = {
+    save = "save",
+    close = "close",
+    discard = "discard"
+}
+
 ---@enum Param_Display_Type
 local Param_Display_Type = {
     Slider = "Slider",
@@ -117,3 +127,6 @@ local PositionType = {
 ---@field Value_Pos PositionType -- Free | Default
 ---@field Value_Thickness unknown
 ---@field Value_to_Note_Length boolean -- boolean, triggers snapping values ?
+
+
+return layout_enums

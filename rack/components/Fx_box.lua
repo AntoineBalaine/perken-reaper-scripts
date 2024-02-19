@@ -11,6 +11,8 @@ As a result, its internal state has to be updated every time it’s called. I’
 local fx_box_helpers = require("helpers.fx_box_helpers")
 local LayoutEditor   = require("components.LayoutEditor")
 local drag_drop      = require("state.dragAndDrop")
+local layout_enums   = require("state.fx_layout_types")
+
 local fx_box         = {}
 local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
@@ -36,7 +38,6 @@ function fx_box:buttonStyleStart()
     reaper.ImGui_PushStyleColor(self.ctx,
         reaper.ImGui_Col_Button(),
         self.displaySettings.buttonStyle.background) -- fx’s bg color
-
     local button_text_color ---@type number
 
     if self.fx.enabled then -- set a dark-colored text if the fx is bypassed
@@ -268,6 +269,18 @@ function fx_box:LabelButton()
     self:buttonStyleEnd()
 end
 
+function fx_box:EditLayoutButton()
+    if reaper.ImGui_Button(self.ctx, "E") then -- create window name button
+        if (LayoutEditor.open) then
+            LayoutEditor:close(layout_enums.EditLayoutCloseAction.discard)
+        else
+            self.fx:editLayout()
+            LayoutEditor:edit(self.fx)
+        end
+    end
+    reaper.ImGui_SameLine(self.ctx, nil, 5)
+end
+
 ---@param fx TrackFX
 function fx_box:main(fx)
     self.fx = fx
@@ -289,13 +302,10 @@ function fx_box:main(fx)
             true,
             winFlg)
     then
-        fx_box:BypassToggle()
-        fx_box:LabelButton()
-        fx_box:dragDropSource()                             -- attach the drag/drop source to the preceding button
-        if reaper.ImGui_Button(self.ctx, "EDITLAYOUT") then -- create window name button
-            self.fx:editLayout()
-            LayoutEditor:edit(self.fx)
-        end
+        self:BypassToggle()
+        self:EditLayoutButton()
+        self:LabelButton()
+        self:dragDropSource() -- attach the drag/drop source to the preceding button
 
         -- self:slider()
         self:knob()
