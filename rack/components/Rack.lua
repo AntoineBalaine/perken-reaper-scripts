@@ -19,6 +19,7 @@ local menubar      = require("components.menubar")
 local state        = require("state.state")
 local actions      = require("state.actions")
 local Browser      = require("components.fx_browser")
+local Settings     = require("state.settings")
 
 ---Rack module
 ---@class Rack
@@ -98,6 +99,7 @@ function Rack:init(project_directory)
     self.window_flags = window_flags -- tb used in main()
 
 
+    self.settings = Settings:init(project_directory)
     self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
     self.state = state:init(project_directory, self.theme)               -- initialize state, query selected track and its fx
     self.actions = actions:init(self.ctx, self.state.Track)              -- always init actions after state

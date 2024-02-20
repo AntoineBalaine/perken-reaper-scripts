@@ -24,8 +24,10 @@ function menubar:display()
         if select(2, reaper.ImGui_MenuItem(self.ctx, 'Style Editor')) then
             reaper.ImGui_Text(self.ctx, 'Style Editor')
         end
-
+        self.state.settings.prefer_fx_chain = select(2, reaper.ImGui_MenuItem(self.ctx, "Prefer fx chain", nil,
+            self.state.settings.prefer_fx_chain))
         --     if select(2, r.ImGui_MenuItem(self.ctx, 'Keyboard Shortcut Editor')) then
+        --
         --         r.ImGui_Text(self.ctx, 'Keyboard Shortcut Editor')
         --     end
 

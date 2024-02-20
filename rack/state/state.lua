@@ -200,9 +200,10 @@ end
 -- the fx list for current track and parameters.
 ---@param project_directory string
 ---@param theme Theme
-function state:init(project_directory, theme)
+function state:init(project_directory, theme, user_settings)
     self.project_directory = project_directory
     self.theme = theme
+    self.user_settings = user_settings
     ---@type Track|nil
     self.Track = nil
     self:update():getTrackFx()
