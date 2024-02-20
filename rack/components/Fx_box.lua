@@ -295,9 +295,6 @@ function fx_box:AddParamsBtn()
     if reaper.ImGui_Button(self.ctx, "+") then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, popup_name) then
             reaper.ImGui_OpenPopup(self.ctx, popup_name)
-            if self.isRecordPopupOpen then
-                self.isRecordPopupOpen = false
-            end
         end
     end
     if reaper.ImGui_IsItemHovered(self.ctx) then

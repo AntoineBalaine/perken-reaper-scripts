@@ -53,10 +53,14 @@ end
 --Pull the data from the fx parser module and create the ImGui context.
 ---@param ctx? ImGui_Context
 function Browser:init(ctx)
+    self.name = "Fx Browser"
     if not ctx then
         self.ctx = reaper.ImGui_CreateContext("fx browser")
     else
         self.ctx = ctx
+    end
+    if track then
+        self.track = track
     end
     self.open = false
     self.last_used_fx = nil ---@type string last used fx name
@@ -311,7 +315,7 @@ function Browser:main()
         return
     end
     self.track = reaper.GetSelectedTrack(0, 0)
-    local visible, open = reaper.ImGui_Begin(self.ctx, "fx browser", true)
+    local visible, open = reaper.ImGui_Begin(self.ctx, self.name, true)
     self.open = open
     if visible then
         if self.track then
@@ -324,6 +328,27 @@ function Browser:main()
     end
     if open then
         reaper.defer(function() self:main() end)
+    end
+end
+
+function Browser:Popup()
+    reaper.ImGui_SetNextWindowSize(self.ctx, 400, 200)
+    self.open = reaper.ImGui_BeginPopup(self.ctx, self.name)
+    if self.open then
+        self.open = true
+
+        self.track = reaper.GetSelectedTrack(0, 0)
+        if self.track then
+            self:RescanButton()
+            self:drawMenus()
+        else
+            reaper.ImGui_Text(self.ctx, "please select a track")
+        end
+        reaper.ImGui_EndPopup(self.ctx)
+    end
+
+    if self.open then
+        reaper.defer(function() self:Popup() end)
     end
 end
 

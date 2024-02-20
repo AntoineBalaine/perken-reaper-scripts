@@ -26,13 +26,11 @@ local fx_separator = {}
 ---@param is_last? boolean
 function fx_separator:spaceBtwFx(idx, is_last)
     if reaper.ImGui_Button(self.ctx, '##Button between FX', 10, 220) and is_last then
-        if self.Browser.open then
-            self.Browser.open = false -- if the browser's already open when user tries to open it, close it (toggle).
-        else
-            self.Browser.open = true  -- open the fx browser if it's not already open
+        if not reaper.ImGui_IsPopupOpen(self.ctx, self.Browser.name) then
+            reaper.ImGui_OpenPopup(self.ctx, self.Browser.name)
         end
-        self.Browser:main()
     end
+    self.Browser:Popup()
     fx_separator:dragDropTarget(idx)
 
     reaper.ImGui_SameLine(self.ctx, nil, 0)
