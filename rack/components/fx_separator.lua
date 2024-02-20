@@ -1,3 +1,17 @@
+--[[
+The fx_separator is the little space between each of the fx boxes in the rack.
+It’s used as a drag and drop destination to re-order the fx.
+Any changes in order here will be reflected in reaper’s track fx.
+Order of steps is:
+- instantiate with init() from the base of the app.
+- display using spaceBtwFx().
+- add the dragDropTarget() to the component.
+Upon receiving a drag-drop payload, the component calls the reaper api to update the fx chain,
+and leaves it to the state module to update the rack at the next defer cycle.
+
+Bear in mind that this component is a singleton, so it’s a single instance that is re-used across every appearance between FX.
+As a result, its internal state has to be updated every time it’s called. I’m not sure yet whether I like this or would rather have one instance per appearance.
+]]
 local drag_drop = require("state.dragAndDrop")
 
 --- call to insert spaces between fx windows,
@@ -12,14 +26,11 @@ local fx_separator = {}
 ---@param is_last? boolean
 function fx_separator:spaceBtwFx(idx, is_last)
     if reaper.ImGui_Button(self.ctx, '##Button between FX', 10, 220) and is_last then
-        --- DISPLAY FX BROWSER
-        -- reaper.Main_OnCommand(40271, 0)
-
-        self.Browser:main()
-        -- if reaper.ImGui_BeginPopup(self.ctx, "fx_browser") then
-        --     reaper.ImGui_EndPopup(self.ctx)
-        -- end
+        if not reaper.ImGui_IsPopupOpen(self.ctx, self.Browser.name) then
+            reaper.ImGui_OpenPopup(self.ctx, self.Browser.name)
+        end
     end
+    self.Browser:Popup()
     fx_separator:dragDropTarget(idx)
 
     reaper.ImGui_SameLine(self.ctx, nil, 0)

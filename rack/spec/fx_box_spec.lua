@@ -2,11 +2,15 @@ if os.getenv("LOCAL_LUA_DEBUGGER_VSCODE") == "1" then
     require("lldebugger").start()
 end
 require 'busted.runner' ()
+local dummy_theme = require("spec.dummy_theme")
+local theme = dummy_theme.theme
 
 local spec_helpers = require("spec.spec_helpers")
 local create_fx = spec_helpers.create_fx
 local fx = create_fx()
 _G.reaper = {
+    TrackFX_GetNumParams = function() return 0 end,
+    GetMediaTrackInfo_Value = function() return "trackNumber" end,
     TrackFX_GetCount = function() return #fx end,
     GetLastTouchedFX = function() --[[ last_fx]] end,
     GetTrackGUID = function() --[[trackGuid]] end,
@@ -45,7 +49,7 @@ local drag_drop = require("state.dragAndDrop")
 
 local MockRack = {}
 function MockRack:mockInit()
-    self.state = State:init() -- initialize state, query selected track and its fx
+    self.state = State:init("", theme) -- initialize state, query selected track and its fx
     self.ctx = {}
     self.Browser = nil
     return self

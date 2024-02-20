@@ -1,9 +1,29 @@
+--[[
+App-wide state. The rack's state contains a description of the currently selected track, as well as a table of track fx - their internal states and their layouts.
+
+The state gets updated at every defer cycle:
+At the beginning of the cycle, the state module queries the reaper api to find out
+- what’s the currently-selected track
+- what FX it has, have the FX changed (any deletions/additions) and do we need to update any of the data.
+
+Tests for this module can be found in `spec/state_spec.lua`
+
+TODO
+- Q: what if there are multiple tracks selected?
+- when selected track changes, should we store the previously-selected track’s data, so we can re-use it later?
+]]
+local fx_state = require("state.fx")
+
 ---This the rack's global state. It is NOT the same as the ImGui_Context
 -- The rack's state is used to store global variables
 ---@class State
 local state = {}
 
----@class TrackFX
+---This is the barebones trackFx info,
+---Without the class functions that can be found in
+---@see TrackFX
+--This type is used for testing and for passing data when instantiating `TrackFX`
+---@class FxData
 ---@field enabled boolean
 ---@field guid string
 ---@field name string
@@ -12,7 +32,6 @@ local state = {}
 ---@field index integer
 
 ---@class Track
----@field last_fx TrackFX --- last touched fx
 ---@field fx_by_guid table<string, TrackFX> --- all fx in the track, using GUID as key. Duplicate of fx_list for easier access.
 ---@field fx_list TrackFX[] --- array of fx in the track. duplicate of fx_by_guid for easier iteration.
 ---@field fx_count integer
@@ -21,76 +40,48 @@ local state = {}
 ---@field number integer --- 0-indexed track index (0 is for master track)
 ---@field track MediaTrack
 
----Retrieve all the necessary information about the current track.
----@return Track|nil
-function state:query()
-    local track = reaper.GetSelectedTrack2(0, 0, false)
-    if not track then
-        return nil
-    end                                                                         -- if there's no selected track, move on
-    local trackGuid                                = reaper.GetTrackGUID(track) -- get the track's GUID
-    local _, trackName                             = reaper.GetTrackName(track)
-
-    local trackFxCount                             = reaper.TrackFX_GetCount(track)
-    local _,
-    trackNumber, --- 0-indexed track index (0 is for master track)
-    fxNumber,    --- last touched fx number
-    paramNumber  --- last touched parameter number
-                                                   = reaper.GetLastTouchedFX()
-    local _, fxName                                = reaper.TrackFX_GetFXName(track, fxNumber)
-    local _, paramName                             = reaper.TrackFX_GetParamName(track, fxNumber, paramNumber)
-    local fxGuid                                   = reaper.TrackFX_GetFXGUID(track, fxNumber or 0)
-    local fxEnabled                                = reaper.TrackFX_GetEnabled(track, fxNumber)
-
-    return {
-        track = track,
-        number = trackNumber,
-        name = trackName,
-        guid = trackGuid,
-        fx_count = trackFxCount,
-        last_fx = {
-            number = fxNumber,
-            name = fxName,
-            guid = fxGuid,
-            enabled = fxEnabled,
-            param = {
-                number = paramNumber,
-                name = paramName
-            }
-        },
-        fx_list = {},
-        fx_by_guid = {}
-    }
-end
-
 --- get the selected track,
 -- the last touched fx,
 -- the fx list for current track and parameters,
 -- and store them in the state.
 function state:update()
-    local state_query = self:query()
-    if not self.Track and state_query then
-        self.Track = state_query
-    elseif self.Track and state_query then
-        self.Track.track = state_query.track
-        self.Track.number = state_query.number
-        self.Track.name = state_query.name
+    local track = reaper.GetSelectedTrack2(0, 0, false)
+    if not track then
+        self.Track = nil
+        return self
+    end -- if there's no selected track, move on
+    ---TODO do we really need to re-query the details at every frame ?
+    ---how likely to change are things such as `trackGuid`
+    local trackGuid    = reaper.GetTrackGUID(track) -- get the track's GUID
+    local _, trackName = reaper.GetTrackName(track)
+
+    local trackFxCount = reaper.TrackFX_GetCount(track)
+    local trackNumber  = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+
+    if not self.Track and track then
+        self.Track = {
+            track = track,
+            number = trackNumber or -1,
+            name = trackName,
+            guid = trackGuid,
+            fx_count = trackFxCount,
+            fx_list = {},
+            fx_by_guid = {}
+        }
+    elseif self.Track and track then
+        self.Track.track = track
+        self.Track.number = trackNumber or -1
+        self.Track.name = trackName
         ---TODO: would it be worth saving any previous track’s state into a «other_tracks» table?
         ---That way we wouldn’t have to re-allocate a table every time the track changes.
-        if self.Track.guid ~= state_query.guid then
+        if self.Track.guid ~= trackGuid then
             for i in ipairs(self.Track.fx_list) do
                 self.Track.fx_by_guid[self.Track.fx_list[i].guid] = nil
                 self.Track.fx_list[i] = nil
             end
         end
-        self.Track.guid = state_query.guid
-        self.Track.fx_count = state_query.fx_count
-        self.Track.last_fx.number = state_query.last_fx.number
-        self.Track.last_fx.name = state_query.name
-        self.Track.last_fx.guid = state_query.guid
-        self.Track.last_fx.enabled = state_query.last_fx.enabled
-        self.Track.last_fx.param.number = state_query.last_fx.param.number
-        self.Track.last_fx.param.name = state_query.last_fx.param.name
+        self.Track.guid = trackGuid
+        self.Track.fx_count = trackFxCount
     else
         self.Track = nil
     end
@@ -153,7 +144,7 @@ function state:getTrackFx()
         else                                        -- fx is new
             local _, fxName = reaper.TrackFX_GetFXName(self.Track.track, idx)
             local fxEnabled = reaper.TrackFX_GetEnabled(self.Track.track, idx)
-            ---@type TrackFX
+            ---@type FxData
             local Fx = {
                 number = idx,
                 name = fxName or "",
@@ -161,8 +152,10 @@ function state:getTrackFx()
                 enabled = fxEnabled,
                 index = index
             }
-            self.Track.fx_by_guid[fxGuid] = Fx
-            self.Track.fx_list[index] = Fx
+
+            local my_fx = fx_state.new(self, Fx, self.theme)
+            self.Track.fx_by_guid[fxGuid] = my_fx
+            self.Track.fx_list[index] = my_fx
         end
     end
 
@@ -205,7 +198,12 @@ end
 --- Initialize the state: get the selected track,
 -- the last touched fx,
 -- the fx list for current track and parameters.
-function state:init()
+---@param project_directory string
+---@param theme Theme
+function state:init(project_directory, theme, user_settings)
+    self.project_directory = project_directory
+    self.theme = theme
+    self.user_settings = user_settings
     ---@type Track|nil
     self.Track = nil
     self:update():getTrackFx()

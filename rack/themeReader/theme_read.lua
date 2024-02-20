@@ -1,4 +1,9 @@
 -- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+--[[
+Read the user’s reaper theme.
+Pull the data from the last used theme file, and structure it using the `theme_types.lua`
+This module is based off X-Raym’s theme reader.
+]]
 local ThemeReader = {}
 
 ---@class Theme

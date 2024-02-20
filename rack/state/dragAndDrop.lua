@@ -1,3 +1,8 @@
+--[[
+list of drag and drop types.
+This is used as an enum throughout the app.
+]]
+
 local drag_drop = {}
 
 ---@enum DragDropType

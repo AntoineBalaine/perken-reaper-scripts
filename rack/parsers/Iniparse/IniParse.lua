@@ -141,4 +141,24 @@ function IniParse:parse_file(path)
     return IniParse:parse(str)
 end
 
+--- Saves all the data from a table to an INI file.
+---Keep in mind this only accepts one level of nesting.
+---@param fileName string The name of the INI file to fill. [string]
+---@param data table The table containing all the data to store. [table]
+function IniParse.save(fileName, data)
+    assert(type(fileName) == 'string', 'Parameter "fileName" must be a string.');
+    assert(type(data) == 'table', 'Parameter "data" must be a table.');
+    local file = assert(io.open(fileName, 'w+b'), 'Error loading file :' .. fileName);
+    local contents = '';
+    for section, param in pairs(data) do
+        contents = contents .. ('[%s]\n'):format(section);
+        for key, value in pairs(param) do
+            contents = contents .. ('%s=%s\n'):format(key, tostring(value));
+        end
+        contents = contents .. '\n';
+    end
+    file:write(contents);
+    file:close();
+end
+
 return IniParse

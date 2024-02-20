@@ -1,3 +1,17 @@
+--[[
+This is the main component:
+steps are:
+- initialize the component with rack:init()
+- set up the state,
+- read the theme,
+- manage whether the component is docked
+- initialize the dependent component such as:
+    - the fx browser,
+    - the menu bar,
+    - the fx box,
+    - the fx separator (space between fx for drag and drop)
+- and then display the rack with rack:main()
+]]
 local ThemeReader  = require("themeReader.theme_read")
 local Fx_box       = require("components.Fx_box")
 local Fx_separator = require("components.fx_separator")
@@ -5,6 +19,7 @@ local menubar      = require("components.menubar")
 local state        = require("state.state")
 local actions      = require("state.actions")
 local Browser      = require("components.fx_browser")
+local Settings     = require("state.settings")
 
 ---Rack module
 ---@class Rack
@@ -19,7 +34,7 @@ function Rack:drawFxList()
     for idx, fx in ipairs(self.state.Track.fx_list) do
         reaper.ImGui_PushID(self.ctx, tostring(idx))
         Fx_separator:spaceBtwFx(idx)
-        Fx_box:display(fx)
+        Fx_box:main(fx)
         reaper.ImGui_PopID(self.ctx)
     end
     Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1, true)
@@ -59,9 +74,6 @@ function Rack:main()
         -- if the fx_browser is open,
         -- set it to be closed
         -- so that it doesn’t throw an error when the rack closes
-        if not Browser.closed then
-            Browser.closed = true
-        end
         reaper.ImGui_DestroyContext(self.ctx)
     else
         reaper.defer(function() self:main() end)
@@ -69,7 +81,8 @@ function Rack:main()
 end
 
 ---Create the ImGui context and setup the window size
-function Rack:init()
+---@param project_directory string
+function Rack:init(project_directory)
     local ctx_flags = reaper.ImGui_ConfigFlags_DockingEnable()
     self.ctx = reaper.ImGui_CreateContext("rack",
         ctx_flags)
@@ -83,9 +96,10 @@ function Rack:init()
     self.window_flags = window_flags -- tb used in main()
 
 
-    self.state = state:init()                                            -- initialize state, query selected track and its fx
-    self.actions = actions:init(self.ctx, self.state.Track)              -- always init actions after state
+    self.settings = Settings:init(project_directory)
     self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
+    self.state = state:init(project_directory, self.theme)               -- initialize state, query selected track and its fx
+    self.actions = actions:init(self.ctx, self.state.Track)              -- always init actions after state
     Browser:init(self.ctx)                                               -- initialize the fx browser
     ---@type FXBrowser
     self.Browser =

@@ -3,9 +3,13 @@ local State = require("state.state")
 local table_helpers = require("helpers.table")
 local spec_helpers = require("spec.spec_helpers")
 local create_fx = spec_helpers.create_fx
+local dummy_theme = require("spec.dummy_theme")
+local theme = dummy_theme.theme
 
 describe("State tests", function()
     _G.reaper = {
+        TrackFX_GetNumParams = function() return 0 end,
+        GetMediaTrackInfo_Value = function() return "trackNumber" end,
         GetLastTouchedFX = function() --[[ last_fx]] end,
         GetSelectedTrack2 = function() --[[MediaTrack]] end,
         GetTrackGUID = function() --[[trackGuid]] end,
@@ -34,7 +38,7 @@ describe("State tests", function()
     -- local fxEnabled    = reaper.TrackFX_GetEnabled(self.Track.track, idx)
 
     ---initialize state and pass the correct values
-    local state = State:init()
+    local state = State:init("", theme)
     local fx = create_fx()
     _G.reaper.GetSelectedTrack2 = function() return {} end
     _G.reaper.TrackFX_GetCount = function() return #fx end
@@ -68,8 +72,8 @@ describe("State tests", function()
 
         assert.spy(GetSelectedTrack2).was.called(1)
         assert.spy(TrackFX_GetCount).was.called(1)
-        assert.spy(TrackFX_GetFXGUID).was.called(4)
-        assert.spy(TrackFX_GetFXName).was.called(4)
+        assert.spy(TrackFX_GetFXGUID).was.called(3)
+        assert.spy(TrackFX_GetFXName).was.called(3)
         assert.are.same(state.Track.fx_count, #fx)
         assert.are.same(#state.Track.fx_list, #fx)
 
