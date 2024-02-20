@@ -8,6 +8,7 @@ local theme = dummy_theme.theme
 
 describe("State tests", function()
     _G.reaper = {
+        TrackFX_GetNumParams = function() return 0 end,
         GetMediaTrackInfo_Value = function() return "trackNumber" end,
         GetLastTouchedFX = function() --[[ last_fx]] end,
         GetSelectedTrack2 = function() --[[MediaTrack]] end,

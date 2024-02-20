@@ -9,6 +9,7 @@ local spec_helpers = require("spec.spec_helpers")
 local create_fx = spec_helpers.create_fx
 local fx = create_fx()
 _G.reaper = {
+    TrackFX_GetNumParams = function() return 0 end,
     GetMediaTrackInfo_Value = function() return "trackNumber" end,
     TrackFX_GetCount = function() return #fx end,
     GetLastTouchedFX = function() --[[ last_fx]] end,

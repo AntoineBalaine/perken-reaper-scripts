@@ -23,7 +23,7 @@ function fx.new(state, data, theme)
     self.guid = data.guid
     self.name = data.name
     self.number = data.number
-    self.param = data.param
+    self.param_list, self.param_by_guid = self:queryParams()
     self.index = data.index
     ---@class FxDisplaySettings
     self.displaySettings = {
@@ -41,7 +41,7 @@ function fx.new(state, data, theme)
         buttonStyle    = {
             background = theme.colors.col_buttonbg.color,
             text_enabled = theme.colors.col_toolbar_text_on.color,
-            text_disabled = theme.colors.col_tcp_textsel.color
+            text_disabled = theme.colors.col_toolbar_text.color
         }
     }
     self.displaySettings_copy = nil
@@ -123,6 +123,30 @@ function fx:onEditLayoutClose(action)
     else -- discard
         self.displaySettings_copy = nil
     end
+end
+
+---query the list of params for the fx
+---@return ParamData[] params_list
+---@return table<string, ParamData> params_by_guid
+function fx:queryParams()
+    local params_list = {}
+    local params_by_guid = {}
+
+    for param_index = 0, reaper.TrackFX_GetNumParams(self.state.Track.track, self.number) - 1 do
+        local rv, name = reaper.TrackFX_GetParamName(self.state.Track.track, self.number, param_index)
+        local guid = reaper.TrackFX_GetFXGUID(self.state.Track.track, self.number)
+        if not rv then goto continue end
+        ---@class ParamData
+        local param = {
+            index = param_index,
+            name = name,
+            guid = guid
+        }
+        table.insert(params_list, param)
+        params_by_guid[guid] = param
+        ::continue::
+    end
+    return params_list, params_by_guid
 end
 
 return fx
