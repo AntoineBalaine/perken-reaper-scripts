@@ -30,7 +30,7 @@ function fx.new(state, data, theme)
         height         = 220,
         Window_Width   = 220,
         fx_width       = 200,
-        Title_Width    = 220 - 60,
+        Title_Width    = 220 - 80,
         Edge_Rounding  = 0,
         Grb_Rounding   = 0,
         background     = theme.colors.selcol_tr2_bg.color,
@@ -132,6 +132,7 @@ function fx:queryParams()
     local params_list = {}
     local params_by_guid = {}
 
+    local display = false
     for param_index = 0, reaper.TrackFX_GetNumParams(self.state.Track.track, self.number) - 1 do
         local rv, name = reaper.TrackFX_GetParamName(self.state.Track.track, self.number, param_index)
         local guid = reaper.TrackFX_GetFXGUID(self.state.Track.track, self.number)
@@ -140,7 +141,8 @@ function fx:queryParams()
         local param = {
             index = param_index,
             name = name,
-            guid = guid
+            guid = guid,
+            display = display
         }
         table.insert(params_list, param)
         params_by_guid[guid] = param

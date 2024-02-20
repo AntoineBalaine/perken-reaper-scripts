@@ -290,6 +290,38 @@ function fx_box:EditLayoutButton()
     reaper.ImGui_SameLine(self.ctx, nil, 5)
 end
 
+function fx_box:AddParamsBtn()
+    local popup_name = "addFxParams"
+    if reaper.ImGui_Button(self.ctx, "+") then -- create window name button
+        if not reaper.ImGui_IsPopupOpen(self.ctx, popup_name) then
+            reaper.ImGui_OpenPopup(self.ctx, popup_name)
+            if self.isRecordPopupOpen then
+                self.isRecordPopupOpen = false
+            end
+        end
+    end
+    if reaper.ImGui_IsItemHovered(self.ctx) then
+        reaper.ImGui_SetTooltip(self.ctx, "add params to display")
+    end
+
+    reaper.ImGui_SetWindowSize(self.ctx, 400, 300)
+    if reaper.ImGui_BeginPopup(self.ctx, popup_name) then
+        ---TODO fix this guy during fx's state updates.
+        local all_params = false
+        if reaper.ImGui_Checkbox(self.ctx, "All params", false) then
+            all_params = true
+        end
+        ---TODO implement text filter here, so that user can filter the fx-params' list.
+        for _, param in ipairs(self.fx.param_list) do
+            param.display = select(2, reaper.ImGui_Checkbox(self.ctx, param.name, param.display))
+            if all_params then
+                param.display = true
+            end
+        end
+        reaper.ImGui_EndPopup(self.ctx)
+    end
+end
+
 ---@param fx TrackFX
 function fx_box:main(fx)
     self.fx = fx
@@ -314,6 +346,10 @@ function fx_box:main(fx)
         self:BypassToggle()
         self:EditLayoutButton()
         self:LabelButton()
+
+        reaper.ImGui_SameLine(self.ctx, nil, 5)
+        self:AddParamsBtn()
+
         self:dragDropSource() -- attach the drag/drop source to the preceding button
 
         -- self:slider()
