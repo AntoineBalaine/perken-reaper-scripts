@@ -181,38 +181,70 @@ function fx_box:slider()
     -- reaper.ImGui_DrawList_PathClear(draw_list)
 end
 
-function fx_box:knob()
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
-        self.theme.colors.col_toolbar_text_on.color)    -- label text's color
-    reaper.ImGui_Text(self.ctx, "Volume")
-    if reaper.ImGui_BeginChild(self.ctx, "##knob") then ----START CHILD WINDOW
-        local p_value              = 50
-        local v_min                = 10
+function fx_box:Knob()
+    local text_color = self.theme.colors.col_toolbar_text_on.color
+    local label = "Volume"
+    -- reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
+    --     text_color) -- label text's color
+    -- reaper.ImGui_Text(self.ctx, "Volume")
+    if not self.knob_value then
+        self.knob_value = 42
+    end
+    -- reaper.ImGui_PopStyleColor(self.ctx, 1)
+
+    local line_height = reaper.ImGui_GetTextLineHeight(self.ctx)
+    local Radius = 20
+    if reaper.ImGui_BeginChild(self.ctx, "##knob", Radius * 2) then ----START CHILD WINDOW
+        local label_text_width, _  = reaper.ImGui_CalcTextSize(self.ctx, label)
+
+        local v_min                = 0
         local v_max                = 100
 
-        local Radius               = 20
         local draw_list            = reaper.ImGui_GetWindowDrawList(self.ctx)
         local pos                  = { reaper.ImGui_GetCursorScreenPos(self.ctx) } ---@type {[1]:number, [2]:number}
         Radius                     = Radius or 0
         local radius_outer         = Radius
-        local t                    = (p_value - v_min) / (v_max - v_min) -- is this tangent?
+        local t                    = (self.knob_value - v_min) / (v_max - v_min) -- is this tangent?
         local ANGLE_MIN            = 3.141592 * 0.75
         local ANGLE_MAX            = 3.141592 * 2.25
         local angle                = ANGLE_MIN + (ANGLE_MAX - ANGLE_MIN) * t
         local angle_cos, angle_sin = math.cos(angle), math.sin(angle)
         local radius_inner         = radius_outer * 0.40
-        local center               = { x = pos[1] + radius_outer, y = pos[2] + radius_outer }
-
-
-        local pointer_end    = {
-            x = center.x + angle_cos * (radius_outer - 2),
-            y = center.y +
-                angle_sin * (radius_outer - 2)
+        local center               = {
+            x = pos[1] + radius_outer,
+            y = pos[2] + radius_outer + line_height + 3
         }
+
+
+
+        local pointer_end_x  = center.x + angle_cos * (radius_outer - 2)
+        local pointer_end_y  = center.y + angle_sin * (radius_outer - 2)
         local path_color     = self.theme.colors.col_vuind4.color
         local path_thickness = radius_outer * 0.1
 
 
+
+        reaper.ImGui_DrawList_AddText(
+            draw_list,
+            center.x - label_text_width / 2,
+            pos[2], -- 1.6 is somewhat arbitary here, just enough so that the text is *right* below the knob
+            text_color,
+            label)
+
+        -- Add a drag behind the knob’s drawing, make it transparent.
+        -- That way it’s easy to have the drag mechanic and the knob drawing.
+        reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_Alpha(), 0)
+
+        _, self.knob_value = reaper.ImGui_VSliderInt(self.ctx,
+            "##test",
+            radius_outer * 2,
+            radius_outer * 2 - 5,
+            self.knob_value,
+            0,
+            100,
+            nil,
+            reaper.ImGui_SliderFlags_AlwaysClamp())
+        reaper.ImGui_PopStyleVar(self.ctx)
         --- knob's circle
         reaper.ImGui_DrawList_AddCircleFilled(draw_list, center.x, center.y, radius_outer,
             0x00000000)
@@ -221,8 +253,8 @@ function fx_box:knob()
         reaper.ImGui_DrawList_AddLine(draw_list,
             center.x, --  + angle_cos * radius_inner
             center.y, --  + angle_sin * radius_inner
-            pointer_end.x,
-            pointer_end.y,
+            pointer_end_x,
+            pointer_end_y,
             0x000000FF,
             path_thickness)
 
@@ -237,11 +269,14 @@ function fx_box:knob()
         reaper.ImGui_DrawList_PathStroke(draw_list, path_color, nil, path_thickness)
         reaper.ImGui_DrawList_PathClear(draw_list)
 
-        reaper.ImGui_NewLine(self.ctx)
-        reaper.ImGui_NewLine(self.ctx)
-
-        reaper.ImGui_Text(self.ctx, tostring(p_value))
-        reaper.ImGui_PopStyleColor(self.ctx, 1)
+        -- value’ text-display
+        local value_text_width, _ = reaper.ImGui_CalcTextSize(self.ctx, tostring(self.knob_value))
+        reaper.ImGui_DrawList_AddText(
+            draw_list,
+            center.x - value_text_width / 2,
+            pos[2] + radius_outer * 2 + 10, -- pos[2] is very start of the component, radius*2 is the circle, +10 for spacing
+            text_color,
+            tostring(self.knob_value))
         reaper.ImGui_EndChild(self.ctx)
     end
 end
@@ -350,7 +385,7 @@ function fx_box:main(fx)
 
 
         -- self:slider()
-        self:knob()
+        self:Knob()
         reaper.ImGui_EndChild(self.ctx)
     end
     self:fxBoxStyleEnd()
