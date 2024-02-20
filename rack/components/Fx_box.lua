@@ -276,6 +276,8 @@ function fx_box:LabelButton()
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_Hand())
     end
     self:buttonStyleEnd()
+    self:dragDropSource() -- attach the drag/drop source to the preceding button
+    reaper.ImGui_SameLine(self.ctx, nil, 5)
 end
 
 function fx_box:EditLayoutButton()
@@ -344,10 +346,8 @@ function fx_box:main(fx)
         self:EditLayoutButton()
         self:LabelButton()
 
-        reaper.ImGui_SameLine(self.ctx, nil, 5)
         self:AddParamsBtn()
 
-        self:dragDropSource() -- attach the drag/drop source to the preceding button
 
         -- self:slider()
         self:knob()
