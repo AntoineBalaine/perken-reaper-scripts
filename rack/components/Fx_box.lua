@@ -246,6 +246,18 @@ function fx_box:knob()
     end
 end
 
+function fx_box:toggleFxWindow()
+    if self.settings.prefer_fx_chain then
+        local focused_fx_idx = reaper.TrackFX_GetChainVisible(self.state.Track.track) -- if not ALT, show fx
+        local show_flag = focused_fx_idx == self.fx.index - 1 and 0 or
+            1                                                                         -- if fxchain window is open and the fx is already focused, hide it
+        reaper.TrackFX_Show(self.state.Track.track, self.fx.index - 1, show_flag)
+    else
+        local hwnd = reaper.TrackFX_GetFloatingWindow(self.state.Track.track, self.fx.index - 1)
+        reaper.TrackFX_SetOpen(self.state.Track.track, self.fx.index - 1, hwnd == nil)
+    end
+end
+
 function fx_box:LabelButton()
     local display_name = fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
     local btn_width = self.displaySettings.Title_Width
@@ -256,10 +268,7 @@ function fx_box:LabelButton()
         if is_remove_fx then
             self.state:deleteFx(self.fx.index)
         else
-            local focused_fx_idx = reaper.TrackFX_GetChainVisible(self.state.Track.track) -- if not ALT, show fx
-            local show_flag = focused_fx_idx == self.fx.index - 1 and 0 or
-                1                                                                         -- if fxchain window is open and the fx is already focused, hide it
-            reaper.TrackFX_Show(self.state.Track.track, self.fx.index - 1, show_flag)
+            self:toggleFxWindow()
         end
     end
 
@@ -320,6 +329,7 @@ end
 ---@param parent_state Rack
 function fx_box:init(parent_state)
     self.state = parent_state.state
+    self.settings = parent_state.settings
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
