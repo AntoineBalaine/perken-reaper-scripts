@@ -346,7 +346,7 @@ function fx_box:AddParamsBtn()
             all_params = true
         end
         ---TODO implement text filter here, so that user can filter the fx-params' list.
-        for _, param in ipairs(self.fx.param_list) do
+        for _, param in ipairs(self.fx.params_list) do
             param.display = select(2, reaper.ImGui_Checkbox(self.ctx, param.name, param.display))
             if all_params then
                 param.display = true

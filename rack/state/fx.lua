@@ -5,7 +5,7 @@ Each FX represented in the parent `state` gets its own instance of this class, i
 local IniParse = require("parsers.Iniparse.IniParse")
 local table_helpers = require("helpers.table")
 local layout_enums = require("state.fx_layout_types")
-
+local parameter = require("state.param")
 ---@class TrackFX
 local fx = {}
 fx.__index = fx
@@ -23,8 +23,9 @@ function fx.new(state, data, theme)
     self.guid = data.guid
     self.name = data.name
     self.number = data.number
-    self.param_list, self.param_by_guid = self:queryParams()
     self.index = data.index
+    self.params_list, self.params_by_guid = self:queryParams()
+    self.display_params = {} ---@type Parameter
     ---@class FxDisplaySettings
     self.displaySettings = {
         height         = 220,
@@ -149,6 +150,14 @@ function fx:queryParams()
         ::continue::
     end
     return params_list, params_by_guid
+end
+
+---add param to list of displayed params
+---query its value, create a param class for it
+function fx:displayParam(guid)
+    local param_data = self.params_by_guid[guid]
+    local new_param = parameter.new(self.state, param_data.index, self)
+    table.insert(self.display_params, new_param)
 end
 
 return fx
