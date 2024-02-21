@@ -157,8 +157,13 @@ function fx:createParams()
     return params_list, params_by_guid
 end
 
-function fx:updateParams()
-
+---query whether the fx is enabled,
+---query the values of the displayed params
+function fx:update()
+    self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.index)
+    for i, param in ipairs(self.display_params) do
+        param:update()
+    end
 end
 
 ---add param to list of displayed params

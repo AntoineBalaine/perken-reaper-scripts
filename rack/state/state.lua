@@ -146,6 +146,10 @@ function state:getTrackFx()
             self.Track.fx_by_guid[fxGuid] = my_fx
             self.Track.fx_list[index] = my_fx
         end
+        --- TODO is this the best place to make this update?
+        for _, fx in ipairs(self.Track.fx_list) do
+            fx:update()
+        end
     end
 
     -- find the leftover guids, which points to any deleted fx

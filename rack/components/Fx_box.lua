@@ -181,15 +181,19 @@ function fx_box:slider()
     -- reaper.ImGui_DrawList_PathClear(draw_list)
 end
 
-function fx_box:Knob()
+---@param param Parameter
+function fx_box:Knob(param)
     local text_color = self.theme.colors.col_toolbar_text_on.color
-    local label = "Volume"
+    local label = param.name
     -- reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
     --     text_color) -- label text's color
     -- reaper.ImGui_Text(self.ctx, "Volume")
+
+    self.knob_value = tonumber(param.value)
     if not self.knob_value then
-        self.knob_value = 42
+        self.knob_value = 0
     end
+
     -- reaper.ImGui_PopStyleColor(self.ctx, 1)
 
     local line_height = reaper.ImGui_GetTextLineHeight(self.ctx)
@@ -383,9 +387,9 @@ function fx_box:main(fx)
 
         self:AddParamsBtn()
 
-
-        -- self:slider()
-        self:Knob()
+        for idx, param in ipairs(fx.display_params) do
+            self:Knob(param)
+        end
         reaper.ImGui_EndChild(self.ctx)
     end
     self:fxBoxStyleEnd()

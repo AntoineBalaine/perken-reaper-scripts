@@ -52,7 +52,8 @@ end
 ---Initialize the state of the Fx-Browser component.
 --Pull the data from the fx parser module and create the ImGui context.
 ---@param ctx? ImGui_Context
-function Browser:init(ctx)
+---@param track? MediaTrack
+function Browser:init(ctx, track)
     self.name = "Fx Browser"
     if not ctx then
         self.ctx = reaper.ImGui_CreateContext("fx browser")
