@@ -18,8 +18,8 @@ function fx.new(state, theme, index, number, guid)
     ---@class TrackFX
     local self = setmetatable({}, fx)
     self.state = state
-    local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, index)
-    local enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, index)
+    local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
+    local enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
     self.enabled = enabled
     self.guid = guid
     self.name = name
@@ -137,7 +137,7 @@ function fx:createParams()
     local display = false
     for param_index = 0, reaper.TrackFX_GetNumParams(self.state.Track.track, self.number) - 1 do
         local rv, name = reaper.TrackFX_GetParamName(self.state.Track.track, self.number, param_index)
-        local guid = reaper.TrackFX_GetFXGUID(self.state.Track.track, self.number)
+        local guid = reaper.genGuid(name .. param_index)
         if not rv then goto continue end
         ---ParamData is an intermediary datum for a param that's not being displayed.
         --
