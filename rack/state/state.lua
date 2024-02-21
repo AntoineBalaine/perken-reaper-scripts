@@ -142,18 +142,7 @@ function state:getTrackFx()
                 table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
             end
         else                                        -- fx is new
-            local _, fxName = reaper.TrackFX_GetFXName(self.Track.track, idx)
-            local fxEnabled = reaper.TrackFX_GetEnabled(self.Track.track, idx)
-            ---@type FxData
-            local Fx = {
-                number = idx,
-                name = fxName or "",
-                guid = fxGuid,
-                enabled = fxEnabled,
-                index = index
-            }
-
-            local my_fx = fx_state.new(self, Fx, self.theme)
+            local my_fx = fx_state.new(self, self.theme, index, idx, fxGuid)
             self.Track.fx_by_guid[fxGuid] = my_fx
             self.Track.fx_list[index] = my_fx
         end

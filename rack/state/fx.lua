@@ -13,18 +13,19 @@ fx.__index = fx
 ---create a new fx instance,
 ---to store state and layout information
 ---@param state State
----@param data FxData
 ---@param theme Theme
-function fx.new(state, data, theme)
+function fx.new(state, theme, index, number, guid)
     ---@class TrackFX
     local self = setmetatable({}, fx)
     self.state = state
-    self.enabled = data.enabled
-    self.guid = data.guid
-    self.name = data.name
-    self.number = data.number
-    self.index = data.index
-    self.params_list, self.params_by_guid = self:queryParams()
+    local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, index)
+    local enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, index)
+    self.enabled = enabled
+    self.guid = guid
+    self.name = name
+    self.number = number
+    self.index = index
+    self.params_list, self.params_by_guid = self:createParams()
     self.display_params = {} ---@type Parameter
     ---@class FxDisplaySettings
     self.displaySettings = {
@@ -129,7 +130,7 @@ end
 ---query the list of params for the fx
 ---@return ParamData[] params_list
 ---@return table<string, ParamData> params_by_guid
-function fx:queryParams()
+function fx:createParams()
     local params_list = {}
     local params_by_guid = {}
 
@@ -138,6 +139,10 @@ function fx:queryParams()
         local rv, name = reaper.TrackFX_GetParamName(self.state.Track.track, self.number, param_index)
         local guid = reaper.TrackFX_GetFXGUID(self.state.Track.track, self.number)
         if not rv then goto continue end
+        ---ParamData is an intermediary datum for a param that's not being displayed.
+        --
+        --Basically we don't need to query the param's values if it's not displayed
+        --so we only need its name and guid.
         ---@class ParamData
         local param = {
             index = param_index,
@@ -150,6 +155,10 @@ function fx:queryParams()
         ::continue::
     end
     return params_list, params_by_guid
+end
+
+function fx:updateParams()
+
 end
 
 ---add param to list of displayed params

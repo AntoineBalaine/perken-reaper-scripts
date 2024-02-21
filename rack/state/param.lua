@@ -3,6 +3,8 @@ local parameter = {}
 parameter.__index = parameter
 
 
+---query info about the current param (min/max value, name, identifier, etc.)
+---and store it in the class
 ---@param state State
 ---@param param_index number
 ---@param parent_fx TrackFX
@@ -41,6 +43,7 @@ function parameter:query_value()
     --
     --   original_name : pre-renamed FX instance name
     --   renamed_name : renamed FX instance name (empty string = not renamed)
+    return self
 end
 
 return parameter
