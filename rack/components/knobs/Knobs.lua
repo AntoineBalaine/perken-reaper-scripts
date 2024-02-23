@@ -2,6 +2,31 @@
 --TB TESTED
 --https://github.com/DGriffin91/imgui-rs-knobs
 
+---@param rgba {[1]: number,[2]: number,[3]: number,[4]: number}
+local function rgbToHex(rgba)
+    local hexadecimal = '0X'
+
+    for _, value in pairs(rgba) do
+        local hex = ''
+
+        while (value > 0) do
+            local index = math.fmod(value, 16) + 1
+            value = math.floor(value / 16)
+            hex = string.sub('0123456789ABCDEF', index, index) .. hex
+        end
+
+        if (string.len(hex) == 0) then
+            hex = '00'
+        elseif (string.len(hex) == 1) then
+            hex = '0' .. hex
+        end
+
+        hexadecimal = hexadecimal .. hex
+    end
+
+    return tonumber(hexadecimal)
+end
+
 ---@param center {[1]: number, [2]: number}
 ---@param start {[1]: number, [2]: number}
 ---@param end_ {[1]: number, [2]: number}
@@ -17,12 +42,6 @@ local function bezier_arc(center, start, end_)
 
     return center[0] + ax - k2 * ay, center[1] + ay + k2 * ax,
         center[0] + bx + k2 * by, center[1] + by - k2 * bx
-end
-
-
----FIXME
-local function dummyConvertColor(color)
-    return 0xFFFFFF00
 end
 
 ---@param draw_list ImGui_DrawList
@@ -95,7 +114,7 @@ local function draw_arc(
             mid_angle - overlap,
             mid_angle2 + overlap,
             thickness,
-            dummyConvertColor(color),
+            rgbToHex(color),
             num_segments
         )
         mid_angle = mid_angle2
@@ -108,7 +127,7 @@ local function draw_arc(
         mid_angle - overlap,
         end_angle,
         thickness,
-        dummyConvertColor(color),
+        rgbToHex(color),
         num_segments
     )
 end
@@ -162,12 +181,28 @@ local function knob_control(
     return value_changed
 end
 
----TODO implement as class with :new() and :from()
 ---@class ColorSet
 ---@field base {[1]: number,[2]: number,[3]: number,[4]: number}
 ---@field hovered {[1]: number,[2]: number,[3]: number,[4]: number}
 ---@field active {[1]: number,[2]: number,[3]: number,[4]: number}
+local ColorSet = {}
 
+---@param base {[1]: number,[2]: number,[3]: number,[4]: number}
+---@param hovered {[1]: number,[2]: number,[3]: number,[4]: number}
+---@param active {[1]: number,[2]: number,[3]: number,[4]: number}
+function ColorSet.new(base, hovered, active)
+    local self = setmetatable({}, ColorSet)
+    self.base = base
+    self.hovered = hovered
+    self.active = active
+    return self
+end
+
+---@param color {[1]: number,[2]: number,[3]: number,[4]: number}
+---@return ColorSet
+function ColorSet.from(color)
+    return ColorSet.new(color, color, color)
+end
 
 ---@class Knob
 ---@field ctx ImGui_Context
@@ -267,15 +302,25 @@ function Knob:draw_dot(
     else
         circle_color = color.base
     end
-
-    reaper.ImGui_DrawList_AddCircle(
-        self.draw_list,
-        self.center[0] + math.cos(angle) * dot_radius,
-        self.center[1] + math.sin(angle) * dot_radius,
-        dot_size,
-        dummyConvertColor(circle_color),
-        segments
-    )
+    if filled then
+        reaper.ImGui_DrawList_AddCircleFilled(
+            self.draw_list,
+            self.center[0] + math.cos(angle) * dot_radius,
+            self.center[1] + math.sin(angle) * dot_radius,
+            dot_size,
+            rgbToHex(circle_color),
+            segments
+        )
+    else
+        reaper.ImGui_DrawList_AddCircle(
+            self.draw_list,
+            self.center[0] + math.cos(angle) * dot_radius,
+            self.center[1] + math.sin(angle) * dot_radius,
+            dot_size,
+            rgbToHex(circle_color),
+            segments
+        )
+    end
 end
 
 ---@param start number
@@ -304,7 +349,7 @@ function Knob:draw_tick(start, end_, width, angle, color)
         self.center[1] + angle_sin * tick_end,
         self.center[0] + angle_cos * tick_start,
         self.center[1] + angle_sin * tick_start,
-        dummyConvertColor(line_color),
+        rgbToHex(line_color),
         width * self.radius
     )
 end
@@ -324,14 +369,25 @@ function Knob:draw_circle(size, color, filled, segments)
     else
         circle_color = color.base
     end
-    reaper.ImGui_DrawList_AddCircleFilled(
-        self.draw_list,
-        self.center[1],
-        self.center[2],
-        circle_radius,
-        dummyConvertColor(circle_color),
-        segments
-    )
+    if filled then
+        reaper.ImGui_DrawList_AddCircleFilled(
+            self.draw_list,
+            self.center[1],
+            self.center[2],
+            circle_radius,
+            rgbToHex(circle_color),
+            segments
+        )
+    else
+        reaper.ImGui_DrawList_AddCircle(
+            self.draw_list,
+            self.center[1],
+            self.center[2],
+            circle_radius,
+            rgbToHex(circle_color),
+            segments
+        )
+    end
 end
 
 ---@param radius number
@@ -367,7 +423,7 @@ function Knob:draw_arc(
         start_angle,
         end_angle,
         track_size,
-        color,
+        circle_color,
         segments,
         bezier_count
     )
@@ -599,3 +655,50 @@ function knob_with_drag(
     reaper.ImGui_PopItemWidth(ctx)
     return knob
 end
+
+---TODO double check this
+---@param hsva {[1]: number, [2]: number, [3]: number, [4]: number}
+---@return {[1]: number, [2]: number, [3]: number, [4]: number}
+function hsv2rgb(hsva)
+    local h, s, v, a = hsva[1], hsva[2], hsva[3], hsva[4]
+    local r, g, b
+
+    local i = math.floor(h * 6)
+    local f = h * 6 - i
+    local p = v * (1 - s)
+    local q = v * (1 - f * s)
+    local t = v * (1 - (1 - f) * s)
+
+    i = i % 6
+
+    if i == 0 then
+        r, g, b = v, t, p
+    elseif i == 1 then
+        r, g, b = q, v, p
+    elseif i == 2 then
+        r, g, b = p, v, t
+    elseif i == 3 then
+        r, g, b = p, q, v
+    elseif i == 4 then
+        r, g, b = t, p, v
+    elseif i == 5 then
+        r, g, b = v, p, q
+    end
+
+    return { r, g, b, a }
+end
+
+return {
+    rgbToHex = rgbToHex,
+    hsv2rgb = hsv2rgb,
+    ColorSet = ColorSet,
+    Knob = Knob,
+    draw_wiper_knob = draw_wiper_knob,
+    knob_with_drag = knob_with_drag,
+    draw_wiper_dot_knob = draw_wiper_dot_knob,
+    draw_wiper_only_knob = draw_wiper_only_knob,
+    draw_tick_knob = draw_tick_knob,
+    draw_dot_knob = draw_dot_knob,
+    draw_space_knob = draw_space_knob,
+    draw_stepped_knob = draw_stepped_knob
+}
