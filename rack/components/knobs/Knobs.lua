@@ -2,46 +2,52 @@
 --TB TESTED
 --https://github.com/DGriffin91/imgui-rs-knobs
 
+---TODO
+--Ableton KNOB
+--ReaDrum knob
+
 ---@param rgba {[1]: number,[2]: number,[3]: number,[4]: number}
-local function rgbToHex(rgba)
-    local hexadecimal = '0X'
-
-    for _, value in pairs(rgba) do
-        local hex = ''
-
-        while (value > 0) do
-            local index = math.fmod(value, 16) + 1
-            value = math.floor(value / 16)
-            hex = string.sub('0123456789ABCDEF', index, index) .. hex
-        end
-
-        if (string.len(hex) == 0) then
-            hex = '00'
-        elseif (string.len(hex) == 1) then
-            hex = '0' .. hex
-        end
-
-        hexadecimal = hexadecimal .. hex
-    end
-
-    return tonumber(hexadecimal)
+---@return number
+local function rgbToHex___(rgba)
+    local r = math.floor(rgba[1] * 255) * 256 * 256
+    local g = math.floor(rgba[2] * 255) * 256
+    local b = math.floor(rgba[3] * 255)
+    local a = math.floor(rgba[4] * 255)
+    -- return 0xFFFFFFFFF
+    return r + g + b + a
+    -- local blue = blue * 256
+    -- local green = green * 256 * 256
+    -- local red = red * 256 * 256 * 256
+    -- local alpha = math.floor(alpha * 255)
+    -- return red + green + blue + alpha
 end
 
+local function rgbToHex(rgba)
+    local r = math.floor(rgba[1] * 255)
+    local g = math.floor(rgba[2] * 255)
+    local b = math.floor(rgba[3] * 255)
+    local a = math.floor(rgba[4] * 255)
+    local hex = r << 24 | g << 16 | b << 8 | a
+    return hex
+    -- return 0xFFFFFFFF
+end
+
+--
 ---@param center {[1]: number, [2]: number}
 ---@param start {[1]: number, [2]: number}
 ---@param end_ {[1]: number, [2]: number}
 ---@return number c1.x, number c1.y, number c2.x, number c2.y
 local function bezier_arc(center, start, end_)
-    local ax = start[0] - center[0]
-    local ay = start[1] - center[1]
-    local bx = end_[0] - center[0]
-    local by = end_[1] - center[1]
+    local ax = start[1] - center[1]
+    local ay = start[2] - center[2]
+    local bx = end_[1] - center[1]
+    local by = end_[2] - center[2]
     local q1 = ax * ax + ay * ay
     local q2 = q1 + ax * bx + ay * by
-    local k2 = (4.0 / 3.0) * ((2.0 * q1 * q2).sqrt() - q2) / (ax * by - ay * bx)
+    local k2 = (4.0 / 3.0) * (math.sqrt(2.0 * q1 * q2) - q2) / (ax * by - ay * bx)
 
-    return center[0] + ax - k2 * ay, center[1] + ay + k2 * ax,
-        center[0] + bx + k2 * by, center[1] + by - k2 * bx
+    return center[1] + ax - k2 * ay, center[2] + ay + k2 * ax,
+        center[1] + bx + k2 * by, center[2] + by - k2 * bx
 end
 
 ---@param draw_list ImGui_DrawList
@@ -62,21 +68,38 @@ local function draw_arc1(
     color,
     num_segments
 )
-    local start = { center[0] + math.cos(start_angle) * radius,
-        center[1] + math.sin(start_angle) * radius,
+    local start = { center[1] + math.cos(start_angle) * radius,
+        center[2] + math.sin(start_angle) * radius,
     }
 
-    local end_ = { center[0] + math.cos(end_angle) * radius,
-        center[1] + math.sin(end_angle) * radius,
+    local end_ = { center[1] + math.cos(end_angle) * radius,
+        center[2] + math.sin(end_angle) * radius,
     }
 
     local c1_x, c1_y, c2_x, c2_y = bezier_arc(center, start, end_)
 
     ---Let’s pray that this works
-    reaper.ImGui_DrawList_AddBezierQuadratic(draw_list, c1_x, c1_y, c2_x, c2_y, end_[1], end_[2], color, thickness,
+    reaper.ImGui_DrawList_AddBezierQuadratic(draw_list,
+        c1_x,
+        c1_y,
+        c2_x,
+        c2_y,
+        end_[1],
+        end_[2],
+        color,
+        thickness,
         num_segments)
-    reaper.ImGui_DrawList_AddBezierCubic(draw_list, start[1], start[2], c1_x, c1_y, c2_x, c2_y, end_[1], end_[2],
-        color, thickness,
+    reaper.ImGui_DrawList_AddBezierCubic(draw_list,
+        start[1],
+        start[2],
+        c1_x,
+        c1_y,
+        c2_x,
+        c2_y,
+        end_[1],
+        end_[2],
+        color,
+        thickness,
         num_segments)
 end
 
@@ -101,11 +124,12 @@ local function draw_arc(
     bezier_count
 )
     --- Overlap & angle of ends of bezier curves needs work, only looks good when not transperant
-    local overlap = thickness * radius * 0.00001 * math.pi()
+    local overlap = thickness * radius * 0.00001 * math.pi
     local delta = end_angle - start_angle
     local bez_step = 1.0 / bezier_count
     local mid_angle = start_angle + overlap
-    for _ in bezier_count do
+    for _ = 1, bezier_count do
+        -- for _ in bezier_count do
         local mid_angle2 = delta * bez_step + mid_angle
         draw_arc1(
             draw_list,
@@ -155,8 +179,8 @@ local function knob_control(
     local is_active = reaper.ImGui_IsItemActive(ctx)
 
     reaper.ImGui_SetConfigVar(ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
-    local delta = reaper.ImGui_GetMouseDragDelta(ctx, reaper.ImGui_GetCursorPosX(ctx), reaper.Imgui_GetCursorPosY(ctx))
-
+    local delta = { reaper.ImGui_GetMouseDragDelta(ctx, reaper.ImGui_GetCursorPosX(ctx), reaper.ImGui_GetCursorPosY(ctx))
+    }
 
     -- --Maybe this should be configurable
     local speed
@@ -190,8 +214,9 @@ local ColorSet = {}
 ---@param base {[1]: number,[2]: number,[3]: number,[4]: number}
 ---@param hovered {[1]: number,[2]: number,[3]: number,[4]: number}
 ---@param active {[1]: number,[2]: number,[3]: number,[4]: number}
+---@return ColorSet
 function ColorSet.new(base, hovered, active)
-    local self = setmetatable({}, ColorSet)
+    local self = setmetatable({}, { __index = ColorSet })
     self.base = base
     self.hovered = hovered
     self.active = active
@@ -226,56 +251,7 @@ end
 ---@field angle_sin number
 local Knob = {}
 
----@param ctx ImGui_Context
----@param label string
----@param p_value number
----@param v_min number
----@param v_max number
----@param v_default number
----@param radius number
----@param controllable boolean
-function Knob.new(
-    ctx,
-    label,
-    p_value,
-    v_min,
-    v_max,
-    v_default,
-    radius,
-    controllable
-)
-    local self = setmetatable({}, Knob)
-    local angle_min = math.pi * 0.75
-    local angle_max = math.pi * 2.25
-    local t = (p_value - v_min) / (v_max - v_min)
-    local angle = angle_min + (angle_max - angle_min) * t
-    local screen_pos = reaper.ImGui_GetCursorPos(ctx)
-    local value_changed = false
-    if controllable then
-        value_changed = knob_control(ctx, label, p_value, v_min, v_max, v_default, radius)
-    end
-    self.ctx = ctx
-    self.label = label
-    self.p_value = p_value
-    self.v_min = v_min
-    self.v_max = v_max
-    self.v_default = v_default
-    self.radius = radius
-    self.screen_pos = screen_pos
-    self.value_changed = value_changed
-    self.angle = angle
-    self.angle_min = angle_min
-    self.angle_max = angle_max
-    self.t = t
-    self.draw_list = reaper.ImGui_GetWindowDrawList(ctx)
-    self.is_active = reaper.ImGui_IsItemActive(ctx)
-    self.is_hovered = reaper.ImGui_IsItemHovered(ctx)
-    self.center = { screen_pos[0] + radius, screen_pos[1] + radius }
-    self.angle_cos = math.cos(angle)
-    self.angle_sin = math.sin(angle)
 
-    return self
-end
 
 ---@param size number
 ---@param radius number
@@ -305,8 +281,8 @@ function Knob:draw_dot(
     if filled then
         reaper.ImGui_DrawList_AddCircleFilled(
             self.draw_list,
-            self.center[0] + math.cos(angle) * dot_radius,
-            self.center[1] + math.sin(angle) * dot_radius,
+            self.center[1] + math.cos(angle) * dot_radius,
+            self.center[2] + math.sin(angle) * dot_radius,
             dot_size,
             rgbToHex(circle_color),
             segments
@@ -314,8 +290,8 @@ function Knob:draw_dot(
     else
         reaper.ImGui_DrawList_AddCircle(
             self.draw_list,
-            self.center[0] + math.cos(angle) * dot_radius,
-            self.center[1] + math.sin(angle) * dot_radius,
+            self.center[1] + math.cos(angle) * dot_radius,
+            self.center[2] + math.sin(angle) * dot_radius,
             dot_size,
             rgbToHex(circle_color),
             segments
@@ -345,10 +321,10 @@ function Knob:draw_tick(start, end_, width, angle, color)
 
     reaper.ImGui_DrawList_AddLine(
         self.draw_list,
-        self.center[0] + angle_cos * tick_end,
-        self.center[1] + angle_sin * tick_end,
-        self.center[0] + angle_cos * tick_start,
-        self.center[1] + angle_sin * tick_start,
+        self.center[1] + angle_cos * tick_end,
+        self.center[2] + angle_sin * tick_end,
+        self.center[1] + angle_cos * tick_start,
+        self.center[2] + angle_sin * tick_start,
         rgbToHex(line_color),
         width * self.radius
     )
@@ -429,16 +405,73 @@ function Knob:draw_arc(
     )
 end
 
+---@param ctx ImGui_Context
+---@param label string
+---@param p_value number
+---@param v_min number
+---@param v_max number
+---@param v_default number
+---@param radius number
+---@param controllable boolean
+function Knob.new(
+    ctx,
+    label,
+    p_value,
+    v_min,
+    v_max,
+    v_default,
+    radius,
+    controllable
+)
+    local self = setmetatable({}, { __index = Knob })
+    local angle_min = math.pi * 0.75
+    local angle_max = math.pi * 2.25
+    local t = (p_value - v_min) / (v_max - v_min)
+    local angle = angle_min + (angle_max - angle_min) * t
+    local value_changed = false
+    if controllable then
+        value_changed = knob_control(ctx, label, p_value, v_min, v_max, v_default, radius)
+    end
+    self.ctx = ctx
+    self.label = label
+    self.p_value = p_value
+    self.v_min = v_min
+    self.v_max = v_max
+    self.v_default = v_default
+    self.radius = radius
+    self.screen_pos = { reaper.ImGui_GetCursorScreenPos(ctx) }
+    self.value_changed = value_changed
+    self.angle = angle
+    self.angle_min = angle_min
+    self.angle_max = angle_max
+    self.t = t
+    self.draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+    self.is_active = reaper.ImGui_IsItemActive(ctx)
+    self.is_hovered = reaper.ImGui_IsItemHovered(ctx)
+    local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(ctx)
+    self.center = { draw_cursor_x + self.radius, draw_cursor_y + self.radius }
+    self.angle_cos = math.cos(self.angle)
+    self.angle_sin = math.sin(self.angle)
+
+    return self
+end
+
+function Knob:update()
+    local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self.ctx)
+    self.center = { draw_cursor_x + self.radius, draw_cursor_y + self.radius }
+end
+
 ---@param knob Knob
 ---@param circle_color ColorSet
 ---@param wiper_color ColorSet
 ---@param track_color ColorSet
-function draw_wiper_knob(
+local function draw_wiper_knob(
     knob,
     circle_color,
     wiper_color,
     track_color
 )
+    knob:update()
     knob:draw_circle(0.7, circle_color, true, 32)
     knob:draw_arc(
         0.8,
@@ -464,7 +497,7 @@ end
 ---@param knob Knob
 ---@param  wiper_color ColorSet
 ---@param  track_color ColorSet
-function draw_wiper_only_knob(
+local function draw_wiper_only_knob(
     knob,
     wiper_color,
     track_color
@@ -487,12 +520,13 @@ end
 ---@param circle_color ColorSet
 ---@param dot_color ColorSet
 ---@param track_color ColorSet
-function draw_wiper_dot_knob(
+local function draw_wiper_dot_knob(
     knob,
     circle_color,
     dot_color,
     track_color
 )
+    knob:update()
     knob:draw_circle(0.6, circle_color, true, 32)
     knob:draw_arc(
         0.85,
@@ -509,7 +543,7 @@ end
 ---@param knob Knob
 ---@param circle_color ColorSet
 ---@param tick_color ColorSet
-function draw_tick_knob(
+local function draw_tick_knob(
     knob,
     circle_color,
     tick_color
@@ -521,7 +555,7 @@ end
 ---@param knob Knob
 ---@param circle_color ColorSet
 ---@param dot_color ColorSet
-function draw_dot_knob(
+local function draw_dot_knob(
     knob,
     circle_color,
     dot_color
@@ -602,18 +636,18 @@ function knob_title(
     label,
     width
 )
-    local size = reaper.ImGui_CalcTextSize(ctx, label, nil, nil, false, width)
-    local old_cursor_pos = reaper.ImGui_GetCursorPos(ctx);
-    reaper.Imgui_SetCursor(
+    local size_x, _ = reaper.ImGui_CalcTextSize(ctx, label, nil, nil, false, width)
+    local old_cursor_pos_x, old_cursor_pos_y = reaper.ImGui_GetCursorPos(ctx)
+    reaper.ImGui_SetCursorPos(
         ctx,
-        old_cursor_pos[0] + (width - size[0]) * 0.5,
-        old_cursor_pos[1]
+        old_cursor_pos_x + (width - size_x) * 0.5,
+        old_cursor_pos_y
     )
     reaper.ImGui_Text(ctx, label)
 
-    reaper.Imgui_SetCursor(
+    reaper.ImGui_SetCursorPos(
         ctx,
-        old_cursor_pos[0],
+        old_cursor_pos_x,
         select(2, reaper.ImGui_GetCursorPos(ctx))
     )
 end
@@ -626,7 +660,7 @@ end
 ---@param v_max number
 ---@param v_default number
 ---@param format string
-function knob_with_drag(
+local function knob_with_drag(
     ctx,
     id,
     title,
@@ -640,17 +674,17 @@ function knob_with_drag(
     reaper.ImGui_PushItemWidth(ctx, width)
     knob_title(ctx, title, width)
 
-    local knob = Knob.new(ctx, id, p_value, v_min, v_max, v_default, width * 0.5, true)
-    -- reaper.ImGui_DragInt()
+    local knob = Knob.new(ctx, id, p_value, v_min, v_max, v_default, width * 0.5, false)
     -- add a drag here
-    reaper.ImGui_DragDouble(
+    _, knob.p_value = reaper.ImGui_DragDouble(
         ctx,
-        "###" .. id .. "_KNOB_DRAG_CONTROL_",
+        "##" .. id .. "_KNOB_DRAG_CONTROL_",
         knob.p_value,
         (v_max - v_min) / 1000.0,
         v_min,
         v_max,
-        format
+        format,
+        reaper.ImGui_SliderFlags_AlwaysClamp()
     )
     reaper.ImGui_PopItemWidth(ctx)
     return knob
