@@ -15,22 +15,9 @@ local demo = {}
 
 function demo:drawKnobs()
     reaper.ImGui_BeginTable(self.ctx, "##knobs", 7)
-    local knobs = {}
-    -- for i in ipairs(self.values) do
-    --     local knob = Knobs.knob_with_drag(self.ctx,
-    --         "knob" .. i,
-    --         "Gain" .. i,
-    --         self.values[i],
-    --         self.min,
-    --         self.max,
-    --         self.default,
-    --         self.format)
-    --     table.insert(knobs, knob)
-    -- end
 
     reaper.ImGui_TableNextColumn(self.ctx)
     Knobs.draw_wiper_knob(
-    -- self.my_knob,
         Knobs.knob_with_drag(self.ctx,
             "knob1",
             "Gain1",
@@ -40,12 +27,11 @@ function demo:drawKnobs()
             self.default,
             self.format),
         self.colors.base,
-        self.colors.base,
-        self.colors.base
+        self.colors.highlight,
+        self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
     Knobs.draw_wiper_dot_knob(
-    -- self.my_knob,
         Knobs.knob_with_drag(self.ctx,
             "knob2",
             "Gain2",

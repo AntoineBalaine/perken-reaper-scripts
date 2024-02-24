@@ -3,8 +3,9 @@
 --https://github.com/DGriffin91/imgui-rs-knobs
 
 ---TODO
---Ableton KNOB
+--Ableton knoB
 --ReaDrum knob
+--ImGui knob
 
 ---@param rgba {[1]: number,[2]: number,[3]: number,[4]: number}
 ---@return number
@@ -23,133 +24,7 @@ local function rgbToHex(rgba)
     local a = math.floor(rgba[4] * 255)
     local hex = r << 24 | g << 16 | b << 8 | a
     return hex
-    -- return 0xFFFFFFFF
 end
-
---
----@param center {[1]: number, [2]: number}
----@param start {[1]: number, [2]: number}
----@param end_ {[1]: number, [2]: number}
----@return number c1.x, number c1.y, number c2.x, number c2.y
-local function bezier_arc(center, start, end_)
-    local ax = start[1] - center[1]
-    local ay = start[2] - center[2]
-    local bx = end_[1] - center[1]
-    local by = end_[2] - center[2]
-    local q1 = ax * ax + ay * ay
-    local q2 = q1 + ax * bx + ay * by
-    local k2 = (4.0 / 3.0) * (math.sqrt(2.0 * q1 * q2) - q2) / (ax * by - ay * bx)
-
-    return center[1] + ax - k2 * ay, center[2] + ay + k2 * ax,
-        center[1] + bx + k2 * by, center[2] + by - k2 * bx
-end
-
----@param draw_list ImGui_DrawList
----@param center {[1]: number, [2]: number}
----@param radius number
----@param start_angle number
----@param end_angle number
----@param thickness number
----@param color number
----@param num_segments integer
-local function draw_arc1(
-    draw_list,
-    center,
-    radius,
-    start_angle,
-    end_angle,
-    thickness,
-    color,
-    num_segments
-)
-    local start = { center[1] + math.cos(start_angle) * radius,
-        center[2] + math.sin(start_angle) * radius,
-    }
-
-    local end_ = { center[1] + math.cos(end_angle) * radius,
-        center[2] + math.sin(end_angle) * radius,
-    }
-
-    local c1_x, c1_y, c2_x, c2_y = bezier_arc(center, start, end_)
-
-    ---Let’s pray that this works
-    reaper.ImGui_DrawList_AddBezierQuadratic(draw_list,
-        c1_x,
-        c1_y,
-        c2_x,
-        c2_y,
-        end_[1],
-        end_[2],
-        color,
-        thickness,
-        num_segments)
-    reaper.ImGui_DrawList_AddBezierCubic(draw_list,
-        start[1],
-        start[2],
-        c1_x,
-        c1_y,
-        c2_x,
-        c2_y,
-        end_[1],
-        end_[2],
-        color,
-        thickness,
-        num_segments)
-end
-
----@param draw_list ImGui_DrawList
----@param center {[1]: number, [2]: number}
----@param radius number
----@param start_angle number
----@param end_angle number
----@param thickness number
----@param color {[1]: number,[2]: number,[3]: number,[4]: number}
----@param num_segments integer
----@param bezier_count integer
-local function draw_arc(
-    draw_list,
-    center,
-    radius,
-    start_angle,
-    end_angle,
-    thickness,
-    color,
-    num_segments,
-    bezier_count
-)
-    --- Overlap & angle of ends of bezier curves needs work, only looks good when not transperant
-    local overlap = thickness * radius * 0.00001 * math.pi
-    local delta = end_angle - start_angle
-    local bez_step = 1.0 / bezier_count
-    local mid_angle = start_angle + overlap
-    for _ = 1, bezier_count do
-        -- for _ in bezier_count do
-        local mid_angle2 = delta * bez_step + mid_angle
-        draw_arc1(
-            draw_list,
-            center,
-            radius,
-            mid_angle - overlap,
-            mid_angle2 + overlap,
-            thickness,
-            rgbToHex(color),
-            num_segments
-        )
-        mid_angle = mid_angle2
-    end
-
-    draw_arc1(
-        draw_list,
-        center,
-        radius,
-        mid_angle - overlap,
-        end_angle,
-        thickness,
-        rgbToHex(color),
-        num_segments
-    )
-end
-
 
 ---@param ctx ImGui_Context
 ---@param id string
@@ -365,19 +240,15 @@ end
 ---@param start_angle number
 ---@param end_angle number
 ---@param color ColorSet
----@param segments integer
----@param bezier_count integer
 function Knob:draw_arc(
     radius,
     size,
     start_angle,
     end_angle,
-    color,
-    segments,
-    bezier_count
+    color
 )
     local track_radius = radius * self.radius
-    local track_size = size * self.radius * 0.5 + 0.0001
+    local track_size = size * (self.radius + 0.1) * 0.5 + 0.0001
     local circle_color
     if self.is_active then
         circle_color = color.active
@@ -386,17 +257,11 @@ function Knob:draw_arc(
     else
         circle_color = color.base
     end
-    draw_arc(
-        self.draw_list,
-        self.center,
-        track_radius,
-        start_angle,
-        end_angle,
-        track_size,
-        circle_color,
-        segments,
-        bezier_count
-    )
+
+    reaper.ImGui_DrawList_PathArcTo(self.draw_list, self.center[1], self.center[2], track_radius * 0.95, start_angle,
+        end_angle)
+    reaper.ImGui_DrawList_PathStroke(self.draw_list, rgbToHex(circle_color), nil, track_size)
+    reaper.ImGui_DrawList_PathClear(self.draw_list)
 end
 
 ---@param ctx ImGui_Context
@@ -466,15 +331,13 @@ local function draw_wiper_knob(
     track_color
 )
     knob:update()
-    knob:draw_circle(0.7, circle_color, true, 32)
+    knob:draw_circle(0.7, circle_color, true, 0)
     knob:draw_arc(
         0.8,
         0.41,
         knob.angle_min,
         knob.angle_max,
-        track_color,
-        16,
-        2
+        track_color
     )
     if knob.t > 0.01 then
         knob:draw_arc(
@@ -482,9 +345,8 @@ local function draw_wiper_knob(
             0.43,
             knob.angle_min,
             knob.angle,
-            wiper_color,
-            16,
-            2)
+            wiper_color
+        )
     end
 end
 
@@ -502,12 +364,10 @@ local function draw_wiper_only_knob(
         0.41,
         knob.angle_min,
         knob.angle_max,
-        track_color,
-        32,
-        2
+        track_color
     )
     if knob.t > 0.01 then
-        knob:draw_arc(0.8, 0.43, knob.angle_min, knob.angle, wiper_color, 16, 2);
+        knob:draw_arc(0.8, 0.43, knob.angle_min, knob.angle, wiper_color)
     end
 end
 
@@ -528,9 +388,7 @@ local function draw_wiper_dot_knob(
         0.41,
         knob.angle_min,
         knob.angle_max,
-        track_color,
-        16,
-        2
+        track_color
     )
     knob:draw_dot(0.1, 0.85, knob.angle, dot_color, true, 12)
 end
@@ -577,9 +435,7 @@ function draw_space_knob(
             0.15,
             knob.angle_min - 1.0,
             knob.angle - 1.0,
-            wiper_color,
-            16,
-            2
+            wiper_color
         )
 
         knob:draw_arc(
@@ -587,9 +443,7 @@ function draw_space_knob(
             0.15,
             knob.angle_min + 1.0,
             knob.angle + 1.0,
-            wiper_color,
-            16,
-            2
+            wiper_color
         )
 
         knob:draw_arc(
@@ -597,9 +451,7 @@ function draw_space_knob(
             0.15,
             knob.angle_min + 3.0,
             knob.angle + 3.0,
-            wiper_color,
-            16,
-            2
+            wiper_color
         )
     end
 end
