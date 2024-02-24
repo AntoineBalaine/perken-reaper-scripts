@@ -28,6 +28,7 @@ function demo:drawKnobs()
     --     table.insert(knobs, knob)
     -- end
 
+    reaper.ImGui_TableNextColumn(self.ctx)
     Knobs.draw_wiper_knob(
     -- self.my_knob,
         Knobs.knob_with_drag(self.ctx,
@@ -58,57 +59,90 @@ function demo:drawKnobs()
         self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
-    --[[
 
     Knobs.draw_wiper_only_knob(
-        knobs[3],
-        base,
-        lowlight
+        Knobs.knob_with_drag(self.ctx,
+            "knob3",
+            "Gain3",
+            self.values[3],
+            self.min,
+            self.max,
+            self.default,
+            self.format),
+        self.colors.base,
+        self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
     Knobs.draw_tick_knob(
-        knobs[4],
-        base,
-        lowlight
+        Knobs.knob_with_drag(self.ctx,
+            "knob4",
+            "Gain4",
+            self.values[4],
+            self.min,
+            self.max,
+            self.default,
+            self.format),
+        self.colors.base,
+        self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
     Knobs.draw_dot_knob(
-        knobs[5],
-        base,
-        lowlight
+        Knobs.knob_with_drag(self.ctx,
+            "knob5",
+            "Gain5",
+            self.values[5],
+            self.min,
+            self.max,
+            self.default,
+            self.format),
+        self.colors.base,
+        self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
     Knobs.draw_space_knob(
-        knobs[6],
-        base,
-        lowlight
+        Knobs.knob_with_drag(self.ctx,
+            "knob6",
+            "Gain6",
+            self.values[6],
+            self.min,
+            self.max,
+            self.default,
+            self.format),
+        self.colors.base,
+        self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
     Knobs.draw_stepped_knob(
-        knobs[7],
+        Knobs.knob_with_drag(self.ctx,
+            "knob7",
+            "Gain7",
+            self.values[7],
+            self.min,
+            self.max,
+            self.default,
+            self.format),
         7,
-        base,
-        highlight,
-        lowlight
+        self.colors.base,
+        self.colors.highlight,
+        self.colors.lowlight
     )
-    reaper.ImGui_TableNextColumn(self.ctx) ]]
+    reaper.ImGui_TableNextColumn(self.ctx)
 
     reaper.ImGui_EndTable(self.ctx)
 end
 
 function demo:main()
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), Knobs.rgbToHex(self.colors.gray.base))
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBg(), Knobs.rgbToHex(self.colors.gray.base))
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBgHovered(), Knobs.rgbToHex(self.colors.gray.active))
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBgActive(), Knobs.rgbToHex(self.colors.gray.hovered))
 
     local visible, open = reaper.ImGui_Begin(self.ctx, self.name, true, self.window_flags)
     self.open = open
     if visible then
-        reaper.ImGui_Text(self.ctx, "hello knobs")
         self:drawKnobs()
         reaper.ImGui_End(self.ctx)
     end

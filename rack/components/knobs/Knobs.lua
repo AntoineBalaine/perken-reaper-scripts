@@ -13,13 +13,7 @@ local function rgbToHex___(rgba)
     local g = math.floor(rgba[2] * 255) * 256
     local b = math.floor(rgba[3] * 255)
     local a = math.floor(rgba[4] * 255)
-    -- return 0xFFFFFFFFF
     return r + g + b + a
-    -- local blue = blue * 256
-    -- local green = green * 256 * 256
-    -- local red = red * 256 * 256 * 256
-    -- local alpha = math.floor(alpha * 255)
-    -- return red + green + blue + alpha
 end
 
 local function rgbToHex(rgba)
@@ -502,6 +496,7 @@ local function draw_wiper_only_knob(
     wiper_color,
     track_color
 )
+    knob:update()
     knob:draw_arc(
         0.8,
         0.41,
@@ -548,6 +543,7 @@ local function draw_tick_knob(
     circle_color,
     tick_color
 )
+    knob:update()
     knob:draw_circle(0.7, circle_color, true, 32)
     knob:draw_tick(0.4, 0.7, 0.08, knob.angle, tick_color)
 end
@@ -560,6 +556,7 @@ local function draw_dot_knob(
     circle_color,
     dot_color
 )
+    knob:update()
     knob:draw_circle(0.85, circle_color, true, 32)
     knob:draw_dot(0.12, 0.6, knob.angle, dot_color, true, 12)
 end
@@ -572,6 +569,7 @@ function draw_space_knob(
     circle_color,
     wiper_color
 )
+    knob:update()
     knob:draw_circle(0.3 - knob.t * 0.1, circle_color, true, 16)
     if knob.t > 0.01 then
         knob:draw_arc(
@@ -618,6 +616,7 @@ function draw_stepped_knob(
     dot_color,
     step_color
 )
+    knob:update()
     -- iterate through the steps
     for n = 1, steps do
         local a = n / (steps - 1)
@@ -674,7 +673,7 @@ local function knob_with_drag(
     reaper.ImGui_PushItemWidth(ctx, width)
     knob_title(ctx, title, width)
 
-    local knob = Knob.new(ctx, id, p_value, v_min, v_max, v_default, width * 0.5, false)
+    local knob = Knob.new(ctx, id, p_value, v_min, v_max, v_default, width * 0.5, true)
     -- add a drag here
     _, knob.p_value = reaper.ImGui_DragDouble(
         ctx,
