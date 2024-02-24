@@ -19,13 +19,8 @@ function demo:drawKnobs()
     reaper.ImGui_TableNextColumn(self.ctx)
     Knobs.draw_wiper_knob(
         Knobs.knob_with_drag(self.ctx,
-            "knob1",
-            "Gain1",
-            self.values[1],
-            self.min,
-            self.max,
-            self.default,
-            self.format),
+            self.knobs[1]
+        ),
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
@@ -33,13 +28,8 @@ function demo:drawKnobs()
     reaper.ImGui_TableNextColumn(self.ctx)
     Knobs.draw_wiper_dot_knob(
         Knobs.knob_with_drag(self.ctx,
-            "knob2",
-            "Gain2",
-            self.values[2],
-            self.min,
-            self.max,
-            self.default,
-            self.format),
+            self.knobs[2]
+        ),
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
@@ -48,13 +38,8 @@ function demo:drawKnobs()
 
     Knobs.draw_wiper_only_knob(
         Knobs.knob_with_drag(self.ctx,
-            "knob3",
-            "Gain3",
-            self.values[3],
-            self.min,
-            self.max,
-            self.default,
-            self.format),
+            self.knobs[3]
+        ),
         self.colors.base,
         self.colors.lowlight
     )
@@ -62,13 +47,8 @@ function demo:drawKnobs()
 
     Knobs.draw_tick_knob(
         Knobs.knob_with_drag(self.ctx,
-            "knob4",
-            "Gain4",
-            self.values[4],
-            self.min,
-            self.max,
-            self.default,
-            self.format),
+            self.knobs[4]
+        ),
         self.colors.base,
         self.colors.lowlight
     )
@@ -76,13 +56,8 @@ function demo:drawKnobs()
 
     Knobs.draw_dot_knob(
         Knobs.knob_with_drag(self.ctx,
-            "knob5",
-            "Gain5",
-            self.values[5],
-            self.min,
-            self.max,
-            self.default,
-            self.format),
+            self.knobs[5]
+        ),
         self.colors.base,
         self.colors.lowlight
     )
@@ -90,13 +65,8 @@ function demo:drawKnobs()
 
     Knobs.draw_space_knob(
         Knobs.knob_with_drag(self.ctx,
-            "knob6",
-            "Gain6",
-            self.values[6],
-            self.min,
-            self.max,
-            self.default,
-            self.format),
+            self.knobs[6]
+        ),
         self.colors.base,
         self.colors.lowlight
     )
@@ -104,13 +74,8 @@ function demo:drawKnobs()
 
     Knobs.draw_stepped_knob(
         Knobs.knob_with_drag(self.ctx,
-            "knob7",
-            "Gain7",
-            self.values[7],
-            self.min,
-            self.max,
-            self.default,
-            self.format),
+            self.knobs[7]
+        ),
         7,
         self.colors.base,
         self.colors.highlight,
@@ -177,21 +142,29 @@ function demo:init()
         + reaper.ImGui_WindowFlags_NoNav()
 
     self:init_colors()
-    self.name = "knobs demo"
-    self.values = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }
-    self.min = -6.0;
-    self.max = 6.0;
-    self.default = 0.0;
-    self.format = "%.2fdB";
+    self.name     = "knobs demo"
+    local min     = -6.0 -- use the same min/max for all the knobs
+    local max     = 6.0
+    local default = 0.0
+    local format  = "%.2fdB"
+    ---@type Knob[]
+    self.knobs    = {}
 
-    self.my_knob = Knobs.Knob.new(self.ctx,
-        "knob1",
-        self.values[1],
-        self.min,
-        self.max,
-        self.default,
-        reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0 * 0.5,
-        false)
+    local width   = reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0
+    for idx, value in ipairs({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }) do
+        table.insert(self.knobs,
+            Knobs.Knob.new(self.ctx,
+                "knob" .. idx,
+                "Gain" .. idx,
+                value,
+                min,
+                max,
+                default,
+                width * 0.5,
+                true,
+                format
+            ))
+    end
 
     return self
 end

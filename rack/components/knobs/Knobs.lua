@@ -100,7 +100,9 @@ end
 
 ---@class Knob
 ---@field ctx ImGui_Context
----@field label string,
+---@field id string
+---@field label string
+---@field label_format string
 ---@field p_value number
 ---@field v_min number
 ---@field v_max number
@@ -265,6 +267,7 @@ function Knob:draw_arc(
 end
 
 ---@param ctx ImGui_Context
+---@param id string
 ---@param label string
 ---@param p_value number
 ---@param v_min number
@@ -272,15 +275,18 @@ end
 ---@param v_default number
 ---@param radius number
 ---@param controllable boolean
+---@param label_format string
 function Knob.new(
     ctx,
+    id,
     label,
     p_value,
     v_min,
     v_max,
     v_default,
     radius,
-    controllable
+    controllable,
+    label_format
 )
     local self = setmetatable({}, { __index = Knob })
     local angle_min = math.pi * 0.75
@@ -292,12 +298,14 @@ function Knob.new(
         value_changed = knob_control(ctx, label, p_value, v_min, v_max, v_default, radius)
     end
     self.ctx = ctx
+    self.id = id
     self.label = label
     self.p_value = p_value
     self.v_min = v_min
     self.v_max = v_max
     self.v_default = v_default
     self.radius = radius
+    self.label_format = label_format
     self.screen_pos = { reaper.ImGui_GetCursorScreenPos(ctx) }
     self.value_changed = value_changed
     self.angle = angle
@@ -504,37 +512,24 @@ function knob_title(
 end
 
 ---@param ctx ImGui_Context
----@param id string
----@param title string
----@param p_value number
----@param v_min number
----@param v_max number
----@param v_default number
----@param format string
+---@param knob Knob
 local function knob_with_drag(
     ctx,
-    id,
-    title,
-    p_value,
-    v_min,
-    v_max,
-    v_default,
-    format
+    knob
 )
     local width = reaper.ImGui_GetTextLineHeight(ctx) * 4.0
     reaper.ImGui_PushItemWidth(ctx, width)
-    knob_title(ctx, title, width)
+    knob_title(ctx, knob.label, width)
 
-    local knob = Knob.new(ctx, id, p_value, v_min, v_max, v_default, width * 0.5, true)
     -- add a drag here
     _, knob.p_value = reaper.ImGui_DragDouble(
         ctx,
-        "##" .. id .. "_KNOB_DRAG_CONTROL_",
+        "##" .. knob.id .. "_KNOB_DRAG_CONTROL_",
         knob.p_value,
-        (v_max - v_min) / 1000.0,
-        v_min,
-        v_max,
-        format,
+        (knob.v_max - knob.v_min) / 1000.0,
+        knob.v_min,
+        knob.v_max,
+        knob.label_format,
         reaper.ImGui_SliderFlags_AlwaysClamp()
     )
     reaper.ImGui_PopItemWidth(ctx)
