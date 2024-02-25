@@ -42,36 +42,6 @@ local function knob_control(
     v_default,
     radius
 )
-    reaper.ImGui_InvisibleButton(ctx, id, radius * 2.0, radius * 2.0)
-    local value_changed = false
-    --- TODO FIXME
-    local is_active = reaper.ImGui_IsItemActive(ctx)
-
-    reaper.ImGui_SetConfigVar(ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
-    local delta = { reaper.ImGui_GetMouseDragDelta(ctx, reaper.ImGui_GetCursorPosX(ctx), reaper.ImGui_GetCursorPosY(ctx))
-    }
-
-    -- --Maybe this should be configurable
-    local speed
-    if reaper.ImGui_IsKeyDown(ctx, reaper.ImGui_Mod_Shift())
-        or reaper.ImGui_IsKeyDown(ctx, reaper.ImGui_Mod_Alt()) then
-        speed = 2000
-    else
-        speed = 200
-    end
-
-    if reaper.ImGui_IsMouseDoubleClicked(ctx, reaper.ImGui_MouseButton_Left()) and is_active then
-        p_value = v_default
-        value_changed = true
-    elseif is_active and delta[1] ~= 0.0 then
-        local step = (v_max - v_min) / speed
-        p_value = p_value - delta[1] * step
-        if p_value < v_min then p_value = v_min end
-        if p_value > v_max then p_value = v_max end
-        value_changed = true
-        reaper.ImGui_ResetMouseDragDelta(ctx, reaper.ImGui_MouseButton_Left())
-    end
-    return value_changed
 end
 
 ---@class ColorSet
@@ -120,6 +90,7 @@ end
 ---@field angle number
 ---@field angle_cos number
 ---@field angle_sin number
+---@field controllable boolean
 local Knob = {}
 
 
@@ -294,9 +265,6 @@ function Knob.new(
     local t = (p_value - v_min) / (v_max - v_min)
     local angle = angle_min + (angle_max - angle_min) * t
     local value_changed = false
-    if controllable then
-        value_changed = knob_control(ctx, label, p_value, v_min, v_max, v_default, radius)
-    end
     self.ctx = ctx
     self.id = id
     self.label = label
@@ -306,6 +274,7 @@ function Knob.new(
     self.v_default = v_default
     self.radius = radius
     self.label_format = label_format
+    self.controllable = controllable
     self.screen_pos = { reaper.ImGui_GetCursorScreenPos(ctx) }
     self.value_changed = value_changed
     self.angle = angle
@@ -326,6 +295,51 @@ end
 function Knob:update()
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self.ctx)
     self.center = { draw_cursor_x + self.radius, draw_cursor_y + self.radius }
+
+    local t = (self.p_value - self.v_min) / (self.v_max - self.v_min)
+    self.angle = self.angle_min + (self.angle_max - self.angle_min) * t
+    self:control()
+end
+
+---Draw the invisible button and handle the control
+---@return boolean rv
+---@return number|nil p_value
+function Knob:control()
+    if not self.controllable then
+        return false, nil
+    end
+
+    reaper.ImGui_InvisibleButton(self.ctx, self.id, self.radius * 2.0, self.radius * 2.0)
+    self.is_hovered = reaper.ImGui_IsItemHovered(self.ctx)
+
+    local value_changed = false
+    local is_active = reaper.ImGui_IsItemActive(self.ctx)
+
+    reaper.ImGui_SetConfigVar(self.ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
+    local _, delta_y = reaper.ImGui_GetMouseDragDelta(self.ctx, reaper.ImGui_GetCursorPosX(self.ctx),
+        reaper.ImGui_GetCursorPosY(self.ctx))
+
+    -- --Maybe this should be configurable
+    local speed
+    if reaper.ImGui_IsKeyDown(self.ctx, reaper.ImGui_Mod_Shift())
+        or reaper.ImGui_IsKeyDown(self.ctx, reaper.ImGui_Mod_Alt()) then
+        speed = 2000
+    else
+        speed = 200
+    end
+
+    if reaper.ImGui_IsMouseDoubleClicked(self.ctx, reaper.ImGui_MouseButton_Left()) and is_active then
+        self.p_value = self.v_default
+        value_changed = true
+    elseif is_active and delta_y ~= 0.0 then
+        local step = (self.v_max - self.v_min) / speed
+        self.p_value = self.p_value - delta_y * step
+        if self.p_value < self.v_min then self.p_value = self.v_min end
+        if self.p_value > self.v_max then self.p_value = self.v_max end
+        value_changed = true
+        reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
+    end
+    return value_changed, self.p_value
 end
 
 ---@param knob Knob
