@@ -489,8 +489,8 @@ local function draw_readrum_knob(
     knob:update()
     knob:draw_circle(0.6, circle_color, true, 32)
     knob:draw_arc(
-        0.85,
-        0.41,
+        0.7,
+        0.4,
         knob.angle_min,
         knob.angle_max,
         track_color,
@@ -498,9 +498,10 @@ local function draw_readrum_knob(
     )
 
     if knob.t > 0.01 then
-        knob:draw_arc(0.85, 0.41, knob.angle_min, knob.angle, dot_color, 2)
+        knob:draw_arc(0.7, 0.40, knob.angle_min, knob.angle, dot_color, 2)
     end
-    knob:draw_triangle(0.1, 0.85, knob.angle, dot_color, true, 12)
+    knob:draw_dot(0.15, 0.45, knob.angle, dot_color, true, 0)
+    -- knob:draw_triangle(0.1, 0.85, knob.angle, dot_color, true, 12)
 end
 
 ---@param knob Knob
