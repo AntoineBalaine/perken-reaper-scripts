@@ -26,24 +26,6 @@ local function rgbToHex(rgba)
     return hex
 end
 
----@param ctx ImGui_Context
----@param id string
----@param p_value number
----@param v_min number
----@param v_max number
----@param v_default number
----@param radius number
-local function knob_control(
-    ctx,
-    id,
-    p_value,
-    v_min,
-    v_max,
-    v_default,
-    radius
-)
-end
-
 ---@class ColorSet
 ---@field base {[1]: number,[2]: number,[3]: number,[4]: number}
 ---@field hovered {[1]: number,[2]: number,[3]: number,[4]: number}
@@ -213,15 +195,19 @@ end
 ---@param start_angle number
 ---@param end_angle number
 ---@param color ColorSet
+---@param track_size? number
 function Knob:draw_arc(
     radius,
     size,
     start_angle,
     end_angle,
-    color
+    color,
+    track_size
 )
     local track_radius = radius * self.radius
-    local track_size = size * (self.radius + 0.1) * 0.5 + 0.0001
+    if track_size == nil then
+        track_size = size * (self.radius + 0.1) * 0.5 + 0.0001
+    end
     local circle_color
     if self.is_active then
         circle_color = color.active
@@ -415,6 +401,124 @@ local function draw_wiper_dot_knob(
     knob:draw_dot(0.1, 0.85, knob.angle, dot_color, true, 12)
 end
 
+local function calculateTriangleVertices(centerX, centerY, radius)
+    local vertices = {}
+
+    -- Calculate the angles for each point
+    local angle1 = 0
+    local angle2 = (2 * math.pi) / 3
+    local angle3 = (4 * math.pi) / 3
+
+    -- Calculate the coordinates for each point
+    local x1 = centerX + radius * math.cos(angle1)
+    local y1 = centerY + radius * math.sin(angle1)
+    table.insert(vertices, { x = x1, y = y1 })
+
+    local x2 = centerX + radius * math.cos(angle2)
+    local y2 = centerY + radius * math.sin(angle2)
+    table.insert(vertices, { x = x2, y = y2 })
+
+    local x3 = centerX + radius * math.cos(angle3)
+    local y3 = centerY + radius * math.sin(angle3)
+    table.insert(vertices, { x = x3, y = y3 })
+
+    return vertices
+end
+
+function Knob:draw_triangle(
+    size,
+    radius,
+    angle,
+    color,
+    filled,
+    segments
+)
+    local dot_size = size * self.radius
+    local dot_radius = radius * self.radius
+    local circle_color
+
+    if self.is_active then
+        circle_color = color.active
+    elseif self.is_hovered then
+        circle_color = color.hovered
+    else
+        circle_color = color.base
+    end
+
+
+    local vertices = calculateTriangleVertices(
+        self.center[1] + math.cos(angle) * dot_radius,
+        self.center[2] + math.cos(angle) * dot_radius,
+        dot_size)
+    local c = vertices[1]
+    local b = vertices[2]
+    local a = vertices[3]
+    if filled then
+        reaper.ImGui_DrawList_AddTriangleFilled(self.draw_list, c.x, c.y, b.x, b.y, a.x, a.y, rgbToHex(circle_color))
+        -- reaper.ImGui_DrawList_AddCircleFilled(
+        --     self.draw_list,
+        --     self.center[1] + math.cos(angle) * dot_radius,
+        --     self.center[2] + math.sin(angle) * dot_radius,
+        --     dot_size,
+        --     rgbToHex(circle_color),
+        --     segments
+        -- )
+    else
+        reaper.ImGui_DrawList_AddTriangle(self.draw_list, c.x, c.y, b.x, b.y, a.x, a.y, rgbToHex(circle_color))
+        -- reaper.ImGui_DrawList_AddCircle(
+        --     self.draw_list,
+        --     self.center[1] + math.cos(angle) * dot_radius,
+        --     self.center[2] + math.sin(angle) * dot_radius,
+        --     dot_size,
+        --     rgbToHex(circle_color),
+        --     segments
+        -- )
+    end
+end
+
+---@param knob Knob
+---@param circle_color ColorSet
+---@param dot_color ColorSet
+---@param track_color ColorSet
+local function draw_readrum_knob(
+    knob,
+    circle_color,
+    dot_color,
+    track_color
+)
+    knob:update()
+    knob:draw_circle(0.6, circle_color, true, 32)
+    knob:draw_arc(
+        0.85,
+        0.41,
+        knob.angle_min,
+        knob.angle_max,
+        track_color,
+        2
+    )
+
+    if knob.t > 0.01 then
+        knob:draw_arc(0.85, 0.41, knob.angle_min, knob.angle, dot_color, 2)
+    end
+    knob:draw_triangle(0.1, 0.85, knob.angle, dot_color, true, 12)
+end
+
+---@param knob Knob
+---@param circle_color ColorSet
+---@param tick_color ColorSet
+---@param track_color ColorSet
+local function draw_imgui_knob(
+    knob,
+    circle_color,
+    tick_color,
+    track_color
+)
+    knob:update()
+    knob:draw_circle(0.85, circle_color, true, 32)
+    knob:draw_circle(0.4, track_color, true, 32)
+    knob:draw_tick(0.45, 0.85, 0.08, knob.angle, tick_color)
+end
+
 ---@param knob Knob
 ---@param circle_color ColorSet
 ---@param tick_color ColorSet
@@ -483,7 +587,7 @@ end
 ---@param circle_color ColorSet
 ---@param dot_color ColorSet
 ---@param step_color ColorSet
-function draw_stepped_knob(
+local function draw_stepped_knob(
     knob,
     steps,
     circle_color,
@@ -501,10 +605,22 @@ function draw_stepped_knob(
     knob:draw_dot(0.12, 0.4, knob.angle, dot_color, true, 12)
 end
 
+---@param knob Knob
+---@param tick_color ColorSet
+---@param wiper_color ColorSet
+---@param track_color ColorSet
+local function draw_ableton_knob(knob, tick_color, wiper_color, track_color)
+    knob:update()
+    -- knob:draw_circle(0.7, circle_color, true, 32)
+    knob:draw_arc(0.9, 0.41, knob.angle_min, knob.angle_max, track_color, 2)
+    knob:draw_tick(0.1, 0.9, 0.08, knob.angle, tick_color)
+    knob:draw_arc(0.9, 0.43, knob.angle_min, knob.angle, tick_color, 2)
+end
+
 ---@param ctx ImGui_Context
 ---@param label string
 ---@param width number
-function knob_title(
+local function knob_title(
     ctx,
     label,
     width
@@ -550,6 +666,7 @@ local function knob_with_drag(
     return knob
 end
 
+
 ---TODO double check this
 ---@param hsva {[1]: number, [2]: number, [3]: number, [4]: number}
 ---@return {[1]: number, [2]: number, [3]: number, [4]: number}
@@ -594,5 +711,8 @@ return {
     draw_tick_knob = draw_tick_knob,
     draw_dot_knob = draw_dot_knob,
     draw_space_knob = draw_space_knob,
-    draw_stepped_knob = draw_stepped_knob
+    draw_stepped_knob = draw_stepped_knob,
+    draw_ableton_knob = draw_ableton_knob,
+    draw_readrum_knob = draw_readrum_knob,
+    draw_imgui_knob = draw_imgui_knob
 }

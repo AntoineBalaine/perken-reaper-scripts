@@ -14,9 +14,10 @@ local ColorSet = Knobs.ColorSet
 local demo = {}
 
 function demo:drawKnobs()
-    reaper.ImGui_BeginTable(self.ctx, "##knobs", 7)
+    reaper.ImGui_BeginTable(self.ctx, "##knobs", 10)
 
     reaper.ImGui_TableNextColumn(self.ctx)
+
     Knobs.draw_wiper_knob(
         Knobs.knob_with_drag(self.ctx,
             self.knobs[1]
@@ -26,6 +27,7 @@ function demo:drawKnobs()
         self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
+
     Knobs.draw_wiper_dot_knob(
         Knobs.knob_with_drag(self.ctx,
             self.knobs[2]
@@ -83,6 +85,35 @@ function demo:drawKnobs()
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
+    Knobs.draw_ableton_knob(
+        Knobs.knob_with_drag(self.ctx,
+            self.knobs[8]
+        ),
+        self.colors.base,
+        self.colors.highlight,
+        self.colors.lowlight
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+
+    Knobs.draw_readrum_knob(
+        Knobs.knob_with_drag(self.ctx,
+            self.knobs[9]
+        ),
+        self.colors.base,
+        self.colors.highlight,
+        self.colors.lowlight
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+    Knobs.draw_imgui_knob(
+        Knobs.knob_with_drag(self.ctx,
+            self.knobs[10]
+        ),
+        self.colors.base,
+        self.colors.highlight,
+        self.colors.lowlight
+    )
     reaper.ImGui_EndTable(self.ctx)
 end
 
@@ -151,7 +182,7 @@ function demo:init()
     self.knobs    = {}
 
     local width   = reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0
-    for idx, value in ipairs({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }) do
+    for idx, value in ipairs({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }) do
         table.insert(self.knobs,
             Knobs.Knob.new(self.ctx,
                 "knob" .. idx,
