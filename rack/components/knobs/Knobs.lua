@@ -452,7 +452,7 @@ function Knob:__draw_readrum_knob(
         self:__draw_arc(0.7, 0.40, self._angle_min, self._angle, dot_color, 2)
     end
     self:__draw_dot(0.15, 0.45, self._angle, dot_color, true, 0)
-    -- self:draw_triangle(0.1, 0.85, self.angle, dot_color, true, 12)
+    -- self:__draw_triangle(0.1, 0.85, self.angle, dot_color, true, 12)
 end
 
 ---@param circle_color ColorSet
@@ -591,7 +591,7 @@ Knob.KnobVariant = {
 
 ---List of flags that you can pass into the draw method
 ---@enum KnobFlags
-Knob.KnobFlags = {
+Knob.Flags = {
     NoTitle = 1, --- Hide the top title.
     NoInput = 2, --- Hide the bottom drag input.
     DragHorizontal = 3
@@ -622,15 +622,16 @@ function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
     if flags == nil then
         flags = 0
     end
+    local width = reaper.ImGui_GetTextLineHeight(self._ctx) * 4.0
+    reaper.ImGui_PushItemWidth(self._ctx, width)
+    if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
+        self:__knob_title(width)
+    end
+
     self:__update()
     self:__control()
 
-    local width = reaper.ImGui_GetTextLineHeight(self._ctx) * 4.0
-    reaper.ImGui_PushItemWidth(self._ctx, width)
-    if not (flags & self.KnobFlags.NoTitle == self.KnobFlags.NoTitle) then
-        self:__knob_title(width)
-    end
-    if not (flags & self.KnobFlags.DragHorizontal == self.KnobFlags.DragHorizontal) then
+    if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
         self:__with_drag()
     end
     reaper.ImGui_PopItemWidth(self._ctx)

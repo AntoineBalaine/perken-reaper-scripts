@@ -27,7 +27,6 @@ function demo:drawKnobs()
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
-
     self.knobs[2]:draw(
         Knobs.Knob.KnobVariant.wiper_dot,
         self.colors.base,
@@ -166,11 +165,24 @@ function demo:init()
 
     self.width    = reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0
     self.values   = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }
+
+    local names   = {
+        "wiper",
+        "wiper-dot",
+        "wiper-only",
+        "tick",
+        "dot",
+        "space",
+        "stepped",
+        "ableton",
+        "readrum",
+        "imgui",
+    }
     for idx, value in ipairs(self.values) do
         table.insert(self.knobs,
             Knobs.Knob.new(self.ctx,
                 "knob" .. idx,
-                "Gain" .. idx,
+                names[idx],
                 value,
                 min,
                 max,
