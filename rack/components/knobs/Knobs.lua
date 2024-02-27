@@ -47,7 +47,8 @@ end
 ---@field radius number
 ---@field screen_pos {[1]: number, [2]: number}
 ---@field value_changed boolean
----@field center {[1]: number, [2]: number}
+---@field center_x number
+---@field center_y number
 ---@field draw_list ImGui_DrawList
 ---@field is_active boolean
 ---@field is_hovered boolean
@@ -90,8 +91,8 @@ function Knob:__draw_dot(
     if filled then
         reaper.ImGui_DrawList_AddCircleFilled(
             self.draw_list,
-            self.center[1] + math.cos(angle) * dot_radius,
-            self.center[2] + math.sin(angle) * dot_radius,
+            self.center_x + math.cos(angle) * dot_radius,
+            self.center_y + math.sin(angle) * dot_radius,
             dot_size,
             rgbToHex(circle_color),
             segments
@@ -99,8 +100,8 @@ function Knob:__draw_dot(
     else
         reaper.ImGui_DrawList_AddCircle(
             self.draw_list,
-            self.center[1] + math.cos(angle) * dot_radius,
-            self.center[2] + math.sin(angle) * dot_radius,
+            self.center_x + math.cos(angle) * dot_radius,
+            self.center_y + math.sin(angle) * dot_radius,
             dot_size,
             rgbToHex(circle_color),
             segments
@@ -130,10 +131,10 @@ function Knob:__draw_tick(start, end_, width, angle, color)
 
     reaper.ImGui_DrawList_AddLine(
         self.draw_list,
-        self.center[1] + angle_cos * tick_end,
-        self.center[2] + angle_sin * tick_end,
-        self.center[1] + angle_cos * tick_start,
-        self.center[2] + angle_sin * tick_start,
+        self.center_x + angle_cos * tick_end,
+        self.center_y + angle_sin * tick_end,
+        self.center_x + angle_cos * tick_start,
+        self.center_y + angle_sin * tick_start,
         rgbToHex(line_color),
         width * self.radius
     )
@@ -157,8 +158,8 @@ function Knob:__draw_circle(size, color, filled, segments)
     if filled then
         reaper.ImGui_DrawList_AddCircleFilled(
             self.draw_list,
-            self.center[1],
-            self.center[2],
+            self.center_x,
+            self.center_y,
             circle_radius,
             rgbToHex(circle_color),
             segments
@@ -166,8 +167,8 @@ function Knob:__draw_circle(size, color, filled, segments)
     else
         reaper.ImGui_DrawList_AddCircle(
             self.draw_list,
-            self.center[1],
-            self.center[2],
+            self.center_x,
+            self.center_y,
             circle_radius,
             rgbToHex(circle_color),
             segments
@@ -202,12 +203,13 @@ function Knob:__draw_arc(
         circle_color = color.base
     end
 
-    reaper.ImGui_DrawList_PathArcTo(self.draw_list, self.center[1], self.center[2], track_radius * 0.95, start_angle,
+    reaper.ImGui_DrawList_PathArcTo(self.draw_list, self.center_x, self.center_y, track_radius * 0.95, start_angle,
         end_angle)
     reaper.ImGui_DrawList_PathStroke(self.draw_list, rgbToHex(circle_color), nil, track_size)
     reaper.ImGui_DrawList_PathClear(self.draw_list)
 end
 
+---In practice, you probably want to dodge creating a new knob at every loop…
 ---@param ctx ImGui_Context
 ---@param id string
 ---@param label string
@@ -230,44 +232,44 @@ function Knob.new(
     controllable,
     label_format
 )
-    ---@class Knob
-    local self = setmetatable({}, { __index = Knob })
+    local new_knob = {}
+    setmetatable(new_knob, { __index = Knob })
     local angle_min = math.pi * 0.75
     local angle_max = math.pi * 2.25
     local t = (p_value - v_min) / (v_max - v_min)
     local angle = angle_min + (angle_max - angle_min) * t
     local value_changed = false
-    self.ctx = ctx
-    self.id = id
-    self.label = label
-    self.p_value = p_value
-    self.v_min = v_min
-    self.v_max = v_max
-    self.v_default = v_default
-    self.radius = radius
-    self.label_format = label_format
-    self.controllable = controllable
-    self.screen_pos = { reaper.ImGui_GetCursorScreenPos(ctx) }
-    self.value_changed = value_changed
-    self.angle = angle
-    self.angle_min = angle_min
-    self.angle_max = angle_max
-    self.t = t
-    self.draw_list = reaper.ImGui_GetWindowDrawList(ctx)
-    self.is_active = reaper.ImGui_IsItemActive(ctx)
-    self.is_hovered = reaper.ImGui_IsItemHovered(ctx)
+    new_knob.ctx = ctx
+    new_knob.id = id
+    new_knob.label = label
+    new_knob.p_value = p_value
+    new_knob.v_min = v_min
+    new_knob.v_max = v_max
+    new_knob.v_default = v_default
+    new_knob.radius = radius
+    new_knob.label_format = label_format
+    new_knob.controllable = controllable
+    new_knob.screen_pos = { reaper.ImGui_GetCursorScreenPos(ctx) }
+    new_knob.value_changed = value_changed
+    new_knob.angle = angle
+    new_knob.angle_min = angle_min
+    new_knob.angle_max = angle_max
+    new_knob.t = t
+    new_knob.draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+    new_knob.is_active = reaper.ImGui_IsItemActive(ctx)
+    new_knob.is_hovered = reaper.ImGui_IsItemHovered(ctx)
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(ctx)
-    self.center = { draw_cursor_x + self.radius, draw_cursor_y + self.radius }
-    self.angle_cos = math.cos(self.angle)
-    self.angle_sin = math.sin(self.angle)
-
-    return self
+    new_knob.center_x = draw_cursor_x + new_knob.radius
+    new_knob.center_y = draw_cursor_y + new_knob.radius
+    new_knob.angle_cos = math.cos(new_knob.angle)
+    new_knob.angle_sin = math.sin(new_knob.angle)
+    return new_knob
 end
 
 function Knob:__update()
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self.ctx)
-    ---FIXME don’t assign a table at every loop
-    self.center = { draw_cursor_x + self.radius, draw_cursor_y + self.radius }
+    self.center_x = draw_cursor_x + self.radius
+    self.center_y = draw_cursor_y + self.radius
 
     local t = (self.p_value - self.v_min) / (self.v_max - self.v_min)
     self.angle = self.angle_min + (self.angle_max - self.angle_min) * t
@@ -423,8 +425,8 @@ function Knob:__draw_triangle(
 
 
     local vertices = calculateTriangleVertices(
-        self.center[1] + math.cos(angle) * dot_radius,
-        self.center[2] + math.cos(angle) * dot_radius,
+        self.center_x + math.cos(angle) * dot_radius,
+        self.center_y + math.cos(angle) * dot_radius,
         dot_size)
     local c = vertices[1]
     local b = vertices[2]
@@ -433,8 +435,8 @@ function Knob:__draw_triangle(
         reaper.ImGui_DrawList_AddTriangleFilled(self.draw_list, c.x, c.y, b.x, b.y, a.x, a.y, rgbToHex(circle_color))
         -- reaper.ImGui_DrawList_AddCircleFilled(
         --     self.draw_list,
-        --     self.center[1] + math.cos(angle) * dot_radius,
-        --     self.center[2] + math.sin(angle) * dot_radius,
+        --     self.center_x + math.cos(angle) * dot_radius,
+        --     self.center_y + math.sin(angle) * dot_radius,
         --     dot_size,
         --     rgbToHex(circle_color),
         --     segments
@@ -443,8 +445,8 @@ function Knob:__draw_triangle(
         reaper.ImGui_DrawList_AddTriangle(self.draw_list, c.x, c.y, b.x, b.y, a.x, a.y, rgbToHex(circle_color))
         -- reaper.ImGui_DrawList_AddCircle(
         --     self.draw_list,
-        --     self.center[1] + math.cos(angle) * dot_radius,
-        --     self.center[2] + math.sin(angle) * dot_radius,
+        --     self.center_x + math.cos(angle) * dot_radius,
+        --     self.center_y + math.sin(angle) * dot_radius,
         --     dot_size,
         --     rgbToHex(circle_color),
         --     segments
@@ -639,6 +641,9 @@ end
 ---@param flags? integer|KnobFlags
 ---@param steps? integer
 function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
+    if flags == nil then
+        flags = 0
+    end
     self:__update()
     self:__control()
 
@@ -647,7 +652,7 @@ function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
     if not (flags & KnobFlags.NoTitle == KnobFlags.NoTitle) then
         self:__knob_title(width)
     end
-    if not (flags & KnobFlags.Drag_Horizontal == KnobFlags.Drag_Horizontal) then
+    if not (flags & KnobFlags.DragHorizontal == KnobFlags.DragHorizontal) then
         self:__with_drag()
     end
     reaper.ImGui_PopItemWidth(self.ctx)
