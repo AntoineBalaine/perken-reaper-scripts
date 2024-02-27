@@ -10,6 +10,7 @@ end
 
 local Knobs = require("Knobs")
 local ColorSet = Knobs.ColorSet
+local hsv2rgb = Knobs.hsv2rgb
 
 local demo = {}
 
