@@ -2,11 +2,6 @@
 --TB TESTED
 --https://github.com/DGriffin91/imgui-rs-knobs
 
----TODO
---Ableton knoB
---ReaDrum knob
---ImGui knob
-
 ---@param rgba {[1]: number,[2]: number,[3]: number,[4]: number}
 ---@return number
 local function rgbToHex___(rgba)
@@ -83,7 +78,7 @@ local Knob = {}
 ---@param color ColorSet
 ---@param filled boolean
 ---@param segments integer
-function Knob:draw_dot(
+function Knob:__draw_dot(
     size,
     radius,
     angle,
@@ -128,7 +123,7 @@ end
 ---@param width number
 ---@param angle number
 ---@param color ColorSet
-function Knob:draw_tick(start, end_, width, angle, color)
+function Knob:__draw_tick(start, end_, width, angle, color)
     local tick_start = start * self.radius
     local tick_end = end_ * self.radius
     local angle_cos = math.cos(angle)
@@ -158,7 +153,7 @@ end
 ---@param color ColorSet
 ---@param filled boolean
 ---@param segments integer
-function Knob:draw_circle(size, color, filled, segments)
+function Knob:__draw_circle(size, color, filled, segments)
     local circle_radius = size * self.radius
 
     local circle_color
@@ -196,7 +191,7 @@ end
 ---@param end_angle number
 ---@param color ColorSet
 ---@param track_size? number
-function Knob:draw_arc(
+function Knob:__draw_arc(
     radius,
     size,
     start_angle,
@@ -278,19 +273,19 @@ function Knob.new(
     return self
 end
 
-function Knob:update()
+function Knob:__update()
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self.ctx)
+    ---FIXME don’t assign a table at every loop
     self.center = { draw_cursor_x + self.radius, draw_cursor_y + self.radius }
 
     local t = (self.p_value - self.v_min) / (self.v_max - self.v_min)
     self.angle = self.angle_min + (self.angle_max - self.angle_min) * t
-    self:control()
 end
 
 ---Draw the invisible button and handle the control
 ---@return boolean rv
 ---@return number|nil p_value
-function Knob:control()
+function Knob:__control()
     if not self.controllable then
         return false, nil
     end
@@ -328,77 +323,68 @@ function Knob:control()
     return value_changed, self.p_value
 end
 
----@param knob Knob
 ---@param circle_color ColorSet
 ---@param wiper_color ColorSet
 ---@param track_color ColorSet
-local function draw_wiper_knob(
-    knob,
+function Knob:wiper_knob(
     circle_color,
     wiper_color,
     track_color
 )
-    knob:update()
-    knob:draw_circle(0.7, circle_color, true, 0)
-    knob:draw_arc(
+    self:__draw_circle(0.7, circle_color, true, 0)
+    self:__draw_arc(
         0.8,
         0.41,
-        knob.angle_min,
-        knob.angle_max,
+        self.angle_min,
+        self.angle_max,
         track_color
     )
-    if knob.t > 0.01 then
-        knob:draw_arc(
+    if self.t > 0.01 then
+        self:__draw_arc(
             0.8,
             0.43,
-            knob.angle_min,
-            knob.angle,
+            self.angle_min,
+            self.angle,
             wiper_color
         )
     end
 end
 
----@param knob Knob
 ---@param  wiper_color ColorSet
 ---@param  track_color ColorSet
-local function draw_wiper_only_knob(
-    knob,
+function Knob:draw_wiper_only(
     wiper_color,
     track_color
 )
-    knob:update()
-    knob:draw_arc(
+    self:__draw_arc(
         0.8,
         0.41,
-        knob.angle_min,
-        knob.angle_max,
+        self.angle_min,
+        self.angle_max,
         track_color
     )
-    if knob.t > 0.01 then
-        knob:draw_arc(0.8, 0.43, knob.angle_min, knob.angle, wiper_color)
+    if self.t > 0.01 then
+        self:__draw_arc(0.8, 0.43, self.angle_min, self.angle, wiper_color)
     end
 end
 
----@param knob Knob
 ---@param circle_color ColorSet
 ---@param dot_color ColorSet
 ---@param track_color ColorSet
-local function draw_wiper_dot_knob(
-    knob,
+function Knob:draw_wiper_dot_knob(
     circle_color,
     dot_color,
     track_color
 )
-    knob:update()
-    knob:draw_circle(0.6, circle_color, true, 32)
-    knob:draw_arc(
+    self:__draw_circle(0.6, circle_color, true, 32)
+    self:__draw_arc(
         0.85,
         0.41,
-        knob.angle_min,
-        knob.angle_max,
+        self.angle_min,
+        self.angle_max,
         track_color
     )
-    knob:draw_dot(0.1, 0.85, knob.angle, dot_color, true, 12)
+    self:__draw_dot(0.1, 0.85, self.angle, dot_color, true, 12)
 end
 
 local function calculateTriangleVertices(centerX, centerY, radius)
@@ -476,199 +462,257 @@ function Knob:draw_triangle(
     end
 end
 
----@param knob Knob
 ---@param circle_color ColorSet
 ---@param dot_color ColorSet
 ---@param track_color ColorSet
-local function draw_readrum_knob(
-    knob,
+function Knob:draw_readrum_knob(
     circle_color,
     dot_color,
     track_color
 )
-    knob:update()
-    knob:draw_circle(0.6, circle_color, true, 32)
-    knob:draw_arc(
+    self:__draw_circle(0.6, circle_color, true, 32)
+    self:__draw_arc(
         0.7,
         0.4,
-        knob.angle_min,
-        knob.angle_max,
+        self.angle_min,
+        self.angle_max,
         track_color,
         2
     )
 
-    if knob.t > 0.01 then
-        knob:draw_arc(0.7, 0.40, knob.angle_min, knob.angle, dot_color, 2)
+    if self.t > 0.01 then
+        self:__draw_arc(0.7, 0.40, self.angle_min, self.angle, dot_color, 2)
     end
-    knob:draw_dot(0.15, 0.45, knob.angle, dot_color, true, 0)
-    -- knob:draw_triangle(0.1, 0.85, knob.angle, dot_color, true, 12)
+    self:__draw_dot(0.15, 0.45, self.angle, dot_color, true, 0)
+    -- self:draw_triangle(0.1, 0.85, self.angle, dot_color, true, 12)
 end
 
----@param knob Knob
 ---@param circle_color ColorSet
 ---@param tick_color ColorSet
 ---@param track_color ColorSet
-local function draw_imgui_knob(
-    knob,
+function Knob:draw_imgui_knob(
     circle_color,
     tick_color,
     track_color
 )
-    knob:update()
-    knob:draw_circle(0.85, circle_color, true, 32)
-    knob:draw_circle(0.4, track_color, true, 32)
-    knob:draw_tick(0.45, 0.85, 0.08, knob.angle, tick_color)
+    self:__draw_circle(0.85, circle_color, true, 32)
+    self:__draw_circle(0.4, track_color, true, 32)
+    self:__draw_tick(0.45, 0.85, 0.08, self.angle, tick_color)
 end
 
----@param knob Knob
 ---@param circle_color ColorSet
 ---@param tick_color ColorSet
-local function draw_tick_knob(
-    knob,
+function Knob:draw_tick_knob(
     circle_color,
     tick_color
 )
-    knob:update()
-    knob:draw_circle(0.7, circle_color, true, 32)
-    knob:draw_tick(0.4, 0.7, 0.08, knob.angle, tick_color)
+    self:__draw_circle(0.7, circle_color, true, 32)
+    self:__draw_tick(0.4, 0.7, 0.08, self.angle, tick_color)
 end
 
----@param knob Knob
 ---@param circle_color ColorSet
 ---@param dot_color ColorSet
-local function draw_dot_knob(
-    knob,
+function Knob:draw_dot_knob(
     circle_color,
     dot_color
 )
-    knob:update()
-    knob:draw_circle(0.85, circle_color, true, 32)
-    knob:draw_dot(0.12, 0.6, knob.angle, dot_color, true, 12)
+    self:__draw_circle(0.85, circle_color, true, 32)
+    self:__draw_dot(0.12, 0.6, self.angle, dot_color, true, 12)
 end
 
----@param knob Knob
 ---@param circle_color ColorSet
 ---@param wiper_color ColorSet
-function draw_space_knob(
-    knob,
+function Knob:draw_space_knob(
     circle_color,
     wiper_color
 )
-    knob:update()
-    knob:draw_circle(0.3 - knob.t * 0.1, circle_color, true, 16)
-    if knob.t > 0.01 then
-        knob:draw_arc(
+    self:__draw_circle(0.3 - self.t * 0.1, circle_color, true, 16)
+    if self.t > 0.01 then
+        self:__draw_arc(
             0.4,
             0.15,
-            knob.angle_min - 1.0,
-            knob.angle - 1.0,
+            self.angle_min - 1.0,
+            self.angle - 1.0,
             wiper_color
         )
 
-        knob:draw_arc(
+        self:__draw_arc(
             0.6,
             0.15,
-            knob.angle_min + 1.0,
-            knob.angle + 1.0,
+            self.angle_min + 1.0,
+            self.angle + 1.0,
             wiper_color
         )
 
-        knob:draw_arc(
+        self:__draw_arc(
             0.8,
             0.15,
-            knob.angle_min + 3.0,
-            knob.angle + 3.0,
+            self.angle_min + 3.0,
+            self.angle + 3.0,
             wiper_color
         )
     end
 end
 
----@param knob Knob
 ---@param steps integer
 ---@param circle_color ColorSet
 ---@param dot_color ColorSet
 ---@param step_color ColorSet
-local function draw_stepped_knob(
-    knob,
+function Knob:draw_stepped_knob(
     steps,
     circle_color,
     dot_color,
     step_color
 )
-    knob:update()
     -- iterate through the steps
     for n = 1, steps do
         local a = n / (steps - 1)
-        local angle = knob.angle_min + (knob.angle_max - knob.angle_min) * a
-        knob:draw_tick(0.7, 0.9, 0.04, angle, step_color)
+        local angle = self.angle_min + (self.angle_max - self.angle_min) * a
+        self:__draw_tick(0.7, 0.9, 0.04, angle, step_color)
     end
-    knob:draw_circle(0.6, circle_color, true, 32)
-    knob:draw_dot(0.12, 0.4, knob.angle, dot_color, true, 12)
+    self:__draw_circle(0.6, circle_color, true, 32)
+    self:__draw_dot(0.12, 0.4, self.angle, dot_color, true, 12)
 end
 
----@param knob Knob
 ---@param tick_color ColorSet
 ---@param wiper_color ColorSet
 ---@param track_color ColorSet
-local function draw_ableton_knob(knob, tick_color, wiper_color, track_color)
-    knob:update()
-    -- knob:draw_circle(0.7, circle_color, true, 32)
-    knob:draw_arc(0.9, 0.41, knob.angle_min, knob.angle_max, track_color, 2)
-    knob:draw_tick(0.1, 0.9, 0.08, knob.angle, tick_color)
-    knob:draw_arc(0.9, 0.43, knob.angle_min, knob.angle, tick_color, 2)
+function Knob:draw_ableton_knob(
+    tick_color, wiper_color, track_color)
+    -- self:draw_circle(0.7, circle_color, true, 32)
+    self:__draw_arc(0.9, 0.41, self.angle_min, self.angle_max, track_color, 2)
+    self:__draw_tick(0.1, 0.9, 0.08, self.angle, tick_color)
+    self:__draw_arc(0.9, 0.43, self.angle_min, self.angle, tick_color, 2)
 end
 
----@param ctx ImGui_Context
----@param label string
 ---@param width number
-local function knob_title(
-    ctx,
-    label,
+function Knob:knob_title(
     width
 )
-    local size_x, _ = reaper.ImGui_CalcTextSize(ctx, label, nil, nil, false, width)
-    local old_cursor_pos_x, old_cursor_pos_y = reaper.ImGui_GetCursorPos(ctx)
+    local size_x, _ = reaper.ImGui_CalcTextSize(self.ctx, self.label, nil, nil, false, width)
+    local old_cursor_pos_x, old_cursor_pos_y = reaper.ImGui_GetCursorPos(self.ctx)
     reaper.ImGui_SetCursorPos(
-        ctx,
+        self.ctx,
         old_cursor_pos_x + (width - size_x) * 0.5,
         old_cursor_pos_y
     )
-    reaper.ImGui_Text(ctx, label)
+    reaper.ImGui_Text(self.ctx, self.label)
 
     reaper.ImGui_SetCursorPos(
-        ctx,
+        self.ctx,
         old_cursor_pos_x,
-        select(2, reaper.ImGui_GetCursorPos(ctx))
+        select(2, reaper.ImGui_GetCursorPos(self.ctx))
     )
 end
 
----@param ctx ImGui_Context
----@param knob Knob
-local function knob_with_drag(
-    ctx,
-    knob
-)
-    local width = reaper.ImGui_GetTextLineHeight(ctx) * 4.0
-    reaper.ImGui_PushItemWidth(ctx, width)
-    knob_title(ctx, knob.label, width)
+---@enum KnobVariant
+Knob.KnobVariant = {
+    wiper_knob = "wiper_knob",
+    wiper_dot = "wiper_dot",
+    wiper_only = "wiper_only",
+    tick = "tick",
+    dot = "dot",
+    space = "space",
+    stepped = "stepped",
+    ableton = "ableton",
+    readrum = "readrum",
+    imgui = "imgui",
+}
 
-    -- add a drag here
-    _, knob.p_value = reaper.ImGui_DragDouble(
-        ctx,
-        "##" .. knob.id .. "_KNOB_DRAG_CONTROL_",
-        knob.p_value,
-        (knob.v_max - knob.v_min) / 1000.0,
-        knob.v_min,
-        knob.v_max,
-        knob.label_format,
+
+---@enum KnobFlags
+local KnobFlags = {
+    KnobFlags_NoTitle = "KnobFlags_NoTitle", --- Hide the top title.
+    KnobFlags_NoInput = "KnobFlags_NoInput", --- Hide the bottom drag input.
+    KnobFlags_DragHorizontal = "KnobFlags_DragHorizontal"
+}
+
+function Knob:__with_drag()
+    _, self.p_value = reaper.ImGui_DragDouble(
+        self.ctx,
+        "##" .. self.id .. "_KNOB_DRAG_CONTROL_",
+        self.p_value,
+        (self.v_max - self.v_min) / 1000.0,
+        self.v_min,
+        self.v_max,
+        self.label_format,
         reaper.ImGui_SliderFlags_AlwaysClamp()
     )
-    reaper.ImGui_PopItemWidth(ctx)
-    return knob
+    return self
 end
 
+---@param variant KnobVariant
+---@param circle_color ColorSet
+---@param dot_color ColorSet
+---@param track_color? ColorSet
+---@param flags? KnobFlags[]
+---@param steps? integer
+function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
+    local flags_NoTitle        = false
+    local flags_NoInput        = false
+    local flags_DragHorizontal = false
+    self:__update()
+    self:__control()
 
----TODO double check this
+    local width = reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0
+    reaper.ImGui_PushItemWidth(self.ctx, width)
+    if not flags_NoTitle then
+        self:knob_title(width)
+    end
+    if not flags_DragHorizontal then
+        self:__with_drag()
+    end
+    reaper.ImGui_PopItemWidth(self.ctx)
+
+    if variant == self.KnobVariant.wiper_knob then
+        self:wiper_knob(circle_color,
+            dot_color,
+            track_color or circle_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_wiper_dot_knob(circle_color,
+            dot_color,
+            track_color or circle_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_wiper_only(circle_color,
+            track_color or circle_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_tick_knob(circle_color,
+            dot_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_dot_knob(circle_color,
+            dot_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_space_knob(circle_color,
+            dot_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_stepped_knob(steps or 0, circle_color,
+            dot_color,
+            track_color or circle_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_ableton_knob(circle_color,
+            dot_color,
+            track_color or circle_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_readrum_knob(circle_color,
+            dot_color,
+            track_color or dot_color
+        )
+    elseif variant == self.KnobVariant.wiper_dot then
+        self:draw_imgui_knob(circle_color,
+            dot_color,
+            track_color or dot_color
+        )
+    end
+end
+
 ---@param hsva {[1]: number, [2]: number, [3]: number, [4]: number}
 ---@return {[1]: number, [2]: number, [3]: number, [4]: number}
 function hsv2rgb(hsva)
@@ -704,16 +748,5 @@ return {
     rgbToHex = rgbToHex,
     hsv2rgb = hsv2rgb,
     ColorSet = ColorSet,
-    Knob = Knob,
-    draw_wiper_knob = draw_wiper_knob,
-    knob_with_drag = knob_with_drag,
-    draw_wiper_dot_knob = draw_wiper_dot_knob,
-    draw_wiper_only_knob = draw_wiper_only_knob,
-    draw_tick_knob = draw_tick_knob,
-    draw_dot_knob = draw_dot_knob,
-    draw_space_knob = draw_space_knob,
-    draw_stepped_knob = draw_stepped_knob,
-    draw_ableton_knob = draw_ableton_knob,
-    draw_readrum_knob = draw_readrum_knob,
-    draw_imgui_knob = draw_imgui_knob
+    Knob = Knob
 }

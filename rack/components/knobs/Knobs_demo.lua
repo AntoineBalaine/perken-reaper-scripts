@@ -1,4 +1,4 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local info = debug.getinfo(1, "S")
 local internal_root_path = info.source:match(".*knobs."):sub(2)
 local windows_files = internal_root_path:match("\\$")
@@ -18,77 +18,8 @@ function demo:drawKnobs()
 
     reaper.ImGui_TableNextColumn(self.ctx)
 
-    Knobs.draw_wiper_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[1]
-        ),
-        self.colors.base,
-        self.colors.highlight,
-        self.colors.lowlight
-    )
-    reaper.ImGui_TableNextColumn(self.ctx)
-
-    Knobs.draw_wiper_dot_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[2]
-        ),
-        self.colors.base,
-        self.colors.highlight,
-        self.colors.lowlight
-    )
-    reaper.ImGui_TableNextColumn(self.ctx)
-
-    Knobs.draw_wiper_only_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[3]
-        ),
-        self.colors.base,
-        self.colors.lowlight
-    )
-    reaper.ImGui_TableNextColumn(self.ctx)
-
-    Knobs.draw_tick_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[4]
-        ),
-        self.colors.base,
-        self.colors.lowlight
-    )
-    reaper.ImGui_TableNextColumn(self.ctx)
-
-    Knobs.draw_dot_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[5]
-        ),
-        self.colors.base,
-        self.colors.lowlight
-    )
-    reaper.ImGui_TableNextColumn(self.ctx)
-
-    Knobs.draw_space_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[6]
-        ),
-        self.colors.base,
-        self.colors.lowlight
-    )
-    reaper.ImGui_TableNextColumn(self.ctx)
-
-    Knobs.draw_stepped_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[7]
-        ),
-        7,
-        self.colors.base,
-        self.colors.highlight,
-        self.colors.lowlight
-    )
-    reaper.ImGui_TableNextColumn(self.ctx)
-
-    Knobs.draw_ableton_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[8]
-        ),
+    self.knobs[1]:draw(
+        Knobs.Knob.KnobVariant.wiper_knob,
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
@@ -96,20 +27,71 @@ function demo:drawKnobs()
     reaper.ImGui_TableNextColumn(self.ctx)
 
 
-    Knobs.draw_readrum_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[9]
-        ),
+    self.knobs[2]:draw(
+        Knobs.Knob.KnobVariant.draw_wiper_dot_knob,
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
-    Knobs.draw_imgui_knob(
-        Knobs.knob_with_drag(self.ctx,
-            self.knobs[10]
-        ),
+    self.knobs[3]:draw(
+        Knobs.Knob.KnobVariant.draw_wiper_only,
+        self.colors.base,
+        self.colors.highlight,
+        self.colors.lowlight
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+    self.knobs[4]:draw(
+        Knobs.Knob.KnobVariant.draw_tick_knob,
+        self.colors.base,
+        self.colors.lowlight
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+    self.knobs[5]:draw(
+        Knobs.Knob.KnobVariant.draw_dot_knob,
+        self.colors.base,
+        self.colors.lowlight
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+    self.knobs[6]:draw(
+        Knobs.Knob.KnobVariant.draw_space_knob,
+        self.colors.base,
+        self.colors.lowlight
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+    self.knobs[7]:draw(
+        Knobs.Knob.KnobVariant.draw_stepped_knob,
+        self.colors.base,
+        self.colors.lowlight,
+        nil,
+        nil,
+        7
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+    self.knobs[8]:draw(
+        Knobs.Knob.KnobVariant.draw_ableton_knob,
+        self.colors.base,
+        self.colors.highlight,
+        self.colors.lowlight
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+    self.knobs[9]:draw(
+        Knobs.Knob.KnobVariant.draw_readrum_knob,
+        self.colors.base,
+        self.colors.highlight,
+        self.colors.lowlight
+    )
+    reaper.ImGui_TableNextColumn(self.ctx)
+
+    self.knobs[10]:draw(
+        Knobs.Knob.KnobVariant.draw_imgui_knob,
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
