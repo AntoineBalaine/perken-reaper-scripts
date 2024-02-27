@@ -45,7 +45,6 @@ end
 ---@field v_max number
 ---@field v_default number
 ---@field radius number
----@field screen_pos {[1]: number, [2]: number}
 ---@field value_changed boolean
 ---@field center_x number
 ---@field center_y number
@@ -232,6 +231,7 @@ function Knob.new(
     controllable,
     label_format
 )
+    ---@class Knob
     local new_knob = {}
     setmetatable(new_knob, { __index = Knob })
     local angle_min = math.pi * 0.75
@@ -249,7 +249,6 @@ function Knob.new(
     new_knob.radius = radius
     new_knob.label_format = label_format
     new_knob.controllable = controllable
-    new_knob.screen_pos = { reaper.ImGui_GetCursorScreenPos(ctx) }
     new_knob.value_changed = value_changed
     new_knob.angle = angle
     new_knob.angle_min = angle_min
