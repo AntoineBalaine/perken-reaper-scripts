@@ -674,38 +674,38 @@ function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
             dot_color,
             track_color or circle_color
         )
-    elseif variant == self.KnobVariant.wiper_dot then
+    elseif variant == self.KnobVariant.wiper_only then
         self:draw_wiper_only(circle_color,
             track_color or circle_color
         )
-    elseif variant == self.KnobVariant.wiper_dot then
+    elseif variant == self.KnobVariant.tick then
         self:draw_tick_knob(circle_color,
             dot_color
         )
-    elseif variant == self.KnobVariant.wiper_dot then
+    elseif variant == self.KnobVariant.dot then
         self:draw_dot_knob(circle_color,
             dot_color
         )
-    elseif variant == self.KnobVariant.wiper_dot then
+    elseif variant == self.KnobVariant.space then
         self:draw_space_knob(circle_color,
             dot_color
         )
-    elseif variant == self.KnobVariant.wiper_dot then
+    elseif variant == self.KnobVariant.stepped then
         self:draw_stepped_knob(steps or 0, circle_color,
             dot_color,
             track_color or circle_color
         )
-    elseif variant == self.KnobVariant.wiper_dot then
+    elseif variant == self.KnobVariant.ableton then
         self:draw_ableton_knob(circle_color,
             dot_color,
             track_color or circle_color
         )
-    elseif variant == self.KnobVariant.wiper_dot then
+    elseif variant == self.KnobVariant.readrum then
         self:draw_readrum_knob(circle_color,
             dot_color,
             track_color or dot_color
         )
-    elseif variant == self.KnobVariant.wiper_dot then
+    elseif variant == self.KnobVariant.imgui then
         self:draw_imgui_knob(circle_color,
             dot_color,
             track_color or dot_color

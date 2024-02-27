@@ -1,4 +1,4 @@
--- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local info = debug.getinfo(1, "S")
 local internal_root_path = info.source:match(".*knobs."):sub(2)
 local windows_files = internal_root_path:match("\\$")
@@ -28,7 +28,7 @@ function demo:drawKnobs()
 
 
     self.knobs[2]:draw(
-        Knobs.Knob.KnobVariant.draw_wiper_dot_knob,
+        Knobs.Knob.KnobVariant.wiper_dot,
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
@@ -36,7 +36,7 @@ function demo:drawKnobs()
     reaper.ImGui_TableNextColumn(self.ctx)
 
     self.knobs[3]:draw(
-        Knobs.Knob.KnobVariant.draw_wiper_only,
+        Knobs.Knob.KnobVariant.wiper_only,
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
@@ -44,28 +44,28 @@ function demo:drawKnobs()
     reaper.ImGui_TableNextColumn(self.ctx)
 
     self.knobs[4]:draw(
-        Knobs.Knob.KnobVariant.draw_tick_knob,
+        Knobs.Knob.KnobVariant.tick,
         self.colors.base,
         self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
     self.knobs[5]:draw(
-        Knobs.Knob.KnobVariant.draw_dot_knob,
+        Knobs.Knob.KnobVariant.dot,
         self.colors.base,
         self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
     self.knobs[6]:draw(
-        Knobs.Knob.KnobVariant.draw_space_knob,
+        Knobs.Knob.KnobVariant.space,
         self.colors.base,
         self.colors.lowlight
     )
     reaper.ImGui_TableNextColumn(self.ctx)
 
     self.knobs[7]:draw(
-        Knobs.Knob.KnobVariant.draw_stepped_knob,
+        Knobs.Knob.KnobVariant.stepped,
         self.colors.base,
         self.colors.lowlight,
         nil,
@@ -75,7 +75,7 @@ function demo:drawKnobs()
     reaper.ImGui_TableNextColumn(self.ctx)
 
     self.knobs[8]:draw(
-        Knobs.Knob.KnobVariant.draw_ableton_knob,
+        Knobs.Knob.KnobVariant.ableton,
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
@@ -83,7 +83,7 @@ function demo:drawKnobs()
     reaper.ImGui_TableNextColumn(self.ctx)
 
     self.knobs[9]:draw(
-        Knobs.Knob.KnobVariant.draw_readrum_knob,
+        Knobs.Knob.KnobVariant.readrum,
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
@@ -91,7 +91,7 @@ function demo:drawKnobs()
     reaper.ImGui_TableNextColumn(self.ctx)
 
     self.knobs[10]:draw(
-        Knobs.Knob.KnobVariant.draw_imgui_knob,
+        Knobs.Knob.KnobVariant.imgui,
         self.colors.base,
         self.colors.highlight,
         self.colors.lowlight
