@@ -622,9 +622,9 @@ Knob.KnobVariant = {
 
 ---@enum KnobFlags
 local KnobFlags = {
-    KnobFlags_NoTitle = "KnobFlags_NoTitle", --- Hide the top title.
-    KnobFlags_NoInput = "KnobFlags_NoInput", --- Hide the bottom drag input.
-    KnobFlags_DragHorizontal = "KnobFlags_DragHorizontal"
+    NoTitle = 1, --- Hide the top title.
+    NoInput = 2, --- Hide the bottom drag input.
+    DragHorizontal = 3
 }
 
 function Knob:__with_drag()
@@ -641,25 +641,23 @@ function Knob:__with_drag()
     return self
 end
 
+---TODO accomodate the NoInput flag
 ---@param variant KnobVariant
 ---@param circle_color ColorSet
 ---@param dot_color ColorSet
 ---@param track_color? ColorSet
----@param flags? KnobFlags[]
+---@param flags? integer|KnobFlags
 ---@param steps? integer
 function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
-    local flags_NoTitle        = false
-    local flags_NoInput        = false
-    local flags_DragHorizontal = false
     self:__update()
     self:__control()
 
     local width = reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0
     reaper.ImGui_PushItemWidth(self.ctx, width)
-    if not flags_NoTitle then
+    if not (flags & KnobFlags.NoTitle == KnobFlags.NoTitle) then
         self:knob_title(width)
     end
-    if not flags_DragHorizontal then
+    if not (flags & KnobFlags.Drag_Horizontal == KnobFlags.Drag_Horizontal) then
         self:__with_drag()
     end
     reaper.ImGui_PopItemWidth(self.ctx)
