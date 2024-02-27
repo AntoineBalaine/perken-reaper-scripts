@@ -1,7 +1,7 @@
 ### reaImgui-lua-knobs
 A port of [imgui-rs-knobs](https://github.com/DGriffin91/imgui-rs-knobs) to lua for [ReaImGui](https://forum.cockos.com/showthread.php?t=250419), with a few extra goodies.
 
-![Knobs list](./images/Knobs.png)
+![Knobs list](./lib/images/Knobs.png)
 
 ### Usage: 
 

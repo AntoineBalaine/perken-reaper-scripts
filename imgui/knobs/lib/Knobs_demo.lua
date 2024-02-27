@@ -1,4 +1,4 @@
--- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- @noindex
 local info = debug.getinfo(1, "S")
 local internal_root_path = info.source:match(".*knobs."):sub(2)
 local windows_files = internal_root_path:match("\\$")

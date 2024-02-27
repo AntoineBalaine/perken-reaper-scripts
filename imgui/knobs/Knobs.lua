@@ -1,5 +1,48 @@
----This is a port of imgui-rs-knobs
---https://github.com/DGriffin91/imgui-rs-knobs
+--[[
+@description Knobs: some knob components for your reaimgui projects
+@version
+  0.0.1
+@author Perken
+@provides
+    ./**/*.lua
+@about
+    # Knobs
+
+    A port of imgui-rs-knobs
+    HOW TO USE:
+        ```lua
+        local Knobs = require("Knobs")
+        local Knob = Knobs.Knob
+        local value = 0.0
+        local default_value= 0.0
+        local min = -6.0
+        local max = 6.0
+        local is_controllable = true
+        local format = "%.2fdB"
+
+        value = Knob.new(self.ctx,
+            "knob_id",
+            "knob_label",
+            value,
+            min,
+            max,
+            default_value,
+            width,
+            is_controllable,
+            format
+        ):draw(
+            Knob.KnobVariant.wiper_knob,
+            self.colors.base,
+            self.colors.highlight,
+            self.colors.lowlight
+        )
+        ```
+@links
+    Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
+    imgui-rs-knobs https://github.com/DGriffin91/imgui-rs-knobs
+@changelog
+    0.0.1 Setup the script
+]]
 
 local function rgbToHex(rgba)
     local r = math.floor(rgba[1] * 255)
