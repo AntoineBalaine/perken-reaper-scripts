@@ -163,8 +163,9 @@ function demo:init()
     ---@type Knob[]
     self.knobs    = {}
 
-    local width   = reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0
-    for idx, value in ipairs({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }) do
+    self.width    = reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0
+    self.values   = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }
+    for idx, value in ipairs(self.values) do
         table.insert(self.knobs,
             Knobs.Knob.new(self.ctx,
                 "knob" .. idx,
@@ -173,7 +174,7 @@ function demo:init()
                 min,
                 max,
                 default,
-                width * 0.5,
+                self.width * 0.5,
                 true,
                 format
             ))

@@ -711,6 +711,7 @@ function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
             track_color or dot_color
         )
     end
+    return self.p_value
 end
 
 ---@param hsva {[1]: number, [2]: number, [3]: number, [4]: number}
