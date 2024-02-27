@@ -29,9 +29,10 @@ A tiny library for managing shortcuts inside of your applications. It's basicall
 </details>
 
 #### ReaImGui Knobs
+![Knobs list](./imgui/knobs/images/Knobs.png)
 <details>
  <summary>Some utility knobs for ReaImGui</summary> 
-![Knobs list](./imgui/knobs/images/Knobs.png)
+
 
 `$REAPERPATH/Scripts/perken/imgui/knobs`
 ##### What is it: 
