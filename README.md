@@ -29,7 +29,7 @@ A tiny library for managing shortcuts inside of your applications. It's basicall
 </details>
 
 #### ReaImGui Knobs
-![Knobs list](./imgui/knobs/images/Knobs.png)
+![Knobs list](./imgui/knobs/lib/images/Knobs.png)
 <details>
  <summary>Some utility knobs for ReaImGui</summary> 
 
