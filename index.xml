@@ -1,5 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="perken" commit="3d453e459ce3754a2ec438143cfdc8bded4501d9">
+<index version="1" name="perken" commit="27ff96a033a19097237354fdb68a9cf9f9a2f45e">
+  <category name="imgui/knobs">
+    <reapack name="Knobs.lua" type="script" desc="Knobs: some knob components for your reaimgui projects">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Knobs\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A port of imgui-rs-knobs HOW TO USE: ```lua local Knobs = require("Knobs") local Knob = Knobs.Knob local value = 0.0 local default_value= 0.0 local min = -6.0 local max = 6.0 local is_controllable = true local format = "%.2fdB"\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 value = Knob.new(self.ctx,\line
+    "knob_id",\line
+    "knob_label",\line
+    value,\line
+    min,\line
+    max,\line
+    default_value,\line
+    width,\line
+    is_controllable,\line
+    format\line
+):draw(\line
+    Knob.KnobVariant.wiper_knob,\line
+    self.colors.base,\line
+    self.colors.highlight,\line
+    self.colors.lowlight\line
+)\line
+```\par}
+}
+]]></description>
+        <link rel="website" href="https://github.com/AntoineBalaine/perken-reaper-scripts">Perken Scripts repo</link>
+        <link rel="website" href="https://github.com/DGriffin91/imgui-rs-knobs">imgui-rs-knobs</link>
+      </metadata>
+      <version name="0.0.1" author="Perken" time="2024-02-27T14:47:14Z">
+        <changelog><![CDATA[0.0.1 Setup the script]]></changelog>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/27ff96a033a19097237354fdb68a9cf9f9a2f45e/imgui/knobs/Knobs.lua</source>
+        <source file="lib/Knobs_demo.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/27ff96a033a19097237354fdb68a9cf9f9a2f45e/imgui/knobs/lib/Knobs_demo.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="imgui/shortcut_list">
+    <reapack name="shortcutManager.lua" type="script" desc="Shortcut Manager: a utility for managing shortcuts in the ImGui context">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 shortcut manager\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 HOW TO USE: Follow the instructions in the code below (shortcutManager.lua) Or follow the demo script that I have included in the lib folder {\f1 shortcut_list/lib/shortcutManager_demo.lua}\par}
+}
+]]></description>
+        <link rel="website" href="https://github.com/AntoineBalaine/perken-reaper-scripts">Perken Scripts repo</link>
+      </metadata>
+      <version name="0.0.1" author="Perken" time="2024-01-13T14:53:09Z">
+        <changelog><![CDATA[0.0.1 Setup the script]]></changelog>
+        <source file="lib/shortcutManager_demo.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/bc3ada99eae4a696cb798e79aed2fbafa9aedf06/imgui/shortcut_list/lib/shortcutManager_demo.lua</source>
+        <source file="lib/shortcutManager_helpers.lua">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/bc3ada99eae4a696cb798e79aed2fbafa9aedf06/imgui/shortcut_list/lib/shortcutManager_helpers.lua</source>
+        <source main="main">https://github.com/AntoineBalaine/perken-reaper-scripts/raw/bc3ada99eae4a696cb798e79aed2fbafa9aedf06/imgui/shortcut_list/shortcutManager.lua</source>
+      </version>
+    </reapack>
+  </category>
   <category name="main">
     <reapack name="pasteRhythmToPitches.lua" type="script" desc="Paste Rhythm To Pitches">
       <metadata>
