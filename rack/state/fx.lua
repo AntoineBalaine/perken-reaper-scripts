@@ -169,8 +169,8 @@ end
 ---add param to list of displayed params
 ---query its value, create a param class for it
 function fx:displayParam(guid)
-    local param_data = self.params_by_guid[guid]
-    local new_param = parameter.new(self.state, param_data.index, self)
+    local param = self.params_by_guid[guid]
+    local new_param = parameter.new(self.state, param.index, self)
     table.insert(self.display_params, new_param)
 end
 
