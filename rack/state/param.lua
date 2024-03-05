@@ -16,8 +16,10 @@ function parameter.new(state, param_index, parent_fx, guid)
     new_param.index = param_index
     new_param.parent_fx = parent_fx
     new_param.display = true
-    local _, name = reaper.TrackFX_GetParamName(new_param.state.Track.track, new_param.parent_fx.index, new_param.index)
-    local ident = reaper.TrackFX_GetParamIdent(new_param.state.Track.track, new_param.parent_fx.index, new_param.index)
+    local _, name = reaper.TrackFX_GetParamName(new_param.state.Track.track, new_param.parent_fx.index - 1,
+        new_param.index)
+    local _, ident = reaper.TrackFX_GetParamIdent(new_param.state.Track.track, new_param.parent_fx.index - 1,
+        new_param.index)
     new_param.name = name
     new_param.ident = ident
     _, new_param.minval, new_param.maxval = reaper.TrackFX_GetParam(
@@ -29,13 +31,17 @@ function parameter.new(state, param_index, parent_fx, guid)
             new_param.state.Track.track,
             new_param.parent_fx.index,
             new_param.index)
+    new_param.normalized = reaper.TrackFX_GetParamNormalized(
+        new_param.state.Track.track,
+        new_param.parent_fx.index,
+        new_param.index)
+    reaper.ShowConsoleMsg("" .. new_param.normalized)
     return new_param
 end
 
 function parameter:query_value()
-    --reaper.TrackFX_GetParameterStepSizes(MediaTrack track, integer fx, integer param)
     _, self.value = reaper.TrackFX_GetFormattedParamValue(self.state.Track.track,
-        self.parent_fx.index,
+        self.parent_fx.index - 1,
         self.index)
 
     --reaper.TrackFX_GetNamedConfigParm(MediaTrack track, integer fx, string parmname)
