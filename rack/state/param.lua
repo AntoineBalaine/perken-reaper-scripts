@@ -31,19 +31,24 @@ function parameter.new(state, param_index, parent_fx, guid)
             new_param.state.Track.track,
             new_param.parent_fx.index,
             new_param.index)
-    new_param.normalized = reaper.TrackFX_GetParamNormalized(
-        new_param.state.Track.track,
-        new_param.parent_fx.index,
-        new_param.index)
-    reaper.ShowConsoleMsg("" .. new_param.normalized)
+
+
     return new_param
 end
 
 function parameter:query_value()
-    _, self.value = reaper.TrackFX_GetFormattedParamValue(self.state.Track.track,
+    local val = reaper.TrackFX_GetParamNormalized(self.state.Track.track,
         self.parent_fx.index - 1,
         self.index)
-
+    self.value = val
+    local rv_fmt, formatted = reaper.TrackFX_GetFormattedParamValue(
+        self.state.Track.track,
+        self.parent_fx.index - 1,
+        self.index)
+    if rv_fmt then
+        ---formatted value, as string
+        self.fmt_val = formatted
+    end
     --reaper.TrackFX_GetNamedConfigParm(MediaTrack track, integer fx, string parmname)
     --  fx_type : type string
     --   fx_ident : type-specific identifier

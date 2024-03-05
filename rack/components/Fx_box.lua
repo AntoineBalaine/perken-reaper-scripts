@@ -302,7 +302,7 @@ function fx_box:main(fx)
                 0, -- FIXME get the default val
                 reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0 * 0.5,
                 true,
-                "%.2f"
+                param.fmt_val
             ):draw(
                 Knobs.Knob.KnobVariant.ableton,
                 self.testcol,
