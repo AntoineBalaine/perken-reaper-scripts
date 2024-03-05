@@ -164,6 +164,10 @@ function state:getTrackFx()
     if updated_fx_list then
         self.Track.fx_list = updated_fx_list
     end
+
+    for _, fx in ipairs(self.Track.fx_list) do
+        fx:update()
+    end
     return self
 end
 

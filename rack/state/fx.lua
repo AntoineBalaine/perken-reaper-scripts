@@ -170,8 +170,19 @@ end
 ---query its value, create a param class for it
 function fx:displayParam(guid)
     local param = self.params_by_guid[guid]
-    local new_param = parameter.new(self.state, param.index, self)
+    local new_param = parameter.new(self.state, param.index, self, guid)
     table.insert(self.display_params, new_param)
+end
+
+---FIXME this is a linear search…
+---I’m having to run a linear sweep here to find the fx by guid in the list of displayed params.
+function fx:removeParam(guid)
+    for i, fx_instance in ipairs(self.display_params) do
+        if fx_instance.guid == guid then
+            table.remove(self.display_params, i)
+            break
+        end
+    end
 end
 
 return fx

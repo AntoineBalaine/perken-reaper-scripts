@@ -8,10 +8,11 @@ parameter.__index = parameter
 ---@param state State
 ---@param param_index number
 ---@param parent_fx TrackFX
-function parameter.new(state, param_index, parent_fx)
+function parameter.new(state, param_index, parent_fx, guid)
     ---@class Parameter
     local new_param = setmetatable({}, parameter)
     new_param.state = state
+    new_param.guid = guid
     new_param.index = param_index
     new_param.parent_fx = parent_fx
     new_param.display = true

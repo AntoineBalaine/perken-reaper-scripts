@@ -351,7 +351,7 @@ function fx_box:AddParamsBtn()
         end
         ---TODO implement text filter here, so that user can filter the fx-params' list.
         for _, param in ipairs(self.fx.params_list) do
-            local rv, new_val = reaper.ImGui_Checkbox(self.ctx, param.name, param.display)
+            local _, new_val = reaper.ImGui_Checkbox(self.ctx, param.name, param.display)
             if all_params then
                 param.display = true
             end
@@ -360,7 +360,7 @@ function fx_box:AddParamsBtn()
                 if new_val then
                     self.fx:displayParam(param.guid)
                 else
-                    -- self.fx:removeParam(param.guid)
+                    self.fx:removeParam(param.guid)
                 end
             end
         end
