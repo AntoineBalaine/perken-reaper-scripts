@@ -60,9 +60,9 @@ function parameter:query_value()
     return self
 end
 
----TODO is this correct?
-function parameter:update()
-    self:query_value()
+---@param value number
+function parameter:setValue(value)
+    reaper.TrackFX_SetParamNormalized(self.state.Track.track, self.parent_fx.index - 1, self.index, value)
 end
 
 return parameter

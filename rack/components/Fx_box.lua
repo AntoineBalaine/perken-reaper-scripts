@@ -293,7 +293,7 @@ function fx_box:main(fx)
         self:AddParamsBtn()
 
         for idx, param in ipairs(fx.display_params) do
-            Knobs.Knob.new(self.ctx,
+            local new_val = Knobs.Knob.new(self.ctx,
                 "knob" .. idx,
                 param.name,
                 tonumber(param.value) or 0,
@@ -309,6 +309,10 @@ function fx_box:main(fx)
                 self.testcol,
                 self.testcol
             )
+            if new_val ~= param.value then
+                param.value = new_val
+                param:setValue(new_val)
+            end
         end
         reaper.ImGui_EndChild(self.ctx)
     end

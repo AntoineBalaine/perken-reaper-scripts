@@ -162,7 +162,7 @@ end
 function fx:update()
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.index)
     for i, param in ipairs(self.display_params) do
-        param:update()
+        param:query_value()
     end
 end
 
