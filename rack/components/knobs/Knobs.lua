@@ -1,24 +1,15 @@
 ---This is a port of imgui-rs-knobs
 --https://github.com/DGriffin91/imgui-rs-knobs
 
-local function rgbToHex(rgba)
-    local r = math.floor(rgba[1] * 255)
-    local g = math.floor(rgba[2] * 255)
-    local b = math.floor(rgba[3] * 255)
-    local a = math.floor(rgba[4] * 255)
-    local hex = r << 24 | g << 16 | b << 8 | a
-    return hex
-end
-
 ---@class ColorSet
----@field base {[1]: number,[2]: number,[3]: number,[4]: number}
----@field hovered {[1]: number,[2]: number,[3]: number,[4]: number}
----@field active {[1]: number,[2]: number,[3]: number,[4]: number}
+---@field base integer
+---@field hovered integer
+---@field active integer
 local ColorSet = {}
 
----@param base {[1]: number,[2]: number,[3]: number,[4]: number}
----@param hovered {[1]: number,[2]: number,[3]: number,[4]: number}
----@param active {[1]: number,[2]: number,[3]: number,[4]: number}
+---@param base integer
+---@param hovered integer
+---@param active integer
 ---@return ColorSet
 function ColorSet.new(base, hovered, active)
     local self = setmetatable({}, { __index = ColorSet })
@@ -28,7 +19,7 @@ function ColorSet.new(base, hovered, active)
     return self
 end
 
----@param color {[1]: number,[2]: number,[3]: number,[4]: number}
+---@param color integer
 ---@return ColorSet
 function ColorSet.from(color)
     return ColorSet.new(color, color, color)
@@ -64,13 +55,14 @@ function Knob:__draw_dot(
     else
         circle_color = color.base
     end
+
     if filled then
         reaper.ImGui_DrawList_AddCircleFilled(
             self._draw_list,
             self._center_x + math.cos(angle) * dot_radius,
             self._center_y + math.sin(angle) * dot_radius,
             dot_size,
-            rgbToHex(circle_color),
+            circle_color,
             segments
         )
     else
@@ -79,7 +71,7 @@ function Knob:__draw_dot(
             self._center_x + math.cos(angle) * dot_radius,
             self._center_y + math.sin(angle) * dot_radius,
             dot_size,
-            rgbToHex(circle_color),
+            circle_color,
             segments
         )
     end
@@ -111,7 +103,7 @@ function Knob:__draw_tick(start, end_, width, angle, color)
         self._center_y + angle_sin * tick_end,
         self._center_x + angle_cos * tick_start,
         self._center_y + angle_sin * tick_start,
-        rgbToHex(line_color),
+        line_color,
         width * self._radius
     )
 end
@@ -137,7 +129,7 @@ function Knob:__draw_circle(size, color, filled, segments)
             self._center_x,
             self._center_y,
             circle_radius,
-            rgbToHex(circle_color),
+            circle_color,
             segments
         )
     else
@@ -146,7 +138,7 @@ function Knob:__draw_circle(size, color, filled, segments)
             self._center_x,
             self._center_y,
             circle_radius,
-            rgbToHex(circle_color),
+            circle_color,
             segments
         )
     end
@@ -181,7 +173,7 @@ function Knob:__draw_arc(
 
     reaper.ImGui_DrawList_PathArcTo(self._draw_list, self._center_x, self._center_y, track_radius * 0.95, start_angle,
         end_angle)
-    reaper.ImGui_DrawList_PathStroke(self._draw_list, rgbToHex(circle_color), nil, track_size)
+    reaper.ImGui_DrawList_PathStroke(self._draw_list, circle_color, nil, track_size)
     reaper.ImGui_DrawList_PathClear(self._draw_list)
 end
 
@@ -408,23 +400,23 @@ function Knob:__draw_triangle(
     local b = vertices[2]
     local a = vertices[3]
     if filled then
-        reaper.ImGui_DrawList_AddTriangleFilled(self._draw_list, c.x, c.y, b.x, b.y, a.x, a.y, rgbToHex(circle_color))
+        reaper.ImGui_DrawList_AddTriangleFilled(self._draw_list, c.x, c.y, b.x, b.y, a.x, a.y, circle_color)
         -- reaper.ImGui_DrawList_AddCircleFilled(
         --     self.draw_list,
         --     self.center_x + math.cos(angle) * dot_radius,
         --     self.center_y + math.sin(angle) * dot_radius,
         --     dot_size,
-        --     rgbToHex(circle_color),
+        --     circle_color,
         --     segments
         -- )
     else
-        reaper.ImGui_DrawList_AddTriangle(self._draw_list, c.x, c.y, b.x, b.y, a.x, a.y, rgbToHex(circle_color))
+        reaper.ImGui_DrawList_AddTriangle(self._draw_list, c.x, c.y, b.x, b.y, a.x, a.y, circle_color)
         -- reaper.ImGui_DrawList_AddCircle(
         --     self.draw_list,
         --     self.center_x + math.cos(angle) * dot_radius,
         --     self.center_y + math.sin(angle) * dot_radius,
         --     dot_size,
-        --     rgbToHex(circle_color),
+        --     circle_color,
         --     segments
         -- )
     end
@@ -718,7 +710,6 @@ local function hsv2rgb(hsva)
 end
 
 return {
-    rgbToHex = rgbToHex,
     hsv2rgb = hsv2rgb,
     ColorSet = ColorSet,
     Knob = Knob
