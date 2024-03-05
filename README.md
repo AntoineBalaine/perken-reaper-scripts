@@ -28,6 +28,19 @@ A tiny library for managing shortcuts inside of your applications. It's basicall
 [See the readme of the project](imgui/shortcut_list/shortcutManager.md)
 </details>
 
+#### ReaImGui Knobs
+![Knobs list](./imgui/knobs/lib/images/Knobs.png)
+<details>
+ <summary>Some utility knobs for ReaImGui</summary> 
+
+
+`$REAPERPATH/Scripts/perken/imgui/knobs`
+##### What is it: 
+A small library of knob components for your ImGui projects. 
+##### HOW TO USE: 
+[See the readme of the project](imgui/knobs/README.md)
+</details>
+
 #### Realearn - Midi Fighter Twister utilities
 <details>
  <summary>MFT map selected fx in visible fx chain</summary> 

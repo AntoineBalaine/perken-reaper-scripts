@@ -26,7 +26,7 @@ function fx.new(state, theme, index, number, guid)
     self.number = number
     self.index = index
     self.params_list, self.params_by_guid = self:createParams()
-    self.display_params = {} ---@type Parameter
+    self.display_params = {} ---@type Parameter[]
     ---@class FxDisplaySettings
     self.displaySettings = {
         height         = 220,
@@ -162,16 +162,27 @@ end
 function fx:update()
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.index)
     for i, param in ipairs(self.display_params) do
-        param:update()
+        param:query_value()
     end
 end
 
 ---add param to list of displayed params
 ---query its value, create a param class for it
 function fx:displayParam(guid)
-    local param_data = self.params_by_guid[guid]
-    local new_param = parameter.new(self.state, param_data.index, self)
+    local param = self.params_by_guid[guid]
+    local new_param = parameter.new(self.state, param.index, self, guid)
     table.insert(self.display_params, new_param)
+end
+
+---FIXME this is a linear search…
+---I’m having to run a linear sweep here to find the fx by guid in the list of displayed params.
+function fx:removeParam(guid)
+    for i, fx_instance in ipairs(self.display_params) do
+        if fx_instance.guid == guid then
+            table.remove(self.display_params, i)
+            break
+        end
+    end
 end
 
 return fx

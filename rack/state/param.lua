@@ -8,33 +8,47 @@ parameter.__index = parameter
 ---@param state State
 ---@param param_index number
 ---@param parent_fx TrackFX
-function parameter.new(state, param_index, parent_fx)
+function parameter.new(state, param_index, parent_fx, guid)
     ---@class Parameter
-    local self = setmetatable({}, parameter)
-    self.state = state
-    self.index = param_index
-    self.parent_fx = parent_fx
-    local _, name = reaper.TrackFX_GetParamName(self.state.Track.track, self.parent_fx.index, self.index)
-    local ident = reaper.TrackFX_GetParamIdent(self.state.Track.track, self.parent_fx.index, self.index)
-    self.name = name
-    self.ident = ident
-    _, self.minval, self.maxval = reaper.TrackFX_GetParam(
-        self.state.Track.track,
-        self.parent_fx.index,
-        self.index)
-    _, self.step, self.smallstep, self.largestep, self.istoggle = reaper.TrackFX_GetParameterStepSizes(
-        self.state.Track.track,
-        self.parent_fx.index,
-        self.index)
-    return self
+    local new_param = setmetatable({}, parameter)
+    new_param.state = state
+    new_param.guid = guid
+    new_param.index = param_index
+    new_param.parent_fx = parent_fx
+    new_param.display = true
+    local _, name = reaper.TrackFX_GetParamName(new_param.state.Track.track, new_param.parent_fx.index - 1,
+        new_param.index)
+    local _, ident = reaper.TrackFX_GetParamIdent(new_param.state.Track.track, new_param.parent_fx.index - 1,
+        new_param.index)
+    new_param.name = name
+    new_param.ident = ident
+    _, new_param.minval, new_param.maxval = reaper.TrackFX_GetParam(
+        new_param.state.Track.track,
+        new_param.parent_fx.index,
+        new_param.index)
+    _, new_param.step, new_param.smallstep, new_param.largestep, new_param.istoggle = reaper
+        .TrackFX_GetParameterStepSizes(
+            new_param.state.Track.track,
+            new_param.parent_fx.index,
+            new_param.index)
+
+
+    return new_param
 end
 
 function parameter:query_value()
-    --reaper.TrackFX_GetParameterStepSizes(MediaTrack track, integer fx, integer param)
-    _, self.value = reaper.TrackFX_GetFormattedParamValue(self.state.Track.track,
-        self.parent_fx.index,
+    local val = reaper.TrackFX_GetParamNormalized(self.state.Track.track,
+        self.parent_fx.index - 1,
         self.index)
-
+    self.value = val
+    local rv_fmt, formatted = reaper.TrackFX_GetFormattedParamValue(
+        self.state.Track.track,
+        self.parent_fx.index - 1,
+        self.index)
+    if rv_fmt then
+        ---formatted value, as string
+        self.fmt_val = formatted
+    end
     --reaper.TrackFX_GetNamedConfigParm(MediaTrack track, integer fx, string parmname)
     --  fx_type : type string
     --   fx_ident : type-specific identifier
@@ -44,6 +58,11 @@ function parameter:query_value()
     --   original_name : pre-renamed FX instance name
     --   renamed_name : renamed FX instance name (empty string = not renamed)
     return self
+end
+
+---@param value number
+function parameter:setValue(value)
+    reaper.TrackFX_SetParamNormalized(self.state.Track.track, self.parent_fx.index - 1, self.index, value)
 end
 
 return parameter
