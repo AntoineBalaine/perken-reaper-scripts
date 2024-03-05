@@ -26,7 +26,7 @@ function fx.new(state, theme, index, number, guid)
     self.number = number
     self.index = index
     self.params_list, self.params_by_guid = self:createParams()
-    self.display_params = {} ---@type Parameter
+    self.display_params = {} ---@type Parameter[]
     ---@class FxDisplaySettings
     self.displaySettings = {
         height         = 220,

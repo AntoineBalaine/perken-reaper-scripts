@@ -12,6 +12,7 @@ local fx_box_helpers = require("helpers.fx_box_helpers")
 local LayoutEditor   = require("components.LayoutEditor")
 local drag_drop      = require("state.dragAndDrop")
 local layout_enums   = require("state.fx_layout_types")
+local Knobs          = require("components.knobs.Knobs")
 
 local fx_box         = {}
 local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
@@ -181,110 +182,6 @@ function fx_box:slider()
     -- reaper.ImGui_DrawList_PathClear(draw_list)
 end
 
----@param param Parameter
-function fx_box:Knob(param)
-    local text_color = self.theme.colors.col_toolbar_text_on.color
-    local label = param.name
-    -- reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
-    --     text_color) -- label text's color
-    -- reaper.ImGui_Text(self.ctx, "Volume")
-
-    self.knob_value = tonumber(param.value)
-    if not self.knob_value then
-        self.knob_value = 0
-    end
-
-    -- reaper.ImGui_PopStyleColor(self.ctx, 1)
-
-    local line_height = reaper.ImGui_GetTextLineHeight(self.ctx)
-    local Radius = 20
-    if reaper.ImGui_BeginChild(self.ctx, "##knob", Radius * 2) then ----START CHILD WINDOW
-        local label_text_width, _  = reaper.ImGui_CalcTextSize(self.ctx, label)
-
-        local v_min                = 0
-        local v_max                = 100
-
-        local draw_list            = reaper.ImGui_GetWindowDrawList(self.ctx)
-        local pos                  = { reaper.ImGui_GetCursorScreenPos(self.ctx) } ---@type {[1]:number, [2]:number}
-        Radius                     = Radius or 0
-        local radius_outer         = Radius
-        local t                    = (self.knob_value - v_min) / (v_max - v_min) -- is this tangent?
-        local ANGLE_MIN            = 3.141592 * 0.75
-        local ANGLE_MAX            = 3.141592 * 2.25
-        local angle                = ANGLE_MIN + (ANGLE_MAX - ANGLE_MIN) * t
-        local angle_cos, angle_sin = math.cos(angle), math.sin(angle)
-        local radius_inner         = radius_outer * 0.40
-        local center               = {
-            x = pos[1] + radius_outer,
-            y = pos[2] + radius_outer + line_height + 3
-        }
-
-
-
-        local pointer_end_x  = center.x + angle_cos * (radius_outer - 2)
-        local pointer_end_y  = center.y + angle_sin * (radius_outer - 2)
-        local path_color     = self.theme.colors.col_vuind4.color
-        local path_thickness = radius_outer * 0.1
-
-
-
-        reaper.ImGui_DrawList_AddText(
-            draw_list,
-            center.x - label_text_width / 2,
-            pos[2], -- 1.6 is somewhat arbitary here, just enough so that the text is *right* below the knob
-            text_color,
-            label)
-
-        -- Add a drag behind the knob’s drawing, make it transparent.
-        -- That way it’s easy to have the drag mechanic and the knob drawing.
-        reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_Alpha(), 0)
-
-        _, self.knob_value = reaper.ImGui_VSliderInt(self.ctx,
-            "##test",
-            radius_outer * 2,
-            radius_outer * 2 - 5,
-            self.knob_value,
-            0,
-            100,
-            nil,
-            reaper.ImGui_SliderFlags_AlwaysClamp())
-        reaper.ImGui_PopStyleVar(self.ctx)
-        --- knob's circle
-        reaper.ImGui_DrawList_AddCircleFilled(draw_list, center.x, center.y, radius_outer,
-            0x00000000)
-
-        --- knob pointer
-        reaper.ImGui_DrawList_AddLine(draw_list,
-            center.x, --  + angle_cos * radius_inner
-            center.y, --  + angle_sin * radius_inner
-            pointer_end_x,
-            pointer_end_y,
-            0x000000FF,
-            path_thickness)
-
-        --- knob's filled path/values
-        --full black contour
-        reaper.ImGui_DrawList_PathArcTo(draw_list, center.x, center.y, radius_outer * 0.95, ANGLE_MIN, ANGLE_MAX)
-        local transparent_color = 0x000000FF
-        reaper.ImGui_DrawList_PathStroke(draw_list, transparent_color, nil, path_thickness)
-        reaper.ImGui_DrawList_PathClear(draw_list)
-        -- current-value contour
-        reaper.ImGui_DrawList_PathArcTo(draw_list, center.x, center.y, radius_outer * 0.95, ANGLE_MIN, angle)
-        reaper.ImGui_DrawList_PathStroke(draw_list, path_color, nil, path_thickness)
-        reaper.ImGui_DrawList_PathClear(draw_list)
-
-        -- value’ text-display
-        local value_text_width, _ = reaper.ImGui_CalcTextSize(self.ctx, tostring(self.knob_value))
-        reaper.ImGui_DrawList_AddText(
-            draw_list,
-            center.x - value_text_width / 2,
-            pos[2] + radius_outer * 2 + 10, -- pos[2] is very start of the component, radius*2 is the circle, +10 for spacing
-            text_color,
-            tostring(self.knob_value))
-        reaper.ImGui_EndChild(self.ctx)
-    end
-end
-
 function fx_box:toggleFxWindow()
     if self.settings.prefer_fx_chain then
         local focused_fx_idx = reaper.TrackFX_GetChainVisible(self.state.Track.track) -- if not ALT, show fx
@@ -396,7 +293,22 @@ function fx_box:main(fx)
         self:AddParamsBtn()
 
         for idx, param in ipairs(fx.display_params) do
-            self:Knob(param)
+            Knobs.Knob.new(self.ctx,
+                "knob" .. idx,
+                param.name,
+                tonumber(param.value) or 0,
+                param.minval,
+                param.maxval,
+                0, -- FIXME get the default val
+                reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0 * 0.5,
+                true,
+                "%.2f"
+            ):draw(
+                Knobs.Knob.KnobVariant.ableton,
+                self.testcol,
+                self.testcol,
+                self.testcol
+            )
         end
         reaper.ImGui_EndChild(self.ctx)
     end
@@ -406,6 +318,17 @@ function fx_box:main(fx)
     reaper.ImGui_SameLine(self.ctx, nil, 0)
 end
 
+---@return ColorSet
+function fx_box:testcolors()
+    ---@type ColorSet
+    local test = {
+        base = self.theme.colors.col_vuind2.color,
+        hovered = self.theme.colors.col_vuind4.color,
+        active = self.theme.colors.col_vuind3.color,
+    }
+    return Knobs.ColorSet.new(test.base, test.hovered, test.active)
+end
+
 ---@param parent_state Rack
 function fx_box:init(parent_state)
     self.state = parent_state.state
@@ -413,6 +336,7 @@ function fx_box:init(parent_state)
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
+    self.testcol = self:testcolors()
     LayoutEditor:init(parent_state.ctx)
 end
 
