@@ -81,11 +81,18 @@ end
 
 ---filter the plugins based on the user's input
 ---@param new_filter string
----@return FX[]
 function Browser:filterActions(new_filter)
+    if new_filter == "" then
+        for k, _ in ipairs(self.filtered_fx) do
+            self.filtered_fx[k] = nil
+        end
+        return
+    end
     if new_filter == self.filter then return self.filtered_fx end
     new_filter = new_filter:match '^%s*(.*)' -- trim white space
-    local filtered_fx = {} ---@type FX[]
+    for k, _ in ipairs(self.filtered_fx) do
+        self.filtered_fx[k] = nil
+    end
     -- find plugins whichs name match the filter, and insert them into the filter_fx
     for _, fx in ipairs(self.plugin_list) do
         local name = fx.name:lower()
@@ -100,11 +107,11 @@ function Browser:filterActions(new_filter)
             ---@class FX
             ---@field score number
             fx.score = fx.name:len() - new_filter:len()
-            table.insert(filtered_fx, fx)
+            table.insert(self.filtered_fx, fx)
         end
     end
-    if #filtered_fx > 2 then -- if there's multiple matches, sort them
-        table.sort(filtered_fx,
+    if #self.filtered_fx > 2 then -- if there's multiple matches, sort them
+        table.sort(self.filtered_fx,
             ---@param a FX
             ---@param b FX
             function(a, b)
@@ -117,9 +124,7 @@ function Browser:filterActions(new_filter)
                 end
             end)
     end
-    self.filter = new_filter       -- update the filter
-    self.filtered_fx = filtered_fx -- store the filtered fx in state
-    return filtered_fx
+    self.filter = new_filter -- update the filter
 end
 
 ---Draw the filter input box and the filtered fx list.
@@ -132,14 +137,15 @@ function Browser:filterBox()
     end
 
     local _, new_filter = reaper.ImGui_InputTextWithHint(self.ctx, "##input", "SEARCH FX", self.filter) -- input box
-    local filtered_fx = self:filterActions(new_filter)                                                  -- get list of filtered fx based on user input
+    self:filterActions(new_filter)                                                                      -- get list of filtered fx based on user input
 
-    self.selected_entry = fitBetweenMinMax(self.selected_entry or 1, 1, #filtered_fx)
-    if #filtered_fx > 0 then
+    self.selected_entry = fitBetweenMinMax(self.selected_entry or 1, 1, #self.filtered_fx)
+    if #self.filtered_fx > 0 then
         ---set how many fx are displayed in the filter list
-        local filter_height = #filtered_fx == 0 and 0 or (#filtered_fx > 40 and 20 * 17 or (17 * #filtered_fx))
+        local filter_height = #self.filtered_fx == 0 and 0 or
+            (#self.filtered_fx > 40 and 20 * 17 or (17 * #self.filtered_fx))
         if reaper.ImGui_BeginChild(self.ctx, "##popupp", MAX_FX_SIZE, filter_height) then -- display filtered fx
-            for i, fx in ipairs(filtered_fx) do
+            for i, fx in ipairs(self.filtered_fx) do
                 if reaper.ImGui_Selectable(self.ctx, fx.name, i == self.selected_entry) then
                     reaper.TrackFX_AddByName(self.track, fx.name, false, -1000 - reaper.TrackFX_GetCount(self.track))
                     reaper.ImGui_CloseCurrentPopup(self.ctx)
@@ -151,7 +157,7 @@ function Browser:filterBox()
         end
         -- keyboard navigation
         if reaper.ImGui_IsKeyPressed(self.ctx, reaper.ImGui_Key_Enter()) then -- add fx if «enter» is pressed
-            local selected_fx = filtered_fx[self.selected_entry]
+            local selected_fx = self.filtered_fx[self.selected_entry]
             reaper.TrackFX_AddByName(self.track, selected_fx.name, false,
                 -1000 - reaper.TrackFX_GetCount(self.track))
             self.last_used_fx = selected_fx.name -- update state
@@ -175,7 +181,7 @@ function Browser:filterBox()
         self.filter = ""
         reaper.ImGui_CloseCurrentPopup(self.ctx)
     end
-    return #filtered_fx > 0
+    return #self.filtered_fx > 0
 end
 
 ---Recursively draw the fx chains or track templates
