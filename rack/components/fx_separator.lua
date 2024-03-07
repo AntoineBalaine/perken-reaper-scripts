@@ -25,7 +25,10 @@ local fx_separator = {}
 ---@param idx integer
 ---@param is_last? boolean
 function fx_separator:spaceBtwFx(idx, is_last)
-    if reaper.ImGui_Button(self.ctx, '##Button between FX', 10, 220) and is_last then
+    if reaper.ImGui_Button(self.ctx,
+            is_last and "+" or "##Button between FX",
+            is_last and 20 or 10,
+            220) and is_last then
         if not reaper.ImGui_IsPopupOpen(self.ctx, self.Browser.name) then
             reaper.ImGui_OpenPopup(self.ctx, self.Browser.name)
         end
