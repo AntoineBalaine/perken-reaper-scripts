@@ -1,3 +1,4 @@
+dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 ---PassThrough module to handle passthrough of shortcuts
 --
 -- This is meant to be a singleton, so it has no constructor.
@@ -72,14 +73,14 @@ local AllAvailableKeys = {
     ScrollLock = reaper.ImGui_Key_ScrollLock(),
     Insert = reaper.ImGui_Key_Insert(),
     Minus = reaper.ImGui_Key_Minus(),
-    LeftArrow = reaper.ImGui_Key_LeftArrow(),
+    Left = reaper.ImGui_Key_LeftArrow(),
     LeftBracket = reaper.ImGui_Key_LeftBracket(),
     Period = reaper.ImGui_Key_Period(),
-    PageDown = reaper.ImGui_Key_PageDown(),
-    PageUp = reaper.ImGui_Key_PageUp(),
+    PGDOWN = reaper.ImGui_Key_PageDown(),
+    PGUP = reaper.ImGui_Key_PageUp(),
     Pause = reaper.ImGui_Key_Pause(),
     RightBracket = reaper.ImGui_Key_RightBracket(),
-    RightArrow = reaper.ImGui_Key_RightArrow(),
+    Right = reaper.ImGui_Key_RightArrow(),
     SemiColon = reaper.ImGui_Key_Semicolon(),
     Slash = reaper.ImGui_Key_Slash(),
     Space = reaper.ImGui_Key_Space(),
@@ -148,17 +149,18 @@ function PassThrough:_getImGuiShortcut()
     local ctrl = false
     local shift = false
     local alt = false
-    local hits ---@type integer
-    for key, key_name in ipairs(Keys) do
-        if reaper.ImGui_IsKeyDown(self._ctx, key) then
-            if key_name == "Ctrl" then
+    local hits ---@type string
+
+    for keyname, keycode in pairs(AllAvailableKeys) do
+        if reaper.ImGui_IsKeyDown(self._ctx, keycode) then
+            if keyname == "Ctrl" then
                 ctrl = true
-            elseif key_name == "Shift" then
+            elseif keyname == "Shift" then
                 shift = true
-            elseif key_name == "Alt" then
+            elseif keyname == "Alt" then
                 alt = true
             else
-                hits = key
+                hits = keyname
             end
         end
     end
@@ -167,7 +169,8 @@ function PassThrough:_getImGuiShortcut()
     if ctrl then table.insert(self._clickedModifiers, "Ctrl") end
     if shift then table.insert(self._clickedModifiers, "Shift") end
     if alt then table.insert(self._clickedModifiers, "Alt") end
-    local rv = table.concat(self._clickedModifiers, "+") .. "+" .. hits[1]
+    local modif_rv = table.concat(self._clickedModifiers, "+")
+    local rv = modif_rv .. (modif_rv ~= "" and "+" or "") .. hits
     -- empty the modifiers after use
     local count = #self._clickedModifiers
     for i = 0, count do self._clickedModifiers[i] = nil end
