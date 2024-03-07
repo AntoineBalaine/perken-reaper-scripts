@@ -71,10 +71,7 @@ function Rack:main()
     self:RackStyleEnd()
     reaper.ImGui_End(self.ctx)
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
-        -- if the fx_browser is open,
-        -- set it to be closed
-        -- so that it doesn’t throw an error when the rack closes
-        reaper.ImGui_DestroyContext(self.ctx)
+        -- Close the rack.
     else
         reaper.defer(function() self:main() end)
     end
