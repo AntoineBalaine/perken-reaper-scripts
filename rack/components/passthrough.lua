@@ -1,13 +1,20 @@
 dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
----PassThrough module to handle passthrough of shortcuts
---
--- This is meant to be a singleton, so it has no constructor.
--- Instead, it is initialized with the `init` method.
----```lua
--- local PassThrough = require 'passthrough'
--- PassThrough:init():runShortcuts()
---```
----I might want to implement the option of defining custom shortcuts in the future.
+--[[
+PassThrough module to handle passing shortcuts from the rack to reaper.
+
+This has been adapted from FeedTheCat's implementation, which can be found at
+https://forum.cockos.com/showthread.php?t=273404
+
+ This is meant to be a singleton, so it has no constructor.
+ Instead, it is initialized with the `init` method.
+```lua
+ local PassThrough = require 'passthrough'
+ PassThrough:init():runShortcuts()
+```
+I might want to implement the option of defining custom shortcuts in the future.
+]]
+---@class PassThrough
+local PassThrough = {}
 
 local AllAvailableKeys = {
     ['0'] = reaper.ImGui_Key_0(),
@@ -116,21 +123,6 @@ local my_shortcuts = {
     ['Ctrl+Shift+C'] = function() print('And another one!') end
 }
 
-local function initImGuiKeys()
-    local rv = {} ---@type string[]
-    for k, v in pairs(AllAvailableKeys) do
-        rv[v] = k
-    end
-    return rv
-end
-
-local Keys = initImGuiKeys()
-
----PassThrough module to handle passthrough of shortcuts
----This is meant to be a singleton, so it has no constructor.
----Instead, it is initialized with the `init` method.
----@class PassThrough
-local PassThrough = {}
 
 ---@param ctx? ImGui_Context
 function PassThrough:init(ctx)
@@ -177,6 +169,10 @@ function PassThrough:_getImGuiShortcut()
     return rv
 end
 
+---@param section_id integer
+---@param shortcut string
+---@return integer|nil command
+---@return integer|nil shortcut_idx
 function GetCommandByShortcut(section_id, shortcut)
     -- Check REAPER version
     local version = tonumber(reaper.GetAppVersion():match('[%d.]+'))
