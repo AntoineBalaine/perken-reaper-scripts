@@ -14,6 +14,9 @@ fx.__index = fx
 ---to store state and layout information
 ---@param state State
 ---@param theme Theme
+---@param index integer
+---@param number integer
+---@param guid string
 function fx.new(state, theme, index, number, guid)
     ---@class TrackFX
     local self = setmetatable({}, fx)

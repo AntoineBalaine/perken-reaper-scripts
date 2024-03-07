@@ -292,7 +292,7 @@ function fx_box:main(fx)
 
         self:AddParamsBtn()
 
-        for idx, param in ipairs(fx.display_params) do
+        for idx, param in ipairs(self.fx.display_params) do
             local new_val = Knobs.Knob.new(self.ctx,
                 "knob" .. idx,
                 param.name,
@@ -302,7 +302,16 @@ function fx_box:main(fx)
                 0, -- FIXME get the default val
                 reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0 * 0.5,
                 true,
-                param.fmt_val
+                param.fmt_val,
+                function() --- on activate function
+                    -- TODO refactor: move the call to new() into the fx display_param’s state.
+                    -- this violates the principle of separating the view from the state,
+                    -- but otherwise the newly created knob keeps on appearing as «not active» and this callback
+                    -- is being called at every frame the user holds the button.
+                    -- Otherwise, if we really want this to be clean, we’d have to refactor the whole
+                    -- thing to instantiate each fx’s ui as classes
+                    reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, param.name, "last_touched")
+                end
             ):draw(
                 Knobs.Knob.KnobVariant.ableton,
                 self.testcol,

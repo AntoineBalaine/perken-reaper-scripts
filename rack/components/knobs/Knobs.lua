@@ -188,6 +188,7 @@ end
 ---@param radius number
 ---@param controllable boolean
 ---@param label_format string
+---@param on_activate? function
 function Knob.new(
     ctx,
     id,
@@ -198,7 +199,8 @@ function Knob.new(
     v_default,
     radius,
     controllable,
-    label_format
+    label_format,
+    on_activate
 )
     ---@class Knob
     local new_knob = {}
@@ -226,6 +228,7 @@ function Knob.new(
     new_knob._draw_list = reaper.ImGui_GetWindowDrawList(ctx)
     new_knob._is_active = reaper.ImGui_IsItemActive(ctx)
     new_knob._is_hovered = reaper.ImGui_IsItemHovered(ctx)
+    new_knob._on_activate = on_activate
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(ctx)
     new_knob._center_x = draw_cursor_x + new_knob._radius
     new_knob._center_y = draw_cursor_y + new_knob._radius
@@ -256,6 +259,12 @@ function Knob:__control()
 
     local value_changed = false
     local is_active = reaper.ImGui_IsItemActive(self._ctx)
+    if is_active ~= self._is_active then
+        if is_active and self._on_activate then
+            self._on_activate()
+        end
+        self._is_active = is_active
+    end
 
     reaper.ImGui_SetConfigVar(self._ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
     local _, delta_y = reaper.ImGui_GetMouseDragDelta(self._ctx, reaper.ImGui_GetCursorPosX(self._ctx),
@@ -270,10 +279,10 @@ function Knob:__control()
         speed = 200
     end
 
-    if reaper.ImGui_IsMouseDoubleClicked(self._ctx, reaper.ImGui_MouseButton_Left()) and is_active then
+    if reaper.ImGui_IsMouseDoubleClicked(self._ctx, reaper.ImGui_MouseButton_Left()) and self._is_active then
         self._p_value = self._v_default
         value_changed = true
-    elseif is_active and delta_y ~= 0.0 then
+    elseif self._is_active and delta_y ~= 0.0 then
         local step = (self._v_max - self._v_min) / speed
         self._p_value = self._p_value - delta_y * step
         if self._p_value < self._v_min then self._p_value = self._v_min end
