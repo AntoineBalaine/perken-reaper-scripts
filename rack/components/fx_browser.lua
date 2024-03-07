@@ -227,12 +227,16 @@ function Browser:drawFX(list, menu_name)
     if reaper.ImGui_BeginMenu(self.ctx, menu_name) then
         for _, plugin in ipairs(list) do
             local name = type(plugin) == "string" and plugin or plugin.name
+            if string.find(name, "WaveShell") then
+                goto continue
+            end
             if reaper.ImGui_Selectable(self.ctx, name) then
                 reaper.TrackFX_AddByName(self.track, name, false,
                     -1000 - reaper.TrackFX_GetCount(self.track))
                 self.last_used_fx = name
                 self.open = false
             end
+            ::continue::
         end
 
         reaper.ImGui_EndMenu(self.ctx)
