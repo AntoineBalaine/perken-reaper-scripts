@@ -19,8 +19,7 @@ function fx.new(state, theme, index, number, guid)
     local self = setmetatable({}, fx)
     self.state = state
     local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
-    local enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
-    self.enabled = enabled
+    self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
     self.guid = guid
     self.name = name
     self.number = number
@@ -160,7 +159,7 @@ end
 ---query whether the fx is enabled,
 ---query the values of the displayed params
 function fx:update()
-    self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.index)
+    self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.number)
     for i, param in ipairs(self.display_params) do
         param:query_value()
     end

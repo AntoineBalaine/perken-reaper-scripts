@@ -47,7 +47,7 @@ function fx_box:buttonStyleStart()
         button_text_color = self.displaySettings.buttonStyle.text_disabled
     end
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
-        button_text_color) -- fx’s bg color
+        button_text_color) -- fx's text color
 end
 
 function fx_box:buttonStyleEnd()
@@ -55,10 +55,9 @@ function fx_box:buttonStyleEnd()
 end
 
 function fx_box:BypassToggle()
-    local is_enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.fx.index - 1)
-    if reaper.ImGui_Checkbox(self.ctx, "##bypass", is_enabled) then
+    if reaper.ImGui_Checkbox(self.ctx, "##bypass", self.fx.enabled) then
         reaper.TrackFX_SetEnabled(self.state.Track.track, self.fx.index - 1,
-            not is_enabled)
+            not self.fx.enabled)
     end
     -- --leaving the toggle button as WIP for now
     -- local round_flag = reaper.ImGui_DrawFlags_RoundCornersAll()
