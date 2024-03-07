@@ -350,7 +350,6 @@ function Browser:Popup()
 
         self.track = reaper.GetSelectedTrack(0, 0)
         if self.track then
-            self:RescanButton()
             self:drawMenus()
         else
             reaper.ImGui_Text(self.ctx, "please select a track")
