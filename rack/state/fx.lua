@@ -50,8 +50,8 @@ function fx.new(state, theme, index, number, guid)
     }
     self.displaySettings_copy = nil
 
-    local retval, presetname = reaper.TrackFX_GetPreset(self.state.Track.track, self.index - 1)
-    if #tostring(retval) and #presetname then
+    local _, presetname = reaper.TrackFX_GetPreset(self.state.Track.track, self.index - 1)
+    if #presetname > 0 then
         self.presetname = presetname
     else
         self.presetname = nil
