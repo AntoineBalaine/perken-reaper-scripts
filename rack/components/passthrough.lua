@@ -1,4 +1,3 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 --[[
 PassThrough module to handle passing shortcuts from the rack to reaper.
 
@@ -16,7 +15,7 @@ I might want to implement the option of defining custom shortcuts in the future.
 ---@class PassThrough
 local PassThrough = {}
 
-local AllAvailableKeys = {
+local Keys = {
     ['0'] = reaper.ImGui_Key_0(),
     ['1'] = reaper.ImGui_Key_1(),
     ['2'] = reaper.ImGui_Key_2(),
@@ -110,6 +109,8 @@ local AllAvailableKeys = {
     PadEqual = reaper.ImGui_Key_KeypadEqual(),
     PadMultiply = reaper.ImGui_Key_KeypadMultiply(),
     PadSubtract = reaper.ImGui_Key_KeypadSubtract(),
+}
+local Mods = {
     Ctrl = reaper.ImGui_Mod_Ctrl(),
     Shift = reaper.ImGui_Mod_Shift(),
     Alt = reaper.ImGui_Mod_Alt(),
@@ -143,16 +144,19 @@ function PassThrough:_getImGuiShortcut()
     local alt = false
     local hits ---@type string
 
-    for keyname, keycode in pairs(AllAvailableKeys) do
+    for keyname, keycode in pairs(Keys) do
         if reaper.ImGui_IsKeyPressed(self._ctx, keycode, false) then
-            if keyname == "Ctrl" then
+            hits = keyname
+        end
+    end
+    for modname, modcode in pairs(Mods) do
+        if reaper.ImGui_IsKeyDown(self._ctx, modcode) then
+            if modname == "Ctrl" then
                 ctrl = true
-            elseif keyname == "Shift" then
+            elseif modname == "Shift" then
                 shift = true
-            elseif keyname == "Alt" then
+            elseif modname == "Alt" then
                 alt = true
-            else
-                hits = keyname
             end
         end
     end
