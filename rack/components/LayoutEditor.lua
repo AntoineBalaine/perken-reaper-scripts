@@ -17,10 +17,36 @@ Let's go with one instance per fx:
 local LayoutEditor = {}
 
 ---@param ctx ImGui_Context
-function LayoutEditor:init(ctx)
+---@param theme Theme
+function LayoutEditor:init(ctx, theme)
     self.open = false
     self.ctx = ctx
+    self.theme = theme
     return self
+end
+
+function LayoutEditor:fontButton()
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+
+    local wrench_icon = self.theme.letters[75]
+    local arrow_right = self.theme.letters[97]
+    local arrow_down = self.theme.letters[94]
+    local saver = self.theme.letters[164]
+    local kebab = self.theme.letters[191]
+    local plus = self.theme.letters[34]
+    reaper.ImGui_Button(self.ctx, wrench_icon)
+    reaper.ImGui_Button(self.ctx, arrow_right)
+    reaper.ImGui_Button(self.ctx, arrow_down)
+    reaper.ImGui_Button(self.ctx, saver)
+    reaper.ImGui_Button(self.ctx, kebab)
+    reaper.ImGui_Button(self.ctx, plus)
+    -- for i = 1, #self.theme.letters do
+    --     reaper.ImGui_Button(self.ctx, self.theme.letters[i])
+    -- end
+    reaper.ImGui_PopFont(self.ctx)
+    -- reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+    -- reaper.ImGui_DrawList_AddTextEx(draw_list, nil, self.theme.ICON_FONT_SMALL_SIZE, i_x, i_y, font_color, icon)
+    -- reaper.ImGui_PopFont(self.ctx)
 end
 
 function LayoutEditor:main()
@@ -33,6 +59,7 @@ function LayoutEditor:main()
     if visible then
         -- iterate display settings
         reaper.ImGui_Text(self.ctx, "Editing the layout!")
+        self:fontButton()
         reaper.ImGui_End(self.ctx)
     end
     if open then

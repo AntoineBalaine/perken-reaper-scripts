@@ -32,7 +32,7 @@ function fx.new(state, theme, index, number, guid)
     ---@class FxDisplaySettings
     self.displaySettings = {
         height         = 220,
-        Window_Width   = 220,
+        Window_Width   = 228,
         fx_width       = 200,
         Title_Width    = 220 - 80,
         Edge_Rounding  = 0,

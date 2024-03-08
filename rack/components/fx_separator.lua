@@ -26,14 +26,18 @@ local fx_separator = {}
 ---@param is_last? boolean
 function fx_separator:spaceBtwFx(idx, is_last)
     if is_last then
+        reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+        local plus = self.theme.letters[34]
+        -- if reaper.ImGui_Button(self.ctx, plus) then -- create window name button
         if reaper.ImGui_Button(self.ctx,
-                is_last and "+" or "##Button between FX",
-                is_last and 20 or 10,
+                plus,
+                20,
                 220) and is_last then
             if not reaper.ImGui_IsPopupOpen(self.ctx, self.Browser.name) then
                 reaper.ImGui_OpenPopup(self.ctx, self.Browser.name)
             end
         end
+        reaper.ImGui_PopFont(self.ctx)
     else
         reaper.ImGui_InvisibleButton(self.ctx,
             "##Button between FX",
@@ -80,6 +84,7 @@ function fx_separator:init(parent_state)
     self.state = parent_state.state
     self.ctx = parent_state.ctx
     self.Browser = parent_state.Browser
+    self.theme = parent_state.theme
     return self
 end
 

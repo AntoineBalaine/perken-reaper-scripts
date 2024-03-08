@@ -48,12 +48,10 @@ function fx_box:buttonStyleStart()
     end
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
         button_text_color) -- fx's text color
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.lb_font2)
 end
 
 function fx_box:buttonStyleEnd()
     reaper.ImGui_PopStyleColor(self.ctx, 2)
-    reaper.ImGui_PopFont(self.ctx)
 end
 
 function fx_box:BypassToggle()
@@ -218,7 +216,10 @@ function fx_box:LabelButton()
 end
 
 function fx_box:EditLayoutButton()
-    if reaper.ImGui_Button(self.ctx, "E") then -- create window name button
+    local wrench_icon = self.theme.letters[75]
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+
+    if reaper.ImGui_Button(self.ctx, wrench_icon) then -- create window name button
         if (LayoutEditor.open) then
             LayoutEditor:close(layout_enums.EditLayoutCloseAction.discard)
         else
@@ -226,16 +227,21 @@ function fx_box:EditLayoutButton()
             LayoutEditor:edit(self.fx)
         end
     end
+    reaper.ImGui_PopFont(self.ctx)
     reaper.ImGui_SameLine(self.ctx, nil, 5)
 end
 
 function fx_box:AddParamsBtn()
     local popup_name = "addFxParams"
-    if reaper.ImGui_Button(self.ctx, "+") then -- create window name button
+
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+    local plus = self.theme.letters[34]
+    if reaper.ImGui_Button(self.ctx, plus) then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, popup_name) then
             reaper.ImGui_OpenPopup(self.ctx, popup_name)
         end
     end
+    reaper.ImGui_PopFont(self.ctx)
     if reaper.ImGui_IsItemHovered(self.ctx) then
         reaper.ImGui_SetTooltip(self.ctx, "add params to display")
     end
@@ -352,7 +358,7 @@ function fx_box:init(parent_state)
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
     self.testcol = self:testcolors()
-    LayoutEditor:init(parent_state.ctx)
+    LayoutEditor:init(parent_state.ctx, parent_state.theme)
 end
 
 return fx_box

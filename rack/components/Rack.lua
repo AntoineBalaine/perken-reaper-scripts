@@ -77,6 +77,7 @@ function Rack:main()
     reaper.ImGui_End(self.ctx)
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
         -- Close the rack.
+        self.keyboard_passthrough:onClose()
     else
         reaper.defer(function() self:main() end)
     end
@@ -85,10 +86,28 @@ end
 ---Create the ImGui context and setup the window size
 ---@param project_directory string
 function Rack:init(project_directory)
-    local ctx_flags = reaper.ImGui_ConfigFlags_DockingEnable()
-    self.ctx = reaper.ImGui_CreateContext("rack",
-        ctx_flags)
-    self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true, self.ctx) -- get and store the user's theme
+    local os_sep                        = package.config:sub(1, 1)
+    --set up the theme in init, including any custom fonts such as the icons' font
+    ---@class Theme
+    self.theme                          = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
+    self.theme.FONT_SIZE                = 15
+    self.theme.FONT_LARGE               = 16
+    self.theme.ICON_FONT_SMALL_SIZE     = 13
+    self.theme.ICON_FONT_LARGE_SIZE     = 40
+    self.theme.ICON_FONT_CLICKED_SIZE   = 32
+    self.theme.ICON_FONT_PREVIEW_SIZE   = 16
+    local font_path                     = project_directory .. "assets" .. os_sep .. "fontello1.ttf"
+    self.theme.fonts["ICON_FONT_SMALL"] = reaper.ImGui_CreateFont(font_path, self.theme.ICON_FONT_SMALL_SIZE)
+
+    self.theme.letters                  = {}
+    for i = 33, 254 do self.theme.letters[#self.theme.letters + 1] = utf8.char(i) end
+    self.theme.letters = self.theme.letters
+
+    local ctx_flags    = reaper.ImGui_ConfigFlags_DockingEnable()
+    self.ctx           = reaper.ImGui_CreateContext("rack", ctx_flags)
+
+    --- attach the fonts now that the context has been created
+    reaper.ImGui_Attach(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
 
     reaper.ImGui_SetNextWindowSize(self.ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
     local window_flags =
