@@ -55,7 +55,7 @@ function Rack:RackStyleEnd()
 end
 
 function Rack:main()
-    self.keyboard_passthrough:loop() -- execute any shortcuts the user might have pressed
+    self.keyboard_passthrough:run() -- execute any shortcuts the user might have pressed
     -- update state and actions at every loop
     self.state:update():getTrackFx()
     self.actions:update()
