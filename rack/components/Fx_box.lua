@@ -26,13 +26,13 @@ end
 
 function fx_box:fxBoxStyleStart()
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ChildBg(),
-        self.displaySettings.background)  -- fx’s bg color
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Border(),
-        self.displaySettings.BorderColor) -- fx box’s border color
+        self.displaySettings.background) -- fx’s bg color
+    -- reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Border(),
+    --     self.displaySettings.BorderColor) -- fx box’s border color
 end
 
 function fx_box:fxBoxStyleEnd()
-    reaper.ImGui_PopStyleColor(self.ctx, 2) -- pop the bg, button bg and border colors
+    reaper.ImGui_PopStyleColor(self.ctx, 1) -- pop the bg, button bg and border colors
 end
 
 function fx_box:buttonStyleStart()
@@ -48,10 +48,12 @@ function fx_box:buttonStyleStart()
     end
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
         button_text_color) -- fx's text color
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.lb_font2)
 end
 
 function fx_box:buttonStyleEnd()
     reaper.ImGui_PopStyleColor(self.ctx, 2)
+    reaper.ImGui_PopFont(self.ctx)
 end
 
 function fx_box:BypassToggle()

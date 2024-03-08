@@ -43,6 +43,7 @@ end
 
 --- start any styling for the rack, i.e. `ImGui_PushStyleColor`
 function Rack:RackStyleStart()
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameRounding(), 2) -- round up the frames
     reaper.ImGui_PushStyleColor(
         self.ctx,
         reaper.ImGui_Col_WindowBg(), --background color
@@ -51,11 +52,11 @@ end
 
 --- end any styling for the rack, i.e. `ImGui_PopStyleColor`
 function Rack:RackStyleEnd()
-    reaper.ImGui_PopStyleColor(self.ctx) -- Remove background color
+    reaper.ImGui_PopStyleColor(self.ctx)  -- Remove background color
+    reaper.ImGui_PopStyleVar(self.ctx, 1) -- remove rounding of frames
 end
 
 function Rack:main()
-    self.keyboard_passthrough:run() -- execute any shortcuts the user might have pressed
     -- update state and actions at every loop
     self.state:update():getTrackFx()
     self.actions:update()
@@ -64,9 +65,11 @@ function Rack:main()
     self:RackStyleStart()
 
     local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
+
+    self.keyboard_passthrough:run() -- execute any shortcuts the user might have pressed
     if imgui_visible then
         --display the rack
-        menubar:display()
+        -- menubar:display()
         self:drawFxList()
     end
 
@@ -85,22 +88,26 @@ function Rack:init(project_directory)
     local ctx_flags = reaper.ImGui_ConfigFlags_DockingEnable()
     self.ctx = reaper.ImGui_CreateContext("rack",
         ctx_flags)
+    self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true, self.ctx) -- get and store the user's theme
+
     reaper.ImGui_SetNextWindowSize(self.ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
     local window_flags =
         reaper.ImGui_WindowFlags_NoScrollWithMouse()
         + reaper.ImGui_WindowFlags_NoScrollbar()
-        + reaper.ImGui_WindowFlags_MenuBar()
+        -- + reaper.ImGui_WindowFlags_MenuBar()
+        + reaper.ImGui_WindowFlags_AlwaysAutoResize()
         + reaper.ImGui_WindowFlags_NoCollapse()
+        + reaper.ImGui_WindowFlags_NoTitleBar()
         + reaper.ImGui_WindowFlags_NoNav()
+
     self.window_flags = window_flags -- tb used in main()
 
 
     self.settings = Settings:init(project_directory)
-    self.theme = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
-    self.state = state:init(project_directory, self.theme)               -- initialize state, query selected track and its fx
-    self.actions = actions:init(self.ctx, self.state.Track)              -- always init actions after state
+    self.state = state:init(project_directory, self.theme)  -- initialize state, query selected track and its fx
+    self.actions = actions:init(self.ctx, self.state.Track) -- always init actions after state
     self.keyboard_passthrough = keyboard_passthrough:init(self.ctx)
-    Browser:init(self.ctx)                                               -- initialize the fx browser
+    Browser:init(self.ctx)                                  -- initialize the fx browser
     ---@type FXBrowser
     self.Browser =
         Browser -- set the fx browser as a property of the rack, always init before the Fx_separator
@@ -108,7 +115,7 @@ function Rack:init(project_directory)
     -- initialize components by passing them the rack's state
     Fx_box:init(self)
     Fx_separator:init(self)
-    menubar:init(self)
+    -- menubar:init(self)
     return self
 end
 

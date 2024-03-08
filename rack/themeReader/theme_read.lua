@@ -8,7 +8,7 @@ local ThemeReader = {}
 
 ---@class Theme
 ---@field colors ColorTable colors
----@field fonts table<string, string> fonts
+---@field fonts FontTable fonts
 
 local info = debug.getinfo(1, "S")
 
@@ -97,11 +97,14 @@ local function splitFileName(strfilename)
 end
 
 ---Read the theme from the provided file,
----and return a table containing its colors and fonts
+---and return a table containing its colors and fonts.
+--
+--If an ImGui context is provided, the fonts will be attached to the context, and created
 ---@param theme_path string
 ---@param convert_colors? boolean convert colors so they can be used in ImGui
+---@param ctx? ImGui_Context
 ---@return Theme theme
-function ThemeReader.readTheme(theme_path, convert_colors)
+function ThemeReader.readTheme(theme_path, convert_colors, ctx)
     -- local theme_is_zip = not reaper.file_exists(theme_path)
     local _, theme_name, _ = splitFileName(theme_path)
     local theme_prefix, theme_version_str = theme_name:match("(.+) %- Mod (%d+)")
@@ -136,9 +139,29 @@ function ThemeReader.readTheme(theme_path, convert_colors)
     local fonts_tab = { "lb_font", "lb_font2", "user_font0", "user_font1", "user_font2", "user_font3", "user_font4",
         "user_font5", "user_font6", "user_font7", "tl_font", "trans_font", "mi_font", "ui_img", "ui_img_path" }
 
-    local fonts = {} ---@type table<string, string>
+    ---@class FontTable
+    ---@field lb_font string|ImGui_Font
+    ---@field lb_font2 string|ImGui_Font
+    ---@field user_font0 string|ImGui_Font
+    ---@field user_font1 string|ImGui_Font
+    ---@field user_font2 string|ImGui_Font
+    ---@field user_font3 string|ImGui_Font
+    ---@field user_font4 string|ImGui_Font
+
+
+    local fonts = {} ---@type FontTable
     for _, v in ipairs(fonts_tab) do
         local _, val = reaper.BR_Win32_GetPrivateProfileString("REAPER", v, -1, theme_path)
+
+        if ctx then
+            -- local fontsize = reaper.ImGui_GetFontSize(ctx)
+            local new_font = reaper.ImGui_CreateFont(val, 16)
+            reaper.ImGui_Attach(ctx, new_font)
+            fonts[v] = new_font
+        else
+            fonts[v] = val
+        end
+
         fonts[v] = val
     end
 
