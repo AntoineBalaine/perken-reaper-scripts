@@ -194,7 +194,9 @@ function fx_box:toggleFxWindow()
 end
 
 function fx_box:LabelButton()
-    local display_name = fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
+    local display_name = self.fx.presetname ~= nil
+        and self.fx.presetname
+        or fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
     local btn_width = self.displaySettings.Title_Width
     local btn_height = 20
     self:buttonStyleStart()

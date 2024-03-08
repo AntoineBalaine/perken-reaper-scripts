@@ -32,7 +32,7 @@ function fx.new(state, theme, index, number, guid)
     ---@class FxDisplaySettings
     self.displaySettings = {
         height         = 220,
-        Window_Width   = 228,
+        Window_Width   = 248,
         fx_width       = 200,
         Title_Width    = 220 - 80,
         Edge_Rounding  = 0,
@@ -49,6 +49,14 @@ function fx.new(state, theme, index, number, guid)
         }
     }
     self.displaySettings_copy = nil
+
+    local retval, presetname = reaper.TrackFX_GetPreset(self.state.Track.track, self.index - 1)
+    if #tostring(retval) and #presetname then
+        self.presetname = presetname
+    else
+        self.presetname = nil
+    end
+
     -- self.param_list
     -- number retval, number minval, number maxval = reaper.TrackFX_GetParam(MediaTrack track, integer fx, integer param)
     --
@@ -163,7 +171,18 @@ end
 ---query the values of the displayed params
 function fx:update()
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.number)
-    for i, param in ipairs(self.display_params) do
+    local _, presetname = reaper.TrackFX_GetPreset(self.state.Track.track, self.index - 1)
+    if #presetname > 0 then
+        if self.presetname ~= presetname then
+            self.presetname = presetname
+        end
+    else
+        if self.presetname then
+            self.presetname = nil
+        end
+    end
+
+    for _, param in ipairs(self.display_params) do
         param:query_value()
     end
 end
