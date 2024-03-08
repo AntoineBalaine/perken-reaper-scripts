@@ -16,7 +16,13 @@ local keyboard_passthrough = {}
 function keyboard_passthrough:init(ctx)
     self._ctx = ctx
     self._startTime = reaper.time_precise()
+    self.cur_pref = reaper.SNM_GetIntConfigVar("alwaysallowkb", 1)
+    reaper.SNM_SetIntConfigVar("alwaysallowkb", 1)
     return self
+end
+
+function keyboard_passthrough:onClose()
+    reaper.SNM_SetIntConfigVar("alwaysallowkb", self.cur_pref)
 end
 
 function keyboard_passthrough:run()
