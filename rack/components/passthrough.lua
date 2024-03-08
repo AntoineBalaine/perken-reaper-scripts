@@ -71,7 +71,7 @@ local AllAvailableKeys = {
     Backspace = reaper.ImGui_Key_Backspace(),
     Comma = reaper.ImGui_Key_Comma(),
     Delete = reaper.ImGui_Key_Delete(),
-    DownArrow = reaper.ImGui_Key_DownArrow(),
+    Down = reaper.ImGui_Key_DownArrow(),
     Enter = reaper.ImGui_Key_Enter(),
     End = reaper.ImGui_Key_End(),
     Equal = reaper.ImGui_Key_Equal(),
@@ -92,7 +92,7 @@ local AllAvailableKeys = {
     Slash = reaper.ImGui_Key_Slash(),
     Space = reaper.ImGui_Key_Space(),
     Tab = reaper.ImGui_Key_Tab(),
-    UpArrow = reaper.ImGui_Key_UpArrow(),
+    Up = reaper.ImGui_Key_UpArrow(),
     Pad0 = reaper.ImGui_Key_Keypad0(),
     Pad1 = reaper.ImGui_Key_Keypad1(),
     Pad2 = reaper.ImGui_Key_Keypad2(),
@@ -144,7 +144,7 @@ function PassThrough:_getImGuiShortcut()
     local hits ---@type string
 
     for keyname, keycode in pairs(AllAvailableKeys) do
-        if reaper.ImGui_IsKeyDown(self._ctx, keycode) then
+        if reaper.ImGui_IsKeyPressed(self._ctx, keycode, false) then
             if keyname == "Ctrl" then
                 ctrl = true
             elseif keyname == "Shift" then
