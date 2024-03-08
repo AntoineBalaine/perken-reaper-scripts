@@ -20,6 +20,10 @@ function keyboard_passthrough:init(ctx)
 end
 
 function keyboard_passthrough:run()
+    -- don't run the shortcuts if the window is not focused
+    if not reaper.ImGui_IsWindowFocused(self._ctx) or reaper.ImGui_IsAnyItemActive(self._ctx) then
+        return
+    end
     local keys = reaper.JS_VKeys_GetState(self._startTime - 0.03)
     for k = 1, #keys do
         if k ~= 0xD and keys:byte(k) ~= 0 then
