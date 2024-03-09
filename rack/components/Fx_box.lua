@@ -230,6 +230,9 @@ function fx_box:EditLayoutButton()
         end
     end
     reaper.ImGui_PopFont(self.ctx)
+    if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
+        reaper.ImGui_SetTooltip(self.ctx, "edit fx layout")
+    end
     reaper.ImGui_SameLine(self.ctx, nil, 5)
 end
 
@@ -244,7 +247,7 @@ function fx_box:AddParamsBtn()
         end
     end
     reaper.ImGui_PopFont(self.ctx)
-    if reaper.ImGui_IsItemHovered(self.ctx) then
+    if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
         reaper.ImGui_SetTooltip(self.ctx, "add params to display")
     end
 

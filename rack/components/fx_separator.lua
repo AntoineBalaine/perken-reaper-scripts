@@ -38,6 +38,10 @@ function fx_separator:spaceBtwFx(idx, is_last)
             end
         end
         reaper.ImGui_PopFont(self.ctx)
+
+        if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
+            reaper.ImGui_SetTooltip(self.ctx, "add fx")
+        end
     else
         reaper.ImGui_InvisibleButton(self.ctx,
             "##Button between FX",
