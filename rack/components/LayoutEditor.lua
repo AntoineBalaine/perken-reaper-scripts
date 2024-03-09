@@ -14,6 +14,7 @@ Let's go with one instance per fx:
 - If we want to persist unsaved layouts between re-starts, we'll have to either store this in external state or in the track.
 
 ]]
+local layoutEnums = require("state.fx_layout_types")
 local LayoutEditor = {}
 
 ---@param ctx ImGui_Context
@@ -88,17 +89,57 @@ function LayoutEditor:AddParams()
         if new_val ~= param.display then
             param.display = new_val
             if new_val then
-                self.fx:displayParam(param.guid)
+                self.selectedParam = self.fx:displayParam(param.guid)
             else
                 self.fx:removeParam(param.guid)
             end
         end
 
         --- TODO on select
-        local _, _ = reaper.ImGui_Selectable(self.ctx, param.name, param.display)
+
+        local _, selected = reaper.ImGui_Selectable(
+            self.ctx,
+            param.name,
+            self.selectedParam and param.guid == self.selectedParam.guid)
+        if selected then
+            self.selectedParam = param
+        end
     end
 end
 
+function LayoutEditor:ParamInfo()
+    local param = self.selectedParam
+    if not param then
+        return
+    end
+
+
+    if not param.display_settings then
+        reaper.ImGui_Text(self.ctx, "This param is not being displayed")
+        return
+    end
+    reaper.ImGui_Text(self.ctx, "Param Display Type")
+    for type_name, type_idx in pairs(layoutEnums.Param_Display_Type) do
+        _, param.display_settings.type = reaper.ImGui_RadioButtonEx(
+            self.ctx,
+            type_name,
+            param.display_settings.type,
+            type_idx)
+        reaper.ImGui_SameLine(self.ctx)
+    end
+    -- _, basic.radio = reaper.ImGui_RadioButtonEx(self.ctx, "Slider", basic.radio, 1)
+    -- ; reaper.ImGui_SameLine(self.ctx)
+    -- _, basic.radio = reaper.ImGui_RadioButtonEx(self.ctx, "Drop-Down", basic.radio, 2)
+
+    ---TODO implement param display/selection logic
+    reaper.ImGui_Text(self.ctx, param.name)
+    reaper.ImGui_Text(self.ctx, tostring(param.minval))
+    reaper.ImGui_Text(self.ctx, tostring(param.maxval))
+    reaper.ImGui_Text(self.ctx, param.guid)
+    reaper.ImGui_Text(self.ctx, tostring(param.value))
+end
+
+--- TODO Left pane to contain list of params and list of colors? or just the list of params?
 function LayoutEditor:LeftPane()
     if reaper.ImGui_BeginChild(self.ctx, 'left pane', 150, -25, true) then
         self:AddParams()
@@ -109,9 +150,10 @@ end
 
 function LayoutEditor:RightPane()
     reaper.ImGui_BeginGroup(self.ctx)
-    reaper.ImGui_Text(self.ctx, "Editing the layout!")
-    self:Sketch()
-    self:FontButton()
+    self:ParamInfo()
+    -- reaper.ImGui_Text(self.ctx, "Editing the layout!")
+    -- self:Sketch()
+    -- self:FontButton()
     reaper.ImGui_EndGroup(self.ctx)
 end
 
@@ -119,12 +161,9 @@ function LayoutEditor:Main()
     if not self.open then
         return
     end
-    reaper.ImGui_SetNextWindowSize(self.ctx, 400, 300)
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, reaper.ImGui_WindowFlags_TopMost()) ---begin popup
     self.open = open
     if visible then
-        -- iterate display settings
-
         self:LeftPane()
         self:RightPane()
 
@@ -147,13 +186,12 @@ end
 
 ---@param fx TrackFX
 function LayoutEditor:edit(fx)
-    --[[
-   display a pop-up window with a widget for each of the settings.
-    --]]
     self.fx = fx
     self.displaySettings = fx.displaySettings_copy
     self.open = true
     self.windowLabel = self.fx.name .. self.fx.index .. " - Layout Editor"
+    self.selectedParam = self.fx.display_params[1] -- select the first param in the list by default
+    reaper.ImGui_SetNextWindowSize(self.ctx, 400, 300)
     self:Main()
 end
 

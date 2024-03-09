@@ -1,3 +1,4 @@
+local layoutEnums = require("state.fx_layout_types")
 ---@class Parameter
 local parameter = {}
 parameter.__index = parameter
@@ -31,6 +32,10 @@ function parameter.new(state, param_index, parent_fx, guid)
             new_param.state.Track.track,
             new_param.parent_fx.index,
             new_param.index)
+    new_param.display_settings = {
+        ---@type Param_Display_Type
+        type = layoutEnums.Param_Display_Type.Knob
+    }
 
 
     return new_param

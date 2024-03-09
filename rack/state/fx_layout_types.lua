@@ -12,13 +12,13 @@ layout_enums.EditLayoutCloseAction = {
 }
 
 ---@enum Param_Display_Type
-local Param_Display_Type = {
-    Slider = "Slider",
-    Knob = "Knob",
-    vSlider = "vSlider",
-    Drag = "Drag",
-    switch = "switch",
-    selection = "selection",
+layout_enums.Param_Display_Type = {
+    Slider = 1,
+    Knob = 2,
+    vSlider = 3,
+    Drag = 4,
+    switch = 5,
+    selection = 6,
 }
 
 ---@enum DragDirection
