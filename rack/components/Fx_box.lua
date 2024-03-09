@@ -236,6 +236,41 @@ function fx_box:EditLayoutButton()
     reaper.ImGui_SameLine(self.ctx, nil, 5)
 end
 
+function fx_box:AddSavePresetBtn()
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+    local saver = self.theme.letters[164]
+    if reaper.ImGui_Button(self.ctx, saver) then -- create window name button
+        if not reaper.ImGui_IsPopupOpen(self.ctx, "##presetsave") then
+            reaper.ImGui_OpenPopup(self.ctx, "##presetsave")
+        end
+    end
+    reaper.ImGui_PopFont(self.ctx)
+    if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
+        reaper.ImGui_SetTooltip(self.ctx, "save fx preset")
+    end
+
+    reaper.ImGui_SetNextWindowSize(self.ctx, 400, 100)
+    self.open = reaper.ImGui_BeginPopupModal(self.ctx, "##presetsave")
+    if reaper.ImGui_IsWindowAppearing(self.ctx) then -- focus the input box when the window appears
+        reaper.ImGui_SetKeyboardFocusHere(self.ctx)
+    end
+    if self.open then
+        self.open = true
+        local new_val = ""
+        reaper.ImGui_Text(self.ctx, "Preset name:")
+        reaper.ImGui_InputText(self.ctx, "Preset name", new_val)
+        if reaper.ImGui_Button(self.ctx, "ok") then
+            -- TODO save presets
+        end
+        reaper.ImGui_SameLine(self.ctx)
+        if reaper.ImGui_Button(self.ctx, "cancel") then
+            new_val = ""
+            reaper.ImGui_CloseCurrentPopup(self.ctx)
+        end
+        reaper.ImGui_EndPopup(self.ctx)
+    end
+end
+
 function fx_box:AddParamsBtn()
     local popup_name = "addFxParams"
 
@@ -276,6 +311,7 @@ function fx_box:AddParamsBtn()
         end
         reaper.ImGui_EndPopup(self.ctx)
     end
+    reaper.ImGui_SameLine(self.ctx)
 end
 
 ---@param fx TrackFX
@@ -304,6 +340,7 @@ function fx_box:main(fx)
         self:LabelButton()
 
         self:AddParamsBtn()
+        self:AddSavePresetBtn()
 
         for idx, param in ipairs(self.fx.display_params) do
             local new_val = Knobs.Knob.new(self.ctx,
