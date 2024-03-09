@@ -48,7 +48,7 @@ function fx.new(state, theme, index, number, guid)
             text_disabled = theme.colors.col_toolbar_text.color
         }
     }
-    self.displaySettings_copy = nil
+    self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 
     local _, presetname = reaper.TrackFX_GetPreset(self.state.Track.track, self.index - 1)
     if #presetname > 0 then

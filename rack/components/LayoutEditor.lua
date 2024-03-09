@@ -25,7 +25,8 @@ function LayoutEditor:init(ctx, theme)
     return self
 end
 
-function LayoutEditor:fontButton()
+---display button examples from fonts
+function LayoutEditor:FontButton()
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
 
     local wrench_icon = self.theme.letters[75]
@@ -49,7 +50,71 @@ function LayoutEditor:fontButton()
     -- reaper.ImGui_PopFont(self.ctx)
 end
 
-function LayoutEditor:main()
+function LayoutEditor:Sketch()
+    for k, v in ipairs(self.theme.colors) do
+        reaper.ImGui_BeginGroup(self.ctx)
+        reaper.ImGui_text(self.ctx, k)
+        reaper.ImGui_colorPicker(self.ctx, v.color)
+        reaper.ImGui_EndGroup(self.ctx)
+    end
+end
+
+---Display button to save changes to layout or discard them.
+--TODO  implement
+function LayoutEditor:SaveCancelButton()
+    reaper.ImGui_BeginGroup(self.ctx)
+    reaper.ImGui_Button(self.ctx, "save")
+    reaper.ImGui_SameLine(self.ctx)
+    if reaper.ImGui_Button(self.ctx, "cancel") then
+        self.open = false
+    end
+
+    reaper.ImGui_EndGroup(self.ctx)
+end
+
+function LayoutEditor:AddParams()
+    local all_params = false
+    if reaper.ImGui_Checkbox(self.ctx, "All params", false) then
+        all_params = true
+    end
+    ---TODO implement text filter here, so that user can filter the fx-params' list.
+    for i = 1, #self.fx.params_list - 1 do
+        local param      = self.fx.params_list[i]
+        local _, new_val = reaper.ImGui_Checkbox(self.ctx, "##paramname", param.display)
+        reaper.ImGui_SameLine(self.ctx)
+        --- TODO on select
+        local _, _ = reaper.ImGui_Selectable(self.ctx, param.name, param.display)
+        if all_params then
+            param.display = true
+        end
+        if new_val ~= param.display then
+            param.display = new_val
+            if new_val then
+                self.fx:displayParam(param.guid)
+            else
+                self.fx:removeParam(param.guid)
+            end
+        end
+    end
+end
+
+function LayoutEditor:LeftPane()
+    if reaper.ImGui_BeginChild(self.ctx, 'left pane', 150, -25, true) then
+        self:AddParams()
+        reaper.ImGui_EndChild(self.ctx)
+    end
+    reaper.ImGui_SameLine(self.ctx)
+end
+
+function LayoutEditor:RightPane()
+    reaper.ImGui_BeginGroup(self.ctx)
+    reaper.ImGui_Text(self.ctx, "Editing the layout!")
+    self:Sketch()
+    self:FontButton()
+    reaper.ImGui_EndGroup(self.ctx)
+end
+
+function LayoutEditor:Main()
     if not self.open then
         return
     end
@@ -58,12 +123,15 @@ function LayoutEditor:main()
     self.open = open
     if visible then
         -- iterate display settings
-        reaper.ImGui_Text(self.ctx, "Editing the layout!")
-        self:fontButton()
+
+        self:LeftPane()
+        self:RightPane()
+
+        self:SaveCancelButton()
         reaper.ImGui_End(self.ctx)
     end
     if open then
-        reaper.defer(function() self:main() end)
+        reaper.defer(function() self:Main() end)
     end
 end
 
@@ -85,7 +153,7 @@ function LayoutEditor:edit(fx)
     self.displaySettings = fx.displaySettings_copy
     self.open = true
     self.windowLabel = self.fx.name .. self.fx.index .. " - Layout Editor"
-    self:main()
+    self:Main()
 end
 
 return LayoutEditor
