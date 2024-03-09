@@ -274,6 +274,7 @@ end
 function fx_box:AddParamsBtn()
     local popup_name = "addFxParams"
 
+    -- "+" ICON 
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
     local plus = self.theme.letters[34]
     if reaper.ImGui_Button(self.ctx, plus) then -- create window name button
@@ -286,6 +287,7 @@ function fx_box:AddParamsBtn()
         reaper.ImGui_SetTooltip(self.ctx, "add params to display")
     end
 
+    -- ADD PARAMS POPUP
     reaper.ImGui_SetWindowSize(self.ctx, 400, 300)
     if reaper.ImGui_BeginPopup(self.ctx, popup_name) then
         ---TODO fix this guy during fx's state updates.

@@ -77,13 +77,11 @@ function LayoutEditor:AddParams()
     if reaper.ImGui_Checkbox(self.ctx, "All params", false) then
         all_params = true
     end
-    ---TODO implement text filter here, so that user can filter the fx-params' list.
+    ---TODO implement text filter here, so that user can filter the fx-params' list.
     for i = 1, #self.fx.params_list - 1 do
         local param      = self.fx.params_list[i]
-        local _, new_val = reaper.ImGui_Checkbox(self.ctx, "##paramname", param.display)
+        local _, new_val = reaper.ImGui_Checkbox(self.ctx, "##" .. param.name, param.display)
         reaper.ImGui_SameLine(self.ctx)
-        --- TODO on select
-        local _, _ = reaper.ImGui_Selectable(self.ctx, param.name, param.display)
         if all_params then
             param.display = true
         end
@@ -95,6 +93,9 @@ function LayoutEditor:AddParams()
                 self.fx:removeParam(param.guid)
             end
         end
+
+        --- TODO on select
+        local _, _ = reaper.ImGui_Selectable(self.ctx, param.name, param.display)
     end
 end
 
@@ -157,3 +158,4 @@ function LayoutEditor:edit(fx)
 end
 
 return LayoutEditor
+
