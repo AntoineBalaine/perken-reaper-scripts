@@ -291,17 +291,10 @@ function fx_box:AddParamsBtn()
     reaper.ImGui_SetWindowSize(self.ctx, 400, 300)
     if reaper.ImGui_BeginPopup(self.ctx, popup_name) then
         ---TODO fix this guy during fx's state updates.
-        local all_params = false
-        if reaper.ImGui_Checkbox(self.ctx, "All params", false) then
-            all_params = true
-        end
         ---TODO implement text filter here, so that user can filter the fx-params' list.
         for i = 1, #self.fx.params_list - 1 do
             local param = self.fx.params_list[i]
             local _, new_val = reaper.ImGui_Checkbox(self.ctx, param.name, param.display)
-            if all_params then
-                param.display = true
-            end
             if new_val ~= param.display then
                 param.display = new_val
                 if new_val then
