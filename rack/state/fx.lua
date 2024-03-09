@@ -158,7 +158,9 @@ function fx:createParams()
             index = param_index,
             name = name,
             guid = guid,
-            display = display
+            display = display,
+            ---@type Parameter |nil
+            displayDetails = nil
         }
         table.insert(params_list, param)
         params_by_guid[guid] = param
@@ -190,9 +192,12 @@ end
 ---add param to list of displayed params
 ---query its value, create a param class for it
 function fx:displayParam(guid)
+    ---@class ParamData
     local param = self.params_by_guid[guid]
     local new_param = parameter.new(self.state, param.index, self, guid)
+    param.displayDetails = new_param
     table.insert(self.display_params, new_param)
+    return new_param
 end
 
 ---FIXME this is a linear search…
