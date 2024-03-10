@@ -344,7 +344,7 @@ function fx_box:main(fx)
                 tonumber(param.value) or 0,
                 param.minval,
                 param.maxval,
-                0, -- FIXME get the default val
+                param.defaultval,
                 reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0 * 0.5,
                 true,
                 param.fmt_val,

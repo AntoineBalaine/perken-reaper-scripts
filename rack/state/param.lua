@@ -32,6 +32,13 @@ function parameter.new(state, param_index, parent_fx, guid)
             new_param.state.Track.track,
             new_param.parent_fx.index,
             new_param.index)
+
+    new_param.value = reaper.TrackFX_GetParamNormalized(new_param.state.Track.track,
+        new_param.parent_fx.index - 1,
+        new_param.index)
+    ---for default value, I'm having to use the on-first-load value.
+    --That's because reaper doesn't have an API to query the default value of a parameter.
+    new_param.defaultval = new_param.value -- assume scalar values are copied upon assignment. I think that's right?
     new_param.display_settings = {
         ---@type Param_Display_Type
         type = layoutEnums.Param_Display_Type.Knob
@@ -42,10 +49,9 @@ function parameter.new(state, param_index, parent_fx, guid)
 end
 
 function parameter:query_value()
-    local val = reaper.TrackFX_GetParamNormalized(self.state.Track.track,
+    self.value = reaper.TrackFX_GetParamNormalized(self.state.Track.track,
         self.parent_fx.index - 1,
         self.index)
-    self.value = val
     local rv_fmt, formatted = reaper.TrackFX_GetFormattedParamValue(
         self.state.Track.track,
         self.parent_fx.index - 1,
