@@ -1,6 +1,13 @@
 local dummy_theme = {}
 ---@type Theme
 dummy_theme.theme = {
+    FONT_LARGE = 16,
+    FONT_SIZE = 15,
+    ICON_FONT_CLICKED_SIZE = 32,
+    ICON_FONT_LARGE_SIZE = 40,
+    ICON_FONT_PREVIEW_SIZE = 16,
+    ICON_FONT_SMALL_SIZE = 13,
+    letters = {},
     fonts = {},
     colors = {
         activetake_tag = { description = "", color = 0x000000FF },

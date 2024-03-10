@@ -40,6 +40,7 @@ _G.reaper = {
     ImGui_WindowFlags_NoScrollbar = function() return 0 end,
     ImGui_Mod_Alt = function() return 0 end,
     LocalizeString = function() return "" end,
+    TrackFX_GetPreset = function() return nil, "" end
 }
 
 local State = require("state.state")
@@ -50,6 +51,7 @@ local drag_drop = require("state.dragAndDrop")
 local MockRack = {}
 function MockRack:mockInit()
     self.state = State:init("", theme) -- initialize state, query selected track and its fx
+    self.theme = theme
     self.ctx = {}
     self.Browser = nil
     return self

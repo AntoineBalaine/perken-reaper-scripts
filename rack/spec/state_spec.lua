@@ -20,6 +20,7 @@ describe("State tests", function()
         TrackFX_GetFXGUID = function() --[[fxGuid]] end,
         TrackFX_GetFXName = function() --[[_, fxname]] end,
         TrackFX_GetParamName = function() --[[_, paramName]] end,
+        TrackFX_GetPreset = function() return nil, "" end
     }
 
     -- these are the calls that state:update() makes
@@ -93,6 +94,7 @@ describe("State tests", function()
     it("remove fx - state:deleteFx (from inside the rack) #state_update", function()
         local TrackFX_Delete = spy.on(_G.reaper, "TrackFX_Delete")
         fx = create_fx()
+        state:update():getTrackFx()
 
         state:deleteFx(2)
         assert.True(state.Track.fx_count == 2)
