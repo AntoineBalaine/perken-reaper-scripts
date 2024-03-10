@@ -185,8 +185,8 @@ function state:deleteFx(idx)
         table.remove(self.Track.fx_list, idx)
         self.Track.fx_count = self.Track.fx_count - 1
         --- update all indexes in the fx_list
-        for idx, fx in ipairs(self.Track.fx_list) do
-            fx.index = idx
+        for fx_idx, list_fx in ipairs(self.Track.fx_list) do
+            list_fx.index = fx_idx
         end
     end
     return self
