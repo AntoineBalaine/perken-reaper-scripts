@@ -23,7 +23,7 @@ function parameter.new(state, param_index, parent_fx, guid)
         new_param.index)
     new_param.name = name
     new_param.ident = ident
-    _, new_param.minval, new_param.maxval = reaper.TrackFX_GetParam(
+    _, new_param.minval, new_param.maxval, new_param.midval = reaper.TrackFX_GetParamEx(
         new_param.state.Track.track,
         new_param.parent_fx.index,
         new_param.index)

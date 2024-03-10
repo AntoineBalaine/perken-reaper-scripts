@@ -159,8 +159,8 @@ function fx:createParams()
             name = name,
             guid = guid,
             display = display,
-            ---@type Parameter |nil
-            displayDetails = nil
+            ---@type Parameter | nil
+            details = nil
         }
         table.insert(params_list, param)
         params_by_guid[guid] = param
@@ -191,18 +191,22 @@ end
 
 ---add param to list of displayed params
 ---query its value, create a param class for it
-function fx:displayParam(guid)
+function fx:createParamDetails(guid)
     ---@class ParamData
     local param = self.params_by_guid[guid]
     local new_param = parameter.new(self.state, param.index, self, guid)
-    param.displayDetails = new_param
+    param.details = new_param
     table.insert(self.display_params, new_param)
-    return new_param
+    return param
 end
 
----FIXME this is a linear search…
 ---I’m having to run a linear sweep here to find the fx by guid in the list of displayed params.
-function fx:removeParam(guid)
+function fx:removeParamDetails(guid)
+    ---@class ParamData
+    local param = self.params_by_guid[guid]
+    if param and param.details then
+        param.details = nil
+    end
     for i, fx_instance in ipairs(self.display_params) do
         if fx_instance.guid == guid then
             table.remove(self.display_params, i)

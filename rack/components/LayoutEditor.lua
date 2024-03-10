@@ -80,6 +80,7 @@ function LayoutEditor:AddParams()
     end
     ---TODO implement text filter here, so that user can filter the fx-params' list.
     for i = 1, #self.fx.params_list - 1 do
+        ---@class ParamData
         local param      = self.fx.params_list[i]
         local _, new_val = reaper.ImGui_Checkbox(self.ctx, "##" .. param.name, param.display)
         reaper.ImGui_SameLine(self.ctx)
@@ -89,13 +90,11 @@ function LayoutEditor:AddParams()
         if new_val ~= param.display then
             param.display = new_val
             if new_val then
-                self.selectedParam = self.fx:displayParam(param.guid)
+                self.selectedParam = self.fx:createParamDetails(param.guid)
             else
-                self.fx:removeParam(param.guid)
+                self.fx:removeParamDetails(param.guid)
             end
         end
-
-        --- TODO on select
 
         local _, selected = reaper.ImGui_Selectable(
             self.ctx,
@@ -114,29 +113,31 @@ function LayoutEditor:ParamInfo()
     end
 
 
-    if not param.display_settings then
-        reaper.ImGui_Text(self.ctx, "This param is not being displayed")
+    if param.details == nil or not param.details.display_settings then
+        reaper.ImGui_Text(self.ctx, "This param is not enabled for display.")
         return
     end
     reaper.ImGui_Text(self.ctx, "Param Display Type")
+    reaper.ImGui_BeginTable(self.ctx, "##radioBtnTable", layoutEnums.Param_Display_Type_Length)
     for type_name, type_idx in pairs(layoutEnums.Param_Display_Type) do
-        _, param.display_settings.type = reaper.ImGui_RadioButtonEx(
+        reaper.ImGui_TableNextColumn(self.ctx)
+        _, param.details.display_settings.type = reaper.ImGui_RadioButtonEx(
             self.ctx,
             type_name,
-            param.display_settings.type,
+            param.details.display_settings.type,
             type_idx)
-        reaper.ImGui_SameLine(self.ctx)
+
+        reaper.ImGui_TableNextColumn(self.ctx)
     end
-    -- _, basic.radio = reaper.ImGui_RadioButtonEx(self.ctx, "Slider", basic.radio, 1)
-    -- ; reaper.ImGui_SameLine(self.ctx)
-    -- _, basic.radio = reaper.ImGui_RadioButtonEx(self.ctx, "Drop-Down", basic.radio, 2)
+    reaper.ImGui_EndTable(self.ctx)
 
     ---TODO implement param display/selection logic
     reaper.ImGui_Text(self.ctx, param.name)
-    reaper.ImGui_Text(self.ctx, tostring(param.minval))
-    reaper.ImGui_Text(self.ctx, tostring(param.maxval))
-    reaper.ImGui_Text(self.ctx, param.guid)
-    reaper.ImGui_Text(self.ctx, tostring(param.value))
+    reaper.ImGui_Text(self.ctx, "min " .. tostring(param.details.minval))
+    reaper.ImGui_Text(self.ctx, "max " .. tostring(param.details.maxval))
+    reaper.ImGui_Text(self.ctx, "mid " .. tostring(param.details.midval))
+    reaper.ImGui_Text(self.ctx, "guid" .. param.guid)
+    reaper.ImGui_Text(self.ctx, "val " .. tostring(param.details.value))
 end
 
 --- TODO Left pane to contain list of params and list of colors? or just the list of params?
@@ -190,10 +191,9 @@ function LayoutEditor:edit(fx)
     self.displaySettings = fx.displaySettings_copy
     self.open = true
     self.windowLabel = self.fx.name .. self.fx.index .. " - Layout Editor"
-    self.selectedParam = self.fx.display_params[1] -- select the first param in the list by default
-    reaper.ImGui_SetNextWindowSize(self.ctx, 400, 300)
+    self.selectedParam = self.fx.params_list[1] -- select the first param in the list by default
+    reaper.ImGui_SetNextWindowSize(self.ctx, 650, 300)
     self:Main()
 end
 
 return LayoutEditor
-

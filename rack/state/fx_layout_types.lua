@@ -1,3 +1,4 @@
+local tableHelpers = require("helpers.table")
 --[[
 Data types for the FX parameter’s layout.
 ]]
@@ -20,6 +21,14 @@ layout_enums.Param_Display_Type = {
     switch = 5,
     selection = 6,
 }
+
+layout_enums.Param_Display_Type_Length = 6
+
+---Adding this assert here so that the two Param_Display_Type and its corresponding Length variable
+--are kept in sync. This just so we don't have to keep querying the length of Param_Display_Type at
+--every frame when we're opening the `layoutEditor:ParamInfo()`
+assert(tableHelpers.namedTableLength(layout_enums.Param_Display_Type) == layout_enums.Param_Display_Type_Length,
+    "Maintenance BUG! In fx_layout_types, Param_Display_Type_Length should equal Param_Display_Type_Length")
 
 ---@enum DragDirection
 local DragDirection = {
