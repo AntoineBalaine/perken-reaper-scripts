@@ -151,10 +151,58 @@ end
 
 function LayoutEditor:RightPane()
     reaper.ImGui_BeginGroup(self.ctx)
+
     self:ParamInfo()
     -- reaper.ImGui_Text(self.ctx, "Editing the layout!")
     -- self:Sketch()
     -- self:FontButton()
+    reaper.ImGui_BeginChild(self.ctx, "##canvas")
+    local avail_x, avail_y = reaper.ImGui_GetContentRegionAvail(self.ctx)
+    reaper.ImGui_Text(self.ctx, "avail_x: " .. avail_x .. "/ avail_y: " .. avail_y)
+
+    local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self.ctx)
+    reaper.ImGui_Text(self.ctx, "max_x: " .. max_x .. "/ max_y: " .. max_y)
+
+    local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
+    reaper.ImGui_Text(self.ctx, "min_x: " .. min_x .. "/ min_y: " .. min_y)
+
+    reaper.ImGui_Text(self.ctx, "off_x: " .. self.test.offset_x .. "/ off_y: " .. self.test.offset_y)
+
+    reaper.ImGui_SetConfigVar(self.ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
+    local cur_pos_x = reaper.ImGui_GetCursorPosX(self.ctx)
+    local cur_pos_y = reaper.ImGui_GetCursorPosY(self.ctx)
+    local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
+        self.ctx,
+        cur_pos_x,
+        cur_pos_y)
+
+
+    local new_pos_x = cur_pos_x + self.test.offset_x + delta_x
+    local new_pos_y = cur_pos_y + self.test.offset_y + delta_y
+    ---clamp the values within the current frame.
+    ---TODO dunno why the frame is currently bigger than the window.
+    if new_pos_x < min_x then
+        new_pos_x = min_x
+    elseif new_pos_x > max_x then
+        new_pos_x = max_x
+    end
+    if new_pos_y < min_y then
+        new_pos_y = min_y
+    elseif new_pos_y > max_y then
+        new_pos_y = max_y
+    end
+
+    reaper.ImGui_SetCursorPosX(self.ctx, new_pos_x)
+    reaper.ImGui_SetCursorPosY(self.ctx, new_pos_y)
+    if delta_y ~= 0.0 and delta_x ~= 0.0 then
+        self.test.offset_x = new_pos_x - cur_pos_x
+        self.test.offset_y = new_pos_y - cur_pos_y
+        reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
+    end
+
+    reaper.ImGui_Button(self.ctx, "drag me")
+
+    reaper.ImGui_EndChild(self.ctx)
     reaper.ImGui_EndGroup(self.ctx)
 end
 
@@ -193,6 +241,10 @@ function LayoutEditor:edit(fx)
     self.windowLabel = self.fx.name .. self.fx.index .. " - Layout Editor"
     self.selectedParam = self.fx.params_list[1] -- select the first param in the list by default
     reaper.ImGui_SetNextWindowSize(self.ctx, 650, 300)
+    self.test = {
+        offset_x = 0,
+        offset_y = 0
+    }
     self:Main()
 end
 
