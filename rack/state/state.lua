@@ -39,6 +39,7 @@ local state = {}
 ---@field name string
 ---@field number integer --- 0-indexed track index (0 is for master track)
 ---@field track MediaTrack
+---@field bypass boolean --- is the fx chain bypassed
 
 --- get the selected track,
 -- the last touched fx,
@@ -58,6 +59,8 @@ function state:update()
     local trackFxCount = reaper.TrackFX_GetCount(track)
     local trackNumber  = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
 
+    local bypass       = reaper.GetMediaTrackInfo_Value(track, "I_FXEN") == 1
+
     if not self.Track and track then
         self.Track = {
             track = track,
@@ -65,13 +68,15 @@ function state:update()
             name = trackName,
             guid = trackGuid,
             fx_count = trackFxCount,
+            bypass = bypass,
             fx_list = {},
-            fx_by_guid = {}
+            fx_by_guid = {},
         }
     elseif self.Track and track then
         self.Track.track = track
         self.Track.number = trackNumber or -1
         self.Track.name = trackName
+        self.Track.bypass = bypass
         ---TODO: would it be worth saving any previous track’s state into a «other_tracks» table?
         ---That way we wouldn’t have to re-allocate a table every time the track changes.
         if self.Track.guid ~= trackGuid then
@@ -95,6 +100,8 @@ function state:getTrackFx()
     if not self.Track or not self.Track.fx_list or not self.Track.fx_count then
         return self
     end
+
+
 
     ---use this to update the state
     ---if fx have been added, moved or deleted
