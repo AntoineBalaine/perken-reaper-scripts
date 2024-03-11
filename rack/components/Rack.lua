@@ -72,10 +72,10 @@ function Rack:main()
         --display the rack
         -- menubar:display()
         self:drawFxList()
+        reaper.ImGui_End(self.ctx)
     end
 
     self:RackStyleEnd()
-    reaper.ImGui_End(self.ctx)
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
         -- Close the rack.
         self.keyboard_passthrough:onClose()
