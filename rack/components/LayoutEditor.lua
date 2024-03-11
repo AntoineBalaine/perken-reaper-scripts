@@ -107,13 +107,12 @@ function LayoutEditor:AddParams()
 end
 
 function LayoutEditor:ParamInfo()
-    local param = self.selectedParam
-    if not param then
+    if not self.selectedParam then
         return
     end
 
 
-    if param.details == nil or not param.details.display_settings then
+    if self.selectedParam.details == nil or not self.selectedParam.details.display_settings then
         reaper.ImGui_Text(self.ctx, "This param is not enabled for display.")
         return
     end
@@ -121,10 +120,10 @@ function LayoutEditor:ParamInfo()
     reaper.ImGui_BeginTable(self.ctx, "##radioBtnTable", layoutEnums.Param_Display_Type_Length)
     for type_name, type_idx in pairs(layoutEnums.Param_Display_Type) do
         reaper.ImGui_TableNextColumn(self.ctx)
-        _, param.details.display_settings.type = reaper.ImGui_RadioButtonEx(
+        _, self.selectedParam.details.display_settings.type = reaper.ImGui_RadioButtonEx(
             self.ctx,
             type_name,
-            param.details.display_settings.type,
+            self.selectedParam.details.display_settings.type,
             type_idx)
 
         reaper.ImGui_TableNextColumn(self.ctx)
@@ -132,12 +131,12 @@ function LayoutEditor:ParamInfo()
     reaper.ImGui_EndTable(self.ctx)
 
     ---TODO implement param display/selection logic
-    reaper.ImGui_Text(self.ctx, param.name)
-    reaper.ImGui_Text(self.ctx, "min " .. tostring(param.details.minval))
-    reaper.ImGui_Text(self.ctx, "max " .. tostring(param.details.maxval))
-    reaper.ImGui_Text(self.ctx, "mid " .. tostring(param.details.midval))
-    reaper.ImGui_Text(self.ctx, "guid" .. param.guid)
-    reaper.ImGui_Text(self.ctx, "val " .. tostring(param.details.value))
+    reaper.ImGui_Text(self.ctx, self.selectedParam.name)
+    reaper.ImGui_Text(self.ctx, "min " .. tostring(self.selectedParam.details.minval))
+    reaper.ImGui_Text(self.ctx, "max " .. tostring(self.selectedParam.details.maxval))
+    reaper.ImGui_Text(self.ctx, "mid " .. tostring(self.selectedParam.details.midval))
+    reaper.ImGui_Text(self.ctx, "guid" .. self.selectedParam.guid)
+    reaper.ImGui_Text(self.ctx, "val " .. tostring(self.selectedParam.details.value))
 end
 
 --- TODO Left pane to contain list of params and list of colors? or just the list of params?
@@ -168,13 +167,10 @@ function LayoutEditor:RightPane()
     local cur_pos_y = reaper.ImGui_GetCursorPosY(self.ctx)
 
     if self.selectedParam._is_active then
-        reaper.ImGui_SetConfigVar(self.ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
         local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
             self.ctx,
-            cur_pos_x + self.selectedParam.details.display_settings.Pos_X,
-            cur_pos_y + self.selectedParam.details.display_settings.Pos_Y)
-
-
+            cur_pos_x,
+            cur_pos_y)
 
         local new_pos_x = cur_pos_x + self.selectedParam.details.display_settings.Pos_X + delta_x
         local new_pos_y = cur_pos_y + self.selectedParam.details.display_settings.Pos_Y + delta_y
@@ -199,6 +195,9 @@ function LayoutEditor:RightPane()
             self.selectedParam.details.display_settings.Pos_Y = new_pos_y - cur_pos_y
             reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
         end
+    else
+        reaper.ImGui_SetCursorPosX(self.ctx, self.selectedParam.details.display_settings.Pos_X)
+        reaper.ImGui_SetCursorPosY(self.ctx, self.selectedParam.details.display_settings.Pos_Y)
     end
 
     reaper.ImGui_Button(self.ctx, "drag me")
