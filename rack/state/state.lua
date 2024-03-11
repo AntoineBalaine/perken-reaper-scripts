@@ -114,14 +114,14 @@ function state:getTrackFx()
         end
     end
 
-    for idx = 0, self.Track.fx_count - 1 do
-        local fxGuid = reaper.TrackFX_GetFXGUID(self.Track.track, idx)
+    for fxNumber = 0, self.Track.fx_count - 1 do
+        local fxGuid = reaper.TrackFX_GetFXGUID(self.Track.track, fxNumber)
         -- if an item has been deleted,
         -- we want to find which one it is by removing all the guids that have been found
         if guids then
             guids[fxGuid] = nil
         end
-        local index = idx + 1 -- lua is 1-indexed
+        local index = fxNumber + 1 -- lua is 1-indexed
         local item = self.Track.fx_by_guid[fxGuid]
         local exists_in_fx_list = self.Track.fx_list[index] ~= nil and self.Track.fx_list[index].guid == fxGuid
         if item and item.index ~= index then
@@ -129,12 +129,12 @@ function state:getTrackFx()
         end
         -- what to do if fx exists but is at the wrong index?
         -- update the table
-        -- how to update the table?
+        -- how to update the table
         if item then
             if not exists_in_fx_list then   -- fx has been moved
                 -- assign all the items after current idx into updated_fx_list
                 if not updated_fx_list then -- assign all the items up to current idx into updated_fx_list
-                    updated_fx_list = { table.unpack(self.Track.fx_list, 1, idx) }
+                    updated_fx_list = { table.unpack(self.Track.fx_list, 1, fxNumber) }
                 end
                 item.index = index
                 table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
@@ -142,14 +142,14 @@ function state:getTrackFx()
                 table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
             end
         else                                        -- fx is new
-            local my_fx = fx_state.new(self, self.theme, index, idx, fxGuid)
+            local my_fx = fx_state.new(self, self.theme, index, fxNumber, fxGuid)
             self.Track.fx_by_guid[fxGuid] = my_fx
             self.Track.fx_list[index] = my_fx
         end
         --- TODO is this the best place to make this update?
-        for _, fx in ipairs(self.Track.fx_list) do
+        --[[         for _, fx in ipairs(self.Track.fx_list) do
             fx:update()
-        end
+        end ]]
     end
 
     -- find the leftover guids, which points to any deleted fx
@@ -187,6 +187,7 @@ function state:deleteFx(idx)
         --- update all indexes in the fx_list
         for fx_idx, list_fx in ipairs(self.Track.fx_list) do
             list_fx.index = fx_idx
+            list_fx.number = fx_idx - 1
         end
     end
     return self

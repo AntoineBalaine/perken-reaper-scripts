@@ -6,7 +6,7 @@ function spec_helpers.create_fx()
     for idx = 1, 3 do
         ---@type FxData
         local cur_fx = {
-            number = idx,
+            number = idx - 1,
             name = "fxname" .. idx,
             guid = "fx_guid" .. idx,
             enabled = true,

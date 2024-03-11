@@ -7,6 +7,8 @@ local dummy_theme = require("spec.dummy_theme")
 local theme = dummy_theme.theme
 
 describe("State tests", function()
+    local fx = create_fx()
+    ---initialize state and pass the correct values
     _G.reaper = {
         TrackFX_GetNumParams = function() return 0 end,
         GetMediaTrackInfo_Value = function() return "trackNumber" end,
@@ -16,12 +18,18 @@ describe("State tests", function()
         GetTrackName = function() --[[_, trackname]] end,
         TrackFX_Delete = function() --[[has_deleted]] end,
         TrackFX_GetCount = function() --[[trackFxCount]] end,
-        TrackFX_GetEnabled = function() --[[fxEnabled]] end,
+        TrackFX_GetEnabled = function(tr, fxnumber)
+            if not fx[fxnumber + 1] then return nil end
+            return fx[fxnumber + 1].enabled
+        end,
         TrackFX_GetFXGUID = function() --[[fxGuid]] end,
-        TrackFX_GetFXName = function() --[[_, fxname]] end,
+        TrackFX_GetFXName = function(track, fx_number)
+            return true, fx[fx_number + 1].name
+        end,
         TrackFX_GetParamName = function() --[[_, paramName]] end,
-        TrackFX_GetPreset = function() return nil, "" end
+        TrackFX_GetPreset = function(track, fx_number) return nil, "" end
     }
+    local state = State:init("", theme)
 
     -- these are the calls that state:update() makes
     -- local track        = reaper.GetSelectedTrack2(0, 0, false)
@@ -38,15 +46,13 @@ describe("State tests", function()
     -- local _, fxName    = reaper.TrackFX_GetFXName(self.Track.track, idx)
     -- local fxEnabled    = reaper.TrackFX_GetEnabled(self.Track.track, idx)
 
-    ---initialize state and pass the correct values
-    local state = State:init("", theme)
-    local fx = create_fx()
+
     _G.reaper.GetSelectedTrack2 = function() return {} end
     _G.reaper.TrackFX_GetCount = function() return #fx end
     _G.reaper.TrackFX_GetFXGUID = function(_, idx) return fx[idx + 1].guid end
     _G.reaper.TrackFX_GetFXName = function(_, idx)
         if not idx then return "" end
-        return fx[idx + 1].name
+        return nil, fx[idx + 1].name
     end
     _G.reaper.TrackFX_Delete = function(_, _) return true end
 
@@ -81,14 +87,17 @@ describe("State tests", function()
         assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
         assert.True(state.Track.fx_by_guid[fx[1].guid].index == 1)
         assert.True(state.Track.fx_list[1].index == 1)
+        assert.True(state.Track.fx_list[1].name == fx[1].name)
 
         assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
         assert.True(state.Track.fx_by_guid[fx[2].guid].index == 2)
         assert.True(state.Track.fx_list[2].index == 2)
+        assert.True(state.Track.fx_list[2].name == fx[2].name)
 
         assert.are.same(state.Track.fx_list[3].guid, fx[3].guid)
         assert.True(state.Track.fx_by_guid[fx[3].guid].index == 3)
         assert.True(state.Track.fx_list[3].index == 3)
+        assert.True(state.Track.fx_list[3].name == fx[3].name)
     end)
 
     it("remove fx - state:deleteFx (from inside the rack) #state_update", function()
@@ -96,7 +105,11 @@ describe("State tests", function()
         fx = create_fx()
         state:update():getTrackFx()
 
+
         state:deleteFx(2)
+        local modified = fx[2]
+        modified.index = 2
+        modified.number = 1
         assert.True(state.Track.fx_count == 2)
         assert.True(#state.Track.fx_list == 2)
         assert.True(table_helpers.namedTableLength(state.Track.fx_by_guid) == 2)
@@ -121,6 +134,9 @@ describe("State tests", function()
         state:update():getTrackFx() -- update state to contain all fx again
         local guid_to_be_removed = fx[idx].guid
         table.remove(fx, idx)       -- remove middle one from fx
+        local modified = fx[2]
+        modified.index = 2
+        modified.number = 1
         state:update():getTrackFx() -- update state
         assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
         assert.are.same(#state.Track.fx_list, #fx)
@@ -131,11 +147,16 @@ describe("State tests", function()
         assert.True(state.Track.fx_by_guid[fx[1].guid].index == 1)
         assert.True(state.Track.fx_list[1].index == 1)
         assert.are.same(state.Track.fx_list[1].guid, fx[1].guid)
+        assert.are.same(state.Track.fx_list[1].name, fx[1].name)
+        assert.are.same(state.Track.fx_list[1].enabled, fx[1].enabled)
+
 
         assert.Truthy(state.Track.fx_by_guid[fx[2].guid]) -- check that fx[3] is now in second position in fx_list and fx_guid
         assert.True(state.Track.fx_by_guid[fx[2].guid].index == 2)
         assert.True(state.Track.fx_list[2].index == 2)
         assert.are.same(state.Track.fx_list[2].guid, fx[2].guid)
+        assert.are.same(state.Track.fx_list[2].name, fx[2].name)
+        assert.are.same(state.Track.fx_list[2].enabled, fx[2].enabled)
     end
     ---FIXME if reaper removes an fx, this state doesn’t get updated correctly
     it("remove fx - remove middle fx from fx_list (from outside) #state_update", function()

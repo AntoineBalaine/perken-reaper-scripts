@@ -46,7 +46,6 @@ _G.reaper = {
 local State = require("state.state")
 local Fx_box = require("components.Fx_box")
 local Fx_separator = require("components.fx_separator")
-local drag_drop = require("state.dragAndDrop")
 
 local MockRack = {}
 function MockRack:mockInit()
