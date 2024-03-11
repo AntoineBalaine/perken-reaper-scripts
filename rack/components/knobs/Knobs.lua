@@ -599,6 +599,8 @@ Knob.Flags = {
 }
 
 function Knob:__with_drag()
+    reaper.ImGui_SetCursorScreenPos(self._ctx, self._center_x - self._radius,
+        self._center_y + self._radius)
     _, self._p_value = reaper.ImGui_DragDouble(
         self._ctx,
         "##" .. self._id .. "_KNOB_DRAG_CONTROL_",

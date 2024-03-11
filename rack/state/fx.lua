@@ -45,8 +45,9 @@ function fx.new(state, theme, index, number, guid)
         buttonStyle    = {
             background = theme.colors.col_buttonbg.color,
             text_enabled = theme.colors.col_toolbar_text_on.color,
-            text_disabled = theme.colors.col_toolbar_text.color
-        }
+            text_disabled = theme.colors.col_offlinetext.color
+        },
+        _is_collapsed  = true
     }
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 

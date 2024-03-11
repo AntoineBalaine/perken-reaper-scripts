@@ -44,6 +44,8 @@ function parameter.new(state, param_index, parent_fx, guid)
         type = layoutEnums.Param_Display_Type.Knob,
         Pos_X = 0,
         Pos_Y = 0,
+        ---the component that will be draw, to be instantiated in the fx_box:main()
+        component = nil
     }
 
 

@@ -12,6 +12,7 @@ local fx_box_helpers = require("helpers.fx_box_helpers")
 local drag_drop      = require("state.dragAndDrop")
 local layout_enums   = require("state.fx_layout_types")
 local Knobs          = require("components.knobs.Knobs")
+local layoutEnums    = require("state.fx_layout_types")
 
 local fx_box         = {}
 local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
@@ -308,6 +309,57 @@ function fx_box:AddParamsBtn()
     reaper.ImGui_SameLine(self.ctx)
 end
 
+function fx_box:Canvas()
+    if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
+        local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self.ctx)
+        local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
+        for idx, param in ipairs(self.fx.display_params) do
+            -- if not param.display_settings then
+            --     goto continue
+            -- end
+            if not param.display_settings.component then
+                if param.display_settings.type == layoutEnums.Param_Display_Type.Knob then
+                    param.display_settings.component = Knobs.Knob.new(self.ctx,
+                        "knob" .. idx,
+                        param.name,
+                        tonumber(param.value) or 0,
+                        param.minval,
+                        param.maxval,
+                        param.defaultval,
+                        reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5,
+                        true,
+                        param.fmt_val,
+                        function() --- on activate function
+                            -- TODO refactor: move the call to new() into the fx display_param’s state.
+                            -- this violates the principle of separating the view from the state,
+                            -- but otherwise the newly created knob keeps on appearing as «not active» and this callback
+                            -- is being called at every frame the user holds the button.
+                            -- Otherwise, if we really want this to be clean, we’d have to refactor the whole
+                            -- thing to instantiate each fx’s ui as classes
+                            reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, param.name,
+                                "last_touched")
+                        end
+                    )
+                end
+            end
+            reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
+            reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
+            local new_val = param.display_settings.component:draw(
+                Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
+                self.testcol,
+                self.testcol,
+                self.testcol
+            )
+            if new_val ~= param.value then
+                param.value = new_val
+                param:setValue(new_val)
+            end
+            ::continue::
+        end
+        reaper.ImGui_EndChild(self.ctx)
+    end
+end
+
 ---@param fx TrackFX
 function fx_box:main(fx)
     self.fx = fx
@@ -335,41 +387,7 @@ function fx_box:main(fx)
 
         self:AddParamsBtn()
         self:AddSavePresetBtn()
-
-        reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar())
-        for idx, param in ipairs(self.fx.display_params) do
-            local new_val = Knobs.Knob.new(self.ctx,
-                "knob" .. idx,
-                param.name,
-                tonumber(param.value) or 0,
-                param.minval,
-                param.maxval,
-                param.defaultval,
-                reaper.ImGui_GetTextLineHeight(self.ctx) * 4.0 * 0.5,
-                true,
-                param.fmt_val,
-                function() --- on activate function
-                    -- TODO refactor: move the call to new() into the fx display_param’s state.
-                    -- this violates the principle of separating the view from the state,
-                    -- but otherwise the newly created knob keeps on appearing as «not active» and this callback
-                    -- is being called at every frame the user holds the button.
-                    -- Otherwise, if we really want this to be clean, we’d have to refactor the whole
-                    -- thing to instantiate each fx’s ui as classes
-                    reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, param.name, "last_touched")
-                end
-            ):draw(
-                Knobs.Knob.KnobVariant.ableton,
-                self.testcol,
-                self.testcol,
-                self.testcol
-            )
-            if new_val ~= param.value then
-                param.value = new_val
-                param:setValue(new_val)
-            end
-        end
-
-        reaper.ImGui_EndChild(self.ctx)
+        self:Canvas()
         reaper.ImGui_EndChild(self.ctx)
     end
     self:fxBoxStyleEnd()
