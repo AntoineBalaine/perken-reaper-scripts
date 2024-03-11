@@ -41,7 +41,9 @@ function parameter.new(state, param_index, parent_fx, guid)
     new_param.defaultval = new_param.value -- assume scalar values are copied upon assignment. I think that's right?
     new_param.display_settings = {
         ---@type Param_Display_Type
-        type = layoutEnums.Param_Display_Type.Knob
+        type = layoutEnums.Param_Display_Type.Knob,
+        Pos_X = 0,
+        Pos_Y = 0,
     }
 
 
