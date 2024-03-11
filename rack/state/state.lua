@@ -137,6 +137,7 @@ function state:getTrackFx()
                     updated_fx_list = { table.unpack(self.Track.fx_list, 1, fxNumber) }
                 end
                 item.index = index
+                item.number = index - 1
                 table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
             elseif updated_fx_list then
                 table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
