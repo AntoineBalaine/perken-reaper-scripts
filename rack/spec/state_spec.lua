@@ -184,7 +184,22 @@ describe("State tests", function()
         assert.True(state.Track.fx_by_guid[fx[3].guid].index == 3)
     end)
 
-    pending(": what if an fx's 'name' or 'enabled' are changed, can the state handle that? #state_update", function()
-        -- this is not implemented yet
+    it("update fx - if an fx's 'enabled' is changed", function()
+        fx = create_fx()
+        state:update():getTrackFx()
+        local modified = fx[2]
+        modified.enabled = false
+        assert.True(#fx == 3)
+        state:update():getTrackFx()
+        assert.are.same(state.Track.fx_count, #fx, #state.Track.fx_list)
+
+        assert.True(state.Track.fx_by_guid[fx[1].guid].index == 1)
+        assert.True(state.Track.fx_by_guid[fx[2].guid].index == 2)
+        assert.True(state.Track.fx_list[1].index == 1)
+        assert.True(state.Track.fx_list[2].index == 2)
+        assert.True(state.Track.fx_list[2].enabled == false)
+
+        assert.are.same(state.Track.fx_list[3].guid, fx[3].guid)
+        assert.True(state.Track.fx_by_guid[fx[3].guid].index == 3)
     end)
 end)
