@@ -213,6 +213,8 @@ function LayoutEditor:Main()
     if not self.open then
         return
     end
+
+    reaper.ImGui_SetNextWindowSize(self.ctx, 650, 300)
     local flags = reaper.ImGui_WindowFlags_TopMost() + reaper.ImGui_WindowFlags_NoScrollbar()
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, flags) ---begin popup
     self.open = open
@@ -244,7 +246,6 @@ function LayoutEditor:edit(fx)
     self.open = true
     self.windowLabel = self.fx.name .. self.fx.index .. " - Layout Editor"
     self.selectedParam = self.fx.params_list[1] -- select the first param in the list by default
-    reaper.ImGui_SetNextWindowSize(self.ctx, 650, 300)
     self:Main()
 end
 

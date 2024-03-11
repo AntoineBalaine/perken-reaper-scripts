@@ -9,7 +9,6 @@ Bear in mind that this component is a singleton, so it’s a single instance tha
 As a result, its internal state has to be updated every time it’s called. I’m not sure yet whether I like this or would rather have one instance per appearance.
 ]]
 local fx_box_helpers = require("helpers.fx_box_helpers")
-local LayoutEditor   = require("components.LayoutEditor")
 local drag_drop      = require("state.dragAndDrop")
 local layout_enums   = require("state.fx_layout_types")
 local Knobs          = require("components.knobs.Knobs")
@@ -222,11 +221,11 @@ function fx_box:EditLayoutButton()
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
 
     if reaper.ImGui_Button(self.ctx, wrench_icon) then -- create window name button
-        if (LayoutEditor.open) then
-            LayoutEditor:close(layout_enums.EditLayoutCloseAction.discard)
+        if (self.LayoutEditor.open) then
+            self.LayoutEditor:close(layout_enums.EditLayoutCloseAction.discard)
         else
             self.fx:editLayout()
-            LayoutEditor:edit(self.fx)
+            self.LayoutEditor:edit(self.fx)
         end
     end
     reaper.ImGui_PopFont(self.ctx)
@@ -337,6 +336,7 @@ function fx_box:main(fx)
         self:AddParamsBtn()
         self:AddSavePresetBtn()
 
+        reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar())
         for idx, param in ipairs(self.fx.display_params) do
             local new_val = Knobs.Knob.new(self.ctx,
                 "knob" .. idx,
@@ -368,6 +368,8 @@ function fx_box:main(fx)
                 param:setValue(new_val)
             end
         end
+
+        reaper.ImGui_EndChild(self.ctx)
         reaper.ImGui_EndChild(self.ctx)
     end
     self:fxBoxStyleEnd()
@@ -394,8 +396,9 @@ function fx_box:init(parent_state)
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
+
     self.testcol = self:testcolors()
-    LayoutEditor:init(parent_state.ctx, parent_state.theme)
+    self.LayoutEditor = parent_state.LayoutEditor
 end
 
 return fx_box

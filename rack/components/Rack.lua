@@ -21,6 +21,7 @@ local actions              = require("state.actions")
 local Browser              = require("components.fx_browser")
 local Settings             = require("state.settings")
 local keyboard_passthrough = require("components.keyboard_passthrough")
+local LayoutEditor         = require("components.LayoutEditor")
 
 ---Rack module
 ---@class Rack
@@ -78,6 +79,7 @@ function Rack:main()
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
         -- Close the rack.
         self.keyboard_passthrough:onClose()
+        self.LayoutEditor.open = false
     else
         reaper.defer(function() self:main() end)
     end
@@ -130,6 +132,9 @@ function Rack:init(project_directory)
     ---@type FXBrowser
     self.Browser =
         Browser -- set the fx browser as a property of the rack, always init before the Fx_separator
+    LayoutEditor:init(self.ctx, self.theme)
+    self.LayoutEditor = LayoutEditor
+
 
     -- initialize components by passing them the rack's state
     Fx_box:init(self)
