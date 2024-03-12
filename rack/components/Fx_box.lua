@@ -319,16 +319,12 @@ function fx_box:Canvas()
             -- end
             if not param.display_settings.component then
                 if param.display_settings.type == layoutEnums.Param_Display_Type.Knob then
-                    param.display_settings.component = Knobs.Knob.new(self.ctx,
+                    param.display_settings.component = Knobs.Knob.new(
+                        self.ctx,
                         "knob" .. idx,
-                        param.name,
-                        tonumber(param.value) or 0,
-                        param.minval,
-                        param.maxval,
-                        param.defaultval,
+                        param,
                         reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5,
                         true,
-                        param.fmt_val,
                         function() --- on activate function
                             -- TODO refactor: move the call to new() into the fx display_param’s state.
                             -- this violates the principle of separating the view from the state,
@@ -344,13 +340,16 @@ function fx_box:Canvas()
             end
             reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
             reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
-            local new_val = param.display_settings.component:draw(
+            local changed, new_val = param.display_settings.component:draw(
                 Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
                 self.testcol,
                 self.testcol,
-                self.testcol
+                self.testcol,
+                nil,
+                nil,
+                param
             )
-            if new_val ~= param.value then
+            if changed then
                 param.value = new_val
                 param:setValue(new_val)
             end

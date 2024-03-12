@@ -180,26 +180,16 @@ end
 ---In practice, you probably want to dodge creating a new knob at every loop…
 ---@param ctx ImGui_Context
 ---@param id string
----@param label string
----@param p_value number
----@param v_min number
----@param v_max number
----@param v_default number
+---@param param Parameter
 ---@param radius number
 ---@param controllable boolean
----@param label_format string
 ---@param on_activate? function
 function Knob.new(
     ctx,
     id,
-    label,
-    p_value,
-    v_min,
-    v_max,
-    v_default,
+    param,
     radius,
     controllable,
-    label_format,
     on_activate
 )
     ---@class Knob
@@ -207,18 +197,14 @@ function Knob.new(
     setmetatable(new_knob, { __index = Knob })
     local angle_min = math.pi * 0.75
     local angle_max = math.pi * 2.25
-    local t = (p_value - v_min) / (v_max - v_min)
+    local t = (param.value - param.minval) / (param.maxval - param.minval)
     local angle = angle_min + (angle_max - angle_min) * t
     local value_changed = false
     new_knob._ctx = ctx
     new_knob._id = id
-    new_knob._label = label
-    new_knob._p_value = p_value
-    new_knob._v_min = v_min
-    new_knob._v_max = v_max
-    new_knob._v_default = v_default
+    new_knob._label = param.name
+    new_knob._param = param
     new_knob._radius = radius
-    new_knob._label_format = label_format
     new_knob._controllable = controllable
     new_knob._value_changed = value_changed
     new_knob._angle = angle
@@ -242,7 +228,7 @@ function Knob:__update()
     self._center_x = draw_cursor_x + self._radius
     self._center_y = draw_cursor_y + self._radius
 
-    local t = (self._p_value - self._v_min) / (self._v_max - self._v_min)
+    local t = (self._param.value - self._param.minval) / (self._param.maxval - self._param.minval)
     self._angle = self._angle_min + (self._angle_max - self._angle_min) * t
 end
 
@@ -279,18 +265,19 @@ function Knob:__control()
         speed = 200
     end
 
+    local new_val = self._param.value
     if reaper.ImGui_IsMouseDoubleClicked(self._ctx, reaper.ImGui_MouseButton_Left()) and self._is_active then
-        self._p_value = self._v_default
+        new_val = self._param.defaultval
         value_changed = true
     elseif self._is_active and delta_y ~= 0.0 then
-        local step = (self._v_max - self._v_min) / speed
-        self._p_value = self._p_value - delta_y * step
-        if self._p_value < self._v_min then self._p_value = self._v_min end
-        if self._p_value > self._v_max then self._p_value = self._v_max end
+        local step = (self._param.maxval - self._param.minval) / speed
+        new_val = self._param.value - delta_y * step
+        if self._param.value < self._param.minval then new_val = self._param.minval end
+        if self._param.value > self._param.maxval then new_val = self._param.maxval end
         value_changed = true
         reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
     end
-    return value_changed, self._p_value
+    return value_changed, new_val
 end
 
 ---@param circle_color ColorSet
@@ -601,17 +588,17 @@ Knob.Flags = {
 function Knob:__with_drag()
     reaper.ImGui_SetCursorScreenPos(self._ctx, self._center_x - self._radius,
         self._center_y + self._radius)
-    _, self._p_value = reaper.ImGui_DragDouble(
+    local changed, new_val = reaper.ImGui_DragDouble(
         self._ctx,
         "##" .. self._id .. "_KNOB_DRAG_CONTROL_",
-        self._p_value,
-        (self._v_max - self._v_min) / 1000.0,
-        self._v_min,
-        self._v_max,
-        self._label_format,
+        self._param.value,
+        (self._param.maxval - self._param.minval) / 1000.0,
+        self._param.minval,
+        self._param.maxval,
+        self._param.fmt_val,
         reaper.ImGui_SliderFlags_AlwaysClamp()
     )
-    return self
+    return changed, new_val
 end
 
 ---TODO accomodate the NoInput flag
@@ -620,8 +607,19 @@ end
 ---@param dot_color ColorSet
 ---@param track_color? ColorSet
 ---@param flags? integer|KnobFlags
+---@param param Parameter
 ---@param steps? integer
-function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
+---@return boolean value_changed
+---@return number new_value
+function Knob:draw(variant,
+                   circle_color,
+                   dot_color,
+                   track_color,
+                   flags,
+                   steps,
+                   param
+)
+    self._param = param
     if flags == nil then
         flags = 0
     end
@@ -632,10 +630,14 @@ function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
     end
 
     self:__update()
-    self:__control()
+    local value_changed, new_val = self:__control()
 
     if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        self:__with_drag()
+        local drag_changed, new_drag_val = self:__with_drag() -- FIXME
+        if drag_changed then
+            value_changed = drag_changed
+            new_val = new_drag_val
+        end
     end
     reaper.ImGui_PopItemWidth(self._ctx)
 
@@ -686,7 +688,7 @@ function Knob:draw(variant, circle_color, dot_color, track_color, flags, steps)
             track_color or dot_color
         )
     end
-    return self._p_value
+    return value_changed, (new_val or self._param.value)
 end
 
 ---@param hsva {[1]: number, [2]: number, [3]: number, [4]: number}
