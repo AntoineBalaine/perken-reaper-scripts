@@ -10,7 +10,7 @@ local os_separator = package.config:sub(1, 1)
 -- CurrentDirectory   = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
 local fx_browser   = {}
 local IniParse     = require("parsers.Iniparse.IniParse")
-
+local Table        = require("helpers.table")
 
 ---parse the reaper-fxtags.ini file and return its contents:
 --A list of categories and a list of developers,
@@ -48,7 +48,11 @@ local function parseFXTags()
             end
         end
     end
-
+    ---@type {[1]: string, [2]: string[]}[]
+    local categories_sorted = {}
+    for dev, plugins in pairs(categories) do
+        table.insert(categories_sorted, { dev, plugins })
+    end
     --same for developers: each key is a plugin and the value is the developer
     --so we're having to iterate all the plugins to find the list of developers
     ---@type table<string, string[]>
@@ -61,7 +65,17 @@ local function parseFXTags()
             developers[developer] = { plugin }
         end
     end
-    return { categories = categories, developers = developers }
+    ---@type {[1]: string, [2]: string[]}[]
+    local developers_sorted = {}
+    for dev, plugins in pairs(developers) do
+        table.insert(developers_sorted, { developer = dev, plugins = plugins })
+    end
+    return {
+        categories = categories,
+        developers = developers,
+        categories_sorted = categories_sorted,
+        developers_sorted = developers_sorted
+    }
 end
 
 
@@ -184,9 +198,18 @@ NbFolders=1
             table.insert(folders, mapped_folder)
         end
     end
+
+    ---@type {[1]: string, [2]: string[]}[]
+    local categories_sorted = {}
+    for category, plugins in Table.sortNamedTable(categories) do
+        table.insert(categories_sorted, { category, plugins })
+    end
+
+    table.sort(folders, function(a, b) return a.name:lower() < b.name:lower() end)
     return {
         categories,
-        folders
+        folders,
+        categories_sorted,
     }
 end
 
@@ -267,6 +290,8 @@ local function parsePluginList()
             table.insert(plugin_list, fx)
         end
     end
+
+    table.sort(plugin_list, function(a, b) return a.name:lower() < b.name:lower() end)
     return plugin_list
 end
 
@@ -292,18 +317,21 @@ local function directoryRead(path, file_extension)
         end
     end
 
+    local files = {}
     for index = 0, math.huge do
         local file = reaper.EnumerateFiles(path, index)
         if not file then break end -- break if no more files are found
         if file:find(file_extension, nil, true) then
             local file_name = file:gsub(file_extension, "")
-            if directory.files then
-                table.insert(directory.files, file_name)
+            if files then
+                table.insert(files, file_name)
             else
-                directory.files = { file_name }
+                files = { file_name }
             end
         end
     end
+    table.sort(files, function(a, b) return a:lower() < b:lower() end)
+    directory.files = files
     return directory
 end
 
@@ -359,20 +387,22 @@ function fx_browser.GenerateFxList()
     if not rv then
         fx_tags = {
             categories = {}, ---@type table<string, string[]>
-            developers = {} ---@type table<string, string[]>
+            developers = {}, ---@type table<string, string[]>
+            categories_sorted = {}, ---@type {[1]: string, [2]: string[]}[]
+            developers_sorted = {} ---@type {[1]: string, [2]: string[]}[]
         }
     end
     local retval, custom_categories = pcall(parseCustomCategories)
     if not retval then
         custom_categories = {
             categories = {}, ---@type table<string, string[]>
-            folders = {} ---@type FxFolder[]
+            folders = {}, ---@type FxFolder[]
+            categories_sorted = {} ---@type {[1]: string, [2]: string[]}[]
         }
     end
     local fx_chains = parseFxChains()
     local track_templates = parseTrackTemplates()
     local plugin_by_type = to_plugins_by_type(plugin_list)
-
     return plugin_list, fx_tags, custom_categories, fx_chains, track_templates, plugin_by_type
 end
 
