@@ -79,7 +79,7 @@ function Rack:main()
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
         -- Close the rack.
         self.keyboard_passthrough:onClose()
-        self.LayoutEditor.open = false
+        self.LayoutEditor:close()
     else
         reaper.defer(function() self:main() end)
     end

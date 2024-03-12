@@ -209,18 +209,35 @@ function LayoutEditor:RightPane()
     reaper.ImGui_EndGroup(self.ctx)
 end
 
+function LayoutEditor:Tabs()
+    if reaper.ImGui_BeginChild(self.ctx, "##tabs", self.width - 20, self.height - 60, false, reaper.ImGui_WindowFlags_NoScrollbar()) then
+        if reaper.ImGui_BeginTabBar(self.ctx, "##Tabs", reaper.ImGui_TabBarFlags_None()) then
+            if reaper.ImGui_BeginTabItem(self.ctx, "FX layout") then
+                reaper.ImGui_TextWrapped(self.ctx,
+                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ")
+                reaper.ImGui_EndTabItem(self.ctx)
+            end
+            if reaper.ImGui_BeginTabItem(self.ctx, "Params") then
+                self:LeftPane()
+                self:RightPane()
+                reaper.ImGui_EndTabItem(self.ctx)
+            end
+            reaper.ImGui_EndTabBar(self.ctx)
+        end
+        reaper.ImGui_EndChild(self.ctx)
+    end
+end
+
 function LayoutEditor:Main()
     if not self.open then
         return
     end
-
-    reaper.ImGui_SetNextWindowSize(self.ctx, 650, 300)
-    local flags = reaper.ImGui_WindowFlags_TopMost() + reaper.ImGui_WindowFlags_NoScrollbar()
+    local flags = reaper.ImGui_WindowFlags_TopMost() + reaper.ImGui_WindowFlags_NoScrollbar() +
+        reaper.ImGui_WindowFlags_NoCollapse()
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, flags) ---begin popup
     self.open = open
     if visible then
-        self:LeftPane()
-        self:RightPane()
+        self:Tabs()
 
         self:SaveCancelButton()
         reaper.ImGui_End(self.ctx)
@@ -230,10 +247,12 @@ function LayoutEditor:Main()
     end
 end
 
----@param action EditLayoutCloseAction
+--- perform clean up: call the FX's `onClose()` and clean-up the state
+---@param action? EditLayoutCloseAction
 function LayoutEditor:close(action)
-    -- perform clean up: call the FX's `onClose()` and clean-up the state
-    self.fx:onEditLayoutClose(action)
+    if action then
+        self.fx:onEditLayoutClose(action)
+    end
     self.open = false
     self.fx = nil
     self.displaySettings = nil
@@ -244,8 +263,11 @@ function LayoutEditor:edit(fx)
     self.fx = fx
     self.displaySettings = fx.displaySettings_copy
     self.open = true
-    self.windowLabel = self.fx.name .. self.fx.index .. " - Layout Editor"
+    self.windowLabel = self.fx.name .. " - " .. "Edit layout"
     self.selectedParam = self.fx.params_list[1] -- select the first param in the list by default
+    self.width = 650
+    self.height = 300
+    reaper.ImGui_SetNextWindowSize(self.ctx, self.width, self.height)
     self:Main()
 end
 
