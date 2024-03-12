@@ -27,4 +27,25 @@ function table_helpers.deepCopy(t)
     return retval
 end
 
+---returns an iterator over the table
+---@generic T
+---@param T table<string, T>
+---@return fun():string, T
+function table_helpers.sortNamedTable(T)
+    --- Sorts a named table by its keys.
+    local keys = {}
+    for key in pairs(T) do table.insert(keys, key) end
+    table.sort(keys)
+    local i = 0
+    local iter = function()
+        i = i + 1
+        if keys[i] == nil then
+            return nil
+        else
+            return keys[i], T[keys[i]]
+        end
+    end
+    return iter
+end
+
 return table_helpers

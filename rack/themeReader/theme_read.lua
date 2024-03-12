@@ -9,6 +9,7 @@ local ThemeReader = {}
 ---@class Theme
 ---@field colors ColorTable colors
 ---@field fonts FontTable fonts
+---@field colors_by_name {[1]: string, [2]: ThemeColor}[]
 
 local info = debug.getinfo(1, "S")
 
@@ -16,6 +17,7 @@ local Os_separator = package.config:sub(1, 1)
 local source = info.source:match(".*rack" .. Os_separator):sub(2)
 package.path = package.path .. ";" .. source .. "?.lua"
 local theme_variable_descriptions = require("themeReader.theme_variable_descriptions")
+local Table = require("helpers.table")
 
 local theme_var_descriptions = theme_variable_descriptions.theme_var_descriptions
 local theme_var_descriptions_sorted = theme_variable_descriptions.theme_var_descriptions_sorted
@@ -126,6 +128,12 @@ function ThemeReader.readTheme(theme_path, convert_colors, ctx)
         end
         colors[var_name] = { description = description, color = col }
     end
+    ---@type {[1]: string, [2]: ColorTable}[]
+    local colors_by_name = {}
+    for k, v in Table.sortNamedTable(colors) do
+        table.insert(colors_by_name, { k, v })
+    end
+
 
     --[[leaving this section for now]]
     -- local modes = {} ---@type table<string, string>
@@ -165,7 +173,7 @@ function ThemeReader.readTheme(theme_path, convert_colors, ctx)
         fonts[v] = val
     end
 
-    return { colors = colors, fonts = fonts }
+    return { colors = colors, fonts = fonts, colors_by_name = colors_by_name }
 end
 
 ---Get path of the current theme

@@ -243,10 +243,9 @@ function LayoutEditor:ColorPalette()
         reaper.ImGui_Separator(self.ctx)
         reaper.ImGui_Text(self.ctx, "Palette")
 
-        local count = 0
-        for name, c in pairs(self.theme.colors) do
-            count = count + 1
-            color = c.color
+        for count, col in ipairs(self.theme.colors_by_name) do
+            local name = col[1]
+            local color = col[2].color
             reaper.ImGui_PushID(self.ctx, name)
             if ((count - 1) % 8) ~= 0 then
                 reaper.ImGui_SameLine(self.ctx, 0.0,
