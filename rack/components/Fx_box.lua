@@ -362,12 +362,7 @@ end
 ---@param fx TrackFX
 function fx_box:main(fx)
     self.fx = fx
-    -- use the displaySettings_copy if it's not null: this means that the user is editing the layout and we should work on a copy of state.
-    if fx.displaySettings_copy then
-        self.displaySettings = fx.displaySettings_copy
-    else
-        self.displaySettings = fx.displaySettings
-    end
+    self.displaySettings = fx.displaySettings
 
     reaper.ImGui_BeginGroup(self.ctx)
 

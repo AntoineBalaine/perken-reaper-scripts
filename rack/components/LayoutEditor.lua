@@ -1,5 +1,5 @@
 --[[
-- When an FX wants to edit layout, it calls the LayoutEditor's `editLayout()` and passes it its state (`displaySettings_copy`, track ID, `onClose` callbacks, etc.)
+- When an FX wants to edit layout, it calls the LayoutEditor"s `editLayout()` and passes it its state (`displaySettings`, track ID, `onClose` callbacks, etc.)
 - The LayoutEditor adds the data to its state, and displays the edit window.
 - The rack keeps on displaying the edited FX, but uses the `displaySettings_copy` instead of the `displaySettings`
 
@@ -8,13 +8,14 @@ For now, keep a single instance for the whole app.
 
 TBD
 - Singleton or one instance per fx?
-Singleton assumes that changing without saving is going to affect all instances of the same plug-in. That doesn't have to be true.
-Let's go with one instance per fx:
+Singleton assumes that changing without saving is going to affect all instances of the same plug-in. That doesn"t have to be true.
+Let"s go with one instance per fx:
 - allow one un-saved layout per FX. Eeach fx can have its own look.
-- If we want to persist unsaved layouts between re-starts, we'll have to either store this in external state or in the track.
+- If we want to persist unsaved layouts between re-starts, we"ll have to either store this in external state or in the track.
 
 ]]
 local layoutEnums = require("state.fx_layout_types")
+local Table = require("helpers.table")
 local LayoutEditor = {}
 
 ---@param ctx ImGui_Context
@@ -66,8 +67,13 @@ function LayoutEditor:SaveCancelButton()
     reaper.ImGui_BeginGroup(self.ctx)
     reaper.ImGui_Button(self.ctx, "save")
     reaper.ImGui_SameLine(self.ctx)
-    if reaper.ImGui_Button(self.ctx, "cancel") then
-        self.open = false
+    if reaper.ImGui_Button(self.ctx, "close") then
+        self:close()
+    end
+    reaper.ImGui_SameLine(self.ctx)
+    if reaper.ImGui_Button(self.ctx, "discard changes") then
+        self.fx.displaySettings = self.displaySettings_backup
+        self:close()
     end
 
     reaper.ImGui_EndGroup(self.ctx)
@@ -78,7 +84,7 @@ function LayoutEditor:AddParams()
     if reaper.ImGui_Checkbox(self.ctx, "All params", false) then
         all_params = true
     end
-    ---TODO implement text filter here, so that user can filter the fx-params' list.
+    ---TODO implement text filter here, so that user can filter the fx-params" list.
     for i = 1, #self.fx.params_list - 1 do
         ---@class ParamData
         local param      = self.fx.params_list[i]
@@ -141,7 +147,7 @@ end
 
 --- TODO Left pane to contain list of params and list of colors? or just the list of params?
 function LayoutEditor:LeftPane()
-    if reaper.ImGui_BeginChild(self.ctx, 'left pane', 150, -25, true) then
+    if reaper.ImGui_BeginChild(self.ctx, "left pane", 150, -25, true) then
         self:AddParams()
         reaper.ImGui_EndChild(self.ctx)
     end
@@ -209,12 +215,91 @@ function LayoutEditor:RightPane()
     reaper.ImGui_EndGroup(self.ctx)
 end
 
+function LayoutEditor:ColorPalette()
+    local open_popup = reaper.ImGui_Button(self.ctx, "Palette")
+    if open_popup then
+        reaper.ImGui_OpenPopup(self.ctx, "mypicker")
+        self.backup_color = self.fx.displaySettings.background
+    end
+    if reaper.ImGui_BeginPopup(self.ctx, "mypicker") then
+        reaper.ImGui_Text(self.ctx, "MY CUSTOM COLOR PICKER WITH AN AMAZING PALETTE!")
+        reaper.ImGui_Separator(self.ctx)
+        rv, self.fx.displaySettings.background = reaper.ImGui_ColorPicker4(self.ctx, "##picker",
+            self.fx.displaySettings.background,
+            reaper.ImGui_ColorEditFlags_NoSidePreview() | reaper.ImGui_ColorEditFlags_NoSmallPreview())
+        reaper.ImGui_SameLine(self.ctx)
+
+        reaper.ImGui_BeginGroup(self.ctx) -- Lock X position
+        reaper.ImGui_Text(self.ctx, "Current")
+        reaper.ImGui_ColorButton(self.ctx, "##current", self.fx.displaySettings.background,
+            reaper.ImGui_ColorEditFlags_NoPicker() |
+            reaper.ImGui_ColorEditFlags_AlphaPreviewHalf(), 60, 40)
+        reaper.ImGui_Text(self.ctx, "Previous")
+        if reaper.ImGui_ColorButton(self.ctx, "##previous", self.backup_color,
+                reaper.ImGui_ColorEditFlags_NoPicker() |
+                reaper.ImGui_ColorEditFlags_AlphaPreviewHalf(), 60, 40) then
+            self.fx.displaySettings.background = self.backup_color
+        end
+        reaper.ImGui_Separator(self.ctx)
+        reaper.ImGui_Text(self.ctx, "Palette")
+
+        local count = 0
+        for name, c in pairs(self.theme.colors) do
+            count = count + 1
+            color = c.color
+            reaper.ImGui_PushID(self.ctx, name)
+            if ((count - 1) % 8) ~= 0 then
+                reaper.ImGui_SameLine(self.ctx, 0.0,
+                    select(2, reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing())))
+            end
+
+
+            if reaper.ImGui_ColorButton(self.ctx, name .. "##palette", color, reaper.ImGui_ColorEditFlags_NoPicker(), 20, 20) then
+                self.fx.displaySettings.background = (color << 8) |
+                    (self.fx.displaySettings.background & 0xFF) -- Preserve alpha!
+            end
+
+            -- Allow user to drop colors into each palette entry. Note that ColorButton() is already a
+            -- drag source by default, unless specifying the ImGuiColorEditFlags_NoDragDrop flag.
+            if reaper.ImGui_BeginDragDropTarget(self.ctx) then
+                local drop_color
+                rv, drop_color = reaper.ImGui_AcceptDragDropPayloadRGB(self.ctx)
+                if rv then
+                    self.theme.colors[name].color = drop_color
+                end
+                rv, drop_color = reaper.ImGui_AcceptDragDropPayloadRGBA(self.ctx)
+                if rv then
+                    self.theme.colors[name].color = drop_color >> 8
+                end
+                reaper.ImGui_EndDragDropTarget(self.ctx)
+            end
+
+            reaper.ImGui_PopID(self.ctx)
+        end
+        reaper.ImGui_EndGroup(self.ctx)
+        reaper.ImGui_EndPopup(self.ctx)
+    end
+end
+
+function LayoutEditor:FxDisplaySettings()
+    local s = self.fx.displaySettings
+
+    -- reaper.ImGui_Text(self.ctx, "height: " .. s.height .. "")
+    reaper.ImGui_Text(self.ctx, "Window_Width: ")
+    _, s.Window_Width = reaper.ImGui_DragInt(self.ctx, "##width", s.Window_Width)
+    -- reaper.ImGui_Text(self.ctx, "Edge_Rounding: " .. s.Edge_Rounding .. "")
+    -- reaper.ImGui_Text(self.ctx, "Grb_Rounding: " .. s.Grb_Rounding .. "")
+    reaper.ImGui_Text(self.ctx, "Background color: ")
+    self:ColorPalette()
+    reaper.ImGui_Text(self.ctx, "BorderColor: " .. s.BorderColor .. "")
+    reaper.ImGui_Text(self.ctx, "Title_Clr: " .. s.Title_Clr .. "")
+end
+
 function LayoutEditor:Tabs()
     if reaper.ImGui_BeginChild(self.ctx, "##tabs", self.width - 20, self.height - 60, false, reaper.ImGui_WindowFlags_NoScrollbar()) then
         if reaper.ImGui_BeginTabBar(self.ctx, "##Tabs", reaper.ImGui_TabBarFlags_None()) then
             if reaper.ImGui_BeginTabItem(self.ctx, "FX layout") then
-                reaper.ImGui_TextWrapped(self.ctx,
-                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ")
+                self:FxDisplaySettings()
                 reaper.ImGui_EndTabItem(self.ctx)
             end
             if reaper.ImGui_BeginTabItem(self.ctx, "Params") then
@@ -247,7 +332,7 @@ function LayoutEditor:Main()
     end
 end
 
---- perform clean up: call the FX's `onClose()` and clean-up the state
+--- perform clean up: call the FX"s `onClose()` and clean-up the state
 ---@param action? EditLayoutCloseAction
 function LayoutEditor:close(action)
     if action then
@@ -256,12 +341,14 @@ function LayoutEditor:close(action)
     self.open = false
     self.fx = nil
     self.displaySettings = nil
+    self.displaySettings_backup = nil
 end
 
 ---@param fx TrackFX
 function LayoutEditor:edit(fx)
     self.fx = fx
-    self.displaySettings = fx.displaySettings_copy
+    self.displaySettings = fx.displaySettings
+    self.displaySettings_backup = Table.deepCopy(fx.displaySettings)
     self.open = true
     self.windowLabel = self.fx.name .. " - " .. "Edit layout"
     self.selectedParam = self.fx.params_list[1] -- select the first param in the list by default
