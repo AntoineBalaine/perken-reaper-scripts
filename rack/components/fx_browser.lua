@@ -73,9 +73,10 @@ function Browser:init(ctx, track)
     self.custom_categories,
     self.fx_chains,
     self.track_templates,
-    self.plugin_by_type =
+    self.plugin_by_type,
+    self.plugin_by_type_sorted =
         fx_parser
-        .GenerateFxList() ---pull the data from the fx parser module
+        .GenerateFxList() ---pull the data from the fx parser module, i.e. re-parse
     return self
 end
 
@@ -246,8 +247,8 @@ end
 ---draw fx categories menu eg. "CLAP", "VST", "VSTi", etc.
 function Browser:drawAllPlugins()
     if reaper.ImGui_BeginMenu(self.ctx, "all plugins") then
-        for category_name, category in pairs(self.plugin_by_type) do
-            self:drawFX(category, category_name)
+        for _, category in pairs(self.plugin_by_type_sorted) do
+            self:drawFX(category[2], category[1])
         end
         reaper.ImGui_EndMenu(self.ctx)
     end
@@ -255,14 +256,14 @@ end
 
 function Browser:drawFxTags()
     if reaper.ImGui_BeginMenu(self.ctx, "developers") then -- developers list
-        for developer_name, developer in pairs(self.fx_tags.developers) do
-            self:drawFX(developer, developer_name)
+        for _, developer in pairs(self.fx_tags.developers_sorted) do
+            self:drawFX(developer[2], developer[1])
         end
         reaper.ImGui_EndMenu(self.ctx)
     end
     if reaper.ImGui_BeginMenu(self.ctx, "custom categories") then -- custom categories list
-        for category_name, category in pairs(self.fx_tags.categories) do
-            self:drawFX(category, category_name)
+        for _, category in pairs(self.fx_tags.categories_sorted) do
+            self:drawFX(category[2], category[1])
         end
         reaper.ImGui_EndMenu(self.ctx)
     end
@@ -313,7 +314,8 @@ function Browser:RescanButton()
         self.custom_categories,
         self.fx_chains,
         self.track_templates,
-        self.plugin_by_type =
+        self.plugin_by_type,
+        self.plugin_by_type_sorted =
             fx_parser
             .GenerateFxList() ---pull the data from the fx parser module, i.e. re-parse
     end

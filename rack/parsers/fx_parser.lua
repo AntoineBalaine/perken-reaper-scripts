@@ -51,8 +51,10 @@ local function parseFXTags()
     ---@type {[1]: string, [2]: string[]}[]
     local categories_sorted = {}
     for dev, plugins in pairs(categories) do
+        table.sort(plugins, function(a, b) return a:lower() < b:lower() end)
         table.insert(categories_sorted, { dev, plugins })
     end
+    table.sort(categories_sorted, function(a, b) return a[1]:lower() < b[1]:lower() end)
     --same for developers: each key is a plugin and the value is the developer
     --so we're having to iterate all the plugins to find the list of developers
     ---@type table<string, string[]>
@@ -68,8 +70,10 @@ local function parseFXTags()
     ---@type {[1]: string, [2]: string[]}[]
     local developers_sorted = {}
     for dev, plugins in pairs(developers) do
-        table.insert(developers_sorted, { developer = dev, plugins = plugins })
+        table.sort(plugins, function(a, b) return a:lower() < b:lower() end)
+        table.insert(developers_sorted, { dev, plugins })
     end
+    table.sort(developers_sorted, function(a, b) return a[1]:lower() < b[1]:lower() end)
     return {
         categories = categories,
         developers = developers,
@@ -158,7 +162,7 @@ end
 --
 ---This includes the list of user-defined fx-categories
 ---and the list of user-defined folders
----@return {categories: table<string, string[]>, folders: FxFolder[]}
+---@return {categories: table<string, string[]>, folders: FxFolder[], categories_sorted: {[1]: string, [2]: string[]}[]}
 local function parseCustomCategories()
     local fxfolders_path = reaper.GetResourcePath() .. os_separator .. "reaper-fxfolders.ini"
     ---@type table|nil
@@ -306,17 +310,22 @@ end
 local function directoryRead(path, file_extension)
     ---@type Directory
     local directory = { path = path }
+    ---@type Directory[]
+    local subdirs = {}
     for index = 0, math.huge do
         local subdir = reaper.EnumerateSubdirectories(path, index)
         if not subdir then break end -- break if no more sub-directories are found
         local subdir_path = path .. os_separator .. subdir
-        if directory.subdirs then
-            table.insert(directory.subdirs, directoryRead(subdir_path, file_extension))
+        if subdirs then
+            table.insert(subdirs, directoryRead(subdir_path, file_extension))
         else
-            directory.subdirs = { directoryRead(subdir_path, file_extension) }
+            subdirs = { directoryRead(subdir_path, file_extension) }
         end
     end
+    table.sort(subdirs, function(a, b) return a.path:lower() < b.path:lower() end)
+    directory.subdirs = subdirs
 
+    ---@type string[]
     local files = {}
     for index = 0, math.huge do
         local file = reaper.EnumerateFiles(path, index)
@@ -371,18 +380,25 @@ local function to_plugins_by_type(plugin_list)
             plugins_by_type[plugin.type] = { plugin }
         end
     end
-    return plugins_by_type
+    ---@type {[1]: string, [2]: FX[]}[]
+    local plugins_by_type_sorted = {}
+    for k, v in pairs(plugins_by_type) do
+        table.insert(plugins_by_type_sorted, { k, v })
+    end
+    table.sort(plugins_by_type_sorted, function(a, b) return a[1]:lower() < b[1]:lower() end)
+    return plugins_by_type, plugins_by_type_sorted
 end
 
 
 ---@return FX[] plugin_list
----@return { categories: table<string, string[]>, developers: table<string, string[]> } fx_tags
----@return { categories: table<string, string[]>, folders: FxFolder[] } custom_categories
+---@return { categories: table<string, string[]>, developers: table<string, string[]>, categories_sorted: {[1]: string, [2]: string[]}[], developers_sorted: {[1]: string, [2]: string[]}[] } fx_tags
+---@return { categories: table<string, string[]>, folders: FxFolder[], categories_sorted: {[1]: string, [2]: string[]}[] } custom_categories
 ---@return Directory fx_chains
 ---@return Directory track_templates
 ---@return PluginsByType plugin_by_type
+---@return  {[1]: string, [2]: FX[]}[] plugin_by_type_sorted
 function fx_browser.GenerateFxList()
-    local plugin_list = parsePluginList()
+    local plugin_list = parsePluginList() -- sorted
     local rv, fx_tags = pcall(parseFXTags)
     if not rv then
         fx_tags = {
@@ -402,8 +418,8 @@ function fx_browser.GenerateFxList()
     end
     local fx_chains = parseFxChains()
     local track_templates = parseTrackTemplates()
-    local plugin_by_type = to_plugins_by_type(plugin_list)
-    return plugin_list, fx_tags, custom_categories, fx_chains, track_templates, plugin_by_type
+    local plugin_by_type, plugin_by_type_sorted = to_plugins_by_type(plugin_list)
+    return plugin_list, fx_tags, custom_categories, fx_chains, track_templates, plugin_by_type, plugin_by_type_sorted
 end
 
 return fx_browser
