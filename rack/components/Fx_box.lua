@@ -201,6 +201,45 @@ function fx_box:toggleFxWindow()
     end
 end
 
+function fx_box:LabelButtonCB()
+    local is_remove_fx = reaper.ImGui_IsKeyDown(self.ctx, reaper.ImGui_Mod_Alt()) -- if ALT is held when clicking, remove fx
+    if is_remove_fx then
+        self.state:deleteFx(self.fx.index)
+    else
+        self:toggleFxWindow()
+    end
+end
+
+function fx_box:VerticalLabelButton()
+    local display_name  = self.fx.presetname ~= nil
+        and self.fx.presetname
+        or fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
+    local width, height = reaper.ImGui_CalcTextSize(self.ctx, display_name)
+    -- invert the width and height to represent the component size
+    local temp          = height
+    height              = width
+    width               = temp
+    local cur_x, cur_y  = reaper.ImGui_GetCursorPos(self.ctx)
+    if reaper.ImGui_Button(self.ctx, "##" .. display_name, width, height) then
+        self:LabelButtonCB()
+    end
+    if reaper.ImGui_IsItemHovered(self.ctx) then
+        reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_Hand())
+    end
+
+    reaper.ImGui_SetCursorPosX(self.ctx, cur_x)
+    reaper.ImGui_Indent(self.ctx, 2)
+    reaper.ImGui_SetCursorPosY(self.ctx, cur_y)
+
+    for k = 1, #display_name do
+        if reaper.ImGui_GetCursorPosY(self.ctx) > height then
+            break
+        else
+            reaper.ImGui_Text(self.ctx, string.sub(display_name, k, k))
+        end
+    end
+end
+
 function fx_box:LabelButton()
     local display_name = self.fx.presetname ~= nil
         and self.fx.presetname
@@ -208,13 +247,8 @@ function fx_box:LabelButton()
     local btn_width = self.displaySettings.title_Width
     local btn_height = 20
     self:buttonStyleStart()
-    if reaper.ImGui_Button(self.ctx, display_name, btn_width, btn_height) then        -- create window name button
-        local is_remove_fx = reaper.ImGui_IsKeyDown(self.ctx, reaper.ImGui_Mod_Alt()) -- if ALT is held when clicking, remove fx
-        if is_remove_fx then
-            self.state:deleteFx(self.fx.index)
-        else
-            self:toggleFxWindow()
-        end
+    if reaper.ImGui_Button(self.ctx, display_name, btn_width, btn_height) then -- create window name button
+        self:LabelButtonCB()
     end
 
     if reaper.ImGui_IsItemHovered(self.ctx) then
@@ -387,6 +421,7 @@ function fx_box:main(fx)
         self:BypassToggle()
         self:EditLayoutButton()
         self:LabelButton()
+        -- self:VerticalLabelButton()
 
         self:AddParamsBtn()
         self:AddSavePresetBtn()
