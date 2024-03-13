@@ -211,20 +211,24 @@ function fx_box:LabelButtonCB()
 end
 
 function fx_box:VerticalLabelButton()
-    local display_name  = self.fx.presetname ~= nil
+    local display_name       = self.fx.presetname ~= nil
         and self.fx.presetname
         or fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
-    local width, height = reaper.ImGui_CalcTextSize(self.ctx, display_name)
+    local width, height      = reaper.ImGui_CalcTextSize(self.ctx, display_name)
     -- invert the width and height to represent the component size
-    local temp          = height
-    height              = width
-    width               = temp
-    local cur_x, cur_y  = reaper.ImGui_GetCursorPos(self.ctx)
+    local temp               = height
+    height                   = width
+    width                    = temp
+    local btn_x, btn_y       = reaper.ImGui_GetCursorPos(self.ctx)
 
     -- fill the rest of the line with the button width
-    local btn_width     = select(2, reaper.ImGui_GetContentRegionAvail(self.ctx))
+    local lineSpacing        = reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing())
+    local lineHeightWSpacing = reaper.ImGui_GetTextLineHeightWithSpacing(self.ctx)
+    local btn_height         = select(2, reaper.ImGui_GetContentRegionAvail(self.ctx)) - self.default_button_size -
+        reaper.ImGui_GetStyleVar(self.ctx, lineHeightWSpacing)
+
     self:buttonStyleStart()
-    if reaper.ImGui_Button(self.ctx, "##" .. display_name, self.default_button_size, btn_width) then
+    if reaper.ImGui_Button(self.ctx, "##" .. display_name, self.default_button_size, btn_height) then
         self:LabelButtonCB()
     end
     if reaper.ImGui_IsItemHovered(self.ctx) then
@@ -232,18 +236,23 @@ function fx_box:VerticalLabelButton()
     end
     self:buttonStyleEnd()
 
-    reaper.ImGui_SetCursorPosX(self.ctx, cur_x)
+    reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
     reaper.ImGui_Indent(self.ctx, 5)
-    reaper.ImGui_SetCursorPosY(self.ctx, cur_y)
-
+    reaper.ImGui_SetCursorPosY(self.ctx, btn_y)
+    local avail = select(2, reaper.ImGui_GetContentRegionAvail(self.ctx))
     for k = 1, #display_name do
         -- if there's no more space to the bottom of the window, don't display any more letters
-        if select(2, reaper.ImGui_GetContentRegionAvail(self.ctx)) < reaper.ImGui_GetTextLineHeightWithSpacing(self.ctx) then
+        local _, cur_y = reaper.ImGui_GetCursorPos(self.ctx)
+        if cur_y + lineHeightWSpacing > btn_y + btn_height
+        then
             break
         else
             reaper.ImGui_Text(self.ctx, string.sub(display_name, k, k))
         end
     end
+    reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
+    reaper.ImGui_SetCursorPosY(self.ctx, btn_y + btn_height + lineSpacing / 2)
+    reaper.ImGui_Unindent(self.ctx, 5)
 end
 
 function fx_box:LabelButton()
@@ -251,7 +260,8 @@ function fx_box:LabelButton()
         and self.fx.presetname
         or fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
     --- either use `GetContentRegionAvail()` or `self.displaySettings.title_Width`
-    local btn_width = reaper.ImGui_GetContentRegionAvail(self.ctx)
+    local btn_width = reaper.ImGui_GetContentRegionAvail(self.ctx) - self.default_button_size -
+        reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing())
     self:buttonStyleStart()
     if reaper.ImGui_Button(self.ctx, display_name, btn_width, self.default_button_size) then -- create window name button
         self:LabelButtonCB()
@@ -269,7 +279,6 @@ function fx_box:EditLayoutButton()
     local wrench_icon = self.theme.letters[75]
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
 
-    local begin_x, begin_y = reaper.ImGui_GetCursorPos(self.ctx)
     if reaper.ImGui_Button(self.ctx, wrench_icon, self.default_button_size, self.default_button_size) then -- create window name button
         if (self.LayoutEditor.open) then
             self.LayoutEditor:close(layout_enums.EditLayoutCloseAction.discard)
@@ -438,11 +447,10 @@ function fx_box:main(fx)
         self:BypassToggle()
         if collapsed then
             self:EditLayoutButton()
-
             self:AddParamsBtn()
-            self:CollapseButton()
             self:AddSavePresetBtn()
             self:VerticalLabelButton()
+            self:CollapseButton()
         else
             reaper.ImGui_SameLine(self.ctx)
             self:EditLayoutButton()
@@ -450,11 +458,11 @@ function fx_box:main(fx)
 
             self:AddParamsBtn()
             reaper.ImGui_SameLine(self.ctx)
-            self:CollapseButton()
-            reaper.ImGui_SameLine(self.ctx)
             self:AddSavePresetBtn()
             reaper.ImGui_SameLine(self.ctx)
             self:LabelButton()
+            reaper.ImGui_SameLine(self.ctx)
+            self:CollapseButton()
             self:Canvas()
         end
         reaper.ImGui_EndChild(self.ctx)
