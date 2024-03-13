@@ -25,10 +25,19 @@ local fx_separator = {}
 ---@param idx integer
 ---@param is_last? boolean
 function fx_separator:spaceBtwFx(idx, is_last)
+    reaper.ImGui_InvisibleButton(self.ctx,
+        "##Button between FX",
+        10,
+        220)
+    self.Browser:Popup()
+    fx_separator:dragDropTarget(idx)
+
+    reaper.ImGui_SameLine(self.ctx, nil, 0)
+
     if is_last then
         reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
         local plus = self.theme.letters[34]
-        -- if reaper.ImGui_Button(self.ctx, plus) then -- create window name button
+        -- create window name button
         if reaper.ImGui_Button(self.ctx,
                 plus,
                 20,
@@ -42,15 +51,7 @@ function fx_separator:spaceBtwFx(idx, is_last)
         if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
             reaper.ImGui_SetTooltip(self.ctx, "add fx")
         end
-    else
-        reaper.ImGui_InvisibleButton(self.ctx,
-            "##Button between FX",
-            10,
-            220)
     end
-    self.Browser:Popup()
-    fx_separator:dragDropTarget(idx)
-
     reaper.ImGui_SameLine(self.ctx, nil, 0)
 end
 
