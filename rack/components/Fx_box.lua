@@ -100,7 +100,6 @@ function fx_box:BypassToggle()
 
     -- reaper.ImGui_DrawList_AddRectFilled(draw_list, rect_x_start, rect_y_start, rect_x_end, rect_y_end, 0xFFFFFFFF, 10,
     --     round_flag)
-    reaper.ImGui_SameLine(self.ctx, nil, 5)
 end
 
 local function calculateTriangleVertices(centerX, centerY, radius)
@@ -220,15 +219,19 @@ function fx_box:VerticalLabelButton()
     height              = width
     width               = temp
     local cur_x, cur_y  = reaper.ImGui_GetCursorPos(self.ctx)
-    if reaper.ImGui_Button(self.ctx, "##" .. display_name, width, height) then
+
+    self:buttonStyleStart()
+    -- FIXME how do I query the remaning space in the window ?
+    if reaper.ImGui_Button(self.ctx, "##" .. display_name, self.default_button_size, self.default_button_size) then
         self:LabelButtonCB()
     end
     if reaper.ImGui_IsItemHovered(self.ctx) then
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_Hand())
     end
+    self:buttonStyleEnd()
 
     reaper.ImGui_SetCursorPosX(self.ctx, cur_x)
-    reaper.ImGui_Indent(self.ctx, 2)
+    reaper.ImGui_Indent(self.ctx, 5)
     reaper.ImGui_SetCursorPosY(self.ctx, cur_y)
 
     for k = 1, #display_name do
@@ -245,9 +248,8 @@ function fx_box:LabelButton()
         and self.fx.presetname
         or fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
     local btn_width = self.displaySettings.title_Width
-    local btn_height = 20
     self:buttonStyleStart()
-    if reaper.ImGui_Button(self.ctx, display_name, btn_width, btn_height) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, display_name, btn_width, self.default_button_size) then -- create window name button
         self:LabelButtonCB()
     end
 
@@ -256,14 +258,15 @@ function fx_box:LabelButton()
     end
     self:buttonStyleEnd()
     self:dragDropSource() -- attach the drag/drop source to the preceding button
-    reaper.ImGui_SameLine(self.ctx, nil, 5)
 end
 
+---Also store the button size as default button’s size.
 function fx_box:EditLayoutButton()
     local wrench_icon = self.theme.letters[75]
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
 
-    if reaper.ImGui_Button(self.ctx, wrench_icon) then -- create window name button
+    local begin_x, begin_y = reaper.ImGui_GetCursorPos(self.ctx)
+    if reaper.ImGui_Button(self.ctx, wrench_icon, self.default_button_size, self.default_button_size) then -- create window name button
         if (self.LayoutEditor.open) then
             self.LayoutEditor:close(layout_enums.EditLayoutCloseAction.discard)
         else
@@ -272,16 +275,16 @@ function fx_box:EditLayoutButton()
         end
     end
     reaper.ImGui_PopFont(self.ctx)
+
     if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
         reaper.ImGui_SetTooltip(self.ctx, "edit fx layout")
     end
-    reaper.ImGui_SameLine(self.ctx, nil, 5)
 end
 
 function fx_box:AddSavePresetBtn()
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
     local saver = self.theme.letters[164]
-    if reaper.ImGui_Button(self.ctx, saver) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, saver, self.default_button_size, self.default_button_size) then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, "##presetsave") then
             reaper.ImGui_OpenPopup(self.ctx, "##presetsave")
         end
@@ -316,7 +319,8 @@ end
 function fx_box:CollapseButton()
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
     local collapse_arrow = self.theme.letters[self.fx.displaySettings._is_collapsed and 94 or 97]
-    if reaper.ImGui_Button(self.ctx, collapse_arrow) then -- create window name button
+
+    if reaper.ImGui_Button(self.ctx, collapse_arrow, self.default_button_size, self.default_button_size) then -- create window name button
         self.fx.displaySettings._is_collapsed = not self.fx.displaySettings._is_collapsed
     end
     reaper.ImGui_PopFont(self.ctx)
@@ -329,7 +333,7 @@ function fx_box:AddParamsBtn()
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
     local plus = self.theme.letters[34]
 
-    if reaper.ImGui_Button(self.ctx, plus) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, plus, self.default_button_size, self.default_button_size) then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, popup_name) then
             reaper.ImGui_OpenPopup(self.ctx, popup_name)
         end
@@ -358,7 +362,6 @@ function fx_box:AddParamsBtn()
         end
         reaper.ImGui_EndPopup(self.ctx)
     end
-    reaper.ImGui_SameLine(self.ctx)
 end
 
 function fx_box:Canvas()
@@ -423,21 +426,34 @@ function fx_box:main(fx)
 
     if reaper.ImGui_BeginChild(self.ctx,
             fx.name,
-            collapsed and 20 or self.displaySettings.window_Width,
+            collapsed and 40 or self.displaySettings.window_Width,
             self.displaySettings.height,
             true,
             winFlg)
     then
         self:BypassToggle()
-        self:EditLayoutButton()
-        self:LabelButton()
-        -- self:VerticalLabelButton()
+        if collapsed then
+            self:EditLayoutButton()
 
-        self:AddParamsBtn()
-        self:CollapseButton()
-        reaper.ImGui_SameLine(self.ctx)
-        self:AddSavePresetBtn()
-        self:Canvas()
+            self:AddParamsBtn()
+            self:CollapseButton()
+            self:AddSavePresetBtn()
+            -- self:LabelButton()
+            self:VerticalLabelButton()
+        else
+            reaper.ImGui_SameLine(self.ctx, nil, 5)
+            self:EditLayoutButton()
+            reaper.ImGui_SameLine(self.ctx, nil, 5)
+
+            self:AddParamsBtn()
+            reaper.ImGui_SameLine(self.ctx)
+            self:CollapseButton()
+            reaper.ImGui_SameLine(self.ctx)
+            self:AddSavePresetBtn()
+            reaper.ImGui_SameLine(self.ctx, nil, 5)
+            self:LabelButton()
+            self:Canvas()
+        end
         reaper.ImGui_EndChild(self.ctx)
     end
     self:fxBoxStyleEnd()
@@ -464,6 +480,7 @@ function fx_box:init(parent_state)
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
+    self.default_button_size = 20
 
     self.testcol = self:testcolors()
     self.LayoutEditor = parent_state.LayoutEditor
