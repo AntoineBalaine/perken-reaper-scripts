@@ -32,6 +32,23 @@ function fx.new(state, theme, index, number, guid)
     self.index = index
     self.params_list, self.params_by_guid = self:createParams()
     self.display_params = {} ---@type Parameter[]
+
+    -- in order to desaturate, I want to subtract from s
+    -- however, already
+    -- FIXME desaturate doesn't work
+    ---@param rgba integer
+    local function desaturate(rgba)
+        local r, g, b, a = reaper.ImGui_ColorConvertU32ToDouble4(rgba)
+        local h, s, v = reaper.ImGui_ColorConvertRGBtoHSV(r, g, b)
+
+        r, g, b = reaper.ImGui_ColorConvertHSVtoRGB(h, s - 0.5, v)
+        r = math.floor(r * 255)
+        g = math.floor(g * 255)
+        b = math.floor(b * 255)
+        local rv = r << 24 | g << 16 | b << 8 | 0xFF
+        return rv
+    end
+
     ---@class FxDisplaySettings
     self.displaySettings = {
         background          = theme.colors.selcol_tr2_bg.color,
@@ -41,7 +58,7 @@ function fx.new(state, theme, index, number, guid)
         buttonStyle         = {
             background = theme.colors.col_main_bg.color,
             background_disabled = theme.colors.group_15.color,
-            background_offline = theme.colors.col_mi_fades.color,
+            background_offline = desaturate(theme.colors.col_mi_fades.color),
             text_enabled = theme.colors.mcp_fx_normal.color,
             text_disabled = theme.colors.mcp_fx_bypassed.color,
             text_offline = theme.colors.mcp_fx_offlined.color,
