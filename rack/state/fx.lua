@@ -23,6 +23,9 @@ function fx.new(state, theme, index, number, guid)
     self.state = state
     local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
+    ---for now, assume that offline FX will not be toggled mid-session
+    self.offline, val = reaper.TrackFX_GetOffline(self.state.Track.track, number)
+
     self.guid = guid
     self.name = name
     self.number = number
@@ -31,23 +34,28 @@ function fx.new(state, theme, index, number, guid)
     self.display_params = {} ---@type Parameter[]
     ---@class FxDisplaySettings
     self.displaySettings = {
-        height         = 220,
-        Window_Width   = 250,
-        fx_width       = 200,
-        Title_Width    = 220 - 80,
-        Edge_Rounding  = 0,
-        Grb_Rounding   = 0,
-        background     = theme.colors.selcol_tr2_bg.color,
-        BorderColor    = theme.colors.col_gridlines2.color,
-        Title_Clr      = 0x000000FF,
-        Custom_Title   = nil,
-        Param_Instance = nil,
-        buttonStyle    = {
-            background = theme.colors.col_buttonbg.color,
-            text_enabled = theme.colors.col_toolbar_text_on.color,
-            text_disabled = theme.colors.col_offlinetext.color
+        background          = theme.colors.selcol_tr2_bg.color,
+        background_disabled = theme.colors.group_15.color,
+        background_offline  = theme.colors.col_mi_fades.color,
+        borderColor         = theme.colors.col_gridlines2.color,
+        buttonStyle         = {
+            background = theme.colors.col_main_bg.color,
+            background_disabled = theme.colors.group_15.color,
+            background_offline = theme.colors.col_mi_fades.color,
+            text_enabled = theme.colors.mcp_fx_normal.color,
+            text_disabled = theme.colors.mcp_fx_bypassed.color,
+            text_offline = theme.colors.mcp_fx_offlined.color,
         },
-        _is_collapsed  = true
+        custom_Title        = nil,
+        edge_Rounding       = 0,
+        fx_width            = 200,
+        grb_Rounding        = 0,
+        height              = 220,
+        param_Instance      = nil,
+        title_Clr           = 0x000000FF,
+        title_Width         = 220 - 80,
+        window_Width        = 250,
+        _is_collapsed       = true
     }
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 

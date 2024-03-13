@@ -36,9 +36,17 @@ function fx_box:fxBoxStyleEnd()
 end
 
 function fx_box:buttonStyleStart()
+    local bg_col ---@type number
+    if self.fx.offline then
+        bg_col = self.fx.displaySettings.buttonStyle.background_offline
+    elseif self.fx.enabled then
+        bg_col = self.fx.displaySettings.buttonStyle.background
+    else
+        bg_col = self.fx.displaySettings.buttonStyle.background_disabled
+    end
     reaper.ImGui_PushStyleColor(self.ctx,
         reaper.ImGui_Col_Button(),
-        self.displaySettings.buttonStyle.background) -- fx’s bg color
+        bg_col) -- fx’s bg color
     local button_text_color ---@type number
 
     if self.fx.enabled then -- set a dark-colored text if the fx is bypassed
@@ -197,7 +205,7 @@ function fx_box:LabelButton()
     local display_name = self.fx.presetname ~= nil
         and self.fx.presetname
         or fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
-    local btn_width = self.displaySettings.Title_Width
+    local btn_width = self.displaySettings.title_Width
     local btn_height = 20
     self:buttonStyleStart()
     if reaper.ImGui_Button(self.ctx, display_name, btn_width, btn_height) then        -- create window name button
@@ -277,6 +285,7 @@ function fx_box:AddParamsBtn()
     -- "+" ICON 
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
     local plus = self.theme.letters[34]
+
     if reaper.ImGui_Button(self.ctx, plus) then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, popup_name) then
             reaper.ImGui_OpenPopup(self.ctx, popup_name)
@@ -370,7 +379,7 @@ function fx_box:main(fx)
 
     if reaper.ImGui_BeginChild(self.ctx,
             fx.name,
-            self.displaySettings.Window_Width,
+            self.displaySettings.window_Width,
             self.displaySettings.height,
             true,
             winFlg)

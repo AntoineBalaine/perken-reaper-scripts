@@ -246,6 +246,7 @@ function LayoutEditor:ColorPalette()
         for count, col in ipairs(self.theme.colors_by_name) do
             local name = col[1]
             local color = col[2].color
+            local description = col[2].description
             reaper.ImGui_PushID(self.ctx, name)
             if ((count - 1) % 8) ~= 0 then
                 reaper.ImGui_SameLine(self.ctx, 0.0,
@@ -253,7 +254,7 @@ function LayoutEditor:ColorPalette()
             end
 
 
-            if reaper.ImGui_ColorButton(self.ctx, name .. "##palette", color, reaper.ImGui_ColorEditFlags_NoPicker(), 20, 20) then
+            if reaper.ImGui_ColorButton(self.ctx, name .. ": " .. description .. "##palette", color, reaper.ImGui_ColorEditFlags_NoPicker(), 20, 20) then
                 self.fx.displaySettings.background = (color << 8) |
                     (self.fx.displaySettings.background & 0xFF) -- Preserve alpha!
             end
@@ -285,13 +286,13 @@ function LayoutEditor:FxDisplaySettings()
 
     -- reaper.ImGui_Text(self.ctx, "height: " .. s.height .. "")
     reaper.ImGui_Text(self.ctx, "Window_Width: ")
-    _, s.Window_Width = reaper.ImGui_DragInt(self.ctx, "##width", s.Window_Width)
+    _, s.window_Width = reaper.ImGui_DragInt(self.ctx, "##width", s.window_Width)
     -- reaper.ImGui_Text(self.ctx, "Edge_Rounding: " .. s.Edge_Rounding .. "")
     -- reaper.ImGui_Text(self.ctx, "Grb_Rounding: " .. s.Grb_Rounding .. "")
     reaper.ImGui_Text(self.ctx, "Background color: ")
     self:ColorPalette()
-    reaper.ImGui_Text(self.ctx, "BorderColor: " .. s.BorderColor .. "")
-    reaper.ImGui_Text(self.ctx, "Title_Clr: " .. s.Title_Clr .. "")
+    reaper.ImGui_Text(self.ctx, "BorderColor: " .. s.borderColor .. "")
+    reaper.ImGui_Text(self.ctx, "Title_Clr: " .. s.title_Clr .. "")
 end
 
 function LayoutEditor:Tabs()
