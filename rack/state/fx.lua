@@ -71,8 +71,8 @@ function fx.new(state, theme, index, number, guid)
         param_Instance      = nil,
         title_Clr           = 0x000000FF,
         title_Width         = 220 - 80,
-        window_Width        = 250,
-        _is_collapsed       = true
+        window_Width        = 280,
+        _is_collapsed       = false
     }
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 

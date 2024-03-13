@@ -313,6 +313,15 @@ function fx_box:AddSavePresetBtn()
     end
 end
 
+function fx_box:CollapseButton()
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+    local collapse_arrow = self.theme.letters[self.fx.displaySettings._is_collapsed and 94 or 97]
+    if reaper.ImGui_Button(self.ctx, collapse_arrow) then -- create window name button
+        self.fx.displaySettings._is_collapsed = not self.fx.displaySettings._is_collapsed
+    end
+    reaper.ImGui_PopFont(self.ctx)
+end
+
 function fx_box:AddParamsBtn()
     local popup_name = "addFxParams"
 
@@ -407,13 +416,14 @@ function fx_box:main(fx)
     self.fx = fx
     self.displaySettings = fx.displaySettings
 
+    local collapsed = self.fx.displaySettings._is_collapsed
     reaper.ImGui_BeginGroup(self.ctx)
 
     self:fxBoxStyleStart()
 
     if reaper.ImGui_BeginChild(self.ctx,
             fx.name,
-            self.displaySettings.window_Width,
+            collapsed and 20 or self.displaySettings.window_Width,
             self.displaySettings.height,
             true,
             winFlg)
@@ -424,6 +434,8 @@ function fx_box:main(fx)
         -- self:VerticalLabelButton()
 
         self:AddParamsBtn()
+        self:CollapseButton()
+        reaper.ImGui_SameLine(self.ctx)
         self:AddSavePresetBtn()
         self:Canvas()
         reaper.ImGui_EndChild(self.ctx)
