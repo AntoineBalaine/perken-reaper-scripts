@@ -380,12 +380,8 @@ end
 function fx_box:Canvas()
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
-        local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self.ctx)
-        local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
         for idx, param in ipairs(self.fx.display_params) do
-            -- if not param.display_settings then
-            --     goto continue
-            -- end
+            local radius = reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5
             if not param.display_settings.component then
                 if param.display_settings.type == layoutEnums.Param_Display_Type.Knob then
                     -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
@@ -394,7 +390,7 @@ function fx_box:Canvas()
                         self.ctx,
                         "knob" .. idx,
                         param,
-                        reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5,
+                        radius,
                         true,
                         function() --- on activate function
                             -- TODO refactor: move the call to new() into the fx display_param’s state.
@@ -409,10 +405,10 @@ function fx_box:Canvas()
                     )
                 end
             end
-            if param.display_settings.Pos_X and param.display_settings.Pos_Y then
-                reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
-                reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
-            end
+            -- if param.display_settings.Pos_X and param.display_settings.Pos_Y then
+            --     reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
+            --     reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
+            -- end
             local changed, new_val = param.display_settings.component:draw(
                 Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
                 self.testcol,
@@ -423,12 +419,21 @@ function fx_box:Canvas()
                 param
             )
 
+            if --[[ idx ~= #self.fx.display_params and  ]] not param.display_settings.Pos_X and not param.display_settings.Pos_Y
+            then
+                local x, y = reaper.ImGui_GetCursorPos(self.ctx)
+                local leftoverX = reaper.ImGui_GetContentRegionAvail(self.ctx)
+                if leftoverX < radius * 2 + 40 then
+                    reaper.ImGui_NewLine(self.ctx)
+                else
+                    reaper.ImGui_SameLine(self.ctx, nil, 0)
+                end
+            end
 
             if changed then
                 param.value = new_val
                 param:setValue(new_val)
             end
-            ::continue::
         end
         reaper.ImGui_EndChild(self.ctx)
     end
@@ -444,7 +449,6 @@ function fx_box:main(fx)
     reaper.ImGui_BeginGroup(self.ctx)
 
     self:fxBoxStyleStart()
-
     if reaper.ImGui_BeginChild(self.ctx,
             fx.name,
             collapsed and 40 or self.displaySettings.window_Width,
