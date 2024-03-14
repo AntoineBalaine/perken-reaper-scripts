@@ -234,7 +234,6 @@ function fx_box:VerticalLabelButton()
     if reaper.ImGui_IsItemHovered(self.ctx) then
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_Hand())
     end
-    self:buttonStyleEnd()
 
     reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
     reaper.ImGui_Indent(self.ctx, 5)
@@ -253,6 +252,7 @@ function fx_box:VerticalLabelButton()
     reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
     reaper.ImGui_SetCursorPosY(self.ctx, btn_y + btn_height + lineSpacing / 2)
     reaper.ImGui_Unindent(self.ctx, 5)
+    self:buttonStyleEnd()
 end
 
 function fx_box:LabelButton()
