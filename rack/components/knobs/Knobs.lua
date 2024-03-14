@@ -225,9 +225,13 @@ function Knob.new(
     return new_knob
 end
 
-function Knob:__update()
+function Knob:__update(box_width)
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
-    self._center_x = draw_cursor_x + self._radius
+    -- local box_width, _ = reaper.ImGui_GetItemRectSize(self._ctx)
+    local x_pos = draw_cursor_x + box_width / 2 + self._radius
+
+    -- self._center_x = draw_cursor_x + self._radius
+    self._center_x = x_pos
     self._center_y = draw_cursor_y + self._radius
 
     local t = (self._param.value - self._param.minval) / (self._param.maxval - self._param.minval)
@@ -242,7 +246,10 @@ function Knob:__control()
         return false, nil
     end
 
-    reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
+    -- reaper.ImGui_SetCursorPosX(self._ctx, self._center_x - self._radius)
+    reaper.ImGui_Indent(self._ctx, self._radius)
+    reaper.ImGui_Button(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
+    reaper.ImGui_Unindent(self._ctx, self._radius)
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
     local value_changed = false
@@ -543,12 +550,6 @@ function Knob:__draw_ableton_knob(
     self:__draw_arc(0.9, 0.43, self._angle_min, self._angle, tick_color, 2)
 end
 
----@param width number
-function Knob:__knob_title(
-    width
-)
-end
-
 ---The style of knob that you want to draw
 ---@enum KnobVariant
 Knob.KnobVariant = {
@@ -609,7 +610,7 @@ function Knob:draw(variant,
 )
     reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     local child_width = self._radius * 2
-    local child_height = 10 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
+    local child_height = 50 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
     reaper.ImGui_BeginChild(self._ctx, "##knob", child_width * 2, child_height, true,
         reaper.ImGui_WindowFlags_NoScrollbar())
@@ -623,7 +624,7 @@ function Knob:draw(variant,
         text_helpers.centerText(self._ctx, self._label, width, 3)
     end
 
-    self:__update()
+    self:__update(child_width)
     local value_changed, new_val = self:__control()
 
     reaper.ImGui_PopItemWidth(self._ctx)
@@ -676,11 +677,14 @@ function Knob:draw(variant,
         )
     end
     if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        local drag_changed, new_drag_val = self:__with_drag() -- FIXME
-        if drag_changed then
-            value_changed = drag_changed
-            new_val = new_drag_val
-        end
+        reaper.ImGui_Text(self._ctx, self._param.fmt_val)
+        text_helpers.centerText(self._ctx, self._param.fmt_val or "", width, 3)
+        -- reaper.ShowConsoleMsg(self._param.fmt_val or "nil" .. "\n")
+        -- local drag_changed, new_drag_val = self:__with_drag() -- FIXME
+        -- if drag_changed then
+        --     value_changed = drag_changed
+        --     new_val = new_drag_val
+        -- end
     end
     reaper.ImGui_EndChild(self._ctx)
     reaper.ImGui_PopStyleVar(self._ctx)
