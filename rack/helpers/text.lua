@@ -66,6 +66,7 @@ end
 function text_helpers.centerText(ctx, text, line_width, lines)
     local total = 0
 
+    local line_H = reaper.ImGui_GetTextLineHeightWithSpacing(ctx)
     local box_width, _ = reaper.ImGui_GetItemRectSize(ctx)
     local x_start, y_start = reaper.ImGui_GetItemRectMin(ctx)
     local x_end, y_end = reaper.ImGui_GetItemRectMax(ctx)
@@ -75,7 +76,6 @@ function text_helpers.centerText(ctx, text, line_width, lines)
     local cur_str = ""
     local count = 0
     local cur_y = y_start
-    local line_H = reaper.ImGui_GetTextLineHeightWithSpacing(ctx)
     for word in text:gmatch("%S+") do
         local word_width = reaper.ImGui_CalcTextSize(ctx, word .. " ")
         if total + word_width < line_width then
@@ -130,15 +130,19 @@ function text_helpers.demo()
         + reaper.ImGui_WindowFlags_NoScrollbar()
         + reaper.ImGui_WindowFlags_NoCollapse()
         + reaper.ImGui_WindowFlags_NoNav()
-    local height = 0
     local function main()
         local visible, open = reaper.ImGui_Begin(ctx, "demo", true, window_flags)
         open = open
         if visible then
             reaper.ImGui_BeginChild(ctx, "child", 400, 200, false)
-            reaper.ImGui_Button(ctx, "##btn", 200, height > 0 and height or 200)
+            local lines = 3
+            local line_H = reaper.ImGui_GetTextLineHeight(ctx) * lines
+            -- local line_H = reaper.ImGui_GetTextLineHeightWithSpacing(ctx) * lines
+            local item_spacing = reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing())
+            reaper.ImGui_Button(ctx, "##btn", 200, line_H + item_spacing * (lines - 1))
 
-            height = text_helpers.centerText(ctx, text, 200, 5)
+            text_helpers.centerText(ctx, text, 200, lines)
+            -- reaper.ShowConsoleMsg(line_H .. " " .. item_spacing .. "\n")
             reaper.ImGui_EndChild(ctx)
             reaper.ImGui_End(ctx)
         end
@@ -150,5 +154,5 @@ function text_helpers.demo()
     main()
 end
 
--- text_helpers.demo()
-return text_helpers
+text_helpers.demo()
+-- return text_helpers
