@@ -63,15 +63,16 @@ end
 ---@param text string text to draw
 ---@param line_width number width of the text box
 ---@param lines number height of the text box
-function text_helpers.centerText(ctx, text, line_width, lines)
+function text_helpers.centerText(ctx, text, line_width, lines, box_width)
     local total = 0
 
     local line_H = reaper.ImGui_GetTextLineHeightWithSpacing(ctx)
-    local box_width, _ = reaper.ImGui_GetItemRectSize(ctx)
+    if not box_width then
+        box_width, _ = reaper.ImGui_GetItemRectSize(ctx)
+    end
 
     local x_start, _ = reaper.ImGui_GetCursorPos(ctx)
 
-    local _, avail_y = reaper.ImGui_GetContentRegionAvail(ctx)
 
     local cur_str = ""
     local count = 0
@@ -88,7 +89,7 @@ function text_helpers.centerText(ctx, text, line_width, lines)
             count = count + 1
             local str_w = reaper.ImGui_CalcTextSize(ctx, cur_str)
             local _, cur_y = reaper.ImGui_GetCursorPos(ctx)
-            local is_bigger = cur_y + line_H > avail_y
+            local is_bigger = line_H > select(2, reaper.ImGui_GetContentRegionAvail(ctx))
 
             if count <= lines and not is_bigger then
                 local x_pos = x_start + box_width / 2 - str_w / 2
@@ -109,7 +110,7 @@ function text_helpers.centerText(ctx, text, line_width, lines)
         local str_w = reaper.ImGui_CalcTextSize(ctx, cur_str)
         local x_pos = x_start + box_width / 2 - str_w / 2
         local _, cur_y = reaper.ImGui_GetCursorPos(ctx)
-        local bigger = cur_y + line_H > avail_y
+        local bigger = line_H > select(2, reaper.ImGui_GetContentRegionAvail(ctx))
         if count <= lines and not bigger then
             reaper.ImGui_SetCursorPos(ctx,
                 x_pos,

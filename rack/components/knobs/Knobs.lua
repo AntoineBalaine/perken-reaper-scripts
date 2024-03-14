@@ -1,3 +1,4 @@
+dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 ---This is a port of imgui-rs-knobs
 --https://github.com/DGriffin91/imgui-rs-knobs
 
@@ -248,7 +249,7 @@ function Knob:__control()
 
     -- reaper.ImGui_SetCursorPosX(self._ctx, self._center_x - self._radius)
     reaper.ImGui_Indent(self._ctx, self._radius)
-    reaper.ImGui_Button(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
+    reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
     reaper.ImGui_Unindent(self._ctx, self._radius)
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
@@ -677,8 +678,7 @@ function Knob:draw(variant,
         )
     end
     if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        reaper.ImGui_Text(self._ctx, self._param.fmt_val)
-        text_helpers.centerText(self._ctx, self._param.fmt_val or "", width, 3)
+        text_helpers.centerText(self._ctx, self._param.fmt_val or "", width, 3, child_width * 2)
         -- reaper.ShowConsoleMsg(self._param.fmt_val or "nil" .. "\n")
         -- local drag_changed, new_drag_val = self:__with_drag() -- FIXME
         -- if drag_changed then
