@@ -1,6 +1,8 @@
 ---This is a port of imgui-rs-knobs
 --https://github.com/DGriffin91/imgui-rs-knobs
 
+local text_helpers = require("helpers.text")
+
 ---@class ColorSet
 ---@field base integer
 ---@field hovered integer
@@ -545,20 +547,6 @@ end
 function Knob:__knob_title(
     width
 )
-    local size_x, _ = reaper.ImGui_CalcTextSize(self._ctx, self._label, nil, nil, false, width)
-    local old_cursor_pos_x, old_cursor_pos_y = reaper.ImGui_GetCursorPos(self._ctx)
-    reaper.ImGui_SetCursorPos(
-        self._ctx,
-        old_cursor_pos_x + (width - size_x) * 0.5,
-        old_cursor_pos_y
-    )
-    reaper.ImGui_Text(self._ctx, self._label)
-
-    reaper.ImGui_SetCursorPos(
-        self._ctx,
-        old_cursor_pos_x,
-        select(2, reaper.ImGui_GetCursorPos(self._ctx))
-    )
 end
 
 ---The style of knob that you want to draw
@@ -619,6 +607,12 @@ function Knob:draw(variant,
                    steps,
                    param
 )
+    reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
+    local child_width = self._radius * 2
+    local child_height = 10 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
+
+    reaper.ImGui_BeginChild(self._ctx, "##knob", child_width * 2, child_height, true,
+        reaper.ImGui_WindowFlags_NoScrollbar())
     self._param = param
     if flags == nil then
         flags = 0
@@ -626,19 +620,12 @@ function Knob:draw(variant,
     local width = reaper.ImGui_GetTextLineHeight(self._ctx) * 4.0
     reaper.ImGui_PushItemWidth(self._ctx, width)
     if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
-        self:__knob_title(width)
+        text_helpers.centerText(self._ctx, self._label, width, 3)
     end
 
     self:__update()
     local value_changed, new_val = self:__control()
 
-    if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        local drag_changed, new_drag_val = self:__with_drag() -- FIXME
-        if drag_changed then
-            value_changed = drag_changed
-            new_val = new_drag_val
-        end
-    end
     reaper.ImGui_PopItemWidth(self._ctx)
 
     if variant == self.KnobVariant.wiper_knob then
@@ -688,6 +675,15 @@ function Knob:draw(variant,
             track_color or dot_color
         )
     end
+    if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
+        local drag_changed, new_drag_val = self:__with_drag() -- FIXME
+        if drag_changed then
+            value_changed = drag_changed
+            new_val = new_drag_val
+        end
+    end
+    reaper.ImGui_EndChild(self._ctx)
+    reaper.ImGui_PopStyleVar(self._ctx)
     return value_changed, (new_val or self._param.value)
 end
 

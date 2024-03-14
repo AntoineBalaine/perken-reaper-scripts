@@ -387,6 +387,8 @@ function fx_box:Canvas()
             -- end
             if not param.display_settings.component then
                 if param.display_settings.type == layoutEnums.Param_Display_Type.Knob then
+                    -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
+                    -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
                     param.display_settings.component = Knobs.Knob.new(
                         self.ctx,
                         "knob" .. idx,
@@ -406,8 +408,10 @@ function fx_box:Canvas()
                     )
                 end
             end
-            reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
-            reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
+            if param.display_settings.Pos_X and param.display_settings.Pos_Y then
+                reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
+                reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
+            end
             local changed, new_val = param.display_settings.component:draw(
                 Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
                 self.testcol,
@@ -417,6 +421,8 @@ function fx_box:Canvas()
                 nil,
                 param
             )
+
+
             if changed then
                 param.value = new_val
                 param:setValue(new_val)
