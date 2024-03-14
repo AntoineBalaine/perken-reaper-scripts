@@ -1,4 +1,4 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 local text_helpers = {}
 
 --- Center text with word wrap,
@@ -67,15 +67,11 @@ function text_helpers.centerText(ctx, text, line_width, lines)
     local total = 0
 
     local line_H = reaper.ImGui_GetTextLineHeightWithSpacing(ctx)
-    local box_width, box_height = reaper.ImGui_GetItemRectSize(ctx)
+    local box_width, _ = reaper.ImGui_GetItemRectSize(ctx)
 
-    local x_start, y_start = reaper.ImGui_GetCursorPos(ctx)
+    local x_start, _ = reaper.ImGui_GetCursorPos(ctx)
 
-    -- local x_start, y_start = reaper.ImGui_GetItemRectMin(ctx)
-    -- local x_end, y_end = reaper.ImGui_GetItemRectMax(ctx)
-
-    local avail_x, avail_y = reaper.ImGui_GetContentRegionAvail(ctx)
-    -- reaper.ImGui_PushClipRect(ctx, x_start, y_start, x_end, y_end, false)
+    local _, avail_y = reaper.ImGui_GetContentRegionAvail(ctx)
 
     local cur_str = ""
     local count = 0
