@@ -60,9 +60,9 @@ function parameter:query_value()
         self.state.Track.track,
         self.parent_fx.index - 1,
         self.index)
+    ---formatted value, as string
     if rv_fmt then
-        ---formatted value, as string
-        self.fmt_val = formatted
+        self.fmt_val = formatted ---@type string|nil
     end
     --reaper.TrackFX_GetNamedConfigParm(MediaTrack track, integer fx, string parmname)
     --  fx_type : type string

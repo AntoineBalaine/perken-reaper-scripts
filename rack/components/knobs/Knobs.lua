@@ -1,4 +1,4 @@
-dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 ---This is a port of imgui-rs-knobs
 --https://github.com/DGriffin91/imgui-rs-knobs
 
@@ -247,7 +247,6 @@ function Knob:__control()
         return false, nil
     end
 
-    -- reaper.ImGui_SetCursorPosX(self._ctx, self._center_x - self._radius)
     reaper.ImGui_Indent(self._ctx, self._radius)
     reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
     reaper.ImGui_Unindent(self._ctx, self._radius)
@@ -575,9 +574,18 @@ Knob.Flags = {
     DragHorizontal = 3
 }
 
-function Knob:__with_drag()
-    reaper.ImGui_SetCursorScreenPos(self._ctx, self._center_x - self._radius,
-        self._center_y + self._radius)
+
+---TODO figure out how to center the drag
+function Knob:__with_drag(box_width)
+    -- local str_w = reaper.ImGui_CalcTextSize(self._ctx, self._param.fmt_val or "")
+    -- local padding = reaper.ImGui_GetStyleVar(self._ctx, reaper.ImGui_StyleVar_FramePadding()) * 2
+    -- local cur_x = reaper.ImGui_GetCursorPosX(self._ctx)
+    -- local x_pos = cur_x + box_width / 2 - str_w / 2
+    --     - padding
+    -- local x_pos = self._center_x - str_w / 2
+    -- reaper.ImGui_SetCursorPos(self._ctx, x_pos, reaper.ImGui_GetCursorPosY(self._ctx))
+    -- reaper.ImGui_SetCursorScreenPos(self._ctx, self._center_x - self._radius,
+    --     self._center_y + self._radius)
     local changed, new_val = reaper.ImGui_DragDouble(
         self._ctx,
         "##" .. self._id .. "_KNOB_DRAG_CONTROL_",
@@ -622,7 +630,7 @@ function Knob:draw(variant,
     local width = reaper.ImGui_GetTextLineHeight(self._ctx) * 4.0
     reaper.ImGui_PushItemWidth(self._ctx, width)
     if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
-        text_helpers.centerText(self._ctx, self._label, width, 3)
+        text_helpers.centerText(self._ctx, self._label, width + 40, 3)
     end
 
     self:__update(child_width)
@@ -679,8 +687,7 @@ function Knob:draw(variant,
     end
     if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
         text_helpers.centerText(self._ctx, self._param.fmt_val or "", width, 3, child_width * 2)
-        -- reaper.ShowConsoleMsg(self._param.fmt_val or "nil" .. "\n")
-        -- local drag_changed, new_drag_val = self:__with_drag() -- FIXME
+        -- local drag_changed, new_drag_val = self:__with_drag(child_width * 2) -- FIXME
         -- if drag_changed then
         --     value_changed = drag_changed
         --     new_val = new_drag_val
