@@ -13,6 +13,7 @@ Bear in mind that this component is a singleton, so it’s a single instance tha
 As a result, its internal state has to be updated every time it’s called. I’m not sure yet whether I like this or would rather have one instance per appearance.
 ]]
 local drag_drop = require("state.dragAndDrop")
+local constants = require("helpers.constants")
 
 --- call to insert spaces between fx windows,
 --- display the fx browser, and drag and drop fx
@@ -25,10 +26,11 @@ local fx_separator = {}
 ---@param idx integer
 ---@param is_last? boolean
 function fx_separator:spaceBtwFx(idx, is_last)
+    local height = constants.WINDOW_HEIGHT
     reaper.ImGui_InvisibleButton(self.ctx,
         "##Button between FX",
         10,
-        220)
+        height)
     self.Browser:Popup()
     fx_separator:dragDropTarget(idx)
 
@@ -41,7 +43,7 @@ function fx_separator:spaceBtwFx(idx, is_last)
         if reaper.ImGui_Button(self.ctx,
                 plus,
                 20,
-                220) and is_last then
+                height) and is_last then
             if not reaper.ImGui_IsPopupOpen(self.ctx, self.Browser.name) then
                 reaper.ImGui_OpenPopup(self.ctx, self.Browser.name)
             end

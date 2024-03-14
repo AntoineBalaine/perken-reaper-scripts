@@ -110,7 +110,7 @@ function text_helpers.centerText(ctx, text, line_width, lines, box_width)
         local str_w = reaper.ImGui_CalcTextSize(ctx, cur_str)
         local x_pos = x_start + box_width / 2 - str_w / 2
         local _, cur_y = reaper.ImGui_GetCursorPos(ctx)
-        local bigger = line_H > select(2, reaper.ImGui_GetContentRegionAvail(ctx))
+        local bigger = reaper.ImGui_GetTextLineHeight(ctx) > select(2, reaper.ImGui_GetContentRegionAvail(ctx))
         if count <= lines and not bigger then
             reaper.ImGui_SetCursorPos(ctx,
                 x_pos,

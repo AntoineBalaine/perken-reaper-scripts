@@ -378,6 +378,7 @@ function fx_box:AddParamsBtn()
 end
 
 function fx_box:Canvas()
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
         local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self.ctx)
         local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
@@ -431,6 +432,7 @@ function fx_box:Canvas()
         end
         reaper.ImGui_EndChild(self.ctx)
     end
+    reaper.ImGui_PopStyleVar(self.ctx)
 end
 
 ---@param fx TrackFX
@@ -446,7 +448,7 @@ function fx_box:main(fx)
     if reaper.ImGui_BeginChild(self.ctx,
             fx.name,
             collapsed and 40 or self.displaySettings.window_Width,
-            self.displaySettings.height,
+            self.displaySettings.window_height,
             true,
             winFlg)
     then

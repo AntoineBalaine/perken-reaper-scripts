@@ -4,6 +4,7 @@ Each FX represented in the parent `state` gets its own instance of this class, i
 ]]
 local IniParse = require("parsers.Iniparse.IniParse")
 local table_helpers = require("helpers.table")
+local constants = require("helpers.constants")
 local layout_enums = require("state.fx_layout_types")
 local parameter = require("state.param")
 ---@class TrackFX
@@ -24,7 +25,7 @@ function fx.new(state, theme, index, number, guid)
     local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
     ---for now, assume that offline FX will not be toggled mid-session
-    self.offline, val = reaper.TrackFX_GetOffline(self.state.Track.track, number)
+    self.offline = reaper.TrackFX_GetOffline(self.state.Track.track, number)
 
     self.guid = guid
     self.name = name
@@ -51,6 +52,7 @@ function fx.new(state, theme, index, number, guid)
 
     ---@class FxDisplaySettings
     self.displaySettings = {
+        _is_collapsed       = false,
         background          = theme.colors.selcol_tr2_bg.color,
         background_disabled = theme.colors.group_15.color,
         background_offline  = theme.colors.col_mi_fades.color,
@@ -65,14 +67,12 @@ function fx.new(state, theme, index, number, guid)
         },
         custom_Title        = nil,
         edge_Rounding       = 0,
-        fx_width            = 200,
         grb_Rounding        = 0,
-        height              = 220,
         param_Instance      = nil,
         title_Clr           = 0x000000FF,
         title_Width         = 220 - 80,
-        window_Width        = 280,
-        _is_collapsed       = false
+        window_Width        = constants.WINDOW_WIDTH,
+        window_height       = constants.WINDOW_HEIGHT, -- TODO make this into a constant, accessible everywhere
     }
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 

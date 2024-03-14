@@ -619,9 +619,10 @@ function Knob:draw(variant,
 )
     reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     local child_width = self._radius * 2
-    local child_height = 50 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
+    local child_height = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
-    reaper.ImGui_BeginChild(self._ctx, "##knob", child_width * 2, child_height, true,
+    --- FIXME I can’ wrap the whole Child into a conditional because it breaks the knobs behaviour
+    local visible = reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, child_width * 2, child_height, true,
         reaper.ImGui_WindowFlags_NoScrollbar())
     self._param = param
     if flags == nil then
@@ -630,7 +631,7 @@ function Knob:draw(variant,
     local width = reaper.ImGui_GetTextLineHeight(self._ctx) * 4.0
     reaper.ImGui_PushItemWidth(self._ctx, width)
     if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
-        text_helpers.centerText(self._ctx, self._label, width + 40, 3)
+        text_helpers.centerText(self._ctx, self._label, width + 20, 2)
     end
 
     self:__update(child_width)
@@ -693,7 +694,7 @@ function Knob:draw(variant,
         --     new_val = new_drag_val
         -- end
     end
-    reaper.ImGui_EndChild(self._ctx)
+    if visible then reaper.ImGui_EndChild(self._ctx) end
     reaper.ImGui_PopStyleVar(self._ctx)
     return value_changed, (new_val or self._param.value)
 end
