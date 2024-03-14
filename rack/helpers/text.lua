@@ -67,15 +67,18 @@ function text_helpers.centerText(ctx, text, line_width, lines)
     local total = 0
 
     local line_H = reaper.ImGui_GetTextLineHeightWithSpacing(ctx)
-    local box_width, _ = reaper.ImGui_GetItemRectSize(ctx)
-    local x_start, y_start = reaper.ImGui_GetItemRectMin(ctx)
-    local x_end, y_end = reaper.ImGui_GetItemRectMax(ctx)
+    local box_width, box_height = reaper.ImGui_GetItemRectSize(ctx)
 
-    reaper.ImGui_PushClipRect(ctx, x_start, y_start, x_end, y_end, false)
+    local x_start, y_start = reaper.ImGui_GetCursorPos(ctx)
+
+    -- local x_start, y_start = reaper.ImGui_GetItemRectMin(ctx)
+    -- local x_end, y_end = reaper.ImGui_GetItemRectMax(ctx)
+
+    local avail_x, avail_y = reaper.ImGui_GetContentRegionAvail(ctx)
+    -- reaper.ImGui_PushClipRect(ctx, x_start, y_start, x_end, y_end, false)
 
     local cur_str = ""
     local count = 0
-    local cur_y = y_start
     for word in text:gmatch("%S+") do
         local word_width = reaper.ImGui_CalcTextSize(ctx, word .. " ")
         if total + word_width < line_width then
@@ -88,14 +91,14 @@ function text_helpers.centerText(ctx, text, line_width, lines)
         else
             count = count + 1
             local str_w = reaper.ImGui_CalcTextSize(ctx, cur_str)
-            local x_pos = x_start + box_width / 2 - str_w / 2
-            reaper.ImGui_SetCursorScreenPos(ctx,
-                x_pos,
-                cur_y)
+            local _, cur_y = reaper.ImGui_GetCursorPos(ctx)
+            local is_bigger = cur_y + line_H > avail_y
 
-            cur_y = cur_y + line_H
-
-            if count <= lines then
+            if count <= lines and not is_bigger then
+                local x_pos = x_start + box_width / 2 - str_w / 2
+                reaper.ImGui_SetCursorPos(ctx,
+                    x_pos,
+                    cur_y)
                 reaper.ImGui_Text(ctx, cur_str)
             else
                 break
@@ -109,14 +112,15 @@ function text_helpers.centerText(ctx, text, line_width, lines)
     if cur_str ~= "" and count <= lines then
         local str_w = reaper.ImGui_CalcTextSize(ctx, cur_str)
         local x_pos = x_start + box_width / 2 - str_w / 2
-        reaper.ImGui_SetCursorScreenPos(ctx,
-            x_pos,
-            cur_y)
-        cur_y = cur_y + line_H
-        reaper.ImGui_Text(ctx, cur_str)
+        local _, cur_y = reaper.ImGui_GetCursorPos(ctx)
+        local bigger = cur_y + line_H > avail_y
+        if count <= lines and not bigger then
+            reaper.ImGui_SetCursorPos(ctx,
+                x_pos,
+                cur_y)
+            reaper.ImGui_Text(ctx, cur_str)
+        end
     end
-    reaper.ImGui_PopClipRect(ctx)
-    return cur_y - y_start
 end
 
 function text_helpers.demo()
@@ -134,16 +138,11 @@ function text_helpers.demo()
         local visible, open = reaper.ImGui_Begin(ctx, "demo", true, window_flags)
         open = open
         if visible then
-            reaper.ImGui_BeginChild(ctx, "child", 400, 200, false)
-            local lines = 3
-            local line_H = reaper.ImGui_GetTextLineHeight(ctx) * lines
-            -- local line_H = reaper.ImGui_GetTextLineHeightWithSpacing(ctx) * lines
-            local item_spacing = reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing())
-            reaper.ImGui_Button(ctx, "##btn", 200, line_H + item_spacing * (lines - 1))
-
-            text_helpers.centerText(ctx, text, 200, lines)
-            -- reaper.ShowConsoleMsg(line_H .. " " .. item_spacing .. "\n")
-            reaper.ImGui_EndChild(ctx)
+            if reaper.ImGui_BeginChild(ctx, "child", 400, 200, true) then
+                local max_lines = 8
+                text_helpers.centerText(ctx, text, 200, max_lines)
+                reaper.ImGui_EndChild(ctx)
+            end
             reaper.ImGui_End(ctx)
         end
 
@@ -154,5 +153,5 @@ function text_helpers.demo()
     main()
 end
 
-text_helpers.demo()
--- return text_helpers
+-- text_helpers.demo()
+return text_helpers
