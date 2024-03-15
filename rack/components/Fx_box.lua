@@ -409,6 +409,8 @@ function fx_box:Canvas()
             --     reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
             --     reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
             -- end
+            -- local x, y = reaper.ImGui_GetCursorPos(self.ctx)
+            -- reaper.ShowConsoleMsg(idx .. ": before " .. x .. " " .. y .. "\n")
             local changed, new_val = param.display_settings.component:draw(
                 Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
                 self.testcol,
@@ -419,16 +421,22 @@ function fx_box:Canvas()
                 param
             )
 
-            if --[[ idx ~= #self.fx.display_params and  ]] not param.display_settings.Pos_X and not param.display_settings.Pos_Y
-            then
-                local x, y = reaper.ImGui_GetCursorPos(self.ctx)
-                local leftoverX = reaper.ImGui_GetContentRegionAvail(self.ctx)
-                if leftoverX < radius * 2 + 40 then
-                    reaper.ImGui_NewLine(self.ctx)
-                else
-                    reaper.ImGui_SameLine(self.ctx, nil, 0)
-                end
+            reaper.ImGui_SameLine(self.ctx)
+            if reaper.ImGui_GetContentRegionAvail(self.ctx) < reaper.ImGui_GetItemRectSize(self.ctx) then
+                reaper.ImGui_NewLine(self.ctx)
             end
+            -- if --[[ idx ~= #self.fx.display_params and  ]] not param.display_settings.Pos_X and not param.display_settings.Pos_Y
+            -- then
+
+            --     local leftoverX = reaper.ImGui_GetContentRegionAvail(self.ctx)
+            --     if leftoverX < radius * 2 + 40 then
+            --         reaper.ImGui_NewLine(self.ctx)
+            --     else
+            --         reaper.ImGui_SameLine(self.ctx, nil, 0)
+            --     end
+            -- end
+            -- local x, y = reaper.ImGui_GetCursorPos(self.ctx)
+            -- reaper.ShowConsoleMsg(idx .. ": after " .. x .. " " .. y .. "\n")
 
             if changed then
                 param.value = new_val
