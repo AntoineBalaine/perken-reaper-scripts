@@ -192,6 +192,12 @@ function fx:createParams()
         params_by_guid[guid] = param
         ::continue::
     end
+    -- don't display bypass in params list.
+    if params_list[#params_list - 2].name == "Bypass" then
+        local bypass = table.remove(params_list, #params_list - 2)
+        params_by_guid[bypass.guid] = nil
+    end
+
     return params_list, params_by_guid
 end
 

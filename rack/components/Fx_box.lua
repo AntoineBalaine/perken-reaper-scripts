@@ -66,6 +66,10 @@ function fx_box:BypassToggle()
     if reaper.ImGui_Checkbox(self.ctx, "##bypass", self.fx.enabled) then
         reaper.TrackFX_SetEnabled(self.state.Track.track, self.fx.index - 1,
             not self.fx.enabled)
+
+        -- set last touched fx param to «bypass» if the checkbox's been clicked
+        reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, "BYPASS",
+            "last_touched")
     end
     -- --leaving the toggle button as WIP for now
     -- local round_flag = reaper.ImGui_DrawFlags_RoundCornersAll()
