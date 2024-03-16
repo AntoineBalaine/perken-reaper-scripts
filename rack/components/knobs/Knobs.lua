@@ -228,10 +228,8 @@ end
 
 function Knob:__update(box_width)
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
-    -- local box_width, _ = reaper.ImGui_GetItemRectSize(self._ctx)
-    local x_pos = draw_cursor_x + box_width / 2 + self._radius
+    local x_pos = draw_cursor_x + box_width / 2
 
-    -- self._center_x = draw_cursor_x + self._radius
     self._center_x = x_pos
     self._center_y = draw_cursor_y + self._radius
 
@@ -247,9 +245,12 @@ function Knob:__control()
         return false, nil
     end
 
-    reaper.ImGui_Indent(self._ctx, self._radius)
+
+    local indent_level = self._child_width / 2 - self._radius
+    reaper.ImGui_Indent(self._ctx, indent_level)
     reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
-    reaper.ImGui_Unindent(self._ctx, self._radius)
+    reaper.ImGui_Unindent(self._ctx, indent_level)
+
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
     local value_changed = false
@@ -576,7 +577,7 @@ Knob.Flags = {
 
 
 ---TODO figure out how to center the drag
-function Knob:__with_drag(box_width)
+function Knob:__with_drag()
     -- local str_w = reaper.ImGui_CalcTextSize(self._ctx, self._param.fmt_val or "")
     -- local padding = reaper.ImGui_GetStyleVar(self._ctx, reaper.ImGui_StyleVar_FramePadding()) * 2
     -- local cur_x = reaper.ImGui_GetCursorPosX(self._ctx)
@@ -618,27 +619,23 @@ function Knob:draw(variant,
                    param
 )
     reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
-    local child_width = self._radius * 2
+    self._child_width = self._radius * 2 * 1.5
     local child_height = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
-    --- FIXME I can’ wrap the whole Child into a conditional because it breaks the knobs behaviour
-    local visible = reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, child_width * 2, child_height, true,
+    --- FIXME I can’ wrap the whole Child into a conditional because it breaks the knob's behaviour
+    local visible = reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, self._child_width, child_height, true,
         reaper.ImGui_WindowFlags_NoScrollbar())
     self._param = param
     if flags == nil then
         flags = 0
     end
-    local width = reaper.ImGui_GetTextLineHeight(self._ctx) * 4.0
-    reaper.ImGui_PushItemWidth(self._ctx, width)
+
     if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
-        text_helpers.centerText(self._ctx, self._label, width + 20, 2)
+        text_helpers.centerText(self._ctx, self._label, self._child_width, 2)
     end
 
-    self:__update(child_width)
+    self:__update(self._child_width)
     local value_changed, new_val = self:__control()
-
-    reaper.ImGui_PopItemWidth(self._ctx)
-
     if variant == self.KnobVariant.wiper_knob then
         self:__wiper_knob(circle_color,
             dot_color,
@@ -687,8 +684,8 @@ function Knob:draw(variant,
         )
     end
     if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        text_helpers.centerText(self._ctx, self._param.fmt_val or "", width, 3, child_width * 2)
-        -- local drag_changed, new_drag_val = self:__with_drag(child_width * 2) -- FIXME
+        text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 2, self._child_width)
+        -- local drag_changed, new_drag_val = self:__with_drag() -- FIXME
         -- if drag_changed then
         --     value_changed = drag_changed
         --     new_val = new_drag_val

@@ -383,6 +383,8 @@ end
 
 function fx_box:Canvas()
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing(), 0, 0)
+
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
         for idx, param in ipairs(self.fx.display_params) do
             local radius = reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5
@@ -449,7 +451,7 @@ function fx_box:Canvas()
         end
         reaper.ImGui_EndChild(self.ctx)
     end
-    reaper.ImGui_PopStyleVar(self.ctx)
+    reaper.ImGui_PopStyleVar(self.ctx, 2)
 end
 
 ---@param fx TrackFX

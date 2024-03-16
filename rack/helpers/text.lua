@@ -63,6 +63,7 @@ end
 ---@param text string text to draw
 ---@param line_width number width of the text box
 ---@param lines number height of the text box
+---@param box_width? number
 function text_helpers.centerText(ctx, text, line_width, lines, box_width)
     local total = 0
 
