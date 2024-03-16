@@ -113,9 +113,14 @@ function text_helpers.centerText(ctx, text, line_width, lines, box_width)
         local _, cur_y = reaper.ImGui_GetCursorPos(ctx)
         local bigger = reaper.ImGui_GetTextLineHeight(ctx) > select(2, reaper.ImGui_GetContentRegionAvail(ctx))
         if count <= lines and not bigger then
+            local empty_lines = lines - count
+            -- insert one empty line per lines away from the limit
+            for i = 1, empty_lines do
+                reaper.ImGui_Text(ctx, "")
+            end
             reaper.ImGui_SetCursorPos(ctx,
                 x_pos,
-                cur_y)
+                cur_y + line_H * empty_lines)
             reaper.ImGui_Text(ctx, cur_str)
         end
     end

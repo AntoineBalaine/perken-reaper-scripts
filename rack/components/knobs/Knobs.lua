@@ -623,7 +623,7 @@ function Knob:draw(variant,
     local child_height = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
     --- FIXME I can’ wrap the whole Child into a conditional because it breaks the knob's behaviour
-    local visible = reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, self._child_width, child_height, true,
+    local visible = reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, self._child_width, child_height, false,
         reaper.ImGui_WindowFlags_NoScrollbar())
     self._param = param
     if flags == nil then
@@ -684,7 +684,7 @@ function Knob:draw(variant,
         )
     end
     if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 2, self._child_width)
+        text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 1, self._child_width)
         -- local drag_changed, new_drag_val = self:__with_drag() -- FIXME
         -- if drag_changed then
         --     value_changed = drag_changed
