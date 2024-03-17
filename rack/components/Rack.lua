@@ -85,7 +85,7 @@ function Rack:main()
 
     local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
 
-    if not self.Browser.open then
+    if not self.Browser.open and reaper.ImGui_IsWindowFocused(self.ctx) then
         passThrough:runShortcuts() -- execute any shortcuts the user might have pressed
     end
     if imgui_visible then
