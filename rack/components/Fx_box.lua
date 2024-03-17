@@ -66,6 +66,13 @@ function fx_box:BypassToggle()
     if reaper.ImGui_Checkbox(self.ctx, "##bypass", self.fx.enabled) then
         reaper.TrackFX_SetEnabled(self.state.Track.track, self.fx.index - 1,
             not self.fx.enabled)
+
+        -- set last touched fx param to «bypass» if the checkbox's been clicked
+        reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, "BYPASS",
+            "last_touched")
+    end
+    if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
+        reaper.ImGui_SetTooltip(self.ctx, "toggle bypass")
     end
     -- --leaving the toggle button as WIP for now
     -- local round_flag = reaper.ImGui_DrawFlags_RoundCornersAll()
@@ -336,7 +343,11 @@ function fx_box:CollapseButton()
     if reaper.ImGui_Button(self.ctx, collapse_arrow, self.default_button_size, self.default_button_size) then -- create window name button
         self.fx.displaySettings._is_collapsed = not self.fx.displaySettings._is_collapsed
     end
+
     reaper.ImGui_PopFont(self.ctx)
+    if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
+        reaper.ImGui_SetTooltip(self.ctx, "collapse fx box")
+    end
 end
 
 function fx_box:AddParamsBtn()
@@ -378,20 +389,21 @@ function fx_box:AddParamsBtn()
 end
 
 function fx_box:Canvas()
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing(), 0, 0)
+
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
-        local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self.ctx)
-        local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
         for idx, param in ipairs(self.fx.display_params) do
-            -- if not param.display_settings then
-            --     goto continue
-            -- end
+            local radius = reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5
             if not param.display_settings.component then
                 if param.display_settings.type == layoutEnums.Param_Display_Type.Knob then
+                    -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
+                    -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
                     param.display_settings.component = Knobs.Knob.new(
                         self.ctx,
                         "knob" .. idx,
                         param,
-                        reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5,
+                        radius,
                         true,
                         function() --- on activate function
                             -- TODO refactor: move the call to new() into the fx display_param’s state.
@@ -406,8 +418,12 @@ function fx_box:Canvas()
                     )
                 end
             end
-            reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
-            reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
+            -- if param.display_settings.Pos_X and param.display_settings.Pos_Y then
+            --     reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
+            --     reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
+            -- end
+            -- local x, y = reaper.ImGui_GetCursorPos(self.ctx)
+            -- reaper.ShowConsoleMsg(idx .. ": before " .. x .. " " .. y .. "\n")
             local changed, new_val = param.display_settings.component:draw(
                 Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
                 self.testcol,
@@ -417,14 +433,32 @@ function fx_box:Canvas()
                 nil,
                 param
             )
+
+            reaper.ImGui_SameLine(self.ctx)
+            if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
+                reaper.ImGui_NewLine(self.ctx)
+            end
+            -- if --[[ idx ~= #self.fx.display_params and  ]] not param.display_settings.Pos_X and not param.display_settings.Pos_Y
+            -- then
+
+            --     local leftoverX = reaper.ImGui_GetContentRegionAvail(self.ctx)
+            --     if leftoverX < radius * 2 + 40 then
+            --         reaper.ImGui_NewLine(self.ctx)
+            --     else
+            --         reaper.ImGui_SameLine(self.ctx, nil, 0)
+            --     end
+            -- end
+            -- local x, y = reaper.ImGui_GetCursorPos(self.ctx)
+            -- reaper.ShowConsoleMsg(idx .. ": after " .. x .. " " .. y .. "\n")
+
             if changed then
                 param.value = new_val
                 param:setValue(new_val)
             end
-            ::continue::
         end
         reaper.ImGui_EndChild(self.ctx)
     end
+    reaper.ImGui_PopStyleVar(self.ctx, 2)
 end
 
 ---@param fx TrackFX
@@ -436,18 +470,17 @@ function fx_box:main(fx)
     reaper.ImGui_BeginGroup(self.ctx)
 
     self:fxBoxStyleStart()
-
     if reaper.ImGui_BeginChild(self.ctx,
             fx.name,
             collapsed and 40 or self.displaySettings.window_Width,
-            self.displaySettings.height,
+            self.displaySettings.window_height,
             true,
             winFlg)
     then
         self:BypassToggle()
         if collapsed then
             self:EditLayoutButton()
-            self:AddParamsBtn()
+            -- self:AddParamsBtn()
             self:AddSavePresetBtn()
             self:VerticalLabelButton()
             self:CollapseButton()
@@ -456,7 +489,7 @@ function fx_box:main(fx)
             self:EditLayoutButton()
             reaper.ImGui_SameLine(self.ctx)
 
-            self:AddParamsBtn()
+            -- self:AddParamsBtn()
             reaper.ImGui_SameLine(self.ctx)
             self:AddSavePresetBtn()
             reaper.ImGui_SameLine(self.ctx)

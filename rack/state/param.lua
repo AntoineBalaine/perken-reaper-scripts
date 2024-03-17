@@ -42,8 +42,8 @@ function parameter.new(state, param_index, parent_fx, guid)
     new_param.display_settings = {
         ---@type Param_Display_Type
         type = layoutEnums.Param_Display_Type.Knob,
-        Pos_X = 0,
-        Pos_Y = 0,
+        -- Pos_X = 0,
+        -- Pos_Y = 0,
         ---the component that will be draw, to be instantiated in the fx_box:main()
         component = nil
     }
@@ -60,9 +60,9 @@ function parameter:query_value()
         self.state.Track.track,
         self.parent_fx.index - 1,
         self.index)
+    ---formatted value, as string
     if rv_fmt then
-        ---formatted value, as string
-        self.fmt_val = formatted
+        self.fmt_val = formatted ---@type string|nil
     end
     --reaper.TrackFX_GetNamedConfigParm(MediaTrack track, integer fx, string parmname)
     --  fx_type : type string

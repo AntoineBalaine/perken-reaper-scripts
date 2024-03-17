@@ -329,7 +329,6 @@ function Browser:main()
     end
     self.track = reaper.GetSelectedTrack(0, 0)
     local visible, open = reaper.ImGui_Begin(self.ctx, self.name, true)
-    self.open = open
     if visible then
         if self.track then
             self:RescanButton()
@@ -345,11 +344,10 @@ function Browser:main()
 end
 
 function Browser:Popup()
-    reaper.ImGui_SetNextWindowSize(self.ctx, 400, 200)
-    self.open = reaper.ImGui_BeginPopup(self.ctx, self.name)
-    if self.open then
-        self.open = true
+    if not self.open then return end
 
+    reaper.ImGui_SetNextWindowSize(self.ctx, 400, 200)
+    if reaper.ImGui_BeginPopup(self.ctx, self.name) then
         self.track = reaper.GetSelectedTrack(0, 0)
         if self.track then
             self:drawMenus()
@@ -357,10 +355,10 @@ function Browser:Popup()
             reaper.ImGui_Text(self.ctx, "please select a track")
         end
         reaper.ImGui_EndPopup(self.ctx)
-    end
 
-    if self.open then
-        reaper.defer(function() self:Popup() end)
+        if self.open then
+            reaper.defer(function() self:Popup() end)
+        end
     end
 end
 

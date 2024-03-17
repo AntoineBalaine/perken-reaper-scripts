@@ -1,5 +1,8 @@
+-- dofile("/home/antoine/Documents/Experiments/lua/debug_connect.lua")
 ---This is a port of imgui-rs-knobs
 --https://github.com/DGriffin91/imgui-rs-knobs
+
+local text_helpers = require("helpers.text")
 
 ---@class ColorSet
 ---@field base integer
@@ -223,9 +226,11 @@ function Knob.new(
     return new_knob
 end
 
-function Knob:__update()
+function Knob:__update(box_width)
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
-    self._center_x = draw_cursor_x + self._radius
+    local x_pos = draw_cursor_x + box_width / 2
+
+    self._center_x = x_pos
     self._center_y = draw_cursor_y + self._radius
 
     local t = (self._param.value - self._param.minval) / (self._param.maxval - self._param.minval)
@@ -240,7 +245,12 @@ function Knob:__control()
         return false, nil
     end
 
+
+    local indent_level = self._child_width / 2 - self._radius
+    reaper.ImGui_Indent(self._ctx, indent_level)
     reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
+    reaper.ImGui_Unindent(self._ctx, indent_level)
+
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
     local value_changed = false
@@ -541,26 +551,6 @@ function Knob:__draw_ableton_knob(
     self:__draw_arc(0.9, 0.43, self._angle_min, self._angle, tick_color, 2)
 end
 
----@param width number
-function Knob:__knob_title(
-    width
-)
-    local size_x, _ = reaper.ImGui_CalcTextSize(self._ctx, self._label, nil, nil, false, width)
-    local old_cursor_pos_x, old_cursor_pos_y = reaper.ImGui_GetCursorPos(self._ctx)
-    reaper.ImGui_SetCursorPos(
-        self._ctx,
-        old_cursor_pos_x + (width - size_x) * 0.5,
-        old_cursor_pos_y
-    )
-    reaper.ImGui_Text(self._ctx, self._label)
-
-    reaper.ImGui_SetCursorPos(
-        self._ctx,
-        old_cursor_pos_x,
-        select(2, reaper.ImGui_GetCursorPos(self._ctx))
-    )
-end
-
 ---The style of knob that you want to draw
 ---@enum KnobVariant
 Knob.KnobVariant = {
@@ -585,9 +575,18 @@ Knob.Flags = {
     DragHorizontal = 3
 }
 
+
+---TODO figure out how to center the drag
 function Knob:__with_drag()
-    reaper.ImGui_SetCursorScreenPos(self._ctx, self._center_x - self._radius,
-        self._center_y + self._radius)
+    -- local str_w = reaper.ImGui_CalcTextSize(self._ctx, self._param.fmt_val or "")
+    -- local padding = reaper.ImGui_GetStyleVar(self._ctx, reaper.ImGui_StyleVar_FramePadding()) * 2
+    -- local cur_x = reaper.ImGui_GetCursorPosX(self._ctx)
+    -- local x_pos = cur_x + box_width / 2 - str_w / 2
+    --     - padding
+    -- local x_pos = self._center_x - str_w / 2
+    -- reaper.ImGui_SetCursorPos(self._ctx, x_pos, reaper.ImGui_GetCursorPosY(self._ctx))
+    -- reaper.ImGui_SetCursorScreenPos(self._ctx, self._center_x - self._radius,
+    --     self._center_y + self._radius)
     local changed, new_val = reaper.ImGui_DragDouble(
         self._ctx,
         "##" .. self._id .. "_KNOB_DRAG_CONTROL_",
@@ -619,28 +618,24 @@ function Knob:draw(variant,
                    steps,
                    param
 )
+    reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
+    self._child_width = self._radius * 2 * 1.5
+    local child_height = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
+
+    --- FIXME I can’ wrap the whole Child into a conditional because it breaks the knob's behaviour
+    local visible = reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, self._child_width, child_height, false,
+        reaper.ImGui_WindowFlags_NoScrollbar())
     self._param = param
     if flags == nil then
         flags = 0
     end
-    local width = reaper.ImGui_GetTextLineHeight(self._ctx) * 4.0
-    reaper.ImGui_PushItemWidth(self._ctx, width)
+
     if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
-        self:__knob_title(width)
+        text_helpers.centerText(self._ctx, self._label, self._child_width, 2)
     end
 
-    self:__update()
+    self:__update(self._child_width)
     local value_changed, new_val = self:__control()
-
-    if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        local drag_changed, new_drag_val = self:__with_drag() -- FIXME
-        if drag_changed then
-            value_changed = drag_changed
-            new_val = new_drag_val
-        end
-    end
-    reaper.ImGui_PopItemWidth(self._ctx)
-
     if variant == self.KnobVariant.wiper_knob then
         self:__wiper_knob(circle_color,
             dot_color,
@@ -688,6 +683,16 @@ function Knob:draw(variant,
             track_color or dot_color
         )
     end
+    if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
+        text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 1, self._child_width)
+        -- local drag_changed, new_drag_val = self:__with_drag() -- FIXME
+        -- if drag_changed then
+        --     value_changed = drag_changed
+        --     new_val = new_drag_val
+        -- end
+    end
+    if visible then reaper.ImGui_EndChild(self._ctx) end
+    reaper.ImGui_PopStyleVar(self._ctx)
     return value_changed, (new_val or self._param.value)
 end
 

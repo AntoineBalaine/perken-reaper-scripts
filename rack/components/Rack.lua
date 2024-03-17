@@ -12,27 +12,45 @@ steps are:
     - the fx separator (space between fx for drag and drop)
 - and then display the rack with rack:main()
 ]]
-local ThemeReader          = require("themeReader.theme_read")
-local Fx_box               = require("components.Fx_box")
-local Fx_separator         = require("components.fx_separator")
-local menubar              = require("components.menubar")
-local state                = require("state.state")
-local actions              = require("state.actions")
-local Browser              = require("components.fx_browser")
-local Settings             = require("state.settings")
-local keyboard_passthrough = require("components.keyboard_passthrough")
-local LayoutEditor         = require("components.LayoutEditor")
+local ThemeReader  = require("themeReader.theme_read")
+local Fx_box       = require("components.Fx_box")
+local Fx_separator = require("components.fx_separator")
+local menubar      = require("components.menubar")
+local state        = require("state.state")
+local actions      = require("state.actions")
+local Browser      = require("components.fx_browser")
+local Settings     = require("state.settings")
+local LayoutEditor = require("components.LayoutEditor")
+local passThrough  = require("components.passthrough")
+local constants    = require("helpers.constants")
 
 ---Rack module
 ---@class Rack
-local Rack                 = {}
+local Rack         = {}
+
+function Rack:BrowserButton()
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+    local plus = self.theme.letters[34]
+    -- create window name button
+    if reaper.ImGui_Button(self.ctx,
+            plus,
+            20,
+            constants.WINDOW_HEIGHT) then
+        self.Browser.open = true
+        if not reaper.ImGui_IsPopupOpen(self.ctx, self.Browser.name) then
+            reaper.ImGui_OpenPopup(self.ctx, self.Browser.name)
+        end
+    end
+    reaper.ImGui_PopFont(self.ctx)
+
+    if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
+        reaper.ImGui_SetTooltip(self.ctx, "add fx")
+    end
+    self.Browser:Popup()
+end
 
 ---draw the fx list
 function Rack:drawFxList()
-    if not self.state.Track then
-        return
-    end
-
     for idx, fx in ipairs(self.state.Track.fx_list) do
         reaper.ImGui_PushID(self.ctx, tostring(idx))
         Fx_separator:spaceBtwFx(idx)
@@ -67,18 +85,23 @@ function Rack:main()
 
     local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
 
-    self.keyboard_passthrough:run() -- execute any shortcuts the user might have pressed
+    if not self.Browser.open then
+        passThrough:runShortcuts() -- execute any shortcuts the user might have pressed
+    end
     if imgui_visible then
         --display the rack
         -- menubar:display()
-        self:drawFxList()
+
+        if self.state.Track then
+            self:drawFxList()
+            self:BrowserButton()
+        end
         reaper.ImGui_End(self.ctx)
     end
 
     self:RackStyleEnd()
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
         -- Close the rack.
-        self.keyboard_passthrough:onClose()
         self.LayoutEditor:close()
     else
         reaper.defer(function() self:main() end)
@@ -123,11 +146,10 @@ function Rack:init(project_directory)
 
     self.window_flags = window_flags -- tb used in main()
 
-
+    passThrough:init(self.ctx)
     self.settings = Settings:init(project_directory)
     self.state = state:init(project_directory, self.theme)  -- initialize state, query selected track and its fx
     self.actions = actions:init(self.ctx, self.state.Track) -- always init actions after state
-    self.keyboard_passthrough = keyboard_passthrough:init(self.ctx)
     Browser:init(self.ctx)                                  -- initialize the fx browser
     ---@type FXBrowser
     self.Browser =
