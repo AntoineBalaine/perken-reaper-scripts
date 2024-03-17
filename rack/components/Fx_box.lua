@@ -71,6 +71,9 @@ function fx_box:BypassToggle()
         reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, "BYPASS",
             "last_touched")
     end
+    if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
+        reaper.ImGui_SetTooltip(self.ctx, "toggle bypass")
+    end
     -- --leaving the toggle button as WIP for now
     -- local round_flag = reaper.ImGui_DrawFlags_RoundCornersAll()
     -- local draw_list = reaper.ImGui_GetWindowDrawList(self.ctx)
@@ -340,7 +343,11 @@ function fx_box:CollapseButton()
     if reaper.ImGui_Button(self.ctx, collapse_arrow, self.default_button_size, self.default_button_size) then -- create window name button
         self.fx.displaySettings._is_collapsed = not self.fx.displaySettings._is_collapsed
     end
+
     reaper.ImGui_PopFont(self.ctx)
+    if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
+        reaper.ImGui_SetTooltip(self.ctx, "collapse fx box")
+    end
 end
 
 function fx_box:AddParamsBtn()
@@ -428,7 +435,7 @@ function fx_box:Canvas()
             )
 
             reaper.ImGui_SameLine(self.ctx)
-            if reaper.ImGui_GetContentRegionAvail(self.ctx) < reaper.ImGui_GetItemRectSize(self.ctx) then
+            if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
                 reaper.ImGui_NewLine(self.ctx)
             end
             -- if --[[ idx ~= #self.fx.display_params and  ]] not param.display_settings.Pos_X and not param.display_settings.Pos_Y
@@ -473,7 +480,7 @@ function fx_box:main(fx)
         self:BypassToggle()
         if collapsed then
             self:EditLayoutButton()
-            self:AddParamsBtn()
+            -- self:AddParamsBtn()
             self:AddSavePresetBtn()
             self:VerticalLabelButton()
             self:CollapseButton()
@@ -482,7 +489,7 @@ function fx_box:main(fx)
             self:EditLayoutButton()
             reaper.ImGui_SameLine(self.ctx)
 
-            self:AddParamsBtn()
+            -- self:AddParamsBtn()
             reaper.ImGui_SameLine(self.ctx)
             self:AddSavePresetBtn()
             reaper.ImGui_SameLine(self.ctx)
