@@ -31,29 +31,8 @@ function fx_separator:spaceBtwFx(idx, is_last)
         "##Button between FX",
         10,
         height)
-    self.Browser:Popup()
     fx_separator:dragDropTarget(idx)
 
-    reaper.ImGui_SameLine(self.ctx, nil, 0)
-
-    if is_last then
-        reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
-        local plus = self.theme.letters[34]
-        -- create window name button
-        if reaper.ImGui_Button(self.ctx,
-                plus,
-                20,
-                height) and is_last then
-            if not reaper.ImGui_IsPopupOpen(self.ctx, self.Browser.name) then
-                reaper.ImGui_OpenPopup(self.ctx, self.Browser.name)
-            end
-        end
-        reaper.ImGui_PopFont(self.ctx)
-
-        if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
-            reaper.ImGui_SetTooltip(self.ctx, "add fx")
-        end
-    end
     reaper.ImGui_SameLine(self.ctx, nil, 0)
 end
 
