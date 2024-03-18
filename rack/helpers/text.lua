@@ -64,7 +64,11 @@ end
 ---@param line_width number width of the text box
 ---@param lines number height of the text box
 ---@param box_width? number
-function text_helpers.centerText(ctx, text, line_width, lines, box_width)
+---@param text_color? number
+function text_helpers.centerText(ctx, text, line_width, lines, box_width, text_color)
+    if text_color then
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), text_color)
+    end
     local total = 0
 
     local line_H = reaper.ImGui_GetTextLineHeightWithSpacing(ctx)
@@ -123,6 +127,10 @@ function text_helpers.centerText(ctx, text, line_width, lines, box_width)
                 cur_y + line_H * empty_lines)
             reaper.ImGui_Text(ctx, cur_str)
         end
+    end
+
+    if text_color then
+        reaper.ImGui_PopStyleColor(ctx)
     end
 end
 

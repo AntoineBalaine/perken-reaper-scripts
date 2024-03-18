@@ -611,6 +611,7 @@ end
 ---@param flags? integer|KnobFlags
 ---@param param Parameter
 ---@param steps? integer
+---@param text_color? integer
 ---@return boolean value_changed
 ---@return number new_value
 function Knob:draw(variant,
@@ -619,7 +620,8 @@ function Knob:draw(variant,
                    track_color,
                    flags,
                    steps,
-                   param
+                   param,
+                   text_color
 )
     self._param                        = param
 
@@ -634,7 +636,6 @@ function Knob:draw(variant,
     else
         self._controllable = true
     end
-
     reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     local value_changed, new_val = false, self._param.value
     if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.guid, self._child_width, child_height, false,
@@ -644,7 +645,7 @@ function Knob:draw(variant,
         end
 
         if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
-            text_helpers.centerText(self._ctx, self._label, self._child_width, 2)
+            text_helpers.centerText(self._ctx, self._label, self._child_width, 2, nil, text_color)
         end
 
         self:__update(self._child_width)
@@ -700,16 +701,21 @@ function Knob:draw(variant,
         end
 
         if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-            text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 1, self._child_width)
+            text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 1, self._child_width,
+                text_color)
             --     local drag_changed, new_drag_val = self:__with_drag() -- FIXME
             --     if drag_changed then
             --         value_changed = drag_changed
             --         new_val = new_drag_val
             --     end
         end
+        -- reaper.ImGui_DrawList_AddRectFilled(self._draw_list, draw_cursor_x, draw_cursor_y,
+        --     draw_cursor_x + self._child_width,
+        --     draw_cursor_y + child_height, 0xFFFFFFAA)
 
-        reaper.ImGui_DrawList_AddRect(reaper.ImGui_GetWindowDrawList(self._ctx), 0, 0, self._child_width,
-            child_height, 0xFFFFFFFF)
+        -- reaper.ImGui_DrawList_AddRect(self._draw_list, draw_cursor_x, draw_cursor_y,
+        --     draw_cursor_x + self._child_width,
+        --     draw_cursor_y + child_height, 0xFF0000FF, 1.0, 0, 0.0)
         -- if visible then reaper.ImGui_EndChild(self._ctx) end
         reaper.ImGui_EndChild(self._ctx)
     end

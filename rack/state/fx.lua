@@ -7,6 +7,8 @@ local table_helpers = require("helpers.table")
 local constants = require("helpers.constants")
 local layout_enums = require("state.fx_layout_types")
 local parameter = require("state.param")
+local color_helpers = require("helpers.colors")
+
 ---@class TrackFX
 local fx = {}
 fx.__index = fx
@@ -34,22 +36,6 @@ function fx.new(state, theme, index, number, guid)
     self.params_list, self.params_by_guid = self:createParams()
     self.display_params = {} ---@type Parameter[]
 
-    -- in order to desaturate, I want to subtract from s
-    -- however, already
-    -- FIXME desaturate doesn't work
-    ---@param rgba integer
-    local function desaturate(rgba)
-        local r, g, b, a = reaper.ImGui_ColorConvertU32ToDouble4(rgba)
-        local h, s, v = reaper.ImGui_ColorConvertRGBtoHSV(r, g, b)
-
-        r, g, b = reaper.ImGui_ColorConvertHSVtoRGB(h, s - 0.5, v)
-        r = (r * 255) // 1 | 0 -- floor division
-        g = (g * 255) // 1 | 0
-        b = (b * 255) // 1 | 0
-        local rv = r << 24 | g << 16 | b << 8 | 0xFF
-        return rv
-    end
-
     ---@class FxDisplaySettings
     self.displaySettings = {
         _is_collapsed       = false,
@@ -60,7 +46,7 @@ function fx.new(state, theme, index, number, guid)
         buttonStyle         = {
             background = theme.colors.col_main_bg.color,
             background_disabled = theme.colors.group_15.color,
-            background_offline = desaturate(theme.colors.col_mi_fades.color),
+            background_offline = color_helpers.desaturate(theme.colors.col_mi_fades.color),
             text_enabled = theme.colors.mcp_fx_normal.color,
             text_disabled = theme.colors.mcp_fx_bypassed.color,
             text_offline = theme.colors.mcp_fx_offlined.color,

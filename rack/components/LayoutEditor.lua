@@ -346,7 +346,7 @@ function LayoutEditor:close(action)
     if action then
         self.fx:onEditLayoutClose(action)
     end
-    self.fx.editing = false
+    if self.fx then self.fx.editing = false end
     self.open = false
     self.fx = nil
     self.displaySettings = nil

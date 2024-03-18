@@ -13,7 +13,7 @@ local drag_drop      = require("state.dragAndDrop")
 local layout_enums   = require("state.fx_layout_types")
 local Knobs          = require("components.knobs.Knobs")
 local layoutEnums    = require("state.fx_layout_types")
-
+local color_helpers  = require("helpers.colors")
 local fx_box         = {}
 local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
@@ -330,8 +330,8 @@ function fx_box:AddParamsBtn()
 end
 
 function fx_box:Canvas()
-    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
-    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing(), 0, 0)
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_WindowPadding(), 2, 2)
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing(), 1, 0)
 
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
         for idx, param in ipairs(self.fx.display_params) do
@@ -359,20 +359,21 @@ function fx_box:Canvas()
                     )
                 end
             end
-            -- if param.display_settings.Pos_X and param.display_settings.Pos_Y then
-            --     reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
-            --     reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
-            -- end
-            -- local x, y = reaper.ImGui_GetCursorPos(self.ctx)
-            -- reaper.ShowConsoleMsg(idx .. ": before " .. x .. " " .. y .. "\n")
+            if param.display_settings.Pos_X and param.display_settings.Pos_Y then
+                reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
+                reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
+            end
+
+
             local changed, new_val = param.display_settings.component:draw(
                 Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
-                self.testcol,
-                self.testcol,
-                self.testcol,
+                self.colorSet,
+                self.colorSet,
+                self.colorSet,
                 nil,
                 nil,
-                param
+                param,
+                self.colorSet.text
             )
 
             if changed then
@@ -384,18 +385,6 @@ function fx_box:Canvas()
             if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
                 reaper.ImGui_NewLine(self.ctx)
             end
-            -- if --[[ idx ~= #self.fx.display_params and  ]] not param.display_settings.Pos_X and not param.display_settings.Pos_Y
-            -- then
-
-            --     local leftoverX = reaper.ImGui_GetContentRegionAvail(self.ctx)
-            --     if leftoverX < radius * 2 + 40 then
-            --         reaper.ImGui_NewLine(self.ctx)
-            --     else
-            --         reaper.ImGui_SameLine(self.ctx, nil, 0)
-            --     end
-            -- end
-            -- local x, y = reaper.ImGui_GetCursorPos(self.ctx)
-            -- reaper.ShowConsoleMsg(idx .. ": after " .. x .. " " .. y .. "\n")
         end
         reaper.ImGui_EndChild(self.ctx)
     end
@@ -405,6 +394,7 @@ end
 ---@param fx TrackFX
 function fx_box:main(fx)
     self.fx = fx
+    self.colorSet = self.fx.editing and self.colorSets.edit or self.colorSets.normal
     self.displaySettings = fx.displaySettings
 
     local collapsed = self.fx.displaySettings._is_collapsed
@@ -454,8 +444,20 @@ function fx_box:testcolors()
         base = self.theme.colors.col_vuind2.color,
         hovered = self.theme.colors.col_vuind4.color,
         active = self.theme.colors.col_vuind3.color,
+        -- text = self.theme.colors.col_tcp_textsel.color - 0xEE
+        text = 0x00000000
     }
-    return Knobs.ColorSet.new(test.base, test.hovered, test.active)
+    local editing = {
+        base = self.theme.colors.col_vuind2.color - 0xAA,
+        hovered = self.theme.colors.col_vuind4.color - 0xAA,
+        active = self.theme.colors.col_vuind3.color - 0xAA,
+        -- text = self.theme.colors.col_tcp_textsel.color - 0xAA,
+
+        text = 0x00000000
+    }
+    local normal = Knobs.ColorSet.new(test.base, test.hovered, test.active)
+    local edit = Knobs.ColorSet.new(editing.base, editing.hovered, editing.active)
+    return normal, edit
 end
 
 ---@param parent_state Rack
@@ -466,8 +468,12 @@ function fx_box:init(parent_state)
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
     self.default_button_size = 20
-
-    self.testcol = self:testcolors()
+    local normal, edit = self:testcolors()
+    self.colorSets = {
+        normal = normal,
+        edit = edit
+    }
+    self.colorSet = normal
     self.LayoutEditor = parent_state.LayoutEditor
 end
 
