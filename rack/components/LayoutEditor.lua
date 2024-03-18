@@ -96,9 +96,9 @@ function LayoutEditor:AddParams()
         if new_val ~= param.display then
             param.display = new_val
             if new_val then
-                self.selectedParam = self.fx:createParamDetails(param.guid)
+                self.selectedParam = self.fx:createParamDetails(param)
             else
-                self.fx:removeParamDetails(param.guid)
+                self.fx:removeParamDetails(param)
             end
         end
 
@@ -155,6 +155,58 @@ function LayoutEditor:LeftPane()
     reaper.ImGui_SameLine(self.ctx)
 end
 
+--- displays a button which can be dragged around the canvas
+--- and which writes its position to the selectedParam’s X and Y values
+function LayoutEditor:Canvas()
+    if reaper.ImGui_BeginChild(self.ctx, "##canvas", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
+        local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self.ctx)
+        local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
+        local cur_pos_x = reaper.ImGui_GetCursorPosX(self.ctx)
+        local cur_pos_y = reaper.ImGui_GetCursorPosY(self.ctx)
+
+        if self.selectedParam._is_active then
+            local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
+                self.ctx,
+                cur_pos_x,
+                cur_pos_y)
+
+            local new_pos_x = cur_pos_x + self.selectedParam.details.display_settings.Pos_X + delta_x
+            local new_pos_y = cur_pos_y + self.selectedParam.details.display_settings.Pos_Y + delta_y
+            ---clamp the values within the current frame.
+            ---TODO dunno why the frame is currently bigger than the window.
+            if new_pos_x < min_x then
+                new_pos_x = min_x
+            elseif new_pos_x > max_x then
+                new_pos_x = max_x
+            end
+            if new_pos_y < min_y then
+                new_pos_y = min_y
+            elseif new_pos_y > max_y then
+                new_pos_y = max_y
+            end
+
+            reaper.ImGui_SetCursorPosX(self.ctx, new_pos_x)
+            reaper.ImGui_SetCursorPosY(self.ctx, new_pos_y)
+
+            if delta_y ~= 0.0 and delta_x ~= 0.0 then
+                self.selectedParam.details.display_settings.Pos_X = new_pos_x - cur_pos_x
+                self.selectedParam.details.display_settings.Pos_Y = new_pos_y - cur_pos_y
+                reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
+            end
+        else
+            reaper.ImGui_SetCursorPosX(self.ctx, self.selectedParam.details.display_settings.Pos_X)
+            reaper.ImGui_SetCursorPosY(self.ctx, self.selectedParam.details.display_settings.Pos_Y)
+        end
+
+        reaper.ImGui_Button(self.ctx, "drag me")
+        local is_active = reaper.ImGui_IsItemActive(self.ctx)
+        if is_active ~= self.selectedParam._is_active then
+            self.selectedParam._is_active = is_active
+        end
+        reaper.ImGui_EndChild(self.ctx)
+    end
+end
+
 function LayoutEditor:RightPane()
     if not self.selectedParam or not self.selectedParam.details then
         return
@@ -162,56 +214,9 @@ function LayoutEditor:RightPane()
     reaper.ImGui_BeginGroup(self.ctx)
 
     self:ParamInfo()
-    -- reaper.ImGui_Text(self.ctx, "Editing the layout!")
-    -- self:Sketch()
+    reaper.ImGui_Text(self.ctx, "Editing the layout!")
+    self:Sketch()
     -- self:FontButton()
-    reaper.ImGui_BeginChild(self.ctx, "##canvas", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar())
-
-    local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self.ctx)
-    local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self.ctx)
-    local cur_pos_x = reaper.ImGui_GetCursorPosX(self.ctx)
-    local cur_pos_y = reaper.ImGui_GetCursorPosY(self.ctx)
-
-    if self.selectedParam._is_active then
-        local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
-            self.ctx,
-            cur_pos_x,
-            cur_pos_y)
-
-        local new_pos_x = cur_pos_x + self.selectedParam.details.display_settings.Pos_X + delta_x
-        local new_pos_y = cur_pos_y + self.selectedParam.details.display_settings.Pos_Y + delta_y
-        ---clamp the values within the current frame.
-        ---TODO dunno why the frame is currently bigger than the window.
-        if new_pos_x < min_x then
-            new_pos_x = min_x
-        elseif new_pos_x > max_x then
-            new_pos_x = max_x
-        end
-        if new_pos_y < min_y then
-            new_pos_y = min_y
-        elseif new_pos_y > max_y then
-            new_pos_y = max_y
-        end
-
-        reaper.ImGui_SetCursorPosX(self.ctx, new_pos_x)
-        reaper.ImGui_SetCursorPosY(self.ctx, new_pos_y)
-
-        if delta_y ~= 0.0 and delta_x ~= 0.0 then
-            self.selectedParam.details.display_settings.Pos_X = new_pos_x - cur_pos_x
-            self.selectedParam.details.display_settings.Pos_Y = new_pos_y - cur_pos_y
-            reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
-        end
-    else
-        reaper.ImGui_SetCursorPosX(self.ctx, self.selectedParam.details.display_settings.Pos_X)
-        reaper.ImGui_SetCursorPosY(self.ctx, self.selectedParam.details.display_settings.Pos_Y)
-    end
-
-    reaper.ImGui_Button(self.ctx, "drag me")
-    local is_active = reaper.ImGui_IsItemActive(self.ctx)
-    if is_active ~= self.selectedParam._is_active then
-        self.selectedParam._is_active = is_active
-    end
-    reaper.ImGui_EndChild(self.ctx)
     reaper.ImGui_EndGroup(self.ctx)
 end
 
