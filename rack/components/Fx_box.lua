@@ -72,63 +72,6 @@ function fx_box:BypassToggle()
     if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
         reaper.ImGui_SetTooltip(self.ctx, "toggle bypass")
     end
-    -- --leaving the toggle button as WIP for now
-    -- local round_flag = reaper.ImGui_DrawFlags_RoundCornersAll()
-    -- local draw_list = reaper.ImGui_GetWindowDrawList(self.ctx)
-    -- local xs, ys = reaper.ImGui_GetCursorScreenPos(self.ctx)
-    -- local xe, ye = xs + 20, ys + 20
-
-
-    -- reaper.ImGui_DrawList_AddRectFilled(draw_list, xs, ys, xe, ye, 0x00000000, 10,
-    --     round_flag)
-    -- reaper.ImGui_DrawList_AddRectFilled(draw_list, xs + 5, ys + 5, xe - 5, ye - 5, 0xFFFFFFFF, 10,
-    --     round_flag)
-
-    -- if reaper.ImGui_InvisibleButton(self.ctx, "##fx_toggle", 20, 20) then
-    --     reaper.TrackFX_SetEnabled(self.state.Track.track, self.fx.index - 1,
-    --         not is_enabled)
-    -- end
-
-    -- local button_color = is_enabled and self.theme.colors.col_toolbar_text.color or
-    --     self.theme.colors.col_toolbar_text_on.color
-    -- if reaper.ImGui_IsItemHovered(self.ctx) then
-    --     button_color = button_color + self.theme.colors.col_toolbar_text.color
-    -- end
-
-    -- local circle_x_center = xs + 10
-    -- local circle_y_center = ys + 10
-    -- reaper.ImGui_DrawList_AddCircle(draw_list, circle_x_center, circle_y_center, 10, 0x00000FFF, nil, nil)
-    -- reaper.ImGui_DrawList_AddCircle(draw_list, circle_x_center, circle_y_center, 8, button_color, nil, 2)
-
-    -- local rect_x_start, rect_y_start = xs + 8, ys + 8
-    -- local rect_x_end, rect_y_end = rect_x_start + 2, rect_y_start + 5
-
-    -- reaper.ImGui_DrawList_AddRectFilled(draw_list, rect_x_start, rect_y_start, rect_x_end, rect_y_end, 0xFFFFFFFF, 10,
-    --     round_flag)
-end
-
-local function calculateTriangleVertices(centerX, centerY, radius)
-    local vertices = {}
-
-    -- Calculate the angles for each point
-    local angle1 = 0
-    local angle2 = (2 * math.pi) / 3
-    local angle3 = (4 * math.pi) / 3
-
-    -- Calculate the coordinates for each point
-    local x1 = centerX + radius * math.cos(angle1)
-    local y1 = centerY + radius * math.sin(angle1)
-    table.insert(vertices, { x = x1, y = y1 })
-
-    local x2 = centerX + radius * math.cos(angle2)
-    local y2 = centerY + radius * math.sin(angle2)
-    table.insert(vertices, { x = x2, y = y2 })
-
-    local x3 = centerX + radius * math.cos(angle3)
-    local y3 = centerY + radius * math.sin(angle3)
-    table.insert(vertices, { x = x3, y = y3 })
-
-    return vertices
 end
 
 function fx_box:slider()
