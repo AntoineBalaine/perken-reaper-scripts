@@ -375,6 +375,11 @@ function fx_box:Canvas()
                 param
             )
 
+            if changed then
+                param.value = new_val
+                param:setValue(new_val)
+            end
+
             reaper.ImGui_SameLine(self.ctx)
             if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
                 reaper.ImGui_NewLine(self.ctx)
@@ -391,11 +396,6 @@ function fx_box:Canvas()
             -- end
             -- local x, y = reaper.ImGui_GetCursorPos(self.ctx)
             -- reaper.ShowConsoleMsg(idx .. ": after " .. x .. " " .. y .. "\n")
-
-            if changed then
-                param.value = new_val
-                param:setValue(new_val)
-            end
         end
         reaper.ImGui_EndChild(self.ctx)
     end

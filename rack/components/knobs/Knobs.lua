@@ -249,6 +249,8 @@ function Knob:__control()
     local indent_level = self._child_width / 2 - self._radius
     reaper.ImGui_Indent(self._ctx, indent_level)
     reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
+
+
     reaper.ImGui_Unindent(self._ctx, indent_level)
 
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
@@ -618,80 +620,87 @@ function Knob:draw(variant,
                    steps,
                    param
 )
-    reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
-    self._child_width = self._radius * 2 * 1.5
-    local child_height = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
-
-    --- FIXME I can’ wrap the whole Child into a conditional because it breaks the knob's behaviour
-    local visible = reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, self._child_width, child_height, false,
-        reaper.ImGui_WindowFlags_NoScrollbar())
     self._param = param
-    if flags == nil then
-        flags = 0
-    end
+    reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
+    self._child_width            = self._radius * 2 * 1.5
+    local child_height           = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
-    if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
-        text_helpers.centerText(self._ctx, self._label, self._child_width, 2)
-    end
+    local value_changed, new_val = false, self._param.value
+    --- FIXME I can’ wrap the whole Child into a conditional because it breaks the knob's behaviour
+    if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, self._child_width, child_height, false,
+            reaper.ImGui_WindowFlags_NoScrollbar()) then
+        if flags == nil then
+            flags = 0
+        end
 
-    self:__update(self._child_width)
-    local value_changed, new_val = self:__control()
-    if variant == self.KnobVariant.wiper_knob then
-        self:__wiper_knob(circle_color,
-            dot_color,
-            track_color or circle_color
-        )
-    elseif variant == self.KnobVariant.wiper_dot then
-        self:__draw_wiper_dot_knob(circle_color,
-            dot_color,
-            track_color or circle_color
-        )
-    elseif variant == self.KnobVariant.wiper_only then
-        self:__draw_wiper_only(circle_color,
-            track_color or circle_color
-        )
-    elseif variant == self.KnobVariant.tick then
-        self:__draw_tick_knob(circle_color,
-            dot_color
-        )
-    elseif variant == self.KnobVariant.dot then
-        self:__draw_dot_knob(circle_color,
-            dot_color
-        )
-    elseif variant == self.KnobVariant.space then
-        self:__draw_space_knob(circle_color,
-            dot_color
-        )
-    elseif variant == self.KnobVariant.stepped then
-        self:__draw_stepped_knob(steps or 0, circle_color,
-            dot_color,
-            track_color or circle_color
-        )
-    elseif variant == self.KnobVariant.ableton then
-        self:__draw_ableton_knob(circle_color,
-            dot_color,
-            track_color or circle_color
-        )
-    elseif variant == self.KnobVariant.readrum then
-        self:__draw_readrum_knob(circle_color,
-            dot_color,
-            track_color or dot_color
-        )
-    elseif variant == self.KnobVariant.imgui then
-        self:__draw_imgui_knob(circle_color,
-            dot_color,
-            track_color or dot_color
-        )
+        if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
+            text_helpers.centerText(self._ctx, self._label, self._child_width, 2)
+        end
+
+        self:__update(self._child_width)
+
+        value_changed, new_val = self:__control()
+
+        if variant == self.KnobVariant.wiper_knob then
+            self:__wiper_knob(circle_color,
+                dot_color,
+                track_color or circle_color
+            )
+        elseif variant == self.KnobVariant.wiper_dot then
+            self:__draw_wiper_dot_knob(circle_color,
+                dot_color,
+                track_color or circle_color
+            )
+        elseif variant == self.KnobVariant.wiper_only then
+            self:__draw_wiper_only(circle_color,
+                track_color or circle_color
+            )
+        elseif variant == self.KnobVariant.tick then
+            self:__draw_tick_knob(circle_color,
+                dot_color
+            )
+        elseif variant == self.KnobVariant.dot then
+            self:__draw_dot_knob(circle_color,
+                dot_color
+            )
+        elseif variant == self.KnobVariant.space then
+            self:__draw_space_knob(circle_color,
+                dot_color
+            )
+        elseif variant == self.KnobVariant.stepped then
+            self:__draw_stepped_knob(steps or 0, circle_color,
+                dot_color,
+                track_color or circle_color
+            )
+        elseif variant == self.KnobVariant.ableton then
+            self:__draw_ableton_knob(circle_color,
+                dot_color,
+                track_color or circle_color
+            )
+        elseif variant == self.KnobVariant.readrum then
+            self:__draw_readrum_knob(circle_color,
+                dot_color,
+                track_color or dot_color
+            )
+        elseif variant == self.KnobVariant.imgui then
+            self:__draw_imgui_knob(circle_color,
+                dot_color,
+                track_color or dot_color
+            )
+        end
+
+        if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
+            text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 1, self._child_width)
+            --     local drag_changed, new_drag_val = self:__with_drag() -- FIXME
+            --     if drag_changed then
+            --         value_changed = drag_changed
+            --         new_val = new_drag_val
+            --     end
+        end
+
+        -- if visible then reaper.ImGui_EndChild(self._ctx) end
+        reaper.ImGui_EndChild(self._ctx)
     end
-    if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 1, self._child_width)
-        -- local drag_changed, new_drag_val = self:__with_drag() -- FIXME
-        -- if drag_changed then
-        --     value_changed = drag_changed
-        --     new_val = new_drag_val
-        -- end
-    end
-    if visible then reaper.ImGui_EndChild(self._ctx) end
     reaper.ImGui_PopStyleVar(self._ctx)
     return value_changed, (new_val or self._param.value)
 end
