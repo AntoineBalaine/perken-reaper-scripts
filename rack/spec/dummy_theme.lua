@@ -10,6 +10,7 @@ dummy_theme.theme = {
     letters = {},
     fonts = {},
     colors = {
+        col_main_bg = { description = "", color = 0x000000FF },
         activetake_tag = { description = "", color = 0x000000FF },
         areasel_outline = { description = "", color = 0x000000FF },
         arrange_vgrid = { description = "", color = 0x000000FF },

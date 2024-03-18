@@ -27,7 +27,10 @@ describe("State tests", function()
             return true, fx[fx_number + 1].name
         end,
         TrackFX_GetParamName = function() --[[_, paramName]] end,
-        TrackFX_GetPreset = function(track, fx_number) return nil, "" end
+        TrackFX_GetPreset = function(track, fx_number) return nil, "" end,
+        ImGui_ColorConvertU32ToDouble4 = function(rgba) return 0.1, 0.1, 0.1, 0.1 end,
+        ImGui_ColorConvertRGBtoHSV = function(r, g, b) return 0.1, 0.1, 0.1, 0.1 end,
+        ImGui_ColorConvertHSVtoRGB = function(r, g, b) return 0.1, 0.1, 0.1, 0.1 end
     }
     local state = State:init("", theme)
 

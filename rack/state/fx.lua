@@ -24,8 +24,6 @@ function fx.new(state, theme, index, number, guid)
     self.state = state
     local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
-    ---for now, assume that offline FX will not be toggled mid-session
-    self.offline = reaper.TrackFX_GetOffline(self.state.Track.track, number)
 
     self.guid = guid
     self.name = name
@@ -167,8 +165,8 @@ end
 ---@return ParamData[] params_list
 ---@return table<string, ParamData> params_by_guid
 function fx:createParams()
-    local params_list = {}
-    local params_by_guid = {}
+    local params_list = {} ---@type ParamData[]
+    local params_by_guid = {} ---@type table<string, ParamData>
 
     local display = false
     for param_index = 0, reaper.TrackFX_GetNumParams(self.state.Track.track, self.number) - 1 do
@@ -193,7 +191,8 @@ function fx:createParams()
         ::continue::
     end
     -- don't display bypass in params list.
-    if params_list[#params_list - 2].name == "Bypass" then
+    local param = params_list[#params_list - 2]
+    if param and param.name == "Bypass" then
         local bypass = table.remove(params_list, #params_list - 2)
         params_by_guid[bypass.guid] = nil
     end

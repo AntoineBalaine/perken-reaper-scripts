@@ -40,7 +40,10 @@ _G.reaper = {
     ImGui_WindowFlags_NoScrollbar = function() return 0 end,
     ImGui_Mod_Alt = function() return 0 end,
     LocalizeString = function() return "" end,
-    TrackFX_GetPreset = function() return nil, "" end
+    TrackFX_GetPreset = function() return nil, "" end,
+    ImGui_ColorConvertU32ToDouble4 = function(rgba) return 0.1, 0.1, 0.1, 0.1 end,
+    ImGui_ColorConvertRGBtoHSV = function(r, g, b) return 0.1, 0.1, 0.1, 0.1 end,
+    ImGui_ColorConvertHSVtoRGB = function(r, g, b) return 0.1, 0.1, 0.1, 0.1 end
 }
 
 local State = require("state.state")

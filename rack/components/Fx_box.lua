@@ -37,9 +37,7 @@ end
 
 function fx_box:buttonStyleStart()
     local bg_col ---@type number
-    if self.fx.offline then
-        bg_col = self.fx.displaySettings.buttonStyle.background_offline
-    elseif self.fx.enabled then
+    if self.fx.enabled then
         bg_col = self.fx.displaySettings.buttonStyle.background
     else
         bg_col = self.fx.displaySettings.buttonStyle.background_disabled
@@ -489,7 +487,7 @@ function fx_box:main(fx)
             self:EditLayoutButton()
             reaper.ImGui_SameLine(self.ctx)
 
-            -- self:AddParamsBtn()
+            self:AddParamsBtn()
             reaper.ImGui_SameLine(self.ctx)
             self:AddSavePresetBtn()
             reaper.ImGui_SameLine(self.ctx)
