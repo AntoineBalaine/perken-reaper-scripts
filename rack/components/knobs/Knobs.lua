@@ -626,8 +626,7 @@ function Knob:draw(variant,
     local child_height           = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
     local value_changed, new_val = false, self._param.value
-    --- FIXME I can’ wrap the whole Child into a conditional because it breaks the knob's behaviour
-    if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._id, self._child_width, child_height, false,
+    if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.guid, self._child_width, child_height, false,
             reaper.ImGui_WindowFlags_NoScrollbar()) then
         if flags == nil then
             flags = 0

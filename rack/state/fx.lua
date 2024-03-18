@@ -222,24 +222,20 @@ end
 
 ---add param to list of displayed params
 ---query its value, create a param class for it
-function fx:createParamDetails(guid)
-    ---@class ParamData
-    local param = self.params_by_guid[guid]
-    local new_param = parameter.new(self.state, param.index, self, guid)
+function fx:createParamDetails(param)
+    local new_param = parameter.new(self.state, param.index, self, param.guid)
     param.details = new_param
     table.insert(self.display_params, new_param)
     return param
 end
 
 ---I’m having to run a linear sweep here to find the fx by guid in the list of displayed params.
-function fx:removeParamDetails(guid)
-    ---@class ParamData
-    local param = self.params_by_guid[guid]
-    if param and param.details then
+function fx:removeParamDetails(param)
+    if param.details then
         param.details = nil
     end
     for i, fx_instance in ipairs(self.display_params) do
-        if fx_instance.guid == guid then
+        if fx_instance.guid == param.guid then
             table.remove(self.display_params, i)
             break
         end

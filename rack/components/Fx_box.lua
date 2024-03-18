@@ -319,9 +319,9 @@ function fx_box:AddParamsBtn()
             if new_val ~= param.display then
                 param.display = new_val
                 if new_val then
-                    self.fx:createParamDetails(param.guid)
+                    self.fx:createParamDetails(param)
                 else
-                    self.fx:removeParamDetails(param.guid)
+                    self.fx:removeParamDetails(param)
                 end
             end
         end
