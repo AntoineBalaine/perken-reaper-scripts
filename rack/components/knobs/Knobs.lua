@@ -702,7 +702,7 @@ local function hsv2rgb(hsva)
     local h, s, v, a = hsva[1], hsva[2], hsva[3], hsva[4]
     local r, g, b
 
-    local i = math.floor(h * 6)
+    local i = (h * 6) // 1 | 0 -- floor
     local f = h * 6 - i
     local p = v * (1 - s)
     local q = v * (1 - f * s)

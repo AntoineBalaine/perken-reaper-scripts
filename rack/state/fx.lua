@@ -41,9 +41,9 @@ function fx.new(state, theme, index, number, guid)
         local h, s, v = reaper.ImGui_ColorConvertRGBtoHSV(r, g, b)
 
         r, g, b = reaper.ImGui_ColorConvertHSVtoRGB(h, s - 0.5, v)
-        r = math.floor(r * 255)
-        g = math.floor(g * 255)
-        b = math.floor(b * 255)
+        r = (r * 255) // 1 | 0 -- floor division
+        g = (g * 255) // 1 | 0
+        b = (b * 255) // 1 | 0
         local rv = r << 24 | g << 16 | b << 8 | 0xFF
         return rv
     end
