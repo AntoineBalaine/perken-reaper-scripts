@@ -332,6 +332,9 @@ function LayoutEditor:Main()
         self:SaveCancelButton()
         reaper.ImGui_End(self.ctx)
     end
+    if not visible or not open then
+        self:close()
+    end
     if open then
         reaper.defer(function() self:Main() end)
     end
@@ -343,6 +346,7 @@ function LayoutEditor:close(action)
     if action then
         self.fx:onEditLayoutClose(action)
     end
+    self.fx.editing = false
     self.open = false
     self.fx = nil
     self.displaySettings = nil
@@ -352,6 +356,7 @@ end
 ---@param fx TrackFX
 function LayoutEditor:edit(fx)
     self.fx = fx
+    self.fx.editing = true
     self.displaySettings = fx.displaySettings
     self.displaySettings_backup = Table.deepCopy(fx.displaySettings)
     self.open = true

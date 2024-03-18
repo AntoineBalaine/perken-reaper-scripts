@@ -24,6 +24,8 @@ function fx.new(state, theme, index, number, guid)
     self.state = state
     local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
+    ---when fx is selected in the layoutEditor
+    self.editing = false
 
     self.guid = guid
     self.name = name

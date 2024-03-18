@@ -9,6 +9,7 @@ parameter.__index = parameter
 ---@param state State
 ---@param param_index number
 ---@param parent_fx TrackFX
+---@param guid string
 function parameter.new(state, param_index, parent_fx, guid)
     ---@class Parameter
     local new_param = setmetatable({}, parameter)
@@ -16,7 +17,6 @@ function parameter.new(state, param_index, parent_fx, guid)
     new_param.guid = guid
     new_param.index = param_index
     new_param.parent_fx = parent_fx
-    new_param.display = true
     local _, name = reaper.TrackFX_GetParamName(new_param.state.Track.track, new_param.parent_fx.index - 1,
         new_param.index)
     local _, ident = reaper.TrackFX_GetParamIdent(new_param.state.Track.track, new_param.parent_fx.index - 1,

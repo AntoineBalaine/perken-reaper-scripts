@@ -226,6 +226,7 @@ function Knob.new(
     return new_knob
 end
 
+---@param box_width number
 function Knob:__update(box_width)
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
     local x_pos = draw_cursor_x + box_width / 2
@@ -241,18 +242,18 @@ end
 ---@return boolean rv
 ---@return number|nil p_value
 function Knob:__control()
-    if not self._controllable then
-        return false, nil
-    end
-
-
     local indent_level = self._child_width / 2 - self._radius
     reaper.ImGui_Indent(self._ctx, indent_level)
     reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
 
 
+
     reaper.ImGui_Unindent(self._ctx, indent_level)
 
+
+    if not self._controllable then -- don’t process controls if the fx’s layout is being edited or knobs isn’t controllable
+        return false, nil
+    end
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
     local value_changed = false
@@ -620,11 +621,21 @@ function Knob:draw(variant,
                    steps,
                    param
 )
-    self._param = param
-    reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
-    self._child_width            = self._radius * 2 * 1.5
-    local child_height           = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
+    self._param                        = param
 
+    local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
+    self._child_width                  = self._radius * 2 * 1.5
+    local child_height                 = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
+
+
+    -- don’t update the knob’s value if the fx’s layout is being edited
+    if self._param.parent_fx.editing then
+        self._controllable = false
+    else
+        self._controllable = true
+    end
+
+    reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     local value_changed, new_val = false, self._param.value
     if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.guid, self._child_width, child_height, false,
             reaper.ImGui_WindowFlags_NoScrollbar()) then
@@ -697,6 +708,8 @@ function Knob:draw(variant,
             --     end
         end
 
+        reaper.ImGui_DrawList_AddRect(reaper.ImGui_GetWindowDrawList(self._ctx), 0, 0, self._child_width,
+            child_height, 0xFFFFFFFF)
         -- if visible then reaper.ImGui_EndChild(self._ctx) end
         reaper.ImGui_EndChild(self._ctx)
     end
