@@ -31,6 +31,36 @@ function fx_box:fxBoxStyleStart()
     --     self.displaySettings.BorderColor) -- fx box’s border color
 end
 
+function fx_box:DrawGrid()
+    local WinDrawList = reaper.ImGui_GetWindowDrawList(self.ctx)
+    local start_x, start_y = reaper.ImGui_GetItemRectMin(self.ctx)
+    local end_x, end_y = reaper.ImGui_GetItemRectMax(self.ctx)
+    local gridsize = 10
+    local grid_color = 0x444444AA -- TODO pick a color from the theme
+    -- local grid_color = 0xFFFFFFFF
+
+    -- add horizontal grid
+    for i = 0, self.fx.displaySettings.window_Width, gridsize do
+        reaper.ImGui_DrawList_AddLine(WinDrawList,
+            start_x,
+            start_y + i,
+            end_x,
+            end_y + i,
+            grid_color)
+    end
+
+    -- add vertical grid
+    for i = 0, self.fx.displaySettings.window_Width, gridsize do
+        reaper.ImGui_DrawList_AddLine(WinDrawList,
+            start_x + i,
+            start_y,
+            start_x + i,
+            start_y + self.fx.displaySettings.window_height,
+            grid_color)
+    end
+    -- end
+end
+
 function fx_box:fxBoxStyleEnd()
     reaper.ImGui_PopStyleColor(self.ctx, 1) -- pop the bg, button bg and border colors
 end
@@ -334,6 +364,9 @@ function fx_box:Canvas()
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing(), 1, 0)
 
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
+        if self.fx.editing and not self.fx.displaySettings._is_collapsed then
+            self:DrawGrid()
+        end
         for idx, param in ipairs(self.fx.display_params) do
             local radius = reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5
             if not param.display_settings.component then
