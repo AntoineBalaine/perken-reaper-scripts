@@ -28,7 +28,10 @@ function fx.new(state, theme, index, number, guid)
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
     ---when fx is selected in the layoutEditor
     self.editing = false
-
+    ---when fx is being edited,
+    ---use this callback when user clicks on a param in the fx_box’s canvas
+    ---@type fun(param: Parameter) | nil
+    self.setSelectedParam = nil
     self.guid = guid
     self.name = name
     self.number = number

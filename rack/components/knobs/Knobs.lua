@@ -249,7 +249,11 @@ end
 function Knob:__control()
     local indent_level = self._child_width / 2 - self._radius
     reaper.ImGui_Indent(self._ctx, indent_level)
-    reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
+    if reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0) then
+        if self._param.parent_fx.editing and self._param.parent_fx.setSelectedParam then
+            self._param.parent_fx.setSelectedParam(self._param)
+        end
+    end
 
 
 
@@ -633,7 +637,6 @@ function Knob:draw(variant,
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
     self._child_width                  = self._radius * 2 * 1.5
     local child_height                 = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
-
 
     -- don’t update the knob’s value if the fx’s layout is being edited
     if self._param.parent_fx.editing then

@@ -346,7 +346,10 @@ function LayoutEditor:close(action)
     if action then
         self.fx:onEditLayoutClose(action)
     end
-    if self.fx then self.fx.editing = false end
+    if self.fx then
+        self.fx.editing = false
+        self.fx.setSelectedParam = nil
+    end
     self.open = false
     self.fx = nil
     self.displaySettings = nil
@@ -356,6 +359,9 @@ end
 ---@param fx TrackFX
 function LayoutEditor:edit(fx)
     self.fx = fx
+    self.fx.setSelectedParam =
+    ---@param param ParamData
+        function(param) self.selectedParam = param end
     self.fx.editing = true
     self.displaySettings = fx.displaySettings
     self.displaySettings_backup = Table.deepCopy(fx.displaySettings)
