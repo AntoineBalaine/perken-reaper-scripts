@@ -8,17 +8,22 @@ local text_helpers = require("helpers.text")
 ---@field base integer
 ---@field hovered integer
 ---@field active integer
+---@field text? integer
 local ColorSet = {}
 
 ---@param base integer
 ---@param hovered integer
 ---@param active integer
+---@param text? integer
 ---@return ColorSet
-function ColorSet.new(base, hovered, active)
+function ColorSet.new(base, hovered, active, text)
     local self = setmetatable({}, { __index = ColorSet })
     self.base = base
     self.hovered = hovered
     self.active = active
+    if text then
+        self.text = text
+    end
     return self
 end
 
@@ -636,6 +641,12 @@ function Knob:draw(variant,
     else
         self._controllable = true
     end
+
+    --set background color to transparent
+    reaper.ImGui_PushStyleColor(
+        self._ctx,
+        reaper.ImGui_Col_ChildBg(),
+        0x00000000)
     reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     local value_changed, new_val = false, self._param.value
     if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.guid, self._child_width, child_height, false,
@@ -720,6 +731,7 @@ function Knob:draw(variant,
         reaper.ImGui_EndChild(self._ctx)
     end
     reaper.ImGui_PopStyleVar(self._ctx)
+    reaper.ImGui_PopStyleColor(self._ctx)
     return value_changed, (new_val or self._param.value)
 end
 

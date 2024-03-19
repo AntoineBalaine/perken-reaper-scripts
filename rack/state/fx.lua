@@ -44,9 +44,13 @@ function fx.new(state, theme, index, number, guid)
         background_offline  = theme.colors.col_mi_fades.color,
         borderColor         = theme.colors.col_gridlines2.color,
         buttonStyle         = {
+
+
+            -- background = theme.colors.col_fadearm2.color,
             background = theme.colors.col_main_bg.color,
             background_disabled = theme.colors.group_15.color,
             background_offline = color_helpers.desaturate(theme.colors.col_mi_fades.color),
+            -- text_enabled = theme.colors.col_toolbar_text_on.color,
             text_enabled = theme.colors.mcp_fx_normal.color,
             text_disabled = theme.colors.mcp_fx_bypassed.color,
             text_offline = theme.colors.mcp_fx_offlined.color,

@@ -69,6 +69,7 @@ function fx_box:buttonStyleStart()
     local bg_col ---@type number
     if self.fx.enabled then
         bg_col = self.fx.displaySettings.buttonStyle.background
+        bg_col = self.fx.displaySettings.buttonStyle.background
     else
         bg_col = self.fx.displaySettings.buttonStyle.background_disabled
     end
@@ -297,6 +298,8 @@ function fx_box:AddSavePresetBtn()
         reaper.ImGui_InputText(self.ctx, "Preset name", new_val)
         if reaper.ImGui_Button(self.ctx, "ok") then
             -- TODO save presets
+            new_val = ""
+            reaper.ImGui_CloseCurrentPopup(self.ctx)
         end
         reaper.ImGui_SameLine(self.ctx)
         if reaper.ImGui_Button(self.ctx, "cancel") then
@@ -363,6 +366,12 @@ function fx_box:Canvas()
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_WindowPadding(), 2, 2)
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing(), 1, 0)
 
+    --set background color to transparent
+    reaper.ImGui_PushStyleColor(
+        self.ctx,
+        reaper.ImGui_Col_ChildBg(),
+        0x00000000)
+
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
         if self.fx.editing and not self.fx.displaySettings._is_collapsed then
             self:DrawGrid()
@@ -397,7 +406,6 @@ function fx_box:Canvas()
                 reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
             end
 
-
             local changed, new_val = param.display_settings.component:draw(
                 Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
                 self.colorSet,
@@ -422,6 +430,7 @@ function fx_box:Canvas()
         reaper.ImGui_EndChild(self.ctx)
     end
     reaper.ImGui_PopStyleVar(self.ctx, 2)
+    reaper.ImGui_PopStyleColor(self.ctx)
 end
 
 ---@param fx TrackFX
@@ -470,26 +479,27 @@ function fx_box:main(fx)
     reaper.ImGui_SameLine(self.ctx, nil, 0)
 end
 
----@return ColorSet
+---@return ColorSet normal
+---@return ColorSet edit
 function fx_box:testcolors()
     ---@type ColorSet
     local test = {
         base = self.theme.colors.col_vuind2.color,
         hovered = self.theme.colors.col_vuind4.color,
         active = self.theme.colors.col_vuind3.color,
-        -- text = self.theme.colors.col_tcp_textsel.color - 0xEE
-        text = 0x00000000
-    }
-    local editing = {
-        base = self.theme.colors.col_vuind2.color - 0xAA,
-        hovered = self.theme.colors.col_vuind4.color - 0xAA,
-        active = self.theme.colors.col_vuind3.color - 0xAA,
-        -- text = self.theme.colors.col_tcp_textsel.color - 0xAA,
+        text = 0xFFFFFFFF
 
-        text = 0x00000000
     }
-    local normal = Knobs.ColorSet.new(test.base, test.hovered, test.active)
-    local edit = Knobs.ColorSet.new(editing.base, editing.hovered, editing.active)
+    ---@type ColorSet
+    local editing = {
+        base = self.theme.colors.col_vuind2.color & 0x55, -- same colors, just reduce the alpha
+        hovered = self.theme.colors.col_vuind4.color & 0x55,
+        active = self.theme.colors.col_vuind3.color & 0x55,
+        text = 0xFFFFFFFF & 0x55,
+    }
+
+    local normal = Knobs.ColorSet.new(test.base, test.hovered, test.active, test.text)
+    local edit = Knobs.ColorSet.new(editing.base, editing.hovered, editing.active, editing.text)
     return normal, edit
 end
 
