@@ -1,4 +1,31 @@
 local layoutEnums = require("state.fx_layout_types")
+
+---@class Parameter
+---@field defaultval number
+---@field display_settings table
+---@field editSelected boolean = false
+---@field fmt_val string|nil
+---@field guid string
+---@field ident string
+---@field index number
+---@field istoggle boolean
+---@field largestep number
+---@field maxval number
+---@field midval number
+---@field minval number
+---@field name string
+---@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string): self
+---@field parent_fx TrackFX
+---@field query_value fun(self):self
+---@field setValue fun(self, value :number)
+---@field smallstep number
+---@field state State
+---@field step number
+---@field value number
+
+
+
+
 ---@class Parameter
 local parameter = {}
 parameter.__index = parameter
@@ -11,7 +38,7 @@ parameter.__index = parameter
 ---@param parent_fx TrackFX
 ---@param guid string
 function parameter.new(state, param_index, parent_fx, guid)
-    ---@class Parameter
+    ---@type Parameter
     local new_param = setmetatable({}, parameter)
     new_param.state = state
     new_param.guid = guid

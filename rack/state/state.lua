@@ -17,6 +17,17 @@ local fx_state = require("state.fx")
 ---This the rack's global state. It is NOT the same as the ImGui_Context
 -- The rack's state is used to store global variables
 ---@class State
+---@field Track Track|nil
+---@field deleteFx fun(self, idx: integer): self
+---@field getTrackFx fun(self): self
+---@field init fun(self, project_directory: string, theme:Theme, user_settings: unknown): self
+---@field project_directory string
+---@field theme Theme
+---@field update fun(self): self
+---@field user_settings unknown
+
+
+---@class State
 local state = {}
 
 ---This is the barebones trackFx info,

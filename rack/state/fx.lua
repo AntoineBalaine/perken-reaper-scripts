@@ -10,6 +10,30 @@ local parameter = require("state.param")
 local color_helpers = require("helpers.colors")
 
 ---@class TrackFX
+---@field createParamDetails fun(self: TrackFX, param: ParamData): ParamData
+---@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
+---@field displaySettings FxDisplaySettings
+---@field displaySettings_copy FxDisplaySettings|unknown|nil
+---@field display_params Parameter[]
+---@field editLayout fun(self: TrackFX)
+---@field editing boolean = false
+---@field enabled boolean|nil
+---@field getDisplaySettings fun(self: TrackFX)
+---@field guid string
+---@field index integer
+---@field name string|nil
+---@field new fun(self: TrackFX, state: State, theme: Theme, index: integer, number: integer, guid: string): TrackFX
+---@field number integer
+---@field onEditLayoutClose fun(self: TrackFX, action: EditLayoutCloseAction)
+---@field params_by_guid table<string, ParamData>
+---@field params_list ParamData[]
+---@field presetname string = ""
+---@field removeParamDetails fun(self: TrackFX, param: ParamData)
+---@field setSelectedParam fun(param: Parameter)|nil
+---@field state State
+---@field update fun(self: TrackFX)
+
+---@class TrackFX
 local fx = {}
 fx.__index = fx
 
@@ -21,7 +45,7 @@ fx.__index = fx
 ---@param number integer
 ---@param guid string
 function fx.new(state, theme, index, number, guid)
-    ---@class TrackFX
+    ---@type TrackFX
     local self = setmetatable({}, fx)
     self.state = state
     local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
@@ -40,6 +64,22 @@ function fx.new(state, theme, index, number, guid)
     self.display_params = {} ---@type Parameter[]
 
     ---@class FxDisplaySettings
+    ---@field background integer
+    ---@field background_disabled integer
+    ---@field background_offline integer
+    ---@field borderColor integer
+    ---@field buttonStyle table
+    ---@field custom_Title nil
+    ---@field edge_Rounding integer = 0
+    ---@field grb_Rounding integer = 0
+    ---@field param_Instance nil
+    ---@field title_Clr integer = 255
+    ---@field title_Width integer = 140
+    ---@field window_Width integer = 280
+    ---@field window_height integer = 240
+    ---@field _is_collapsed boolean = false
+
+    ---@type FxDisplaySettings
     self.displaySettings = {
         _is_collapsed       = false,
         background          = theme.colors.selcol_tr2_bg.color,
@@ -173,12 +213,17 @@ function fx:createParams()
         --Basically we don't need to query the param's values if it's not displayed
         --so we only need its name and guid.
         ---@class ParamData
+        ---@field details Parameter|nil
+        ---@field display boolean = false
+        ---@field guid string
+        ---@field index integer
+        ---@field name string
+
         local param = {
             index = param_index,
             name = name,
             guid = guid,
             display = display,
-            ---@type Parameter | nil
             details = nil
         }
         table.insert(params_list, param)
@@ -217,6 +262,7 @@ end
 
 ---add param to list of displayed params
 ---query its value, create a param class for it
+---@param param ParamData
 function fx:createParamDetails(param)
     local new_param = parameter.new(self.state, param.index, self, param.guid)
     param.details = new_param
@@ -225,6 +271,7 @@ function fx:createParamDetails(param)
 end
 
 ---I’m having to run a linear sweep here to find the fx by guid in the list of displayed params.
+---@param param ParamData
 function fx:removeParamDetails(param)
     if param.details then
         param.details = nil
