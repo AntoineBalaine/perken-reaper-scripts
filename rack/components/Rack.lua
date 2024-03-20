@@ -23,7 +23,7 @@ local Settings             = require("state.settings")
 local LayoutEditor         = require("components.LayoutEditor")
 -- local passThrough          = require("components.passthrough")
 local keyboard_passthrough = require("components.keyboard_passthrough")
-local constants            = require("helpers.constants")
+local defaults             = require("helpers.defaults")
 
 ---Rack module
 ---@class Rack
@@ -36,7 +36,7 @@ function Rack:BrowserButton()
     if reaper.ImGui_Button(self.ctx,
             plus,
             20,
-            constants.WINDOW_HEIGHT) then
+            defaults.window_height) then
         self.Browser.open = true
         if not reaper.ImGui_IsPopupOpen(self.ctx, self.Browser.name) then
             reaper.ImGui_OpenPopup(self.ctx, self.Browser.name)

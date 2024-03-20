@@ -3,6 +3,7 @@ A color palette, containing a color picker and the list of reaper’s theme colo
 ]]
 
 ---store the backup color in module context
+---@type integer
 local backup_color
 
 ---Display a button that opens a color picker, in a popup with the list of reaper’s theme colors.

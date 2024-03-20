@@ -41,7 +41,7 @@ function fx_box:DrawGrid()
     -- local grid_color = 0xFFFFFFFF
 
     -- add horizontal grid
-    for i = 0, self.fx.displaySettings.window_Width, gridsize do
+    for i = 0, self.fx.displaySettings.window_width, gridsize do
         reaper.ImGui_DrawList_AddLine(WinDrawList,
             start_x,
             start_y + i,
@@ -51,7 +51,7 @@ function fx_box:DrawGrid()
     end
 
     -- add vertical grid
-    for i = 0, self.fx.displaySettings.window_Width, gridsize do
+    for i = 0, self.fx.displaySettings.window_width, gridsize do
         reaper.ImGui_DrawList_AddLine(WinDrawList,
             start_x + i,
             start_y,
@@ -66,13 +66,13 @@ function fx_box:fxBoxStyleEnd()
     reaper.ImGui_PopStyleColor(self.ctx, 1) -- pop the bg, button bg and border colors
 end
 
-function fx_box:buttonStyleStart()
+function fx_box:labelButtonStyleStart()
     local bg_col ---@type number
     if self.fx.enabled then
-        bg_col = self.fx.displaySettings.buttonStyle.background
-        bg_col = self.fx.displaySettings.buttonStyle.background
+        bg_col = self.fx.displaySettings.labelButtonStyle.background
+        bg_col = self.fx.displaySettings.labelButtonStyle.background
     else
-        bg_col = self.fx.displaySettings.buttonStyle.background_disabled
+        bg_col = self.fx.displaySettings.labelButtonStyle.background_disabled
     end
     reaper.ImGui_PushStyleColor(self.ctx,
         reaper.ImGui_Col_Button(),
@@ -80,15 +80,15 @@ function fx_box:buttonStyleStart()
     local button_text_color ---@type number
 
     if self.fx.enabled then -- set a dark-colored text if the fx is bypassed
-        button_text_color = self.displaySettings.buttonStyle.text_enabled
+        button_text_color = self.displaySettings.labelButtonStyle.text_enabled
     else
-        button_text_color = self.displaySettings.buttonStyle.text_disabled
+        button_text_color = self.displaySettings.labelButtonStyle.text_disabled
     end
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(),
         button_text_color) -- fx's text color
 end
 
-function fx_box:buttonStyleEnd()
+function fx_box:labelButtonStyleEnd()
     reaper.ImGui_PopStyleColor(self.ctx, 2)
 end
 
@@ -207,7 +207,7 @@ function fx_box:VerticalLabelButton()
     local btn_height         = select(2, reaper.ImGui_GetContentRegionAvail(self.ctx)) - self.default_button_size -
         reaper.ImGui_GetStyleVar(self.ctx, lineHeightWSpacing)
 
-    self:buttonStyleStart()
+    self:labelButtonStyleStart()
     if reaper.ImGui_Button(self.ctx, "##" .. display_name, self.default_button_size, btn_height) then
         self:LabelButtonCB()
     end
@@ -231,7 +231,7 @@ function fx_box:VerticalLabelButton()
     reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
     reaper.ImGui_SetCursorPosY(self.ctx, btn_y + btn_height + lineSpacing / 2)
     reaper.ImGui_Unindent(self.ctx, 5)
-    self:buttonStyleEnd()
+    self:labelButtonStyleEnd()
 end
 
 function fx_box:LabelButton()
@@ -241,7 +241,7 @@ function fx_box:LabelButton()
     --- either use `GetContentRegionAvail()` or `self.displaySettings.title_Width`
     local btn_width = reaper.ImGui_GetContentRegionAvail(self.ctx) - self.default_button_size -
         reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing())
-    self:buttonStyleStart()
+    self:labelButtonStyleStart()
     if reaper.ImGui_Button(self.ctx, display_name, btn_width, self.default_button_size) then -- create window name button
         self:LabelButtonCB()
     end
@@ -249,7 +249,7 @@ function fx_box:LabelButton()
     if reaper.ImGui_IsItemHovered(self.ctx) then
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_Hand())
     end
-    self:buttonStyleEnd()
+    self:labelButtonStyleEnd()
     self:dragDropSource() -- attach the drag/drop source to the preceding button
 end
 
@@ -456,7 +456,7 @@ function fx_box:main(fx)
     self:fxBoxStyleStart()
     if reaper.ImGui_BeginChild(self.ctx,
             fx.name,
-            collapsed and 40 or self.displaySettings.window_Width,
+            collapsed and 40 or self.displaySettings.window_width,
             self.displaySettings.window_height,
             true,
             winFlg)

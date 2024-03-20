@@ -4,7 +4,7 @@ Each FX represented in the parent `state` gets its own instance of this class, i
 ]]
 local IniParse = require("parsers.Iniparse.IniParse")
 local table_helpers = require("helpers.table")
-local constants = require("helpers.constants")
+local defaults = require("helpers.defaults")
 local layout_enums = require("state.fx_layout_types")
 local parameter = require("state.param")
 local color_helpers = require("helpers.color_helpers")
@@ -63,19 +63,27 @@ function fx.new(state, theme, index, number, guid)
     self.params_list, self.params_by_guid = self:createParams()
     self.display_params = {} ---@type ParamData[]
 
+    ---@class LabelButtonStyle
+    ---@field background integer
+    ---@field background_disabled integer
+    ---@field background_offline integer
+    ---@field text_enabled integer
+    ---@field text_disabled integer
+    ---@field text_offline integer
+
     ---@class FxDisplaySettings
     ---@field background integer
     ---@field background_disabled integer
     ---@field background_offline integer
     ---@field borderColor integer
-    ---@field buttonStyle table
+    ---@field labelButtonStyle LabelButtonStyle
     ---@field custom_Title nil
     ---@field edge_Rounding integer = 0
     ---@field grb_Rounding integer = 0
     ---@field param_Instance nil
     ---@field title_Clr integer = 255
     ---@field title_Width integer = 140
-    ---@field window_Width integer = 280
+    ---@field window_width integer = 280
     ---@field window_height integer = 240
     ---@field _is_collapsed boolean = false
 
@@ -86,9 +94,7 @@ function fx.new(state, theme, index, number, guid)
         background_disabled = theme.colors.group_15.color,
         background_offline  = theme.colors.col_mi_fades.color,
         borderColor         = theme.colors.col_gridlines2.color,
-        buttonStyle         = {
-
-
+        labelButtonStyle    = {
             -- background = theme.colors.col_fadearm2.color,
             background = theme.colors.col_main_bg.color,
             background_disabled = theme.colors.group_15.color,
@@ -104,8 +110,8 @@ function fx.new(state, theme, index, number, guid)
         param_Instance      = nil,
         title_Clr           = 0x000000FF,
         title_Width         = 220 - 80,
-        window_Width        = constants.WINDOW_WIDTH,
-        window_height       = constants.WINDOW_HEIGHT, -- TODO make this into a constant, accessible everywhere
+        window_width        = defaults.window_width,
+        window_height       = defaults.window_height, -- TODO make this into a constant, accessible everywhere
     }
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 
