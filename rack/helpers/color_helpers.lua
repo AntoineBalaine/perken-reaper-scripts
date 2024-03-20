@@ -46,4 +46,26 @@ function color_helpers.hsv2rgb(hsva)
     return { r, g, b, a }
 end
 
+---@param color integer
+---@param amt integer
+---@param no_alpha? boolean
+---@return integer
+function color_helpers.adjustBrightness(color, amt, no_alpha)
+    local function fix_brightness(channel, delta)
+        return math.min(255, math.max(0, channel + delta))
+    end
+
+    local alpha = color & 0xFF
+    local blue = (color >> 8) & 0xFF
+    local green = (color >> 16) & 0xFF
+    local red = (color >> 24) & 0xFF
+
+    red = fix_brightness(red, amt)
+    green = fix_brightness(green, amt)
+    blue = fix_brightness(blue, amt)
+    alpha = no_alpha and alpha or fix_brightness(alpha, amt)
+
+    return (alpha) | (blue << 8) | (green << 16) | (red << 24)
+end
+
 return color_helpers

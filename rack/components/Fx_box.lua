@@ -14,6 +14,7 @@ local layout_enums   = require("state.fx_layout_types")
 local Knob           = require("components.knobs.Knobs")
 local layoutEnums    = require("state.fx_layout_types")
 local ColorSet       = require("helpers.ColorSet")
+local color_helpers  = require("helpers.color_helpers")
 local fx_box         = {}
 local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
@@ -399,18 +400,18 @@ function fx_box:Canvas()
                         end,
                         ColorSet.new( -- dot color
                             self.theme.colors.col_vuind2.color,
-                            self.theme.colors.col_vuind4.color,
-                            self.theme.colors.col_vuind3.color
+                            color_helpers.adjustBrightness(self.theme.colors.col_vuind2.color, -50),
+                            color_helpers.adjustBrightness(self.theme.colors.col_vuind2.color, 50)
                         ),
                         ColorSet.new( -- track color
-                            self.theme.colors.col_vuind2.color,
-                            self.theme.colors.col_vuind4.color,
-                            self.theme.colors.col_vuind3.color
+                            self.theme.colors.col_buttonbg.color,
+                            color_helpers.adjustBrightness(self.theme.colors.col_buttonbg.color, -50),
+                            color_helpers.adjustBrightness(self.theme.colors.col_buttonbg.color, 50)
                         ),
                         ColorSet.new( -- circle color
-                            self.theme.colors.col_vuind2.color,
                             self.theme.colors.col_vuind4.color,
-                            self.theme.colors.col_vuind3.color
+                            color_helpers.adjustBrightness(self.theme.colors.col_vuind4.color, -50),
+                            color_helpers.adjustBrightness(self.theme.colors.col_vuind4.color, 50)
                         ),
                         0xFFFFFFFF -- text color
                     )
