@@ -13,7 +13,7 @@ local drag_drop      = require("state.dragAndDrop")
 local layout_enums   = require("state.fx_layout_types")
 local Knob           = require("components.knobs.Knobs")
 local layoutEnums    = require("state.fx_layout_types")
-local ColorSet       = require("helpers.colorSet")
+local ColorSet       = require("helpers.ColorSet")
 local fx_box         = {}
 local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
