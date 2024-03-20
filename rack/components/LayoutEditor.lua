@@ -16,6 +16,7 @@ Let"s go with one instance per fx:
 ]]
 local layoutEnums = require("state.fx_layout_types")
 local Table = require("helpers.table")
+local Palette = require("components.Palette")
 local LayoutEditor = {}
 
 ---@param ctx ImGui_Context
@@ -222,85 +223,28 @@ function LayoutEditor:RightPane()
     reaper.ImGui_EndGroup(self.ctx)
 end
 
-function LayoutEditor:ColorPalette()
-    local open_popup = reaper.ImGui_Button(self.ctx, "Palette")
-    if open_popup then
-        reaper.ImGui_OpenPopup(self.ctx, "mypicker")
-        self.backup_color = self.fx.displaySettings.background
-    end
-    if reaper.ImGui_BeginPopup(self.ctx, "mypicker") then
-        reaper.ImGui_Text(self.ctx, "MY CUSTOM COLOR PICKER WITH AN AMAZING PALETTE!")
-        reaper.ImGui_Separator(self.ctx)
-        local rv
-        rv, self.fx.displaySettings.background = reaper.ImGui_ColorPicker4(self.ctx, "##picker",
-            self.fx.displaySettings.background,
-            reaper.ImGui_ColorEditFlags_NoSidePreview() | reaper.ImGui_ColorEditFlags_NoSmallPreview())
-        reaper.ImGui_SameLine(self.ctx)
-
-        reaper.ImGui_BeginGroup(self.ctx) -- Lock X position
-        reaper.ImGui_Text(self.ctx, "Current")
-        reaper.ImGui_ColorButton(self.ctx, "##current", self.fx.displaySettings.background,
-            reaper.ImGui_ColorEditFlags_NoPicker() |
-            reaper.ImGui_ColorEditFlags_AlphaPreviewHalf(), 60, 40)
-        reaper.ImGui_Text(self.ctx, "Previous")
-        if reaper.ImGui_ColorButton(self.ctx, "##previous", self.backup_color,
-                reaper.ImGui_ColorEditFlags_NoPicker() |
-                reaper.ImGui_ColorEditFlags_AlphaPreviewHalf(), 60, 40) then
-            self.fx.displaySettings.background = self.backup_color
-        end
-        reaper.ImGui_Separator(self.ctx)
-        reaper.ImGui_Text(self.ctx, "Palette")
-
-        for count, col in ipairs(self.theme.colors_by_name) do
-            local name = col[1]
-            local color = col[2].color
-            local description = col[2].description
-            reaper.ImGui_PushID(self.ctx, name)
-            if ((count - 1) % 8) ~= 0 then
-                reaper.ImGui_SameLine(self.ctx, 0.0,
-                    select(2, reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing())))
-            end
-
-
-            if reaper.ImGui_ColorButton(self.ctx, name .. ": " .. description .. "##palette", color, reaper.ImGui_ColorEditFlags_NoPicker(), 20, 20) then
-                self.fx.displaySettings.background = (color << 8) |
-                    (self.fx.displaySettings.background & 0xFF) -- Preserve alpha!
-            end
-
-            -- Allow user to drop colors into each palette entry. Note that ColorButton() is already a
-            -- drag source by default, unless specifying the ImGuiColorEditFlags_NoDragDrop flag.
-            if reaper.ImGui_BeginDragDropTarget(self.ctx) then
-                local drop_color
-                rv, drop_color = reaper.ImGui_AcceptDragDropPayloadRGB(self.ctx)
-                if rv then
-                    self.theme.colors[name].color = drop_color
-                end
-                rv, drop_color = reaper.ImGui_AcceptDragDropPayloadRGBA(self.ctx)
-                if rv then
-                    self.theme.colors[name].color = drop_color >> 8
-                end
-                reaper.ImGui_EndDragDropTarget(self.ctx)
-            end
-
-            reaper.ImGui_PopID(self.ctx)
-        end
-        reaper.ImGui_EndGroup(self.ctx)
-        reaper.ImGui_EndPopup(self.ctx)
-    end
-end
-
 function LayoutEditor:FxDisplaySettings()
-    local s = self.fx.displaySettings
+    local displaySettings = self.fx.displaySettings
 
     -- reaper.ImGui_Text(self.ctx, "height: " .. s.height .. "")
     reaper.ImGui_Text(self.ctx, "Window_Width: ")
-    _, s.window_Width = reaper.ImGui_DragInt(self.ctx, "##width", s.window_Width)
+    reaper.ImGui_SameLine(self.ctx)
+    reaper.ImGui_PushItemWidth(self.ctx, 100)
+    _, displaySettings.window_Width = reaper.ImGui_DragInt(self.ctx, "##width", displaySettings.window_Width)
+    reaper.ImGui_PopItemWidth(self.ctx)
     -- reaper.ImGui_Text(self.ctx, "Edge_Rounding: " .. s.Edge_Rounding .. "")
     -- reaper.ImGui_Text(self.ctx, "Grb_Rounding: " .. s.Grb_Rounding .. "")
     reaper.ImGui_Text(self.ctx, "Background color: ")
-    self:ColorPalette()
-    reaper.ImGui_Text(self.ctx, "BorderColor: " .. s.borderColor .. "")
-    reaper.ImGui_Text(self.ctx, "Title_Clr: " .. s.title_Clr .. "")
+    reaper.ImGui_SameLine(self.ctx)
+    displaySettings.background = Palette(self.ctx, self.theme, displaySettings.background, "background")
+
+    reaper.ImGui_Text(self.ctx, "BorderColor: ")
+    reaper.ImGui_SameLine(self.ctx)
+    displaySettings.borderColor = Palette(self.ctx, self.theme, displaySettings.borderColor, "border")
+
+    reaper.ImGui_Text(self.ctx, "Title_Clr: ")
+    reaper.ImGui_SameLine(self.ctx)
+    displaySettings.title_Clr = Palette(self.ctx, self.theme, displaySettings.title_Clr, "title")
 end
 
 function LayoutEditor:Tabs()
