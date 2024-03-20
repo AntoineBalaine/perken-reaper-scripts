@@ -217,7 +217,6 @@ function fx_box:VerticalLabelButton()
     reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
     reaper.ImGui_Indent(self.ctx, 5)
     reaper.ImGui_SetCursorPosY(self.ctx, btn_y)
-    local avail = select(2, reaper.ImGui_GetContentRegionAvail(self.ctx))
     for k = 1, #display_name do
         -- if there's no more space to the bottom of the window, don't display any more letters
         local _, cur_y = reaper.ImGui_GetCursorPos(self.ctx)
@@ -378,14 +377,14 @@ function fx_box:Canvas()
         end
         for idx, param in ipairs(self.fx.display_params) do
             local radius = reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5
-            if not param.display_settings.component then
-                if param.display_settings.type == layoutEnums.Param_Display_Type.Knob then
+            if not param.details.display_settings.component then
+                if param.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
                     -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
                     -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
-                    param.display_settings.component = Knobs.Knob.new(
+                    param.details.display_settings.component = Knobs.Knob.new(
                         self.ctx,
                         "knob" .. idx,
-                        param,
+                        param.details,
                         radius,
                         true,
                         function() --- on activate function
@@ -401,25 +400,25 @@ function fx_box:Canvas()
                     )
                 end
             end
-            if param.display_settings.Pos_X and param.display_settings.Pos_Y then
-                reaper.ImGui_SetCursorPosX(self.ctx, param.display_settings.Pos_X)
-                reaper.ImGui_SetCursorPosY(self.ctx, param.display_settings.Pos_Y)
+            if param.details.display_settings.Pos_X and param.details.display_settings.Pos_Y then
+                reaper.ImGui_SetCursorPosX(self.ctx, param.details.display_settings.Pos_X)
+                reaper.ImGui_SetCursorPosY(self.ctx, param.details.display_settings.Pos_Y)
             end
 
-            local changed, new_val = param.display_settings.component:draw(
+            local changed, new_val = param.details.display_settings.component:draw(
                 Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
                 self.colorSet,
                 self.colorSet,
                 self.colorSet,
                 nil,
                 nil,
-                param,
+                param.details,
                 self.colorSet.text
             )
 
             if changed then
-                param.value = new_val
-                param:setValue(new_val)
+                param.details.value = new_val
+                param.details:setValue(new_val)
             end
 
             reaper.ImGui_SameLine(self.ctx)

@@ -14,7 +14,7 @@ local color_helpers = require("helpers.colors")
 ---@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
 ---@field displaySettings FxDisplaySettings
 ---@field displaySettings_copy FxDisplaySettings|unknown|nil
----@field display_params Parameter[]
+---@field display_params ParamData[]
 ---@field editLayout fun(self: TrackFX)
 ---@field editing boolean = false
 ---@field enabled boolean|nil
@@ -22,7 +22,7 @@ local color_helpers = require("helpers.colors")
 ---@field guid string
 ---@field index integer
 ---@field name string|nil
----@field new fun(self: TrackFX, state: State, theme: Theme, index: integer, number: integer, guid: string): TrackFX
+---@field new fun(state: State, theme: Theme, index: integer, number: integer, guid: string): TrackFX
 ---@field number integer
 ---@field onEditLayoutClose fun(self: TrackFX, action: EditLayoutCloseAction)
 ---@field params_by_guid table<string, ParamData>
@@ -61,7 +61,7 @@ function fx.new(state, theme, index, number, guid)
     self.number = number
     self.index = index
     self.params_list, self.params_by_guid = self:createParams()
-    self.display_params = {} ---@type Parameter[]
+    self.display_params = {} ---@type ParamData[]
 
     ---@class FxDisplaySettings
     ---@field background integer
@@ -256,7 +256,9 @@ function fx:update()
     end
 
     for _, param in ipairs(self.display_params) do
-        param:query_value()
+        if param.details then
+            param.details:query_value()
+        end
     end
 end
 
@@ -266,7 +268,7 @@ end
 function fx:createParamDetails(param)
     local new_param = parameter.new(self.state, param.index, self, param.guid)
     param.details = new_param
-    table.insert(self.display_params, new_param)
+    self.display_params[#self.display_params + 1] = param
     return param
 end
 
