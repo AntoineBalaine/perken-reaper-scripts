@@ -384,7 +384,7 @@ function fx_box:Canvas()
                     param.details.display_settings.component = Knob.new(
                         self.ctx,
                         "knob" .. idx,
-                        param.details,
+                        param,
                         radius,
                         true,
                         function() --- on activate function
@@ -412,7 +412,7 @@ function fx_box:Canvas()
                 self.colorSet,
                 nil,
                 nil,
-                param.details,
+                param,
                 self.colorSet.text
             )
 

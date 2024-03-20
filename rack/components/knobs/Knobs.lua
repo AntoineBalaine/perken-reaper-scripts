@@ -159,7 +159,7 @@ end
 ---In practice, you probably want to dodge creating a new knob at every loop…
 ---@param ctx ImGui_Context
 ---@param id string
----@param param Parameter
+---@param param ParamData
 ---@param radius number
 ---@param controllable boolean
 ---@param on_activate? function
@@ -176,7 +176,7 @@ function Knob.new(
     setmetatable(new_knob, { __index = Knob })
     local angle_min = math.pi * 0.75
     local angle_max = math.pi * 2.25
-    local t = (param.value - param.minval) / (param.maxval - param.minval)
+    local t = (param.details.value - param.details.minval) / (param.details.maxval - param.details.minval)
     local angle = angle_min + (angle_max - angle_min) * t
     local value_changed = false
     new_knob._ctx = ctx
@@ -210,7 +210,8 @@ function Knob:__update(box_width)
     self._center_x = x_pos
     self._center_y = draw_cursor_y + self._radius
 
-    local t = (self._param.value - self._param.minval) / (self._param.maxval - self._param.minval)
+    local t = (self._param.details.value - self._param.details.minval) /
+    (self._param.details.maxval - self._param.details.minval)
     self._angle = self._angle_min + (self._angle_max - self._angle_min) * t
 end
 
@@ -222,8 +223,8 @@ function Knob:__control()
     local indent_level = self._child_width / 2 - self._radius
     reaper.ImGui_Indent(self._ctx, indent_level)
     if reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0) then
-        if self._param.parent_fx.editing and self._param.parent_fx.setSelectedParam then
-            self._param.parent_fx.setSelectedParam(self._param)
+        if self._param.details.parent_fx.editing and self._param.details.parent_fx.setSelectedParam then
+            self._param.details.parent_fx.setSelectedParam(self._param.details)
         end
     end
 
@@ -233,7 +234,7 @@ function Knob:__control()
 
 
     if not self._controllable then -- don’t process controls if the fx’s layout is being edited or knobs isn’t controllable
-        return false, self._param.value
+        return false, self._param.details.value
     end
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
@@ -259,15 +260,15 @@ function Knob:__control()
         speed = 200
     end
 
-    local new_val = self._param.value
+    local new_val = self._param.details.value
     if reaper.ImGui_IsMouseDoubleClicked(self._ctx, reaper.ImGui_MouseButton_Left()) and self._is_active then
-        new_val = self._param.defaultval
+        new_val = self._param.details.defaultval
         value_changed = true
     elseif self._is_active and delta_y ~= 0.0 then
-        local step = (self._param.maxval - self._param.minval) / speed
-        new_val = self._param.value - delta_y * step
-        if self._param.value < self._param.minval then new_val = self._param.minval end
-        if self._param.value > self._param.maxval then new_val = self._param.maxval end
+        local step = (self._param.details.maxval - self._param.details.minval) / speed
+        new_val = self._param.details.value - delta_y * step
+        if self._param.details.value < self._param.details.minval then new_val = self._param.details.minval end
+        if self._param.details.value > self._param.details.maxval then new_val = self._param.details.maxval end
         value_changed = true
         reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
     end
@@ -562,7 +563,7 @@ Knob.Flags = {
 
 ---TODO figure out how to center the drag
 function Knob:__with_drag()
-    -- local str_w = reaper.ImGui_CalcTextSize(self._ctx, self._param.fmt_val or "")
+    -- local str_w = reaper.ImGui_CalcTextSize(self._ctx, self._param.details.fmt_val or "")
     -- local padding = reaper.ImGui_GetStyleVar(self._ctx, reaper.ImGui_StyleVar_FramePadding()) * 2
     -- local cur_x = reaper.ImGui_GetCursorPosX(self._ctx)
     -- local x_pos = cur_x + box_width / 2 - str_w / 2
@@ -574,11 +575,11 @@ function Knob:__with_drag()
     local changed, new_val = reaper.ImGui_DragDouble(
         self._ctx,
         "##" .. self._id .. "_KNOB_DRAG_CONTROL_",
-        self._param.value,
-        (self._param.maxval - self._param.minval) / 1000.0,
-        self._param.minval,
-        self._param.maxval,
-        self._param.fmt_val,
+        self._param.details.value,
+        (self._param.details.maxval - self._param.details.minval) / 1000.0,
+        self._param.details.minval,
+        self._param.details.maxval,
+        self._param.details.fmt_val,
         reaper.ImGui_SliderFlags_AlwaysClamp()
     )
     return changed, new_val
@@ -590,7 +591,7 @@ end
 ---@param dot_color ColorSet
 ---@param track_color? ColorSet
 ---@param flags? integer|KnobFlags
----@param param Parameter
+---@param param ParamData
 ---@param steps? integer
 ---@param text_color? integer
 ---@return boolean value_changed
@@ -611,7 +612,7 @@ function Knob:draw(variant,
     local child_height                 = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
     -- don’t update the knob’s value if the fx’s layout is being edited
-    if self._param.parent_fx.editing then
+    if self._param.details.parent_fx.editing then
         self._controllable = false
     else
         self._controllable = true
@@ -623,8 +624,8 @@ function Knob:draw(variant,
         reaper.ImGui_Col_ChildBg(),
         0x00000000)
     reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
-    local value_changed, new_val = false, self._param.value
-    if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.guid, self._child_width, child_height, false,
+    local value_changed, new_val = false, self._param.details.value
+    if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.details.guid, self._child_width, child_height, false,
             reaper.ImGui_WindowFlags_NoScrollbar()) then
         if flags == nil then
             flags = 0
@@ -687,7 +688,8 @@ function Knob:draw(variant,
         end
 
         if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-            text_helpers.centerText(self._ctx, self._param.fmt_val or "", self._child_width, 1, self._child_width,
+            text_helpers.centerText(self._ctx, self._param.details.fmt_val or "", self._child_width, 1, self
+                ._child_width,
                 text_color)
             --     local drag_changed, new_drag_val = self:__with_drag() -- FIXME
             --     if drag_changed then
@@ -707,7 +709,7 @@ function Knob:draw(variant,
     end
     reaper.ImGui_PopStyleVar(self._ctx)
     reaper.ImGui_PopStyleColor(self._ctx)
-    return value_changed, (new_val or self._param.value)
+    return value_changed, (new_val or self._param.details.value)
 end
 
 return Knob
