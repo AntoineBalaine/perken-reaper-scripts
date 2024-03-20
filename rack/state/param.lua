@@ -1,8 +1,9 @@
 local layoutEnums = require("state.fx_layout_types")
+local ColorSet = require("helpers.ColorSet")
 
 ---@class Parameter
 ---@field defaultval number
----@field display_settings table
+---@field display_settings {type: Param_Display_Type, component: Knob|nil, colorset: ColorSet, Pos_X: integer|nil, Pos_Y: integer|nil, _editingColorSet: ColorSet}
 ---@field editSelected boolean = false
 ---@field fmt_val string|nil
 ---@field guid string
@@ -14,7 +15,7 @@ local layoutEnums = require("state.fx_layout_types")
 ---@field midval number
 ---@field minval number
 ---@field name string
----@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string): self
+---@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string, colorset: ColorSet): self
 ---@field parent_fx TrackFX
 ---@field query_value fun(self):self
 ---@field setValue fun(self, value :number)
@@ -22,7 +23,6 @@ local layoutEnums = require("state.fx_layout_types")
 ---@field state State
 ---@field step number
 ---@field value number
-
 
 
 
@@ -37,7 +37,8 @@ parameter.__index = parameter
 ---@param param_index number
 ---@param parent_fx TrackFX
 ---@param guid string
-function parameter.new(state, param_index, parent_fx, guid)
+---@param colorset ColorSet
+function parameter.new(state, param_index, parent_fx, guid, colorset)
     ---@type Parameter
     local new_param = setmetatable({}, parameter)
     new_param.state = state
@@ -67,12 +68,12 @@ function parameter.new(state, param_index, parent_fx, guid)
     --That's because reaper doesn't have an API to query the default value of a parameter.
     new_param.defaultval = new_param.value -- assume scalar values are copied upon assignment. I think that's right?
     new_param.display_settings = {
-        ---@type Param_Display_Type
         type = layoutEnums.Param_Display_Type.Knob,
+        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
+        colorset = colorset,
+        _editingColorSet = ColorSet.deAlpha(colorset)
         -- Pos_X = 0,
         -- Pos_Y = 0,
-        ---the component that will be draw, to be instantiated in the fx_box:main()
-        component = nil
     }
 
 

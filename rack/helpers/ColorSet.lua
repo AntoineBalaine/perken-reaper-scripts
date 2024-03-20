@@ -3,6 +3,7 @@
 ---@field hovered integer
 ---@field active integer
 ---@field text? integer
+
 local ColorSet = {}
 
 ---@param base integer
@@ -25,6 +26,16 @@ end
 ---@return ColorSet
 function ColorSet.from(color)
     return ColorSet.new(color, color, color)
+end
+
+---@return ColorSet
+function ColorSet.deAlpha(colorset)
+    return {
+        base = colorset.base & 0x55,
+        hovered = colorset.hovered & 0x55,
+        active = colorset.active & 0x55,
+        text = colorset.text & 0x55,
+    }
 end
 
 return ColorSet

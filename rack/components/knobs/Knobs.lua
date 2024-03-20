@@ -587,25 +587,32 @@ end
 
 ---TODO accomodate the NoInput flag
 ---@param variant KnobVariant
----@param circle_color ColorSet
----@param dot_color ColorSet
----@param track_color? ColorSet
 ---@param flags? integer|KnobFlags
 ---@param param ParamData
 ---@param steps? integer
----@param text_color? integer
 ---@return boolean value_changed
 ---@return number new_value
 function Knob:draw(variant,
-                   circle_color,
-                   dot_color,
-                   track_color,
                    flags,
                    steps,
-                   param,
-                   text_color
+                   param
 )
-    self._param                        = param
+    self._param = param
+    local dot_color ---@type ColorSet
+    local track_color ---@type ColorSet
+    local text_color ---@type integer
+    local circle_color ---@type ColorSet
+    if self._param.details.parent_fx.editing and not self._param._selected then
+        dot_color = self._param.details.display_settings._editingColorSet
+        track_color = self._param.details.display_settings._editingColorSet
+        text_color = self._param.details.display_settings._editingColorSet.text
+        circle_color = self._param.details.display_settings._editingColorSet
+    else
+        dot_color = self._param.details.display_settings.colorset
+        track_color = self._param.details.display_settings.colorset
+        text_color = self._param.details.display_settings.colorset.text
+        circle_color = self._param.details.display_settings.colorset
+    end
 
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
     self._child_width                  = self._radius * 2 * 1.5

@@ -407,13 +407,9 @@ function fx_box:Canvas()
 
             local changed, new_val = param.details.display_settings.component:draw(
                 Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
-                self.colorSet,
-                self.colorSet,
-                self.colorSet,
                 nil,
                 nil,
-                param,
-                self.colorSet.text
+                param
             )
 
             if changed then
@@ -435,7 +431,6 @@ end
 ---@param fx TrackFX
 function fx_box:main(fx)
     self.fx = fx
-    self.colorSet = self.fx.editing and self.colorSets.edit or self.colorSets.normal
     self.displaySettings = fx.displaySettings
 
     local collapsed = self.fx.displaySettings._is_collapsed
@@ -478,30 +473,6 @@ function fx_box:main(fx)
     reaper.ImGui_SameLine(self.ctx, nil, 0)
 end
 
----@return ColorSet normal
----@return ColorSet edit
-function fx_box:testcolors()
-    ---@type ColorSet
-    local test = {
-        base = self.theme.colors.col_vuind2.color,
-        hovered = self.theme.colors.col_vuind4.color,
-        active = self.theme.colors.col_vuind3.color,
-        text = 0xFFFFFFFF
-
-    }
-    ---@type ColorSet
-    local editing = {
-        base = self.theme.colors.col_vuind2.color & 0x55, -- same colors, just reduce the alpha
-        hovered = self.theme.colors.col_vuind4.color & 0x55,
-        active = self.theme.colors.col_vuind3.color & 0x55,
-        text = 0xFFFFFFFF & 0x55,
-    }
-
-    local normal = ColorSet.new(test.base, test.hovered, test.active, test.text)
-    local edit = ColorSet.new(editing.base, editing.hovered, editing.active, editing.text)
-    return normal, edit
-end
-
 ---@param parent_state Rack
 function fx_box:init(parent_state)
     self.state = parent_state.state
@@ -510,12 +481,6 @@ function fx_box:init(parent_state)
     self.ctx = parent_state.ctx
     self.theme = parent_state.theme
     self.default_button_size = 20
-    local normal, edit = self:testcolors()
-    self.colorSets = {
-        normal = normal,
-        edit = edit
-    }
-    self.colorSet = normal
     self.LayoutEditor = parent_state.LayoutEditor
 end
 
