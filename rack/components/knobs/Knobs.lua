@@ -211,7 +211,7 @@ function Knob:__update(box_width)
     self._center_y = draw_cursor_y + self._radius
 
     local t = (self._param.details.value - self._param.details.minval) /
-    (self._param.details.maxval - self._param.details.minval)
+        (self._param.details.maxval - self._param.details.minval)
     self._angle = self._angle_min + (self._angle_max - self._angle_min) * t
 end
 
@@ -697,14 +697,15 @@ function Knob:draw(variant,
             --         new_val = new_drag_val
             --     end
         end
-        -- reaper.ImGui_DrawList_AddRectFilled(self._draw_list, draw_cursor_x, draw_cursor_y,
-        --     draw_cursor_x + self._child_width,
-        --     draw_cursor_y + child_height, 0xFFFFFFAA)
 
-        reaper.ImGui_DrawList_AddRect(self._draw_list, draw_cursor_x, draw_cursor_y,
-            draw_cursor_x + self._child_width,
-            draw_cursor_y + child_height, 0xFF0000FF, 1.0, 0, 0.0)
-        -- if visible then reaper.ImGui_EndChild(self._ctx) end
+        if self._param._selected then
+            -- reaper.ImGui_DrawList_AddRectFilled(self._draw_list, draw_cursor_x, draw_cursor_y,
+            --     draw_cursor_x + self._child_width,
+            --     draw_cursor_y + child_height, 0xFFFFFFAA)
+            reaper.ImGui_DrawList_AddRect(self._draw_list, draw_cursor_x, draw_cursor_y,
+                draw_cursor_x + self._child_width,
+                draw_cursor_y + child_height, 0xFF0000FF, 1.0, 0, 0.0)
+        end
         reaper.ImGui_EndChild(self._ctx)
     end
     reaper.ImGui_PopStyleVar(self._ctx)

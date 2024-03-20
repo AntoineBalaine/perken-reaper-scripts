@@ -218,13 +218,16 @@ function fx:createParams()
         ---@field guid string
         ---@field index integer
         ---@field name string
+        ---@field _selected boolean is this param selected by the layout editor for editing
 
+        ---@type ParamData
         local param = {
             index = param_index,
             name = name,
             guid = guid,
             display = display,
-            details = nil
+            details = nil,
+            _selected = false
         }
         table.insert(params_list, param)
         params_by_guid[guid] = param
