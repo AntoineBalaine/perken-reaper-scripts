@@ -7,7 +7,7 @@ local table_helpers = require("helpers.table")
 local constants = require("helpers.constants")
 local layout_enums = require("state.fx_layout_types")
 local parameter = require("state.param")
-local color_helpers = require("helpers.colors")
+local color_helpers = require("helpers.color_helpers")
 
 ---@class TrackFX
 ---@field createParamDetails fun(self: TrackFX, param: ParamData): ParamData

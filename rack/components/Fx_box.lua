@@ -11,9 +11,9 @@ As a result, its internal state has to be updated every time it’s called. I’
 local fx_box_helpers = require("helpers.fx_box_helpers")
 local drag_drop      = require("state.dragAndDrop")
 local layout_enums   = require("state.fx_layout_types")
-local Knobs          = require("components.knobs.Knobs")
+local Knob           = require("components.knobs.Knobs")
 local layoutEnums    = require("state.fx_layout_types")
-local color_helpers  = require("helpers.colors")
+local ColorSet       = require("helpers.colorSet")
 local fx_box         = {}
 local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
@@ -122,7 +122,7 @@ function fx_box:slider()
     local ANGLE_MAX            = 3.141592 * 2.25
     local angle                = ANGLE_MIN + (ANGLE_MAX - ANGLE_MIN) * t
     local angle_cos, angle_sin = math.cos(angle), math.sin(angle)
-    local radius_inner         = radius_outer * 0.40
+    -- local radius_inner         = radius_outer * 0.40
     local center               = { pos[1] + radius_outer, pos[2] + radius_outer }
     reaper.ImGui_DrawList_AddCircleFilled(draw_list, center[1], center[2], radius_outer,
         reaper.ImGui_GetColor(self.ctx, reaper.ImGui_Col_Button()))
@@ -142,7 +142,7 @@ function fx_box:slider()
     -- reaper.ImGui_DrawList_PathArcTo(draw_list, center[1], center[2], radius_outer / 2, ANGLE_MIN, angle)
     -- reaper.ImGui_DrawList_PathStroke(draw_list, 0xFFFFFFFF, nil, radius_outer * 0.6)
     -- reaper.ImGui_DrawList_PathClear(draw_list)
-    local white = 0xFFFFFFFF
+    -- local white = 0xFFFFFFFF
     -- local draw_list =
     -- local  p1_x =
     -- local  p1_y =
@@ -150,7 +150,7 @@ function fx_box:slider()
     -- local  p2_y =
     -- local  p3_x =
     -- local  p3_y =
-    local col_rgba = white
+    -- local col_rgba = white
     -- local vertices = calculateTriangleVertices(center[1], center[2], radius_outer)
     -- local c = vertices[1]
     -- local b = vertices[2]
@@ -381,7 +381,7 @@ function fx_box:Canvas()
                 if param.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
                     -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
                     -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
-                    param.details.display_settings.component = Knobs.Knob.new(
+                    param.details.display_settings.component = Knob.new(
                         self.ctx,
                         "knob" .. idx,
                         param.details,
@@ -406,7 +406,7 @@ function fx_box:Canvas()
             end
 
             local changed, new_val = param.details.display_settings.component:draw(
-                Knobs.Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
+                Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
                 self.colorSet,
                 self.colorSet,
                 self.colorSet,
@@ -497,8 +497,8 @@ function fx_box:testcolors()
         text = 0xFFFFFFFF & 0x55,
     }
 
-    local normal = Knobs.ColorSet.new(test.base, test.hovered, test.active, test.text)
-    local edit = Knobs.ColorSet.new(editing.base, editing.hovered, editing.active, editing.text)
+    local normal = ColorSet.new(test.base, test.hovered, test.active, test.text)
+    local edit = ColorSet.new(editing.base, editing.hovered, editing.active, editing.text)
     return normal, edit
 end
 

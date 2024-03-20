@@ -4,35 +4,6 @@
 
 local text_helpers = require("helpers.text")
 
----@class ColorSet
----@field base integer
----@field hovered integer
----@field active integer
----@field text? integer
-local ColorSet = {}
-
----@param base integer
----@param hovered integer
----@param active integer
----@param text? integer
----@return ColorSet
-function ColorSet.new(base, hovered, active, text)
-    local self = setmetatable({}, { __index = ColorSet })
-    self.base = base
-    self.hovered = hovered
-    self.active = active
-    if text then
-        self.text = text
-    end
-    return self
-end
-
----@param color integer
----@return ColorSet
-function ColorSet.from(color)
-    return ColorSet.new(color, color, color)
-end
-
 ---@class Knob
 local Knob = {}
 
@@ -244,8 +215,9 @@ function Knob:__update(box_width)
 end
 
 ---Draw the invisible button and handle the control
+---if the knobs isn't changed, return the current value
 ---@return boolean rv
----@return number|nil p_value
+---@return number p_value
 function Knob:__control()
     local indent_level = self._child_width / 2 - self._radius
     reaper.ImGui_Indent(self._ctx, indent_level)
@@ -261,7 +233,7 @@ function Knob:__control()
 
 
     if not self._controllable then -- don’t process controls if the fx’s layout is being edited or knobs isn’t controllable
-        return false, nil
+        return false, self._param.value
     end
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
@@ -727,9 +699,9 @@ function Knob:draw(variant,
         --     draw_cursor_x + self._child_width,
         --     draw_cursor_y + child_height, 0xFFFFFFAA)
 
-        -- reaper.ImGui_DrawList_AddRect(self._draw_list, draw_cursor_x, draw_cursor_y,
-        --     draw_cursor_x + self._child_width,
-        --     draw_cursor_y + child_height, 0xFF0000FF, 1.0, 0, 0.0)
+        reaper.ImGui_DrawList_AddRect(self._draw_list, draw_cursor_x, draw_cursor_y,
+            draw_cursor_x + self._child_width,
+            draw_cursor_y + child_height, 0xFF0000FF, 1.0, 0, 0.0)
         -- if visible then reaper.ImGui_EndChild(self._ctx) end
         reaper.ImGui_EndChild(self._ctx)
     end
@@ -738,39 +710,4 @@ function Knob:draw(variant,
     return value_changed, (new_val or self._param.value)
 end
 
----@param hsva {[1]: number, [2]: number, [3]: number, [4]: number}
----@return {[1]: number, [2]: number, [3]: number, [4]: number}
-local function hsv2rgb(hsva)
-    local h, s, v, a = hsva[1], hsva[2], hsva[3], hsva[4]
-    local r, g, b
-
-    local i = (h * 6) // 1 | 0 -- floor
-    local f = h * 6 - i
-    local p = v * (1 - s)
-    local q = v * (1 - f * s)
-    local t = v * (1 - (1 - f) * s)
-
-    i = i % 6
-
-    if i == 0 then
-        r, g, b = v, t, p
-    elseif i == 1 then
-        r, g, b = q, v, p
-    elseif i == 2 then
-        r, g, b = p, v, t
-    elseif i == 3 then
-        r, g, b = p, q, v
-    elseif i == 4 then
-        r, g, b = t, p, v
-    elseif i == 5 then
-        r, g, b = v, p, q
-    end
-
-    return { r, g, b, a }
-end
-
-return {
-    hsv2rgb = hsv2rgb,
-    ColorSet = ColorSet,
-    Knob = Knob
-}
+return Knob
