@@ -244,7 +244,7 @@ function Knob:__control()
     reaper.ImGui_Indent(self._ctx, indent_level)
     if reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0) then
         if self._param.details.parent_fx.editing and self._param.details.parent_fx.setSelectedParam then
-            self._param.details.parent_fx.setSelectedParam(self._param.details)
+            self._param.details.parent_fx.setSelectedParam(self._param)
         end
     end
 

@@ -29,7 +29,7 @@ local color_helpers = require("helpers.color_helpers")
 ---@field params_list ParamData[]
 ---@field presetname string = ""
 ---@field removeParamDetails fun(self: TrackFX, param: ParamData)
----@field setSelectedParam fun(param: Parameter)|nil
+---@field setSelectedParam fun(param: ParamData)|nil
 ---@field state State
 ---@field update fun(self: TrackFX)
 

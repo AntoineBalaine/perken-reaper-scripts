@@ -102,11 +102,11 @@ function LayoutEditor:AddParams()
             end
         end
 
-        local _, selected = reaper.ImGui_Selectable(
+        local rv, selected = reaper.ImGui_Selectable(
             self.ctx,
             param.name,
             self.selectedParam and param.guid == self.selectedParam.guid)
-        if selected then
+        if rv and selected then
             self.selectedParam._selected = false
             self.selectedParam = param
             self.selectedParam._selected = true
