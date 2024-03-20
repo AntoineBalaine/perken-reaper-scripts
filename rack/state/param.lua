@@ -1,9 +1,8 @@
 local layoutEnums = require("state.fx_layout_types")
-local ColorSet = require("helpers.ColorSet")
 
 ---@class Parameter
 ---@field defaultval number
----@field display_settings {type: Param_Display_Type, component: Knob|nil, colorset: ColorSet, Pos_X: integer|nil, Pos_Y: integer|nil, _editingColorSet: ColorSet}
+---@field display_settings {type: Param_Display_Type, component: Knob|nil, Pos_X: integer|nil, Pos_Y: integer|nil}
 ---@field editSelected boolean = false
 ---@field fmt_val string|nil
 ---@field guid string
@@ -15,7 +14,7 @@ local ColorSet = require("helpers.ColorSet")
 ---@field midval number
 ---@field minval number
 ---@field name string
----@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string, colorset: ColorSet): self
+---@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string): self
 ---@field parent_fx TrackFX
 ---@field query_value fun(self):self
 ---@field setValue fun(self, value :number)
@@ -37,8 +36,7 @@ parameter.__index = parameter
 ---@param param_index number
 ---@param parent_fx TrackFX
 ---@param guid string
----@param colorset ColorSet
-function parameter.new(state, param_index, parent_fx, guid, colorset)
+function parameter.new(state, param_index, parent_fx, guid)
     ---@type Parameter
     local new_param = setmetatable({}, parameter)
     new_param.state = state
@@ -69,9 +67,7 @@ function parameter.new(state, param_index, parent_fx, guid, colorset)
     new_param.defaultval = new_param.value -- assume scalar values are copied upon assignment. I think that's right?
     new_param.display_settings = {
         type = layoutEnums.Param_Display_Type.Knob,
-        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
-        colorset = colorset,
-        _editingColorSet = ColorSet.deAlpha(colorset)
+        component = nil ---the component that will be drawn, to be instantiated in the fx_box:main()
         -- Pos_X = 0,
         -- Pos_Y = 0,
     }

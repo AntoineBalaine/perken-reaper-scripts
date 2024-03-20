@@ -3,7 +3,7 @@
 --https://github.com/DGriffin91/imgui-rs-knobs
 
 local text_helpers = require("helpers.text")
-
+local ColorSet = require("helpers.ColorSet")
 ---@class Knob
 local Knob = {}
 
@@ -163,13 +163,21 @@ end
 ---@param radius number
 ---@param controllable boolean
 ---@param on_activate? function
+---@param dot_color ColorSet
+---@param track_color ColorSet
+---@param circle_color ColorSet
+---@param text_color integer
 function Knob.new(
     ctx,
     id,
     param,
     radius,
     controllable,
-    on_activate
+    on_activate,
+    dot_color,
+    track_color,
+    circle_color,
+    text_color
 )
     ---@class Knob
     local new_knob = {}
@@ -199,6 +207,18 @@ function Knob.new(
     new_knob._center_y = draw_cursor_y + new_knob._radius
     new_knob._angle_cos = math.cos(new_knob._angle)
     new_knob._angle_sin = math.sin(new_knob._angle)
+    new_knob.dot_color = dot_color
+    new_knob.track_color = track_color
+    new_knob.text_color = text_color
+    new_knob.circle_color = circle_color
+    --- use when layout editor is open and the current param isn't selected
+    new_knob._dot_color_editing = ColorSet.deAlpha(dot_color)
+    --- use when layout editor is open and the current param isn't selected
+    new_knob._track_color_editing = ColorSet.deAlpha(track_color)
+    --- use when layout editor is open and the current param isn't selected
+    new_knob._text_color_editing = text_color & 0x55
+    --- use when layout editor is open and the current param isn't selected
+    new_knob._circle_color_editing = ColorSet.deAlpha(circle_color)
     return new_knob
 end
 
@@ -600,18 +620,21 @@ function Knob:draw(variant,
     self._param = param
     local dot_color ---@type ColorSet
     local track_color ---@type ColorSet
-    local text_color ---@type integer
     local circle_color ---@type ColorSet
+    local text_color ---@type integer
+
+    ---the ColorSet used by the knob when the fx’s layout is being edited and the current param isn't selected
+    ---if the param is selected, the knob will use the regular colors
     if self._param.details.parent_fx.editing and not self._param._selected then
-        dot_color = self._param.details.display_settings._editingColorSet
-        track_color = self._param.details.display_settings._editingColorSet
-        text_color = self._param.details.display_settings._editingColorSet.text
-        circle_color = self._param.details.display_settings._editingColorSet
+        dot_color = self._dot_color_editing
+        track_color = self._track_color_editing
+        text_color = self._text_color_editing
+        circle_color = self._circle_color_editing
     else
-        dot_color = self._param.details.display_settings.colorset
-        track_color = self._param.details.display_settings.colorset
-        text_color = self._param.details.display_settings.colorset.text
-        circle_color = self._param.details.display_settings.colorset
+        dot_color = self.dot_color
+        track_color = self.track_color
+        text_color = self.text_color
+        circle_color = self.circle_color
     end
 
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)

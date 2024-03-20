@@ -396,7 +396,23 @@ function fx_box:Canvas()
                             -- thing to instantiate each fx’s ui as classes
                             reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, param.name,
                                 "last_touched")
-                        end
+                        end,
+                        ColorSet.new( -- dot color
+                            self.theme.colors.col_vuind2.color,
+                            self.theme.colors.col_vuind4.color,
+                            self.theme.colors.col_vuind3.color
+                        ),
+                        ColorSet.new( -- track color
+                            self.theme.colors.col_vuind2.color,
+                            self.theme.colors.col_vuind4.color,
+                            self.theme.colors.col_vuind3.color
+                        ),
+                        ColorSet.new( -- circle color
+                            self.theme.colors.col_vuind2.color,
+                            self.theme.colors.col_vuind4.color,
+                            self.theme.colors.col_vuind3.color
+                        ),
+                        0xFFFFFFFF -- text color
                     )
                 end
             end

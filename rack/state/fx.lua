@@ -8,7 +8,6 @@ local constants = require("helpers.constants")
 local layout_enums = require("state.fx_layout_types")
 local parameter = require("state.param")
 local color_helpers = require("helpers.color_helpers")
-local ColorSet = require("helpers.ColorSet")
 
 ---@class TrackFX
 ---@field createParamDetails fun(self: TrackFX, param: ParamData): ParamData
@@ -33,7 +32,6 @@ local ColorSet = require("helpers.ColorSet")
 ---@field setSelectedParam fun(param: Parameter)|nil
 ---@field state State
 ---@field update fun(self: TrackFX)
----@field theme Theme
 
 ---@class TrackFX
 local fx = {}
@@ -64,7 +62,6 @@ function fx.new(state, theme, index, number, guid)
     self.index = index
     self.params_list, self.params_by_guid = self:createParams()
     self.display_params = {} ---@type ParamData[]
-    self.theme = theme
 
     ---@class FxDisplaySettings
     ---@field background integer
@@ -275,13 +272,8 @@ function fx:createParamDetails(param)
     local new_param = parameter.new(self.state,
         param.index,
         self,
-        param.guid,
-        ColorSet.new(
-            self.theme.colors.col_vuind2.color,
-            self.theme.colors.col_vuind4.color,
-            self.theme.colors.col_vuind3.color,
-            0xFFFFFFFF
-        ))
+        param.guid
+    )
     param.details = new_param
     self.display_params[#self.display_params + 1] = param
     return param
