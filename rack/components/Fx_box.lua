@@ -379,8 +379,8 @@ function fx_box:Canvas()
             local cur_pos_x, cur_pos_y = reaper.ImGui_GetCursorPos(self.ctx) ---current position of the draw cursor
             ---move the cursor to the edge of the window, add the invisible button and move it back to the original position
             reaper.ImGui_SetCursorPos(self.ctx,
-                cur_pos_x + win_width - 10,
-                cur_pos_y)
+                win_width - 10,
+                0)
             reaper.ImGui_InvisibleButton(self.ctx, "##resizeEW", 10, win_height)
             reaper.ImGui_SetCursorPos(self.ctx, cur_pos_x, cur_pos_y)
             if reaper.ImGui_IsItemHovered(self.ctx) then
