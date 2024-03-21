@@ -85,6 +85,38 @@ function LayoutEditor:AddParams()
     if reaper.ImGui_Checkbox(self.ctx, "All params", false) then
         all_params = true
     end
+
+    -- select last touched parameter
+    -- this allows the user to click a param in the fx window,
+    -- and add it to the fx_box from here
+    local last_touched_rv, last_touched_selected = reaper.ImGui_Selectable(
+        self.ctx,
+        "last touched"
+    )
+    if last_touched_rv and last_touched_selected then
+        local retval,
+        tracknumber,
+        fxnumber,
+        paramnumber =
+            reaper.GetLastTouchedFX()
+        if retval and tracknumber == self.fx.state.Track.number and fxnumber == self.fx.number then
+            -- iterate through the params to find the one with the corresponding paramnumber
+            for _, param in ipairs(self.fx.params_list) do
+                if param.index == paramnumber then
+                    self.selectedParam._selected = false
+                    self.selectedParam = param
+                    if not self.selectedParam.details then
+                        self.selectedParam = self.fx:createParamDetails(param)
+                        self.selectedParam.display = true
+                    end
+                    self.selectedParam._selected = true
+                    goto continue
+                end
+            end
+            ::continue::
+        end
+    end
+
     ---TODO implement text filter here, so that user can filter the fx-params" list.
     for i = 1, #self.fx.params_list - 1 do
         local param      = self.fx.params_list[i]
