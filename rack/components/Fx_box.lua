@@ -373,30 +373,28 @@ function fx_box:Canvas()
             self:DrawGrid()
 
             --- allow resizing the width of the box by dragging the right border
-            local win_pos_x, win_pos_y = reaper.ImGui_GetWindowPos(self.ctx)
-            local win_width, win_height = reaper.ImGui_GetWindowSize(self.ctx)
             --- sadly I can't use «is window focused» here,
             -- there are cases where the outer rack might be focused, but the inner box isn't.
-            local hovered = reaper.ImGui_IsMouseHoveringRect(
-                self.ctx,
-                win_pos_x + win_width - 5,
-                win_pos_y,
-                win_pos_x + win_width + 5,
-                win_pos_y + win_height
-            )
-
-
-            local delta_x, _ = reaper.ImGui_GetMouseDragDelta(self.ctx,
-                reaper.ImGui_GetCursorPosX(self.ctx),
-                reaper.ImGui_GetCursorPosY(self.ctx))
-            self.fx.displaySettings.window_width = self.fx.displaySettings.window_width + delta_x
-
-            if delta_x ~= 0.0 then
-                reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
-            end
-            --- change mouse cursor to «resize cursor» when hovering the right border, or when updating the width
-            if hovered or reaper.ImGui_IsMouseDragging(self.ctx, reaper.ImGui_MouseButton_Left()) then
+            local win_width, win_height = reaper.ImGui_GetWindowSize(self.ctx)
+            local cur_pos_x, cur_pos_y = reaper.ImGui_GetCursorPos(self.ctx) ---current position of the draw cursor
+            ---move the cursor to the edge of the window, add the invisible button and move it back to the original position
+            reaper.ImGui_SetCursorPos(self.ctx,
+                cur_pos_x + win_width - 10,
+                cur_pos_y)
+            reaper.ImGui_InvisibleButton(self.ctx, "##resizeEW", 10, win_height)
+            reaper.ImGui_SetCursorPos(self.ctx, cur_pos_x, cur_pos_y)
+            if reaper.ImGui_IsItemHovered(self.ctx) then
                 reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
+            end
+            if reaper.ImGui_IsItemActive(self.ctx) then
+                local delta_x, _ = reaper.ImGui_GetMouseDragDelta(self.ctx,
+                    reaper.ImGui_GetCursorPosX(self.ctx),
+                    reaper.ImGui_GetCursorPosY(self.ctx))
+
+                if delta_x ~= 0.0 then
+                    self.fx.displaySettings.window_width = self.fx.displaySettings.window_width + delta_x
+                    reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
+                end
             end
         end
 
