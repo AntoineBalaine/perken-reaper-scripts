@@ -254,7 +254,7 @@ function Knob:__control()
 
 
     if not self._controllable then -- don’t process controls if the fx’s layout is being edited or knobs isn’t controllable
-        return false, self._param.details.value
+        -- return false, self._param.details.value
     end
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
@@ -266,11 +266,6 @@ function Knob:__control()
         end
         self._is_active = is_active
     end
-
-    reaper.ImGui_SetConfigVar(self._ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
-    local _, delta_y = reaper.ImGui_GetMouseDragDelta(self._ctx, reaper.ImGui_GetCursorPosX(self._ctx),
-        reaper.ImGui_GetCursorPosY(self._ctx))
-
     -- --Maybe this should be configurable
     local speed
     if reaper.ImGui_IsKeyDown(self._ctx, reaper.ImGui_Mod_Shift())
@@ -284,13 +279,59 @@ function Knob:__control()
     if reaper.ImGui_IsMouseDoubleClicked(self._ctx, reaper.ImGui_MouseButton_Left()) and self._is_active then
         new_val = self._param.details.defaultval
         value_changed = true
-    elseif self._is_active and delta_y ~= 0.0 then
-        local step = (self._param.details.maxval - self._param.details.minval) / speed
-        new_val = self._param.details.value - delta_y * step
-        if self._param.details.value < self._param.details.minval then new_val = self._param.details.minval end
-        if self._param.details.value > self._param.details.maxval then new_val = self._param.details.maxval end
-        value_changed = true
-        reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
+    elseif self._is_active then
+        reaper.ImGui_SetConfigVar(self._ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
+        local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(self._ctx, reaper.ImGui_GetCursorPosX(self._ctx),
+            reaper.ImGui_GetCursorPosY(self._ctx))
+
+        if delta_y ~= 0.0 then
+            -- if self._param.details.parent_fx.editing then
+            --     -- move the knob around the canvas
+            --     local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
+            --     local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
+            --     local cur_pos_x = reaper.ImGui_GetCursorPosX(self._ctx)
+            --     local cur_pos_y = reaper.ImGui_GetCursorPosY(self._ctx)
+
+
+            --     if not self._param.details.display_settings.Pos_X then
+            --         self._param.details.display_settings.Pos_X = cur_pos_x
+            --     end
+            --     if not self._param.details.display_settings.Pos_Y then
+            --         self._param.details.display_settings.Pos_Y = cur_pos_y
+            --     end
+
+            --     local new_pos_x = cur_pos_x + self._param.details.display_settings.Pos_X + delta_x
+            --     local new_pos_y = cur_pos_y + self._param.details.display_settings.Pos_Y + delta_y
+            --     ---clamp the values within the current frame.
+            --     ---TODO dunno why the frame is currently bigger than the window.
+            --     if new_pos_x < min_x then
+            --         new_pos_x = min_x
+            --     elseif new_pos_x > max_x then
+            --         new_pos_x = max_x
+            --     end
+            --     if new_pos_y < min_y then
+            --         new_pos_y = min_y
+            --     elseif new_pos_y > max_y then
+            --         new_pos_y = max_y
+            --     end
+
+            --     reaper.ImGui_SetCursorPosX(self._ctx, new_pos_x)
+            --     reaper.ImGui_SetCursorPosY(self._ctx, new_pos_y)
+
+            --     if delta_y ~= 0.0 and delta_x ~= 0.0 then
+            --         self._param.details.display_settings.Pos_X = new_pos_x - cur_pos_x
+            --         self._param.details.display_settings.Pos_Y = new_pos_y - cur_pos_y
+            --         reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
+            --     end
+            -- else
+            local step = (self._param.details.maxval - self._param.details.minval) / speed
+            new_val = self._param.details.value - delta_y * step
+            if self._param.details.value < self._param.details.minval then new_val = self._param.details.minval end
+            if self._param.details.value > self._param.details.maxval then new_val = self._param.details.maxval end
+            value_changed = true
+            reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
+            -- end
+        end
     end
     return value_changed, new_val
 end
