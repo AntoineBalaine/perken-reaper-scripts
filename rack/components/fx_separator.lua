@@ -21,11 +21,8 @@ local fx_separator = {}
 
 --- draw spaces between fx windows:
 --- those spaces are the drag and drop destinations
---
---- if `is_last`, on click display the fx browser,
 ---@param idx integer
----@param is_last? boolean
-function fx_separator:spaceBtwFx(idx, is_last)
+function fx_separator:spaceBtwFx(idx)
     local height = defaults.window_height
     reaper.ImGui_InvisibleButton(self.ctx,
         "##Button between FX",

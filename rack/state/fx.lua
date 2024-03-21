@@ -86,6 +86,8 @@ function fx.new(state, theme, index, number, guid)
     ---@field window_width integer = 280
     ---@field window_height integer = 240
     ---@field _is_collapsed boolean = false
+    ---@field _grid_size integer
+    ---@field _grid_color integer
 
     ---@type FxDisplaySettings
     self.displaySettings = {
@@ -112,6 +114,8 @@ function fx.new(state, theme, index, number, guid)
         title_Width         = 220 - 80,
         window_width        = defaults.window_width,
         window_height       = defaults.window_height, -- TODO make this into a constant, accessible everywhere
+        _grid_size          = 10,
+        _grid_color         = 0x444444AA
     }
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 

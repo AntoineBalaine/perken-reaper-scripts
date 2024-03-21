@@ -36,28 +36,24 @@ function fx_box:DrawGrid()
     local WinDrawList = reaper.ImGui_GetWindowDrawList(self.ctx)
     local start_x, start_y = reaper.ImGui_GetItemRectMin(self.ctx)
     local end_x, end_y = reaper.ImGui_GetItemRectMax(self.ctx)
-    local gridsize = 10
-    local grid_color = 0x444444AA -- TODO pick a color from the theme
-    -- local grid_color = 0xFFFFFFFF
-
     -- add horizontal grid
-    for i = 0, self.fx.displaySettings.window_width, gridsize do
+    for i = 0, self.fx.displaySettings.window_width, self.fx.displaySettings._grid_size do
         reaper.ImGui_DrawList_AddLine(WinDrawList,
             start_x,
             start_y + i,
             end_x,
             end_y + i,
-            grid_color)
+            self.fx.displaySettings._grid_color)
     end
 
     -- add vertical grid
-    for i = 0, self.fx.displaySettings.window_width, gridsize do
+    for i = 0, self.fx.displaySettings.window_width, self.fx.displaySettings._grid_size do
         reaper.ImGui_DrawList_AddLine(WinDrawList,
             start_x + i,
             start_y,
             start_x + i,
             start_y + self.fx.displaySettings.window_height,
-            grid_color)
+            self.fx.displaySettings._grid_color)
     end
     -- end
 end
@@ -373,9 +369,37 @@ function fx_box:Canvas()
         0x00000000)
 
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
-        if self.fx.editing and not self.fx.displaySettings._is_collapsed then
+        if self.fx.editing then
             self:DrawGrid()
+
+            --- allow resizing the width of the box by dragging the right border
+            local win_pos_x, win_pos_y = reaper.ImGui_GetWindowPos(self.ctx)
+            local win_width, win_height = reaper.ImGui_GetWindowSize(self.ctx)
+            --- sadly I can't use «is window focused» here,
+            -- there are cases where the outer rack might be focused, but the inner box isn't.
+            local hovered = reaper.ImGui_IsMouseHoveringRect(
+                self.ctx,
+                win_pos_x + win_width - 5,
+                win_pos_y,
+                win_pos_x + win_width + 5,
+                win_pos_y + win_height
+            )
+
+
+            local delta_x, _ = reaper.ImGui_GetMouseDragDelta(self.ctx,
+                reaper.ImGui_GetCursorPosX(self.ctx),
+                reaper.ImGui_GetCursorPosY(self.ctx))
+            self.fx.displaySettings.window_width = self.fx.displaySettings.window_width + delta_x
+
+            if delta_x ~= 0.0 then
+                reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
+            end
+            --- change mouse cursor to «resize cursor» when hovering the right border, or when updating the width
+            if hovered or reaper.ImGui_IsMouseDragging(self.ctx, reaper.ImGui_MouseButton_Left()) then
+                reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
+            end
         end
+
         for idx, param in ipairs(self.fx.display_params) do
             local radius = reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5
             if not param.details.display_settings.component then

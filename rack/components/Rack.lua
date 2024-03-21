@@ -58,11 +58,12 @@ function Rack:drawFxList()
         Fx_box:main(fx)
         reaper.ImGui_PopID(self.ctx)
     end
-    Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1, true)
+    Fx_separator:spaceBtwFx(#self.state.Track.fx_list + 1)
 end
 
 --- start any styling for the rack, i.e. `ImGui_PushStyleColor`
 function Rack:RackStyleStart()
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameBorderSize(), 1.0)
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameRounding(), 2) -- round up the frames
     reaper.ImGui_PushStyleColor(
         self.ctx,
@@ -73,7 +74,7 @@ end
 --- end any styling for the rack, i.e. `ImGui_PopStyleColor`
 function Rack:RackStyleEnd()
     reaper.ImGui_PopStyleColor(self.ctx)  -- Remove background color
-    reaper.ImGui_PopStyleVar(self.ctx, 1) -- remove rounding of frames
+    reaper.ImGui_PopStyleVar(self.ctx, 2) -- remove rounding of frames
 end
 
 function Rack:main()
@@ -146,6 +147,7 @@ function Rack:init(project_directory)
         + reaper.ImGui_WindowFlags_NoCollapse()
         + reaper.ImGui_WindowFlags_NoTitleBar()
         + reaper.ImGui_WindowFlags_NoNav()
+
 
     self.window_flags = window_flags -- tb used in main()
 

@@ -277,6 +277,16 @@ function LayoutEditor:FxDisplaySettings()
     reaper.ImGui_Text(self.ctx, "Title_Clr: ")
     reaper.ImGui_SameLine(self.ctx)
     displaySettings.title_Clr = Palette(self.ctx, self.theme, displaySettings.title_Clr, "title")
+    -- increase/decrease grid size
+    if reaper.ImGui_Button(self.ctx, "Grid +") then
+        self.fx.displaySettings._grid_size = math.min(60,
+            self.fx.displaySettings._grid_size + 10)
+    end
+    reaper.ImGui_SameLine(self.ctx)
+    if reaper.ImGui_Button(self.ctx, "Grid -") then
+        self.fx.displaySettings._grid_size = math.max(5,
+            self.fx.displaySettings._grid_size - 10)
+    end
 end
 
 function LayoutEditor:Tabs()
