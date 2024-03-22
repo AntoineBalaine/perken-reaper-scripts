@@ -34,7 +34,8 @@ assert(tableHelpers.namedTableLength(layout_enums.Param_Display_Type) == layout_
 layout_enums.Title_Display_Style = {
     fx_name = 1,
     preset_name = 2,
-    custom_title = 3
+    custom_title = 3,
+    fx_instance_name = 4
 }
 
 ---@enum DragDirection

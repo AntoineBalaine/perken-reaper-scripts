@@ -187,10 +187,7 @@ function fx_box:LabelButtonCB()
 end
 
 function fx_box:VerticalLabelButton()
-    local display_name       = self.fx.presetname ~= nil
-        and self.fx.presetname
-        or fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
-    local width, height      = reaper.ImGui_CalcTextSize(self.ctx, display_name)
+    local width, height      = reaper.ImGui_CalcTextSize(self.ctx, self.fx.display_name)
     -- invert the width and height to represent the component size
     local temp               = height
     height                   = width
@@ -204,7 +201,7 @@ function fx_box:VerticalLabelButton()
         reaper.ImGui_GetStyleVar(self.ctx, lineHeightWSpacing)
 
     self:labelButtonStyleStart()
-    if reaper.ImGui_Button(self.ctx, "##" .. display_name, self.default_button_size, btn_height) then
+    if reaper.ImGui_Button(self.ctx, "##" .. self.fx.display_name, self.default_button_size, btn_height) then
         self:LabelButtonCB()
     end
     if reaper.ImGui_IsItemHovered(self.ctx) then
@@ -214,14 +211,14 @@ function fx_box:VerticalLabelButton()
     reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
     reaper.ImGui_Indent(self.ctx, 5)
     reaper.ImGui_SetCursorPosY(self.ctx, btn_y)
-    for k = 1, #display_name do
+    for k = 1, #self.fx.display_name do
         -- if there's no more space to the bottom of the window, don't display any more letters
         local _, cur_y = reaper.ImGui_GetCursorPos(self.ctx)
         if cur_y + lineHeightWSpacing > btn_y + btn_height
         then
             break
         else
-            reaper.ImGui_Text(self.ctx, string.sub(display_name, k, k))
+            reaper.ImGui_Text(self.ctx, string.sub(self.fx.display_name, k, k))
         end
     end
     reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
@@ -231,14 +228,11 @@ function fx_box:VerticalLabelButton()
 end
 
 function fx_box:LabelButton()
-    local display_name = self.fx.presetname ~= nil
-        and self.fx.presetname
-        or fx_box_helpers.getDisplayName(self.fx.name) -- get name of fx
     --- either use `GetContentRegionAvail()` or `self.displaySettings.title_Width`
     local btn_width = reaper.ImGui_GetContentRegionAvail(self.ctx) - self.default_button_size -
         reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing())
     self:labelButtonStyleStart()
-    if reaper.ImGui_Button(self.ctx, display_name, btn_width, self.default_button_size) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, self.fx.display_name .. "##" .. self.fx.guid, btn_width, self.default_button_size) then -- create window name button
         self:LabelButtonCB()
     end
 
@@ -468,14 +462,6 @@ end
 function fx_box:main(fx)
     self.fx = fx
     self.displaySettings = fx.displaySettings
-
-    if self.fx.displaySettings.title_display == layoutEnums.Title_Display_Style.preset_name and self.fx.presetname then
-        self.display_name = self.fx.presetname
-    elseif self.fx.displaySettings.title_display == layoutEnums.Title_Display_Style.custom_title and self.fx.custom_title then
-        self.display_name = self.fx.custom_title
-    else
-        self.display_name = fx_box_helpers.getDisplayName(self.fx.name)
-    end
 
     local collapsed = self.fx.displaySettings._is_collapsed
     reaper.ImGui_BeginGroup(self.ctx)

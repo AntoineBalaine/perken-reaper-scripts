@@ -8,11 +8,12 @@ local defaults = require("helpers.defaults")
 local layout_enums = require("state.fx_layout_types")
 local parameter = require("state.param")
 local color_helpers = require("helpers.color_helpers")
+local fx_box_helpers = require("helpers.fx_box_helpers")
 
 ---@class TrackFX
 ---@field createParamDetails fun(self: TrackFX, param: ParamData): ParamData
 ---@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
----@field custom_title string|nil
+---@field display_name string name of fx, or preset, or renamed name, or fx instance name.
 ---@field displaySettings FxDisplaySettings
 ---@field displaySettings_copy FxDisplaySettings|unknown|nil
 ---@field display_params ParamData[]
@@ -28,7 +29,8 @@ local color_helpers = require("helpers.color_helpers")
 ---@field onEditLayoutClose fun(self: TrackFX, action: EditLayoutCloseAction)
 ---@field params_by_guid table<string, ParamData>
 ---@field params_list ParamData[]
----@field presetname string = ""
+---@field presetname string|nil
+---@field renamed_name string|nil
 ---@field removeParamDetails fun(self: TrackFX, param: ParamData)
 ---@field setSelectedParam fun(param: ParamData)|nil
 ---@field state State
@@ -59,6 +61,7 @@ function fx.new(state, theme, index, number, guid)
     self.setSelectedParam = nil
     self.guid = guid
     self.name = name
+    self.display_name = fx_box_helpers.getDisplayName(name or "") -- get name of fx
     self.number = number
     self.index = index
     self.params_list, self.params_by_guid = self:createParams()
@@ -120,13 +123,6 @@ function fx.new(state, theme, index, number, guid)
         title_display       = layout_enums.Title_Display_Style.fx_name,
     }
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
-
-    local _, presetname = reaper.TrackFX_GetPreset(self.state.Track.track, self.index - 1)
-    if #presetname > 0 then
-        self.presetname = presetname
-    else
-        self.presetname = nil
-    end
 
     -- self.param_list
     -- number retval, number minval, number maxval = reaper.TrackFX_GetParam(MediaTrack track, integer fx, integer param)
@@ -259,15 +255,34 @@ end
 ---query the values of the displayed params
 function fx:update()
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, self.number)
-    local _, presetname = reaper.TrackFX_GetPreset(self.state.Track.track, self.index - 1)
-    if #presetname > 0 then
-        if self.presetname ~= presetname then
-            self.presetname = presetname
+
+    --if the user chooses to display the fx instance name, or the preset name, query for that info
+    --if he chooses custom name, or just the fx name, then use what’s in state.
+    if self.displaySettings.title_display == layout_enums.Title_Display_Style.preset_name then
+        local _, presetname = reaper.TrackFX_GetPreset(self.state.Track.track, self.index - 1)
+        if #presetname == 0 then
+            if self.presetname then
+                self.presetname = nil
+            end
+        else
+            if self.presetname ~= presetname then
+                self.presetname = presetname
+                self.display_name = self.presetname
+            end
         end
-    else
-        if self.presetname then
-            self.presetname = nil
+    elseif self.displaySettings.title_display == layout_enums.Title_Display_Style.fx_instance_name then
+        local rv, renamed_name = reaper.TrackFX_GetNamedConfigParm(self.state.Track.track, self.number, "renamed_name")
+        if rv and #renamed_name > 0 and self.renamed_name ~= renamed_name then
+            self.renamed_name = renamed_name
         end
+    elseif self.displaySettings.title_display == layout_enums.Title_Display_Style.fx_name and self.display_name ~= self.name then
+        self.display_name = self.name
+        self.renamed_name = nil
+        self.presetname = nil
+    elseif self.displaySettings.title_display == layout_enums.Title_Display_Style.custom_title and self.displaySettings.custom_Title ~= nil and self.displaySettings.custom_Title ~= "" then
+        self.display_name = self.displaySettings.custom_Title
+        self.renamed_name = nil
+        self.presetname = nil
     end
 
     for _, param in ipairs(self.display_params) do

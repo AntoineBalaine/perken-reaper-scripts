@@ -91,7 +91,8 @@ function LayoutEditor:AddParams()
     -- and add it to the fx_box from here
     local last_touched_rv, last_touched_selected = reaper.ImGui_Selectable(
         self.ctx,
-        "last touched"
+        "last touched",
+        false
     )
     if last_touched_rv and last_touched_selected then
         local retval,
@@ -101,6 +102,7 @@ function LayoutEditor:AddParams()
             reaper.GetLastTouchedFX()
         if retval and tracknumber == self.fx.state.Track.number and fxnumber == self.fx.number then
             -- iterate through the params to find the one with the corresponding paramnumber
+            -- TODO couldn’t we just access these by index ?
             for _, param in ipairs(self.fx.params_list) do
                 if param.index == paramnumber then
                     self.selectedParam._selected = false
@@ -286,19 +288,30 @@ function LayoutEditor:FxDisplaySettings()
         "fx name",
         self.fx.displaySettings.title_display,
         layoutEnums.Title_Display_Style.fx_name)
+
     _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
         self.ctx,
         "preset name",
         self.fx.displaySettings.title_display,
         layoutEnums.Title_Display_Style.preset_name)
+
     _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
         self.ctx,
         "custom title",
         self.fx.displaySettings.title_display,
         layoutEnums.Title_Display_Style.custom_title)
     reaper.ImGui_SameLine(self.ctx)
-    _, self.fx.custom_title = reaper.ImGui_InputTextWithHint(self.ctx, "##custom_title" .. self.fx.guid,
-        self.fx.name, self.fx.custom_title)
+    _, self.fx.displaySettings.custom_Title = reaper.ImGui_InputTextWithHint(self.ctx, "##custom_title" .. self.fx.guid,
+        self.fx.name, self.fx.displaySettings.custom_Title)
+
+    _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
+        self.ctx,
+        "fx instance name",
+        self.fx.displaySettings.title_display,
+        layoutEnums.Title_Display_Style.fx_instance_name)
+
+
+
 
 
     -- increase/decrease grid size
