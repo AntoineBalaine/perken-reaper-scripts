@@ -102,20 +102,14 @@ function LayoutEditor:AddParams()
             reaper.GetLastTouchedFX()
         if retval and tracknumber == self.fx.state.Track.number and fxnumber == self.fx.number then
             -- iterate through the params to find the one with the corresponding paramnumber
-            -- TODO couldn’t we just access these by index ?
-            for _, param in ipairs(self.fx.params_list) do
-                if param.index == paramnumber then
-                    self.selectedParam._selected = false
-                    self.selectedParam = param
-                    if not self.selectedParam.details then
-                        self.selectedParam = self.fx:createParamDetails(param)
-                        self.selectedParam.display = true
-                    end
-                    self.selectedParam._selected = true
-                    goto continue
-                end
+            local param = self.fx.params_list[paramnumber + 1]
+            self.selectedParam._selected = false
+            self.selectedParam = param
+            if not self.selectedParam.details then
+                self.selectedParam = self.fx:createParamDetails(param)
+                self.selectedParam.display = true
             end
-            ::continue::
+            self.selectedParam._selected = true
         end
     end
 
