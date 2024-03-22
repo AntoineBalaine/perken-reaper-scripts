@@ -469,6 +469,14 @@ function fx_box:main(fx)
     self.fx = fx
     self.displaySettings = fx.displaySettings
 
+    if self.fx.displaySettings.title_display == layoutEnums.Title_Display_Style.preset_name and self.fx.presetname then
+        self.display_name = self.fx.presetname
+    elseif self.fx.displaySettings.title_display == layoutEnums.Title_Display_Style.custom_title and self.fx.custom_title then
+        self.display_name = self.fx.custom_title
+    else
+        self.display_name = fx_box_helpers.getDisplayName(self.fx.name)
+    end
+
     local collapsed = self.fx.displaySettings._is_collapsed
     reaper.ImGui_BeginGroup(self.ctx)
 

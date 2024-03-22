@@ -12,6 +12,7 @@ local color_helpers = require("helpers.color_helpers")
 ---@class TrackFX
 ---@field createParamDetails fun(self: TrackFX, param: ParamData): ParamData
 ---@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
+---@field custom_title string|nil
 ---@field displaySettings FxDisplaySettings
 ---@field displaySettings_copy FxDisplaySettings|unknown|nil
 ---@field display_params ParamData[]

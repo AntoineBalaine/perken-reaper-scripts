@@ -281,13 +281,24 @@ function LayoutEditor:FxDisplaySettings()
     --fx name
     --preset name
     --custom name
-    for k, v in pairs(layoutEnums.Title_Display_Style) do
-        _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
-            self.ctx,
-            k,
-            self.fx.displaySettings.title_display,
-            v)
-    end
+    _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
+        self.ctx,
+        "fx name",
+        self.fx.displaySettings.title_display,
+        layoutEnums.Title_Display_Style.fx_name)
+    _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
+        self.ctx,
+        "preset name",
+        self.fx.displaySettings.title_display,
+        layoutEnums.Title_Display_Style.preset_name)
+    _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
+        self.ctx,
+        "custom title",
+        self.fx.displaySettings.title_display,
+        layoutEnums.Title_Display_Style.custom_title)
+    reaper.ImGui_SameLine(self.ctx)
+    _, self.fx.custom_title = reaper.ImGui_InputTextWithHint(self.ctx, "##custom_title" .. self.fx.guid,
+        self.fx.name, self.fx.custom_title)
 
 
     -- increase/decrease grid size
