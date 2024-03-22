@@ -755,9 +755,12 @@ function Knob:draw(variant,
                 screen_cursor_y + self._child_height, 0xFF0000FF, 1.0, 0, 0.0)
         end
         self:EditControl(
-            fxbox_pos_x, fxbox_pos_y,
-            fxbox_max_x, fx_box_max_y,
-            fx_box_min_x, fx_box_min_y
+            fxbox_pos_x,
+            fxbox_pos_y,
+            fxbox_max_x,
+            fx_box_max_y,
+            fx_box_min_x,
+            fx_box_min_y
         )
 
         reaper.ImGui_EndChild(self._ctx)
@@ -768,10 +771,20 @@ function Knob:draw(variant,
     return value_changed, (new_val or self._param.details.value)
 end
 
+---Overlay a button on top of the knob's frame
+--- and retrieve whether the user is doing click+drag.
+--- If so, update the knob frame's coordinates.
+---
+--It's easy to get confused, because this button's coordinates within the frame
+--are not the same as the coordinates of the knob's frame within the fx box.
+--That's why we're having to pass the details of the fx box as params.
 function Knob:EditControl(
-    fxbox_pos_x, fxbox_pos_y,
-    fxbox_max_x, fx_box_max_y,
-    fx_box_min_x, fx_box_min_y
+    fxbox_pos_x,
+    fxbox_pos_y,
+    fxbox_max_x,
+    fx_box_max_y,
+    fx_box_min_x,
+    fx_box_min_y
 )
     -- put knob at start of the current child window
     reaper.ImGui_SetCursorPosX(self._ctx, 0)
@@ -783,11 +796,11 @@ function Knob:EditControl(
     if is_active then
         local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
             self._ctx,
-            fxbox_pos_x,
-            fxbox_pos_y)
+            self._param.details.display_settings.Pos_X or fxbox_pos_x,
+            self._param.details.display_settings.Pos_Y or fxbox_pos_y)
         if delta_y ~= 0.0 and delta_x ~= 0.0 then
-            local new_pos_x = fxbox_pos_x + (self._param.details.display_settings.Pos_X or 0) + delta_x
-            local new_pos_y = fxbox_pos_y + (self._param.details.display_settings.Pos_Y or 0) + delta_y
+            local new_pos_x = (self._param.details.display_settings.Pos_X or fxbox_pos_x) + delta_x
+            local new_pos_y = (self._param.details.display_settings.Pos_Y or fxbox_pos_y) + delta_y
             ---clamp the values within the current frame.
             ---TODO dunno why the frame is currently bigger than the window.
             if new_pos_x < fx_box_min_x then
@@ -801,8 +814,8 @@ function Knob:EditControl(
                 new_pos_y = fx_box_max_y - self._child_height
             end
 
-            self._param.details.display_settings.Pos_X = new_pos_x - fxbox_pos_x
-            self._param.details.display_settings.Pos_Y = new_pos_y - fxbox_pos_y
+            self._param.details.display_settings.Pos_X = new_pos_x
+            self._param.details.display_settings.Pos_Y = new_pos_y
             reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
         end
     end
