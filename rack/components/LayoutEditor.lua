@@ -273,10 +273,23 @@ function LayoutEditor:FxDisplaySettings()
     reaper.ImGui_Text(self.ctx, "BorderColor: ")
     reaper.ImGui_SameLine(self.ctx)
     displaySettings.borderColor = Palette(self.ctx, self.theme, displaySettings.borderColor, "border")
-
     reaper.ImGui_Text(self.ctx, "Title_Clr: ")
     reaper.ImGui_SameLine(self.ctx)
     displaySettings.title_Clr = Palette(self.ctx, self.theme, displaySettings.title_Clr, "title")
+
+    reaper.ImGui_Text(self.ctx, "Display Title as: ")
+    --fx name
+    --preset name
+    --custom name
+    for k, v in pairs(layoutEnums.Title_Display_Style) do
+        _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
+            self.ctx,
+            k,
+            self.fx.displaySettings.title_display,
+            v)
+    end
+
+
     -- increase/decrease grid size
     if reaper.ImGui_Button(self.ctx, "Grid +") then
         self.fx.displaySettings._grid_size = math.min(60,
