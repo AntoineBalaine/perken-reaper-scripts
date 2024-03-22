@@ -242,10 +242,12 @@ end
 function Knob:__control()
     local indent_level = self._child_width / 2 - self._radius
     reaper.ImGui_Indent(self._ctx, indent_level)
-    if reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0) then
-        if self._param.details.parent_fx.editing and self._param.details.parent_fx.setSelectedParam then
-            self._param.details.parent_fx.setSelectedParam(self._param)
-        end
+    if not self._param.details.parent_fx.editing then
+        reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
+    else
+        --- in edit mode, the whole frame has to be clickable,
+        --so we don't include the button - other wise the button's clicks would conflict with the frame's clicks.
+        reaper.ImGui_SetCursorPosY(self._ctx, reaper.ImGui_GetCursorPosY(self._ctx) + self._radius * 2.0)
     end
 
 
@@ -638,13 +640,13 @@ function Knob:draw(variant,
         circle_color = self.circle_color
     end
 
-    local fxbox_pos_x, fxbox_pos_y         = reaper.ImGui_GetCursorPos(self._ctx)
-    local fxbox_max_x, fx_box_max_y        = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
-    local fx_box_min_x, fx_box_min_y       = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
+    local fxbox_pos_x, fxbox_pos_y               = reaper.ImGui_GetCursorPos(self._ctx)
+    local fxbox_max_x, fx_box_max_y              = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
+    local fx_box_min_x, fx_box_min_y             = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
 
-    local screen_cursor_x, screen_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
-    self._child_width                      = self._radius * 2 * 1.5
-    self._child_height                     = 20 + self._radius * 2 +
+    local fxbox_screen_pos_x, fxbox_screen_pos_y = reaper.ImGui_GetWindowPos(self._ctx)
+    self._child_width                            = self._radius * 2 * 1.5
+    self._child_height                           = 20 + self._radius * 2 +
         reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
     -- don’t update the knob’s value if the fx’s layout is being edited
@@ -750,19 +752,27 @@ function Knob:draw(variant,
             -- reaper.ImGui_DrawList_AddRectFilled(self._draw_list, draw_cursor_x, draw_cursor_y,
             --     draw_cursor_x + self._child_width,
             --     draw_cursor_y + child_height, 0xFFFFFFAA)
-            reaper.ImGui_DrawList_AddRect(self._draw_list, screen_cursor_x, screen_cursor_y,
-                screen_cursor_x + self._child_width,
-                screen_cursor_y + self._child_height, 0xFF0000FF, 1.0, 0, 0.0)
+            reaper.ImGui_DrawList_AddRect(self._draw_list,
+                fxbox_screen_pos_x +
+                self._param.details.display_settings.Pos_X,
+                fxbox_screen_pos_y + self._param.details.display_settings.Pos_Y,
+                fxbox_screen_pos_x + self._param.details.display_settings.Pos_X + self._child_width,
+                fxbox_screen_pos_y + self._param.details.display_settings.Pos_Y + self._child_height,
+                0xFF0000FF,
+                1.0,
+                0,
+                0.0)
         end
-        self:EditControl(
-            fxbox_pos_x,
-            fxbox_pos_y,
-            fxbox_max_x,
-            fx_box_max_y,
-            fx_box_min_x,
-            fx_box_min_y
-        )
-
+        if self._param.details.parent_fx.editing then
+            self:EditControl(
+                fxbox_pos_x,
+                fxbox_pos_y,
+                fxbox_max_x,
+                fx_box_max_y,
+                fx_box_min_x,
+                fx_box_min_y
+            )
+        end
         reaper.ImGui_EndChild(self._ctx)
     end
 
@@ -789,11 +799,16 @@ function Knob:EditControl(
     -- put knob at start of the current child window
     reaper.ImGui_SetCursorPosX(self._ctx, 0)
     reaper.ImGui_SetCursorPosY(self._ctx, 0)
-    reaper.ImGui_Button(self._ctx, "##knob" .. self._param.details.guid, self._child_width - 2, self._child_height - 2)
+    reaper.ImGui_InvisibleButton(self._ctx, "##knob" .. self._param.details.guid, self._child_width - 2,
+        self._child_height - 2)
+
 
     local is_active = reaper.ImGui_IsItemActive(self._ctx)
 
     if is_active then
+        if self._param.details.parent_fx.editing and self._param.details.parent_fx.setSelectedParam then
+            self._param.details.parent_fx.setSelectedParam(self._param)
+        end
         local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
             self._ctx,
             self._param.details.display_settings.Pos_X or fxbox_pos_x,

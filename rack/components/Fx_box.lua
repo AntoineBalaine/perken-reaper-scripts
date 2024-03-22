@@ -439,10 +439,6 @@ function fx_box:Canvas()
                     )
                 end
             end
-            -- if param.details.display_settings.Pos_X and param.details.display_settings.Pos_Y then
-            --     reaper.ImGui_SetCursorPosX(self.ctx, param.details.display_settings.Pos_X)
-            --     reaper.ImGui_SetCursorPosY(self.ctx, param.details.display_settings.Pos_Y)
-            -- end
 
             local changed, new_val = param.details.display_settings.component:draw(
                 Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
@@ -456,11 +452,10 @@ function fx_box:Canvas()
                 param.details:setValue(new_val)
             end
 
-            if not param.details.display_settings.Pos_X and not param.details.display_settings.Pos_Y then
-                reaper.ImGui_SameLine(self.ctx)
-                if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
-                    reaper.ImGui_NewLine(self.ctx)
-                end
+
+            reaper.ImGui_SameLine(self.ctx)
+            if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
+                reaper.ImGui_NewLine(self.ctx)
             end
         end
         reaper.ImGui_EndChild(self.ctx)
