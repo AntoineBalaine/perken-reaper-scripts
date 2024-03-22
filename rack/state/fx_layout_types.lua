@@ -30,6 +30,13 @@ layout_enums.Param_Display_Type_Length = 6
 assert(tableHelpers.namedTableLength(layout_enums.Param_Display_Type) == layout_enums.Param_Display_Type_Length,
     "Maintenance BUG! In fx_layout_types, Param_Display_Type's should equal Param_Display_Type_Length")
 
+---@enum Title_Display_Style
+layout_enums.Title_Display_Style = {
+    fx_name = 1,
+    preset_name = 2,
+    custom_title = 3
+}
+
 ---@enum DragDirection
 local DragDirection = {
     left = "left",

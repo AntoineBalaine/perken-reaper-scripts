@@ -439,10 +439,6 @@ function fx_box:Canvas()
                     )
                 end
             end
-            if param.details.display_settings.Pos_X and param.details.display_settings.Pos_Y then
-                reaper.ImGui_SetCursorPosX(self.ctx, param.details.display_settings.Pos_X)
-                reaper.ImGui_SetCursorPosY(self.ctx, param.details.display_settings.Pos_Y)
-            end
 
             local changed, new_val = param.details.display_settings.component:draw(
                 Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
@@ -455,6 +451,7 @@ function fx_box:Canvas()
                 param.details.value = new_val
                 param.details:setValue(new_val)
             end
+
 
             reaper.ImGui_SameLine(self.ctx)
             if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
@@ -471,6 +468,14 @@ end
 function fx_box:main(fx)
     self.fx = fx
     self.displaySettings = fx.displaySettings
+
+    if self.fx.displaySettings.title_display == layoutEnums.Title_Display_Style.preset_name and self.fx.presetname then
+        self.display_name = self.fx.presetname
+    elseif self.fx.displaySettings.title_display == layoutEnums.Title_Display_Style.custom_title and self.fx.custom_title then
+        self.display_name = self.fx.custom_title
+    else
+        self.display_name = fx_box_helpers.getDisplayName(self.fx.name)
+    end
 
     local collapsed = self.fx.displaySettings._is_collapsed
     reaper.ImGui_BeginGroup(self.ctx)

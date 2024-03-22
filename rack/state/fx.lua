@@ -12,6 +12,7 @@ local color_helpers = require("helpers.color_helpers")
 ---@class TrackFX
 ---@field createParamDetails fun(self: TrackFX, param: ParamData): ParamData
 ---@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
+---@field custom_title string|nil
 ---@field displaySettings FxDisplaySettings
 ---@field displaySettings_copy FxDisplaySettings|unknown|nil
 ---@field display_params ParamData[]
@@ -88,7 +89,7 @@ function fx.new(state, theme, index, number, guid)
     ---@field _is_collapsed boolean = false
     ---@field _grid_size integer
     ---@field _grid_color integer
-
+    ---@field title_display Title_Display_Style
     ---@type FxDisplaySettings
     self.displaySettings = {
         _is_collapsed       = false,
@@ -115,7 +116,8 @@ function fx.new(state, theme, index, number, guid)
         window_width        = defaults.window_width,
         window_height       = defaults.window_height, -- TODO make this into a constant, accessible everywhere
         _grid_size          = 10,
-        _grid_color         = 0x444444AA
+        _grid_color         = 0x444444AA,
+        title_display       = layout_enums.Title_Display_Style.fx_name,
     }
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 
