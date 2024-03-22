@@ -638,13 +638,20 @@ function Knob:draw(variant,
         circle_color = self.circle_color
     end
 
-    local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
+    local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorPos(self._ctx)
     self._child_width                  = self._radius * 2 * 1.5
     self._child_height                 = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
     -- don’t update the knob’s value if the fx’s layout is being edited
     if self._param.details.parent_fx.editing then
         self._controllable = false
+        if not self._param.details.display_settings.Pos_X and not self._param.details.display_settings.Pos_Y then
+            self._param.details.display_settings.Pos_X = draw_cursor_x
+            self._param.details.display_settings.Pos_Y = draw_cursor_y
+        else
+            reaper.ImGui_SetCursorPosX(self._ctx, self._param.details.display_settings.Pos_X)
+            reaper.ImGui_SetCursorPosY(self._ctx, self._param.details.display_settings.Pos_Y)
+        end
     else
         self._controllable = true
     end
