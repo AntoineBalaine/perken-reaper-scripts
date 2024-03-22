@@ -249,12 +249,11 @@ function Knob:__control()
     end
 
 
-
     reaper.ImGui_Unindent(self._ctx, indent_level)
 
 
     if not self._controllable then -- don’t process controls if the fx’s layout is being edited or knobs isn’t controllable
-        -- return false, self._param.details.value
+        return false, self._param.details.value
     end
     self._is_hovered = reaper.ImGui_IsItemHovered(self._ctx)
 
@@ -281,58 +280,19 @@ function Knob:__control()
         value_changed = true
     elseif self._is_active then
         reaper.ImGui_SetConfigVar(self._ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
-        local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(self._ctx, reaper.ImGui_GetCursorPosX(self._ctx),
+        local _, delta_y = reaper.ImGui_GetMouseDragDelta(self._ctx, reaper.ImGui_GetCursorPosX(self._ctx),
             reaper.ImGui_GetCursorPosY(self._ctx))
 
         if delta_y ~= 0.0 then
-            -- if self._param.details.parent_fx.editing then
-            --     -- move the knob around the canvas
-            --     local max_x, max_y = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
-            --     local min_x, min_y = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
-            --     local cur_pos_x = reaper.ImGui_GetCursorPosX(self._ctx)
-            --     local cur_pos_y = reaper.ImGui_GetCursorPosY(self._ctx)
-
-
-            --     if not self._param.details.display_settings.Pos_X then
-            --         self._param.details.display_settings.Pos_X = cur_pos_x
-            --     end
-            --     if not self._param.details.display_settings.Pos_Y then
-            --         self._param.details.display_settings.Pos_Y = cur_pos_y
-            --     end
-
-            --     local new_pos_x = cur_pos_x + self._param.details.display_settings.Pos_X + delta_x
-            --     local new_pos_y = cur_pos_y + self._param.details.display_settings.Pos_Y + delta_y
-            --     ---clamp the values within the current frame.
-            --     ---TODO dunno why the frame is currently bigger than the window.
-            --     if new_pos_x < min_x then
-            --         new_pos_x = min_x
-            --     elseif new_pos_x > max_x then
-            --         new_pos_x = max_x
-            --     end
-            --     if new_pos_y < min_y then
-            --         new_pos_y = min_y
-            --     elseif new_pos_y > max_y then
-            --         new_pos_y = max_y
-            --     end
-
-            --     reaper.ImGui_SetCursorPosX(self._ctx, new_pos_x)
-            --     reaper.ImGui_SetCursorPosY(self._ctx, new_pos_y)
-
-            --     if delta_y ~= 0.0 and delta_x ~= 0.0 then
-            --         self._param.details.display_settings.Pos_X = new_pos_x - cur_pos_x
-            --         self._param.details.display_settings.Pos_Y = new_pos_y - cur_pos_y
-            --         reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
-            --     end
-            -- else
             local step = (self._param.details.maxval - self._param.details.minval) / speed
             new_val = self._param.details.value - delta_y * step
             if self._param.details.value < self._param.details.minval then new_val = self._param.details.minval end
             if self._param.details.value > self._param.details.maxval then new_val = self._param.details.maxval end
             value_changed = true
             reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
-            -- end
         end
     end
+
     return value_changed, new_val
 end
 
@@ -680,7 +640,7 @@ function Knob:draw(variant,
 
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(self._ctx)
     self._child_width                  = self._radius * 2 * 1.5
-    local child_height                 = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
+    self._child_height                 = 20 + self._radius * 2 + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
 
     -- don’t update the knob’s value if the fx’s layout is being edited
     if self._param.details.parent_fx.editing then
@@ -696,7 +656,8 @@ function Knob:draw(variant,
         0x00000000)
     reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     local value_changed, new_val = false, self._param.details.value
-    if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.details.guid, self._child_width, child_height, false,
+
+    if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.details.guid, self._child_width, self._child_height, false,
             reaper.ImGui_WindowFlags_NoScrollbar()) then
         if flags == nil then
             flags = 0
@@ -775,7 +736,7 @@ function Knob:draw(variant,
             --     draw_cursor_y + child_height, 0xFFFFFFAA)
             reaper.ImGui_DrawList_AddRect(self._draw_list, draw_cursor_x, draw_cursor_y,
                 draw_cursor_x + self._child_width,
-                draw_cursor_y + child_height, 0xFF0000FF, 1.0, 0, 0.0)
+                draw_cursor_y + self._child_height, 0xFF0000FF, 1.0, 0, 0.0)
         end
         reaper.ImGui_EndChild(self._ctx)
     end
