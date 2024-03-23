@@ -775,12 +775,14 @@ function Knob:draw(variant,
                 fx_box_min_x,
                 fx_box_min_y
             )
-            self:ResizeButton(
-                fxbox_pos_x,
-                fxbox_pos_y,
-                fxbox_screen_pos_x,
-                fxbox_screen_pos_y
-            )
+            if self._param._selected then
+                self:ResizeButton(
+                    fxbox_pos_x,
+                    fxbox_pos_y,
+                    fxbox_screen_pos_x,
+                    fxbox_screen_pos_y
+                )
+            end
         end
         reaper.ImGui_EndChild(self._ctx)
     end
