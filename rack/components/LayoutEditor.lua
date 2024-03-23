@@ -124,6 +124,7 @@ function LayoutEditor:AddParams()
         if new_val ~= param.display then
             param.display = new_val
             if new_val then
+                self.selectedParam._selected = false
                 self.selectedParam = self.fx:createParamDetails(param)
                 self.selectedParam._selected = true
             else
@@ -239,7 +240,7 @@ end
 -- end
 
 function LayoutEditor:RightPane()
-    if not self.selectedParam or not self.selectedParam.details then
+    if not self.selectedParam then
         return
     end
     reaper.ImGui_BeginGroup(self.ctx)
