@@ -804,13 +804,13 @@ function Knob:ResizeButton(
     fxbox_screen_pos_x,
     fxbox_screen_pos_y
 )
-    local dot_size = 5
+    local dot_radius = 5
 
     reaper.ImGui_DrawList_AddCircleFilled(
         self._draw_list,
         fxbox_screen_pos_x + (self._param.details.display_settings.Pos_X or fxbox_pos_x) + self._child_width - 3,
         fxbox_screen_pos_y + (self._param.details.display_settings.Pos_Y or fxbox_pos_y) + self._child_height - 3,
-        dot_size,
+        dot_radius,
         edit_frame_color
     )
     reaper.ImGui_SetCursorPosX(self._ctx, self._child_width - 10)
@@ -820,9 +820,7 @@ function Knob:ResizeButton(
         reaper.ImGui_SetMouseCursor(self._ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
     end
 
-    local is_active = reaper.ImGui_IsItemActive(self._ctx)
-
-    if is_active then
+    if reaper.ImGui_IsItemActive(self._ctx) then
         if self._param.details.parent_fx.setSelectedParam then
             self._param.details.parent_fx.setSelectedParam(self._param)
         end
@@ -831,7 +829,7 @@ function Knob:ResizeButton(
             reaper.ImGui_GetCursorPosX(self._ctx),
             reaper.ImGui_GetCursorPosY(self._ctx))
         if delta_y ~= 0.0 and delta_x ~= 0.0 then
-            self._radius = self._radius + (delta_y + delta_x) * 0.5
+            self._radius = self._radius + (delta_y + delta_x) * 0.25
             reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
         end
     end
@@ -861,14 +859,12 @@ function Knob:EditControl(
     -- put knob at start of the current child window
     reaper.ImGui_SetCursorPosX(self._ctx, 0)
     reaper.ImGui_SetCursorPosY(self._ctx, 0)
-    reaper.ImGui_InvisibleButton(self._ctx, "##knob" .. self._param.details.guid, self._child_width - 2,
-        self._child_height - 12) -- make it shorter on the y-axis to leave room for the resize button
+    local win_padding = reaper.ImGui_GetStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding())
+    reaper.ImGui_InvisibleButton(self._ctx, "##knob" .. self._param.details.guid, self._child_width - win_padding,
+        self._child_height - win_padding - 10) -- make it shorter on the y-axis to leave room for the resize button
 
-
-    local is_active = reaper.ImGui_IsItemActive(self._ctx)
-
-    if is_active then
-        if self._param.details.parent_fx.editing and self._param.details.parent_fx.setSelectedParam then
+    if reaper.ImGui_IsItemActive(self._ctx) then
+        if self._param.details.parent_fx.setSelectedParam then
             self._param.details.parent_fx.setSelectedParam(self._param)
         end
         local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
@@ -879,7 +875,6 @@ function Knob:EditControl(
             local new_pos_x = (self._param.details.display_settings.Pos_X or fxbox_pos_x) + delta_x
             local new_pos_y = (self._param.details.display_settings.Pos_Y or fxbox_pos_y) + delta_y
             ---clamp the values within the current frame.
-            ---TODO dunno why the frame is currently bigger than the window.
             if new_pos_x < fx_box_min_x then
                 new_pos_x = fx_box_min_x
             elseif new_pos_x + self._child_width > fxbox_max_x then
