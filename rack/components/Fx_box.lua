@@ -477,23 +477,34 @@ function fx_box:main(fx)
         self:BypassToggle()
         if collapsed then
             self:EditLayoutButton()
-            -- self:AddParamsBtn()
             self:AddSavePresetBtn()
             self:VerticalLabelButton()
             self:CollapseButton()
         else
-            reaper.ImGui_SameLine(self.ctx)
-            self:EditLayoutButton()
-            reaper.ImGui_SameLine(self.ctx)
+            if self.fx.displaySettings.buttons_layout == layout_enums.buttons_layout.vertical then
+                self:EditLayoutButton()
+                self:AddSavePresetBtn()
+                self:VerticalLabelButton()
+                self:CollapseButton()
 
-            self:AddParamsBtn()
-            reaper.ImGui_SameLine(self.ctx)
-            self:AddSavePresetBtn()
-            reaper.ImGui_SameLine(self.ctx)
-            self:LabelButton()
-            reaper.ImGui_SameLine(self.ctx)
-            self:CollapseButton()
-            self:Canvas()
+                reaper.ImGui_SetCursorPosX(self.ctx, 40)
+                reaper.ImGui_SetCursorPosY(self.ctx,
+                    0 + reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_FramePadding()))
+                self:Canvas()
+            else
+                reaper.ImGui_SameLine(self.ctx)
+                self:EditLayoutButton()
+                reaper.ImGui_SameLine(self.ctx)
+
+                self:AddParamsBtn()
+                reaper.ImGui_SameLine(self.ctx)
+                self:AddSavePresetBtn()
+                reaper.ImGui_SameLine(self.ctx)
+                self:LabelButton()
+                reaper.ImGui_SameLine(self.ctx)
+                self:CollapseButton()
+                self:Canvas()
+            end
         end
         reaper.ImGui_EndChild(self.ctx)
     end

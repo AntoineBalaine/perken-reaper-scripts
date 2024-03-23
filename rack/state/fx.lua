@@ -67,7 +67,7 @@ function fx.new(state, theme, index, number, guid)
     self.params_list, self.params_by_guid = self:createParams()
     self.display_params = {} ---@type ParamData[]
 
-    ---@class LabelButtonStyle
+    ---@class LabelButtonColorSets
     ---@field background integer
     ---@field background_disabled integer
     ---@field background_offline integer
@@ -76,23 +76,25 @@ function fx.new(state, theme, index, number, guid)
     ---@field text_offline integer
 
     ---@class FxDisplaySettings
+    ---@field _grid_color integer
+    ---@field _grid_size integer
+    ---@field _is_collapsed boolean = false
     ---@field background integer
     ---@field background_disabled integer
     ---@field background_offline integer
     ---@field borderColor integer
-    ---@field labelButtonStyle LabelButtonStyle
+    ---@field buttons_layout ButtonsLayout
     ---@field custom_Title nil
     ---@field edge_Rounding integer = 0
     ---@field grb_Rounding integer = 0
+    ---@field labelButtonStyle LabelButtonColorSets
     ---@field param_Instance nil
     ---@field title_Clr integer = 255
     ---@field title_Width integer = 140
-    ---@field window_width integer = 280
-    ---@field window_height integer = 240
-    ---@field _is_collapsed boolean = false
-    ---@field _grid_size integer
-    ---@field _grid_color integer
     ---@field title_display Title_Display_Style
+    ---@field window_height integer = 240
+    ---@field window_width integer = 280
+
     ---@type FxDisplaySettings
     self.displaySettings = {
         _is_collapsed       = false,
@@ -100,6 +102,7 @@ function fx.new(state, theme, index, number, guid)
         background_disabled = theme.colors.group_15.color,
         background_offline  = theme.colors.col_mi_fades.color,
         borderColor         = theme.colors.col_gridlines2.color,
+        buttons_layout      = layout_enums.buttons_layout.horizontal,
         labelButtonStyle    = {
             -- background = theme.colors.col_fadearm2.color,
             background = theme.colors.col_main_bg.color,

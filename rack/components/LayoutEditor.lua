@@ -274,6 +274,20 @@ function LayoutEditor:FxDisplaySettings()
     reaper.ImGui_SameLine(self.ctx)
     displaySettings.title_Clr = Palette(self.ctx, self.theme, displaySettings.title_Clr, "title")
 
+
+    reaper.ImGui_Text(self.ctx, "Buttons Bar Layout")
+    -- vertical or horizontal buttons bar
+    _, self.fx.displaySettings.buttons_layout = reaper.ImGui_RadioButtonEx(
+        self.ctx,
+        "horizontal",
+        self.fx.displaySettings.buttons_layout,
+        layoutEnums.buttons_layout.horizontal)
+    _, self.fx.displaySettings.buttons_layout = reaper.ImGui_RadioButtonEx(
+        self.ctx,
+        "vertical",
+        self.fx.displaySettings.buttons_layout,
+        layoutEnums.buttons_layout.vertical)
+
     reaper.ImGui_Text(self.ctx, "Display Title as: ")
     --fx name
     --preset name

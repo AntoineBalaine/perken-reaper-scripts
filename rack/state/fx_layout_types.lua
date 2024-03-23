@@ -38,6 +38,14 @@ layout_enums.Title_Display_Style = {
     fx_instance_name = 4
 }
 
+---@enum ButtonsLayout
+---If horizontal, then display the buttons' bar horizontally,
+---else vertically
+layout_enums.buttons_layout = {
+    horizontal = 1,
+    vertical = 2
+}
+
 ---@enum DragDirection
 local DragDirection = {
     left = "left",
