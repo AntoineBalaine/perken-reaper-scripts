@@ -7,6 +7,7 @@ local ColorSet = require("helpers.ColorSet")
 ---@class Knob
 local Knob = {}
 
+local edit_frame_color = 0xFF0000FF
 
 
 ---@param size number
@@ -667,6 +668,7 @@ function Knob:draw(variant,
         reaper.ImGui_SetCursorPosY(self._ctx, self._param.details.display_settings.Pos_Y)
     end
 
+
     --set background color to transparent
     reaper.ImGui_PushStyleColor(
         self._ctx,
@@ -674,6 +676,7 @@ function Knob:draw(variant,
         0x00000000)
     reaper.ImGui_PushStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding(), 0, 0)
     local value_changed, new_val = false, self._param.details.value
+
 
     if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.details.guid, self._child_width, self._child_height, false,
             reaper.ImGui_WindowFlags_NoScrollbar()) then
@@ -747,7 +750,6 @@ function Knob:draw(variant,
             --         new_val = new_drag_val
             --     end
         end
-
         if self._param._selected then
             -- reaper.ImGui_DrawList_AddRectFilled(self._draw_list, draw_cursor_x, draw_cursor_y,
             --     draw_cursor_x + self._child_width,
@@ -758,11 +760,12 @@ function Knob:draw(variant,
                 fxbox_screen_pos_y + self._param.details.display_settings.Pos_Y,
                 fxbox_screen_pos_x + self._param.details.display_settings.Pos_X + self._child_width,
                 fxbox_screen_pos_y + self._param.details.display_settings.Pos_Y + self._child_height,
-                0xFF0000FF,
+                edit_frame_color,
                 1.0,
                 0,
                 0.0)
         end
+
         if self._param.details.parent_fx.editing then
             self:EditControl(
                 fxbox_pos_x,
@@ -772,13 +775,66 @@ function Knob:draw(variant,
                 fx_box_min_x,
                 fx_box_min_y
             )
+            self:ResizeButton(
+                fxbox_pos_x,
+                fxbox_pos_y,
+                fxbox_screen_pos_x,
+                fxbox_screen_pos_y
+            )
         end
         reaper.ImGui_EndChild(self._ctx)
     end
 
+
     reaper.ImGui_PopStyleVar(self._ctx)
     reaper.ImGui_PopStyleColor(self._ctx)
     return value_changed, (new_val or self._param.details.value)
+end
+
+-- In edit mode:
+-- Display a button in bottom-right corner of the knob's frame,
+-- and allow resizing the knob's radius by dragging the knob
+---@param fxbox_pos_x number
+---@param fxbox_pos_y number
+---@param fxbox_screen_pos_x number
+---@param fxbox_screen_pos_y number
+function Knob:ResizeButton(
+    fxbox_pos_x,
+    fxbox_pos_y,
+    fxbox_screen_pos_x,
+    fxbox_screen_pos_y
+)
+    local dot_size = 5
+
+    reaper.ImGui_DrawList_AddCircleFilled(
+        self._draw_list,
+        fxbox_screen_pos_x + (self._param.details.display_settings.Pos_X or fxbox_pos_x) + self._child_width - 3,
+        fxbox_screen_pos_y + (self._param.details.display_settings.Pos_Y or fxbox_pos_y) + self._child_height - 3,
+        dot_size,
+        edit_frame_color
+    )
+    reaper.ImGui_SetCursorPosX(self._ctx, self._child_width - 10)
+    reaper.ImGui_SetCursorPosY(self._ctx, self._child_height - 10)
+    reaper.ImGui_InvisibleButton(self._ctx, "##extendsize" .. self._param.guid, 10, 10)
+    if reaper.ImGui_IsItemHovered(self._ctx) then
+        reaper.ImGui_SetMouseCursor(self._ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
+    end
+
+    local is_active = reaper.ImGui_IsItemActive(self._ctx)
+
+    if is_active then
+        if self._param.details.parent_fx.setSelectedParam then
+            self._param.details.parent_fx.setSelectedParam(self._param)
+        end
+        local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
+            self._ctx,
+            reaper.ImGui_GetCursorPosX(self._ctx),
+            reaper.ImGui_GetCursorPosY(self._ctx))
+        if delta_y ~= 0.0 and delta_x ~= 0.0 then
+            self._radius = self._radius + (delta_y + delta_x) * 0.5
+            reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
+        end
+    end
 end
 
 ---Overlay a button on top of the knob's frame
@@ -788,6 +844,12 @@ end
 --It's easy to get confused, because this button's coordinates within the frame
 --are not the same as the coordinates of the knob's frame within the fx box.
 --That's why we're having to pass the details of the fx box as params.
+---@param fxbox_pos_x number
+---@param fxbox_pos_y number
+---@param fxbox_max_x number
+---@param fx_box_max_y number
+---@param fx_box_min_x number
+---@param fx_box_min_y number
 function Knob:EditControl(
     fxbox_pos_x,
     fxbox_pos_y,
@@ -800,7 +862,7 @@ function Knob:EditControl(
     reaper.ImGui_SetCursorPosX(self._ctx, 0)
     reaper.ImGui_SetCursorPosY(self._ctx, 0)
     reaper.ImGui_InvisibleButton(self._ctx, "##knob" .. self._param.details.guid, self._child_width - 2,
-        self._child_height - 2)
+        self._child_height - 12) -- make it shorter on the y-axis to leave room for the resize button
 
 
     local is_active = reaper.ImGui_IsItemActive(self._ctx)
