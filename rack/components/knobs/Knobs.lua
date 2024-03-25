@@ -582,20 +582,23 @@ function Knob:__draw_ableton_knob(
     self:__draw_arc(0.9, 0.43, self._wiper_start, self._wiper_end, tick_color, 2)
 end
 
----The style of knob that you want to draw
 ---@enum KnobVariant
+---The style of knob that you want to draw
+---since this enum is also meant to be used in a combo box,
+---we’re having to keep the values of the enum as 0-indexed
 Knob.KnobVariant = {
-    wiper_knob = "wiper_knob",
-    wiper_dot = "wiper_dot",
-    wiper_only = "wiper_only",
-    tick = "tick",
-    dot = "dot",
-    space = "space",
-    stepped = "stepped",
-    ableton = "ableton",
-    readrum = "readrum",
-    imgui = "imgui",
+    wiper_knob = 0,
+    wiper_dot = 1,
+    wiper_only = 2,
+    tick = 3,
+    dot = 4,
+    space = 5,
+    stepped = 6,
+    ableton = 7,
+    readrum = 8,
+    imgui = 9,
 }
+
 
 
 ---List of flags that you can pass into the draw method

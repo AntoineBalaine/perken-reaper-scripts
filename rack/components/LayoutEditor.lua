@@ -167,6 +167,22 @@ function LayoutEditor:ParamInfo()
         reaper.ImGui_TableNextColumn(self.ctx)
     end
     reaper.ImGui_EndTable(self.ctx)
+    ---TODO maybe include these in the layoutEnums file?
+    local knob_variants = "wiper_knob\0wiper_dot\0wiper_only\0tick\0dot\0space\0stepped\0ableton\0readrum\0imgui\0"
+    reaper.ImGui_Text(self.ctx, "Knob Variant")
+    reaper.ImGui_SameLine(self.ctx)
+    reaper.ImGui_PushItemWidth(self.ctx, 100)
+    _, self.selectedParam.details.display_settings.knob_variant = reaper.ImGui_Combo(self.ctx,
+        "##knob_style",
+        self.selectedParam.details.display_settings.knob_variant,
+        knob_variants)
+
+    reaper.ImGui_Text(self.ctx, "Wiper Start Position")
+    reaper.ImGui_SameLine(self.ctx)
+    local wiper_start_variants = "left\0right\0center\0"
+    _, self.selectedParam.details.display_settings.wiper_start = reaper.ImGui_Combo(self.ctx, "##wiper_start_variants",
+        self.selectedParam.details.display_settings.wiper_start, wiper_start_variants)
+    reaper.ImGui_PopItemWidth(self.ctx)
 
     ---TODO implement param display/selection logic
     reaper.ImGui_Text(self.ctx, self.selectedParam.name)

@@ -58,10 +58,12 @@ local DragDirection = {
 --
 ---e.g. when displaying a «pan» knob, the colored track should start from the center
 ---to represent the pan’s position going left or right.
+---
+---Also keep in mind this is used in a combo, and thus the values are 0-indexed
 layout_enums.KnobWiperStart = {
-    left = 1,
-    right = 2,
-    center = 3
+    left = 0,
+    right = 1,
+    center = 2
 }
 
 ---@enum PositionType = {
