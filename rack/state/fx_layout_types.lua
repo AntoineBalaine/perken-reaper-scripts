@@ -53,6 +53,17 @@ local DragDirection = {
     left_right = "left-right",
 }
 
+---@enum KnobTrackStart
+---Assigns whether the knob’s colored-track starts from the left, right or center.
+--
+---e.g. when displaying a «pan» knob, the colored track should start from the center
+---to represent the pan’s position going left or right.
+layout_enums.KnobWiperStart = {
+    left = 1,
+    right = 2,
+    center = 3
+}
+
 ---@enum PositionType = {
 local PositionType = {
     default = "default",

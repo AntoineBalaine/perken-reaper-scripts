@@ -1,8 +1,17 @@
 local layoutEnums = require("state.fx_layout_types")
+local Knob = require("components.knobs.Knobs")
+
+---@class ParamDisplaySettings
+---@field type Param_Display_Type
+---@field component Knob|nil
+---@field Pos_X integer|nil
+---@field Pos_Y integer|nil
+---@field wiper_start KnobTrackStart
+---@field knob_variant KnobVariant
 
 ---@class Parameter
 ---@field defaultval number
----@field display_settings {type: Param_Display_Type, component: Knob|nil, Pos_X: integer|nil, Pos_Y: integer|nil}
+---@field display_settings ParamDisplaySettings
 ---@field editSelected boolean = false
 ---@field fmt_val string|nil
 ---@field guid string
@@ -62,12 +71,15 @@ function parameter.new(state, param_index, parent_fx, guid)
     new_param.value = reaper.TrackFX_GetParamNormalized(new_param.state.Track.track,
         new_param.parent_fx.index - 1,
         new_param.index)
-    ---for default value, I'm having to use the on-first-load value.
+    ---for default value, I'm having to use 0.5 as a placeholder
     --That's because reaper doesn't have an API to query the default value of a parameter.
-    new_param.defaultval = new_param.value -- assume scalar values are copied upon assignment. I think that's right?
+    --not sure that’s right, but that’s my best bet.
+    new_param.defaultval = 0.5 or new_param.value
     new_param.display_settings = {
         type = layoutEnums.Param_Display_Type.Knob,
-        component = nil ---the component that will be drawn, to be instantiated in the fx_box:main()
+        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
+        wiper_start = layoutEnums.KnobWiperStart.right,
+        knob_variant = Knob.KnobVariant.ableton,
         -- Pos_X = 0,
         -- Pos_Y = 0,
     }

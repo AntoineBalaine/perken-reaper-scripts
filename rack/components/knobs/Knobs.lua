@@ -4,6 +4,7 @@
 
 local text_helpers = require("helpers.text")
 local ColorSet = require("helpers.ColorSet")
+local layoutEnums = require("state.fx_layout_types")
 ---@class Knob
 local Knob = {}
 
@@ -187,6 +188,7 @@ function Knob.new(
     local angle_max = math.pi * 2.25
     local t = (param.details.value - param.details.minval) / (param.details.maxval - param.details.minval)
     local angle = angle_min + (angle_max - angle_min) * t
+    local angle_default = (angle_max + angle_min) / 2
     local value_changed = false
     new_knob._ctx = ctx
     new_knob._id = id
@@ -198,6 +200,11 @@ function Knob.new(
     new_knob._angle = angle
     new_knob._angle_min = angle_min
     new_knob._angle_max = angle_max
+    ---Default position  (center of the knob’s value range.)
+    new_knob._angle_default = angle_default
+    --Assume these are starting from the left of knob by default
+    new_knob._wiper_start = angle_min
+    new_knob._wiper_end = angle
     new_knob._t = t
     new_knob._draw_list = reaper.ImGui_GetWindowDrawList(ctx)
     new_knob._is_active = reaper.ImGui_IsItemActive(ctx)
@@ -234,6 +241,21 @@ function Knob:__update(box_width)
     local t = (self._param.details.value - self._param.details.minval) /
         (self._param.details.maxval - self._param.details.minval)
     self._angle = self._angle_min + (self._angle_max - self._angle_min) * t
+end
+
+--- update start and end position of the wiper on the knob,
+--- based on the current value of the knob
+function Knob:__update_wiper()
+    if self._param.details.display_settings.wiper_start == layoutEnums.KnobWiperStart.left then
+        self._wiper_start = self._angle_min
+        self._wiper_end = self._angle
+    elseif self._param.details.display_settings.wiper_start == layoutEnums.KnobWiperStart.right then
+        self._wiper_start = self._angle_max
+        self._wiper_end = self._angle
+    elseif self._param.details.display_settings.wiper_start == layoutEnums.KnobWiperStart.center then
+        self._wiper_start = self._angle
+        self._wiper_end = self._angle_default
+    end
 end
 
 ---Draw the invisible button and handle the control
@@ -319,8 +341,8 @@ function Knob:__wiper_knob(
         self:__draw_arc(
             0.8,
             0.43,
-            self._angle_min,
-            self._angle,
+            self._wiper_start,
+            self._wiper_end,
             wiper_color
         )
     end
@@ -340,7 +362,7 @@ function Knob:__draw_wiper_only(
         track_color
     )
     if self._t > 0.01 then
-        self:__draw_arc(0.8, 0.43, self._angle_min, self._angle, wiper_color)
+        self:__draw_arc(0.8, 0.43, self._wiper_start, self._wiper_end, wiper_color)
     end
 end
 
@@ -456,7 +478,7 @@ function Knob:__draw_readrum_knob(
     )
 
     if self._t > 0.01 then
-        self:__draw_arc(0.7, 0.40, self._angle_min, self._angle, dot_color, 2)
+        self:__draw_arc(0.7, 0.40, self._wiper_start, self._wiper_end, dot_color, 2)
     end
     self:__draw_dot(0.15, 0.45, self._angle, dot_color, true, 0)
     -- self:__draw_triangle(0.1, 0.85, self.angle, dot_color, true, 12)
@@ -506,24 +528,24 @@ function Knob:__draw_space_knob(
         self:__draw_arc(
             0.4,
             0.15,
-            self._angle_min - 1.0,
-            self._angle - 1.0,
+            self._wiper_start - 1.0,
+            self._wiper_end - 1.0,
             wiper_color
         )
 
         self:__draw_arc(
             0.6,
             0.15,
-            self._angle_min + 1.0,
-            self._angle + 1.0,
+            self._wiper_start + 1.0,
+            self._wiper_end + 1.0,
             wiper_color
         )
 
         self:__draw_arc(
             0.8,
             0.15,
-            self._angle_min + 3.0,
-            self._angle + 3.0,
+            self._wiper_start + 3.0,
+            self._wiper_end + 3.0,
             wiper_color
         )
     end
@@ -557,7 +579,7 @@ function Knob:__draw_ableton_knob(
     -- self:draw_circle(0.7, circle_color, true, 32)
     self:__draw_arc(0.9, 0.41, self._angle_min, self._angle_max, track_color, 2)
     self:__draw_tick(0.1, 0.9, 0.08, self._angle, tick_color)
-    self:__draw_arc(0.9, 0.43, self._angle_min, self._angle, tick_color, 2)
+    self:__draw_arc(0.9, 0.43, self._wiper_start, self._wiper_end, tick_color, 2)
 end
 
 ---The style of knob that you want to draw
@@ -689,7 +711,7 @@ function Knob:draw(variant,
         end
 
         self:__update(self._child_width)
-
+        self:__update_wiper()
         value_changed, new_val = self:__control()
 
         if variant == self.KnobVariant.wiper_knob then

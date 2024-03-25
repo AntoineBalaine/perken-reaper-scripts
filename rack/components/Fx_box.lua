@@ -435,7 +435,7 @@ function fx_box:Canvas()
             end
 
             local changed, new_val = param.details.display_settings.component:draw(
-                Knob.KnobVariant.ableton, -- Keep ableton knob for now, though we have many more variants
+                param.details.display_settings.knob_variant,
                 nil,
                 nil,
                 param
