@@ -492,9 +492,11 @@ function Knob:__draw_imgui_knob(
     tick_color,
     track_color
 )
-    self:__draw_circle(0.85, circle_color, true, 32)
-    self:__draw_circle(0.4, track_color, true, 32)
+    self:__draw_circle(0.85, track_color, true, 32)
+    self:__draw_circle(0.4, circle_color, true, 32)
     self:__draw_tick(0.45, 0.85, 0.08, self._angle, tick_color)
+
+    self:__draw_arc(0.7, 0.85, self._wiper_start, self._wiper_end, circle_color)
 end
 
 ---@param circle_color ColorSet

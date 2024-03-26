@@ -78,7 +78,7 @@ function parameter.new(state, param_index, parent_fx, guid)
     new_param.display_settings = {
         type = layoutEnums.Param_Display_Type.Knob,
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
-        wiper_start = layoutEnums.KnobWiperStart.right,
+        wiper_start = layoutEnums.KnobWiperStart.left,
         knob_variant = Knob.KnobVariant.ableton,
         -- Pos_X = 0,
         -- Pos_Y = 0,
