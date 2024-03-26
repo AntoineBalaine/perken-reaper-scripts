@@ -144,29 +144,7 @@ function LayoutEditor:AddParams()
     end
 end
 
-function LayoutEditor:ParamInfo()
-    if not self.selectedParam then
-        return
-    end
-
-
-    if self.selectedParam.details == nil or not self.selectedParam.details.display_settings then
-        reaper.ImGui_Text(self.ctx, "This param is not enabled for display.")
-        return
-    end
-    reaper.ImGui_Text(self.ctx, "Param Display Type")
-    reaper.ImGui_BeginTable(self.ctx, "##radioBtnTable", layoutEnums.Param_Display_Type_Length)
-    for type_name, type_idx in pairs(layoutEnums.Param_Display_Type) do
-        reaper.ImGui_TableNextColumn(self.ctx)
-        _, self.selectedParam.details.display_settings.type = reaper.ImGui_RadioButtonEx(
-            self.ctx,
-            type_name,
-            self.selectedParam.details.display_settings.type,
-            type_idx)
-
-        reaper.ImGui_TableNextColumn(self.ctx)
-    end
-    reaper.ImGui_EndTable(self.ctx)
+function LayoutEditor:KnobVariant()
     ---TODO maybe include these in the layoutEnums file?
     local knob_variants = "wiper_knob\0wiper_dot\0wiper_only\0tick\0dot\0space\0stepped\0ableton\0readrum\0imgui\0"
     reaper.ImGui_Text(self.ctx, "Knob Variant")
@@ -183,6 +161,43 @@ function LayoutEditor:ParamInfo()
     _, self.selectedParam.details.display_settings.wiper_start = reaper.ImGui_Combo(self.ctx, "##wiper_start_variants",
         self.selectedParam.details.display_settings.wiper_start, wiper_start_variants)
     reaper.ImGui_PopItemWidth(self.ctx)
+end
+
+function LayoutEditor:ParamInfo()
+    if not self.selectedParam then
+        return
+    end
+
+
+    if self.selectedParam.details == nil or not self.selectedParam.details.display_settings then
+        reaper.ImGui_Text(self.ctx, "This param is not enabled for display.")
+        return
+    end
+    reaper.ImGui_Text(self.ctx, "Param Display Type")
+    reaper.ImGui_BeginTable(self.ctx, "##radioBtnTable", layoutEnums.Param_Display_Type_Length)
+    for type_name, type_idx in pairs(layoutEnums.Param_Display_Type) do
+        reaper.ImGui_TableNextColumn(self.ctx)
+        local changed, new_val = reaper.ImGui_RadioButtonEx(
+            self.ctx,
+            type_name,
+            self.selectedParam.details.display_settings.type,
+            type_idx)
+        if changed and new_val ~= self.selectedParam.details.display_settings.type then
+            self.selectedParam.details.display_settings.type = new_val
+            self.selectedParam.details.display_settings.component = nil
+        end
+
+        reaper.ImGui_TableNextColumn(self.ctx)
+    end
+    reaper.ImGui_EndTable(self.ctx)
+    if self.selectedParam.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
+        self:KnobVariant()
+        -- elseif self.param.display_settings.type == layoutEnums.Param_Display_Type.CycleButton then
+        --     reaper.ImGui_Text(self.ctx, "Button Display Settings")
+        --     reaper.ImGui_Text(self.ctx, "Button Text")
+        --     reaper.ImGui_SameLine(self.ctx)
+        --     reaper.ImGui_InputText(self.ctx, "##button_text", self.param.details.button_text)
+    end
 
     ---TODO implement param display/selection logic
     reaper.ImGui_Text(self.ctx, self.selectedParam.name)

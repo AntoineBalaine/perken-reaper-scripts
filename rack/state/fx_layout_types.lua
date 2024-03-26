@@ -18,7 +18,7 @@ layout_enums.Param_Display_Type = {
     Knob = 2,
     vSlider = 3,
     Drag = 4,
-    switch = 5,
+    CycleButton = 5,
     selection = 6,
 }
 

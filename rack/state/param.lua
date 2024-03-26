@@ -3,7 +3,7 @@ local Knob = require("components.knobs.Knobs")
 
 ---@class ParamDisplaySettings
 ---@field type Param_Display_Type
----@field component Knob|nil
+---@field component Knob|CycleButton|nil
 ---@field Pos_X integer|nil
 ---@field Pos_Y integer|nil
 ---@field wiper_start KnobTrackStart

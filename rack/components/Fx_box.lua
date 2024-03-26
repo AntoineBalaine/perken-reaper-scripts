@@ -11,6 +11,7 @@ As a result, its internal state has to be updated every time it’s called. I’
 local drag_drop     = require("state.dragAndDrop")
 local layout_enums  = require("state.fx_layout_types")
 local Knob          = require("components.knobs.Knobs")
+local CycleButton   = require("components.CycleButton")
 local layoutEnums   = require("state.fx_layout_types")
 local ColorSet      = require("helpers.ColorSet")
 local color_helpers = require("helpers.color_helpers")
@@ -394,6 +395,16 @@ function fx_box:Canvas()
         for idx, param in ipairs(self.fx.display_params) do
             local radius = reaper.ImGui_GetTextLineHeight(self.ctx) * 3.0 * 0.5
             if not param.details.display_settings.component then
+                local on_activate = function() --- on activate function
+                    -- TODO refactor: move the call to new() into the fx display_param’s state.
+                    -- this violates the principle of separating the view from the state,
+                    -- but otherwise the newly created knob keeps on appearing as «not active» and this callback
+                    -- is being called at every frame the user holds the button.
+                    -- Otherwise, if we really want this to be clean, we’d have to refactor the whole
+                    -- thing to instantiate each fx’s ui as classes
+                    reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, param.name,
+                        "last_touched")
+                end
                 if param.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
                     -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
                     -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
@@ -403,16 +414,7 @@ function fx_box:Canvas()
                         param,
                         radius,
                         true,
-                        function() --- on activate function
-                            -- TODO refactor: move the call to new() into the fx display_param’s state.
-                            -- this violates the principle of separating the view from the state,
-                            -- but otherwise the newly created knob keeps on appearing as «not active» and this callback
-                            -- is being called at every frame the user holds the button.
-                            -- Otherwise, if we really want this to be clean, we’d have to refactor the whole
-                            -- thing to instantiate each fx’s ui as classes
-                            reaper.TrackFX_SetNamedConfigParm(self.state.Track.track, self.fx.index, param.name,
-                                "last_touched")
-                        end,
+                        on_activate,
                         ColorSet.new( -- dot color
                             color_helpers.adjustBrightness(self.theme.colors.col_vuind3.color, -30),
                             self.theme.colors.col_vuind3.color,
@@ -430,20 +432,26 @@ function fx_box:Canvas()
                         ),
                         0xFFFFFFFF -- text color
                     )
+                elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.CycleButton then
+                    param.details.display_settings.component = CycleButton.new(
+                        self.ctx,
+                        "cycle" .. idx,
+                        param,
+                        on_activate
+                    )
+                end
+            else
+                local changed, new_val = param.details.display_settings.component:draw(
+                    param.details.display_settings.knob_variant,
+                    nil,
+                    param
+                )
+
+                if changed then
+                    param.details.value = new_val
+                    param.details:setValue(new_val)
                 end
             end
-
-            local changed, new_val = param.details.display_settings.component:draw(
-                param.details.display_settings.knob_variant,
-                nil,
-                param
-            )
-
-            if changed then
-                param.details.value = new_val
-                param.details:setValue(new_val)
-            end
-
 
             reaper.ImGui_SameLine(self.ctx)
             if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
