@@ -91,7 +91,7 @@ function parameter.new(state, param_index, parent_fx, guid)
         local steps_count = (max - min) / new_param.step
         --if the steps_count is a whole number and less than 16, store it in the class
         if steps_count // 1 | 0 == steps_count and steps_count <= 16 then
-            new_param.steps_count = steps_count // 1 | 0 -- store as integer
+            new_param.steps_count = 1 + (steps_count // 1 | 0) -- store as integer
         end
     end
 

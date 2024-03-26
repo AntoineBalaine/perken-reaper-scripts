@@ -564,12 +564,12 @@ function Knob:__draw_stepped_knob(
     step_color
 )
     -- iterate through the steps
-    for n = 1, steps do
+    for n = 0, steps - 1 do
         local a = n / (steps - 1)
         local angle = self._angle_min + (self._angle_max - self._angle_min) * a
-        self:__draw_tick(0.7, 0.9, 0.04, angle, step_color)
+        self:__draw_tick(0.7, 0.9, 0.04, angle, circle_color)
     end
-    self:__draw_circle(0.6, circle_color, true, 32)
+    self:__draw_circle(0.6, step_color, true, 32)
     self:__draw_dot(0.12, 0.4, self._angle, dot_color, true, 12)
 end
 
@@ -640,12 +640,10 @@ end
 ---@param variant KnobVariant
 ---@param flags? integer|KnobFlags
 ---@param param ParamData
----@param steps? integer
 ---@return boolean value_changed
 ---@return number new_value
 function Knob:draw(variant,
                    flags,
-                   steps,
                    param
 )
     self._param = param
@@ -746,7 +744,7 @@ function Knob:draw(variant,
                 dot_color
             )
         elseif variant == self.KnobVariant.stepped then
-            self:__draw_stepped_knob(steps or 0, circle_color,
+            self:__draw_stepped_knob(param.details.steps_count or 0, circle_color,
                 dot_color,
                 track_color or circle_color
             )

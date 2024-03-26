@@ -8,15 +8,14 @@ order of steps are:
 Bear in mind that this component is a singleton, so it’s a single instance that is re-used for each FX.
 As a result, its internal state has to be updated every time it’s called. I’m not sure yet whether I like this or would rather have one instance per appearance.
 ]]
-local fx_box_helpers = require("helpers.fx_box_helpers")
-local drag_drop      = require("state.dragAndDrop")
-local layout_enums   = require("state.fx_layout_types")
-local Knob           = require("components.knobs.Knobs")
-local layoutEnums    = require("state.fx_layout_types")
-local ColorSet       = require("helpers.ColorSet")
-local color_helpers  = require("helpers.color_helpers")
-local fx_box         = {}
-local winFlg         = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
+local drag_drop     = require("state.dragAndDrop")
+local layout_enums  = require("state.fx_layout_types")
+local Knob          = require("components.knobs.Knobs")
+local layoutEnums   = require("state.fx_layout_types")
+local ColorSet      = require("helpers.ColorSet")
+local color_helpers = require("helpers.color_helpers")
+local fx_box        = {}
+local winFlg        = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
 function fx_box:dragDropSource()
     if reaper.ImGui_BeginDragDropSource(self.ctx, reaper.ImGui_DragDropFlags_None()) then
@@ -436,7 +435,6 @@ function fx_box:Canvas()
 
             local changed, new_val = param.details.display_settings.component:draw(
                 param.details.display_settings.knob_variant,
-                nil,
                 nil,
                 param
             )
