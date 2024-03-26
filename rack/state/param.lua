@@ -31,7 +31,7 @@ local Knob = require("components.knobs.Knobs")
 ---@field state State
 ---@field step number
 ---@field value number
-
+---@field steps_count? number Used for params that have a limited number of steps (like a dropdown)
 
 
 ---@class Parameter
@@ -52,29 +52,55 @@ function parameter.new(state, param_index, parent_fx, guid)
     new_param.guid = guid
     new_param.index = param_index
     new_param.parent_fx = parent_fx
-    local _, name = reaper.TrackFX_GetParamName(new_param.state.Track.track, new_param.parent_fx.index - 1,
+    local _,
+    name = reaper.TrackFX_GetParamName(new_param.state.Track.track,
+        new_param.parent_fx.index - 1,
         new_param.index)
-    local _, ident = reaper.TrackFX_GetParamIdent(new_param.state.Track.track, new_param.parent_fx.index - 1,
+    local _,
+    ident = reaper.TrackFX_GetParamIdent(new_param.state.Track.track,
+        new_param.parent_fx.index - 1,
         new_param.index)
     new_param.name = name
     new_param.ident = ident
-    _, new_param.minval, new_param.maxval, new_param.midval = reaper.TrackFX_GetParamEx(
+
+    --- set the min/max range of the parameter as normalized values
+    new_param.minval = 0.0
+
+    --- set the min/max range of the parameter as normalized values
+    new_param.maxval = 1.0
+    local min, max
+    _, min, max,
+
+    ---NOT a normalized value (NOT between 0 and 1)
+    new_param.midval = reaper.TrackFX_GetParamEx(
         new_param.state.Track.track,
-        new_param.parent_fx.index,
+        new_param.parent_fx.index - 1,
         new_param.index)
-    _, new_param.step, new_param.smallstep, new_param.largestep, new_param.istoggle = reaper
+
+    local steps_rv
+    steps_rv, new_param.step, new_param.smallstep, new_param.largestep, new_param.istoggle = reaper
         .TrackFX_GetParameterStepSizes(
             new_param.state.Track.track,
-            new_param.parent_fx.index,
+            new_param.parent_fx.index - 1,
             new_param.index)
+
+    if steps_rv then
+        ---Calculate the amount of steps between the min and max values.
+        ---If the amount of steps is less than 16, store it in the class.
+        ---For now, I'm choosing 16 as the maximum amount of steps to display
+        local steps_count = (max - min) / new_param.step
+        if steps_count <= 16 then
+            new_param.steps_count = steps_count
+        end
+    end
 
     new_param.value = reaper.TrackFX_GetParamNormalized(new_param.state.Track.track,
         new_param.parent_fx.index - 1,
         new_param.index)
-    ---for default value, I'm having to use 0.5 as a placeholder
+    ---for default value, I'm having to use the midval's normalized value.
     --That's because reaper doesn't have an API to query the default value of a parameter.
     --not sure that’s right, but that’s my best bet.
-    new_param.defaultval = 0.5 or new_param.value
+    new_param.defaultval = 0.5
     new_param.display_settings = {
         type = layoutEnums.Param_Display_Type.Knob,
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
