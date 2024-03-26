@@ -437,7 +437,8 @@ function fx_box:Canvas()
                         self.ctx,
                         "cycle" .. idx,
                         param,
-                        on_activate
+                        on_activate,
+                        radius
                     )
                 end
             else
@@ -470,7 +471,6 @@ function fx_box:main(fx)
     self.displaySettings = fx.displaySettings
 
     local collapsed = self.fx.displaySettings._is_collapsed
-    reaper.ImGui_BeginGroup(self.ctx)
 
     self:fxBoxStyleStart()
     if reaper.ImGui_BeginChild(self.ctx,
@@ -515,7 +515,6 @@ function fx_box:main(fx)
         reaper.ImGui_EndChild(self.ctx)
     end
     self:fxBoxStyleEnd()
-    reaper.ImGui_EndGroup(self.ctx)
 
     reaper.ImGui_SameLine(self.ctx, nil, 0)
 end

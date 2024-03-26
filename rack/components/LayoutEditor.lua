@@ -367,7 +367,8 @@ function LayoutEditor:FxDisplaySettings()
 end
 
 function LayoutEditor:Tabs()
-    if reaper.ImGui_BeginChild(self.ctx, "##tabs", self.width - 20, self.height - 60, false, reaper.ImGui_WindowFlags_NoScrollbar()) then
+    local win_width, win_height = reaper.ImGui_GetWindowSize(self.ctx)
+    if reaper.ImGui_BeginChild(self.ctx, "##tabs", win_width - 20, win_height - 60, false, reaper.ImGui_WindowFlags_NoScrollbar()) then
         if reaper.ImGui_BeginTabBar(self.ctx, "##Tabs", reaper.ImGui_TabBarFlags_None()) then
             if reaper.ImGui_BeginTabItem(self.ctx, "FX layout") then
                 self:FxDisplaySettings()

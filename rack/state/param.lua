@@ -29,7 +29,7 @@ local Knob = require("components.knobs.Knobs")
 ---@field setValue fun(self, value :number)
 ---@field smallstep number
 ---@field state State
----@field step number
+---@field step number normalized step
 ---@field value number
 ---@field steps_count? number Used for params that have a limited number of steps (like a dropdown)
 
@@ -77,8 +77,8 @@ function parameter.new(state, param_index, parent_fx, guid)
         new_param.parent_fx.index - 1,
         new_param.index)
 
-    local steps_rv
-    steps_rv, new_param.step, new_param.smallstep, new_param.largestep, new_param.istoggle = reaper
+    local steps_rv, step
+    steps_rv, step, new_param.smallstep, new_param.largestep, new_param.istoggle = reaper
         .TrackFX_GetParameterStepSizes(
             new_param.state.Track.track,
             new_param.parent_fx.index - 1,
@@ -88,11 +88,12 @@ function parameter.new(state, param_index, parent_fx, guid)
         ---Calculate the amount of steps between the min and max values.
         ---If the amount of steps is less than 16, store it in the class.
         ---For now, I'm choosing 16 as the maximum amount of steps to display
-        local steps_count = (max - min) / new_param.step
+        local steps_count = (max - min) / step
         --if the steps_count is a whole number and less than 16, store it in the class
         if steps_count // 1 | 0 == steps_count and steps_count <= 16 then
             new_param.steps_count = 1 + (steps_count // 1 | 0) -- store as integer
         end
+        new_param.step = 1 / steps_count                       -- calculate the normalized value of a step
     end
 
     new_param.value = reaper.TrackFX_GetParamNormalized(new_param.state.Track.track,
