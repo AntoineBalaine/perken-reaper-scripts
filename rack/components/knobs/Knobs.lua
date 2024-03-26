@@ -5,6 +5,7 @@
 local text_helpers = require("helpers.text")
 local ColorSet = require("helpers.ColorSet")
 local layoutEnums = require("state.fx_layout_types")
+local EditFrame = require("components.EditControl")
 ---@class Knob
 local Knob = {}
 
@@ -775,38 +776,24 @@ function Knob:draw(variant,
             --         new_val = new_drag_val
             --     end
         end
-        if self._param._selected then
-            -- reaper.ImGui_DrawList_AddRectFilled(self._draw_list, draw_cursor_x, draw_cursor_y,
-            --     draw_cursor_x + self._child_width,
-            --     draw_cursor_y + child_height, 0xFFFFFFAA)
-            reaper.ImGui_DrawList_AddRect(self._draw_list,
-                fxbox_screen_pos_x +
-                self._param.details.display_settings.Pos_X,
-                fxbox_screen_pos_y + self._param.details.display_settings.Pos_Y,
-                fxbox_screen_pos_x + self._param.details.display_settings.Pos_X + self._child_width,
-                fxbox_screen_pos_y + self._param.details.display_settings.Pos_Y + self._child_height,
-                edit_frame_color,
-                1.0,
-                0,
-                0.0)
-        end
+
 
         if self._param.details.parent_fx.editing then
-            self:EditControl(
+            local changed, new_radius = EditFrame(
+                self._ctx,
+                self._param,
                 fxbox_pos_x,
                 fxbox_pos_y,
                 fxbox_max_x,
                 fx_box_max_y,
                 fx_box_min_x,
-                fx_box_min_y
+                fx_box_min_y,
+                fxbox_screen_pos_x,
+                fxbox_screen_pos_y,
+                self._radius
             )
-            if self._param._selected then
-                self:ResizeButton(
-                    fxbox_pos_x,
-                    fxbox_pos_y,
-                    fxbox_screen_pos_x,
-                    fxbox_screen_pos_y
-                )
+            if changed then
+                self._radius = new_radius
             end
         end
         reaper.ImGui_EndChild(self._ctx)
@@ -857,64 +844,6 @@ function Knob:ResizeButton(
             reaper.ImGui_GetCursorPosY(self._ctx))
         if delta_y ~= 0.0 and delta_x ~= 0.0 then
             self._radius = self._radius + (delta_y + delta_x) * 0.25
-            reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
-        end
-    end
-end
-
----Overlay a button on top of the knob's frame
---- and retrieve whether the user is doing click+drag.
---- If so, update the knob frame's coordinates.
----
---It's easy to get confused, because this button's coordinates within the frame
---are not the same as the coordinates of the knob's frame within the fx box.
---That's why we're having to pass the details of the fx box as params.
----@param fxbox_pos_x number
----@param fxbox_pos_y number
----@param fxbox_max_x number
----@param fx_box_max_y number
----@param fx_box_min_x number
----@param fx_box_min_y number
-function Knob:EditControl(
-    fxbox_pos_x,
-    fxbox_pos_y,
-    fxbox_max_x,
-    fx_box_max_y,
-    fx_box_min_x,
-    fx_box_min_y
-)
-    -- put knob at start of the current child window
-    reaper.ImGui_SetCursorPosX(self._ctx, 0)
-    reaper.ImGui_SetCursorPosY(self._ctx, 0)
-    local win_padding = reaper.ImGui_GetStyleVar(self._ctx, reaper.ImGui_StyleVar_WindowPadding())
-    reaper.ImGui_InvisibleButton(self._ctx, "##knob" .. self._param.details.guid, self._child_width - win_padding,
-        self._child_height - win_padding - 10) -- make it shorter on the y-axis to leave room for the resize button
-
-    if reaper.ImGui_IsItemActive(self._ctx) then
-        if self._param.details.parent_fx.setSelectedParam then
-            self._param.details.parent_fx.setSelectedParam(self._param)
-        end
-        local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
-            self._ctx,
-            self._param.details.display_settings.Pos_X or fxbox_pos_x,
-            self._param.details.display_settings.Pos_Y or fxbox_pos_y)
-        if delta_y ~= 0.0 and delta_x ~= 0.0 then
-            local new_pos_x = (self._param.details.display_settings.Pos_X or fxbox_pos_x) + delta_x
-            local new_pos_y = (self._param.details.display_settings.Pos_Y or fxbox_pos_y) + delta_y
-            ---clamp the values within the current frame.
-            if new_pos_x < fx_box_min_x then
-                new_pos_x = fx_box_min_x
-            elseif new_pos_x + self._child_width > fxbox_max_x then
-                new_pos_x = fxbox_max_x - self._child_width
-            end
-            if new_pos_y < fx_box_min_y then
-                new_pos_y = fx_box_min_y
-            elseif new_pos_y + self._child_height > fx_box_max_y then
-                new_pos_y = fx_box_max_y - self._child_height
-            end
-
-            self._param.details.display_settings.Pos_X = new_pos_x
-            self._param.details.display_settings.Pos_Y = new_pos_y
             reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
         end
     end
