@@ -12,6 +12,7 @@ steps are:
     - the fx separator (space between fx for drag and drop)
 - and then display the rack with rack:main()
 ]]
+dofile(reaper.GetResourcePath() .. '/Scripts/ReaTeam Extensions/API/imgui.lua')('0.8.6') -- enable backwards compatibility
 local ThemeReader          = require("themeReader.theme_read")
 local Fx_box               = require("components.Fx_box")
 local Fx_separator         = require("components.fx_separator")
