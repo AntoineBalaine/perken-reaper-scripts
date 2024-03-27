@@ -146,6 +146,7 @@ function fx_box:VerticalLabelButton()
     if reaper.ImGui_IsItemHovered(self.ctx) then
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_Hand())
     end
+    self:dragDropSource() -- attach the drag/drop source to the preceding button
 
     reaper.ImGui_SetCursorPosX(self.ctx, btn_x)
     reaper.ImGui_Indent(self.ctx, 5)
