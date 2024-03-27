@@ -242,11 +242,15 @@ function fx:createParams()
         }
         table.insert(params_list, param)
         params_by_guid[guid] = param
+        if param and param.name == "Wet" and param.index == #params_list - 1 then
+            self:createParamDetails(param, false)
+        end
+
         ::continue::
     end
     -- don't display bypass in params list.
     local param = params_list[#params_list - 2]
-    if param and param.name == "Bypass" then
+    if param and param.name == "Bypass" then -- don’t display bypass button, since we have it in the fx_box
         local bypass = table.remove(params_list, #params_list - 2)
         params_by_guid[bypass.guid] = nil
     end
@@ -293,19 +297,32 @@ function fx:update()
             param.details:query_value()
         end
     end
+    local wet_param = self.params_list[#self.params_list - 1]
+    if wet_param and wet_param.name == "Wet" then
+        wet_param.details:query_value()
+    end
 end
 
 ---add param to list of displayed params
 ---query its value, create a param class for it
 ---@param param ParamData
-function fx:createParamDetails(param)
+---@param addToDisplayParams? boolean
+function fx:createParamDetails(param, addToDisplayParams)
+    if addToDisplayParams == nil then
+        addToDisplayParams = true
+    end
     local new_param = parameter.new(self.state,
         param.index,
         self,
         param.guid
     )
     param.details = new_param
-    self.display_params[#self.display_params + 1] = param
+    ---I’m having to check for the existence of display_params here,
+    --There’s cases in which this function is being called
+    --before display_params is instantiated.
+    if addToDisplayParams and self.display_params then
+        self.display_params[#self.display_params + 1] = param
+    end
     return param
 end
 

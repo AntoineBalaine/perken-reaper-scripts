@@ -428,6 +428,50 @@ function fx_box:Canvas()
     reaper.ImGui_PopStyleColor(self.ctx)
 end
 
+function fx_box:DryWetKnob()
+    local param = self.fx.params_list[#self.fx.params_list - 1]
+
+    local radius = 10
+    if not param.details then return end
+    if not param.details.display_settings.component then
+        param.details.display_settings.component =
+            Knob.new(
+                self.ctx,
+                "dry_wet" .. param.index,
+                param,
+                radius,
+                true,
+                nil,
+                ColorSet.new( -- dot color
+                    color_helpers.adjustBrightness(self.theme.colors.col_vuind3.color, -30),
+                    self.theme.colors.col_vuind3.color,
+                    color_helpers.adjustBrightness(self.theme.colors.col_vuind3.color, 50)
+                ),
+                ColorSet.new( -- track color
+                    color_helpers.adjustBrightness(self.theme.colors.col_buttonbg.color, -30),
+                    self.theme.colors.col_buttonbg.color,
+                    color_helpers.adjustBrightness(self.theme.colors.col_buttonbg.color, 50)
+                ),
+                ColorSet.new( -- circle color
+                    color_helpers.adjustBrightness(self.theme.colors.col_vuind4.color, -30),
+                    self.theme.colors.col_vuind4.color,
+                    color_helpers.adjustBrightness(self.theme.colors.col_vuind4.color, 50)
+                ),
+                0xFFFFFFFF -- text color
+            )
+    else
+        -- TODO when pushing the knob beyon its max value, don’t update the display
+        local changed, new_val = param.details.display_settings.component:draw(
+            Knob.Flags.NoTitle + Knob.Flags.NoInput + Knob.Flags.NoValue,
+            self.theme
+        )
+        if changed then
+            param.details.value = new_val
+            param.details:setValue(new_val)
+        end
+    end
+end
+
 ---@param fx TrackFX
 function fx_box:main(fx)
     self.fx = fx
@@ -471,7 +515,8 @@ function fx_box:main(fx)
                 reaper.ImGui_SameLine(self.ctx)
                 self:LabelButton()
                 reaper.ImGui_SameLine(self.ctx)
-                self:CollapseButton()
+                self:DryWetKnob()
+                -- self:CollapseButton()
                 self:Canvas()
             end
         end

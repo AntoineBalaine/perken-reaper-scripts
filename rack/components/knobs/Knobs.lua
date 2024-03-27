@@ -670,9 +670,13 @@ function Knob:draw(
     local fx_box_min_x, fx_box_min_y             = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
 
     local fxbox_screen_pos_x, fxbox_screen_pos_y = reaper.ImGui_GetWindowPos(self._ctx)
-    self._child_width                            = self._radius * 2 * 1.5
-    self._child_height                           = 20 + self._radius * 2 +
-        reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2
+
+    local no_title                               = flags & self.Flags.NoTitle == self.Flags.NoTitle
+    local no_value                               = flags & self.Flags.NoValue == self.Flags.NoValue
+    -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
+    self._child_width                            = self._radius * 2 * ((no_title and no_value) and 1 or 1.5)
+    self._child_height                           = self._radius * 2 + (((no_title or no_value) and 0 or 20) +
+        reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * ((no_title and 0 or 1) + (no_value and 0 or 1)))
 
     -- don’t update the knob’s value if the fx’s layout is being edited
     if self._param.details.parent_fx.editing then
@@ -708,7 +712,7 @@ function Knob:draw(
             flags = 0
         end
 
-        if not (flags & self.Flags.NoTitle == self.Flags.NoTitle) then
+        if not (no_title) then
             text_helpers.centerText(self._ctx, self._label, self._child_width, 2, nil, text_color)
         end
 
@@ -765,15 +769,16 @@ function Knob:draw(
             )
         end
 
-        -- if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-        text_helpers.centerText(self._ctx, self._param.details.fmt_val or "", self._child_width, 1, self
-            ._child_width,
-            text_color)
+
+        if not (no_value) then
+            text_helpers.centerText(self._ctx, self._param.details.fmt_val or "", self._child_width, 1, self
+                ._child_width,
+                text_color)
+        end
         -- local drag_changed, new_drag_val = self:__with_drag()     -- FIXME
         -- if drag_changed then
         --     value_changed = drag_changed
         --     new_val = new_drag_val
-        -- end
         -- end
 
 

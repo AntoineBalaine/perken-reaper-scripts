@@ -9,6 +9,7 @@ local Slider = require("components.Slider")
 ---@field Pos_Y integer|nil
 ---@field wiper_start KnobTrackStart
 ---@field variant KnobVariant|SliderVariant
+---@field flags KnobFlags|SliderFlags|nil
 
 ---@class Parameter
 ---@field defaultval number
@@ -121,6 +122,7 @@ function parameter.new(state, param_index, parent_fx, guid)
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
         wiper_start = layoutEnums.KnobWiperStart.left,
         variant = variant,
+        flags = nil
         -- Pos_X = 0,
         -- Pos_Y = 0,
     }
