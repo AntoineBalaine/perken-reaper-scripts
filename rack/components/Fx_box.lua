@@ -429,8 +429,10 @@ function fx_box:Canvas()
 end
 
 function fx_box:DryWetKnob()
-    local param = self.fx.params_list[#self.fx.params_list - 1]
-
+    local param = self.fx.DryWetParam
+    if not param then
+        return
+    end
     local radius = 10
     if not param.details then return end
     if not param.details.display_settings.component then
@@ -462,7 +464,7 @@ function fx_box:DryWetKnob()
     else
         -- TODO when pushing the knob beyon its max value, don’t update the display
         local changed, new_val = param.details.display_settings.component:draw(
-            Knob.Flags.NoTitle + Knob.Flags.NoInput + Knob.Flags.NoValue,
+            Knob.Flags.NoTitle | Knob.Flags.NoValue,
             self.theme
         )
         if changed then

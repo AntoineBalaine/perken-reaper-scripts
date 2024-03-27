@@ -11,7 +11,7 @@ local color_helpers = require("helpers.color_helpers")
 local fx_box_helpers = require("helpers.fx_box_helpers")
 
 ---@class TrackFX
----@field createParamDetails fun(self: TrackFX, param: ParamData): ParamData
+---@field createParamDetails fun(self: TrackFX, param: ParamData, addToDisplayParams?: boolean): ParamData
 ---@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
 ---@field display_name string name of fx, or preset, or renamed name, or fx instance name.
 ---@field displaySettings FxDisplaySettings
@@ -35,6 +35,7 @@ local fx_box_helpers = require("helpers.fx_box_helpers")
 ---@field setSelectedParam fun(param: ParamData)|nil
 ---@field state State
 ---@field update fun(self: TrackFX)
+---@field DryWetParam ParamData
 
 ---@class TrackFX
 local fx = {}
@@ -215,7 +216,9 @@ function fx:createParams()
     local params_by_guid = {} ---@type table<string, ParamData>
 
     local display = false
-    for param_index = 0, reaper.TrackFX_GetNumParams(self.state.Track.track, self.number) - 1 do
+    local params_length = reaper.TrackFX_GetNumParams(self.state.Track.track, self.number)
+    -- Don’t go through the entire list, so we don’t store the delta button
+    for param_index = 0, params_length - 1 do
         local rv, name = reaper.TrackFX_GetParamName(self.state.Track.track, self.number, param_index)
         local guid = reaper.genGuid(name .. param_index)
         if not rv then goto continue end
@@ -230,7 +233,6 @@ function fx:createParams()
         ---@field index integer
         ---@field name string
         ---@field _selected boolean is this param selected by the layout editor for editing
-
         ---@type ParamData
         local param = {
             index = param_index,
@@ -240,20 +242,21 @@ function fx:createParams()
             details = nil,
             _selected = false
         }
+        if name == "Wet" and param_index == params_length - 2 then
+            -- Dry/Wet knob is always the before-to-last param in the list.
+            -- We don’t store it in params_list, but we store it in the fx instance.
+            self.DryWetParam = self:createParamDetails(param, false)
+            goto continue
+        elseif param_index == params_length - 3 and param.name == "Bypass" then
+            -- don’t display bypass param, since we have it in the fx_box
+            goto continue
+        end
         table.insert(params_list, param)
         params_by_guid[guid] = param
-        if param and param.name == "Wet" and param.index == #params_list - 1 then
-            self:createParamDetails(param, false)
-        end
 
         ::continue::
     end
-    -- don't display bypass in params list.
-    local param = params_list[#params_list - 2]
-    if param and param.name == "Bypass" then -- don’t display bypass button, since we have it in the fx_box
-        local bypass = table.remove(params_list, #params_list - 2)
-        params_by_guid[bypass.guid] = nil
-    end
+
 
     return params_list, params_by_guid
 end
@@ -297,10 +300,7 @@ function fx:update()
             param.details:query_value()
         end
     end
-    local wet_param = self.params_list[#self.params_list - 1]
-    if wet_param and wet_param.name == "Wet" then
-        wet_param.details:query_value()
-    end
+    self.DryWetParam.details:query_value()
 end
 
 ---add param to list of displayed params

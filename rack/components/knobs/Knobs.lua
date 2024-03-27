@@ -265,7 +265,9 @@ end
 ---@return number p_value
 function Knob:__control()
     local indent_level = self._child_width / 2 - self._radius
-    reaper.ImGui_Indent(self._ctx, indent_level)
+    if indent_level > 0 then -- having to run this check, passing 0 as a value indents with a default indent spacing…
+        reaper.ImGui_Indent(self._ctx, indent_level)
+    end
     if not self._param.details.parent_fx.editing then
         reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
     else
@@ -274,8 +276,9 @@ function Knob:__control()
         reaper.ImGui_SetCursorPosY(self._ctx, reaper.ImGui_GetCursorPosY(self._ctx) + self._radius * 2.0)
     end
 
-
-    reaper.ImGui_Unindent(self._ctx, indent_level)
+    if indent_level > 0 then
+        reaper.ImGui_Unindent(self._ctx, indent_level)
+    end
 
 
     if not self._controllable then -- don’t process controls if the fx’s layout is being edited or knobs isn’t controllable
@@ -609,8 +612,7 @@ Knob.KnobVariant = {
 Knob.Flags = {
     NoTitle = 1, --- Hide the top title.
     NoInput = 2, --- Hide the bottom drag input.
-    NoValue = 4,
-
+    NoValue = 4
 }
 
 
@@ -640,12 +642,14 @@ end
 
 ---TODO accomodate the NoInput flag
 ---@param flags? integer|KnobFlags
----@param param ParamData
 ---@return boolean value_changed
 ---@return number new_value
 function Knob:draw(
     flags
 )
+    if flags == nil then
+        flags = 0
+    end
     local dot_color ---@type ColorSet
     local track_color ---@type ColorSet
     local circle_color ---@type ColorSet
@@ -675,8 +679,8 @@ function Knob:draw(
     local no_value                               = flags & self.Flags.NoValue == self.Flags.NoValue
     -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
     self._child_width                            = self._radius * 2 * ((no_title and no_value) and 1 or 1.5)
-    self._child_height                           = self._radius * 2 + (((no_title or no_value) and 0 or 20) +
-        reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * ((no_title and 0 or 1) + (no_value and 0 or 1)))
+    self._child_height                           = self._radius * 2 + ((no_title or no_value) and 0 or 20) +
+        reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * ((no_title and 0 or 1) + (no_value and 0 or 1))
 
     -- don’t update the knob’s value if the fx’s layout is being edited
     if self._param.details.parent_fx.editing then
@@ -807,50 +811,6 @@ function Knob:draw(
     reaper.ImGui_PopStyleVar(self._ctx)
     reaper.ImGui_PopStyleColor(self._ctx)
     return value_changed, (new_val or self._param.details.value)
-end
-
--- In edit mode:
--- Display a button in bottom-right corner of the knob's frame,
--- and allow resizing the knob's radius by dragging the knob
----@param fxbox_pos_x number
----@param fxbox_pos_y number
----@param fxbox_screen_pos_x number
----@param fxbox_screen_pos_y number
-function Knob:ResizeButton(
-    fxbox_pos_x,
-    fxbox_pos_y,
-    fxbox_screen_pos_x,
-    fxbox_screen_pos_y
-)
-    local dot_radius = 5
-
-    reaper.ImGui_DrawList_AddCircleFilled(
-        self._draw_list,
-        fxbox_screen_pos_x + (self._param.details.display_settings.Pos_X or fxbox_pos_x) + self._child_width - 3,
-        fxbox_screen_pos_y + (self._param.details.display_settings.Pos_Y or fxbox_pos_y) + self._child_height - 3,
-        dot_radius,
-        edit_frame_color
-    )
-    reaper.ImGui_SetCursorPosX(self._ctx, self._child_width - 10)
-    reaper.ImGui_SetCursorPosY(self._ctx, self._child_height - 10)
-    reaper.ImGui_InvisibleButton(self._ctx, "##extendsize" .. self._param.guid, 10, 10)
-    if reaper.ImGui_IsItemHovered(self._ctx) then
-        reaper.ImGui_SetMouseCursor(self._ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
-    end
-
-    if reaper.ImGui_IsItemActive(self._ctx) then
-        if self._param.details.parent_fx.setSelectedParam then
-            self._param.details.parent_fx.setSelectedParam(self._param)
-        end
-        local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
-            self._ctx,
-            reaper.ImGui_GetCursorPosX(self._ctx),
-            reaper.ImGui_GetCursorPosY(self._ctx))
-        if delta_y ~= 0.0 and delta_x ~= 0.0 then
-            self._radius = self._radius + (delta_y + delta_x) * 0.25
-            reaper.ImGui_ResetMouseDragDelta(self._ctx, reaper.ImGui_MouseButton_Left())
-        end
-    end
 end
 
 return Knob
