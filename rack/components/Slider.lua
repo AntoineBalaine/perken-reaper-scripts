@@ -81,10 +81,6 @@ function Slider:draw(flags)
                     self._param.details.fmt_val
                 )
             else
-                --[[
-                calculate width
-                mid point - half width
-                --]]
                 local indent_width = (self._child_width - width) / 2
                 reaper.ImGui_Indent(self._ctx, indent_width)
 
@@ -120,8 +116,8 @@ function Slider:draw(flags)
                 reaper.ImGui_Indent(self._ctx, indent_width)
                 changed, new_val = reaper.ImGui_VSliderDouble(self._ctx,
                     "##slider" .. self._param.guid,
-                    height,
                     width,
+                    height,
                     self._param.details.value,
                     self._param.details.minval,
                     self._param.details.maxval,
@@ -132,6 +128,7 @@ function Slider:draw(flags)
                 reaper.ImGui_Unindent(self._ctx, indent_width)
             end
         end
+        reaper.ImGui_PopItemWidth(self._ctx)
 
         if self._param.details.parent_fx.editing then
             reaper.ImGui_EndDisabled(self._ctx)
