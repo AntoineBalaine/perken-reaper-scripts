@@ -89,8 +89,8 @@ function parameter.new(state, param_index, parent_fx, guid)
         ---If the amount of steps is less than 16, store it in the class.
         ---For now, I'm choosing 16 as the maximum amount of steps to display
         local steps_count = (max - min) / step
-        --if the steps_count is a whole number and less than 16, store it in the class
-        if steps_count // 1 | 0 == steps_count and steps_count <= 16 then
+        --if the steps_count is a whole number and less than 10, store it in the class
+        if steps_count // 1 | 0 == steps_count and steps_count <= 10 then
             new_param.steps_count = 1 + (steps_count // 1 | 0) -- store as integer
         end
         new_param.step = 1 / steps_count                       -- calculate the normalized value of a step

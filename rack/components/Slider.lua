@@ -46,22 +46,44 @@ function Slider:draw(variant, flags, param)
     local changed      = false
     local new_val      = self._param.details.value
     if reaper.ImGui_BeginChild(self._ctx, "##Slider" .. self._param.guid, self._child_width, self._child_height, false) then
+        if self._param.details.parent_fx.editing then
+            reaper.ImGui_BeginDisabled(self._ctx, true)
+        end
         text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
         reaper.ImGui_PushItemWidth(self._ctx, self._child_width - reaper.ImGui_GetStyleVar(self._ctx,
             reaper.ImGui_StyleVar_WindowPadding()))
-        local rv
-        rv, new_val = reaper.ImGui_SliderDouble(self._ctx,
-            "##slider" .. self._param.guid,
-            self._param.details.value,
+        --- If there's only 10 steps, use a stepped slider
+        if self._param.details.steps_count then
+            -- use a stepped slider, using integer values
+            local int_val = (self._param.details.value / self._param.details.step) // 1 |0
+            changed, int_val = reaper.ImGui_SliderInt(self._ctx,
+                "##slider" .. self._param.guid,
+                int_val,
+                (self._param.details.minval / self._param.details.step) // 1 | 0,
+                (self._param.details.maxval / self._param.details.step) // 1 | 0,
+                self._param.details.fmt_val
+            )
+            if changed then
+                new_val = int_val * self._param.details.step
+            end
+        else
+            changed, new_val = reaper.ImGui_SliderDouble(self._ctx,
+                "##slider" .. self._param.guid,
+                self._param.details.value,
+                self._param.details.minval,
+                self._param.details.maxval,
+                self._param.details.fmt_val)
+        end
 
-            self._param.details.minval,
-            self._param.details.maxval, self._param.details.fmt_val)
-        if rv and not self._param.details.parent_fx.editing then
+        if self._param.details.parent_fx.editing then
+            reaper.ImGui_EndDisabled(self._ctx)
+        end
+        if changed and not self._param.details.parent_fx.editing then
             if self._on_activate then
                 self._on_activate()
             end
-            changed = true
         end
+
 
         if self._param.details.parent_fx.editing then
             local size_changed, new_radius = EditControl(
@@ -84,7 +106,7 @@ function Slider:draw(variant, flags, param)
         end
         reaper.ImGui_EndChild(self._ctx)
     end
-    return changed, new_val
+    return not self._param.details.parent_fx.editing and changed, new_val
 end
 
 return Slider
