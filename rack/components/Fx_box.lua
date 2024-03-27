@@ -175,6 +175,7 @@ function fx_box:LabelButton()
     if reaper.ImGui_Button(self.ctx, self.fx.display_name .. "##" .. self.fx.guid, btn_width, self.default_button_size) then -- create window name button
         self:LabelButtonCB()
     end
+    reaper.ImGui_MouseButton_Left()
 
     if reaper.ImGui_IsItemHovered(self.ctx) then
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_Hand())

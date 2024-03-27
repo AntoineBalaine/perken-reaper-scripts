@@ -102,7 +102,7 @@ function fx.new(state, theme, index, number, guid)
         background_disabled = theme.colors.group_15.color,
         background_offline  = theme.colors.col_mi_fades.color,
         borderColor         = theme.colors.col_gridlines2.color,
-        buttons_layout      = layout_enums.buttons_layout.horizontal,
+        buttons_layout      = layout_enums.buttons_layout.horizontal, -- TODO set as «vertical» by default
         labelButtonStyle    = {
             -- background = theme.colors.col_fadearm2.color,
             background = theme.colors.col_main_bg.color,

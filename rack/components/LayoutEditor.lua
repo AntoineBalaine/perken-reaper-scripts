@@ -17,6 +17,7 @@ Let"s go with one instance per fx:
 local layoutEnums = require("state.fx_layout_types")
 local Table = require("helpers.table")
 local Palette = require("components.Palette")
+local Knob = require("components.knobs.Knobs")
 local LayoutEditor = {}
 
 ---@param ctx ImGui_Context
@@ -140,6 +141,19 @@ function LayoutEditor:AddParams()
             self.selectedParam._selected = false
             self.selectedParam = param
             self.selectedParam._selected = true
+        end
+    end
+end
+
+function LayoutEditor:KnobFlags()
+    local flags = Knob.Flags
+    for _, v in pairs(Knob.Flags) do
+        if v == flags.NoTitle then
+            reaper.ImGui_Checkbox(self.ctx, "display label", false)
+        elseif v == flags.NoValue then
+            reaper.ImGui_Checkbox(self.ctx, "display value", false)
+        elseif v == flags.NoInput then
+            reaper.ImGui_Checkbox(self.ctx, "controllable", false)
         end
     end
 end

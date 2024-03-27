@@ -609,7 +609,8 @@ Knob.KnobVariant = {
 Knob.Flags = {
     NoTitle = 1, --- Hide the top title.
     NoInput = 2, --- Hide the bottom drag input.
-    DragHorizontal = 3
+    NoValue = 4,
+
 }
 
 
@@ -764,16 +765,16 @@ function Knob:draw(
             )
         end
 
-        if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
-            text_helpers.centerText(self._ctx, self._param.details.fmt_val or "", self._child_width, 1, self
-                ._child_width,
-                text_color)
-            --     local drag_changed, new_drag_val = self:__with_drag() -- FIXME
-            --     if drag_changed then
-            --         value_changed = drag_changed
-            --         new_val = new_drag_val
-            --     end
-        end
+        -- if not (flags & self.Flags.DragHorizontal == self.Flags.DragHorizontal) then
+        text_helpers.centerText(self._ctx, self._param.details.fmt_val or "", self._child_width, 1, self
+            ._child_width,
+            text_color)
+        -- local drag_changed, new_drag_val = self:__with_drag()     -- FIXME
+        -- if drag_changed then
+        --     value_changed = drag_changed
+        --     new_val = new_drag_val
+        -- end
+        -- end
 
 
         if self._param.details.parent_fx.editing then
