@@ -443,7 +443,17 @@ function LayoutEditor:edit(fx)
     self.displaySettings_backup = Table.deepCopy(fx.displaySettings)
     self.open = true
     self.windowLabel = self.fx.name .. " - " .. "Edit layout"
-    self.selectedParam = self.fx.params_list[1] -- select the first param in the list by default
+    -- select the first param being displayed , or the first param in the list by default.
+    for _, v in ipairs(self.fx.params_list) do
+        if v.details then
+            self.selectedParam = v
+            goto continue
+        end
+    end
+    ::continue::
+    if not self.selectedParam then
+        self.selectedParam = self.fx.params_list[1]
+    end
     self.selectedParam._selected = true
     self.width = 650
     self.height = 300
