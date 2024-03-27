@@ -28,9 +28,7 @@ end
 ---@param flags? integer
 ---@param param ParamData
 ---@return boolean changed, number new_value
-function CycleButton:draw(variant, flags, param)
-    self._param                                  = param
-
+function CycleButton:draw(variant, flags)
     local fxbox_pos_x, fxbox_pos_y               = reaper.ImGui_GetCursorPos(self._ctx)
     local fxbox_max_x, fx_box_max_y              = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
     local fx_box_min_x, fx_box_min_y             = reaper.ImGui_GetWindowContentRegionMin(self._ctx)

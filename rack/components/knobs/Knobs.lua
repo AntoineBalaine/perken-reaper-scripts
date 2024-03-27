@@ -644,10 +644,8 @@ end
 ---@return boolean value_changed
 ---@return number new_value
 function Knob:draw(variant,
-                   flags,
-                   param
+                   flags
 )
-    self._param = param
     local dot_color ---@type ColorSet
     local track_color ---@type ColorSet
     local circle_color ---@type ColorSet
@@ -745,7 +743,7 @@ function Knob:draw(variant,
                 dot_color
             )
         elseif variant == self.KnobVariant.stepped then
-            self:__draw_stepped_knob(param.details.steps_count or 0, circle_color,
+            self:__draw_stepped_knob(self._param.details.steps_count or 0, circle_color,
                 dot_color,
                 track_color or circle_color
             )
