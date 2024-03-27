@@ -12,6 +12,7 @@ local drag_drop     = require("state.dragAndDrop")
 local layout_enums  = require("state.fx_layout_types")
 local Knob          = require("components.knobs.Knobs")
 local CycleButton   = require("components.CycleButton")
+local Slider        = require("components.Slider")
 local layoutEnums   = require("state.fx_layout_types")
 local ColorSet      = require("helpers.ColorSet")
 local color_helpers = require("helpers.color_helpers")
@@ -434,6 +435,14 @@ function fx_box:Canvas()
                     )
                 elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.CycleButton then
                     param.details.display_settings.component = CycleButton.new(
+                        self.ctx,
+                        "cycle" .. idx,
+                        param,
+                        on_activate,
+                        radius
+                    )
+                elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.Slider then
+                    param.details.display_settings.component = Slider.new(
                         self.ctx,
                         "cycle" .. idx,
                         param,
