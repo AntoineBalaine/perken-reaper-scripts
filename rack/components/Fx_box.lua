@@ -67,7 +67,6 @@ function fx_box:labelButtonStyleStart()
     local bg_col ---@type number
     if self.fx.enabled then
         bg_col = self.fx.displaySettings.labelButtonStyle.background
-        bg_col = self.fx.displaySettings.labelButtonStyle.background
     else
         bg_col = self.fx.displaySettings.labelButtonStyle.background_disabled
     end
@@ -256,7 +255,7 @@ function fx_box:CollapseButton()
 end
 
 function fx_box:AddParamsBtn()
-    local popup_name = "addFxParams"
+    local popup_name = "addFxParams" .. "##" .. self.fx.guid
 
     -- "+" ICON 
     reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
@@ -279,6 +278,11 @@ function fx_box:AddParamsBtn()
         ---TODO implement text filter here, so that user can filter the fx-params' list.
         for i = 1, #self.fx.params_list - 1 do
             local param = self.fx.params_list[i]
+            -- Dunno why, but some params might be registerd without a name, so we skip them.
+            -- Need to investigate: ReaRack2 - LFO
+            if param.name == "" then
+                goto continue
+            end
             local _, new_val = reaper.ImGui_Checkbox(self.ctx, param.name, param.display)
             if new_val ~= param.display then
                 param.display = new_val
@@ -288,6 +292,7 @@ function fx_box:AddParamsBtn()
                     self.fx:removeParamDetails(param)
                 end
             end
+            ::continue::
         end
         reaper.ImGui_EndPopup(self.ctx)
     end
@@ -402,7 +407,8 @@ function fx_box:Canvas()
                 end
             else
                 local changed, new_val = param.details.display_settings.component:draw(
-                    nil
+                    nil,
+                    self.theme
                 )
 
                 if changed then

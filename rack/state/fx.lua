@@ -51,7 +51,7 @@ function fx.new(state, theme, index, number, guid)
     ---@type TrackFX
     local self = setmetatable({}, fx)
     self.state = state
-    local _, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
+    local has_name, name = reaper.TrackFX_GetFXName(self.state.Track.track, number)
     self.enabled = reaper.TrackFX_GetEnabled(self.state.Track.track, number)
     ---when fx is selected in the layoutEditor
     self.editing = false
@@ -60,7 +60,7 @@ function fx.new(state, theme, index, number, guid)
     ---@type fun(param: Parameter) | nil
     self.setSelectedParam = nil
     self.guid = guid
-    self.name = name
+    self.name = has_name and name or ""
     self.display_name = fx_box_helpers.getDisplayName(name or "") -- get name of fx
     self.number = number
     self.index = index
