@@ -25,8 +25,9 @@ function CycleButton.new(ctx, id, param, on_activate, radius)
 end
 
 ---@param flags? integer
+---@param theme Theme
 ---@return boolean changed, number new_value
-function CycleButton:draw(flags)
+function CycleButton:draw(flags, theme)
     local fxbox_pos_x, fxbox_pos_y               = reaper.ImGui_GetCursorPos(self._ctx)
     local fxbox_max_x, fx_box_max_y              = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
     local fx_box_min_x, fx_box_min_y             = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
@@ -46,6 +47,22 @@ function CycleButton:draw(flags)
             reaper.ImGui_BeginDisabled(self._ctx, true)
         end
         text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
+
+        -- if this logic comes reproduced again, let’s make into a component.
+        if self._param.details.istoggle then
+            local bg_col ---@type number
+            if self._param.details.value > self._param.details.minval then
+                bg_col = self._param.details.parent_fx.displaySettings.labelButtonStyle.background
+            else
+                bg_col = self._param.details.parent_fx.displaySettings.labelButtonStyle.background_disabled
+            end
+            reaper.ImGui_PushStyleColor(self._ctx, reaper.ImGui_Col_Button(), bg_col)
+            reaper.ImGui_PushStyleColor(self._ctx, reaper.ImGui_Col_ButtonHovered(), bg_col)
+            reaper.ImGui_PushStyleColor(self._ctx, reaper.ImGui_Col_ButtonActive(), bg_col)
+        end
+
+        -- reaper.ImGui_Col_ButtonHovered()
+        -- reaper.ImGui_Col_ButtonActive()
         if reaper.ImGui_Button(self._ctx,
                 self._param.details.fmt_val,
                 self._child_width - reaper.ImGui_GetStyleVar(self._ctx,
@@ -62,6 +79,9 @@ function CycleButton:draw(flags)
             end
 
             changed = true
+        end
+        if self._param.details.istoggle then
+            reaper.ImGui_PopStyleColor(self._ctx, 3)
         end
         if self._param.details.parent_fx.editing then
             reaper.ImGui_EndDisabled(self._ctx)
