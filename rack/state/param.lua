@@ -1,5 +1,6 @@
 local layoutEnums = require("state.fx_layout_types")
 local Knob = require("components.knobs.Knobs")
+local Slider = require("components.Slider")
 
 ---@class ParamDisplaySettings
 ---@field type Param_Display_Type
@@ -103,15 +104,26 @@ function parameter.new(state, param_index, parent_fx, guid)
     --That's because reaper doesn't have an API to query the default value of a parameter.
     --not sure that’s right, but that’s my best bet.
     new_param.defaultval = 0.5
+
+    local control_type
+    local variant
+    if new_param.steps_count and new_param.steps_count <= 7 then
+        control_type = layoutEnums.Param_Display_Type.CycleButton
+        variant = Slider.Variant.horizontal
+        -- elseif new_param.istoggle then
+        --     control_type = layoutEnums.Param_Display_Type.ToggleButton -- don't have a toggle button yet.
+    else
+        control_type = layoutEnums.Param_Display_Type.Knob
+        variant = Knob.KnobVariant.ableton
+    end
     new_param.display_settings = {
-        type = layoutEnums.Param_Display_Type.Knob,
+        type = control_type,
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
         wiper_start = layoutEnums.KnobWiperStart.left,
-        variant = Knob.KnobVariant.ableton,
+        variant = variant,
         -- Pos_X = 0,
         -- Pos_Y = 0,
     }
-
 
     return new_param
 end

@@ -36,12 +36,21 @@ function EditControl(
         --     draw_cursor_x + self._child_width,
         --     draw_cursor_y + child_height, 0xFFFFFFAA)
         reaper.ImGui_DrawList_AddRect(reaper.ImGui_GetWindowDrawList(ctx),
-            fxbox_screen_pos_x +
-            param.details.display_settings.Pos_X,
-            fxbox_screen_pos_y + param.details.display_settings.Pos_Y,
-            fxbox_screen_pos_x + param.details.display_settings.Pos_X + _child_width,
-            fxbox_screen_pos_y + param.details.display_settings.Pos_Y + _child_height,
+            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x),
+            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y),
+            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x) + _child_width,
+            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y) + _child_height,
             edit_frame_color,
+            1.0,
+            0,
+            0.0)
+    else
+        reaper.ImGui_DrawList_AddRect(reaper.ImGui_GetWindowDrawList(ctx),
+            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x),
+            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y),
+            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x) + _child_width,
+            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y) + _child_height,
+            edit_frame_color & 0x55,
             1.0,
             0,
             0.0)
