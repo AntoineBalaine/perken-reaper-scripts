@@ -107,4 +107,68 @@ function Slider:draw(variant, flags)
     return not self._param.details.parent_fx.editing and changed, new_val
 end
 
+--[[Adding here the draft of slider, based on Ableton's version (with triangle)]]
+-- function fx_box:slider()
+--     reaper.ImGui_NewLine(self.ctx)
+--     reaper.ImGui_Button(self.ctx, "hello")
+--     local p_value              = 50
+--     local v_min                = 10
+--     local v_max                = 100
+
+--     local Radius               = 30
+--     local draw_list            = reaper.ImGui_GetWindowDrawList(self.ctx)
+--     local pos                  = { reaper.ImGui_GetCursorScreenPos(self.ctx) } ---@type {[1]:number, [2]:number}
+--     Radius                     = Radius or 0
+--     local radius_outer         = Radius
+--     local t                    = (p_value - v_min) / (v_max - v_min)
+--     local ANGLE_MIN            = 3.141592 * 0.75
+--     local ANGLE_MAX            = 3.141592 * 2.25
+--     local angle                = ANGLE_MIN + (ANGLE_MAX - ANGLE_MIN) * t
+--     local angle_cos, angle_sin = math.cos(angle), math.sin(angle)
+--     -- local radius_inner         = radius_outer * 0.40
+--     local center               = { pos[1] + radius_outer, pos[2] + radius_outer }
+--     reaper.ImGui_DrawList_AddCircleFilled(draw_list, center[1], center[2], radius_outer,
+--         reaper.ImGui_GetColor(self.ctx, reaper.ImGui_Col_Button()))
+--     local p1_x = center[1] --  + angle_cos * radius_inner
+--     local p1_y = center[2] --  + angle_sin * radius_inner
+--     local p2_x = center[1] + angle_cos * (radius_outer - 2)
+--     local p2_y = center[2] + angle_sin * (radius_outer - 2)
+--     local col = 0x123456ff
+--     local thickness = 2
+--     reaper.ImGui_DrawList_AddLine(draw_list,
+--         p1_x,
+--         p1_y,
+--         p2_x,
+--         p2_y,
+--         col,
+--         thickness)
+--     -- reaper.ImGui_DrawList_PathArcTo(draw_list, center[1], center[2], radius_outer / 2, ANGLE_MIN, angle)
+--     -- reaper.ImGui_DrawList_PathStroke(draw_list, 0xFFFFFFFF, nil, radius_outer * 0.6)
+--     -- reaper.ImGui_DrawList_PathClear(draw_list)
+--     -- local white = 0xFFFFFFFF
+--     -- local draw_list =
+--     -- local  p1_x =
+--     -- local  p1_y =
+--     -- local  p2_x =
+--     -- local  p2_y =
+--     -- local  p3_x =
+--     -- local  p3_y =
+--     -- local col_rgba = white
+--     -- local vertices = calculateTriangleVertices(center[1], center[2], radius_outer)
+--     -- local c = vertices[1]
+--     -- local b = vertices[2]
+--     -- local a = vertices[3]
+
+--     -- reaper.ImGui_DrawList_AddTriangleFilled(draw_list, c.x, c.y, b.x, b.y, a.x, a.y, col_rgba)
+--     -- reaper.ImGui_DrawList_AddCircleFilled(draw_list, center[1], center[2], radius_inner,
+--     --     reaper.ImGui_GetColor(self.ctx,
+--     --         reaper.ImGui_IsItemActive(self.ctx) and reaper.ImGui_Col_FrameBgActive() or
+--     --         reaper.ImGui_IsItemHovered(self.ctx) and reaper.ImGui_Col_FrameBgHovered() or reaper.ImGui_Col_FrameBg()))
+
+--     -- reaper.ImGui_DrawList_PathArcTo(draw_list, center[1], center[2], radius_outer / 2, ANGLE_MIN, angle)
+--     -- -- reaper.ImGui_DrawList_PathStroke(draw_list, white, nil, radius_outer * 0.6)
+--     -- reaper.ImGui_DrawList_PathClear(draw_list)
+-- end
+
+
 return Slider
