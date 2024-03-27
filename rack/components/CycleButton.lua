@@ -46,6 +46,9 @@ function CycleButton:draw(variant, flags, param)
     local changed      = false
     local new_val      = self._param.details.value
     if reaper.ImGui_BeginChild(self._ctx, "##CycleButton" .. self._param.guid, self._child_width, self._child_height, false) then
+        if self._param.details.parent_fx.editing then
+            reaper.ImGui_BeginDisabled(self._ctx, true)
+        end
         text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
         if reaper.ImGui_Button(self._ctx,
                 self._param.details.fmt_val,
@@ -63,6 +66,9 @@ function CycleButton:draw(variant, flags, param)
             end
 
             changed = true
+        end
+        if self._param.details.parent_fx.editing then
+            reaper.ImGui_EndDisabled(self._ctx)
         end
 
         if self._param.details.parent_fx.editing then
