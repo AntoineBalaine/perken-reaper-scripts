@@ -1,8 +1,15 @@
 local text_helpers = require("helpers.text")
 local EditControl = require("components.EditControl")
 
+
 ---@class Slider
 local Slider = {}
+
+---@enum SliderVariant
+Slider.Variant = {
+    horizontal = 0,
+    vertical = 1,
+}
 
 ---Create a new Slider
 ---Currently not passing any styling options
@@ -19,16 +26,15 @@ function Slider.new(ctx, id, param, on_activate, radius)
     new_Slider._id = id
     new_Slider._param = param
     new_Slider._on_activate = on_activate
+
     ---re-using the radius measurement from the Knob here
     new_Slider._radius = radius
     return new_Slider
 end
 
----@param variant integer
 ---@param flags? integer
----@param param ParamData
 ---@return boolean changed, number new_value
-function Slider:draw(variant, flags)
+function Slider:draw(flags)
     local fxbox_pos_x, fxbox_pos_y               = reaper.ImGui_GetCursorPos(self._ctx)
     local fxbox_max_x, fx_box_max_y              = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
     local fx_box_min_x, fx_box_min_y             = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
@@ -38,39 +44,93 @@ function Slider:draw(variant, flags)
         reaper.ImGui_SetCursorPos(self._ctx, self._param.details.display_settings.Pos_X,
             self._param.details.display_settings.Pos_Y)
     end
+    local window_padding = reaper.ImGui_GetStyleVar(self._ctx,
+        reaper.ImGui_StyleVar_WindowPadding())
 
-    self._child_width  = self._radius * 2 * 1.5
-    self._child_height = reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
-    local changed      = false
-    local new_val      = self._param.details.value
+    ---TODO maybe make these values editable
+    self._child_width    = self._radius * 2
+    self._child_height   = self._param.details.display_settings.variant == Slider.Variant.vertical and self._radius * 4 or
+        reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
+    local width
+    local height
+    if self._param.details.display_settings.variant == Slider.Variant.vertical then
+        self._child_height = self._radius * 4
+        width              = self._radius - window_padding
+        height             = self._child_height - reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
+    else
+        self._child_height = reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
+    end
+    local changed = false
+    local new_val = self._param.details.value
     if reaper.ImGui_BeginChild(self._ctx, "##Slider" .. self._param.guid, self._child_width, self._child_height, false) then
         if self._param.details.parent_fx.editing then
             reaper.ImGui_BeginDisabled(self._ctx, true)
         end
         text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
-        reaper.ImGui_PushItemWidth(self._ctx, self._child_width - reaper.ImGui_GetStyleVar(self._ctx,
-            reaper.ImGui_StyleVar_WindowPadding()))
+        reaper.ImGui_PushItemWidth(self._ctx, self._child_width - window_padding)
         --- If there's only 10 steps, use a stepped slider
         if self._param.details.steps_count then
             -- use a stepped slider, using integer values
             local int_val = (self._param.details.value / self._param.details.step) // 1 |0
-            changed, int_val = reaper.ImGui_SliderInt(self._ctx,
-                "##slider" .. self._param.guid,
-                int_val,
-                (self._param.details.minval / self._param.details.step) // 1 | 0,
-                (self._param.details.maxval / self._param.details.step) // 1 | 0,
-                self._param.details.fmt_val
-            )
+            if self._param.details.display_settings.variant == Slider.Variant.horizontal then
+                changed, int_val = reaper.ImGui_SliderInt(self._ctx,
+                    "##slider" .. self._param.guid,
+                    int_val,
+                    (self._param.details.minval / self._param.details.step) // 1 | 0,
+                    (self._param.details.maxval / self._param.details.step) // 1 | 0,
+                    self._param.details.fmt_val
+                )
+            else
+                --[[
+                calculate width
+                mid point - half width
+                --]]
+                local indent_width = (self._child_width - width) / 2
+                reaper.ImGui_Indent(self._ctx, indent_width)
+
+                changed, int_val = reaper.ImGui_VSliderInt(self._ctx,
+
+                    "##slider" .. self._param.guid,
+                    width,
+                    height,
+                    int_val,
+                    (self._param.details.minval / self._param.details.step) // 1 | 0,
+                    (self._param.details.maxval / self._param.details.step) // 1 | 0,
+                    ""
+                )
+
+                text_helpers.centerText(self._ctx,
+                    self._param.details.fmt_val,
+                    self._child_width, 2)
+                reaper.ImGui_Unindent(self._ctx, indent_width)
+            end
             if changed then
                 new_val = int_val * self._param.details.step
             end
         else
-            changed, new_val = reaper.ImGui_SliderDouble(self._ctx,
-                "##slider" .. self._param.guid,
-                self._param.details.value,
-                self._param.details.minval,
-                self._param.details.maxval,
-                self._param.details.fmt_val)
+            if self._param.details.display_settings.variant == Slider.Variant.horizontal then
+                changed, new_val = reaper.ImGui_SliderDouble(self._ctx,
+                    "##slider" .. self._param.guid,
+                    self._param.details.value,
+                    self._param.details.minval,
+                    self._param.details.maxval,
+                    self._param.details.fmt_val)
+            else
+                local indent_width = (self._child_width - width) / 2
+                reaper.ImGui_Indent(self._ctx, indent_width)
+                changed, new_val = reaper.ImGui_VSliderDouble(self._ctx,
+                    "##slider" .. self._param.guid,
+                    height,
+                    width,
+                    self._param.details.value,
+                    self._param.details.minval,
+                    self._param.details.maxval,
+                    "")
+                text_helpers.centerText(self._ctx,
+                    self._param.details.fmt_val,
+                    self._child_width, 2)
+                reaper.ImGui_Unindent(self._ctx, indent_width)
+            end
         end
 
         if self._param.details.parent_fx.editing then

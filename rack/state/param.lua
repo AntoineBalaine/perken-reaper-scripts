@@ -3,11 +3,11 @@ local Knob = require("components.knobs.Knobs")
 
 ---@class ParamDisplaySettings
 ---@field type Param_Display_Type
----@field component Knob|CycleButton|nil
+---@field component Knob|CycleButton|Slider|nil
 ---@field Pos_X integer|nil
 ---@field Pos_Y integer|nil
 ---@field wiper_start KnobTrackStart
----@field knob_variant KnobVariant
+---@field variant KnobVariant|SliderVariant
 
 ---@class Parameter
 ---@field defaultval number
@@ -107,7 +107,7 @@ function parameter.new(state, param_index, parent_fx, guid)
         type = layoutEnums.Param_Display_Type.Knob,
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
         wiper_start = layoutEnums.KnobWiperStart.left,
-        knob_variant = Knob.KnobVariant.ableton,
+        variant = Knob.KnobVariant.ableton,
         -- Pos_X = 0,
         -- Pos_Y = 0,
     }

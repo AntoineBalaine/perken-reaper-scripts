@@ -380,6 +380,16 @@ function fx_box:Canvas()
                         radius
                     )
                 elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.Slider then
+                    param.details.display_settings.variant = Slider.Variant.horizontal
+                    param.details.display_settings.component = Slider.new(
+                        self.ctx,
+                        "cycle" .. idx,
+                        param,
+                        on_activate,
+                        radius
+                    )
+                elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.vSlider then
+                    param.details.display_settings.variant = Slider.Variant.vertical
                     param.details.display_settings.component = Slider.new(
                         self.ctx,
                         "cycle" .. idx,
@@ -390,7 +400,6 @@ function fx_box:Canvas()
                 end
             else
                 local changed, new_val = param.details.display_settings.component:draw(
-                    param.details.display_settings.knob_variant,
                     nil
                 )
 

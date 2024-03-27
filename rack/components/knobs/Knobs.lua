@@ -638,13 +638,12 @@ function Knob:__with_drag()
 end
 
 ---TODO accomodate the NoInput flag
----@param variant KnobVariant
 ---@param flags? integer|KnobFlags
 ---@param param ParamData
 ---@return boolean value_changed
 ---@return number new_value
-function Knob:draw(variant,
-                   flags
+function Knob:draw(
+    flags
 )
     local dot_color ---@type ColorSet
     local track_color ---@type ColorSet
@@ -716,6 +715,7 @@ function Knob:draw(variant,
         self:__update_wiper()
         value_changed, new_val = self:__control()
 
+        local variant = self._param.details.display_settings.variant or self.KnobVariant.ableton
         if variant == self.KnobVariant.wiper_knob then
             self:__wiper_knob(circle_color,
                 dot_color,

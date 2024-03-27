@@ -150,9 +150,9 @@ function LayoutEditor:KnobVariant()
     reaper.ImGui_Text(self.ctx, "Knob Variant")
     reaper.ImGui_SameLine(self.ctx)
     reaper.ImGui_PushItemWidth(self.ctx, 100)
-    _, self.selectedParam.details.display_settings.knob_variant = reaper.ImGui_Combo(self.ctx,
+    _, self.selectedParam.details.display_settings.variant = reaper.ImGui_Combo(self.ctx,
         "##knob_style",
-        self.selectedParam.details.display_settings.knob_variant,
+        self.selectedParam.details.display_settings.variant,
         knob_variants)
 
     reaper.ImGui_Text(self.ctx, "Wiper Start Position")
