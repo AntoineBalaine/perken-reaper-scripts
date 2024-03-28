@@ -17,7 +17,6 @@ Let"s go with one instance per fx:
 local layoutEnums = require("state.fx_layout_types")
 local Table = require("helpers.table")
 local Palette = require("components.Palette")
-local Knob = require("components.knobs.Knobs")
 local LayoutEditor = {}
 
 ---@param ctx ImGui_Context
@@ -147,7 +146,7 @@ function LayoutEditor:AddParams()
 end
 
 function LayoutEditor:KnobFlags()
-    local flags = Knob.Flags
+    local flags = layoutEnums.KnobFlags
     local current_flags = self.selectedParam.details.display_settings.flags
     if current_flags == nil then
         return

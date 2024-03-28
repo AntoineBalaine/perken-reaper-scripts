@@ -46,6 +46,16 @@ layout_enums.buttons_layout = {
     vertical = 2
 }
 
+
+---List of flags that you can pass into the draw method
+---@enum KnobFlags
+layout_enums.KnobFlags = {
+    NoTitle = 1, --- Hide the top title.
+    NoInput = 2, --- Hide the bottom drag input.
+    NoValue = 4,
+    None = 0,
+}
+
 ---@enum DragDirection
 local DragDirection = {
     left = "left",

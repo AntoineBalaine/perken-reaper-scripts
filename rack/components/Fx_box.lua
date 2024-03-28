@@ -463,7 +463,6 @@ function fx_box:DryWetKnob()
     else
         -- TODO when pushing the knob beyon its max value, don’t update the display
         local changed, new_val = param.details.display_settings.component:draw(
-            Knob.Flags.NoTitle | Knob.Flags.NoValue,
             self.theme
         )
         if changed then

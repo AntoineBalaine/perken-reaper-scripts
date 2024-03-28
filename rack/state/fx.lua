@@ -10,6 +10,7 @@ local parameter = require("state.param")
 local color_helpers = require("helpers.color_helpers")
 local fx_box_helpers = require("helpers.fx_box_helpers")
 
+
 ---@class TrackFX
 ---@field createParamDetails fun(self: TrackFX, param: ParamData, addToDisplayParams?: boolean): ParamData
 ---@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
@@ -246,6 +247,8 @@ function fx:createParams()
             -- Dry/Wet knob is always the before-to-last param in the list.
             -- We don’t store it in params_list, but we store it in the fx instance.
             self.DryWetParam = self:createParamDetails(param, false)
+            self.DryWetParam.details.display_settings.flags = layout_enums.KnobFlags.NoTitle |
+            layout_enums.KnobFlags.NoValue
             goto continue
         elseif param_index == params_length - 3 and param.name == "Bypass" then
             -- don’t display bypass param, since we have it in the fx_box

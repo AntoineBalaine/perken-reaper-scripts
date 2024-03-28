@@ -117,7 +117,7 @@ function parameter.new(state, param_index, parent_fx, guid)
     end
     local flags = nil
     if control_type == layoutEnums.Param_Display_Type.Knob then
-        flags = Knob.Flags.None
+        flags = layoutEnums.KnobFlags.None
     end
     new_param.display_settings = {
         type = control_type,

@@ -9,9 +9,6 @@ local EditFrame = require("components.EditControl")
 ---@class Knob
 local Knob = {}
 
-local edit_frame_color = 0xFF0000FF
-
-
 ---@param size number
 ---@param radius number
 ---@param angle number
@@ -607,14 +604,6 @@ Knob.KnobVariant = {
 
 
 
----List of flags that you can pass into the draw method
----@enum KnobFlags
-Knob.Flags = {
-    NoTitle = 1, --- Hide the top title.
-    NoInput = 2, --- Hide the bottom drag input.
-    NoValue = 4,
-    None = 0,
-}
 
 
 ---TODO figure out how to center the drag
@@ -671,10 +660,12 @@ function Knob:draw(
 
     local fxbox_screen_pos_x, fxbox_screen_pos_y = reaper.ImGui_GetWindowPos(self._ctx)
 
-    local no_title                               = self._param.details.display_settings.flags & Knob.Flags.NoTitle ==
-        Knob.Flags.NoTitle
-    local no_value                               = self._param.details.display_settings.flags & Knob.Flags.NoValue ==
-        Knob.Flags.NoValue
+    local no_title                               = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoTitle ==
+        layoutEnums.KnobFlags.NoTitle
+    local no_value                               = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoValue ==
+        layoutEnums.KnobFlags.NoValue
     -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
     self._child_width                            = self._radius * 2 * ((no_title and no_value) and 1 or 1.5)
     self._child_height                           = self._radius * 2 + ((no_title or no_value) and 0 or 20) +
@@ -710,10 +701,6 @@ function Knob:draw(
 
     if reaper.ImGui_BeginChild(self._ctx, "##knob" .. self._param.details.guid, self._child_width, self._child_height, false,
             reaper.ImGui_WindowFlags_NoScrollbar()) then
-        if flags == nil then
-            flags = 0
-        end
-
         if not (no_title) then
             text_helpers.centerText(self._ctx, self._label, self._child_width, 2, nil, text_color)
         end
