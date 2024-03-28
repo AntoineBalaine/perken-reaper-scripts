@@ -1,4 +1,4 @@
-local layoutEnums = require("state.fx_layout_types")
+local layoutEnums = require("state.layout_enums")
 local Knob = require("components.knobs.Knobs")
 local Slider = require("components.Slider")
 

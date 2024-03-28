@@ -9,11 +9,11 @@ Bear in mind that this component is a singleton, so it’s a single instance tha
 As a result, its internal state has to be updated every time it’s called. I’m not sure yet whether I like this or would rather have one instance per appearance.
 ]]
 local drag_drop     = require("state.dragAndDrop")
-local layout_enums  = require("state.fx_layout_types")
+local layout_enums  = require("state.layout_enums")
 local Knob          = require("components.knobs.Knobs")
 local CycleButton   = require("components.CycleButton")
 local Slider        = require("components.Slider")
-local layoutEnums   = require("state.fx_layout_types")
+local layoutEnums   = require("state.layout_enums")
 local ColorSet      = require("helpers.ColorSet")
 local color_helpers = require("helpers.color_helpers")
 local fx_box        = {}

@@ -14,7 +14,7 @@ Let"s go with one instance per fx:
 - If we want to persist unsaved layouts between re-starts, we"ll have to either store this in external state or in the track.
 
 ]]
-local layoutEnums = require("state.fx_layout_types")
+local layoutEnums = require("state.layout_enums")
 local Table = require("helpers.table")
 local Palette = require("components.Palette")
 local LayoutEditor = {}

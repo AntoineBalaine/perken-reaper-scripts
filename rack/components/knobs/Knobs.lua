@@ -4,7 +4,7 @@
 
 local text_helpers = require("helpers.text")
 local ColorSet = require("helpers.ColorSet")
-local layoutEnums = require("state.fx_layout_types")
+local layoutEnums = require("state.layout_enums")
 local EditFrame = require("components.EditControl")
 ---@class Knob
 local Knob = {}

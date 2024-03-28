@@ -5,7 +5,7 @@ Each FX represented in the parent `state` gets its own instance of this class, i
 local IniParse = require("parsers.Iniparse.IniParse")
 local table_helpers = require("helpers.table")
 local defaults = require("helpers.defaults")
-local layout_enums = require("state.fx_layout_types")
+local layout_enums = require("state.layout_enums")
 local parameter = require("state.param")
 local color_helpers = require("helpers.color_helpers")
 local fx_box_helpers = require("helpers.fx_box_helpers")
@@ -248,7 +248,7 @@ function fx:createParams()
             -- We don’t store it in params_list, but we store it in the fx instance.
             self.DryWetParam = self:createParamDetails(param, false)
             self.DryWetParam.details.display_settings.flags = layout_enums.KnobFlags.NoTitle |
-            layout_enums.KnobFlags.NoValue
+                layout_enums.KnobFlags.NoValue
             goto continue
         elseif param_index == params_length - 3 and param.name == "Bypass" then
             -- don’t display bypass param, since we have it in the fx_box
