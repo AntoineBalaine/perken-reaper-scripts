@@ -51,8 +51,9 @@ layout_enums.buttons_layout = {
 ---@enum KnobFlags
 layout_enums.KnobFlags = {
     NoTitle = 1, --- Hide the top title.
-    NoInput = 2, --- Hide the bottom drag input.
+    NoInput = 2, --- Make the control un-controllable. Dunno why you'd do that, though…
     NoValue = 4,
+    NoEdit = 8,  --- Not Editable means: no re-positioning, not selectable when layoutEditor is editing the param
     None = 0,
 }
 

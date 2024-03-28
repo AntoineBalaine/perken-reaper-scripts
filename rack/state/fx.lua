@@ -248,7 +248,7 @@ function fx:createParams()
             -- We don’t store it in params_list, but we store it in the fx instance.
             self.DryWetParam = self:createParamDetails(param, false)
             self.DryWetParam.details.display_settings.flags = layout_enums.KnobFlags.NoTitle |
-                layout_enums.KnobFlags.NoValue
+                layout_enums.KnobFlags.NoValue | layout_enums.KnobFlags.NoEdit
             goto continue
         elseif param_index == params_length - 3 and param.name == "Bypass" then
             -- don’t display bypass param, since we have it in the fx_box

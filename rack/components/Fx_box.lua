@@ -429,11 +429,10 @@ end
 
 function fx_box:DryWetKnob()
     local param = self.fx.DryWetParam
-    if not param then
+    if not param or not param.details then
         return
     end
     local radius = 10
-    if not param.details then return end
     if not param.details.display_settings.component then
         param.details.display_settings.component =
             Knob.new(

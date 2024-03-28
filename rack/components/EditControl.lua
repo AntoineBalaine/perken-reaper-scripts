@@ -1,3 +1,4 @@
+local layoutEnums = require("state.layout_enums")
 local edit_frame_color = 0xFF0000FF
 
 ---Overlay a button on top of the knob's frame
@@ -28,9 +29,14 @@ function EditControl(
     fxbox_screen_pos_y,
     radius
 )
-    local new_radius = radius
-    local changed = false
+    local new_radius                  = radius
+    local changed                     = false
+
     local _child_width, _child_height = reaper.ImGui_GetWindowSize(ctx)
+    -- put knob at start of the current child window
+    reaper.ImGui_SetCursorPosX(ctx, 0)
+    reaper.ImGui_SetCursorPosY(ctx, 0)
+
     if param._selected then
         -- reaper.ImGui_DrawList_AddRectFilled(self._draw_list, draw_cursor_x, draw_cursor_y,
         --     draw_cursor_x + self._child_width,
@@ -55,9 +61,9 @@ function EditControl(
             0,
             0.0)
     end
-    -- put knob at start of the current child window
-    reaper.ImGui_SetCursorPosX(ctx, 0)
-    reaper.ImGui_SetCursorPosY(ctx, 0)
+
+
+
     local win_padding = reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_WindowPadding())
     reaper.ImGui_InvisibleButton(ctx, "##EditControl" .. param.details.guid, _child_width - win_padding,
         _child_height - win_padding - 10) -- make it shorter on the y-axis to leave room for the resize button

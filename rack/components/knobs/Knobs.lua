@@ -5,7 +5,7 @@
 local text_helpers = require("helpers.text")
 local ColorSet = require("helpers.ColorSet")
 local layoutEnums = require("state.layout_enums")
-local EditFrame = require("components.EditControl")
+local EditControl = require("components.EditControl")
 ---@class Knob
 local Knob = {}
 
@@ -635,6 +635,15 @@ end
 ---@return number new_value
 function Knob:draw(
 )
+    local no_title = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoTitle ==
+        layoutEnums.KnobFlags.NoTitle
+    local no_value = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoValue ==
+        layoutEnums.KnobFlags.NoValue
+    local no_edit  = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoEdit ==
+        layoutEnums.KnobFlags.NoEdit
     local dot_color ---@type ColorSet
     local track_color ---@type ColorSet
     local circle_color ---@type ColorSet
@@ -642,7 +651,7 @@ function Knob:draw(
 
     ---the ColorSet used by the knob when the fx’s layout is being edited and the current param isn't selected
     ---if the param is selected, the knob will use the regular colors
-    if self._param.details.parent_fx.editing and not self._param._selected then
+    if not no_edit and self._param.details.parent_fx.editing and not self._param._selected then
         dot_color = self._dot_color_editing
         track_color = self._track_color_editing
         text_color = self._text_color_editing
@@ -660,19 +669,13 @@ function Knob:draw(
 
     local fxbox_screen_pos_x, fxbox_screen_pos_y = reaper.ImGui_GetWindowPos(self._ctx)
 
-    local no_title                               = self._param.details.display_settings.flags &
-        layoutEnums.KnobFlags.NoTitle ==
-        layoutEnums.KnobFlags.NoTitle
-    local no_value                               = self._param.details.display_settings.flags &
-        layoutEnums.KnobFlags.NoValue ==
-        layoutEnums.KnobFlags.NoValue
     -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
     self._child_width                            = self._radius * 2 * ((no_title and no_value) and 1 or 1.5)
     self._child_height                           = self._radius * 2 + ((no_title or no_value) and 0 or 20) +
         reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * ((no_title and 0 or 1) + (no_value and 0 or 1))
 
     -- don’t update the knob’s value if the fx’s layout is being edited
-    if self._param.details.parent_fx.editing then
+    if not no_edit and self._param.details.parent_fx.editing then
         self._controllable = false
         if not self._param.details.display_settings.Pos_X and not self._param.details.display_settings.Pos_Y then
             self._param.details.display_settings.Pos_X = fxbox_pos_x
@@ -684,7 +687,7 @@ function Knob:draw(
     else
         self._controllable = true
     end
-    if self._param.details.display_settings.Pos_X and self._param.details.display_settings.Pos_Y then
+    if not no_edit and self._param.details.display_settings.Pos_X and self._param.details.display_settings.Pos_Y then
         reaper.ImGui_SetCursorPosX(self._ctx, self._param.details.display_settings.Pos_X)
         reaper.ImGui_SetCursorPosY(self._ctx, self._param.details.display_settings.Pos_Y)
     end
@@ -764,15 +767,15 @@ function Knob:draw(
                 ._child_width,
                 text_color)
         end
-        -- local drag_changed, new_drag_val = self:__with_drag()     -- FIXME
-        -- if drag_changed then
-        --     value_changed = drag_changed
-        --     new_val = new_drag_val
-        -- end
 
-
-        if self._param.details.parent_fx.editing then
-            local changed, new_radius = EditFrame(
+        if no_edit then
+            -- MYSTERY BUG
+            -- I can't figure out why I have to reposition the cursor when I'm not displaying the EditFrame.
+            -- Otherwise, I get an error.
+            reaper.ImGui_SetCursorPosX(self._ctx, 0)
+            reaper.ImGui_SetCursorPosY(self._ctx, 0)
+        elseif self._param.details.parent_fx.editing then
+            local changed, new_radius = EditControl(
                 self._ctx,
                 self._param,
                 fxbox_pos_x,
@@ -789,6 +792,7 @@ function Knob:draw(
                 self._radius = new_radius
             end
         end
+
         reaper.ImGui_EndChild(self._ctx)
     end
 
