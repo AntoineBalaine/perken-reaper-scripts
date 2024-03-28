@@ -407,7 +407,6 @@ function fx_box:Canvas()
                 end
             else
                 local changed, new_val = param.details.display_settings.component:draw(
-                    nil,
                     self.theme
                 )
 

@@ -111,18 +111,20 @@ function parameter.new(state, param_index, parent_fx, guid)
     if new_param.steps_count and new_param.steps_count <= 7 then
         control_type = layoutEnums.Param_Display_Type.CycleButton
         variant = Slider.Variant.horizontal
-        -- elseif new_param.istoggle then
-        --     control_type = layoutEnums.Param_Display_Type.ToggleButton -- don't have a toggle button yet.
     else
         control_type = layoutEnums.Param_Display_Type.Knob
         variant = Knob.KnobVariant.ableton
+    end
+    local flags = nil
+    if control_type == layoutEnums.Param_Display_Type.Knob then
+        flags = Knob.Flags.None
     end
     new_param.display_settings = {
         type = control_type,
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
         wiper_start = layoutEnums.KnobWiperStart.left,
         variant = variant,
-        flags = nil
+        flags = flags
         -- Pos_X = 0,
         -- Pos_Y = 0,
     }

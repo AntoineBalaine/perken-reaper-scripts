@@ -148,13 +148,44 @@ end
 
 function LayoutEditor:KnobFlags()
     local flags = Knob.Flags
-    for _, v in pairs(Knob.Flags) do
-        if v == flags.NoTitle then
-            reaper.ImGui_Checkbox(self.ctx, "display label", false)
-        elseif v == flags.NoValue then
-            reaper.ImGui_Checkbox(self.ctx, "display value", false)
-        elseif v == flags.NoInput then
-            reaper.ImGui_Checkbox(self.ctx, "controllable", false)
+    local current_flags = self.selectedParam.details.display_settings.flags
+    if current_flags == nil then
+        return
+    end
+    local rv_NoTitle, NoTitle = reaper.ImGui_Checkbox(self.ctx, "hide label",
+        current_flags & flags.NoTitle == flags.NoTitle)
+    local rv_NoValue, NoValue = reaper.ImGui_Checkbox(self.ctx, "hide value",
+        current_flags & flags.NoValue == flags.NoValue)
+    local rv_NoInput, NoInput = reaper.ImGui_Checkbox(self.ctx, "not controllable",
+        current_flags & flags.NoInput == flags.NoInput)
+
+    if rv_NoTitle then
+        if NoTitle then
+            self.selectedParam.details.display_settings.flags = self.selectedParam.details.display_settings.flags |
+                flags.NoTitle
+        else
+            self.selectedParam.details.display_settings.flags = self.selectedParam.details.display_settings.flags &
+                ~flags.NoTitle
+        end
+    end
+
+    if rv_NoValue then
+        if NoValue then
+            self.selectedParam.details.display_settings.flags = self.selectedParam.details.display_settings.flags |
+                flags.NoValue
+        else
+            self.selectedParam.details.display_settings.flags = self.selectedParam.details.display_settings.flags &
+                ~flags.NoValue
+        end
+    end
+
+    if rv_NoInput then
+        if NoInput then
+            self.selectedParam.details.display_settings.flags = self.selectedParam.details.display_settings.flags |
+                flags.NoInput
+        else
+            self.selectedParam.details.display_settings.flags = self.selectedParam.details.display_settings.flags &
+                ~flags.NoInput
         end
     end
 end
@@ -207,6 +238,7 @@ function LayoutEditor:ParamInfo()
     reaper.ImGui_EndTable(self.ctx)
     if self.selectedParam.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
         self:KnobVariant()
+        self:KnobFlags()
         -- elseif self.param.display_settings.type == layoutEnums.Param_Display_Type.CycleButton then
         --     reaper.ImGui_Text(self.ctx, "Button Display Settings")
         --     reaper.ImGui_Text(self.ctx, "Button Text")

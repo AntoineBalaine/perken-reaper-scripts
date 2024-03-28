@@ -612,7 +612,8 @@ Knob.KnobVariant = {
 Knob.Flags = {
     NoTitle = 1, --- Hide the top title.
     NoInput = 2, --- Hide the bottom drag input.
-    NoValue = 4
+    NoValue = 4,
+    None = 0,
 }
 
 
@@ -641,15 +642,10 @@ function Knob:__with_drag()
 end
 
 ---TODO accomodate the NoInput flag
----@param flags? integer|KnobFlags
 ---@return boolean value_changed
 ---@return number new_value
 function Knob:draw(
-    flags
 )
-    if flags == nil then
-        flags = 0
-    end
     local dot_color ---@type ColorSet
     local track_color ---@type ColorSet
     local circle_color ---@type ColorSet
@@ -675,8 +671,10 @@ function Knob:draw(
 
     local fxbox_screen_pos_x, fxbox_screen_pos_y = reaper.ImGui_GetWindowPos(self._ctx)
 
-    local no_title                               = flags & self.Flags.NoTitle == self.Flags.NoTitle
-    local no_value                               = flags & self.Flags.NoValue == self.Flags.NoValue
+    local no_title                               = self._param.details.display_settings.flags & Knob.Flags.NoTitle ==
+        Knob.Flags.NoTitle
+    local no_value                               = self._param.details.display_settings.flags & Knob.Flags.NoValue ==
+        Knob.Flags.NoValue
     -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
     self._child_width                            = self._radius * 2 * ((no_title and no_value) and 1 or 1.5)
     self._child_height                           = self._radius * 2 + ((no_title or no_value) and 0 or 20) +
