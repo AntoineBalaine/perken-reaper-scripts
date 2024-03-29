@@ -159,7 +159,7 @@ function ThemeReader.readTheme(theme_path, convert_colors, ctx)
 
     local fonts = {} ---@type FontTable
     for _, v in ipairs(fonts_tab) do
-        local _, val = reaper.BR_Win32_GetPrivateProfileString("REAPER", v, -1, theme_path)
+        local hasfont, val = reaper.BR_Win32_GetPrivateProfileString("REAPER", v, "", theme_path)
 
         if ctx then
             -- local fontsize = reaper.ImGui_GetFontSize(ctx)

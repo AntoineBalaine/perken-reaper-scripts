@@ -17,6 +17,7 @@ Let"s go with one instance per fx:
 local layoutEnums = require("state.layout_enums")
 local Table = require("helpers.table")
 local Palette = require("components.Palette")
+local MainWindowStyle = require("helpers.MainWindowStyle")
 local LayoutEditor = {}
 
 ---@param ctx ImGui_Context
@@ -469,23 +470,9 @@ function LayoutEditor:Main()
     local flags = reaper.ImGui_WindowFlags_TopMost() + reaper.ImGui_WindowFlags_NoScrollbar() +
         reaper.ImGui_WindowFlags_NoCollapse()
 
-    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameBorderSize(), 1.0)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_CheckMark(), self.theme.colors.genlist_selbg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), self.theme.colors.genlist_bg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ChildBg(), self.theme.colors.genlist_bg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self.theme.colors.genlist_fg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Tab(), self.theme.colors.genlist_seliabg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_PopupBg(), self.theme.colors.col_main_bg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBg(), self.theme.colors.genlist_seliabg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(), self.theme.colors.genlist_seliabg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_TabActive(), self.theme.colors.genlist_selbg.color)
-
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_TitleBg(), self.theme.colors.col_main_bg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_TitleBgActive(), self.theme.colors.genlist_bg.color)
-
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.MAIN)
 
 
+    local colors, style_vars, fonts = MainWindowStyle(self.ctx, self.theme)
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, flags) ---begin popup
     self.open = open
     if visible then
@@ -495,9 +482,11 @@ function LayoutEditor:Main()
 
         reaper.ImGui_End(self.ctx)
     end
-    reaper.ImGui_PopStyleColor(self.ctx, 11)
-    reaper.ImGui_PopStyleVar(self.ctx, 1)
-    reaper.ImGui_PopFont(self.ctx)
+    reaper.ImGui_PopStyleColor(self.ctx, colors)
+    reaper.ImGui_PopStyleVar(self.ctx, style_vars)
+    for i = 1, fonts do
+        reaper.ImGui_PopFont(self.ctx)
+    end
     if not visible or not open then
         self:close()
     end

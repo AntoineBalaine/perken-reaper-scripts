@@ -48,7 +48,7 @@ function Rack:BrowserButton()
     if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
         reaper.ImGui_SetTooltip(self.ctx, "add fx")
     end
-    self.Browser:Popup()
+    self.Browser:Popup(self.ctx, self.theme)
 end
 
 ---draw the fx list

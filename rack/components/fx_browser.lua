@@ -8,6 +8,7 @@ The fx rack only invokes it from the outside, it doesn’t call its draw functio
 ]]
 local os_separator = package.config:sub(1, 1)
 local fx_parser = require("parsers.fx_parser")
+local MainWindowStyle = require("helpers.MainWindowStyle")
 
 ---Coerce `Input` number to be between `Min` and `Max`
 ---@param Input number
@@ -343,11 +344,13 @@ function Browser:main()
     end
 end
 
-function Browser:Popup()
+function Browser:Popup(ctx, theme)
     if not self.open then return end
 
+    local colors, style_vars, fonts = MainWindowStyle(ctx, theme)
     reaper.ImGui_SetNextWindowSize(self.ctx, 400, 200)
     if reaper.ImGui_BeginPopup(self.ctx, self.name) then
+        -- zzz
         self.track = reaper.GetSelectedTrack(0, 0)
         if self.track then
             self:drawMenus()
@@ -357,8 +360,14 @@ function Browser:Popup()
         reaper.ImGui_EndPopup(self.ctx)
 
         if self.open then
-            reaper.defer(function() self:Popup() end)
+            reaper.defer(function() self:Popup(ctx, theme) end)
         end
+    end
+
+    reaper.ImGui_PopStyleColor(self.ctx, colors)
+    reaper.ImGui_PopStyleVar(self.ctx, style_vars)
+    for i = 1, fonts do
+        reaper.ImGui_PopFont(self.ctx)
     end
 end
 
