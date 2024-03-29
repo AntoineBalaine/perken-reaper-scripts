@@ -644,6 +644,12 @@ function Knob:draw(
     local no_edit  = self._param.details.display_settings.flags &
         layoutEnums.KnobFlags.NoEdit ==
         layoutEnums.KnobFlags.NoEdit
+    local no_input = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoInput ==
+        layoutEnums.KnobFlags.NoInput
+    if no_input ~= self._controllable then
+        self._controllable = no_input
+    end
     local dot_color ---@type ColorSet
     local track_color ---@type ColorSet
     local circle_color ---@type ColorSet
