@@ -51,6 +51,7 @@ local state = {}
 ---@field number integer --- 0-indexed track index (0 is for master track)
 ---@field track MediaTrack
 ---@field bypass boolean --- is the fx chain bypassed
+---@field fx_chain_enabled boolean
 
 --- get the selected track,
 -- the last touched fx,
@@ -62,15 +63,18 @@ function state:update()
         self.Track = nil
         return self
     end -- if there's no selected track, move on
+
+    local fx_chain_enabled = reaper.GetMediaTrackInfo_Value(track, "I_FXEN") ~= 0.0
+
     ---TODO do we really need to re-query the details at every frame ?
     ---how likely to change are things such as `trackGuid`
-    local trackGuid    = reaper.GetTrackGUID(track) -- get the track's GUID
-    local _, trackName = reaper.GetTrackName(track)
+    local trackGuid        = reaper.GetTrackGUID(track) -- get the track's GUID
+    local _, trackName     = reaper.GetTrackName(track)
 
-    local trackFxCount = reaper.TrackFX_GetCount(track)
-    local trackNumber  = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+    local trackFxCount     = reaper.TrackFX_GetCount(track)
+    local trackNumber      = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
 
-    local bypass       = reaper.GetMediaTrackInfo_Value(track, "I_FXEN") == 1
+    local bypass           = reaper.GetMediaTrackInfo_Value(track, "I_FXEN") == 1
 
     if not self.Track and track then
         self.Track = {
@@ -82,6 +86,7 @@ function state:update()
             bypass = bypass,
             fx_list = {},
             fx_by_guid = {},
+            fx_chain_enabled = fx_chain_enabled
         }
     elseif self.Track and track then
         self.Track.track = track
@@ -98,6 +103,7 @@ function state:update()
         end
         self.Track.guid = trackGuid
         self.Track.fx_count = trackFxCount
+        self.Track.fx_chain_enabled = fx_chain_enabled
     else
         self.Track = nil
     end

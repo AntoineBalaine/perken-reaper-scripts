@@ -65,7 +65,9 @@ end
 
 function fx_box:labelButtonStyleStart()
     local bg_col ---@type number
-    if self.fx.enabled then
+    if not self.state.Track.fx_chain_enabled then
+        bg_col = self.fx.displaySettings.labelButtonStyle.background_offline
+    elseif self.fx.enabled then
         bg_col = self.fx.displaySettings.labelButtonStyle.background
     else
         bg_col = self.fx.displaySettings.labelButtonStyle.background_disabled
@@ -75,7 +77,9 @@ function fx_box:labelButtonStyleStart()
         bg_col) -- fx’s bg color
     local button_text_color ---@type number
 
-    if self.fx.enabled then -- set a dark-colored text if the fx is bypassed
+    if not self.state.Track.fx_chain_enabled then
+        button_text_color = self.displaySettings.labelButtonStyle.text_offline
+    elseif self.fx.enabled then -- set a dark-colored text if the fx is bypassed
         button_text_color = self.displaySettings.labelButtonStyle.text_enabled
     else
         button_text_color = self.displaySettings.labelButtonStyle.text_disabled
