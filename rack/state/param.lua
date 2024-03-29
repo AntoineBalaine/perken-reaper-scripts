@@ -9,7 +9,7 @@ local Slider = require("components.Slider")
 ---@field Pos_Y integer|nil
 ---@field wiper_start KnobTrackStart
 ---@field variant KnobVariant|SliderVariant
----@field flags KnobFlags|SliderFlags|nil
+---@field flags KnobFlags|nil
 
 ---@class Parameter
 ---@field defaultval number
@@ -115,10 +115,7 @@ function parameter.new(state, param_index, parent_fx, guid)
         control_type = layoutEnums.Param_Display_Type.Knob
         variant = Knob.KnobVariant.ableton
     end
-    local flags = nil
-    if control_type == layoutEnums.Param_Display_Type.Knob then
-        flags = layoutEnums.KnobFlags.None
-    end
+    local flags = layoutEnums.KnobFlags.None
     new_param.display_settings = {
         type = control_type,
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()

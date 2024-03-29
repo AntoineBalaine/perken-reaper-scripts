@@ -1,4 +1,5 @@
 local text_helpers = require("helpers.text")
+local layoutEnums = require("state.layout_enums")
 local EditControl = require("components.EditControl")
 
 ---@class CycleButton
@@ -27,6 +28,16 @@ end
 ---@param theme Theme
 ---@return boolean changed, number new_value
 function CycleButton:draw(theme)
+    local no_title                               = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoTitle ==
+        layoutEnums.KnobFlags.NoTitle
+    local no_input                               = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoInput ==
+        layoutEnums.KnobFlags.NoInput
+    -- no_value is un-used by CycleButton
+    -- local no_value = self._param.details.display_settings.flags &
+    --     layoutEnums.KnobFlags.NoValue ==
+    --     layoutEnums.KnobFlags.NoValue
     local fxbox_pos_x, fxbox_pos_y               = reaper.ImGui_GetCursorPos(self._ctx)
     local fxbox_max_x, fx_box_max_y              = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
     local fx_box_min_x, fx_box_min_y             = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
@@ -37,15 +48,21 @@ function CycleButton:draw(theme)
             self._param.details.display_settings.Pos_Y)
     end
 
-    self._child_width  = self._radius * 2 * 1.5
-    self._child_height = reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
+    -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
+    self._child_width  = self._radius * 2 * 2
+    self._child_height = self._radius * 1.5 + (no_title and 0 or 20) +
+        reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * (no_title and 0 or 1)
+    -- self._child_height = reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
     local changed      = false
     local new_val      = self._param.details.value
     if reaper.ImGui_BeginChild(self._ctx, "##CycleButton" .. self._param.guid, self._child_width, self._child_height, false) then
         if self._param.details.parent_fx.editing then
             reaper.ImGui_BeginDisabled(self._ctx, true)
         end
-        text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
+
+        if not no_title then
+            text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
+        end
 
         -- if this logic comes reproduced again, let’s make into a component.
         if self._param.details.istoggle then
@@ -62,11 +79,25 @@ function CycleButton:draw(theme)
 
         -- reaper.ImGui_Col_ButtonHovered()
         -- reaper.ImGui_Col_ButtonActive()
-        if reaper.ImGui_Button(self._ctx,
+        if self._param.details.parent_fx.editing and no_title then
+            local win_pos_x, win_pos_y = reaper.ImGui_GetWindowPos(self._ctx)
+            local pos_x, pos_y = reaper.ImGui_GetCursorPos(self._ctx)
+            local button_color = reaper.ImGui_GetColor(self._ctx, reaper.ImGui_Col_FrameBg())
+            reaper.ImGui_DrawList_AddRectFilled(reaper.ImGui_GetWindowDrawList(self._ctx),
+                win_pos_x + pos_x,
+                win_pos_y + pos_y,
+                win_pos_x + pos_x + self._child_width,
+                win_pos_y + pos_y + reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 2 +
+                reaper.ImGui_GetStyleVar(self._ctx, reaper.ImGui_StyleVar_FramePadding()),
+                button_color)
+            reaper.ImGui_SetCursorPosX(self._ctx, pos_x)
+            reaper.ImGui_SetCursorPosY(self._ctx, pos_y)
+            text_helpers.centerText(self._ctx, self._param.details.fmt_val, self._child_width, 2)
+        elseif reaper.ImGui_Button(self._ctx,
                 self._param.details.fmt_val,
                 self._child_width - reaper.ImGui_GetStyleVar(self._ctx,
                     reaper.ImGui_StyleVar_WindowPadding()))
-            and not self._param.details.parent_fx.editing then
+            and not self._param.details.parent_fx.editing and not no_input then
             if self._on_activate then
                 self._on_activate()
             end

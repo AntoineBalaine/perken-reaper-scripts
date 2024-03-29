@@ -145,7 +145,7 @@ function LayoutEditor:AddParams()
     end
 end
 
-function LayoutEditor:KnobFlags()
+function LayoutEditor:FlagsEdit()
     local flags = layoutEnums.KnobFlags
     local current_flags = self.selectedParam.details.display_settings.flags
     if current_flags == nil then
@@ -237,13 +237,8 @@ function LayoutEditor:ParamInfo()
     reaper.ImGui_EndTable(self.ctx)
     if self.selectedParam.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
         self:KnobVariant()
-        self:KnobFlags()
-        -- elseif self.param.display_settings.type == layoutEnums.Param_Display_Type.CycleButton then
-        --     reaper.ImGui_Text(self.ctx, "Button Display Settings")
-        --     reaper.ImGui_Text(self.ctx, "Button Text")
-        --     reaper.ImGui_SameLine(self.ctx)
-        --     reaper.ImGui_InputText(self.ctx, "##button_text", self.param.details.button_text)
     end
+    self:FlagsEdit()
 
     ---TODO implement param display/selection logic
     reaper.ImGui_Text(self.ctx, self.selectedParam.name)

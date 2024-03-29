@@ -65,8 +65,8 @@ function EditControl(
 
 
     local win_padding = reaper.ImGui_GetStyleVar(ctx, reaper.ImGui_StyleVar_WindowPadding())
-    reaper.ImGui_InvisibleButton(ctx, "##EditControl" .. param.details.guid, _child_width - win_padding,
-        _child_height - win_padding - 10) -- make it shorter on the y-axis to leave room for the resize button
+    reaper.ImGui_InvisibleButton(ctx, "##EditControl" .. param.details.guid, _child_width - win_padding - 4,
+        _child_height - win_padding - 4) -- make it shorter on the y-axis to leave room for the resize button
 
     if reaper.ImGui_IsItemActive(ctx) then
         if param.details.parent_fx.setSelectedParam then
