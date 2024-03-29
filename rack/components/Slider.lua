@@ -1,4 +1,5 @@
 local text_helpers = require("helpers.text")
+local layoutEnums = require("state.layout_enums")
 local EditControl = require("components.EditControl")
 
 
@@ -34,6 +35,16 @@ end
 
 ---@return boolean changed, number new_value
 function Slider:draw()
+    local no_title                               = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoTitle ==
+        layoutEnums.KnobFlags.NoTitle
+    local no_input                               = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoInput ==
+        layoutEnums.KnobFlags.NoInput
+    local no_value                               = self._param.details.display_settings.flags &
+        layoutEnums.KnobFlags.NoValue ==
+        layoutEnums.KnobFlags.NoValue
+
     local fxbox_pos_x, fxbox_pos_y               = reaper.ImGui_GetCursorPos(self._ctx)
     local fxbox_max_x, fx_box_max_y              = reaper.ImGui_GetWindowContentRegionMax(self._ctx)
     local fx_box_min_x, fx_box_min_y             = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
@@ -65,7 +76,9 @@ function Slider:draw()
         if self._param.details.parent_fx.editing then
             reaper.ImGui_BeginDisabled(self._ctx, true)
         end
-        text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
+        if not no_title then
+            text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
+        end
         reaper.ImGui_PushItemWidth(self._ctx, self._child_width - window_padding)
         --- If there's only 10 steps, use a stepped slider
         if self._param.details.steps_count then
@@ -94,9 +107,11 @@ function Slider:draw()
                     ""
                 )
 
-                text_helpers.centerText(self._ctx,
-                    self._param.details.fmt_val,
-                    self._child_width, 2)
+                if not no_value then
+                    text_helpers.centerText(self._ctx,
+                        self._param.details.fmt_val,
+                        self._child_width, 2)
+                end
                 reaper.ImGui_Unindent(self._ctx, indent_width)
             end
             if changed then
@@ -121,9 +136,11 @@ function Slider:draw()
                     self._param.details.minval,
                     self._param.details.maxval,
                     "")
-                text_helpers.centerText(self._ctx,
-                    self._param.details.fmt_val,
-                    self._child_width, 2)
+                if not no_value then
+                    text_helpers.centerText(self._ctx,
+                        self._param.details.fmt_val,
+                        self._child_width, 2)
+                end
                 reaper.ImGui_Unindent(self._ctx, indent_width)
             end
         end
@@ -160,7 +177,11 @@ function Slider:draw()
         end
         reaper.ImGui_EndChild(self._ctx)
     end
-    return not self._param.details.parent_fx.editing and changed, new_val
+    if not self._param.details.parent_fx.editing and not no_input then
+        return false, self._param.details.value
+    else
+        return changed, new_val
+    end
 end
 
 --[[Adding here the draft of slider, based on Ableton's version (with triangle)]]
