@@ -443,6 +443,8 @@ end
 
 function LayoutEditor:Tabs()
     local win_width, win_height = reaper.ImGui_GetWindowSize(self.ctx)
+    -- zzz
+
     if reaper.ImGui_BeginChild(self.ctx, "##tabs", win_width - 20, win_height - 60, false, reaper.ImGui_WindowFlags_NoScrollbar()) then
         if reaper.ImGui_BeginTabBar(self.ctx, "##Tabs", reaper.ImGui_TabBarFlags_None()) then
             if self:Tab(self.ctx, "FX layout") then
@@ -468,15 +470,20 @@ function LayoutEditor:Main()
         reaper.ImGui_WindowFlags_NoCollapse()
 
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameBorderSize(), 1.0)
-
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_CheckMark(), self.theme.colors.genlist_selbg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), self.theme.colors.col_main_bg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBg(), self.theme.colors.genlist_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), self.theme.colors.genlist_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ChildBg(), self.theme.colors.genlist_bg.color)
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self.theme.colors.genlist_fg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Tab(), self.theme.colors.genlist_bg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_PopupBg(), self.theme.colors.genlist_bg.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(), self.theme.colors.genlist_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Tab(), self.theme.colors.genlist_seliabg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_PopupBg(), self.theme.colors.col_main_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBg(), self.theme.colors.genlist_seliabg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(), self.theme.colors.genlist_seliabg.color)
     reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_TabActive(), self.theme.colors.genlist_selbg.color)
+
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_TitleBg(), self.theme.colors.col_main_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_TitleBgActive(), self.theme.colors.genlist_bg.color)
+
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.MAIN)
 
 
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, flags) ---begin popup
@@ -488,8 +495,9 @@ function LayoutEditor:Main()
 
         reaper.ImGui_End(self.ctx)
     end
-    reaper.ImGui_PopStyleColor(self.ctx, 8)
+    reaper.ImGui_PopStyleColor(self.ctx, 11)
     reaper.ImGui_PopStyleVar(self.ctx, 1)
+    reaper.ImGui_PopFont(self.ctx)
     if not visible or not open then
         self:close()
     end

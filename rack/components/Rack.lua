@@ -86,6 +86,7 @@ function Rack:main()
 
     self:RackStyleStart()
 
+    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.MAIN)
     local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
 
     if not self.Browser.open and reaper.ImGui_IsWindowFocused(self.ctx) then
@@ -102,6 +103,7 @@ function Rack:main()
         end
         reaper.ImGui_End(self.ctx)
     end
+    reaper.ImGui_PopFont(self.ctx)
 
     self:RackStyleEnd()
     if not imgui_open or reaper.ImGui_IsKeyPressed(self.ctx, 27) then
@@ -121,6 +123,7 @@ function Rack:init(project_directory)
     ---@class Theme
     self.theme                          = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
     self.theme.FONT_SIZE                = 15
+    self.theme.FONT_SMALL_SIZE          = 12
     self.theme.FONT_LARGE               = 16
     self.theme.ICON_FONT_SMALL_SIZE     = 13
     self.theme.ICON_FONT_LARGE_SIZE     = 40
@@ -129,6 +132,9 @@ function Rack:init(project_directory)
     local font_path                     = project_directory .. "assets" .. os_sep .. "fontello1.ttf"
     self.theme.fonts["ICON_FONT_SMALL"] = reaper.ImGui_CreateFont(font_path, self.theme.ICON_FONT_SMALL_SIZE)
 
+    local fontindex, fontface           = gfx.getfont()
+    self.theme.fonts["MAIN"]            = reaper.ImGui_CreateFont(fontface, self.theme.FONT_SMALL_SIZE)
+
     self.theme.letters                  = {}
     for i = 33, 254 do self.theme.letters[#self.theme.letters + 1] = utf8.char(i) end
     self.theme.letters = self.theme.letters
@@ -136,8 +142,10 @@ function Rack:init(project_directory)
     local ctx_flags    = reaper.ImGui_ConfigFlags_DockingEnable()
     self.ctx           = reaper.ImGui_CreateContext("rack", ctx_flags)
 
+
     --- attach the fonts now that the context has been created
     reaper.ImGui_Attach(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+    reaper.ImGui_Attach(self.ctx, self.theme.fonts.MAIN)
 
     reaper.ImGui_SetNextWindowSize(self.ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
     local window_flags =
