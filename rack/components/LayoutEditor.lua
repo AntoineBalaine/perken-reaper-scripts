@@ -76,7 +76,6 @@ function LayoutEditor:SaveCancelButton()
         self.fx.displaySettings = self.displaySettings_backup
         self:close()
     end
-
     reaper.ImGui_EndGroup(self.ctx)
 end
 
@@ -347,7 +346,7 @@ function LayoutEditor:FxDisplaySettings()
     displaySettings.title_Clr = Palette(self.ctx, self.theme, displaySettings.title_Clr, "title")
 
 
-    reaper.ImGui_Text(self.ctx, "Buttons Bar Layout")
+    reaper.ImGui_SeparatorText(self.ctx, "Buttons Bar Layout")
     -- vertical or horizontal buttons bar
     _, self.fx.displaySettings.buttons_layout = reaper.ImGui_RadioButtonEx(
         self.ctx,
@@ -360,7 +359,7 @@ function LayoutEditor:FxDisplaySettings()
         self.fx.displaySettings.buttons_layout,
         layoutEnums.buttons_layout.vertical)
 
-    reaper.ImGui_Text(self.ctx, "Display Title as: ")
+    reaper.ImGui_SeparatorText(self.ctx, "Display Title as: ")
     --fx name
     --preset name
     --custom name
@@ -432,14 +431,27 @@ function LayoutEditor:Main()
     end
     local flags = reaper.ImGui_WindowFlags_TopMost() + reaper.ImGui_WindowFlags_NoScrollbar() +
         reaper.ImGui_WindowFlags_NoCollapse()
+
+    reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameBorderSize(), 1.0)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), self.theme.colors.col_main_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBg(), self.theme.colors.genlist_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self.theme.colors.genlist_fg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Tab(), self.theme.colors.genlist_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_PopupBg(), self.theme.colors.genlist_bg.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(), self.theme.colors.genlist_bg.color)
+
+
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, flags) ---begin popup
     self.open = open
     if visible then
         self:Tabs()
 
         self:SaveCancelButton()
+
         reaper.ImGui_End(self.ctx)
     end
+    reaper.ImGui_PopStyleColor(self.ctx, 6)
+    reaper.ImGui_PopStyleVar(self.ctx, 1)
     if not visible or not open then
         self:close()
     end
@@ -496,8 +508,8 @@ function LayoutEditor:edit(fx)
         self.selectedParam = self.fx.params_list[1]
     end
     self.selectedParam._selected = true
-    self.width = 650
-    self.height = 300
+    self.width = 825
+    self.height = 400
     reaper.ImGui_SetNextWindowSize(self.ctx, self.width, self.height)
     self:Main()
 end
