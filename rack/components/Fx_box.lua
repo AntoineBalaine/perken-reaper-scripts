@@ -16,7 +16,6 @@ local CycleButton     = require("components.CycleButton")
 local Slider          = require("components.Slider")
 local layoutEnums     = require("state.layout_enums")
 local ColorSet        = require("helpers.ColorSet")
-local color_helpers   = require("helpers.color_helpers")
 local defaults        = require("helpers.defaults")
 local fx_box          = {}
 local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
@@ -373,21 +372,9 @@ function fx_box:Canvas()
                         radius,
                         true,
                         on_activate,
-                        ColorSet.new( -- dot color
-                            color_helpers.adjustBrightness(dot_col, -30),
-                            dot_col,
-                            color_helpers.adjustBrightness(dot_col, 50)
-                        ),
-                        ColorSet.new( -- track color
-                            color_helpers.adjustBrightness(track_col, -30),
-                            track_col,
-                            color_helpers.adjustBrightness(track_col, 50)
-                        ),
-                        ColorSet.new( -- circle color
-                            color_helpers.adjustBrightness(wiper_col, -30),
-                            wiper_col,
-                            color_helpers.adjustBrightness(wiper_col, 50)
-                        ),
+                        ColorSet.new(dot_col),
+                        ColorSet.new(track_col),
+                        ColorSet.new(wiper_col),
                         defaults.param_text_color -- text color
                     )
                 elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.CycleButton then
@@ -455,21 +442,9 @@ function fx_box:DryWetKnob()
                 radius,
                 true,
                 nil,
-                ColorSet.new( -- dot color
-                    dot_col.color,
-                    color_helpers.adjustBrightness(dot_col.color, -30),
-                    color_helpers.adjustBrightness(dot_col.color, 50)
-                ),
-                ColorSet.new( -- track color
-                    track_col.color,
-                    color_helpers.adjustBrightness(track_col.color, 50),
-                    color_helpers.adjustBrightness(track_col.color, 50)
-                ),
-                ColorSet.new( -- wiper color
-                    wiper_col.color,
-                    color_helpers.adjustBrightness(wiper_col.color, 50),
-                    color_helpers.adjustBrightness(wiper_col.color, 50)
-                ),
+                ColorSet.new(dot_col.color),
+                ColorSet.new(track_col.color),
+                ColorSet.new(wiper_col.color),
                 reaper.ImGui_GetColor(self.ctx, reaper.ImGui_Col_Text()) -- text color
             )
     else

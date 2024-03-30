@@ -1,3 +1,4 @@
+local color_helpers = require("helpers.color_helpers")
 ---@class ColorSet
 ---@field base integer
 ---@field hovered integer
@@ -6,21 +7,20 @@
 local ColorSet = {}
 
 ---@param base integer
----@param hovered integer
----@param active integer
 ---@return ColorSet
-function ColorSet.new(base, hovered, active)
+function ColorSet.new(base)
     local self = setmetatable({}, { __index = ColorSet })
+
+    self.hovered = color_helpers.adjustBrightness(base, -30)
     self.base = base
-    self.hovered = hovered
-    self.active = active
+    self.active = color_helpers.adjustBrightness(base, 50)
     return self
 end
 
----@param color integer
----@return ColorSet
-function ColorSet.from(color)
-    return ColorSet.new(color, color, color)
+function ColorSet:update(new_base)
+    self.hovered = color_helpers.adjustBrightness(new_base, -30)
+    self.base = new_base
+    self.active = color_helpers.adjustBrightness(new_base, 50)
 end
 
 ---@return ColorSet

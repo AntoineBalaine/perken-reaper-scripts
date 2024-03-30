@@ -9,6 +9,7 @@ local Theme = Theme
 ---@field wiper_start KnobTrackStart
 ---@field variant KnobVariant|SliderVariant
 ---@field flags KnobFlags|nil
+---@field colors { text : integer, wiper : ColorSet, dot : ColorSet, track : ColorSet }
 
 ---@class Parameter
 ---@field defaultval number

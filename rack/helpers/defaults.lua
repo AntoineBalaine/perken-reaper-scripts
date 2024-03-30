@@ -6,6 +6,7 @@ local layout_enums        = require("state.layout_enums")
 local color_helpers       = require("helpers.color_helpers")
 local Knob                = require("components.knobs.Knobs")
 local Slider              = require("components.Slider")
+local ColorSet            = require("helpers.ColorSet")
 local Theme               = Theme
 local defaults            = {}
 defaults.window_height    = 240
@@ -69,8 +70,6 @@ end
 ---@param steps_count? integer
 ---@returns ParamDisplaySettings
 function defaults.getDefaultParamDisplaySettings(steps_count)
-    defaults.getDefaultKnobColors()
-
     local control_type
     local variant
     if steps_count and steps_count <= 7 then
@@ -81,6 +80,7 @@ function defaults.getDefaultParamDisplaySettings(steps_count)
         variant = Knob.KnobVariant.ableton
     end
     local flags = layout_enums.KnobFlags.None
+    local dot_col, track_col, wiper_col = defaults.getDefaultKnobColors()
     ---@type ParamDisplaySettings
     local display_settings = {
         type = control_type,
@@ -88,13 +88,12 @@ function defaults.getDefaultParamDisplaySettings(steps_count)
         wiper_start = layout_enums.KnobWiperStart.left,
         variant = variant,
         flags = flags,
-        -- text_color = defaults.param_text_color,
-        -- colors = {
-        --     text = 0xFFFFFFFF,
-        --     wiper = 0x000000FF,
-        --     dot = 0x000000FF,
-        --     track = 0x000000FF,
-        -- }
+        colors = {
+            text = 0xFFFFFFFF,
+            wiper = ColorSet.new(wiper_col),
+            dot = ColorSet.new(dot_col),
+            track = ColorSet.new(track_col),
+        }
         -- Pos_X = 0,
         -- Pos_Y = 0,
     }
