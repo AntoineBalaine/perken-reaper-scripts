@@ -17,6 +17,7 @@ local Slider          = require("components.Slider")
 local layoutEnums     = require("state.layout_enums")
 local ColorSet        = require("helpers.ColorSet")
 local color_helpers   = require("helpers.color_helpers")
+local defaults        = require("helpers.defaults")
 local fx_box          = {}
 local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
@@ -363,12 +364,7 @@ function fx_box:Canvas()
                 if param.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
                     -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
                     -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
-                    local dot_col = self.theme.colors.areasel_fill
-                    local track_col = self.theme.colors.col_buttonbg
-                    local wiper_col = self.theme.colors.areasel_outline
-                    -- local track_col = self.theme.colors.col_buttonbg
-                    -- local dot_col = self.theme.colors.col_vuind3
-                    -- local wiper_col = self.theme.colors.col_vuind4
+                    local dot_col, track_col, wiper_col = defaults.getDefaultKnobColors(self.theme)
                     param.details.display_settings.component = Knob.new(
                         self.ctx,
                         "knob" .. idx,
@@ -377,21 +373,21 @@ function fx_box:Canvas()
                         true,
                         on_activate,
                         ColorSet.new( -- dot color
-                            color_helpers.adjustBrightness(dot_col.color, -30),
-                            dot_col.color,
-                            color_helpers.adjustBrightness(dot_col.color, 50)
+                            color_helpers.adjustBrightness(dot_col, -30),
+                            dot_col,
+                            color_helpers.adjustBrightness(dot_col, 50)
                         ),
                         ColorSet.new( -- track color
-                            color_helpers.adjustBrightness(track_col.color, -30),
-                            track_col.color,
-                            color_helpers.adjustBrightness(track_col.color, 50)
+                            color_helpers.adjustBrightness(track_col, -30),
+                            track_col,
+                            color_helpers.adjustBrightness(track_col, 50)
                         ),
                         ColorSet.new( -- circle color
-                            color_helpers.adjustBrightness(wiper_col.color, -30),
-                            wiper_col.color,
-                            color_helpers.adjustBrightness(wiper_col.color, 50)
+                            color_helpers.adjustBrightness(wiper_col, -30),
+                            wiper_col,
+                            color_helpers.adjustBrightness(wiper_col, 50)
                         ),
-                        0xFFFFFFFF -- text color
+                        defaults.param_text_color -- text color
                     )
                 elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.CycleButton then
                     param.details.display_settings.component = CycleButton.new(

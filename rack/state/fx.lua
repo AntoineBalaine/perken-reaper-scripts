@@ -97,36 +97,7 @@ function fx.new(state, theme, index, number, guid)
     ---@field window_height integer = 240
     ---@field window_width integer = 280
 
-    ---@type FxDisplaySettings
-    self.displaySettings = {
-        _is_collapsed       = false,
-        background          = theme.colors.selcol_tr2_bg.color,
-        background_disabled = theme.colors.group_15.color,
-        background_offline  = theme.colors.col_mi_fades.color,
-        borderColor         = theme.colors.col_gridlines2.color,
-        buttons_layout      = layout_enums.buttons_layout.horizontal, -- TODO set as «vertical» by default
-        labelButtonStyle    = {
-            -- background = theme.colors.col_fadearm2.color,
-            background = theme.colors.col_main_bg.color,
-            background_disabled = theme.colors.group_15.color,
-            background_offline = color_helpers.desaturate(theme.colors.col_mi_fades.color),
-            -- text_enabled = theme.colors.col_toolbar_text_on.color,
-            text_enabled = theme.colors.mcp_fx_normal.color,
-            text_disabled = theme.colors.mcp_fx_bypassed.color,
-            text_offline = theme.colors.mcp_fx_offlined.color,
-        },
-        custom_Title        = nil,
-        edge_Rounding       = 0,
-        grb_Rounding        = 0,
-        param_Instance      = nil,
-        title_Clr           = 0x000000FF,
-        title_Width         = 220 - 80,
-        window_width        = defaults.window_width,
-        window_height       = defaults.window_height, -- TODO make this into a constant, accessible everywhere
-        _grid_size          = 10,
-        _grid_color         = 0x444444AA,
-        title_display       = layout_enums.Title_Display_Style.fx_name,
-    }
+    self.displaySettings = defaults.getDefaultFxDisplaySettings(theme)
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 
     -- self.param_list
