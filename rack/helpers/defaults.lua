@@ -68,7 +68,7 @@ end
 ---create a parameter's default display settings,
 ---such as basic colors for knobs and other controls.
 ---@param steps_count? integer
----@returns ParamDisplaySettings
+---@return ParamDisplaySettings
 function defaults.getDefaultParamDisplaySettings(steps_count)
     local control_type
     local variant
@@ -89,10 +89,10 @@ function defaults.getDefaultParamDisplaySettings(steps_count)
         variant = variant,
         flags = flags,
         colors = {
-            text = 0xFFFFFFFF,
-            wiper = ColorSet.new(wiper_col),
-            dot = ColorSet.new(dot_col),
-            track = ColorSet.new(track_col),
+            text_color = 0xFFFFFFFF,
+            wiper_color = ColorSet.new(wiper_col),
+            dot_color = ColorSet.new(dot_col),
+            circle_color = ColorSet.new(track_col),
         }
         -- Pos_X = 0,
         -- Pos_Y = 0,

@@ -1,9 +1,11 @@
 local color_helpers = require("helpers.color_helpers")
+
 ---@class ColorSet
 ---@field base integer
 ---@field hovered integer
 ---@field active integer
 
+---@class ColorSet
 local ColorSet = {}
 
 ---@param base integer
@@ -17,6 +19,7 @@ function ColorSet.new(base)
     return self
 end
 
+---@param new_base integer
 function ColorSet:update(new_base)
     self.hovered = color_helpers.adjustBrightness(new_base, -30)
     self.base = new_base
@@ -25,11 +28,7 @@ end
 
 ---@return ColorSet
 function ColorSet.deAlpha(colorset)
-    return {
-        base = colorset.base & 0x55,
-        hovered = colorset.hovered & 0x55,
-        active = colorset.active & 0x55,
-    }
+    return ColorSet.new(colorset.base & 0x55)
 end
 
 return ColorSet

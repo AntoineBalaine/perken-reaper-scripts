@@ -15,8 +15,6 @@ local Knob            = require("components.knobs.Knobs")
 local CycleButton     = require("components.CycleButton")
 local Slider          = require("components.Slider")
 local layoutEnums     = require("state.layout_enums")
-local ColorSet        = require("helpers.ColorSet")
-local defaults        = require("helpers.defaults")
 local fx_box          = {}
 local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 local Theme           = Theme --- localize the global
@@ -364,18 +362,13 @@ function fx_box:Canvas()
                 if param.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
                     -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
                     -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
-                    local dot_col, track_col, wiper_col = defaults.getDefaultKnobColors()
                     param.details.display_settings.component = Knob.new(
                         self.ctx,
                         "knob" .. idx,
                         param,
                         radius,
                         true,
-                        on_activate,
-                        ColorSet.new(dot_col),
-                        ColorSet.new(track_col),
-                        ColorSet.new(wiper_col),
-                        defaults.param_text_color -- text color
+                        on_activate
                     )
                 elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.CycleButton then
                     param.details.display_settings.component = CycleButton.new(
@@ -431,9 +424,6 @@ function fx_box:DryWetKnob()
     end
     local radius = 10
     if not param.details.display_settings.component then
-        local dot_col = Theme.colors.areasel_fill
-        local track_col = Theme.colors.col_buttonbg
-        local wiper_col = Theme.colors.areasel_fill
         param.details.display_settings.component =
             Knob.new(
                 self.ctx,
@@ -441,11 +431,7 @@ function fx_box:DryWetKnob()
                 param,
                 radius,
                 true,
-                nil,
-                ColorSet.new(dot_col.color),
-                ColorSet.new(track_col.color),
-                ColorSet.new(wiper_col.color),
-                reaper.ImGui_GetColor(self.ctx, reaper.ImGui_Col_Text()) -- text color
+                nil
             )
     else
         -- TODO when pushing the knob beyon its max value, don’t update the display

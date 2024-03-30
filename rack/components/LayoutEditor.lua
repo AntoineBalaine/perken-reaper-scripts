@@ -18,7 +18,6 @@ local layoutEnums     = require("state.layout_enums")
 local Table           = require("helpers.table")
 local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
-local color_helpers   = require("helpers.color_helpers")
 local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
@@ -190,47 +189,34 @@ function LayoutEditor:FlagsEdit()
 end
 
 function LayoutEditor:KnobColors()
-    local component = self.selectedParam.details.display_settings.component
+    local component = self.selectedParam.details.display_settings.colors
+    -- local component = self.selectedParam.details.display_settings.component
     if not component then return end
     reaper.ImGui_Text(self.ctx, "Dot color: ")
     reaper.ImGui_SameLine(self.ctx)
-    local dot_changed, new_dot_base = Palette(self.ctx, component.dot_color.base, "knob dot")
+    local dot_changed, new_dot_base = Palette(self.ctx, component.dot_color.base, "knob dot##knob_dot")
     if dot_changed then
-        self.selectedParam.details.display_settings.component.dot_color.hovered =
-            color_helpers.adjustBrightness(new_dot_base, -30)
-        self.selectedParam.details.display_settings.component.dot_color.base =
-            new_dot_base
-        self.selectedParam.details.display_settings.component.dot_color.active =
-            color_helpers.adjustBrightness(new_dot_base, 50)
-    end
-
-    reaper.ImGui_Text(self.ctx, "Track color: ")
-    reaper.ImGui_SameLine(self.ctx)
-    local track_changed, new_track_base = Palette(self.ctx, component.track_color.base, "knob track")
-    if track_changed then
-        self.selectedParam.details.display_settings.component.track_color.hovered = color_helpers.adjustBrightness(
-            new_track_base, -30)
-        self.selectedParam.details.display_settings.component.track_color.base = new_track_base
-        self.selectedParam.details.display_settings.component.track_color.active = color_helpers.adjustBrightness(
-            new_track_base, 50)
+        self.selectedParam.details.display_settings.colors.dot_color:update(new_dot_base)
     end
 
     reaper.ImGui_Text(self.ctx, "Wiper color: ")
     reaper.ImGui_SameLine(self.ctx)
-    local circle_changed, new_circle_base = Palette(self.ctx, component.wiper_color.base, "knob wiper")
+    local track_changed, new_track_base = Palette(self.ctx, component.wiper_color.base, "knob wiper##knob_wiper")
+    if track_changed then
+        self.selectedParam.details.display_settings.colors.wiper_color:update(new_track_base)
+    end
+
+    reaper.ImGui_Text(self.ctx, "Track color: ")
+    reaper.ImGui_SameLine(self.ctx)
+    local circle_changed, new_circle_base = Palette(self.ctx, component.circle_color.base, "knob track##knob_track")
     if circle_changed then
-        self.selectedParam.details.display_settings.component.wiper_color.hovered =
-            color_helpers.adjustBrightness(new_circle_base, -30)
-        self.selectedParam.details.display_settings.component.wiper_color.base =
-            new_circle_base
-        self.selectedParam.details.display_settings.component.wiper_color.active =
-            color_helpers.adjustBrightness(new_circle_base, 50)
+        self.selectedParam.details.display_settings.colors.circle_color:update(new_circle_base)
     end
     reaper.ImGui_Text(self.ctx, "Text color:")
     reaper.ImGui_SameLine(self.ctx)
-    local text_changed, new_text_col = Palette(self.ctx, component.text_color, "knob text")
+    local text_changed, new_text_col = Palette(self.ctx, component.text_color, "knob text##knob_text")
     if text_changed then
-        self.selectedParam.details.display_settings.component.text_color = new_text_col
+        self.selectedParam.details.display_settings.colors.text_color = new_text_col
     end
 end
 
