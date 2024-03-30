@@ -296,7 +296,7 @@ function fx_box:AddParamsBtn()
             if new_val ~= param.display then
                 param.display = new_val
                 if new_val then
-                    self.fx:createParamDetails(param)
+                    self.fx:createParamDetails(param, nil, self.theme)
                 else
                     self.fx:removeParamDetails(param)
                 end

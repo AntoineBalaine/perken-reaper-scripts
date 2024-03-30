@@ -107,7 +107,7 @@ function LayoutEditor:AddParams()
                 self.selectedParam._selected = false
                 self.selectedParam = param
                 if not self.selectedParam.details then
-                    self.selectedParam = self.fx:createParamDetails(param)
+                    self.selectedParam = self.fx:createParamDetails(param, nil, self.theme)
                     self.selectedParam.display = true
                 end
                 self.selectedParam._selected = true
@@ -127,7 +127,7 @@ function LayoutEditor:AddParams()
             param.display = new_val
             if new_val then
                 self.selectedParam._selected = false
-                self.selectedParam = self.fx:createParamDetails(param)
+                self.selectedParam = self.fx:createParamDetails(param, nil, self.theme)
                 self.selectedParam._selected = true
             else
                 self.fx:removeParamDetails(param)

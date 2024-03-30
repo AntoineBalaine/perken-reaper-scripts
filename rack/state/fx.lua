@@ -7,13 +7,12 @@ local table_helpers = require("helpers.table")
 local defaults = require("helpers.defaults")
 local layout_enums = require("state.layout_enums")
 local parameter = require("state.param")
-local color_helpers = require("helpers.color_helpers")
 local fx_box_helpers = require("helpers.fx_box_helpers")
 
 
 ---@class TrackFX
----@field createParamDetails fun(self: TrackFX, param: ParamData, addToDisplayParams?: boolean): ParamData
----@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
+---@field createParamDetails fun(self: TrackFX, param: ParamData, addToDisplayParams?: boolean, theme: Theme): ParamData
+---@field createParams fun(self: TrackFX, theme: Theme): params_list: ParamData[] , params_by_guid:table<string, ParamData>
 ---@field display_name string name of fx, or preset, or renamed name, or fx instance name.
 ---@field displaySettings FxDisplaySettings
 ---@field displaySettings_copy FxDisplaySettings|unknown|nil
@@ -66,7 +65,7 @@ function fx.new(state, theme, index, number, guid)
     self.display_name = fx_box_helpers.getDisplayName(name or "") -- get name of fx
     self.number = number
     self.index = index
-    self.params_list, self.params_by_guid = self:createParams()
+    self.params_list, self.params_by_guid = self:createParams(theme)
     self.display_params = {} ---@type ParamData[]
 
     ---@class LabelButtonColorSets
@@ -181,9 +180,10 @@ function fx:onEditLayoutClose(action)
 end
 
 ---query the list of params for the fx
+---@param theme Theme
 ---@return ParamData[] params_list
 ---@return table<string, ParamData> params_by_guid
-function fx:createParams()
+function fx:createParams(theme)
     local params_list = {} ---@type ParamData[]
     local params_by_guid = {} ---@type table<string, ParamData>
 
@@ -217,7 +217,7 @@ function fx:createParams()
         if name == "Wet" and param_index == params_length - 2 then
             -- Dry/Wet knob is always the before-to-last param in the list.
             -- We don’t store it in params_list, but we store it in the fx instance.
-            self.DryWetParam = self:createParamDetails(param, false)
+            self.DryWetParam = self:createParamDetails(param, false, theme)
             self.DryWetParam.details.display_settings.flags = layout_enums.KnobFlags.NoTitle |
                 layout_enums.KnobFlags.NoValue | layout_enums.KnobFlags.NoEdit
             goto continue
@@ -280,15 +280,17 @@ end
 ---add param to list of displayed params
 ---query its value, create a param class for it
 ---@param param ParamData
+---@param theme Theme
 ---@param addToDisplayParams? boolean
-function fx:createParamDetails(param, addToDisplayParams)
+function fx:createParamDetails(param, addToDisplayParams, theme)
     if addToDisplayParams == nil then
         addToDisplayParams = true
     end
     local new_param = parameter.new(self.state,
         param.index,
         self,
-        param.guid
+        param.guid,
+        theme
     )
     param.details = new_param
     ---I’m having to check for the existence of display_params here,

@@ -4,6 +4,8 @@ Defaults for FX sizes and for the fx separator's height.
 
 local layout_enums        = require("state.layout_enums")
 local color_helpers       = require("helpers.color_helpers")
+local Knob                = require("components.knobs.Knobs")
+local Slider              = require("components.Slider")
 local defaults            = {}
 defaults.window_height    = 240
 defaults.window_width     = 280
@@ -25,6 +27,8 @@ function defaults.getDefaultKnobColors(theme)
     return dot_col.color, track_col.color, wiper_col.color
 end
 
+---Create default Fx display settings,
+---such as default colors for the fx box, label button styles, etc.
 ---@param theme Theme
 ---@return FxDisplaySettings
 function defaults.getDefaultFxDisplaySettings(theme)
@@ -59,6 +63,44 @@ function defaults.getDefaultFxDisplaySettings(theme)
         title_display       = layout_enums.Title_Display_Style.fx_name,
     }
     return displaySettings
+end
+
+---create a parameter's default display settings,
+---such as basic colors for knobs and other controls.
+---@param steps_count? integer
+---@param theme Theme
+---@returns ParamDisplaySettings
+function defaults.getDefaultParamDisplaySettings(theme, steps_count)
+    defaults.getDefaultKnobColors(theme)
+
+    local control_type
+    local variant
+    if steps_count and steps_count <= 7 then
+        control_type = layout_enums.Param_Display_Type.CycleButton
+        variant = Slider.Variant.horizontal
+    else
+        control_type = layout_enums.Param_Display_Type.Knob
+        variant = Knob.KnobVariant.ableton
+    end
+    local flags = layout_enums.KnobFlags.None
+    ---@type ParamDisplaySettings
+    local display_settings = {
+        type = control_type,
+        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
+        wiper_start = layout_enums.KnobWiperStart.left,
+        variant = variant,
+        flags = flags,
+        -- text_color = defaults.param_text_color,
+        -- colors = {
+        --     text = 0xFFFFFFFF,
+        --     wiper = 0x000000FF,
+        --     dot = 0x000000FF,
+        --     track = 0x000000FF,
+        -- }
+        -- Pos_X = 0,
+        -- Pos_Y = 0,
+    }
+    return display_settings
 end
 
 return defaults

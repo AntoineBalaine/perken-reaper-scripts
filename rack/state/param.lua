@@ -1,6 +1,4 @@
-local layoutEnums = require("state.layout_enums")
-local Knob = require("components.knobs.Knobs")
-local Slider = require("components.Slider")
+local defaults = require("helpers.defaults")
 
 ---@class ParamDisplaySettings
 ---@field type Param_Display_Type
@@ -25,7 +23,7 @@ local Slider = require("components.Slider")
 ---@field midval number
 ---@field minval number
 ---@field name string
----@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string): self
+---@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string, theme: Theme): self
 ---@field parent_fx TrackFX
 ---@field query_value fun(self):self
 ---@field setValue fun(self, value :number)
@@ -47,7 +45,8 @@ parameter.__index = parameter
 ---@param param_index number
 ---@param parent_fx TrackFX
 ---@param guid string
-function parameter.new(state, param_index, parent_fx, guid)
+---@param theme Theme
+function parameter.new(state, param_index, parent_fx, guid, theme)
     ---@type Parameter
     local new_param = setmetatable({}, parameter)
     new_param.state = state
@@ -106,25 +105,8 @@ function parameter.new(state, param_index, parent_fx, guid)
     --not sure that’s right, but that’s my best bet.
     new_param.defaultval = 0.5
 
-    local control_type
-    local variant
-    if new_param.steps_count and new_param.steps_count <= 7 then
-        control_type = layoutEnums.Param_Display_Type.CycleButton
-        variant = Slider.Variant.horizontal
-    else
-        control_type = layoutEnums.Param_Display_Type.Knob
-        variant = Knob.KnobVariant.ableton
-    end
-    local flags = layoutEnums.KnobFlags.None
-    new_param.display_settings = {
-        type = control_type,
-        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
-        wiper_start = layoutEnums.KnobWiperStart.left,
-        variant = variant,
-        flags = flags
-        -- Pos_X = 0,
-        -- Pos_Y = 0,
-    }
+    new_param.display_settings = defaults.getDefaultParamDisplaySettings(theme, new_param.steps_count)
+
 
     return new_param
 end
