@@ -8,16 +8,17 @@ order of steps are:
 Bear in mind that this component is a singleton, so it’s a single instance that is re-used for each FX.
 As a result, its internal state has to be updated every time it’s called. I’m not sure yet whether I like this or would rather have one instance per appearance.
 ]]
-local drag_drop     = require("state.dragAndDrop")
-local layout_enums  = require("state.layout_enums")
-local Knob          = require("components.knobs.Knobs")
-local CycleButton   = require("components.CycleButton")
-local Slider        = require("components.Slider")
-local layoutEnums   = require("state.layout_enums")
-local ColorSet      = require("helpers.ColorSet")
-local color_helpers = require("helpers.color_helpers")
-local fx_box        = {}
-local winFlg        = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
+local drag_drop       = require("state.dragAndDrop")
+local MainWindowStyle = require("helpers.MainWindowStyle")
+local layout_enums    = require("state.layout_enums")
+local Knob            = require("components.knobs.Knobs")
+local CycleButton     = require("components.CycleButton")
+local Slider          = require("components.Slider")
+local layoutEnums     = require("state.layout_enums")
+local ColorSet        = require("helpers.ColorSet")
+local color_helpers   = require("helpers.color_helpers")
+local fx_box          = {}
+local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 
 function fx_box:dragDropSource()
     if reaper.ImGui_BeginDragDropSource(self.ctx, reaper.ImGui_DragDropFlags_None()) then
@@ -277,6 +278,7 @@ function fx_box:AddParamsBtn()
         reaper.ImGui_SetTooltip(self.ctx, "add params to display")
     end
 
+    local PopWindowStyle = MainWindowStyle(self.ctx, self.theme)
     -- ADD PARAMS POPUP
     reaper.ImGui_SetWindowSize(self.ctx, 400, 300)
     if reaper.ImGui_BeginPopup(self.ctx, popup_name) then
@@ -302,6 +304,7 @@ function fx_box:AddParamsBtn()
         end
         reaper.ImGui_EndPopup(self.ctx)
     end
+    PopWindowStyle()
 end
 
 function fx_box:Canvas()
@@ -360,6 +363,12 @@ function fx_box:Canvas()
                 if param.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
                     -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
                     -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
+                    local dot_col = self.theme.colors.areasel_fill
+                    local track_col = self.theme.colors.col_buttonbg
+                    local wiper_col = self.theme.colors.areasel_outline
+                    -- local track_col = self.theme.colors.col_buttonbg
+                    -- local dot_col = self.theme.colors.col_vuind3
+                    -- local wiper_col = self.theme.colors.col_vuind4
                     param.details.display_settings.component = Knob.new(
                         self.ctx,
                         "knob" .. idx,
@@ -368,19 +377,19 @@ function fx_box:Canvas()
                         true,
                         on_activate,
                         ColorSet.new( -- dot color
-                            color_helpers.adjustBrightness(self.theme.colors.col_vuind3.color, -30),
-                            self.theme.colors.col_vuind3.color,
-                            color_helpers.adjustBrightness(self.theme.colors.col_vuind3.color, 50)
+                            color_helpers.adjustBrightness(dot_col.color, -30),
+                            dot_col.color,
+                            color_helpers.adjustBrightness(dot_col.color, 50)
                         ),
                         ColorSet.new( -- track color
-                            color_helpers.adjustBrightness(self.theme.colors.col_buttonbg.color, -30),
-                            self.theme.colors.col_buttonbg.color,
-                            color_helpers.adjustBrightness(self.theme.colors.col_buttonbg.color, 50)
+                            color_helpers.adjustBrightness(track_col.color, -30),
+                            track_col.color,
+                            color_helpers.adjustBrightness(track_col.color, 50)
                         ),
                         ColorSet.new( -- circle color
-                            color_helpers.adjustBrightness(self.theme.colors.col_vuind4.color, -30),
-                            self.theme.colors.col_vuind4.color,
-                            color_helpers.adjustBrightness(self.theme.colors.col_vuind4.color, 50)
+                            color_helpers.adjustBrightness(wiper_col.color, -30),
+                            wiper_col.color,
+                            color_helpers.adjustBrightness(wiper_col.color, 50)
                         ),
                         0xFFFFFFFF -- text color
                     )
@@ -440,6 +449,9 @@ function fx_box:DryWetKnob()
     end
     local radius = 10
     if not param.details.display_settings.component then
+        local dot_col = self.theme.colors.areasel_fill
+        local track_col = self.theme.colors.col_buttonbg
+        local wiper_col = self.theme.colors.areasel_fill
         param.details.display_settings.component =
             Knob.new(
                 self.ctx,
@@ -449,21 +461,21 @@ function fx_box:DryWetKnob()
                 true,
                 nil,
                 ColorSet.new( -- dot color
-                    color_helpers.adjustBrightness(self.theme.colors.col_vuind3.color, -30),
-                    self.theme.colors.col_vuind3.color,
-                    color_helpers.adjustBrightness(self.theme.colors.col_vuind3.color, 50)
+                    dot_col.color,
+                    color_helpers.adjustBrightness(dot_col.color, -30),
+                    color_helpers.adjustBrightness(dot_col.color, 50)
                 ),
                 ColorSet.new( -- track color
-                    color_helpers.adjustBrightness(self.theme.colors.col_buttonbg.color, -30),
-                    self.theme.colors.col_buttonbg.color,
-                    color_helpers.adjustBrightness(self.theme.colors.col_buttonbg.color, 50)
+                    track_col.color,
+                    color_helpers.adjustBrightness(track_col.color, 50),
+                    color_helpers.adjustBrightness(track_col.color, 50)
                 ),
-                ColorSet.new( -- circle color
-                    color_helpers.adjustBrightness(self.theme.colors.col_vuind4.color, -30),
-                    self.theme.colors.col_vuind4.color,
-                    color_helpers.adjustBrightness(self.theme.colors.col_vuind4.color, 50)
+                ColorSet.new( -- wiper color
+                    wiper_col.color,
+                    color_helpers.adjustBrightness(wiper_col.color, 50),
+                    color_helpers.adjustBrightness(wiper_col.color, 50)
                 ),
-                0xFFFFFFFF -- text color
+                reaper.ImGui_GetColor(self.ctx, reaper.ImGui_Col_Text()) -- text color
             )
     else
         -- TODO when pushing the knob beyon its max value, don’t update the display

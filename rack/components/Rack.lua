@@ -25,6 +25,7 @@ local LayoutEditor         = require("components.LayoutEditor")
 -- local passThrough          = require("components.passthrough")
 local keyboard_passthrough = require("components.keyboard_passthrough")
 local defaults             = require("helpers.defaults")
+local MainWindowStyle      = require("helpers.MainWindowStyle")
 
 ---Rack module
 ---@class Rack
@@ -66,16 +67,25 @@ end
 function Rack:RackStyleStart()
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameBorderSize(), 1.0)
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameRounding(), 2) -- round up the frames
-    reaper.ImGui_PushStyleColor(
-        self.ctx,
-        reaper.ImGui_Col_WindowBg(), --background color
-        self.theme.colors.col_main_bg2.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), self.theme.colors.col_main_bg2.color)
+
+
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(), self.theme.colors.col_main_bg2.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBg(), self.theme.colors.col_main_bg2.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBgHovered(), self.theme.colors.col_env5.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBgActive(), self.theme.colors.midi_endpt.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_CheckMark(), self.theme.colors.col_seltrack.color)
+
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ButtonActive(), self.theme.colors.midi_endpt.color)
+
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ButtonHovered(), self.theme.colors.col_env5.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self.theme.colors.col_seltrack.color)
 end
 
 --- end any styling for the rack, i.e. `ImGui_PopStyleColor`
 function Rack:RackStyleEnd()
-    reaper.ImGui_PopStyleColor(self.ctx)  -- Remove background color
-    reaper.ImGui_PopStyleVar(self.ctx, 2) -- remove rounding of frames
+    reaper.ImGui_PopStyleColor(self.ctx, 9) -- Remove background color
+    reaper.ImGui_PopStyleVar(self.ctx, 2)   -- remove rounding of frames
 end
 
 function Rack:main()
@@ -123,7 +133,7 @@ function Rack:init(project_directory)
     ---@class Theme
     self.theme                          = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
     self.theme.FONT_SIZE                = 15
-    self.theme.FONT_SMALL_SIZE          = 12
+    self.theme.FONT_SMALL_SIZE          = 14
     self.theme.FONT_LARGE               = 16
     self.theme.ICON_FONT_SMALL_SIZE     = 13
     self.theme.ICON_FONT_LARGE_SIZE     = 40
