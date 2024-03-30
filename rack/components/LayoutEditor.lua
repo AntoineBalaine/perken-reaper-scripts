@@ -14,11 +14,12 @@ Let"s go with one instance per fx:
 - If we want to persist unsaved layouts between re-starts, we"ll have to either store this in external state or in the track.
 
 ]]
-local layoutEnums = require("state.layout_enums")
-local Table = require("helpers.table")
-local Palette = require("components.Palette")
+local layoutEnums     = require("state.layout_enums")
+local Table           = require("helpers.table")
+local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
-local LayoutEditor = {}
+local color_helpers   = require("helpers.color_helpers")
+local LayoutEditor    = {}
 
 ---@param ctx ImGui_Context
 ---@param theme Theme
@@ -189,6 +190,51 @@ function LayoutEditor:FlagsEdit()
     end
 end
 
+function LayoutEditor:KnobColors()
+    local component = self.selectedParam.details.display_settings.component
+    if not component then return end
+    reaper.ImGui_Text(self.ctx, "Dot color: ")
+    reaper.ImGui_SameLine(self.ctx)
+    local dot_changed, new_dot_base = Palette(self.ctx, self.theme, component.dot_color.base, "knob dot")
+    if dot_changed then
+        self.selectedParam.details.display_settings.component.dot_color.hovered =
+            color_helpers.adjustBrightness(new_dot_base, -30)
+        self.selectedParam.details.display_settings.component.dot_color.base =
+            new_dot_base
+        self.selectedParam.details.display_settings.component.dot_color.active =
+            color_helpers.adjustBrightness(new_dot_base, 50)
+    end
+
+    reaper.ImGui_Text(self.ctx, "Track color: ")
+    reaper.ImGui_SameLine(self.ctx)
+    local track_changed, new_track_base = Palette(self.ctx, self.theme, component.track_color.base, "knob track")
+    if track_changed then
+        self.selectedParam.details.display_settings.component.track_color.hovered = color_helpers.adjustBrightness(
+            new_track_base, -30)
+        self.selectedParam.details.display_settings.component.track_color.base = new_track_base
+        self.selectedParam.details.display_settings.component.track_color.active = color_helpers.adjustBrightness(
+            new_track_base, 50)
+    end
+
+    reaper.ImGui_Text(self.ctx, "Wiper color: ")
+    reaper.ImGui_SameLine(self.ctx)
+    local circle_changed, new_circle_base = Palette(self.ctx, self.theme, component.circle_color.base, "knob wiper")
+    if circle_changed then
+        self.selectedParam.details.display_settings.component.circle_color.hovered =
+            color_helpers.adjustBrightness(new_circle_base, -30)
+        self.selectedParam.details.display_settings.component.circle_color.base =
+            new_circle_base
+        self.selectedParam.details.display_settings.component.circle_color.active =
+            color_helpers.adjustBrightness(new_circle_base, 50)
+    end
+    reaper.ImGui_Text(self.ctx, "Text color:")
+    reaper.ImGui_SameLine(self.ctx)
+    local text_changed, new_text_col = Palette(self.ctx, self.theme, component.text_color, "knob text")
+    if text_changed then
+        self.selectedParam.details.display_settings.component.text_color = new_text_col
+    end
+end
+
 function LayoutEditor:KnobVariant()
     ---TODO maybe include these in the layoutEnums file?
     local knob_variants = "wiper_knob\0wiper_dot\0wiper_only\0tick\0dot\0space\0stepped\0ableton\0readrum\0imgui\0"
@@ -237,8 +283,10 @@ function LayoutEditor:ParamInfo()
     reaper.ImGui_EndTable(self.ctx)
     if self.selectedParam.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
         self:KnobVariant()
+        self:KnobColors()
     end
     self:FlagsEdit()
+
 
     ---TODO implement param display/selection logic
     reaper.ImGui_Text(self.ctx, self.selectedParam.name)
@@ -341,14 +389,14 @@ function LayoutEditor:FxDisplaySettings()
     -- reaper.ImGui_Text(self.ctx, "Grb_Rounding: " .. s.Grb_Rounding .. "")
     reaper.ImGui_Text(self.ctx, "Background color: ")
     reaper.ImGui_SameLine(self.ctx)
-    displaySettings.background = Palette(self.ctx, self.theme, displaySettings.background, "background")
+    _, displaySettings.background = Palette(self.ctx, self.theme, displaySettings.background, "background")
 
     reaper.ImGui_Text(self.ctx, "BorderColor: ")
     reaper.ImGui_SameLine(self.ctx)
-    displaySettings.borderColor = Palette(self.ctx, self.theme, displaySettings.borderColor, "border")
+    _, displaySettings.borderColor = Palette(self.ctx, self.theme, displaySettings.borderColor, "border")
     reaper.ImGui_Text(self.ctx, "Title_Clr: ")
     reaper.ImGui_SameLine(self.ctx)
-    displaySettings.title_Clr = Palette(self.ctx, self.theme, displaySettings.title_Clr, "title")
+    _, displaySettings.title_Clr = Palette(self.ctx, self.theme, displaySettings.title_Clr, "title")
 
 
     reaper.ImGui_SeparatorText(self.ctx, "Buttons Bar Layout")

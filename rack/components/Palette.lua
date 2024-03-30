@@ -12,6 +12,7 @@ local backup_color
 ---@param cur_col integer
 ---@param name string
 function Palette(ctx, theme, cur_col, name)
+    local changed = false
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), cur_col)
     local open_popup = reaper.ImGui_Button(ctx, "##Theme_palette" .. name, 20, 20)
     reaper.ImGui_PopStyleColor(ctx)
@@ -19,13 +20,15 @@ function Palette(ctx, theme, cur_col, name)
         reaper.ImGui_OpenPopup(ctx, "Theme_palette" .. name)
         backup_color = cur_col
     end
-    reaper.ImGui_SetNextWindowSize(ctx, 450, 275)
+    reaper.ImGui_SetNextWindowSize(ctx, 470, 295)
     if reaper.ImGui_BeginPopup(ctx, "Theme_palette" .. name) then
         reaper.ImGui_Separator(ctx)
-        local rv
-        rv, cur_col = reaper.ImGui_ColorPicker4(ctx, "##picker",
+        changed, cur_col = reaper.ImGui_ColorPicker4(ctx, "##picker",
             cur_col,
             reaper.ImGui_ColorEditFlags_NoSidePreview() | reaper.ImGui_ColorEditFlags_NoSmallPreview())
+        if changed then
+            cur_col = reaper.ImGui_ColorConvertNative(cur_col)
+        end
         reaper.ImGui_SameLine(ctx)
 
         reaper.ImGui_BeginGroup(ctx) -- Lock X position
@@ -61,6 +64,7 @@ function Palette(ctx, theme, cur_col, name)
 
                 if reaper.ImGui_ColorButton(ctx, description .. "##palette", color, reaper.ImGui_ColorEditFlags_NoPicker(), 20, 20) then
                     cur_col = color
+                    changed = true
                 end
 
                 -- Allow user to drop colors into each palette entry. Note that ColorButton() is already a
@@ -84,7 +88,7 @@ function Palette(ctx, theme, cur_col, name)
         reaper.ImGui_EndGroup(ctx)
         reaper.ImGui_EndPopup(ctx)
     end
-    return cur_col
+    return changed, cur_col
 end
 
 return Palette
