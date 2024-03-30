@@ -347,7 +347,7 @@ end
 function Browser:Popup(ctx, theme)
     if not self.open then return end
 
-    local colors, style_vars, fonts = MainWindowStyle(ctx, theme)
+    local PopMainWindowStyle = MainWindowStyle(ctx, theme)
     reaper.ImGui_SetNextWindowSize(self.ctx, 400, 200)
     if reaper.ImGui_BeginPopup(self.ctx, self.name) then
         -- zzz
@@ -363,12 +363,7 @@ function Browser:Popup(ctx, theme)
             reaper.defer(function() self:Popup(ctx, theme) end)
         end
     end
-
-    reaper.ImGui_PopStyleColor(self.ctx, colors)
-    reaper.ImGui_PopStyleVar(self.ctx, style_vars)
-    for i = 1, fonts do
-        reaper.ImGui_PopFont(self.ctx)
-    end
+    PopMainWindowStyle()
 end
 
 return Browser

@@ -476,7 +476,7 @@ function LayoutEditor:Main()
 
 
 
-    local colors, style_vars, fonts = MainWindowStyle(self.ctx, self.theme)
+    local PopMainWindowStyle = MainWindowStyle(self.ctx, self.theme)
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, flags) ---begin popup
     self.open = open
     if visible then
@@ -486,11 +486,7 @@ function LayoutEditor:Main()
 
         reaper.ImGui_End(self.ctx)
     end
-    reaper.ImGui_PopStyleColor(self.ctx, colors)
-    reaper.ImGui_PopStyleVar(self.ctx, style_vars)
-    for i = 1, fonts do
-        reaper.ImGui_PopFont(self.ctx)
-    end
+    PopMainWindowStyle()
     if not visible or not open then
         self:close()
     end
