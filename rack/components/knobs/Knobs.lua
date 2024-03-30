@@ -165,7 +165,7 @@ end
 ---@param on_activate? function
 ---@param dot_color ColorSet
 ---@param track_color ColorSet
----@param circle_color ColorSet
+---@param wiper_color ColorSet
 ---@param text_color integer
 function Knob.new(
     ctx,
@@ -176,7 +176,7 @@ function Knob.new(
     on_activate,
     dot_color,
     track_color,
-    circle_color,
+    wiper_color,
     text_color
 )
     ---@class Knob
@@ -216,7 +216,7 @@ function Knob.new(
     new_knob.dot_color = dot_color
     new_knob.track_color = track_color
     new_knob.text_color = text_color
-    new_knob.circle_color = circle_color
+    new_knob.wiper_color = wiper_color
     --- use when layout editor is open and the current param isn't selected
     new_knob._dot_color_editing = ColorSet.deAlpha(dot_color)
     --- use when layout editor is open and the current param isn't selected
@@ -224,7 +224,7 @@ function Knob.new(
     --- use when layout editor is open and the current param isn't selected
     new_knob._text_color_editing = text_color & 0x55
     --- use when layout editor is open and the current param isn't selected
-    new_knob._circle_color_editing = ColorSet.deAlpha(circle_color)
+    new_knob._wiper_color_editing = ColorSet.deAlpha(wiper_color)
     return new_knob
 end
 
@@ -323,11 +323,11 @@ function Knob:__control()
 end
 
 ---@param circle_color ColorSet
----@param wiper_color ColorSet
+---@param dot_color ColorSet
 ---@param track_color ColorSet
 function Knob:__wiper_knob(
     circle_color,
-    wiper_color,
+    dot_color,
     track_color
 )
     self:__draw_circle(0.7, circle_color, true, 0)
@@ -344,15 +344,15 @@ function Knob:__wiper_knob(
             0.43,
             self._wiper_start,
             self._wiper_end,
-            wiper_color
+            dot_color
         )
     end
 end
 
----@param  wiper_color ColorSet
+---@param  circle_color ColorSet
 ---@param  track_color ColorSet
 function Knob:__draw_wiper_only(
-    wiper_color,
+    circle_color,
     track_color
 )
     self:__draw_arc(
@@ -363,7 +363,7 @@ function Knob:__draw_wiper_only(
         track_color
     )
     if self._t > 0.01 then
-        self:__draw_arc(0.8, 0.43, self._wiper_start, self._wiper_end, wiper_color)
+        self:__draw_arc(0.8, 0.43, self._wiper_start, self._wiper_end, circle_color)
     end
 end
 
@@ -521,10 +521,10 @@ function Knob:__draw_dot_knob(
 end
 
 ---@param circle_color ColorSet
----@param wiper_color ColorSet
+---@param dot_color ColorSet
 function Knob:__draw_space_knob(
     circle_color,
-    wiper_color
+    dot_color
 )
     self:__draw_circle(0.3 - self._t * 0.1, circle_color, true, 16)
     if self._t > 0.01 then
@@ -533,7 +533,7 @@ function Knob:__draw_space_knob(
             0.15,
             self._wiper_start - 1.0,
             self._wiper_end - 1.0,
-            wiper_color
+            dot_color
         )
 
         self:__draw_arc(
@@ -541,7 +541,7 @@ function Knob:__draw_space_knob(
             0.15,
             self._wiper_start + 1.0,
             self._wiper_end + 1.0,
-            wiper_color
+            dot_color
         )
 
         self:__draw_arc(
@@ -549,7 +549,7 @@ function Knob:__draw_space_knob(
             0.15,
             self._wiper_start + 3.0,
             self._wiper_end + 3.0,
-            wiper_color
+            dot_color
         )
     end
 end
@@ -575,10 +575,10 @@ function Knob:__draw_stepped_knob(
 end
 
 ---@param tick_color ColorSet
----@param wiper_color ColorSet
+---@param dot_color ColorSet
 ---@param track_color ColorSet
 function Knob:__draw_ableton_knob(
-    tick_color, wiper_color, track_color)
+    tick_color, dot_color, track_color)
     -- self:draw_circle(0.7, circle_color, true, 32)
     self:__draw_arc(0.9, 0.41, self._angle_min, self._angle_max, track_color, 2)
     self:__draw_tick(0.1, 0.9, 0.08, self._angle, tick_color)
@@ -651,7 +651,7 @@ function Knob:draw()
     end
     local dot_color ---@type ColorSet
     local track_color ---@type ColorSet
-    local circle_color ---@type ColorSet
+    local wiper_color ---@type ColorSet
     local text_color ---@type integer
 
     ---the ColorSet used by the knob when the fx’s layout is being edited and the current param isn't selected
@@ -660,12 +660,12 @@ function Knob:draw()
         dot_color = self._dot_color_editing
         track_color = self._track_color_editing
         text_color = self._text_color_editing
-        circle_color = self._circle_color_editing
+        wiper_color = self._wiper_color_editing
     else
         dot_color = self.dot_color
         track_color = self.track_color
         text_color = self.text_color
-        circle_color = self.circle_color
+        wiper_color = self.wiper_color
     end
 
     local fxbox_pos_x, fxbox_pos_y               = reaper.ImGui_GetCursorPos(self._ctx)
@@ -719,48 +719,48 @@ function Knob:draw()
 
         local variant = self._param.details.display_settings.variant or self.KnobVariant.ableton
         if variant == self.KnobVariant.wiper_knob then
-            self:__wiper_knob(circle_color,
+            self:__wiper_knob(wiper_color,
                 dot_color,
-                track_color or circle_color
+                track_color or wiper_color
             )
         elseif variant == self.KnobVariant.wiper_dot then
-            self:__draw_wiper_dot_knob(circle_color,
+            self:__draw_wiper_dot_knob(wiper_color,
                 dot_color,
-                track_color or circle_color
+                track_color or wiper_color
             )
         elseif variant == self.KnobVariant.wiper_only then
-            self:__draw_wiper_only(circle_color,
-                track_color or circle_color
+            self:__draw_wiper_only(wiper_color,
+                track_color
             )
         elseif variant == self.KnobVariant.tick then
-            self:__draw_tick_knob(circle_color,
+            self:__draw_tick_knob(wiper_color,
                 track_color -- passing the track color instead, since they're more differentiated
             )
         elseif variant == self.KnobVariant.dot then
-            self:__draw_dot_knob(circle_color,
+            self:__draw_dot_knob(wiper_color,
                 track_color -- passing the track color instead, since they're more differentiated
             )
         elseif variant == self.KnobVariant.space then
-            self:__draw_space_knob(circle_color,
+            self:__draw_space_knob(wiper_color,
                 dot_color
             )
         elseif variant == self.KnobVariant.stepped then
-            self:__draw_stepped_knob(self._param.details.steps_count or 0, circle_color,
+            self:__draw_stepped_knob(self._param.details.steps_count or 0, wiper_color,
                 dot_color,
-                track_color or circle_color
+                track_color or wiper_color
             )
         elseif variant == self.KnobVariant.ableton then
-            self:__draw_ableton_knob(circle_color,
+            self:__draw_ableton_knob(wiper_color,
                 dot_color,
-                track_color or circle_color
+                track_color or wiper_color
             )
         elseif variant == self.KnobVariant.readrum then
-            self:__draw_readrum_knob(circle_color,
+            self:__draw_readrum_knob(wiper_color,
                 dot_color,
                 track_color or dot_color
             )
         elseif variant == self.KnobVariant.imgui then
-            self:__draw_imgui_knob(circle_color,
+            self:__draw_imgui_knob(wiper_color,
                 dot_color,
                 track_color or dot_color
             )

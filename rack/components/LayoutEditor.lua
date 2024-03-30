@@ -217,13 +217,13 @@ function LayoutEditor:KnobColors()
 
     reaper.ImGui_Text(self.ctx, "Wiper color: ")
     reaper.ImGui_SameLine(self.ctx)
-    local circle_changed, new_circle_base = Palette(self.ctx, component.circle_color.base, "knob wiper")
+    local circle_changed, new_circle_base = Palette(self.ctx, component.wiper_color.base, "knob wiper")
     if circle_changed then
-        self.selectedParam.details.display_settings.component.circle_color.hovered =
+        self.selectedParam.details.display_settings.component.wiper_color.hovered =
             color_helpers.adjustBrightness(new_circle_base, -30)
-        self.selectedParam.details.display_settings.component.circle_color.base =
+        self.selectedParam.details.display_settings.component.wiper_color.base =
             new_circle_base
-        self.selectedParam.details.display_settings.component.circle_color.active =
+        self.selectedParam.details.display_settings.component.wiper_color.active =
             color_helpers.adjustBrightness(new_circle_base, 50)
     end
     reaper.ImGui_Text(self.ctx, "Text color:")
