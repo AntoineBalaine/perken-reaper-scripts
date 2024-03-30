@@ -8,11 +8,11 @@ local defaults = require("helpers.defaults")
 local layout_enums = require("state.layout_enums")
 local parameter = require("state.param")
 local fx_box_helpers = require("helpers.fx_box_helpers")
-
+local Theme = Theme
 
 ---@class TrackFX
----@field createParamDetails fun(self: TrackFX, param: ParamData, addToDisplayParams?: boolean, theme: Theme): ParamData
----@field createParams fun(self: TrackFX, theme: Theme): params_list: ParamData[] , params_by_guid:table<string, ParamData>
+---@field createParamDetails fun(self: TrackFX, param: ParamData, addToDisplayParams?: boolean): ParamData
+---@field createParams fun(self: TrackFX): params_list: ParamData[] , params_by_guid:table<string, ParamData>
 ---@field display_name string name of fx, or preset, or renamed name, or fx instance name.
 ---@field displaySettings FxDisplaySettings
 ---@field displaySettings_copy FxDisplaySettings|unknown|nil
@@ -24,7 +24,7 @@ local fx_box_helpers = require("helpers.fx_box_helpers")
 ---@field guid string
 ---@field index integer
 ---@field name string|nil
----@field new fun(state: State, theme: Theme, index: integer, number: integer, guid: string): TrackFX
+---@field new fun(state: State, index: integer, number: integer, guid: string): TrackFX
 ---@field number integer
 ---@field onEditLayoutClose fun(self: TrackFX, action: EditLayoutCloseAction)
 ---@field params_by_guid table<string, ParamData>
@@ -44,11 +44,10 @@ fx.__index = fx
 ---create a new fx instance,
 ---to store state and layout information
 ---@param state State
----@param theme Theme
 ---@param index integer
 ---@param number integer
 ---@param guid string
-function fx.new(state, theme, index, number, guid)
+function fx.new(state, index, number, guid)
     ---@type TrackFX
     local self = setmetatable({}, fx)
     self.state = state
@@ -65,7 +64,7 @@ function fx.new(state, theme, index, number, guid)
     self.display_name = fx_box_helpers.getDisplayName(name or "") -- get name of fx
     self.number = number
     self.index = index
-    self.params_list, self.params_by_guid = self:createParams(theme)
+    self.params_list, self.params_by_guid = self:createParams()
     self.display_params = {} ---@type ParamData[]
 
     ---@class LabelButtonColorSets
@@ -96,7 +95,7 @@ function fx.new(state, theme, index, number, guid)
     ---@field window_height integer = 240
     ---@field window_width integer = 280
 
-    self.displaySettings = defaults.getDefaultFxDisplaySettings(theme)
+    self.displaySettings = defaults.getDefaultFxDisplaySettings()
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
 
     -- self.param_list
@@ -180,10 +179,9 @@ function fx:onEditLayoutClose(action)
 end
 
 ---query the list of params for the fx
----@param theme Theme
 ---@return ParamData[] params_list
 ---@return table<string, ParamData> params_by_guid
-function fx:createParams(theme)
+function fx:createParams()
     local params_list = {} ---@type ParamData[]
     local params_by_guid = {} ---@type table<string, ParamData>
 
@@ -217,7 +215,7 @@ function fx:createParams(theme)
         if name == "Wet" and param_index == params_length - 2 then
             -- Dry/Wet knob is always the before-to-last param in the list.
             -- We don’t store it in params_list, but we store it in the fx instance.
-            self.DryWetParam = self:createParamDetails(param, false, theme)
+            self.DryWetParam = self:createParamDetails(param, false)
             self.DryWetParam.details.display_settings.flags = layout_enums.KnobFlags.NoTitle |
                 layout_enums.KnobFlags.NoValue | layout_enums.KnobFlags.NoEdit
             goto continue
@@ -280,17 +278,15 @@ end
 ---add param to list of displayed params
 ---query its value, create a param class for it
 ---@param param ParamData
----@param theme Theme
 ---@param addToDisplayParams? boolean
-function fx:createParamDetails(param, addToDisplayParams, theme)
+function fx:createParamDetails(param, addToDisplayParams)
     if addToDisplayParams == nil then
         addToDisplayParams = true
     end
     local new_param = parameter.new(self.state,
         param.index,
         self,
-        param.guid,
-        theme
+        param.guid
     )
     param.details = new_param
     ---I’m having to check for the existence of display_params here,

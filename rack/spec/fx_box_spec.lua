@@ -52,8 +52,8 @@ local Fx_separator = require("components.fx_separator")
 
 local MockRack = {}
 function MockRack:mockInit()
-    self.state = State:init("", theme) -- initialize state, query selected track and its fx
-    self.theme = theme
+    self.state = State:init("") -- initialize state, query selected track and its fx
+    Theme = theme
     self.ctx = {}
     self.Browser = nil
     return self

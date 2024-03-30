@@ -32,7 +32,7 @@ describe("State tests", function()
         ImGui_ColorConvertRGBtoHSV = function(r, g, b) return 0.1, 0.1, 0.1, 0.1 end,
         ImGui_ColorConvertHSVtoRGB = function(r, g, b) return 0.1, 0.1, 0.1, 0.1 end
     }
-    local state = State:init("", theme)
+    local state = State:init("")
 
     -- these are the calls that state:update() makes
     -- local track        = reaper.GetSelectedTrack2(0, 0, false)

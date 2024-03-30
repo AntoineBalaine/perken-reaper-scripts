@@ -347,7 +347,7 @@ end
 function Browser:Popup(ctx, theme)
     if not self.open then return end
 
-    local PopMainWindowStyle = MainWindowStyle(ctx, theme)
+    local PopMainWindowStyle = MainWindowStyle(ctx)
     reaper.ImGui_SetNextWindowSize(self.ctx, 400, 200)
     if reaper.ImGui_BeginPopup(self.ctx, self.name) then
         -- zzz

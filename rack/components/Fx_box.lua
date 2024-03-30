@@ -20,6 +20,7 @@ local color_helpers   = require("helpers.color_helpers")
 local defaults        = require("helpers.defaults")
 local fx_box          = {}
 local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
+local Theme           = Theme --- localize the global
 
 function fx_box:dragDropSource()
     if reaper.ImGui_BeginDragDropSource(self.ctx, reaper.ImGui_DragDropFlags_None()) then
@@ -191,8 +192,8 @@ end
 
 ---Also store the button size as default button’s size.
 function fx_box:EditLayoutButton()
-    local wrench_icon = self.theme.letters[75]
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+    local wrench_icon = Theme.letters[75]
+    reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
 
     if reaper.ImGui_Button(self.ctx, wrench_icon, self.default_button_size, self.default_button_size) then -- create window name button
         if (self.LayoutEditor.open) then
@@ -210,8 +211,8 @@ function fx_box:EditLayoutButton()
 end
 
 function fx_box:AddSavePresetBtn()
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
-    local saver = self.theme.letters[164]
+    reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
+    local saver = Theme.letters[164]
     if reaper.ImGui_Button(self.ctx, saver, self.default_button_size, self.default_button_size) then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, "Save Preset##presetsave") then
             reaper.ImGui_OpenPopup(self.ctx, "Save Preset##presetsave")
@@ -223,7 +224,7 @@ function fx_box:AddSavePresetBtn()
     end
 
     reaper.ImGui_SetNextWindowSize(self.ctx, 300, 100)
-    local PopMainWindowStyle = MainWindowStyle(self.ctx, self.theme)
+    local PopMainWindowStyle = MainWindowStyle(self.ctx)
     self.open = reaper.ImGui_BeginPopupModal(self.ctx, "Save Preset##presetsave")
     if reaper.ImGui_IsWindowAppearing(self.ctx) then -- focus the input box when the window appears
         reaper.ImGui_SetKeyboardFocusHere(self.ctx)
@@ -249,8 +250,8 @@ function fx_box:AddSavePresetBtn()
 end
 
 function fx_box:CollapseButton()
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
-    local collapse_arrow = self.theme.letters[self.fx.displaySettings._is_collapsed and 94 or 97]
+    reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
+    local collapse_arrow = Theme.letters[self.fx.displaySettings._is_collapsed and 94 or 97]
 
     if reaper.ImGui_Button(self.ctx, collapse_arrow, self.default_button_size, self.default_button_size) then -- create window name button
         self.fx.displaySettings._is_collapsed = not self.fx.displaySettings._is_collapsed
@@ -266,8 +267,8 @@ function fx_box:AddParamsBtn()
     local popup_name = "addFxParams" .. "##" .. self.fx.guid
 
     -- "+" ICON 
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
-    local plus = self.theme.letters[34]
+    reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
+    local plus = Theme.letters[34]
 
     if reaper.ImGui_Button(self.ctx, plus, self.default_button_size, self.default_button_size) then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, popup_name) then
@@ -279,7 +280,7 @@ function fx_box:AddParamsBtn()
         reaper.ImGui_SetTooltip(self.ctx, "add params to display")
     end
 
-    local PopWindowStyle = MainWindowStyle(self.ctx, self.theme)
+    local PopWindowStyle = MainWindowStyle(self.ctx)
     -- ADD PARAMS POPUP
     reaper.ImGui_SetWindowSize(self.ctx, 400, 300)
     if reaper.ImGui_BeginPopup(self.ctx, popup_name) then
@@ -296,7 +297,7 @@ function fx_box:AddParamsBtn()
             if new_val ~= param.display then
                 param.display = new_val
                 if new_val then
-                    self.fx:createParamDetails(param, nil, self.theme)
+                    self.fx:createParamDetails(param, nil)
                 else
                     self.fx:removeParamDetails(param)
                 end
@@ -364,7 +365,7 @@ function fx_box:Canvas()
                 if param.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
                     -- if this is the first in the list and the item doesn't have any coordinates attached, set to 0, 0
                     -- if this is not the first in the list, and the doesn't have any coordinates attached, use the previous item's coordinates,
-                    local dot_col, track_col, wiper_col = defaults.getDefaultKnobColors(self.theme)
+                    local dot_col, track_col, wiper_col = defaults.getDefaultKnobColors()
                     param.details.display_settings.component = Knob.new(
                         self.ctx,
                         "knob" .. idx,
@@ -417,9 +418,7 @@ function fx_box:Canvas()
                     )
                 end
             else
-                local changed, new_val = param.details.display_settings.component:draw(
-                    self.theme
-                )
+                local changed, new_val = param.details.display_settings.component:draw()
 
                 if changed then
                     param.details.value = new_val
@@ -445,9 +444,9 @@ function fx_box:DryWetKnob()
     end
     local radius = 10
     if not param.details.display_settings.component then
-        local dot_col = self.theme.colors.areasel_fill
-        local track_col = self.theme.colors.col_buttonbg
-        local wiper_col = self.theme.colors.areasel_fill
+        local dot_col = Theme.colors.areasel_fill
+        local track_col = Theme.colors.col_buttonbg
+        local wiper_col = Theme.colors.areasel_fill
         param.details.display_settings.component =
             Knob.new(
                 self.ctx,
@@ -475,9 +474,7 @@ function fx_box:DryWetKnob()
             )
     else
         -- TODO when pushing the knob beyon its max value, don’t update the display
-        local changed, new_val = param.details.display_settings.component:draw(
-            self.theme
-        )
+        local changed, new_val = param.details.display_settings.component:draw()
         if changed then
             param.details.value = new_val
             param.details:setValue(new_val)
@@ -546,7 +543,6 @@ function fx_box:init(parent_state)
     self.settings = parent_state.settings
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
-    self.theme = parent_state.theme
     self.default_button_size = 20
     self.LayoutEditor = parent_state.LayoutEditor
 end

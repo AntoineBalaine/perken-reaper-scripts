@@ -14,7 +14,6 @@ As a result, its internal state has to be updated every time it’s called. I’
 ]]
 local drag_drop = require("state.dragAndDrop")
 local defaults = require("helpers.defaults")
-
 --- call to insert spaces between fx windows,
 --- display the fx browser, and drag and drop fx
 local fx_separator = {}
@@ -67,7 +66,6 @@ function fx_separator:init(parent_state)
     self.state = parent_state.state
     self.ctx = parent_state.ctx
     self.Browser = parent_state.Browser
-    self.theme = parent_state.theme
     return self
 end
 

@@ -633,8 +633,7 @@ end
 ---TODO accomodate the NoInput flag
 ---@return boolean value_changed
 ---@return number new_value
-function Knob:draw(
-)
+function Knob:draw()
     local no_title = self._param.details.display_settings.flags &
         layoutEnums.KnobFlags.NoTitle ==
         layoutEnums.KnobFlags.NoTitle

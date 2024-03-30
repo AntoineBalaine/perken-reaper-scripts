@@ -1,17 +1,17 @@
 --[[
-A color palette, containing a color picker and the list of reaper’s theme colors.
+A color palette, containing a color picker and the list of reaper’s Theme colors.
 ]]
 
 ---store the backup color in module context
 ---@type integer
 local backup_color
+local Theme = Theme
 
----Display a button that opens a color picker, in a popup with the list of reaper’s theme colors.
+---Display a button that opens a color picker, in a popup with the list of reaper’s Theme colors.
 ---@param ctx ImGui_Context
----@param theme Theme
 ---@param cur_col integer
 ---@param name string
-function Palette(ctx, theme, cur_col, name)
+function Palette(ctx, cur_col, name)
     local changed = false
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), cur_col)
     local open_popup = reaper.ImGui_Button(ctx, "##Theme_palette" .. name, 20, 20)
@@ -50,8 +50,8 @@ function Palette(ctx, theme, cur_col, name)
         reaper.ImGui_EndGroup(ctx)
         reaper.ImGui_Separator(ctx)
         reaper.ImGui_Text(ctx, "Theme Colors")
-        if reaper.ImGui_BeginChild(ctx, "##themecolorspalette", nil) then
-            for count, col in ipairs(theme.colors_by_name) do
+        if reaper.ImGui_BeginChild(ctx, "##Themecolorspalette", nil) then
+            for count, col in ipairs(Theme.colors_by_name) do
                 local col_name = col[1]
                 local color = col[2].color
                 local description = col[2].description
@@ -70,14 +70,14 @@ function Palette(ctx, theme, cur_col, name)
                 -- Allow user to drop colors into each palette entry. Note that ColorButton() is already a
                 -- drag source by default, unless specifying the ImGuiColorEditFlags_NoDragDrop flag.
                 if reaper.ImGui_BeginDragDropTarget(ctx) then
-                    local drop_color
+                    local rv, drop_color
                     -- rv, drop_color = reaper.ImGui_AcceptDragDropPayloadRGB(ctx)
                     -- if rv then
-                    --     theme.colors[name].color = drop_color
+                    --     Theme.colors[name].color = drop_color
                     -- end
                     rv, drop_color = reaper.ImGui_AcceptDragDropPayloadRGBA(ctx)
                     if rv then
-                        theme.colors[name].color = reaper.ImGui_ColorConvertNative(drop_color)
+                        Theme.colors[name].color = reaper.ImGui_ColorConvertNative(drop_color)
                     end
                     reaper.ImGui_EndDragDropTarget(ctx)
                 end

@@ -19,44 +19,43 @@ local Table           = require("helpers.table")
 local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
 local color_helpers   = require("helpers.color_helpers")
+local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
 ---@param ctx ImGui_Context
----@param theme Theme
-function LayoutEditor:init(ctx, theme)
+function LayoutEditor:init(ctx)
     self.open = false
     self.ctx = ctx
-    self.theme = theme
     return self
 end
 
 ---display button examples from fonts
 function LayoutEditor:FontButton()
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
+    reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
 
-    local wrench_icon = self.theme.letters[75]
-    local arrow_right = self.theme.letters[97]
-    local arrow_down = self.theme.letters[94]
-    local saver = self.theme.letters[164]
-    local kebab = self.theme.letters[191]
-    local plus = self.theme.letters[34]
+    local wrench_icon = Theme.letters[75]
+    local arrow_right = Theme.letters[97]
+    local arrow_down = Theme.letters[94]
+    local saver = Theme.letters[164]
+    local kebab = Theme.letters[191]
+    local plus = Theme.letters[34]
     reaper.ImGui_Button(self.ctx, wrench_icon)
     reaper.ImGui_Button(self.ctx, arrow_right)
     reaper.ImGui_Button(self.ctx, arrow_down)
     reaper.ImGui_Button(self.ctx, saver)
     reaper.ImGui_Button(self.ctx, kebab)
     reaper.ImGui_Button(self.ctx, plus)
-    -- for i = 1, #self.theme.letters do
-    --     reaper.ImGui_Button(self.ctx, self.theme.letters[i])
+    -- for i = 1, #Theme.letters do
+    --     reaper.ImGui_Button(self.ctx, Theme.letters[i])
     -- end
     reaper.ImGui_PopFont(self.ctx)
-    -- reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
-    -- reaper.ImGui_DrawList_AddTextEx(draw_list, nil, self.theme.ICON_FONT_SMALL_SIZE, i_x, i_y, font_color, icon)
+    -- reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
+    -- reaper.ImGui_DrawList_AddTextEx(draw_list, nil, Theme.ICON_FONT_SMALL_SIZE, i_x, i_y, font_color, icon)
     -- reaper.ImGui_PopFont(self.ctx)
 end
 
 function LayoutEditor:Sketch()
-    for k, v in ipairs(self.theme.colors) do
+    for k, v in ipairs(Theme.colors) do
         reaper.ImGui_BeginGroup(self.ctx)
         reaper.ImGui_text(self.ctx, k)
         reaper.ImGui_colorPicker(self.ctx, v.color)
@@ -107,7 +106,7 @@ function LayoutEditor:AddParams()
                 self.selectedParam._selected = false
                 self.selectedParam = param
                 if not self.selectedParam.details then
-                    self.selectedParam = self.fx:createParamDetails(param, nil, self.theme)
+                    self.selectedParam = self.fx:createParamDetails(param, nil)
                     self.selectedParam.display = true
                 end
                 self.selectedParam._selected = true
@@ -127,7 +126,7 @@ function LayoutEditor:AddParams()
             param.display = new_val
             if new_val then
                 self.selectedParam._selected = false
-                self.selectedParam = self.fx:createParamDetails(param, nil, self.theme)
+                self.selectedParam = self.fx:createParamDetails(param, nil)
                 self.selectedParam._selected = true
             else
                 self.fx:removeParamDetails(param)
@@ -195,7 +194,7 @@ function LayoutEditor:KnobColors()
     if not component then return end
     reaper.ImGui_Text(self.ctx, "Dot color: ")
     reaper.ImGui_SameLine(self.ctx)
-    local dot_changed, new_dot_base = Palette(self.ctx, self.theme, component.dot_color.base, "knob dot")
+    local dot_changed, new_dot_base = Palette(self.ctx, component.dot_color.base, "knob dot")
     if dot_changed then
         self.selectedParam.details.display_settings.component.dot_color.hovered =
             color_helpers.adjustBrightness(new_dot_base, -30)
@@ -207,7 +206,7 @@ function LayoutEditor:KnobColors()
 
     reaper.ImGui_Text(self.ctx, "Track color: ")
     reaper.ImGui_SameLine(self.ctx)
-    local track_changed, new_track_base = Palette(self.ctx, self.theme, component.track_color.base, "knob track")
+    local track_changed, new_track_base = Palette(self.ctx, component.track_color.base, "knob track")
     if track_changed then
         self.selectedParam.details.display_settings.component.track_color.hovered = color_helpers.adjustBrightness(
             new_track_base, -30)
@@ -218,7 +217,7 @@ function LayoutEditor:KnobColors()
 
     reaper.ImGui_Text(self.ctx, "Wiper color: ")
     reaper.ImGui_SameLine(self.ctx)
-    local circle_changed, new_circle_base = Palette(self.ctx, self.theme, component.circle_color.base, "knob wiper")
+    local circle_changed, new_circle_base = Palette(self.ctx, component.circle_color.base, "knob wiper")
     if circle_changed then
         self.selectedParam.details.display_settings.component.circle_color.hovered =
             color_helpers.adjustBrightness(new_circle_base, -30)
@@ -229,7 +228,7 @@ function LayoutEditor:KnobColors()
     end
     reaper.ImGui_Text(self.ctx, "Text color:")
     reaper.ImGui_SameLine(self.ctx)
-    local text_changed, new_text_col = Palette(self.ctx, self.theme, component.text_color, "knob text")
+    local text_changed, new_text_col = Palette(self.ctx, component.text_color, "knob text")
     if text_changed then
         self.selectedParam.details.display_settings.component.text_color = new_text_col
     end
@@ -389,14 +388,14 @@ function LayoutEditor:FxDisplaySettings()
     -- reaper.ImGui_Text(self.ctx, "Grb_Rounding: " .. s.Grb_Rounding .. "")
     reaper.ImGui_Text(self.ctx, "Background color: ")
     reaper.ImGui_SameLine(self.ctx)
-    _, displaySettings.background = Palette(self.ctx, self.theme, displaySettings.background, "background")
+    _, displaySettings.background = Palette(self.ctx, displaySettings.background, "background")
 
     reaper.ImGui_Text(self.ctx, "BorderColor: ")
     reaper.ImGui_SameLine(self.ctx)
-    _, displaySettings.borderColor = Palette(self.ctx, self.theme, displaySettings.borderColor, "border")
+    _, displaySettings.borderColor = Palette(self.ctx, displaySettings.borderColor, "border")
     reaper.ImGui_Text(self.ctx, "Title_Clr: ")
     reaper.ImGui_SameLine(self.ctx)
-    _, displaySettings.title_Clr = Palette(self.ctx, self.theme, displaySettings.title_Clr, "title")
+    _, displaySettings.title_Clr = Palette(self.ctx, displaySettings.title_Clr, "title")
 
 
     reaper.ImGui_SeparatorText(self.ctx, "Buttons Bar Layout")
@@ -465,9 +464,9 @@ end
 ---@param flags? integer
 function LayoutEditor:Tab(ctx, label, p_open, flags)
     if label == "FX layout" and not self._tab_text_fx then
-        self._tab_text_fx = self.theme.colors.genlist_selfg.color
+        self._tab_text_fx = Theme.colors.genlist_selfg.color
     elseif not self._tab_text_params then
-        self._tab_text_params = self.theme.colors.genlist_selfg.color
+        self._tab_text_params = Theme.colors.genlist_selfg.color
     end
     if label == "FX layout" then
         reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self._tab_text_fx)
@@ -479,15 +478,15 @@ function LayoutEditor:Tab(ctx, label, p_open, flags)
 
     if rv then
         if label == "FX layout" then
-            self._tab_text_fx = self.theme.colors.genlist_selfg.color
+            self._tab_text_fx = Theme.colors.genlist_selfg.color
         else
-            self._tab_text_params = self.theme.colors.genlist_selfg.color
+            self._tab_text_params = Theme.colors.genlist_selfg.color
         end
     else
         if label == "FX layout" then
-            self._tab_text_fx = self.theme.colors.genlist_fg.color
+            self._tab_text_fx = Theme.colors.genlist_fg.color
         else
-            self._tab_text_params = self.theme.colors.genlist_fg.color
+            self._tab_text_params = Theme.colors.genlist_fg.color
         end
     end
     reaper.ImGui_PopStyleColor(self.ctx, 1)
@@ -523,7 +522,7 @@ function LayoutEditor:Main()
 
 
 
-    local PopMainWindowStyle = MainWindowStyle(self.ctx, self.theme)
+    local PopMainWindowStyle = MainWindowStyle(self.ctx)
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, flags) ---begin popup
     self.open = open
     if visible then

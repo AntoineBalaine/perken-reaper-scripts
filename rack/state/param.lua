@@ -1,4 +1,5 @@
 local defaults = require("helpers.defaults")
+local Theme = Theme
 
 ---@class ParamDisplaySettings
 ---@field type Param_Display_Type
@@ -23,7 +24,7 @@ local defaults = require("helpers.defaults")
 ---@field midval number
 ---@field minval number
 ---@field name string
----@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string, theme: Theme): self
+---@field new fun( state: State, param_index: number, parent_fx: TrackFX, guid: string): self
 ---@field parent_fx TrackFX
 ---@field query_value fun(self):self
 ---@field setValue fun(self, value :number)
@@ -45,8 +46,7 @@ parameter.__index = parameter
 ---@param param_index number
 ---@param parent_fx TrackFX
 ---@param guid string
----@param theme Theme
-function parameter.new(state, param_index, parent_fx, guid, theme)
+function parameter.new(state, param_index, parent_fx, guid)
     ---@type Parameter
     local new_param = setmetatable({}, parameter)
     new_param.state = state
@@ -105,7 +105,7 @@ function parameter.new(state, param_index, parent_fx, guid, theme)
     --not sure that’s right, but that’s my best bet.
     new_param.defaultval = 0.5
 
-    new_param.display_settings = defaults.getDefaultParamDisplaySettings(theme, new_param.steps_count)
+    new_param.display_settings = defaults.getDefaultParamDisplaySettings(new_param.steps_count)
 
 
     return new_param

@@ -1,6 +1,7 @@
 --[[
 The menu bar at the top of the rack window.
 ]]
+local Theme   = Theme --- localize the global
 local menubar = {}
 
 ---@param state Rack
@@ -8,7 +9,6 @@ local menubar = {}
 function menubar:init(state)
     self.state = state --- the rack's context
     self.ctx = state.ctx
-    self.theme = state.theme
     return self
 end
 
@@ -17,7 +17,7 @@ function menubar:display()
     reaper.ImGui_PushStyleColor(
         self.ctx,
         reaper.ImGui_Col_MenuBarBg(),
-        self.theme.colors.selcol_tr2_bg.color) -- menu bar’s bg color
+        Theme.colors.selcol_tr2_bg.color) -- menu bar’s bg color
     reaper.ImGui_BeginMenuBar(self.ctx)
 
     if reaper.ImGui_BeginMenu(self.ctx, 'Settings') then

@@ -13,27 +13,38 @@ steps are:
 - and then display the rack with rack:main()
 ]]
 dofile(reaper.GetResourcePath() .. '/Scripts/ReaTeam Extensions/API/imgui.lua')('0.8.6') -- enable backwards compatibility
-local ThemeReader          = require("themeReader.theme_read")
-local Fx_box               = require("components.Fx_box")
-local Fx_separator         = require("components.fx_separator")
-local menubar              = require("components.menubar")
-local state                = require("state.state")
-local actions              = require("state.actions")
-local Browser              = require("components.fx_browser")
-local Settings             = require("state.settings")
-local LayoutEditor         = require("components.LayoutEditor")
+local ThemeReader            = require("themeReader.theme_read")
+---@class Theme
+Theme                        = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
+Theme.FONT_SIZE              = 15
+Theme.FONT_SMALL_SIZE        = 14
+Theme.FONT_LARGE             = 16
+Theme.ICON_FONT_SMALL_SIZE   = 13
+Theme.ICON_FONT_LARGE_SIZE   = 40
+Theme.ICON_FONT_CLICKED_SIZE = 32
+Theme.ICON_FONT_PREVIEW_SIZE = 16
+
+local Fx_box                 = require("components.Fx_box")
+local Fx_separator           = require("components.fx_separator")
+local menubar                = require("components.menubar")
+local state                  = require("state.state")
+local actions                = require("state.actions")
+local Browser                = require("components.fx_browser")
+local Settings               = require("state.settings")
+local LayoutEditor           = require("components.LayoutEditor")
 -- local passThrough          = require("components.passthrough")
-local keyboard_passthrough = require("components.keyboard_passthrough")
-local defaults             = require("helpers.defaults")
-local MainWindowStyle      = require("helpers.MainWindowStyle")
+local keyboard_passthrough   = require("components.keyboard_passthrough")
+local defaults               = require("helpers.defaults")
+local MainWindowStyle        = require("helpers.MainWindowStyle")
+
 
 ---Rack module
 ---@class Rack
-local Rack                 = {}
+local Rack = {}
 
 function Rack:BrowserButton()
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
-    local plus = self.theme.letters[34]
+    reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
+    local plus = Theme.letters[34]
     -- create window name button
     if reaper.ImGui_Button(self.ctx,
             plus,
@@ -49,7 +60,7 @@ function Rack:BrowserButton()
     if reaper.ImGui_IsItemHovered(self.ctx, reaper.ImGui_HoveredFlags_DelayNormal()) then
         reaper.ImGui_SetTooltip(self.ctx, "add fx")
     end
-    self.Browser:Popup(self.ctx, self.theme)
+    self.Browser:Popup(self.ctx, Theme)
 end
 
 ---draw the fx list
@@ -67,19 +78,19 @@ end
 function Rack:RackStyleStart()
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameBorderSize(), 1.0)
     reaper.ImGui_PushStyleVar(self.ctx, reaper.ImGui_StyleVar_FrameRounding(), 2) -- round up the frames
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), self.theme.colors.col_main_bg2.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_WindowBg(), Theme.colors.col_main_bg2.color)
 
 
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(), self.theme.colors.col_main_bg2.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBg(), self.theme.colors.col_main_bg2.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBgHovered(), self.theme.colors.col_env5.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBgActive(), self.theme.colors.midi_endpt.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_CheckMark(), self.theme.colors.col_seltrack.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Button(), Theme.colors.col_main_bg2.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBg(), Theme.colors.col_main_bg2.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBgHovered(), Theme.colors.col_env5.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_FrameBgActive(), Theme.colors.midi_endpt.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_CheckMark(), Theme.colors.col_seltrack.color)
 
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ButtonActive(), self.theme.colors.midi_endpt.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ButtonActive(), Theme.colors.midi_endpt.color)
 
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ButtonHovered(), self.theme.colors.col_env5.color)
-    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self.theme.colors.col_seltrack.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_ButtonHovered(), Theme.colors.col_env5.color)
+    reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), Theme.colors.col_seltrack.color)
 end
 
 --- end any styling for the rack, i.e. `ImGui_PopStyleColor`
@@ -96,7 +107,7 @@ function Rack:main()
 
     self:RackStyleStart()
 
-    reaper.ImGui_PushFont(self.ctx, self.theme.fonts.MAIN)
+    reaper.ImGui_PushFont(self.ctx, Theme.fonts.MAIN)
     local imgui_visible, imgui_open = reaper.ImGui_Begin(self.ctx, "rack", true, self.window_flags)
 
     if not self.Browser.open and reaper.ImGui_IsWindowFocused(self.ctx) then
@@ -128,34 +139,25 @@ end
 ---Create the ImGui context and setup the window size
 ---@param project_directory string
 function Rack:init(project_directory)
-    local os_sep                        = package.config:sub(1, 1)
+    local os_sep                   = package.config:sub(1, 1)
     --set up the theme in init, including any custom fonts such as the icons' font
-    ---@class Theme
-    self.theme                          = ThemeReader.readTheme(ThemeReader.GetThemePath(), true) -- get and store the user's theme
-    self.theme.FONT_SIZE                = 15
-    self.theme.FONT_SMALL_SIZE          = 14
-    self.theme.FONT_LARGE               = 16
-    self.theme.ICON_FONT_SMALL_SIZE     = 13
-    self.theme.ICON_FONT_LARGE_SIZE     = 40
-    self.theme.ICON_FONT_CLICKED_SIZE   = 32
-    self.theme.ICON_FONT_PREVIEW_SIZE   = 16
-    local font_path                     = project_directory .. "assets" .. os_sep .. "fontello1.ttf"
-    self.theme.fonts["ICON_FONT_SMALL"] = reaper.ImGui_CreateFont(font_path, self.theme.ICON_FONT_SMALL_SIZE)
+    local font_path                = project_directory .. "assets" .. os_sep .. "fontello1.ttf"
+    Theme.fonts["ICON_FONT_SMALL"] = reaper.ImGui_CreateFont(font_path, Theme.ICON_FONT_SMALL_SIZE)
 
-    local fontindex, fontface           = gfx.getfont()
-    self.theme.fonts["MAIN"]            = reaper.ImGui_CreateFont(fontface, self.theme.FONT_SMALL_SIZE)
+    local fontindex, fontface      = gfx.getfont()
+    Theme.fonts["MAIN"]            = reaper.ImGui_CreateFont(fontface, Theme.FONT_SMALL_SIZE)
 
-    self.theme.letters                  = {}
-    for i = 33, 254 do self.theme.letters[#self.theme.letters + 1] = utf8.char(i) end
-    self.theme.letters = self.theme.letters
+    Theme.letters                  = {}
+    for i = 33, 254 do Theme.letters[#Theme.letters + 1] = utf8.char(i) end
+    Theme.letters   = Theme.letters
 
-    local ctx_flags    = reaper.ImGui_ConfigFlags_DockingEnable()
-    self.ctx           = reaper.ImGui_CreateContext("rack", ctx_flags)
+    local ctx_flags = reaper.ImGui_ConfigFlags_DockingEnable()
+    self.ctx        = reaper.ImGui_CreateContext("rack", ctx_flags)
 
 
     --- attach the fonts now that the context has been created
-    reaper.ImGui_Attach(self.ctx, self.theme.fonts.ICON_FONT_SMALL)
-    reaper.ImGui_Attach(self.ctx, self.theme.fonts.MAIN)
+    reaper.ImGui_Attach(self.ctx, Theme.fonts.ICON_FONT_SMALL)
+    reaper.ImGui_Attach(self.ctx, Theme.fonts.MAIN)
 
     reaper.ImGui_SetNextWindowSize(self.ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
     local window_flags =
@@ -172,14 +174,14 @@ function Rack:init(project_directory)
 
 
     self.settings = Settings:init(project_directory)
-    self.state = state:init(project_directory, self.theme)  -- initialize state, query selected track and its fx
+    self.state = state:init(project_directory)              -- initialize state, query selected track and its fx
     self.actions = actions:init(self.ctx, self.state.Track) -- always init actions after state
     self.keyboard_passthrough = keyboard_passthrough:init(self.ctx)
     Browser:init(self.ctx)                                  -- initialize the fx browser
     ---@type FXBrowser
     self.Browser =
         Browser -- set the fx browser as a property of the rack, always init before the Fx_separator
-    LayoutEditor:init(self.ctx, self.theme)
+    LayoutEditor:init(self.ctx)
     self.LayoutEditor = LayoutEditor
 
 

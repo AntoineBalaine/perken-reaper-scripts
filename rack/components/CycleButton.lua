@@ -25,9 +25,8 @@ function CycleButton.new(ctx, id, param, on_activate, radius)
     return new_cycleButton
 end
 
----@param theme Theme
 ---@return boolean changed, number new_value
-function CycleButton:draw(theme)
+function CycleButton:draw()
     local no_title                               = self._param.details.display_settings.flags &
         layoutEnums.KnobFlags.NoTitle ==
         layoutEnums.KnobFlags.NoTitle

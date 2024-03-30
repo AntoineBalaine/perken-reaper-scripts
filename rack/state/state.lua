@@ -20,9 +20,8 @@ local fx_state = require("state.fx")
 ---@field Track Track|nil
 ---@field deleteFx fun(self, idx: integer): self
 ---@field getTrackFx fun(self): self
----@field init fun(self, project_directory: string, theme:Theme, user_settings: unknown): self
+---@field init fun(self, project_directory: string, user_settings?: unknown): self
 ---@field project_directory string
----@field theme Theme
 ---@field update fun(self): self
 ---@field user_settings unknown
 
@@ -167,7 +166,7 @@ function state:getTrackFx()
                 table.insert(updated_fx_list, item) -- assign the current fx into updated_fx_list
             end
         else                                        -- fx is new
-            local my_fx = fx_state.new(self, self.theme, index, fxNumber, fxGuid)
+            local my_fx = fx_state.new(self, index, fxNumber, fxGuid)
             self.Track.fx_by_guid[fxGuid] = my_fx
             self.Track.fx_list[index] = my_fx
         end
@@ -222,10 +221,8 @@ end
 -- the last touched fx,
 -- the fx list for current track and parameters.
 ---@param project_directory string
----@param theme Theme
-function state:init(project_directory, theme, user_settings)
+function state:init(project_directory, user_settings)
     self.project_directory = project_directory
-    self.theme = theme
     self.user_settings = user_settings
     ---@type Track|nil
     self.Track = nil
