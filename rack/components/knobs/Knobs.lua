@@ -735,11 +735,11 @@ function Knob:draw(
             )
         elseif variant == self.KnobVariant.tick then
             self:__draw_tick_knob(circle_color,
-                dot_color
+                track_color -- passing the track color instead, since they're more differentiated
             )
         elseif variant == self.KnobVariant.dot then
             self:__draw_dot_knob(circle_color,
-                dot_color
+                track_color -- passing the track color instead, since they're more differentiated
             )
         elseif variant == self.KnobVariant.space then
             self:__draw_space_knob(circle_color,
