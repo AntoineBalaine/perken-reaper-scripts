@@ -59,7 +59,7 @@ function Palette(ctx, theme, cur_col, name)
                 end
 
 
-                if reaper.ImGui_ColorButton(ctx, name .. ": " .. description .. "##palette", color, reaper.ImGui_ColorEditFlags_NoPicker(), 20, 20) then
+                if reaper.ImGui_ColorButton(ctx, description .. "##palette", color, reaper.ImGui_ColorEditFlags_NoPicker(), 20, 20) then
                     cur_col = color
                 end
 
