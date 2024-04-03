@@ -408,7 +408,21 @@ function fx_box:Canvas()
             end
 
             reaper.ImGui_SameLine(self.ctx)
-            if reaper.ImGui_GetContentRegionAvail(self.ctx) < radius * 2 then
+            local x_avail, y_avail = reaper.ImGui_GetContentRegionAvail(self.ctx)
+            local next_height = radius * 2
+            local next_width = radius * 2
+            if param.details.display_settings.component and param.details.display_settings.component._child_height and param.details.display_settings.component._child_width then
+                next_height = param.details.display_settings.component._child_height
+                next_width = param.details.display_settings.component._child_width
+            end
+            if x_avail < next_width then
+                if y_avail < next_height then
+                    -- extend size of box
+                    self.fx.displaySettings.window_width = self.fx.displaySettings.window_width + next_width + 10
+                    reaper.ImGui_NewLine(self.ctx)
+                else
+                    reaper.ImGui_SameLine(self.ctx, nil, 0)
+                end
                 reaper.ImGui_NewLine(self.ctx)
             end
         end
