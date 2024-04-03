@@ -17,6 +17,7 @@ defaults.grb_Rounding     = 0
 defaults.param_Instance   = nil
 defaults.title_Clr        = 0x000000FF
 defaults.title_Width      = 220 - 80
+defaults.button_size      = 20
 
 defaults.param_text_color = 0xFFFFFFFF
 

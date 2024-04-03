@@ -27,7 +27,8 @@ end
 
 function keyboard_passthrough:run()
     -- don't run the shortcuts if the window is not focused
-    if not reaper.ImGui_IsWindowFocused(self._ctx) or reaper.ImGui_IsAnyItemActive(self._ctx) then
+    -- I can’t seem to get this to work: this should trigger from any child window
+    if not reaper.ImGui_IsWindowFocused(self._ctx, reaper.ImGui_FocusedFlags_AnyWindow()) or reaper.ImGui_IsAnyItemActive(self._ctx) then
         return
     end
     local keys = reaper.JS_VKeys_GetState(self._startTime - 0.03)

@@ -15,6 +15,7 @@ local Knob            = require("components.knobs.Knobs")
 local CycleButton     = require("components.CycleButton")
 local Slider          = require("components.Slider")
 local layoutEnums     = require("state.layout_enums")
+local defaults        = require("helpers.defaults")
 local fx_box          = {}
 local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 local Theme           = Theme --- localize the global
@@ -139,11 +140,11 @@ function fx_box:VerticalLabelButton()
     -- fill the rest of the line with the button width
     local lineSpacing        = reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing())
     local lineHeightWSpacing = reaper.ImGui_GetTextLineHeightWithSpacing(self.ctx)
-    local btn_height         = select(2, reaper.ImGui_GetContentRegionAvail(self.ctx)) - self.default_button_size -
+    local btn_height         = select(2, reaper.ImGui_GetContentRegionAvail(self.ctx)) - defaults.button_size -
         reaper.ImGui_GetStyleVar(self.ctx, lineHeightWSpacing)
 
     self:labelButtonStyleStart()
-    if reaper.ImGui_Button(self.ctx, "##" .. self.fx.display_name, self.default_button_size, btn_height) then
+    if reaper.ImGui_Button(self.ctx, "##" .. self.fx.display_name, defaults.button_size, btn_height) then
         self:LabelButtonCB()
     end
     if reaper.ImGui_IsItemHovered(self.ctx) then
@@ -172,10 +173,10 @@ end
 
 function fx_box:LabelButton()
     --- either use `GetContentRegionAvail()` or `self.displaySettings.title_Width`
-    local btn_width = reaper.ImGui_GetContentRegionAvail(self.ctx) - self.default_button_size -
+    local btn_width = reaper.ImGui_GetContentRegionAvail(self.ctx) - defaults.button_size -
         reaper.ImGui_GetStyleVar(self.ctx, reaper.ImGui_StyleVar_ItemSpacing())
     self:labelButtonStyleStart()
-    if reaper.ImGui_Button(self.ctx, self.fx.display_name .. "##" .. self.fx.guid, btn_width, self.default_button_size) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, self.fx.display_name .. "##" .. self.fx.guid, btn_width, defaults.button_size) then -- create window name button
         self:LabelButtonCB()
     end
     reaper.ImGui_MouseButton_Left()
@@ -192,7 +193,7 @@ function fx_box:EditLayoutButton()
     local wrench_icon = Theme.letters[75]
     reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
 
-    if reaper.ImGui_Button(self.ctx, wrench_icon, self.default_button_size, self.default_button_size) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, wrench_icon, defaults.button_size, defaults.button_size) then -- create window name button
         if (self.LayoutEditor.open) then
             self.LayoutEditor:close(layout_enums.EditLayoutCloseAction.discard)
         else
@@ -210,7 +211,7 @@ end
 function fx_box:AddSavePresetBtn()
     reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
     local saver = Theme.letters[164]
-    if reaper.ImGui_Button(self.ctx, saver, self.default_button_size, self.default_button_size) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, saver, defaults.button_size, defaults.button_size) then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, "Save Preset##presetsave") then
             reaper.ImGui_OpenPopup(self.ctx, "Save Preset##presetsave")
         end
@@ -250,7 +251,7 @@ function fx_box:CollapseButton()
     reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
     local collapse_arrow = Theme.letters[self.fx.displaySettings._is_collapsed and 94 or 97]
 
-    if reaper.ImGui_Button(self.ctx, collapse_arrow, self.default_button_size, self.default_button_size) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, collapse_arrow, defaults.button_size, defaults.button_size) then -- create window name button
         self.fx.displaySettings._is_collapsed = not self.fx.displaySettings._is_collapsed
     end
 
@@ -267,7 +268,7 @@ function fx_box:AddParamsBtn()
     reaper.ImGui_PushFont(self.ctx, Theme.fonts.ICON_FONT_SMALL)
     local plus = Theme.letters[34]
 
-    if reaper.ImGui_Button(self.ctx, plus, self.default_button_size, self.default_button_size) then -- create window name button
+    if reaper.ImGui_Button(self.ctx, plus, defaults.button_size, defaults.button_size) then -- create window name button
         if not reaper.ImGui_IsPopupOpen(self.ctx, popup_name) then
             reaper.ImGui_OpenPopup(self.ctx, popup_name)
         end
@@ -504,7 +505,6 @@ function fx_box:init(parent_state)
     self.settings = parent_state.settings
     self.actions = parent_state.actions
     self.ctx = parent_state.ctx
-    self.default_button_size = 20
     self.LayoutEditor = parent_state.LayoutEditor
 end
 

@@ -51,6 +51,7 @@ local state = {}
 ---@field track MediaTrack
 ---@field bypass boolean --- is the fx chain bypassed
 ---@field fx_chain_enabled boolean
+---@field automation_mode  AutomationMode
 
 --- get the selected track,
 -- the last touched fx,
@@ -64,6 +65,8 @@ function state:update()
     end -- if there's no selected track, move on
 
     local fx_chain_enabled = reaper.GetMediaTrackInfo_Value(track, "I_FXEN") ~= 0.0
+    -- 0=trim/off, 1=read, 2=touch, 3=write, 4=latch
+    local automation_mode  = reaper.GetMediaTrackInfo_Value(track, "I_AUTOMODE")
 
     ---TODO do we really need to re-query the details at every frame ?
     ---how likely to change are things such as `trackGuid`
@@ -85,7 +88,8 @@ function state:update()
             bypass = bypass,
             fx_list = {},
             fx_by_guid = {},
-            fx_chain_enabled = fx_chain_enabled
+            fx_chain_enabled = fx_chain_enabled,
+            automation_mode = automation_mode
         }
     elseif self.Track and track then
         self.Track.track = track
@@ -103,6 +107,7 @@ function state:update()
         self.Track.guid = trackGuid
         self.Track.fx_count = trackFxCount
         self.Track.fx_chain_enabled = fx_chain_enabled
+        self.Track.automation_mode = automation_mode
     else
         self.Track = nil
     end

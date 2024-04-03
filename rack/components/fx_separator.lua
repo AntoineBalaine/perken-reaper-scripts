@@ -21,11 +21,12 @@ local fx_separator = {}
 --- draw spaces between fx windows:
 --- those spaces are the drag and drop destinations
 ---@param idx integer
-function fx_separator:spaceBtwFx(idx)
+---@param is_first boolean
+function fx_separator:spaceBtwFx(idx, is_first)
     local height = defaults.window_height
     reaper.ImGui_InvisibleButton(self.ctx,
         "##Button between FX",
-        10,
+        is_first and 20 or 10,
         height)
     fx_separator:dragDropTarget(idx)
 

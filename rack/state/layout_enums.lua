@@ -77,6 +77,17 @@ layout_enums.KnobWiperStart = {
     center = 2
 }
 
+-- 0=trim/off, 1=read, 2=touch, 3=write, 4=latch
+---@enum AutomationMode
+layout_enums.AutomationMode = {
+    trim = 0,
+    read = 1,
+    touch = 2,
+    write = 3,
+    latch = 4,
+    preview = 5
+}
+
 ---@enum PositionType = {
 local PositionType = {
     default = "default",
