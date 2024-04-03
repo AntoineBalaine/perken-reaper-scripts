@@ -220,6 +220,41 @@ function LayoutEditor:KnobColors()
     end
 end
 
+---Allow updating the positions of the control in the window
+function LayoutEditor:ControlPosition()
+    -- add two drags, one vertical and one horizontal
+    -- to control the position in window
+    reaper.ImGui_Text(self.ctx, "Control Position")
+    reaper.ImGui_SameLine(self.ctx)
+    reaper.ImGui_PushItemWidth(self.ctx, 100)
+    local x_changed, new_x = reaper.ImGui_DragInt(self.ctx, "##x_pos", self.selectedParam.details.display_settings.Pos_X)
+    if x_changed then
+        self.selectedParam.details.display_settings.Pos_X = new_x
+    end
+
+    if reaper.ImGui_IsItemHovered(self.ctx) then
+        reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
+    end
+    reaper.ImGui_SameLine(self.ctx)
+    local x, y = reaper.ImGui_GetCursorPos(self.ctx)
+    -- add an invisible button that will allow the user to drag the control VERTICALLY.
+    reaper.ImGui_InvisibleButton(self.ctx, "##y_pos", 100, 20)
+    if reaper.ImGui_IsItemActive(self.ctx) then
+        local _, delta_y = reaper.ImGui_GetMouseDragDelta(self.ctx, x, y)
+        if delta_y ~= 0.0 then
+            self.selectedParam.details.display_settings.Pos_Y = self.selectedParam.details.display_settings.Pos_Y +
+                delta_y
+            reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
+        end
+    end
+    if reaper.ImGui_IsItemHovered(self.ctx) then
+        reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeNS())
+    end
+    reaper.ImGui_SetCursorPos(self.ctx, x, y)
+    reaper.ImGui_DragInt(self.ctx, "##y_pos", self.selectedParam.details.display_settings.Pos_Y)
+    reaper.ImGui_PopItemWidth(self.ctx)
+end
+
 function LayoutEditor:KnobVariant()
     ---TODO maybe include these in the layoutEnums file?
     local knob_variants = "wiper_knob\0wiper_dot\0wiper_only\0tick\0dot\0space\0stepped\0ableton\0readrum\0imgui\0"
@@ -266,6 +301,7 @@ function LayoutEditor:ParamInfo()
         reaper.ImGui_TableNextColumn(self.ctx)
     end
     reaper.ImGui_EndTable(self.ctx)
+    self:ControlPosition()
     if self.selectedParam.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
         self:KnobVariant()
         self:KnobColors()
@@ -482,7 +518,7 @@ end
 function LayoutEditor:Tabs()
     local win_width, win_height = reaper.ImGui_GetWindowSize(self.ctx)
 
-    if reaper.ImGui_BeginChild(self.ctx, "##tabs", win_width - 20, win_height - 60, false, reaper.ImGui_WindowFlags_NoScrollbar()) then
+    if reaper.ImGui_BeginChild(self.ctx, "##tabs", win_width - 20, win_height - 60, false) then
         if reaper.ImGui_BeginTabBar(self.ctx, "##Tabs", reaper.ImGui_TabBarFlags_None()) then
             if self:Tab(self.ctx, "FX layout") then
                 self:FxDisplaySettings()
