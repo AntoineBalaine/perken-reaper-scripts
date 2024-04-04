@@ -84,37 +84,44 @@ assert(
 
 ---@class deco_text
 ---@field type DecorationType
----@field x_pos number
----@field y_pos number
----@field font_size number
----@field color integer
----@field weight integer
 ---@field _selected boolean
+---@field Pos_X number
+---@field Pos_Y number
 ---@field guid string
+---@field color integer
+---@field font_size number
+---@field weight integer
 
 ---@class deco_line
 ---@field type DecorationType
----@field x_pos number
----@field y_pos number
----@field thickness number
----@field color integer
 ---@field _selected boolean
+---@field Pos_X number
+---@field Pos_Y number
 ---@field guid string
+---@field color integer
+---@field thickness number
+---@field length number
 
 ---@class deco_rectangle
 ---@field type DecorationType
----@field x_pos number
----@field y_pos number
----@field color integer
 ---@field _selected boolean
+---@field Pos_X number
+---@field Pos_Y number
 ---@field guid string
+---@field color integer
+---@field width number
+---@field height number
 
 ---@class deco_image
 ---@field type DecorationType
----@field x_pos number
----@field y_pos number
 ---@field _selected boolean
+---@field Pos_X number
+---@field Pos_Y number
 ---@field guid string
+---@field path string
+---@field keep_ratio boolean
+---@field width number
+---@field height number
 
 ---@alias Decoration deco_text | deco_line | deco_rectangle | deco_image
 
@@ -251,3 +258,4 @@ local PositionType = {
 
 
 return layout_enums
+

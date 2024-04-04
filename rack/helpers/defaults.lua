@@ -107,8 +107,8 @@ function defaults.createDecoration(fx)
     ---@type deco_rectangle
     local new_decoration = {
         type = layout_enums.DecorationType.rectangle,
-        x_pos = 0,
-        y_pos = 0,
+        Pos_X = 0,
+        Pos_Y = 0,
         color = Theme.colors.col_env1.color,
         _selected = false,
         guid = reaper.genGuid("deco_rectangle" .. math.random())

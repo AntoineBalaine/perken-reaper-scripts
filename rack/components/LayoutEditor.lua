@@ -222,15 +222,16 @@ function LayoutEditor:KnobColors()
 end
 
 ---Allow updating the positions of the control in the window
-function LayoutEditor:ControlPosition()
+---@param display_settings ParamDisplaySettings | Decoration
+function LayoutEditor:ControlPosition(display_settings)
     -- add two drags, one vertical and one horizontal
     -- to control the position in window
     reaper.ImGui_Text(self.ctx, "Control Position")
     reaper.ImGui_SameLine(self.ctx)
     reaper.ImGui_PushItemWidth(self.ctx, 100)
-    local x_changed, new_x = reaper.ImGui_DragInt(self.ctx, "##x_pos", self.selectedParam.details.display_settings.Pos_X)
+    local x_changed, new_x = reaper.ImGui_DragInt(self.ctx, "##x_pos", display_settings.Pos_X)
     if x_changed then
-        self.selectedParam.details.display_settings.Pos_X = new_x
+        display_settings.Pos_X = new_x
     end
 
     if reaper.ImGui_IsItemHovered(self.ctx) then
@@ -243,7 +244,7 @@ function LayoutEditor:ControlPosition()
     if reaper.ImGui_IsItemActive(self.ctx) then
         local _, delta_y = reaper.ImGui_GetMouseDragDelta(self.ctx, x, y)
         if delta_y ~= 0.0 then
-            self.selectedParam.details.display_settings.Pos_Y = self.selectedParam.details.display_settings.Pos_Y +
+            display_settings.Pos_Y = display_settings.Pos_Y +
                 delta_y
             reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
         end
@@ -252,7 +253,7 @@ function LayoutEditor:ControlPosition()
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeNS())
     end
     reaper.ImGui_SetCursorPos(self.ctx, x, y)
-    reaper.ImGui_DragInt(self.ctx, "##y_pos", self.selectedParam.details.display_settings.Pos_Y)
+    reaper.ImGui_DragInt(self.ctx, "##y_pos", display_settings.Pos_Y)
     reaper.ImGui_PopItemWidth(self.ctx)
 end
 
@@ -302,7 +303,7 @@ function LayoutEditor:ParamInfo()
         reaper.ImGui_TableNextColumn(self.ctx)
     end
     reaper.ImGui_EndTable(self.ctx)
-    self:ControlPosition()
+    self:ControlPosition(self.selectedParam.details.display_settings)
     if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.Knob then
         self:KnobVariant()
         self:KnobColors()
@@ -377,12 +378,103 @@ function LayoutEditor:RightPaneDecorations()
             type_index)
         if changed and new_val ~= self.selectedDecoration.type then
             self.selectedDecoration.type = new_val
+            -- TODO
             -- update the actual component being displayed
+            -- remove any incompatible properties, and add the new ones
         end
         if type_index < #layout_enums.DecorationLabel then
             reaper.ImGui_SameLine(self.ctx)
         end
     end
+
+
+    -- add controls for decoration's position
+    self:ControlPosition(self.selectedDecoration)
+    -- add controls for decoration's color
+    if self.selectedDecoration.type ~= layout_enums.DecorationType.background_image then
+        reaper.ImGui_Text(self.ctx, "Color:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.color = Palette(self.ctx, self.selectedDecoration.color, "color")
+    end
+    --
+    reaper.ImGui_PushItemWidth(self.ctx, 100)
+    -- add specific controls depending on the type of decoration
+
+    -- text type
+    if self.selectedDecoration.type == layout_enums.DecorationType.text then
+        reaper.ImGui_Text(self.ctx, "Text size:")
+        reaper.ImGui_SameLine(self.ctx)
+
+        _, self.selectedDecoration.font_size = reaper.ImGui_DragInt(self.ctx, "##font_size",
+            self.selectedDecoration.font_size)
+        reaper.ImGui_Text(self.ctx, "Font weight:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.weight = reaper.ImGui_DragInt(self.ctx, "##font_weight",
+            self.selectedDecoration.weight)
+
+        -- line type
+    elseif self.selectedDecoration.type == layout_enums.DecorationType.line then
+        reaper.ImGui_Text(self.ctx, "Thickness:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.thickness = reaper.ImGui_DragInt(self.ctx, "##thickness",
+            self.selectedDecoration.thickness)
+        reaper.ImGui_Text(self.ctx, "Length:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.length = reaper.ImGui_DragInt(self.ctx, "##length", self.selectedDecoration.length)
+
+        -- rectangle type
+    elseif self.selectedDecoration.type == layout_enums.DecorationType.rectangle then
+        reaper.ImGui_Text(self.ctx, "Width:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.width = reaper.ImGui_DragInt(self.ctx, "##width", self.selectedDecoration.width)
+        reaper.ImGui_Text(self.ctx, "Height:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.height = reaper.ImGui_DragInt(self.ctx, "##height", self.selectedDecoration.height)
+
+        -- image type
+    elseif self.selectedDecoration.type == layout_enums.DecorationType.background_image then
+        reaper.ImGui_Text(self.ctx, "Path:")
+        reaper.ImGui_SameLine(self.ctx)
+        if reaper.ImGui_Button(self.ctx, "choose image") then
+            local rv, file_path = reaper.GetUserFileNameForRead("", "select image", "jpg")
+            if rv then
+                self.selectedDecoration.path = file_path
+            end
+        end
+        if self.selectedDecoration.path and #self.selectedDecoration.path then
+            local path_width = reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.path)
+            reaper.ImGui_PushItemWidth(self.ctx, path_width)
+            _, self.selectedDecoration.path = reaper.ImGui_InputTextWithHint(
+                self.ctx,
+                "path to image",
+                "my_image.jpg",
+                self.selectedDecoration.path
+            )
+            reaper.ImGui_PopItemWidth(self.ctx)
+        end
+
+        reaper.ImGui_Text(self.ctx, "Keep ratio:")
+
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.keep_ratio = reaper.ImGui_Checkbox(self.ctx,
+            "##keep_ratio" .. self.selectedDecoration.guid,
+            self.selectedDecoration.keep_ratio)
+
+        reaper.ImGui_Text(self.ctx, "Width:")
+
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.width = reaper.ImGui_DragInt(self.ctx, "##width" .. self.selectedDecoration.guid,
+            self.selectedDecoration.width)
+
+        reaper.ImGui_Text(self.ctx, "Height:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.height = reaper.ImGui_DragInt(self.ctx, "##height" .. self.selectedDecoration.guid,
+            self.selectedDecoration.height)
+    end
+    reaper.ImGui_PopItemWidth(self.ctx)
+
+
+
     if reaper.ImGui_Button(self.ctx, "delete decoration") then
         for k, v in ipairs(self.fx.displaySettings.decorations) do
             if v.guid == self.selectedDecoration.guid then
