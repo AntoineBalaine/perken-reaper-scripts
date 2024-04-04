@@ -14,10 +14,11 @@ Let"s go with one instance per fx:
 - If we want to persist unsaved layouts between re-starts, we"ll have to either store this in external state or in the track.
 
 ]]
-local layoutEnums     = require("state.layout_enums")
+local layout_enums    = require("state.layout_enums")
 local Table           = require("helpers.table")
 local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
+local defaults        = require("helpers.defaults")
 local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
@@ -145,7 +146,7 @@ function LayoutEditor:AddParams()
 end
 
 function LayoutEditor:FlagsEdit()
-    local flags = layoutEnums.KnobFlags
+    local flags = layout_enums.KnobFlags
     local current_flags = self.selectedParam.details.display_settings.flags
     if current_flags == nil then
         return
@@ -285,8 +286,8 @@ function LayoutEditor:ParamInfo()
         return
     end
     reaper.ImGui_Text(self.ctx, "Param Display Type")
-    reaper.ImGui_BeginTable(self.ctx, "##radioBtnTable", layoutEnums.Param_Display_Type_Length)
-    for type_name, type_idx in pairs(layoutEnums.Param_Display_Type) do
+    reaper.ImGui_BeginTable(self.ctx, "##radioBtnTable", layout_enums.Param_Display_Type_Length)
+    for type_name, type_idx in pairs(layout_enums.Param_Display_Type) do
         reaper.ImGui_TableNextColumn(self.ctx)
         local changed, new_val = reaper.ImGui_RadioButtonEx(
             self.ctx,
@@ -302,7 +303,7 @@ function LayoutEditor:ParamInfo()
     end
     reaper.ImGui_EndTable(self.ctx)
     self:ControlPosition()
-    if self.selectedParam.details.display_settings.type == layoutEnums.Param_Display_Type.Knob then
+    if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.Knob then
         self:KnobVariant()
         self:KnobColors()
     end
@@ -319,13 +320,79 @@ function LayoutEditor:ParamInfo()
 end
 
 --- TODO Left pane to contain list of params and list of colors? or just the list of params?
-function LayoutEditor:LeftPane()
-    if reaper.ImGui_BeginChild(self.ctx, "left pane", 150, -25, true) then
+function LayoutEditor:LeftPaneParams()
+    if reaper.ImGui_BeginChild(self.ctx, "left pane params", 150, -25, true) then
         self:AddParams()
         reaper.ImGui_EndChild(self.ctx)
     end
 
     reaper.ImGui_SameLine(self.ctx)
+end
+
+function LayoutEditor:LeftPaneDecorations()
+    if reaper.ImGui_BeginChild(self.ctx, "left pane decorations", 150, -25, true) then
+        if reaper.ImGui_Selectable(self.ctx, "add decoration", false) then
+            if not self.fx.displaySettings.decorations then
+                self.fx.displaySettings.decorations = {}
+            end
+            local new_decoration = defaults.createDecoration(self.fx)
+            if self.selectedDecoration then
+                self.selectedDecoration._selected = false
+            end
+            self.selectedDecoration = new_decoration
+            self.selectedDecoration._selected = true
+        end
+        if not self.fx.displaySettings.decorations then goto continue end
+        for deco_idx, decoration in ipairs(self.fx.displaySettings.decorations) do
+            local rv, selected = reaper.ImGui_Selectable(
+                self.ctx,
+                layout_enums.DecorationLabel[decoration.type],
+                self.selectedDecoration.guid == decoration.guid)
+            if rv and selected then
+                self.selectedDecoration._selected = false
+                self.selectedDecoration = decoration
+                self.selectedDecoration._selected = true
+            end
+        end
+        ::continue::
+        reaper.ImGui_EndChild(self.ctx)
+    end
+
+    reaper.ImGui_SameLine(self.ctx)
+end
+
+function LayoutEditor:RightPaneDecorations()
+    if not self.selectedDecoration then
+        reaper.ImGui_Text(self.ctx, "no decorations added yet!")
+        return
+    end
+    reaper.ImGui_BeginGroup(self.ctx)
+
+    reaper.ImGui_Text(self.ctx, "Decoration type:")
+    for type_index, type_name in ipairs(layout_enums.DecorationLabel) do
+        local changed, new_val = reaper.ImGui_RadioButtonEx(
+            self.ctx,
+            type_name,
+            self.selectedDecoration.type,
+            type_index)
+        if changed and new_val ~= self.selectedDecoration.type then
+            self.selectedDecoration.type = new_val
+            -- update the actual component being displayed
+        end
+        if type_index < #layout_enums.DecorationLabel then
+            reaper.ImGui_SameLine(self.ctx)
+        end
+    end
+    if reaper.ImGui_Button(self.ctx, "delete decoration") then
+        for k, v in ipairs(self.fx.displaySettings.decorations) do
+            if v.guid == self.selectedDecoration.guid then
+                table.remove(self.fx.displaySettings.decorations, k)
+                break
+            end
+        end
+        self.selectedDecoration = nil
+    end
+    reaper.ImGui_EndGroup(self.ctx)
 end
 
 --- displays a button which can be dragged around the canvas
@@ -380,7 +447,7 @@ end
 --     end
 -- end
 
-function LayoutEditor:RightPane()
+function LayoutEditor:RightPaneParams()
     if not self.selectedParam then
         return
     end
@@ -426,12 +493,12 @@ function LayoutEditor:FxDisplaySettings()
         self.ctx,
         "horizontal",
         self.fx.displaySettings.buttons_layout,
-        layoutEnums.buttons_layout.horizontal)
+        layout_enums.buttons_layout.horizontal)
     _, self.fx.displaySettings.buttons_layout = reaper.ImGui_RadioButtonEx(
         self.ctx,
         "vertical",
         self.fx.displaySettings.buttons_layout,
-        layoutEnums.buttons_layout.vertical)
+        layout_enums.buttons_layout.vertical)
 
     reaper.ImGui_SeparatorText(self.ctx, "Display Title as: ")
     --fx name
@@ -441,19 +508,19 @@ function LayoutEditor:FxDisplaySettings()
         self.ctx,
         "fx name",
         self.fx.displaySettings.title_display,
-        layoutEnums.Title_Display_Style.fx_name)
+        layout_enums.Title_Display_Style.fx_name)
 
     _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
         self.ctx,
         "preset name",
         self.fx.displaySettings.title_display,
-        layoutEnums.Title_Display_Style.preset_name)
+        layout_enums.Title_Display_Style.preset_name)
 
     _, self.fx.displaySettings.title_display = reaper.ImGui_RadioButtonEx(
         self.ctx,
         "custom title",
         self.fx.displaySettings.title_display,
-        layoutEnums.Title_Display_Style.custom_title)
+        layout_enums.Title_Display_Style.custom_title)
     reaper.ImGui_SameLine(self.ctx)
     _, self.fx.displaySettings.custom_Title = reaper.ImGui_InputTextWithHint(self.ctx, "##custom_title" .. self.fx.guid,
         self.fx.name, self.fx.displaySettings.custom_Title)
@@ -462,7 +529,7 @@ function LayoutEditor:FxDisplaySettings()
         self.ctx,
         "fx instance name",
         self.fx.displaySettings.title_display,
-        layoutEnums.Title_Display_Style.fx_instance_name)
+        layout_enums.Title_Display_Style.fx_instance_name)
 
 
 
@@ -481,19 +548,23 @@ function LayoutEditor:FxDisplaySettings()
 end
 
 ---@param ctx ImGui_Context
----@param label "FX layout"|"Params"
+---@param label "FX layout"|"Params"|"Decorations"
 ---@param p_open? boolean
 ---@param flags? integer
 function LayoutEditor:Tab(ctx, label, p_open, flags)
     if label == "FX layout" and not self._tab_text_fx then
         self._tab_text_fx = Theme.colors.genlist_selfg.color
-    elseif not self._tab_text_params then
+    elseif label == "Params" and not self._tab_text_params then
         self._tab_text_params = Theme.colors.genlist_selfg.color
+    elseif label == "Decorations" and not self._tab_text_decorations then
+        self._tab_text_decorations = Theme.colors.genlist_selfg.color
     end
     if label == "FX layout" then
         reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self._tab_text_fx)
-    else
+    elseif label == "Params" then
         reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self._tab_text_params)
+    else
+        reaper.ImGui_PushStyleColor(self.ctx, reaper.ImGui_Col_Text(), self._tab_text_decorations)
     end
 
     local rv = reaper.ImGui_BeginTabItem(ctx, label, p_open, flags)
@@ -501,14 +572,18 @@ function LayoutEditor:Tab(ctx, label, p_open, flags)
     if rv then
         if label == "FX layout" then
             self._tab_text_fx = Theme.colors.genlist_selfg.color
-        else
+        elseif label == "Params" then
             self._tab_text_params = Theme.colors.genlist_selfg.color
+        else
+            self._tab_text_decorations = Theme.colors.genlist_selfg.color
         end
     else
         if label == "FX layout" then
             self._tab_text_fx = Theme.colors.genlist_fg.color
-        else
+        elseif label == "Params" then
             self._tab_text_params = Theme.colors.genlist_fg.color
+        else
+            self._tab_text_decorations = Theme.colors.genlist_fg.color
         end
     end
     reaper.ImGui_PopStyleColor(self.ctx, 1)
@@ -525,10 +600,17 @@ function LayoutEditor:Tabs()
                 reaper.ImGui_EndTabItem(self.ctx)
             end
             if self:Tab(self.ctx, "Params") then
-                self:LeftPane()
-                self:RightPane()
+                self:LeftPaneParams()
+                self:RightPaneParams()
                 reaper.ImGui_EndTabItem(self.ctx)
             end
+            if self:Tab(self.ctx, "Decorations") then
+                reaper.ImGui_Text(self.ctx, "Decorations")
+                self:LeftPaneDecorations()
+                self:RightPaneDecorations()
+                reaper.ImGui_EndTabItem(self.ctx)
+            end
+
             reaper.ImGui_EndTabBar(self.ctx)
         end
         reaper.ImGui_EndChild(self.ctx)
@@ -572,9 +654,13 @@ function LayoutEditor:close(action)
     if self.selectedParam then
         self.selectedParam._selected = false
     end
+    if self.selectedDecoration then
+        self.selectedDecoration._selected = false
+    end
     if self.fx then
         self.fx.editing = false
         self.fx.setSelectedParam = nil
+        self.fx.setSelectedDecoration = nil
     end
     self.open = false
     self.fx = nil
@@ -594,6 +680,15 @@ function LayoutEditor:edit(fx)
             self.selectedParam = param
             self.selectedParam._selected = true
         end
+
+    self.fx.setSelectedDecoration =
+        function(decoration)
+            if self.selectedDecoration then
+                self.selectedDecoration._selected = false
+            end
+            self.selectedDecoration = decoration
+            self.selectedDecoration._selected = true
+        end
     self.fx.editing = true
     self.displaySettings = fx.displaySettings
     self.displaySettings_backup = Table.deepCopy(fx.displaySettings)
@@ -611,6 +706,10 @@ function LayoutEditor:edit(fx)
         self.selectedParam = self.fx.params_list[1]
     end
     self.selectedParam._selected = true
+    if not self.selectedDecoration and self.fx.displaySettings.decorations and #self.fx.displaySettings.decorations then
+        self.selectedDecoration = self.fx.displaySettings.decorations[1]
+        self.selectedDecoration._selected = true
+    end
     self.width = 825
     self.height = 400
     reaper.ImGui_SetNextWindowSize(self.ctx, self.width, self.height)

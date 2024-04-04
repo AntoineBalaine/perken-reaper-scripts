@@ -57,6 +57,67 @@ layout_enums.KnobFlags = {
     None = 0,
 }
 
+---@enum DecorationType
+layout_enums.DecorationType = {
+    line = 1,
+    rectangle = 2,
+    text = 3,
+    background_image = 4,
+}
+
+layout_enums.DecorationLabel = {
+    "line",
+    "rectangle",
+    "text",
+    "background_image",
+}
+
+layout_enums.Decoration_Display_Type_Length = 4
+
+---Adding this assert here so that the two Decoration_Display_Type and its corresponding Length variable
+--are kept in sync. This just so we don't have to keep querying the length of Decoration_Display_Type at
+--every frame when we're opening the `layoutEditor:DecorationInfo()`.
+assert(
+    tableHelpers.namedTableLength(layout_enums.DecorationType) == layout_enums.Decoration_Display_Type_Length,
+    "Maintenance BUG! In layout_enums, Decoration_Display_Type's should equal Decoration_Display_Type_Length")
+
+
+---@class deco_text
+---@field type DecorationType
+---@field x_pos number
+---@field y_pos number
+---@field font_size number
+---@field color integer
+---@field weight integer
+---@field _selected boolean
+---@field guid string
+
+---@class deco_line
+---@field type DecorationType
+---@field x_pos number
+---@field y_pos number
+---@field thickness number
+---@field color integer
+---@field _selected boolean
+---@field guid string
+
+---@class deco_rectangle
+---@field type DecorationType
+---@field x_pos number
+---@field y_pos number
+---@field color integer
+---@field _selected boolean
+---@field guid string
+
+---@class deco_image
+---@field type DecorationType
+---@field x_pos number
+---@field y_pos number
+---@field _selected boolean
+---@field guid string
+
+---@alias Decoration deco_text | deco_line | deco_rectangle | deco_image
+
 ---@enum DragDirection
 local DragDirection = {
     left = "left",

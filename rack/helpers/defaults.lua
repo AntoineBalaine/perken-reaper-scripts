@@ -101,4 +101,20 @@ function defaults.getDefaultParamDisplaySettings(steps_count)
     return display_settings
 end
 
+---@param fx TrackFX
+function defaults.createDecoration(fx)
+    -- default decoration is a rectangle
+    ---@type deco_rectangle
+    local new_decoration = {
+        type = layout_enums.DecorationType.rectangle,
+        x_pos = 0,
+        y_pos = 0,
+        color = Theme.colors.col_env1.color,
+        _selected = false,
+        guid = reaper.genGuid("deco_rectangle" .. math.random())
+    }
+    table.insert(fx.displaySettings.decorations, new_decoration)
+    return new_decoration
+end
+
 return defaults

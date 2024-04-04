@@ -33,6 +33,7 @@ local Theme = Theme
 ---@field renamed_name string|nil
 ---@field removeParamDetails fun(self: TrackFX, param: ParamData)
 ---@field setSelectedParam fun(param: ParamData)|nil
+---@field setSelectedDecoration fun(decoration: Decoration)|nil
 ---@field state State
 ---@field update fun(self: TrackFX)
 ---@field DryWetParam ParamData
@@ -94,6 +95,7 @@ function fx.new(state, index, number, guid)
     ---@field title_display Title_Display_Style
     ---@field window_height integer = 240
     ---@field window_width integer = 280
+    ---@field decorations? Decoration[] drawn in the fx_box, in background drawlist, instantiated only on demand of the layoutEditor or of a saved layout
 
     self.displaySettings = defaults.getDefaultFxDisplaySettings()
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
