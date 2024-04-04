@@ -14,13 +14,13 @@ Let"s go with one instance per fx:
 - If we want to persist unsaved layouts between re-starts, we"ll have to either store this in external state or in the track.
 
 ]]
-local layout_enums    = require("state.layout_enums")
-local Table           = require("helpers.table")
-local Palette         = require("components.Palette")
-local MainWindowStyle = require("helpers.MainWindowStyle")
-local defaults        = require("helpers.defaults")
-local Theme           = Theme --- localize the global
-local LayoutEditor    = {}
+local layout_enums        = require("state.layout_enums")
+local Table               = require("helpers.table")
+local Palette             = require("components.Palette")
+local MainWindowStyle     = require("helpers.MainWindowStyle")
+local decorations_helpers = require("helpers.decorations_helpers")
+local Theme               = Theme --- localize the global
+local LayoutEditor        = {}
 
 ---@param ctx ImGui_Context
 function LayoutEditor:init(ctx)
@@ -336,7 +336,7 @@ function LayoutEditor:LeftPaneDecorations()
             if not self.fx.displaySettings.decorations then
                 self.fx.displaySettings.decorations = {}
             end
-            local new_decoration = defaults.createDecoration(self.fx)
+            local new_decoration = decorations_helpers.createDecoration(self.fx)
             if self.selectedDecoration then
                 self.selectedDecoration._selected = false
             end
@@ -344,7 +344,7 @@ function LayoutEditor:LeftPaneDecorations()
             self.selectedDecoration._selected = true
         end
         if not self.fx.displaySettings.decorations then goto continue end
-        for deco_idx, decoration in ipairs(self.fx.displaySettings.decorations) do
+        for _, decoration in ipairs(self.fx.displaySettings.decorations) do
             local rv, selected = reaper.ImGui_Selectable(
                 self.ctx,
                 layout_enums.DecorationLabel[decoration.type],
@@ -381,6 +381,7 @@ function LayoutEditor:RightPaneDecorations()
             -- TODO
             -- update the actual component being displayed
             -- remove any incompatible properties, and add the new ones
+            decorations_helpers.updateType(self.selectedDecoration, new_val)
         end
         if type_index < #layout_enums.DecorationLabel then
             reaper.ImGui_SameLine(self.ctx)
@@ -399,6 +400,38 @@ function LayoutEditor:RightPaneDecorations()
     --
     reaper.ImGui_PushItemWidth(self.ctx, 100)
     -- add specific controls depending on the type of decoration
+
+    if self.selectedDecoration.width and self.selectedDecoration.height then
+        reaper.ImGui_Text(self.ctx, "Width:")
+
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.width = reaper.ImGui_DragInt(
+            self.ctx,
+            "##width" .. self.selectedDecoration.guid,
+            self.selectedDecoration.width,
+            nil,
+            0,
+            self.fx.displaySettings.window_width,
+            "%dpx")
+        if reaper.ImGui_IsItemHovered(self.ctx) then
+            reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
+        end
+
+        reaper.ImGui_Text(self.ctx, "Height:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.height = reaper.ImGui_DragInt(
+            self.ctx,
+            "##height" .. self.selectedDecoration.guid,
+            self.selectedDecoration.height,
+            nil,
+            0,
+            self.fx.displaySettings.window_height,
+            "%dpx")
+
+        if reaper.ImGui_IsItemHovered(self.ctx) then
+            reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
+        end
+    end
 
     -- text type
     if self.selectedDecoration.type == layout_enums.DecorationType.text then
@@ -424,12 +457,8 @@ function LayoutEditor:RightPaneDecorations()
 
         -- rectangle type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.rectangle then
-        reaper.ImGui_Text(self.ctx, "Width:")
-        reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.width = reaper.ImGui_DragInt(self.ctx, "##width", self.selectedDecoration.width)
-        reaper.ImGui_Text(self.ctx, "Height:")
-        reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.height = reaper.ImGui_DragInt(self.ctx, "##height", self.selectedDecoration.height)
+        -- already taken care of by width and height, and color…
+        -- TODO maybe we can add rounding?
 
         -- image type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.background_image then
@@ -453,23 +482,10 @@ function LayoutEditor:RightPaneDecorations()
             reaper.ImGui_PopItemWidth(self.ctx)
         end
 
-        reaper.ImGui_Text(self.ctx, "Keep ratio:")
 
-        reaper.ImGui_SameLine(self.ctx)
         _, self.selectedDecoration.keep_ratio = reaper.ImGui_Checkbox(self.ctx,
-            "##keep_ratio" .. self.selectedDecoration.guid,
+            "keep width/height ratio when resizing",
             self.selectedDecoration.keep_ratio)
-
-        reaper.ImGui_Text(self.ctx, "Width:")
-
-        reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.width = reaper.ImGui_DragInt(self.ctx, "##width" .. self.selectedDecoration.guid,
-            self.selectedDecoration.width)
-
-        reaper.ImGui_Text(self.ctx, "Height:")
-        reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.height = reaper.ImGui_DragInt(self.ctx, "##height" .. self.selectedDecoration.guid,
-            self.selectedDecoration.height)
     end
     reaper.ImGui_PopItemWidth(self.ctx)
 
