@@ -392,53 +392,20 @@ function LayoutEditor:RightPaneDecorations()
     end
     --
     reaper.ImGui_PushItemWidth(self.ctx, 100)
-    -- add specific controls depending on the type of decoration
 
     if self.selectedDecoration.width and self.selectedDecoration.height then
-        reaper.ImGui_Text(self.ctx, "Width:")
-
-        reaper.ImGui_SameLine(self.ctx)
-        local width_update, new_width = reaper.ImGui_DragInt(
-            self.ctx,
-            "##width" .. self.selectedDecoration.guid,
-            self.selectedDecoration.width,
-            nil,
-            0,
+        ControlPosition(self.ctx,
+            "width/height:",
+            self.selectedDecoration,
+            "width",
+            "height",
             self.fx.displaySettings.window_width,
-            "%dpx")
-        if width_update then
-            if self.selectedDecoration.keep_ratio then
-                local ratio = self.selectedDecoration.height / self.selectedDecoration.width
-                self.selectedDecoration.height = (new_width * ratio) // 1 | 0
-            end
-            self.selectedDecoration.width = new_width
-        end
-        if reaper.ImGui_IsItemHovered(self.ctx) then
-            reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
-        end
-
-        reaper.ImGui_Text(self.ctx, "Height:")
-        reaper.ImGui_SameLine(self.ctx)
-        local height_update, new_height = reaper.ImGui_DragInt(
-            self.ctx,
-            "##height" .. self.selectedDecoration.guid,
-            self.selectedDecoration.height,
-            nil,
-            0,
             self.fx.displaySettings.window_height,
-            "%dpx")
-        if height_update then
-            if self.selectedDecoration.keep_ratio then
-                local ratio = self.selectedDecoration.width / self.selectedDecoration.height
-                self.selectedDecoration.width = (new_height * ratio) // 1 | 0
-            end
-            self.selectedDecoration.height = new_height
-        end
-        if reaper.ImGui_IsItemHovered(self.ctx) then
-            reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
-        end
+            self.selectedDecoration.keep_ratio
+        )
     end
 
+    -- add specific controls depending on the type of decoration
     -- text type
     if self.selectedDecoration.type == layout_enums.DecorationType.text then
         reaper.ImGui_Text(self.ctx, "Text size:")
