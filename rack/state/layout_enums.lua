@@ -90,7 +90,6 @@ assert(
 ---@field guid string
 ---@field color integer
 ---@field font_size number
----@field weight integer
 ---@field text string
 
 ---@class deco_line

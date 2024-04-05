@@ -16,7 +16,7 @@ local CycleButton     = require("components.CycleButton")
 local Slider          = require("components.Slider")
 local layoutEnums     = require("state.layout_enums")
 local defaults        = require("helpers.defaults")
-local deco_helpers    = require("helpers.decorations_helpers")
+local Decorations     = require("components.Decorations")
 local fx_box          = {}
 local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 local Theme           = Theme --- localize the global
@@ -352,7 +352,7 @@ function fx_box:Canvas()
         -- draw the decorations after the grid, so they appear on top of it.
         if self.fx.displaySettings.decorations then
             for _, decoration in ipairs(self.fx.displaySettings.decorations) do
-                deco_helpers.drawDecoration(self.ctx, decoration)
+                Decorations.drawDecoration(self.ctx, decoration)
             end
         end
 

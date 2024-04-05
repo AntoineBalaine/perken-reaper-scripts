@@ -1,7 +1,7 @@
 local layout_enums = require("state.layout_enums")
 local table_helpers = require("helpers.table")
 
-local deco_helpers = {}
+local Decorations = {}
 
 ---@type deco_text
 local default_deco_text = {
@@ -10,7 +10,6 @@ local default_deco_text = {
     Pos_Y = 0,
     color = Theme.colors.col_env1.color,
     font_size = 12,
-    weight = 400,
     _selected = false,
     guid = "",
     text = ""
@@ -57,7 +56,7 @@ local default_deco_image = {
 }
 
 ---@param fx TrackFX
-function deco_helpers.createDecoration(fx)
+function Decorations.createDecoration(fx)
     -- default decoration is a rectangle
     ---@type deco_rectangle
     local new_decoration = {
@@ -78,7 +77,7 @@ end
 ---@param decoration Decoration
 ---@param new_type DecorationType
 ---@return Decoration
-function deco_helpers.updateType(decoration, new_type)
+function Decorations.updateType(decoration, new_type)
     decoration.type = new_type
     local copy
     if new_type == layout_enums.DecorationType.rectangle then
@@ -111,7 +110,7 @@ end
 
 ---@param decoration Decoration
 ---@param ctx ImGui_Context
-function deco_helpers.drawDecoration(ctx, decoration)
+function Decorations.drawDecoration(ctx, decoration)
     local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
     local win_x, win_y = reaper.ImGui_GetWindowPos(ctx)
 
@@ -167,4 +166,4 @@ function deco_helpers.drawDecoration(ctx, decoration)
     end
 end
 
-return deco_helpers
+return Decorations

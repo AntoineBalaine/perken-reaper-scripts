@@ -14,14 +14,14 @@ Let"s go with one instance per fx:
 - If we want to persist unsaved layouts between re-starts, we"ll have to either store this in external state or in the track.
 
 ]]
-local layout_enums        = require("state.layout_enums")
-local Table               = require("helpers.table")
-local Palette             = require("components.Palette")
-local MainWindowStyle     = require("helpers.MainWindowStyle")
-local decorations_helpers = require("helpers.decorations_helpers")
-local fx_box_helpers      = require("helpers.fx_box_helpers")
-local Theme               = Theme --- localize the global
-local LayoutEditor        = {}
+local layout_enums    = require("state.layout_enums")
+local Table           = require("helpers.table")
+local Palette         = require("components.Palette")
+local MainWindowStyle = require("helpers.MainWindowStyle")
+local Decorations     = require("components.Decorations")
+local fx_box_helpers  = require("helpers.fx_box_helpers")
+local Theme           = Theme     --- localize the global
+local LayoutEditor    = {}
 
 ---@param ctx ImGui_Context
 function LayoutEditor:init(ctx)
@@ -345,7 +345,7 @@ function LayoutEditor:LeftPaneDecorations()
             if not self.fx.displaySettings.decorations then
                 self.fx.displaySettings.decorations = {}
             end
-            local new_decoration = decorations_helpers.createDecoration(self.fx)
+            local new_decoration = Decorations.createDecoration(self.fx)
             if self.selectedDecoration then
                 self.selectedDecoration._selected = false
             end
@@ -390,7 +390,7 @@ function LayoutEditor:RightPaneDecorations()
             -- TODO
             -- update the actual component being displayed
             -- remove any incompatible properties, and add the new ones
-            decorations_helpers.updateType(self.selectedDecoration, new_val)
+            Decorations.updateType(self.selectedDecoration, new_val)
         end
         if type_index < #layout_enums.DecorationLabel then
             reaper.ImGui_SameLine(self.ctx)
@@ -449,10 +449,7 @@ function LayoutEditor:RightPaneDecorations()
 
         _, self.selectedDecoration.font_size = reaper.ImGui_DragInt(self.ctx, "##font_size",
             self.selectedDecoration.font_size)
-        reaper.ImGui_Text(self.ctx, "Font weight:")
-        reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.weight = reaper.ImGui_DragInt(self.ctx, "##font_weight",
-            self.selectedDecoration.weight)
+
         reaper.ImGui_Text(self.ctx, "Text:")
         reaper.ImGui_SameLine(self.ctx)
         _, self.selectedDecoration.text = reaper.ImGui_InputTextWithHint(self.ctx, "##text",
