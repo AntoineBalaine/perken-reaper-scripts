@@ -16,4 +16,20 @@ function fx_box_helpers.getDisplayName(name)
         }):gsub('[%:%[%]%/]', "_")
 end
 
+---Coerce `Input` number to be between `Min` and `Max`
+---@param Input number
+---@param Min number
+---@param Max number
+---@return number
+function fx_box_helpers.fitBetweenMinMax(Input, Min, Max)
+    if Input >= Max then
+        Input = Max
+    elseif Input <= Min then
+        Input = Min
+    else
+        Input = Input
+    end
+    return Input
+end
+
 return fx_box_helpers

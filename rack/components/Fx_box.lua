@@ -16,6 +16,7 @@ local CycleButton     = require("components.CycleButton")
 local Slider          = require("components.Slider")
 local layoutEnums     = require("state.layout_enums")
 local defaults        = require("helpers.defaults")
+local Decorations     = require("components.Decorations")
 local fx_box          = {}
 local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 local Theme           = Theme --- localize the global
@@ -321,6 +322,7 @@ function fx_box:Canvas()
         if self.fx.editing then
             self:DrawGrid()
 
+
             --- allow resizing the width of the box by dragging the right border
             --- sadly I can't use «is window focused» here,
             -- there are cases where the outer rack might be focused, but the inner box isn't.
@@ -344,6 +346,13 @@ function fx_box:Canvas()
                     self.fx.displaySettings.window_width = self.fx.displaySettings.window_width + delta_x
                     reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
                 end
+            end
+        end
+
+        -- draw the decorations after the grid, so they appear on top of it.
+        if self.fx.displaySettings.decorations then
+            for _, decoration in ipairs(self.fx.displaySettings.decorations) do
+                Decorations.drawDecoration(self.ctx, decoration)
             end
         end
 
