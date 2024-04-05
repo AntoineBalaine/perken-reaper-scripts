@@ -277,7 +277,6 @@ function LayoutEditor:ParamInfo()
             "Pos_X",
             "Pos_Y",
             max_x,
-
             max_y)
     end
     if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.Knob then
@@ -366,16 +365,8 @@ function LayoutEditor:RightPaneDecorations()
 
 
     -- add controls for decoration's position
-    local max_x = self.fx.displaySettings.window_height -
-        (self.selectedDecoration.height or self.selectedDecoration.length
-            or select(2, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
-            or 0)
-        - 40
-    local max_y = self.fx.displaySettings.window_width -
-        (self.selectedDecoration.width
-            or self.selectedDecoration.thickness
-            or select(1, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
-            or 0)
+    local max_x = self.fx.displaySettings.window_height
+    local max_y = self.fx.displaySettings.window_width
     ControlPosition(self.ctx,
         "position",
         self.selectedDecoration,
@@ -426,8 +417,8 @@ function LayoutEditor:RightPaneDecorations()
             self.selectedDecoration,
             "thickness",
             "length",
-            self.fx.displaySettings.window_width - 40,
-            self.fx.displaySettings.window_height - 40)
+            self.fx.displaySettings.window_width,
+            self.fx.displaySettings.window_height)
 
         -- rectangle type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.rectangle then

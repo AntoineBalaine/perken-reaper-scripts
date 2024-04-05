@@ -44,7 +44,7 @@ function ControlPosition(ctx, label, obj, x_prop, y_prop, max_x, max_y, keep_rat
         end
     end
     if reaper.ImGui_IsItemHovered(ctx) then
-        reaper.ImGui_SetMouseCursor(ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
+        reaper.ImGui_SetMouseCursor(ctx, reaper.ImGui_MouseCursor_ResizeAll())
     end
     reaper.ImGui_SameLine(ctx)
     reaper.ImGui_Text(ctx, "X: " .. obj[x_prop] .. ", Y: " .. obj[y_prop])
