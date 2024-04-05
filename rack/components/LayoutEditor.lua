@@ -227,45 +227,42 @@ end
 function LayoutEditor:ControlPosition(display_settings)
     -- add two drags, one vertical and one horizontal
     -- to control the position in window
-    reaper.ImGui_Text(self.ctx, "Control Position")
+    reaper.ImGui_Text(self.ctx, "Control Position:")
     reaper.ImGui_SameLine(self.ctx)
     reaper.ImGui_PushItemWidth(self.ctx, 100)
-    local x_changed, new_x = reaper.ImGui_DragInt(self.ctx, "##x_pos", display_settings.Pos_X, nil, 0,
-        self.fx.displaySettings.window_width -
-        (self.selectedDecoration.width
-            or self.selectedDecoration.thickness
-            or select(1, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
-            or 0))
-    if x_changed then
-        display_settings.Pos_X = new_x
-    end
-
-    if reaper.ImGui_IsItemHovered(self.ctx) then
-        reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
-    end
-    reaper.ImGui_SameLine(self.ctx)
     local x, y = reaper.ImGui_GetCursorPos(self.ctx)
     -- add an invisible button that will allow the user to drag the control VERTICALLY.
-    reaper.ImGui_InvisibleButton(self.ctx, "##y_pos", 100, 20)
+    reaper.ImGui_Button(self.ctx, "Drag me", 100, 20)
     if reaper.ImGui_IsItemActive(self.ctx) then
-        local _, delta_y = reaper.ImGui_GetMouseDragDelta(self.ctx, x, y)
-        if delta_y ~= 0.0 then
-            display_settings.Pos_Y = fx_box_helpers.fitBetweenMinMax(
-                display_settings.Pos_Y + delta_y,
-                0,
-                self.fx.displaySettings.window_height -
-                (self.selectedDecoration.height or self.selectedDecoration.length
-                    or select(2, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
-                    or 0)
-                - 40)
+        local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(self.ctx, x, y)
+        if delta_x ~= 0.0 or delta_y ~= 0.0 then
+            if delta_y ~= 0.0 then
+                display_settings.Pos_Y = fx_box_helpers.fitBetweenMinMax(
+                    display_settings.Pos_Y + delta_y,
+                    0,
+                    self.fx.displaySettings.window_height -
+                    (self.selectedDecoration.height or self.selectedDecoration.length
+                        or select(2, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
+                        or 0)
+                    - 40)
+            end
+            if delta_x ~= 0.0 then
+                display_settings.Pos_X = fx_box_helpers.fitBetweenMinMax(
+                    display_settings.Pos_X + delta_x,
+                    0,
+                    self.fx.displaySettings.window_width -
+                    (self.selectedDecoration.width
+                        or self.selectedDecoration.thickness
+                        or select(1, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
+                        or 0))
+            end
+
             reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
         end
     end
     if reaper.ImGui_IsItemHovered(self.ctx) then
-        reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeNS())
+        reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
     end
-    reaper.ImGui_SetCursorPos(self.ctx, x, y)
-    reaper.ImGui_DragInt(self.ctx, "##y_pos", display_settings.Pos_Y)
     reaper.ImGui_PopItemWidth(self.ctx)
 end
 
