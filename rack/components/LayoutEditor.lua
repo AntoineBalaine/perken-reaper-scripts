@@ -19,7 +19,7 @@ local Table           = require("helpers.table")
 local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
 local Decorations     = require("components.Decorations")
-local ControlPos      = require("components.ControlPosition")
+local ControlPosition = require("components.ControlPosition")
 local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
@@ -270,9 +270,15 @@ function LayoutEditor:ParamInfo()
     reaper.ImGui_EndTable(self.ctx)
     local max_x = self.fx.displaySettings.window_height
     local max_y = self.fx.displaySettings.window_width
-    -- self:ControlPosition(self.selectedParam.details.display_settings)
     if self.selectedParam.details.display_settings.Pos_X and self.selectedParam.details.display_settings.Pos_Y then
-        ControlPos(self.ctx, "position: drag me", self.selectedParam.details.display_settings, max_x, max_y)
+        ControlPosition(self.ctx,
+            "position",
+            self.selectedParam.details.display_settings,
+            "Pos_X",
+            "Pos_Y",
+            max_x,
+
+            max_y)
     end
     if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.Knob then
         self:KnobVariant()
@@ -360,7 +366,6 @@ function LayoutEditor:RightPaneDecorations()
 
 
     -- add controls for decoration's position
-    -- self:ControlPosition(self.selectedDecoration)
     local max_x = self.fx.displaySettings.window_height -
         (self.selectedDecoration.height or self.selectedDecoration.length
             or select(2, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
@@ -371,7 +376,13 @@ function LayoutEditor:RightPaneDecorations()
             or self.selectedDecoration.thickness
             or select(1, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
             or 0)
-    ControlPos(self.ctx, "position: drag me", self.selectedDecoration, max_x, max_y)
+    ControlPosition(self.ctx,
+        "position",
+        self.selectedDecoration,
+        "Pos_X",
+        "Pos_Y",
+        max_x,
+        max_y)
 
     -- add controls for decoration's color
     if self.selectedDecoration.type ~= layout_enums.DecorationType.background_image then
@@ -443,13 +454,13 @@ function LayoutEditor:RightPaneDecorations()
 
         -- line type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.line then
-        reaper.ImGui_Text(self.ctx, "Thickness:")
-        reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.thickness = reaper.ImGui_DragInt(self.ctx, "##thickness",
-            self.selectedDecoration.thickness)
-        reaper.ImGui_Text(self.ctx, "Length:")
-        reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.length = reaper.ImGui_DragInt(self.ctx, "##length", self.selectedDecoration.length)
+        ControlPosition(self.ctx,
+            "thickness and length",
+            self.selectedDecoration,
+            "thickness",
+            "length",
+            self.fx.displaySettings.window_width - 40,
+            self.fx.displaySettings.window_height - 40)
 
         -- rectangle type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.rectangle then

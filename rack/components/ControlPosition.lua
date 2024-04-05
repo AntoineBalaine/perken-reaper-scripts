@@ -4,27 +4,29 @@ local fx_box_helpers = require("helpers.fx_box_helpers")
 ---Allow updating the positions of the control in the window
 ---@param ctx ImGui_Context
 ---@param label string
----@param obj {Pos_X: number, Pos_Y: number}
+---@param obj {[x_prop]: number, [y_prop]: number}
+---@param x_prop string
+---@param y_prop string
 ---@param max_x number
 ---@param max_y number
-function ControlPosition(ctx, label, obj, max_x, max_y)
+function ControlPosition(ctx, label, obj, x_prop, y_prop, max_x, max_y)
     -- add two drags, one vertical and one horizontal
     -- to control the position in window
-    reaper.ImGui_Text(ctx, "Control Position:")
+    reaper.ImGui_Text(ctx, label)
     reaper.ImGui_SameLine(ctx)
     reaper.ImGui_PushItemWidth(ctx, 100)
     local cursor_x, cursor_y = reaper.ImGui_GetCursorPos(ctx)
     -- add an invisible button that will allow the user to drag the control VERTICALLY.
-    reaper.ImGui_Button(ctx, label, reaper.ImGui_CalcTextSize(ctx, label) + 10, 20)
+    reaper.ImGui_Button(ctx, "drag me", reaper.ImGui_CalcTextSize(ctx, label) + 10, 20)
     if reaper.ImGui_IsItemActive(ctx) then
         local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(ctx, cursor_x, cursor_y)
         if delta_x ~= 0.0 or delta_y ~= 0.0 then
             if delta_y ~= 0.0 then
-                obj.Pos_Y = fx_box_helpers.fitBetweenMinMax(obj.Pos_Y + delta_y, 0, max_x)
+                obj[y_prop] = fx_box_helpers.fitBetweenMinMax(obj[y_prop] + delta_y, 0, max_x)
             end
             if delta_x ~= 0.0 then
-                obj.Pos_X = fx_box_helpers.fitBetweenMinMax(
-                    obj.Pos_X + delta_x,
+                obj[x_prop] = fx_box_helpers.fitBetweenMinMax(
+                    obj[x_prop] + delta_x,
                     0,
                     max_y)
             end
@@ -36,7 +38,7 @@ function ControlPosition(ctx, label, obj, max_x, max_y)
         reaper.ImGui_SetMouseCursor(ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
     end
     reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_Text(ctx, "X: " .. obj.Pos_X .. ", Y: " .. obj.Pos_Y)
+    reaper.ImGui_Text(ctx, "X: " .. obj[x_prop] .. ", Y: " .. obj[y_prop])
     reaper.ImGui_PopItemWidth(ctx)
     -- return changed, delta_x, delta_y
 end
