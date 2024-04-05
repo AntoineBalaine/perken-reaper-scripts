@@ -155,7 +155,6 @@ function deco_helpers.drawDecoration(ctx, decoration)
             local Image = reaper.ImGui_CreateImage(decoration.path)
             if Image then
                 decoration.image = Image
-                reaper.ImGui_Attach(ctx, Image)
             end
         end
         reaper.ImGui_DrawList_AddImage(draw_list,
