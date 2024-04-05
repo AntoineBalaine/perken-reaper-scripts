@@ -19,7 +19,7 @@ local Table           = require("helpers.table")
 local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
 local Decorations     = require("components.Decorations")
-local fx_box_helpers  = require("helpers.fx_box_helpers")
+local ControlPos      = require("components.ControlPosition")
 local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
@@ -222,50 +222,6 @@ function LayoutEditor:KnobColors()
     end
 end
 
----Allow updating the positions of the control in the window
----@param display_settings ParamDisplaySettings | Decoration
-function LayoutEditor:ControlPosition(display_settings)
-    -- add two drags, one vertical and one horizontal
-    -- to control the position in window
-    reaper.ImGui_Text(self.ctx, "Control Position:")
-    reaper.ImGui_SameLine(self.ctx)
-    reaper.ImGui_PushItemWidth(self.ctx, 100)
-    local x, y = reaper.ImGui_GetCursorPos(self.ctx)
-    -- add an invisible button that will allow the user to drag the control VERTICALLY.
-    reaper.ImGui_Button(self.ctx, "Drag me", 100, 20)
-    if reaper.ImGui_IsItemActive(self.ctx) then
-        local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(self.ctx, x, y)
-        if delta_x ~= 0.0 or delta_y ~= 0.0 then
-            if delta_y ~= 0.0 then
-                display_settings.Pos_Y = fx_box_helpers.fitBetweenMinMax(
-                    display_settings.Pos_Y + delta_y,
-                    0,
-                    self.fx.displaySettings.window_height -
-                    (self.selectedDecoration.height or self.selectedDecoration.length
-                        or select(2, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
-                        or 0)
-                    - 40)
-            end
-            if delta_x ~= 0.0 then
-                display_settings.Pos_X = fx_box_helpers.fitBetweenMinMax(
-                    display_settings.Pos_X + delta_x,
-                    0,
-                    self.fx.displaySettings.window_width -
-                    (self.selectedDecoration.width
-                        or self.selectedDecoration.thickness
-                        or select(1, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
-                        or 0))
-            end
-
-            reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
-        end
-    end
-    if reaper.ImGui_IsItemHovered(self.ctx) then
-        reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
-    end
-    reaper.ImGui_PopItemWidth(self.ctx)
-end
-
 function LayoutEditor:KnobVariant()
     ---TODO maybe include these in the layoutEnums file?
     local knob_variants = "wiper_knob\0wiper_dot\0wiper_only\0tick\0dot\0space\0stepped\0ableton\0readrum\0imgui\0"
@@ -312,7 +268,12 @@ function LayoutEditor:ParamInfo()
         reaper.ImGui_TableNextColumn(self.ctx)
     end
     reaper.ImGui_EndTable(self.ctx)
-    self:ControlPosition(self.selectedParam.details.display_settings)
+    local max_x = self.fx.displaySettings.window_height
+    local max_y = self.fx.displaySettings.window_width
+    -- self:ControlPosition(self.selectedParam.details.display_settings)
+    if self.selectedParam.details.display_settings.Pos_X and self.selectedParam.details.display_settings.Pos_Y then
+        ControlPos(self.ctx, "position: drag me", self.selectedParam.details.display_settings, max_x, max_y)
+    end
     if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.Knob then
         self:KnobVariant()
         self:KnobColors()
@@ -399,7 +360,19 @@ function LayoutEditor:RightPaneDecorations()
 
 
     -- add controls for decoration's position
-    self:ControlPosition(self.selectedDecoration)
+    -- self:ControlPosition(self.selectedDecoration)
+    local max_x = self.fx.displaySettings.window_height -
+        (self.selectedDecoration.height or self.selectedDecoration.length
+            or select(2, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
+            or 0)
+        - 40
+    local max_y = self.fx.displaySettings.window_width -
+        (self.selectedDecoration.width
+            or self.selectedDecoration.thickness
+            or select(1, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
+            or 0)
+    ControlPos(self.ctx, "position: drag me", self.selectedDecoration, max_x, max_y)
+
     -- add controls for decoration's color
     if self.selectedDecoration.type ~= layout_enums.DecorationType.background_image then
         reaper.ImGui_Text(self.ctx, "Color:")
