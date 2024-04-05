@@ -20,7 +20,7 @@ local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
 local Decorations     = require("components.Decorations")
 local fx_box_helpers  = require("helpers.fx_box_helpers")
-local Theme           = Theme     --- localize the global
+local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
 ---@param ctx ImGui_Context
@@ -414,7 +414,7 @@ function LayoutEditor:RightPaneDecorations()
         reaper.ImGui_Text(self.ctx, "Width:")
 
         reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.width = reaper.ImGui_DragInt(
+        local width_update, new_width = reaper.ImGui_DragInt(
             self.ctx,
             "##width" .. self.selectedDecoration.guid,
             self.selectedDecoration.width,
@@ -422,13 +422,20 @@ function LayoutEditor:RightPaneDecorations()
             0,
             self.fx.displaySettings.window_width,
             "%dpx")
+        if width_update then
+            if self.selectedDecoration.keep_ratio then
+                local ratio = self.selectedDecoration.height / self.selectedDecoration.width
+                self.selectedDecoration.height = (new_width * ratio) // 1 | 0
+            end
+            self.selectedDecoration.width = new_width
+        end
         if reaper.ImGui_IsItemHovered(self.ctx) then
             reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
         end
 
         reaper.ImGui_Text(self.ctx, "Height:")
         reaper.ImGui_SameLine(self.ctx)
-        _, self.selectedDecoration.height = reaper.ImGui_DragInt(
+        local height_update, new_height = reaper.ImGui_DragInt(
             self.ctx,
             "##height" .. self.selectedDecoration.guid,
             self.selectedDecoration.height,
@@ -436,7 +443,13 @@ function LayoutEditor:RightPaneDecorations()
             0,
             self.fx.displaySettings.window_height,
             "%dpx")
-
+        if height_update then
+            if self.selectedDecoration.keep_ratio then
+                local ratio = self.selectedDecoration.width / self.selectedDecoration.height
+                self.selectedDecoration.width = (new_height * ratio) // 1 | 0
+            end
+            self.selectedDecoration.height = new_height
+        end
         if reaper.ImGui_IsItemHovered(self.ctx) then
             reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
         end
