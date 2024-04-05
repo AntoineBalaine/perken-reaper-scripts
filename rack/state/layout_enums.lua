@@ -91,6 +91,7 @@ assert(
 ---@field color integer
 ---@field font_size number
 ---@field weight integer
+---@field text string
 
 ---@class deco_line
 ---@field type DecorationType
@@ -111,6 +112,7 @@ assert(
 ---@field color integer
 ---@field width number
 ---@field height number
+---@field rounding number
 
 ---@class deco_image
 ---@field type DecorationType
@@ -122,6 +124,7 @@ assert(
 ---@field keep_ratio boolean
 ---@field width number
 ---@field height number
+---@field image? ImGui_Image
 
 ---@alias Decoration deco_text | deco_line | deco_rectangle | deco_image
 
@@ -258,4 +261,3 @@ local PositionType = {
 
 
 return layout_enums
-

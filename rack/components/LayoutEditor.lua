@@ -19,6 +19,7 @@ local Table               = require("helpers.table")
 local Palette             = require("components.Palette")
 local MainWindowStyle     = require("helpers.MainWindowStyle")
 local decorations_helpers = require("helpers.decorations_helpers")
+local fx_box_helpers      = require("helpers.fx_box_helpers")
 local Theme               = Theme --- localize the global
 local LayoutEditor        = {}
 
@@ -229,7 +230,12 @@ function LayoutEditor:ControlPosition(display_settings)
     reaper.ImGui_Text(self.ctx, "Control Position")
     reaper.ImGui_SameLine(self.ctx)
     reaper.ImGui_PushItemWidth(self.ctx, 100)
-    local x_changed, new_x = reaper.ImGui_DragInt(self.ctx, "##x_pos", display_settings.Pos_X)
+    local x_changed, new_x = reaper.ImGui_DragInt(self.ctx, "##x_pos", display_settings.Pos_X, nil, 0,
+        self.fx.displaySettings.window_width -
+        (self.selectedDecoration.width
+            or self.selectedDecoration.thickness
+            or select(1, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
+            or 0))
     if x_changed then
         display_settings.Pos_X = new_x
     end
@@ -244,8 +250,14 @@ function LayoutEditor:ControlPosition(display_settings)
     if reaper.ImGui_IsItemActive(self.ctx) then
         local _, delta_y = reaper.ImGui_GetMouseDragDelta(self.ctx, x, y)
         if delta_y ~= 0.0 then
-            display_settings.Pos_Y = display_settings.Pos_Y +
-                delta_y
+            display_settings.Pos_Y = fx_box_helpers.fitBetweenMinMax(
+                display_settings.Pos_Y + delta_y,
+                0,
+                self.fx.displaySettings.window_height -
+                (self.selectedDecoration.height or self.selectedDecoration.length
+                    or select(2, reaper.ImGui_CalcTextSize(self.ctx, self.selectedDecoration.text))
+                    or 0)
+                - 40)
             reaper.ImGui_ResetMouseDragDelta(self.ctx, reaper.ImGui_MouseButton_Left())
         end
     end
@@ -444,6 +456,10 @@ function LayoutEditor:RightPaneDecorations()
         reaper.ImGui_SameLine(self.ctx)
         _, self.selectedDecoration.weight = reaper.ImGui_DragInt(self.ctx, "##font_weight",
             self.selectedDecoration.weight)
+        reaper.ImGui_Text(self.ctx, "Text:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.text = reaper.ImGui_InputTextWithHint(self.ctx, "##text",
+            "text to display", self.selectedDecoration.text)
 
         -- line type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.line then
@@ -457,8 +473,11 @@ function LayoutEditor:RightPaneDecorations()
 
         -- rectangle type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.rectangle then
-        -- already taken care of by width and height, and color…
-        -- TODO maybe we can add rounding?
+        reaper.ImGui_Text(self.ctx, "Rounding:")
+        reaper.ImGui_SameLine(self.ctx)
+        _, self.selectedDecoration.rounding = reaper.ImGui_DragDouble(self.ctx, "##rounding",
+            self.selectedDecoration.rounding, 0.005, 0.0, 1.0, "%.2f")
+
 
         -- image type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.background_image then
@@ -478,6 +497,7 @@ function LayoutEditor:RightPaneDecorations()
                 "path to image",
                 "my_image.jpg",
                 self.selectedDecoration.path
+
             )
             reaper.ImGui_PopItemWidth(self.ctx)
         end

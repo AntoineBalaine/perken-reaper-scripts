@@ -13,6 +13,7 @@ local default_deco_text = {
     weight = 400,
     _selected = false,
     guid = "",
+    text = ""
 }
 
 ---@type deco_line
@@ -37,7 +38,8 @@ local default_deco_rectangle = {
     height = 20,
     color = Theme.colors.col_env1.color,
     _selected = false,
-    guid = ""
+    guid = "",
+    rounding = 0.0
 }
 
 ---@type deco_image
@@ -50,7 +52,8 @@ local default_deco_image = {
     keep_ratio = false,
     path = "",
     _selected = false,
-    guid = ""
+    guid = "",
+    image = nil
 }
 
 ---@param fx TrackFX
@@ -65,6 +68,7 @@ function deco_helpers.createDecoration(fx)
         width = 20,
         height = 20,
         _selected = false,
+        rounding = 0.0,
         guid = "",
     }
     table.insert(fx.displaySettings.decorations, new_decoration)
@@ -103,6 +107,65 @@ function deco_helpers.updateType(decoration, new_type)
 
 
     return decoration
+end
+
+---@param decoration Decoration
+---@param ctx ImGui_Context
+function deco_helpers.drawDecoration(ctx, decoration)
+    local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
+    local win_x, win_y = reaper.ImGui_GetWindowPos(ctx)
+
+    -- text
+    if decoration.type == layout_enums.DecorationType.text then
+        reaper.ImGui_DrawList_AddTextEx(draw_list,
+            nil,
+            decoration.font_size,
+            win_x + decoration.Pos_X,
+            win_y + decoration.Pos_Y,
+            decoration.color,
+            decoration.text)
+
+        -- line
+    elseif decoration.type == layout_enums.DecorationType.line then
+        -- assume vertical line for now
+        reaper.ImGui_DrawList_AddLine(draw_list,
+            win_x + decoration.Pos_X,
+            win_y + decoration.Pos_Y,
+            win_x + decoration.Pos_X,
+            win_y + decoration.Pos_Y + decoration.length,
+            decoration.color,
+            decoration.thickness)
+
+        -- rectangle
+    elseif decoration.type == layout_enums.DecorationType.rectangle then
+        reaper.ImGui_DrawList_AddRectFilled(draw_list,
+            win_x + decoration.Pos_X,
+            win_y + decoration.Pos_Y,
+            win_x + decoration.Pos_X + decoration.width,
+            win_y + decoration.Pos_Y + decoration.height,
+            decoration.color,
+            decoration.rounding,
+            reaper.ImGui_DrawFlags_RoundCornersAll()
+        )
+
+        -- image
+        -- FIXME image doesn't persist when layoutEditor closes
+    elseif decoration.type == layout_enums.DecorationType.background_image and decoration.path ~= "" then
+        if decoration.image == nil then
+            local Image = reaper.ImGui_CreateImage(decoration.path)
+            if Image then
+                decoration.image = Image
+                reaper.ImGui_Attach(ctx, Image)
+            end
+        end
+        reaper.ImGui_DrawList_AddImage(draw_list,
+            decoration.image,
+            win_x + decoration.Pos_X,
+            win_y + decoration.Pos_Y,
+            win_x + decoration.Pos_X + decoration.width,
+            win_y + decoration.Pos_Y + decoration.height
+        )
+    end
 end
 
 return deco_helpers

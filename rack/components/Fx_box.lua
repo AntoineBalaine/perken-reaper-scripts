@@ -16,6 +16,7 @@ local CycleButton     = require("components.CycleButton")
 local Slider          = require("components.Slider")
 local layoutEnums     = require("state.layout_enums")
 local defaults        = require("helpers.defaults")
+local deco_helpers    = require("helpers.decorations_helpers")
 local fx_box          = {}
 local winFlg          = reaper.ImGui_WindowFlags_NoScrollWithMouse() + reaper.ImGui_WindowFlags_NoScrollbar()
 local Theme           = Theme --- localize the global
@@ -320,6 +321,12 @@ function fx_box:Canvas()
     if reaper.ImGui_BeginChild(self.ctx, "##paramDisplay", nil, nil, true, reaper.ImGui_WindowFlags_NoScrollbar()) then
         if self.fx.editing then
             self:DrawGrid()
+
+            if self.fx.displaySettings.decorations then
+                for _, decoration in ipairs(self.fx.displaySettings.decorations) do
+                    deco_helpers.drawDecoration(self.ctx, decoration)
+                end
+            end
 
             --- allow resizing the width of the box by dragging the right border
             --- sadly I can't use «is window focused» here,
