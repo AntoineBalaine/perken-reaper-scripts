@@ -319,10 +319,10 @@ function LayoutEditor:LeftPaneDecorations()
             self.selectedDecoration._selected = true
         end
         if not self.fx.displaySettings.decorations then goto continue end
-        for _, decoration in ipairs(self.fx.displaySettings.decorations) do
+        for idx, decoration in ipairs(self.fx.displaySettings.decorations) do
             local rv, selected = reaper.ImGui_Selectable(
                 self.ctx,
-                layout_enums.DecorationLabel[decoration.type],
+                idx .. ". " .. layout_enums.DecorationLabel[decoration.type],
                 self.selectedDecoration.guid == decoration.guid)
             if rv and selected then
                 self.selectedDecoration._selected = false
@@ -472,10 +472,16 @@ function LayoutEditor:RightPaneDecorations()
         for k, v in ipairs(self.fx.displaySettings.decorations) do
             if v.guid == self.selectedDecoration.guid then
                 table.remove(self.fx.displaySettings.decorations, k)
+
                 break
             end
         end
-        self.selectedDecoration = nil
+        -- set selected decoration to first in list or nil if there's no more elements in list
+        if #self.fx.displaySettings.decorations then
+            self.selectedDecoration = self.fx.displaySettings.decorations[1]
+        else
+            self.selectedDecoration = nil
+        end
     end
     reaper.ImGui_EndGroup(self.ctx)
 end

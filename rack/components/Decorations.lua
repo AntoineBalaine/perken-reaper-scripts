@@ -69,7 +69,7 @@ function Decorations.createDecoration(fx)
         height = 20,
         _selected = false,
         rounding = 0.0,
-        guid = "",
+        guid = reaper.genGuid("" .. math.random()),
     }
     table.insert(fx.displaySettings.decorations, new_decoration)
     return new_decoration
