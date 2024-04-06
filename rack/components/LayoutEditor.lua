@@ -268,16 +268,14 @@ function LayoutEditor:ParamInfo()
         reaper.ImGui_TableNextColumn(self.ctx)
     end
     reaper.ImGui_EndTable(self.ctx)
-    local max_x = self.fx.displaySettings.window_height
-    local max_y = self.fx.displaySettings.window_width
     if self.selectedParam.details.display_settings.Pos_X and self.selectedParam.details.display_settings.Pos_Y then
         ControlPosition(self.ctx,
             "position",
             self.selectedParam.details.display_settings,
             "Pos_X",
             "Pos_Y",
-            max_x,
-            max_y)
+            self.fx.displaySettings.window_width,
+            self.fx.displaySettings.window_height)
     end
     if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.Knob then
         self:KnobVariant()
@@ -365,15 +363,14 @@ function LayoutEditor:RightPaneDecorations()
 
 
     -- add controls for decoration's position
-    local max_x = self.fx.displaySettings.window_height
-    local max_y = self.fx.displaySettings.window_width
     ControlPosition(self.ctx,
         "position",
         self.selectedDecoration,
         "Pos_X",
         "Pos_Y",
-        max_x,
-        max_y)
+        self.fx.displaySettings.window_width,
+        self.fx.displaySettings.window_height
+    )
 
     -- add controls for decoration's color
     if self.selectedDecoration.type ~= layout_enums.DecorationType.background_image then
@@ -500,13 +497,11 @@ function LayoutEditor:RightPaneParams()
 end
 
 function LayoutEditor:FxDisplaySettings()
-    local displaySettings = self.fx.displaySettings
-
-    -- reaper.ImGui_Text(self.ctx, "height: " .. s.height .. "")
     reaper.ImGui_Text(self.ctx, "Window_Width: ")
     reaper.ImGui_SameLine(self.ctx)
     reaper.ImGui_PushItemWidth(self.ctx, 100)
-    _, displaySettings.window_width = reaper.ImGui_DragInt(self.ctx, "##width", displaySettings.window_width)
+    _, self.fx.displaySettings.window_width = reaper.ImGui_DragInt(self.ctx, "##width",
+        self.fx.displaySettings.window_width)
 
     if reaper.ImGui_IsItemHovered(self.ctx) then
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
@@ -516,14 +511,14 @@ function LayoutEditor:FxDisplaySettings()
     -- reaper.ImGui_Text(self.ctx, "Grb_Rounding: " .. s.Grb_Rounding .. "")
     reaper.ImGui_Text(self.ctx, "Background color: ")
     reaper.ImGui_SameLine(self.ctx)
-    _, displaySettings.background = Palette(self.ctx, displaySettings.background, "background")
+    _, self.fx.displaySettings.background = Palette(self.ctx, self.fx.displaySettings.background, "background")
 
     reaper.ImGui_Text(self.ctx, "BorderColor: ")
     reaper.ImGui_SameLine(self.ctx)
-    _, displaySettings.borderColor = Palette(self.ctx, displaySettings.borderColor, "border")
+    _, self.fx.displaySettings.borderColor = Palette(self.ctx, self.fx.displaySettings.borderColor, "border")
     reaper.ImGui_Text(self.ctx, "Title_Clr: ")
     reaper.ImGui_SameLine(self.ctx)
-    _, displaySettings.title_Clr = Palette(self.ctx, displaySettings.title_Clr, "title")
+    _, self.fx.displaySettings.title_Clr = Palette(self.ctx, self.fx.displaySettings.title_Clr, "title")
 
 
     reaper.ImGui_SeparatorText(self.ctx, "Buttons Bar Layout")
@@ -662,8 +657,6 @@ function LayoutEditor:Main()
     end
     local flags = reaper.ImGui_WindowFlags_TopMost() + reaper.ImGui_WindowFlags_NoScrollbar() +
         reaper.ImGui_WindowFlags_NoCollapse()
-
-
 
     local PopMainWindowStyle = MainWindowStyle(self.ctx)
     local visible, open = reaper.ImGui_Begin(self.ctx, self.windowLabel, true, flags) ---begin popup
