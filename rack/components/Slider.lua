@@ -59,8 +59,6 @@ function Slider:draw()
 
     ---TODO maybe make these values editable
     self._child_width    = self._radius * 2
-    self._child_height   = self._param.details.display_settings.variant == Slider.Variant.vertical and self._radius * 4 or
-        reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
     local width
     local height
     if self._param.details.display_settings.variant == Slider.Variant.vertical then
@@ -117,7 +115,7 @@ function Slider:draw()
             if changed then
                 new_val = int_val * self._param.details.step
             end
-        else
+        else -- non-stepped slider
             if self._param.details.display_settings.variant == Slider.Variant.horizontal then
                 changed, new_val = reaper.ImGui_SliderDouble(self._ctx,
                     "##slider" .. self._param.guid,

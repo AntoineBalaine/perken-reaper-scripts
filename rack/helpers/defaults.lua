@@ -66,26 +66,32 @@ function defaults.getDefaultFxDisplaySettings()
     return displaySettings
 end
 
----create a parameter's default display settings,
----such as basic colors for knobs and other controls.
+--- create a knob by default,
+--- unless the values are stepped and there's less than 7 of them:
+--- in that case, create a stepped knob.
 ---@param steps_count? integer
 ---@return ParamDisplaySettings
 function defaults.getDefaultParamDisplaySettings(steps_count)
-    local control_type
-    local variant
     if steps_count and steps_count <= 7 then
-        control_type = layout_enums.Param_Display_Type.CycleButton
-        variant = Slider.Variant.horizontal
+        return defaults.getDefaultCycleButtonDisplaySettings()
     else
-        control_type = layout_enums.Param_Display_Type.Knob
-        variant = Knob.KnobVariant.ableton
+        return defaults.getDefaultKnobDisplaySettings()
     end
+end
+
+---create a parameter's default display settings,
+---such as basic colors for knobs and other controls.
+---@return KnobDisplaySettings
+function defaults.getDefaultKnobDisplaySettings()
+    local variant = Knob.KnobVariant.ableton
     local flags = layout_enums.KnobFlags.None
     local dot_col, track_col, wiper_col = defaults.getDefaultKnobColors()
-    ---@type ParamDisplaySettings
+    ---@type KnobDisplaySettings
     local display_settings = {
-        type = control_type,
-        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
+        type = layout_enums.Param_Display_Type.Knob,
+        ---the component that will be drawn, to be instantiated in the fx_box:main()
+        ---remains to be seen if it might be better to instantiate it here…
+        component = nil,
         wiper_start = layout_enums.KnobWiperStart.left,
         variant = variant,
         flags = flags,
@@ -94,9 +100,62 @@ function defaults.getDefaultParamDisplaySettings(steps_count)
             wiper_color = ColorSet.new(wiper_col),
             dot_color = ColorSet.new(dot_col),
             circle_color = ColorSet.new(track_col),
+        },
+        radius = 21
+    }
+    return display_settings
+end
+
+---create a horizontal sliders's default display settings,
+---@return HorizontalSliderDisplaySettings
+function defaults.getDefaultHorizontalSliderDisplaySettings()
+    local flags = layout_enums.KnobFlags.None
+    ---@type HorizontalSliderDisplaySettings
+    local display_settings = {
+        type = layout_enums.Param_Display_Type.Slider,
+        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
+        variant = Slider.Variant.horizontal,
+        flags = flags,
+        width = 100,
+        color = {
+            text_color = 0xFFFFFFFF
         }
-        -- Pos_X = 0,
-        -- Pos_Y = 0,
+
+    }
+    return display_settings
+end
+
+---create a vertical sliders's default display settings,
+function defaults.getDefaultVerticalSliderDisplaySettings()
+    local flags = layout_enums.KnobFlags.None
+    ---@type VerticalSliderDisplaySettings
+    local display_settings = {
+        type = layout_enums.Param_Display_Type.Slider,
+        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
+        variant = Slider.Variant.vertical,
+        flags = flags,
+        width = 40,
+        height = 100,
+        color = {
+            text_color = 0xFFFFFFFF
+        }
+    }
+    return display_settings
+end
+
+---create a cycle button's default display settings,
+function defaults.getDefaultCycleButtonDisplaySettings()
+    local flags = layout_enums.KnobFlags.None
+    ---@type CycleButtonDisplaySettings
+    local display_settings = {
+        type = layout_enums.Param_Display_Type.CycleButton,
+        component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
+        flags = flags,
+        width = 50,
+        height = 50,
+        color = {
+            text_color = 0xFFFFFFFF
+        }
     }
     return display_settings
 end
