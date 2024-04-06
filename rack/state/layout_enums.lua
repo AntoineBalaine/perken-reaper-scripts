@@ -96,11 +96,12 @@ assert(
 ---@field type DecorationType
 ---@field _selected boolean
 ---@field Pos_X number
+---@field Pos_X_end number
 ---@field Pos_Y number
+---@field Pos_Y_end number
 ---@field guid string
 ---@field color integer
 ---@field thickness number
----@field length number
 
 ---@class deco_rectangle
 ---@field type DecorationType

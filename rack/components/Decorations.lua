@@ -21,10 +21,11 @@ local default_deco_line = {
     _selected = false,
     Pos_X     = 0,
     Pos_Y     = 0,
+    Pos_X_end = 0,
+    Pos_Y_end = 20,
     guid      = "",
     color     = Theme.colors.col_env1.color,
-    thickness = 2,
-    length    = 20,
+    thickness = 2
 }
 
 
@@ -130,8 +131,8 @@ function Decorations.drawDecoration(ctx, decoration)
         reaper.ImGui_DrawList_AddLine(draw_list,
             win_x + decoration.Pos_X,
             win_y + decoration.Pos_Y,
-            win_x + decoration.Pos_X,
-            win_y + decoration.Pos_Y + decoration.length,
+            win_x + decoration.Pos_X_end,
+            win_y + decoration.Pos_Y_end,
             decoration.color,
             decoration.thickness)
 

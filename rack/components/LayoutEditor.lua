@@ -413,12 +413,20 @@ function LayoutEditor:RightPaneDecorations()
         -- line type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.line then
         ControlPosition(self.ctx,
-            "thickness and length",
+            "position end",
             self.selectedDecoration,
-            "thickness",
-            "length",
+            "Pos_X_end",
+            "Pos_Y_end",
             self.fx.displaySettings.window_width,
             self.fx.displaySettings.window_height)
+        _, self.selectedDecoration.thickness = reaper.ImGui_DragInt(
+            self.ctx,
+            "thickness",
+            self.selectedDecoration.thickness,
+            nil,
+            0,
+            self.fx.displaySettings.window_width,
+            "%d")
 
         -- rectangle type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.rectangle then
