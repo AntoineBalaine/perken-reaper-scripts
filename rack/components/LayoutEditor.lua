@@ -20,6 +20,7 @@ local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
 local Decorations     = require("components.Decorations")
 local ControlPosition = require("components.ControlPosition")
+local defaults        = require("helpers.defaults")
 local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
@@ -255,14 +256,16 @@ function LayoutEditor:ParamInfo()
     reaper.ImGui_BeginTable(self.ctx, "##radioBtnTable", layout_enums.Param_Display_Type_Length)
     for type_name, type_idx in pairs(layout_enums.Param_Display_Type) do
         reaper.ImGui_TableNextColumn(self.ctx)
-        local changed, new_val = reaper.ImGui_RadioButtonEx(
+        local changed, new_type = reaper.ImGui_RadioButtonEx(
             self.ctx,
             type_name,
             self.selectedParam.details.display_settings.type,
             type_idx)
-        if changed and new_val ~= self.selectedParam.details.display_settings.type then
-            self.selectedParam.details.display_settings.type = new_val
+        if changed and new_type ~= self.selectedParam.details.display_settings.type then
+            self.selectedParam.details.display_settings.type = new_type
             self.selectedParam.details.display_settings.component = nil
+            self.selectedParam.details.display_settings = defaults.getDefaultParamDisplaySettings(
+            self.selectedParam.details.steps_count, new_type)
         end
 
         reaper.ImGui_TableNextColumn(self.ctx)

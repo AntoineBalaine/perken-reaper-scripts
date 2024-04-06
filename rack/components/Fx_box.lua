@@ -393,8 +393,7 @@ function fx_box:Canvas()
                         self.ctx,
                         "cycle" .. idx,
                         param,
-                        on_activate,
-                        radius
+                        on_activate
                     )
                 elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.vSlider then
                     param.details.display_settings.variant = Slider.Variant.vertical
@@ -402,8 +401,7 @@ function fx_box:Canvas()
                         self.ctx,
                         "cycle" .. idx,
                         param,
-                        on_activate,
-                        radius
+                        on_activate
                     )
                 end
             else

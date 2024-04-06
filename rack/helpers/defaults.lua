@@ -69,9 +69,21 @@ end
 --- create a knob by default,
 --- unless the values are stepped and there's less than 7 of them:
 --- in that case, create a stepped knob.
----@param steps_count? integer
----@return ParamDisplaySettings
-function defaults.getDefaultParamDisplaySettings(steps_count)
+---@param steps_count integer
+---@param type? Param_Display_Type
+---@return KnobDisplaySettings|HorizontalSliderDisplaySettings|VerticalSliderDisplaySettings|CycleButtonDisplaySettings
+function defaults.getDefaultParamDisplaySettings(steps_count, type)
+    if type then
+        if type == layout_enums.Param_Display_Type.Slider then
+            return defaults.getDefaultHorizontalSliderDisplaySettings()
+        elseif type == layout_enums.Param_Display_Type.CycleButton then
+            return defaults.getDefaultCycleButtonDisplaySettings()
+        elseif type == layout_enums.Param_Display_Type.vSlider then
+            return defaults.getDefaultVerticalSliderDisplaySettings()
+        elseif type == layout_enums.Param_Display_Type.Knob then
+            return defaults.getDefaultKnobDisplaySettings()
+        end
+    end
     if steps_count and steps_count <= 7 then
         return defaults.getDefaultCycleButtonDisplaySettings()
     else
@@ -130,7 +142,7 @@ function defaults.getDefaultVerticalSliderDisplaySettings()
     local flags = layout_enums.KnobFlags.None
     ---@type VerticalSliderDisplaySettings
     local display_settings = {
-        type = layout_enums.Param_Display_Type.Slider,
+        type = layout_enums.Param_Display_Type.vSlider,
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
         variant = Slider.Variant.vertical,
         flags = flags,

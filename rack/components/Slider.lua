@@ -18,8 +18,7 @@ Slider.Variant = {
 ---@param id string
 ---@param param ParamData
 ---@param on_activate? function
----@param radius number
-function Slider.new(ctx, id, param, on_activate, radius)
+function Slider.new(ctx, id, param, on_activate)
     ---@class Slider
     local new_Slider = {}
     setmetatable(new_Slider, { __index = Slider })
@@ -28,8 +27,6 @@ function Slider.new(ctx, id, param, on_activate, radius)
     new_Slider._param = param
     new_Slider._on_activate = on_activate
 
-    ---re-using the radius measurement from the Knob here
-    new_Slider._radius = radius
     return new_Slider
 end
 
@@ -58,15 +55,15 @@ function Slider:draw()
         reaper.ImGui_StyleVar_WindowPadding())
 
     ---TODO maybe make these values editable
-    self._child_width    = self._radius * 2
+    self._child_width    = self._param.details.display_settings.width
     local width
     local height
     if self._param.details.display_settings.variant == Slider.Variant.vertical then
-        self._child_height = self._radius * 4
-        width              = self._radius - window_padding
+        self._child_height = self._param.details.display_settings.height
+        width              = self._param.details.display_settings.width - window_padding
         height             = self._child_height - reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
     else
-        self._child_height = reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
+        self._child_height = self._param.details.display_settings.height
     end
     local changed = false
     local new_val = self._param.details.value
@@ -166,11 +163,11 @@ function Slider:draw()
                 fx_box_min_y,
                 fxbox_screen_pos_x,
                 fxbox_screen_pos_y,
-                self._radius
+                self._param.details.display_settings.width
             )
 
             if size_changed then
-                self._radius = new_radius
+                self._param.details.display_settings.width = new_radius
             end
         end
         reaper.ImGui_EndChild(self._ctx)
