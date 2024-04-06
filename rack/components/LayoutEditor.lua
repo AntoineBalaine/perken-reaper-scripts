@@ -265,18 +265,26 @@ function LayoutEditor:ParamInfo()
             self.selectedParam.details.display_settings.type = new_type
             self.selectedParam.details.display_settings.component = nil
             self.selectedParam.details.display_settings = defaults.getDefaultParamDisplaySettings(
-            self.selectedParam.details.steps_count, new_type)
+                self.selectedParam.details.steps_count, new_type)
         end
 
         reaper.ImGui_TableNextColumn(self.ctx)
     end
     reaper.ImGui_EndTable(self.ctx)
-    if self.selectedParam.details.display_settings.Pos_X and self.selectedParam.details.display_settings.Pos_Y then
+    ControlPosition(self.ctx,
+        "position",
+        self.selectedParam.details.display_settings,
+        "Pos_X",
+        "Pos_Y",
+        self.fx.displaySettings.window_width,
+        self.fx.displaySettings.window_height)
+    if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.vSlider
+        or self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.CycleButton then
         ControlPosition(self.ctx,
-            "position",
+            "width/height:",
             self.selectedParam.details.display_settings,
-            "Pos_X",
-            "Pos_Y",
+            "width",
+            "height",
             self.fx.displaySettings.window_width,
             self.fx.displaySettings.window_height)
     end
