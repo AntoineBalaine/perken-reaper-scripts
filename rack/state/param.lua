@@ -8,7 +8,6 @@ local Theme = Theme
 ---@field Pos_Y integer|nil
 ---@field variant KnobVariant|SliderVariant
 ---@field flags KnobFlags|nil
----@field colors KnobColorSet|nil
 
 ---@class KnobDisplaySettings: ParamDisplaySettings
 ---@field component? Knob
@@ -54,7 +53,7 @@ local Theme = Theme
 
 ---@class Parameter
 ---@field defaultval number
----@field display_settings ParamDisplaySettings
+---@field display_settings KnobDisplaySettings|HorizontalSliderDisplaySettings|VerticalSliderDisplaySettings|CycleButtonDisplaySettings
 ---@field editSelected boolean = false
 ---@field fmt_val string|nil
 ---@field guid string

@@ -376,7 +376,6 @@ function fx_box:Canvas()
                         self.ctx,
                         "knob" .. idx,
                         param,
-                        radius,
                         true,
                         on_activate
                     )
@@ -453,7 +452,6 @@ function fx_box:DryWetKnob()
                 self.ctx,
                 "dry_wet" .. param.index,
                 param,
-                radius,
                 true,
                 nil
             )
