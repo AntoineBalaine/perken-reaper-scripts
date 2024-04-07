@@ -85,8 +85,8 @@ assert(
 ---@class deco_text
 ---@field type DecorationType
 ---@field _selected boolean
----@field Pos_X number
----@field Pos_Y number
+---@field x number
+---@field y number
 ---@field guid string
 ---@field color integer
 ---@field font_size number
@@ -95,10 +95,10 @@ assert(
 ---@class deco_line
 ---@field type DecorationType
 ---@field _selected boolean
----@field Pos_X number
----@field Pos_X_end number
----@field Pos_Y number
----@field Pos_Y_end number
+---@field x number
+---@field x_end number
+---@field y number
+---@field y_end number
 ---@field guid string
 ---@field color integer
 ---@field thickness number
@@ -106,8 +106,8 @@ assert(
 ---@class deco_rectangle
 ---@field type DecorationType
 ---@field _selected boolean
----@field Pos_X number
----@field Pos_Y number
+---@field x number
+---@field y number
 ---@field guid string
 ---@field color integer
 ---@field width number
@@ -117,8 +117,8 @@ assert(
 ---@class deco_image
 ---@field type DecorationType
 ---@field _selected boolean
----@field Pos_X number
----@field Pos_Y number
+---@field x number
+---@field y number
 ---@field guid string
 ---@field path string
 ---@field keep_ratio boolean

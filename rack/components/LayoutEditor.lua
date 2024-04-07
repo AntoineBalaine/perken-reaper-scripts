@@ -274,8 +274,8 @@ function LayoutEditor:ParamInfo()
     ControlPosition.XYDrag(self.ctx,
         "position",
         self.selectedParam.details.display_settings,
-        "Pos_X",
-        "Pos_Y",
+        "x",
+        "y",
         self.fx.displaySettings.window_width,
         self.fx.displaySettings.window_height)
     if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.vSlider then
@@ -417,8 +417,8 @@ function LayoutEditor:RightPaneDecorations()
     ControlPosition.XYDrag(self.ctx,
         "position",
         self.selectedDecoration,
-        "Pos_X",
-        "Pos_Y",
+        "x",
+        "y",
         self.fx.displaySettings.window_width,
         self.fx.displaySettings.window_height
     )
@@ -463,8 +463,8 @@ function LayoutEditor:RightPaneDecorations()
         ControlPosition.XYDrag(self.ctx,
             "position end",
             self.selectedDecoration,
-            "Pos_X_end",
-            "Pos_Y_end",
+            "x_end",
+            "y_end",
             self.fx.displaySettings.window_width,
             self.fx.displaySettings.window_height)
         _, self.selectedDecoration.thickness = reaper.ImGui_DragInt(

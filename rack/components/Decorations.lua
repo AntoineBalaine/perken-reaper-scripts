@@ -6,8 +6,8 @@ local Decorations = {}
 ---@type deco_text
 local default_deco_text = {
     type = layout_enums.DecorationType.text,
-    Pos_X = 0,
-    Pos_Y = 0,
+    x = 0,
+    y = 0,
     color = Theme.colors.col_env1.color,
     font_size = 12,
     _selected = false,
@@ -19,10 +19,10 @@ local default_deco_text = {
 local default_deco_line = {
     type      = layout_enums.DecorationType.line,
     _selected = false,
-    Pos_X     = 0,
-    Pos_Y     = 0,
-    Pos_X_end = 0,
-    Pos_Y_end = 20,
+    x         = 0,
+    y         = 0,
+    x_end     = 0,
+    y_end     = 20,
     guid      = "",
     color     = Theme.colors.col_env1.color,
     thickness = 2
@@ -32,8 +32,8 @@ local default_deco_line = {
 ---@type deco_rectangle
 local default_deco_rectangle = {
     type = layout_enums.DecorationType.rectangle,
-    Pos_X = 0,
-    Pos_Y = 0,
+    x = 0,
+    y = 0,
     width = 20,
     height = 20,
     color = Theme.colors.col_env1.color,
@@ -45,8 +45,8 @@ local default_deco_rectangle = {
 ---@type deco_image
 local default_deco_image = {
     type = layout_enums.DecorationType.rectangle,
-    Pos_X = 0,
-    Pos_Y = 0,
+    x = 0,
+    y = 0,
     width = 20,
     height = 20,
     keep_ratio = false,
@@ -62,8 +62,8 @@ function Decorations.createDecoration(fx)
     ---@type deco_rectangle
     local new_decoration = {
         type = layout_enums.DecorationType.rectangle,
-        Pos_X = 0,
-        Pos_Y = 0,
+        x = 0,
+        y = 0,
         color = Theme.colors.col_env1.color,
         width = 20,
         height = 20,
@@ -120,8 +120,8 @@ function Decorations.drawDecoration(ctx, decoration)
         reaper.ImGui_DrawList_AddTextEx(draw_list,
             nil,
             decoration.font_size,
-            win_x + decoration.Pos_X,
-            win_y + decoration.Pos_Y,
+            win_x + decoration.x,
+            win_y + decoration.y,
             decoration.color,
             decoration.text)
 
@@ -129,20 +129,20 @@ function Decorations.drawDecoration(ctx, decoration)
     elseif decoration.type == layout_enums.DecorationType.line then
         -- assume vertical line for now
         reaper.ImGui_DrawList_AddLine(draw_list,
-            win_x + decoration.Pos_X,
-            win_y + decoration.Pos_Y,
-            win_x + decoration.Pos_X_end,
-            win_y + decoration.Pos_Y_end,
+            win_x + decoration.x,
+            win_y + decoration.y,
+            win_x + decoration.x_end,
+            win_y + decoration.y_end,
             decoration.color,
             decoration.thickness)
 
         -- rectangle
     elseif decoration.type == layout_enums.DecorationType.rectangle then
         reaper.ImGui_DrawList_AddRectFilled(draw_list,
-            win_x + decoration.Pos_X,
-            win_y + decoration.Pos_Y,
-            win_x + decoration.Pos_X + decoration.width,
-            win_y + decoration.Pos_Y + decoration.height,
+            win_x + decoration.x,
+            win_y + decoration.y,
+            win_x + decoration.x + decoration.width,
+            win_y + decoration.y + decoration.height,
             decoration.color,
             decoration.rounding,
             reaper.ImGui_DrawFlags_RoundCornersAll()
@@ -159,10 +159,10 @@ function Decorations.drawDecoration(ctx, decoration)
         end
         reaper.ImGui_DrawList_AddImage(draw_list,
             decoration.image,
-            win_x + decoration.Pos_X,
-            win_y + decoration.Pos_Y,
-            win_x + decoration.Pos_X + decoration.width,
-            win_y + decoration.Pos_Y + decoration.height
+            win_x + decoration.x,
+            win_y + decoration.y,
+            win_x + decoration.x + decoration.width,
+            win_y + decoration.y + decoration.height
         )
     end
 end
