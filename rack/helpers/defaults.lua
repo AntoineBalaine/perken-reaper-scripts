@@ -101,7 +101,7 @@ function defaults.getDefaultKnobDisplaySettings()
         wiper_start = layout_enums.KnobWiperStart.left,
         variant = variant,
         flags = flags,
-        colors = {
+        color = {
             text_color = 0xFFFFFFFF,
             wiper_color = ColorSet.new(wiper_col),
             dot_color = ColorSet.new(dot_col),

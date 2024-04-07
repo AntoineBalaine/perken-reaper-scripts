@@ -203,13 +203,13 @@ function Knob.new(
     new_knob._angle_cos = math.cos(new_knob._angle)
     new_knob._angle_sin = math.sin(new_knob._angle)
     --- use when layout editor is open and the current param isn't selected
-    new_knob._dot_color_editing = ColorSet.deAlpha(param.details.display_settings.colors.dot_color)
+    new_knob._dot_color_editing = ColorSet.deAlpha(param.details.display_settings.color.dot_color)
     --- use when layout editor is open and the current param isn't selected
-    new_knob._wiper_color_editing = ColorSet.deAlpha(param.details.display_settings.colors.wiper_color)
+    new_knob._wiper_color_editing = ColorSet.deAlpha(param.details.display_settings.color.wiper_color)
     --- use when layout editor is open and the current param isn't selected
-    new_knob._text_color_editing = param.details.display_settings.colors.text_color & 0x55
+    new_knob._text_color_editing = param.details.display_settings.color.text_color & 0x55
     --- use when layout editor is open and the current param isn't selected
-    new_knob._circle_color_editing = ColorSet.deAlpha(param.details.display_settings.colors.circle_color)
+    new_knob._circle_color_editing = ColorSet.deAlpha(param.details.display_settings.color.circle_color)
     return new_knob
 end
 
@@ -647,7 +647,7 @@ function Knob:draw()
         text_color = self._text_color_editing
         circle_color = self._circle_color_editing
     else
-        local colors = self._param.details.display_settings.colors
+        local colors = self._param.details.display_settings.color
         dot_color = colors.dot_color
         wiper_color = colors.wiper_color
         text_color = colors.text_color

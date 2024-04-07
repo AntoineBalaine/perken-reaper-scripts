@@ -15,7 +15,7 @@ local Theme = Theme
 ---@field radius number
 ---@field wiper_start KnobTrackStart
 ---@field flags KnobFlags|nil
----@field colors KnobColorSet
+---@field color KnobColorSet
 
 ---@class HorizontalSliderDisplaySettings: ParamDisplaySettings
 ---@field component? Slider
