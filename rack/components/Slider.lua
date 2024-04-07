@@ -162,22 +162,45 @@ function Slider:draw()
 
 
         if self._param.details.parent_fx.editing then
-            local size_changed, new_radius = EditControl(
-                self._ctx,
-                self._param,
-                fxbox_pos_x,
-                fxbox_pos_y,
-                fxbox_max_x,
-                fx_box_max_y,
-                fx_box_min_x,
-                fx_box_min_y,
-                fxbox_screen_pos_x,
-                fxbox_screen_pos_y,
-                self._param.details.display_settings.width
-            )
-
-            if size_changed then
-                self._param.details.display_settings.width = new_radius
+            if self._param.details.display_settings.variant == Slider.Variant.horizontal then
+                local size_changed, new_width = EditControl(
+                    self._ctx,
+                    self._param,
+                    fxbox_pos_x,
+                    fxbox_pos_y,
+                    fxbox_max_x,
+                    fx_box_max_y,
+                    fx_box_min_x,
+                    fx_box_min_y,
+                    fxbox_screen_pos_x,
+                    fxbox_screen_pos_y,
+                    nil,
+                    self._param.details.display_settings.width,
+                    nil
+                )
+                if size_changed then
+                    self._param.details.display_settings.width = new_width
+                end
+            else
+                local size_changed, _, new_width, new_height = EditControl(
+                    self._ctx,
+                    self._param,
+                    fxbox_pos_x,
+                    fxbox_pos_y,
+                    fxbox_max_x,
+                    fx_box_max_y,
+                    fx_box_min_x,
+                    fx_box_min_y,
+                    fxbox_screen_pos_x,
+                    fxbox_screen_pos_y,
+                    nil,
+                    self._param.details.display_settings.width,
+                    self._param.details.display_settings.height
+                )
+                if size_changed then
+                    self._param.details.display_settings.width = new_width
+                    self._param.details.display_settings.height = new_height
+                end
             end
         end
         reaper.ImGui_EndChild(self._ctx)

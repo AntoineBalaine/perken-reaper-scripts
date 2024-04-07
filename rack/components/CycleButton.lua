@@ -122,7 +122,7 @@ function CycleButton:draw()
         end
 
         if self._param.details.parent_fx.editing then
-            local size_changed, new_radius = EditControl(
+            local size_changed, _, new_width = EditControl(
                 self._ctx,
                 self._param,
                 fxbox_pos_x,
@@ -133,11 +133,13 @@ function CycleButton:draw()
                 fx_box_min_y,
                 fxbox_screen_pos_x,
                 fxbox_screen_pos_y,
-                self._param.details.display_settings.width
+                nil,
+                self._param.details.display_settings.width,
+                nil
             )
 
             if size_changed then
-                self._param.details.display_settings.width = new_radius
+                self._param.details.display_settings.width = new_width
             end
         end
         reaper.ImGui_EndChild(self._ctx)
