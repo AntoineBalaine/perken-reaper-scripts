@@ -21,6 +21,7 @@ local MainWindowStyle = require("helpers.MainWindowStyle")
 local Decorations     = require("components.Decorations")
 local ControlPosition = require("components.ControlPosition")
 local defaults        = require("helpers.defaults")
+local layout_reader   = require("helpers.layout_reader")
 local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
@@ -69,7 +70,10 @@ end
 --TODO  implement
 function LayoutEditor:SaveCancelButton()
     reaper.ImGui_BeginGroup(self.ctx)
-    reaper.ImGui_Button(self.ctx, "save")
+    if reaper.ImGui_Button(self.ctx, "save") then
+        layout_reader.save(self.fx)
+        -- self:close()
+    end
     reaper.ImGui_SameLine(self.ctx)
     if reaper.ImGui_Button(self.ctx, "close") then
         self:close()
