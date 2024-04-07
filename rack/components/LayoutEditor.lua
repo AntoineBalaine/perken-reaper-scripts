@@ -271,7 +271,7 @@ function LayoutEditor:ParamInfo()
         reaper.ImGui_TableNextColumn(self.ctx)
     end
     reaper.ImGui_EndTable(self.ctx)
-    ControlPosition(self.ctx,
+    ControlPosition.XYDrag(self.ctx,
         "position",
         self.selectedParam.details.display_settings,
         "Pos_X",
@@ -280,7 +280,7 @@ function LayoutEditor:ParamInfo()
         self.fx.displaySettings.window_height)
     if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.vSlider then
         -- adjust width/height
-        ControlPosition(self.ctx,
+        ControlPosition.XYDrag(self.ctx,
             "width/height:",
             self.selectedParam.details.display_settings,
             "width",
@@ -414,7 +414,7 @@ function LayoutEditor:RightPaneDecorations()
 
 
     -- add controls for decoration's position
-    ControlPosition(self.ctx,
+    ControlPosition.XYDrag(self.ctx,
         "position",
         self.selectedDecoration,
         "Pos_X",
@@ -433,7 +433,7 @@ function LayoutEditor:RightPaneDecorations()
     reaper.ImGui_PushItemWidth(self.ctx, 100)
 
     if self.selectedDecoration.width and self.selectedDecoration.height then
-        ControlPosition(self.ctx,
+        ControlPosition.XYDrag(self.ctx,
             "width/height:",
             self.selectedDecoration,
             "width",
@@ -460,7 +460,7 @@ function LayoutEditor:RightPaneDecorations()
 
         -- line type
     elseif self.selectedDecoration.type == layout_enums.DecorationType.line then
-        ControlPosition(self.ctx,
+        ControlPosition.XYDrag(self.ctx,
             "position end",
             self.selectedDecoration,
             "Pos_X_end",

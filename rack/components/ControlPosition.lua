@@ -1,5 +1,7 @@
 local fx_box_helpers = require("helpers.fx_box_helpers")
 
+local ControlPosition = {}
+
 
 ---Allow updating the positions of the control in the window
 ---@param ctx ImGui_Context
@@ -10,7 +12,7 @@ local fx_box_helpers = require("helpers.fx_box_helpers")
 ---@param max_x number
 ---@param max_y number
 ---@param keep_ratio? boolean
-function ControlPosition(ctx, label, obj, x_prop, y_prop, max_x, max_y, keep_ratio)
+function ControlPosition.XYDrag(ctx, label, obj, x_prop, y_prop, max_x, max_y, keep_ratio)
     -- add two drags, one vertical and one horizontal
     -- to control the position in window
     reaper.ImGui_Text(ctx, label)
