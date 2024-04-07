@@ -47,7 +47,10 @@ function ControlPosition(ctx, label, obj, x_prop, y_prop, max_x, max_y, keep_rat
         reaper.ImGui_SetMouseCursor(ctx, reaper.ImGui_MouseCursor_ResizeAll())
     end
     reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_Text(ctx, "X: " .. obj[x_prop] .. ", Y: " .. obj[y_prop])
+    -- including this in case param[Pos_X] might not be instantiated yet
+    if obj[x_prop] and obj[y_prop] then
+        reaper.ImGui_Text(ctx, "X: " .. obj[x_prop] .. ", Y: " .. obj[y_prop])
+    end
     reaper.ImGui_PopItemWidth(ctx)
     -- return changed, delta_x, delta_y
 end

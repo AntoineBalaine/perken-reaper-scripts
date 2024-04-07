@@ -20,6 +20,7 @@ local Palette         = require("components.Palette")
 local MainWindowStyle = require("helpers.MainWindowStyle")
 local Decorations     = require("components.Decorations")
 local ControlPosition = require("components.ControlPosition")
+local defaults        = require("helpers.defaults")
 local Theme           = Theme --- localize the global
 local LayoutEditor    = {}
 
@@ -255,29 +256,79 @@ function LayoutEditor:ParamInfo()
     reaper.ImGui_BeginTable(self.ctx, "##radioBtnTable", layout_enums.Param_Display_Type_Length)
     for type_name, type_idx in pairs(layout_enums.Param_Display_Type) do
         reaper.ImGui_TableNextColumn(self.ctx)
-        local changed, new_val = reaper.ImGui_RadioButtonEx(
+        local changed, new_type = reaper.ImGui_RadioButtonEx(
             self.ctx,
             type_name,
             self.selectedParam.details.display_settings.type,
             type_idx)
-        if changed and new_val ~= self.selectedParam.details.display_settings.type then
-            self.selectedParam.details.display_settings.type = new_val
+        if changed and new_type ~= self.selectedParam.details.display_settings.type then
+            self.selectedParam.details.display_settings.type = new_type
             self.selectedParam.details.display_settings.component = nil
+            self.selectedParam.details.display_settings = defaults.getDefaultParamDisplaySettings(
+                self.selectedParam.details.steps_count, new_type)
         end
 
         reaper.ImGui_TableNextColumn(self.ctx)
     end
     reaper.ImGui_EndTable(self.ctx)
-    if self.selectedParam.details.display_settings.Pos_X and self.selectedParam.details.display_settings.Pos_Y then
+    ControlPosition(self.ctx,
+        "position",
+        self.selectedParam.details.display_settings,
+        "Pos_X",
+        "Pos_Y",
+        self.fx.displaySettings.window_width,
+        self.fx.displaySettings.window_height)
+    if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.vSlider then
+        -- adjust width/height
         ControlPosition(self.ctx,
-            "position",
+            "width/height:",
             self.selectedParam.details.display_settings,
-            "Pos_X",
-            "Pos_Y",
+            "width",
+            "height",
             self.fx.displaySettings.window_width,
             self.fx.displaySettings.window_height)
+    elseif self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.Slider
+        or self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.CycleButton
+    then
+        -- adjust width
+        reaper.ImGui_Text(self.ctx, "width:")
+        reaper.ImGui_SameLine(self.ctx)
+        local label = "drag me"
+        local drag_width = reaper.ImGui_CalcTextSize(self.ctx, label)
+        reaper.ImGui_PushItemWidth(self.ctx, drag_width)
+        _, self.selectedParam.details.display_settings.width = reaper.ImGui_DragInt(
+            self.ctx,
+            "##paramwidth",
+            self.selectedParam.details.display_settings.width,
+            nil,
+            50,
+            self.fx.displaySettings.window_width)
+        if reaper.ImGui_IsItemHovered(self.ctx) then
+            reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
+        end
+        reaper.ImGui_PopItemWidth(self.ctx)
     end
     if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.Knob then
+        -- adjust size radius
+        reaper.ImGui_Text(self.ctx, "size:")
+        reaper.ImGui_SameLine(self.ctx)
+        local label = "drag me"
+        local drag_width = reaper.ImGui_CalcTextSize(self.ctx, label)
+        reaper.ImGui_PushItemWidth(self.ctx, drag_width)
+        local radius_changed, new_radius = reaper.ImGui_DragInt(
+            self.ctx,
+            "##sizeradius",
+            self.selectedParam.details.display_settings.radius,
+            nil,
+            10,
+            self.fx.displaySettings.window_height / 3 // 1|0)
+        if radius_changed then
+            self.selectedParam.details.display_settings.radius = new_radius // 1|0
+        end
+        if reaper.ImGui_IsItemHovered(self.ctx) then
+            reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
+        end
+        reaper.ImGui_PopItemWidth(self.ctx)
         self:KnobVariant()
         self:KnobColors()
     end
@@ -738,7 +789,7 @@ function LayoutEditor:edit(fx)
         self.selectedParam = self.fx.params_list[1]
     end
     self.selectedParam._selected = true
-    if not self.selectedDecoration and self.fx.displaySettings.decorations and #self.fx.displaySettings.decorations then
+    if not self.selectedDecoration and self.fx.displaySettings.decorations and #self.fx.displaySettings.decorations > 0 then
         self.selectedDecoration = self.fx.displaySettings.decorations[1]
         self.selectedDecoration._selected = true
     end

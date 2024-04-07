@@ -1,4 +1,3 @@
-local layoutEnums = require("state.layout_enums")
 local edit_frame_color = 0xFF0000FF
 
 ---Overlay a button on top of the knob's frame
@@ -16,6 +15,9 @@ local edit_frame_color = 0xFF0000FF
 ---@param fx_box_max_y number
 ---@param fx_box_min_x number
 ---@param fx_box_min_y number
+---@param radius? number
+---@param width? integer
+---@param height? integer
 function EditControl(
     ctx,
     param,
@@ -27,12 +29,15 @@ function EditControl(
     fx_box_min_y,
     fxbox_screen_pos_x,
     fxbox_screen_pos_y,
-    radius
+    radius,
+    width,
+    height
 )
-    local new_radius                  = radius
-    local changed                     = false
+    local new_radius, new_width, new_height = radius, width, height
 
-    local _child_width, _child_height = reaper.ImGui_GetWindowSize(ctx)
+    local changed                           = false
+
+    local _child_width, _child_height       = reaper.ImGui_GetWindowSize(ctx)
     -- put knob at start of the current child window
     reaper.ImGui_SetCursorPosX(ctx, 0)
     reaper.ImGui_SetCursorPosY(ctx, 0)
@@ -119,18 +124,25 @@ function EditControl(
             if param.details.parent_fx.setSelectedParam then
                 param.details.parent_fx.setSelectedParam(param)
             end
+
             local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
                 ctx,
                 reaper.ImGui_GetCursorPosX(ctx),
                 reaper.ImGui_GetCursorPosY(ctx))
             if delta_y ~= 0.0 and delta_x ~= 0.0 then
-                new_radius = radius + (delta_y + delta_x) * 0.25
+                if width or height then
+                    -- pass 0 as default for width and height in case they're not being passed in
+                    new_width = (width or 0) + delta_x
+                    new_height = (height or 0) + delta_y
+                else
+                    new_radius = radius + (delta_y + delta_x) * 0.25
+                end
                 changed = true
                 reaper.ImGui_ResetMouseDragDelta(ctx, reaper.ImGui_MouseButton_Left())
             end
         end
     end
-    return changed, new_radius
+    return changed, new_radius, new_width, new_height
 end
 
 return EditControl

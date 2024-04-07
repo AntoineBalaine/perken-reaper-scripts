@@ -376,7 +376,6 @@ function fx_box:Canvas()
                         self.ctx,
                         "knob" .. idx,
                         param,
-                        radius,
                         true,
                         on_activate
                     )
@@ -394,8 +393,7 @@ function fx_box:Canvas()
                         self.ctx,
                         "cycle" .. idx,
                         param,
-                        on_activate,
-                        radius
+                        on_activate
                     )
                 elseif param.details.display_settings.type == layoutEnums.Param_Display_Type.vSlider then
                     param.details.display_settings.variant = Slider.Variant.vertical
@@ -403,11 +401,15 @@ function fx_box:Canvas()
                         self.ctx,
                         "cycle" .. idx,
                         param,
-                        on_activate,
-                        radius
+                        on_activate
                     )
                 end
             else
+                if not param.details.display_settings.Pos_X and not param.details.display_settings.Pos_Y then
+                    local pos_x, pos_y = reaper.ImGui_GetCursorPos(self.ctx)
+                    param.details.display_settings.Pos_X = pos_x
+                    param.details.display_settings.Pos_Y = pos_y
+                end
                 local changed, new_val = param.details.display_settings.component:draw()
 
                 if changed then
@@ -453,7 +455,6 @@ function fx_box:DryWetKnob()
                 self.ctx,
                 "dry_wet" .. param.index,
                 param,
-                radius,
                 true,
                 nil
             )

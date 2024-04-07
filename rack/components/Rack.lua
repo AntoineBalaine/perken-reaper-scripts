@@ -229,6 +229,8 @@ function Rack:init(project_directory)
     reaper.ImGui_Attach(self.ctx, Theme.fonts.MAIN)
 
     reaper.ImGui_SetNextWindowSize(self.ctx, 500, 440, reaper.ImGui_Cond_FirstUseEver())
+
+    reaper.ImGui_SetConfigVar(self.ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
     local window_flags =
         reaper.ImGui_WindowFlags_NoScrollWithMouse()
         + reaper.ImGui_WindowFlags_NoScrollbar()

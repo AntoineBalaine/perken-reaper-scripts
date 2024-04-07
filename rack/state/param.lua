@@ -6,12 +6,46 @@ local Theme = Theme
 ---@field component Knob|CycleButton|Slider|nil
 ---@field Pos_X integer|nil
 ---@field Pos_Y integer|nil
----@field wiper_start KnobTrackStart
 ---@field variant KnobVariant|SliderVariant
 ---@field flags KnobFlags|nil
----@field colors ParamColorSet
 
----@class ParamColorSet
+---@class KnobDisplaySettings: ParamDisplaySettings
+---@field component? Knob
+---@field variant KnobVariant
+---@field radius number
+---@field wiper_start KnobTrackStart
+---@field flags KnobFlags|nil
+---@field colors KnobColorSet
+
+---@class HorizontalSliderDisplaySettings: ParamDisplaySettings
+---@field component? Slider
+---@field variant SliderVariant
+---@field flags KnobFlags|nil
+---@field width integer
+---@field color SliderColorSet
+
+---@class VerticalSliderDisplaySettings: ParamDisplaySettings
+---@field component? Slider
+---@field variant SliderVariant
+---@field flags KnobFlags|nil
+---@field width integer
+---@field height integer
+---@field color SliderColorSet
+
+---@class CycleButtonDisplaySettings: ParamDisplaySettings
+---@field component? CycleButton
+---@field flags KnobFlags|nil
+---@field width integer
+---@field height integer
+---@field color CycleButtonColorSet
+
+---@class SliderColorSet
+---@field text_color integer
+
+---@class CycleButtonColorSet
+---@field text_color integer
+
+---@class KnobColorSet
 ---@field text_color integer
 ---@field circle_color ColorSet
 ---@field dot_color ColorSet
@@ -19,7 +53,7 @@ local Theme = Theme
 
 ---@class Parameter
 ---@field defaultval number
----@field display_settings ParamDisplaySettings
+---@field display_settings KnobDisplaySettings|HorizontalSliderDisplaySettings|VerticalSliderDisplaySettings|CycleButtonDisplaySettings
 ---@field editSelected boolean = false
 ---@field fmt_val string|nil
 ---@field guid string

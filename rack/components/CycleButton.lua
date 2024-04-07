@@ -48,20 +48,23 @@ function CycleButton:draw()
     end
 
     -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
-    self._child_width  = self._radius * 2 * 2
-    self._child_height = self._radius * 1.5 + (no_title and 0 or 20) +
+    self._child_width  = self._param.details.display_settings.width
+    self._child_height = self._param.details.display_settings.height * 1.5 + (no_title and 0 or 20) +
         reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * (no_title and 0 or 1)
-    -- self._child_height = reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
     local changed      = false
     local new_val      = self._param.details.value
     if reaper.ImGui_BeginChild(self._ctx, "##CycleButton" .. self._param.guid, self._child_width, self._child_height, false) then
         if self._param.details.parent_fx.editing then
             reaper.ImGui_BeginDisabled(self._ctx, true)
         end
+        -- push button text color
+        reaper.ImGui_PushStyleColor(self._ctx, reaper.ImGui_Col_Text(),
+            self._param.details.display_settings.color.text_color)
 
         if not no_title then
             text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
         end
+
 
         -- if this logic comes reproduced again, let’s make into a component.
         if self._param.details.istoggle then
@@ -109,6 +112,7 @@ function CycleButton:draw()
 
             changed = true
         end
+        reaper.ImGui_PopStyleColor(self._ctx, 1) -- pop button text color
         if self._param.details.istoggle then
             reaper.ImGui_PopStyleColor(self._ctx, 3)
         end
@@ -117,7 +121,7 @@ function CycleButton:draw()
         end
 
         if self._param.details.parent_fx.editing then
-            local size_changed, new_radius = EditControl(
+            local size_changed, _, new_width = EditControl(
                 self._ctx,
                 self._param,
                 fxbox_pos_x,
@@ -128,11 +132,13 @@ function CycleButton:draw()
                 fx_box_min_y,
                 fxbox_screen_pos_x,
                 fxbox_screen_pos_y,
-                self._radius
+                nil,
+                self._param.details.display_settings.width,
+                nil
             )
 
             if size_changed then
-                self._radius = new_radius
+                self._param.details.display_settings.width = new_width
             end
         end
         reaper.ImGui_EndChild(self._ctx)

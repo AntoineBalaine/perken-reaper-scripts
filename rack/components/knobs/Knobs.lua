@@ -23,8 +23,8 @@ function Knob:__draw_dot(
     filled,
     segments
 )
-    local dot_size = size * self._radius
-    local dot_radius = radius * self._radius
+    local dot_size = size * self._param.details.display_settings.radius
+    local dot_radius = radius * self._param.details.display_settings.radius
     local circle_color
 
     if self._is_active then
@@ -62,8 +62,8 @@ end
 ---@param angle number
 ---@param color ColorSet
 function Knob:__draw_tick(start, end_, width, angle, color)
-    local tick_start = start * self._radius
-    local tick_end = end_ * self._radius
+    local tick_start = start * self._param.details.display_settings.radius
+    local tick_end = end_ * self._param.details.display_settings.radius
     local angle_cos = math.cos(angle)
     local angle_sin = math.sin(angle)
 
@@ -83,7 +83,7 @@ function Knob:__draw_tick(start, end_, width, angle, color)
         self._center_x + angle_cos * tick_start,
         self._center_y + angle_sin * tick_start,
         line_color,
-        width * self._radius
+        width * self._param.details.display_settings.radius
     )
 end
 
@@ -92,7 +92,7 @@ end
 ---@param filled boolean
 ---@param segments integer
 function Knob:__draw_circle(size, color, filled, segments)
-    local circle_radius = size * self._radius
+    local circle_radius = size * self._param.details.display_settings.radius
 
     local circle_color
     if self._is_active then
@@ -137,9 +137,9 @@ function Knob:__draw_arc(
     color,
     track_size
 )
-    local track_radius = radius * self._radius
+    local track_radius = radius * self._param.details.display_settings.radius
     if track_size == nil then
-        track_size = size * (self._radius + 0.1) * 0.5 + 0.0001
+        track_size = size * (self._param.details.display_settings.radius + 0.1) * 0.5 + 0.0001
     end
     local circle_color
     if self._is_active then
@@ -160,14 +160,12 @@ end
 ---@param ctx ImGui_Context
 ---@param id string
 ---@param param ParamData
----@param radius number
 ---@param controllable boolean
 ---@param on_activate? function
 function Knob.new(
     ctx,
     id,
     param,
-    radius,
     controllable,
     on_activate
 )
@@ -184,7 +182,6 @@ function Knob.new(
     new_knob._id = id
     new_knob._label = param.name
     new_knob._param = param
-    new_knob._radius = radius
     new_knob._controllable = controllable
     new_knob._value_changed = value_changed
     new_knob._angle = angle
@@ -201,8 +198,8 @@ function Knob.new(
     new_knob._is_hovered = reaper.ImGui_IsItemHovered(ctx)
     new_knob._on_activate = on_activate
     local draw_cursor_x, draw_cursor_y = reaper.ImGui_GetCursorScreenPos(ctx)
-    new_knob._center_x = draw_cursor_x + new_knob._radius
-    new_knob._center_y = draw_cursor_y + new_knob._radius
+    new_knob._center_x = draw_cursor_x + new_knob._param.details.display_settings.radius
+    new_knob._center_y = draw_cursor_y + new_knob._param.details.display_settings.radius
     new_knob._angle_cos = math.cos(new_knob._angle)
     new_knob._angle_sin = math.sin(new_knob._angle)
     --- use when layout editor is open and the current param isn't selected
@@ -222,7 +219,7 @@ function Knob:__update(box_width)
     local x_pos = draw_cursor_x + box_width / 2
 
     self._center_x = x_pos
-    self._center_y = draw_cursor_y + self._radius
+    self._center_y = draw_cursor_y + self._param.details.display_settings.radius
 
     local t = (self._param.details.value - self._param.details.minval) /
         (self._param.details.maxval - self._param.details.minval)
@@ -249,16 +246,18 @@ end
 ---@return boolean rv
 ---@return number p_value
 function Knob:__control()
-    local indent_level = self._child_width / 2 - self._radius
+    local indent_level = self._child_width / 2 - self._param.details.display_settings.radius
     if indent_level > 0 then -- having to run this check, passing 0 as a value indents with a default indent spacing…
         reaper.ImGui_Indent(self._ctx, indent_level)
     end
     if not self._param.details.parent_fx.editing then
-        reaper.ImGui_InvisibleButton(self._ctx, self._id, self._radius * 2.0, self._radius * 2.0)
+        reaper.ImGui_InvisibleButton(self._ctx, self._id, self._param.details.display_settings.radius * 2.0,
+            self._param.details.display_settings.radius * 2.0)
     else
         --- in edit mode, the whole frame has to be clickable,
         --so we don't include the button - other wise the button's clicks would conflict with the frame's clicks.
-        reaper.ImGui_SetCursorPosY(self._ctx, reaper.ImGui_GetCursorPosY(self._ctx) + self._radius * 2.0)
+        reaper.ImGui_SetCursorPosY(self._ctx,
+            reaper.ImGui_GetCursorPosY(self._ctx) + self._param.details.display_settings.radius * 2.0)
     end
 
     if indent_level > 0 then
@@ -293,7 +292,6 @@ function Knob:__control()
         new_val = self._param.details.defaultval
         value_changed = true
     elseif self._is_active then
-        reaper.ImGui_SetConfigVar(self._ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
         local _, delta_y = reaper.ImGui_GetMouseDragDelta(self._ctx, reaper.ImGui_GetCursorPosX(self._ctx),
             reaper.ImGui_GetCursorPosY(self._ctx))
 
@@ -405,8 +403,8 @@ function Knob:__draw_triangle(
     color,
     filled
 )
-    local dot_size = size * self._radius
-    local dot_radius = radius * self._radius
+    local dot_size = size * self._param.details.display_settings.radius
+    local dot_radius = radius * self._param.details.display_settings.radius
     local circle_color
 
     if self._is_active then
@@ -602,8 +600,8 @@ function Knob:__with_drag()
     --     - padding
     -- local x_pos = self._center_x - str_w / 2
     -- reaper.ImGui_SetCursorPos(self._ctx, x_pos, reaper.ImGui_GetCursorPosY(self._ctx))
-    -- reaper.ImGui_SetCursorScreenPos(self._ctx, self._center_x - self._radius,
-    --     self._center_y + self._radius)
+    -- reaper.ImGui_SetCursorScreenPos(self._ctx, self._center_x - self._param.details.display_settings.radius,
+    --     self._center_y + self._param.details.display_settings.radius)
     local changed, new_val = reaper.ImGui_DragDouble(
         self._ctx,
         "##" .. self._id .. "_KNOB_DRAG_CONTROL_",
@@ -670,8 +668,10 @@ function Knob:draw()
     local fxbox_screen_pos_x, fxbox_screen_pos_y = reaper.ImGui_GetWindowPos(self._ctx)
 
     -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
-    self._child_width                            = self._radius * 2 * ((no_title and no_value) and 1 or 1.5)
-    self._child_height                           = self._radius * 2 + ((no_title or no_value) and 0 or 20) +
+    self._child_width                            = self._param.details.display_settings.radius * 2 *
+        ((no_title and no_value) and 1 or 1.5)
+    self._child_height                           = self._param.details.display_settings.radius * 2 +
+        ((no_title or no_value) and 0 or 20) +
         reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * ((no_title and 0 or 1) + (no_value and 0 or 1))
 
     -- don’t update the knob’s value if the fx’s layout is being edited
@@ -785,10 +785,10 @@ function Knob:draw()
                 fx_box_min_y,
                 fxbox_screen_pos_x,
                 fxbox_screen_pos_y,
-                self._radius
+                self._param.details.display_settings.radius
             )
             if changed then
-                self._radius = new_radius
+                self._param.details.display_settings.radius = new_radius
             end
         end
 
