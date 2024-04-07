@@ -1,4 +1,4 @@
-local Scanner = require('parsers.Iniparse.IniScan')
+local Scanner = require('lib.Iniparse.IniScan')
 ---INI parser.
 --initialize and parse with
 --```lua

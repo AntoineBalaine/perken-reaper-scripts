@@ -8,7 +8,7 @@ package.path = package.path .. ";" .. source .. "?.lua"
 CurrentDirectory = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]] -- GET DIRECTORY FOR REQUIRE
 package.path = CurrentDirectory .. "?.lua;"
 
-local keymap = require("parsers.reaper-kb_ini")    -- get the scanner/parser for the keymap file
+local keymap = require("lib.reaper-kb_ini")    -- get the scanner/parser for the keymap file
 local process = require("shortcuts.processKeymap") -- get the function that maps the keymap file into named tables
 
 

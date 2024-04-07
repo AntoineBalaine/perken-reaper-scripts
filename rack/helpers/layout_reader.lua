@@ -1,5 +1,5 @@
 local layout_reader = {}
-local IniParse = require("parsers.Iniparse.IniParse")
+local IniParse = require("lib.Iniparse.IniParse")
 
 
 ---@param fx TrackFX

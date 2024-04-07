@@ -2,7 +2,7 @@
 Read the user settings from the file, or create a new one if it doesn’t exist.
 ]]
 local Settings = {}
-local IniParse = require("parsers.Iniparse.IniParse")
+local IniParse = require("lib.Iniparse.IniParse")
 
 
 

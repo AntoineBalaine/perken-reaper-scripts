@@ -7,7 +7,7 @@ Bear in mind that this runs on its own defer cycle,
 The fx rack only invokes it from the outside, it doesn’t call its draw function directly.
 ]]
 local os_separator = package.config:sub(1, 1)
-local fx_parser = require("parsers.fx_parser")
+local fx_parser = require("lib.fx_parser")
 local MainWindowStyle = require("helpers.MainWindowStyle")
 
 ---Coerce `Input` number to be between `Min` and `Max`
