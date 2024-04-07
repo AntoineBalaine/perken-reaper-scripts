@@ -172,7 +172,7 @@ function Slider:draw()
         end
         reaper.ImGui_EndChild(self._ctx)
     end
-    if not self._param.details.parent_fx.editing and not no_input then
+    if not self._param.details.parent_fx.editing and no_input then
         return false, self._param.details.value
     else
         return changed, new_val

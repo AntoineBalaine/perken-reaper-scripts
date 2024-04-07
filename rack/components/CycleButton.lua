@@ -58,10 +58,14 @@ function CycleButton:draw()
         if self._param.details.parent_fx.editing then
             reaper.ImGui_BeginDisabled(self._ctx, true)
         end
+        -- push button text color
+        reaper.ImGui_PushStyleColor(self._ctx, reaper.ImGui_Col_Text(),
+            self._param.details.display_settings.color.text_color)
 
         if not no_title then
             text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
         end
+
 
         -- if this logic comes reproduced again, let’s make into a component.
         if self._param.details.istoggle then
@@ -109,6 +113,7 @@ function CycleButton:draw()
 
             changed = true
         end
+        reaper.ImGui_PopStyleColor(self._ctx, 1) -- pop button text color
         if self._param.details.istoggle then
             reaper.ImGui_PopStyleColor(self._ctx, 3)
         end
