@@ -125,9 +125,9 @@ function Rack:ButtonsBar()
     reaper.ImGui_EndGroup(self.ctx)
 
     reaper.ImGui_SameLine(self.ctx)
-    local x = reaper.ImGui_GetCursorPosX(self.ctx)
+    local pos_x = reaper.ImGui_GetCursorPosX(self.ctx)
 
-    reaper.ImGui_SetCursorPosX(self.ctx, x - 20)
+    reaper.ImGui_SetCursorPosX(self.ctx, pos_x - 20)
 end
 
 ---draw the fx list

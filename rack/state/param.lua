@@ -4,8 +4,8 @@ local Theme = Theme
 ---@class ParamDisplaySettings
 ---@field type Param_Display_Type
 ---@field component Knob|CycleButton|Slider|nil
----@field Pos_X integer|nil
----@field Pos_Y integer|nil
+---@field x integer|nil
+---@field y integer|nil
 ---@field variant KnobVariant|SliderVariant
 ---@field flags KnobFlags|nil
 

@@ -47,9 +47,9 @@ function Slider:draw()
     local fx_box_min_x, fx_box_min_y             = reaper.ImGui_GetWindowContentRegionMin(self._ctx)
     local fxbox_screen_pos_x, fxbox_screen_pos_y = reaper.ImGui_GetWindowPos(self._ctx)
 
-    if self._param.details.display_settings.Pos_X and self._param.details.display_settings.Pos_Y then
-        reaper.ImGui_SetCursorPos(self._ctx, self._param.details.display_settings.Pos_X,
-            self._param.details.display_settings.Pos_Y)
+    if self._param.details.display_settings.x and self._param.details.display_settings.y then
+        reaper.ImGui_SetCursorPos(self._ctx, self._param.details.display_settings.x,
+            self._param.details.display_settings.y)
     end
     local window_padding = reaper.ImGui_GetStyleVar(self._ctx,
         reaper.ImGui_StyleVar_WindowPadding())

@@ -47,20 +47,20 @@ function EditControl(
         --     draw_cursor_x + self._child_width,
         --     draw_cursor_y + child_height, 0xFFFFFFAA)
         reaper.ImGui_DrawList_AddRect(reaper.ImGui_GetWindowDrawList(ctx),
-            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x),
-            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y),
-            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x) + _child_width,
-            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y) + _child_height,
+            fxbox_screen_pos_x + (param.details.display_settings.x or fxbox_pos_x),
+            fxbox_screen_pos_y + (param.details.display_settings.y or fxbox_pos_y),
+            fxbox_screen_pos_x + (param.details.display_settings.x or fxbox_pos_x) + _child_width,
+            fxbox_screen_pos_y + (param.details.display_settings.y or fxbox_pos_y) + _child_height,
             edit_frame_color,
             1.0,
             0,
             0.0)
     else
         reaper.ImGui_DrawList_AddRect(reaper.ImGui_GetWindowDrawList(ctx),
-            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x),
-            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y),
-            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x) + _child_width,
-            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y) + _child_height,
+            fxbox_screen_pos_x + (param.details.display_settings.x or fxbox_pos_x),
+            fxbox_screen_pos_y + (param.details.display_settings.y or fxbox_pos_y),
+            fxbox_screen_pos_x + (param.details.display_settings.x or fxbox_pos_x) + _child_width,
+            fxbox_screen_pos_y + (param.details.display_settings.y or fxbox_pos_y) + _child_height,
             edit_frame_color & 0x55,
             1.0,
             0,
@@ -79,11 +79,11 @@ function EditControl(
         end
         local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
             ctx,
-            param.details.display_settings.Pos_X or fxbox_pos_x,
-            param.details.display_settings.Pos_Y or fxbox_pos_y)
+            param.details.display_settings.x or fxbox_pos_x,
+            param.details.display_settings.y or fxbox_pos_y)
         if delta_y ~= 0.0 and delta_x ~= 0.0 then
-            local new_pos_x = (param.details.display_settings.Pos_X or fxbox_pos_x) + delta_x
-            local new_pos_y = (param.details.display_settings.Pos_Y or fxbox_pos_y) + delta_y
+            local new_pos_x = (param.details.display_settings.x or fxbox_pos_x) + delta_x
+            local new_pos_y = (param.details.display_settings.y or fxbox_pos_y) + delta_y
             ---clamp the values within the current frame.
             if new_pos_x < fx_box_min_x then
                 new_pos_x = fx_box_min_x
@@ -96,8 +96,8 @@ function EditControl(
                 new_pos_y = fx_box_max_y - _child_height
             end
 
-            param.details.display_settings.Pos_X = new_pos_x
-            param.details.display_settings.Pos_Y = new_pos_y
+            param.details.display_settings.x = new_pos_x
+            param.details.display_settings.y = new_pos_y
             reaper.ImGui_ResetMouseDragDelta(ctx, reaper.ImGui_MouseButton_Left())
         end
     end
@@ -108,8 +108,8 @@ function EditControl(
 
         reaper.ImGui_DrawList_AddCircleFilled(
             reaper.ImGui_GetWindowDrawList(ctx),
-            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x) + _child_width - 3,
-            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y) + _child_height - 3,
+            fxbox_screen_pos_x + (param.details.display_settings.x or fxbox_pos_x) + _child_width - 3,
+            fxbox_screen_pos_y + (param.details.display_settings.y or fxbox_pos_y) + _child_height - 3,
             dot_radius,
             edit_frame_color
         )

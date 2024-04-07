@@ -405,10 +405,10 @@ function fx_box:Canvas()
                     )
                 end
             else
-                if not param.details.display_settings.Pos_X and not param.details.display_settings.Pos_Y then
+                if not param.details.display_settings.x and not param.details.display_settings.y then
                     local pos_x, pos_y = reaper.ImGui_GetCursorPos(self.ctx)
-                    param.details.display_settings.Pos_X = pos_x
-                    param.details.display_settings.Pos_Y = pos_y
+                    param.details.display_settings.x = pos_x
+                    param.details.display_settings.y = pos_y
                 end
                 local changed, new_val = param.details.display_settings.component:draw()
 

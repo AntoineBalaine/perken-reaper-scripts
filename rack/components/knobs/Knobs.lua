@@ -677,19 +677,19 @@ function Knob:draw()
     -- don’t update the knob’s value if the fx’s layout is being edited
     if not no_edit and self._param.details.parent_fx.editing then
         self._controllable = false
-        if not self._param.details.display_settings.Pos_X and not self._param.details.display_settings.Pos_Y then
-            self._param.details.display_settings.Pos_X = fxbox_pos_x
-            self._param.details.display_settings.Pos_Y = fxbox_pos_y
+        if not self._param.details.display_settings.x and not self._param.details.display_settings.y then
+            self._param.details.display_settings.x = fxbox_pos_x
+            self._param.details.display_settings.y = fxbox_pos_y
         else
-            reaper.ImGui_SetCursorPosX(self._ctx, self._param.details.display_settings.Pos_X)
-            reaper.ImGui_SetCursorPosY(self._ctx, self._param.details.display_settings.Pos_Y)
+            reaper.ImGui_SetCursorPosX(self._ctx, self._param.details.display_settings.x)
+            reaper.ImGui_SetCursorPosY(self._ctx, self._param.details.display_settings.y)
         end
     else
         self._controllable = true
     end
-    if not no_edit and self._param.details.display_settings.Pos_X and self._param.details.display_settings.Pos_Y then
-        reaper.ImGui_SetCursorPosX(self._ctx, self._param.details.display_settings.Pos_X)
-        reaper.ImGui_SetCursorPosY(self._ctx, self._param.details.display_settings.Pos_Y)
+    if not no_edit and self._param.details.display_settings.x and self._param.details.display_settings.y then
+        reaper.ImGui_SetCursorPosX(self._ctx, self._param.details.display_settings.x)
+        reaper.ImGui_SetCursorPosY(self._ctx, self._param.details.display_settings.y)
     end
 
 
