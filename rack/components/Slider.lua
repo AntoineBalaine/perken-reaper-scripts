@@ -56,30 +56,35 @@ function Slider:draw()
 
     ---TODO maybe make these values editable
     self._child_width    = self._param.details.display_settings.width
-    local width
-    local height
+    local slider_width
+    local slider_height
     if self._param.details.display_settings.variant == Slider.Variant.vertical then
         self._child_height = self._param.details.display_settings.height
-        width              = self._param.details.display_settings.width - window_padding
-        height             = self._child_height - reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
+        slider_width       = self._child_width - window_padding - 20
+        slider_height      = self._child_height - reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
     else
         self._child_height = self._param.details.display_settings.height
+        slider_width = self._child_width -- horizontal slider has to be full width of the frame
+        -- no need to update the height of the horizontal slider
     end
     local changed = false
     local new_val = self._param.details.value
+
     if reaper.ImGui_BeginChild(self._ctx, "##Slider" .. self._param.guid, self._child_width, self._child_height, false) then
         if self._param.details.parent_fx.editing then
             reaper.ImGui_BeginDisabled(self._ctx, true)
         end
+        reaper.ImGui_PushStyleColor(self._ctx, reaper.ImGui_Col_Text(),
+            self._param.details.display_settings.color.text_color)
         if not no_title then
             text_helpers.centerText(self._ctx, self._param.name, self._child_width, 2)
         end
-        reaper.ImGui_PushItemWidth(self._ctx, self._child_width - window_padding)
         --- If there's only 10 steps, use a stepped slider
         if self._param.details.steps_count then
             -- use a stepped slider, using integer values
             local int_val = (self._param.details.value / self._param.details.step) // 1 |0
             if self._param.details.display_settings.variant == Slider.Variant.horizontal then
+                reaper.ImGui_PushItemWidth(self._ctx, slider_width)
                 changed, int_val = reaper.ImGui_SliderInt(self._ctx,
                     "##slider" .. self._param.guid,
                     int_val,
@@ -87,15 +92,16 @@ function Slider:draw()
                     (self._param.details.maxval / self._param.details.step) // 1 | 0,
                     self._param.details.fmt_val
                 )
+                reaper.ImGui_PopItemWidth(self._ctx)
             else
-                local indent_width = (self._child_width - width) / 2
+                local indent_width = (self._child_width - slider_width) / 2
                 reaper.ImGui_Indent(self._ctx, indent_width)
 
                 changed, int_val = reaper.ImGui_VSliderInt(self._ctx,
 
                     "##slider" .. self._param.guid,
-                    width,
-                    height,
+                    slider_width,
+                    slider_height,
                     int_val,
                     (self._param.details.minval / self._param.details.step) // 1 | 0,
                     (self._param.details.maxval / self._param.details.step) // 1 | 0,
@@ -114,19 +120,23 @@ function Slider:draw()
             end
         else -- non-stepped slider
             if self._param.details.display_settings.variant == Slider.Variant.horizontal then
+                reaper.ImGui_PushItemWidth(self._ctx, slider_width)
                 changed, new_val = reaper.ImGui_SliderDouble(self._ctx,
                     "##slider" .. self._param.guid,
                     self._param.details.value,
                     self._param.details.minval,
                     self._param.details.maxval,
                     self._param.details.fmt_val)
+
+                reaper.ImGui_PopItemWidth(self._ctx)
             else
-                local indent_width = (self._child_width - width) / 2
+                local indent_width = (self._child_width - slider_width) / 2
                 reaper.ImGui_Indent(self._ctx, indent_width)
-                changed, new_val = reaper.ImGui_VSliderDouble(self._ctx,
+                changed, new_val = reaper.ImGui_VSliderDouble(
+                    self._ctx,
                     "##slider" .. self._param.guid,
-                    width,
-                    height,
+                    slider_width,
+                    slider_height,
                     self._param.details.value,
                     self._param.details.minval,
                     self._param.details.maxval,
@@ -139,7 +149,7 @@ function Slider:draw()
                 reaper.ImGui_Unindent(self._ctx, indent_width)
             end
         end
-        reaper.ImGui_PopItemWidth(self._ctx)
+        reaper.ImGui_PopStyleColor(self._ctx, 1) -- pop text color
 
         if self._param.details.parent_fx.editing then
             reaper.ImGui_EndDisabled(self._ctx)

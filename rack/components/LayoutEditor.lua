@@ -278,8 +278,7 @@ function LayoutEditor:ParamInfo()
         "Pos_Y",
         self.fx.displaySettings.window_width,
         self.fx.displaySettings.window_height)
-    if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.vSlider
-        or self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.CycleButton then
+    if self.selectedParam.details.display_settings.type == layout_enums.Param_Display_Type.vSlider then
         ControlPosition(self.ctx,
             "width/height:",
             self.selectedParam.details.display_settings,
@@ -749,7 +748,7 @@ function LayoutEditor:edit(fx)
         self.selectedParam = self.fx.params_list[1]
     end
     self.selectedParam._selected = true
-    if not self.selectedDecoration and self.fx.displaySettings.decorations and #self.fx.displaySettings.decorations then
+    if not self.selectedDecoration and self.fx.displaySettings.decorations and #self.fx.displaySettings.decorations > 0 then
         self.selectedDecoration = self.fx.displaySettings.decorations[1]
         self.selectedDecoration._selected = true
     end

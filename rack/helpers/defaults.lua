@@ -129,6 +129,7 @@ function defaults.getDefaultHorizontalSliderDisplaySettings()
         variant = Slider.Variant.horizontal,
         flags = flags,
         width = 100,
+        height = 60,
         color = {
             text_color = 0xFFFFFFFF
         }
@@ -164,7 +165,7 @@ function defaults.getDefaultCycleButtonDisplaySettings()
         component = nil, ---the component that will be drawn, to be instantiated in the fx_box:main()
         flags = flags,
         width = 50,
-        height = 50,
+        height = 20,
         color = {
             text_color = 0xFFFFFFFF
         }

@@ -19,14 +19,14 @@ local Theme = Theme
 
 ---@class HorizontalSliderDisplaySettings: ParamDisplaySettings
 ---@field component? Slider
----@field variant SliderVariant.horizontal
+---@field variant SliderVariant
 ---@field flags KnobFlags|nil
 ---@field width integer
 ---@field color SliderColorSet
 
 ---@class VerticalSliderDisplaySettings: ParamDisplaySettings
 ---@field component? Slider
----@field variant SliderVariant.vertical
+---@field variant SliderVariant
 ---@field flags KnobFlags|nil
 ---@field width integer
 ---@field height integer
