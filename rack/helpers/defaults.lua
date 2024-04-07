@@ -12,9 +12,6 @@ local defaults            = {}
 defaults.window_height    = 240
 defaults.window_width     = 280
 defaults.custom_Title     = nil
-defaults.edge_Rounding    = 0
-defaults.grb_Rounding     = 0
-defaults.param_Instance   = nil
 defaults.title_Clr        = 0x000000FF
 defaults.title_Width      = 220 - 80
 defaults.button_size      = 20
@@ -52,9 +49,6 @@ function defaults.getDefaultFxDisplaySettings()
             text_offline = Theme.colors.mcp_fx_offlined.color,
         },
         custom_Title        = nil,
-        edge_Rounding       = 0,
-        grb_Rounding        = 0,
-        param_Instance      = nil,
         title_Clr           = 0x000000FF,
         title_Width         = 220 - 80,
         window_width        = defaults.window_width,

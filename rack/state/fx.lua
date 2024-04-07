@@ -85,11 +85,8 @@ function fx.new(state, index, number, guid)
     ---@field background_offline integer
     ---@field borderColor integer
     ---@field buttons_layout ButtonsLayout
-    ---@field custom_Title nil
-    ---@field edge_Rounding integer = 0
-    ---@field grb_Rounding integer = 0
+    ---@field custom_Title string|nil
     ---@field labelButtonStyle LabelButtonColorSets
-    ---@field param_Instance nil
     ---@field title_Clr integer = 255
     ---@field title_Width integer = 140
     ---@field title_display Title_Display_Style

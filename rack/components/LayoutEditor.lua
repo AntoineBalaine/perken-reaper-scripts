@@ -558,8 +558,6 @@ function LayoutEditor:FxDisplaySettings()
         reaper.ImGui_SetMouseCursor(self.ctx, reaper.ImGui_MouseCursor_ResizeEW())
     end
     reaper.ImGui_PopItemWidth(self.ctx)
-    -- reaper.ImGui_Text(self.ctx, "Edge_Rounding: " .. s.Edge_Rounding .. "")
-    -- reaper.ImGui_Text(self.ctx, "Grb_Rounding: " .. s.Grb_Rounding .. "")
     reaper.ImGui_Text(self.ctx, "Background color: ")
     reaper.ImGui_SameLine(self.ctx)
     _, self.fx.displaySettings.background = Palette(self.ctx, self.fx.displaySettings.background, "background")
