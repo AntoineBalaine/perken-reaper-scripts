@@ -163,7 +163,7 @@ function Slider:draw()
 
         if self._param.details.parent_fx.editing then
             if self._param.details.display_settings.variant == Slider.Variant.horizontal then
-                local size_changed, new_width = EditControl(
+                local size_changed, _, new_width, _ = EditControl(
                     self._ctx,
                     self._param,
                     fxbox_pos_x,

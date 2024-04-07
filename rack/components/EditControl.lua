@@ -104,87 +104,41 @@ function EditControl(
 
     -- draw the resize button
     if param._selected then
-        if radius then
-            local dot_radius = 5
+        local dot_radius = 5
 
-            reaper.ImGui_DrawList_AddCircleFilled(
-                reaper.ImGui_GetWindowDrawList(ctx),
-                fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x) + _child_width - 3,
-                fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y) + _child_height - 3,
-                dot_radius,
-                edit_frame_color
-            )
-            reaper.ImGui_SetCursorPosX(ctx, _child_width - 10)
-            reaper.ImGui_SetCursorPosY(ctx, _child_height - 10)
-            reaper.ImGui_InvisibleButton(ctx, "##extendsize" .. param.guid, 10, 10)
-            if reaper.ImGui_IsItemHovered(ctx) then
-                reaper.ImGui_SetMouseCursor(ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
+        reaper.ImGui_DrawList_AddCircleFilled(
+            reaper.ImGui_GetWindowDrawList(ctx),
+            fxbox_screen_pos_x + (param.details.display_settings.Pos_X or fxbox_pos_x) + _child_width - 3,
+            fxbox_screen_pos_y + (param.details.display_settings.Pos_Y or fxbox_pos_y) + _child_height - 3,
+            dot_radius,
+            edit_frame_color
+        )
+        reaper.ImGui_SetCursorPosX(ctx, _child_width - 10)
+        reaper.ImGui_SetCursorPosY(ctx, _child_height - 10)
+        reaper.ImGui_InvisibleButton(ctx, "##extendsize" .. param.guid, 10, 10)
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetMouseCursor(ctx, reaper.ImGui_MouseCursor_ResizeNWSE())
+        end
+
+        if reaper.ImGui_IsItemActive(ctx) then
+            if param.details.parent_fx.setSelectedParam then
+                param.details.parent_fx.setSelectedParam(param)
             end
 
-            if reaper.ImGui_IsItemActive(ctx) then
-                if param.details.parent_fx.setSelectedParam then
-                    param.details.parent_fx.setSelectedParam(param)
-                end
-                local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
-                    ctx,
-                    reaper.ImGui_GetCursorPosX(ctx),
-                    reaper.ImGui_GetCursorPosY(ctx))
-                if delta_y ~= 0.0 and delta_x ~= 0.0 then
+            local delta_x, delta_y = reaper.ImGui_GetMouseDragDelta(
+                ctx,
+                reaper.ImGui_GetCursorPosX(ctx),
+                reaper.ImGui_GetCursorPosY(ctx))
+            if delta_y ~= 0.0 and delta_x ~= 0.0 then
+                if width or height then
+                    -- pass 0 as default for width and height in case they're not being passed in
+                    new_width = (width or 0) + delta_x
+                    new_height = (height or 0) + delta_y
+                else
                     new_radius = radius + (delta_y + delta_x) * 0.25
-                    changed = true
-                    reaper.ImGui_ResetMouseDragDelta(ctx, reaper.ImGui_MouseButton_Left())
                 end
-            end
-        end
-        if width then
-            -- add width control
-            reaper.ImGui_SetCursorPosX(ctx, _child_width - 10)
-            reaper.ImGui_SetCursorPosY(ctx, 0)
-            reaper.ImGui_Button(ctx, "##extendwidth" .. param.guid, 10, _child_height)
-            if reaper.ImGui_IsItemHovered(ctx) then
-                reaper.ImGui_SetMouseCursor(ctx, reaper.ImGui_MouseCursor_ResizeEW())
-            end
-
-            if reaper.ImGui_IsItemActive(ctx) then
-                if param.details.parent_fx.setSelectedParam then
-                    param.details.parent_fx.setSelectedParam(param)
-                end
-                local delta_x, _ = reaper.ImGui_GetMouseDragDelta(
-                    ctx,
-                    reaper.ImGui_GetCursorPosX(ctx),
-                    reaper.ImGui_GetCursorPosY(ctx))
-                if delta_x ~= 0.0 then
-                    new_width = width + delta_x
-                    changed = true
-                    reaper.ImGui_ResetMouseDragDelta(ctx, reaper.ImGui_MouseButton_Left())
-                end
-            end
-        end
-
-        -- add height control
-        if height then
-            reaper.ImGui_SetCursorPosX(ctx, 0)
-            reaper.ImGui_SetCursorPosY(ctx, _child_height - 10)
-
-            reaper.ImGui_Button(ctx, "##extendwidth" .. param.guid, _child_width, 10)
-
-            if reaper.ImGui_IsItemHovered(ctx) then
-                reaper.ImGui_SetMouseCursor(ctx, reaper.ImGui_MouseCursor_ResizeNS())
-            end
-
-            if reaper.ImGui_IsItemActive(ctx) then
-                if param.details.parent_fx.setSelectedParam then
-                    param.details.parent_fx.setSelectedParam(param)
-                end
-                local _, delta_y = reaper.ImGui_GetMouseDragDelta(
-                    ctx,
-                    reaper.ImGui_GetCursorPosX(ctx),
-                    reaper.ImGui_GetCursorPosY(ctx))
-                if delta_y ~= 0.0 then
-                    new_height = height + delta_y
-                    changed = true
-                    reaper.ImGui_ResetMouseDragDelta(ctx, reaper.ImGui_MouseButton_Left())
-                end
+                changed = true
+                reaper.ImGui_ResetMouseDragDelta(ctx, reaper.ImGui_MouseButton_Left())
             end
         end
     end

@@ -48,10 +48,9 @@ function CycleButton:draw()
     end
 
     -- If there’s no title or value (such as for the dry/wet knob), the knob’s frame is shrunk to the minimum size
-    self._child_width  = self._param.details.display_settings.width * 2 * 2
+    self._child_width  = self._param.details.display_settings.width
     self._child_height = self._param.details.display_settings.height * 1.5 + (no_title and 0 or 20) +
         reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * (no_title and 0 or 1)
-    -- self._child_height = reaper.ImGui_GetTextLineHeightWithSpacing(self._ctx) * 4
     local changed      = false
     local new_val      = self._param.details.value
     if reaper.ImGui_BeginChild(self._ctx, "##CycleButton" .. self._param.guid, self._child_width, self._child_height, false) then

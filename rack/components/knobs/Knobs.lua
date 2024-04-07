@@ -292,7 +292,6 @@ function Knob:__control()
         new_val = self._param.details.defaultval
         value_changed = true
     elseif self._is_active then
-        reaper.ImGui_SetConfigVar(self._ctx, reaper.ImGui_ConfigVar_MouseDragThreshold(), 0.0001)
         local _, delta_y = reaper.ImGui_GetMouseDragDelta(self._ctx, reaper.ImGui_GetCursorPosX(self._ctx),
             reaper.ImGui_GetCursorPosY(self._ctx))
 
