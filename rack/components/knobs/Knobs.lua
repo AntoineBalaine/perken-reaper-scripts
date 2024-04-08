@@ -788,7 +788,7 @@ function Knob:draw()
                 self._param.details.display_settings.radius
             )
             if changed then
-                self._param.details.display_settings.radius = new_radius
+                self._param.details.display_settings.radius = new_radius // 1|0
             end
         end
 
