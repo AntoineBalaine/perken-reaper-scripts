@@ -25,7 +25,7 @@ local function LayoutFxDisplaySettings(display_settings)
         custom_Title = display_settings.custom_Title,
         title_display = display_settings.title_display,
         window_width = display_settings.window_width,
-        -- decorations = table_helpers.deepCopy(display_settings.decorations),
+        decorations = table_helpers.deepCopy(display_settings.decorations, nil, { "_selected" }),
     }
 end
 
@@ -57,13 +57,6 @@ local function LayoutTrackFX(trackFX)
 end
 
 
----@param fx TrackFX
-function layout_reader.stringify(fx)
-    local layoutData = LayoutTrackFX(fx)
-    local block = serpent.block(layoutData, { comment = false })
-    return block
-end
-
 local os_separator = package.config:sub(1, 1)
 ---@param project_directory string
 ---@param fx_name string
@@ -73,7 +66,8 @@ local function get_file_path(project_directory, fx_name)
 end
 
 function layout_reader.save(fx)
-    local block = layout_reader.stringify(fx)
+    local layoutData = LayoutTrackFX(fx)
+    local block = serpent.block(layoutData, { comment = false })
     local fmt_block = string.format("return %s", block)
     local file_path = get_file_path(fx.state.project_directory, fx.name)
     local file = io.open(file_path, "w+")
@@ -88,22 +82,6 @@ function layout_reader.save(fx)
     else
         reaper.MB("Error: Could not save layout", "Error", 0)
     end
-end
-
----@param file_path string
----@return boolean, table|nil
-function layout_reader.read_layout(file_path)
-    local file = io.open(file_path, "r")
-    local read_table
-    local success = false
-    if file then
-        local content = file:read("*a")
-        success,
-        ---@type table
-        read_table = serpent.load(content)
-        file:close()
-    end
-    return success, read_table
 end
 
 ---pulled from serpent.lua,
@@ -126,7 +104,7 @@ end
 
 ---@param fx TrackFX
 ---@return TrackFX|nil fx
-function layout_reader.read_and_merge(fx)
+function layout_reader.read_layout(fx)
     -- find the file path for the current fx name
     --[[
     if there is a layouts file,
