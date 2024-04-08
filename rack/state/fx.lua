@@ -8,7 +8,6 @@ local defaults = require("helpers.defaults")
 local layout_enums = require("state.layout_enums")
 local parameter = require("state.param")
 local fx_box_helpers = require("helpers.fx_box_helpers")
-local layout_reader = require("helpers.layout_reader")
 local Theme = Theme
 
 ---@class TrackFX
@@ -137,7 +136,7 @@ function fx:read_layout()
 
     local success,
     ---@type LayoutTrackFX|nil
-    layout = pcall(function() require("layouts." .. self.name:gsub(os_separator, "")) end)
+    layout = pcall(function() return require("layouts." .. self.name:gsub(os_separator, "")) end)
     if not success or not layout then
         return nil
     end
