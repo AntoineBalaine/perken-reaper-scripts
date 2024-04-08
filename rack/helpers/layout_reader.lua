@@ -2,55 +2,65 @@ local layout_reader = {}
 local serpent = require("lib.serpent")
 local table_helpers = require("helpers.table")
 
+---@param parameter Parameter
+---@return LayoutParameter LayoutParameter
+local function LayoutParameter(parameter)
+    local rv = {
+        display_settings = parameter.display_settings,
+        ident = parameter.ident,
+        index = parameter.index,
+        name = parameter.name,
+    }
+    rv.display_settings.component = nil -- don't store the component in the layout file
+    return rv
+end
+
+---@param display_settings FxDisplaySettings
+---@return LayoutFxDisplaySettings LayoutFxDisplaySettings
+local function LayoutFxDisplaySettings(display_settings)
+    return {
+        background = display_settings.background,
+        borderColor = display_settings.borderColor,
+        buttons_layout = display_settings.buttons_layout,
+        custom_Title = display_settings.custom_Title,
+        title_display = display_settings.title_display,
+        window_width = display_settings.window_width,
+        -- decorations = table_helpers.deepCopy(display_settings.decorations),
+    }
+end
+
+---@param paramData ParamData
+---@return LayoutParamData LayoutParamData
+local function LayoutParamData(paramData)
+    return {
+        details = LayoutParameter(paramData.details),
+        display = paramData.display,
+        index = paramData.index,
+        name = paramData.name,
+    }
+end
+
+---@param trackFX TrackFX
+---@return LayoutTrackFX LayoutTrackFX
+local function LayoutTrackFX(trackFX)
+    ---@type LayoutParamData[]
+    local layout_display_params = {}
+    for _, paramData in ipairs(trackFX.display_params) do
+        layout_display_params[#layout_display_params + 1] = LayoutParamData(paramData)
+    end
+    return {
+        display_name = trackFX.display_name,
+        displaySettings = LayoutFxDisplaySettings(trackFX.displaySettings),
+        display_params = layout_display_params,
+        name = trackFX.name,
+    }
+end
+
+
 ---@param fx TrackFX
 function layout_reader.stringify(fx)
-    local displaySettings_clone = table_helpers.deepCopy(
-        fx.displaySettings,
-        nil,
-        { "background_disabled", -- don't store these properties
-            "background_offline",
-            "borderColor",
-            "title_Clr",
-            "title_Width",
-            "window_height",
-            "labelButtonStyle",
-            "_grid_color",
-            "_grid_size",
-            "_is_collapsed",
-            "custom_Title",
-            "_selected"
-
-        })
-    if fx.displaySettings.custom_Title and fx.displaySettings.custom_Title ~= "" then
-        displaySettings_clone.custom_Title = fx.displaySettings.custom_Title
-    end
-
-    local params_clone = {}
-    for _, param in ipairs(fx.display_params) do
-        -- in the params,
-        -- only store the details and display settings and the header info.
-        -- Don't store the details.
-
-        local param_clone = table_helpers.deepCopy(
-            param,
-            nil,
-            { "display", "details", "_selected", "guid" })
-
-        local display_settings_clone = table_helpers.deepCopy(
-            param.details.display_settings,
-            nil,
-            { "component" })
-        param_clone.display_settings = display_settings_clone
-        table.insert(params_clone, param_clone)
-    end
-
-
-    local fx_mapped = {
-        displaySettings = displaySettings_clone,
-        display_params = params_clone
-    }
-
-    local block = serpent.block(fx_mapped, { comment = false })
+    local layoutData = LayoutTrackFX(fx)
+    local block = serpent.block(layoutData, { comment = false })
     return block
 end
 
@@ -58,16 +68,26 @@ local os_separator = package.config:sub(1, 1)
 ---@param project_directory string
 ---@param fx_name string
 local function get_file_path(project_directory, fx_name)
-    return project_directory .. os_separator .. "layouts" .. os_separator .. fx_name .. ".lua"
+    fx_name = fx_name:gsub(os_separator, "")
+    return project_directory .. "layouts" .. os_separator .. fx_name .. ".lua"
 end
 
 function layout_reader.save(fx)
     local block = layout_reader.stringify(fx)
-    reaper.ShowConsoleMsg(block .. "\n")
-    -- local file_path = get_file_path(fx.state.project_directory, fx.name)
-    -- file = io.open(file_path, "w")
-    -- file:write(block)
-    -- file:close()
+    local fmt_block = string.format("return %s", block)
+    local file_path = get_file_path(fx.state.project_directory, fx.name)
+    local file = io.open(file_path, "w+")
+    if file then
+        local fp, errmsg = file:write(fmt_block)
+        if not fp and errmsg then
+            reaper.MB(errmsg, "Error", 0)
+        else
+            reaper.MB("layout saved at " .. file_path, "Success", 0)
+        end
+        file:close()
+    else
+        reaper.MB("Error: Could not save layout", "Error", 0)
+    end
 end
 
 ---@param file_path string
@@ -89,9 +109,10 @@ end
 ---pulled from serpent.lua,
 ---modded to set properties recursively,
 ---so we don't overwrite entire objects, only the properties that we've stored.
----@param a table
+---@generic T: table
+---@param a T
 ---@param b table
----@return table
+---@return T
 local function merge(a, b)
     for k, v in pairs(b) do
         if a[k] and type(a[k]) == "table" and type(v) == "table" then
@@ -104,7 +125,6 @@ local function merge(a, b)
 end
 
 ---@param fx TrackFX
----@return boolean success
 ---@return TrackFX|nil fx
 function layout_reader.read_and_merge(fx)
     -- find the file path for the current fx name
@@ -115,14 +135,11 @@ function layout_reader.read_and_merge(fx)
     perform validation on the layout's params
     and merge them
     --]]
-    local file_path = get_file_path(fx.state.project_directory, fx.name)
-    local success, read_table = layout_reader.read_layout(file_path)
-    if not success or not read_table then
-        return false, fx
-    else
-        local merged = merge(fx, read_table)
-        return true, merged
-    end
+
+    ---@type table
+    local layout = require("layouts." .. fx.name:gsub(os_separator, ""))
+    local merged = merge(fx, layout)
+    return merged
 end
 
 return layout_reader
