@@ -67,12 +67,13 @@ function LayoutEditor:Sketch()
 end
 
 ---Display button to save changes to layout or discard them.
---TODO  implement
 function LayoutEditor:SaveCancelButton()
     reaper.ImGui_BeginGroup(self.ctx)
     if reaper.ImGui_Button(self.ctx, "save") then
-        layout_reader.save(self.fx)
-        -- self:close()
+        local success = layout_reader.save(self.fx)
+        if success then
+            self:close()
+        end
     end
     reaper.ImGui_SameLine(self.ctx)
     if reaper.ImGui_Button(self.ctx, "close") then

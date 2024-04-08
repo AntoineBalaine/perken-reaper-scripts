@@ -8,6 +8,7 @@ local defaults = require("helpers.defaults")
 local layout_enums = require("state.layout_enums")
 local parameter = require("state.param")
 local fx_box_helpers = require("helpers.fx_box_helpers")
+local layout_reader = require("helpers.layout_reader")
 local Theme = Theme
 
 ---@class TrackFX
@@ -96,7 +97,7 @@ function fx.new(state, index, number, guid)
 
     self.displaySettings = defaults.getDefaultFxDisplaySettings()
     self.displaySettings_copy = nil ---@type FxDisplaySettings|nil
-
+    self:read_layout()
     -- self.param_list
     -- number retval, number minval, number maxval = reaper.TrackFX_GetParam(MediaTrack track, integer fx, integer param)
     --
@@ -104,14 +105,70 @@ function fx.new(state, index, number, guid)
     return self
 end
 
+---pulled from serpent.lua,
+---modded to set properties recursively,
+---so we don't overwrite entire objects, only the properties that we've stored.
+---@generic T: table
+---@param a T
+---@param b table
+---@return T
+local function merge(a, b)
+    for k, v in pairs(b) do
+        if a[k] and type(a[k]) == "table" and type(v) == "table" then
+            merge(a[k], v)
+        else
+            a[k] = v
+        end
+    end
+    return a
+end
+
+--[[
+    find the file path for the current fx name.
+    if there is a layouts file,
+    create the list of params,
+    iterate the display settings and the fx params,
+    perform validation on the layout's params -- TODO still
+    and merge them
+]]
+---@return TrackFX|nil fx
+function fx:read_layout()
+    local os_separator = package.config:sub(1, 1)
+
+    local success,
+    ---@type LayoutTrackFX|nil
+    layout = pcall(function() require("layouts." .. self.name:gsub(os_separator, "")) end)
+    if not success or not layout then
+        return nil
+    end
+    --- what to do if the display params have some data that isn't stored in the fx instance?
+    --- instantiate all the params, and then merge the layout’s display params with the fx instance’s display params.
+    local found_param
+    for _, layoutParam in ipairs(layout.display_params) do
+        -- find the matching param in the fx instance
+        -- if it doesn’t exist, create it
+        for _, fx_param in ipairs(self.params_list) do
+            -- sadly I can't use the guid here
+            -- TODO investigate if it would be possible to search with layoutParam.ident
+            if fx_param.index == layoutParam.index and fx_param.name == layoutParam.name then
+                found_param = self:createParamDetails(fx_param, true)
+                break
+            end
+        end
+    end
+    if found_param then
+        -- TODO this is brittle at best,
+        -- it assumes that all the display params are create in the same order as the layout’s display params.
+        local merged = merge(self, layout)
+        return merged
+    end
+end
+
 ---Check that the parse of the fx layout file
 ---contains all the expected properties in the object.
 ---@param parse table
 local function isValidDisplaySettings(parse)
     if not parse.displaySettings
-        or not parse.displaySettings.Edge_Rounding
-        or not parse.displaySettings.Grb_Rounding
-        or not parse.displaySettings.BgClr
         or not parse.displaySettings.Window_Width
         or not parse.displaySettings.Title_Width
         or not parse.displaySettings.Title_Clr

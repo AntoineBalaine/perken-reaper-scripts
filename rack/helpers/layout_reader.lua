@@ -65,59 +65,29 @@ local function get_file_path(project_directory, fx_name)
     return project_directory .. "layouts" .. os_separator .. fx_name .. ".lua"
 end
 
+---@param fx TrackFX
+---@return boolean success
 function layout_reader.save(fx)
     local layoutData = LayoutTrackFX(fx)
     local block = serpent.block(layoutData, { comment = false })
     local fmt_block = string.format("return %s", block)
     local file_path = get_file_path(fx.state.project_directory, fx.name)
     local file = io.open(file_path, "w+")
+    local success = true
     if file then
         local fp, errmsg = file:write(fmt_block)
         if not fp and errmsg then
+            success = false
             reaper.MB(errmsg, "Error", 0)
         else
             reaper.MB("layout saved at " .. file_path, "Success", 0)
         end
         file:close()
     else
+        success = false
         reaper.MB("Error: Could not save layout", "Error", 0)
     end
-end
-
----pulled from serpent.lua,
----modded to set properties recursively,
----so we don't overwrite entire objects, only the properties that we've stored.
----@generic T: table
----@param a T
----@param b table
----@return T
-local function merge(a, b)
-    for k, v in pairs(b) do
-        if a[k] and type(a[k]) == "table" and type(v) == "table" then
-            merge(a[k], v)
-        else
-            a[k] = v
-        end
-    end
-    return a
-end
-
----@param fx TrackFX
----@return TrackFX|nil fx
-function layout_reader.read_layout(fx)
-    -- find the file path for the current fx name
-    --[[
-    if there is a layouts file,
-    create the list of params,
-    iterate the display settings and the fx params,
-    perform validation on the layout's params
-    and merge them
-    --]]
-
-    ---@type table
-    local layout = require("layouts." .. fx.name:gsub(os_separator, ""))
-    local merged = merge(fx, layout)
-    return merged
+    return success
 end
 
 return layout_reader
