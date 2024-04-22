@@ -1924,211 +1924,211 @@ KEY   0                96                _reaper_keys_midi_`                3206
 KEY   8                96                _reaper_keys_midi_<C-`>            32060                                            
 KEY   16               96                _reaper_keys_midi_<M-`>            32060                                            
 KEY   24               96                _reaper_keys_midi_<CM-`>           32060                                            
-SCR   4                0                 "_reaper_keys_main_<S-A>"          "[reaper-keys]  [key_press]  [A]"                ./reaper-keys/key_scripts/main_(S-a).lua
+SCR   4                0                 "_reaper_keys_main_<S-A>"          "[reaper-keys]  [key_press]  [A]"                ./perken/reavim/key_scripts/main_(S-a).lua
 KEY   5                65                _reaper_keys_main_<S-A>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-A>"         "[reaper-keys]  [key_press]  [<M-A>]"            ./reaper-keys/key_scripts/main_(MS-a).lua
+SCR   4                0                 "_reaper_keys_main_<SM-A>"         "[reaper-keys]  [key_press]  [<M-A>]"            ./perken/reavim/key_scripts/main_(MS-a).lua
 KEY   21               65                _reaper_keys_main_<SM-A>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-A>"         "[reaper-keys]  [key_press]  [<C-A>]"            ./reaper-keys/key_scripts/main_(CS-a).lua
+SCR   4                0                 "_reaper_keys_main_<CS-A>"         "[reaper-keys]  [key_press]  [<C-A>]"            ./perken/reavim/key_scripts/main_(CS-a).lua
 KEY   13               65                _reaper_keys_main_<CS-A>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-A>"        "[reaper-keys]  [key_press]  [<CM-A>]"           ./reaper-keys/key_scripts/main_(CMS-a).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-A>"        "[reaper-keys]  [key_press]  [<CM-A>]"           ./perken/reavim/key_scripts/main_(CMS-a).lua
 KEY   29               65                _reaper_keys_main_<CSM-A>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-B>"          "[reaper-keys]  [key_press]  [B]"                ./reaper-keys/key_scripts/main_(S-b).lua
+SCR   4                0                 "_reaper_keys_main_<S-B>"          "[reaper-keys]  [key_press]  [B]"                ./perken/reavim/key_scripts/main_(S-b).lua
 KEY   5                66                _reaper_keys_main_<S-B>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-B>"         "[reaper-keys]  [key_press]  [<M-B>]"            ./reaper-keys/key_scripts/main_(MS-b).lua
+SCR   4                0                 "_reaper_keys_main_<SM-B>"         "[reaper-keys]  [key_press]  [<M-B>]"            ./perken/reavim/key_scripts/main_(MS-b).lua
 KEY   21               66                _reaper_keys_main_<SM-B>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-B>"         "[reaper-keys]  [key_press]  [<C-B>]"            ./reaper-keys/key_scripts/main_(CS-b).lua
+SCR   4                0                 "_reaper_keys_main_<CS-B>"         "[reaper-keys]  [key_press]  [<C-B>]"            ./perken/reavim/key_scripts/main_(CS-b).lua
 KEY   13               66                _reaper_keys_main_<CS-B>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-B>"        "[reaper-keys]  [key_press]  [<CM-B>]"           ./reaper-keys/key_scripts/main_(CMS-b).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-B>"        "[reaper-keys]  [key_press]  [<CM-B>]"           ./perken/reavim/key_scripts/main_(CMS-b).lua
 KEY   29               66                _reaper_keys_main_<CSM-B>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-C>"          "[reaper-keys]  [key_press]  [C]"                ./reaper-keys/key_scripts/main_(S-c).lua
+SCR   4                0                 "_reaper_keys_main_<S-C>"          "[reaper-keys]  [key_press]  [C]"                ./perken/reavim/key_scripts/main_(S-c).lua
 KEY   5                67                _reaper_keys_main_<S-C>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-C>"         "[reaper-keys]  [key_press]  [<M-C>]"            ./reaper-keys/key_scripts/main_(MS-c).lua
+SCR   4                0                 "_reaper_keys_main_<SM-C>"         "[reaper-keys]  [key_press]  [<M-C>]"            ./perken/reavim/key_scripts/main_(MS-c).lua
 KEY   21               67                _reaper_keys_main_<SM-C>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-C>"         "[reaper-keys]  [key_press]  [<C-C>]"            ./reaper-keys/key_scripts/main_(CS-c).lua
+SCR   4                0                 "_reaper_keys_main_<CS-C>"         "[reaper-keys]  [key_press]  [<C-C>]"            ./perken/reavim/key_scripts/main_(CS-c).lua
 KEY   13               67                _reaper_keys_main_<CS-C>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-C>"        "[reaper-keys]  [key_press]  [<CM-C>]"           ./reaper-keys/key_scripts/main_(CMS-c).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-C>"        "[reaper-keys]  [key_press]  [<CM-C>]"           ./perken/reavim/key_scripts/main_(CMS-c).lua
 KEY   29               67                _reaper_keys_main_<CSM-C>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-D>"          "[reaper-keys]  [key_press]  [D]"                ./reaper-keys/key_scripts/main_(S-d).lua
+SCR   4                0                 "_reaper_keys_main_<S-D>"          "[reaper-keys]  [key_press]  [D]"                ./perken/reavim/key_scripts/main_(S-d).lua
 KEY   5                68                _reaper_keys_main_<S-D>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-D>"         "[reaper-keys]  [key_press]  [<M-D>]"            ./reaper-keys/key_scripts/main_(MS-d).lua
+SCR   4                0                 "_reaper_keys_main_<SM-D>"         "[reaper-keys]  [key_press]  [<M-D>]"            ./perken/reavim/key_scripts/main_(MS-d).lua
 KEY   21               68                _reaper_keys_main_<SM-D>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-D>"         "[reaper-keys]  [key_press]  [<C-D>]"            ./reaper-keys/key_scripts/main_(CS-d).lua
+SCR   4                0                 "_reaper_keys_main_<CS-D>"         "[reaper-keys]  [key_press]  [<C-D>]"            ./perken/reavim/key_scripts/main_(CS-d).lua
 KEY   13               68                _reaper_keys_main_<CS-D>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-D>"        "[reaper-keys]  [key_press]  [<CM-D>]"           ./reaper-keys/key_scripts/main_(CMS-d).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-D>"        "[reaper-keys]  [key_press]  [<CM-D>]"           ./perken/reavim/key_scripts/main_(CMS-d).lua
 KEY   29               68                _reaper_keys_main_<CSM-D>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-E>"          "[reaper-keys]  [key_press]  [E]"                ./reaper-keys/key_scripts/main_(S-e).lua
+SCR   4                0                 "_reaper_keys_main_<S-E>"          "[reaper-keys]  [key_press]  [E]"                ./perken/reavim/key_scripts/main_(S-e).lua
 KEY   5                69                _reaper_keys_main_<S-E>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-E>"         "[reaper-keys]  [key_press]  [<M-E>]"            ./reaper-keys/key_scripts/main_(MS-e).lua
+SCR   4                0                 "_reaper_keys_main_<SM-E>"         "[reaper-keys]  [key_press]  [<M-E>]"            ./perken/reavim/key_scripts/main_(MS-e).lua
 KEY   21               69                _reaper_keys_main_<SM-E>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-E>"         "[reaper-keys]  [key_press]  [<C-E>]"            ./reaper-keys/key_scripts/main_(CS-e).lua
+SCR   4                0                 "_reaper_keys_main_<CS-E>"         "[reaper-keys]  [key_press]  [<C-E>]"            ./perken/reavim/key_scripts/main_(CS-e).lua
 KEY   13               69                _reaper_keys_main_<CS-E>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-E>"        "[reaper-keys]  [key_press]  [<CM-E>]"           ./reaper-keys/key_scripts/main_(CMS-e).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-E>"        "[reaper-keys]  [key_press]  [<CM-E>]"           ./perken/reavim/key_scripts/main_(CMS-e).lua
 KEY   29               69                _reaper_keys_main_<CSM-E>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-F>"          "[reaper-keys]  [key_press]  [F]"                ./reaper-keys/key_scripts/main_(S-f).lua
+SCR   4                0                 "_reaper_keys_main_<S-F>"          "[reaper-keys]  [key_press]  [F]"                ./perken/reavim/key_scripts/main_(S-f).lua
 KEY   5                70                _reaper_keys_main_<S-F>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-F>"         "[reaper-keys]  [key_press]  [<M-F>]"            ./reaper-keys/key_scripts/main_(MS-f).lua
+SCR   4                0                 "_reaper_keys_main_<SM-F>"         "[reaper-keys]  [key_press]  [<M-F>]"            ./perken/reavim/key_scripts/main_(MS-f).lua
 KEY   21               70                _reaper_keys_main_<SM-F>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-F>"         "[reaper-keys]  [key_press]  [<C-F>]"            ./reaper-keys/key_scripts/main_(CS-f).lua
+SCR   4                0                 "_reaper_keys_main_<CS-F>"         "[reaper-keys]  [key_press]  [<C-F>]"            ./perken/reavim/key_scripts/main_(CS-f).lua
 KEY   13               70                _reaper_keys_main_<CS-F>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-F>"        "[reaper-keys]  [key_press]  [<CM-F>]"           ./reaper-keys/key_scripts/main_(CMS-f).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-F>"        "[reaper-keys]  [key_press]  [<CM-F>]"           ./perken/reavim/key_scripts/main_(CMS-f).lua
 KEY   29               70                _reaper_keys_main_<CSM-F>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-G>"          "[reaper-keys]  [key_press]  [G]"                ./reaper-keys/key_scripts/main_(S-g).lua
+SCR   4                0                 "_reaper_keys_main_<S-G>"          "[reaper-keys]  [key_press]  [G]"                ./perken/reavim/key_scripts/main_(S-g).lua
 KEY   5                71                _reaper_keys_main_<S-G>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-G>"         "[reaper-keys]  [key_press]  [<M-G>]"            ./reaper-keys/key_scripts/main_(MS-g).lua
+SCR   4                0                 "_reaper_keys_main_<SM-G>"         "[reaper-keys]  [key_press]  [<M-G>]"            ./perken/reavim/key_scripts/main_(MS-g).lua
 KEY   21               71                _reaper_keys_main_<SM-G>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-G>"         "[reaper-keys]  [key_press]  [<C-G>]"            ./reaper-keys/key_scripts/main_(CS-g).lua
+SCR   4                0                 "_reaper_keys_main_<CS-G>"         "[reaper-keys]  [key_press]  [<C-G>]"            ./perken/reavim/key_scripts/main_(CS-g).lua
 KEY   13               71                _reaper_keys_main_<CS-G>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-G>"        "[reaper-keys]  [key_press]  [<CM-G>]"           ./reaper-keys/key_scripts/main_(CMS-g).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-G>"        "[reaper-keys]  [key_press]  [<CM-G>]"           ./perken/reavim/key_scripts/main_(CMS-g).lua
 KEY   29               71                _reaper_keys_main_<CSM-G>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-H>"          "[reaper-keys]  [key_press]  [H]"                ./reaper-keys/key_scripts/main_(S-h).lua
+SCR   4                0                 "_reaper_keys_main_<S-H>"          "[reaper-keys]  [key_press]  [H]"                ./perken/reavim/key_scripts/main_(S-h).lua
 KEY   5                72                _reaper_keys_main_<S-H>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-H>"         "[reaper-keys]  [key_press]  [<M-H>]"            ./reaper-keys/key_scripts/main_(MS-h).lua
+SCR   4                0                 "_reaper_keys_main_<SM-H>"         "[reaper-keys]  [key_press]  [<M-H>]"            ./perken/reavim/key_scripts/main_(MS-h).lua
 KEY   21               72                _reaper_keys_main_<SM-H>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-H>"         "[reaper-keys]  [key_press]  [<C-H>]"            ./reaper-keys/key_scripts/main_(CS-h).lua
+SCR   4                0                 "_reaper_keys_main_<CS-H>"         "[reaper-keys]  [key_press]  [<C-H>]"            ./perken/reavim/key_scripts/main_(CS-h).lua
 KEY   13               72                _reaper_keys_main_<CS-H>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-H>"        "[reaper-keys]  [key_press]  [<CM-H>]"           ./reaper-keys/key_scripts/main_(CMS-h).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-H>"        "[reaper-keys]  [key_press]  [<CM-H>]"           ./perken/reavim/key_scripts/main_(CMS-h).lua
 KEY   29               72                _reaper_keys_main_<CSM-H>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-I>"          "[reaper-keys]  [key_press]  [I]"                ./reaper-keys/key_scripts/main_(S-i).lua
+SCR   4                0                 "_reaper_keys_main_<S-I>"          "[reaper-keys]  [key_press]  [I]"                ./perken/reavim/key_scripts/main_(S-i).lua
 KEY   5                73                _reaper_keys_main_<S-I>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-I>"         "[reaper-keys]  [key_press]  [<M-I>]"            ./reaper-keys/key_scripts/main_(MS-i).lua
+SCR   4                0                 "_reaper_keys_main_<SM-I>"         "[reaper-keys]  [key_press]  [<M-I>]"            ./perken/reavim/key_scripts/main_(MS-i).lua
 KEY   21               73                _reaper_keys_main_<SM-I>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-I>"         "[reaper-keys]  [key_press]  [<C-I>]"            ./reaper-keys/key_scripts/main_(CS-i).lua
+SCR   4                0                 "_reaper_keys_main_<CS-I>"         "[reaper-keys]  [key_press]  [<C-I>]"            ./perken/reavim/key_scripts/main_(CS-i).lua
 KEY   13               73                _reaper_keys_main_<CS-I>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-I>"        "[reaper-keys]  [key_press]  [<CM-I>]"           ./reaper-keys/key_scripts/main_(CMS-i).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-I>"        "[reaper-keys]  [key_press]  [<CM-I>]"           ./perken/reavim/key_scripts/main_(CMS-i).lua
 KEY   29               73                _reaper_keys_main_<CSM-I>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-J>"          "[reaper-keys]  [key_press]  [J]"                ./reaper-keys/key_scripts/main_(S-j).lua
+SCR   4                0                 "_reaper_keys_main_<S-J>"          "[reaper-keys]  [key_press]  [J]"                ./perken/reavim/key_scripts/main_(S-j).lua
 KEY   5                74                _reaper_keys_main_<S-J>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-J>"         "[reaper-keys]  [key_press]  [<M-J>]"            ./reaper-keys/key_scripts/main_(MS-j).lua
+SCR   4                0                 "_reaper_keys_main_<SM-J>"         "[reaper-keys]  [key_press]  [<M-J>]"            ./perken/reavim/key_scripts/main_(MS-j).lua
 KEY   21               74                _reaper_keys_main_<SM-J>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-J>"         "[reaper-keys]  [key_press]  [<C-J>]"            ./reaper-keys/key_scripts/main_(CS-j).lua
+SCR   4                0                 "_reaper_keys_main_<CS-J>"         "[reaper-keys]  [key_press]  [<C-J>]"            ./perken/reavim/key_scripts/main_(CS-j).lua
 KEY   13               74                _reaper_keys_main_<CS-J>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-J>"        "[reaper-keys]  [key_press]  [<CM-J>]"           ./reaper-keys/key_scripts/main_(CMS-j).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-J>"        "[reaper-keys]  [key_press]  [<CM-J>]"           ./perken/reavim/key_scripts/main_(CMS-j).lua
 KEY   29               74                _reaper_keys_main_<CSM-J>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-K>"          "[reaper-keys]  [key_press]  [K]"                ./reaper-keys/key_scripts/main_(S-k).lua
+SCR   4                0                 "_reaper_keys_main_<S-K>"          "[reaper-keys]  [key_press]  [K]"                ./perken/reavim/key_scripts/main_(S-k).lua
 KEY   5                75                _reaper_keys_main_<S-K>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-K>"         "[reaper-keys]  [key_press]  [<M-K>]"            ./reaper-keys/key_scripts/main_(MS-k).lua
+SCR   4                0                 "_reaper_keys_main_<SM-K>"         "[reaper-keys]  [key_press]  [<M-K>]"            ./perken/reavim/key_scripts/main_(MS-k).lua
 KEY   21               75                _reaper_keys_main_<SM-K>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-K>"         "[reaper-keys]  [key_press]  [<C-K>]"            ./reaper-keys/key_scripts/main_(CS-k).lua
+SCR   4                0                 "_reaper_keys_main_<CS-K>"         "[reaper-keys]  [key_press]  [<C-K>]"            ./perken/reavim/key_scripts/main_(CS-k).lua
 KEY   13               75                _reaper_keys_main_<CS-K>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-K>"        "[reaper-keys]  [key_press]  [<CM-K>]"           ./reaper-keys/key_scripts/main_(CMS-k).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-K>"        "[reaper-keys]  [key_press]  [<CM-K>]"           ./perken/reavim/key_scripts/main_(CMS-k).lua
 KEY   29               75                _reaper_keys_main_<CSM-K>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-L>"          "[reaper-keys]  [key_press]  [L]"                ./reaper-keys/key_scripts/main_(S-l).lua
+SCR   4                0                 "_reaper_keys_main_<S-L>"          "[reaper-keys]  [key_press]  [L]"                ./perken/reavim/key_scripts/main_(S-l).lua
 KEY   5                76                _reaper_keys_main_<S-L>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-L>"         "[reaper-keys]  [key_press]  [<M-L>]"            ./reaper-keys/key_scripts/main_(MS-l).lua
+SCR   4                0                 "_reaper_keys_main_<SM-L>"         "[reaper-keys]  [key_press]  [<M-L>]"            ./perken/reavim/key_scripts/main_(MS-l).lua
 KEY   21               76                _reaper_keys_main_<SM-L>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-L>"         "[reaper-keys]  [key_press]  [<C-L>]"            ./reaper-keys/key_scripts/main_(CS-l).lua
+SCR   4                0                 "_reaper_keys_main_<CS-L>"         "[reaper-keys]  [key_press]  [<C-L>]"            ./perken/reavim/key_scripts/main_(CS-l).lua
 KEY   13               76                _reaper_keys_main_<CS-L>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-L>"        "[reaper-keys]  [key_press]  [<CM-L>]"           ./reaper-keys/key_scripts/main_(CMS-l).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-L>"        "[reaper-keys]  [key_press]  [<CM-L>]"           ./perken/reavim/key_scripts/main_(CMS-l).lua
 KEY   29               76                _reaper_keys_main_<CSM-L>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-M>"          "[reaper-keys]  [key_press]  [M]"                ./reaper-keys/key_scripts/main_(S-m).lua
+SCR   4                0                 "_reaper_keys_main_<S-M>"          "[reaper-keys]  [key_press]  [M]"                ./perken/reavim/key_scripts/main_(S-m).lua
 KEY   5                77                _reaper_keys_main_<S-M>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-M>"         "[reaper-keys]  [key_press]  [<M-M>]"            ./reaper-keys/key_scripts/main_(MS-m).lua
+SCR   4                0                 "_reaper_keys_main_<SM-M>"         "[reaper-keys]  [key_press]  [<M-M>]"            ./perken/reavim/key_scripts/main_(MS-m).lua
 KEY   21               77                _reaper_keys_main_<SM-M>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-M>"         "[reaper-keys]  [key_press]  [<C-M>]"            ./reaper-keys/key_scripts/main_(CS-m).lua
+SCR   4                0                 "_reaper_keys_main_<CS-M>"         "[reaper-keys]  [key_press]  [<C-M>]"            ./perken/reavim/key_scripts/main_(CS-m).lua
 KEY   13               77                _reaper_keys_main_<CS-M>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-M>"        "[reaper-keys]  [key_press]  [<CM-M>]"           ./reaper-keys/key_scripts/main_(CMS-m).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-M>"        "[reaper-keys]  [key_press]  [<CM-M>]"           ./perken/reavim/key_scripts/main_(CMS-m).lua
 KEY   29               77                _reaper_keys_main_<CSM-M>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-N>"          "[reaper-keys]  [key_press]  [N]"                ./reaper-keys/key_scripts/main_(S-n).lua
+SCR   4                0                 "_reaper_keys_main_<S-N>"          "[reaper-keys]  [key_press]  [N]"                ./perken/reavim/key_scripts/main_(S-n).lua
 KEY   5                78                _reaper_keys_main_<S-N>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-N>"         "[reaper-keys]  [key_press]  [<M-N>]"            ./reaper-keys/key_scripts/main_(MS-n).lua
+SCR   4                0                 "_reaper_keys_main_<SM-N>"         "[reaper-keys]  [key_press]  [<M-N>]"            ./perken/reavim/key_scripts/main_(MS-n).lua
 KEY   21               78                _reaper_keys_main_<SM-N>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-N>"         "[reaper-keys]  [key_press]  [<C-N>]"            ./reaper-keys/key_scripts/main_(CS-n).lua
+SCR   4                0                 "_reaper_keys_main_<CS-N>"         "[reaper-keys]  [key_press]  [<C-N>]"            ./perken/reavim/key_scripts/main_(CS-n).lua
 KEY   13               78                _reaper_keys_main_<CS-N>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-N>"        "[reaper-keys]  [key_press]  [<CM-N>]"           ./reaper-keys/key_scripts/main_(CMS-n).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-N>"        "[reaper-keys]  [key_press]  [<CM-N>]"           ./perken/reavim/key_scripts/main_(CMS-n).lua
 KEY   29               78                _reaper_keys_main_<CSM-N>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-O>"          "[reaper-keys]  [key_press]  [O]"                ./reaper-keys/key_scripts/main_(S-o).lua
+SCR   4                0                 "_reaper_keys_main_<S-O>"          "[reaper-keys]  [key_press]  [O]"                ./perken/reavim/key_scripts/main_(S-o).lua
 KEY   5                79                _reaper_keys_main_<S-O>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-O>"         "[reaper-keys]  [key_press]  [<M-O>]"            ./reaper-keys/key_scripts/main_(MS-o).lua
+SCR   4                0                 "_reaper_keys_main_<SM-O>"         "[reaper-keys]  [key_press]  [<M-O>]"            ./perken/reavim/key_scripts/main_(MS-o).lua
 KEY   21               79                _reaper_keys_main_<SM-O>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-O>"         "[reaper-keys]  [key_press]  [<C-O>]"            ./reaper-keys/key_scripts/main_(CS-o).lua
+SCR   4                0                 "_reaper_keys_main_<CS-O>"         "[reaper-keys]  [key_press]  [<C-O>]"            ./perken/reavim/key_scripts/main_(CS-o).lua
 KEY   13               79                _reaper_keys_main_<CS-O>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-O>"        "[reaper-keys]  [key_press]  [<CM-O>]"           ./reaper-keys/key_scripts/main_(CMS-o).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-O>"        "[reaper-keys]  [key_press]  [<CM-O>]"           ./perken/reavim/key_scripts/main_(CMS-o).lua
 KEY   29               79                _reaper_keys_main_<CSM-O>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-P>"          "[reaper-keys]  [key_press]  [P]"                ./reaper-keys/key_scripts/main_(S-p).lua
+SCR   4                0                 "_reaper_keys_main_<S-P>"          "[reaper-keys]  [key_press]  [P]"                ./perken/reavim/key_scripts/main_(S-p).lua
 KEY   5                80                _reaper_keys_main_<S-P>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-P>"         "[reaper-keys]  [key_press]  [<M-P>]"            ./reaper-keys/key_scripts/main_(MS-p).lua
+SCR   4                0                 "_reaper_keys_main_<SM-P>"         "[reaper-keys]  [key_press]  [<M-P>]"            ./perken/reavim/key_scripts/main_(MS-p).lua
 KEY   21               80                _reaper_keys_main_<SM-P>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-P>"         "[reaper-keys]  [key_press]  [<C-P>]"            ./reaper-keys/key_scripts/main_(CS-p).lua
+SCR   4                0                 "_reaper_keys_main_<CS-P>"         "[reaper-keys]  [key_press]  [<C-P>]"            ./perken/reavim/key_scripts/main_(CS-p).lua
 KEY   13               80                _reaper_keys_main_<CS-P>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-P>"        "[reaper-keys]  [key_press]  [<CM-P>]"           ./reaper-keys/key_scripts/main_(CMS-p).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-P>"        "[reaper-keys]  [key_press]  [<CM-P>]"           ./perken/reavim/key_scripts/main_(CMS-p).lua
 KEY   29               80                _reaper_keys_main_<CSM-P>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-Q>"          "[reaper-keys]  [key_press]  [Q]"                ./reaper-keys/key_scripts/main_(S-q).lua
+SCR   4                0                 "_reaper_keys_main_<S-Q>"          "[reaper-keys]  [key_press]  [Q]"                ./perken/reavim/key_scripts/main_(S-q).lua
 KEY   5                81                _reaper_keys_main_<S-Q>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-Q>"         "[reaper-keys]  [key_press]  [<M-Q>]"            ./reaper-keys/key_scripts/main_(MS-q).lua
+SCR   4                0                 "_reaper_keys_main_<SM-Q>"         "[reaper-keys]  [key_press]  [<M-Q>]"            ./perken/reavim/key_scripts/main_(MS-q).lua
 KEY   21               81                _reaper_keys_main_<SM-Q>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-Q>"         "[reaper-keys]  [key_press]  [<C-Q>]"            ./reaper-keys/key_scripts/main_(CS-q).lua
+SCR   4                0                 "_reaper_keys_main_<CS-Q>"         "[reaper-keys]  [key_press]  [<C-Q>]"            ./perken/reavim/key_scripts/main_(CS-q).lua
 KEY   13               81                _reaper_keys_main_<CS-Q>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-Q>"        "[reaper-keys]  [key_press]  [<CM-Q>]"           ./reaper-keys/key_scripts/main_(CMS-q).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-Q>"        "[reaper-keys]  [key_press]  [<CM-Q>]"           ./perken/reavim/key_scripts/main_(CMS-q).lua
 KEY   29               81                _reaper_keys_main_<CSM-Q>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-R>"          "[reaper-keys]  [key_press]  [R]"                ./reaper-keys/key_scripts/main_(S-r).lua
+SCR   4                0                 "_reaper_keys_main_<S-R>"          "[reaper-keys]  [key_press]  [R]"                ./perken/reavim/key_scripts/main_(S-r).lua
 KEY   5                82                _reaper_keys_main_<S-R>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-R>"         "[reaper-keys]  [key_press]  [<M-R>]"            ./reaper-keys/key_scripts/main_(MS-r).lua
+SCR   4                0                 "_reaper_keys_main_<SM-R>"         "[reaper-keys]  [key_press]  [<M-R>]"            ./perken/reavim/key_scripts/main_(MS-r).lua
 KEY   21               82                _reaper_keys_main_<SM-R>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-R>"         "[reaper-keys]  [key_press]  [<C-R>]"            ./reaper-keys/key_scripts/main_(CS-r).lua
+SCR   4                0                 "_reaper_keys_main_<CS-R>"         "[reaper-keys]  [key_press]  [<C-R>]"            ./perken/reavim/key_scripts/main_(CS-r).lua
 KEY   13               82                _reaper_keys_main_<CS-R>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-R>"        "[reaper-keys]  [key_press]  [<CM-R>]"           ./reaper-keys/key_scripts/main_(CMS-r).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-R>"        "[reaper-keys]  [key_press]  [<CM-R>]"           ./perken/reavim/key_scripts/main_(CMS-r).lua
 KEY   29               82                _reaper_keys_main_<CSM-R>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-S>"          "[reaper-keys]  [key_press]  [S]"                ./reaper-keys/key_scripts/main_(S-s).lua
+SCR   4                0                 "_reaper_keys_main_<S-S>"          "[reaper-keys]  [key_press]  [S]"                ./perken/reavim/key_scripts/main_(S-s).lua
 KEY   5                83                _reaper_keys_main_<S-S>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-S>"         "[reaper-keys]  [key_press]  [<M-S>]"            ./reaper-keys/key_scripts/main_(MS-s).lua
+SCR   4                0                 "_reaper_keys_main_<SM-S>"         "[reaper-keys]  [key_press]  [<M-S>]"            ./perken/reavim/key_scripts/main_(MS-s).lua
 KEY   21               83                _reaper_keys_main_<SM-S>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-S>"         "[reaper-keys]  [key_press]  [<C-S>]"            ./reaper-keys/key_scripts/main_(CS-s).lua
+SCR   4                0                 "_reaper_keys_main_<CS-S>"         "[reaper-keys]  [key_press]  [<C-S>]"            ./perken/reavim/key_scripts/main_(CS-s).lua
 KEY   13               83                _reaper_keys_main_<CS-S>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-S>"        "[reaper-keys]  [key_press]  [<CM-S>]"           ./reaper-keys/key_scripts/main_(CMS-s).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-S>"        "[reaper-keys]  [key_press]  [<CM-S>]"           ./perken/reavim/key_scripts/main_(CMS-s).lua
 KEY   29               83                _reaper_keys_main_<CSM-S>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-T>"          "[reaper-keys]  [key_press]  [T]"                ./reaper-keys/key_scripts/main_(S-t).lua
+SCR   4                0                 "_reaper_keys_main_<S-T>"          "[reaper-keys]  [key_press]  [T]"                ./perken/reavim/key_scripts/main_(S-t).lua
 KEY   5                84                _reaper_keys_main_<S-T>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-T>"         "[reaper-keys]  [key_press]  [<M-T>]"            ./reaper-keys/key_scripts/main_(MS-t).lua
+SCR   4                0                 "_reaper_keys_main_<SM-T>"         "[reaper-keys]  [key_press]  [<M-T>]"            ./perken/reavim/key_scripts/main_(MS-t).lua
 KEY   21               84                _reaper_keys_main_<SM-T>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-T>"         "[reaper-keys]  [key_press]  [<C-T>]"            ./reaper-keys/key_scripts/main_(CS-t).lua
+SCR   4                0                 "_reaper_keys_main_<CS-T>"         "[reaper-keys]  [key_press]  [<C-T>]"            ./perken/reavim/key_scripts/main_(CS-t).lua
 KEY   13               84                _reaper_keys_main_<CS-T>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-T>"        "[reaper-keys]  [key_press]  [<CM-T>]"           ./reaper-keys/key_scripts/main_(CMS-t).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-T>"        "[reaper-keys]  [key_press]  [<CM-T>]"           ./perken/reavim/key_scripts/main_(CMS-t).lua
 KEY   29               84                _reaper_keys_main_<CSM-T>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-U>"          "[reaper-keys]  [key_press]  [U]"                ./reaper-keys/key_scripts/main_(S-u).lua
+SCR   4                0                 "_reaper_keys_main_<S-U>"          "[reaper-keys]  [key_press]  [U]"                ./perken/reavim/key_scripts/main_(S-u).lua
 KEY   5                85                _reaper_keys_main_<S-U>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-U>"         "[reaper-keys]  [key_press]  [<M-U>]"            ./reaper-keys/key_scripts/main_(MS-u).lua
+SCR   4                0                 "_reaper_keys_main_<SM-U>"         "[reaper-keys]  [key_press]  [<M-U>]"            ./perken/reavim/key_scripts/main_(MS-u).lua
 KEY   21               85                _reaper_keys_main_<SM-U>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-U>"         "[reaper-keys]  [key_press]  [<C-U>]"            ./reaper-keys/key_scripts/main_(CS-u).lua
+SCR   4                0                 "_reaper_keys_main_<CS-U>"         "[reaper-keys]  [key_press]  [<C-U>]"            ./perken/reavim/key_scripts/main_(CS-u).lua
 KEY   13               85                _reaper_keys_main_<CS-U>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-U>"        "[reaper-keys]  [key_press]  [<CM-U>]"           ./reaper-keys/key_scripts/main_(CMS-u).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-U>"        "[reaper-keys]  [key_press]  [<CM-U>]"           ./perken/reavim/key_scripts/main_(CMS-u).lua
 KEY   29               85                _reaper_keys_main_<CSM-U>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-V>"          "[reaper-keys]  [key_press]  [V]"                ./reaper-keys/key_scripts/main_(S-v).lua
+SCR   4                0                 "_reaper_keys_main_<S-V>"          "[reaper-keys]  [key_press]  [V]"                ./perken/reavim/key_scripts/main_(S-v).lua
 KEY   5                86                _reaper_keys_main_<S-V>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-V>"         "[reaper-keys]  [key_press]  [<M-V>]"            ./reaper-keys/key_scripts/main_(MS-v).lua
+SCR   4                0                 "_reaper_keys_main_<SM-V>"         "[reaper-keys]  [key_press]  [<M-V>]"            ./perken/reavim/key_scripts/main_(MS-v).lua
 KEY   21               86                _reaper_keys_main_<SM-V>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-V>"         "[reaper-keys]  [key_press]  [<C-V>]"            ./reaper-keys/key_scripts/main_(CS-v).lua
+SCR   4                0                 "_reaper_keys_main_<CS-V>"         "[reaper-keys]  [key_press]  [<C-V>]"            ./perken/reavim/key_scripts/main_(CS-v).lua
 KEY   13               86                _reaper_keys_main_<CS-V>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-V>"        "[reaper-keys]  [key_press]  [<CM-V>]"           ./reaper-keys/key_scripts/main_(CMS-v).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-V>"        "[reaper-keys]  [key_press]  [<CM-V>]"           ./perken/reavim/key_scripts/main_(CMS-v).lua
 KEY   29               86                _reaper_keys_main_<CSM-V>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-W>"          "[reaper-keys]  [key_press]  [W]"                ./reaper-keys/key_scripts/main_(S-w).lua
+SCR   4                0                 "_reaper_keys_main_<S-W>"          "[reaper-keys]  [key_press]  [W]"                ./perken/reavim/key_scripts/main_(S-w).lua
 KEY   5                87                _reaper_keys_main_<S-W>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-W>"         "[reaper-keys]  [key_press]  [<M-W>]"            ./reaper-keys/key_scripts/main_(MS-w).lua
+SCR   4                0                 "_reaper_keys_main_<SM-W>"         "[reaper-keys]  [key_press]  [<M-W>]"            ./perken/reavim/key_scripts/main_(MS-w).lua
 KEY   21               87                _reaper_keys_main_<SM-W>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-W>"         "[reaper-keys]  [key_press]  [<C-W>]"            ./reaper-keys/key_scripts/main_(CS-w).lua
+SCR   4                0                 "_reaper_keys_main_<CS-W>"         "[reaper-keys]  [key_press]  [<C-W>]"            ./perken/reavim/key_scripts/main_(CS-w).lua
 KEY   13               87                _reaper_keys_main_<CS-W>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-W>"        "[reaper-keys]  [key_press]  [<CM-W>]"           ./reaper-keys/key_scripts/main_(CMS-w).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-W>"        "[reaper-keys]  [key_press]  [<CM-W>]"           ./perken/reavim/key_scripts/main_(CMS-w).lua
 KEY   29               87                _reaper_keys_main_<CSM-W>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-X>"          "[reaper-keys]  [key_press]  [X]"                ./reaper-keys/key_scripts/main_(S-x).lua
+SCR   4                0                 "_reaper_keys_main_<S-X>"          "[reaper-keys]  [key_press]  [X]"                ./perken/reavim/key_scripts/main_(S-x).lua
 KEY   5                88                _reaper_keys_main_<S-X>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-X>"         "[reaper-keys]  [key_press]  [<M-X>]"            ./reaper-keys/key_scripts/main_(MS-x).lua
+SCR   4                0                 "_reaper_keys_main_<SM-X>"         "[reaper-keys]  [key_press]  [<M-X>]"            ./perken/reavim/key_scripts/main_(MS-x).lua
 KEY   21               88                _reaper_keys_main_<SM-X>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-X>"         "[reaper-keys]  [key_press]  [<C-X>]"            ./reaper-keys/key_scripts/main_(CS-x).lua
+SCR   4                0                 "_reaper_keys_main_<CS-X>"         "[reaper-keys]  [key_press]  [<C-X>]"            ./perken/reavim/key_scripts/main_(CS-x).lua
 KEY   13               88                _reaper_keys_main_<CS-X>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-X>"        "[reaper-keys]  [key_press]  [<CM-X>]"           ./reaper-keys/key_scripts/main_(CMS-x).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-X>"        "[reaper-keys]  [key_press]  [<CM-X>]"           ./perken/reavim/key_scripts/main_(CMS-x).lua
 KEY   29               88                _reaper_keys_main_<CSM-X>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-Y>"          "[reaper-keys]  [key_press]  [Y]"                ./reaper-keys/key_scripts/main_(S-y).lua
+SCR   4                0                 "_reaper_keys_main_<S-Y>"          "[reaper-keys]  [key_press]  [Y]"                ./perken/reavim/key_scripts/main_(S-y).lua
 KEY   5                89                _reaper_keys_main_<S-Y>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-Y>"         "[reaper-keys]  [key_press]  [<M-Y>]"            ./reaper-keys/key_scripts/main_(MS-y).lua
+SCR   4                0                 "_reaper_keys_main_<SM-Y>"         "[reaper-keys]  [key_press]  [<M-Y>]"            ./perken/reavim/key_scripts/main_(MS-y).lua
 KEY   21               89                _reaper_keys_main_<SM-Y>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-Y>"         "[reaper-keys]  [key_press]  [<C-Y>]"            ./reaper-keys/key_scripts/main_(CS-y).lua
+SCR   4                0                 "_reaper_keys_main_<CS-Y>"         "[reaper-keys]  [key_press]  [<C-Y>]"            ./perken/reavim/key_scripts/main_(CS-y).lua
 KEY   13               89                _reaper_keys_main_<CS-Y>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-Y>"        "[reaper-keys]  [key_press]  [<CM-Y>]"           ./reaper-keys/key_scripts/main_(CMS-y).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-Y>"        "[reaper-keys]  [key_press]  [<CM-Y>]"           ./perken/reavim/key_scripts/main_(CMS-y).lua
 KEY   29               89                _reaper_keys_main_<CSM-Y>          0                                                
-SCR   4                0                 "_reaper_keys_main_<S-Z>"          "[reaper-keys]  [key_press]  [Z]"                ./reaper-keys/key_scripts/main_(S-z).lua
+SCR   4                0                 "_reaper_keys_main_<S-Z>"          "[reaper-keys]  [key_press]  [Z]"                ./perken/reavim/key_scripts/main_(S-z).lua
 KEY   5                90                _reaper_keys_main_<S-Z>            0                                                
-SCR   4                0                 "_reaper_keys_main_<SM-Z>"         "[reaper-keys]  [key_press]  [<M-Z>]"            ./reaper-keys/key_scripts/main_(MS-z).lua
+SCR   4                0                 "_reaper_keys_main_<SM-Z>"         "[reaper-keys]  [key_press]  [<M-Z>]"            ./perken/reavim/key_scripts/main_(MS-z).lua
 KEY   21               90                _reaper_keys_main_<SM-Z>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CS-Z>"         "[reaper-keys]  [key_press]  [<C-Z>]"            ./reaper-keys/key_scripts/main_(CS-z).lua
+SCR   4                0                 "_reaper_keys_main_<CS-Z>"         "[reaper-keys]  [key_press]  [<C-Z>]"            ./perken/reavim/key_scripts/main_(CS-z).lua
 KEY   13               90                _reaper_keys_main_<CS-Z>           0                                                
-SCR   4                0                 "_reaper_keys_main_<CSM-Z>"        "[reaper-keys]  [key_press]  [<CM-Z>]"           ./reaper-keys/key_scripts/main_(CMS-z).lua
+SCR   4                0                 "_reaper_keys_main_<CSM-Z>"        "[reaper-keys]  [key_press]  [<CM-Z>]"           ./perken/reavim/key_scripts/main_(CMS-z).lua
 KEY   29               90                _reaper_keys_main_<CSM-Z>          0                                                
