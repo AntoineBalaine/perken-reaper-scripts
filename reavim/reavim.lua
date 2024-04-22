@@ -1,7 +1,7 @@
 --[[
 @description ReaVim: Vim mode for reaper
 @version
-  0.0.2
+  0.0.3
 @author Perken
 @provides
     ./**/*.lua
@@ -15,6 +15,7 @@
     Perken Scripts repo https://github.com/AntoineBalaine/perken-reaper-scripts
     Gwatcha's original reaper-keys repo https://github.com/gwatcha/reaper-keys
 @changelog
+    0.0.3 Keymap: fix paths that were still referring to reaper-keys' path
     0.0.2 Fix keymaps 
     0.0.1 Setup the script
 ]]
