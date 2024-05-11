@@ -26,9 +26,17 @@
       "stopOnEntry": true,
       "sourceEncoding": "UTF-8",
       "interpreter": "lua",
-      "arguments": [
-        "${relativeFile}"
-      ]
+      "arguments": ["${relativeFile}"]
+    },
+    {
+      "type": "lua",
+      "request": "attach",
+      "name": "LuaPanda",
+      "cwd": "${workspaceFolder}",
+      "connectionPort": 8818,
+      "stopOnEntry": false,
+      "useCHook": true,
+      "address": "localhost"
     }
   ]
 }

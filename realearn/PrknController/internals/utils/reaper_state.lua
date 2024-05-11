@@ -1,6 +1,6 @@
 --@noindex
 --[[
-Handles saving and loading of state data in reaper ext states.
+Handles saving and reading from reaper ext states
 ]]
 local log = require("utils.log")
 local format = require("utils.format")

@@ -29,7 +29,7 @@ function state_interface.get() ---@return State
     local state = reaper_state.get(state_table_name)
     if not state then
         log.info("Could not read state data. Returning reset state.")
-        state = constants['reset_state']
+        state = constants.defaultState
     end
     return state
 end
@@ -102,7 +102,6 @@ function state_interface.setModeToNormal()
     local state = state_interface.get()
     state['key_sequence'] = ""
 
-    state['context'] = "main"
     state['mode'] = "normal"
     state['timeline_selection_side'] = "left"
     state_interface.set(state)

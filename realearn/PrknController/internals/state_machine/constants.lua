@@ -1,7 +1,20 @@
----@class C1Types
-local types = {}
+local constants = {}
+
+---@class State
+---@field btn_sequence string
+
+---@type State
+constants.defaultState = {
+    btn_sequence = "",
+}
+
+---@enum ControllerId = {
+constants.ControllerId = {
+    Console1 = 1
+}
+
 ---@enum ActionId
-types.ActionId = {
+constants.ActionId = {
     disp_on = 1,
     disp_mode = 2,
     shift = 3,
@@ -44,16 +57,4 @@ types.ActionId = {
     mute = 40,
 }
 
-
-types.Prefix = "prkn_c1"
-types.fields = {
-    userConfig = "user_config",
-    actionStack = "action_stack",
-}
-
----@class ExtState
----@field prefix
----@field actionId ActionId
---
-
-return types
+return constants
