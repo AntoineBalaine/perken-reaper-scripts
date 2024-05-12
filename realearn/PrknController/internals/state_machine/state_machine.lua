@@ -3,6 +3,7 @@ read input from ext states and load mappings according to the current state.
 --]]
 local types = require("types")
 local config = require("config.settings")
+local state_interface = require("state_machine.state_interface")
 
 local state_machine = {}
 
@@ -51,7 +52,7 @@ local function step(state, button_press)
         return new_state
     end
 
-    local message = format.keySequence(state.key_sequence, true)
+    local message = format.keySequence(state.btn_sequence, true)
     message = message .. "-"
     feedback.displayMessage(message)
     feedback.displayCompletions(future_entries)
@@ -62,17 +63,14 @@ end
 ---@param controller ControllerId
 ---@param button_press ActionId
 local function input(controller, button_press)
-    if config.show_feedback_window then
-        -- check whether the ui is open
-    end
 
     local state = state_interface.get(controller)
-    local new_state = step(state, button_press)
-    state_interface.set(new_state)
+    -- Don't step from here, controller state will take care of 
+    -- local new_state = step(state, button_press)
+    state.btn_sequence = state.btn_sequence .. button_press
+    -- convert to string here?
+    state_interface.set(controller, state)
 
-    if config.show_feedback_window then
-        -- save info to ext states for ui to read
-    end
 end
 
 return input

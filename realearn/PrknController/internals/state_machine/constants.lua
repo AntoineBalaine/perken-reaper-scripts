@@ -1,6 +1,6 @@
 local constants = {}
 
----@class State
+---@class StateMachine
 ---@field btn_sequence string
 
 ---@type State

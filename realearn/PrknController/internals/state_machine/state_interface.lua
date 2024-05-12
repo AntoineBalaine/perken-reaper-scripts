@@ -7,26 +7,31 @@ local utils = require('command.utils')
 local state_interface = {}
 local state_table_name = "state"
 
-function state_interface.set(state)
-    reaper_state.set(state_table_name, state)
+---@param controller ControllerId
+---@param state StateMachine
+function state_interface.set(controller, state)
+    reaper_state.set(controller, state_table_name, state)
 end
 
-function state_interface.setKey(key, value)
-    local state = state_interface.get()
+---@param controller ControllerId
+function state_interface.setKey(controller, key, value)
+    local state = state_interface.get(controller)
     state[key] = value
-    state_interface.set(state)
+    state_interface.set(controller, state)
 end
 
+---@param controller ControllerId
 ---@param key string
 ---@return string | boolean | Command
-function state_interface.getKey(key)
-    local state = state_interface.get()
+function state_interface.getKey(controller, key)
+    local state = state_interface.get(controller)
     return state[key]
 end
 
 --- query ext state for the current reaper-keys state
-function state_interface.get() ---@return State
-    local state = reaper_state.get(state_table_name)
+---@param controller ControllerId
+function state_interface.get(controller) ---@return StateMachine
+    local state = reaper_state.get(controller, state_table_name)
     if not state then
         log.info("Could not read state data. Returning reset state.")
         state = constants.defaultState
@@ -37,7 +42,7 @@ end
 -- FIXME reduntant functions
 
 function state_interface.getLastSearchedTrackNameAndDirection()
-    local state = state_interface.get()
+    local state = state_interface.get(controller)
     return state['last_searched_track_name'], state['last_track_name_search_direction_was_forward']
 end
 

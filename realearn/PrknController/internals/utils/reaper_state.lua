@@ -2,8 +2,6 @@
 --[[
 Handles saving and reading from reaper ext states
 ]]
-local log = require("utils.log")
-local format = require("utils.format")
 local serpent = require("serpent")
 
 local reaper_state = {}
@@ -15,18 +13,21 @@ function reaper_state.delete(table_name)
     reaper.DeleteExtState(namespace, table_name, true)
 end
 
+---@param controller ControllerId
 ---@param table_name string
 ---@param lua_table table
-function reaper_state.set(table_name, lua_table)
+function reaper_state.set(controller, table_name, lua_table)
     local lua_table_string = serpent.dump(lua_table, { comment = false })
     reaper.SetExtState(namespace, table_name, lua_table_string, true)
 end
 
 ---retrieve a table from the reaper ext state
+---@param controller ControllerId
 ---@param table_name string
 ---@return table|nil ext_value
-function reaper_state.get(table_name)
-    local string_value = reaper.GetExtState(namespace, table_name)
+function reaper_state.get(controller, table_name)
+local controller_namespace = namespace..controller
+    local string_value = reaper.GetExtState(controller_namespace, table_name)
     if string_value then
         local ok, ext_value = serpent.load(string_value)
         if not ok or not ext_value or not type(ext_value) == "table" then

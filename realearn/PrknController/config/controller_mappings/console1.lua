@@ -4,12 +4,18 @@ we’ll have to figure out a way to retain constant time access
 Each of the entries of the table represents a mode of the controller
 state machine can remain dumb and keep passing keys around no matter the controller.
 --]]
-return {
-    main = {
-        disp_on = 1, -- TODO obv these aren’t going to be enums…
-        disp_mode = 2,
-        shift = 3,
-        filt_to_comp = 4,
+
+---@class ControllerConfig
+---@field rfxChain string path to the rfxChain
+---@field paramData ParamData[]
+---@field Modes string[] list of modes (fx ctrl, settings)
+
+---@enum Console1Btns
+local C1_btns = {
+        disp_on = 1, -- if not loaded, load default channel strip on track, else quit
+        disp_mode = 2, -- switch to next mode (fx ctrl, settings)
+        shift = 3, -- Shift's going to have to be excluded, and used only to trigger values of realearn "shift" param
+        filt_to_comp = 4, -- switch order of fx
         phase_inv = 5,
         preset = 6,
         pg_up = 7,
@@ -46,7 +52,13 @@ return {
         ext_sidechain = 38,
         solo = 39,
         mute = 40,
-    },
+    }
+
+local modes =  {
+    main = C1_btns,
     fx_selection_display = {},
     settings_screen = {}
+}
+return {
+    modes, C1_btns
 }
