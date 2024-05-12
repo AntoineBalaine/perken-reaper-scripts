@@ -95,19 +95,10 @@ types.fields = {
 
 
 ---@class ControllerConfig
----@field rfxChain string path to the rfxChain
 ---@field paramData ParamData[]
 ---@field Modes string[] list of modes (fx ctrl, settings)
----@field realearnRfxChain string path to the realearn rfxChain
-
----@enum ControllerConfigFields
-types.ControllerConfigFields = {
-rfxChain = 1,
-paramData = 2,
-Modes = 3,
-realearnRfxChain = 4,
-}
-
+---@field channelStripPath string
+---@field realearnPath string
 
 -- 0=trim/off, 1=read, 2=touch, 3=write, 4=latch
 ---@enum AutomationMode

@@ -104,7 +104,6 @@ function state:createRealearnLink(realearn_idx)
     set the realearn param to match the value
     and link the realearn param to the channel strip
     ]]
-
 end
 
 --- check whether the channel strip's already loaded.
@@ -117,17 +116,16 @@ function state:hasChannelStrip()
     return idx > -1 and true or false
 end
 
----@param track MediaTrack
 ---@param realearn_idx number
-function state:handleNewTrack(track, realearn_idx)
-    self:updateTrack(track)
+function state:handleNewTrack(realearn_idx)
+    self:updateTrack()
     self:loadChannelStrip()
     self:createRealearnLink(realearn_idx)
 end
 
 ---Create the new track's table and store it.
----@param track MediaTrack
-function state:updateTrack(track)
+function state:updateTrack()
+    local track            = self.Track.track
     local fx_chain_enabled = reaper.GetMediaTrackInfo_Value(track, "I_FXEN") ~= 0.0
     -- 0=trim/off, 1=read, 2=touch, 3=write, 4=latch
     local automation_mode  = reaper.GetMediaTrackInfo_Value(track, "I_AUTOMODE")
@@ -189,12 +187,16 @@ function state:update()
             "Couldn't find the realearn instance", 2)
         return
     end
-    self:DeMapTrack(realearn_idx)
+
+    if track ~= self.Track.track then
+        self:DeMapTrack(realearn_idx)
+    end
     if not track then -- if there's no selected track, move on
         self.Track = nil
         return self
     else
-        self:handleNewTrack(track, realearn_idx)
+        self.Track.track = track
+        self:handleNewTrack(realearn_idx)
     end
 
 
@@ -233,7 +235,7 @@ function state:init(project_directory, user_settings)
     self.user_settings = user_settings
     ---@type Track|nil
     self.Track = nil
-    self:update():hasChannelStrip()
+    self:update()
     return self
 end
 

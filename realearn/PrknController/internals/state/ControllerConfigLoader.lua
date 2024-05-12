@@ -1,8 +1,8 @@
 --[[
 allow loading configs from a file
+validate configs upon loading
 ]]
 local constants = require("internals.state_machine.constants")
-local types = require("internals.types")
 local fs_helpers = require("internals.helpers.fs_helpers")
 local loader = {}
 
@@ -19,28 +19,60 @@ local function getkey(controller)
     return found_key
 end
 
----@param config ControllerConfig
-local function validateConfig(config)
-    for k, _ in ipairs(types.ControllerConfigFields) do
-        if not config[k] then
-            reaper.MB("missing field in config: " .. k, "Config error", 2)
-            return false
-        end
-    end
-    if not
-        fs_helpers.file_exists(fs_helpers.build_prknctrl_path(config.rfxChain, "rfxChain"))
-        or fs_helpers.file_exists(fs_helpers.build_prknctrl_path(config.realearnRfxChain, "rfxChain")) then
+---@param controller_name string
+---@return boolean valid
+---@return string|nil channelStripPath
+---@return string|nil realearnPath
+---@return string|nil configPath
+local function validateFiles(controller_name)
+    local path = fs_helpers.getControllerConfigPath(controller_name)
+    local rfx_extension = ".RfxChain"
+    local channelStripPath = fs_helpers.concat(path, "prknCtrl_" .. controller_name .. "_channelStrip" .. rfx_extension)
+    local realearnPath = fs_helpers.concat(path, "prknCtrl_" .. controller_name .. "_realearn" .. rfx_extension)
+    local configPath = fs_helpers.concat(path, controller_name .. ".lua")
+    if not fs_helpers.file_exists(channelStripPath)
+        or not fs_helpers.file_exists(realearnPath)
+        or not fs_helpers.file_exists(configPath)
+    then
+        reaper.MB([[ Missing files for controller: 
+        channel strip fxchain, 
+        realearn fxchain,  
+        config file
+        ]] .. controller_name, "Error", 0)
         return false
     end
-    return true
+    return true, channelStripPath, realearnPath, configPath
 end
+
+---@param controller_name string
+---@return ControllerConfig|nil
+local function validateConfig(controller_name)
+    local is_valid, channelStripPath, realearnPath, configPath = validateFiles(controller_name)
+    if not is_valid or not channelStripPath or not realearnPath or not configPath then
+        return nil
+    end
+    local config = require(configPath)
+
+    --- TODO make check for contents of data
+    if config.paramData == nil or config.Modes == nil then
+        reaper.MB([[ Invalid config file for controller ]] .. controller_name, "Error", 0)
+        return nil
+    end
+    config.channelStripPath = channelStripPath
+    config.realearnPath = realearnPath
+    return config
+end
+
 
 ---@param controller ControllerId
 ---@return ControllerConfig|nil config
 function loader.load(controller)
     local controller_name = getkey(controller)
-    local config = require("config.controller_mappings." .. controller_name)
-    if not validateConfig(config) then
+    if not controller_name then
+        return nil
+    end
+    local config = validateConfig(controller_name)
+    if not config then
         return nil
     end
     return config
