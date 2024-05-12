@@ -1,0 +1,15 @@
+{
+    "runtime.version": "Lua 5.4",
+    "diagnostics.globals": [
+        "reaper",
+        "ultraschall"
+    ],
+    "workspace": {
+        "library": [
+            "/home/antoine/.vscode-oss/extensions/antoinebalaine.reascript-docs-0.1.2/resources/reaper-types.lua",
+            "/github/workspace/deps/neodev.nvim/types/stable",
+            "${3rd}/busted/library",
+            "${3rd}/luassert/library"
+        ]
+    }
+}
