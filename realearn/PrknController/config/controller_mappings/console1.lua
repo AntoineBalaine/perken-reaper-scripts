@@ -5,10 +5,6 @@ Each of the entries of the table represents a mode of the controller
 state machine can remain dumb and keep passing keys around no matter the controller.
 --]]
 
----@class ControllerConfig
----@field rfxChain string path to the rfxChain
----@field paramData ParamData[]
----@field Modes string[] list of modes (fx ctrl, settings)
 
 ---@enum Console1Btns
 local C1_btns = {
