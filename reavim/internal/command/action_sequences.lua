@@ -24,7 +24,7 @@ local function concatTables(...)
 end
 
 ---@param context "main"| "midi" | "global"
----@param mode string
+---@param mode Mode
 ---@return ActionSequence[]
 local function getPossibleActionSequenceFunctionPairs(context, mode)
 	local possible_sequence_function_pairs = concatTables(
@@ -38,7 +38,7 @@ local function getPossibleActionSequenceFunctionPairs(context, mode)
 end
 
 ---@param context Context
----@param mode string "normal"|"visual_timeline", etc
+---@param mode Mode "normal"|"visual_timeline", etc
 ---@return string[][]
 function action_sequences.getPossibleActionSequences(context, mode)
 	local action_sequence_function_pairs = getPossibleActionSequenceFunctionPairs(context, mode)

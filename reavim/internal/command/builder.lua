@@ -71,6 +71,7 @@ end
 ---@param entries Definition[]
 ---@return {action_sequence: string[], action_keys: string[]} | nil
 local function buildCommandWithSequence(key_sequence, action_sequence, entries)
+    ---@type Command
 	local command = {
 		action_sequence = {},
 		action_keys = {},
