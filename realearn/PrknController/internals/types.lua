@@ -8,9 +8,6 @@ types.fields = {
     actionStack = "action_stack",
 }
 
----@class ExtState
----@field namespace string
----@field actionId ActionId
 
 
 ---This is the barebones trackFx info,
@@ -34,7 +31,6 @@ types.fields = {
 ---@field name string
 ---@field number integer --- 0-indexed track index (0 is for master track)
 ---@field track MediaTrack
----@field bypass boolean --- is the fx chain bypassed
 ---@field fx_chain_enabled boolean
 ---@field automation_mode  AutomationMode
 

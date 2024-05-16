@@ -243,9 +243,9 @@ function state:init(project_directory, user_settings)
     self.Track = nil
     reaper.set_action_options(4) -- toggle state ON
 
+    local ext_state = state_interface.get(controller)
     self:getRealearnInstances()
 
-    local ext_state = state_interface.get(controller)
     --- restore state from ext state if any, on first load.
     self:Main()
     return self
