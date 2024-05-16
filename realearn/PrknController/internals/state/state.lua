@@ -40,39 +40,58 @@ local containerName = "prknctrl" .. controller
 local state = {}
 
 
----TODO
+---map the current state's data into a
+--simplified format to be stored in ext state
+---this is so we can persist data across restarts.
+function state:format_ext_state()
+    error("format ext state")
+end
+
+function state:persist_ext_state()
+    local new_ext_state = self:format_ext_state()
+    state_interface.set(controller.id, new_ext_state)
+end
+
 --- retrieve external state changes.
 --- run any actions that are stored in the external state.
 --- this is the hook to the state machine
+---@return boolean|nil doExit
 function state:queryExtStateActions()
-    error("not implemented")
+    error("query ExtState actions")
 
-    local state = state_interface.get(controller)
-    -- state.btn_sequence
-    -- get the newly pressed button from the ext state
-    --
+    local ext_state = state_interface.get(controller)
+    if ext_state.button_press then
+        if ext_state.button_press == "exit" then
+            return true
+        end
+        -- handle the action
+        error("handle the action")
+        self:persist_ext_state()
+    end
 end
 
---- remove any midi links between realearn params and the current track's channel strip.
----@param realearn_idx number
-function state:DeMapTrack(realearn_idx)
-    if self.Track then
-        if not realearn_idx then return nil end
-        error("not implemented")
-        for _, fx in ipairs(self.Track.fx_list) do
-            -- REMOVE mappings from realearn
-        end
-        return realearn_idx
+---load the modules for the currently selected track into realearn.
+---if not selected, do nothing.
+function state:LoadRealearnPresets()
+    if self.Track.track == nil then
+        return
+    end
+    for module_name, module in ipairs(self.Track.modules) do
+        -- get the needed strip for the current track
+        -- find the matching json maps,
+        -- load them into realearn
+        --
+        local preset = module.realearnPreset
+        local preset_json = getRelearnPreset(preset)
+        reaper.TrackFX_SetNamedConfigParm(reaper.GetSelectedTrack(0, 0), 0, "set-state", preset_json)
+        -- ok, current_state = reaper.TrackFX_GetNamedConfigParm(reaper.GetSelectedTrack(0 , 0),0,"set-state")
     end
 end
 
 ---  load the default channel strip
 function state:loadChannelStrip()
-    if self:hasChannelStrip() then return end
     --[[
             Read from current config:
-            - the .rfx chain that is to be appended to the track
-            - the params mappings that are to be used
            Append the chain to the track
            Create the fx instances for the track
            and query the fx params that need to be controlled
@@ -82,28 +101,15 @@ function state:loadChannelStrip()
             "Couldn't find the default channel strip", 2)
         return
     end
+    if self.Track then
 
-    local path = config.rfxChain
-    local extension = "rfxChain"
-    local chain_path = fs_helpers.build_prknctrl_path(path, extension)
-
-    local rv = reaper.TrackFX_AddByName(self.Track.track, chain_path,
-        false,
-        -1000 - self.Track.fx_count)
-end
-
---- Retrieve the values of controlled params of the channel strip.
---- Set the realearn params to match them,
---- and link the realearn params to the channel strip.
----@param realearn_idx number
-function state:createRealearnLink(realearn_idx)
-    error("not implemented")
-    --[[
-    for each param in the config,
-    query the value of the matching in the matching fx's matching param in the channel strip
-    set the realearn param to match the value
-    and link the realearn param to the channel strip
-    ]]
+    end
+    if self:hasChannelStrip() then
+        return
+    else
+        -- load channel strip?
+        -- or wait until user clicks activates one of the modules to start it ?
+    end
 end
 
 --- check whether the channel strip's already loaded.
@@ -117,10 +123,13 @@ function state:hasChannelStrip()
 end
 
 ---@param realearn_idx number
-function state:handleNewTrack(realearn_idx)
+function state:handleNewTrack()
+    self:getRealearnInstances()
     self:updateTrack()
-    self:loadChannelStrip()
-    self:createRealearnLink(realearn_idx)
+    if not self:validateChannelStrip() then
+        self:loadChannelStrip()
+    end
+    self:LoadRealearnPresets()
 end
 
 ---Create the new track's table and store it.
@@ -138,7 +147,6 @@ function state:updateTrack()
     local trackFxCount     = reaper.TrackFX_GetCount(track)
     local trackNumber      = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
 
-    local bypass           = reaper.GetMediaTrackInfo_Value(track, "I_FXEN") == 1
 
     if not self.Track and track then
         self.Track = {
@@ -147,7 +155,6 @@ function state:updateTrack()
             name = trackName,
             guid = trackGuid,
             fx_count = trackFxCount,
-            bypass = bypass,
             fx_list = {},
             fx_by_guid = {},
             fx_chain_enabled = fx_chain_enabled,
@@ -157,7 +164,6 @@ function state:updateTrack()
         self.Track.track = track
         self.Track.number = trackNumber or -1
         self.Track.name = trackName
-        self.Track.bypass = bypass
         ---TODO: would it be worth saving any previous track’s state into a «other_tracks» table?
         ---That way we wouldn’t have to re-allocate a table every time the track changes.
         if self.Track.guid ~= trackGuid then
@@ -178,52 +184,51 @@ end
 --- get the selected track,
 -- search for the container with the channel strip
 -- and store them in the state.
+---@return boolean|nil doExit
 function state:update()
-    self:queryExtStateActions()
+    if self:queryExtStateActions() then
+        return true
+    end
     local track = reaper.GetSelectedTrack2(0, 0, false)
-    local realearn_idx = self:getRealearnInstance()
-    if not realearn_idx then
-        reaper.MB("Couldn't find/load realearn instance for this controller\nWill exit now.",
-            "Couldn't find the realearn instance", 2)
+
+    if track ~= self.Track.track then
+        if not track then -- if there's no selected track, move on
+            self.Track = nil
+        else
+            self.Track.track = track
+            self:handleNewTrack()
+        end
+    end
+end
+
+---there's 1 realearn instance per module,
+---so query the three instances
+---and store them.
+---@return number|nil index
+function state:getRealearnInstances()
+    local master = reaper.GetMasterTrack(0)
+    for instance_name, instance in pairs(controller.modules.realearnInstances) do
+        local idx = reaper.TrackFX_AddByName(master, instance_name, true, 1)
+        if idx == -1 then
+            reaper.MB("failed to load realearn instance",
+                "Couldn't load the realearn instance", 2)
+            return
+        end
+        if instance.idx ~= idx then
+            instance.idx = reaper.TrackFX_GetByName(master, instance_name, false)
+        end
+    end
+end
+
+---event loop
+function state:Main()
+    if self:update() then
+        -- exit the script.
+        reaper.set_action_options(8) -- toggle state OFF
         return
     end
 
-    if track ~= self.Track.track then
-        self:DeMapTrack(realearn_idx)
-    end
-    if not track then -- if there's no selected track, move on
-        self.Track = nil
-        return self
-    else
-        self.Track.track = track
-        self:handleNewTrack(realearn_idx)
-    end
-
-
-    return self
-end
-
-function state:loadRealearnInstance()
-    --[[
-    load the realearn instance
-    from Fx chain
-    ]]
-    if not config then return end
-    local path = config.realearnRfxChain
-    local extension = "rfxChain"
-    local chain_path = fs_helpers.build_prknctrl_path(path, extension)
-    local rv = reaper.TrackFX_AddByName(self.Track.track, chain_path,
-        false,
-        -1000 - self.Track.fx_count)
-end
-
----TODO should this be memoized instead ?
---- get the realearn instance fx
----@return number|nil index
-function state:getRealearnInstance()
-    local master = reaper.GetMasterTrack(0)
-    local idx    = reaper.TrackFX_GetByName(master, realearn_instance_name, false)
-    return idx > -1 and idx or nil
+    reaper.defer(function() self:Main() end)
 end
 
 --- Initialize the state: get the selected track,
@@ -233,9 +238,16 @@ end
 function state:init(project_directory, user_settings)
     self.project_directory = project_directory
     self.user_settings = user_settings
+    self.tracks = {}
     ---@type Track|nil
     self.Track = nil
-    self:update()
+    reaper.set_action_options(4) -- toggle state ON
+
+    self:getRealearnInstances()
+
+    local ext_state = state_interface.get(controller)
+    --- restore state from ext state if any, on first load.
+    self:Main()
     return self
 end
 

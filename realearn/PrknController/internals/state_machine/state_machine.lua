@@ -63,14 +63,18 @@ end
 ---@param controller ControllerId
 ---@param button_press ActionId
 local function input(controller, button_press)
-
+    -- check that the state module is running
+    local controller_command = "PrknCtr" .. controller
+    local command_state = reaper.GetToggleCommandState(reaper.NamedCommandLookup(controller_command))
+    if command_state == 8 then -- if script is not running
+        return
+    end
     local state = state_interface.get(controller)
-    -- Don't step from here, controller state will take care of 
+    -- Don't step from here, controller state will take care of
     -- local new_state = step(state, button_press)
     state.btn_sequence = state.btn_sequence .. button_press
     -- convert to string here?
     state_interface.set(controller, state)
-
 end
 
 return input
