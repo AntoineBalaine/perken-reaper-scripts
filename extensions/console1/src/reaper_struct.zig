@@ -1,3 +1,23 @@
+var ReaProject = c_int;
+var HWND = anyopaque;
+var MediaTrack = anyopaque;
+var MediaItem = anyopaque;
+var MediaItem_Take = anyopaque;
+var AudioAccessor = anyopaque;
+var KbdSectionInfo = anyopaque;
+var TrackEnvelope = anyopaque;
+var PCM_source = anyopaque;
+var IReaperControlSurface = anyopaque;
+var joystick_device = anyopaque;
+var takename = anyopaque;
+var BR_Envelope = anyopaque;
+var RprMidiTake = anyopaque;
+var RprMidiNote = anyopaque;
+var WDL_FastString = anyopaque;
+var AudioWriter = anyopaque;
+var FxChain = anyopaque;
+var CF_Preview = anyopaque;
+var gfx = anyopaque;
 var reaper: struct {
     plugin_register: *fn (name: *const c_char, infostruct: *anyopaque) callconv(.C) c_int,
     plugin_getapi: *fn (name: [*c]const u8) callconv(.C) ?*anyopaque,
@@ -1078,7 +1098,7 @@ GetMediaSourceType: *fn (source: *PCM_source, typebufOut:  *c_char, typebufOut_s
 /// I_PANMODE : c_int * : pan mode, 0=classic 3.x, 3=new balance, 5=stereo pan, 6=dual pan
 /// D_PANLAW : double * : pan law of track, <0=project default, 0.5=-6dB, 0.707..=-3dB, 1=+0dB, 1.414..=-3dB with gain compensation, 2=-6dB with gain compensation, etc
 /// I_PANLAW_FLAGS : c_int * : pan law flags, 0=sine taper, 1=hybrid taper with deprecated behavior when gain compensation enabled, 2=linear taper, 3=hybrid taper
-/// P_ENV:<envchunkname or P_ENV:{GUID... : TrackEnvelope * : (read-only) chunkname can be <VOLENV, <PANENV, etc; GUID is the stringified envelope GUID.
+/// P_ENV:<envchunkname or P_ENV:GUID... : TrackEnvelope * : (read-only) chunkname can be <VOLENV, <PANENV, etc; GUID is the stringified envelope GUID.
 /// B_SHOWINMIXER : bool * : track control panel visible in mixer (do not use on master track)
 /// B_SHOWINTCP : bool * : track control panel visible in arrange view (do not use on master track)
 /// B_MAINSEND : bool * : track sends audio to parent
@@ -1473,7 +1493,7 @@ GetSetMediaItemTakeInfo_String: *fn (tk: *MediaItem_Take, parmname:  *const c_ch
 /// I_PANMODE : c_int * : pan mode, 0=classic 3.x, 3=new balance, 5=stereo pan, 6=dual pan
 /// D_PANLAW : double * : pan law of track, <0=project default, 0.5=-6dB, 0.707..=-3dB, 1=+0dB, 1.414..=-3dB with gain compensation, 2=-6dB with gain compensation, etc
 /// I_PANLAW_FLAGS : c_int * : pan law flags, 0=sine taper, 1=hybrid taper with deprecated behavior when gain compensation enabled, 2=linear taper, 3=hybrid taper
-/// P_ENV:<envchunkname or P_ENV:{GUID... : TrackEnvelope * : (read-only) chunkname can be <VOLENV, <PANENV, etc; GUID is the stringified envelope GUID.
+/// P_ENV:<envchunkname or P_ENV:GUID... : TrackEnvelope * : (read-only) chunkname can be <VOLENV, <PANENV, etc; GUID is the stringified envelope GUID.
 /// B_SHOWINMIXER : bool * : track control panel visible in mixer (do not use on master track)
 /// B_SHOWINTCP : bool * : track control panel visible in arrange view (do not use on master track)
 /// B_MAINSEND : bool * : track sends audio to parent
@@ -1622,7 +1642,7 @@ GetSetRepeatEx: *fn (proj: *ReaProject, val:  c_int) callconv(.C) c_int,
 /// 
 /// Note: REAPER v6.11 and earlier used _MASTER and _SLAVE rather than _LEAD and _FOLLOW, which is deprecated but still supported (scripts that must support v6.11 and earlier can use the deprecated strings).
 /// 
-GetSetTrackGroupMembership: *fn (tr: *MediaTrack, groupname:  *const c_char, setmask:  unsigned c_int, setvalue:  unsigned c_int) callconv(.C) c_uint,
+GetSetTrackGroupMembership: *fn (tr: *MediaTrack, groupname:  *const c_char, setmask:  c_uint, setvalue:  c_uint) callconv(.C) c_uint,
 
 /// GetSetTrackGroupMembershipHigh
 /// Gets or modifies the group membership for a track. Returns group state prior to call (each bit represents one of the high 32 group numbers). if setmask has bits set, those bits in setvalue will be applied to group. Group can be one of:
@@ -1654,7 +1674,7 @@ GetSetTrackGroupMembership: *fn (tr: *MediaTrack, groupname:  *const c_char, set
 /// 
 /// Note: REAPER v6.11 and earlier used _MASTER and _SLAVE rather than _LEAD and _FOLLOW, which is deprecated but still supported (scripts that must support v6.11 and earlier can use the deprecated strings).
 /// 
-GetSetTrackGroupMembershipHigh: *fn (tr: *MediaTrack, groupname:  *const c_char, setmask:  unsigned c_int, setvalue:  unsigned c_int) callconv(.C) c_uint ,
+GetSetTrackGroupMembershipHigh: *fn (tr: *MediaTrack, groupname:  *const c_char, setmask:  c_uint, setvalue:  c_uint) callconv(.C) c_uint ,
 
 /// GetSetTrackMIDISupportFile
 /// Get or set the filename for storage of various track MIDI c_characteristics. 0=MIDI colormap image file, 1 or 2=MIDI bank/program select file (2=set new default). If fn != NULL, a new track MIDI storage file will be set; otherwise the existing track MIDI storage file will be returned. 
@@ -1929,7 +1949,7 @@ GetTrackUIVolPan: *fn (track: *MediaTrack, volumeOut:  *double, panOut:  *double
 
 /// GetUnderrunTime
 /// retrieves the last timestamps of audio xrun (yellow-flash, if available), media xrun (red-flash), and the current time stamp (all milliseconds)
-GetUnderrunTime: *fn (audio_xrunOut: unsigned *c_int, media_xrunOut:  unsigned *c_int, curtimeOut:  unsigned *c_int) callconv(.C) void,
+GetUnderrunTime: *fn (audio_xrunOut: *c_uint, media_xrunOut:  *c_uint, curtimeOut:  *c_uint) callconv(.C) void,
 
 /// GetUserFileNameForRead
 /// returns true if the user selected a valid file, false if the user canceled the dialog
@@ -3110,7 +3130,7 @@ SetMediaItemTakeInfo_Value: *fn (take: *MediaItem_Take, parmname:  *const c_char
 /// I_PANMODE : c_int * : pan mode, 0=classic 3.x, 3=new balance, 5=stereo pan, 6=dual pan
 /// D_PANLAW : double * : pan law of track, <0=project default, 0.5=-6dB, 0.707..=-3dB, 1=+0dB, 1.414..=-3dB with gain compensation, 2=-6dB with gain compensation, etc
 /// I_PANLAW_FLAGS : c_int * : pan law flags, 0=sine taper, 1=hybrid taper with deprecated behavior when gain compensation enabled, 2=linear taper, 3=hybrid taper
-/// P_ENV:<envchunkname or P_ENV:{GUID... : TrackEnvelope * : (read-only) chunkname can be <VOLENV, <PANENV, etc; GUID is the stringified envelope GUID.
+/// P_ENV:<envchunkname or P_ENV:GUID... : TrackEnvelope * : (read-only) chunkname can be <VOLENV, <PANENV, etc; GUID is the stringified envelope GUID.
 /// B_SHOWINMIXER : bool * : track control panel visible in mixer (do not use on master track)
 /// B_SHOWINTCP : bool * : track control panel visible in arrange view (do not use on master track)
 /// B_MAINSEND : bool * : track sends audio to parent
