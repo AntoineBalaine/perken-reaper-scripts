@@ -1166,15 +1166,15 @@ GetParentTrack: *fn (track: *MediaTrack) callconv(.C) *MediaTrack,
 
 /// GetPeakFileName
 /// get the peak file name for a given file (can be either filename.reapeaks,or a hashed filename in another path)
-GetPeakFileName: *fn (fn: *const c_char, bufOut:  *c_char, bufOut_sz:  c_int) callconv(.C) void,
+GetPeakFileName: *fn (fn_: *const c_char, bufOut:  *c_char, bufOut_sz:  c_int) callconv(.C) void,
 
 /// GetPeakFileNameEx
 /// get the peak file name for a given file (can be either filename.reapeaks,or a hashed filename in another path)
-GetPeakFileNameEx: *fn (fn: *const c_char, buf:  *c_char, buf_sz:  c_int, forWrite:  bool) callconv(.C) void,
+GetPeakFileNameEx: *fn (fn_: *const c_char, buf:  *c_char, buf_sz:  c_int, forWrite:  bool) callconv(.C) void,
 
 /// GetPeakFileNameEx2
 /// Like GetPeakFileNameEx, but you can specify peaksfileextension such as ".reapeaks"
-GetPeakFileNameEx2: *fn (fn: *const c_char, buf:  *c_char, buf_sz:  c_int, forWrite:  bool, peaksfileextension:  *const c_char) callconv(.C) void,
+GetPeakFileNameEx2: *fn (fn_: *const c_char, buf:  *c_char, buf_sz:  c_int, forWrite:  bool, peaksfileextension:  *const c_char) callconv(.C) void,
 
 /// GetPeaksBitmap
 /// see note in reaper_plugin.h about PCM_source_peaktransfer_t::samplerate
@@ -1622,7 +1622,7 @@ GetSetRepeatEx: *fn (proj: *ReaProject, val:  c_int) callconv(.C) c_int,
 /// 
 /// Note: REAPER v6.11 and earlier used _MASTER and _SLAVE rather than _LEAD and _FOLLOW, which is deprecated but still supported (scripts that must support v6.11 and earlier can use the deprecated strings).
 /// 
-c_int GetSetTrackGroupMembership: *fn (tr: *MediaTrack, groupname:  *const c_char, setmask:  unsigned c_int, setvalue:  unsigned c_int) callconv(.C) unsigned,
+GetSetTrackGroupMembership: *fn (tr: *MediaTrack, groupname:  *const c_char, setmask:  unsigned c_int, setvalue:  unsigned c_int) callconv(.C) c_uint,
 
 /// GetSetTrackGroupMembershipHigh
 /// Gets or modifies the group membership for a track. Returns group state prior to call (each bit represents one of the high 32 group numbers). if setmask has bits set, those bits in setvalue will be applied to group. Group can be one of:
@@ -1654,7 +1654,7 @@ c_int GetSetTrackGroupMembership: *fn (tr: *MediaTrack, groupname:  *const c_cha
 /// 
 /// Note: REAPER v6.11 and earlier used _MASTER and _SLAVE rather than _LEAD and _FOLLOW, which is deprecated but still supported (scripts that must support v6.11 and earlier can use the deprecated strings).
 /// 
-c_int GetSetTrackGroupMembershipHigh: *fn (tr: *MediaTrack, groupname:  *const c_char, setmask:  unsigned c_int, setvalue:  unsigned c_int) callconv(.C) unsigned,
+GetSetTrackGroupMembershipHigh: *fn (tr: *MediaTrack, groupname:  *const c_char, setmask:  unsigned c_int, setvalue:  unsigned c_int) callconv(.C) c_uint ,
 
 /// GetSetTrackMIDISupportFile
 /// Get or set the filename for storage of various track MIDI c_characteristics. 0=MIDI colormap image file, 1 or 2=MIDI bank/program select file (2=set new default). If fn != NULL, a new track MIDI storage file will be set; otherwise the existing track MIDI storage file will be returned. 
@@ -2060,7 +2060,7 @@ joystick_getaxis: *fn (dev: *joystick_device, axis:  c_int) callconv(.C) double,
 
 /// joystick_getbuttonmask
 /// returns button pressed mask, 1=first button, 2=second...
-c_int joystick_getbuttonmask: *fn (dev: *joystick_device) callconv(.C) unsigned,
+joystick_getbuttonmask: *fn (dev: *joystick_device) callconv(.C) c_uint,
 
 /// joystick_getinfo
 /// returns button count
@@ -2656,7 +2656,7 @@ OnStopButton: *fn () callconv(.C) void,
 OnStopButtonEx: *fn (proj: *ReaProject) callconv(.C) void,
 
 /// OpenColorThemeFile
-OpenColorThemeFile: *fn (fn: *const c_char) callconv(.C) bool,
+OpenColorThemeFile: *fn (fn_: *const c_char) callconv(.C) bool,
 
 /// OpenMediaExplorer
 /// Opens mediafn in the Media Explorer, play=true will play the file immediately (or toggle playback if mediafn was already open), =false will just select it.
@@ -2708,7 +2708,7 @@ PCM_Sink_CreateMIDIFile: *fn(filename: *const c_char, cfg:  *const c_char, cfg_s
 PCM_Sink_CreateMIDIFileEx: *fn(proj: *ReaProject, filename:  *const c_char, cfg:  *const c_char, cfg_sz:  c_int, bpm:  double, div:  c_int) callconv(.C) *PCM_sink , 
 
 /// PCM_Sink_Enum
-c_int PCM_Sink_Enum: *fn (idx: c_int, descstrOut:  *const c_char) callconv(.C) unsigned,
+PCM_Sink_Enum: *fn (idx: c_int, descstrOut:  *const c_char) callconv(.C) c_uint,
 
 /// PCM_Sink_GetExtension
 PCM_Sink_GetExtension: *fn (data: *const c_char, data_sz:  c_int) callconv(.C) *const c_char , 
@@ -2731,7 +2731,7 @@ PCM_Source_CreateFromFileEx: *fn(filename: *const c_char, forcenoMidiImp:  bool)
 /// PCM_Source_CreateFromSimple
 /// Creates a PCM_source from a ISimpleMediaDecoder
 /// (if fn is non-null, it will open the file in dec)
-PCM_Source_CreateFromSimple: *fn(dec: *ISimpleMediaDecoder, fn:  *const c_char) callconv(.C) *PCM_source , 
+PCM_Source_CreateFromSimple: *fn(dec: *ISimpleMediaDecoder, fn_:  *const c_char) callconv(.C) *PCM_source , 
 
 /// PCM_Source_CreateFromType
 /// Create a PCM_source from a "type" (use this if you're going to load its state via LoadState/ProjectStateContext).
@@ -2751,14 +2751,14 @@ PCM_Source_GetPeaks: *fn (src: *PCM_source, peakrate:  double, starttime:  doubl
 PCM_Source_GetSectionInfo: *fn (src: *PCM_source, offsOut:  *double, lenOut:  *double, revOut:  *bool) callconv(.C) bool,
 
 /// PeakBuild_Create
-PeakBuild_Create: *fn(src: *PCM_source, fn:  *const c_char, srate:  c_int, nch:  c_int) callconv(.C) *REAPER_PeakBuild_Interface , 
+PeakBuild_Create: *fn(src: *PCM_source, fn_:  *const c_char, srate:  c_int, nch:  c_int) callconv(.C) *REAPER_PeakBuild_Interface , 
 
 /// PeakBuild_CreateEx
 /// flags&1 for FP support
-PeakBuild_CreateEx: *fn(src: *PCM_source, fn:  *const c_char, srate:  c_int, nch:  c_int, flags:  c_int) callconv(.C) *REAPER_PeakBuild_Interface , 
+PeakBuild_CreateEx: *fn(src: *PCM_source, fn_:  *const c_char, srate:  c_int, nch:  c_int, flags:  c_int) callconv(.C) *REAPER_PeakBuild_Interface , 
 
 /// PeakGet_Create
-PeakGet_Create: *fn(fn: *const c_char, srate:  c_int, nch:  c_int) callconv(.C) *REAPER_PeakGet_Interface , 
+PeakGet_Create: *fn(fn_: *const c_char, srate:  c_int, nch:  c_int) callconv(.C) *REAPER_PeakGet_Interface , 
 
 /// PitchShiftSubModeMenu
 /// menu to select/modify pitch shifter submode, returns new value (or old value if no item selected)
