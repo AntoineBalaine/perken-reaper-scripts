@@ -36,7 +36,7 @@ AddRemoveReaScript: *fn (add: bool, sectionID:  c_int, scriptfn:  *const c_char,
 
 /// AddTakeToMediaItem
 /// creates a new take in an item
-AddTakeToMediaItem: *fn(item: *MediaItem) callconv(.C) *MediaItem_Take , //TODO check me
+AddTakeToMediaItem: *fn(item: *MediaItem) callconv(.C) *MediaItem_Take , 
 
 /// AddTempoTimeSigMarker
 /// Deprecated. Use SetTempoTimeSigMarker with ptidx=-1.
@@ -216,11 +216,11 @@ CreateLocalOscHandler: *fn (obj: *void, callback:  *void) callconv(.C) *void,
 
 /// CreateMIDIInput
 /// Can only reliably create midi access for devices not already opened in prefs/MIDI, suitable for control surfaces etc.
-CreateMIDIInput: *fn(dev: c_int) callconv(.C) *midi_Input , //TODO check me
+CreateMIDIInput: *fn(dev: c_int) callconv(.C) *midi_Input , 
 
 /// CreateMIDIOutput
 /// Can only reliably create midi access for devices not already opened in prefs/MIDI, suitable for control surfaces etc. If streamMode is set, msoffset100 points to a persistent variable that can change and reflects added delay to output in 100ths of a millisecond.
-CreateMIDIOutput: *fn(dev: c_int, streamMode:  bool, msoffset100:  *c_int) callconv(.C) *midi_Output , //TODO check me
+CreateMIDIOutput: *fn(dev: c_int, streamMode:  bool, msoffset100:  *c_int) callconv(.C) *midi_Output , 
 
 /// CreateNewMIDIItemInProj
 /// Create a new MIDI media item, containing no MIDI events. Time is in seconds unless qn is set.
@@ -514,11 +514,11 @@ EnsureNotCompletelyOffscreen: *fn (rInOut: *RECT) callconv(.C) void,
 
 /// EnumerateFiles
 /// List the files in the "path" directory. Returns NULL/nil when all files have been listed. Use fileindex = -1 to force re-read of directory (invalidate cache). See EnumerateSubdirectories
-EnumerateFiles: *fn (path: *const c_char, fileindex:  c_int) callconv(.C) *const c_char , //TODO check me
+EnumerateFiles: *fn (path: *const c_char, fileindex:  c_int) callconv(.C) *const c_char , 
 
 /// EnumerateSubdirectories
 /// List the subdirectories in the "path" directory. Use subdirindex = -1 to force re-read of directory (invalidate cache). Returns NULL/nil when all subdirectories have been listed. See EnumerateFiles
-EnumerateSubdirectories: *fn (path: *const c_char, subdirindex:  c_int) callconv(.C) *const c_char , //TODO check me
+EnumerateSubdirectories: *fn (path: *const c_char, subdirindex:  c_int) callconv(.C) *const c_char , 
 
 /// EnumInstalledFX
 /// Enumerates installed FX. Returns true if successful, sets nameOut and identOut to name and ident of FX at index.
@@ -530,7 +530,7 @@ EnumPitchShiftModes: *fn (mode: c_int, strOut:  *const c_char) callconv(.C) bool
 
 /// EnumPitchShiftSubModes
 /// Returns submode name, or NULL
-EnumPitchShiftSubModes: *fn (mode: c_int, submode:  c_int) callconv(.C) *const c_char , //TODO check me
+EnumPitchShiftSubModes: *fn (mode: c_int, submode:  c_int) callconv(.C) *const c_char , 
 
 /// EnumProjectMarkers
 EnumProjectMarkers: *fn (idx: c_int, isrgnOut:  *bool, posOut:  *double, rgnendOut:  *double, nameOut:  *const c_char, markrgnindexnumberOut:  *c_int) callconv(.C) c_int,
@@ -571,7 +571,7 @@ Envelope_FormatValue: *fn (env: *TrackEnvelope, value:  double, bufOut:  *c_char
 
 /// Envelope_GetParentTake
 /// If take envelope, gets the take from the envelope. If FX, indexOut set to FX index, index2Out set to parameter index, otherwise -1.
-Envelope_GetParentTake: *fn(env: *TrackEnvelope, indexOut:  *c_int, index2Out:  *c_int) callconv(.C) *MediaItem_Take , //TODO check me
+Envelope_GetParentTake: *fn(env: *TrackEnvelope, indexOut:  *c_int, index2Out:  *c_int) callconv(.C) *MediaItem_Take , 
 
 /// Envelope_GetParentTrack
 /// If track envelope, gets the track from the envelope. If FX, indexOut set to FX index, index2Out set to parameter index, otherwise -1.
@@ -587,7 +587,7 @@ Envelope_SortPointsEx: *fn (envelope: *TrackEnvelope, autoitem_idx:  c_int) call
 
 /// ExecProcess
 /// Executes command line, returns NULL on total failure, otherwise the return value, a newline, and then the output of the command. If timeoutmsec is 0, command will be allowed to run indefinitely (recommended for large amounts of returned output). timeoutmsec is -1 for no wait/terminate, -2 for no wait and minimize
-ExecProcess: *fn (cmdline: *const c_char, timeoutmsec:  c_int) callconv(.C) *const c_char , //TODO check me
+ExecProcess: *fn (cmdline: *const c_char, timeoutmsec:  c_int) callconv(.C) *const c_char , 
 
 /// file_exists
 /// returns true if path points to a valid, readable file
@@ -642,7 +642,7 @@ get_config_var_string: *fn (name: *const c_char, bufOut:  *c_char, bufOut_sz:  c
 
 /// get_ini_file
 /// Get reaper.ini full filename.
-get_ini_file: *fn () callconv(.C) *const c_char , //TODO check me
+get_ini_file: *fn () callconv(.C) *const c_char , 
 
 /// get_midi_config_var
 /// Deprecated.
@@ -655,7 +655,7 @@ GetActionShortcutDesc: *fn (section: *KbdSectionInfo, cmdID:  c_int, shortcutidx
 
 /// GetActiveTake
 /// get the active take in this item
-GetActiveTake: *fn(item: *MediaItem) callconv(.C) *MediaItem_Take , //TODO check me
+GetActiveTake: *fn(item: *MediaItem) callconv(.C) *MediaItem_Take , 
 
 /// GetAllProjectPlayStates
 /// returns the bitwise OR of all project play states (1=playing, 2=pause, 4=recording)
@@ -663,7 +663,7 @@ GetAllProjectPlayStates: *fn (ignoreProject: *ReaProject) callconv(.C) c_int,
 
 /// GetAppVersion
 /// Returns app version which may include an OS/arch signifier, such as: "6.17" (windows 32-bit), "6.17/x64" (windows 64-bit), "6.17/OSX64" (macOS 64-bit Intel), "6.17/OSX" (macOS 32-bit), "6.17/macOS-arm64", "6.17/linux-x86_64", "6.17/linux-i686", "6.17/linux-aarch64", "6.17/linux-armv7l", etc
-GetAppVersion: *fn () callconv(.C) *const c_char , //TODO check me
+GetAppVersion: *fn () callconv(.C) *const c_char , 
 
 /// GetArmedCommand
 /// gets the currently armed command and section name (returns 0 if nothing armed). section name is empty-string for main section.
@@ -702,7 +702,7 @@ GetAudioDeviceInfo: *fn (attribute: *const c_char, descOut:  *c_char, descOut_sz
 
 /// GetColorTheme
 /// Deprecated, see GetColorThemeStruct.
-GetColorTheme: *fn(idx: c_int, defval:  c_int) callconv(.C) c_int_PTR , //TODO check me
+GetColorTheme: *fn(idx: c_int, defval:  c_int) callconv(.C) c_int_PTR , 
 
 /// GetColorThemeStruct
 /// returns the whole color theme (icontheme.h) and the size
@@ -803,11 +803,11 @@ GetEnvelopeUIState: *fn (env: *TrackEnvelope) callconv(.C) c_int,
 
 /// GetExePath
 /// returns path of REAPER.exe (not including EXE), i.e. C:\Program Files\REAPER
-GetExePath: *fn () callconv(.C) *const c_char , //TODO check me
+GetExePath: *fn () callconv(.C) *const c_char , 
 
 /// GetExtState
 /// Get the extended state value for a specific section and key. See SetExtState, DeleteExtState, HasExtState.
-GetExtState: *fn (section: *const c_char, key:  *const c_char) callconv(.C) *const c_char , //TODO check me
+GetExtState: *fn (section: *const c_char, key:  *const c_char) callconv(.C) *const c_char , 
 
 /// GetFocusedFX
 /// This function is deprecated (returns GetFocusedFX2()&3), see GetTouchedOrFocusedFX.
@@ -850,7 +850,7 @@ GetIconThemeStruct: *fn (szOut: *c_int) callconv(.C) *void,
 GetInputActivityLevel: *fn (input_id: c_int) callconv(.C) double,
 
 /// GetInputChannelName
-GetInputChannelName: *fn (channelIndex: c_int) callconv(.C) *const c_char , //TODO check me
+GetInputChannelName: *fn (channelIndex: c_int) callconv(.C) *const c_char , 
 
 /// GetInputOutputLatency
 /// Gets the audio device input/output latency in samples
@@ -872,7 +872,7 @@ GetItemProjectContext: *fn (item: *MediaItem) callconv(.C) *ReaProject,
 GetItemStateChunk: *fn (item: *MediaItem, strNeedBig:  *c_char, strNeedBig_sz:  c_int, isundoOptional:  bool) callconv(.C) bool,
 
 /// GetLastColorThemeFile
-GetLastColorThemeFile: *fn () callconv(.C) *const c_char , //TODO check me
+GetLastColorThemeFile: *fn () callconv(.C) *const c_char , 
 
 /// GetLastMarkerAndCurRegion
 /// Get the last project marker before time, and/or the project region that includes time. markeridx and regionidx are returned not necessarily as the displayed marker/region index, but as the index that can be passed to EnumProjectMarkers. Either or both of markeridx and regionidx may be NULL. See EnumProjectMarkers.
@@ -960,7 +960,7 @@ GetMediaItemInfo_Value: *fn (item: *MediaItem, parmname:  *const c_char) callcon
 GetMediaItemNumTakes: *fn (item: *MediaItem) callconv(.C) c_int,
 
 /// GetMediaItemTake
-GetMediaItemTake: *fn(item: *MediaItem, tk:  c_int) callconv(.C) *MediaItem_Take , //TODO check me
+GetMediaItemTake: *fn(item: *MediaItem, tk:  c_int) callconv(.C) *MediaItem_Take , 
 
 /// GetMediaItemTake_Item
 /// Get parent item of media item take
@@ -972,14 +972,14 @@ GetMediaItemTake_Peaks: *fn (take: *MediaItem_Take, peakrate:  double, starttime
 
 /// GetMediaItemTake_Source
 /// Get media source of media item take
-GetMediaItemTake_Source: *fn(take: *MediaItem_Take) callconv(.C) *PCM_source , //TODO check me
+GetMediaItemTake_Source: *fn(take: *MediaItem_Take) callconv(.C) *PCM_source , 
 
 /// GetMediaItemTake_Track
 /// Get parent track of media item take
 GetMediaItemTake_Track: *fn (take: *MediaItem_Take) callconv(.C) *MediaTrack,
 
 /// GetMediaItemTakeByGUID
-GetMediaItemTakeByGUID: *fn(project: *ReaProject, guid:  *const GUID) callconv(.C) *MediaItem_Take , //TODO check me
+GetMediaItemTakeByGUID: *fn(project: *ReaProject, guid:  *const GUID) callconv(.C) *MediaItem_Take , 
 
 /// GetMediaItemTakeInfo_Value
 /// Get media item take numerical-value attributes.
@@ -1023,7 +1023,7 @@ GetMediaSourceNumChannels: *fn (source: *PCM_source) callconv(.C) c_int,
 
 /// GetMediaSourceParent
 /// Returns the parent source, or NULL if src is the root source. This can be used to retrieve the parent properties of sections or reversed sources for example.
-GetMediaSourceParent: *fn(src: *PCM_source) callconv(.C) *PCM_source , //TODO check me
+GetMediaSourceParent: *fn(src: *PCM_source) callconv(.C) *PCM_source , 
 
 /// GetMediaSourceSampleRate
 /// Returns the sample rate. MIDI source media will return zero.
@@ -1152,10 +1152,10 @@ GetNumTracks: *fn () callconv(.C) c_int,
 
 /// GetOS
 /// Returns "Win32", "Win64", "OSX32", "OSX64", "macOS-arm64", or "Other".
-GetOS: *fn () callconv(.C) *const c_char , //TODO check me
+GetOS: *fn () callconv(.C) *const c_char , 
 
 /// GetOutputChannelName
-GetOutputChannelName: *fn (channelIndex: c_int) callconv(.C) *const c_char , //TODO check me
+GetOutputChannelName: *fn (channelIndex: c_int) callconv(.C) *const c_char , 
 
 /// GetOutputLatency
 /// returns output latency in seconds
@@ -1254,7 +1254,7 @@ GetProjExtState: *fn (proj: *ReaProject, extname:  *const c_char, key:  *const c
 
 /// GetResourcePath
 /// returns path where ini files are stored, other things are in subdirectories.
-GetResourcePath: *fn () callconv(.C) *const c_char , //TODO check me
+GetResourcePath: *fn () callconv(.C) *const c_char , 
 
 /// GetSelectedEnvelope
 /// get the currently selected envelope, returns NULL/nil if no envelope is selected
@@ -1658,7 +1658,7 @@ c_int GetSetTrackGroupMembershipHigh: *fn (tr: *MediaTrack, groupname:  *const c
 
 /// GetSetTrackMIDISupportFile
 /// Get or set the filename for storage of various track MIDI c_characteristics. 0=MIDI colormap image file, 1 or 2=MIDI bank/program select file (2=set new default). If fn != NULL, a new track MIDI storage file will be set; otherwise the existing track MIDI storage file will be returned. 
-GetSetTrackMIDISupportFile: *fn (proj: *ReaProject, track:  *MediaTrack, which:  c_int, filename:  *const c_char) callconv(.C) *const c_char , //TODO check me
+GetSetTrackMIDISupportFile: *fn (proj: *ReaProject, track:  *MediaTrack, which:  c_int, filename:  *const c_char) callconv(.C) *const c_char , 
 
 /// GetSetTrackSendInfo
 /// Get or set send/receive/hardware output attributes.
@@ -1702,7 +1702,7 @@ GetSubProjectFromSource: *fn (src: *PCM_source) callconv(.C) *ReaProject,
 
 /// GetTake
 /// get a take from an item by take count (zero-based)
-GetTake: *fn(item: *MediaItem, takeidx:  c_int) callconv(.C) *MediaItem_Take , //TODO check me
+GetTake: *fn(item: *MediaItem, takeidx:  c_int) callconv(.C) *MediaItem_Take , 
 
 /// GetTakeEnvelope
 GetTakeEnvelope: *fn (take: *MediaItem_Take, envidx:  c_int) callconv(.C) *TrackEnvelope,
@@ -1716,7 +1716,7 @@ GetTakeMarker: *fn (take: *MediaItem_Take, idx:  c_int, nameOut:  *c_char, nameO
 
 /// GetTakeName
 /// returns NULL if the take is not valid
-GetTakeName: *fn (take: *MediaItem_Take) callconv(.C) *const c_char , //TODO check me
+GetTakeName: *fn (take: *MediaItem_Take) callconv(.C) *const c_char , 
 
 /// GetTakeNumStretchMarkers
 /// Returns number of stretch markers in take
@@ -1822,7 +1822,7 @@ GetTrackGUID: *fn (tr: *MediaTrack) callconv(.C) *GUID,
 /// &256=rec monitoring auto
 /// &512=hide from TCP
 /// &1024=hide from MCP
-GetTrackInfo: *fn (track: INT_PTR, flags:  *c_int) callconv(.C) *const c_char , //TODO check me
+GetTrackInfo: *fn (track: INT_PTR, flags:  *c_int) callconv(.C) *const c_char , 
 
 /// GetTrackMediaItem
 GetTrackMediaItem: *fn (tr: *MediaTrack, itemidx:  c_int) callconv(.C) *MediaItem,
@@ -1833,11 +1833,11 @@ GetTrackMIDILyrics: *fn (track: *MediaTrack, flag:  c_int, bufOutWantNeedBig:  *
 
 /// GetTrackMIDINoteName
 /// see GetTrackMIDINoteNameEx
-GetTrackMIDINoteName: *fn (track: c_int, pitch:  c_int, chan:  c_int) callconv(.C) *const c_char , //TODO check me
+GetTrackMIDINoteName: *fn (track: c_int, pitch:  c_int, chan:  c_int) callconv(.C) *const c_char , 
 
 /// GetTrackMIDINoteNameEx
 /// Get note/CC name. pitch 128 for CC0 name, 129 for CC1 name, etc. See SetTrackMIDINoteNameEx
-GetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track:  *MediaTrack, pitch:  c_int, chan:  c_int) callconv(.C) *const c_char , //TODO check me
+GetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track:  *MediaTrack, pitch:  c_int, chan:  c_int) callconv(.C) *const c_char , 
 
 /// GetTrackMIDINoteRange
 GetTrackMIDINoteRange: *fn (proj: *ReaProject, track:  *MediaTrack, note_loOut:  *c_int, note_hiOut:  *c_int) callconv(.C) void,
@@ -1912,7 +1912,7 @@ GetTrackSendUIVolPan: *fn (track: *MediaTrack, send_index:  c_int, volumeOut:  *
 /// &256=rec monitoring auto
 /// &512=hide from TCP
 /// &1024=hide from MCP
-GetTrackState: *fn (track: *MediaTrack, flagsOut:  *c_int) callconv(.C) *const c_char , //TODO check me
+GetTrackState: *fn (track: *MediaTrack, flagsOut:  *c_int) callconv(.C) *const c_char , 
 
 /// GetTrackStateChunk
 /// Gets the RPPXML state of a track, returns true if successful. Undo flag is a performance/caching hint.
@@ -1967,11 +1967,11 @@ HasExtState: *fn (section: *const c_char, key:  *const c_char) callconv(.C) bool
 
 /// HasTrackMIDIPrograms
 /// returns name of track plugin that is supplying MIDI programs,or NULL if there is none
-HasTrackMIDIPrograms: *fn (track: c_int) callconv(.C) *const c_char , //TODO check me
+HasTrackMIDIPrograms: *fn (track: c_int) callconv(.C) *const c_char , 
 
 /// HasTrackMIDIProgramsEx
 /// returns name of track plugin that is supplying MIDI programs,or NULL if there is none
-HasTrackMIDIProgramsEx: *fn (proj: *ReaProject, track:  *MediaTrack) callconv(.C) *const c_char , //TODO check me
+HasTrackMIDIProgramsEx: *fn (proj: *ReaProject, track:  *MediaTrack) callconv(.C) *const c_char , 
 
 /// Help_Set
 Help_Set: *fn (helpstring: *const c_char, is_temporary_help:  bool) callconv(.C) void,
@@ -2044,7 +2044,7 @@ IsTrackVisible: *fn (track: *MediaTrack, mixer:  bool) callconv(.C) bool,
 
 /// joystick_create
 /// creates a joystick device
-joystick_create: *fn(guid: *const GUID) callconv(.C) *joystick_device , //TODO check me
+joystick_create: *fn(guid: *const GUID) callconv(.C) *joystick_device , 
 
 /// joystick_destroy
 /// destroys a joystick device
@@ -2052,7 +2052,7 @@ joystick_destroy: *fn (device: *joystick_device) callconv(.C) void,
 
 /// joystick_enum
 /// enumerates installed devices, returns GUID as a string
-joystick_enum: *fn (index: c_int, namestrOutOptional:  *const c_char) callconv(.C) *const c_char , //TODO check me
+joystick_enum: *fn (index: c_int, namestrOutOptional:  *const c_char) callconv(.C) *const c_char , 
 
 /// joystick_getaxis
 /// returns axis value (-1..1)
@@ -2086,7 +2086,7 @@ kbd_formatKeyName: *fn (ac: *ACCEL, s:  *c_char) callconv(.C) void,
 kbd_getCommandName: *fn (cmd: c_int, s:  *c_char, section:  *KbdSectionInfo) callconv(.C) void,
 
 /// kbd_getTextFromCmd
-kbd_getTextFromCmd: *fn (cmd: c_int, section:  *KbdSectionInfo) callconv(.C) *const c_char , //TODO check me
+kbd_getTextFromCmd: *fn (cmd: c_int, section:  *KbdSectionInfo) callconv(.C) *const c_char , 
 
 /// KBD_OnMainActionEx
 /// val/valhw are used for midi stuff.
@@ -2154,14 +2154,14 @@ LICE__IsFlipped: *fn (bm: *LICE_IBitmap) callconv(.C) bool,
 LICE__resize: *fn (bm: *LICE_IBitmap, w:  c_int, h:  c_int) callconv(.C) bool,
 
 /// LICE__SetBkColor
-LICE__SetBkColor: *fn(font: *LICE_IFont, color:  LICE_pixel) callconv(.C) LICE_pixel , //TODO check me
+LICE__SetBkColor: *fn(font: *LICE_IFont, color:  LICE_pixel) callconv(.C) LICE_pixel , 
 
 /// LICE__SetFromHFont
 /// font must REMAIN valid,unless LICE_FONT_FLAG_PRECALCALL is set
 LICE__SetFromHFont: *fn (font: *LICE_IFont, hfont:  HFONT, flags:  c_int) callconv(.C) void,
 
 /// LICE__SetTextColor
-LICE__SetTextColor: *fn(font: *LICE_IFont, color:  LICE_pixel) callconv(.C) LICE_pixel , //TODO check me
+LICE__SetTextColor: *fn(font: *LICE_IFont, color:  LICE_pixel) callconv(.C) LICE_pixel , 
 
 /// LICE__SetTextCombineMode
 LICE__SetTextCombineMode: *fn (ifont: *LICE_IFont, mode:  c_int, alpha:  float) callconv(.C) void,
@@ -2192,17 +2192,17 @@ LICE_ClearRect: *fn (dest: *LICE_IBitmap, x:  c_int, y:  c_int, w:  c_int, h:  c
 LICE_ClipLine: *fn (pX1Out: *c_int, pY1Out:  *c_int, pX2Out:  *c_int, pY2Out:  *c_int, xLo:  c_int, yLo:  c_int, xHi:  c_int, yHi:  c_int) callconv(.C) bool,
 
 /// LICE_CombinePixels
-LICE_CombinePixels: *fn(dest: LICE_pixel, src:  LICE_pixel, alpha:  float, mode:  c_int) callconv(.C) LICE_pixel , //TODO check me
+LICE_CombinePixels: *fn(dest: LICE_pixel, src:  LICE_pixel, alpha:  float, mode:  c_int) callconv(.C) LICE_pixel , 
 
 /// LICE_Copy
 LICE_Copy: *fn (dest: *LICE_IBitmap, src:  *LICE_IBitmap) callconv(.C) void,
 
 /// LICE_CreateBitmap
 /// create a new bitmap. this is like calling new LICE_MemBitmap (mode=0) or new LICE_SysBitmap (mode=1).
-LICE_CreateBitmap: *fn(mode: c_int, w:  c_int, h:  c_int) callconv(.C) *LICE_IBitmap , //TODO check me
+LICE_CreateBitmap: *fn(mode: c_int, w:  c_int, h:  c_int) callconv(.C) *LICE_IBitmap , 
 
 /// LICE_CreateFont
-LICE_CreateFont: *fn() callconv(.C) *LICE_IFont , //TODO check me
+LICE_CreateFont: *fn() callconv(.C) *LICE_IFont , 
 
 /// LICE_DrawCBezier
 LICE_DrawCBezier: *fn (dest: *LICE_IBitmap, xstart:  double, ystart:  double, xctl1:  double, yctl1:  double, xctl2:  double, yctl2:  double, xend:  double, yend:  double, color:  LICE_pixel, alpha:  float, mode:  c_int, aa:  bool, tol:  double) callconv(.C) void,
@@ -2238,7 +2238,7 @@ LICE_FillTrapezoid: *fn (dest: *LICE_IBitmap, x1a:  c_int, x1b:  c_int, y1:  c_i
 LICE_FillTriangle: *fn (dest: *LICE_IBitmap, x1:  c_int, y1:  c_int, x2:  c_int, y2:  c_int, x3:  c_int, y3:  c_int, color:  LICE_pixel, alpha:  float, mode:  c_int) callconv(.C) void,
 
 /// LICE_GetPixel
-LICE_GetPixel: *fn(bm: *LICE_IBitmap, x:  c_int, y:  c_int) callconv(.C) LICE_pixel , //TODO check me
+LICE_GetPixel: *fn(bm: *LICE_IBitmap, x:  c_int, y:  c_int) callconv(.C) LICE_pixel , 
 
 /// LICE_GradRect
 LICE_GradRect: *fn (dest: *LICE_IBitmap, dstx:  c_int, dsty:  c_int, dstw:  c_int, dsth:  c_int, ir:  float, ig:  float, ib:  float, ia:  float, drdx:  float, dgdx:  float, dbdx:  float, dadx:  float, drdy:  float, dgdy:  float, dbdy:  float, dady:  float, mode:  c_int) callconv(.C) void,
@@ -2250,10 +2250,10 @@ LICE_Line: *fn (dest: *LICE_IBitmap, x1:  float, y1:  float, x2:  float, y2:  fl
 LICE_LineInt: *fn (dest: *LICE_IBitmap, x1:  c_int, y1:  c_int, x2:  c_int, y2:  c_int, color:  LICE_pixel, alpha:  float, mode:  c_int, aa:  bool) callconv(.C) void,
 
 /// LICE_LoadPNG
-LICE_LoadPNG: *fn(filename: *const c_char, bmp:  *LICE_IBitmap) callconv(.C) *LICE_IBitmap , //TODO check me
+LICE_LoadPNG: *fn(filename: *const c_char, bmp:  *LICE_IBitmap) callconv(.C) *LICE_IBitmap , 
 
 /// LICE_LoadPNGFromResource
-LICE_LoadPNGFromResource: *fn(hInst: HINSTANCE, resid:  *const c_char, bmp:  *LICE_IBitmap) callconv(.C) *LICE_IBitmap , //TODO check me
+LICE_LoadPNGFromResource: *fn(hInst: HINSTANCE, resid:  *const c_char, bmp:  *LICE_IBitmap) callconv(.C) *LICE_IBitmap , 
 
 /// LICE_MeasureText
 LICE_MeasureText: *fn (string: *const c_char, w:  *c_int, h:  *c_int) callconv(.C) void,
@@ -2283,7 +2283,7 @@ LICE_ThickFLine: *fn (dest: *LICE_IBitmap, x1:  double, y1:  double, x2:  double
 
 /// LocalizeString
 /// Returns a localized version of src_string, in section section. flags can have 1 set to only localize if sprintf-style formatting matches the original.
-LocalizeString: *fn (src_string: *const c_char, section:  *const c_char, flagsOptional:  c_int) callconv(.C) *const c_char , //TODO check me
+LocalizeString: *fn (src_string: *const c_char, section:  *const c_char, flagsOptional:  c_int) callconv(.C) *const c_char , 
 
 /// Loop_OnArrow
 /// Move the loop selection left or right. Returns true if snap is enabled.
@@ -2392,7 +2392,7 @@ MIDI_EnumSelTextSysexEvts: *fn (take: *MediaItem_Take, textsyxidx:  c_int) callc
 
 /// MIDI_eventlist_Create
 /// Create a MIDI_eventlist object. The returned object must be deleted with MIDI_eventlist_destroy().
-MIDI_eventlist_Create: *fn() callconv(.C) *MIDI_eventlist , //TODO check me
+MIDI_eventlist_Create: *fn() callconv(.C) *MIDI_eventlist , 
 
 /// MIDI_eventlist_Destroy
 /// Destroy a MIDI_eventlist object that was created using MIDI_eventlist_Create().
@@ -2542,7 +2542,7 @@ MIDI_Sort: *fn (take: *MediaItem_Take) callconv(.C) void,
 
 /// MIDIEditor_EnumTakes
 /// list the takes that are currently being edited in this MIDI editor, starting with the active take. See MIDIEditor_GetTake
-MIDIEditor_EnumTakes: *fn(midieditor: HWND, takeindex:  c_int, editable_only:  bool) callconv(.C) *MediaItem_Take , //TODO check me
+MIDIEditor_EnumTakes: *fn(midieditor: HWND, takeindex:  c_int, editable_only:  bool) callconv(.C) *MediaItem_Take , 
 
 /// MIDIEditor_GetActive
 /// get a pointer to the focused MIDI editor window
@@ -2582,7 +2582,7 @@ MIDIEditor_GetSetting_str: *fn (midieditor: HWND, setting_desc:  *const c_char, 
 
 /// MIDIEditor_GetTake
 /// get the take that is currently being edited in this MIDI editor. see MIDIEditor_EnumTakes
-MIDIEditor_GetTake: *fn(midieditor: HWND) callconv(.C) *MediaItem_Take , //TODO check me
+MIDIEditor_GetTake: *fn(midieditor: HWND) callconv(.C) *MediaItem_Take , 
 
 /// MIDIEditor_LastFocused_OnCommand
 /// Send an action command to the last focused MIDI editor. Returns false if there is no MIDI editor open, or if the view mode (piano roll or event list) does not match the input.
@@ -2696,22 +2696,22 @@ parse_timestr_pos: *fn (buf: *const c_char, modeoverride:  c_int) callconv(.C) d
 parsepanstr: *fn (str: *const c_char) callconv(.C) double,
 
 /// PCM_Sink_Create
-PCM_Sink_Create: *fn(filename: *const c_char, cfg:  *const c_char, cfg_sz:  c_int, nch:  c_int, srate:  c_int, buildpeaks:  bool) callconv(.C) *PCM_sink , //TODO check me
+PCM_Sink_Create: *fn(filename: *const c_char, cfg:  *const c_char, cfg_sz:  c_int, nch:  c_int, srate:  c_int, buildpeaks:  bool) callconv(.C) *PCM_sink , 
 
 /// PCM_Sink_CreateEx
-PCM_Sink_CreateEx: *fn(proj: *ReaProject, filename:  *const c_char, cfg:  *const c_char, cfg_sz:  c_int, nch:  c_int, srate:  c_int, buildpeaks:  bool) callconv(.C) *PCM_sink , //TODO check me
+PCM_Sink_CreateEx: *fn(proj: *ReaProject, filename:  *const c_char, cfg:  *const c_char, cfg_sz:  c_int, nch:  c_int, srate:  c_int, buildpeaks:  bool) callconv(.C) *PCM_sink , 
 
 /// PCM_Sink_CreateMIDIFile
-PCM_Sink_CreateMIDIFile: *fn(filename: *const c_char, cfg:  *const c_char, cfg_sz:  c_int, bpm:  double, div:  c_int) callconv(.C) *PCM_sink , //TODO check me
+PCM_Sink_CreateMIDIFile: *fn(filename: *const c_char, cfg:  *const c_char, cfg_sz:  c_int, bpm:  double, div:  c_int) callconv(.C) *PCM_sink , 
 
 /// PCM_Sink_CreateMIDIFileEx
-PCM_Sink_CreateMIDIFileEx: *fn(proj: *ReaProject, filename:  *const c_char, cfg:  *const c_char, cfg_sz:  c_int, bpm:  double, div:  c_int) callconv(.C) *PCM_sink , //TODO check me
+PCM_Sink_CreateMIDIFileEx: *fn(proj: *ReaProject, filename:  *const c_char, cfg:  *const c_char, cfg_sz:  c_int, bpm:  double, div:  c_int) callconv(.C) *PCM_sink , 
 
 /// PCM_Sink_Enum
 c_int PCM_Sink_Enum: *fn (idx: c_int, descstrOut:  *const c_char) callconv(.C) unsigned,
 
 /// PCM_Sink_GetExtension
-PCM_Sink_GetExtension: *fn (data: *const c_char, data_sz:  c_int) callconv(.C) *const c_char , //TODO check me
+PCM_Sink_GetExtension: *fn (data: *const c_char, data_sz:  c_int) callconv(.C) *const c_char , 
 
 /// PCM_Sink_ShowConfig
 PCM_Sink_ShowConfig: *fn (cfg: *const c_char, cfg_sz:  c_int, hwndParent:  HWND) callconv(.C) HWND,
@@ -2722,21 +2722,21 @@ PCM_Source_BuildPeaks: *fn (src: *PCM_source, mode:  c_int) callconv(.C) c_int,
 
 /// PCM_Source_CreateFromFile
 /// See PCM_Source_CreateFromFileEx.
-PCM_Source_CreateFromFile: *fn(filename: *const c_char) callconv(.C) *PCM_source , //TODO check me
+PCM_Source_CreateFromFile: *fn(filename: *const c_char) callconv(.C) *PCM_source , 
 
 /// PCM_Source_CreateFromFileEx
 /// Create a PCM_source from filename, and override pref of MIDI files being imported as in-project MIDI events.
-PCM_Source_CreateFromFileEx: *fn(filename: *const c_char, forcenoMidiImp:  bool) callconv(.C) *PCM_source , //TODO check me
+PCM_Source_CreateFromFileEx: *fn(filename: *const c_char, forcenoMidiImp:  bool) callconv(.C) *PCM_source , 
 
 /// PCM_Source_CreateFromSimple
 /// Creates a PCM_source from a ISimpleMediaDecoder
 /// (if fn is non-null, it will open the file in dec)
-PCM_Source_CreateFromSimple: *fn(dec: *ISimpleMediaDecoder, fn:  *const c_char) callconv(.C) *PCM_source , //TODO check me
+PCM_Source_CreateFromSimple: *fn(dec: *ISimpleMediaDecoder, fn:  *const c_char) callconv(.C) *PCM_source , 
 
 /// PCM_Source_CreateFromType
 /// Create a PCM_source from a "type" (use this if you're going to load its state via LoadState/ProjectStateContext).
 /// Valid types include "WAVE", "MIDI", or whatever plug-ins define as well.
-PCM_Source_CreateFromType: *fn(sourcetype: *const c_char) callconv(.C) *PCM_source , //TODO check me
+PCM_Source_CreateFromType: *fn(sourcetype: *const c_char) callconv(.C) *PCM_source , 
 
 /// PCM_Source_Destroy
 /// Deletes a PCM_source -- be sure that you remove any project reference before deleting a source
@@ -2751,14 +2751,14 @@ PCM_Source_GetPeaks: *fn (src: *PCM_source, peakrate:  double, starttime:  doubl
 PCM_Source_GetSectionInfo: *fn (src: *PCM_source, offsOut:  *double, lenOut:  *double, revOut:  *bool) callconv(.C) bool,
 
 /// PeakBuild_Create
-PeakBuild_Create: *fn(src: *PCM_source, fn:  *const c_char, srate:  c_int, nch:  c_int) callconv(.C) *REAPER_PeakBuild_Interface , //TODO check me
+PeakBuild_Create: *fn(src: *PCM_source, fn:  *const c_char, srate:  c_int, nch:  c_int) callconv(.C) *REAPER_PeakBuild_Interface , 
 
 /// PeakBuild_CreateEx
 /// flags&1 for FP support
-PeakBuild_CreateEx: *fn(src: *PCM_source, fn:  *const c_char, srate:  c_int, nch:  c_int, flags:  c_int) callconv(.C) *REAPER_PeakBuild_Interface , //TODO check me
+PeakBuild_CreateEx: *fn(src: *PCM_source, fn:  *const c_char, srate:  c_int, nch:  c_int, flags:  c_int) callconv(.C) *REAPER_PeakBuild_Interface , 
 
 /// PeakGet_Create
-PeakGet_Create: *fn(fn: *const c_char, srate:  c_int, nch:  c_int) callconv(.C) *REAPER_PeakGet_Interface , //TODO check me
+PeakGet_Create: *fn(fn: *const c_char, srate:  c_int, nch:  c_int) callconv(.C) *REAPER_PeakGet_Interface , 
 
 /// PitchShiftSubModeMenu
 /// menu to select/modify pitch shifter submode, returns new value (or old value if no item selected)
@@ -2789,11 +2789,11 @@ plugin_getapi: *fn (name: *const c_char) callconv(.C) *void,
 
 /// plugin_getFilterList
 /// Returns a double-NULL terminated list of importable media files, suitable for passing to GetOpenFileName() etc. Includes *.* (All files).
-plugin_getFilterList: *fn () callconv(.C) *const c_char , //TODO check me
+plugin_getFilterList: *fn () callconv(.C) *const c_char , 
 
 /// plugin_getImportableProjectFilterList
 /// Returns a double-NULL terminated list of importable project files, suitable for passing to GetOpenFileName() etc. Includes *.* (All files).
-plugin_getImportableProjectFilterList: *fn () callconv(.C) *const c_char , //TODO check me
+plugin_getImportableProjectFilterList: *fn () callconv(.C) *const c_char , 
 
 /// plugin_register
 /// Alias for reaper_plugin_info_t::Register, see reaper_plugin.h for documented uses.
@@ -2870,10 +2870,10 @@ RenderFileSection: *fn (source_filename: *const c_char, target_filename:  *const
 ReorderSelectedTracks: *fn (beforeTrackIdx: c_int, makePrevFolder:  c_int) callconv(.C) bool,
 
 /// Resample_EnumModes
-Resample_EnumModes: *fn (mode: c_int) callconv(.C) *const c_char , //TODO check me
+Resample_EnumModes: *fn (mode: c_int) callconv(.C) *const c_char , 
 
 /// Resampler_Create
-Resampler_Create: *fn() callconv(.C) *REAPER_Resample_Interface , //TODO check me
+Resampler_Create: *fn() callconv(.C) *REAPER_Resample_Interface , 
 
 /// resolve_fn
 /// See resolve_fn2.
@@ -2889,7 +2889,7 @@ ResolveRenderPattern: *fn (project: *ReaProject, path:  *const c_char, pattern: 
 
 /// ReverseNamedCommandLookup
 /// Get the named command for the given command ID. The returned string will not start with '_' (e.g. it will return "SWS_ABOUT"), it will be NULL if command_id is a native action.
-ReverseNamedCommandLookup: *fn (command_id: c_int) callconv(.C) *const c_char , //TODO check me
+ReverseNamedCommandLookup: *fn (command_id: c_int) callconv(.C) *const c_char , 
 
 /// ScaleFromEnvelopeMode
 /// See GetEnvelopeScalingMode.
@@ -3540,7 +3540,7 @@ ThemeLayout_GetLayout: *fn (section: *const c_char, idx:  c_int, nameOut:  *c_ch
 
 /// ThemeLayout_GetParameter
 /// returns theme layout parameter. return value is cfg-name, or nil/empty if out of range.
-ThemeLayout_GetParameter: *fn (wp: c_int, descOutOptional:  *const c_char, valueOutOptional:  *c_int, defValueOutOptional:  *c_int, minValueOutOptional:  *c_int, maxValueOutOptional:  *c_int) callconv(.C) *const c_char , //TODO check me
+ThemeLayout_GetParameter: *fn (wp: c_int, descOutOptional:  *const c_char, valueOutOptional:  *c_int, defValueOutOptional:  *c_int, minValueOutOptional:  *c_int, maxValueOutOptional:  *c_int) callconv(.C) *const c_char , 
 
 /// ThemeLayout_RefreshAll
 /// Refreshes all layouts
@@ -3963,11 +3963,11 @@ Undo_BeginBlock2: *fn (proj: *ReaProject) callconv(.C) void,
 
 /// Undo_CanRedo2
 /// returns string of next action,if able,NULL if not
-Undo_CanRedo2: *fn (proj: *ReaProject) callconv(.C) *const c_char , //TODO check me
+Undo_CanRedo2: *fn (proj: *ReaProject) callconv(.C) *const c_char , 
 
 /// Undo_CanUndo2
 /// returns string of last action,if able,NULL if not
-Undo_CanUndo2: *fn (proj: *ReaProject) callconv(.C) *const c_char , //TODO check me
+Undo_CanUndo2: *fn (proj: *ReaProject) callconv(.C) *const c_char , 
 
 /// Undo_DoRedo2
 /// nonzero if success
