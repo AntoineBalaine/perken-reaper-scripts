@@ -45,7 +45,7 @@
 ///   time rather than link-time).
 ///   
 typedef unsigned int LICE_pixel;
-typedef unsigned char LICE_pixel_chan;
+typedef unsigned c_char LICE_pixel_chan;
 class LICE_IBitmap;
 class LICE_IFont;
 
@@ -72,7 +72,7 @@ __mergesort: *fn (*void base, size_t nmemb, size_t size, int (*cmpfunc)(const *v
 /// menuidstr is some unique identifying string
 /// menuname is for main menus only (displayed in a menu bar somewhere), NULL otherwise
 /// kbdsecname is the name of the KbdSectionInfo registered by this plugin, or NULL for the main actions section
-AddCustomizableMenu: *fn (const *char menuidstr, const *char menuname, const *char kbdsecname, bool addtomainmenu) callconv(.C) bool;
+AddCustomizableMenu: *fn (const *c_char menuidstr, const *c_char menuname, const *c_char kbdsecname, bool addtomainmenu) callconv(.C) bool;
 
 /// AddExtensionsMainMenu
 /// Add an Extensions main menu, which the extension can populate/modify with plugin_register("hookcustommenu")
@@ -84,15 +84,15 @@ AddMediaItemToTrack: *fn (*MediaTrack tr) callconv(.C) *MediaItem;
 
 /// AddProjectMarker
 /// Returns the index of the created marker/region, or -1 on failure. Supply wantidx>=0 if you want a particular index number, but you'll get a different index number a region and wantidx is already in use.
-AddProjectMarker: *fn (*ReaProject proj, bool isrgn, double pos, double rgnend, const *char name, int wantidx) callconv(.C) int;
+AddProjectMarker: *fn (*ReaProject proj, bool isrgn, double pos, double rgnend, const *c_char name, int wantidx) callconv(.C) int;
 
 /// AddProjectMarker2
 /// Returns the index of the created marker/region, or -1 on failure. Supply wantidx>=0 if you want a particular index number, but you'll get a different index number a region and wantidx is already in use. color should be 0 (default color), or ColorToNative(r,g,b)|0x1000000
-AddProjectMarker2: *fn (*ReaProject proj, bool isrgn, double pos, double rgnend, const *char name, int wantidx, int color) callconv(.C) int;
+AddProjectMarker2: *fn (*ReaProject proj, bool isrgn, double pos, double rgnend, const *c_char name, int wantidx, int color) callconv(.C) int;
 
 /// AddRemoveReaScript
 /// Add a ReaScript (return the new command ID, or 0 if failed) or remove a ReaScript (return >0 on success). Use commit==true when adding/removing a single script. When bulk adding/removing n scripts, you can optimize the n-1 first calls with commit==false and commit==true for the last call.
-AddRemoveReaScript: *fn (bool add, int sectionID, const *char scriptfn, bool commit) callconv(.C) int;
+AddRemoveReaScript: *fn (bool add, int sectionID, const *c_char scriptfn, bool commit) callconv(.C) int;
 
 /// AddTakeToMediaItem
 /// creates a new take in an item
@@ -111,7 +111,7 @@ AnyTrackSolo: *fn (*ReaProject proj) callconv(.C) bool;
 
 /// APIExists
 /// Returns true if function_name exists in the REAPER API
-APIExists: *fn (const *char function_name) callconv(.C) bool;
+APIExists: *fn (const *c_char function_name) callconv(.C) bool;
 
 /// APITest
 /// Displays a message window if the API was successfully called.
@@ -128,7 +128,7 @@ ApplyNudge: *fn (*ReaProject project, int nudgeflag, int nudgewhat, int nudgeuni
 
 /// ArmCommand
 /// arms a command (or disarms if 0 passed) in section sectionname (empty string for main)
-ArmCommand: *fn (int cmd, const *char sectionname) callconv(.C) void;
+ArmCommand: *fn (int cmd, const *c_char sectionname) callconv(.C) void;
 
 /// Audio_Init
 /// open all audio and MIDI devices, if not open
@@ -271,7 +271,7 @@ CountTrackMediaItems: *fn (*MediaTrack track) callconv(.C) int;
 CountTracks: *fn (*ReaProject projOptional) callconv(.C) int;
 
 /// CreateLocalOscHandler
-/// callback is a function pointer: void (*callback)(*void obj, const *char msg, int msglen), which handles OSC messages sent from REAPER. The function return is a local osc handler. See SendLocalOscMessage, DestroyOscHandler.
+/// callback is a function pointer: void (*callback)(*void obj, const *c_char msg, int msglen), which handles OSC messages sent from REAPER. The function return is a local osc handler. See SendLocalOscMessage, DestroyOscHandler.
 CreateLocalOscHandler: *fn (*void obj, *void callback) callconv(.C) *void;
 
 /// CreateMIDIInput
@@ -336,10 +336,10 @@ CSurf_OnMuteChange: *fn (*MediaTrack trackid, int mute) callconv(.C) bool;
 CSurf_OnMuteChangeEx: *fn (*MediaTrack trackid, int mute, bool allowgang) callconv(.C) bool;
 
 /// CSurf_OnOscControlMessage
-CSurf_OnOscControlMessage: *fn (const *char msg, const *float arg) callconv(.C) void;
+CSurf_OnOscControlMessage: *fn (const *c_char msg, const *float arg) callconv(.C) void;
 
 /// CSurf_OnOscControlMessage2
-CSurf_OnOscControlMessage2: *fn (const *char msg, const *float arg, const *char argstr) callconv(.C) void;
+CSurf_OnOscControlMessage2: *fn (const *c_char msg, const *float arg, const *c_char argstr) callconv(.C) void;
 
 /// CSurf_OnPanChange
 CSurf_OnPanChange: *fn (*MediaTrack trackid, double pan, bool relative) callconv(.C) double;
@@ -488,7 +488,7 @@ DeleteEnvelopePointRangeEx: *fn (*TrackEnvelope envelope, int autoitem_idx, doub
 
 /// DeleteExtState
 /// Delete the extended state value for a specific section and key. persist=true means the value should remain deleted the next time REAPER is opened. See SetExtState, GetExtState, HasExtState.
-DeleteExtState: *fn (const *char section, const *char key, bool persist) callconv(.C) void;
+DeleteExtState: *fn (const *c_char section, const *c_char key, bool persist) callconv(.C) void;
 
 /// DeleteProjectMarker
 /// Delete a marker.  proj==NULL for the active project.
@@ -532,7 +532,7 @@ DoActionShortcutDialog: *fn (HWND hwnd, *KbdSectionInfo section, int cmdID, int 
 
 /// Dock_UpdateDockID
 /// updates preference for docker window ident_str to be in dock whichDock on next open
-Dock_UpdateDockID: *fn (const *char ident_str, int whichDock) callconv(.C) void;
+Dock_UpdateDockID: *fn (const *c_char ident_str, int whichDock) callconv(.C) void;
 
 /// DockGetPosition
 /// -1=not found, 0=bottom, 1=left, 2=top, 3=right, 4=floating
@@ -546,10 +546,10 @@ DockIsChildOfDock: *fn (HWND hwnd, *bool isFloatingDockerOut) callconv(.C) int;
 DockWindowActivate: *fn (HWND hwnd) callconv(.C) void;
 
 /// DockWindowAdd
-DockWindowAdd: *fn (HWND hwnd, const *char name, int pos, bool allowShow) callconv(.C) void;
+DockWindowAdd: *fn (HWND hwnd, const *c_char name, int pos, bool allowShow) callconv(.C) void;
 
 /// DockWindowAddEx
-DockWindowAddEx: *fn (HWND hwnd, const *char name, const *char identstr, bool allowShow) callconv(.C) void;
+DockWindowAddEx: *fn (HWND hwnd, const *c_char name, const *c_char identstr, bool allowShow) callconv(.C) void;
 
 /// DockWindowRefresh
 DockWindowRefresh: *fn () callconv(.C) void;
@@ -574,40 +574,40 @@ EnsureNotCompletelyOffscreen: *fn (*RECT rInOut) callconv(.C) void;
 
 /// EnumerateFiles
 /// List the files in the "path" directory. Returns NULL/nil when all files have been listed. Use fileindex = -1 to force re-read of directory (invalidate cache). See EnumerateSubdirectories
-*char EnumerateFiles: *fn (const *char path, int fileindex) callconv(.C) const;
+*c_char EnumerateFiles: *fn (const *c_char path, int fileindex) callconv(.C) const;
 
 /// EnumerateSubdirectories
 /// List the subdirectories in the "path" directory. Use subdirindex = -1 to force re-read of directory (invalidate cache). Returns NULL/nil when all subdirectories have been listed. See EnumerateFiles
-*char EnumerateSubdirectories: *fn (const *char path, int subdirindex) callconv(.C) const;
+*c_char EnumerateSubdirectories: *fn (const *c_char path, int subdirindex) callconv(.C) const;
 
 /// EnumInstalledFX
 /// Enumerates installed FX. Returns true if successful, sets nameOut and identOut to name and ident of FX at index.
-EnumInstalledFX: *fn (int index, const *char* nameOut, const *char* identOut) callconv(.C) bool;
+EnumInstalledFX: *fn (int index, const *c_char* nameOut, const *c_char* identOut) callconv(.C) bool;
 
 /// EnumPitchShiftModes
 /// Start querying modes at 0, returns FALSE when no more modes possible, sets strOut to NULL if a mode is currently unsupported
-EnumPitchShiftModes: *fn (int mode, const *char* strOut) callconv(.C) bool;
+EnumPitchShiftModes: *fn (int mode, const *c_char* strOut) callconv(.C) bool;
 
 /// EnumPitchShiftSubModes
 /// Returns submode name, or NULL
-*char EnumPitchShiftSubModes: *fn (int mode, int submode) callconv(.C) const;
+*c_char EnumPitchShiftSubModes: *fn (int mode, int submode) callconv(.C) const;
 
 /// EnumProjectMarkers
-EnumProjectMarkers: *fn (int idx, *bool isrgnOut, *double posOut, *double rgnendOut, const *char* nameOut, *int markrgnindexnumberOut) callconv(.C) int;
+EnumProjectMarkers: *fn (int idx, *bool isrgnOut, *double posOut, *double rgnendOut, const *c_char* nameOut, *int markrgnindexnumberOut) callconv(.C) int;
 
 /// EnumProjectMarkers2
-EnumProjectMarkers2: *fn (*ReaProject proj, int idx, *bool isrgnOut, *double posOut, *double rgnendOut, const *char* nameOut, *int markrgnindexnumberOut) callconv(.C) int;
+EnumProjectMarkers2: *fn (*ReaProject proj, int idx, *bool isrgnOut, *double posOut, *double rgnendOut, const *c_char* nameOut, *int markrgnindexnumberOut) callconv(.C) int;
 
 /// EnumProjectMarkers3
-EnumProjectMarkers3: *fn (*ReaProject proj, int idx, *bool isrgnOut, *double posOut, *double rgnendOut, const *char* nameOut, *int markrgnindexnumberOut, *int colorOut) callconv(.C) int;
+EnumProjectMarkers3: *fn (*ReaProject proj, int idx, *bool isrgnOut, *double posOut, *double rgnendOut, const *c_char* nameOut, *int markrgnindexnumberOut, *int colorOut) callconv(.C) int;
 
 /// EnumProjects
 /// idx=-1 for current project,projfn can be NULL if not interested in filename. use idx 0x40000000 for currently rendering project, if any.
-EnumProjects: *fn (int idx, *char projfnOutOptional, int projfnOutOptional_sz) callconv(.C) *ReaProject;
+EnumProjects: *fn (int idx, *c_char projfnOutOptional, int projfnOutOptional_sz) callconv(.C) *ReaProject;
 
 /// EnumProjExtState
 /// Enumerate the data stored with the project for a specific extname. Returns false when there is no more data. See SetProjExtState, GetProjExtState.
-EnumProjExtState: *fn (*ReaProject proj, const *char extname, int idx, *char keyOutOptional, int keyOutOptional_sz, *char valOutOptional, int valOutOptional_sz) callconv(.C) bool;
+EnumProjExtState: *fn (*ReaProject proj, const *c_char extname, int idx, *c_char keyOutOptional, int keyOutOptional_sz, *c_char valOutOptional, int valOutOptional_sz) callconv(.C) bool;
 
 /// EnumRegionRenderMatrix
 /// Enumerate which tracks will be rendered within this region when using the region render matrix. When called with rendertrack==0, the function returns the first track that will be rendered (which may be the master track); rendertrack==1 will return the next track rendered, and so on. The function returns NULL when there are no more tracks that will be rendered within this region.
@@ -615,11 +615,11 @@ EnumRegionRenderMatrix: *fn (*ReaProject proj, int regionindex, int rendertrack)
 
 /// EnumTrackMIDIProgramNames
 /// returns false if there are no plugins on the track that support MIDI programs,or if all programs have been enumerated
-EnumTrackMIDIProgramNames: *fn (int track, int programNumber, *char programName, int programName_sz) callconv(.C) bool;
+EnumTrackMIDIProgramNames: *fn (int track, int programNumber, *c_char programName, int programName_sz) callconv(.C) bool;
 
 /// EnumTrackMIDIProgramNamesEx
 /// returns false if there are no plugins on the track that support MIDI programs,or if all programs have been enumerated
-EnumTrackMIDIProgramNamesEx: *fn (*ReaProject proj, *MediaTrack track, int programNumber, *char programName, int programName_sz) callconv(.C) bool;
+EnumTrackMIDIProgramNamesEx: *fn (*ReaProject proj, *MediaTrack track, int programNumber, *c_char programName, int programName_sz) callconv(.C) bool;
 
 /// Envelope_Evaluate
 /// Get the effective envelope value at a given time position. samplesRequested is how long the caller expects until the next call to Envelope_Evaluate (often, the buffer block size). The return value is how many samples beyond that time position that the returned values are valid. dVdS is the change in value per sample (first derivative), ddVdS is the second derivative, dddVdS is the third derivative. See GetEnvelopeScalingMode.
@@ -627,7 +627,7 @@ Envelope_Evaluate: *fn (*TrackEnvelope envelope, double time, double samplerate,
 
 /// Envelope_FormatValue
 /// Formats the value of an envelope to a user-readable form
-Envelope_FormatValue: *fn (*TrackEnvelope env, double value, *char bufOut, int bufOut_sz) callconv(.C) void;
+Envelope_FormatValue: *fn (*TrackEnvelope env, double value, *c_char bufOut, int bufOut_sz) callconv(.C) void;
 
 /// Envelope_GetParentTake
 /// If take envelope, gets the take from the envelope. If FX, indexOut set to FX index, index2Out set to parameter index, otherwise -1.
@@ -647,11 +647,11 @@ Envelope_SortPointsEx: *fn (*TrackEnvelope envelope, int autoitem_idx) callconv(
 
 /// ExecProcess
 /// Executes command line, returns NULL on total failure, otherwise the return value, a newline, and then the output of the command. If timeoutmsec is 0, command will be allowed to run indefinitely (recommended for large amounts of returned output). timeoutmsec is -1 for no wait/terminate, -2 for no wait and minimize
-*char ExecProcess: *fn (const *char cmdline, int timeoutmsec) callconv(.C) const;
+*c_char ExecProcess: *fn (const *c_char cmdline, int timeoutmsec) callconv(.C) const;
 
 /// file_exists
 /// returns true if path points to a valid, readable file
-file_exists: *fn (const *char path) callconv(.C) bool;
+file_exists: *fn (const *c_char path) callconv(.C) bool;
 
 /// FindTempoTimeSigMarker
 /// Find the tempo/time signature marker that falls at or before this time position (the marker that is in effect as of this time position).
@@ -659,7 +659,7 @@ FindTempoTimeSigMarker: *fn (*ReaProject project, double time) callconv(.C) int;
 
 /// format_timestr
 /// Format tpos (which is time in seconds) as hh:mm:ss.sss. See format_timestr_pos, format_timestr_len.
-format_timestr: *fn (double tpos, *char buf, int buf_sz) callconv(.C) void;
+format_timestr: *fn (double tpos, *c_char buf, int buf_sz) callconv(.C) void;
 
 /// format_timestr_len
 /// time formatting mode overrides: -1=proj default.
@@ -670,7 +670,7 @@ format_timestr: *fn (double tpos, *char buf, int buf_sz) callconv(.C) void;
 /// 4=samples
 /// 5=h:m:s:f
 /// offset is start of where the length will be calculated from
-format_timestr_len: *fn (double tpos, *char buf, int buf_sz, double offset, int modeoverride) callconv(.C) void;
+format_timestr_len: *fn (double tpos, *c_char buf, int buf_sz, double offset, int modeoverride) callconv(.C) void;
 
 /// format_timestr_pos
 /// time formatting mode overrides: -1=proj default.
@@ -681,7 +681,7 @@ format_timestr_len: *fn (double tpos, *char buf, int buf_sz, double offset, int 
 /// 4=samples
 /// 5=h:m:s:f
 /// 
-format_timestr_pos: *fn (double tpos, *char buf, int buf_sz, int modeoverride) callconv(.C) void;
+format_timestr_pos: *fn (double tpos, *c_char buf, int buf_sz, int modeoverride) callconv(.C) void;
 
 /// FreeHeapPtr
 /// free heap memory returned from a Reaper API function
@@ -693,25 +693,25 @@ genGuid: *fn (*GUID g) callconv(.C) void;
 /// get_config_var
 /// gets ini configuration variable by name, raw, returns size of variable in szOut and pointer to variable. special values queryable are also:
 ///   __numcpu (int) cpu count.
-///   __fx_loadstate_ctx (char): 0 if unknown, or during FX state loading: 'u' (instantiating via undo), 'U' (updating via undo), 'P' (loading preset).
-get_config_var: *fn (const *char name, *int szOut) callconv(.C) *void;
+///   __fx_loadstate_ctx (c_char): 0 if unknown, or during FX state loading: 'u' (instantiating via undo), 'U' (updating via undo), 'P' (loading preset).
+get_config_var: *fn (const *c_char name, *int szOut) callconv(.C) *void;
 
 /// get_config_var_string
 /// gets ini configuration variable value as string
-get_config_var_string: *fn (const *char name, *char bufOut, int bufOut_sz) callconv(.C) bool;
+get_config_var_string: *fn (const *c_char name, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// get_ini_file
 /// Get reaper.ini full filename.
-*char get_ini_file: *fn () callconv(.C) const;
+*c_char get_ini_file: *fn () callconv(.C) const;
 
 /// get_midi_config_var
 /// Deprecated.
-get_midi_config_var: *fn (const *char name, *int szOut) callconv(.C) *void;
+get_midi_config_var: *fn (const *c_char name, *int szOut) callconv(.C) *void;
 
 /// GetActionShortcutDesc
 /// Get the text description of a specific shortcut for the given command ID.
 /// See CountActionShortcuts,DeleteActionShortcut,DoActionShortcutDialog.
-GetActionShortcutDesc: *fn (*KbdSectionInfo section, int cmdID, int shortcutidx, *char descOut, int descOut_sz) callconv(.C) bool;
+GetActionShortcutDesc: *fn (*KbdSectionInfo section, int cmdID, int shortcutidx, *c_char descOut, int descOut_sz) callconv(.C) bool;
 
 /// GetActiveTake
 /// get the active take in this item
@@ -723,11 +723,11 @@ GetAllProjectPlayStates: *fn (*ReaProject ignoreProject) callconv(.C) int;
 
 /// GetAppVersion
 /// Returns app version which may include an OS/arch signifier, such as: "6.17" (windows 32-bit), "6.17/x64" (windows 64-bit), "6.17/OSX64" (macOS 64-bit Intel), "6.17/OSX" (macOS 32-bit), "6.17/macOS-arm64", "6.17/linux-x86_64", "6.17/linux-i686", "6.17/linux-aarch64", "6.17/linux-armv7l", etc
-*char GetAppVersion: *fn () callconv(.C) const;
+*c_char GetAppVersion: *fn () callconv(.C) const;
 
 /// GetArmedCommand
 /// gets the currently armed command and section name (returns 0 if nothing armed). section name is empty-string for main section.
-GetArmedCommand: *fn (*char secOut, int secOut_sz) callconv(.C) int;
+GetArmedCommand: *fn (*c_char secOut, int secOut_sz) callconv(.C) int;
 
 /// GetAudioAccessorEndTime
 /// Get the end time of the audio that can be returned from this accessor. See CreateTakeAudioAccessor, CreateTrackAudioAccessor, DestroyAudioAccessor, AudioAccessorStateChanged, GetAudioAccessorStartTime, GetAudioAccessorSamples.
@@ -735,7 +735,7 @@ GetAudioAccessorEndTime: *fn (*AudioAccessor accessor) callconv(.C) double;
 
 /// GetAudioAccessorHash
 /// Deprecated. See AudioAccessorStateChanged instead.
-GetAudioAccessorHash: *fn (*AudioAccessor accessor, *char hashNeed128) callconv(.C) void;
+GetAudioAccessorHash: *fn (*AudioAccessor accessor, *c_char hashNeed128) callconv(.C) void;
 
 /// GetAudioAccessorSamples
 /// Get a block of samples from the audio accessor. Samples are extracted immediately pre-FX, and returned interleaved (first sample of first channel, first sample of second channel...). Returns 0 if no audio, 1 if audio, -1 on error. See CreateTakeAudioAccessor, CreateTrackAudioAccessor, DestroyAudioAccessor, AudioAccessorStateChanged, GetAudioAccessorStartTime, GetAudioAccessorEndTime.// 
@@ -758,7 +758,7 @@ GetAudioAccessorStartTime: *fn (*AudioAccessor accessor) callconv(.C) double;
 
 /// GetAudioDeviceInfo
 /// get information about the currently open audio device. attribute can be MODE, IDENT_IN, IDENT_OUT, BSIZE, SRATE, BPS. returns false if unknown attribute or device not open.
-GetAudioDeviceInfo: *fn (const *char attribute, *char descOut, int descOut_sz) callconv(.C) bool;
+GetAudioDeviceInfo: *fn (const *c_char attribute, *c_char descOut, int descOut_sz) callconv(.C) bool;
 
 /// GetColorTheme
 /// Deprecated, see GetColorThemeStruct.
@@ -770,7 +770,7 @@ GetColorThemeStruct: *fn (*int szOut) callconv(.C) *void;
 
 /// GetConfigWantsDock
 /// gets the dock ID desired by ident_str, if any
-GetConfigWantsDock: *fn (const *char ident_str) callconv(.C) int;
+GetConfigWantsDock: *fn (const *c_char ident_str) callconv(.C) int;
 
 /// GetContextMenu
 /// gets context menus. submenu 0:trackctl, 1:mediaitems, 2:ruler, 3:empty track area
@@ -818,10 +818,10 @@ GetDisplayedMediaItemColor2: *fn (*MediaItem item, *MediaItem_Take take) callcon
 /// I_HWOUT_IDX : int : 1-based index of hardware output in P_TRACK or 0 if not a hardware output
 /// I_RECV_IDX : int : 1-based index of receive in P_DESTTRACK or 0 if not a send/receive
 /// 
-GetEnvelopeInfo_Value: *fn (*TrackEnvelope env, const *char parmname) callconv(.C) double;
+GetEnvelopeInfo_Value: *fn (*TrackEnvelope env, const *c_char parmname) callconv(.C) double;
 
 /// GetEnvelopeName
-GetEnvelopeName: *fn (*TrackEnvelope env, *char bufOut, int bufOut_sz) callconv(.C) bool;
+GetEnvelopeName: *fn (*TrackEnvelope env, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// GetEnvelopePoint
 /// Get the attributes of an envelope point. See GetEnvelopePointEx.
@@ -855,7 +855,7 @@ GetEnvelopeScalingMode: *fn (*TrackEnvelope env) callconv(.C) int;
 
 /// GetEnvelopeStateChunk
 /// Gets the RPPXML state of an envelope, returns true if successful. Undo flag is a performance/caching hint.
-GetEnvelopeStateChunk: *fn (*TrackEnvelope env, *char strNeedBig, int strNeedBig_sz, bool isundoOptional) callconv(.C) bool;
+GetEnvelopeStateChunk: *fn (*TrackEnvelope env, *c_char strNeedBig, int strNeedBig_sz, bool isundoOptional) callconv(.C) bool;
 
 /// GetEnvelopeUIState
 /// gets information on the UI state of an envelope: returns &1 if automation/modulation is playing back, &2 if automation is being actively written, &4 if the envelope recently had an effective automation mode change
@@ -863,11 +863,11 @@ GetEnvelopeUIState: *fn (*TrackEnvelope env) callconv(.C) int;
 
 /// GetExePath
 /// returns path of REAPER.exe (not including EXE), i.e. C:\Program Files\REAPER
-*char GetExePath: *fn () callconv(.C) const;
+*c_char GetExePath: *fn () callconv(.C) const;
 
 /// GetExtState
 /// Get the extended state value for a specific section and key. See SetExtState, DeleteExtState, HasExtState.
-*char GetExtState: *fn (const *char section, const *char key) callconv(.C) const;
+*c_char GetExtState: *fn (const *c_char section, const *c_char key) callconv(.C) const;
 
 /// GetFocusedFX
 /// This function is deprecated (returns GetFocusedFX2()&3), see GetTouchedOrFocusedFX.
@@ -895,11 +895,11 @@ GetHZoomLevel: *fn () callconv(.C) double;
 
 /// GetIconThemePointer
 /// returns a named icontheme entry
-GetIconThemePointer: *fn (const *char name) callconv(.C) *void;
+GetIconThemePointer: *fn (const *c_char name) callconv(.C) *void;
 
 /// GetIconThemePointerForDPI
 /// returns a named icontheme entry for a given DPI-scaling (256=1:1). Note: the return value should not be stored, it should be queried at each paint! Querying name=NULL returns the start of the structure
-GetIconThemePointerForDPI: *fn (const *char name, int dpisc) callconv(.C) *void;
+GetIconThemePointerForDPI: *fn (const *c_char name, int dpisc) callconv(.C) *void;
 
 /// GetIconThemeStruct
 /// returns a pointer to the icon theme (icontheme.h) and the size of that struct
@@ -910,7 +910,7 @@ GetIconThemeStruct: *fn (*int szOut) callconv(.C) *void;
 GetInputActivityLevel: *fn (int input_id) callconv(.C) double;
 
 /// GetInputChannelName
-*char GetInputChannelName: *fn (int channelIndex) callconv(.C) const;
+*c_char GetInputChannelName: *fn (int channelIndex) callconv(.C) const;
 
 /// GetInputOutputLatency
 /// Gets the audio device input/output latency in samples
@@ -929,10 +929,10 @@ GetItemProjectContext: *fn (*MediaItem item) callconv(.C) *ReaProject;
 
 /// GetItemStateChunk
 /// Gets the RPPXML state of an item, returns true if successful. Undo flag is a performance/caching hint.
-GetItemStateChunk: *fn (*MediaItem item, *char strNeedBig, int strNeedBig_sz, bool isundoOptional) callconv(.C) bool;
+GetItemStateChunk: *fn (*MediaItem item, *c_char strNeedBig, int strNeedBig_sz, bool isundoOptional) callconv(.C) bool;
 
 /// GetLastColorThemeFile
-*char GetLastColorThemeFile: *fn () callconv(.C) const;
+*c_char GetLastColorThemeFile: *fn () callconv(.C) const;
 
 /// GetLastMarkerAndCurRegion
 /// Get the last project marker before time, and/or the project region that includes time. markeridx and regionidx are returned not necessarily as the displayed marker/region index, but as the index that can be passed to EnumProjectMarkers. Either or both of markeridx and regionidx may be NULL. See EnumProjectMarkers.
@@ -968,7 +968,7 @@ GetMaxMidiOutputs: *fn () callconv(.C) int;
 
 /// GetMediaFileMetadata
 /// Get text-based metadata from a media file for a given identifier. Call with identifier="" to list all identifiers contained in the file, separated by newlines. May return "[Binary data]" for metadata that REAPER doesn't handle.
-GetMediaFileMetadata: *fn (*PCM_source mediaSource, const *char identifier, *char bufOutNeedBig, int bufOutNeedBig_sz) callconv(.C) int;
+GetMediaFileMetadata: *fn (*PCM_source mediaSource, const *c_char identifier, *c_char bufOutNeedBig, int bufOutNeedBig_sz) callconv(.C) int;
 
 /// GetMediaItem
 /// get an item from a project by item count (zero-based) (proj=0 for active project)
@@ -982,14 +982,14 @@ GetMediaItem_Track: *fn (*MediaItem item) callconv(.C) *MediaTrack;
 /// Get media item numerical-value attributes.
 /// B_MUTE : bool * : muted (item solo overrides). setting this value will clear C_MUTE_SOLO.
 /// B_MUTE_ACTUAL : bool * : muted (ignores solo). setting this value will not affect C_MUTE_SOLO.
-/// C_LANEPLAYS : char * : in fixed lane tracks, 0=this item lane does not play, 1=this item lane plays exclusively, 2=this item lane plays and other lanes also play, -1=this item is on a non-visible, non-playing lane on a non-fixed-lane track (read-only)
-/// C_MUTE_SOLO : char * : solo override (-1=soloed, 0=no override, 1=unsoloed). note that this API does not automatically unsolo other items when soloing (nor clear the unsolos when clearing the last soloed item), it must be done by the caller via action or via this API.
+/// C_LANEPLAYS : c_char * : in fixed lane tracks, 0=this item lane does not play, 1=this item lane plays exclusively, 2=this item lane plays and other lanes also play, -1=this item is on a non-visible, non-playing lane on a non-fixed-lane track (read-only)
+/// C_MUTE_SOLO : c_char * : solo override (-1=soloed, 0=no override, 1=unsoloed). note that this API does not automatically unsolo other items when soloing (nor clear the unsolos when clearing the last soloed item), it must be done by the caller via action or via this API.
 /// B_LOOPSRC : bool * : loop source
 /// B_ALLTAKESPLAY : bool * : all takes play
 /// B_UISEL : bool * : selected in arrange view
-/// C_BEATATTACHMODE : char * : item timebase, -1=track or project default, 1=beats (position, length, rate), 2=beats (position only). for auto-stretch timebase: C_BEATATTACHMODE=1, C_AUTOSTRETCH=1
-/// C_AUTOSTRETCH: : char * : auto-stretch at project tempo changes, 1=enabled, requires C_BEATATTACHMODE=1
-/// C_LOCK : char * : locked, &1=locked
+/// C_BEATATTACHMODE : c_char * : item timebase, -1=track or project default, 1=beats (position, length, rate), 2=beats (position only). for auto-stretch timebase: C_BEATATTACHMODE=1, C_AUTOSTRETCH=1
+/// C_AUTOSTRETCH: : c_char * : auto-stretch at project tempo changes, 1=enabled, requires C_BEATATTACHMODE=1
+/// C_LOCK : c_char * : locked, &1=locked
 /// D_VOL : double * : item volume,  0=-inf, 0.5=-6dB, 1=+0dB, 2=+6dB, etc
 /// D_POSITION : double * : item position in seconds
 /// D_LENGTH : double * : item length in seconds
@@ -1014,7 +1014,7 @@ GetMediaItem_Track: *fn (*MediaItem item) callconv(.C) *MediaTrack;
 /// B_FIXEDLANE_HIDDEN : bool * : true if displaying only one fixed lane and this item is in a different lane (read-only)
 /// P_TRACK : MediaTrack * : (read-only)
 /// 
-GetMediaItemInfo_Value: *fn (*MediaItem item, const *char parmname) callconv(.C) double;
+GetMediaItemInfo_Value: *fn (*MediaItem item, const *c_char parmname) callconv(.C) double;
 
 /// GetMediaItemNumTakes
 GetMediaItemNumTakes: *fn (*MediaItem item) callconv(.C) int;
@@ -1064,14 +1064,14 @@ GetMediaItemTake_Track: *fn (*MediaItem_Take take) callconv(.C) *MediaTrack;
 /// P_ITEM : pointer to MediaItem (read-only)
 /// P_SOURCE : PCM_source *. Note that if setting this, you should first retrieve the old source, set the new, THEN delete the old.
 /// 
-GetMediaItemTakeInfo_Value: *fn (*MediaItem_Take take, const *char parmname) callconv(.C) double;
+GetMediaItemTakeInfo_Value: *fn (*MediaItem_Take take, const *c_char parmname) callconv(.C) double;
 
 /// GetMediaItemTrack
 GetMediaItemTrack: *fn (*MediaItem item) callconv(.C) *MediaTrack;
 
 /// GetMediaSourceFileName
 /// Copies the media source filename to filenamebuf. Note that in-project MIDI media sources have no associated filename. See GetMediaSourceParent.
-GetMediaSourceFileName: *fn (*PCM_source source, *char filenamebufOut, int filenamebufOut_sz) callconv(.C) void;
+GetMediaSourceFileName: *fn (*PCM_source source, *c_char filenamebufOut, int filenamebufOut_sz) callconv(.C) void;
 
 /// GetMediaSourceLength
 /// Returns the length of the source media. If the media source is beat-based, the length will be in quarter notes, otherwise it will be in seconds.
@@ -1091,7 +1091,7 @@ GetMediaSourceSampleRate: *fn (*PCM_source source) callconv(.C) int;
 
 /// GetMediaSourceType
 /// copies the media source type ("WAV", "MIDI", etc) to typebuf
-GetMediaSourceType: *fn (*PCM_source source, *char typebufOut, int typebufOut_sz) callconv(.C) void;
+GetMediaSourceType: *fn (*PCM_source source, *c_char typebufOut, int typebufOut_sz) callconv(.C) void;
 
 /// GetMediaTrackInfo_Value
 /// Get track numerical-value attributes.
@@ -1142,15 +1142,15 @@ GetMediaSourceType: *fn (*PCM_source source, *char typebufOut, int typebufOut_sz
 /// B_SHOWINMIXER : bool * : track control panel visible in mixer (do not use on master track)
 /// B_SHOWINTCP : bool * : track control panel visible in arrange view (do not use on master track)
 /// B_MAINSEND : bool * : track sends audio to parent
-/// C_MAINSEND_OFFS : char * : channel offset of track send to parent
-/// C_MAINSEND_NCH : char * : channel count of track send to parent (0=use all child track channels, 1=use one channel only)
+/// C_MAINSEND_OFFS : c_char * : channel offset of track send to parent
+/// C_MAINSEND_NCH : c_char * : channel count of track send to parent (0=use all child track channels, 1=use one channel only)
 /// I_FREEMODE : int * : 1=track free item positioning enabled, 2=track fixed lanes enabled (call UpdateTimeline() after changing)
 /// I_NUMFIXEDLANES : int * : number of track fixed lanes (fine to call with setNewValue, but returned value is read-only)
-/// C_LANESCOLLAPSED : char * : fixed lane collapse state (1=lanes collapsed, 2=track displays as non-fixed-lanes but hidden lanes exist)
-/// C_LANESETTINGS : char * : fixed lane settings (&1=auto-remove empty lanes at bottom, &2=do not auto-comp new recording, &4=newly recorded lanes play exclusively (else add lanes in layers), &8=big lanes (else small lanes), &16=add new recording at bottom (else record into first available lane), &32=hide lane buttons
-/// C_LANEPLAYS:N : char * :  on fixed lane tracks, 0=lane N does not play, 1=lane N plays exclusively, 2=lane N plays and other lanes also play (fine to call with setNewValue, but returned value is read-only)
-/// C_ALLLANESPLAY : char * : on fixed lane tracks, 0=no lanes play, 1=all lanes play, 2=some lanes play (fine to call with setNewValue 0 or 1, but returned value is read-only)
-/// C_BEATATTACHMODE : char * : track timebase, -1=project default, 0=time, 1=beats (position, length, rate), 2=beats (position only)
+/// C_LANESCOLLAPSED : c_char * : fixed lane collapse state (1=lanes collapsed, 2=track displays as non-fixed-lanes but hidden lanes exist)
+/// C_LANESETTINGS : c_char * : fixed lane settings (&1=auto-remove empty lanes at bottom, &2=do not auto-comp new recording, &4=newly recorded lanes play exclusively (else add lanes in layers), &8=big lanes (else small lanes), &16=add new recording at bottom (else record into first available lane), &32=hide lane buttons
+/// C_LANEPLAYS:N : c_char * :  on fixed lane tracks, 0=lane N does not play, 1=lane N plays exclusively, 2=lane N plays and other lanes also play (fine to call with setNewValue, but returned value is read-only)
+/// C_ALLLANESPLAY : c_char * : on fixed lane tracks, 0=no lanes play, 1=all lanes play, 2=some lanes play (fine to call with setNewValue 0 or 1, but returned value is read-only)
+/// C_BEATATTACHMODE : c_char * : track timebase, -1=project default, 0=time, 1=beats (position, length, rate), 2=beats (position only)
 /// F_MCP_FXSEND_SCALE : float * : scale of fx+send area in MCP (0=minimum allowed, 1=maximum allowed)
 /// F_MCP_FXPARM_SCALE : float * : scale of fx parameter area in MCP (0=minimum allowed, 1=maximum allowed)
 /// F_MCP_SENDRGN_SCALE : float * : scale of send area as proportion of the fx+send total area (0=minimum allowed, 1=maximum allowed)
@@ -1160,15 +1160,15 @@ GetMediaSourceType: *fn (*PCM_source source, *char typebufOut, int typebufOut_sz
 /// P_PARTRACK : MediaTrack * : parent track (read-only)
 /// P_PROJECT : ReaProject * : parent project (read-only)
 /// 
-GetMediaTrackInfo_Value: *fn (*MediaTrack tr, const *char parmname) callconv(.C) double;
+GetMediaTrackInfo_Value: *fn (*MediaTrack tr, const *c_char parmname) callconv(.C) double;
 
 /// GetMIDIInputName
 /// returns true if device present
-GetMIDIInputName: *fn (int dev, *char nameout, int nameout_sz) callconv(.C) bool;
+GetMIDIInputName: *fn (int dev, *c_char nameout, int nameout_sz) callconv(.C) bool;
 
 /// GetMIDIOutputName
 /// returns true if device present
-GetMIDIOutputName: *fn (int dev, *char nameout, int nameout_sz) callconv(.C) bool;
+GetMIDIOutputName: *fn (int dev, *c_char nameout, int nameout_sz) callconv(.C) bool;
 
 /// GetMixerScroll
 /// Get the leftmost track visible in the mixer
@@ -1181,7 +1181,7 @@ GetMixerScroll: *fn () callconv(.C) *MediaTrack;
 /// Note: the action string may have a space and 'c' or 'm' appended to it to specify command ID vs mouse modifier ID.
 /// See SetMouseModifier for more information.
 /// 
-GetMouseModifier: *fn (const *char context, int modifier_flag, *char actionOut, int actionOut_sz) callconv(.C) void;
+GetMouseModifier: *fn (const *c_char context, int modifier_flag, *c_char actionOut, int actionOut_sz) callconv(.C) void;
 
 /// GetMousePosition
 /// get mouse position in screen coordinates
@@ -1212,10 +1212,10 @@ GetNumTracks: *fn () callconv(.C) int;
 
 /// GetOS
 /// Returns "Win32", "Win64", "OSX32", "OSX64", "macOS-arm64", or "Other".
-*char GetOS: *fn () callconv(.C) const;
+*c_char GetOS: *fn () callconv(.C) const;
 
 /// GetOutputChannelName
-*char GetOutputChannelName: *fn (int channelIndex) callconv(.C) const;
+*c_char GetOutputChannelName: *fn (int channelIndex) callconv(.C) const;
 
 /// GetOutputLatency
 /// returns output latency in seconds
@@ -1226,15 +1226,15 @@ GetParentTrack: *fn (*MediaTrack track) callconv(.C) *MediaTrack;
 
 /// GetPeakFileName
 /// get the peak file name for a given file (can be either filename.reapeaks,or a hashed filename in another path)
-GetPeakFileName: *fn (const *char fn, *char bufOut, int bufOut_sz) callconv(.C) void;
+GetPeakFileName: *fn (const *c_char fn, *c_char bufOut, int bufOut_sz) callconv(.C) void;
 
 /// GetPeakFileNameEx
 /// get the peak file name for a given file (can be either filename.reapeaks,or a hashed filename in another path)
-GetPeakFileNameEx: *fn (const *char fn, *char buf, int buf_sz, bool forWrite) callconv(.C) void;
+GetPeakFileNameEx: *fn (const *c_char fn, *c_char buf, int buf_sz, bool forWrite) callconv(.C) void;
 
 /// GetPeakFileNameEx2
 /// Like GetPeakFileNameEx, but you can specify peaksfileextension such as ".reapeaks"
-GetPeakFileNameEx2: *fn (const *char fn, *char buf, int buf_sz, bool forWrite, const *char peaksfileextension) callconv(.C) void;
+GetPeakFileNameEx2: *fn (const *c_char fn, *c_char buf, int buf_sz, bool forWrite, const *c_char peaksfileextension) callconv(.C) void;
 
 /// GetPeaksBitmap
 /// see note in reaper_plugin.h about PCM_source_peaktransfer_t::samplerate
@@ -1281,15 +1281,15 @@ GetPreferredDiskWriteMode: *fn (*int mode, *int nb, *int bs) callconv(.C) void;
 GetProjectLength: *fn (*ReaProject proj) callconv(.C) double;
 
 /// GetProjectName
-GetProjectName: *fn (*ReaProject proj, *char bufOut, int bufOut_sz) callconv(.C) void;
+GetProjectName: *fn (*ReaProject proj, *c_char bufOut, int bufOut_sz) callconv(.C) void;
 
 /// GetProjectPath
 /// Get the project recording path.
-GetProjectPath: *fn (*char bufOut, int bufOut_sz) callconv(.C) void;
+GetProjectPath: *fn (*c_char bufOut, int bufOut_sz) callconv(.C) void;
 
 /// GetProjectPathEx
 /// Get the project recording path.
-GetProjectPathEx: *fn (*ReaProject proj, *char bufOut, int bufOut_sz) callconv(.C) void;
+GetProjectPathEx: *fn (*ReaProject proj, *c_char bufOut, int bufOut_sz) callconv(.C) void;
 
 /// GetProjectStateChangeCount
 /// returns an integer that changes when the project state changes
@@ -1310,11 +1310,11 @@ GetProjectTimeSignature2: *fn (*ReaProject proj, *double bpmOut, *double bpiOut)
 
 /// GetProjExtState
 /// Get the value previously associated with this extname and key, the last time the project was saved. See SetProjExtState, EnumProjExtState.
-GetProjExtState: *fn (*ReaProject proj, const *char extname, const *char key, *char valOutNeedBig, int valOutNeedBig_sz) callconv(.C) int;
+GetProjExtState: *fn (*ReaProject proj, const *c_char extname, const *c_char key, *c_char valOutNeedBig, int valOutNeedBig_sz) callconv(.C) int;
 
 /// GetResourcePath
 /// returns path where ini files are stored, other things are in subdirectories.
-*char GetResourcePath: *fn () callconv(.C) const;
+*c_char GetResourcePath: *fn () callconv(.C) const;
 
 /// GetSelectedEnvelope
 /// get the currently selected envelope, returns NULL/nil if no envelope is selected
@@ -1359,50 +1359,50 @@ GetSet_LoopTimeRange2: *fn (*ReaProject proj, bool isSet, bool isLoop, *double s
 /// D_UISEL : double * : nonzero if the automation item is selected in the arrange view
 /// D_POOL_QNLEN : double * : automation item pooled source length in quarter notes (setting will affect all pooled instances)
 /// 
-GetSetAutomationItemInfo: *fn (*TrackEnvelope env, int autoitem_idx, const *char desc, double value, bool is_set) callconv(.C) double;
+GetSetAutomationItemInfo: *fn (*TrackEnvelope env, int autoitem_idx, const *c_char desc, double value, bool is_set) callconv(.C) double;
 
 /// GetSetAutomationItemInfo_String
 /// Get or set automation item information. autoitem_idx=0 for the first automation item on an envelope, 1 for the second item, etc. returns true on success. desc can be any of the following:
-/// P_POOL_NAME : char * : name of the underlying automation item pool
-/// P_POOL_EXT:xyz : char * : extension-specific persistent data
+/// P_POOL_NAME : c_char * : name of the underlying automation item pool
+/// P_POOL_EXT:xyz : c_char * : extension-specific persistent data
 /// 
-GetSetAutomationItemInfo_String: *fn (*TrackEnvelope env, int autoitem_idx, const *char desc, *char valuestrNeedBig, bool is_set) callconv(.C) bool;
+GetSetAutomationItemInfo_String: *fn (*TrackEnvelope env, int autoitem_idx, const *c_char desc, *c_char valuestrNeedBig, bool is_set) callconv(.C) bool;
 
 /// GetSetEnvelopeInfo_String
 /// Gets/sets an attribute string:
-/// P_EXT:xyz : char * : extension-specific persistent data
+/// P_EXT:xyz : c_char * : extension-specific persistent data
 /// GUID : GUID * : 16-byte GUID, can query only, not set. If using a _String() function, GUID is a string {xyz-...}.
 /// 
-GetSetEnvelopeInfo_String: *fn (*TrackEnvelope env, const *char parmname, *char stringNeedBig, bool setNewValue) callconv(.C) bool;
+GetSetEnvelopeInfo_String: *fn (*TrackEnvelope env, const *c_char parmname, *c_char stringNeedBig, bool setNewValue) callconv(.C) bool;
 
 /// GetSetEnvelopeState
 /// deprecated -- see SetEnvelopeStateChunk, GetEnvelopeStateChunk
-GetSetEnvelopeState: *fn (*TrackEnvelope env, *char str, int str_sz) callconv(.C) bool;
+GetSetEnvelopeState: *fn (*TrackEnvelope env, *c_char str, int str_sz) callconv(.C) bool;
 
 /// GetSetEnvelopeState2
 /// deprecated -- see SetEnvelopeStateChunk, GetEnvelopeStateChunk
-GetSetEnvelopeState2: *fn (*TrackEnvelope env, *char str, int str_sz, bool isundo) callconv(.C) bool;
+GetSetEnvelopeState2: *fn (*TrackEnvelope env, *c_char str, int str_sz, bool isundo) callconv(.C) bool;
 
 /// GetSetItemState
 /// deprecated -- see SetItemStateChunk, GetItemStateChunk
-GetSetItemState: *fn (*MediaItem item, *char str, int str_sz) callconv(.C) bool;
+GetSetItemState: *fn (*MediaItem item, *c_char str, int str_sz) callconv(.C) bool;
 
 /// GetSetItemState2
 /// deprecated -- see SetItemStateChunk, GetItemStateChunk
-GetSetItemState2: *fn (*MediaItem item, *char str, int str_sz, bool isundo) callconv(.C) bool;
+GetSetItemState2: *fn (*MediaItem item, *c_char str, int str_sz, bool isundo) callconv(.C) bool;
 
 /// GetSetMediaItemInfo
 /// P_TRACK : MediaTrack * : (read-only)
 /// B_MUTE : bool * : muted (item solo overrides). setting this value will clear C_MUTE_SOLO.
 /// B_MUTE_ACTUAL : bool * : muted (ignores solo). setting this value will not affect C_MUTE_SOLO.
-/// C_LANEPLAYS : char * : in fixed lane tracks, 0=this item lane does not play, 1=this item lane plays exclusively, 2=this item lane plays and other lanes also play, -1=this item is on a non-visible, non-playing lane on a non-fixed-lane track (read-only)
-/// C_MUTE_SOLO : char * : solo override (-1=soloed, 0=no override, 1=unsoloed). note that this API does not automatically unsolo other items when soloing (nor clear the unsolos when clearing the last soloed item), it must be done by the caller via action or via this API.
+/// C_LANEPLAYS : c_char * : in fixed lane tracks, 0=this item lane does not play, 1=this item lane plays exclusively, 2=this item lane plays and other lanes also play, -1=this item is on a non-visible, non-playing lane on a non-fixed-lane track (read-only)
+/// C_MUTE_SOLO : c_char * : solo override (-1=soloed, 0=no override, 1=unsoloed). note that this API does not automatically unsolo other items when soloing (nor clear the unsolos when clearing the last soloed item), it must be done by the caller via action or via this API.
 /// B_LOOPSRC : bool * : loop source
 /// B_ALLTAKESPLAY : bool * : all takes play
 /// B_UISEL : bool * : selected in arrange view
-/// C_BEATATTACHMODE : char * : item timebase, -1=track or project default, 1=beats (position, length, rate), 2=beats (position only). for auto-stretch timebase: C_BEATATTACHMODE=1, C_AUTOSTRETCH=1
-/// C_AUTOSTRETCH: : char * : auto-stretch at project tempo changes, 1=enabled, requires C_BEATATTACHMODE=1
-/// C_LOCK : char * : locked, &1=locked
+/// C_BEATATTACHMODE : c_char * : item timebase, -1=track or project default, 1=beats (position, length, rate), 2=beats (position only). for auto-stretch timebase: C_BEATATTACHMODE=1, C_AUTOSTRETCH=1
+/// C_AUTOSTRETCH: : c_char * : auto-stretch at project tempo changes, 1=enabled, requires C_BEATATTACHMODE=1
+/// C_LOCK : c_char * : locked, &1=locked
 /// D_VOL : double * : item volume,  0=-inf, 0.5=-6dB, 1=+0dB, 2=+6dB, etc
 /// D_POSITION : double * : item position in seconds
 /// D_LENGTH : double * : item length in seconds
@@ -1425,26 +1425,26 @@ GetSetItemState2: *fn (*MediaItem item, *char str, int str_sz, bool isundo) call
 /// F_FREEMODE_H : float * : free item positioning or fixed lane height. 0.5=half the track height, 1.0=full track height
 /// I_FIXEDLANE : int * : fixed lane of item (fine to call with setNewValue, but returned value is read-only)
 /// B_FIXEDLANE_HIDDEN : bool * : true if displaying only one fixed lane and this item is in a different lane (read-only)
-/// P_NOTES : char * : item note text (do not write to returned pointer, use setNewValue to update)
-/// P_EXT:xyz : char * : extension-specific persistent data
+/// P_NOTES : c_char * : item note text (do not write to returned pointer, use setNewValue to update)
+/// P_EXT:xyz : c_char * : extension-specific persistent data
 /// GUID : GUID * : 16-byte GUID, can query or update. If using a _String() function, GUID is a string {xyz-...}.
 /// 
-GetSetMediaItemInfo: *fn (*MediaItem item, const *char parmname, *void setNewValue) callconv(.C) *void;
+GetSetMediaItemInfo: *fn (*MediaItem item, const *c_char parmname, *void setNewValue) callconv(.C) *void;
 
 /// GetSetMediaItemInfo_String
 /// Gets/sets an item attribute string:
-/// P_NOTES : char * : item note text (do not write to returned pointer, use setNewValue to update)
-/// P_EXT:xyz : char * : extension-specific persistent data
+/// P_NOTES : c_char * : item note text (do not write to returned pointer, use setNewValue to update)
+/// P_EXT:xyz : c_char * : extension-specific persistent data
 /// GUID : GUID * : 16-byte GUID, can query or update. If using a _String() function, GUID is a string {xyz-...}.
 /// 
-GetSetMediaItemInfo_String: *fn (*MediaItem item, const *char parmname, *char stringNeedBig, bool setNewValue) callconv(.C) bool;
+GetSetMediaItemInfo_String: *fn (*MediaItem item, const *c_char parmname, *c_char stringNeedBig, bool setNewValue) callconv(.C) bool;
 
 /// GetSetMediaItemTakeInfo
 /// P_TRACK : pointer to MediaTrack (read-only)
 /// P_ITEM : pointer to MediaItem (read-only)
 /// P_SOURCE : PCM_source *. Note that if setting this, you should first retrieve the old source, set the new, THEN delete the old.
-/// P_NAME : char * : take name
-/// P_EXT:xyz : char * : extension-specific persistent data
+/// P_NAME : c_char * : take name
+/// P_EXT:xyz : c_char * : extension-specific persistent data
 /// GUID : GUID * : 16-byte GUID, can query or update. If using a _String() function, GUID is a string {xyz-...}.
 /// D_STARTOFFS : double * : start offset in source media, in seconds
 /// D_VOL : double * : take volume, 0=-inf, 0.5=-6dB, 1=+0dB, 2=+6dB, etc, negative if take polarity is flipped
@@ -1464,31 +1464,31 @@ GetSetMediaItemInfo_String: *fn (*MediaItem item, const *char parmname, *char st
 /// I_CUSTOMCOLOR : int * : custom color, OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
 /// IP_TAKENUMBER : int : take number (read-only, returns the take number directly)
 /// 
-GetSetMediaItemTakeInfo: *fn (*MediaItem_Take tk, const *char parmname, *void setNewValue) callconv(.C) *void;
+GetSetMediaItemTakeInfo: *fn (*MediaItem_Take tk, const *c_char parmname, *void setNewValue) callconv(.C) *void;
 
 /// GetSetMediaItemTakeInfo_String
 /// Gets/sets a take attribute string:
-/// P_NAME : char * : take name
-/// P_EXT:xyz : char * : extension-specific persistent data
+/// P_NAME : c_char * : take name
+/// P_EXT:xyz : c_char * : extension-specific persistent data
 /// GUID : GUID * : 16-byte GUID, can query or update. If using a _String() function, GUID is a string {xyz-...}.
 /// 
-GetSetMediaItemTakeInfo_String: *fn (*MediaItem_Take tk, const *char parmname, *char stringNeedBig, bool setNewValue) callconv(.C) bool;
+GetSetMediaItemTakeInfo_String: *fn (*MediaItem_Take tk, const *c_char parmname, *c_char stringNeedBig, bool setNewValue) callconv(.C) bool;
 
 /// GetSetMediaTrackInfo
 /// Get or set track attributes.
 /// P_PARTRACK : MediaTrack * : parent track (read-only)
 /// P_PROJECT : ReaProject * : parent project (read-only)
-/// P_NAME : char * : track name (on master returns NULL)
-/// P_ICON : const char * : track icon (full filename, or relative to resource_path/data/track_icons)
-/// P_LANENAME:n : char * : lane name (returns NULL for non-fixed-lane-tracks)
-/// P_MCP_LAYOUT : const char * : layout name
-/// P_RAZOREDITS : const char * : list of razor edit areas, as space-separated triples of start time, end time, and envelope GUID string.
+/// P_NAME : c_char * : track name (on master returns NULL)
+/// P_ICON : const c_char * : track icon (full filename, or relative to resource_path/data/track_icons)
+/// P_LANENAME:n : c_char * : lane name (returns NULL for non-fixed-lane-tracks)
+/// P_MCP_LAYOUT : const c_char * : layout name
+/// P_RAZOREDITS : const c_char * : list of razor edit areas, as space-separated triples of start time, end time, and envelope GUID string.
 ///   Example: "0.0 1.0 \"\" 0.0 1.0 "{xyz-...}"
-/// P_RAZOREDITS_EXT : const char * : list of razor edit areas, as comma-separated sets of space-separated tuples of start time, end time, optional: envelope GUID string, fixed/fipm top y-position, fixed/fipm bottom y-position.
+/// P_RAZOREDITS_EXT : const c_char * : list of razor edit areas, as comma-separated sets of space-separated tuples of start time, end time, optional: envelope GUID string, fixed/fipm top y-position, fixed/fipm bottom y-position.
 ///   Example: "0.0 1.0,0.0 1.0 "{xyz-...}",1.0 2.0 "" 0.25 0.75"
-/// P_TCP_LAYOUT : const char * : layout name
-/// P_EXT:xyz : char * : extension-specific persistent data
-/// P_UI_RECT:tcp.mute : char * : read-only, allows querying screen position + size of track WALTER elements (tcp.size queries screen position and size of entire TCP, etc).
+/// P_TCP_LAYOUT : const c_char * : layout name
+/// P_EXT:xyz : c_char * : extension-specific persistent data
+/// P_UI_RECT:tcp.mute : c_char * : read-only, allows querying screen position + size of track WALTER elements (tcp.size queries screen position and size of entire TCP, etc).
 /// GUID : GUID * : 16-byte GUID, can query or update. If using a _String() function, GUID is a string {xyz-...}.
 /// B_MUTE : bool * : muted
 /// B_PHASE : bool * : track phase inverted
@@ -1537,15 +1537,15 @@ GetSetMediaItemTakeInfo_String: *fn (*MediaItem_Take tk, const *char parmname, *
 /// B_SHOWINMIXER : bool * : track control panel visible in mixer (do not use on master track)
 /// B_SHOWINTCP : bool * : track control panel visible in arrange view (do not use on master track)
 /// B_MAINSEND : bool * : track sends audio to parent
-/// C_MAINSEND_OFFS : char * : channel offset of track send to parent
-/// C_MAINSEND_NCH : char * : channel count of track send to parent (0=use all child track channels, 1=use one channel only)
+/// C_MAINSEND_OFFS : c_char * : channel offset of track send to parent
+/// C_MAINSEND_NCH : c_char * : channel count of track send to parent (0=use all child track channels, 1=use one channel only)
 /// I_FREEMODE : int * : 1=track free item positioning enabled, 2=track fixed lanes enabled (call UpdateTimeline() after changing)
 /// I_NUMFIXEDLANES : int * : number of track fixed lanes (fine to call with setNewValue, but returned value is read-only)
-/// C_LANESCOLLAPSED : char * : fixed lane collapse state (1=lanes collapsed, 2=track displays as non-fixed-lanes but hidden lanes exist)
-/// C_LANESETTINGS : char * : fixed lane settings (&1=auto-remove empty lanes at bottom, &2=do not auto-comp new recording, &4=newly recorded lanes play exclusively (else add lanes in layers), &8=big lanes (else small lanes), &16=add new recording at bottom (else record into first available lane), &32=hide lane buttons
-/// C_LANEPLAYS:N : char * :  on fixed lane tracks, 0=lane N does not play, 1=lane N plays exclusively, 2=lane N plays and other lanes also play (fine to call with setNewValue, but returned value is read-only)
-/// C_ALLLANESPLAY : char * : on fixed lane tracks, 0=no lanes play, 1=all lanes play, 2=some lanes play (fine to call with setNewValue 0 or 1, but returned value is read-only)
-/// C_BEATATTACHMODE : char * : track timebase, -1=project default, 0=time, 1=beats (position, length, rate), 2=beats (position only)
+/// C_LANESCOLLAPSED : c_char * : fixed lane collapse state (1=lanes collapsed, 2=track displays as non-fixed-lanes but hidden lanes exist)
+/// C_LANESETTINGS : c_char * : fixed lane settings (&1=auto-remove empty lanes at bottom, &2=do not auto-comp new recording, &4=newly recorded lanes play exclusively (else add lanes in layers), &8=big lanes (else small lanes), &16=add new recording at bottom (else record into first available lane), &32=hide lane buttons
+/// C_LANEPLAYS:N : c_char * :  on fixed lane tracks, 0=lane N does not play, 1=lane N plays exclusively, 2=lane N plays and other lanes also play (fine to call with setNewValue, but returned value is read-only)
+/// C_ALLLANESPLAY : c_char * : on fixed lane tracks, 0=no lanes play, 1=all lanes play, 2=some lanes play (fine to call with setNewValue 0 or 1, but returned value is read-only)
+/// C_BEATATTACHMODE : c_char * : track timebase, -1=project default, 0=time, 1=beats (position, length, rate), 2=beats (position only)
 /// F_MCP_FXSEND_SCALE : float * : scale of fx+send area in MCP (0=minimum allowed, 1=maximum allowed)
 /// F_MCP_FXPARM_SCALE : float * : scale of fx parameter area in MCP (0=minimum allowed, 1=maximum allowed)
 /// F_MCP_SENDRGN_SCALE : float * : scale of send area as proportion of the fx+send total area (0=minimum allowed, 1=maximum allowed)
@@ -1553,41 +1553,41 @@ GetSetMediaItemTakeInfo_String: *fn (*MediaItem_Take tk, const *char parmname, *
 /// I_PLAY_OFFSET_FLAG : int * : track media playback offset state, &1=bypassed, &2=offset value is measured in samples (otherwise measured in seconds)
 /// D_PLAY_OFFSET : double * : track media playback offset, units depend on I_PLAY_OFFSET_FLAG
 /// 
-GetSetMediaTrackInfo: *fn (*MediaTrack tr, const *char parmname, *void setNewValue) callconv(.C) *void;
+GetSetMediaTrackInfo: *fn (*MediaTrack tr, const *c_char parmname, *void setNewValue) callconv(.C) *void;
 
 /// GetSetMediaTrackInfo_String
 /// Get or set track string attributes.
-/// P_NAME : char * : track name (on master returns NULL)
-/// P_ICON : const char * : track icon (full filename, or relative to resource_path/data/track_icons)
-/// P_LANENAME:n : char * : lane name (returns NULL for non-fixed-lane-tracks)
-/// P_MCP_LAYOUT : const char * : layout name
-/// P_RAZOREDITS : const char * : list of razor edit areas, as space-separated triples of start time, end time, and envelope GUID string.
+/// P_NAME : c_char * : track name (on master returns NULL)
+/// P_ICON : const c_char * : track icon (full filename, or relative to resource_path/data/track_icons)
+/// P_LANENAME:n : c_char * : lane name (returns NULL for non-fixed-lane-tracks)
+/// P_MCP_LAYOUT : const c_char * : layout name
+/// P_RAZOREDITS : const c_char * : list of razor edit areas, as space-separated triples of start time, end time, and envelope GUID string.
 ///   Example: "0.0 1.0 \"\" 0.0 1.0 "{xyz-...}"
-/// P_RAZOREDITS_EXT : const char * : list of razor edit areas, as comma-separated sets of space-separated tuples of start time, end time, optional: envelope GUID string, fixed/fipm top y-position, fixed/fipm bottom y-position.
+/// P_RAZOREDITS_EXT : const c_char * : list of razor edit areas, as comma-separated sets of space-separated tuples of start time, end time, optional: envelope GUID string, fixed/fipm top y-position, fixed/fipm bottom y-position.
 ///   Example: "0.0 1.0,0.0 1.0 "{xyz-...}",1.0 2.0 "" 0.25 0.75"
-/// P_TCP_LAYOUT : const char * : layout name
-/// P_EXT:xyz : char * : extension-specific persistent data
-/// P_UI_RECT:tcp.mute : char * : read-only, allows querying screen position + size of track WALTER elements (tcp.size queries screen position and size of entire TCP, etc).
+/// P_TCP_LAYOUT : const c_char * : layout name
+/// P_EXT:xyz : c_char * : extension-specific persistent data
+/// P_UI_RECT:tcp.mute : c_char * : read-only, allows querying screen position + size of track WALTER elements (tcp.size queries screen position and size of entire TCP, etc).
 /// GUID : GUID * : 16-byte GUID, can query or update. If using a _String() function, GUID is a string {xyz-...}.
 /// 
-GetSetMediaTrackInfo_String: *fn (*MediaTrack tr, const *char parmname, *char stringNeedBig, bool setNewValue) callconv(.C) bool;
+GetSetMediaTrackInfo_String: *fn (*MediaTrack tr, const *c_char parmname, *c_char stringNeedBig, bool setNewValue) callconv(.C) bool;
 
 /// GetSetObjectState
 /// get or set the state of a {track,item,envelope} as an RPPXML chunk
 /// str="" to get the chunk string returned (must call FreeHeapPtr when done)
 /// supply str to set the state (returns zero)
-GetSetObjectState: *fn (*void obj, const *char str) callconv(.C) *char;
+GetSetObjectState: *fn (*void obj, const *c_char str) callconv(.C) *c_char;
 
 /// GetSetObjectState2
 /// get or set the state of a {track,item,envelope} as an RPPXML chunk
 /// str="" to get the chunk string returned (must call FreeHeapPtr when done)
 /// supply str to set the state (returns zero)
 /// set isundo if the state will be used for undo purposes (which may allow REAPER to get the state more efficiently
-GetSetObjectState2: *fn (*void obj, const *char str, bool isundo) callconv(.C) *char;
+GetSetObjectState2: *fn (*void obj, const *c_char str, bool isundo) callconv(.C) *c_char;
 
 /// GetSetProjectAuthor
 /// deprecated, see GetSetProjectInfo_String with desc="PROJECT_AUTHOR"
-GetSetProjectAuthor: *fn (*ReaProject proj, bool set, *char author, int author_sz) callconv(.C) void;
+GetSetProjectAuthor: *fn (*ReaProject proj, bool set, *c_char author, int author_sz) callconv(.C) void;
 
 /// GetSetProjectGrid
 /// Get or set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc. swingmode can be 1 for swing enabled, swingamt is -1..1. swingmode can be 3 for measure-grid. Returns grid configuration flags
@@ -1615,7 +1615,7 @@ GetSetProjectGrid: *fn (*ReaProject project, bool set, *double divisionInOutOpti
 /// PROJECT_SRATE : samplerate (ignored unless PROJECT_SRATE_USE set)
 /// PROJECT_SRATE_USE : set to 1 if project samplerate is used
 /// 
-GetSetProjectInfo: *fn (*ReaProject project, const *char desc, double value, bool is_set) callconv(.C) double;
+GetSetProjectInfo: *fn (*ReaProject project, const *c_char desc, double value, bool is_set) callconv(.C) double;
 
 /// GetSetProjectInfo_String
 /// Get or set project information.
@@ -1638,11 +1638,11 @@ GetSetProjectInfo: *fn (*ReaProject project, const *char desc, double value, boo
 /// RENDER_FORMAT : base64-encoded sink configuration (see project files, etc). Callers can also pass a simple 4-byte string (non-base64-encoded), e.g. "evaw" or "l3pm", to use default settings for that sink type.
 /// RENDER_FORMAT2 : base64-encoded secondary sink configuration. Callers can also pass a simple 4-byte string (non-base64-encoded), e.g. "evaw" or "l3pm", to use default settings for that sink type, or "" to disable secondary render.
 /// 
-GetSetProjectInfo_String: *fn (*ReaProject project, const *char desc, *char valuestrNeedBig, bool is_set) callconv(.C) bool;
+GetSetProjectInfo_String: *fn (*ReaProject project, const *c_char desc, *c_char valuestrNeedBig, bool is_set) callconv(.C) bool;
 
 /// GetSetProjectNotes
 /// gets or sets project notes, notesNeedBig_sz is ignored when setting
-GetSetProjectNotes: *fn (*ReaProject proj, bool set, *char notesNeedBig, int notesNeedBig_sz) callconv(.C) void;
+GetSetProjectNotes: *fn (*ReaProject proj, bool set, *c_char notesNeedBig, int notesNeedBig_sz) callconv(.C) void;
 
 /// GetSetRepeat
 /// -1 == query,0=clear,1=set,>1=toggle . returns new value
@@ -1682,7 +1682,7 @@ GetSetRepeatEx: *fn (*ReaProject proj, int val) callconv(.C) int;
 /// 
 /// Note: REAPER v6.11 and earlier used _MASTER and _SLAVE rather than _LEAD and _FOLLOW, which is deprecated but still supported (scripts that must support v6.11 and earlier can use the deprecated strings).
 /// 
-int GetSetTrackGroupMembership: *fn (*MediaTrack tr, const *char groupname, unsigned int setmask, unsigned int setvalue) callconv(.C) unsigned;
+int GetSetTrackGroupMembership: *fn (*MediaTrack tr, const *c_char groupname, unsigned int setmask, unsigned int setvalue) callconv(.C) unsigned;
 
 /// GetSetTrackGroupMembershipHigh
 /// Gets or modifies the group membership for a track. Returns group state prior to call (each bit represents one of the high 32 group numbers). if setmask has bits set, those bits in setvalue will be applied to group. Group can be one of:
@@ -1714,11 +1714,11 @@ int GetSetTrackGroupMembership: *fn (*MediaTrack tr, const *char groupname, unsi
 /// 
 /// Note: REAPER v6.11 and earlier used _MASTER and _SLAVE rather than _LEAD and _FOLLOW, which is deprecated but still supported (scripts that must support v6.11 and earlier can use the deprecated strings).
 /// 
-int GetSetTrackGroupMembershipHigh: *fn (*MediaTrack tr, const *char groupname, unsigned int setmask, unsigned int setvalue) callconv(.C) unsigned;
+int GetSetTrackGroupMembershipHigh: *fn (*MediaTrack tr, const *c_char groupname, unsigned int setmask, unsigned int setvalue) callconv(.C) unsigned;
 
 /// GetSetTrackMIDISupportFile
-/// Get or set the filename for storage of various track MIDI characteristics. 0=MIDI colormap image file, 1 or 2=MIDI bank/program select file (2=set new default). If fn != NULL, a new track MIDI storage file will be set; otherwise the existing track MIDI storage file will be returned. 
-*char GetSetTrackMIDISupportFile: *fn (*ReaProject proj, *MediaTrack track, int which, const *char filename) callconv(.C) const;
+/// Get or set the filename for storage of various track MIDI c_characteristics. 0=MIDI colormap image file, 1 or 2=MIDI bank/program select file (2=set new default). If fn != NULL, a new track MIDI storage file will be set; otherwise the existing track MIDI storage file will be returned. 
+*c_char GetSetTrackMIDISupportFile: *fn (*ReaProject proj, *MediaTrack track, int which, const *c_char filename) callconv(.C) const;
 
 /// GetSetTrackSendInfo
 /// Get or set send/receive/hardware output attributes.
@@ -1728,7 +1728,7 @@ int GetSetTrackGroupMembershipHigh: *fn (*MediaTrack tr, const *char groupname, 
 /// P_DESTTRACK : MediaTrack * : destination track, only applies for sends/recvs (read-only)
 /// P_SRCTRACK : MediaTrack * : source track, only applies for sends/recvs (read-only)
 /// P_ENV:<envchunkname : TrackEnvelope * : call with :<VOLENV, :<PANENV, etc appended (read-only)
-/// P_EXT:xyz : char * : extension-specific persistent data
+/// P_EXT:xyz : c_char * : extension-specific persistent data
 /// B_MUTE : bool *
 /// B_PHASE : bool * : true to flip phase
 /// B_MONO : bool *
@@ -1741,21 +1741,21 @@ int GetSetTrackGroupMembershipHigh: *fn (*MediaTrack tr, const *char groupname, 
 /// I_DSTCHAN : int * : low 10 bits are destination index, &1024 set to mix to mono.
 /// I_MIDIFLAGS : int * : low 5 bits=source channel 0=all, 1-16, 31=MIDI send disabled, next 5 bits=dest channel, 0=orig, 1-16=chan. &1024 for faders-send MIDI vol/pan. (>>14)&255 = src bus (0 for all, 1 for normal, 2+). (>>22)&255=destination bus (0 for all, 1 for normal, 2+)
 /// See CreateTrackSend, RemoveTrackSend.
-GetSetTrackSendInfo: *fn (*MediaTrack tr, int category, int sendidx, const *char parmname, *void setNewValue) callconv(.C) *void;
+GetSetTrackSendInfo: *fn (*MediaTrack tr, int category, int sendidx, const *c_char parmname, *void setNewValue) callconv(.C) *void;
 
 /// GetSetTrackSendInfo_String
 /// Gets/sets a send attribute string:
-/// P_EXT:xyz : char * : extension-specific persistent data
+/// P_EXT:xyz : c_char * : extension-specific persistent data
 /// 
-GetSetTrackSendInfo_String: *fn (*MediaTrack tr, int category, int sendidx, const *char parmname, *char stringNeedBig, bool setNewValue) callconv(.C) bool;
+GetSetTrackSendInfo_String: *fn (*MediaTrack tr, int category, int sendidx, const *c_char parmname, *c_char stringNeedBig, bool setNewValue) callconv(.C) bool;
 
 /// GetSetTrackState
 /// deprecated -- see SetTrackStateChunk, GetTrackStateChunk
-GetSetTrackState: *fn (*MediaTrack track, *char str, int str_sz) callconv(.C) bool;
+GetSetTrackState: *fn (*MediaTrack track, *c_char str, int str_sz) callconv(.C) bool;
 
 /// GetSetTrackState2
 /// deprecated -- see SetTrackStateChunk, GetTrackStateChunk
-GetSetTrackState2: *fn (*MediaTrack track, *char str, int str_sz, bool isundo) callconv(.C) bool;
+GetSetTrackState2: *fn (*MediaTrack track, *c_char str, int str_sz, bool isundo) callconv(.C) bool;
 
 /// GetSubProjectFromSource
 GetSubProjectFromSource: *fn (*PCM_source src) callconv(.C) *ReaProject;
@@ -1768,15 +1768,15 @@ GetSubProjectFromSource: *fn (*PCM_source src) callconv(.C) *ReaProject;
 GetTakeEnvelope: *fn (*MediaItem_Take take, int envidx) callconv(.C) *TrackEnvelope;
 
 /// GetTakeEnvelopeByName
-GetTakeEnvelopeByName: *fn (*MediaItem_Take take, const *char envname) callconv(.C) *TrackEnvelope;
+GetTakeEnvelopeByName: *fn (*MediaItem_Take take, const *c_char envname) callconv(.C) *TrackEnvelope;
 
 /// GetTakeMarker
 /// Get information about a take marker. Returns the position in media item source time, or -1 if the take marker does not exist. See GetNumTakeMarkers, SetTakeMarker, DeleteTakeMarker
-GetTakeMarker: *fn (*MediaItem_Take take, int idx, *char nameOut, int nameOut_sz, *int colorOutOptional) callconv(.C) double;
+GetTakeMarker: *fn (*MediaItem_Take take, int idx, *c_char nameOut, int nameOut_sz, *int colorOutOptional) callconv(.C) double;
 
 /// GetTakeName
 /// returns NULL if the take is not valid
-*char GetTakeName: *fn (*MediaItem_Take take) callconv(.C) const;
+*c_char GetTakeName: *fn (*MediaItem_Take take) callconv(.C) const;
 
 /// GetTakeNumStretchMarkers
 /// Returns number of stretch markers in take
@@ -1804,11 +1804,11 @@ GetTempoTimeSigMarker: *fn (*ReaProject proj, int ptidx, *double timeposOut, *in
 
 /// GetThemeColor
 /// Returns the theme color specified, or -1 on failure. If the low bit of flags is set, the color as originally specified by the theme (before any transformations) is returned, otherwise the current (possibly transformed and modified) color is returned. See SetThemeColor for a list of valid ini_key.
-GetThemeColor: *fn (const *char ini_key, int flagsOptional) callconv(.C) int;
+GetThemeColor: *fn (const *c_char ini_key, int flagsOptional) callconv(.C) int;
 
 /// GetThingFromPoint
 /// Hit tests a point in screen coordinates. Updates infoOut with information such as "arrange", "fx_chain", "fx_0" (first FX in chain, floating), "spacer_0" (spacer before first track). If a track panel is hit, string will begin with "tcp" or "mcp" or "tcp.mute" etc (future versions may append additional information). May return NULL with valid info string to indicate non-track thing.
-GetThingFromPoint: *fn (int screen_x, int screen_y, *char infoOut, int infoOut_sz) callconv(.C) *MediaTrack;
+GetThingFromPoint: *fn (int screen_x, int screen_y, *c_char infoOut, int infoOut_sz) callconv(.C) *MediaTrack;
 
 /// GetToggleCommandState
 /// See GetToggleCommandStateEx.
@@ -1855,10 +1855,10 @@ GetTrackEnvelope: *fn (*MediaTrack track, int envidx) callconv(.C) *TrackEnvelop
 /// GetTrackEnvelopeByChunkName
 /// Gets a built-in track envelope by configuration chunk name, like "<VOLENV", or GUID string, like "{B577250D-146F-B544-9B34-F24FBE488F1F}".
 /// 
-GetTrackEnvelopeByChunkName: *fn (*MediaTrack tr, const *char cfgchunkname_or_guid) callconv(.C) *TrackEnvelope;
+GetTrackEnvelopeByChunkName: *fn (*MediaTrack tr, const *c_char cfgchunkname_or_guid) callconv(.C) *TrackEnvelope;
 
 /// GetTrackEnvelopeByName
-GetTrackEnvelopeByName: *fn (*MediaTrack track, const *char envname) callconv(.C) *TrackEnvelope;
+GetTrackEnvelopeByName: *fn (*MediaTrack track, const *c_char envname) callconv(.C) *TrackEnvelope;
 
 /// GetTrackFromPoint
 /// Returns the track from the screen coordinates specified. If the screen coordinates refer to a window associated to the track (such as FX), the track will be returned. infoOutOptional will be set to 1 if it is likely an envelope, 2 if it is likely a track FX. For a free item positioning or fixed lane track, the second byte of infoOutOptional will be set to the (approximate, for fipm tracks) item lane underneath the mouse. See GetThingFromPoint.
@@ -1882,29 +1882,29 @@ GetTrackGUID: *fn (*MediaTrack tr) callconv(.C) *GUID;
 /// &256=rec monitoring auto
 /// &512=hide from TCP
 /// &1024=hide from MCP
-*char GetTrackInfo: *fn (INT_PTR track, *int flags) callconv(.C) const;
+*c_char GetTrackInfo: *fn (INT_PTR track, *int flags) callconv(.C) const;
 
 /// GetTrackMediaItem
 GetTrackMediaItem: *fn (*MediaTrack tr, int itemidx) callconv(.C) *MediaItem;
 
 /// GetTrackMIDILyrics
 /// Get all MIDI lyrics on the track. Lyrics will be returned as one string with tabs between each word. flag&1: double tabs at the end of each measure and triple tabs when skipping measures, flag&2: each lyric is preceded by its beat position in the project (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See SetTrackMIDILyrics
-GetTrackMIDILyrics: *fn (*MediaTrack track, int flag, *char bufOutWantNeedBig, *int bufOutWantNeedBig_sz) callconv(.C) bool;
+GetTrackMIDILyrics: *fn (*MediaTrack track, int flag, *c_char bufOutWantNeedBig, *int bufOutWantNeedBig_sz) callconv(.C) bool;
 
 /// GetTrackMIDINoteName
 /// see GetTrackMIDINoteNameEx
-*char GetTrackMIDINoteName: *fn (int track, int pitch, int chan) callconv(.C) const;
+*c_char GetTrackMIDINoteName: *fn (int track, int pitch, int chan) callconv(.C) const;
 
 /// GetTrackMIDINoteNameEx
 /// Get note/CC name. pitch 128 for CC0 name, 129 for CC1 name, etc. See SetTrackMIDINoteNameEx
-*char GetTrackMIDINoteNameEx: *fn (*ReaProject proj, *MediaTrack track, int pitch, int chan) callconv(.C) const;
+*c_char GetTrackMIDINoteNameEx: *fn (*ReaProject proj, *MediaTrack track, int pitch, int chan) callconv(.C) const;
 
 /// GetTrackMIDINoteRange
 GetTrackMIDINoteRange: *fn (*ReaProject proj, *MediaTrack track, *int note_loOut, *int note_hiOut) callconv(.C) void;
 
 /// GetTrackName
 /// Returns "MASTER" for master track, "Track N" if track has no name.
-GetTrackName: *fn (*MediaTrack track, *char bufOut, int bufOut_sz) callconv(.C) bool;
+GetTrackName: *fn (*MediaTrack track, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// GetTrackNumMediaItems
 GetTrackNumMediaItems: *fn (*MediaTrack tr) callconv(.C) int;
@@ -1915,7 +1915,7 @@ GetTrackNumSends: *fn (*MediaTrack tr, int category) callconv(.C) int;
 
 /// GetTrackReceiveName
 /// See GetTrackSendName.
-GetTrackReceiveName: *fn (*MediaTrack track, int recv_index, *char bufOut, int bufOut_sz) callconv(.C) bool;
+GetTrackReceiveName: *fn (*MediaTrack track, int recv_index, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// GetTrackReceiveUIMute
 /// See GetTrackSendUIMute.
@@ -1944,11 +1944,11 @@ GetTrackReceiveUIVolPan: *fn (*MediaTrack track, int recv_index, *double volumeO
 /// P_SRCTRACK : MediaTrack * : source track, only applies for sends/recvs (read-only)
 /// P_ENV:<envchunkname : TrackEnvelope * : call with :<VOLENV, :<PANENV, etc appended (read-only)
 /// See CreateTrackSend, RemoveTrackSend, GetTrackNumSends.
-GetTrackSendInfo_Value: *fn (*MediaTrack tr, int category, int sendidx, const *char parmname) callconv(.C) double;
+GetTrackSendInfo_Value: *fn (*MediaTrack tr, int category, int sendidx, const *c_char parmname) callconv(.C) double;
 
 /// GetTrackSendName
 /// send_idx>=0 for hw ouputs, >=nb_of_hw_ouputs for sends. See GetTrackReceiveName.
-GetTrackSendName: *fn (*MediaTrack track, int send_index, *char bufOut, int bufOut_sz) callconv(.C) bool;
+GetTrackSendName: *fn (*MediaTrack track, int send_index, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// GetTrackSendUIMute
 /// send_idx>=0 for hw ouputs, >=nb_of_hw_ouputs for sends. See GetTrackReceiveUIMute.
@@ -1972,11 +1972,11 @@ GetTrackSendUIVolPan: *fn (*MediaTrack track, int send_index, *double volumeOut,
 /// &256=rec monitoring auto
 /// &512=hide from TCP
 /// &1024=hide from MCP
-*char GetTrackState: *fn (*MediaTrack track, *int flagsOut) callconv(.C) const;
+*c_char GetTrackState: *fn (*MediaTrack track, *int flagsOut) callconv(.C) const;
 
 /// GetTrackStateChunk
 /// Gets the RPPXML state of a track, returns true if successful. Undo flag is a performance/caching hint.
-GetTrackStateChunk: *fn (*MediaTrack track, *char strNeedBig, int strNeedBig_sz, bool isundoOptional) callconv(.C) bool;
+GetTrackStateChunk: *fn (*MediaTrack track, *c_char strNeedBig, int strNeedBig_sz, bool isundoOptional) callconv(.C) bool;
 
 /// GetTrackUIMute
 GetTrackUIMute: *fn (*MediaTrack track, *bool muteOut) callconv(.C) bool;
@@ -1993,13 +1993,13 @@ GetUnderrunTime: *fn (unsigned *int audio_xrunOut, unsigned *int media_xrunOut, 
 
 /// GetUserFileNameForRead
 /// returns true if the user selected a valid file, false if the user canceled the dialog
-GetUserFileNameForRead: *fn (*char filenameNeed4096, const *char title, const *char defext) callconv(.C) bool;
+GetUserFileNameForRead: *fn (*c_char filenameNeed4096, const *c_char title, const *c_char defext) callconv(.C) bool;
 
 /// GetUserInputs
 /// Get values from the user.
 /// If a caption begins with *, for example "*password", the edit field will not display the input text.
 /// Maximum fields is 16. Values are returned as a comma-separated string. Returns false if the user canceled the dialog. You can supply special extra information via additional caption fields: extrawidth=XXX to increase text field width, separator=X to use a different separator for returned fields.
-GetUserInputs: *fn (const *char title, int num_inputs, const *char captions_csv, *char retvals_csv, int retvals_csv_sz) callconv(.C) bool;
+GetUserInputs: *fn (const *c_char title, int num_inputs, const *c_char captions_csv, *c_char retvals_csv, int retvals_csv_sz) callconv(.C) bool;
 
 /// GoToMarker
 /// Go to marker. If use_timeline_order==true, marker_index 1 refers to the first marker on the timeline.  If use_timeline_order==false, marker_index 1 refers to the first marker with the user-editable index of 1.
@@ -2018,29 +2018,29 @@ GR_SelectColor: *fn (HWND hwnd, *int colorOut) callconv(.C) int;
 GSC_mainwnd: *fn (int t) callconv(.C) int;
 
 /// guidToString
-/// dest should be at least 64 chars long to be safe
-guidToString: *fn (const *GUID g, *char destNeed64) callconv(.C) void;
+/// dest should be at least 64 c_chars long to be safe
+guidToString: *fn (const *GUID g, *c_char destNeed64) callconv(.C) void;
 
 /// HasExtState
 /// Returns true if there exists an extended state value for a specific section and key. See SetExtState, GetExtState, DeleteExtState.
-HasExtState: *fn (const *char section, const *char key) callconv(.C) bool;
+HasExtState: *fn (const *c_char section, const *c_char key) callconv(.C) bool;
 
 /// HasTrackMIDIPrograms
 /// returns name of track plugin that is supplying MIDI programs,or NULL if there is none
-*char HasTrackMIDIPrograms: *fn (int track) callconv(.C) const;
+*c_char HasTrackMIDIPrograms: *fn (int track) callconv(.C) const;
 
 /// HasTrackMIDIProgramsEx
 /// returns name of track plugin that is supplying MIDI programs,or NULL if there is none
-*char HasTrackMIDIProgramsEx: *fn (*ReaProject proj, *MediaTrack track) callconv(.C) const;
+*c_char HasTrackMIDIProgramsEx: *fn (*ReaProject proj, *MediaTrack track) callconv(.C) const;
 
 /// Help_Set
-Help_Set: *fn (const *char helpstring, bool is_temporary_help) callconv(.C) void;
+Help_Set: *fn (const *c_char helpstring, bool is_temporary_help) callconv(.C) void;
 
 /// HiresPeaksFromSource
 HiresPeaksFromSource: *fn (*PCM_source src, *PCM_source_peaktransfer_t block) callconv(.C) void;
 
 /// image_resolve_fn
-image_resolve_fn: *fn (const *char in, *char out, int out_sz) callconv(.C) void;
+image_resolve_fn: *fn (const *c_char in, *c_char out, int out_sz) callconv(.C) void;
 
 /// InsertAutomationItem
 /// Insert a new automation item. pool_id < 0 collects existing envelope points into the automation item; if pool_id is >= 0 the automation item will be a new instance of that pool (which will be created as an empty instance if it does not exist). Returns the index of the item, suitable for passing to other automation item API functions. See GetSetAutomationItemInfo.
@@ -2061,11 +2061,11 @@ InsertEnvelopePointEx: *fn (*TrackEnvelope envelope, int autoitem_idx, double ti
 
 /// InsertMedia
 /// mode: 0=add to current track, 1=add new track, 3=add to selected items as takes, &4=stretch/loop to fit time sel, &8=try to match tempo 1x, &16=try to match tempo 0.5x, &32=try to match tempo 2x, &64=don't preserve pitch when matching tempo, &128=no loop/section if startpct/endpct set, &256=force loop regardless of global preference for looping imported items, &512=use high word as absolute track index if mode&3==0 or mode&2048, &1024=insert into reasamplomatic on a new track (add 1 to insert on last selected track), &2048=insert into open reasamplomatic instance (add 512 to use high word as absolute track index), &4096=move to source preferred position (BWF start offset), &8192=reverse
-InsertMedia: *fn (const *char file, int mode) callconv(.C) int;
+InsertMedia: *fn (const *c_char file, int mode) callconv(.C) int;
 
 /// InsertMediaSection
 /// See InsertMedia.
-InsertMediaSection: *fn (const *char file, int mode, double startpct, double endpct, double pitchshift) callconv(.C) int;
+InsertMediaSection: *fn (const *c_char file, int mode, double startpct, double endpct, double pitchshift) callconv(.C) int;
 
 /// InsertTrackAtIndex
 /// inserts a track at idx,of course this will be clamped to 0..GetNumTracks(). wantDefaults=TRUE for default envelopes/FX,otherwise no enabled fx/env
@@ -2082,7 +2082,7 @@ IsItemTakeActiveForPlayback: *fn (*MediaItem item, *MediaItem_Take take) callcon
 /// IsMediaExtension
 /// Tests a file extension (i.e. "wav" or "mid") to see if it's a media extension.
 /// If wantOthers is set, then "RPP", "TXT" and other project-type formats will also pass.
-IsMediaExtension: *fn (const *char ext, bool wantOthers) callconv(.C) bool;
+IsMediaExtension: *fn (const *c_char ext, bool wantOthers) callconv(.C) bool;
 
 /// IsMediaItemSelected
 IsMediaItemSelected: *fn (*MediaItem item) callconv(.C) bool;
@@ -2112,7 +2112,7 @@ joystick_destroy: *fn (*joystick_device device) callconv(.C) void;
 
 /// joystick_enum
 /// enumerates installed devices, returns GUID as a string
-*char joystick_enum: *fn (int index, const *char* namestrOutOptional) callconv(.C) const;
+*c_char joystick_enum: *fn (int index, const *c_char* namestrOutOptional) callconv(.C) const;
 
 /// joystick_getaxis
 /// returns axis value (-1..1)
@@ -2135,18 +2135,18 @@ joystick_getpov: *fn (*joystick_device dev, int pov) callconv(.C) double;
 joystick_update: *fn (*joystick_device dev) callconv(.C) bool;
 
 /// kbd_enumerateActions
-kbd_enumerateActions: *fn (*KbdSectionInfo section, int idx, const *char* nameOut) callconv(.C) int;
+kbd_enumerateActions: *fn (*KbdSectionInfo section, int idx, const *c_char* nameOut) callconv(.C) int;
 
 /// kbd_formatKeyName
-kbd_formatKeyName: *fn (*ACCEL ac, *char s) callconv(.C) void;
+kbd_formatKeyName: *fn (*ACCEL ac, *c_char s) callconv(.C) void;
 
 /// kbd_getCommandName
 /// Get the string of a key assigned to command "cmd" in a section.
 /// This function is poorly named as it doesn't return the command's name, see kbd_getTextFromCmd.
-kbd_getCommandName: *fn (int cmd, *char s, *KbdSectionInfo section) callconv(.C) void;
+kbd_getCommandName: *fn (int cmd, *c_char s, *KbdSectionInfo section) callconv(.C) void;
 
 /// kbd_getTextFromCmd
-*char kbd_getTextFromCmd: *fn (int cmd, *KbdSectionInfo section) callconv(.C) const;
+*c_char kbd_getTextFromCmd: *fn (int cmd, *KbdSectionInfo section) callconv(.C) const;
 
 /// KBD_OnMainActionEx
 /// val/valhw are used for midi stuff.
@@ -2190,7 +2190,7 @@ LICE__Destroy: *fn (*LICE_IBitmap bm) callconv(.C) void;
 LICE__DestroyFont: *fn (*LICE_IFont font) callconv(.C) void;
 
 /// LICE__DrawText
-LICE__DrawText: *fn (*LICE_IFont font, *LICE_IBitmap bm, const *char str, int strcnt, *RECT rect, UINT dtFlags) callconv(.C) int;
+LICE__DrawText: *fn (*LICE_IFont font, *LICE_IBitmap bm, const *c_char str, int strcnt, *RECT rect, UINT dtFlags) callconv(.C) int;
 
 /// LICE__GetBits
 LICE__GetBits: *fn (*LICE_IBitmap bm) callconv(.C) *void;
@@ -2267,8 +2267,8 @@ LICE_Copy: *fn (*LICE_IBitmap dest, *LICE_IBitmap src) callconv(.C) void;
 /// LICE_DrawCBezier
 LICE_DrawCBezier: *fn (*LICE_IBitmap dest, double xstart, double ystart, double xctl1, double yctl1, double xctl2, double yctl2, double xend, double yend, LICE_pixel color, float alpha, int mode, bool aa, double tol) callconv(.C) void;
 
-/// LICE_DrawChar
-LICE_DrawChar: *fn (*LICE_IBitmap bm, int x, int y, char c, LICE_pixel color, float alpha, int mode) callconv(.C) void;
+/// LICE_Drawc_char
+LICE_Drawc_char: *fn (*LICE_IBitmap bm, int x, int y, c_char c, LICE_pixel color, float alpha, int mode) callconv(.C) void;
 
 /// LICE_DrawGlyph
 LICE_DrawGlyph: *fn (*LICE_IBitmap dest, int x, int y, LICE_pixel color, *LICE_pixel_chan alphas, int glyph_w, int glyph_h, float alpha, int mode) callconv(.C) void;
@@ -2277,7 +2277,7 @@ LICE_DrawGlyph: *fn (*LICE_IBitmap dest, int x, int y, LICE_pixel color, *LICE_p
 LICE_DrawRect: *fn (*LICE_IBitmap dest, int x, int y, int w, int h, LICE_pixel color, float alpha, int mode) callconv(.C) void;
 
 /// LICE_DrawText
-LICE_DrawText: *fn (*LICE_IBitmap bm, int x, int y, const *char string, LICE_pixel color, float alpha, int mode) callconv(.C) void;
+LICE_DrawText: *fn (*LICE_IBitmap bm, int x, int y, const *c_char string, LICE_pixel color, float alpha, int mode) callconv(.C) void;
 
 /// LICE_FillCBezier
 LICE_FillCBezier: *fn (*LICE_IBitmap dest, double xstart, double ystart, double xctl1, double yctl1, double xctl2, double yctl2, double xend, double yend, int yfill, LICE_pixel color, float alpha, int mode, bool aa, double tol) callconv(.C) void;
@@ -2310,13 +2310,13 @@ LICE_Line: *fn (*LICE_IBitmap dest, float x1, float y1, float x2, float y2, LICE
 LICE_LineInt: *fn (*LICE_IBitmap dest, int x1, int y1, int x2, int y2, LICE_pixel color, float alpha, int mode, bool aa) callconv(.C) void;
 
 /// LICE_LoadPNG
-*fn_IBitmap LICE_LoadPNG(const *char filename, *LICE_IBitmap bmp) callconv(.C) *LICE;
+*fn_IBitmap LICE_LoadPNG(const *c_char filename, *LICE_IBitmap bmp) callconv(.C) *LICE;
 
 /// LICE_LoadPNGFromResource
-*fn_IBitmap LICE_LoadPNGFromResource(HINSTANCE hInst, const *char resid, *LICE_IBitmap bmp) callconv(.C) *LICE;
+*fn_IBitmap LICE_LoadPNGFromResource(HINSTANCE hInst, const *c_char resid, *LICE_IBitmap bmp) callconv(.C) *LICE;
 
 /// LICE_MeasureText
-LICE_MeasureText: *fn (const *char string, *int w, *int h) callconv(.C) void;
+LICE_MeasureText: *fn (const *c_char string, *int w, *int h) callconv(.C) void;
 
 /// LICE_MultiplyAddRect
 LICE_MultiplyAddRect: *fn (*LICE_IBitmap dest, int x, int y, int w, int h, float rsc, float gsc, float bsc, float asc, float radd, float gadd, float badd, float aadd) callconv(.C) void;
@@ -2343,7 +2343,7 @@ LICE_ThickFLine: *fn (*LICE_IBitmap dest, double x1, double y1, double x2, doubl
 
 /// LocalizeString
 /// Returns a localized version of src_string, in section section. flags can have 1 set to only localize if sprintf-style formatting matches the original.
-*char LocalizeString: *fn (const *char src_string, const *char section, int flagsOptional) callconv(.C) const;
+*c_char LocalizeString: *fn (const *c_char src_string, const *c_char section, int flagsOptional) callconv(.C) const;
 
 /// Loop_OnArrow
 /// Move the loop selection left or right. Returns true if snap is enabled.
@@ -2360,7 +2360,7 @@ Main_OnCommandEx: *fn (int command, int flag, *ReaProject proj) callconv(.C) voi
 /// Main_openProject
 /// opens a project. will prompt the user to save unless name is prefixed with 'noprompt:'. If name is prefixed with 'template:', project file will be loaded as a template.
 /// If passed a .RTrackTemplate file, adds the template to the existing project.
-Main_openProject: *fn (const *char name) callconv(.C) void;
+Main_openProject: *fn (const *c_char name) callconv(.C) void;
 
 /// Main_SaveProject
 /// Save the project.
@@ -2368,7 +2368,7 @@ Main_SaveProject: *fn (*ReaProject proj, bool forceSaveAsInOptional) callconv(.C
 
 /// Main_SaveProjectEx
 /// Save the project. options: &1=save selected tracks as track template, &2=include media with track template, &4=include envelopes with track template. See Main_openProject, Main_SaveProject.
-Main_SaveProjectEx: *fn (*ReaProject proj, const *char filename, int options) callconv(.C) void;
+Main_SaveProjectEx: *fn (*ReaProject proj, const *c_char filename, int options) callconv(.C) void;
 
 /// Main_UpdateLoopInfo
 Main_UpdateLoopInfo: *fn (int ignoremask) callconv(.C) void;
@@ -2400,7 +2400,7 @@ Master_NormalizeTempo: *fn (double bpm, bool isnormalized) callconv(.C) double;
 
 /// MB
 /// type 0=OK,1=OKCANCEL,2=ABORTRETRYIGNORE,3=YESNOCANCEL,4=YESNO,5=RETRYCANCEL : ret 1=OK,2=CANCEL,3=ABORT,4=RETRY,5=IGNORE,6=YES,7=NO
-MB: *fn (const *char msg, const *char title, int type) callconv(.C) int;
+MB: *fn (const *c_char msg, const *c_char title, int type) callconv(.C) int;
 
 /// MediaItemDescendsFromTrack
 /// Returns 1 if the track holds the item, 2 if the track is a folder containing the track that holds the item, etc.
@@ -2408,7 +2408,7 @@ MediaItemDescendsFromTrack: *fn (*MediaItem item, *MediaTrack track) callconv(.C
 
 /// Menu_GetHash
 /// Get a string that only changes when menu/toolbar entries are added or removed (not re-ordered). Can be used to determine if a customized menu/toolbar differs from the default, or if the default changed after a menu/toolbar was customized. flag==0: current default menu/toolbar; flag==1: current customized menu/toolbar; flag==2: default menu/toolbar at the time the current menu/toolbar was most recently customized, if it was customized in REAPER v7.08 or later.
-Menu_GetHash: *fn (const *char menuname, int flag, *char hashOut, int hashOut_sz) callconv(.C) bool;
+Menu_GetHash: *fn (const *c_char menuname, int flag, *c_char hashOut, int hashOut_sz) callconv(.C) bool;
 
 /// MIDI_CountEvts
 /// Count the number of notes, CC events, and text/sysex events in a given MIDI item.
@@ -2459,7 +2459,7 @@ MIDI_EnumSelTextSysexEvts: *fn (*MediaItem_Take take, int textsyxidx) callconv(.
 MIDI_eventlist_Destroy: *fn (*MIDI_eventlist evtlist) callconv(.C) void;
 
 /// MIDI_GetAllEvts
-/// Get all MIDI data. MIDI buffer is returned as a list of { int offset, char flag, int msglen, unsigned char msg[] }.
+/// Get all MIDI data. MIDI buffer is returned as a list of { int offset, c_char flag, int msglen, unsigned c_char msg[] }.
 /// offset: MIDI ticks from previous event
 /// flag: &1=selected &2=muted
 /// flag high 4 bits for CC shape: &16=linear, &32=slow start/end, &16|32=fast start, &64=fast end, &64|16=bezier
@@ -2467,7 +2467,7 @@ MIDI_eventlist_Destroy: *fn (*MIDI_eventlist evtlist) callconv(.C) void;
 /// A meta-event of type 0xF followed by 'CCBZ ' and 5 more bytes represents bezier curve data for the previous MIDI event: 1 byte for the bezier type (usually 0) and 4 bytes for the bezier tension as a float.
 /// For tick intervals longer than a 32 bit word can represent, zero-length meta events may be placed between valid events.
 /// See MIDI_SetAllEvts.
-MIDI_GetAllEvts: *fn (*MediaItem_Take take, *char bufOutNeedBig, *int bufOutNeedBig_sz) callconv(.C) bool;
+MIDI_GetAllEvts: *fn (*MediaItem_Take take, *c_char bufOutNeedBig, *int bufOutNeedBig_sz) callconv(.C) bool;
 
 /// MIDI_GetCC
 /// Get MIDI CC event properties.
@@ -2479,7 +2479,7 @@ MIDI_GetCCShape: *fn (*MediaItem_Take take, int ccidx, *int shapeOut, *double be
 
 /// MIDI_GetEvt
 /// Get MIDI event properties.
-MIDI_GetEvt: *fn (*MediaItem_Take take, int evtidx, *bool selectedOut, *bool mutedOut, *double ppqposOut, *char msgOut, *int msgOut_sz) callconv(.C) bool;
+MIDI_GetEvt: *fn (*MediaItem_Take take, int evtidx, *bool selectedOut, *bool mutedOut, *double ppqposOut, *c_char msgOut, *int msgOut_sz) callconv(.C) bool;
 
 /// MIDI_GetGrid
 /// Returns the most recent MIDI editor grid size for this MIDI take, in QN. Swing is between 0 and 1. Note length is 0 if it follows the grid size.
@@ -2487,7 +2487,7 @@ MIDI_GetGrid: *fn (*MediaItem_Take take, *double swingOutOptional, *double noteL
 
 /// MIDI_GetHash
 /// Get a string that only changes when the MIDI data changes. If notesonly==true, then the string changes only when the MIDI notes change. See MIDI_GetTrackHash
-MIDI_GetHash: *fn (*MediaItem_Take take, bool notesonly, *char hashOut, int hashOut_sz) callconv(.C) bool;
+MIDI_GetHash: *fn (*MediaItem_Take take, bool notesonly, *c_char hashOut, int hashOut_sz) callconv(.C) bool;
 
 /// MIDI_GetNote
 /// Get MIDI note properties.
@@ -2519,19 +2519,19 @@ MIDI_GetProjTimeFromPPQPos: *fn (*MediaItem_Take take, double ppqpos) callconv(.
 
 /// MIDI_GetRecentInputEvent
 /// Gets a recent MIDI input event from the global history. idx=0 for the most recent event, which also latches to the latest MIDI event state (to get a more recent list, calling with idx=0 is necessary). idx=1 next most recent event, returns a non-zero sequence number for the event, or zero if no more events. tsOut will be set to the timestamp in samples relative to the current position (0 is current, -48000 is one second ago, etc). devIdxOut will have the low 16 bits set to the input device index, and 0x10000 will be set if device was enabled only for control. projPosOut will be set to project position in seconds if project was playing back at time of event, otherwise -1. Large SysEx events will not be included in this event list.
-MIDI_GetRecentInputEvent: *fn (int idx, *char bufOut, *int bufOut_sz, *int tsOut, *int devIdxOut, *double projPosOut, *int projLoopCntOut) callconv(.C) int;
+MIDI_GetRecentInputEvent: *fn (int idx, *c_char bufOut, *int bufOut_sz, *int tsOut, *int devIdxOut, *double projPosOut, *int projLoopCntOut) callconv(.C) int;
 
 /// MIDI_GetScale
 /// Get the active scale in the media source, if any. root 0=C, 1=C#, etc. scale &0x1=root, &0x2=minor 2nd, &0x4=major 2nd, &0x8=minor 3rd, &0xF=fourth, etc.
-MIDI_GetScale: *fn (*MediaItem_Take take, *int rootOut, *int scaleOut, *char nameOut, int nameOut_sz) callconv(.C) bool;
+MIDI_GetScale: *fn (*MediaItem_Take take, *int rootOut, *int scaleOut, *c_char nameOut, int nameOut_sz) callconv(.C) bool;
 
 /// MIDI_GetTextSysexEvt
 /// Get MIDI meta-event properties. Allowable types are -1:sysex (msg should not include bounding F0..F7), 1-14:MIDI text event types, 15=REAPER notation event. For all other meta-messages, type is returned as -2 and msg returned as all zeroes. See MIDI_GetEvt.
-MIDI_GetTextSysexEvt: *fn (*MediaItem_Take take, int textsyxevtidx, *bool selectedOutOptional, *bool mutedOutOptional, *double ppqposOutOptional, *int typeOutOptional, *char msgOptional, *int msgOptional_sz) callconv(.C) bool;
+MIDI_GetTextSysexEvt: *fn (*MediaItem_Take take, int textsyxevtidx, *bool selectedOutOptional, *bool mutedOutOptional, *double ppqposOutOptional, *int typeOutOptional, *c_char msgOptional, *int msgOptional_sz) callconv(.C) bool;
 
 /// MIDI_GetTrackHash
 /// Get a string that only changes when the MIDI data changes. If notesonly==true, then the string changes only when the MIDI notes change. See MIDI_GetHash
-MIDI_GetTrackHash: *fn (*MediaTrack track, bool notesonly, *char hashOut, int hashOut_sz) callconv(.C) bool;
+MIDI_GetTrackHash: *fn (*MediaTrack track, bool notesonly, *c_char hashOut, int hashOut_sz) callconv(.C) bool;
 
 /// midi_init
 /// Opens MIDI devices as configured in preferences. force_reinit_input and force_reinit_output force a particular device index to close/re-open (pass -1 to not force any devices to reopen).
@@ -2543,7 +2543,7 @@ MIDI_InsertCC: *fn (*MediaItem_Take take, bool selected, bool muted, double ppqp
 
 /// MIDI_InsertEvt
 /// Insert a new MIDI event.
-MIDI_InsertEvt: *fn (*MediaItem_Take take, bool selected, bool muted, double ppqpos, const *char bytestr, int bytestr_sz) callconv(.C) bool;
+MIDI_InsertEvt: *fn (*MediaItem_Take take, bool selected, bool muted, double ppqpos, const *c_char bytestr, int bytestr_sz) callconv(.C) bool;
 
 /// MIDI_InsertNote
 /// Insert a new MIDI note. Set noSort if inserting multiple events, then call MIDI_Sort when done.
@@ -2551,7 +2551,7 @@ MIDI_InsertNote: *fn (*MediaItem_Take take, bool selected, bool muted, double st
 
 /// MIDI_InsertTextSysexEvt
 /// Insert a new MIDI text or sysex event. Allowable types are -1:sysex (msg should not include bounding F0..F7), 1-14:MIDI text event types, 15=REAPER notation event.
-MIDI_InsertTextSysexEvt: *fn (*MediaItem_Take take, bool selected, bool muted, double ppqpos, int type, const *char bytestr, int bytestr_sz) callconv(.C) bool;
+MIDI_InsertTextSysexEvt: *fn (*MediaItem_Take take, bool selected, bool muted, double ppqpos, int type, const *c_char bytestr, int bytestr_sz) callconv(.C) bool;
 
 /// midi_reinit
 /// Reset (close and re-open) all MIDI devices
@@ -2562,7 +2562,7 @@ midi_reinit: *fn () callconv(.C) void;
 MIDI_SelectAll: *fn (*MediaItem_Take take, bool select) callconv(.C) void;
 
 /// MIDI_SetAllEvts
-/// Set all MIDI data. MIDI buffer is passed in as a list of { int offset, char flag, int msglen, unsigned char msg[] }.
+/// Set all MIDI data. MIDI buffer is passed in as a list of { int offset, c_char flag, int msglen, unsigned c_char msg[] }.
 /// offset: MIDI ticks from previous event
 /// flag: &1=selected &2=muted
 /// flag high 4 bits for CC shape: &16=linear, &32=slow start/end, &16|32=fast start, &64=fast end, &64|16=bezier
@@ -2570,7 +2570,7 @@ MIDI_SelectAll: *fn (*MediaItem_Take take, bool select) callconv(.C) void;
 /// A meta-event of type 0xF followed by 'CCBZ ' and 5 more bytes represents bezier curve data for the previous MIDI event: 1 byte for the bezier type (usually 0) and 4 bytes for the bezier tension as a float.
 /// For tick intervals longer than a 32 bit word can represent, zero-length meta events may be placed between valid events.
 /// See MIDI_GetAllEvts.
-MIDI_SetAllEvts: *fn (*MediaItem_Take take, const *char buf, int buf_sz) callconv(.C) bool;
+MIDI_SetAllEvts: *fn (*MediaItem_Take take, const *c_char buf, int buf_sz) callconv(.C) bool;
 
 /// MIDI_SetCC
 /// Set MIDI CC event properties. Properties passed as NULL will not be set. set noSort if setting multiple events, then call MIDI_Sort when done.
@@ -2582,7 +2582,7 @@ MIDI_SetCCShape: *fn (*MediaItem_Take take, int ccidx, int shape, double beztens
 
 /// MIDI_SetEvt
 /// Set MIDI event properties. Properties passed as NULL will not be set.  set noSort if setting multiple events, then call MIDI_Sort when done.
-MIDI_SetEvt: *fn (*MediaItem_Take take, int evtidx, const *bool selectedInOptional, const *bool mutedInOptional, const *double ppqposInOptional, const *char msgOptional, int msgOptional_sz, const *bool noSortInOptional) callconv(.C) bool;
+MIDI_SetEvt: *fn (*MediaItem_Take take, int evtidx, const *bool selectedInOptional, const *bool mutedInOptional, const *double ppqposInOptional, const *c_char msgOptional, int msgOptional_sz, const *bool noSortInOptional) callconv(.C) bool;
 
 /// MIDI_SetItemExtents
 /// Set the start/end positions of a media item that contains a MIDI take.
@@ -2594,7 +2594,7 @@ MIDI_SetNote: *fn (*MediaItem_Take take, int noteidx, const *bool selectedInOpti
 
 /// MIDI_SetTextSysexEvt
 /// Set MIDI text or sysex event properties. Properties passed as NULL will not be set. Allowable types are -1:sysex (msg should not include bounding F0..F7), 1-14:MIDI text event types, 15=REAPER notation event. set noSort if setting multiple events, then call MIDI_Sort when done.
-MIDI_SetTextSysexEvt: *fn (*MediaItem_Take take, int textsyxevtidx, const *bool selectedInOptional, const *bool mutedInOptional, const *double ppqposInOptional, const *int typeInOptional, const *char msgOptional, int msgOptional_sz, const *bool noSortInOptional) callconv(.C) bool;
+MIDI_SetTextSysexEvt: *fn (*MediaItem_Take take, int textsyxevtidx, const *bool selectedInOptional, const *bool mutedInOptional, const *double ppqposInOptional, const *int typeInOptional, const *c_char msgOptional, int msgOptional_sz, const *bool noSortInOptional) callconv(.C) bool;
 
 /// MIDI_Sort
 /// Sort MIDI events after multiple calls to MIDI_SetNote, MIDI_SetCC, etc.
@@ -2628,7 +2628,7 @@ MIDIEditor_GetMode: *fn (HWND midieditor) callconv(.C) int;
 /// if setting_desc is unsupported, the function returns -1.
 /// See MIDIEditor_SetSetting_int, MIDIEditor_GetActive, MIDIEditor_GetSetting_str
 /// 
-MIDIEditor_GetSetting_int: *fn (HWND midieditor, const *char setting_desc) callconv(.C) int;
+MIDIEditor_GetSetting_int: *fn (HWND midieditor, const *c_char setting_desc) callconv(.C) int;
 
 /// MIDIEditor_GetSetting_str
 /// Get settings from a MIDI editor. setting_desc can be:
@@ -2638,7 +2638,7 @@ MIDIEditor_GetSetting_int: *fn (HWND midieditor, const *char setting_desc) callc
 /// if setting_desc is unsupported, the function returns false.
 /// See MIDIEditor_GetActive, MIDIEditor_GetSetting_int
 /// 
-MIDIEditor_GetSetting_str: *fn (HWND midieditor, const *char setting_desc, *char bufOut, int bufOut_sz) callconv(.C) bool;
+MIDIEditor_GetSetting_str: *fn (HWND midieditor, const *c_char setting_desc, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// MIDIEditor_GetTake
 /// get the take that is currently being edited in this MIDI editor. see MIDIEditor_EnumTakes
@@ -2659,20 +2659,20 @@ MIDIEditor_OnCommand: *fn (HWND midieditor, int command_id) callconv(.C) bool;
 /// active_note_row: 0-127
 /// See MIDIEditor_GetSetting_int
 /// 
-MIDIEditor_SetSetting_int: *fn (HWND midieditor, const *char setting_desc, int setting) callconv(.C) bool;
+MIDIEditor_SetSetting_int: *fn (HWND midieditor, const *c_char setting_desc, int setting) callconv(.C) bool;
 
 /// MIDIEditorFlagsForTrack
 /// Get or set MIDI editor settings for this track. pitchwheelrange: semitones up or down. flags &1: snap pitch lane edits to semitones if pitchwheel range is defined.
 MIDIEditorFlagsForTrack: *fn (*MediaTrack track, *int pitchwheelrangeInOut, *int flagsInOut, bool is_set) callconv(.C) void;
 
 /// mkpanstr
-mkpanstr: *fn (*char strNeed64, double pan) callconv(.C) void;
+mkpanstr: *fn (*c_char strNeed64, double pan) callconv(.C) void;
 
 /// mkvolpanstr
-mkvolpanstr: *fn (*char strNeed64, double vol, double pan) callconv(.C) void;
+mkvolpanstr: *fn (*c_char strNeed64, double vol, double pan) callconv(.C) void;
 
 /// mkvolstr
-mkvolstr: *fn (*char strNeed64, double vol) callconv(.C) void;
+mkvolstr: *fn (*c_char strNeed64, double vol) callconv(.C) void;
 
 /// MoveEditCursor
 MoveEditCursor: *fn (double adjamt, bool dosel) callconv(.C) void;
@@ -2689,7 +2689,7 @@ my_getViewport: *fn (*RECT r, const *RECT sr, bool wantWorkArea) callconv(.C) vo
 
 /// NamedCommandLookup
 /// Get the command ID number for named command that was registered by an extension such as "_SWS_ABOUT" or "_113088d11ae641c193a2b7ede3041ad5" for a ReaScript or a custom action.
-NamedCommandLookup: *fn (const *char command_name) callconv(.C) int;
+NamedCommandLookup: *fn (const *c_char command_name) callconv(.C) int;
 
 /// OnPauseButton
 /// direct way to simulate pause button hit
@@ -2716,19 +2716,19 @@ OnStopButton: *fn () callconv(.C) void;
 OnStopButtonEx: *fn (*ReaProject proj) callconv(.C) void;
 
 /// OpenColorThemeFile
-OpenColorThemeFile: *fn (const *char fn) callconv(.C) bool;
+OpenColorThemeFile: *fn (const *c_char fn) callconv(.C) bool;
 
 /// OpenMediaExplorer
 /// Opens mediafn in the Media Explorer, play=true will play the file immediately (or toggle playback if mediafn was already open), =false will just select it.
-OpenMediaExplorer: *fn (const *char mediafn, bool play) callconv(.C) HWND;
+OpenMediaExplorer: *fn (const *c_char mediafn, bool play) callconv(.C) HWND;
 
 /// OscLocalMessageToHost
 /// Send an OSC message directly to REAPER. The value argument may be NULL. The message will be matched against the default OSC patterns.
-OscLocalMessageToHost: *fn (const *char message, const *double valueInOptional) callconv(.C) void;
+OscLocalMessageToHost: *fn (const *c_char message, const *double valueInOptional) callconv(.C) void;
 
 /// parse_timestr
 /// Parse hh:mm:ss.sss time string, return time in seconds (or 0.0 on error). See parse_timestr_pos, parse_timestr_len.
-parse_timestr: *fn (const *char buf) callconv(.C) double;
+parse_timestr: *fn (const *c_char buf) callconv(.C) double;
 
 /// parse_timestr_len
 /// time formatting mode overrides: -1=proj default.
@@ -2739,7 +2739,7 @@ parse_timestr: *fn (const *char buf) callconv(.C) double;
 /// 4=samples
 /// 5=h:m:s:f
 /// 
-parse_timestr_len: *fn (const *char buf, double offset, int modeoverride) callconv(.C) double;
+parse_timestr_len: *fn (const *c_char buf, double offset, int modeoverride) callconv(.C) double;
 
 /// parse_timestr_pos
 /// Parse time string, time formatting mode overrides: -1=proj default.
@@ -2750,31 +2750,31 @@ parse_timestr_len: *fn (const *char buf, double offset, int modeoverride) callco
 /// 4=samples
 /// 5=h:m:s:f
 /// 
-parse_timestr_pos: *fn (const *char buf, int modeoverride) callconv(.C) double;
+parse_timestr_pos: *fn (const *c_char buf, int modeoverride) callconv(.C) double;
 
 /// parsepanstr
-parsepanstr: *fn (const *char str) callconv(.C) double;
+parsepanstr: *fn (const *c_char str) callconv(.C) double;
 
 /// PCM_Sink_Create
-*fn_sink PCM_Sink_Create(const *char filename, const *char cfg, int cfg_sz, int nch, int srate, bool buildpeaks) callconv(.C) *PCM;
+*fn_sink PCM_Sink_Create(const *c_char filename, const *c_char cfg, int cfg_sz, int nch, int srate, bool buildpeaks) callconv(.C) *PCM;
 
 /// PCM_Sink_CreateEx
-*fn_sink PCM_Sink_CreateEx(*ReaProject proj, const *char filename, const *char cfg, int cfg_sz, int nch, int srate, bool buildpeaks) callconv(.C) *PCM;
+*fn_sink PCM_Sink_CreateEx(*ReaProject proj, const *c_char filename, const *c_char cfg, int cfg_sz, int nch, int srate, bool buildpeaks) callconv(.C) *PCM;
 
 /// PCM_Sink_CreateMIDIFile
-*fn_sink PCM_Sink_CreateMIDIFile(const *char filename, const *char cfg, int cfg_sz, double bpm, int div) callconv(.C) *PCM;
+*fn_sink PCM_Sink_CreateMIDIFile(const *c_char filename, const *c_char cfg, int cfg_sz, double bpm, int div) callconv(.C) *PCM;
 
 /// PCM_Sink_CreateMIDIFileEx
-*fn_sink PCM_Sink_CreateMIDIFileEx(*ReaProject proj, const *char filename, const *char cfg, int cfg_sz, double bpm, int div) callconv(.C) *PCM;
+*fn_sink PCM_Sink_CreateMIDIFileEx(*ReaProject proj, const *c_char filename, const *c_char cfg, int cfg_sz, double bpm, int div) callconv(.C) *PCM;
 
 /// PCM_Sink_Enum
-int PCM_Sink_Enum: *fn (int idx, const *char* descstrOut) callconv(.C) unsigned;
+int PCM_Sink_Enum: *fn (int idx, const *c_char* descstrOut) callconv(.C) unsigned;
 
 /// PCM_Sink_GetExtension
-*char PCM_Sink_GetExtension: *fn (const *char data, int data_sz) callconv(.C) const;
+*c_char PCM_Sink_GetExtension: *fn (const *c_char data, int data_sz) callconv(.C) const;
 
 /// PCM_Sink_ShowConfig
-PCM_Sink_ShowConfig: *fn (const *char cfg, int cfg_sz, HWND hwndParent) callconv(.C) HWND;
+PCM_Sink_ShowConfig: *fn (const *c_char cfg, int cfg_sz, HWND hwndParent) callconv(.C) HWND;
 
 /// PCM_Source_BuildPeaks
 /// Calls and returns PCM_source::PeaksBuild_Begin() if mode=0, PeaksBuild_Run() if mode=1, and PeaksBuild_Finish() if mode=2. Normal use is to call PCM_Source_BuildPeaks(src,0), and if that returns nonzero, call PCM_Source_BuildPeaks(src,1) periodically until it returns zero (it returns the percentage of the file remaining), then call PCM_Source_BuildPeaks(src,2) to finalize. If PCM_Source_BuildPeaks(src,0) returns zero, then no further action is necessary.
@@ -2782,21 +2782,21 @@ PCM_Source_BuildPeaks: *fn (*PCM_source src, int mode) callconv(.C) int;
 
 /// PCM_Source_CreateFromFile
 /// See PCM_Source_CreateFromFileEx.
-*fn_source PCM_Source_CreateFromFile(const *char filename) callconv(.C) *PCM;
+*fn_source PCM_Source_CreateFromFile(const *c_char filename) callconv(.C) *PCM;
 
 /// PCM_Source_CreateFromFileEx
 /// Create a PCM_source from filename, and override pref of MIDI files being imported as in-project MIDI events.
-*fn_source PCM_Source_CreateFromFileEx(const *char filename, bool forcenoMidiImp) callconv(.C) *PCM;
+*fn_source PCM_Source_CreateFromFileEx(const *c_char filename, bool forcenoMidiImp) callconv(.C) *PCM;
 
 /// PCM_Source_CreateFromSimple
 /// Creates a PCM_source from a ISimpleMediaDecoder
 /// (if fn is non-null, it will open the file in dec)
-*fn_source PCM_Source_CreateFromSimple(*ISimpleMediaDecoder dec, const *char fn) callconv(.C) *PCM;
+*fn_source PCM_Source_CreateFromSimple(*ISimpleMediaDecoder dec, const *c_char fn) callconv(.C) *PCM;
 
 /// PCM_Source_CreateFromType
 /// Create a PCM_source from a "type" (use this if you're going to load its state via LoadState/ProjectStateContext).
 /// Valid types include "WAVE", "MIDI", or whatever plug-ins define as well.
-*fn_source PCM_Source_CreateFromType(const *char sourcetype) callconv(.C) *PCM;
+*fn_source PCM_Source_CreateFromType(const *c_char sourcetype) callconv(.C) *PCM;
 
 /// PCM_Source_Destroy
 /// Deletes a PCM_source -- be sure that you remove any project reference before deleting a source
@@ -2811,14 +2811,14 @@ PCM_Source_GetPeaks: *fn (*PCM_source src, double peakrate, double starttime, in
 PCM_Source_GetSectionInfo: *fn (*PCM_source src, *double offsOut, *double lenOut, *bool revOut) callconv(.C) bool;
 
 /// PeakBuild_Create
-*fn_PeakBuild_Interface PeakBuild_Create(*PCM_source src, const *char fn, int srate, int nch) callconv(.C) *REAPER;
+*fn_PeakBuild_Interface PeakBuild_Create(*PCM_source src, const *c_char fn, int srate, int nch) callconv(.C) *REAPER;
 
 /// PeakBuild_CreateEx
 /// flags&1 for FP support
-*fn_PeakBuild_Interface PeakBuild_CreateEx(*PCM_source src, const *char fn, int srate, int nch, int flags) callconv(.C) *REAPER;
+*fn_PeakBuild_Interface PeakBuild_CreateEx(*PCM_source src, const *c_char fn, int srate, int nch, int flags) callconv(.C) *REAPER;
 
 /// PeakGet_Create
-*fn_PeakGet_Interface PeakGet_Create(const *char fn, int srate, int nch) callconv(.C) *REAPER;
+*fn_PeakGet_Interface PeakGet_Create(const *c_char fn, int srate, int nch) callconv(.C) *REAPER;
 
 /// PitchShiftSubModeMenu
 /// menu to select/modify pitch shifter submode, returns new value (or old value if no item selected)
@@ -2845,19 +2845,19 @@ PlayTrackPreview2: *fn (*ReaProject proj, *preview_register_t preview) callconv(
 PlayTrackPreview2Ex: *fn (*ReaProject proj, *preview_register_t preview, int flags, double measure_align) callconv(.C) int;
 
 /// plugin_getapi
-plugin_getapi: *fn (const *char name) callconv(.C) *void;
+plugin_getapi: *fn (const *c_char name) callconv(.C) *void;
 
 /// plugin_getFilterList
 /// Returns a double-NULL terminated list of importable media files, suitable for passing to GetOpenFileName() etc. Includes *.* (All files).
-*char plugin_getFilterList: *fn () callconv(.C) const;
+*c_char plugin_getFilterList: *fn () callconv(.C) const;
 
 /// plugin_getImportableProjectFilterList
 /// Returns a double-NULL terminated list of importable project files, suitable for passing to GetOpenFileName() etc. Includes *.* (All files).
-*char plugin_getImportableProjectFilterList: *fn () callconv(.C) const;
+*c_char plugin_getImportableProjectFilterList: *fn () callconv(.C) const;
 
 /// plugin_register
 /// Alias for reaper_plugin_info_t::Register, see reaper_plugin.h for documented uses.
-plugin_register: *fn (const *char name, *void infostruct) callconv(.C) int;
+plugin_register: *fn (const *c_char name, *void infostruct) callconv(.C) int;
 
 /// PluginWantsAlwaysRunFx
 PluginWantsAlwaysRunFx: *fn (int amt) callconv(.C) void;
@@ -2871,7 +2871,7 @@ projectconfig_var_addr: *fn (*ReaProject proj, int idx) callconv(.C) *void;
 
 /// projectconfig_var_getoffs
 /// returns offset to pass to projectconfig_var_addr() to get project-config var of name. szout gets size of object. can also query "__metronome_ptr" query project metronome *PCM_source* offset
-projectconfig_var_getoffs: *fn (const *char name, *int szOut) callconv(.C) int;
+projectconfig_var_getoffs: *fn (const *c_char name, *int szOut) callconv(.C) int;
 
 /// PromptForAction
 /// Uses the action list to choose an action. Call with session_mode=1 to create a session (init_id will be the initial action to select, or 0), then poll with session_mode=0, checking return value for user-selected action (will return 0 if no action selected yet, or -1 if the action window is no longer available). When finished, call with session_mode=-1.
@@ -2883,11 +2883,11 @@ realloc_cmd_clear: *fn (int tok) callconv(.C) void;
 
 /// realloc_cmd_ptr
 /// special use for NeedBig script API functions - reallocates a NeedBig buffer and updates its size, returns false on error
-realloc_cmd_ptr: *fn (*char* ptr, *int ptr_size, int new_size) callconv(.C) bool;
+realloc_cmd_ptr: *fn (*c_char* ptr, *int ptr_size, int new_size) callconv(.C) bool;
 
 /// realloc_cmd_register_buf
 /// registers a buffer/buffer-size which may be reallocated by an API (ptr/ptr_size will be updated to the new values). returns a token which should be passed to realloc_cmd_clear after API call and values are read.
-realloc_cmd_register_buf: *fn (*char* ptr, *int ptr_size) callconv(.C) int;
+realloc_cmd_register_buf: *fn (*c_char* ptr, *int ptr_size) callconv(.C) int;
 
 /// ReaperGetPitchShiftAPI
 /// version must be REAPER_PITCHSHIFT_API_VER
@@ -2895,11 +2895,11 @@ ReaperGetPitchShiftAPI: *fn (int version) callconv(.C) *IReaperPitchShift;
 
 /// ReaScriptError
 /// Causes REAPER to display the error message after the current ReaScript finishes. If called within a Lua context and errmsg has a ! prefix, script execution will be terminated.
-ReaScriptError: *fn (const *char errmsg) callconv(.C) void;
+ReaScriptError: *fn (const *c_char errmsg) callconv(.C) void;
 
 /// RecursiveCreateDirectory
 /// returns positive value on success, 0 on failure.
-RecursiveCreateDirectory: *fn (const *char path, size_t ignored) callconv(.C) int;
+RecursiveCreateDirectory: *fn (const *c_char path, size_t ignored) callconv(.C) int;
 
 /// reduce_open_files
 /// garbage-collects extra open files and closes them. if flags has 1 set, this is done incrementally (call this from a regular timer, if desired). if flags has 2 set, files are aggressively closed (they may need to be re-opened very soon). returns number of files closed by this call.
@@ -2915,7 +2915,7 @@ RefreshToolbar2: *fn (int section_id, int command_id) callconv(.C) void;
 
 /// relative_fn
 /// Makes a filename "in" relative to the current project, if any.
-relative_fn: *fn (const *char in, *char out, int out_sz) callconv(.C) void;
+relative_fn: *fn (const *c_char in, *c_char out, int out_sz) callconv(.C) void;
 
 /// RemoveTrackSend
 /// Remove a send/receive/hardware output, return true on success. category is <0 for receives, 0=sends, >0 for hardware outputs. See CreateTrackSend, GetSetTrackSendInfo, GetTrackSendInfo_Value, SetTrackSendInfo_Value, GetTrackNumSends.
@@ -2923,33 +2923,33 @@ RemoveTrackSend: *fn (*MediaTrack tr, int category, int sendidx) callconv(.C) bo
 
 /// RenderFileSection
 /// Not available while playing back.
-RenderFileSection: *fn (const *char source_filename, const *char target_filename, double start_percent, double end_percent, double playrate) callconv(.C) bool;
+RenderFileSection: *fn (const *c_char source_filename, const *c_char target_filename, double start_percent, double end_percent, double playrate) callconv(.C) bool;
 
 /// ReorderSelectedTracks
 /// Moves all selected tracks to immediately above track specified by index beforeTrackIdx, returns false if no tracks were selected. makePrevFolder=0 for normal, 1 = as child of track preceding track specified by beforeTrackIdx, 2 = if track preceding track specified by beforeTrackIdx is last track in folder, extend folder
 ReorderSelectedTracks: *fn (int beforeTrackIdx, int makePrevFolder) callconv(.C) bool;
 
 /// Resample_EnumModes
-*char Resample_EnumModes: *fn (int mode) callconv(.C) const;
+*c_char Resample_EnumModes: *fn (int mode) callconv(.C) const;
 
 /// Resampler_Create
 *fn_Resample_Interface Resampler_Create() callconv(.C) *REAPER;
 
 /// resolve_fn
 /// See resolve_fn2.
-resolve_fn: *fn (const *char in, *char out, int out_sz) callconv(.C) void;
+resolve_fn: *fn (const *c_char in, *c_char out, int out_sz) callconv(.C) void;
 
 /// resolve_fn2
 /// Resolves a filename "in" by using project settings etc. If no file found, out will be a copy of in.
-resolve_fn2: *fn (const *char in, *char out, int out_sz, const *char checkSubDirOptional) callconv(.C) void;
+resolve_fn2: *fn (const *c_char in, *c_char out, int out_sz, const *c_char checkSubDirOptional) callconv(.C) void;
 
 /// ResolveRenderPattern
 /// Resolve a wildcard pattern into a set of nul-separated, double-nul terminated render target filenames. Returns the length of the string buffer needed for the returned file list. Call with path=NULL to suppress filtering out illegal pathnames, call with targets=NULL to get just the string buffer length.
-ResolveRenderPattern: *fn (*ReaProject project, const *char path, const *char pattern, *char targets, int targets_sz) callconv(.C) int;
+ResolveRenderPattern: *fn (*ReaProject project, const *c_char path, const *c_char pattern, *c_char targets, int targets_sz) callconv(.C) int;
 
 /// ReverseNamedCommandLookup
 /// Get the named command for the given command ID. The returned string will not start with '_' (e.g. it will return "SWS_ABOUT"), it will be NULL if command_id is a native action.
-*char ReverseNamedCommandLookup: *fn (int command_id) callconv(.C) const;
+*c_char ReverseNamedCommandLookup: *fn (int command_id) callconv(.C) const;
 
 /// ScaleFromEnvelopeMode
 /// See GetEnvelopeScalingMode.
@@ -2960,13 +2960,13 @@ ScaleFromEnvelopeMode: *fn (int scaling_mode, double val) callconv(.C) double;
 ScaleToEnvelopeMode: *fn (int scaling_mode, double val) callconv(.C) double;
 
 /// screenset_register
-screenset_register: *fn (*char id, *void callbackFunc, *void param) callconv(.C) void;
+screenset_register: *fn (*c_char id, *void callbackFunc, *void param) callconv(.C) void;
 
 /// screenset_registerNew
-screenset_registerNew: *fn (*char id, screensetNewCallbackFunc callbackFunc, *void param) callconv(.C) void;
+screenset_registerNew: *fn (*c_char id, screensetNewCallbackFunc callbackFunc, *void param) callconv(.C) void;
 
 /// screenset_unregister
-screenset_unregister: *fn (*char id) callconv(.C) void;
+screenset_unregister: *fn (*c_char id) callconv(.C) void;
 
 /// screenset_unregisterByParam
 screenset_unregisterByParam: *fn (*void param) callconv(.C) void;
@@ -2985,14 +2985,14 @@ SelectProjectInstance: *fn (*ReaProject proj) callconv(.C) void;
 
 /// SendLocalOscMessage
 /// Send an OSC message to REAPER. See CreateLocalOscHandler, DestroyLocalOscHandler.
-SendLocalOscMessage: *fn (*void local_osc_handler, const *char msg, int msglen) callconv(.C) void;
+SendLocalOscMessage: *fn (*void local_osc_handler, const *c_char msg, int msglen) callconv(.C) void;
 
 /// SendMIDIMessageToHardware
 /// Sends a MIDI message to output device specified by output. Message is sent in immediate mode. Lua example of how to pack the message string:
 /// sysex = { 0xF0, 0x00, 0xF7 }
 /// msg = ""
-/// for i=1, #sysex do msg = msg .. string.char(sysex[i]) end
-SendMIDIMessageToHardware: *fn (int output, const *char msg, int msg_sz) callconv(.C) void;
+/// for i=1, #sysex do msg = msg .. string.c_char(sysex[i]) end
+SendMIDIMessageToHardware: *fn (int output, const *c_char msg, int msg_sz) callconv(.C) void;
 
 /// SetActiveTake
 /// set this take active in this media item
@@ -3031,11 +3031,11 @@ SetEnvelopePointEx: *fn (*TrackEnvelope envelope, int autoitem_idx, int ptidx, *
 
 /// SetEnvelopeStateChunk
 /// Sets the RPPXML state of an envelope, returns true if successful. Undo flag is a performance/caching hint.
-SetEnvelopeStateChunk: *fn (*TrackEnvelope env, const *char str, bool isundoOptional) callconv(.C) bool;
+SetEnvelopeStateChunk: *fn (*TrackEnvelope env, const *c_char str, bool isundoOptional) callconv(.C) bool;
 
 /// SetExtState
 /// Set the extended state value for a specific section and key. persist=true means the value should be stored and reloaded the next time REAPER is opened. See GetExtState, DeleteExtState, HasExtState.
-SetExtState: *fn (const *char section, const *char key, const *char value, bool persist) callconv(.C) void;
+SetExtState: *fn (const *c_char section, const *c_char key, const *c_char value, bool persist) callconv(.C) void;
 
 /// SetGlobalAutomationOverride
 /// mode: see GetGlobalAutomationOverride
@@ -3043,7 +3043,7 @@ SetGlobalAutomationOverride: *fn (int mode) callconv(.C) void;
 
 /// SetItemStateChunk
 /// Sets the RPPXML state of an item, returns true if successful. Undo flag is a performance/caching hint.
-SetItemStateChunk: *fn (*MediaItem item, const *char str, bool isundoOptional) callconv(.C) bool;
+SetItemStateChunk: *fn (*MediaItem item, const *c_char str, bool isundoOptional) callconv(.C) bool;
 
 /// SetMasterTrackVisibility
 /// set &1 to show the master track in the TCP, &2 to HIDE in the mixer. Returns the previous visibility state. See GetMasterTrackVisibility.
@@ -3053,14 +3053,14 @@ SetMasterTrackVisibility: *fn (int flag) callconv(.C) int;
 /// Set media item numerical-value attributes.
 /// B_MUTE : bool * : muted (item solo overrides). setting this value will clear C_MUTE_SOLO.
 /// B_MUTE_ACTUAL : bool * : muted (ignores solo). setting this value will not affect C_MUTE_SOLO.
-/// C_LANEPLAYS : char * : in fixed lane tracks, 0=this item lane does not play, 1=this item lane plays exclusively, 2=this item lane plays and other lanes also play, -1=this item is on a non-visible, non-playing lane on a non-fixed-lane track (read-only)
-/// C_MUTE_SOLO : char * : solo override (-1=soloed, 0=no override, 1=unsoloed). note that this API does not automatically unsolo other items when soloing (nor clear the unsolos when clearing the last soloed item), it must be done by the caller via action or via this API.
+/// C_LANEPLAYS : c_char * : in fixed lane tracks, 0=this item lane does not play, 1=this item lane plays exclusively, 2=this item lane plays and other lanes also play, -1=this item is on a non-visible, non-playing lane on a non-fixed-lane track (read-only)
+/// C_MUTE_SOLO : c_char * : solo override (-1=soloed, 0=no override, 1=unsoloed). note that this API does not automatically unsolo other items when soloing (nor clear the unsolos when clearing the last soloed item), it must be done by the caller via action or via this API.
 /// B_LOOPSRC : bool * : loop source
 /// B_ALLTAKESPLAY : bool * : all takes play
 /// B_UISEL : bool * : selected in arrange view
-/// C_BEATATTACHMODE : char * : item timebase, -1=track or project default, 1=beats (position, length, rate), 2=beats (position only). for auto-stretch timebase: C_BEATATTACHMODE=1, C_AUTOSTRETCH=1
-/// C_AUTOSTRETCH: : char * : auto-stretch at project tempo changes, 1=enabled, requires C_BEATATTACHMODE=1
-/// C_LOCK : char * : locked, &1=locked
+/// C_BEATATTACHMODE : c_char * : item timebase, -1=track or project default, 1=beats (position, length, rate), 2=beats (position only). for auto-stretch timebase: C_BEATATTACHMODE=1, C_AUTOSTRETCH=1
+/// C_AUTOSTRETCH: : c_char * : auto-stretch at project tempo changes, 1=enabled, requires C_BEATATTACHMODE=1
+/// C_LOCK : c_char * : locked, &1=locked
 /// D_VOL : double * : item volume,  0=-inf, 0.5=-6dB, 1=+0dB, 2=+6dB, etc
 /// D_POSITION : double * : item position in seconds
 /// D_LENGTH : double * : item length in seconds
@@ -3084,7 +3084,7 @@ SetMasterTrackVisibility: *fn (int flag) callconv(.C) int;
 /// I_FIXEDLANE : int * : fixed lane of item (fine to call with setNewValue, but returned value is read-only)
 /// B_FIXEDLANE_HIDDEN : bool * : true if displaying only one fixed lane and this item is in a different lane (read-only)
 /// 
-SetMediaItemInfo_Value: *fn (*MediaItem item, const *char parmname, double newvalue) callconv(.C) bool;
+SetMediaItemInfo_Value: *fn (*MediaItem item, const *c_char parmname, double newvalue) callconv(.C) bool;
 
 /// SetMediaItemLength
 /// Redraws the screen only if refreshUI == true.
@@ -3123,7 +3123,7 @@ SetMediaItemTake_Source: *fn (*MediaItem_Take take, *PCM_source source) callconv
 /// I_CUSTOMCOLOR : int * : custom color, OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
 /// IP_TAKENUMBER : int : take number (read-only, returns the take number directly)
 /// 
-SetMediaItemTakeInfo_Value: *fn (*MediaItem_Take take, const *char parmname, double newvalue) callconv(.C) bool;
+SetMediaItemTakeInfo_Value: *fn (*MediaItem_Take take, const *c_char parmname, double newvalue) callconv(.C) bool;
 
 /// SetMediaTrackInfo_Value
 /// Set track numerical-value attributes.
@@ -3174,15 +3174,15 @@ SetMediaItemTakeInfo_Value: *fn (*MediaItem_Take take, const *char parmname, dou
 /// B_SHOWINMIXER : bool * : track control panel visible in mixer (do not use on master track)
 /// B_SHOWINTCP : bool * : track control panel visible in arrange view (do not use on master track)
 /// B_MAINSEND : bool * : track sends audio to parent
-/// C_MAINSEND_OFFS : char * : channel offset of track send to parent
-/// C_MAINSEND_NCH : char * : channel count of track send to parent (0=use all child track channels, 1=use one channel only)
+/// C_MAINSEND_OFFS : c_char * : channel offset of track send to parent
+/// C_MAINSEND_NCH : c_char * : channel count of track send to parent (0=use all child track channels, 1=use one channel only)
 /// I_FREEMODE : int * : 1=track free item positioning enabled, 2=track fixed lanes enabled (call UpdateTimeline() after changing)
 /// I_NUMFIXEDLANES : int * : number of track fixed lanes (fine to call with setNewValue, but returned value is read-only)
-/// C_LANESCOLLAPSED : char * : fixed lane collapse state (1=lanes collapsed, 2=track displays as non-fixed-lanes but hidden lanes exist)
-/// C_LANESETTINGS : char * : fixed lane settings (&1=auto-remove empty lanes at bottom, &2=do not auto-comp new recording, &4=newly recorded lanes play exclusively (else add lanes in layers), &8=big lanes (else small lanes), &16=add new recording at bottom (else record into first available lane), &32=hide lane buttons
-/// C_LANEPLAYS:N : char * :  on fixed lane tracks, 0=lane N does not play, 1=lane N plays exclusively, 2=lane N plays and other lanes also play (fine to call with setNewValue, but returned value is read-only)
-/// C_ALLLANESPLAY : char * : on fixed lane tracks, 0=no lanes play, 1=all lanes play, 2=some lanes play (fine to call with setNewValue 0 or 1, but returned value is read-only)
-/// C_BEATATTACHMODE : char * : track timebase, -1=project default, 0=time, 1=beats (position, length, rate), 2=beats (position only)
+/// C_LANESCOLLAPSED : c_char * : fixed lane collapse state (1=lanes collapsed, 2=track displays as non-fixed-lanes but hidden lanes exist)
+/// C_LANESETTINGS : c_char * : fixed lane settings (&1=auto-remove empty lanes at bottom, &2=do not auto-comp new recording, &4=newly recorded lanes play exclusively (else add lanes in layers), &8=big lanes (else small lanes), &16=add new recording at bottom (else record into first available lane), &32=hide lane buttons
+/// C_LANEPLAYS:N : c_char * :  on fixed lane tracks, 0=lane N does not play, 1=lane N plays exclusively, 2=lane N plays and other lanes also play (fine to call with setNewValue, but returned value is read-only)
+/// C_ALLLANESPLAY : c_char * : on fixed lane tracks, 0=no lanes play, 1=all lanes play, 2=some lanes play (fine to call with setNewValue 0 or 1, but returned value is read-only)
+/// C_BEATATTACHMODE : c_char * : track timebase, -1=project default, 0=time, 1=beats (position, length, rate), 2=beats (position only)
 /// F_MCP_FXSEND_SCALE : float * : scale of fx+send area in MCP (0=minimum allowed, 1=maximum allowed)
 /// F_MCP_FXPARM_SCALE : float * : scale of fx parameter area in MCP (0=minimum allowed, 1=maximum allowed)
 /// F_MCP_SENDRGN_SCALE : float * : scale of send area as proportion of the fx+send total area (0=minimum allowed, 1=maximum allowed)
@@ -3190,7 +3190,7 @@ SetMediaItemTakeInfo_Value: *fn (*MediaItem_Take take, const *char parmname, dou
 /// I_PLAY_OFFSET_FLAG : int * : track media playback offset state, &1=bypassed, &2=offset value is measured in samples (otherwise measured in seconds)
 /// D_PLAY_OFFSET : double * : track media playback offset, units depend on I_PLAY_OFFSET_FLAG
 /// 
-SetMediaTrackInfo_Value: *fn (*MediaTrack tr, const *char parmname, double newvalue) callconv(.C) bool;
+SetMediaTrackInfo_Value: *fn (*MediaTrack tr, const *c_char parmname, double newvalue) callconv(.C) bool;
 
 /// SetMIDIEditorGrid
 /// Set the MIDI editor grid division. 0.25=quarter note, 1.0/3.0=half note tripet, etc.
@@ -3217,7 +3217,7 @@ SetMixerScroll: *fn (*MediaTrack leftmosttrack) callconv(.C) *MediaTrack;
 /// SetMouseModifier(-1, -1, -1) will reset all contexts to default.
 /// See GetMouseModifier.
 /// 
-SetMouseModifier: *fn (const *char context, int modifier_flag, const *char action) callconv(.C) void;
+SetMouseModifier: *fn (const *c_char context, int modifier_flag, const *c_char action) callconv(.C) void;
 
 /// SetOnlyTrackSelected
 /// Set exactly one track selected, deselect all others
@@ -3229,31 +3229,31 @@ SetProjectGrid: *fn (*ReaProject project, double division) callconv(.C) void;
 
 /// SetProjectMarker
 /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
-SetProjectMarker: *fn (int markrgnindexnumber, bool isrgn, double pos, double rgnend, const *char name) callconv(.C) bool;
+SetProjectMarker: *fn (int markrgnindexnumber, bool isrgn, double pos, double rgnend, const *c_char name) callconv(.C) bool;
 
 /// SetProjectMarker2
 /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
-SetProjectMarker2: *fn (*ReaProject proj, int markrgnindexnumber, bool isrgn, double pos, double rgnend, const *char name) callconv(.C) bool;
+SetProjectMarker2: *fn (*ReaProject proj, int markrgnindexnumber, bool isrgn, double pos, double rgnend, const *c_char name) callconv(.C) bool;
 
 /// SetProjectMarker3
 /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
-SetProjectMarker3: *fn (*ReaProject proj, int markrgnindexnumber, bool isrgn, double pos, double rgnend, const *char name, int color) callconv(.C) bool;
+SetProjectMarker3: *fn (*ReaProject proj, int markrgnindexnumber, bool isrgn, double pos, double rgnend, const *c_char name, int color) callconv(.C) bool;
 
 /// SetProjectMarker4
 /// color should be 0 to not change, or ColorToNative(r,g,b)|0x1000000, flags&1 to clear name
-SetProjectMarker4: *fn (*ReaProject proj, int markrgnindexnumber, bool isrgn, double pos, double rgnend, const *char name, int color, int flags) callconv(.C) bool;
+SetProjectMarker4: *fn (*ReaProject proj, int markrgnindexnumber, bool isrgn, double pos, double rgnend, const *c_char name, int color, int flags) callconv(.C) bool;
 
 /// SetProjectMarkerByIndex
 /// See SetProjectMarkerByIndex2.
-SetProjectMarkerByIndex: *fn (*ReaProject proj, int markrgnidx, bool isrgn, double pos, double rgnend, int IDnumber, const *char name, int color) callconv(.C) bool;
+SetProjectMarkerByIndex: *fn (*ReaProject proj, int markrgnidx, bool isrgn, double pos, double rgnend, int IDnumber, const *c_char name, int color) callconv(.C) bool;
 
 /// SetProjectMarkerByIndex2
 /// Differs from SetProjectMarker4 in that markrgnidx is 0 for the first marker/region, 1 for the next, etc (see EnumProjectMarkers3), rather than representing the displayed marker/region ID number (see SetProjectMarker3). Function will fail if attempting to set a duplicate ID number for a region (duplicate ID numbers for markers are OK). , flags&1 to clear name. If flags&2, markers will not be re-sorted, and after making updates, you MUST call SetProjectMarkerByIndex2 with markrgnidx=-1 and flags&2 to force re-sort/UI updates.
-SetProjectMarkerByIndex2: *fn (*ReaProject proj, int markrgnidx, bool isrgn, double pos, double rgnend, int IDnumber, const *char name, int color, int flags) callconv(.C) bool;
+SetProjectMarkerByIndex2: *fn (*ReaProject proj, int markrgnidx, bool isrgn, double pos, double rgnend, int IDnumber, const *c_char name, int color, int flags) callconv(.C) bool;
 
 /// SetProjExtState
 /// Save a key/value pair for a specific extension, to be restored the next time this specific project is loaded. Typically extname will be the name of a reascript or extension section. If key is NULL or "", all extended data for that extname will be deleted.  If val is NULL or "", the data previously associated with that key will be deleted. Returns the size of the state for this extname. See GetProjExtState, EnumProjExtState.
-SetProjExtState: *fn (*ReaProject proj, const *char extname, const *char key, const *char value) callconv(.C) int;
+SetProjExtState: *fn (*ReaProject proj, const *c_char extname, const *c_char key, const *c_char value) callconv(.C) int;
 
 /// SetRegionRenderMatrix
 /// Add (flag > 0) or remove (flag < 0) a track from this region when using the region render matrix. If adding, flag==2 means force mono, flag==4 means force stereo, flag==N means force N/2 channels.
@@ -3261,11 +3261,11 @@ SetRegionRenderMatrix: *fn (*ReaProject proj, int regionindex, *MediaTrack track
 
 /// SetRenderLastError
 /// Used by pcmsink objects to set an error to display while creating the pcmsink object.
-SetRenderLastError: *fn (const *char errorstr) callconv(.C) void;
+SetRenderLastError: *fn (const *c_char errorstr) callconv(.C) void;
 
 /// SetTakeMarker
 /// Inserts or updates a take marker. If idx<0, a take marker will be added, otherwise an existing take marker will be updated. Returns the index of the new or updated take marker (which may change if srcPos is updated). See GetNumTakeMarkers, GetTakeMarker, DeleteTakeMarker
-SetTakeMarker: *fn (*MediaItem_Take take, int idx, const *char nameIn, *double srcposInOptional, *int colorInOptional) callconv(.C) int;
+SetTakeMarker: *fn (*MediaItem_Take take, int idx, const *c_char nameIn, *double srcposInOptional, *int colorInOptional) callconv(.C) int;
 
 /// SetTakeStretchMarker
 /// Adds or updates a stretch marker. If idx<0, stretch marker will be added. If idx>=0, stretch marker will be updated. When adding, if srcposInOptional is omitted, source position will be auto-calculated. When updating a stretch marker, if srcposInOptional is omitted, srcpos will not be modified. Position/srcposition values will be constrained to nearby stretch markers. Returns index of stretch marker, or -1 if did not insert (or marker already existed at time).
@@ -3281,7 +3281,7 @@ SetTempoTimeSigMarker: *fn (*ReaProject proj, int ptidx, double timepos, int mea
 
 /// SetThemeColor
 /// Temporarily updates the theme color to the color specified (or the theme default color if -1 is specified). Returns -1 on failure, otherwise returns the color (or transformed-color). Note that the UI is not updated by this, the caller should call UpdateArrange() etc as necessary. If the low bit of flags is set, any color transformations are bypassed. To read a value see GetThemeColor.
-SetThemeColor: *fn (const *char ini_key, int color, int flagsOptional) callconv(.C) int;
+SetThemeColor: *fn (const *c_char ini_key, int color, int flagsOptional) callconv(.C) int;
 
 /// SetToggleCommandState
 /// Updates the toggle state of an action, returns true if succeeded. Only ReaScripts can have their toggle states changed programmatically. See RefreshToolbar2.
@@ -3296,15 +3296,15 @@ SetTrackColor: *fn (*MediaTrack track, int color) callconv(.C) void;
 
 /// SetTrackMIDILyrics
 /// Set all MIDI lyrics on the track. Lyrics will be stuffed into any MIDI items found in range. Flag is unused at present. str is passed in as beat position, tab, text, tab (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See GetTrackMIDILyrics
-SetTrackMIDILyrics: *fn (*MediaTrack track, int flag, const *char str) callconv(.C) bool;
+SetTrackMIDILyrics: *fn (*MediaTrack track, int flag, const *c_char str) callconv(.C) bool;
 
 /// SetTrackMIDINoteName
 /// channel < 0 assigns these note names to all channels.
-SetTrackMIDINoteName: *fn (int track, int pitch, int chan, const *char name) callconv(.C) bool;
+SetTrackMIDINoteName: *fn (int track, int pitch, int chan, const *c_char name) callconv(.C) bool;
 
 /// SetTrackMIDINoteNameEx
 /// channel < 0 assigns note name to all channels. pitch 128 assigns name for CC0, pitch 129 for CC1, etc.
-SetTrackMIDINoteNameEx: *fn (*ReaProject proj, *MediaTrack track, int pitch, int chan, const *char name) callconv(.C) bool;
+SetTrackMIDINoteNameEx: *fn (*ReaProject proj, *MediaTrack track, int pitch, int chan, const *c_char name) callconv(.C) bool;
 
 /// SetTrackSelected
 SetTrackSelected: *fn (*MediaTrack track, bool selected) callconv(.C) void;
@@ -3325,7 +3325,7 @@ SetTrackSelected: *fn (*MediaTrack track, bool selected) callconv(.C) void;
 /// I_DSTCHAN : int * : low 10 bits are destination index, &1024 set to mix to mono.
 /// I_MIDIFLAGS : int * : low 5 bits=source channel 0=all, 1-16, 31=MIDI send disabled, next 5 bits=dest channel, 0=orig, 1-16=chan. &1024 for faders-send MIDI vol/pan. (>>14)&255 = src bus (0 for all, 1 for normal, 2+). (>>22)&255=destination bus (0 for all, 1 for normal, 2+)
 /// See CreateTrackSend, RemoveTrackSend, GetTrackNumSends.
-SetTrackSendInfo_Value: *fn (*MediaTrack tr, int category, int sendidx, const *char parmname, double newvalue) callconv(.C) bool;
+SetTrackSendInfo_Value: *fn (*MediaTrack tr, int category, int sendidx, const *c_char parmname, double newvalue) callconv(.C) bool;
 
 /// SetTrackSendUIPan
 /// send_idx<0 for receives, >=0 for hw ouputs, >=nb_of_hw_ouputs for sends. isend=1 for end of edit, -1 for an instant edit (such as reset), 0 for normal tweak.
@@ -3337,7 +3337,7 @@ SetTrackSendUIVol: *fn (*MediaTrack track, int send_idx, double vol, int isend) 
 
 /// SetTrackStateChunk
 /// Sets the RPPXML state of a track, returns true if successful. Undo flag is a performance/caching hint.
-SetTrackStateChunk: *fn (*MediaTrack track, const *char str, bool isundoOptional) callconv(.C) bool;
+SetTrackStateChunk: *fn (*MediaTrack track, const *c_char str, bool isundoOptional) callconv(.C) bool;
 
 /// SetTrackUIInputMonitor
 /// monitor: 0=no monitoring, 1=monitoring, 2=auto-monitoring. returns new value or -1 if error. igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
@@ -3376,15 +3376,15 @@ ShowActionList: *fn (*KbdSectionInfo section, HWND callerWnd) callconv(.C) void;
 
 /// ShowConsoleMsg
 /// Show a message to the user (also useful for debugging). Send "\n" for newline, "" to clear the console. Prefix string with "!SHOW:" and text will be added to console without opening the window. See ClearConsole
-ShowConsoleMsg: *fn (const *char msg) callconv(.C) void;
+ShowConsoleMsg: *fn (const *c_char msg) callconv(.C) void;
 
 /// ShowMessageBox
 /// type 0=OK,1=OKCANCEL,2=ABORTRETRYIGNORE,3=YESNOCANCEL,4=YESNO,5=RETRYCANCEL : ret 1=OK,2=CANCEL,3=ABORT,4=RETRY,5=IGNORE,6=YES,7=NO
-ShowMessageBox: *fn (const *char msg, const *char title, int type) callconv(.C) int;
+ShowMessageBox: *fn (const *c_char msg, const *c_char title, int type) callconv(.C) int;
 
 /// ShowPopupMenu
 /// shows a context menu, valid names include: track_input, track_panel, track_area, track_routing, item, ruler, envelope, envelope_point, envelope_item. ctxOptional can be a track pointer for *track_, item pointer for *item (but is optional). for envelope_point, ctx2Optional has point index, ctx3Optional has item index (0=main envelope, 1=first AI). for envelope_item, ctx2Optional has AI index (1=first AI)
-ShowPopupMenu: *fn (const *char name, int x, int y, HWND hwndParentOptional, *void ctxOptional, int ctx2Optional, int ctx3Optional) callconv(.C) void;
+ShowPopupMenu: *fn (const *c_char name, int x, int y, HWND hwndParentOptional, *void ctxOptional, int ctx2Optional, int ctx3Optional) callconv(.C) void;
 
 /// SLIDER2DB
 SLIDER2DB: *fn (double y) callconv(.C) double;
@@ -3417,7 +3417,7 @@ StopTrackPreview: *fn (*preview_register_t preview) callconv(.C) int;
 StopTrackPreview2: *fn (*ReaProject proj, *preview_register_t preview) callconv(.C) int;
 
 /// stringToGuid
-stringToGuid: *fn (const *char str, *GUID g) callconv(.C) void;
+stringToGuid: *fn (const *c_char str, *GUID g) callconv(.C) void;
 
 /// StuffMIDIMessage
 /// Stuffs a 3 byte MIDI message into either the Virtual MIDI Keyboard queue, or the MIDI-as-control input queue, or sends to a MIDI hardware output. mode=0 for VKB, 1 for control (actions map etc), 2 for VKB-on-current-channel; 16 for external MIDI device 0, 17 for external MIDI device 1, etc; see GetNumMIDIOutputs, GetMIDIOutputName.
@@ -3425,7 +3425,7 @@ StuffMIDIMessage: *fn (int mode, int msg1, int msg2, int msg3) callconv(.C) void
 
 /// TakeFX_AddByName
 /// Adds or queries the position of a named FX in a take. See TrackFX_AddByName() for information on fxname and instantiate. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_AddByName: *fn (*MediaItem_Take take, const *char fxname, int instantiate) callconv(.C) int;
+TakeFX_AddByName: *fn (*MediaItem_Take take, const *c_char fxname, int instantiate) callconv(.C) int;
 
 /// TakeFX_CopyToTake
 /// Copies (or moves) FX from src_take to dest_take. Can be used with src_take=dest_take to reorder. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3445,11 +3445,11 @@ TakeFX_EndParamEdit: *fn (*MediaItem_Take take, int fx, int param) callconv(.C) 
 
 /// TakeFX_FormatParamValue
 /// Note: only works with FX that support Cockos VST extensions. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_FormatParamValue: *fn (*MediaItem_Take take, int fx, int param, double val, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TakeFX_FormatParamValue: *fn (*MediaItem_Take take, int fx, int param, double val, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TakeFX_FormatParamValueNormalized
 /// Note: only works with FX that support Cockos VST extensions. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_FormatParamValueNormalized: *fn (*MediaItem_Take take, int fx, int param, double value, *char buf, int buf_sz) callconv(.C) bool;
+TakeFX_FormatParamValueNormalized: *fn (*MediaItem_Take take, int fx, int param, double value, *c_char buf, int buf_sz) callconv(.C) bool;
 
 /// TakeFX_GetChainVisible
 /// returns index of effect visible in chain, or -1 for chain hidden, or -2 for chain visible but no effect selected
@@ -3472,7 +3472,7 @@ TakeFX_GetFloatingWindow: *fn (*MediaItem_Take take, int index) callconv(.C) HWN
 
 /// TakeFX_GetFormattedParamValue
 ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_GetFormattedParamValue: *fn (*MediaItem_Take take, int fx, int param, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TakeFX_GetFormattedParamValue: *fn (*MediaItem_Take take, int fx, int param, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TakeFX_GetFXGUID
 ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3480,7 +3480,7 @@ TakeFX_GetFXGUID: *fn (*MediaItem_Take take, int fx) callconv(.C) *GUID;
 
 /// TakeFX_GetFXName
 ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_GetFXName: *fn (*MediaItem_Take take, int fx, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TakeFX_GetFXName: *fn (*MediaItem_Take take, int fx, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TakeFX_GetIOSize
 /// Gets the number of input/output pins for FX if available, returns plug-in type or -1 on error FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3488,7 +3488,7 @@ TakeFX_GetIOSize: *fn (*MediaItem_Take take, int fx, *int inputPinsOut, *int out
 
 /// TakeFX_GetNamedConfigParm
 /// gets plug-in specific named configuration value (returns true on success). see TrackFX_GetNamedConfigParm FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_GetNamedConfigParm: *fn (*MediaItem_Take take, int fx, const *char parmname, *char bufOutNeedBig, int bufOutNeedBig_sz) callconv(.C) bool;
+TakeFX_GetNamedConfigParm: *fn (*MediaItem_Take take, int fx, const *c_char parmname, *c_char bufOutNeedBig, int bufOutNeedBig_sz) callconv(.C) bool;
 
 /// TakeFX_GetNumParams
 ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3516,15 +3516,15 @@ TakeFX_GetParamEx: *fn (*MediaItem_Take take, int fx, int param, *double minvalO
 
 /// TakeFX_GetParamFromIdent
 /// gets the parameter index from an identifying string (:wet, :bypass, or a string returned from GetParamIdent), or -1 if unknown. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_GetParamFromIdent: *fn (*MediaItem_Take take, int fx, const *char ident_str) callconv(.C) int;
+TakeFX_GetParamFromIdent: *fn (*MediaItem_Take take, int fx, const *c_char ident_str) callconv(.C) int;
 
 /// TakeFX_GetParamIdent
 /// gets an identifying string for the parameter FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_GetParamIdent: *fn (*MediaItem_Take take, int fx, int param, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TakeFX_GetParamIdent: *fn (*MediaItem_Take take, int fx, int param, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TakeFX_GetParamName
 ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_GetParamName: *fn (*MediaItem_Take take, int fx, int param, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TakeFX_GetParamName: *fn (*MediaItem_Take take, int fx, int param, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TakeFX_GetParamNormalized
 ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3536,7 +3536,7 @@ TakeFX_GetPinMappings: *fn (*MediaItem_Take take, int fx, int isoutput, int pin,
 
 /// TakeFX_GetPreset
 /// Get the name of the preset currently showing in the REAPER dropdown, or the full path to a factory preset file for VST3 plug-ins (.vstpreset). See TakeFX_SetPreset. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_GetPreset: *fn (*MediaItem_Take take, int fx, *char presetnameOut, int presetnameOut_sz) callconv(.C) bool;
+TakeFX_GetPreset: *fn (*MediaItem_Take take, int fx, *c_char presetnameOut, int presetnameOut_sz) callconv(.C) bool;
 
 /// TakeFX_GetPresetIndex
 /// Returns current preset index, or -1 if error. numberOfPresetsOut will be set to total number of presets available. See TakeFX_SetPresetByIndex FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3544,7 +3544,7 @@ TakeFX_GetPresetIndex: *fn (*MediaItem_Take take, int fx, *int numberOfPresetsOu
 
 /// TakeFX_GetUserPresetFilename
 ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_GetUserPresetFilename: *fn (*MediaItem_Take take, int fx, *char fnOut, int fnOut_sz) callconv(.C) void;
+TakeFX_GetUserPresetFilename: *fn (*MediaItem_Take take, int fx, *c_char fnOut, int fnOut_sz) callconv(.C) void;
 
 /// TakeFX_NavigatePresets
 /// presetmove==1 activates the next preset, presetmove==-1 activates the previous preset, etc. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3556,7 +3556,7 @@ TakeFX_SetEnabled: *fn (*MediaItem_Take take, int fx, bool enabled) callconv(.C)
 
 /// TakeFX_SetNamedConfigParm
 /// gets plug-in specific named configuration value (returns true on success). see TrackFX_SetNamedConfigParm FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_SetNamedConfigParm: *fn (*MediaItem_Take take, int fx, const *char parmname, const *char value) callconv(.C) bool;
+TakeFX_SetNamedConfigParm: *fn (*MediaItem_Take take, int fx, const *c_char parmname, const *c_char value) callconv(.C) bool;
 
 /// TakeFX_SetOffline
 /// See TakeFX_GetOffline FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3580,7 +3580,7 @@ TakeFX_SetPinMappings: *fn (*MediaItem_Take take, int fx, int isoutput, int pin,
 
 /// TakeFX_SetPreset
 /// Activate a preset with the name shown in the REAPER dropdown. Full paths to .vstpreset files are also supported for VST3 plug-ins. See TakeFX_GetPreset. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TakeFX_SetPreset: *fn (*MediaItem_Take take, int fx, const *char presetname) callconv(.C) bool;
+TakeFX_SetPreset: *fn (*MediaItem_Take take, int fx, const *c_char presetname) callconv(.C) bool;
 
 /// TakeFX_SetPresetByIndex
 /// Sets the preset idx, or the factory preset (idx==-2), or the default user preset (idx==-1). Returns true on success. See TakeFX_GetPresetIndex. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3596,11 +3596,11 @@ TakeIsMIDI: *fn (*MediaItem_Take take) callconv(.C) bool;
 
 /// ThemeLayout_GetLayout
 /// Gets theme layout information. section can be 'global' for global layout override, 'seclist' to enumerate a list of layout sections, otherwise a layout section such as 'mcp', 'tcp', 'trans', etc. idx can be -1 to query the current value, -2 to get the description of the section (if not global), -3 will return the current context DPI-scaling (256=normal, 512=retina, etc), or 0..x. returns false if failed.
-ThemeLayout_GetLayout: *fn (const *char section, int idx, *char nameOut, int nameOut_sz) callconv(.C) bool;
+ThemeLayout_GetLayout: *fn (const *c_char section, int idx, *c_char nameOut, int nameOut_sz) callconv(.C) bool;
 
 /// ThemeLayout_GetParameter
 /// returns theme layout parameter. return value is cfg-name, or nil/empty if out of range.
-*char ThemeLayout_GetParameter: *fn (int wp, const *char* descOutOptional, *int valueOutOptional, *int defValueOutOptional, *int minValueOutOptional, *int maxValueOutOptional) callconv(.C) const;
+*c_char ThemeLayout_GetParameter: *fn (int wp, const *c_char* descOutOptional, *int valueOutOptional, *int defValueOutOptional, *int minValueOutOptional, *int maxValueOutOptional) callconv(.C) const;
 
 /// ThemeLayout_RefreshAll
 /// Refreshes all layouts
@@ -3608,7 +3608,7 @@ ThemeLayout_RefreshAll: *fn () callconv(.C) void;
 
 /// ThemeLayout_SetLayout
 /// Sets theme layout override for a particular section -- section can be 'global' or 'mcp' etc. If setting global layout, prefix a ! to the layout string to clear any per-layout overrides. Returns false if failed.
-ThemeLayout_SetLayout: *fn (const *char section, const *char  layout) callconv(.C) bool;
+ThemeLayout_SetLayout: *fn (const *c_char section, const *c_char  layout) callconv(.C) bool;
 
 /// ThemeLayout_SetParameter
 /// sets theme layout parameter to value. persist=true in order to have change loaded on next theme load. note that the caller should update layouts via ??? to make changes visible.
@@ -3660,7 +3660,7 @@ TimeMap_GetMeasureInfo: *fn (*ReaProject proj, int measure, *double qn_startOut,
 
 /// TimeMap_GetMetronomePattern
 /// Fills in a string representing the active metronome pattern. For example, in a 7/8 measure divided 3+4, the pattern might be "1221222". The length of the string is the time signature numerator, and the function returns the time signature denominator.
-TimeMap_GetMetronomePattern: *fn (*ReaProject proj, double time, *char pattern, int pattern_sz) callconv(.C) int;
+TimeMap_GetMetronomePattern: *fn (*ReaProject proj, double time, *c_char pattern, int pattern_sz) callconv(.C) int;
 
 /// TimeMap_GetTimeSigAtTime
 /// get the effective time signature and tempo
@@ -3700,11 +3700,11 @@ Track_GetPeakInfo: *fn (*MediaTrack track, int channel) callconv(.C) double;
 
 /// TrackCtl_SetToolTip
 /// displays tooltip at location, or removes if empty string
-TrackCtl_SetToolTip: *fn (const *char fmt, int xpos, int ypos, bool topmost) callconv(.C) void;
+TrackCtl_SetToolTip: *fn (const *c_char fmt, int xpos, int ypos, bool topmost) callconv(.C) void;
 
 /// TrackFX_AddByName
 /// Adds or queries the position of a named FX from the track FX chain (recFX=false) or record input FX/monitoring FX (recFX=true, monitoring FX are on master track). Specify a negative value for instantiate to always create a new effect, 0 to only query the first instance of an effect, or a positive value to add an instance if one is not found. If instantiate is <= -1000, it is used for the insertion position (-1000 is first item in chain, -1001 is second, etc). fxname can have prefix to specify type: VST3:,VST2:,VST:,AU:,JS:, or DX:, or FXADD: which adds selected items from the currently-open FX browser, FXADD:2 to limit to 2 FX added, or FXADD:2e to only succeed if exactly 2 FX are selected. Returns -1 on failure or the new position in chain on success. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_AddByName: *fn (*MediaTrack track, const *char fxname, bool recFX, int instantiate) callconv(.C) int;
+TrackFX_AddByName: *fn (*MediaTrack track, const *c_char fxname, bool recFX, int instantiate) callconv(.C) int;
 
 /// TrackFX_CopyToTake
 /// Copies (or moves) FX from src_track to dest_take. src_fx can have 0x1000000 set to reference input FX. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3724,15 +3724,15 @@ TrackFX_EndParamEdit: *fn (*MediaTrack track, int fx, int param) callconv(.C) bo
 
 /// TrackFX_FormatParamValue
 /// Note: only works with FX that support Cockos VST extensions. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_FormatParamValue: *fn (*MediaTrack track, int fx, int param, double val, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TrackFX_FormatParamValue: *fn (*MediaTrack track, int fx, int param, double val, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TrackFX_FormatParamValueNormalized
 /// Note: only works with FX that support Cockos VST extensions. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_FormatParamValueNormalized: *fn (*MediaTrack track, int fx, int param, double value, *char buf, int buf_sz) callconv(.C) bool;
+TrackFX_FormatParamValueNormalized: *fn (*MediaTrack track, int fx, int param, double value, *c_char buf, int buf_sz) callconv(.C) bool;
 
 /// TrackFX_GetByName
 /// Get the index of the first track FX insert that matches fxname. If the FX is not in the chain and instantiate is true, it will be inserted. See TrackFX_GetInstrument, TrackFX_GetEQ. Deprecated in favor of TrackFX_AddByName.
-TrackFX_GetByName: *fn (*MediaTrack track, const *char fxname, bool instantiate) callconv(.C) int;
+TrackFX_GetByName: *fn (*MediaTrack track, const *c_char fxname, bool instantiate) callconv(.C) int;
 
 /// TrackFX_GetChainVisible
 /// returns index of effect visible in chain, or -1 for chain hidden, or -2 for chain visible but no effect selected
@@ -3772,7 +3772,7 @@ TrackFX_GetFloatingWindow: *fn (*MediaTrack track, int index) callconv(.C) HWND;
 
 /// TrackFX_GetFormattedParamValue
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_GetFormattedParamValue: *fn (*MediaTrack track, int fx, int param, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TrackFX_GetFormattedParamValue: *fn (*MediaTrack track, int fx, int param, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TrackFX_GetFXGUID
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3780,7 +3780,7 @@ TrackFX_GetFXGUID: *fn (*MediaTrack track, int fx) callconv(.C) *GUID;
 
 /// TrackFX_GetFXName
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_GetFXName: *fn (*MediaTrack track, int fx, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TrackFX_GetFXName: *fn (*MediaTrack track, int fx, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TrackFX_GetInstrument
 /// Get the index of the first track FX insert that is a virtual instrument, or -1 if none. See TrackFX_GetEQ, TrackFX_GetByName.
@@ -3845,7 +3845,7 @@ TrackFX_GetIOSize: *fn (*MediaTrack track, int fx, *int inputPinsOut, *int outpu
 /// focused : reading returns 1 if focused. Writing a positive value to this sets the FX UI as "last focused."
 /// last_touched : reading returns two integers, one indicates whether FX is the last-touched FX, the second indicates which parameter was last touched. Writing a negative value ensures this plug-in is not set as last touched, otherwise the FX is set "last touched," and last touched parameter index is set to the value in the string (if valid).
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_GetNamedConfigParm: *fn (*MediaTrack track, int fx, const *char parmname, *char bufOutNeedBig, int bufOutNeedBig_sz) callconv(.C) bool;
+TrackFX_GetNamedConfigParm: *fn (*MediaTrack track, int fx, const *c_char parmname, *c_char bufOutNeedBig, int bufOutNeedBig_sz) callconv(.C) bool;
 
 /// TrackFX_GetNumParams
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3873,15 +3873,15 @@ TrackFX_GetParamEx: *fn (*MediaTrack track, int fx, int param, *double minvalOut
 
 /// TrackFX_GetParamFromIdent
 /// gets the parameter index from an identifying string (:wet, :bypass, :delta, or a string returned from GetParamIdent), or -1 if unknown. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_GetParamFromIdent: *fn (*MediaTrack track, int fx, const *char ident_str) callconv(.C) int;
+TrackFX_GetParamFromIdent: *fn (*MediaTrack track, int fx, const *c_char ident_str) callconv(.C) int;
 
 /// TrackFX_GetParamIdent
 /// gets an identifying string for the parameter FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_GetParamIdent: *fn (*MediaTrack track, int fx, int param, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TrackFX_GetParamIdent: *fn (*MediaTrack track, int fx, int param, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TrackFX_GetParamName
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_GetParamName: *fn (*MediaTrack track, int fx, int param, *char bufOut, int bufOut_sz) callconv(.C) bool;
+TrackFX_GetParamName: *fn (*MediaTrack track, int fx, int param, *c_char bufOut, int bufOut_sz) callconv(.C) bool;
 
 /// TrackFX_GetParamNormalized
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3893,7 +3893,7 @@ TrackFX_GetPinMappings: *fn (*MediaTrack tr, int fx, int isoutput, int pin, *int
 
 /// TrackFX_GetPreset
 /// Get the name of the preset currently showing in the REAPER dropdown, or the full path to a factory preset file for VST3 plug-ins (.vstpreset). See TrackFX_SetPreset. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_GetPreset: *fn (*MediaTrack track, int fx, *char presetnameOut, int presetnameOut_sz) callconv(.C) bool;
+TrackFX_GetPreset: *fn (*MediaTrack track, int fx, *c_char presetnameOut, int presetnameOut_sz) callconv(.C) bool;
 
 /// TrackFX_GetPresetIndex
 /// Returns current preset index, or -1 if error. numberOfPresetsOut will be set to total number of presets available. See TrackFX_SetPresetByIndex FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3909,7 +3909,7 @@ TrackFX_GetRecCount: *fn (*MediaTrack track) callconv(.C) int;
 
 /// TrackFX_GetUserPresetFilename
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_GetUserPresetFilename: *fn (*MediaTrack track, int fx, *char fnOut, int fnOut_sz) callconv(.C) void;
+TrackFX_GetUserPresetFilename: *fn (*MediaTrack track, int fx, *c_char fnOut, int fnOut_sz) callconv(.C) void;
 
 /// TrackFX_NavigatePresets
 /// presetmove==1 activates the next preset, presetmove==-1 activates the previous preset, etc. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3973,7 +3973,7 @@ TrackFX_SetEQParam: *fn (*MediaTrack track, int fxidx, int bandtype, int bandidx
 /// focused : reading returns 1 if focused. Writing a positive value to this sets the FX UI as "last focused."
 /// last_touched : reading returns two integers, one indicates whether FX is the last-touched FX, the second indicates which parameter was last touched. Writing a negative value ensures this plug-in is not set as last touched, otherwise the FX is set "last touched," and last touched parameter index is set to the value in the string (if valid).
 ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_SetNamedConfigParm: *fn (*MediaTrack track, int fx, const *char parmname, const *char value) callconv(.C) bool;
+TrackFX_SetNamedConfigParm: *fn (*MediaTrack track, int fx, const *c_char parmname, const *c_char value) callconv(.C) bool;
 
 /// TrackFX_SetOffline
 /// See TrackFX_GetOffline FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3997,7 +3997,7 @@ TrackFX_SetPinMappings: *fn (*MediaTrack tr, int fx, int isoutput, int pin, int 
 
 /// TrackFX_SetPreset
 /// Activate a preset with the name shown in the REAPER dropdown. Full paths to .vstpreset files are also supported for VST3 plug-ins. See TrackFX_GetPreset. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-TrackFX_SetPreset: *fn (*MediaTrack track, int fx, const *char presetname) callconv(.C) bool;
+TrackFX_SetPreset: *fn (*MediaTrack track, int fx, const *c_char presetname) callconv(.C) bool;
 
 /// TrackFX_SetPresetByIndex
 /// Sets the preset idx, or the factory preset (idx==-2), or the default user preset (idx==-1). Returns true on success. See TrackFX_GetPresetIndex. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -4023,11 +4023,11 @@ Undo_BeginBlock2: *fn (*ReaProject proj) callconv(.C) void;
 
 /// Undo_CanRedo2
 /// returns string of next action,if able,NULL if not
-*char Undo_CanRedo2: *fn (*ReaProject proj) callconv(.C) const;
+*c_char Undo_CanRedo2: *fn (*ReaProject proj) callconv(.C) const;
 
 /// Undo_CanUndo2
 /// returns string of last action,if able,NULL if not
-*char Undo_CanUndo2: *fn (*ReaProject proj) callconv(.C) const;
+*c_char Undo_CanUndo2: *fn (*ReaProject proj) callconv(.C) const;
 
 /// Undo_DoRedo2
 /// nonzero if success
@@ -4039,30 +4039,30 @@ Undo_DoUndo2: *fn (*ReaProject proj) callconv(.C) int;
 
 /// Undo_EndBlock
 /// call to end the block,with extra flags if any,and a description
-Undo_EndBlock: *fn (const *char descchange, int extraflags) callconv(.C) void;
+Undo_EndBlock: *fn (const *c_char descchange, int extraflags) callconv(.C) void;
 
 /// Undo_EndBlock2
 /// call to end the block,with extra flags if any,and a description
-Undo_EndBlock2: *fn (*ReaProject proj, const *char descchange, int extraflags) callconv(.C) void;
+Undo_EndBlock2: *fn (*ReaProject proj, const *c_char descchange, int extraflags) callconv(.C) void;
 
 /// Undo_OnStateChange
 /// limited state change to items
-Undo_OnStateChange: *fn (const *char descchange) callconv(.C) void;
+Undo_OnStateChange: *fn (const *c_char descchange) callconv(.C) void;
 
 /// Undo_OnStateChange2
 /// limited state change to items
-Undo_OnStateChange2: *fn (*ReaProject proj, const *char descchange) callconv(.C) void;
+Undo_OnStateChange2: *fn (*ReaProject proj, const *c_char descchange) callconv(.C) void;
 
 /// Undo_OnStateChange_Item
-Undo_OnStateChange_Item: *fn (*ReaProject proj, const *char name, *MediaItem item) callconv(.C) void;
+Undo_OnStateChange_Item: *fn (*ReaProject proj, const *c_char name, *MediaItem item) callconv(.C) void;
 
 /// Undo_OnStateChangeEx
 /// trackparm=-1 by default,or if updating one fx chain,you can specify track index
-Undo_OnStateChangeEx: *fn (const *char descchange, int whichStates, int trackparm) callconv(.C) void;
+Undo_OnStateChangeEx: *fn (const *c_char descchange, int whichStates, int trackparm) callconv(.C) void;
 
 /// Undo_OnStateChangeEx2
 /// trackparm=-1 by default,or if updating one fx chain,you can specify track index
-Undo_OnStateChangeEx2: *fn (*ReaProject proj, const *char descchange, int whichStates, int trackparm) callconv(.C) void;
+Undo_OnStateChangeEx2: *fn (*ReaProject proj, const *c_char descchange, int whichStates, int trackparm) callconv(.C) void;
 
 /// update_disk_counters
 /// Updates disk I/O statistics with bytes transferred since last call. notify REAPER of a write error by calling with readamt=0, writeamt=-101010110 for unknown or -101010111 for disk full
@@ -4085,22 +4085,22 @@ UpdateTimeline: *fn () callconv(.C) void;
 
 /// ValidatePtr
 /// see ValidatePtr2
-ValidatePtr: *fn (*void pointer, const *char ctypename) callconv(.C) bool;
+ValidatePtr: *fn (*void pointer, const *c_char ctypename) callconv(.C) bool;
 
 /// ValidatePtr2
 /// Return true if the pointer is a valid object of the right type in proj (proj is ignored if pointer is itself a project). Supported types are: *ReaProject, *MediaTrack, *MediaItem, *MediaItem_Take, *TrackEnvelope and *PCM_source.
-ValidatePtr2: *fn (*ReaProject proj, *void pointer, const *char ctypename) callconv(.C) bool;
+ValidatePtr2: *fn (*ReaProject proj, *void pointer, const *c_char ctypename) callconv(.C) bool;
 
 /// ViewPrefs
 /// Opens the prefs to a page, use pageByName if page is 0.
-ViewPrefs: *fn (int page, const *char pageByName) callconv(.C) void;
+ViewPrefs: *fn (int page, const *c_char pageByName) callconv(.C) void;
 
 /// WDL_VirtualWnd_ScaledBlitBG
 WDL_VirtualWnd_ScaledBlitBG: *fn (*LICE_IBitmap dest, *WDL_VirtualWnd_BGCfg src, int destx, int desty, int destw, int desth, int clipx, int clipy, int clipw, int cliph, float alpha, int mode) callconv(.C) bool;
 
-REAPERAPI_LoadAPI: *fn (void *(*getAPI)(const char *)) callconv(.C) int
+REAPERAPI_LoadAPI: *fn (void *(*getAPI)(const c_char *)) callconv(.C) int
   {
-    static const struct { void **dest; const char *name; } table[]={
+    static const struct { void **dest; const c_char *name; } table[]={
         {(*void*)&REAPERAPI_FUNCNAME(__mergesort),"__mergesort"},
         {(*void*)&REAPERAPI_FUNCNAME(AddCustomizableMenu),"AddCustomizableMenu"},
         {(*void*)&REAPERAPI_FUNCNAME(AddExtensionsMainMenu),"AddExtensionsMainMenu"},
@@ -4550,7 +4550,7 @@ REAPERAPI_LoadAPI: *fn (void *(*getAPI)(const char *)) callconv(.C) int
         {(*void*)&REAPERAPI_FUNCNAME(LICE_CreateBitmap),"LICE_CreateBitmap"},
         {(*void*)&REAPERAPI_FUNCNAME(LICE_CreateFont),"LICE_CreateFont"},
         {(*void*)&REAPERAPI_FUNCNAME(LICE_DrawCBezier),"LICE_DrawCBezier"},
-        {(*void*)&REAPERAPI_FUNCNAME(LICE_DrawChar),"LICE_DrawChar"},
+        {(*void*)&REAPERAPI_FUNCNAME(LICE_Drawc_char),"LICE_Drawc_char"},
         {(*void*)&REAPERAPI_FUNCNAME(LICE_DrawGlyph),"LICE_DrawGlyph"},
         {(*void*)&REAPERAPI_FUNCNAME(LICE_DrawRect),"LICE_DrawRect"},
         {(*void*)&REAPERAPI_FUNCNAME(LICE_DrawText),"LICE_DrawText"},
@@ -4956,5 +4956,5 @@ REAPERAPI_LoadAPI: *fn (void *(*getAPI)(const char *)) callconv(.C) int
     return failcnt;
   }
 #else//REAPERAPI_IMPLEMENT
-REAPERAPI_LoadAPI: *fn (void *(*getAPI)(const char *)) callconv(.C) int;
+REAPERAPI_LoadAPI: *fn (void *(*getAPI)(const c_char *)) callconv(.C) int;
 
