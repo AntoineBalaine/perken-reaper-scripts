@@ -858,11 +858,11 @@ GetInputOutputLatency: *fn (inputlatencyOut: *c_int, outputLatencyOut:  *c_int) 
 
 /// GetItemEditingTime2
 /// returns time of relevant edit, set which_item to the pcm_source (if applicable), flags (if specified) will be set to 1 for edge resizing, 2 for fade change, 4 for item move, 8 for item slip edit (edit cursor time or start of item)
-GetItemEditingTime2: *fn (which_itemOut: *PCM_source*, flagsOut:  *c_int) callconv(.C) double,
+GetItemEditingTime2: *fn (which_itemOut: *PCM_source, flagsOut:  *c_int) callconv(.C) double,
 
 /// GetItemFromPoint
 /// Returns the first item at the screen coordinates specified. If allow_locked is false, locked items are ignored. If takeOutOptional specified, returns the take hit. See GetThingFromPoint.
-GetItemFromPoint: *fn (screen_x: c_int, screen_y:  c_int, allow_locked:  bool, takeOutOptional:  *MediaItem_Take*) callconv(.C) *MediaItem,
+GetItemFromPoint: *fn (screen_x: c_int, screen_y:  c_int, allow_locked:  bool, takeOutOptional:  *MediaItem_Take) callconv(.C) *MediaItem,
 
 /// GetItemProjectContext
 GetItemProjectContext: *fn (item: *MediaItem) callconv(.C) *ReaProject,
