@@ -114,6 +114,146 @@ fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
     return 0;
 }
 
+const IReaperControlSurface = extern struct {
+    pub fn GetTypeString(self: *IReaperControlSurface) callconv(.C) [*:0]const u8 {
+        _ = self;
+        ShowConsoleMsg("GetTypeString", .{});
+        return "TypeString";
+    }
+
+    pub fn GetDescString(self: *IReaperControlSurface) callconv(.C) [*:0]const u8 {
+        _ = self;
+        ShowConsoleMsg("GetDescString", .{});
+        return "DescString";
+    }
+
+    pub fn GetConfigString(self: *IReaperControlSurface) callconv(.C) [*:0]const u8 {
+        _ = self;
+        ShowConsoleMsg("GetConfigString", .{});
+        return "ConfigString";
+    }
+
+    pub fn CloseNoReset(self: *IReaperControlSurface) callconv(.C) void {
+        _ = self;
+        ShowConsoleMsg("CloseNoReset", .{});
+    }
+
+    pub fn Run(self: *IReaperControlSurface) callconv(.C) void {
+        _ = self;
+        ShowConsoleMsg("Run", .{});
+    }
+
+    pub fn SetTrackListChange(self: *IReaperControlSurface) callconv(.C) void {
+        _ = self;
+        ShowConsoleMsg("SetTrackListChange", .{});
+    }
+
+    pub fn SetSurfaceVolume(self: *IReaperControlSurface, trackid: *MediaTrack, volume: f64) callconv(.C) void {
+        _ = self;
+        _ = trackid;
+        _ = volume;
+        ShowConsoleMsg("SetSurfaceVolume", .{});
+    }
+
+    pub fn SetSurfacePan(self: *IReaperControlSurface, trackid: *MediaTrack, pan: f64) callconv(.C) void {
+        _ = self;
+        _ = trackid;
+        _ = pan;
+        ShowConsoleMsg("SetSurfacePan", .{});
+    }
+
+    pub fn SetSurfaceMute(self: *IReaperControlSurface, trackid: *MediaTrack, mute: bool) callconv(.C) void {
+        _ = self;
+        _ = trackid;
+        _ = mute;
+        ShowConsoleMsg("SetSurfaceMute", .{});
+    }
+
+    pub fn SetSurfaceSelected(self: *IReaperControlSurface, trackid: *MediaTrack, selected: bool) callconv(.C) void {
+        _ = self;
+        _ = trackid;
+        _ = selected;
+        ShowConsoleMsg("SetSurfaceSelected", .{});
+    }
+
+    pub fn SetSurfaceSolo(self: *IReaperControlSurface, trackid: *MediaTrack, solo: bool) callconv(.C) void {
+        _ = self;
+        _ = trackid;
+        _ = solo;
+        ShowConsoleMsg("SetSurfaceSolo", .{});
+    }
+
+    pub fn SetSurfaceRecArm(self: *IReaperControlSurface, trackid: *MediaTrack, recarm: bool) callconv(.C) void {
+        _ = self;
+        _ = trackid;
+        _ = recarm;
+        ShowConsoleMsg("SetSurfaceRecArm", .{});
+    }
+
+    pub fn SetPlayState(self: *IReaperControlSurface, play: bool, pause: bool, rec: bool) callconv(.C) void {
+        _ = self;
+        _ = play;
+        _ = pause;
+        _ = rec;
+        ShowConsoleMsg("SetPlayState", .{});
+    }
+
+    pub fn SetRepeatState(self: *IReaperControlSurface, rep: bool) callconv(.C) void {
+        _ = self;
+        _ = rep;
+        ShowConsoleMsg("SetRepeatState", .{});
+    }
+
+    pub fn SetTrackTitle(self: *IReaperControlSurface, trackid: *MediaTrack, title: [*:0]const u8) callconv(.C) void {
+        _ = self;
+        _ = trackid;
+        _ = title;
+        ShowConsoleMsg("SetTrackTitle", .{});
+    }
+
+    pub fn GetTouchState(self: *IReaperControlSurface, trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
+        _ = self;
+        _ = trackid;
+        _ = isPan;
+        ShowConsoleMsg("GetTouchState", .{});
+        return false;
+    }
+
+    pub fn SetAutoMode(self: *IReaperControlSurface, mode: c_int) callconv(.C) void {
+        _ = self;
+        _ = mode;
+        ShowConsoleMsg("SetAutoMode", .{});
+    }
+
+    pub fn ResetCachedVolPanStates(self: *IReaperControlSurface) callconv(.C) void {
+        _ = self;
+        ShowConsoleMsg("ResetCachedVolPanStates", .{});
+    }
+
+    pub fn OnTrackSelection(self: *IReaperControlSurface, trackid: *MediaTrack) callconv(.C) void {
+        _ = self;
+        _ = trackid;
+        ShowConsoleMsg("OnTrackSelection", .{});
+    }
+
+    pub fn IsKeyDown(self: *IReaperControlSurface, key: c_int) callconv(.C) bool {
+        _ = self;
+        _ = key;
+        ShowConsoleMsg("IsKeyDown", .{});
+        return false;
+    }
+
+    pub fn Extended(self: *IReaperControlSurface, call: c_int, parm1: ?*void, parm2: ?*void, parm3: ?*void) callconv(.C) c_int {
+        _ = self;
+        _ = call;
+        _ = parm1;
+        _ = parm2;
+        _ = parm3;
+        ShowConsoleMsg("Extended", .{});
+        return 0;
+    }
+};
+
 export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
     _ = instance;
 
