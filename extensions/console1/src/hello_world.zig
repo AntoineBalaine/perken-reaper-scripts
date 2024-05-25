@@ -2,12 +2,13 @@
 
 const std = @import("std");
 const ImGui = @import("reaper_imgui.zig");
+
+pub const HINSTANCE = *opaque {};
+pub const HWND = *opaque {};
+pub const KbdSectionInfo = opaque {};
+pub const MediaTrack = *opaque {};
 const reaper = struct { // @import("reaper");
     pub const PLUGIN_VERSION = 0x20E;
-
-    pub const HINSTANCE = *opaque {};
-    pub const HWND = *opaque {};
-    pub const KbdSectionInfo = opaque {};
 
     pub const plugin_info_t = extern struct {
         caller_version: c_int,
@@ -53,6 +54,7 @@ const reaper = struct { // @import("reaper");
     pub var plugin_register: *fn (name: [*:0]const u8, infostruct: *anyopaque) callconv(.C) c_int = undefined;
     pub var plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque = undefined;
     pub var ShowMessageBox: *fn (body: [*:0]const u8, title: [*:0]const u8, flags: c_int) callconv(.C) void = undefined;
+    pub var ShowConsoleMsg: *fn (str: [*:0]const u8) callconv(.C) void = undefined;
 };
 
 const plugin_name = "Hello, Zig!";
@@ -103,7 +105,7 @@ fn onTimer() callconv(.C) void {
     };
 }
 
-fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
+fn onCommand(sec: *KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: HWND) callconv(.C) c_char {
     _ = .{ sec, val, val2hw, relmode, hwnd };
 
     if (command == action_id) {
@@ -113,81 +115,82 @@ fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
 
     return 0;
 }
-
+// to implement the csurf interface, you'd probably want to do that from C++ instead of Zig to not have to deal with ABI headaches...
+// eg. the C++ csurf implementation just forwarding the calls to extern "C" functions implemented in Zig
 const IReaperControlSurface = extern struct {
     pub fn GetTypeString(self: *IReaperControlSurface) callconv(.C) [*:0]const u8 {
         _ = self;
-        ShowConsoleMsg("GetTypeString", .{});
+        reaper.ShowConsoleMsg("GetTypeString", .{});
         return "TypeString";
     }
 
     pub fn GetDescString(self: *IReaperControlSurface) callconv(.C) [*:0]const u8 {
         _ = self;
-        ShowConsoleMsg("GetDescString", .{});
+        reaper.ShowConsoleMsg("GetDescString", .{});
         return "DescString";
     }
 
     pub fn GetConfigString(self: *IReaperControlSurface) callconv(.C) [*:0]const u8 {
         _ = self;
-        ShowConsoleMsg("GetConfigString", .{});
+        reaper.ShowConsoleMsg("GetConfigString", .{});
         return "ConfigString";
     }
 
     pub fn CloseNoReset(self: *IReaperControlSurface) callconv(.C) void {
         _ = self;
-        ShowConsoleMsg("CloseNoReset", .{});
+        reaper.ShowConsoleMsg("CloseNoReset", .{});
     }
 
     pub fn Run(self: *IReaperControlSurface) callconv(.C) void {
         _ = self;
-        ShowConsoleMsg("Run", .{});
+        reaper.ShowConsoleMsg("Run", .{});
     }
 
     pub fn SetTrackListChange(self: *IReaperControlSurface) callconv(.C) void {
         _ = self;
-        ShowConsoleMsg("SetTrackListChange", .{});
+        reaper.ShowConsoleMsg("SetTrackListChange", .{});
     }
 
     pub fn SetSurfaceVolume(self: *IReaperControlSurface, trackid: *MediaTrack, volume: f64) callconv(.C) void {
         _ = self;
         _ = trackid;
         _ = volume;
-        ShowConsoleMsg("SetSurfaceVolume", .{});
+        reaper.ShowConsoleMsg("SetSurfaceVolume", .{});
     }
 
     pub fn SetSurfacePan(self: *IReaperControlSurface, trackid: *MediaTrack, pan: f64) callconv(.C) void {
         _ = self;
         _ = trackid;
         _ = pan;
-        ShowConsoleMsg("SetSurfacePan", .{});
+        reaper.ShowConsoleMsg("SetSurfacePan", .{});
     }
 
     pub fn SetSurfaceMute(self: *IReaperControlSurface, trackid: *MediaTrack, mute: bool) callconv(.C) void {
         _ = self;
         _ = trackid;
         _ = mute;
-        ShowConsoleMsg("SetSurfaceMute", .{});
+        reaper.ShowConsoleMsg("SetSurfaceMute", .{});
     }
 
     pub fn SetSurfaceSelected(self: *IReaperControlSurface, trackid: *MediaTrack, selected: bool) callconv(.C) void {
         _ = self;
         _ = trackid;
         _ = selected;
-        ShowConsoleMsg("SetSurfaceSelected", .{});
+        reaper.ShowConsoleMsg("SetSurfaceSelected", .{});
     }
 
     pub fn SetSurfaceSolo(self: *IReaperControlSurface, trackid: *MediaTrack, solo: bool) callconv(.C) void {
         _ = self;
         _ = trackid;
         _ = solo;
-        ShowConsoleMsg("SetSurfaceSolo", .{});
+        reaper.ShowConsoleMsg("SetSurfaceSolo", .{});
     }
 
     pub fn SetSurfaceRecArm(self: *IReaperControlSurface, trackid: *MediaTrack, recarm: bool) callconv(.C) void {
         _ = self;
         _ = trackid;
         _ = recarm;
-        ShowConsoleMsg("SetSurfaceRecArm", .{});
+        reaper.ShowConsoleMsg("SetSurfaceRecArm", .{});
     }
 
     pub fn SetPlayState(self: *IReaperControlSurface, play: bool, pause: bool, rec: bool) callconv(.C) void {
@@ -195,51 +198,51 @@ const IReaperControlSurface = extern struct {
         _ = play;
         _ = pause;
         _ = rec;
-        ShowConsoleMsg("SetPlayState", .{});
+        reaper.ShowConsoleMsg("SetPlayState", .{});
     }
 
     pub fn SetRepeatState(self: *IReaperControlSurface, rep: bool) callconv(.C) void {
         _ = self;
         _ = rep;
-        ShowConsoleMsg("SetRepeatState", .{});
+        reaper.ShowConsoleMsg("SetRepeatState", .{});
     }
 
     pub fn SetTrackTitle(self: *IReaperControlSurface, trackid: *MediaTrack, title: [*:0]const u8) callconv(.C) void {
         _ = self;
         _ = trackid;
         _ = title;
-        ShowConsoleMsg("SetTrackTitle", .{});
+        reaper.ShowConsoleMsg("SetTrackTitle", .{});
     }
 
     pub fn GetTouchState(self: *IReaperControlSurface, trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
         _ = self;
         _ = trackid;
         _ = isPan;
-        ShowConsoleMsg("GetTouchState", .{});
+        reaper.ShowConsoleMsg("GetTouchState", .{});
         return false;
     }
 
     pub fn SetAutoMode(self: *IReaperControlSurface, mode: c_int) callconv(.C) void {
         _ = self;
         _ = mode;
-        ShowConsoleMsg("SetAutoMode", .{});
+        reaper.ShowConsoleMsg("SetAutoMode", .{});
     }
 
     pub fn ResetCachedVolPanStates(self: *IReaperControlSurface) callconv(.C) void {
         _ = self;
-        ShowConsoleMsg("ResetCachedVolPanStates", .{});
+        reaper.ShowConsoleMsg("ResetCachedVolPanStates", .{});
     }
 
     pub fn OnTrackSelection(self: *IReaperControlSurface, trackid: *MediaTrack) callconv(.C) void {
         _ = self;
         _ = trackid;
-        ShowConsoleMsg("OnTrackSelection", .{});
+        reaper.ShowConsoleMsg("OnTrackSelection", .{});
     }
 
     pub fn IsKeyDown(self: *IReaperControlSurface, key: c_int) callconv(.C) bool {
         _ = self;
         _ = key;
-        ShowConsoleMsg("IsKeyDown", .{});
+        reaper.ShowConsoleMsg("IsKeyDown", .{});
         return false;
     }
 
@@ -249,12 +252,12 @@ const IReaperControlSurface = extern struct {
         _ = parm1;
         _ = parm2;
         _ = parm3;
-        ShowConsoleMsg("Extended", .{});
+        reaper.ShowConsoleMsg("Extended", .{});
         return 0;
     }
 };
 
-export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
+export fn ReaperPluginEntry(instance: HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
     _ = instance;
 
     if (rec == null)
@@ -265,6 +268,10 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     const action = reaper.custom_action_register_t{ .section = 0, .id_str = "REAIMGUI_ZIG", .name = "ReaImGui Zig example" };
     action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
     _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
+    // reaper.ShowConsoleMsg("Hello, Zig!\n");
 
+    // Define the opaque struct to represent IReaperControlSurface
+    const surfaceHandle: *anyopaque = @constCast(&IReaperControlSurface);
+    _ = reaper.plugin_register("csurf_inst", surfaceHandle);
     return 1;
 }
