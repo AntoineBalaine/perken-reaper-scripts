@@ -5,7 +5,7 @@ const MediaTrack = Reaper.MediaTrack;
 const c_void = anyopaque;
 
 const c = @cImport({
-    @cInclude("fakeCSurfWrapper.h");
+    @cInclude("./fakeCSurfWrapper.h");
 });
 
 pub fn fakeCSurf() c.C_FakeCsurf {

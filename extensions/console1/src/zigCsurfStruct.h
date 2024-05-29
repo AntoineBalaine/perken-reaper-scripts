@@ -9,39 +9,39 @@ extern "C" {
 #include <stdint.h> // for standard integer types
 #include <stdbool.h> // for bool type
 
-typedef struct {
+typedef struct ZigCsurf{
   // Add other fields as needed
-  const char *(*GetTypeString)(struct IReaperControlSurface *self);
-  const char *(*GetDescString)(struct IReaperControlSurface *self);
-  const char *(*GetConfigString)(struct IReaperControlSurface *self);
-  void (*CloseNoReset)(struct IReaperControlSurface *self);
-  void (*Run)(struct IReaperControlSurface *self);
-  void (*SetTrackListChange)(struct IReaperControlSurface *self);
-  void (*SetSurfaceVolume)(struct IReaperControlSurface *self,
+  const char *(*GetTypeString)(const struct ZigCsurf *self);
+  const char *(*GetDescString)(const struct ZigCsurf *self);
+  const char *(*GetConfigString)(const struct ZigCsurf *self);
+  void (*CloseNoReset)(const struct ZigCsurf *self);
+  void (*Run)(const struct ZigCsurf *self);
+  void (*SetTrackListChange)(const struct ZigCsurf *self);
+  void (*SetSurfaceVolume)(const struct ZigCsurf *self,
                            struct MediaTrack *trackid, double volume);
-  void (*SetSurfacePan)(struct IReaperControlSurface *self,
+  void (*SetSurfacePan)(const struct ZigCsurf *self,
                         struct MediaTrack *trackid, double pan);
-  void (*SetSurfaceMute)(struct IReaperControlSurface *self,
+  void (*SetSurfaceMute)(const struct ZigCsurf *self,
                          struct MediaTrack *trackid, bool mute);
-  void (*SetSurfaceSelected)(struct IReaperControlSurface *self,
+  void (*SetSurfaceSelected)(const struct ZigCsurf *self,
                              struct MediaTrack *trackid, bool selected);
-  void (*SetSurfaceSolo)(struct IReaperControlSurface *self,
+  void (*SetSurfaceSolo)(const struct ZigCsurf *self,
                          struct MediaTrack *trackid, bool solo);
-  void (*SetSurfaceRecArm)(struct IReaperControlSurface *self,
+  void (*SetSurfaceRecArm)(const struct ZigCsurf *self,
                            struct MediaTrack *trackid, bool recarm);
-  void (*SetPlayState)(struct IReaperControlSurface *self, bool play,
+  void (*SetPlayState)(const struct ZigCsurf *self, bool play,
                        bool pause, bool rec);
-  void (*SetRepeatState)(struct IReaperControlSurface *self, bool rep);
-  void (*SetTrackTitle)(struct IReaperControlSurface *self,
+  void (*SetRepeatState)(const struct ZigCsurf *self, bool rep);
+  void (*SetTrackTitle)(const struct ZigCsurf *self,
                         struct MediaTrack *trackid, const char *title);
-  bool (*GetTouchState)(struct IReaperControlSurface *self,
+  bool (*GetTouchState)(const struct ZigCsurf *self,
                         struct MediaTrack *trackid, int isPan);
-  void (*SetAutoMode)(struct IReaperControlSurface *self, int mode);
-  void (*ResetCachedVolPanStates)(struct IReaperControlSurface *self);
-  void (*OnTrackSelection)(struct IReaperControlSurface *self,
+  void (*SetAutoMode)(const struct ZigCsurf *self, int mode);
+  void (*ResetCachedVolPanStates)(const struct ZigCsurf *self);
+  void (*OnTrackSelection)(const struct ZigCsurf *self,
                            struct MediaTrack *trackid);
-  bool (*IsKeyDown)(struct IReaperControlSurface *self, int key);
-  int (*Extended)(struct IReaperControlSurface *self, int call, void *parm1,
+  bool (*IsKeyDown)(const struct ZigCsurf *self, int key);
+  int (*Extended)(const struct ZigCsurf *self, int call, void *parm1,
                   void *parm2, void *parm3);
 } ZigCsurf;
 
