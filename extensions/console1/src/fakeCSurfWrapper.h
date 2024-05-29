@@ -1,3 +1,4 @@
+#include "zigCsurfStruct.h"
 #include <stdbool.h>
 #ifdef __cplusplus
 extern "C" {
@@ -5,7 +6,7 @@ extern "C" {
 
 typedef void *C_FakeCsurf;
 typedef struct MediaTrack MediaTrack; // Forward declaration of MediaTrack as an opaque struct
-C_FakeCsurf FakeCsurf_Create();
+C_FakeCsurf FakeCsurf_Create(const ZigCsurf* zigCsurf);
 void FakeCsurf_Destroy(C_FakeCsurf instance);
 const char *FakeCsurf_GetTypeString(C_FakeCsurf instance);
 const char *FakeCsurf_GetDescString(C_FakeCsurf instance);

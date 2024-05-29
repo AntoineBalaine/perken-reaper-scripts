@@ -4,116 +4,90 @@
 #include <tuple>
 // Implementing the FakeCsurf methods
 
-const char *FakeCsurf::GetTypeString() {
-    return "";
+FakeCsurf::FakeCsurf(const ZigCsurf* zigCsurf): zigCsurf(zigCsurf) { }
+
+
+// Method implementations
+const char* FakeCsurf::GetTypeString() {
+    return zigCsurf->GetTypeString(this);
 }
 
-const char *FakeCsurf::GetDescString() {
-    return "";
+const char* FakeCsurf::GetDescString() {
+    return zigCsurf->GetDescString(this);
 }
 
-const char *FakeCsurf::GetConfigString() {
-    return "";
+const char* FakeCsurf::GetConfigString() {
+    return zigCsurf->GetConfigString(this);
 }
 
 void FakeCsurf::CloseNoReset() {
-    ShowConsoleMsg("CloseNoReset\n");
+    zigCsurf->CloseNoReset(this);
 }
 
 void FakeCsurf::Run() {
-    // Implementation
+    zigCsurf->Run(this);
 }
 
 void FakeCsurf::SetTrackListChange() {
-    ShowConsoleMsg("SetTrackListChange\n");
+    zigCsurf->SetTrackListChange(this);
 }
 
-void FakeCsurf::SetSurfaceVolume(MediaTrack *trackid, double volume) {
-    std::ignore = trackid;
-    std::ignore = volume;
-    ShowConsoleMsg("SetSurfaceVolume\n");
+void FakeCsurf::SetSurfaceVolume(MediaTrack* trackid, double volume) {
+    zigCsurf->SetSurfaceVolume(this, trackid, volume);
 }
 
-void FakeCsurf::SetSurfacePan(MediaTrack *trackid, double pan) {
-    std::ignore = trackid;
-    std::ignore = pan;
-    ShowConsoleMsg("SetSurfacePan\n");
+void FakeCsurf::SetSurfacePan(MediaTrack* trackid, double pan) {
+    zigCsurf->SetSurfacePan(this, trackid, pan);
 }
 
-void FakeCsurf::SetSurfaceMute(MediaTrack *trackid, bool mute) {
-    std::ignore = trackid;
-    std::ignore = mute;
-    ShowConsoleMsg("SetSurfaceMute\n");
+void FakeCsurf::SetSurfaceMute(MediaTrack* trackid, bool mute) {
+    zigCsurf->SetSurfaceMute(this, trackid, mute);
 }
 
-void FakeCsurf::SetSurfaceSelected(MediaTrack *trackid, bool selected) {
-    std::ignore = trackid;
-    std::ignore = selected;
-    ShowConsoleMsg("SetSurfaceSelected\n");
+void FakeCsurf::SetSurfaceSelected(MediaTrack* trackid, bool selected) {
+    zigCsurf->SetSurfaceSelected(this, trackid, selected);
 }
 
-void FakeCsurf::SetSurfaceSolo(MediaTrack *trackid, bool solo) {
-    std::ignore = trackid;
-    std::ignore = solo;
-    ShowConsoleMsg("SetSurfaceSolo\n");
+void FakeCsurf::SetSurfaceSolo(MediaTrack* trackid, bool solo) {
+    zigCsurf->SetSurfaceSolo(this, trackid, solo);
 }
 
-void FakeCsurf::SetSurfaceRecArm(MediaTrack *trackid, bool recarm) {
-    std::ignore = trackid;
-    std::ignore = recarm;
-    ShowConsoleMsg("SetSurfaceRecArm\n");
+void FakeCsurf::SetSurfaceRecArm(MediaTrack* trackid, bool recarm) {
+    zigCsurf->SetSurfaceRecArm(this, trackid, recarm);
 }
 
 void FakeCsurf::SetPlayState(bool play, bool pause, bool rec) {
-    std::ignore = play;
-    std::ignore = pause;
-    std::ignore = rec;
-    ShowConsoleMsg("SetPlayState\n");
+    zigCsurf->SetPlayState(this, play, pause, rec);
 }
 
 void FakeCsurf::SetRepeatState(bool rep) {
-    std::ignore = rep;
-    ShowConsoleMsg("SetRepeatState\n");
+    zigCsurf->SetRepeatState(this, rep);
 }
 
-void FakeCsurf::SetTrackTitle(MediaTrack *trackid, const char *title) {
-    std::ignore = trackid;
-    std::ignore = title;
-    ShowConsoleMsg("SetTrackTitle\n");
+void FakeCsurf::SetTrackTitle(MediaTrack* trackid, const char* title) {
+    zigCsurf->SetTrackTitle(this, trackid, title);
 }
 
-bool FakeCsurf::GetTouchState(MediaTrack *trackid, int isPan) {
-    std::ignore = trackid;
-    std::ignore = isPan;
-    ShowConsoleMsg("GetTouchState\n");
-    return false;
+bool FakeCsurf::GetTouchState(MediaTrack* trackid, int isPan) {
+    return zigCsurf->GetTouchState(this, trackid, isPan);
 }
 
 void FakeCsurf::SetAutoMode(int mode) {
-    std::ignore = mode;
-    ShowConsoleMsg("SetAutoMode\n");
+    zigCsurf->SetAutoMode(this, mode);
 }
 
 void FakeCsurf::ResetCachedVolPanStates() {
-    ShowConsoleMsg("ResetCachedVolPanStates\n");
+    zigCsurf->ResetCachedVolPanStates(this);
 }
 
-void FakeCsurf::OnTrackSelection(MediaTrack *trackid) {
-    std::ignore = trackid;
-    ShowConsoleMsg("OnTrackSelection\n");
+void FakeCsurf::OnTrackSelection(MediaTrack* trackid) {
+    zigCsurf->OnTrackSelection(this, trackid);
 }
 
 bool FakeCsurf::IsKeyDown(int key) {
-    std::ignore = key;
-    return false;
+    return zigCsurf->IsKeyDown(this, key);
 }
 
-int FakeCsurf::Extended(int call, void *parm1, void *parm2, void *parm3) {
-    std::ignore = call;
-    std::ignore = parm1;
-    std::ignore = parm2;
-    std::ignore = parm3;
-    ShowConsoleMsg("Extended\n");
-    return 0;
+int FakeCsurf::Extended(int call, void* parm1, void* parm2, void* parm3) {
+    return zigCsurf->Extended(this, call, parm1, parm2, parm3);
 }
-

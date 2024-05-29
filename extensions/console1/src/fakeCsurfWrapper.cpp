@@ -1,11 +1,12 @@
 #include "fakeCSurfWrapper.h"
 
 #include "fakeCsurf.h"
+#include <new>
 
 extern "C" {
 
-C_FakeCsurf FakeCsurf_Create() {
-    return new FakeCsurf();
+C_FakeCsurf FakeCsurf_Create(const ZigCsurf* zigCsurf) {
+    return new(std::nothrow) FakeCsurf(zigCsurf);
 }
 
 void FakeCsurf_Destroy(C_FakeCsurf instance) {

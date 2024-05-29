@@ -2,8 +2,13 @@
 #define FAKECSURF_HPP
 
 #include "reaper_plugin_functions.h" // Include the header where IReaperControlSurface is declared
+#include "zigCsurfStruct.h"
 
 class FakeCsurf : public IReaperControlSurface {
+public:
+  FakeCsurf(const ZigCsurf* zigCsurf);
+private:
+    const ZigCsurf* zigCsurf;
 public:
   const char *GetTypeString() override;
   const char *GetDescString() override;
@@ -28,6 +33,5 @@ public:
   bool IsKeyDown(int key) override;
   int Extended(int call, void *parm1, void *parm2, void *parm3) override;
 };
-
 
 #endif // FAKECSURF_HPP
