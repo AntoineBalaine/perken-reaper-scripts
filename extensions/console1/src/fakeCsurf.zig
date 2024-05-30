@@ -34,7 +34,7 @@ fn GetConfigString(self: *zigCsurf) callconv(.C) [*]const u8 {
     return "";
 }
 
-const zigCsurf = struct {
+const zigCsurf = extern struct {
     GetTypeString: *const fn (self: *zigCsurf) callconv(.C) [*]const u8,
     GetDescString: *const fn (self: *zigCsurf) callconv(.C) [*]const u8,
     GetConfigString: *const fn (self: *zigCsurf) callconv(.C) [*]const u8,
