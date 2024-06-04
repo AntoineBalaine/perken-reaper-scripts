@@ -1,4 +1,6 @@
 // zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_zig.so hello_world.zig -lc
+// or use
+// zig build --verbose && mv zig-out/lib/reaper_zig_fakecsurf.so /home/antoine/.config/REAPER/UserPlugins/
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -17,9 +19,8 @@ pub fn build(b: *std.Build) void {
     lib.addCSourceFiles(sourcefileOpts);
     lib.linkLibC();
     lib.linkLibCpp();
-
-    // Ensure the library is built when the default build target is run
-    b.installArtifact(lib);
+    const client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig_fakecsurf.so" });
+    b.getInstallStep().dependOn(&client_install.step);
 
     // Default step for building
     const step = b.step("default", "Build reaper_zig.so");
