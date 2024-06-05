@@ -3,19 +3,21 @@ const Reaper = @import("reaper.zig");
 const ShowConsoleMsg = Reaper.ShowConsoleMsg;
 const MediaTrack = Reaper.MediaTrack;
 const c_void = anyopaque;
+const Allocator = std.mem.Allocator;
 
 const c = @cImport({
     @cInclude("./fakeCSurfWrapper.h");
 });
 
-pub fn fakeCSurf() c.C_FakeCsurf {
-    const surface = zigCsurf{
+pub fn fakeCSurf(allocator: Allocator) !c.C_FakeCsurf {
+    const surfacePtr = try allocator.create(zigCsurf);
+    surfacePtr.* = .{
         .GetTypeString = &GetTypeString,
         .GetDescString = &GetDescString,
         .GetConfigString = &GetConfigString,
     };
-    // Create a new FakeCsurf instance
-    const myCsurf: c.C_FakeCsurf = c.FakeCsurf_Create(@constCast(@ptrCast(&surface)));
+
+    const myCsurf: c.C_FakeCsurf = c.FakeCsurf_Create(@constCast(@ptrCast(&surfacePtr)));
     return myCsurf;
 }
 

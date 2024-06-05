@@ -6,10 +6,8 @@
 
 class FakeCsurf : public IReaperControlSurface {
 public:
-  FakeCsurf(const ZigCsurf* zigCsurf);
-private:
-    const ZigCsurf* zigCsurf;
-public:
+  FakeCsurf(const ZigCsurf *zigCsurf);
+  const ZigCsurf *zigCsurf;
   const char *GetTypeString() override;
   const char *GetDescString() override;
   const char *GetConfigString() override;

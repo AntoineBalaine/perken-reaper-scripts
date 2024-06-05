@@ -5,12 +5,16 @@ const ImGui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const fakeCSurf = @import("fakeCsurf.zig");
+const Allocator = std.mem.Allocator;
 
 const plugin_name = "Hello, Zig!";
 var action_id: c_int = undefined;
 var ctx: ImGui.ContextPtr = null;
 var click_count: u32 = 0;
 var text = std.mem.zeroes([255:0]u8);
+
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = gpa.allocator();
 
 fn loop() !void {
     if (ctx == null) {
@@ -80,7 +84,10 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
     reaper.ShowConsoleMsg("Hello, Zig!\n");
     // Define the opaque struct to represent IReaperControlSurface
-    const myCsurf = fakeCSurf.fakeCSurf();
+    const myCsurf = fakeCSurf.fakeCSurf(allocator) catch {
+        reaper.ShowConsoleMsg("Failed to create fake csurf\n");
+        return 0;
+    };
     // const surfaceHandle: *anyopaque = @constCast(@ptrCast(&fakeCsurf.fakeCsurf));
     if (myCsurf == null) {
         reaper.ShowConsoleMsg("Failed to create fake csurf\n");
