@@ -1,6 +1,6 @@
 // zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_zig.so hello_world.zig -lc
 // or use
-// zig build --verbose && mv zig-out/lib/reaper_zig_fakecsurf.so /home/antoine/.config/REAPER/UserPlugins/
+// zig build --verbose && mv zig-out/lib/reaper_zig.so ~/.config/REAPER/UserPlugins/
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -14,12 +14,12 @@ pub fn build(b: *std.Build) void {
     lib.addIncludePath(root);
 
     // -shared reaper_barebone.cpp -o reaper_barebone.so
-    const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{ .files = &.{ "./src/fakeCsurf.cpp", "src/fakeCsurfWrapper.cpp" }, .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL" } };
+    const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{ .files = &.{ "./src/control_surface.cpp", "src/control_surface_wrapper.cpp" }, .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL" } };
 
     lib.addCSourceFiles(sourcefileOpts);
     lib.linkLibC();
     lib.linkLibCpp();
-    const client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig_fakecsurf.so" });
+    const client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
     b.getInstallStep().dependOn(&client_install.step);
 
     // Default step for building
