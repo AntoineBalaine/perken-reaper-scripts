@@ -53,7 +53,6 @@ pub const reaper = struct { // @import("reaper");
     pub const screensetNewCallbackFunc = *opaque {};
     pub const size_t = *opaque {};
     pub const takename = *opaque {};
-    pub const void_ = anyopaque;
     pub const plugin_info_t = extern struct {
         caller_version: c_int,
         hwnd_main: HWND,
@@ -105,7 +104,7 @@ pub const reaper = struct { // @import("reaper");
     /// HOWEVER, it requires some temporary space, equal to the size of the data being sorted, so you can pass it as the last parameter,
     /// or NULL and it will allocate and free space internally.
     // TODO fix merge sort
-    // __mergesort: *fn (*void_ base, size_t nmemb, size_t size, c_int (*cmpfunc)(*const void_,*const void_), *void_ tmpspace) callconv(.C) void_,
+    // __mergesort: *fn (*void base, size_t nmemb, size_t size, c_int (*cmpfunc)(*const void,*const void), *void tmpspace) callconv(.C) void,
 
     /// AddCustomizableMenu
     /// menuidstr is some unique identifying string
@@ -143,7 +142,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// adjustZoom
     /// forceset=0,doupd=true,centermode=-1 for default
-    pub var adjustZoom: *fn (amt: f64, forceset: c_int, doupd: bool, centermode: c_int) callconv(.C) void_ = undefined;
+    pub var adjustZoom: *fn (amt: f64, forceset: c_int, doupd: bool, centermode: c_int) callconv(.C) void = undefined;
 
     /// AnyTrackSolo
     pub var AnyTrackSolo: *fn (proj: *ReaProject) callconv(.C) bool = undefined;
@@ -154,7 +153,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// APITest
     /// Displays a message window if the API was successfully called.
-    pub var APITest: *fn () callconv(.C) void_ = undefined;
+    pub var APITest: *fn () callconv(.C) void = undefined;
 
     /// ApplyNudge
     /// nudgeflag: &1=set to value (otherwise nudge by value), &2=snap
@@ -167,11 +166,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// ArmCommand
     /// arms a command (or disarms if 0 passed) in section sectionname (empty string for main)
-    pub var ArmCommand: *fn (cmd: c_int, sectionname: *const c_char) callconv(.C) void_ = undefined;
+    pub var ArmCommand: *fn (cmd: c_int, sectionname: *const c_char) callconv(.C) void = undefined;
 
     /// Audio_Init
     /// open all audio and MIDI devices, if not open
-    pub var Audio_Init: *fn () callconv(.C) void_ = undefined;
+    pub var Audio_Init: *fn () callconv(.C) void = undefined;
 
     /// Audio_IsPreBuffer
     /// is in pre-buffer? threadsafe
@@ -183,7 +182,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// Audio_Quit
     /// close all audio and MIDI devices, if open
-    pub var Audio_Quit: *fn () callconv(.C) void_ = undefined;
+    pub var Audio_Quit: *fn () callconv(.C) void = undefined;
 
     /// Audio_RegHardwareHook
     /// return >0 on success
@@ -195,7 +194,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// AudioAccessorUpdate
     /// Force the accessor to reload its state from the underlying track or media item take. See CreateTakeAudioAccessor, CreateTrackAudioAccessor, DestroyAudioAccessor, AudioAccessorStateChanged, GetAudioAccessorStartTime, GetAudioAccessorEndTime, GetAudioAccessorSamples.
-    pub var AudioAccessorUpdate: *fn (accessor: *AudioAccessor) callconv(.C) void_ = undefined;
+    pub var AudioAccessorUpdate: *fn (accessor: *AudioAccessor) callconv(.C) void = undefined;
 
     /// AudioAccessorValidateState
     /// Validates the current state of the audio accessor -- must ONLY call this from the main thread. Returns true if the state changed.
@@ -203,7 +202,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// BypassFxAllTracks
     /// -1 = bypass all if not all bypassed,otherwise unbypass all
-    pub var BypassFxAllTracks: *fn (bypass: c_int) callconv(.C) void_ = undefined;
+    pub var BypassFxAllTracks: *fn (bypass: c_int) callconv(.C) void = undefined;
 
     /// CalcMediaSrcLoudness
     /// Calculates loudness statistics of media via dry run render. Statistics will be displayed to the user; call GetSetProjectInfo_String("RENDER_STATS") to retrieve via API. Returns 1 if loudness was calculated successfully, -1 if user canceled the dry run render.
@@ -221,19 +220,19 @@ pub const reaper = struct { // @import("reaper");
     pub var CalculatePeaksf32SrcPtr: *fn (srcBlock: *PCM_source_transfer_t, pksBlock: *PCM_source_peaktransfer_t) callconv(.C) c_int = undefined;
 
     /// ClearAllRecArmed
-    pub var ClearAllRecArmed: *fn () callconv(.C) void_ = undefined;
+    pub var ClearAllRecArmed: *fn () callconv(.C) void = undefined;
 
     /// ClearConsole
     /// Clear the ReaScript console. See ShowConsoleMsg
-    pub var ClearConsole: *fn () callconv(.C) void_ = undefined;
+    pub var ClearConsole: *fn () callconv(.C) void = undefined;
 
     /// ClearPeakCache
     /// resets the global peak caches
-    pub var ClearPeakCache: *fn () callconv(.C) void_ = undefined;
+    pub var ClearPeakCache: *fn () callconv(.C) void = undefined;
 
     /// ColorFromNative
     /// Extract RGB values from an OS dependent color. See ColorToNative.
-    pub var ColorFromNative: *fn (col: c_int, rOut: *c_int, gOut: *c_int, bOut: *c_int) callconv(.C) void_ = undefined;
+    pub var ColorFromNative: *fn (col: c_int, rOut: *c_int, gOut: *c_int, bOut: *c_int) callconv(.C) void = undefined;
 
     /// ColorToNative
     /// Make an OS dependent color from RGB values (e.g. RGB() macro on Windows). r,g and b are in [0..255]. See ColorFromNative.
@@ -310,8 +309,8 @@ pub const reaper = struct { // @import("reaper");
     pub var CountTracks: *fn (projOptional: *ReaProject) callconv(.C) c_int = undefined;
 
     /// CreateLocalOscHandler
-    /// callback is a function pointer: void_ (*callback)(*void_ obj, *const c_char msg, c_int msglen), which handles OSC messages sent from REAPER. The function return is a local osc handler. See SendLocalOscMessage, DestroyOscHandler.
-    pub var CreateLocalOscHandler: *fn (obj: *void_, callback: *void_) callconv(.C) *void_ = undefined;
+    /// callback is a function pointer: void (*callback)(*void obj, *const c_char msg, c_int msglen), which handles OSC messages sent from REAPER. The function return is a local osc handler. See SendLocalOscMessage, DestroyOscHandler.
+    pub var CreateLocalOscHandler: *fn (obj: *void, callback: *void) callconv(.C) *void = undefined;
 
     /// CreateMIDIInput
     /// Can only reliably create midi access for devices not already opened in prefs/MIDI, suitable for control surfaces etc.
@@ -339,25 +338,25 @@ pub const reaper = struct { // @import("reaper");
 
     /// CSurf_FlushUndo
     /// call this to force flushing of the undo states after using *CSurf_OnChange()
-    pub var CSurf_FlushUndo: *fn (force: bool) callconv(.C) void_ = undefined;
+    pub var CSurf_FlushUndo: *fn (force: bool) callconv(.C) void = undefined;
 
     /// CSurf_GetTouchState
     pub var CSurf_GetTouchState: *fn (trackid: *MediaTrack, isPan: c_int) callconv(.C) bool = undefined;
 
     /// CSurf_GoEnd
-    pub var CSurf_GoEnd: *fn () callconv(.C) void_ = undefined;
+    pub var CSurf_GoEnd: *fn () callconv(.C) void = undefined;
 
     /// CSurf_GoStart
-    pub var CSurf_GoStart: *fn () callconv(.C) void_ = undefined;
+    pub var CSurf_GoStart: *fn () callconv(.C) void = undefined;
 
     /// CSurf_NumTracks
     pub var CSurf_NumTracks: *fn (mcpView: bool) callconv(.C) c_int = undefined;
 
     /// CSurf_OnArrow
-    pub var CSurf_OnArrow: *fn (whichdir: c_int, wantzoom: bool) callconv(.C) void_ = undefined;
+    pub var CSurf_OnArrow: *fn (whichdir: c_int, wantzoom: bool) callconv(.C) void = undefined;
 
     /// CSurf_OnFwd
-    pub var CSurf_OnFwd: *fn (seekplay: c_int) callconv(.C) void_ = undefined;
+    pub var CSurf_OnFwd: *fn (seekplay: c_int) callconv(.C) void = undefined;
 
     /// CSurf_OnFXChange
     pub var CSurf_OnFXChange: *fn (trackid: *MediaTrack, en: c_int) callconv(.C) bool = undefined;
@@ -375,10 +374,10 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnMuteChangeEx: *fn (trackid: *MediaTrack, mute: c_int, allowgang: bool) callconv(.C) bool = undefined;
 
     /// CSurf_OnOscControlMessage
-    pub var CSurf_OnOscControlMessage: *fn (msg: *const c_char, arg: *const f32) callconv(.C) void_ = undefined;
+    pub var CSurf_OnOscControlMessage: *fn (msg: *const c_char, arg: *const f32) callconv(.C) void = undefined;
 
     /// CSurf_OnOscControlMessage2
-    pub var CSurf_OnOscControlMessage2: *fn (msg: *const c_char, arg: *const f32, argstr: *const c_char) callconv(.C) void_ = undefined;
+    pub var CSurf_OnOscControlMessage2: *fn (msg: *const c_char, arg: *const f32, argstr: *const c_char) callconv(.C) void = undefined;
 
     /// CSurf_OnPanChange
     pub var CSurf_OnPanChange: *fn (trackid: *MediaTrack, pan: f64, relative: bool) callconv(.C) f64 = undefined;
@@ -387,13 +386,13 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnPanChangeEx: *fn (trackid: *MediaTrack, pan: f64, relative: bool, allowGang: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnPause
-    pub var CSurf_OnPause: *fn () callconv(.C) void_ = undefined;
+    pub var CSurf_OnPause: *fn () callconv(.C) void = undefined;
 
     /// CSurf_OnPlay
-    pub var CSurf_OnPlay: *fn () callconv(.C) void_ = undefined;
+    pub var CSurf_OnPlay: *fn () callconv(.C) void = undefined;
 
     /// CSurf_OnPlayRateChange
-    pub var CSurf_OnPlayRateChange: *fn (playrate: f64) callconv(.C) void_ = undefined;
+    pub var CSurf_OnPlayRateChange: *fn (playrate: f64) callconv(.C) void = undefined;
 
     /// CSurf_OnRecArmChange
     pub var CSurf_OnRecArmChange: *fn (trackid: *MediaTrack, recarm: c_int) callconv(.C) bool = undefined;
@@ -402,7 +401,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnRecArmChangeEx: *fn (trackid: *MediaTrack, recarm: c_int, allowgang: bool) callconv(.C) bool = undefined;
 
     /// CSurf_OnRecord
-    pub var CSurf_OnRecord: *fn () callconv(.C) void_ = undefined;
+    pub var CSurf_OnRecord: *fn () callconv(.C) void = undefined;
 
     /// CSurf_OnRecvPanChange
     pub var CSurf_OnRecvPanChange: *fn (trackid: *MediaTrack, recv_index: c_int, pan: f64, relative: bool) callconv(.C) f64 = undefined;
@@ -411,13 +410,13 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnRecvVolumeChange: *fn (trackid: *MediaTrack, recv_index: c_int, volume: f64, relative: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnRew
-    pub var CSurf_OnRew: *fn (seekplay: c_int) callconv(.C) void_ = undefined;
+    pub var CSurf_OnRew: *fn (seekplay: c_int) callconv(.C) void = undefined;
 
     /// CSurf_OnRewFwd
-    pub var CSurf_OnRewFwd: *fn (seekplay: c_int, dir: c_int) callconv(.C) void_ = undefined;
+    pub var CSurf_OnRewFwd: *fn (seekplay: c_int, dir: c_int) callconv(.C) void = undefined;
 
     /// CSurf_OnScroll
-    pub var CSurf_OnScroll: *fn (xdir: c_int, ydir: c_int) callconv(.C) void_ = undefined;
+    pub var CSurf_OnScroll: *fn (xdir: c_int, ydir: c_int) callconv(.C) void = undefined;
 
     /// CSurf_OnSelectedChange
     pub var CSurf_OnSelectedChange: *fn (trackid: *MediaTrack, selected: c_int) callconv(.C) bool = undefined;
@@ -435,13 +434,13 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnSoloChangeEx: *fn (trackid: *MediaTrack, solo: c_int, allowgang: bool) callconv(.C) bool = undefined;
 
     /// CSurf_OnStop
-    pub var CSurf_OnStop: *fn () callconv(.C) void_ = undefined;
+    pub var CSurf_OnStop: *fn () callconv(.C) void = undefined;
 
     /// CSurf_OnTempoChange
-    pub var CSurf_OnTempoChange: *fn (bpm: f64) callconv(.C) void_ = undefined;
+    pub var CSurf_OnTempoChange: *fn (bpm: f64) callconv(.C) void = undefined;
 
     /// CSurf_OnTrackSelection
-    pub var CSurf_OnTrackSelection: *fn (trackid: *MediaTrack) callconv(.C) void_ = undefined;
+    pub var CSurf_OnTrackSelection: *fn (trackid: *MediaTrack) callconv(.C) void = undefined;
 
     /// CSurf_OnVolumeChange
     pub var CSurf_OnVolumeChange: *fn (trackid: *MediaTrack, volume: f64, relative: bool) callconv(.C) f64 = undefined;
@@ -456,43 +455,43 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnWidthChangeEx: *fn (trackid: *MediaTrack, width: f64, relative: bool, allowGang: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnZoom
-    pub var CSurf_OnZoom: *fn (xdir: c_int, ydir: c_int) callconv(.C) void_ = undefined;
+    pub var CSurf_OnZoom: *fn (xdir: c_int, ydir: c_int) callconv(.C) void = undefined;
 
     /// CSurf_ResetAllCachedVolPanStates
-    pub var CSurf_ResetAllCachedVolPanStates: *fn () callconv(.C) void_ = undefined;
+    pub var CSurf_ResetAllCachedVolPanStates: *fn () callconv(.C) void = undefined;
 
     /// CSurf_ScrubAmt
-    pub var CSurf_ScrubAmt: *fn (amt: f64) callconv(.C) void_ = undefined;
+    pub var CSurf_ScrubAmt: *fn (amt: f64) callconv(.C) void = undefined;
 
     /// CSurf_SetAutoMode
-    pub var CSurf_SetAutoMode: *fn (mode: c_int, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetAutoMode: *fn (mode: c_int, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetPlayState
-    pub var CSurf_SetPlayState: *fn (play: bool, pause: bool, rec: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetPlayState: *fn (play: bool, pause: bool, rec: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetRepeatState
-    pub var CSurf_SetRepeatState: *fn (rep: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetRepeatState: *fn (rep: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceMute
-    pub var CSurf_SetSurfaceMute: *fn (trackid: *MediaTrack, mute: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetSurfaceMute: *fn (trackid: *MediaTrack, mute: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfacePan
-    pub var CSurf_SetSurfacePan: *fn (trackid: *MediaTrack, pan: f64, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetSurfacePan: *fn (trackid: *MediaTrack, pan: f64, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceRecArm
-    pub var CSurf_SetSurfaceRecArm: *fn (trackid: *MediaTrack, recarm: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetSurfaceRecArm: *fn (trackid: *MediaTrack, recarm: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceSelected
-    pub var CSurf_SetSurfaceSelected: *fn (trackid: *MediaTrack, selected: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetSurfaceSelected: *fn (trackid: *MediaTrack, selected: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceSolo
-    pub var CSurf_SetSurfaceSolo: *fn (trackid: *MediaTrack, solo: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetSurfaceSolo: *fn (trackid: *MediaTrack, solo: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceVolume
-    pub var CSurf_SetSurfaceVolume: *fn (trackid: *MediaTrack, volume: f64, ignoresurf: *IReaperControlSurface) callconv(.C) void_ = undefined;
+    pub var CSurf_SetSurfaceVolume: *fn (trackid: *MediaTrack, volume: f64, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetTrackListChange
-    pub var CSurf_SetTrackListChange: *fn () callconv(.C) void_ = undefined;
+    pub var CSurf_SetTrackListChange: *fn () callconv(.C) void = undefined;
 
     /// CSurf_TrackFromID
     pub var CSurf_TrackFromID: *fn (idx: c_int, mcpView: bool) callconv(.C) *MediaTrack = undefined;
@@ -527,7 +526,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// DeleteExtState
     /// Delete the extended state value for a specific section and key. persist=true means the value should remain deleted the next time REAPER is opened. See SetExtState, GetExtState, HasExtState.
-    pub var DeleteExtState: *fn (section: *const c_char, key: *const c_char, persist: bool) callconv(.C) void_ = undefined;
+    pub var DeleteExtState: *fn (section: *const c_char, key: *const c_char, persist: bool) callconv(.C) void = undefined;
 
     /// DeleteProjectMarker
     /// Delete a marker.  proj==NULL for the active project.
@@ -551,18 +550,18 @@ pub const reaper = struct { // @import("reaper");
 
     /// DeleteTrack
     /// deletes a track
-    pub var DeleteTrack: *fn (tr: *MediaTrack) callconv(.C) void_ = undefined;
+    pub var DeleteTrack: *fn (tr: *MediaTrack) callconv(.C) void = undefined;
 
     /// DeleteTrackMediaItem
     pub var DeleteTrackMediaItem: *fn (tr: *MediaTrack, it: *MediaItem) callconv(.C) bool = undefined;
 
     /// DestroyAudioAccessor
     /// Destroy an audio accessor. Must only call from the main thread. See CreateTakeAudioAccessor, CreateTrackAudioAccessor, AudioAccessorStateChanged, GetAudioAccessorStartTime, GetAudioAccessorEndTime, GetAudioAccessorSamples.
-    pub var DestroyAudioAccessor: *fn (accessor: *AudioAccessor) callconv(.C) void_ = undefined;
+    pub var DestroyAudioAccessor: *fn (accessor: *AudioAccessor) callconv(.C) void = undefined;
 
     /// DestroyLocalOscHandler
     /// See CreateLocalOscHandler, SendLocalOscMessage.
-    pub var DestroyLocalOscHandler: *fn (local_osc_handler: *void_) callconv(.C) void_ = undefined;
+    pub var DestroyLocalOscHandler: *fn (local_osc_handler: *void) callconv(.C) void = undefined;
 
     /// DoActionShortcutDialog
     /// Open the action shortcut dialog to edit or add a shortcut for the given command ID. If (shortcutidx >= 0 && shortcutidx < CountActionShortcuts()), that specific shortcut will be replaced, otherwise a new shortcut will be added.
@@ -571,7 +570,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// Dock_UpdateDockID
     /// updates preference for docker window ident_str to be in dock whichDock on next open
-    pub var Dock_UpdateDockID: *fn (ident_str: *const c_char, whichDock: c_int) callconv(.C) void_ = undefined;
+    pub var Dock_UpdateDockID: *fn (ident_str: *const c_char, whichDock: c_int) callconv(.C) void = undefined;
 
     /// DockGetPosition
     /// -1=not found, 0=bottom, 1=left, 2=top, 3=right, 4=f32ing
@@ -582,26 +581,26 @@ pub const reaper = struct { // @import("reaper");
     pub var DockIsChildOfDock: *fn (hwnd: HWND, isf32ingDockerOut: *bool) callconv(.C) c_int = undefined;
 
     /// DockWindowActivate
-    pub var DockWindowActivate: *fn (hwnd: HWND) callconv(.C) void_ = undefined;
+    pub var DockWindowActivate: *fn (hwnd: HWND) callconv(.C) void = undefined;
 
     /// DockWindowAdd
-    pub var DockWindowAdd: *fn (hwnd: HWND, name: *const c_char, pos: c_int, allowShow: bool) callconv(.C) void_ = undefined;
+    pub var DockWindowAdd: *fn (hwnd: HWND, name: *const c_char, pos: c_int, allowShow: bool) callconv(.C) void = undefined;
 
     /// DockWindowAddEx
-    pub var DockWindowAddEx: *fn (hwnd: HWND, name: *const c_char, identstr: *const c_char, allowShow: bool) callconv(.C) void_ = undefined;
+    pub var DockWindowAddEx: *fn (hwnd: HWND, name: *const c_char, identstr: *const c_char, allowShow: bool) callconv(.C) void = undefined;
 
     /// DockWindowRefresh
-    pub var DockWindowRefresh: *fn () callconv(.C) void_ = undefined;
+    pub var DockWindowRefresh: *fn () callconv(.C) void = undefined;
 
     /// DockWindowRefreshForHWND
-    pub var DockWindowRefreshForHWND: *fn (hwnd: HWND) callconv(.C) void_ = undefined;
+    pub var DockWindowRefreshForHWND: *fn (hwnd: HWND) callconv(.C) void = undefined;
 
     /// DockWindowRemove
-    pub var DockWindowRemove: *fn (hwnd: HWND) callconv(.C) void_ = undefined;
+    pub var DockWindowRemove: *fn (hwnd: HWND) callconv(.C) void = undefined;
 
     /// DuplicateCustomizableMenu
     /// Populate destmenu with all the entries and submenus found in srcmenu
-    pub var DuplicateCustomizableMenu: *fn (srcmenu: *void_, destmenu: *void_) callconv(.C) bool = undefined;
+    pub var DuplicateCustomizableMenu: *fn (srcmenu: *void, destmenu: *void) callconv(.C) bool = undefined;
 
     /// EditTempoTimeSigMarker
     /// Open the tempo/time signature marker editor dialog.
@@ -609,7 +608,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// EnsureNotCompletelyOffscreen
     /// call with a saved window rect for your window and it'll correct any positioning info.
-    pub var EnsureNotCompletelyOffscreen: *fn (rInOut: *RECT) callconv(.C) void_ = undefined;
+    pub var EnsureNotCompletelyOffscreen: *fn (rInOut: *RECT) callconv(.C) void = undefined;
 
     /// EnumerateFiles
     /// List the files in the "path" directory. Returns NULL/nil when all files have been listed. Use fileindex = -1 to force re-read of directory (invalidate cache). See EnumerateSubdirectories
@@ -666,7 +665,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// Envelope_FormatValue
     /// Formats the value of an envelope to a user-readable form
-    pub var Envelope_FormatValue: *fn (env: *TrackEnvelope, value: f64, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var Envelope_FormatValue: *fn (env: *TrackEnvelope, value: f64, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// Envelope_GetParentTake
     /// If take envelope, gets the take from the envelope. If FX, indexOut set to FX index, index2Out set to parameter index, otherwise -1.
@@ -698,7 +697,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// format_timestr
     /// Format tpos (which is time in seconds) as hh:mm:ss.sss. See format_timestr_pos, format_timestr_len.
-    pub var format_timestr: *fn (tpos: f64, buf: *c_char, buf_sz: c_int) callconv(.C) void_ = undefined;
+    pub var format_timestr: *fn (tpos: f64, buf: *c_char, buf_sz: c_int) callconv(.C) void = undefined;
 
     /// format_timestr_len
     /// time formatting mode overrides: -1=proj default.
@@ -709,7 +708,7 @@ pub const reaper = struct { // @import("reaper");
     /// 4=samples
     /// 5=h:m:s:f
     /// offset is start of where the length will be calculated from
-    pub var format_timestr_len: *fn (tpos: f64, buf: *c_char, buf_sz: c_int, offset: f64, modeoverride: c_int) callconv(.C) void_ = undefined;
+    pub var format_timestr_len: *fn (tpos: f64, buf: *c_char, buf_sz: c_int, offset: f64, modeoverride: c_int) callconv(.C) void = undefined;
 
     /// format_timestr_pos
     /// time formatting mode overrides: -1=proj default.
@@ -720,20 +719,20 @@ pub const reaper = struct { // @import("reaper");
     /// 4=samples
     /// 5=h:m:s:f
     ///
-    pub var format_timestr_pos: *fn (tpos: f64, buf: *c_char, buf_sz: c_int, modeoverride: c_int) callconv(.C) void_ = undefined;
+    pub var format_timestr_pos: *fn (tpos: f64, buf: *c_char, buf_sz: c_int, modeoverride: c_int) callconv(.C) void = undefined;
 
     /// FreeHeapPtr
     /// free heap memory returned from a Reaper API function
-    pub var FreeHeapPtr: *fn (ptr: *void_) callconv(.C) void_ = undefined;
+    pub var FreeHeapPtr: *fn (ptr: *void) callconv(.C) void = undefined;
 
     /// genGuid
-    pub var genGuid: *fn (g: *GUID) callconv(.C) void_ = undefined;
+    pub var genGuid: *fn (g: *GUID) callconv(.C) void = undefined;
 
     /// get_config_var
     /// gets ini configuration variable by name, raw, returns size of variable in szOut and pointer to variable. special values queryable are also:
     ///   __numcpu (c_int) cpu count.
     ///   __fx_loadstate_ctx (c_char): 0 if unknown, or during FX state loading: 'u' (instantiating via undo), 'U' (updating via undo), 'P' (loading preset).
-    pub var get_config_var: *fn (name: *const c_char, szOut: *c_int) callconv(.C) *void_ = undefined;
+    pub var get_config_var: *fn (name: *const c_char, szOut: *c_int) callconv(.C) *void = undefined;
 
     /// get_config_var_string
     /// gets ini configuration variable value as string
@@ -745,7 +744,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// get_midi_config_var
     /// Deprecated.
-    pub var get_midi_config_var: *fn (name: *const c_char, szOut: *c_int) callconv(.C) *void_ = undefined;
+    pub var get_midi_config_var: *fn (name: *const c_char, szOut: *c_int) callconv(.C) *void = undefined;
 
     /// GetActionShortcutDesc
     /// Get the text description of a specific shortcut for the given command ID.
@@ -774,7 +773,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetAudioAccessorHash
     /// Deprecated. See AudioAccessorStateChanged instead.
-    pub var GetAudioAccessorHash: *fn (accessor: *AudioAccessor, hashNeed128: *c_char) callconv(.C) void_ = undefined;
+    pub var GetAudioAccessorHash: *fn (accessor: *AudioAccessor, hashNeed128: *c_char) callconv(.C) void = undefined;
 
     /// GetAudioAccessorSamples
     /// Get a block of samples from the audio accessor. Samples are extracted immediately pre-FX, and returned interleaved (first sample of first channel, first sample of second channel...). Returns 0 if no audio, 1 if audio, -1 on error. See CreateTakeAudioAccessor, CreateTrackAudioAccessor, DestroyAudioAccessor, AudioAccessorStateChanged, GetAudioAccessorStartTime, GetAudioAccessorEndTime.//
@@ -805,7 +804,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetColorThemeStruct
     /// returns the whole color theme (icontheme.h) and the size
-    pub var GetColorThemeStruct: *fn (szOut: *c_int) callconv(.C) *void_ = undefined;
+    pub var GetColorThemeStruct: *fn (szOut: *c_int) callconv(.C) *void = undefined;
 
     /// GetConfigWantsDock
     /// gets the dock ID desired by ident_str, if any
@@ -934,15 +933,15 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetIconThemePointer
     /// returns a named icontheme entry
-    pub var GetIconThemePointer: *fn (name: *const c_char) callconv(.C) *void_ = undefined;
+    pub var GetIconThemePointer: *fn (name: *const c_char) callconv(.C) *void = undefined;
 
     /// GetIconThemePointerForDPI
     /// returns a named icontheme entry for a given DPI-scaling (256=1:1). Note: the return value should not be stored, it should be queried at each paint! Querying name=NULL returns the start of the structure
-    pub var GetIconThemePointerForDPI: *fn (name: *const c_char, dpisc: c_int) callconv(.C) *void_ = undefined;
+    pub var GetIconThemePointerForDPI: *fn (name: *const c_char, dpisc: c_int) callconv(.C) *void = undefined;
 
     /// GetIconThemeStruct
     /// returns a pointer to the icon theme (icontheme.h) and the size of that struct
-    pub var GetIconThemeStruct: *fn (szOut: *c_int) callconv(.C) *void_ = undefined;
+    pub var GetIconThemeStruct: *fn (szOut: *c_int) callconv(.C) *void = undefined;
 
     /// GetInputActivityLevel
     /// returns approximate input level if available, 0-511 mono inputs, |1024 for stereo pairs, 4096+*devidx32 for MIDI devices
@@ -953,7 +952,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetInputOutputLatency
     /// Gets the audio device input/output latency in samples
-    pub var GetInputOutputLatency: *fn (inputlatencyOut: *c_int, outputLatencyOut: *c_int) callconv(.C) void_ = undefined;
+    pub var GetInputOutputLatency: *fn (inputlatencyOut: *c_int, outputLatencyOut: *c_int) callconv(.C) void = undefined;
 
     /// GetItemEditingTime2
     /// returns time of relevant edit, set which_item to the pcm_source (if applicable), flags (if specified) will be set to 1 for edge resizing, 2 for fade change, 4 for item move, 8 for item slip edit (edit cursor time or start of item)
@@ -975,7 +974,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetLastMarkerAndCurRegion
     /// Get the last project marker before time, and/or the project region that includes time. markeridx and regionidx are returned not necessarily as the displayed marker/region index, but as the index that can be passed to EnumProjectMarkers. Either or both of markeridx and regionidx may be NULL. See EnumProjectMarkers.
-    pub var GetLastMarkerAndCurRegion: *fn (proj: *ReaProject, time: f64, markeridxOut: *c_int, regionidxOut: *c_int) callconv(.C) void_ = undefined;
+    pub var GetLastMarkerAndCurRegion: *fn (proj: *ReaProject, time: f64, markeridxOut: *c_int, regionidxOut: *c_int) callconv(.C) void = undefined;
 
     /// GetLastTouchedFX
     /// Returns true if the last touched FX parameter is valid, false otherwise. The low word of tracknumber is the 1-based track index -- 0 means the master track, 1 means track 1, etc. If the high word of tracknumber is nonzero, it refers to the 1-based item index (1 is the first item on the track, etc). For track FX, the low 24 bits of fxnumber refer to the FX index in the chain, and if the next 8 bits are 01, then the FX is record FX. For item FX, the low word defines the FX index in the chain, and the high word defines the take number. Deprecated, see GetTouchedOrFocusedFX.
@@ -1110,7 +1109,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetMediaSourceFileName
     /// Copies the media source filename to filenamebuf. Note that in-project MIDI media sources have no associated filename. See GetMediaSourceParent.
-    pub var GetMediaSourceFileName: *fn (source: *PCM_source, filenamebufOut: *c_char, filenamebufOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetMediaSourceFileName: *fn (source: *PCM_source, filenamebufOut: *c_char, filenamebufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetMediaSourceLength
     /// Returns the length of the source media. If the media source is beat-based, the length will be in quarter notes, otherwise it will be in seconds.
@@ -1130,7 +1129,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetMediaSourceType
     /// copies the media source type ("WAV", "MIDI", etc) to typebuf
-    pub var GetMediaSourceType: *fn (source: *PCM_source, typebufOut: *c_char, typebufOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetMediaSourceType: *fn (source: *PCM_source, typebufOut: *c_char, typebufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetMediaTrackInfo_Value
     /// Get track numerical-value attributes.
@@ -1220,11 +1219,11 @@ pub const reaper = struct { // @import("reaper");
     /// Note: the action string may have a space and 'c' or 'm' appended to it to specify command ID vs mouse modifier ID.
     /// See SetMouseModifier for more information.
     ///
-    pub var GetMouseModifier: *fn (context: *const c_char, modifier_flag: c_int, actionOut: *c_char, actionOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetMouseModifier: *fn (context: *const c_char, modifier_flag: c_int, actionOut: *c_char, actionOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetMousePosition
     /// get mouse position in screen coordinates
-    pub var GetMousePosition: *fn (xOut: *c_int, yOut: *c_int) callconv(.C) void_ = undefined;
+    pub var GetMousePosition: *fn (xOut: *c_int, yOut: *c_int) callconv(.C) void = undefined;
 
     /// GetNumAudioInputs
     /// Return number of normal audio hardware inputs available
@@ -1265,19 +1264,19 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetPeakFileName
     /// get the peak file name for a given file (can be either filename.reapeaks,or a hashed filename in another path)
-    pub var GetPeakFileName: *fn (fn_: *const c_char, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetPeakFileName: *fn (fn_: *const c_char, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetPeakFileNameEx
     /// get the peak file name for a given file (can be either filename.reapeaks,or a hashed filename in another path)
-    pub var GetPeakFileNameEx: *fn (fn_: *const c_char, buf: *c_char, buf_sz: c_int, forWrite: bool) callconv(.C) void_ = undefined;
+    pub var GetPeakFileNameEx: *fn (fn_: *const c_char, buf: *c_char, buf_sz: c_int, forWrite: bool) callconv(.C) void = undefined;
 
     /// GetPeakFileNameEx2
     /// Like GetPeakFileNameEx, but you can specify peaksfileextension such as ".reapeaks"
-    pub var GetPeakFileNameEx2: *fn (fn_: *const c_char, buf: *c_char, buf_sz: c_int, forWrite: bool, peaksfileextension: *const c_char) callconv(.C) void_ = undefined;
+    pub var GetPeakFileNameEx2: *fn (fn_: *const c_char, buf: *c_char, buf_sz: c_int, forWrite: bool, peaksfileextension: *const c_char) callconv(.C) void = undefined;
 
     /// GetPeaksBitmap
     /// see note in reaper_plugin.h about PCM_source_peaktransfer_t::samplerate
-    pub var GetPeaksBitmap: *fn (pks: *PCM_source_peaktransfer_t, maxamp: f64, w: c_int, h: c_int, bmp: *LICE_IBitmap) callconv(.C) *void_ = undefined;
+    pub var GetPeaksBitmap: *fn (pks: *PCM_source_peaktransfer_t, maxamp: f64, w: c_int, h: c_int, bmp: *LICE_IBitmap) callconv(.C) *void = undefined;
 
     /// GetPlayPosition
     /// returns latency-compensated actual-what-you-hear position
@@ -1305,30 +1304,30 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetPreferredDiskReadMode
     /// Gets user configured preferred disk read mode. mode/nb/bs are all parameters that should be passed to WDL_FileRead, see for more information.
-    pub var GetPreferredDiskReadMode: *fn (mode: *c_int, nb: *c_int, bs: *c_int) callconv(.C) void_ = undefined;
+    pub var GetPreferredDiskReadMode: *fn (mode: *c_int, nb: *c_int, bs: *c_int) callconv(.C) void = undefined;
 
     /// GetPreferredDiskReadModePeak
     /// Gets user configured preferred disk read mode for use when building peaks. mode/nb/bs are all parameters that should be passed to WDL_FileRead, see for more information.
-    pub var GetPreferredDiskReadModePeak: *fn (mode: *c_int, nb: *c_int, bs: *c_int) callconv(.C) void_ = undefined;
+    pub var GetPreferredDiskReadModePeak: *fn (mode: *c_int, nb: *c_int, bs: *c_int) callconv(.C) void = undefined;
 
     /// GetPreferredDiskWriteMode
     /// Gets user configured preferred disk write mode. nb will receive two values, the initial and maximum write buffer counts. mode/nb/bs are all parameters that should be passed to WDL_FileWrite, see for more information.
-    pub var GetPreferredDiskWriteMode: *fn (mode: *c_int, nb: *c_int, bs: *c_int) callconv(.C) void_ = undefined;
+    pub var GetPreferredDiskWriteMode: *fn (mode: *c_int, nb: *c_int, bs: *c_int) callconv(.C) void = undefined;
 
     /// GetProjectLength
     /// returns length of project (maximum of end of media item, markers, end of regions, tempo map
     pub var GetProjectLength: *fn (proj: *ReaProject) callconv(.C) f64 = undefined;
 
     /// GetProjectName
-    pub var GetProjectName: *fn (proj: *ReaProject, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetProjectName: *fn (proj: *ReaProject, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetProjectPath
     /// Get the project recording path.
-    pub var GetProjectPath: *fn (bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetProjectPath: *fn (bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetProjectPathEx
     /// Get the project recording path.
-    pub var GetProjectPathEx: *fn (proj: *ReaProject, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetProjectPathEx: *fn (proj: *ReaProject, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetProjectStateChangeCount
     /// returns an integer that changes when the project state changes
@@ -1340,12 +1339,12 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetProjectTimeSignature
     /// deprecated
-    pub var GetProjectTimeSignature: *fn (bpmOut: *f64, bpiOut: *f64) callconv(.C) void_ = undefined;
+    pub var GetProjectTimeSignature: *fn (bpmOut: *f64, bpiOut: *f64) callconv(.C) void = undefined;
 
     /// GetProjectTimeSignature2
     /// Gets basic time signature (beats per minute, numerator of time signature in bpi)
     /// this does not reflect tempo envelopes but is purely what is set in the project settings.
-    pub var GetProjectTimeSignature2: *fn (proj: *ReaProject, bpmOut: *f64, bpiOut: *f64) callconv(.C) void_ = undefined;
+    pub var GetProjectTimeSignature2: *fn (proj: *ReaProject, bpmOut: *f64, bpiOut: *f64) callconv(.C) void = undefined;
 
     /// GetProjExtState
     /// Get the value previously associated with this extname and key, the last time the project was saved. See SetProjExtState, EnumProjExtState.
@@ -1377,13 +1376,13 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSet_ArrangeView2
     /// Gets or sets the arrange view start/end time for screen coordinates. use screen_x_start=screen_x_end=0 to use the full arrange view's start/end time
-    pub var GetSet_ArrangeView2: *fn (proj: *ReaProject, isSet: bool, screen_x_start: c_int, screen_x_end: c_int, start_timeInOut: *f64, end_timeInOut: *f64) callconv(.C) void_ = undefined;
+    pub var GetSet_ArrangeView2: *fn (proj: *ReaProject, isSet: bool, screen_x_start: c_int, screen_x_end: c_int, start_timeInOut: *f64, end_timeInOut: *f64) callconv(.C) void = undefined;
 
     /// GetSet_LoopTimeRange
-    pub var GetSet_LoopTimeRange: *fn (isSet: bool, isLoop: bool, startOut: *f64, endOut: *f64, allowautoseek: bool) callconv(.C) void_ = undefined;
+    pub var GetSet_LoopTimeRange: *fn (isSet: bool, isLoop: bool, startOut: *f64, endOut: *f64, allowautoseek: bool) callconv(.C) void = undefined;
 
     /// GetSet_LoopTimeRange2
-    pub var GetSet_LoopTimeRange2: *fn (proj: *ReaProject, isSet: bool, isLoop: bool, startOut: *f64, endOut: *f64, allowautoseek: bool) callconv(.C) void_ = undefined;
+    pub var GetSet_LoopTimeRange2: *fn (proj: *ReaProject, isSet: bool, isLoop: bool, startOut: *f64, endOut: *f64, allowautoseek: bool) callconv(.C) void = undefined;
 
     /// GetSetAutomationItemInfo
     /// Get or set automation item information. autoitem_idx=0 for the first automation item on an envelope, 1 for the second item, etc. desc can be any of the following:
@@ -1468,7 +1467,7 @@ pub const reaper = struct { // @import("reaper");
     /// P_EXT:xyz : c_char * : extension-specific persistent data
     /// GUID : GUID * : 16-byte GUID, can query or update. If using a _String() function, GUID is a string {xyz-...}.
     ///
-    pub var GetSetMediaItemInfo: *fn (item: *MediaItem, parmname: *const c_char, setNewValue: *void_) callconv(.C) *void_ = undefined;
+    pub var GetSetMediaItemInfo: *fn (item: *MediaItem, parmname: *const c_char, setNewValue: *void) callconv(.C) *void = undefined;
 
     /// GetSetMediaItemInfo_String
     /// Gets/sets an item attribute string:
@@ -1503,7 +1502,7 @@ pub const reaper = struct { // @import("reaper");
     /// I_CUSTOMCOLOR : c_int * : custom color, OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). If you do not |0x1000000, then it will not be used, but will store the color
     /// IP_TAKENUMBER : c_int : take number (read-only, returns the take number directly)
     ///
-    pub var GetSetMediaItemTakeInfo: *fn (tk: *MediaItem_Take, parmname: *const c_char, setNewValue: *void_) callconv(.C) *void_ = undefined;
+    pub var GetSetMediaItemTakeInfo: *fn (tk: *MediaItem_Take, parmname: *const c_char, setNewValue: *void) callconv(.C) *void = undefined;
 
     /// GetSetMediaItemTakeInfo_String
     /// Gets/sets a take attribute string:
@@ -1592,7 +1591,7 @@ pub const reaper = struct { // @import("reaper");
     /// I_PLAY_OFFSET_FLAG : c_int * : track media playback offset state, &1=bypassed, &2=offset value is measured in samples (otherwise measured in seconds)
     /// D_PLAY_OFFSET : f64 * : track media playback offset, units depend on I_PLAY_OFFSET_FLAG
     ///
-    pub var GetSetMediaTrackInfo: *fn (tr: *MediaTrack, parmname: *const c_char, setNewValue: *void_) callconv(.C) *void_ = undefined;
+    pub var GetSetMediaTrackInfo: *fn (tr: *MediaTrack, parmname: *const c_char, setNewValue: *void) callconv(.C) *void = undefined;
 
     /// GetSetMediaTrackInfo_String
     /// Get or set track string attributes.
@@ -1615,18 +1614,18 @@ pub const reaper = struct { // @import("reaper");
     /// get or set the state of a {track,item,envelope} as an RPPXML chunk
     /// str="" to get the chunk string returned (must call FreeHeapPtr when done)
     /// supply str to set the state (returns zero)
-    pub var GetSetObjectState: *fn (obj: *void_, str: *const c_char) callconv(.C) *c_char = undefined;
+    pub var GetSetObjectState: *fn (obj: *void, str: *const c_char) callconv(.C) *c_char = undefined;
 
     /// GetSetObjectState2
     /// get or set the state of a {track,item,envelope} as an RPPXML chunk
     /// str="" to get the chunk string returned (must call FreeHeapPtr when done)
     /// supply str to set the state (returns zero)
     /// set isundo if the state will be used for undo purposes (which may allow REAPER to get the state more efficiently
-    pub var GetSetObjectState2: *fn (obj: *void_, str: *const c_char, isundo: bool) callconv(.C) *c_char = undefined;
+    pub var GetSetObjectState2: *fn (obj: *void, str: *const c_char, isundo: bool) callconv(.C) *c_char = undefined;
 
     /// GetSetProjectAuthor
     /// deprecated, see GetSetProjectInfo_String with desc="PROJECT_AUTHOR"
-    pub var GetSetProjectAuthor: *fn (proj: *ReaProject, set: bool, author: *c_char, author_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetSetProjectAuthor: *fn (proj: *ReaProject, set: bool, author: *c_char, author_sz: c_int) callconv(.C) void = undefined;
 
     /// GetSetProjectGrid
     /// Get or set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc. swingmode can be 1 for swing enabled, swingamt is -1..1. swingmode can be 3 for measure-grid. Returns grid configuration flags
@@ -1681,7 +1680,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSetProjectNotes
     /// gets or sets project notes, notesNeedBig_sz is ignored when setting
-    pub var GetSetProjectNotes: *fn (proj: *ReaProject, set: bool, notesNeedBig: *c_char, notesNeedBig_sz: c_int) callconv(.C) void_ = undefined;
+    pub var GetSetProjectNotes: *fn (proj: *ReaProject, set: bool, notesNeedBig: *c_char, notesNeedBig_sz: c_int) callconv(.C) void = undefined;
 
     /// GetSetRepeat
     /// -1 == query,0=clear,1=set,>1=toggle . returns new value
@@ -1780,7 +1779,7 @@ pub const reaper = struct { // @import("reaper");
     /// I_DSTCHAN : c_int * : low 10 bits are destination index, &1024 set to mix to mono.
     /// I_MIDIFLAGS : c_int * : low 5 bits=source channel 0=all, 1-16, 31=MIDI send disabled, next 5 bits=dest channel, 0=orig, 1-16=chan. &1024 for faders-send MIDI vol/pan. (>>14)&255 = src bus (0 for all, 1 for normal, 2+). (>>22)&255=destination bus (0 for all, 1 for normal, 2+)
     /// See CreateTrackSend, RemoveTrackSend.
-    pub var GetSetTrackSendInfo: *fn (tr: *MediaTrack, category: c_int, sendidx: c_int, parmname: *const c_char, setNewValue: *void_) callconv(.C) *void_ = undefined;
+    pub var GetSetTrackSendInfo: *fn (tr: *MediaTrack, category: c_int, sendidx: c_int, parmname: *const c_char, setNewValue: *void) callconv(.C) *void = undefined;
 
     /// GetSetTrackSendInfo_String
     /// Gets/sets a send attribute string:
@@ -1939,7 +1938,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: *MediaTrack, pitch: c_int, chan: c_int) callconv(.C) *const c_char = undefined;
 
     /// GetTrackMIDINoteRange
-    pub var GetTrackMIDINoteRange: *fn (proj: *ReaProject, track: *MediaTrack, note_loOut: *c_int, note_hiOut: *c_int) callconv(.C) void_ = undefined;
+    pub var GetTrackMIDINoteRange: *fn (proj: *ReaProject, track: *MediaTrack, note_loOut: *c_int, note_hiOut: *c_int) callconv(.C) void = undefined;
 
     /// GetTrackName
     /// Returns "MASTER" for master track, "Track N" if track has no name.
@@ -2028,7 +2027,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetUnderrunTime
     /// retrieves the last timestamps of audio xrun (yellow-flash, if available), media xrun (red-flash), and the current time stamp (all milliseconds)
-    pub var GetUnderrunTime: *fn (audio_xrunOut: *c_uint, media_xrunOut: *c_uint, curtimeOut: *c_uint) callconv(.C) void_ = undefined;
+    pub var GetUnderrunTime: *fn (audio_xrunOut: *c_uint, media_xrunOut: *c_uint, curtimeOut: *c_uint) callconv(.C) void = undefined;
 
     /// GetUserFileNameForRead
     /// returns true if the user selected a valid file, false if the user canceled the dialog
@@ -2042,11 +2041,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// GoToMarker
     /// Go to marker. If use_timeline_order==true, marker_index 1 refers to the first marker on the timeline.  If use_timeline_order==false, marker_index 1 refers to the first marker with the user-editable index of 1.
-    pub var GoToMarker: *fn (proj: *ReaProject, marker_index: c_int, use_timeline_order: bool) callconv(.C) void_ = undefined;
+    pub var GoToMarker: *fn (proj: *ReaProject, marker_index: c_int, use_timeline_order: bool) callconv(.C) void = undefined;
 
     /// GoToRegion
     /// Seek to region after current region finishes playing (smooth seek). If use_timeline_order==true, region_index 1 refers to the first region on the timeline.  If use_timeline_order==false, region_index 1 refers to the first region with the user-editable index of 1.
-    pub var GoToRegion: *fn (proj: *ReaProject, region_index: c_int, use_timeline_order: bool) callconv(.C) void_ = undefined;
+    pub var GoToRegion: *fn (proj: *ReaProject, region_index: c_int, use_timeline_order: bool) callconv(.C) void = undefined;
 
     /// GR_SelectColor
     /// Runs the system color chooser dialog.  Returns 0 if the user cancels the dialog.
@@ -2058,7 +2057,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// guidToString
     /// dest should be at least 64 c_chars long to be safe
-    pub var guidToString: *fn (g: *const GUID, destNeed64: *c_char) callconv(.C) void_ = undefined;
+    pub var guidToString: *fn (g: *const GUID, destNeed64: *c_char) callconv(.C) void = undefined;
 
     /// HasExtState
     /// Returns true if there exists an extended state value for a specific section and key. See SetExtState, GetExtState, DeleteExtState.
@@ -2073,13 +2072,13 @@ pub const reaper = struct { // @import("reaper");
     pub var HasTrackMIDIProgramsEx: *fn (proj: *ReaProject, track: *MediaTrack) callconv(.C) *const c_char = undefined;
 
     /// Help_Set
-    pub var Help_Set: *fn (helpstring: *const c_char, is_temporary_help: bool) callconv(.C) void_ = undefined;
+    pub var Help_Set: *fn (helpstring: *const c_char, is_temporary_help: bool) callconv(.C) void = undefined;
 
     /// HiresPeaksFromSource
-    pub var HiresPeaksFromSource: *fn (src: *PCM_source, block: *PCM_source_peaktransfer_t) callconv(.C) void_ = undefined;
+    pub var HiresPeaksFromSource: *fn (src: *PCM_source, block: *PCM_source_peaktransfer_t) callconv(.C) void = undefined;
 
     /// image_resolve_fn
-    pub var image_resolve_fn: *fn (in: *const c_char, out: *c_char, out_sz: c_int) callconv(.C) void_ = undefined;
+    pub var image_resolve_fn: *fn (in: *const c_char, out: *c_char, out_sz: c_int) callconv(.C) void = undefined;
 
     /// InsertAutomationItem
     /// Insert a new automation item. pool_id < 0 collects existing envelope points into the automation item; if pool_id is >= 0 the automation item will be a new instance of that pool (which will be created as an empty instance if it does not exist). Returns the index of the item, suitable for passing to other automation item API functions. See GetSetAutomationItemInfo.
@@ -2108,7 +2107,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// InsertTrackAtIndex
     /// inserts a track at idx,of course this will be clamped to 0..GetNumTracks(). wantDefaults=TRUE for default envelopes/FX,otherwise no enabled fx/env
-    pub var InsertTrackAtIndex: *fn (idx: c_int, wantDefaults: bool) callconv(.C) void_ = undefined;
+    pub var InsertTrackAtIndex: *fn (idx: c_int, wantDefaults: bool) callconv(.C) void = undefined;
 
     /// IsInRealTimeAudio
     /// are we in a realtime audio thread (between OnAudioBuffer calls,not in some worker/anticipative FX thread)? threadsafe
@@ -2147,7 +2146,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// joystick_destroy
     /// destroys a joystick device
-    pub var joystick_destroy: *fn (device: *joystick_device) callconv(.C) void_ = undefined;
+    pub var joystick_destroy: *fn (device: *joystick_device) callconv(.C) void = undefined;
 
     /// joystick_enum
     /// enumerates installed devices, returns GUID as a string
@@ -2177,12 +2176,12 @@ pub const reaper = struct { // @import("reaper");
     pub var kbd_enumerateActions: *fn (section: *KbdSectionInfo, idx: c_int, nameOut: *const c_char) callconv(.C) c_int = undefined;
 
     /// kbd_formatKeyName
-    pub var kbd_formatKeyName: *fn (ac: *ACCEL, s: *c_char) callconv(.C) void_ = undefined;
+    pub var kbd_formatKeyName: *fn (ac: *ACCEL, s: *c_char) callconv(.C) void = undefined;
 
     /// kbd_getCommandName
     /// Get the string of a key assigned to command "cmd" in a section.
     /// This function is poorly named as it doesn't return the command's name, see kbd_getTextFromCmd.
-    pub var kbd_getCommandName: *fn (cmd: c_int, s: *c_char, section: *KbdSectionInfo) callconv(.C) void_ = undefined;
+    pub var kbd_getCommandName: *fn (cmd: c_int, s: *c_char, section: *KbdSectionInfo) callconv(.C) void = undefined;
 
     /// kbd_getTextFromCmd
     pub var kbd_getTextFromCmd: *fn (cmd: c_int, section: *KbdSectionInfo) callconv(.C) *const c_char = undefined;
@@ -2196,21 +2195,21 @@ pub const reaper = struct { // @import("reaper");
 
     /// kbd_OnMidiEvent
     /// can be called from anywhere (threadsafe)
-    pub var kbd_OnMidiEvent: *fn (evt: *MIDI_event_t, dev_index: c_int) callconv(.C) void_ = undefined;
+    pub var kbd_OnMidiEvent: *fn (evt: *MIDI_event_t, dev_index: c_int) callconv(.C) void = undefined;
 
     /// kbd_OnMidiList
     /// can be called from anywhere (threadsafe)
-    pub var kbd_OnMidiList: *fn (list: *MIDI_eventlist, dev_index: c_int) callconv(.C) void_ = undefined;
+    pub var kbd_OnMidiList: *fn (list: *MIDI_eventlist, dev_index: c_int) callconv(.C) void = undefined;
 
     /// kbd_ProcessActionsMenu
-    pub var kbd_ProcessActionsMenu: *fn (menu: HMENU, section: *KbdSectionInfo) callconv(.C) void_ = undefined;
+    pub var kbd_ProcessActionsMenu: *fn (menu: HMENU, section: *KbdSectionInfo) callconv(.C) void = undefined;
 
     /// kbd_processMidiEventActionEx
     pub var kbd_processMidiEventActionEx: *fn (evt: *MIDI_event_t, section: *KbdSectionInfo, hwndCtx: HWND) callconv(.C) bool = undefined;
 
     /// kbd_reprocessMenu
     /// Reprocess a menu recursively, setting key assignments to what their command IDs are mapped to.
-    pub var kbd_reprocessMenu: *fn (menu: HMENU, section: *KbdSectionInfo) callconv(.C) void_ = undefined;
+    pub var kbd_reprocessMenu: *fn (menu: HMENU, section: *KbdSectionInfo) callconv(.C) void = undefined;
 
     /// kbd_RunCommandThroughHooks
     /// actioncommandID may get modified
@@ -2223,16 +2222,16 @@ pub const reaper = struct { // @import("reaper");
     pub var kbd_translateAccelerator: *fn (hwnd: HWND, msg: *MSG, section: *KbdSectionInfo) callconv(.C) c_int = undefined;
 
     /// LICE__Destroy
-    pub var LICE__Destroy: *fn (bm: *LICE_IBitmap) callconv(.C) void_ = undefined;
+    pub var LICE__Destroy: *fn (bm: *LICE_IBitmap) callconv(.C) void = undefined;
 
     /// LICE__DestroyFont
-    pub var LICE__DestroyFont: *fn (font: *LICE_IFont) callconv(.C) void_ = undefined;
+    pub var LICE__DestroyFont: *fn (font: *LICE_IFont) callconv(.C) void = undefined;
 
     /// LICE__DrawText
     pub var LICE__DrawText: *fn (font: *LICE_IFont, bm: *LICE_IBitmap, str: *const c_char, strcnt: c_int, rect: *RECT, dtFlags: UINT) callconv(.C) c_int = undefined;
 
     /// LICE__GetBits
-    pub var LICE__GetBits: *fn (bm: *LICE_IBitmap) callconv(.C) *void_ = undefined;
+    pub var LICE__GetBits: *fn (bm: *LICE_IBitmap) callconv(.C) *void = undefined;
 
     /// LICE__GetDC
     pub var LICE__GetDC: *fn (bm: *LICE_IBitmap) callconv(.C) HDC = undefined;
@@ -2257,34 +2256,34 @@ pub const reaper = struct { // @import("reaper");
 
     /// LICE__SetFromHFont
     /// font must REMAIN valid,unless LICE_FONT_FLAG_PRECALCALL is set
-    pub var LICE__SetFromHFont: *fn (font: *LICE_IFont, hfont: HFONT, flags: c_int) callconv(.C) void_ = undefined;
+    pub var LICE__SetFromHFont: *fn (font: *LICE_IFont, hfont: HFONT, flags: c_int) callconv(.C) void = undefined;
 
     /// LICE__SetTextColor
     pub var LICE__SetTextColor: *fn (font: *LICE_IFont, color: LICE_pixel) callconv(.C) LICE_pixel = undefined;
 
     /// LICE__SetTextCombineMode
-    pub var LICE__SetTextCombineMode: *fn (ifont: *LICE_IFont, mode: c_int, alpha: f32) callconv(.C) void_ = undefined;
+    pub var LICE__SetTextCombineMode: *fn (ifont: *LICE_IFont, mode: c_int, alpha: f32) callconv(.C) void = undefined;
 
     /// LICE_Arc
-    pub var LICE_Arc: *fn (dest: *LICE_IBitmap, cx: f32, cy: f32, r: f32, minAngle: f32, maxAngle: f32, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void_ = undefined;
+    pub var LICE_Arc: *fn (dest: *LICE_IBitmap, cx: f32, cy: f32, r: f32, minAngle: f32, maxAngle: f32, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void = undefined;
 
     /// LICE_Blit
-    pub var LICE_Blit: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap, dstx: c_int, dsty: c_int, srcx: c_int, srcy: c_int, srcw: c_int, srch: c_int, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_Blit: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap, dstx: c_int, dsty: c_int, srcx: c_int, srcy: c_int, srcw: c_int, srch: c_int, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_Blur
-    pub var LICE_Blur: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap, dstx: c_int, dsty: c_int, srcx: c_int, srcy: c_int, srcw: c_int, srch: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_Blur: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap, dstx: c_int, dsty: c_int, srcx: c_int, srcy: c_int, srcw: c_int, srch: c_int) callconv(.C) void = undefined;
 
     /// LICE_BorderedRect
-    pub var LICE_BorderedRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, bgcolor: LICE_pixel, fgcolor: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_BorderedRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, bgcolor: LICE_pixel, fgcolor: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_Circle
-    pub var LICE_Circle: *fn (dest: *LICE_IBitmap, cx: f32, cy: f32, r: f32, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void_ = undefined;
+    pub var LICE_Circle: *fn (dest: *LICE_IBitmap, cx: f32, cy: f32, r: f32, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void = undefined;
 
     /// LICE_Clear
-    pub var LICE_Clear: *fn (dest: *LICE_IBitmap, color: LICE_pixel) callconv(.C) void_ = undefined;
+    pub var LICE_Clear: *fn (dest: *LICE_IBitmap, color: LICE_pixel) callconv(.C) void = undefined;
 
     /// LICE_ClearRect
-    pub var LICE_ClearRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, mask: LICE_pixel, orbits: LICE_pixel) callconv(.C) void_ = undefined;
+    pub var LICE_ClearRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, mask: LICE_pixel, orbits: LICE_pixel) callconv(.C) void = undefined;
 
     /// LICE_ClipLine
     /// Returns false if the line is entirely offscreen.
@@ -2294,7 +2293,7 @@ pub const reaper = struct { // @import("reaper");
     pub var LICE_CombinePixels: *fn (dest: LICE_pixel, src: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) LICE_pixel = undefined;
 
     /// LICE_Copy
-    pub var LICE_Copy: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap) callconv(.C) void_ = undefined;
+    pub var LICE_Copy: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap) callconv(.C) void = undefined;
 
     /// LICE_CreateBitmap
     /// create a new bitmap. this is like calling new LICE_MemBitmap (mode=0) or new LICE_SysBitmap (mode=1).
@@ -2304,49 +2303,49 @@ pub const reaper = struct { // @import("reaper");
     pub var LICE_CreateFont: *fn () callconv(.C) *LICE_IFont = undefined;
 
     /// LICE_DrawCBezier
-    pub var LICE_DrawCBezier: *fn (dest: *LICE_IBitmap, xstart: f64, ystart: f64, xctl1: f64, yctl1: f64, xctl2: f64, yctl2: f64, xend: f64, yend: f64, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool, tol: f64) callconv(.C) void_ = undefined;
+    pub var LICE_DrawCBezier: *fn (dest: *LICE_IBitmap, xstart: f64, ystart: f64, xctl1: f64, yctl1: f64, xctl2: f64, yctl2: f64, xend: f64, yend: f64, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool, tol: f64) callconv(.C) void = undefined;
 
     /// LICE_Drawc_char
-    pub var LICE_Drawc_char: *fn (bm: *LICE_IBitmap, x: c_int, y: c_int, c: c_char, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_Drawc_char: *fn (bm: *LICE_IBitmap, x: c_int, y: c_int, c: c_char, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_DrawGlyph
-    pub var LICE_DrawGlyph: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, color: LICE_pixel, alphas: *LICE_pixel_chan, glyph_w: c_int, glyph_h: c_int, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_DrawGlyph: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, color: LICE_pixel, alphas: *LICE_pixel_chan, glyph_w: c_int, glyph_h: c_int, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_DrawRect
-    pub var LICE_DrawRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_DrawRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_DrawText
-    pub var LICE_DrawText: *fn (bm: *LICE_IBitmap, x: c_int, y: c_int, string: *const c_char, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_DrawText: *fn (bm: *LICE_IBitmap, x: c_int, y: c_int, string: *const c_char, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_FillCBezier
-    pub var LICE_FillCBezier: *fn (dest: *LICE_IBitmap, xstart: f64, ystart: f64, xctl1: f64, yctl1: f64, xctl2: f64, yctl2: f64, xend: f64, yend: f64, yfill: c_int, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool, tol: f64) callconv(.C) void_ = undefined;
+    pub var LICE_FillCBezier: *fn (dest: *LICE_IBitmap, xstart: f64, ystart: f64, xctl1: f64, yctl1: f64, xctl2: f64, yctl2: f64, xend: f64, yend: f64, yfill: c_int, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool, tol: f64) callconv(.C) void = undefined;
 
     /// LICE_FillCircle
-    pub var LICE_FillCircle: *fn (dest: *LICE_IBitmap, cx: f32, cy: f32, r: f32, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void_ = undefined;
+    pub var LICE_FillCircle: *fn (dest: *LICE_IBitmap, cx: f32, cy: f32, r: f32, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void = undefined;
 
     /// LICE_FillConvexPolygon
-    pub var LICE_FillConvexPolygon: *fn (dest: *LICE_IBitmap, x: *c_int, y: *c_int, npoints: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_FillConvexPolygon: *fn (dest: *LICE_IBitmap, x: *c_int, y: *c_int, npoints: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_FillRect
-    pub var LICE_FillRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_FillRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_FillTrapezoid
-    pub var LICE_FillTrapezoid: *fn (dest: *LICE_IBitmap, x1a: c_int, x1b: c_int, y1: c_int, x2a: c_int, x2b: c_int, y2: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_FillTrapezoid: *fn (dest: *LICE_IBitmap, x1a: c_int, x1b: c_int, y1: c_int, x2a: c_int, x2b: c_int, y2: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_FillTriangle
-    pub var LICE_FillTriangle: *fn (dest: *LICE_IBitmap, x1: c_int, y1: c_int, x2: c_int, y2: c_int, x3: c_int, y3: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_FillTriangle: *fn (dest: *LICE_IBitmap, x1: c_int, y1: c_int, x2: c_int, y2: c_int, x3: c_int, y3: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_GetPixel
     pub var LICE_GetPixel: *fn (bm: *LICE_IBitmap, x: c_int, y: c_int) callconv(.C) LICE_pixel = undefined;
 
     /// LICE_GradRect
-    pub var LICE_GradRect: *fn (dest: *LICE_IBitmap, dstx: c_int, dsty: c_int, dstw: c_int, dsth: c_int, ir: f32, ig: f32, ib: f32, ia: f32, drdx: f32, dgdx: f32, dbdx: f32, dadx: f32, drdy: f32, dgdy: f32, dbdy: f32, dady: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_GradRect: *fn (dest: *LICE_IBitmap, dstx: c_int, dsty: c_int, dstw: c_int, dsth: c_int, ir: f32, ig: f32, ib: f32, ia: f32, drdx: f32, dgdx: f32, dbdx: f32, dadx: f32, drdy: f32, dgdy: f32, dbdy: f32, dady: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_Line
-    pub var LICE_Line: *fn (dest: *LICE_IBitmap, x1: f32, y1: f32, x2: f32, y2: f32, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void_ = undefined;
+    pub var LICE_Line: *fn (dest: *LICE_IBitmap, x1: f32, y1: f32, x2: f32, y2: f32, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void = undefined;
 
     /// LICE_LineInt
-    pub var LICE_LineInt: *fn (dest: *LICE_IBitmap, x1: c_int, y1: c_int, x2: c_int, y2: c_int, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void_ = undefined;
+    pub var LICE_LineInt: *fn (dest: *LICE_IBitmap, x1: c_int, y1: c_int, x2: c_int, y2: c_int, color: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void = undefined;
 
     /// LICE_LoadPNG
     pub var LICE_LoadPNG: *fn (filename: *const c_char, bmp: *LICE_IBitmap) callconv(.C) *LICE_IBitmap = undefined;
@@ -2355,30 +2354,30 @@ pub const reaper = struct { // @import("reaper");
     pub var LICE_LoadPNGFromResource: *fn (hInst: HINSTANCE, resid: *const c_char, bmp: *LICE_IBitmap) callconv(.C) *LICE_IBitmap = undefined;
 
     /// LICE_MeasureText
-    pub var LICE_MeasureText: *fn (string: *const c_char, w: *c_int, h: *c_int) callconv(.C) void_ = undefined;
+    pub var LICE_MeasureText: *fn (string: *const c_char, w: *c_int, h: *c_int) callconv(.C) void = undefined;
 
     /// LICE_MultiplyAddRect
-    pub var LICE_MultiplyAddRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, rsc: f32, gsc: f32, bsc: f32, asc: f32, radd: f32, gadd: f32, badd: f32, aadd: f32) callconv(.C) void_ = undefined;
+    pub var LICE_MultiplyAddRect: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, w: c_int, h: c_int, rsc: f32, gsc: f32, bsc: f32, asc: f32, radd: f32, gadd: f32, badd: f32, aadd: f32) callconv(.C) void = undefined;
 
     /// LICE_PutPixel
-    pub var LICE_PutPixel: *fn (bm: *LICE_IBitmap, x: c_int, y: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_PutPixel: *fn (bm: *LICE_IBitmap, x: c_int, y: c_int, color: LICE_pixel, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_RotatedBlit
     /// these coordinates are offset from the center of the image,in source pixel coordinates
-    pub var LICE_RotatedBlit: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap, dstx: c_int, dsty: c_int, dstw: c_int, dsth: c_int, srcx: f32, srcy: f32, srcw: f32, srch: f32, angle: f32, cliptosourcerect: bool, alpha: f32, mode: c_int, rotxcent: f32, rotycent: f32) callconv(.C) void_ = undefined;
+    pub var LICE_RotatedBlit: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap, dstx: c_int, dsty: c_int, dstw: c_int, dsth: c_int, srcx: f32, srcy: f32, srcw: f32, srch: f32, angle: f32, cliptosourcerect: bool, alpha: f32, mode: c_int, rotxcent: f32, rotycent: f32) callconv(.C) void = undefined;
 
     /// LICE_RoundRect
-    pub var LICE_RoundRect: *fn (drawbm: *LICE_IBitmap, xpos: f32, ypos: f32, w: f32, h: f32, cornerradius: c_int, col: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void_ = undefined;
+    pub var LICE_RoundRect: *fn (drawbm: *LICE_IBitmap, xpos: f32, ypos: f32, w: f32, h: f32, cornerradius: c_int, col: LICE_pixel, alpha: f32, mode: c_int, aa: bool) callconv(.C) void = undefined;
 
     /// LICE_ScaledBlit
-    pub var LICE_ScaledBlit: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap, dstx: c_int, dsty: c_int, dstw: c_int, dsth: c_int, srcx: f32, srcy: f32, srcw: f32, srch: f32, alpha: f32, mode: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_ScaledBlit: *fn (dest: *LICE_IBitmap, src: *LICE_IBitmap, dstx: c_int, dsty: c_int, dstw: c_int, dsth: c_int, srcx: f32, srcy: f32, srcw: f32, srch: f32, alpha: f32, mode: c_int) callconv(.C) void = undefined;
 
     /// LICE_SimpleFill
-    pub var LICE_SimpleFill: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, newcolor: LICE_pixel, comparemask: LICE_pixel, keepmask: LICE_pixel) callconv(.C) void_ = undefined;
+    pub var LICE_SimpleFill: *fn (dest: *LICE_IBitmap, x: c_int, y: c_int, newcolor: LICE_pixel, comparemask: LICE_pixel, keepmask: LICE_pixel) callconv(.C) void = undefined;
 
     /// LICE_ThickFLine
     /// always AA. wid is not affected by scaling (1 is always normal line, 2 is always 2 physical pixels, etc)
-    pub var LICE_ThickFLine: *fn (dest: *LICE_IBitmap, x1: f64, y1: f64, x2: f64, y2: f64, color: LICE_pixel, alpha: f32, mode: c_int, wid: c_int) callconv(.C) void_ = undefined;
+    pub var LICE_ThickFLine: *fn (dest: *LICE_IBitmap, x1: f64, y1: f64, x2: f64, y2: f64, color: LICE_pixel, alpha: f32, mode: c_int, wid: c_int) callconv(.C) void = undefined;
 
     /// LocalizeString
     /// Returns a localized version of src_string, in section section. flags can have 1 set to only localize if sprintf-style formatting matches the original.
@@ -2390,35 +2389,35 @@ pub const reaper = struct { // @import("reaper");
 
     /// Main_OnCommand
     /// See Main_OnCommandEx.
-    pub var Main_OnCommand: *fn (command: c_int, flag: c_int) callconv(.C) void_ = undefined;
+    pub var Main_OnCommand: *fn (command: c_int, flag: c_int) callconv(.C) void = undefined;
 
     /// Main_OnCommandEx
     /// Performs an action belonging to the main action section. To perform non-native actions (ReaScripts, custom or extension plugins' actions) safely, see NamedCommandLookup().
-    pub var Main_OnCommandEx: *fn (command: c_int, flag: c_int, proj: *ReaProject) callconv(.C) void_ = undefined;
+    pub var Main_OnCommandEx: *fn (command: c_int, flag: c_int, proj: *ReaProject) callconv(.C) void = undefined;
 
     /// Main_openProject
     /// opens a project. will prompt the user to save unless name is prefixed with 'noprompt:'. If name is prefixed with 'template:', project file will be loaded as a template.
     /// If passed a .RTrackTemplate file, adds the template to the existing project.
-    pub var Main_openProject: *fn (name: *const c_char) callconv(.C) void_ = undefined;
+    pub var Main_openProject: *fn (name: *const c_char) callconv(.C) void = undefined;
 
     /// Main_SaveProject
     /// Save the project.
-    pub var Main_SaveProject: *fn (proj: *ReaProject, forceSaveAsInOptional: bool) callconv(.C) void_ = undefined;
+    pub var Main_SaveProject: *fn (proj: *ReaProject, forceSaveAsInOptional: bool) callconv(.C) void = undefined;
 
     /// Main_SaveProjectEx
     /// Save the project. options: &1=save selected tracks as track template, &2=include media with track template, &4=include envelopes with track template. See Main_openProject, Main_SaveProject.
-    pub var Main_SaveProjectEx: *fn (proj: *ReaProject, filename: *const c_char, options: c_int) callconv(.C) void_ = undefined;
+    pub var Main_SaveProjectEx: *fn (proj: *ReaProject, filename: *const c_char, options: c_int) callconv(.C) void = undefined;
 
     /// Main_UpdateLoopInfo
-    pub var Main_UpdateLoopInfo: *fn (ignoremask: c_int) callconv(.C) void_ = undefined;
+    pub var Main_UpdateLoopInfo: *fn (ignoremask: c_int) callconv(.C) void = undefined;
 
     /// MarkProjectDirty
     /// Marks project as dirty (needing save) if 'undo/prompt to save' is enabled in preferences.
-    pub var MarkProjectDirty: *fn (proj: *ReaProject) callconv(.C) void_ = undefined;
+    pub var MarkProjectDirty: *fn (proj: *ReaProject) callconv(.C) void = undefined;
 
     /// MarkTrackItemsDirty
     /// If track is supplied, item is ignored
-    pub var MarkTrackItemsDirty: *fn (track: *MediaTrack, item: *MediaItem) callconv(.C) void_ = undefined;
+    pub var MarkTrackItemsDirty: *fn (track: *MediaTrack, item: *MediaItem) callconv(.C) void = undefined;
 
     /// Master_GetPlayRate
     pub var Master_GetPlayRate: *fn (project: *ReaProject) callconv(.C) f64 = undefined;
@@ -2471,7 +2470,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// MIDI_DisableSort
     /// Disable sorting for all MIDI insert, delete, get and set functions, until MIDI_Sort is called.
-    pub var MIDI_DisableSort: *fn (take: *MediaItem_Take) callconv(.C) void_ = undefined;
+    pub var MIDI_DisableSort: *fn (take: *MediaItem_Take) callconv(.C) void = undefined;
 
     /// MIDI_EnumSelCC
     /// Returns the index of the next selected MIDI CC event after ccidx (-1 if there are no more selected events).
@@ -2495,7 +2494,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// MIDI_eventlist_Destroy
     /// Destroy a MIDI_eventlist object that was created using MIDI_eventlist_Create().
-    pub var MIDI_eventlist_Destroy: *fn (evtlist: *MIDI_eventlist) callconv(.C) void_ = undefined;
+    pub var MIDI_eventlist_Destroy: *fn (evtlist: *MIDI_eventlist) callconv(.C) void = undefined;
 
     /// MIDI_GetAllEvts
     /// Get all MIDI data. MIDI buffer is returned as a list of { c_int offset, c_char flag, c_int msglen, unsigned c_char msg[] }.
@@ -2574,7 +2573,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// midi_init
     /// Opens MIDI devices as configured in preferences. force_reinit_input and force_reinit_output force a particular device index to close/re-open (pass -1 to not force any devices to reopen).
-    pub var midi_init: *fn (force_reinit_input: c_int, force_reinit_output: c_int) callconv(.C) void_ = undefined;
+    pub var midi_init: *fn (force_reinit_input: c_int, force_reinit_output: c_int) callconv(.C) void = undefined;
 
     /// MIDI_InsertCC
     /// Insert a new MIDI CC event.
@@ -2594,11 +2593,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// midi_reinit
     /// Reset (close and re-open) all MIDI devices
-    pub var midi_reinit: *fn () callconv(.C) void_ = undefined;
+    pub var midi_reinit: *fn () callconv(.C) void = undefined;
 
     /// MIDI_SelectAll
     /// Select or deselect all MIDI content.
-    pub var MIDI_SelectAll: *fn (take: *MediaItem_Take, select: bool) callconv(.C) void_ = undefined;
+    pub var MIDI_SelectAll: *fn (take: *MediaItem_Take, select: bool) callconv(.C) void = undefined;
 
     /// MIDI_SetAllEvts
     /// Set all MIDI data. MIDI buffer is passed in as a list of { c_int offset, c_char flag, c_int msglen, unsigned c_char msg[] }.
@@ -2637,7 +2636,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// MIDI_Sort
     /// Sort MIDI events after multiple calls to MIDI_SetNote, MIDI_SetCC, etc.
-    pub var MIDI_Sort: *fn (take: *MediaItem_Take) callconv(.C) void_ = undefined;
+    pub var MIDI_Sort: *fn (take: *MediaItem_Take) callconv(.C) void = undefined;
 
     /// MIDIEditor_EnumTakes
     /// list the takes that are currently being edited in this MIDI editor, starting with the active take. See MIDIEditor_GetTake
@@ -2702,29 +2701,29 @@ pub const reaper = struct { // @import("reaper");
 
     /// MIDIEditorFlagsForTrack
     /// Get or set MIDI editor settings for this track. pitchwheelrange: semitones up or down. flags &1: snap pitch lane edits to semitones if pitchwheel range is defined.
-    pub var MIDIEditorFlagsForTrack: *fn (track: *MediaTrack, pitchwheelrangeInOut: *c_int, flagsInOut: *c_int, is_set: bool) callconv(.C) void_ = undefined;
+    pub var MIDIEditorFlagsForTrack: *fn (track: *MediaTrack, pitchwheelrangeInOut: *c_int, flagsInOut: *c_int, is_set: bool) callconv(.C) void = undefined;
 
     /// mkpanstr
-    pub var mkpanstr: *fn (strNeed64: *c_char, pan: f64) callconv(.C) void_ = undefined;
+    pub var mkpanstr: *fn (strNeed64: *c_char, pan: f64) callconv(.C) void = undefined;
 
     /// mkvolpanstr
-    pub var mkvolpanstr: *fn (strNeed64: *c_char, vol: f64, pan: f64) callconv(.C) void_ = undefined;
+    pub var mkvolpanstr: *fn (strNeed64: *c_char, vol: f64, pan: f64) callconv(.C) void = undefined;
 
     /// mkvolstr
-    pub var mkvolstr: *fn (strNeed64: *c_char, vol: f64) callconv(.C) void_ = undefined;
+    pub var mkvolstr: *fn (strNeed64: *c_char, vol: f64) callconv(.C) void = undefined;
 
     /// MoveEditCursor
-    pub var MoveEditCursor: *fn (adjamt: f64, dosel: bool) callconv(.C) void_ = undefined;
+    pub var MoveEditCursor: *fn (adjamt: f64, dosel: bool) callconv(.C) void = undefined;
 
     /// MoveMediaItemToTrack
     /// returns TRUE if move succeeded
     pub var MoveMediaItemToTrack: *fn (item: *MediaItem, desttr: *MediaTrack) callconv(.C) bool = undefined;
 
     /// MuteAllTracks
-    pub var MuteAllTracks: *fn (mute: bool) callconv(.C) void_ = undefined;
+    pub var MuteAllTracks: *fn (mute: bool) callconv(.C) void = undefined;
 
     /// my_getViewport
-    pub var my_getViewport: *fn (r: *RECT, sr: *const RECT, wantWorkArea: bool) callconv(.C) void_ = undefined;
+    pub var my_getViewport: *fn (r: *RECT, sr: *const RECT, wantWorkArea: bool) callconv(.C) void = undefined;
 
     /// NamedCommandLookup
     /// Get the command ID number for named command that was registered by an extension such as "_SWS_ABOUT" or "_113088d11ae641c193a2b7ede3041ad5" for a ReaScript or a custom action.
@@ -2732,27 +2731,27 @@ pub const reaper = struct { // @import("reaper");
 
     /// OnPauseButton
     /// direct way to simulate pause button hit
-    pub var OnPauseButton: *fn () callconv(.C) void_ = undefined;
+    pub var OnPauseButton: *fn () callconv(.C) void = undefined;
 
     /// OnPauseButtonEx
     /// direct way to simulate pause button hit
-    pub var OnPauseButtonEx: *fn (proj: *ReaProject) callconv(.C) void_ = undefined;
+    pub var OnPauseButtonEx: *fn (proj: *ReaProject) callconv(.C) void = undefined;
 
     /// OnPlayButton
     /// direct way to simulate play button hit
-    pub var OnPlayButton: *fn () callconv(.C) void_ = undefined;
+    pub var OnPlayButton: *fn () callconv(.C) void = undefined;
 
     /// OnPlayButtonEx
     /// direct way to simulate play button hit
-    pub var OnPlayButtonEx: *fn (proj: *ReaProject) callconv(.C) void_ = undefined;
+    pub var OnPlayButtonEx: *fn (proj: *ReaProject) callconv(.C) void = undefined;
 
     /// OnStopButton
     /// direct way to simulate stop button hit
-    pub var OnStopButton: *fn () callconv(.C) void_ = undefined;
+    pub var OnStopButton: *fn () callconv(.C) void = undefined;
 
     /// OnStopButtonEx
     /// direct way to simulate stop button hit
-    pub var OnStopButtonEx: *fn (proj: *ReaProject) callconv(.C) void_ = undefined;
+    pub var OnStopButtonEx: *fn (proj: *ReaProject) callconv(.C) void = undefined;
 
     /// OpenColorThemeFile
     pub var OpenColorThemeFile: *fn (fn_: *const c_char) callconv(.C) bool = undefined;
@@ -2763,7 +2762,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// OscLocalMessageToHost
     /// Send an OSC message directly to REAPER. The value argument may be NULL. The message will be matched against the default OSC patterns.
-    pub var OscLocalMessageToHost: *fn (message: *const c_char, valueInOptional: *const f64) callconv(.C) void_ = undefined;
+    pub var OscLocalMessageToHost: *fn (message: *const c_char, valueInOptional: *const f64) callconv(.C) void = undefined;
 
     /// parse_timestr
     /// Parse hh:mm:ss.sss time string, return time in seconds (or 0.0 on error). See parse_timestr_pos, parse_timestr_len.
@@ -2839,7 +2838,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// PCM_Source_Destroy
     /// Deletes a PCM_source -- be sure that you remove any project reference before deleting a source
-    pub var PCM_Source_Destroy: *fn (src: *PCM_source) callconv(.C) void_ = undefined;
+    pub var PCM_Source_Destroy: *fn (src: *PCM_source) callconv(.C) void = undefined;
 
     /// PCM_Source_GetPeaks
     /// Gets block of peak samples to buf. Note that the peak samples are interleaved, but in two or three blocks (maximums, then minimums, then extra). Return value has 20 bits of returned sample count, then 4 bits of output_mode (0xf00000), then a bit to signify whether extra_type was available (0x1000000). extra_type can be 115 ('s') for spectral information, which will return peak samples as integers with the low 15 bits frequency, next 14 bits tonality.
@@ -2884,7 +2883,7 @@ pub const reaper = struct { // @import("reaper");
     pub var PlayTrackPreview2Ex: *fn (proj: *ReaProject, preview: *preview_register_t, flags: c_int, measure_align: f64) callconv(.C) c_int = undefined;
 
     /// plugin_getapi
-    // pub var plugin_getapi: *fn (name: *const c_char) callconv(.C) *void_ = undefined;
+    // pub var plugin_getapi: *fn (name: *const c_char) callconv(.C) *void = undefined;
 
     /// plugin_getFilterList
     /// Returns a f64-NULL terminated list of importable media files, suitable for passing to GetOpenFileName() etc. Includes *.* (All files).
@@ -2896,17 +2895,17 @@ pub const reaper = struct { // @import("reaper");
 
     /// plugin_register
     /// Alias for reaper_plugin_info_t::Register, see reaper_plugin.h for documented uses.
-    // pub var plugin_register: *fn (name: *const c_char, infostruct: *void_) callconv(.C) c_int = undefined;
+    // pub var plugin_register: *fn (name: *const c_char, infostruct: *void) callconv(.C) c_int = undefined;
 
     /// PluginWantsAlwaysRunFx
-    pub var PluginWantsAlwaysRunFx: *fn (amt: c_int) callconv(.C) void_ = undefined;
+    pub var PluginWantsAlwaysRunFx: *fn (amt: c_int) callconv(.C) void = undefined;
 
     /// PreventUIRefresh
     /// adds prevent_count to the UI refresh prevention state; always add then remove the same amount, or major disfunction will occur
-    pub var PreventUIRefresh: *fn (prevent_count: c_int) callconv(.C) void_ = undefined;
+    pub var PreventUIRefresh: *fn (prevent_count: c_int) callconv(.C) void = undefined;
 
     /// projectconfig_var_addr
-    pub var projectconfig_var_addr: *fn (proj: *ReaProject, idx: c_int) callconv(.C) *void_ = undefined;
+    pub var projectconfig_var_addr: *fn (proj: *ReaProject, idx: c_int) callconv(.C) *void = undefined;
 
     /// projectconfig_var_getoffs
     /// returns offset to pass to projectconfig_var_addr() to get project-config var of name. szout gets size of object. can also query "__metronome_ptr" query project metronome *PCM_source* offset
@@ -2918,7 +2917,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// realloc_cmd_clear
     /// clears a buffer/buffer-size registration added with realloc_cmd_register_buf, and clears any later registrations, frees any allocated buffers. call after values are read from any registered pointers etc.
-    pub var realloc_cmd_clear: *fn (tok: c_int) callconv(.C) void_ = undefined;
+    pub var realloc_cmd_clear: *fn (tok: c_int) callconv(.C) void = undefined;
 
     /// realloc_cmd_ptr
     /// special use for NeedBig script API functions - reallocates a NeedBig buffer and updates its size, returns false on error
@@ -2934,7 +2933,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// ReaScriptError
     /// Causes REAPER to display the error message after the current ReaScript finishes. If called within a Lua context and errmsg has a ! prefix, script execution will be terminated.
-    pub var ReaScriptError: *fn (errmsg: *const c_char) callconv(.C) void_ = undefined;
+    pub var ReaScriptError: *fn (errmsg: *const c_char) callconv(.C) void = undefined;
 
     /// RecursiveCreateDirectory
     /// returns positive value on success, 0 on failure.
@@ -2946,15 +2945,15 @@ pub const reaper = struct { // @import("reaper");
 
     /// RefreshToolbar
     /// See RefreshToolbar2.
-    pub var RefreshToolbar: *fn (command_id: c_int) callconv(.C) void_ = undefined;
+    pub var RefreshToolbar: *fn (command_id: c_int) callconv(.C) void = undefined;
 
     /// RefreshToolbar2
     /// Refresh the toolbar button states of a toggle action.
-    pub var RefreshToolbar2: *fn (section_id: c_int, command_id: c_int) callconv(.C) void_ = undefined;
+    pub var RefreshToolbar2: *fn (section_id: c_int, command_id: c_int) callconv(.C) void = undefined;
 
     /// relative_fn
     /// Makes a filename "in" relative to the current project, if any.
-    pub var relative_fn: *fn (in: *const c_char, out: *c_char, out_sz: c_int) callconv(.C) void_ = undefined;
+    pub var relative_fn: *fn (in: *const c_char, out: *c_char, out_sz: c_int) callconv(.C) void = undefined;
 
     /// RemoveTrackSend
     /// Remove a send/receive/hardware output, return true on success. category is <0 for receives, 0=sends, >0 for hardware outputs. See CreateTrackSend, GetSetTrackSendInfo, GetTrackSendInfo_Value, SetTrackSendInfo_Value, GetTrackNumSends.
@@ -2976,11 +2975,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// resolve_fn
     /// See resolve_fn2.
-    pub var resolve_fn: *fn (in: *const c_char, out: *c_char, out_sz: c_int) callconv(.C) void_ = undefined;
+    pub var resolve_fn: *fn (in: *const c_char, out: *c_char, out_sz: c_int) callconv(.C) void = undefined;
 
     /// resolve_fn2
     /// Resolves a filename "in" by using project settings etc. If no file found, out will be a copy of in.
-    pub var resolve_fn2: *fn (in: *const c_char, out: *c_char, out_sz: c_int, checkSubDirOptional: *const c_char) callconv(.C) void_ = undefined;
+    pub var resolve_fn2: *fn (in: *const c_char, out: *c_char, out_sz: c_int, checkSubDirOptional: *const c_char) callconv(.C) void = undefined;
 
     /// ResolveRenderPattern
     /// Resolve a wildcard pattern into a set of nul-separated, f64-nul terminated render target filenames. Returns the length of the string buffer needed for the returned file list. Call with path=NULL to suppress filtering out illegal pathnames, call with targets=NULL to get just the string buffer length.
@@ -2999,61 +2998,61 @@ pub const reaper = struct { // @import("reaper");
     pub var ScaleToEnvelopeMode: *fn (scaling_mode: c_int, val: f64) callconv(.C) f64 = undefined;
 
     /// screenset_register
-    pub var screenset_register: *fn (id: *c_char, callbackFunc: *void_, param: *void_) callconv(.C) void_ = undefined;
+    pub var screenset_register: *fn (id: *c_char, callbackFunc: *void, param: *void) callconv(.C) void = undefined;
 
     /// screenset_registerNew
-    pub var screenset_registerNew: *fn (id: *c_char, callbackFunc: screensetNewCallbackFunc, param: *void_) callconv(.C) void_ = undefined;
+    pub var screenset_registerNew: *fn (id: *c_char, callbackFunc: screensetNewCallbackFunc, param: *void) callconv(.C) void = undefined;
 
     /// screenset_unregister
-    pub var screenset_unregister: *fn (id: *c_char) callconv(.C) void_ = undefined;
+    pub var screenset_unregister: *fn (id: *c_char) callconv(.C) void = undefined;
 
     /// screenset_unregisterByParam
-    pub var screenset_unregisterByParam: *fn (param: *void_) callconv(.C) void_ = undefined;
+    pub var screenset_unregisterByParam: *fn (param: *void) callconv(.C) void = undefined;
 
     /// screenset_updateLastFocus
-    pub var screenset_updateLastFocus: *fn (prevWin: HWND) callconv(.C) void_ = undefined;
+    pub var screenset_updateLastFocus: *fn (prevWin: HWND) callconv(.C) void = undefined;
 
     /// SectionFromUniqueID
     pub var SectionFromUniqueID: *fn (uniqueID: c_int) callconv(.C) *KbdSectionInfo = undefined;
 
     /// SelectAllMediaItems
-    pub var SelectAllMediaItems: *fn (proj: *ReaProject, selected: bool) callconv(.C) void_ = undefined;
+    pub var SelectAllMediaItems: *fn (proj: *ReaProject, selected: bool) callconv(.C) void = undefined;
 
     /// SelectProjectInstance
-    pub var SelectProjectInstance: *fn (proj: *ReaProject) callconv(.C) void_ = undefined;
+    pub var SelectProjectInstance: *fn (proj: *ReaProject) callconv(.C) void = undefined;
 
     /// SendLocalOscMessage
     /// Send an OSC message to REAPER. See CreateLocalOscHandler, DestroyLocalOscHandler.
-    pub var SendLocalOscMessage: *fn (local_osc_handler: *void_, msg: *const c_char, msglen: c_int) callconv(.C) void_ = undefined;
+    pub var SendLocalOscMessage: *fn (local_osc_handler: *void, msg: *const c_char, msglen: c_int) callconv(.C) void = undefined;
 
     /// SendMIDIMessageToHardware
     /// Sends a MIDI message to output device specified by output. Message is sent in immediate mode. Lua example of how to pack the message string:
     /// sysex = { 0xF0, 0x00, 0xF7 }
     /// msg = ""
     /// for i=1, #sysex do msg = msg .. string.c_char(sysex[i]) end
-    pub var SendMIDIMessageToHardware: *fn (output: c_int, msg: *const c_char, msg_sz: c_int) callconv(.C) void_ = undefined;
+    pub var SendMIDIMessageToHardware: *fn (output: c_int, msg: *const c_char, msg_sz: c_int) callconv(.C) void = undefined;
 
     /// SetActiveTake
     /// set this take active in this media item
-    pub var SetActiveTake: *fn (take: *MediaItem_Take) callconv(.C) void_ = undefined;
+    pub var SetActiveTake: *fn (take: *MediaItem_Take) callconv(.C) void = undefined;
 
     /// SetAutomationMode
     /// sets all or selected tracks to mode.
-    pub var SetAutomationMode: *fn (mode: c_int, onlySel: bool) callconv(.C) void_ = undefined;
+    pub var SetAutomationMode: *fn (mode: c_int, onlySel: bool) callconv(.C) void = undefined;
 
     /// SetCurrentBPM
     /// set current BPM in project, set wantUndo=true to add undo point
-    pub var SetCurrentBPM: *fn (__proj: *ReaProject, bpm: f64, wantUndo: bool) callconv(.C) void_ = undefined;
+    pub var SetCurrentBPM: *fn (__proj: *ReaProject, bpm: f64, wantUndo: bool) callconv(.C) void = undefined;
 
     /// SetCursorContext
     /// You must use this to change the focus programmatically. mode=0 to focus track panels, 1 to focus the arrange window, 2 to focus the arrange window and select env (or env==NULL to clear the current track/take envelope selection)
-    pub var SetCursorContext: *fn (mode: c_int, envInOptional: *TrackEnvelope) callconv(.C) void_ = undefined;
+    pub var SetCursorContext: *fn (mode: c_int, envInOptional: *TrackEnvelope) callconv(.C) void = undefined;
 
     /// SetEditCurPos
-    pub var SetEditCurPos: *fn (time: f64, moveview: bool, seekplay: bool) callconv(.C) void_ = undefined;
+    pub var SetEditCurPos: *fn (time: f64, moveview: bool, seekplay: bool) callconv(.C) void = undefined;
 
     /// SetEditCurPos2
-    pub var SetEditCurPos2: *fn (proj: *ReaProject, time: f64, moveview: bool, seekplay: bool) callconv(.C) void_ = undefined;
+    pub var SetEditCurPos2: *fn (proj: *ReaProject, time: f64, moveview: bool, seekplay: bool) callconv(.C) void = undefined;
 
     /// SetEnvelopePoint
     /// Set attributes of an envelope point. Values that are not supplied will be ignored. If setting multiple points at once, set noSort=true, and call Envelope_SortPoints when done. See SetEnvelopePointEx.
@@ -3074,11 +3073,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetExtState
     /// Set the extended state value for a specific section and key. persist=true means the value should be stored and reloaded the next time REAPER is opened. See GetExtState, DeleteExtState, HasExtState.
-    pub var SetExtState: *fn (section: *const c_char, key: *const c_char, value: *const c_char, persist: bool) callconv(.C) void_ = undefined;
+    pub var SetExtState: *fn (section: *const c_char, key: *const c_char, value: *const c_char, persist: bool) callconv(.C) void = undefined;
 
     /// SetGlobalAutomationOverride
     /// mode: see GetGlobalAutomationOverride
-    pub var SetGlobalAutomationOverride: *fn (mode: c_int) callconv(.C) void_ = undefined;
+    pub var SetGlobalAutomationOverride: *fn (mode: c_int) callconv(.C) void = undefined;
 
     /// SetItemStateChunk
     /// Sets the RPPXML state of an item, returns true if successful. Undo flag is a performance/caching hint.
@@ -3136,7 +3135,7 @@ pub const reaper = struct { // @import("reaper");
     pub var SetMediaItemPosition: *fn (item: *MediaItem, position: f64, refreshUI: bool) callconv(.C) bool = undefined;
 
     /// SetMediaItemSelected
-    pub var SetMediaItemSelected: *fn (item: *MediaItem, selected: bool) callconv(.C) void_ = undefined;
+    pub var SetMediaItemSelected: *fn (item: *MediaItem, selected: bool) callconv(.C) void = undefined;
 
     /// SetMediaItemTake_Source
     /// Set media source of media item take. The old source will not be destroyed, it is the caller's responsibility to retrieve it and destroy it after. If source already exists in any project, it will be duplicated before being set. C/C++ code should not use this and instead use GetSetMediaItemTakeInfo() with P_SOURCE to manage ownership directly.
@@ -3233,7 +3232,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetMIDIEditorGrid
     /// Set the MIDI editor grid division. 0.25=quarter note, 1.0/3.0=half note tripet, etc.
-    pub var SetMIDIEditorGrid: *fn (project: *ReaProject, division: f64) callconv(.C) void_ = undefined;
+    pub var SetMIDIEditorGrid: *fn (project: *ReaProject, division: f64) callconv(.C) void = undefined;
 
     /// SetMixerScroll
     /// Scroll the mixer so that leftmosttrack is the leftmost visible track. Returns the leftmost track after scrolling, which may be different from the passed-in track if there are not enough tracks to its right.
@@ -3256,15 +3255,15 @@ pub const reaper = struct { // @import("reaper");
     /// SetMouseModifier(-1, -1, -1) will reset all contexts to default.
     /// See GetMouseModifier.
     ///
-    pub var SetMouseModifier: *fn (context: *const c_char, modifier_flag: c_int, action: *const c_char) callconv(.C) void_ = undefined;
+    pub var SetMouseModifier: *fn (context: *const c_char, modifier_flag: c_int, action: *const c_char) callconv(.C) void = undefined;
 
     /// SetOnlyTrackSelected
     /// Set exactly one track selected, deselect all others
-    pub var SetOnlyTrackSelected: *fn (track: *MediaTrack) callconv(.C) void_ = undefined;
+    pub var SetOnlyTrackSelected: *fn (track: *MediaTrack) callconv(.C) void = undefined;
 
     /// SetProjectGrid
     /// Set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc.
-    pub var SetProjectGrid: *fn (project: *ReaProject, division: f64) callconv(.C) void_ = undefined;
+    pub var SetProjectGrid: *fn (project: *ReaProject, division: f64) callconv(.C) void = undefined;
 
     /// SetProjectMarker
     /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
@@ -3296,11 +3295,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetRegionRenderMatrix
     /// Add (flag > 0) or remove (flag < 0) a track from this region when using the region render matrix. If adding, flag==2 means force mono, flag==4 means force stereo, flag==N means force N/2 channels.
-    pub var SetRegionRenderMatrix: *fn (proj: *ReaProject, regionindex: c_int, track: *MediaTrack, flag: c_int) callconv(.C) void_ = undefined;
+    pub var SetRegionRenderMatrix: *fn (proj: *ReaProject, regionindex: c_int, track: *MediaTrack, flag: c_int) callconv(.C) void = undefined;
 
     /// SetRenderLastError
     /// Used by pcmsink objects to set an error to display while creating the pcmsink object.
-    pub var SetRenderLastError: *fn (errorstr: *const c_char) callconv(.C) void_ = undefined;
+    pub var SetRenderLastError: *fn (errorstr: *const c_char) callconv(.C) void = undefined;
 
     /// SetTakeMarker
     /// Inserts or updates a take marker. If idx<0, a take marker will be added, otherwise an existing take marker will be updated. Returns the index of the new or updated take marker (which may change if srcPos is updated). See GetNumTakeMarkers, GetTakeMarker, DeleteTakeMarker
@@ -3327,11 +3326,11 @@ pub const reaper = struct { // @import("reaper");
     pub var SetToggleCommandState: *fn (section_id: c_int, command_id: c_int, state: c_int) callconv(.C) bool = undefined;
 
     /// SetTrackAutomationMode
-    pub var SetTrackAutomationMode: *fn (tr: *MediaTrack, mode: c_int) callconv(.C) void_ = undefined;
+    pub var SetTrackAutomationMode: *fn (tr: *MediaTrack, mode: c_int) callconv(.C) void = undefined;
 
     /// SetTrackColor
     /// Set the custom track color, color is OS dependent (i.e. ColorToNative(r,g,b). To unset the track color, see SetMediaTrackInfo_Value I_CUSTOMCOLOR
-    pub var SetTrackColor: *fn (track: *MediaTrack, color: c_int) callconv(.C) void_ = undefined;
+    pub var SetTrackColor: *fn (track: *MediaTrack, color: c_int) callconv(.C) void = undefined;
 
     /// SetTrackMIDILyrics
     /// Set all MIDI lyrics on the track. Lyrics will be stuffed into any MIDI items found in range. Flag is unused at present. str is passed in as beat position, tab, text, tab (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See GetTrackMIDILyrics
@@ -3346,7 +3345,7 @@ pub const reaper = struct { // @import("reaper");
     pub var SetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: *MediaTrack, pitch: c_int, chan: c_int, name: *const c_char) callconv(.C) bool = undefined;
 
     /// SetTrackSelected
-    pub var SetTrackSelected: *fn (track: *MediaTrack, selected: bool) callconv(.C) void_ = undefined;
+    pub var SetTrackSelected: *fn (track: *MediaTrack, selected: bool) callconv(.C) void = undefined;
 
     /// SetTrackSendInfo_Value
     /// Set send/receive/hardware output numerical-value attributes, return true on success.
@@ -3411,11 +3410,11 @@ pub const reaper = struct { // @import("reaper");
     pub var SetTrackUIWidth: *fn (track: *MediaTrack, width: f64, relative: bool, done: bool, igngroupflags: c_int) callconv(.C) f64 = undefined;
 
     /// ShowActionList
-    pub var ShowActionList: *fn (section: *KbdSectionInfo, callerWnd: HWND) callconv(.C) void_ = undefined;
+    pub var ShowActionList: *fn (section: *KbdSectionInfo, callerWnd: HWND) callconv(.C) void = undefined;
 
     /// ShowConsoleMsg
     /// Show a message to the user (also useful for debugging). Send "\n" for newline, "" to clear the console. Prefix string with "!SHOW:" and text will be added to console without opening the window. See ClearConsole
-    pub var ShowConsoleMsg: *fn (msg: *const c_char) callconv(.C) void_ = undefined;
+    pub var ShowConsoleMsg: *fn (msg: *const c_char) callconv(.C) void = undefined;
 
     /// ShowMessageBox
     /// type 0=OK,1=OKCANCEL,2=ABORTRETRYIGNORE,3=YESNOCANCEL,4=YESNO,5=RETRYCANCEL : ret 1=OK,2=CANCEL,3=ABORT,4=RETRY,5=IGNORE,6=YES,7=NO
@@ -3423,7 +3422,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// ShowPopupMenu
     /// shows a context menu, valid names include: track_input, track_panel, track_area, track_routing, item, ruler, envelope, envelope_point, envelope_item. ctxOptional can be a track pointer for *track_, item pointer for *item (but is optional). for envelope_point, ctx2Optional has point index, ctx3Optional has item index (0=main envelope, 1=first AI). for envelope_item, ctx2Optional has AI index (1=first AI)
-    pub var ShowPopupMenu: *fn (name: *const c_char, x: c_int, y: c_int, hwndParentOptional: HWND, ctxOptional: *void_, ctx2Optional: c_int, ctx3Optional: c_int) callconv(.C) void_ = undefined;
+    pub var ShowPopupMenu: *fn (name: *const c_char, x: c_int, y: c_int, hwndParentOptional: HWND, ctxOptional: *void, ctx2Optional: c_int, ctx3Optional: c_int) callconv(.C) void = undefined;
 
     /// SLIDER2DB
     pub var SLIDER2DB: *fn (y: f64) callconv(.C) f64 = undefined;
@@ -3433,7 +3432,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SoloAllTracks
     /// solo=2 for SIP
-    pub var SoloAllTracks: *fn (solo: c_int) callconv(.C) void_ = undefined;
+    pub var SoloAllTracks: *fn (solo: c_int) callconv(.C) void = undefined;
 
     /// Splash_GetWnd
     /// gets the splash window, in case you want to display a message over it. Returns NULL when the splash window is not displayed.
@@ -3456,11 +3455,11 @@ pub const reaper = struct { // @import("reaper");
     pub var StopTrackPreview2: *fn (proj: *ReaProject, preview: *preview_register_t) callconv(.C) c_int = undefined;
 
     /// stringToGuid
-    pub var stringToGuid: *fn (str: *const c_char, g: *GUID) callconv(.C) void_ = undefined;
+    pub var stringToGuid: *fn (str: *const c_char, g: *GUID) callconv(.C) void = undefined;
 
     /// StuffMIDIMessage
     /// Stuffs a 3 byte MIDI message into either the Virtual MIDI Keyboard queue, or the MIDI-as-control input queue, or sends to a MIDI hardware output. mode=0 for VKB, 1 for control (actions map etc), 2 for VKB-on-current-channel; 16 for external MIDI device 0, 17 for external MIDI device 1, etc; see GetNumMIDIOutputs, GetMIDIOutputName.
-    pub var StuffMIDIMessage: *fn (mode: c_int, msg1: c_int, msg2: c_int, msg3: c_int) callconv(.C) void_ = undefined;
+    pub var StuffMIDIMessage: *fn (mode: c_int, msg1: c_int, msg2: c_int, msg3: c_int) callconv(.C) void = undefined;
 
     /// TakeFX_AddByName
     /// Adds or queries the position of a named FX in a take. See TrackFX_AddByName() for information on fxname and instantiate. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3468,11 +3467,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// TakeFX_CopyToTake
     /// Copies (or moves) FX from src_take to dest_take. Can be used with src_take=dest_take to reorder. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TakeFX_CopyToTake: *fn (src_take: *MediaItem_Take, src_fx: c_int, dest_take: *MediaItem_Take, dest_fx: c_int, is_move: bool) callconv(.C) void_ = undefined;
+    pub var TakeFX_CopyToTake: *fn (src_take: *MediaItem_Take, src_fx: c_int, dest_take: *MediaItem_Take, dest_fx: c_int, is_move: bool) callconv(.C) void = undefined;
 
     /// TakeFX_CopyToTrack
     /// Copies (or moves) FX from src_take to dest_track. dest_fx can have 0x1000000 set to reference input FX. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TakeFX_CopyToTrack: *fn (src_take: *MediaItem_Take, src_fx: c_int, dest_track: *MediaTrack, dest_fx: c_int, is_move: bool) callconv(.C) void_ = undefined;
+    pub var TakeFX_CopyToTrack: *fn (src_take: *MediaItem_Take, src_fx: c_int, dest_track: *MediaTrack, dest_fx: c_int, is_move: bool) callconv(.C) void = undefined;
 
     /// TakeFX_Delete
     /// Remove a FX from take chain (returns true on success) FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3583,7 +3582,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TakeFX_GetUserPresetFilename
     ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TakeFX_GetUserPresetFilename: *fn (take: *MediaItem_Take, fx: c_int, fnOut: *c_char, fnOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var TakeFX_GetUserPresetFilename: *fn (take: *MediaItem_Take, fx: c_int, fnOut: *c_char, fnOut_sz: c_int) callconv(.C) void = undefined;
 
     /// TakeFX_NavigatePresets
     /// presetmove==1 activates the next preset, presetmove==-1 activates the previous preset, etc. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3591,7 +3590,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TakeFX_SetEnabled
     /// See TakeFX_GetEnabled FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TakeFX_SetEnabled: *fn (take: *MediaItem_Take, fx: c_int, enabled: bool) callconv(.C) void_ = undefined;
+    pub var TakeFX_SetEnabled: *fn (take: *MediaItem_Take, fx: c_int, enabled: bool) callconv(.C) void = undefined;
 
     /// TakeFX_SetNamedConfigParm
     /// gets plug-in specific named configuration value (returns true on success). see TrackFX_SetNamedConfigParm FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3599,11 +3598,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// TakeFX_SetOffline
     /// See TakeFX_GetOffline FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TakeFX_SetOffline: *fn (take: *MediaItem_Take, fx: c_int, offline: bool) callconv(.C) void_ = undefined;
+    pub var TakeFX_SetOffline: *fn (take: *MediaItem_Take, fx: c_int, offline: bool) callconv(.C) void = undefined;
 
     /// TakeFX_SetOpen
     /// Open this FX UI. See TakeFX_GetOpen FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TakeFX_SetOpen: *fn (take: *MediaItem_Take, fx: c_int, open: bool) callconv(.C) void_ = undefined;
+    pub var TakeFX_SetOpen: *fn (take: *MediaItem_Take, fx: c_int, open: bool) callconv(.C) void = undefined;
 
     /// TakeFX_SetParam
     ///  FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3627,7 +3626,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TakeFX_Show
     /// showflag=0 for hidechain, =1 for show chain(index valid), =2 for hide f32ing window(index valid), =3 for show f32ing window (index valid) FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TakeFX_Show: *fn (take: *MediaItem_Take, index: c_int, showFlag: c_int) callconv(.C) void_ = undefined;
+    pub var TakeFX_Show: *fn (take: *MediaItem_Take, index: c_int, showFlag: c_int) callconv(.C) void = undefined;
 
     /// TakeIsMIDI
     /// Returns true if the active take contains MIDI.
@@ -3643,7 +3642,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// ThemeLayout_RefreshAll
     /// Refreshes all layouts
-    pub var ThemeLayout_RefreshAll: *fn () callconv(.C) void_ = undefined;
+    pub var ThemeLayout_RefreshAll: *fn () callconv(.C) void = undefined;
 
     /// ThemeLayout_SetLayout
     /// Sets theme layout override for a particular section -- section can be 'global' or 'mcp' etc. If setting global layout, prefix a ! to the layout string to clear any per-layout overrides. Returns false if failed.
@@ -3703,7 +3702,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TimeMap_GetTimeSigAtTime
     /// get the effective time signature and tempo
-    pub var TimeMap_GetTimeSigAtTime: *fn (proj: *ReaProject, time: f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, tempoOut: *f64) callconv(.C) void_ = undefined;
+    pub var TimeMap_GetTimeSigAtTime: *fn (proj: *ReaProject, time: f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, tempoOut: *f64) callconv(.C) void = undefined;
 
     /// TimeMap_QNToMeasures
     /// Find which measure the given QN position falls in.
@@ -3739,7 +3738,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackCtl_SetToolTip
     /// displays tooltip at location, or removes if empty string
-    pub var TrackCtl_SetToolTip: *fn (fmt: *const c_char, xpos: c_int, ypos: c_int, topmost: bool) callconv(.C) void_ = undefined;
+    pub var TrackCtl_SetToolTip: *fn (fmt: *const c_char, xpos: c_int, ypos: c_int, topmost: bool) callconv(.C) void = undefined;
 
     /// TrackFX_AddByName
     /// Adds or queries the position of a named FX from the track FX chain (recFX=false) or record input FX/monitoring FX (recFX=true, monitoring FX are on master track). Specify a negative value for instantiate to always create a new effect, 0 to only query the first instance of an effect, or a positive value to add an instance if one is not found. If instantiate is <= -1000, it is used for the insertion position (-1000 is first item in chain, -1001 is second, etc). fxname can have prefix to specify type: VST3:,VST2:,VST:,AU:,JS:, or DX:, or FXADD: which adds selected items from the currently-open FX browser, FXADD:2 to limit to 2 FX added, or FXADD:2e to only succeed if exactly 2 FX are selected. Returns -1 on failure or the new position in chain on success. FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3747,11 +3746,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_CopyToTake
     /// Copies (or moves) FX from src_track to dest_take. src_fx can have 0x1000000 set to reference input FX. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_CopyToTake: *fn (src_track: *MediaTrack, src_fx: c_int, dest_take: *MediaItem_Take, dest_fx: c_int, is_move: bool) callconv(.C) void_ = undefined;
+    pub var TrackFX_CopyToTake: *fn (src_track: *MediaTrack, src_fx: c_int, dest_take: *MediaItem_Take, dest_fx: c_int, is_move: bool) callconv(.C) void = undefined;
 
     /// TrackFX_CopyToTrack
     /// Copies (or moves) FX from src_track to dest_track. Can be used with src_track=dest_track to reorder, FX indices have 0x1000000 set to reference input FX. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_CopyToTrack: *fn (src_track: *MediaTrack, src_fx: c_int, dest_track: *MediaTrack, dest_fx: c_int, is_move: bool) callconv(.C) void_ = undefined;
+    pub var TrackFX_CopyToTrack: *fn (src_track: *MediaTrack, src_fx: c_int, dest_track: *MediaTrack, dest_fx: c_int, is_move: bool) callconv(.C) void = undefined;
 
     /// TrackFX_Delete
     /// Remove a FX from track chain (returns true on success) FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3948,7 +3947,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetUserPresetFilename
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetUserPresetFilename: *fn (track: *MediaTrack, fx: c_int, fnOut: *c_char, fnOut_sz: c_int) callconv(.C) void_ = undefined;
+    pub var TrackFX_GetUserPresetFilename: *fn (track: *MediaTrack, fx: c_int, fnOut: *c_char, fnOut_sz: c_int) callconv(.C) void = undefined;
 
     /// TrackFX_NavigatePresets
     /// presetmove==1 activates the next preset, presetmove==-1 activates the previous preset, etc. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3956,7 +3955,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_SetEnabled
     /// See TrackFX_GetEnabled FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetEnabled: *fn (track: *MediaTrack, fx: c_int, enabled: bool) callconv(.C) void_ = undefined;
+    pub var TrackFX_SetEnabled: *fn (track: *MediaTrack, fx: c_int, enabled: bool) callconv(.C) void = undefined;
 
     /// TrackFX_SetEQBandEnabled
     /// Enable or disable a ReaEQ band.
@@ -4016,11 +4015,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_SetOffline
     /// See TrackFX_GetOffline FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetOffline: *fn (track: *MediaTrack, fx: c_int, offline: bool) callconv(.C) void_ = undefined;
+    pub var TrackFX_SetOffline: *fn (track: *MediaTrack, fx: c_int, offline: bool) callconv(.C) void = undefined;
 
     /// TrackFX_SetOpen
     /// Open this FX UI. See TrackFX_GetOpen FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetOpen: *fn (track: *MediaTrack, fx: c_int, open: bool) callconv(.C) void_ = undefined;
+    pub var TrackFX_SetOpen: *fn (track: *MediaTrack, fx: c_int, open: bool) callconv(.C) void = undefined;
 
     /// TrackFX_SetParam
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -4044,21 +4043,21 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_Show
     /// showflag=0 for hidechain, =1 for show chain(index valid), =2 for hide f32ing window(index valid), =3 for show f32ing window (index valid) FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_Show: *fn (track: *MediaTrack, index: c_int, showFlag: c_int) callconv(.C) void_ = undefined;
+    pub var TrackFX_Show: *fn (track: *MediaTrack, index: c_int, showFlag: c_int) callconv(.C) void = undefined;
 
     /// TrackList_AdjustWindows
-    pub var TrackList_AdjustWindows: *fn (isMinor: bool) callconv(.C) void_ = undefined;
+    pub var TrackList_AdjustWindows: *fn (isMinor: bool) callconv(.C) void = undefined;
 
     /// TrackList_UpdateAllExternalSurfaces
-    pub var TrackList_UpdateAllExternalSurfaces: *fn () callconv(.C) void_ = undefined;
+    pub var TrackList_UpdateAllExternalSurfaces: *fn () callconv(.C) void = undefined;
 
     /// Undo_BeginBlock
     /// call to start a new block
-    pub var Undo_BeginBlock: *fn () callconv(.C) void_ = undefined;
+    pub var Undo_BeginBlock: *fn () callconv(.C) void = undefined;
 
     /// Undo_BeginBlock2
     /// call to start a new block
-    pub var Undo_BeginBlock2: *fn (proj: *ReaProject) callconv(.C) void_ = undefined;
+    pub var Undo_BeginBlock2: *fn (proj: *ReaProject) callconv(.C) void = undefined;
 
     /// Undo_CanRedo2
     /// returns string of next action,if able,NULL if not
@@ -4078,41 +4077,41 @@ pub const reaper = struct { // @import("reaper");
 
     /// Undo_EndBlock
     /// call to end the block,with extra flags if any,and a description
-    pub var Undo_EndBlock: *fn (descchange: *const c_char, extraflags: c_int) callconv(.C) void_ = undefined;
+    pub var Undo_EndBlock: *fn (descchange: *const c_char, extraflags: c_int) callconv(.C) void = undefined;
 
     /// Undo_EndBlock2
     /// call to end the block,with extra flags if any,and a description
-    pub var Undo_EndBlock2: *fn (proj: *ReaProject, descchange: *const c_char, extraflags: c_int) callconv(.C) void_ = undefined;
+    pub var Undo_EndBlock2: *fn (proj: *ReaProject, descchange: *const c_char, extraflags: c_int) callconv(.C) void = undefined;
 
     /// Undo_OnStateChange
     /// limited state change to items
-    pub var Undo_OnStateChange: *fn (descchange: *const c_char) callconv(.C) void_ = undefined;
+    pub var Undo_OnStateChange: *fn (descchange: *const c_char) callconv(.C) void = undefined;
 
     /// Undo_OnStateChange2
     /// limited state change to items
-    pub var Undo_OnStateChange2: *fn (proj: *ReaProject, descchange: *const c_char) callconv(.C) void_ = undefined;
+    pub var Undo_OnStateChange2: *fn (proj: *ReaProject, descchange: *const c_char) callconv(.C) void = undefined;
 
     /// Undo_OnStateChange_Item
-    pub var Undo_OnStateChange_Item: *fn (proj: *ReaProject, name: *const c_char, item: *MediaItem) callconv(.C) void_ = undefined;
+    pub var Undo_OnStateChange_Item: *fn (proj: *ReaProject, name: *const c_char, item: *MediaItem) callconv(.C) void = undefined;
 
     /// Undo_OnStateChangeEx
     /// trackparm=-1 by default,or if updating one fx chain,you can specify track index
-    pub var Undo_OnStateChangeEx: *fn (descchange: *const c_char, whichStates: c_int, trackparm: c_int) callconv(.C) void_ = undefined;
+    pub var Undo_OnStateChangeEx: *fn (descchange: *const c_char, whichStates: c_int, trackparm: c_int) callconv(.C) void = undefined;
 
     /// Undo_OnStateChangeEx2
     /// trackparm=-1 by default,or if updating one fx chain,you can specify track index
-    pub var Undo_OnStateChangeEx2: *fn (proj: *ReaProject, descchange: *const c_char, whichStates: c_int, trackparm: c_int) callconv(.C) void_ = undefined;
+    pub var Undo_OnStateChangeEx2: *fn (proj: *ReaProject, descchange: *const c_char, whichStates: c_int, trackparm: c_int) callconv(.C) void = undefined;
 
     /// update_disk_counters
     /// Updates disk I/O statistics with bytes transferred since last call. notify REAPER of a write error by calling with readamt=0, writeamt=-101010110 for unknown or -101010111 for disk full
-    pub var update_disk_counters: *fn (readamt: c_int, writeamt: c_int) callconv(.C) void_ = undefined;
+    pub var update_disk_counters: *fn (readamt: c_int, writeamt: c_int) callconv(.C) void = undefined;
 
     /// UpdateArrange
     /// Redraw the arrange view
-    pub var UpdateArrange: *fn () callconv(.C) void_ = undefined;
+    pub var UpdateArrange: *fn () callconv(.C) void = undefined;
 
     /// UpdateItemInProject
-    pub var UpdateItemInProject: *fn (item: *MediaItem) callconv(.C) void_ = undefined;
+    pub var UpdateItemInProject: *fn (item: *MediaItem) callconv(.C) void = undefined;
 
     /// UpdateItemLanes
     /// Recalculate lane arrangement for fixed lane tracks, including auto-removing empty lanes at the bottom of the track
@@ -4120,19 +4119,19 @@ pub const reaper = struct { // @import("reaper");
 
     /// UpdateTimeline
     /// Redraw the arrange view and ruler
-    pub var UpdateTimeline: *fn () callconv(.C) void_ = undefined;
+    pub var UpdateTimeline: *fn () callconv(.C) void = undefined;
 
     /// ValidatePtr
     /// see ValidatePtr2
-    pub var ValidatePtr: *fn (pointer: *void_, ctypename: *const c_char) callconv(.C) bool = undefined;
+    pub var ValidatePtr: *fn (pointer: *void, ctypename: *const c_char) callconv(.C) bool = undefined;
 
     /// ValidatePtr2
     /// Return true if the pointer is a valid object of the right type in proj (proj is ignored if pointer is itself a project). Supported types are: *ReaProject, *MediaTrack, *MediaItem, *MediaItem_Take, *TrackEnvelope and *PCM_source.
-    pub var ValidatePtr2: *fn (proj: *ReaProject, pointer: *void_, ctypename: *const c_char) callconv(.C) bool = undefined;
+    pub var ValidatePtr2: *fn (proj: *ReaProject, pointer: *void, ctypename: *const c_char) callconv(.C) bool = undefined;
 
     /// ViewPrefs
     /// Opens the prefs to a page, use pageByName if page is 0.
-    pub var ViewPrefs: *fn (page: c_int, pageByName: *const c_char) callconv(.C) void_ = undefined;
+    pub var ViewPrefs: *fn (page: c_int, pageByName: *const c_char) callconv(.C) void = undefined;
 
     /// WDL_VirtualWnd_ScaledBlitBG
     pub var WDL_VirtualWnd_ScaledBlitBG: *fn (dest: *LICE_IBitmap, src: *WDL_VirtualWnd_BGCfg, destx: c_int, desty: c_int, destw: c_int, desth: c_int, clipx: c_int, clipy: c_int, clipw: c_int, cliph: c_int, alpha: f32, mode: c_int) callconv(.C) bool = undefined;
