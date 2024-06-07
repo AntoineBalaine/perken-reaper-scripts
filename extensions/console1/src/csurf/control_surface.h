@@ -1,7 +1,7 @@
 #ifndef FAKECSURF_HPP
 #define FAKECSURF_HPP
 
-#include "reaper_plugin_functions.h" // Include the header where IReaperControlSurface is declared
+#include "../reaper_plugin_functions.h" // Include the header where IReaperControlSurface is declared
 
 // All of the following functions are called from C++ and implemented in Rust.
 // extern "C" const char *zGetTypeString();

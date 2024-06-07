@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     lib.addIncludePath(root);
 
     // -shared reaper_barebone.cpp -o reaper_barebone.so
-    const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{ .files = &.{ "./src/control_surface.cpp", "src/control_surface_wrapper.cpp" }, .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL" } };
+    const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{ .files = &.{ "./src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp" }, .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL" } };
 
     lib.addCSourceFiles(sourcefileOpts);
     lib.linkLibC();

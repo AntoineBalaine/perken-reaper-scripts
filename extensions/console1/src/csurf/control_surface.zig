@@ -1,11 +1,11 @@
 const std = @import("std");
-const Reaper = @import("reaper.zig");
+const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
 
 const c = @cImport({
-    @cInclude("./control_surface_wrapper.h");
+    @cInclude("csurf/control_surface_wrapper.h");
 });
 
 pub fn init() c.C_ControlSurface {
