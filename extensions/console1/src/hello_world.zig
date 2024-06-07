@@ -6,15 +6,15 @@ const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const control_surface = @import("control_surface.zig");
 const Allocator = std.mem.Allocator;
-
+const ControllerConfig = @import("internals/ControllerConfigLoader.zig");
 const plugin_name = "Hello, Zig!";
 var action_id: c_int = undefined;
 var ctx: ImGui.ContextPtr = null;
 var click_count: u32 = 0;
 var text = std.mem.zeroes([255:0]u8);
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
+// var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+// const allocator = gpa.allocator();
 
 fn loop() !void {
     if (ctx == null) {
@@ -54,7 +54,7 @@ fn reset() void {
 fn onTimer() callconv(.C) void {
     loop() catch {
         reset();
-        reaper.ShowMessageBox(ImGui.last_error.?, plugin_name, 0);
+        _ = reaper.ShowMessageBox(ImGui.last_error.?, plugin_name, 0);
     };
 }
 
