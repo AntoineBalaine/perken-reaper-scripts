@@ -7,14 +7,15 @@ const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
 const Allocator = std.mem.Allocator;
 const ControllerConfig = @import("internals/ControllerConfigLoader.zig");
+const initProg = @import("internals/init.zig").init;
 const plugin_name = "Hello, Zig!";
 var action_id: c_int = undefined;
 var ctx: ImGui.ContextPtr = null;
 var click_count: u32 = 0;
 var text = std.mem.zeroes([255:0]u8);
 
-// var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-// const allocator = gpa.allocator();
+var gpa_int = std.heap.GeneralPurposeAllocator(.{}){};
+const gpa = gpa_int.allocator();
 
 fn loop() !void {
     if (ctx == null) {
@@ -89,6 +90,10 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         reaper.ShowConsoleMsg("Failed to create fake csurf\n");
         return 0;
     } else {
+        initProg(gpa) catch {
+            reaper.ShowConsoleMsg("Failed to init\n");
+            return 1;
+        };
         reaper.ShowConsoleMsg("registering\n");
         _ = reaper.plugin_register("csurf_inst", myCsurf.?);
         return 1;
