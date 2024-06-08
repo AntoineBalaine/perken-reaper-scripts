@@ -1,9 +1,12 @@
 const std = @import("std");
 const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
+const testState = @import("../internals/teststate.zig");
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
 
+const TestStruct = testState.testStruct;
+const myStruct = TestStruct{};
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
@@ -34,7 +37,8 @@ export fn zCloseNoReset() callconv(.C) void {
     reaper.ShowConsoleMsg("CloseNoReset\n");
 }
 export fn zRun() callconv(.C) void {
-    reaper.ShowConsoleMsg("Run\n");
+    // myStruct.callMe();
+    // reaper.ShowConsoleMsg("Run\n");
 }
 export fn zSetTrackListChange() callconv(.C) void {
     reaper.ShowConsoleMsg("SetTrackListChange\n");
@@ -104,7 +108,7 @@ export fn zOnTrackSelection(trackid: *MediaTrack) callconv(.C) void {
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;
-    reaper.ShowConsoleMsg("IsKeyDown\n");
+    // reaper.ShowConsoleMsg("IsKeyDown\n");
     return false;
 }
 export fn zExtended(call: c_int, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {

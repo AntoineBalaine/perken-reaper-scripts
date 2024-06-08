@@ -3,6 +3,8 @@ const types = @import("types.zig");
 const reaper = @import("../reaper.zig").reaper;
 const controller = @import("controller.zig");
 
+/// State has to be called from control_surface.zig
+/// Flow is : main.zig -> register Csurf -> Csurf forwards calls to control_surface.zig -> control_surface updates state
 const State = struct {
     project_directory: [*:0]const u8,
     user_settings: types.UserSettings,
@@ -40,12 +42,11 @@ const State = struct {
             }
         }
     }
-    pub fn handleNewTrack()void{
-// get realearn instances 
-// update track
-// validate channel strip
-// load channel strip
-// load matching preset into realearn
+    pub fn handleNewTrack() void {
+        // get realearn instances
+        // update track
+        // validate channel strip
+        // load channel strip
+        // load matching preset into realearn
     }
-
 };
