@@ -7,7 +7,8 @@ const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
 const Allocator = std.mem.Allocator;
 const ControllerConfig = @import("internals/ControllerConfigLoader.zig");
-const initProg = @import("internals/init.zig").init;
+const appInit = @import("internals/init.zig");
+
 const plugin_name = "Hello, Zig!";
 var action_id: c_int = undefined;
 var ctx: ImGui.ContextPtr = null;
@@ -90,9 +91,16 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         reaper.ShowConsoleMsg("Failed to create fake csurf\n");
         return 0;
     } else {
-        initProg(gpa) catch {
-            reaper.ShowConsoleMsg("Failed to init\n");
-            return 1;
+        appInit.init(gpa) catch |err| {
+            switch (err) {
+                appInit.InitError.RealearnNotInstalled => {
+                    _ = reaper.MB("Realearn not found. Please install realearn using reapack", "Error", 0);
+                    return 0;
+                },
+                else => {
+                    return 0;
+                },
+            }
         };
         reaper.ShowConsoleMsg("registering\n");
         _ = reaper.plugin_register("csurf_inst", myCsurf.?);

@@ -22,10 +22,14 @@ fn isRealearnInstalled(allocator: Allocator) !bool {
     return false;
 }
 
+pub const InitError = error{
+    RealearnNotInstalled,
+};
+
 pub fn init(allocator: Allocator) !void {
     const isInstalled = try isRealearnInstalled(allocator);
     if (!isInstalled) {
-        std.debug.print("MISSING", .{});
+        return InitError.RealearnNotInstalled;
     } else {
         std.debug.print("INSTALLED", .{});
     }
