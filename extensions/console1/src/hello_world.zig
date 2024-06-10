@@ -11,6 +11,8 @@ const appInit = @import("internals/init.zig");
 
 const plugin_name = "Hello, Zig!";
 var action_id: c_int = undefined;
+var init_action_id: c_int = undefined;
+
 var ctx: ImGui.ContextPtr = null;
 var click_count: u32 = 0;
 var text = std.mem.zeroes([255:0]u8);
@@ -70,6 +72,28 @@ fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
 
     return 0;
 }
+
+fn onInitCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
+    _ = .{ sec, val, val2hw, relmode, hwnd };
+    std.debug.print("{any}\n", .{init_action_id});
+
+    if (command == init_action_id) {
+        appInit.init(gpa) catch |err| {
+            switch (err) {
+                appInit.InitError.RealearnNotInstalled => {
+                    _ = reaper.MB("Realearn not found. Please install realearn using reapack", "Error", 0);
+                    return 0;
+                },
+                else => {
+                    return 0;
+                },
+            }
+        };
+        return 1;
+    }
+
+    return 0;
+}
 // to implement the csurf interface, you'd probably want to do that from C++ instead of Zig to not have to deal with ABI headaches...
 // eg. the C++ csurf implementation just forwarding the calls to extern "C" functions implemented in Zig
 
@@ -84,6 +108,11 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     const action = reaper.custom_action_register_t{ .section = 0, .id_str = "REAIMGUI_ZIG", .name = "ReaImGui Zig example" };
     action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
     _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
+
+    const init_action = reaper.custom_action_register_t{ .section = 0, .id_str = "ZIG_INIT", .name = "zig init" };
+    init_action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&init_action)));
+    _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onInitCommand)));
+
     reaper.ShowConsoleMsg("Hello, Zig!\n");
     // Define the opaque struct to represent IReaperControlSurface
     const myCsurf = control_surface.init();

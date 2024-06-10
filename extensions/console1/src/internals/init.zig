@@ -37,17 +37,18 @@ fn isRealearnOnMonitoring() !bool {
     std.debug.print("fx count: {d}\n", .{fxCount});
     for (0..@intCast(fxCount)) |fxIndex| {
         std.debug.print("in loop", .{});
-        var buf: [256]u8 = undefined;
+        const search_str = "realearn";
         const t = 0x1000000;
         const x: u32 = @intCast(fxIndex);
         const z = t + x;
+
+        var buf: [128]u8 = undefined;
         const has_fx_name = reaper.TrackFX_GetFXName(masterTrack, @intCast(z), @ptrCast(&buf[0]), buf.len);
         if (has_fx_name) {
-            const search_str = "realearn";
-            var bufLower: [search_str.len]u8 = undefined;
+            var bufLower: [buf.len]u8 = undefined;
             _ = std.ascii.lowerString(&bufLower, &buf);
             std.debug.print("fx name: {s}\n", .{buf});
-            if (containsSubstring(@ptrCast(&bufLower), @constCast(@ptrCast(search_str)))) {
+            if (containsSubstring(@constCast(@ptrCast(search_str)), @ptrCast(&bufLower))) {
                 return true;
             }
         }
