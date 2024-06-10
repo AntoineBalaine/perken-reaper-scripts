@@ -641,7 +641,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// EnumProjects
     /// idx=-1 for current project,projfn can be NULL if not interested in filename. use idx 0x40000000 for currently rendering project, if any.
-    pub var EnumProjects: *fn (idx: c_int, projfnOutOptional: *c_char, projfnOutOptional_sz: c_int) callconv(.C) *ReaProject = undefined;
+    pub var EnumProjects: *fn (idx: c_int, projfnOutOptional: ?*c_char) callconv(.C) *ReaProject = undefined;
 
     /// EnumProjExtState
     /// Enumerate the data stored with the project for a specific extname. Returns false when there is no more data. See SetProjExtState, GetProjExtState.
