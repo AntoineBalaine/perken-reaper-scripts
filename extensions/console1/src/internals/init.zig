@@ -3,6 +3,8 @@ const reaper = @import("../reaper.zig").reaper;
 const Allocator = std.mem.Allocator;
 const fs_helpers = @import("fs_helpers.zig");
 const containsSubstring = @import("str_helpers.zig").containsSubstring;
+const parseConfig = @import("configLoad.zig").parseConfig;
+
 /// check that realearn can be found in `fxtags.ini`
 fn isRealearnInstalled(allocator: Allocator) !bool {
     const resourcePath = reaper.GetResourcePath();
@@ -71,4 +73,5 @@ pub fn init(allocator: Allocator) !void {
     } else {
         reaper.ShowConsoleMsg("Realearn found\n");
     }
+    try parseConfig(allocator, "c1");
 }
