@@ -1,0 +1,3 @@
+[submodule "deps/ini"]
+	path = deps/ini
+	url = https://github.com/ziglibs/ini
