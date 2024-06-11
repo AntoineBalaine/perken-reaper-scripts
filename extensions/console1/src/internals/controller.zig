@@ -1,7 +1,49 @@
 const std = @import("std");
-pub const Buttons = struct { .disp_on = u8, .disp_mode = u8, .shift = u8, .filt_to_comp = u8, .phase_inv = u8, .preset = u8, .pg_up = u8, .pg_dn = u8, .tr1 = u8, .tr2 = u8, .tr3 = u8, .tr4 = u8, .tr5 = u8, .tr6 = u8, .tr7 = u8, .tr8 = u8, .tr9 = u8, .tr10 = u8, .tr11 = u8, .tr12 = u8, .tr13 = u8, .tr14 = u8, .tr15 = u8, .tr16 = u8, .tr17 = u8, .tr18 = u8, .tr19 = u8, .tr20 = u8, .shape = u8, .hard_gate = u8, .eq = u8, .hp_shape = u8, .lp_shape = u8, .comp = u8, .tr_grp = u8, .tr_copy = u8, .order = u8, .ext_sidechain = u8, .solo = u8, .mute = u8 };
+pub const Buttons = struct {
+    disp_on: u8,
+    // other buttons present on the console
+    disp_mode: u8,
+    shift: u8,
+    filt_to_comp: u8,
+    phase_inv: u8,
+    preset: u8,
+    pg_up: u8,
+    pg_dn: u8,
+    tr1: u8,
+    tr2: u8,
+    tr3: u8,
+    tr4: u8,
+    tr5: u8,
+    tr6: u8,
+    tr7: u8,
+    tr8: u8,
+    tr9: u8,
+    tr10: u8,
+    tr11: u8,
+    tr12: u8,
+    tr13: u8,
+    tr14: u8,
+    tr15: u8,
+    tr16: u8,
+    tr17: u8,
+    tr18: u8,
+    tr19: u8,
+    tr20: u8,
+    shape: u8,
+    hard_gate: u8,
+    eq: u8,
+    hp_shape: u8,
+    lp_shape: u8,
+    comp: u8,
+    tr_grp: u8,
+    tr_copy: u8,
+    order: u8,
+    ext_sidechain: u8,
+    solo: u8,
+    mute: u8,
+};
 
-const Modes = struct { .main = .{}, .fx_selection_display = .{}, .settings_screen = .{} };
+// const Modes = struct { main: .{}, fx_selection_display: .{}, settings_screen: .{} };
 
 const Module = struct {
     name: [*:0]const u8,
@@ -10,12 +52,20 @@ const Module = struct {
 };
 
 /// TODO include allocator in controller struct?
-pub const Controller = struct { .id = [*:0]const u8, .name = [*:0]const u8, .modules = []Module, .buttons = Buttons, .modes = Modes, .action_ids = ?[]c_int };
+pub const Controller = struct {
+    id: [*:0]const u8,
+    name: [*:0]const u8,
+    modules: [5]Module,
+    buttons: Buttons,
+    // modes: Modes,
+    action_ids: ?[]c_int,
+};
 
 pub const c1 = Controller{
+    .action_ids = null,
     .id = "C1",
     .name = "Console1",
-    .modules = .{ Module{ .name = "eq" }, Module{ .name = "comp" }, Module{ .name = "shape" }, Module{ .name = "input" }, Module{ .name = "output" } },
+    .modules = .{ Module{ .name = "eq", .params = null, .idx = null }, Module{ .name = "comp", .params = null, .idx = null }, Module{ .name = "shape", .params = null, .idx = null }, Module{ .name = "input", .params = null, .idx = null }, Module{ .name = "output", .params = null, .idx = null } },
     .buttons = Buttons{
         .disp_on = 1, // if not loaded, load default channel strip on track, else quit
 
@@ -60,5 +110,5 @@ pub const c1 = Controller{
         .solo = 39,
         .mute = 40,
     },
-    .modes = .{ .main = .{}, .fx_selection_display = .{}, .settings_screen = .{} },
+    // .modes = .{ .main = .{}, .fx_selection_display = .{}, .settings_screen = .{} },
 };
