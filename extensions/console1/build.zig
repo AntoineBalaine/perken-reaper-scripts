@@ -22,6 +22,10 @@ pub fn build(b: *std.Build) void {
     const client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
     b.getInstallStep().dependOn(&client_install.step);
 
+    // add dependencies: ini parser, etc.
+    const ini = b.dependency("ini", .{ .target = target, .optimize = .Debug });
+    lib.root_module.addImport("ini", ini.module("ini"));
+
     // Default step for building
     const step = b.step("default", "Build reaper_zig.so");
     step.dependOn(&lib.step);
