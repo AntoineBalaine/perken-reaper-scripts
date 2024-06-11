@@ -1,5 +1,5 @@
 const std = @import("std");
-const Buttons = struct { .disp_on = u8, .disp_mode = u8, .shift = u8, .filt_to_comp = u8, .phase_inv = u8, .preset = u8, .pg_up = u8, .pg_dn = u8, .tr1 = u8, .tr2 = u8, .tr3 = u8, .tr4 = u8, .tr5 = u8, .tr6 = u8, .tr7 = u8, .tr8 = u8, .tr9 = u8, .tr10 = u8, .tr11 = u8, .tr12 = u8, .tr13 = u8, .tr14 = u8, .tr15 = u8, .tr16 = u8, .tr17 = u8, .tr18 = u8, .tr19 = u8, .tr20 = u8, .shape = u8, .hard_gate = u8, .eq = u8, .hp_shape = u8, .lp_shape = u8, .comp = u8, .tr_grp = u8, .tr_copy = u8, .order = u8, .ext_sidechain = u8, .solo = u8, .mute = u8 };
+pub const Buttons = struct { .disp_on = u8, .disp_mode = u8, .shift = u8, .filt_to_comp = u8, .phase_inv = u8, .preset = u8, .pg_up = u8, .pg_dn = u8, .tr1 = u8, .tr2 = u8, .tr3 = u8, .tr4 = u8, .tr5 = u8, .tr6 = u8, .tr7 = u8, .tr8 = u8, .tr9 = u8, .tr10 = u8, .tr11 = u8, .tr12 = u8, .tr13 = u8, .tr14 = u8, .tr15 = u8, .tr16 = u8, .tr17 = u8, .tr18 = u8, .tr19 = u8, .tr20 = u8, .shape = u8, .hard_gate = u8, .eq = u8, .hp_shape = u8, .lp_shape = u8, .comp = u8, .tr_grp = u8, .tr_copy = u8, .order = u8, .ext_sidechain = u8, .solo = u8, .mute = u8 };
 
 const Modes = struct { .main = .{}, .fx_selection_display = .{}, .settings_screen = .{} };
 
@@ -8,7 +8,9 @@ const Module = struct {
     params: ?[*:0]const u8,
     idx: ?u8,
 };
-pub const Controller = struct { .id = [*:0]const u8, .name = [*:0]const u8, .modules = []Module, .buttons = Buttons, .modes = Modes };
+
+/// TODO include allocator in controller struct?
+pub const Controller = struct { .id = [*:0]const u8, .name = [*:0]const u8, .modules = []Module, .buttons = Buttons, .modes = Modes, .action_ids = ?[]c_int };
 
 pub const c1 = Controller{
     .id = "C1",

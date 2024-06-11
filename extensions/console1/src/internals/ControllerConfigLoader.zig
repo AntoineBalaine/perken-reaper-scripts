@@ -31,17 +31,17 @@ fn buildPaths(allocator: *Allocator, controller_name: [*:0]const u8) ![3][*:0]co
     return [_][*:0]const u8{ chanStripPath, realearnPath, configPath };
 }
 
-const Config_FilePaths = std.meta.Tuple(&.{ std.json.Parsed(ControllerConfig), [*:0]const u8, [*:0]const u8, [*:0]const u8 });
+pub const Config_FilePaths = std.meta.Tuple(&.{ std.json.Parsed(ControllerConfig), [*:0]const u8, [*:0]const u8, [*:0]const u8 });
 
 fn validateConfig(allocator: *Allocator, controller_name: [*:0]const u8) !Config_FilePaths {
     const rv = try buildPaths(allocator, controller_name);
     const channelStripPath = rv[0];
     const realearnPath = rv[1];
-    const configPath = rv[3];
+    const controllerConfigPath = rv[3];
     errdefer {
         allocator.free(channelStripPath);
         allocator.free(realearnPath);
-        allocator.free(configPath);
+        allocator.free(controllerConfigPath);
     }
 
     // check that file paths exist
@@ -60,14 +60,14 @@ fn validateConfig(allocator: *Allocator, controller_name: [*:0]const u8) !Config
     };
 
     // read the config
-    const config = parseJSON(configPath) catch |err| {
+    const config = parseJSON(controllerConfigPath) catch |err| {
         const msg = "Invalid config file for controller";
         var buf: [msg.len + controller_name.len + 1]u8 = undefined;
         _ = try std.fmt.bufPrint(&buf, "{s} {s}", .{ .msg, .controller_name });
         reaper.MB(buf, "Error", 0);
         return err;
     };
-    const retval: Config_FilePaths = .{ config, channelStripPath, realearnPath, configPath };
+    const retval: Config_FilePaths = .{ config, channelStripPath, realearnPath, controllerConfigPath };
     return retval;
 }
 
@@ -76,12 +76,11 @@ const ConfigLoaderError = error{
     FileUnfound,
 };
 
-///@param controller ControllerId
-///@return ControllerConfig|nil config
-pub fn load(allocator: *Allocator, controller: Controller) ConfigLoaderError!ControllerConfig {
+/// return the paths of controller config, default channel strip, and realearn mapping for it.
+pub fn load(allocator: *Allocator, controller: Controller) ConfigLoaderError!Config_FilePaths {
     const controller_name = controller.name;
     if (std.mem.eql(u8, controller_name, "") or controller_name == null) {
         return ConfigLoaderError.NoConfigName;
     }
-    return validateConfig(allocator, controller_name);
+    return try validateConfig(allocator, controller_name);
 }

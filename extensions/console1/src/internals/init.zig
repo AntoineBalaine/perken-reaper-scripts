@@ -4,7 +4,11 @@ const Allocator = std.mem.Allocator;
 const fs_helpers = @import("fs_helpers.zig");
 const containsSubstring = @import("str_helpers.zig").containsSubstring;
 const parseConfig = @import("configLoad.zig").parseConfig;
-
+const types = @import("types.zig");
+const UserSettings = types.UserSettings;
+const controllerConfigLoader = @import("ControllerConfigLoader.zig");
+const Controller = @import("controller.zig");
+const btnActions = @import("btnActions.zig");
 /// check that realearn can be found in `fxtags.ini`
 fn isRealearnInstalled(allocator: Allocator) !bool {
     const resourcePath = reaper.GetResourcePath();
@@ -62,7 +66,37 @@ pub const InitError = error{
     RealearnNotInstalled,
 };
 
+
+const HookCommand = fn (sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char;
+fn createHook(allocator: Allocator, controller: Controller.Controller) !HookCommand {
+    const hook = allocator.create(HookCommand);
+
+const my_hook: HookCommand = fn (sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) c_char {
+    _ = .{ sec, val, val2hw, relmode, hwnd };
+    if (controller.action_ids == null) {
+        return 0;
+    }
+    for (controller.action_ids, 0..)|action_id, idx|{
+        if (action_id == command){
+            // call corresponding button action
+            return 1;
+        }
+    }
+};
+hook.* = my_hook;
+    return hook;
+}
+
+/// retrieve user settings
+/// check tha realearn’s installed,
+/// check whether realearn instances are present on fx monitoring
+/// (load them if not)
+/// retrieve the controller config
+/// register the actions for each of the buttons
+/// return the hook command function that
 pub fn init(allocator: Allocator) !void {
+    const userSettings = try parseConfig(allocator, "c1");
+    _ = userSettings;
     const isInstalled = try isRealearnInstalled(allocator);
     if (!isInstalled) {
         return InitError.RealearnNotInstalled;
@@ -73,5 +107,8 @@ pub fn init(allocator: Allocator) !void {
     } else {
         reaper.ShowConsoleMsg("Realearn found\n");
     }
-    _ = try parseConfig(allocator, "c1");
+    const controller = Controller.c1;
+    const config_paths: controllerConfigLoader.Config_FilePaths = controllerConfigLoader.load(allocator, controller.name);
+    _ = config_paths;
+    _ = try btnActions.registerButtonActions(allocator, controller);
 }
