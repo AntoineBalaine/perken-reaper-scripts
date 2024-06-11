@@ -98,7 +98,7 @@ const TrackFX = struct {
     DryWetParam: *ParamData,
 };
 
-const ControllerConfig = struct {
+pub const ControllerConfig = struct {
     paramData: []*ParamData,
     /// list of modes (fx ctrl, settings),
     Modes: [][*:0]const u8,
@@ -106,7 +106,7 @@ const ControllerConfig = struct {
     realearnPath: [*:0]const u8,
 };
 
-const UserSettings = struct {
+pub const UserSettings = struct {
     show_start_up_message: bool = true,
     ///  -- should the UI display?
     show_feedback_window: bool = true,

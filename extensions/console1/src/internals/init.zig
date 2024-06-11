@@ -73,5 +73,5 @@ pub fn init(allocator: Allocator) !void {
     } else {
         reaper.ShowConsoleMsg("Realearn found\n");
     }
-    try parseConfig(allocator, "c1");
+    _ = try parseConfig(allocator, "c1");
 }

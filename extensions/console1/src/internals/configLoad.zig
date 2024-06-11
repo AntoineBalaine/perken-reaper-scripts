@@ -16,7 +16,8 @@ const UserSettings = types.UserSettings;
 // read the fx prefs INI file
 
 fn getUserPrefs(allocator: Allocator, controller_path: []const u8, userSettings: *UserSettings) !void {
-    const userPrefsPath = try std.fs.path.join(allocator, &[_][*:0]const u8{ controller_path, "c1_config.ini" });
+    const paths = [_][]const u8{ controller_path, "c1_config.ini" };
+    const userPrefsPath = try std.fs.path.join(allocator, &paths);
     const file = try std.fs.cwd().openFile(userPrefsPath, .{});
     defer file.close();
 
@@ -26,14 +27,12 @@ fn getUserPrefs(allocator: Allocator, controller_path: []const u8, userSettings:
     while (try parser.next()) |record| {
         switch (record) {
             .property => |kv| {
-                // const Case = enum { show_start_up_message, show_feedback_window, show_plugin_ui };
                 const Case = std.meta.FieldEnum(UserSettings);
                 const case = std.meta.stringToEnum(Case, kv.key) orelse continue;
                 switch (case) {
-                    .show_start_up_message => userSettings.show_start_up_message = std.mem.eql(case, "true"),
-                    .show_feedback_window => userSettings.show_feedback_window = std.mem.eql(case, "true"),
-                    .show_plugin_ui => userSettings.show_plugin_ui = std.mem.eql(case, "true"),
-                    else => {},
+                    .show_start_up_message => userSettings.show_start_up_message = std.mem.eql(u8, @tagName(case), "true"),
+                    .show_feedback_window => userSettings.show_feedback_window = std.mem.eql(u8, @tagName(case), "true"),
+                    .show_plugin_ui => userSettings.show_plugin_ui = std.mem.eql(u8, @tagName(case), "true"),
                 }
             },
             .section => {},
@@ -42,33 +41,39 @@ fn getUserPrefs(allocator: Allocator, controller_path: []const u8, userSettings:
     }
 }
 
-// caller must free
-fn getPerkenPath(allocator: Allocator) ![*:0]const u8 {
+/// caller must free
+fn getPerkenPath(allocator: Allocator) ![]const u8 {
     const reaper_path = reaper.GetResourcePath();
 
-    const Prk_path = try std.fs.path.join(allocator, &[_][*:0]const u8{ reaper_path, "Data", "PerkenControl" });
+    const paths = [_][]const u8{ std.mem.span(reaper_path), "Data", "PerkenControl" };
+    const Prk_path = try std.fs.path.join(allocator, &paths);
     return Prk_path;
 }
 
-pub fn parseConfig(allocator: Allocator, controller_name: []const u8) !void {
-    const perken_path = getPerkenPath(allocator);
+/// caller must free
+pub fn parseConfig(allocator: Allocator, controller_name: []const u8) !*UserSettings {
+    const perken_path = try getPerkenPath(allocator);
 
-    const controller_path = try std.fs.path.join(allocator, &[_][*:0]const u8{ perken_path, controller_name });
-    const userPrefs: UserSettings = try allocator.create(UserSettings{});
+    const paths = [_][]const u8{ perken_path, controller_name };
+    const controller_path = try std.fs.path.join(allocator, &paths);
+    const userPrefs = try allocator.create(UserSettings);
+    userPrefs.* = UserSettings{};
     try getUserPrefs(allocator, controller_path, userPrefs);
     return userPrefs;
 }
 
 test "userPrefs" {
-    const alloc = std.testing.allocator;
+    const allocator = std.testing.allocator;
     // create temp dir with temp files.
-    const tmpDir = "path/to/dir";
-    var settings = UserSettings{};
-    const prefs = try getUserPrefs(alloc, tmpDir, &settings);
-    defer alloc.free(prefs);
-    try std.testing.expectEqual(settings.show_start_up_message, true);
-    try std.testing.expectEqual(settings.show_start_up_message, true);
-    try std.testing.expectEqual(settings.show_plugin_ui, true);
+    const tmpDir = "../../resources/c1_config.ini";
+
+    const userPrefs = try allocator.create(UserSettings);
+    userPrefs.* = UserSettings{};
+    const prefs = try getUserPrefs(allocator, tmpDir, userPrefs);
+    defer allocator.free(prefs);
+    try std.testing.expectEqual(userPrefs.show_start_up_message, true);
+    try std.testing.expectEqual(userPrefs.show_start_up_message, true);
+    try std.testing.expectEqual(userPrefs.show_plugin_ui, true);
 }
 
 test "controller prefs" {

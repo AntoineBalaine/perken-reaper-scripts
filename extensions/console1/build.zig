@@ -3,6 +3,10 @@
 // zig build --verbose && mv zig-out/lib/reaper_zig.so ~/.config/REAPER/UserPlugins/ && reaper
 const std = @import("std");
 const builtin = @import("builtin");
+const tests = @import("test/tests.zig");
+pub const Dependencies = struct {
+    ini: *std.Build.Dependency,
+};
 
 pub fn build(b: *std.Build) void {
     // Create a library target
@@ -14,7 +18,7 @@ pub fn build(b: *std.Build) void {
     lib.addIncludePath(root);
 
     // -shared reaper_barebone.cpp -o reaper_barebone.so
-    const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{ .files = &.{ "./src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp" }, .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL" } };
+    const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{ .files = &.{ "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp" }, .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL" } };
 
     lib.addCSourceFiles(sourcefileOpts);
     lib.linkLibC();
@@ -25,7 +29,7 @@ pub fn build(b: *std.Build) void {
     // add dependencies: ini parser, etc.
     const ini = b.dependency("ini", .{ .target = target, .optimize = .Debug });
     lib.root_module.addImport("ini", ini.module("ini"));
-
+    _ = tests.addTests(b, target, Dependencies{ .ini = ini });
     // Default step for building
     const step = b.step("default", "Build reaper_zig.so");
     step.dependOn(&lib.step);
