@@ -34,88 +34,88 @@ export const zGetDescString = &GetDescString;
 export const zGetConfigString = &GetConfigString;
 
 export fn zCloseNoReset() callconv(.C) void {
-    reaper.ShowConsoleMsg("CloseNoReset\n");
+    std.debug.print("CloseNoReset\n", .{});
 }
 export fn zRun() callconv(.C) void {
     // myStruct.callMe();
-    // reaper.ShowConsoleMsg("Run\n");
+    // std.debug.print("Run\n",.{});
 }
 export fn zSetTrackListChange() callconv(.C) void {
-    reaper.ShowConsoleMsg("SetTrackListChange\n");
+    std.debug.print("SetTrackListChange\n", .{});
 }
 export fn zSetSurfaceVolume(trackid: *MediaTrack, volume: f64) callconv(.C) void {
     _ = trackid;
     _ = volume;
-    reaper.ShowConsoleMsg("SetSurfaceVolume\n");
+    std.debug.print("SetSurfaceVolume\n", .{});
 }
 export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
     _ = trackid;
     _ = pan;
-    reaper.ShowConsoleMsg("SetSurfacePan\n");
+    std.debug.print("SetSurfacePan\n", .{});
 }
 export fn zSetSurfaceMute(trackid: *MediaTrack, mute: bool) callconv(.C) void {
     _ = trackid;
     _ = mute;
-    reaper.ShowConsoleMsg("SetSurfaceMute\n");
+    std.debug.print("SetSurfaceMute\n", .{});
 }
 export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C) void {
     _ = trackid;
     _ = selected;
-    reaper.ShowConsoleMsg("SetSurfaceSelected\n");
+    std.debug.print("SetSurfaceSelected\n", .{});
 }
 export fn zSetSurfaceSolo(trackid: *MediaTrack, solo: bool) callconv(.C) void {
     _ = trackid;
     _ = solo;
-    reaper.ShowConsoleMsg("SetSurfaceSolo\n");
+    std.debug.print("SetSurfaceSolo\n", .{});
 }
 export fn zSetSurfaceRecArm(trackid: *MediaTrack, recarm: bool) callconv(.C) void {
     _ = trackid;
     _ = recarm;
-    reaper.ShowConsoleMsg("SetSurfaceRecArm\n");
+    std.debug.print("SetSurfaceRecArm\n", .{});
 }
 export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     _ = play;
     _ = pause;
     _ = rec;
-    reaper.ShowConsoleMsg("SetPlayState\n");
+    std.debug.print("SetPlayState\n", .{});
 }
 export fn zSetRepeatState(rep: bool) callconv(.C) void {
     _ = rep;
-    reaper.ShowConsoleMsg("SetRepeatState\n");
+    std.debug.print("SetRepeatState\n", .{});
 }
 export fn zSetTrackTitle(trackid: *MediaTrack, title: [*]const u8) callconv(.C) void {
     _ = trackid;
     _ = title;
-    reaper.ShowConsoleMsg("SetTrackTitle\n");
+    std.debug.print("SetTrackTitle\n", .{});
 }
 export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
     _ = trackid;
     _ = isPan;
-    reaper.ShowConsoleMsg("GetTouchState\n");
+    std.debug.print("GetTouchState\n", .{});
     return false;
 }
 export fn zSetAutoMode(mode: c_int) callconv(.C) void {
     _ = mode;
 
-    reaper.ShowConsoleMsg("SetAutoMode\n");
+    std.debug.print("SetAutoMode\n", .{});
 }
 export fn zResetCachedVolPanStates() callconv(.C) void {
-    reaper.ShowConsoleMsg("ResetCachedVolPanStates\n");
+    std.debug.print("ResetCachedVolPanStates\n", .{});
 }
 export fn zOnTrackSelection(trackid: *MediaTrack) callconv(.C) void {
     _ = trackid;
-    reaper.ShowConsoleMsg("OnTrackSelection\n");
+    std.debug.print("OnTrackSelection\n", .{});
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;
-    // reaper.ShowConsoleMsg("IsKeyDown\n");
+    // std.debug.print("IsKeyDown\n",.{});
     return false;
 }
 export fn zExtended(call: c_int, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {
     _ = parm1;
     _ = parm2;
     _ = parm3;
-    reaper.ShowConsoleMsg("Extended\n");
+    std.debug.print("Extended\n", .{});
     switch (call) {
         0x0001FFFF => std.debug.print("CSURF_EXT_RESET\n", .{}), // clear all surface state and reset (harder reset than SetTrackListChange)
         0x00010001 => std.debug.print("CSURF_EXT_SETINPUTMONITOR\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recmonitor
