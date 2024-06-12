@@ -27,14 +27,36 @@ fn buildPaths(allocator: Allocator, controller_name: [*:0]const u8) ![3][]const 
     const realearnPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, realearnFname });
     const configFname = try std.fmt.allocPrint(allocator, "{s}_config.json", .{controller_name});
     defer allocator.free(configFname);
-    const configPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, configFname });
-    return [_][]const u8{ chanStripPath, realearnPath, configPath };
+    const controllerConfigPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, configFname });
+    return [_][]const u8{ chanStripPath, realearnPath, controllerConfigPath };
 }
 
-const CPaths = struct { std.json.Parsed(ControllerConfig), [*:0]const u8, [*:0]const u8, [*:0]const u8 };
+fn validateConfig(allocator: Allocator, controller_name: [*:0]const u8, controllerConfigPath: []const u8) !std.json.Parsed(ControllerConfig) {
+    // read the config
+    const config = parseJSON(allocator, controllerConfigPath) catch |err| {
+        const msg = "Invalid config file for controller";
+        const spanned_name = std.mem.span(controller_name);
+        var buf: [msg.len + spanned_name.len + 1]u8 = undefined;
+        _ = try std.fmt.bufPrint(&buf, "{s} {s}", .{ .msg, .controller_name });
+        reaper.MB(buf, "Error", 0);
+        return err;
+    };
+    return config;
+}
 
-fn validateConfig(allocator: Allocator, controller_name: [*:0]const u8) !CPaths {
-    const rv = try buildPaths(allocator, controller_name);
+const ConfigLoaderError = error{
+    NoConfigName,
+    FileUnfound,
+};
+
+/// return the paths of controller config, default channel strip, and realearn mapping for it.
+pub fn load(allocator: Allocator, controller: Controller) !std.json.Parsed(ControllerConfig) {
+    if (std.mem.eql(u8, std.mem.span(controller.name), "")) {
+        return ConfigLoaderError.NoConfigName;
+    }
+
+    const rv = try buildPaths(allocator, controller.name);
+
     const channelStripPath = rv[0];
     const realearnPath = rv[1];
     const controllerConfigPath = rv[2];
@@ -44,43 +66,8 @@ fn validateConfig(allocator: Allocator, controller_name: [*:0]const u8) !CPaths 
         allocator.free(controllerConfigPath);
     }
 
-    // check that file paths exist
-    _ = std.fs.accessAbsolute(channelStripPath, .{}) and std.fs.accessAbsolute(realearnPath, .{}) catch |err| {
-        const msg =
-            \\Error accessing files for controller: 
-            \\channel strip fxchain, 
-            \\realearn fxchain,  
-            \\ config file 
-        ;
+    const validatedConfig = try validateConfig(allocator, controller.name, controllerConfigPath);
+    defer allocator.free(controllerConfigPath);
 
-        var buf: [msg.len + controller_name.len]u8 = undefined;
-        _ = try std.fmt.bufPrint(&buf, "{s} {s}", .{ msg, .controller_name });
-        reaper.MB(buf, "Error", 0);
-        return err;
-    };
-
-    // read the config
-    const config = parseJSON(controllerConfigPath) catch |err| {
-        const msg = "Invalid config file for controller";
-        var buf: [msg.len + controller_name.len + 1]u8 = undefined;
-        _ = try std.fmt.bufPrint(&buf, "{s} {s}", .{ .msg, .controller_name });
-        reaper.MB(buf, "Error", 0);
-        return err;
-    };
-    const retval = CPaths{ config, channelStripPath, realearnPath, controllerConfigPath };
-    return retval;
-}
-
-const ConfigLoaderError = error{
-    NoConfigName,
-    FileUnfound,
-};
-
-/// return the paths of controller config, default channel strip, and realearn mapping for it.
-pub fn load(allocator: Allocator, controller: Controller) !CPaths {
-    if (std.mem.eql(u8, std.mem.span(controller.name), "")) {
-        return ConfigLoaderError.NoConfigName;
-    }
-    const validatedConfig = try validateConfig(allocator, controller.name);
     return validatedConfig;
 }
