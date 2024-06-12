@@ -35,10 +35,10 @@ fn validateConfig(allocator: Allocator, controller_name: [*:0]const u8, controll
     // read the config
     const config = parseJSON(allocator, controllerConfigPath) catch |err| {
         const msg = "Invalid config file for controller";
-        const spanned_name = std.mem.span(controller_name);
-        var buf: [msg.len + spanned_name.len + 1]u8 = undefined;
-        _ = try std.fmt.bufPrint(&buf, "{s} {s}", .{ .msg, .controller_name });
-        reaper.MB(buf, "Error", 0);
+
+        const buf = try std.fmt.allocPrintZ(allocator, "{s} {s}", .{ msg, controller_name, "\n" });
+        defer allocator.free(buf);
+        _ = reaper.MB(buf, "Error", 0);
         return err;
     };
     return config;
