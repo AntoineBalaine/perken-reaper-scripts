@@ -1,8 +1,6 @@
 const std = @import("std");
 const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
-const state = @import("state.zig");
-const State = state.State;
 
 const namespace = "prkn_c1";
 
@@ -19,7 +17,7 @@ const FxData = struct {
     index: u8,
 };
 
-const Track = struct {
+pub const Track = struct {
     /// all fx in the track, using GUID as key. Duplicate of fx_list for easier access.
     fx_by_guid: std.StringHashMap(TrackFX),
     /// array of fx in the track. duplicate of fx_by_guid for easier iteration.
@@ -51,12 +49,11 @@ const Parameter = struct {
     midval: f16,
     minval: f16,
     name: [*:0]const u8,
-    new: fn (state: *State, param_index: u8, parent_fx: *TrackFX, guid: [*:0]const u8) *Parameter,
+    // new: fn (state: *State, param_index: u8, parent_fx: *TrackFX, guid: [*:0]const u8) *Parameter,
     parent_fx: TrackFX,
-    query_value: fn (self: *Parameter) *Parameter,
-    setValue: fn (self: *Parameter, value: u8) void,
+    // query_value: fn (self: *Parameter) *Parameter,
+    // setValue: fn (self: *Parameter, value: u8) void,
     smallstep: u8,
-    state: *State,
     ///  normalized step
     step: u8,
     value: u8,
@@ -87,14 +84,13 @@ const TrackFX = struct {
     guid: [*:0]const u8,
     index: u8,
     name: ?[*:0]const u8,
-    new: fn (state: *State, index: u8, number: u8, guid: [*:0]const u8) *TrackFX,
+    // new: fn (state: *State, index: u8, number: u8, guid: [*:0]const u8) *TrackFX,
     number: u8,
-    params_by_guid: []ParamData,
-    params_list: []ParamData,
+    params_by_guid: []const ParamData,
+    params_list: []const ParamData,
     presetname: ?[*:0]const u8,
     renamed_name: ?[*:0]const u8,
-    state: State,
-    update: fn (self: *TrackFX) void,
+    // update: fn (self: *TrackFX) void,
     DryWetParam: *ParamData,
 };
 
