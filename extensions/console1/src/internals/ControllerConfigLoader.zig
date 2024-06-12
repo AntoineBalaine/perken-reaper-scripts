@@ -31,9 +31,9 @@ fn buildPaths(allocator: *Allocator, controller_name: [*:0]const u8) ![3][*:0]co
     return [_][*:0]const u8{ chanStripPath, realearnPath, configPath };
 }
 
-pub const Config_FilePaths = std.meta.Tuple(&.{ std.json.Parsed(ControllerConfig), [*:0]const u8, [*:0]const u8, [*:0]const u8 });
+const CPaths = struct { std.json.Parsed(ControllerConfig), [*:0]const u8, [*:0]const u8, [*:0]const u8 };
 
-fn validateConfig(allocator: *Allocator, controller_name: [*:0]const u8) !Config_FilePaths {
+fn validateConfig(allocator: Allocator, controller_name: [*:0]const u8) !CPaths {
     const rv = try buildPaths(allocator, controller_name);
     const channelStripPath = rv[0];
     const realearnPath = rv[1];
@@ -67,7 +67,7 @@ fn validateConfig(allocator: *Allocator, controller_name: [*:0]const u8) !Config
         reaper.MB(buf, "Error", 0);
         return err;
     };
-    const retval: Config_FilePaths = .{ config, channelStripPath, realearnPath, controllerConfigPath };
+    const retval = CPaths{ config, channelStripPath, realearnPath, controllerConfigPath };
     return retval;
 }
 
@@ -77,10 +77,10 @@ const ConfigLoaderError = error{
 };
 
 /// return the paths of controller config, default channel strip, and realearn mapping for it.
-pub fn load(allocator: *Allocator, controller: Controller) ConfigLoaderError!Config_FilePaths {
-    const controller_name = controller.name;
-    if (std.mem.eql(u8, controller_name, "") or controller_name == null) {
+pub fn load(allocator: Allocator, controller: Controller) !CPaths {
+    if (std.mem.eql(u8, controller.name, "")) {
         return ConfigLoaderError.NoConfigName;
     }
-    return try validateConfig(allocator, controller_name);
+    const validatedConfig = try validateConfig(allocator, controller.name);
+    return validatedConfig;
 }
