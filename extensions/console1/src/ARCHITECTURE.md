@@ -6,8 +6,11 @@ on init:
   - [x] search for the string `Realearn` in the file. Probably no need to do any kind of parsing.
 - [ ] load controller config (ControllerConfig.zig, à revoir)
   - [ ] store list of fx chains configs (INI)
+        reacomp
+        reaEq
+        reaGate
   - [ ] store list of matching realearn maps
-  - [ ] [later] load user prefs 
+  - [ ] load user prefs 
 - [x] check for realearn instances on fx monitoring chain (1 instance per console module)
 - if not present, load rfx chain containing the 3 realearn instances.
 ```lua 
