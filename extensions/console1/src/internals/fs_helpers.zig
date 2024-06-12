@@ -3,9 +3,9 @@ const reaper = @import("../reaper.zig").reaper;
 const Allocator = std.mem.Allocator;
 
 /// caller must free
-pub fn getControllerConfigPath(allocator: *Allocator, controller_name: [*:0]const u8) ![]const u8 {
+pub fn getControllerConfigPath(allocator: Allocator, controller_name: [*:0]const u8) ![]const u8 {
     const resourcePath = reaper.GetResourcePath();
-    var paths = [_][*:0]const u8{ resourcePath, "Data", "Perken", "Controllers", controller_name };
+    const paths = [_][]const u8{ std.mem.span(resourcePath), "Data", "Perken", "Controllers", std.mem.span(controller_name) };
     const file_path = try std.fs.path.join(allocator, &paths);
     return file_path;
 }
