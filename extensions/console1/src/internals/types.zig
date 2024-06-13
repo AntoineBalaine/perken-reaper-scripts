@@ -76,8 +76,8 @@ const ParamData = struct {
 const CreatedParams = struct { params_list: []*ParamData, params_by_guid: std.StringHashMap(ParamData) };
 
 const TrackFX = struct {
-    createParamDetails: *const fn (self: *TrackFX, param: ParamData, addToDisplayParams: ?bool) ParamData,
-    createParams: *const *const fn (self: TrackFX) CreatedParams,
+    createParamDetails: *const fn (self: TrackFX, param: ParamData, addToDisplayParams: ?bool) ParamData,
+    createParams: *const fn (self: TrackFX) CreatedParams,
     ///name of fx, or preset, or renamed name, or fx instance name.,
     display_name: [*:0]const u8,
     enabled: ?bool,

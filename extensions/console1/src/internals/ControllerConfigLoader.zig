@@ -6,12 +6,6 @@ const reaper = @import("../reaper.zig").reaper;
 const fs_helpers = @import("fs_helpers.zig");
 const Allocator = std.mem.Allocator;
 
-fn parseJSON(allocator: Allocator, path: []const u8) !std.json.Parsed(ControllerConfig) {
-    const data = try std.fs.cwd().readFileAlloc(allocator, path, 512);
-    defer allocator.free(data);
-    return std.json.parseFromSlice(ControllerConfig, allocator, data, .{ .allocate = .alloc_always });
-}
-
 fn buildPaths(allocator: Allocator, controller_name: [*:0]const u8) ![3][]const u8 {
     const controllerConfigDirectory = try fs_helpers.getControllerConfigPath(allocator, controller_name);
     defer allocator.free(controllerConfigDirectory);
@@ -31,43 +25,22 @@ fn buildPaths(allocator: Allocator, controller_name: [*:0]const u8) ![3][]const 
     return [_][]const u8{ chanStripPath, realearnPath, controllerConfigPath };
 }
 
-fn validateConfig(allocator: Allocator, controller_name: [*:0]const u8, controllerConfigPath: []const u8) !std.json.Parsed(ControllerConfig) {
-    // read the config
-    const config = parseJSON(allocator, controllerConfigPath) catch |err| {
-        const msg = "Invalid config file for controller";
-
-        const buf = try std.fmt.allocPrintZ(allocator, "{s} {s}\n", .{ msg, controller_name });
-        defer allocator.free(buf);
-        _ = reaper.MB(buf, "Error", 0);
-        return err;
-    };
-    return config;
-}
-
 const ConfigLoaderError = error{
     NoConfigName,
     FileUnfound,
 };
 
 /// return the paths of controller config, default channel strip, and realearn mapping for it.
-pub fn load(allocator: Allocator, controller: Controller) !std.json.Parsed(ControllerConfig) {
+pub fn load(allocator: Allocator, controller: Controller) ![3][]const u8 {
     if (std.mem.eql(u8, std.mem.span(controller.name), "")) {
         return ConfigLoaderError.NoConfigName;
     }
 
     const rv = try buildPaths(allocator, controller.name);
+    //
+    // const channelStripPath = rv[0];
+    // const realearnPath = rv[1];
+    // const controllerConfigPath = rv[2];
 
-    const channelStripPath = rv[0];
-    const realearnPath = rv[1];
-    const controllerConfigPath = rv[2];
-    errdefer {
-        allocator.free(channelStripPath);
-        allocator.free(realearnPath);
-        allocator.free(controllerConfigPath);
-    }
-
-    const validatedConfig = try validateConfig(allocator, controller.name, controllerConfigPath);
-    defer allocator.free(controllerConfigPath);
-
-    return validatedConfig;
+    return rv;
 }
