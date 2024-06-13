@@ -80,7 +80,7 @@ pub const InitError = error{
 // }
 
 const HookCommand = fn (sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char;
-const controller = Controller.c1;
+var controller = Controller.c1;
 
 /// retrieve user settings
 /// check tha realearn’s installed,
@@ -104,5 +104,5 @@ pub fn init(allocator: Allocator) !void {
     }
     const config_paths = try controllerConfigLoader.load(allocator, controller);
     _ = config_paths;
-    _ = try btnActions.registerButtonActions(allocator, controller);
+    _ = try btnActions.registerButtonActions(allocator, &controller);
 }
