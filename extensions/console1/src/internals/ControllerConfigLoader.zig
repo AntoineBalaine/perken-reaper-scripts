@@ -10,16 +10,18 @@ fn buildPaths(allocator: Allocator, controller_name: [*:0]const u8) ![3][]const 
     const controllerConfigDirectory = try fs_helpers.getControllerConfigPath(allocator, controller_name);
     defer allocator.free(controllerConfigDirectory);
     const rfx_extension = ".RfxChain";
-
+    const spanned_controller_name = std.mem.span(controller_name);
     // read the channelStripPath inside the controllerConfigDirectory
     // is it possible to do `controller_name ++ "_channelStrip" ++ rfx_extension;`?
-    const chanStripFname = try std.fmt.allocPrint(allocator, "{s}_channelStrip{s}", .{ controller_name, rfx_extension });
+    const chanStripFname = try std.mem.concat(allocator, u8, &[_][]const u8{ spanned_controller_name, "_chain", rfx_extension });
     defer allocator.free(chanStripFname);
     const chanStripPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, chanStripFname });
-    const realearnFname = try std.fmt.allocPrint(allocator, "{s}_realearn{s}", .{ controller_name, rfx_extension });
+
+    const realearnFname = try std.mem.concat(allocator, u8, &[_][]const u8{ spanned_controller_name, "_realearn.json" });
     defer allocator.free(realearnFname);
     const realearnPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, realearnFname });
-    const configFname = try std.fmt.allocPrint(allocator, "{s}_config.json", .{controller_name});
+
+    const configFname = try std.mem.concat(allocator, u8, &[_][]const u8{ spanned_controller_name, "_config.json" });
     defer allocator.free(configFname);
     const controllerConfigPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, configFname });
     return [_][]const u8{ chanStripPath, realearnPath, controllerConfigPath };

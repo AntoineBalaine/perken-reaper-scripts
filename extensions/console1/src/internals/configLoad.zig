@@ -8,13 +8,13 @@ const Allocator = std.mem.Allocator;
 const ini = @import("ini");
 const types = @import("types.zig");
 const UserSettings = types.UserSettings;
-// read config:
-// find the reaper resource path
-// append the /Data/Perken/C1 folder
-// read the controller config INI file
-// get the controller rfxChain
-// read the fx prefs INI file
 
+/// read config:
+/// find the reaper resource path
+/// append the /Data/Perken/C1 folder
+/// read the controller config INI file
+/// get the controller rfxChain
+/// read the fx prefs INI file
 fn getUserPrefs(allocator: Allocator, controller_path: []const u8, userSettings: *UserSettings) !void {
     const paths = [_][]const u8{ controller_path, "c1_config.ini" };
     const userPrefsPath = try std.fs.path.join(allocator, &paths);
