@@ -3,7 +3,7 @@
 // zig build --verbose && mv zig-out/lib/reaper_zig.so ~/.config/REAPER/UserPlugins/ && reaper
 const std = @import("std");
 const builtin = @import("builtin");
-const tests = @import("test/tests.zig");
+const tests = @import("build_tests.zig");
 pub const Dependencies = struct {
     ini: *std.Build.Dependency,
 };
@@ -29,6 +29,7 @@ pub fn build(b: *std.Build) void {
     // add dependencies: ini parser, etc.
     const ini = b.dependency("ini", .{ .target = target, .optimize = .Debug });
     lib.root_module.addImport("ini", ini.module("ini"));
+
     _ = tests.addTests(b, target, Dependencies{ .ini = ini });
     // Default step for building
     const step = b.step("default", "Build reaper_zig.so");
