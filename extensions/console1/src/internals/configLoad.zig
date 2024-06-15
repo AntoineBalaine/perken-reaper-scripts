@@ -15,9 +15,7 @@ const UserSettings = types.UserSettings;
 /// read the controller config INI file
 /// get the controller rfxChain
 /// read the fx prefs INI file
-fn getUserPrefs(allocator: Allocator, controller_path: []const u8, userSettings: *UserSettings) !void {
-    const paths = [_][]const u8{ controller_path, "c1_config.ini" };
-    const userPrefsPath = try std.fs.path.join(allocator, &paths);
+fn getUserPrefs(allocator: Allocator, userPrefsPath: []const u8, userSettings: *UserSettings) !void {
     const file = try std.fs.cwd().openFile(userPrefsPath, .{});
     defer file.close();
 
@@ -64,16 +62,14 @@ pub fn parseConfig(allocator: Allocator, controller_name: []const u8) !*UserSett
 
 test "userPrefs" {
     const allocator = std.testing.allocator;
-    // create temp dir with temp files.
-    const tmpDir = "../../resources/c1_config.ini";
-
+    const userPrefsPath = "resources/userPrefs.ini";
     const userPrefs = try allocator.create(UserSettings);
+    defer allocator.destroy(userPrefs);
     userPrefs.* = UserSettings{};
-    const prefs = try getUserPrefs(allocator, tmpDir, userPrefs);
-    defer allocator.free(prefs);
-    try std.testing.expectEqual(userPrefs.show_start_up_message, true);
-    try std.testing.expectEqual(userPrefs.show_start_up_message, true);
-    try std.testing.expectEqual(userPrefs.show_plugin_ui, true);
+    try getUserPrefs(allocator, userPrefsPath, userPrefs);
+    try std.testing.expectEqual(userPrefs.show_start_up_message, false);
+    try std.testing.expectEqual(userPrefs.show_start_up_message, false);
+    try std.testing.expectEqual(userPrefs.show_plugin_ui, false);
 }
 
 test "controller prefs" {

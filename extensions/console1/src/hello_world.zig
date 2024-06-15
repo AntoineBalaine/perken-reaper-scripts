@@ -135,3 +135,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onInitCommand)));
     return 1;
 }
+
+test {
+    std.testing.refAllDecls(@This());
+}
