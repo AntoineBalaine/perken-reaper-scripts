@@ -1352,7 +1352,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetResourcePath
     /// returns path where ini files are stored, other things are in subdirectories.
-    pub var GetResourcePath: *fn () callconv(.C) [*:0]const u8 = undefined;
+    pub var GetResourcePath: *const fn () callconv(.C) [*:0]const u8 = undefined;
 
     /// GetSelectedEnvelope
     /// get the currently selected envelope, returns NULL/nil if no envelope is selected

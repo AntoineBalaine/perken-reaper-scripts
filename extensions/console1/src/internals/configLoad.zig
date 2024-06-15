@@ -72,6 +72,25 @@ test "userPrefs" {
     try std.testing.expectEqual(userPrefs.show_plugin_ui, false);
 }
 
+test "getPerkenPath" {
+    const some_struct = struct {
+        pub fn mockResourcePath() callconv(.C) [*:0]const u8 {
+            return "home/perken/.config/REAPER/";
+        }
+    };
+    reaper.GetResourcePath = &some_struct.mockResourcePath;
+
+    const allocator = std.testing.allocator;
+    const path = try getPerkenPath(allocator);
+    defer allocator.free(path);
+
+    const actual: []const u8 = "home/perken/.config/REAPER/Data/PerkenControl";
+    std.testing.expect(std.mem.eql(u8, path, actual)) catch |err| {
+        std.debug.print("error: expected {s}, found {s}\n", .{ actual, path });
+        return err;
+    };
+}
+
 test "controller prefs" {
     const ref =
         \\\[CONFIG]
