@@ -30,7 +30,7 @@ fn isRealearnInstalled(allocator: Allocator) !bool {
     const ref = "realearn";
     const searchString = std.mem.sliceTo(ref, 0);
     while (try r.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        if (containsSubstring(searchString, line)) {
+        if (containsSubstring(searchString, line[0.. :0])) {
             return true;
         }
     }
@@ -50,21 +50,18 @@ fn isRealearnOnMonitoring() !bool {
     const cur_proj = reaper.EnumProjects(-1, null);
     const masterTrack = reaper.GetMasterTrack(cur_proj);
     const fxCount = reaper.TrackFX_GetRecCount(masterTrack);
-    std.debug.print("fx count: {d}\n", .{fxCount});
     for (0..@intCast(fxCount)) |fxIndex| {
-        std.debug.print("in loop", .{});
         const search_str = "realearn";
         const t = 0x1000000;
         const x: u32 = @intCast(fxIndex);
         const z = t + x;
 
         var buf: [128]u8 = undefined;
+        var buffer: []u8 = &buf;
         const has_fx_name = reaper.TrackFX_GetFXName(masterTrack, @intCast(z), @ptrCast(&buf[0]), buf.len);
         if (has_fx_name) {
-            var bufLower: [buf.len]u8 = undefined;
-            _ = std.ascii.lowerString(&bufLower, &buf);
-            std.debug.print("fx name: {s}\n", .{buf});
-            if (containsSubstring(search_str, &bufLower)) {
+            _ = std.ascii.lowerString(buffer, buffer);
+            if (containsSubstring(search_str, buffer[0.. :0])) {
                 return true;
             }
         }
