@@ -10912,8 +10912,8 @@ pub fn init(plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque) !
     @setRuntimeSafety(false);
 
     const getFunc: ?*fn (v: [*:0]const u8, n: [*:0]const u8) *anyopaque =
-        @ptrCast(plugin_getapi("ImGui__getapi"));
-    getError = @ptrCast(plugin_getapi("ImGui__geterr"));
+        @alignCast(@ptrCast(plugin_getapi("ImGui__getapi")));
+    getError = @alignCast(@ptrCast(plugin_getapi("ImGui__geterr")));
 
     if (getFunc == null or getError == null) {
         last_error = "ReaImGui is not installed or too old";
@@ -10921,12 +10921,12 @@ pub fn init(plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque) !
     }
 
     inline for (@typeInfo(API).Struct.fields) |field| {
-        @field(api, field.name) = @ptrCast(getFunc.?(api_version, field.name));
+        @field(api, field.name) = @alignCast(@ptrCast(getFunc.?(api_version, field.name)));
         try checkError();
     }
 
     inline for (@typeInfo(API).Struct.decls) |decl| {
-        @field(API, decl.name) = getEnum(@ptrCast(getFunc.?(api_version, decl.name)));
+        @field(API, decl.name) = getEnum(@alignCast(@ptrCast(getFunc.?(api_version, decl.name))));
         try checkError();
     }
 }

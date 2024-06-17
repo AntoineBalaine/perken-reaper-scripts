@@ -82,7 +82,7 @@ pub const reaper = struct { // @import("reaper");
             if (decl_type != .Pointer or @typeInfo(decl_type.Pointer.child) != .Fn)
                 continue;
             if (getFunc(decl.name)) |func|
-                @field(@This(), decl.name) = @ptrCast(func)
+                @field(@This(), decl.name) = @alignCast(@ptrCast(func))
             else if (is_optional)
                 @field(@This(), decl.name) = null
             else {
