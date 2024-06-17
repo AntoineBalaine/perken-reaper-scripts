@@ -11,16 +11,15 @@ const Controller = @import("controller.zig");
 const btnActions = @import("btnActions.zig");
 
 /// check that realearn can be found in `fxtags.ini`
-fn isRealearnInstalled(allocator: Allocator) !bool {
+fn isRealearnInstalled() !bool {
     const resourcePath = reaper.GetResourcePath();
-    const file_path = try std.fs.path.join(allocator, &[_][]const u8{ std.mem.span(resourcePath), "reaper-fxtags.ini" });
-    defer allocator.free(file_path);
-
-    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const abs_path = try std.fs.realpath(file_path, &path_buffer);
+    const mem_rpath = std.mem.span(resourcePath);
+    var file_path: [std.fs.max_path_bytes]u8 = undefined;
+    @memcpy(&file_path, mem_rpath);
+    @memcpy(file_path[mem_rpath.len..], [1]u8{std.fs.path.sep} ++ "reaper-fxtags.ini");
 
     //Open the file
-    const file = try std.fs.openFileAbsolute(abs_path, .{});
+    const file = try std.fs.openFileAbsolute(file_path, .{});
     defer file.close();
     var br = std.io.bufferedReader(file.reader());
     const r = br.reader();
@@ -54,13 +53,12 @@ fn isRealearnOnMonitoring() !bool {
         const search_str = "realearn";
         const t = 0x1000000;
         const x: u32 = @intCast(fxIndex);
-        const z = t + x;
+        const z: c_int = t + x;
 
         var buf: [128]u8 = undefined;
         var buffer: []u8 = &buf;
-        const has_fx_name = reaper.TrackFX_GetFXName(masterTrack, @intCast(z), @ptrCast(&buf[0]), buf.len);
+        const has_fx_name = reaper.TrackFX_GetFXName(masterTrack, z, @ptrCast(&buf[0]), buf.len);
         if (has_fx_name) {
-            _ = std.ascii.lowerString(buffer, buffer);
             if (containsSubstring(search_str, buffer[0.. :0])) {
                 return true;
             }
@@ -99,7 +97,7 @@ var controller = Controller.c1;
 pub fn init(allocator: Allocator) !void {
     const userSettings = try parseConfig(allocator, "c1");
     _ = userSettings;
-    const isInstalled = try isRealearnInstalled(allocator);
+    const isInstalled = try isRealearnInstalled();
     if (!isInstalled) {
         return InitError.RealearnNotInstalled;
     }
