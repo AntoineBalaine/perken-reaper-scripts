@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn containsSubstring(substring: [*:0]u8, ref_str: [*:0]u8) bool {
+pub fn containsSubstring(substring: []const u8, ref_str: []const u8) bool {
     var i: usize = 0;
     const titleSize = std.mem.len(ref_str);
     const findLen = std.mem.len(substring);
@@ -18,27 +18,9 @@ pub fn containsSubstring(substring: [*:0]u8, ref_str: [*:0]u8) bool {
 test containsSubstring {
     const search_str = "hello";
     const ref_str = "wow hello there";
-    const result = containsSubstring(@constCast(search_str), @constCast(ref_str));
+    const result = containsSubstring(search_str, ref_str);
     try std.testing.expect(result == true);
     const fail_str = "nothing here";
-    const failing_result = containsSubstring(@constCast(search_str), @constCast(fail_str));
+    const failing_result = containsSubstring(search_str, fail_str);
     try std.testing.expect(failing_result == false);
-}
-
-/// convert str to lowerCase, in place
-pub fn toLowerCase(str: []u8) void {
-    for (0..str.len) |idx| {
-        const char = str[idx];
-        if (std.ascii.isUpper(char)) {
-            str[idx] = std.ascii.toLower(char);
-        }
-    }
-}
-
-test toLowerCase {
-    const str = "HeLlO";
-    const ref_str = "hello";
-    toLowerCase(@constCast(str));
-    try std.testing.expect(std.mem.eql(u8, "HeLlO", str) == false);
-    try std.testing.expect(std.mem.eql(u8, ref_str, str) == true);
 }

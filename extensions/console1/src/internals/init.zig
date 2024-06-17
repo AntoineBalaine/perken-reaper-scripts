@@ -9,22 +9,32 @@ const UserSettings = types.UserSettings;
 const controllerConfigLoader = @import("ControllerConfigLoader.zig");
 const Controller = @import("controller.zig");
 const btnActions = @import("btnActions.zig");
+
 /// check that realearn can be found in `fxtags.ini`
 fn isRealearnInstalled(allocator: Allocator) !bool {
     const resourcePath = reaper.GetResourcePath();
     const file_path = try std.fs.path.join(allocator, &[_][]const u8{ std.mem.span(resourcePath), "reaper-fxtags.ini" });
     defer allocator.free(file_path);
-    const fileContents = try fs_helpers.readFile(allocator, file_path);
-    defer allocator.free(fileContents);
-    const searchString = "realearn";
-    var splits = std.mem.splitAny(u8, fileContents, "\n");
-    while (splits.next()) |line| {
-        var buf: [searchString.len]u8 = undefined;
-        _ = std.ascii.lowerString(&buf, line[0..searchString.len]);
-        if (std.mem.eql(u8, &buf, searchString)) {
+
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const abs_path = try std.fs.realpath(file_path, &path_buffer);
+
+    //Open the file
+    const file = try std.fs.openFileAbsolute(abs_path, .{});
+    defer file.close();
+    var br = std.io.bufferedReader(file.reader());
+    const r = br.reader();
+
+    var buf: [1024]u8 = undefined;
+
+    const ref = "realearn";
+    const searchString = std.mem.sliceTo(ref, 0);
+    while (try r.readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        if (containsSubstring(searchString, line)) {
             return true;
         }
     }
+
     return false;
 }
 
@@ -54,7 +64,7 @@ fn isRealearnOnMonitoring() !bool {
             var bufLower: [buf.len]u8 = undefined;
             _ = std.ascii.lowerString(&bufLower, &buf);
             std.debug.print("fx name: {s}\n", .{buf});
-            if (containsSubstring(@constCast(@ptrCast(search_str)), @ptrCast(&bufLower))) {
+            if (containsSubstring(search_str, &bufLower)) {
                 return true;
             }
         }
