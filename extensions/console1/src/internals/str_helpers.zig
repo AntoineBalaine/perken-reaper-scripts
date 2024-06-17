@@ -24,3 +24,21 @@ test containsSubstring {
     const failing_result = containsSubstring(@constCast(search_str), @constCast(fail_str));
     try std.testing.expect(failing_result == false);
 }
+
+/// convert str to lowerCase, in place
+pub fn toLowerCase(str: []u8) void {
+    for (0..str.len) |idx| {
+        const char = str[idx];
+        if (std.ascii.isUpper(char)) {
+            str[idx] = std.ascii.toLower(char);
+        }
+    }
+}
+
+test toLowerCase {
+    const str = "HeLlO";
+    const ref_str = "hello";
+    toLowerCase(@constCast(str));
+    try std.testing.expect(std.mem.eql(u8, "HeLlO", str) == false);
+    try std.testing.expect(std.mem.eql(u8, ref_str, str) == true);
+}
