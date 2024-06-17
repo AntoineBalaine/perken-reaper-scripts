@@ -6,10 +6,10 @@ const Controller = @import("controller.zig");
 pub fn registerButtonActions(allocator: std.mem.Allocator, controller: *Controller.Controller) !void {
     const action_ids = try allocator.alloc(c_int, controller.buttons.len);
     for (controller.buttons, 0..) |button_field, idx| {
-        const action_id_str = try std.mem.concatWithSentinel(allocator, u8, &[_][]const u8{ "PRKN_", std.mem.span(controller.name), "_", button_field }, 0);
+        const action_id_str = try std.mem.concatWithSentinel(allocator, u8, &[_][]const u8{ "PRKN_", controller.name, "_", button_field }, 0);
         const action_name = try std.mem.concatWithSentinel(allocator, u8, &[_][]const u8{
             //
-            std.mem.span(controller.name), "_", button_field,
+            controller.name, "_", button_field,
         }, 0);
         // PRKN_C1_BtnNumber
         const action = reaper.custom_action_register_t{

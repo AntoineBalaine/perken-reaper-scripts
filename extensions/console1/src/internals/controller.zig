@@ -52,8 +52,8 @@ const Module = struct {
 
 /// TODO include allocator in controller struct?
 pub const Controller = struct {
-    id: [*:0]const u8,
-    name: [*:0]const u8,
+    id: []const u8,
+    name: []const u8,
     modules: [5]Module,
     buttons: [][]const u8,
     // modes: Modes,

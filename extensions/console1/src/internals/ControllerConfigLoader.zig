@@ -5,26 +5,37 @@ const ControllerConfig = @import("types.zig").ControllerConfig;
 const reaper = @import("../reaper.zig").reaper;
 const fs_helpers = @import("fs_helpers.zig");
 const Allocator = std.mem.Allocator;
+const types = @import("types.zig");
 
-fn buildPaths(allocator: Allocator, controller_name: [*:0]const u8) ![3][]const u8 {
-    const controllerConfigDirectory = try fs_helpers.getControllerConfigPath(allocator, controller_name);
-    defer allocator.free(controllerConfigDirectory);
-    const rfx_extension = ".RfxChain";
-    const spanned_controller_name = std.mem.span(controller_name);
-    // read the channelStripPath inside the controllerConfigDirectory
-    // is it possible to do `controller_name ++ "_channelStrip" ++ rfx_extension;`?
-    const chanStripFname = try std.mem.concat(allocator, u8, &[_][]const u8{ spanned_controller_name, "_chain", rfx_extension });
-    defer allocator.free(chanStripFname);
-    const chanStripPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, chanStripFname });
+const UserSettings = types.UserSettings;
 
-    const realearnFname = try std.mem.concat(allocator, u8, &[_][]const u8{ spanned_controller_name, "_realearn.json" });
-    defer allocator.free(realearnFname);
-    const realearnPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, realearnFname });
+const Module = struct {
+    name: []const u8,
+    default: []const u8,
+    mappings: []const []const u8,
+};
 
-    const configFname = try std.mem.concat(allocator, u8, &[_][]const u8{ spanned_controller_name, "_config.json" });
+const Prefs = struct { modules: []Module, userSettings: UserSettings };
+
+fn buildPaths(allocator: Allocator, controller_name: []const u8) ![]const u8 {
+    var configDir: [std.fs.max_path_bytes]u8 = undefined;
+
+    const resourcePath = reaper.GetResourcePath();
+    const paths = [_][]const u8{ std.mem.sliceTo(resourcePath, 0), "Data", "Perken", "Controllers", controller_name };
+
+    var len: u8 = 0;
+    for (paths, 0..) |path, idx| {
+        @memcpy(configDir[len..], path);
+        if (idx < paths.len - 1) {
+            @memcpy(configDir[len + path.len ..], &[1]u8{std.fs.path.sep});
+        }
+        len += @intCast(path.len);
+    }
+
+    const configFname = try std.mem.concat(allocator, u8, &[_][]const u8{ controller_name[0..len], "_config.ini" });
     defer allocator.free(configFname);
-    const controllerConfigPath = try std.fs.path.join(allocator, &[_][]const u8{ controllerConfigDirectory, configFname });
-    return [_][]const u8{ chanStripPath, realearnPath, controllerConfigPath };
+    const controllerConfigPath = try std.fs.path.join(allocator, &[_][]const u8{ &configDir, configFname });
+    return controllerConfigPath;
 }
 
 const ConfigLoaderError = error{
@@ -33,13 +44,12 @@ const ConfigLoaderError = error{
 };
 
 /// return the paths of controller config, default channel strip, and realearn mapping for it.
-pub fn load(allocator: Allocator, controller: Controller) ![3][]const u8 {
-    if (std.mem.eql(u8, std.mem.span(controller.name), "")) {
+pub fn load(allocator: Allocator, controller: Controller) ![]const u8 {
+    if (std.mem.eql(u8, controller.name, "")) {
         return ConfigLoaderError.NoConfigName;
     }
 
     const rv = try buildPaths(allocator, controller.name);
-    //
     // const channelStripPath = rv[0];
     // const realearnPath = rv[1];
     // const controllerConfigPath = rv[2];

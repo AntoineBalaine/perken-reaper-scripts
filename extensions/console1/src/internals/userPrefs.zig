@@ -43,7 +43,7 @@ fn getUserPrefs(allocator: Allocator, userPrefsPath: []const u8, userSettings: *
 fn getPerkenPath(allocator: Allocator) ![]const u8 {
     const reaper_path = reaper.GetResourcePath();
 
-    const paths = [_][]const u8{ std.mem.span(reaper_path), "Data", "PerkenControl" };
+    const paths = [_][]const u8{ std.mem.sliceTo(reaper_path, 0), "Data", "PerkenControl" };
     const Prk_path = try std.fs.path.join(allocator, &paths);
     return Prk_path;
 }

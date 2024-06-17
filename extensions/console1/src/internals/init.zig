@@ -13,13 +13,13 @@ const btnActions = @import("btnActions.zig");
 /// check that realearn can be found in `fxtags.ini`
 fn isRealearnInstalled() !bool {
     const resourcePath = reaper.GetResourcePath();
-    const mem_rpath = std.mem.span(resourcePath);
+    const mem_rpath = std.mem.sliceTo(resourcePath, 0);
     var file_path: [std.fs.max_path_bytes]u8 = undefined;
     @memcpy(&file_path, mem_rpath);
     @memcpy(file_path[mem_rpath.len..], [1]u8{std.fs.path.sep} ++ "reaper-fxtags.ini");
 
     //Open the file
-    const file = try std.fs.openFileAbsolute(file_path, .{});
+    const file = try std.fs.openFileAbsolute(&file_path, .{});
     defer file.close();
     var br = std.io.bufferedReader(file.reader());
     const r = br.reader();
@@ -53,7 +53,7 @@ fn isRealearnOnMonitoring() !bool {
         const search_str = "realearn";
         const t = 0x1000000;
         const x: u32 = @intCast(fxIndex);
-        const z: c_int = t + x;
+        const z: c_int = @intCast(t + x);
 
         var buf: [128]u8 = undefined;
         var buffer: []u8 = &buf;

@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 /// caller must free
 pub fn getControllerConfigPath(allocator: Allocator, controller_name: [*:0]const u8) ![]const u8 {
     const resourcePath = reaper.GetResourcePath();
-    const paths = [_][]const u8{ std.mem.span(resourcePath), "Data", "Perken", "Controllers", std.mem.span(controller_name) };
+    const paths = [_][]const u8{ std.mem.sliceTo(resourcePath, 0), "Data", "Perken", "Controllers", std.mem.span(controller_name) };
     const file_path = try std.fs.path.join(allocator, &paths);
     return file_path;
 }
