@@ -45,8 +45,8 @@ pub var Buttons = [_][]const u8{
 // const Modes = struct { main: .{}, fx_selection_display: .{}, settings_screen: .{} };
 
 const Module = struct {
-    name: [*:0]const u8,
-    params: ?[*:0]const u8,
+    name: []const u8,
+    params: ?[]const u8,
     idx: ?u8,
 };
 
