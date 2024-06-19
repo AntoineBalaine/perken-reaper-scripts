@@ -29,7 +29,7 @@ fn isRealearnInstalled() !bool {
     const ref = "realearn";
     const searchString = std.mem.sliceTo(ref, 0);
     while (try r.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        if (containsSubstring(searchString, line[0.. :0])) {
+        if (containsSubstring(searchString, line)) {
             return true;
         }
     }
@@ -56,10 +56,10 @@ fn isRealearnOnMonitoring() !bool {
         const z: c_int = @intCast(t + x);
 
         var buf: [128]u8 = undefined;
-        var buffer: []u8 = &buf;
+        const buffer: []u8 = &buf;
         const has_fx_name = reaper.TrackFX_GetFXName(masterTrack, z, @ptrCast(&buf[0]), buf.len);
         if (has_fx_name) {
-            if (containsSubstring(search_str, buffer[0.. :0])) {
+            if (containsSubstring(search_str, buffer)) {
                 return true;
             }
         }

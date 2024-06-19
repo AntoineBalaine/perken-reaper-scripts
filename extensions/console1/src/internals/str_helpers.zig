@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn containsSubstring(substring: [*:0]const u8, ref_str: [*:0]const u8) bool {
+pub fn containsSubstring(substring: []u8, ref_str: []u8) bool {
     var i: usize = 0;
     const titleSize = std.mem.len(ref_str);
     const findLen = std.mem.len(substring);
