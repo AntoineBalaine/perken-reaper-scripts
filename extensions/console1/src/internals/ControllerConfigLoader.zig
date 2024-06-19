@@ -15,12 +15,44 @@ const Module = struct {
     mappings: []const []const u8,
 };
 
-const Prefs = struct { name: []const u8, modes: [][]const u8, modules: []Module, userSettings: UserSettings };
+const Prefs = struct { name: []const u8, modes: [][]const u8, modules: []Module, userSettings: UserSettings, mappings: std.StringHashMap([]const u8) };
+
+const Sect = struct {
+    section: []const u8,
+    enumerations: [][]const u8,
+};
+fn serializeSection(allocator: Allocator, parser: ini.Parser(std.io.GenericReader)) !?Prefs {
+    const sections = std.ArrayList(Sect).init(Allocator);
+    while (true) {
+        const record = try parser.next();
+        var curSection: ?[]const u8 = null;
+        var enumerations: [][]const u8 = std.ArrayList([]const u8).init(allocator);
+        switch (record) {
+            .property => |kv| {
+                kv.key;
+                kv.value;
+            },
+            .section => |heading| {
+                if (curSection != null) {
+                    sections.append(Sect{ .section = curSection, .enumerations = enumerations });
+                    curSection = heading;
+                    enumerations = std.ArrayList([]const u8).init(allocator);
+                }
+            },
+            .enumeration => {
+                enumerations.append(record);
+            },
+        }
+        @panic("unreachable"); // TODO finish this
+    }
+}
 
 fn parsePrefs(allocator: Allocator, ctrlrPth: []const u8) !Prefs {
     const file = try std.fs.openFileAbsolute(&ctrlrPth, .{});
     defer file.close();
-    var parser = ini.parse(allocator, file.reader());
+    const reader = file.reader();
+
+    var parser = ini.parse(allocator, reader);
     defer parser.deinit();
     const prefs = Prefs{ .modules = undefined, .userSettings = undefined };
     _ = prefs;
@@ -53,6 +85,7 @@ fn parsePrefs(allocator: Allocator, ctrlrPth: []const u8) !Prefs {
             .enumeration => {},
         }
     }
+    @panic("unreachable");
 }
 
 const fileTypes = union(enum) {
@@ -62,6 +95,8 @@ const fileTypes = union(enum) {
 };
 
 fn readConfigFiles(allocator: Allocator, path: []const u8) ![]const u8 {
+    const mappings = std.StringHashMap([]const u8).init(allocator);
+    var prefs: Prefs = undefined;
     const dir = try std.fs.openDirAbsolute(path, .{ .iterate = true });
     defer dir.close();
 
@@ -70,23 +105,27 @@ fn readConfigFiles(allocator: Allocator, path: []const u8) ![]const u8 {
     while (try walker.next()) |entry| {
         switch (entry.kind) {
             .file => {
-                // is this correct ?
                 // If the walker recurses through everything, I expect for it to be able to go through the mappings sub-directory
                 if (std.mem.eql(std.fs.path.dirname, "mappings") and std.mem.eql(std.fs.path.extension(entry.path), ".json")) {
                     // load the file into memory.
                     const contents = try fs_helpers.readFile(allocator, entry.path);
-                    _ = contents; // autofix
+                    mappings.put(entry.basename, contents);
                     // store it in the controller config
                 } else if (std.mem.eql(entry.basename, "config.ini")) {
                     const contents = try fs_helpers.readFile(allocator, entry.path);
-                    const prefs = try parsePrefs(allocator, contents);
-                    _ = prefs; // autofix
+                    prefs = try parsePrefs(allocator, contents);
+                    prefs.mappings = mappings;
+                } else if (std.mem.eql(entry.basename, "fx-tags.ini")) {
+                    const contents = try fs_helpers.readFile(allocator, entry.path);
+                    _ = contents; // autofix
+                    // prefs.fxTags = try parseFxTags(allocator, contents);
                 }
             },
             else => {},
         }
     }
 }
+
 fn getControllerPath(allocator: Allocator, controller_name: []const u8) ![]const u8 {
     var configDir: [std.fs.max_path_bytes]u8 = undefined;
 
