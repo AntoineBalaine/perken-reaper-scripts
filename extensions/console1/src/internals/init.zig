@@ -6,9 +6,9 @@ const containsSubstring = @import("str_helpers.zig").containsSubstring;
 const parseConfig = @import("userPrefs.zig").parseConfig;
 const types = @import("types.zig");
 const UserSettings = types.UserSettings;
-const controllerConfigLoader = @import("ControllerConfigLoader.zig");
 const Controller = @import("controller.zig");
 const btnActions = @import("btnActions.zig");
+const c1 = @import("c1.zig");
 
 /// check that realearn can be found in `fxtags.ini`
 fn isRealearnInstalled() !bool {
@@ -26,10 +26,10 @@ fn isRealearnInstalled() !bool {
 
     var buf: [1024]u8 = undefined;
 
-    const ref = "realearn";
-    const searchString = std.mem.sliceTo(ref, 0);
+    const ref: []const u8 = "realearn";
+    // const searchString = std.mem.span(ref, 0);
     while (try r.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        if (containsSubstring(searchString, line)) {
+        if (containsSubstring(ref, line)) {
             return true;
         }
     }
@@ -107,7 +107,7 @@ pub fn init(allocator: Allocator) !void {
     } else {
         reaper.ShowConsoleMsg("Realearn found\n");
     }
-    const config_paths = try controllerConfigLoader.load(allocator, controller);
-    _ = config_paths;
+    // const config_paths = try controllerConfigLoader.getControllerPath(allocator, controller.name);
+    // _ = config_paths;
     _ = try btnActions.registerButtonActions(allocator, &controller);
 }

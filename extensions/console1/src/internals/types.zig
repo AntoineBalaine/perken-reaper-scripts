@@ -96,9 +96,9 @@ const TrackFX = struct {
 
 pub const ControllerConfig = struct {
     /// list of modes (fx ctrl, settings),
-    Modes: [][*:0]const u8,
-    channelStripPath: [*:0]const u8,
-    realearnPath: [*:0]const u8,
+    Modes: [][]const u8,
+    channelStripPath: []const u8,
+    realearnPath: []const u8,
 };
 
 pub const UserSettings = struct {
