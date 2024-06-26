@@ -100,30 +100,30 @@ fn onInitCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
 export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
     _ = instance;
 
-    if (rec == null)
-        return 0 // cleanup here
-    else if (!reaper.init(rec.?))
+    if (rec == null) {
+        return 0; // cleanup here
+    } else if (!reaper.init(rec.?)) {
         return 0;
+    }
 
     reaper.ShowConsoleMsg("Hello, Zig!\n");
     // Define the opaque struct to represent IReaperControlSurface
     const myCsurf = control_surface.init();
     if (myCsurf == null) {
-        reaper.ShowConsoleMsg("Failed to create fake csurf\n");
+        std.debug.print("Failed to create fake csurf\n", .{});
         return 0;
     }
     appInit.init(gpa) catch |err| {
         switch (err) {
             appInit.InitError.RealearnNotInstalled => {
-                _ = reaper.MB("Realearn not found. Please install realearn using reapack", "Error", 0);
-                return 0;
+                std.debug.print("Realearn not found. Please install realearn using reapack", .{});
             },
             else => {
-                return 0;
+                std.debug.print("other err\n", .{});
             },
         }
     };
-    reaper.ShowConsoleMsg("registering\n");
+    std.debug.print("registering\n", .{});
     _ = reaper.plugin_register("csurf_inst", myCsurf.?);
 
     const action = reaper.custom_action_register_t{ .section = 0, .id_str = "REAIMGUI_ZIG", .name = "ReaImGui Zig example" };
@@ -133,6 +133,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     const init_action = reaper.custom_action_register_t{ .section = 0, .id_str = "ZIG_INIT", .name = "zig init" };
     init_action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&init_action)));
     _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onInitCommand)));
+    std.debug.print("actions registered: {d} {d}\n", .{ action_id, init_action_id });
     return 1;
 }
 
