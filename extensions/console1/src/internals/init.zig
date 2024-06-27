@@ -71,20 +71,6 @@ pub const InitError = error{
     RealearnNotInstalled,
 };
 
-// fn my_hook(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) c_char {
-//     _ = .{ sec, val, val2hw, relmode, hwnd };
-//     if (controller.action_ids == null) {
-//         return 0;
-//     }
-//     for (controller.action_ids, 0..) |action_id, idx| {
-//         if (action_id == command) {
-//             // call corresponding button action
-//             return 1;
-//         }
-//     }
-// }
-
-const HookCommand = fn (sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char;
 var controller = Controller.c1;
 
 /// retrieve user settings

@@ -57,7 +57,7 @@ pub const Controller = struct {
     modules: [5]Module,
     buttons: [][]const u8,
     // modes: Modes,
-    action_ids: ?[]c_int,
+    action_ids: ?std.AutoHashMap(c_int, []const u8),
 };
 
 pub const c1 = Controller{
