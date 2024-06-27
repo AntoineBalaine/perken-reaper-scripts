@@ -27,11 +27,60 @@ const actions = struct {
     pub fn sel_dispShpOpts() void {}
     pub fn sel_dispCmpOpts() void {}
     pub fn sel_dispGateOpts() void {}
-    pub fn sel_slot() void {}
+    pub fn sel_slot(slotId: u8) void {
+        _ = slotId;
+    }
 };
 
-const c1 = struct {
-    .fx_ctrl = struct {
+const BtnStruct = struct {
+    disp_on: ?*const fn () void,
+    disp_mode: ?*const fn () void,
+    shift: ?*const fn () void,
+    filt_to_comp: ?*const fn () void,
+    phase_inv: ?*const fn () void,
+    preset: ?*const fn () void,
+    pg_up: ?*const fn () void,
+    pg_dn: ?*const fn () void,
+    tr1: ?*const fn () void,
+    tr2: ?*const fn () void,
+    tr3: ?*const fn () void,
+    tr4: ?*const fn () void,
+    tr5: ?*const fn () void,
+    tr6: ?*const fn () void,
+    tr7: ?*const fn () void,
+    tr8: ?*const fn () void,
+    tr9: ?*const fn () void,
+    tr10: ?*const fn () void,
+    tr11: ?*const fn () void,
+    tr12: ?*const fn () void,
+    tr13: ?*const fn () void,
+    tr14: ?*const fn () void,
+    tr15: ?*const fn () void,
+    tr16: ?*const fn () void,
+    tr17: ?*const fn () void,
+    tr18: ?*const fn () void,
+    tr19: ?*const fn () void,
+    tr20: ?*const fn () void,
+    shape: ?*const fn () void,
+    hard_gate: ?*const fn () void,
+    eq: ?*const fn () void,
+    hp_shape: ?*const fn () void,
+    lp_shape: ?*const fn () void,
+    comp: ?*const fn () void,
+    tr_grp: ?*const fn () void,
+    tr_copy: ?*const fn () void,
+    order: ?*const fn () void,
+    ext_sidechain: ?*const fn () void,
+    solo: ?*const fn () void,
+    mute: ?*const fn () void,
+};
+const CTRLR = struct {
+    fx_ctrl: BtnStruct,
+    fx_selection_display: BtnStruct,
+};
+
+pub const c1 = CTRLR{
+    .fx_ctrl = BtnStruct{
         .disp_on = actions.toggleDisplay,
         .disp_mode = actions.cycleControllerMode,
         .shift = actions.toggleShift,
@@ -291,4 +340,10 @@ test "re-use callbacks in struct" {
         }.action,
     };
     try std.testing.expectEqual(my_struct.tr1(), 1);
+}
+
+test "check method types" {
+    const t = c1.fx_ctrl.shape.?.*;
+    const info = @typeInfo(@TypeOf(t));
+    try std.testing.expect(info == .Fn);
 }
