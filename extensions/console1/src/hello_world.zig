@@ -12,6 +12,7 @@ const appInit = @import("internals/init.zig");
 const plugin_name = "Hello, Zig!";
 var action_id: c_int = undefined;
 var init_action_id: c_int = undefined;
+var actionIds: std.ArrayList(c_int) = undefined;
 
 var ctx: ImGui.ContextPtr = null;
 var click_count: u32 = 0;
@@ -20,60 +21,7 @@ var text = std.mem.zeroes([255:0]u8);
 var gpa_int = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_int.allocator();
 
-fn loop() !void {
-    if (ctx == null) {
-        try ImGui.init(reaper.plugin_getapi);
-        ctx = try ImGui.CreateContext(.{plugin_name});
-    }
-
-    try ImGui.SetNextWindowSize(.{ ctx, 400, 80, ImGui.Cond_FirstUseEver });
-
-    var open: bool = true;
-    if (try ImGui.Begin(.{ ctx, plugin_name, &open })) {
-        if (try ImGui.Button(.{ ctx, "Click me!" }))
-            click_count +%= 1;
-
-        if (click_count & 1 != 0) {
-            try ImGui.SameLine(.{ctx});
-            try ImGui.Text(.{ ctx, "\\o/" });
-        }
-
-        _ = try ImGui.InputText(.{ ctx, "text input", &text, text.len });
-        try ImGui.End(.{ctx});
-    }
-
-    if (!open)
-        reset();
-}
-
-fn init() void {
-    _ = reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
-}
-
-fn reset() void {
-    _ = reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
-    ctx = null;
-}
-
-fn onTimer() callconv(.C) void {
-    loop() catch {
-        reset();
-        _ = reaper.ShowMessageBox(ImGui.last_error.?, plugin_name, 0);
-    };
-}
-
 fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
-    _ = .{ sec, val, val2hw, relmode, hwnd };
-
-    if (command == action_id) {
-        if (ctx == null) init() else reset();
-        return 1;
-    }
-
-    return 0;
-}
-
-fn onInitCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
     _ = .{ sec, val, val2hw, relmode, hwnd };
     std.debug.print("{any}\n", .{init_action_id});
 
@@ -130,10 +78,6 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
     _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
 
-    const init_action = reaper.custom_action_register_t{ .section = 0, .id_str = "ZIG_INIT", .name = "zig init" };
-    init_action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&init_action)));
-    _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onInitCommand)));
-    std.debug.print("actions registered: {d} {d}\n", .{ action_id, init_action_id });
     return 1;
 }
 
