@@ -15,13 +15,20 @@ pub const UserSettings = struct {
     ///  -- show plugin UI when tweaking corresponding knob.
     show_plugin_ui: bool = true,
 
-    pub fn init(allocator: Allocator, controller_name: []const u8) !UserSettings {
-        const perken_path = try getPerkenPath(allocator);
+    pub fn init(allocator: Allocator, controller_name: []const u8) UserSettings {
+        var userSettings = UserSettings{};
+        const perken_path = getPerkenPath(allocator) catch {
+            return userSettings;
+        };
+        defer allocator.free(perken_path);
 
         const paths = [_][]const u8{ perken_path, controller_name };
-        const controller_path = try std.fs.path.join(allocator, &paths);
-        var userSettings = UserSettings{};
-        try loadUserPrefs(allocator, controller_path, &userSettings);
+        const controller_path = std.fs.path.join(allocator, &paths) catch {
+            return userSettings;
+        };
+        defer allocator.free(controller_path);
+
+        loadUserPrefs(allocator, controller_path, &userSettings) catch {};
         return userSettings;
     }
 };

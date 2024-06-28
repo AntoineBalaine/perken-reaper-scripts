@@ -82,7 +82,7 @@ var controller = Controller.c1;
 /// register the actions for each of the buttons
 /// return the hook command function that
 pub fn init(allocator: Allocator) !void {
-    const userSettings = try UserSettings.init(allocator, "c1");
+    const userSettings = UserSettings.init(allocator, "c1");
     const isInstalled = try isRealearnInstalled();
     if (!isInstalled) {
         return InitError.RealearnNotInstalled;
