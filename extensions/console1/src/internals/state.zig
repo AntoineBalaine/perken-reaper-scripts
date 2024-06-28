@@ -1,5 +1,5 @@
 const std = @import("std");
-const types = @import("types.zig");
+const UserSettings = @import("userPrefs.zig").UserSettings;
 const reaper = @import("../reaper.zig").reaper;
 const controller = @import("c1.zig");
 
@@ -9,23 +9,21 @@ pub const State = struct {
     actionIds: std.AutoHashMap(u8, []const u8) = undefined,
     controller: @TypeOf(controller.c1) = controller.c1,
     mode: std.meta.FieldEnum(@TypeOf(controller.c1)) = undefined,
-    project_directory: []const u8 = undefined,
+    controller_dir: []const u8 = undefined,
     track: ?*reaper.MediaTrack = null,
-    user_settings: types.UserSettings = undefined,
+    user_settings: UserSettings = undefined,
 
-    pub fn init(allocator: std.mem.Allocator, project_directory: []const u8, user_settings: types.UserSettings) !State {
-        const self = try allocator.create(State);
-        self.* = State{};
-        self.actionIds = std.AutoHashMap(u8, []const u8).init(allocator);
-        self.mode = .fx_ctrl;
-        self.project_directory = project_directory;
-        self.user_settings = user_settings;
+    pub fn init(allocator: std.mem.Allocator, controller_dir: []const u8, user_settings: UserSettings) State {
+        var self = State{
+            .actionIds = std.AutoHashMap(u8, []const u8).init(allocator),
+            .mode = .fx_ctrl,
+            .controller_dir = controller_dir,
+            .user_settings = user_settings,
+        };
         errdefer {
-            allocator.free(self.actionIds);
-            allocator.free(self);
-            self.* = undefined;
+            self.actionIds.deinit();
         }
-        try self.registerButtonActions(allocator);
+        self.registerButtonActions(allocator) catch {};
         return self;
     }
 
@@ -67,35 +65,42 @@ pub const State = struct {
         self.track = trackid;
     }
 
+    /// register the controller’s buttons as actions in reaper’s actions list
+    /// and load them into state.actionIds’ map.
+    ///
+    /// If the registrations fail, return the error.
+    /// It’s expected that the state catch the error, so that the program doesn’t crash.
     fn registerButtonActions(self: *State, allocator: std.mem.Allocator) !void {
-        const buttons_list = std.ArrayList([]const u8).init(allocator);
+        var buttons_list = std.ArrayList([]const u8).init(allocator);
 
         inline for (std.meta.fields(@TypeOf(controller.c1.fx_ctrl))) |ns_info| {
             const name = ns_info.name;
-            buttons_list.append(name);
+            try buttons_list.append(name);
         }
 
-        for (buttons_list) |button_field| {
+        for (buttons_list.items) |button_field| {
             const action_id_str = try std.mem.concatWithSentinel(allocator, u8, &[_][]const u8{ "PRKN_", "c1", "_", button_field }, 0);
-            const action_name = try std.mem.concatWithSentinel(allocator, u8, &[_][]const u8{
+            const btn_name = try std.mem.concatWithSentinel(allocator, u8, &[_][]const u8{
                 //
                 "[c1] [button_press] ", button_field,
             }, 0);
             // PRKN_C1_BtnNumber
-            const action = reaper.custom_action_register_t{
+            const btn_action = reaper.custom_action_register_t{
                 //
                 .section = 0,
                 .id_str = action_id_str,
-                .name = action_name,
+                .name = btn_name,
             };
-            const action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
-            self.actionIds.put(action_id, action_id_str);
+            const action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&btn_action)));
+            const cast_id: u8 = @intCast(action_id);
+            try self.actionIds.put(cast_id, action_id_str);
         }
         return;
     }
 
     pub fn hookCommand(self: *State, id: u8) !void {
         const btn_name = self.actionIds.get(id) orelse return;
-        self.controller[self.mode][btn_name]();
+        const field = @field(self.controller[self.mode], btn_name);
+        @call(.auto, field.?, .{});
     }
 };

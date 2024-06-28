@@ -3,12 +3,13 @@ const reaper = @import("../reaper.zig").reaper;
 const Allocator = std.mem.Allocator;
 const fs_helpers = @import("fs_helpers.zig");
 const containsSubstring = @import("str_helpers.zig").containsSubstring;
-const parseConfig = @import("userPrefs.zig").parseConfig;
+const parseConfig = @import("userPrefs.zig").init;
 const types = @import("types.zig");
-const UserSettings = types.UserSettings;
+const UserSettings = @import("userPrefs.zig").UserSettings;
 const Controller = @import("controller.zig");
-const btnActions = @import("btnActions.zig");
 const c1 = @import("c1.zig");
+const State = @import("state.zig");
+const getControllerPath = @import("ControllerConfigLoader.zig").getControllerPath;
 
 /// check that realearn can be found in `fxtags.ini`
 fn isRealearnInstalled() !bool {
@@ -81,8 +82,7 @@ var controller = Controller.c1;
 /// register the actions for each of the buttons
 /// return the hook command function that
 pub fn init(allocator: Allocator) !void {
-    const userSettings = try parseConfig(allocator, "c1");
-    _ = userSettings;
+    const userSettings = try UserSettings.init(allocator, "c1");
     const isInstalled = try isRealearnInstalled();
     if (!isInstalled) {
         return InitError.RealearnNotInstalled;
@@ -93,7 +93,9 @@ pub fn init(allocator: Allocator) !void {
     } else {
         reaper.ShowConsoleMsg("Realearn found\n");
     }
+    const controller_dir = try getControllerPath("c1");
+    const state = State.State.init(allocator, controller_dir, userSettings);
+    _ = state;
     // const config_paths = try controllerConfigLoader.getControllerPath(allocator, controller.name);
     // _ = config_paths;
-    _ = try btnActions.registerButtonActions(allocator, &controller);
 }

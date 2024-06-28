@@ -6,7 +6,7 @@ const fs_helpers = @import("fs_helpers.zig");
 const Allocator = std.mem.Allocator;
 const types = @import("types.zig");
 const ini = @import("ini");
-const UserSettings = types.UserSettings;
+const UserSettings = @import("userPrefs.zig").UserSettings;
 
 // const Module = struct {
 //     name: []const u8,
@@ -72,7 +72,7 @@ pub fn getControllerPath(controller_name: []const u8) ![]const u8 {
 
     // const config = try readConfigFiles(allocator, configDir);
     // _ = config;
-    return configDir;
+    return &configDir;
 }
 
 const ConfigLoaderError = error{

@@ -100,11 +100,3 @@ pub const ControllerConfig = struct {
     channelStripPath: []const u8,
     realearnPath: []const u8,
 };
-
-pub const UserSettings = struct {
-    show_start_up_message: bool = true,
-    ///  -- should the UI display?
-    show_feedback_window: bool = true,
-    ///  -- show plugin UI when tweaking corresponding knob.
-    show_plugin_ui: bool = true,
-};
