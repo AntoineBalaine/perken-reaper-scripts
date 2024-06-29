@@ -6,21 +6,20 @@ const containsSubstring = @import("str_helpers.zig").containsSubstring;
 const parseConfig = @import("userPrefs.zig").init;
 const types = @import("types.zig");
 const UserSettings = @import("userPrefs.zig").UserSettings;
-const Controller = @import("controller.zig");
-const c1 = @import("c1.zig");
-const State = @import("state.zig");
+const State = @import("state.zig").State;
 const getControllerPath = @import("ControllerConfigLoader.zig").getControllerPath;
 
 /// check that realearn can be found in `fxtags.ini`
-fn isRealearnInstalled() !bool {
+fn isRealearnInstalled(allocator: Allocator) !bool {
     const resourcePath = reaper.GetResourcePath();
-    const mem_rpath = std.mem.sliceTo(resourcePath, 0);
-    var file_path: [std.fs.max_path_bytes]u8 = undefined;
-    @memcpy(&file_path, mem_rpath);
-    @memcpy(file_path[mem_rpath.len..], [1]u8{std.fs.path.sep} ++ "reaper-fxtags.ini");
+    const slice_resourcePath = std.mem.span(resourcePath);
+
+    const paths = [_][]const u8{ slice_resourcePath, "reaper-fxtags.ini" };
+    const file_path = try std.fs.path.join(allocator, &paths);
+    defer allocator.free(file_path);
 
     //Open the file
-    const file = try std.fs.openFileAbsolute(&file_path, .{});
+    const file = try std.fs.openFileAbsolute(file_path, .{});
     defer file.close();
     var br = std.io.bufferedReader(file.reader());
     const r = br.reader();
@@ -72,8 +71,6 @@ pub const InitError = error{
     RealearnNotInstalled,
 };
 
-var controller = Controller.c1;
-
 /// retrieve user settings
 /// check tha realearn’s installed,
 /// check whether realearn instances are present on fx monitoring
@@ -81,21 +78,19 @@ var controller = Controller.c1;
 /// retrieve the controller config
 /// register the actions for each of the buttons
 /// return the hook command function that
-pub fn init(allocator: Allocator) !void {
+pub fn controllerInit(allocator: Allocator) !State {
     const userSettings = UserSettings.init(allocator, "c1");
-    const isInstalled = try isRealearnInstalled();
+    const isInstalled = isRealearnInstalled(allocator) catch false;
     if (!isInstalled) {
-        return InitError.RealearnNotInstalled;
+        std.debug.print("Realearn is not installed\n", .{});
     }
     const isOnMonitoring = try isRealearnOnMonitoring();
     if (!isOnMonitoring) {
-        reaper.ShowConsoleMsg("Realearn is not on monitoring FX chain\n");
+        std.debug.print("Realearn is not on monitoring FX chain\n", .{});
     } else {
-        reaper.ShowConsoleMsg("Realearn found\n");
+        std.debug.print("Realearn found\n", .{});
     }
-    const controller_dir = try getControllerPath("c1");
-    const state = State.State.init(allocator, controller_dir, userSettings);
-    _ = state;
-    // const config_paths = try controllerConfigLoader.getControllerPath(allocator, controller.name);
-    // _ = config_paths;
+    const controller_dir = try getControllerPath("c1", allocator);
+    const state = try State.init(allocator, controller_dir, userSettings);
+    return state;
 }
