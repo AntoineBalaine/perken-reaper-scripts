@@ -5,8 +5,6 @@ const testState = @import("../internals/teststate.zig");
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
 
-const TestStruct = testState.testStruct;
-const myStruct = TestStruct{};
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
