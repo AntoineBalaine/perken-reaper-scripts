@@ -19,7 +19,7 @@ track: ?*reaper.MediaTrack = null,
 user_settings: UserSettings = undefined,
 
 pub fn init(allocator: std.mem.Allocator, controller_dir: []const u8, user_settings: UserSettings) !State {
-    var self = .{
+    var self: State = .{
         .actionIds = std.AutoHashMap(c_int, ActionId).init(allocator),
         .controller_dir = controller_dir,
         .user_settings = user_settings,
@@ -33,11 +33,6 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: []const u8, user_setti
 }
 
 pub fn deinit(self: *State, allocator: std.mem.Allocator) !void {
-    var iterator = self.actionIds.iterator();
-    while (iterator.next()) |actionId| {
-        allocator.destroy(actionId.value_ptr);
-        allocator.destroy(actionId.key_ptr);
-    }
     allocator.free(self.controller_dir);
     self.actionIds.deinit();
 }

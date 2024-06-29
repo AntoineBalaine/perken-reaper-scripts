@@ -66,7 +66,7 @@ fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
     _ = .{ sec, val, val2hw, relmode, hwnd };
     std.debug.print("{any}\n", .{action_id});
 
-    if (state.hookCommand(@intCast(command))) {
+    if (state.hookCommand(command)) {
         return 1;
     } else {
         return 0;
