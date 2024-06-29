@@ -7,11 +7,15 @@ const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
 const ControllerConfig = @import("internals/ControllerConfigLoader.zig");
 const appInit = @import("internals/init.zig");
-const State = @import("internals/state.zig").State;
+const State = @import("internals/state.zig");
+const c = @cImport({
+    @cInclude("csurf/control_surface_wrapper.h");
+});
 
 const plugin_name = "Hello, Zig!";
 var state: State = undefined;
 var action_id: c_int = undefined;
+var myCsurf: c.C_ControlSurface = undefined;
 
 var gpa_int = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_int.allocator();
@@ -21,6 +25,7 @@ const gpa = gpa_int.allocator();
 
 fn deinit() void {
     std.debug.print("Deinit\n", .{});
+    control_surface.deinit(myCsurf);
     try state.deinit(gpa);
     const deinit_status = gpa_int.deinit();
     if (deinit_status == .leak) {
@@ -37,17 +42,17 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     }
 
     reaper.ShowConsoleMsg("Hello, Zig!\n");
+    state = appInit.controllerInit(gpa) catch {
+        std.debug.print("state init failed\n", .{});
+        return 0;
+    };
     // Define the opaque struct to represent IReaperControlSurface
-    const myCsurf = control_surface.init();
+    myCsurf = control_surface.init(state);
     if (myCsurf == null) {
         std.debug.print("Failed to create fake csurf\n", .{});
         deinit();
         return 0;
     }
-    state = appInit.controllerInit(gpa) catch {
-        std.debug.print("state init failed\n", .{});
-        return 0;
-    };
     _ = reaper.plugin_register("csurf_inst", myCsurf.?);
 
     // const action = reaper.custom_action_register_t{ .section = 0, .id_str = "REAIMGUI_ZIG", .name = "ReaImGui Zig example" };

@@ -328,31 +328,3 @@ pub const controller = std.EnumArray(Mode, Btns).init(.{
         .mute = null,
     }),
 });
-
-const State = struct {
-    mode: Mode = .fx_ctrl,
-    actionIds: std.AutoHashMap(u8, ActionId) = undefined,
-    pub fn init(allocator: std.mem.Allocator) State {
-        var state = State{};
-        state.actionIds = std.AutoHashMap(u8, ActionId).init(allocator);
-        return state;
-    }
-
-    pub fn hookCommand(self: *State, id: u8) void {
-        const btn_name = self.actionIds.get(id) orelse return;
-        const cur_mode = controller.get(self.mode);
-        const callback = cur_mode.get(btn_name);
-        if (callback != null) {
-            callback();
-        }
-    }
-};
-
-test State {
-    var state = State.init(std.testing.allocator);
-    defer state.actionIds.deinit();
-    try state.actionIds.put(1, ActionId.preset);
-    try state.actionIds.put(2, ActionId.disp_mode);
-    const rv = state.hookCommand(1);
-    try std.testing.expect(rv == null);
-}

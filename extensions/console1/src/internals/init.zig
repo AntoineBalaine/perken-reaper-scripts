@@ -6,7 +6,7 @@ const containsSubstring = @import("str_helpers.zig").containsSubstring;
 const parseConfig = @import("userPrefs.zig").init;
 const types = @import("types.zig");
 const UserSettings = @import("userPrefs.zig").UserSettings;
-const State = @import("state.zig").State;
+const State = @import("state.zig");
 const getControllerPath = @import("ControllerConfigLoader.zig").getControllerPath;
 
 /// check that realearn can be found in `fxtags.ini`

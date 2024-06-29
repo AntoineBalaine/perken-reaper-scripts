@@ -1,6 +1,4 @@
 const std = @import("std");
-const ctrler = @import("controller.zig");
-const Controller = ctrler.Controller;
 const ControllerConfig = @import("types.zig").ControllerConfig;
 const reaper = @import("../reaper.zig").reaper;
 const fs_helpers = @import("fs_helpers.zig");

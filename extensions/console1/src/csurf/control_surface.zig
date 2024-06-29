@@ -1,17 +1,22 @@
 const std = @import("std");
 const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
-const testState = @import("../internals/teststate.zig");
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
-
+const State = @import("../internals/state.zig");
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
 
-pub fn init() c.C_ControlSurface {
+var state: State = undefined;
+pub fn init(initState: State) c.C_ControlSurface {
+    state = initState;
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     return myCsurf;
+}
+
+pub fn deinit(csurf: c.C_ControlSurface) void {
+    c.ControlSurface_Destroy(csurf);
 }
 
 fn GetTypeString() callconv(.C) [*]const u8 {
@@ -39,7 +44,8 @@ export fn zRun() callconv(.C) void {
     // std.debug.print("Run\n",.{});
 }
 export fn zSetTrackListChange() callconv(.C) void {
-    std.debug.print("SetTrackListChange\n", .{});
+    // std.debug.print("SetTrackListChange\n", .{});
+    state.csurfCB();
 }
 export fn zSetSurfaceVolume(trackid: *MediaTrack, volume: f64) callconv(.C) void {
     _ = trackid;
