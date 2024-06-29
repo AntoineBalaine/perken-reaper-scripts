@@ -33,11 +33,11 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: []const u8, user_setti
 }
 
 pub fn deinit(self: *State, allocator: std.mem.Allocator) !void {
-    // var iterator = self.actionIds.iterator();
-    // while (iterator.next()) |actionId| {
-    //     allocator.destroy(actionId.key_ptr.*);
-    //     allocator.destroy(actionId.value_ptr.*);
-    // }
+    var iterator = self.actionIds.iterator();
+    while (iterator.next()) |actionId| {
+        allocator.destroy(actionId.value_ptr);
+        allocator.destroy(actionId.key_ptr);
+    }
     allocator.free(self.controller_dir);
     self.actionIds.deinit();
 }
@@ -77,7 +77,6 @@ pub fn handleNewTrack(self: *State, trackid: *reaper.MediaTrack) void {
 /// If the registrations fail, return the error.
 /// It’s expected that the state catch the error, so that the program doesn’t crash.
 fn registerButtonActions(self: *State, allocator: std.mem.Allocator) !void {
-    std.debug.print("registering\n", .{});
     for (std.enums.values(ActionId)) |action_id| {
         const btn_name = @tagName(action_id);
         const id_str = try std.fmt.allocPrintZ(allocator, "{s}{s}", .{ "_PRKN_", btn_name });

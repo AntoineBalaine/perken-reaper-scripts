@@ -47,7 +47,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         return 0;
     };
     // Define the opaque struct to represent IReaperControlSurface
-    myCsurf = control_surface.init(state);
+    myCsurf = control_surface.init(&state);
     if (myCsurf == null) {
         std.debug.print("Failed to create fake csurf\n", .{});
         deinit();

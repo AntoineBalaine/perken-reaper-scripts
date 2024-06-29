@@ -8,8 +8,8 @@ const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
 
-var state: State = undefined;
-pub fn init(initState: State) c.C_ControlSurface {
+var state: *State = undefined;
+pub fn init(initState: *State) c.C_ControlSurface {
     state = initState;
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     return myCsurf;
@@ -45,7 +45,7 @@ export fn zRun() callconv(.C) void {
 }
 export fn zSetTrackListChange() callconv(.C) void {
     // std.debug.print("SetTrackListChange\n", .{});
-    state.csurfCB();
+    state.*.csurfCB();
 }
 export fn zSetSurfaceVolume(trackid: *MediaTrack, volume: f64) callconv(.C) void {
     _ = trackid;
