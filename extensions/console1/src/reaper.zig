@@ -69,7 +69,7 @@ pub const reaper = struct { // @import("reaper");
 
     pub fn init(rec: *plugin_info_t) bool {
         if (rec.caller_version != PLUGIN_VERSION) {
-            std.debug.print("expected REAPER API version {x}, got {x}\n", .{ PLUGIN_VERSION, rec.caller_version });
+            // std.debug.print("expected REAPER API version {x}, got {x}\n", .{ PLUGIN_VERSION, rec.caller_version });
             return false;
         }
 
@@ -86,7 +86,7 @@ pub const reaper = struct { // @import("reaper");
             else if (is_optional)
                 @field(@This(), decl.name) = null
             else {
-                std.debug.print("unable to import the API function '{s}'\n", .{decl.name});
+                // std.debug.print("unable to import the API function '{s}'\n", .{decl.name});
                 return false;
             }
         }
