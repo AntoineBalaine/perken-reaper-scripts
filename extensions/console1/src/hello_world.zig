@@ -17,7 +17,7 @@ var state: State = undefined;
 var action_id: c_int = undefined;
 var myCsurf: c.C_ControlSurface = undefined;
 
-var gpa_int = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa_int = std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = true }){};
 const gpa = gpa_int.allocator();
 
 // to implement the csurf interface, you'd probably want to do that from C++ instead of Zig to not have to deal with ABI headaches...
@@ -41,11 +41,10 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         return 0;
     }
 
-    reaper.ShowConsoleMsg("Hello, Zig!\n");
     state = appInit.controllerInit(gpa) catch {
-        std.debug.print("state init failed\n", .{});
         return 0;
     };
+
     // Define the opaque struct to represent IReaperControlSurface
     myCsurf = control_surface.init(&state);
     if (myCsurf == null) {
@@ -64,7 +63,6 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
 
 fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
     _ = .{ sec, val, val2hw, relmode, hwnd };
-    std.debug.print("{any}\n", .{action_id});
 
     if (state.hookCommand(command)) {
         return 1;
