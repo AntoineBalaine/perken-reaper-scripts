@@ -6,21 +6,25 @@ const Mode = ctr.Mode;
 const ActionId = ctr.ActionId;
 const Btns = ctr.Btns;
 const controller = ctr.controller;
+const Track = @import("track.zig").Track;
 
 const State = @This();
 
 /// State has to be called from control_surface.zig
 /// Flow is : main.zig -> register Csurf -> Csurf forwards calls to control_surface.zig -> control_surface updates state
-actionIds: std.AutoHashMap(c_int, ActionId) = undefined,
+Track: ?Track = null,
+actionIds: std.AutoHashMap(c_int, ActionId),
+allocator: std.mem.Allocator,
 controller: std.EnumArray(Mode, Btns) = controller,
+controller_dir: []const u8,
 mode: Mode = .fx_ctrl,
-controller_dir: []const u8 = undefined,
-track: ?*reaper.MediaTrack = null,
-user_settings: UserSettings = undefined,
+track: ?Track = null,
+user_settings: UserSettings,
 
 pub fn init(allocator: std.mem.Allocator, controller_dir: []const u8, user_settings: UserSettings) !State {
     var self: State = .{
         .actionIds = std.AutoHashMap(c_int, ActionId).init(allocator),
+        .allocator = allocator,
         .controller_dir = controller_dir,
         .user_settings = user_settings,
     };
@@ -62,8 +66,13 @@ pub fn handleNewTrack(self: *State, trackid: *reaper.MediaTrack) void {
     // validate channel strip
     // load channel strip
     // load matching preset into realearn
-    self.getRealearnInstance();
-    self.track = trackid;
+
+    if (self.track != null) {
+        self.track.deinit();
+    }
+    const new_track: Track = Track.init(trackid);
+    self.track = new_track;
+    @panic("new_track logic not implemented yet");
 }
 
 /// register the controller’s buttons as actions in reaper’s actions list

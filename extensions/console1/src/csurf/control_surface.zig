@@ -107,8 +107,8 @@ export fn zResetCachedVolPanStates() callconv(.C) void {
     // std.debug.print("ResetCachedVolPanStates\n", .{});
 }
 export fn zOnTrackSelection(trackid: *MediaTrack) callconv(.C) void {
-    _ = trackid;
     std.debug.print("OnTrackSelection\n", .{});
+    state.handleNewTrack(trackid);
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;
