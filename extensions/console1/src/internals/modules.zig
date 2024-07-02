@@ -30,29 +30,53 @@ const ModulesList = struct {
     },
 };
 
+pub fn readResourceFile(self: *Modules, allocator: std.mem.Allocator, path: []const u8) void {
+    const file = try std.fs.openFileAbsolute(path, .{});
+    defer file.close();
+
+    const parser = ini.parse(allocator, file.reader());
+    defer parser.deinit();
+
+    _ = try ini.readToStruct(&self, parser, allocator);
+}
+
 /// List of controller modules, containing keys of FX names, and values containing FX mappings.
 /// Mappings are expected to come from the resources directory.
 pub const Modules = struct {
-    INPUT: std.AutoHashMap([]const u8, void),
-    GATE: std.AutoHashMap([]const u8, void),
-    EQ: std.AutoHashMap([]const u8, void),
-    COMP: std.AutoHashMap([]const u8, void),
-    SAT: std.AutoHashMap([]const u8, void),
+    INPUT: std.StringHashMap(void),
+    GATE: std.StringHashMap(void),
+    EQ: std.StringHashMap(void),
+    COMP: std.StringHashMap(void),
+    SAT: std.StringHashMap(void),
     pub fn init(allocator: std.mem.Allocator) Modules {
         const modules: Modules = .{
-            .INPUT = std.AutoHashMap([]const u8, void).init(allocator),
-            .GATE = std.AutoHashMap([]const u8, void).init(allocator),
-            .EQ = std.AutoHashMap([]const u8, void).init(allocator),
-            .COMP = std.AutoHashMap([]const u8, void).init(allocator),
-            .SAT = std.AutoHashMap([]const u8, void).init(allocator),
+            .INPUT = std.StringHashMap(void).init(allocator),
+            .GATE = std.StringHashMap(void).init(allocator),
+            .EQ = std.StringHashMap(void).init(allocator),
+            .COMP = std.StringHashMap(void).init(allocator),
+            .SAT = std.StringHashMap(void).init(allocator),
         };
         return modules;
     }
-    pub fn readResourceFile(self: *Modules, allocator: std.mem.Allocator, path: []const u8) void {
-        const file = try std.fs.openFileAbsolute(path, .{});
-        defer file.close();
-
-        const parser = ini.parse(allocator, file.reader());
-        ini.readToStruct(&self, parser, allocator);
-    }
 };
+
+test Modules {
+    const allocator = std.testing.allocator;
+    const modules = Modules.init(allocator);
+    const path = try std.fs.cwd().realpathAlloc(allocator, "/resources/modules.ini");
+    defer allocator.free(path);
+
+    modules.readResourceFile(allocator, path);
+
+    const expect = std.testing.expect;
+    expect(modules.INPUT.get("JS: Volume/Pan Smoother") != null);
+    expect(modules.GATE.get("VST: ReaGate (Cockos)") != null);
+    expect(modules.EQ.get("VST: ReaEQ (Cockos)") != null);
+    expect(modules.COMP.get("VST: ReaComp (Cockos)") != null);
+    expect(modules.SAT.get("JS: Saturation") != null);
+    expect(std.mem.eql(modules.DEFAULTS.INPUT, "JS: Volume/Pan Smoother"));
+    expect(std.mem.eql(modules.DEFAULTS.GATE, "VST: ReaGate (Cockos)"));
+    expect(std.mem.eql(modules.DEFAULTS.EQ, "VST: ReaEQ (Cockos)"));
+    expect(std.mem.eql(modules.DEFAULTS.COMP, "VST: ReaComp (Cockos)"));
+    expect(std.mem.eql(modules.DEFAULTS.SAT, "JS: Saturation"));
+}
