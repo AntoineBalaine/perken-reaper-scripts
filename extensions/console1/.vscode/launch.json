@@ -27,7 +27,14 @@
                     "ignoreFailures": true
                 }
             ]
-        }
-
+        },
+{
+      "type": "lldb",
+      "request": "launch",
+      "name": "TestDebug",
+      "program": "${workspaceFolder}/zig-cache/o/a200d66271e3572d852e8d8ff484883a/reaper_zig_tests",
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
     ]
 }
