@@ -3,11 +3,11 @@ const reaper = @import("../reaper.zig").reaper;
 const Allocator = std.mem.Allocator;
 const fs_helpers = @import("fs_helpers.zig");
 const containsSubstring = @import("str_helpers.zig").containsSubstring;
-const parseConfig = @import("userPrefs.zig").init;
 const types = @import("types.zig");
 const UserSettings = @import("userPrefs.zig").UserSettings;
 const State = @import("state.zig");
 const getControllerPath = @import("ControllerConfigLoader.zig").getControllerPath;
+const config = @import("config.zig");
 
 /// check that realearn can be found in `fxtags.ini`
 fn isRealearnInstalled(allocator: Allocator) !bool {
@@ -92,5 +92,6 @@ pub fn controllerInit(allocator: Allocator) !State {
     }
     const controller_dir = try getControllerPath("c1", allocator);
     const state = try State.init(allocator, controller_dir, userSettings);
+    _ = try config.readConf(allocator);
     return state;
 }

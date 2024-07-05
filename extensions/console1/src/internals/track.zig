@@ -1,6 +1,6 @@
 const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
-const Modules = @import("modules.zig").Modules;
+const Modules = @import("config.zig").ModulesList;
 const CONTROLLER_NAME = "PRKN_C1";
 
 const ModulesOrder = union(enum) {
@@ -14,18 +14,15 @@ const ModuleCheck = std.EnumArray(std.meta.FieldEnum(Track.modules), std.meta.Tu
 pub const Track = struct {
     track: ?reaper.MediaTrack,
     order: ModulesOrder = .@"S-EQ-C",
-    pub fn init(allocator: std.mem.Allocator, trackPtr: reaper.MediaTrack) Track {
-        const track: Track = .{ .track = trackPtr, .modules = .{
-            .INPUT = std.AutoHashMap([]const u8, void).init(allocator),
-            .GATE = std.AutoHashMap([]const u8, void).init(allocator),
-            .EQ = std.AutoHashMap([]const u8, void).init(allocator),
-            .COMP = std.AutoHashMap([]const u8, void).init(allocator),
-            .SAT = std.AutoHashMap([]const u8, void).init(allocator),
-        } };
+    pub fn init(trackPtr: reaper.MediaTrack) Track {
+        const track: Track = .{
+            .track = trackPtr,
+        };
         return track;
     }
-    pub fn deinit(allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *Track, allocator: std.mem.Allocator) void {
         _ = allocator;
+        _ = self;
         @panic("track deinit not implemented yet");
     }
     /// find the default FX for the provided module

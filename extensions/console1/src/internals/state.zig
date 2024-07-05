@@ -60,7 +60,7 @@ fn getRealearnInstance() ?u8 {
         }
     }
 }
-pub fn handleNewTrack(self: *State, trackid: *reaper.MediaTrack) void {
+pub fn handleNewTrack(self: *State, trackid: reaper.MediaTrack) void {
     // get realearn instances
     // update track
     // validate channel strip
@@ -68,7 +68,8 @@ pub fn handleNewTrack(self: *State, trackid: *reaper.MediaTrack) void {
     // load matching preset into realearn
 
     if (self.track != null) {
-        self.track.deinit();
+        var tr = self.track.?;
+        tr.deinit(self.allocator);
     }
     const new_track: Track = Track.init(trackid);
     self.track = new_track;

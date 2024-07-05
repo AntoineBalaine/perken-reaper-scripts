@@ -106,7 +106,7 @@ export fn zSetAutoMode(mode: c_int) callconv(.C) void {
 export fn zResetCachedVolPanStates() callconv(.C) void {
     // std.debug.print("ResetCachedVolPanStates\n", .{});
 }
-export fn zOnTrackSelection(trackid: *MediaTrack) callconv(.C) void {
+export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     std.debug.print("OnTrackSelection\n", .{});
     state.handleNewTrack(trackid);
 }

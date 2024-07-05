@@ -1,105 +1,77 @@
-// List of controller modules, containing keys of FX names, and values containing FX mappings.
-// Mappings are expected to come from the resources directory.
 const std = @import("std");
 const ini = @import("ini");
+const fs_helpers = @import("fs_helpers.zig");
 
-//modulesList.ini
-//
-//[INPUT]
-//JS: Volume/Pan Smoother
-//[EQ]
-//VST: ReaEQ (Cockos)
-//[DEFAULTS]
-//EQ = "VST: ReaEQ (Cockos)"
-//COMP = "VST: ReaComp (Cockos)"
-//GATE = "VST: ReaGate (Cockos)"
-
-const ModulesList = enum {
+pub const ModulesList = enum {
     INPUT,
     GATE,
     EQ,
     COMP,
     SAT,
 };
-const Config = @This();
 
-modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
-defaults: std.EnumArray(ModulesList, []const u8),
-
-pub fn init(allocator: std.mem.Allocator) Config {
-    const mds: Config = .{ .modules = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
-        .INPUT = std.StringHashMap(void).init(allocator),
-        .GATE = std.StringHashMap(void).init(allocator),
-        .EQ = std.StringHashMap(void).init(allocator),
-        .COMP = std.StringHashMap(void).init(allocator),
-        .SAT = std.StringHashMap(void).init(allocator),
-    }), .defaults = std.EnumArray(ModulesList, []const u8).init(.{
-        .INPUT = undefined,
-        .GATE = undefined,
-        .EQ = undefined,
-        .COMP = undefined,
-        .SAT = undefined,
-    }) };
-    return mds;
-}
-
-const Conf = union(enum) {
+const Conf = struct {
     modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
     defaults: std.EnumArray(ModulesList, []const u8),
 };
 
-pub fn readResourceFiles(self: *Config, allocator: std.mem.Allocator, path: []const u8) !void {
-    inline for (std.meta.fields(Conf)) |f| {
-        const filePath = std.fs.path.join(allocator, .{ path, f.name });
-        const file = try std.fs.openFileAbsolute(filePath, .{});
-        defer file.close();
+pub fn readConf(allocator: std.mem.Allocator) !Conf {
+    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
 
-        const parser = ini.parse(allocator, file.reader());
-        defer parser.deinit();
-        const mod = switch (f.type) {
-            .modules => std.EnumArray(ModulesList, std.StringHashMap(void)).init(),
-            .defaults => std.EnumArray(ModulesList, []const u8).init(.{
-                .INPUT = undefined,
-                .GATE = undefined,
-                .EQ = undefined,
-                .COMP = undefined,
-                .SAT = undefined,
-            }),
-        };
-        _ = try ini.readToStruct(mod, parser, allocator);
-    }
+    const full_path = try std.fs.path.resolve(allocator, &.{ pth, "./resource/defaults.ini" });
+    const file = try std.fs.openFileAbsolute(full_path, .{});
+    defer file.close();
+
+    var parser = ini.parse(allocator, file.reader());
+    defer parser.deinit();
+
+    var defaults = std.EnumArray(ModulesList, []const u8).initUndefined();
+    try ini.readToEnumArray(&defaults, ModulesList, &parser, allocator);
+
+    // TODO: switch to StringHashMapUnmanaged
+    var modules = std.EnumArray(ModulesList, std.StringHashMap(void)).initUndefined();
+
+    try ini.readToEnumArray(&modules, ModulesList, &parser, allocator);
+
+    return Conf{ .defaults = defaults, .modules = modules };
 }
 
-test Config {
+test readConf {
     const allocator = std.testing.allocator;
-    const modules = Config.init(allocator);
-    const path = try std.fs.cwd().realpathAlloc(allocator, "/resources/modules.ini");
-    defer allocator.free(path);
-
-    try modules.readResourceFiles(allocator, path);
+    const expect = std.testing.expect;
+    const conf = try readConf(allocator);
 
     defer {
-        inline for (std.meta.fields(@TypeOf(modules))) |f| {
-            if (f.type == std.StringHashMap(void)) {
-                var iterator = f.iterator();
-                while (iterator.next()) |item| {
-                    allocator.free(item.key_ptr);
-                }
-            } else if (std.meta.stringToEnum(Config, f.name) == .DEFAULTS) {
-                allocator.free(f);
+        inline for (std.meta.fields(@TypeOf(conf))) |field| {
+            const V = @field(conf, field.name);
+            switch (field.type) {
+                std.EnumArray(ModulesList, std.StringHashMap(void)) => {
+                    // free the keys of the set
+                    inline for (std.meta.fields(ModulesList)) |f| {
+                        const hashmap = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
+                        var it = hashmap.iterator();
+                        while (it.next()) |entry| {
+                            allocator.free(entry.key_ptr.*);
+                        }
+                    }
+                },
+                std.EnumArray(ModulesList, []const u8) => {
+                    inline for (std.meta.fields(ModulesList)) |f| {
+                        const val = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
+                        allocator.free(val);
+                    }
+                },
+                else => unreachable,
             }
         }
     }
 
-    const expect = std.testing.expect;
-    try expect(modules.INPUT.get("JS: Volume/Pan Smoother") != null);
-    try expect(modules.GATE.get("VST: ReaGate (Cockos)") != null);
-    try expect(modules.EQ.get("VST: ReaEQ (Cockos)") != null);
-    try expect(modules.COMP.get("VST: ReaComp (Cockos)") != null);
-    try expect(modules.SAT.get("JS: Saturation") != null);
-    try expect(std.mem.eql(modules.DEFAULTS.INPUT, "JS: Volume/Pan Smoother"));
-    try expect(std.mem.eql(modules.DEFAULTS.GATE, "VST: ReaGate (Cockos)"));
-    try expect(std.mem.eql(modules.DEFAULTS.EQ, "VST: ReaEQ (Cockos)"));
-    try expect(std.mem.eql(modules.DEFAULTS.COMP, "VST: ReaComp (Cockos)"));
-    try expect(std.mem.eql(modules.DEFAULTS.SAT, "JS: Saturation"));
+    // test defaults
+    // const one = enum_arr.get(.one)
+    try expect(std.mem.eql(u8, conf.defaults.get(.INPUT), "JS: Volume/Pan v5"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.EQ), "VST: ReaEQ (Cockos)"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.COMP), "VST: ReaComp (Cockos)"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.GATE), "VST: ReaGate (Cockos)"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.SAT), "JS: Saturator"));
 }
