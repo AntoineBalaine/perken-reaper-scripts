@@ -29,7 +29,6 @@ const Conf = struct {
     }
 
     pub fn deinit(self: *Conf, allocator: std.mem.Allocator) void {
-        // FIXME: This causes a mem leak. I can't figure out why.
         inline for (std.meta.fields(@TypeOf(self.*))) |field| {
             const V = @field(self, field.name);
             switch (field.type) {
@@ -56,12 +55,10 @@ const Conf = struct {
     }
 };
 
-pub fn readConf(allocator: std.mem.Allocator) !Conf {
+pub fn readConf(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
     var conf = Conf.init(allocator);
-    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
 
-    const defaultsPath = try std.fs.path.resolve(allocator, &.{ pth, "./resources/defaults.ini" });
+    const defaultsPath = try std.fs.path.resolve(allocator, &.{ configPath, "./defaults.ini" });
     defer allocator.free(defaultsPath);
     const defaultsFile = try std.fs.openFileAbsolute(defaultsPath, .{});
     defer defaultsFile.close();
@@ -71,7 +68,7 @@ pub fn readConf(allocator: std.mem.Allocator) !Conf {
 
     try ini.readToEnumArray(&conf.defaults, ModulesList, &defaultsParser, allocator);
 
-    const modulesPath = try std.fs.path.resolve(allocator, &.{ pth, "./resources/modules.ini" });
+    const modulesPath = try std.fs.path.resolve(allocator, &.{ configPath, "./modules.ini" });
     defer allocator.free(modulesPath);
     const modulesFile = try std.fs.openFileAbsolute(modulesPath, .{});
     defer modulesFile.close();
@@ -87,44 +84,30 @@ pub fn readConf(allocator: std.mem.Allocator) !Conf {
 test readConf {
     const allocator = std.testing.allocator;
     const expect = std.testing.expect;
-    var conf = try readConf(allocator);
 
-    defer {
+    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
 
-        // FIXME: this code frees fine, but reproducing it in the deinit method causes a memleak
-        inline for (std.meta.fields(@TypeOf(conf))) |field| {
-            const V = @field(conf, field.name);
-            switch (field.type) {
-                std.EnumArray(ModulesList, std.StringHashMap(void)) => {
-                    // free the keys of the set
-                    inline for (std.meta.fields(ModulesList)) |f| {
-                        var map = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
-                        var keyIter = map.keyIterator();
-                        while (keyIter.next()) |key| {
-                            allocator.free(key.*);
-                        }
-                        map.deinit();
-                    }
-                },
-                std.EnumArray(ModulesList, []const u8) => {
-                    inline for (std.meta.fields(ModulesList)) |f| {
-                        const val = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
-                        allocator.free(val);
-                    }
-                },
-                else => unreachable,
-            }
-        }
-        // conf.deinit(allocator);
-    }
+    const path = try std.fs.path.resolve(allocator, &.{ pth, "./resources" });
+    defer allocator.free(path);
+    var conf = try readConf(allocator, path);
+
+    defer conf.deinit(allocator);
 
     // test defaults
-    // const one = enum_arr.get(.one)
-    // try expect(std.mem.eql(u8, conf.defaults.get(.INPUT), "JS: Volume/Pan v5"));
-    // try expect(std.mem.eql(u8, conf.defaults.get(.EQ), "VST: ReaEQ (Cockos)"));
-    // try expect(std.mem.eql(u8, conf.defaults.get(.COMP), "VST: ReaComp (Cockos)"));
-    // try expect(std.mem.eql(u8, conf.defaults.get(.GATE), "VST: ReaGate (Cockos)"));
-    // try expect(std.mem.eql(u8, conf.defaults.get(.SAT), "JS: Saturator"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.INPUT), "JS: Volume/Pan Smoother"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.GATE), "VST: ReaGate (Cockos)"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.EQ), "VST: ReaEQ (Cockos)"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.COMP), "VST: ReaComp (Cockos)"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.SAT), "JS: Saturation"));
 
     try expect(conf.modules.get(.INPUT).get("JS: Volume/Pan Smoother") != null);
+    try expect(conf.modules.get(.INPUT).get("JS: Other input") != null);
+    try expect(conf.modules.get(.GATE).get("VST: ReaGate (Cockos)") != null);
+    try expect(conf.modules.get(.GATE).get("VST: SOMEOTHERGATE") != null);
+    try expect(conf.modules.get(.EQ).get("VST: ReaEQ (Cockos)") != null);
+    try expect(conf.modules.get(.EQ).get("JS: ReEQ") != null);
+    try expect(conf.modules.get(.COMP).get("VST: ReaComp (Cockos)") != null);
+    try expect(conf.modules.get(.COMP).get("VST: ReaXComp (Cockos)") != null);
+    try expect(conf.modules.get(.SAT).get("JS: Saturation") != null);
 }
