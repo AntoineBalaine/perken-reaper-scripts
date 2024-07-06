@@ -1,3 +1,17 @@
+// Init the FX config and load them from the file.
+// TODO: make this a little less err-prone:
+// - Ini's parser can't check whether the fields in std.EnumArray(ModulesList, []const u8) are undefined.
+// This means that having multiple entries in that header would result in a mem leak:
+// ```ini
+// [INPUT]
+// JS: Volume/Pan Smoother
+// JS: Volume/Pan Smoother
+// [GATE]
+// ```
+// Would probably need to change the ini file to be K-V pairs instead, though it doesn't fix the mem leaks issue.
+// - Init the `Conf` with some defaults, or keep track of uninitialized fields in `ini.readToEnumArray()`
+// This could be achieved with a tracker-struct - like a bit map or a hash set.
+// - Switch the nested hashmaps to be un-managed? That's a good option to reduce the mem footprint
 const std = @import("std");
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
@@ -55,6 +69,7 @@ const Conf = struct {
     }
 };
 
+/// Inits the struct, and reads the  `defaults.ini` and `modules.ini` into it.
 pub fn readConf(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
     var conf = Conf.init(allocator);
 
