@@ -80,16 +80,16 @@ pub const InitError = error{
 /// return the hook command function that
 pub fn controllerInit(allocator: Allocator) !State {
     const userSettings = UserSettings.init(allocator, "c1");
-    const isInstalled = isRealearnInstalled(allocator) catch false;
-    if (!isInstalled) {
-        std.debug.print("Realearn is not installed\n", .{});
-    }
-    const isOnMonitoring = try isRealearnOnMonitoring();
-    if (!isOnMonitoring) {
-        std.debug.print("Realearn is not on monitoring FX chain\n", .{});
-    } else {
-        std.debug.print("Realearn found\n", .{});
-    }
+    // const isInstalled = isRealearnInstalled(allocator) catch false;
+    // if (!isInstalled) {
+    //     std.debug.print("Realearn is not installed\n", .{});
+    // }
+    // const isOnMonitoring = try isRealearnOnMonitoring();
+    // if (!isOnMonitoring) {
+    //     std.debug.print("Realearn is not on monitoring FX chain\n", .{});
+    // } else {
+    //     std.debug.print("Realearn found\n", .{});
+    // }
     const controller_dir = try getControllerPath("c1", allocator);
     const state = try State.init(allocator, controller_dir, userSettings);
     _ = try config.readConf(allocator, controller_dir);

@@ -24,9 +24,11 @@ pub const ModulesList = enum {
     SAT,
 };
 
-const Conf = struct {
+pub const Conf = struct {
     // TODO: switch to StringHashMapUnmanaged
+    // TODO: use modulesList instead of modules
     modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
+    modulesList: std.StringHashMap(ModulesList),
     defaults: std.EnumArray(ModulesList, []const u8),
     pub fn init(allocator: std.mem.Allocator) Conf {
         const self: Conf = .{
@@ -37,6 +39,7 @@ const Conf = struct {
                 .COMP = std.StringHashMap(void).init(allocator),
                 .SAT = std.StringHashMap(void).init(allocator),
             }),
+            .modulesList = std.StringHashMap(ModulesList).init(allocator),
             .defaults = std.EnumArray(ModulesList, []const u8).initUndefined(),
         };
         return self;
@@ -81,7 +84,7 @@ pub fn readConf(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
     var defaultsParser = ini.parse(allocator, defaultsFile.reader());
     defer defaultsParser.deinit();
 
-    try ini.readToEnumArray(&conf.defaults, ModulesList, &defaultsParser, allocator);
+    try ini.readToEnumArray(&conf.defaults, ModulesList, &defaultsParser, allocator, null);
 
     const modulesPath = try std.fs.path.resolve(allocator, &.{ configPath, "./modules.ini" });
     defer allocator.free(modulesPath);
@@ -91,7 +94,7 @@ pub fn readConf(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
     var modulesParser = ini.parse(allocator, modulesFile.reader());
     defer modulesParser.deinit();
 
-    try ini.readToEnumArray(&conf.modules, ModulesList, &modulesParser, allocator);
+    try ini.readToEnumArray(&conf.modules, ModulesList, &modulesParser, allocator, &conf.modulesList);
 
     return conf;
 }

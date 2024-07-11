@@ -12,7 +12,6 @@ const State = @This();
 
 /// State has to be called from control_surface.zig
 /// Flow is : main.zig -> register Csurf -> Csurf forwards calls to control_surface.zig -> control_surface updates state
-Track: ?Track = null,
 actionIds: std.AutoHashMap(c_int, ActionId),
 allocator: std.mem.Allocator,
 controller: std.EnumArray(Mode, Btns) = controller,
@@ -69,7 +68,7 @@ pub fn handleNewTrack(self: *State, trackid: reaper.MediaTrack) void {
 
     if (self.track != null) {
         var tr = self.track.?;
-        tr.deinit(self.allocator);
+        tr.deinit();
     }
     const new_track: Track = Track.init(trackid);
     self.track = new_track;
