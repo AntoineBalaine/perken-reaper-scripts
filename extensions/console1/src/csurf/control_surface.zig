@@ -7,10 +7,53 @@ const State = @import("../internals/state.zig");
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
+const reaper_plugin = @cImport({
+    @cInclude("reaper_plugin.h");
+});
+
+fn parseParms(str: [*]const c_char, parms: *[4]c_int) !void {
+    parms[0] = 0;
+    parms[1] = 9;
+    parms[2] = -1;
+    parms[3] = -1;
+
+    const cast: [*:0]const u8 = @ptrCast(str);
+    var iterator = std.mem.splitScalar(u8, std.mem.span(cast), ' ');
+    var i: u8 = 0;
+    while (iterator.next()) |val| {
+        if (!std.mem.eql(u8, "", val) and i < 4) {
+            i += 1;
+            parms[i] = try std.fmt.parseInt(i32, val, 10);
+        }
+    }
+}
+
+fn createFunc(type_string: [*]const c_char, configString: [*]const c_char, errStats: *c_int) c.C_ControlSurface {
+    _ = type_string;
+    var parms: [4]u32 = undefined;
+    parseParms(configString, &parms);
+    const myCsurf: c.C_ControlSurface = c.ControlSurface_Create(parms[2], parms[3], errStats);
+    return myCsurf;
+}
+
+/// reaper_plugin.reaper_csurf_reg_t
+const reaper_csurf_reg_t = extern struct {
+    type_string: []const u8,
+    desc_string: []const u8,
+    IReaperControlSurface: *fn (type_string: [*]const c_char, configString: [*]const c_char, errStats: *c_int) c.C_ControlSurface,
+    ShowConfig: ?anyopaque,
+};
+
+const c1_reg = reaper_csurf_reg_t{
+    .type_string = "Console1",
+    .desc_string = "Softube Console1",
+    .IReaperControlSurface = &createFunc,
+    .ShowConfig = null,
+};
 
 var state: *State = undefined;
-pub fn init(initState: *State) c.C_ControlSurface {
-    state = initState;
+pub fn init() c.C_ControlSurface {
+    // state = initState;
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     return myCsurf;
 }
@@ -45,7 +88,7 @@ export fn zRun() callconv(.C) void {
 }
 export fn zSetTrackListChange() callconv(.C) void {
     std.debug.print("SetTrackListChange\n", .{});
-    state.*.csurfCB();
+    // state.*.csurfCB();
 }
 export fn zSetSurfaceVolume(trackid: *MediaTrack, volume: f64) callconv(.C) void {
     _ = trackid;
@@ -107,8 +150,9 @@ export fn zResetCachedVolPanStates() callconv(.C) void {
     // std.debug.print("ResetCachedVolPanStates\n", .{});
 }
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
+    _ = trackid;
     std.debug.print("OnTrackSelection\n", .{});
-    state.handleNewTrack(trackid);
+    // state.handleNewTrack(trackid);
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;
@@ -148,4 +192,16 @@ export fn zExtended(call: c_int, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_vo
         else => unreachable,
     }
     return 0;
+}
+
+test parseParms {
+    const expect = std.testing.expect;
+
+    var parms: [4]c_int = undefined;
+    var my_arr = [5]c_char{ '1', ' ', '2', ' ', '3' };
+    const str: [*]const c_char = &my_arr;
+    try parseParms(str, &parms);
+    try expect(parms[1] == 1);
+    try expect(parms[2] == 2);
+    // try expect(str[3] == 3);
 }
