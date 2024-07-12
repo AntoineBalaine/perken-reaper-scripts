@@ -16,6 +16,8 @@ const std = @import("std");
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
 
+const Conf = @This();
+
 pub const ModulesList = enum {
     INPUT,
     GATE,
@@ -24,58 +26,55 @@ pub const ModulesList = enum {
     SAT,
 };
 
-pub const Conf = struct {
-    // TODO: switch to StringHashMapUnmanaged
-    // TODO: use modulesList instead of modules
-    modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
-    modulesList: std.StringHashMap(ModulesList),
-    defaults: std.EnumArray(ModulesList, []const u8),
-    pub fn init(allocator: std.mem.Allocator) Conf {
-        const self: Conf = .{
-            .modules = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
-                .INPUT = std.StringHashMap(void).init(allocator),
-                .GATE = std.StringHashMap(void).init(allocator),
-                .EQ = std.StringHashMap(void).init(allocator),
-                .COMP = std.StringHashMap(void).init(allocator),
-                .SAT = std.StringHashMap(void).init(allocator),
-            }),
-            .modulesList = std.StringHashMap(ModulesList).init(allocator),
-            .defaults = std.EnumArray(ModulesList, []const u8).initUndefined(),
-        };
-        return self;
-    }
+// TODO: switch to StringHashMapUnmanaged
+// TODO: use modulesList instead of modules
+modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
+modulesList: std.StringHashMap(ModulesList),
+defaults: std.EnumArray(ModulesList, []const u8),
+pub fn init(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
+    const self: Conf = .{
+        .modules = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
+            .INPUT = std.StringHashMap(void).init(allocator),
+            .GATE = std.StringHashMap(void).init(allocator),
+            .EQ = std.StringHashMap(void).init(allocator),
+            .COMP = std.StringHashMap(void).init(allocator),
+            .SAT = std.StringHashMap(void).init(allocator),
+        }),
+        .modulesList = std.StringHashMap(ModulesList).init(allocator),
+        .defaults = std.EnumArray(ModulesList, []const u8).initUndefined(),
+    };
+    try self.readConf(allocator, configPath);
+    return self;
+}
 
-    pub fn deinit(self: *Conf, allocator: std.mem.Allocator) void {
-        inline for (std.meta.fields(@TypeOf(self.*))) |field| {
-            const V = @field(self, field.name);
-            switch (field.type) {
-                std.EnumArray(ModulesList, std.StringHashMap(void)) => {
-                    // free the keys of the set
-                    inline for (std.meta.fields(ModulesList)) |f| {
-                        var map = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
-                        var keyIter = map.keyIterator();
-                        while (keyIter.next()) |key| {
-                            allocator.free(key.*);
-                        }
-                        map.deinit();
+pub fn deinit(self: *Conf, allocator: std.mem.Allocator) void {
+    inline for (std.meta.fields(@TypeOf(self.*))) |field| {
+        const V = @field(self, field.name);
+        switch (field.type) {
+            std.EnumArray(ModulesList, std.StringHashMap(void)) => {
+                // free the keys of the set
+                inline for (std.meta.fields(ModulesList)) |f| {
+                    var map = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
+                    var keyIter = map.keyIterator();
+                    while (keyIter.next()) |key| {
+                        allocator.free(key.*);
                     }
-                },
-                std.EnumArray(ModulesList, []const u8) => {
-                    inline for (std.meta.fields(ModulesList)) |f| {
-                        const val = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
-                        allocator.free(val);
-                    }
-                },
-                else => unreachable,
-            }
+                    map.deinit();
+                }
+            },
+            std.EnumArray(ModulesList, []const u8) => {
+                inline for (std.meta.fields(ModulesList)) |f| {
+                    const val = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
+                    allocator.free(val);
+                }
+            },
+            else => unreachable,
         }
     }
-};
+}
 
 /// Inits the struct, and reads the  `defaults.ini` and `modules.ini` into it.
-pub fn readConf(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
-    var conf = Conf.init(allocator);
-
+fn readConf(self: *Conf, allocator: std.mem.Allocator, configPath: []const u8) !void {
     const defaultsPath = try std.fs.path.resolve(allocator, &.{ configPath, "./defaults.ini" });
     defer allocator.free(defaultsPath);
     const defaultsFile = try std.fs.openFileAbsolute(defaultsPath, .{});
@@ -84,7 +83,7 @@ pub fn readConf(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
     var defaultsParser = ini.parse(allocator, defaultsFile.reader());
     defer defaultsParser.deinit();
 
-    try ini.readToEnumArray(&conf.defaults, ModulesList, &defaultsParser, allocator, null);
+    try ini.readToEnumArray(&self.defaults, ModulesList, &defaultsParser, allocator, null);
 
     const modulesPath = try std.fs.path.resolve(allocator, &.{ configPath, "./modules.ini" });
     defer allocator.free(modulesPath);
@@ -94,9 +93,7 @@ pub fn readConf(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
     var modulesParser = ini.parse(allocator, modulesFile.reader());
     defer modulesParser.deinit();
 
-    try ini.readToEnumArray(&conf.modules, ModulesList, &modulesParser, allocator, &conf.modulesList);
-
-    return conf;
+    try ini.readToEnumArray(&self.modules, ModulesList, &modulesParser, allocator, &self.modulesList);
 }
 
 test readConf {
@@ -108,7 +105,7 @@ test readConf {
 
     const path = try std.fs.path.resolve(allocator, &.{ pth, "./resources" });
     defer allocator.free(path);
-    var conf = try readConf(allocator, path);
+    var conf = try init(allocator, path);
 
     defer conf.deinit(allocator);
 

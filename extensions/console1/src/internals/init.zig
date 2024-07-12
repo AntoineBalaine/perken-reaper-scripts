@@ -20,6 +20,6 @@ pub fn controllerInit(allocator: Allocator) !State {
     const userSettings = UserSettings.init(allocator, "c1");
     const controller_dir = try getControllerPath("c1", allocator);
     const state = try State.init(allocator, controller_dir, userSettings);
-    _ = try config.readConf(allocator, controller_dir);
+    _ = try config.init(allocator, controller_dir);
     return state;
 }
