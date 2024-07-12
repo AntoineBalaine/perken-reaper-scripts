@@ -3,7 +3,6 @@ const reaper = @import("../reaper.zig").reaper;
 const fs_helpers = @import("fs_helpers.zig");
 const Allocator = std.mem.Allocator;
 const ini = @import("ini");
-const types = @import("types.zig");
 
 pub const UserSettings = struct {
     show_start_up_message: bool = true,
