@@ -5,12 +5,13 @@ const ImGui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
-const ControllerConfig = @import("internals/ControllerConfigLoader.zig");
-const appInit = @import("internals/init.zig");
 const State = @import("internals/state.zig");
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
+const UserSettings = @import("internals/userPrefs.zig").UserSettings;
+const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
+const config = @import("internals/config.zig");
 
 const plugin_name = "Hello, Zig!";
 var state: State = undefined;
@@ -20,8 +21,19 @@ var myCsurf: c.C_ControlSurface = undefined;
 var gpa_int = std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = true }){};
 const gpa = gpa_int.allocator();
 
-// to implement the csurf interface, you'd probably want to do that from C++ instead of Zig to not have to deal with ABI headaches...
-// eg. the C++ csurf implementation just forwarding the calls to extern "C" functions implemented in Zig
+/// retrieve user settings
+/// check tha realearn’s installed,
+/// check whether realearn instances are present on fx monitoring
+/// (load them if not)
+/// retrieve the controller config
+/// register the actions for each of the buttons
+/// return the hook command function that
+fn init() !void {
+    const userSettings = UserSettings.init(gpa, "c1");
+    const controller_dir = try getControllerPath("c1", gpa);
+    state = try State.init(gpa, controller_dir, userSettings);
+    _ = try config.init(gpa, controller_dir);
+}
 
 fn deinit() void {
     std.debug.print("Deinit\n", .{});
@@ -41,7 +53,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         return 0;
     }
 
-    state = appInit.controllerInit(gpa) catch {
+    init() catch {
         return 0;
     };
 

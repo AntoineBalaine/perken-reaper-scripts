@@ -32,7 +32,7 @@ modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
 modulesList: std.StringHashMap(ModulesList),
 defaults: std.EnumArray(ModulesList, []const u8),
 pub fn init(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
-    const self: Conf = .{
+    var self: Conf = .{
         .modules = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
             .INPUT = std.StringHashMap(void).init(allocator),
             .GATE = std.StringHashMap(void).init(allocator),
