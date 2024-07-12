@@ -2,11 +2,10 @@ const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
 const Allocator = std.mem.Allocator;
 const fs_helpers = @import("fs_helpers.zig");
-const containsSubstring = @import("str_helpers.zig").containsSubstring;
 const types = @import("types.zig");
 const UserSettings = @import("userPrefs.zig").UserSettings;
 const State = @import("state.zig");
-const getControllerPath = @import("ControllerConfigLoader.zig").getControllerPath;
+const getControllerPath = @import("fs_helpers.zig").getControllerPath;
 const config = @import("config.zig");
 
 /// retrieve user settings

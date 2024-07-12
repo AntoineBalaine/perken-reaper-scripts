@@ -24,3 +24,10 @@ pub fn readFile(allocator: Allocator, abs_path: []const u8) ![]u8 {
     _ = read_len;
     return buffer;
 }
+
+pub fn getControllerPath(controller_name: []const u8, allocator: Allocator) ![]const u8 {
+    const resourcePath = reaper.GetResourcePath();
+    const paths = [_][]const u8{ std.mem.sliceTo(resourcePath, 0), "Data", "Perken", "Controllers", controller_name };
+
+    return try std.fs.path.join(allocator, &paths);
+}

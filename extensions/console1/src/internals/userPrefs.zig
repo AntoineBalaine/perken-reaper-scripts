@@ -1,5 +1,4 @@
 const std = @import("std");
-const ControllerConfig = @import("types.zig").ControllerConfig;
 const reaper = @import("../reaper.zig").reaper;
 const fs_helpers = @import("fs_helpers.zig");
 const Allocator = std.mem.Allocator;

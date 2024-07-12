@@ -17,21 +17,6 @@ const FxData = struct {
     index: u8,
 };
 
-pub const Track = struct {
-    /// all fx in the track, using GUID as key. Duplicate of fx_list for easier access.
-    fx_by_guid: std.StringHashMap(TrackFX),
-    /// array of fx in the track. duplicate of fx_by_guid for easier iteration.
-    fx_list: []TrackFX,
-    fx_count: u8,
-    guid: [*:0]const u8,
-    name: [*:0]const u8,
-    /// 0-indexed track index (0 is for master track)
-    number: u8,
-    track: *reaper.MediaTrack,
-    fx_chain_enabled: bool,
-    automation_mode: AutomationMode,
-};
-
 /// 0=trim/off, 1=read, 2=touch, 3=write, 4=latch
 /// @enum AutomationMode
 const AutomationMode = enum(u8) { trim = 0, read = 1, touch = 2, write = 3, latch = 4, preview = 5 };
@@ -92,11 +77,4 @@ const TrackFX = struct {
     renamed_name: ?[*:0]const u8,
     // update: fn (self: *TrackFX) void,
     DryWetParam: *ParamData,
-};
-
-pub const ControllerConfig = struct {
-    /// list of modes (fx ctrl, settings),
-    Modes: [][]const u8,
-    channelStripPath: []const u8,
-    realearnPath: []const u8,
 };

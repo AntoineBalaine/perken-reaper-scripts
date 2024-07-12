@@ -4,7 +4,6 @@ const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
 const Allocator = std.mem.Allocator;
-const ControllerConfig = @import("internals/ControllerConfigLoader.zig");
 const appInit = @import("internals/init.zig");
 
 var ctx: ImGui.ContextPtr = null;
