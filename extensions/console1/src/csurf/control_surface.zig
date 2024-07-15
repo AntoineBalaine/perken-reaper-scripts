@@ -7,11 +7,8 @@ const State = @import("../internals/state.zig");
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
-const reaper_plugin = @cImport({
-    @cInclude("reaper_plugin.h");
-});
 
-fn parseParms(str: [*]const c_char, parms: *[4]c_int) !void {
+fn parseParms(str: [*]const c_char, parms: *[4]i32) void {
     parms[0] = 0;
     parms[1] = 9;
     parms[2] = -1;
@@ -23,14 +20,14 @@ fn parseParms(str: [*]const c_char, parms: *[4]c_int) !void {
     while (iterator.next()) |val| {
         if (!std.mem.eql(u8, "", val) and i < 4) {
             i += 1;
-            parms[i] = try std.fmt.parseInt(i32, val, 10);
+            parms[i] = std.fmt.parseInt(i32, val, 10) catch -1;
         }
     }
 }
 
-fn createFunc(type_string: [*]const c_char, configString: [*]const c_char, errStats: *c_int) c.C_ControlSurface {
+fn createFunc(type_string: [*]const c_char, configString: [*]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
     _ = type_string;
-    var parms: [4]u32 = undefined;
+    var parms: [4]i32 = undefined;
     parseParms(configString, &parms);
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create(parms[2], parms[3], errStats);
     return myCsurf;
@@ -38,17 +35,19 @@ fn createFunc(type_string: [*]const c_char, configString: [*]const c_char, errSt
 
 /// reaper_plugin.reaper_csurf_reg_t
 const reaper_csurf_reg_t = extern struct {
-    type_string: []const u8,
-    desc_string: []const u8,
-    IReaperControlSurface: *fn (type_string: [*]const c_char, configString: [*]const c_char, errStats: *c_int) c.C_ControlSurface,
-    ShowConfig: ?anyopaque,
+    //
+    type_string: [*:0]const u8,
+    desc_string: [*:0]const u8,
+    IReaperControlSurface: *const fn (type_string: [*]const c_char, configString: [*]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface,
+    // ShowConfig: *const fn ([*c]const u8, ?*anyopaque, [*c]const u8) callconv(.C) ?*anyopaque,
+    ShowConfig: *anyopaque,
 };
 
-const c1_reg = reaper_csurf_reg_t{
+pub const c1_reg = reaper_csurf_reg_t{
     .type_string = "Console1",
     .desc_string = "Softube Console1",
     .IReaperControlSurface = &createFunc,
-    .ShowConfig = null,
+    .ShowConfig = @constCast(&c.configFunc),
 };
 
 var state: *State = undefined;

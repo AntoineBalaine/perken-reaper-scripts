@@ -37,7 +37,7 @@ fn init() !void {
 
 fn deinit() void {
     std.debug.print("Deinit\n", .{});
-    control_surface.deinit(myCsurf);
+    // control_surface.deinit(myCsurf);
     try state.deinit(gpa);
     const deinit_status = gpa_int.deinit();
     if (deinit_status == .leak) {
@@ -58,13 +58,15 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     };
 
     // Define the opaque struct to represent IReaperControlSurface
-    myCsurf = control_surface.init(&state);
-    if (myCsurf == null) {
-        std.debug.print("Failed to create fake csurf\n", .{});
-        deinit();
-        return 0;
-    }
+    // myCsurf = control_surface.init();
+    // if (myCsurf == null) {
+    //     std.debug.print("Failed to create fake csurf\n", .{});
+    //     deinit();
+    //     return 0;
+    // }
     _ = reaper.plugin_register("csurf_inst", myCsurf.?);
+
+    _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
 
     // const action = reaper.custom_action_register_t{ .section = 0, .id_str = "REAIMGUI_ZIG", .name = "ReaImGui Zig example" };
     // action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
