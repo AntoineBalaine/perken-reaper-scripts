@@ -15,7 +15,7 @@ const c = @cImport({
 });
 pub var g_hInst: reaper.HINSTANCE = undefined;
 
-fn dlgProc(hwndDlg: reaper.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) c.WDL_DLGRET {
+fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.C) c.WDL_DLGRET {
     switch (uMsg) {
         c.WM_INITDIALOG => {
             var parms: [4]i32 = undefined;
@@ -66,16 +66,23 @@ fn dlgProc(hwndDlg: reaper.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARA
                 std.fmt.bufPrint(lParam, tmp, wParam);
             }
         },
+        else => {},
     }
     return 0;
 }
 
-pub fn configFunc(type_string: [*:0]const c_char, parent: c.HWND, initConfigString: [*:0]const c_char) callconv(.C) c.HWND {
-    _ = type_string;
-    return c.CreateDialogParam(g_hInst, c.MAKEINTRESOURCE(c.IDD_SURFACEEDIT_MCU), parent, dlgProc, initConfigString);
+fn makeIntResource(x: anytype) [*c]const u8 {
+    return @ptrFromInt(@as(u32, @intCast(x)));
 }
 
-fn parseParms(str: [*]const c_char, parms: *[4]i32) void {
+pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND {
+    _ = type_string;
+    const cast: c.LPARAM = @intCast(@intFromPtr(initConfigString));
+    // const cast: c.LPARAM = @intCast(initConfigString);
+    return c.CreateDialogParam(g_hInst, makeIntResource(c.IDD_SURFACEEDIT_MCU), parent, dlgProc, cast);
+}
+
+fn parseParms(str: [*c]const c_char, parms: *[4]i32) void {
     parms[0] = 0;
     parms[1] = 9;
     parms[2] = -1;
@@ -92,7 +99,7 @@ fn parseParms(str: [*]const c_char, parms: *[4]i32) void {
     }
 }
 
-fn createFunc(type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
+fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
     _ = type_string;
     var parms: [4]i32 = undefined;
     parseParms(configString, &parms);
@@ -106,7 +113,7 @@ const reaper_csurf_reg_t = extern struct {
     type_string: [*:0]const u8,
     desc_string: [*:0]const u8,
     IReaperControlSurface: *const fn (type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface,
-    ShowConfig: *const fn (type_string: [*:0]const c_char, parent: c.HWND, initConfigString: [*:0]const c_char) callconv(.C) c.HWND,
+    ShowConfig: *const fn (type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND,
 };
 
 pub const c1_reg = reaper_csurf_reg_t{
