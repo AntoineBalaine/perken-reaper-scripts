@@ -46,13 +46,12 @@ fn deinit() void {
 }
 
 export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
-    _ = instance;
-
     if (rec == null or !reaper.init(rec.?)) {
         deinit();
         return 0;
     }
 
+    control_surface.g_hInst = instance;
     init() catch {
         return 0;
     };
@@ -64,7 +63,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     //     deinit();
     //     return 0;
     // }
-    _ = reaper.plugin_register("csurf_inst", myCsurf.?);
+    // _ = reaper.plugin_register("csurf_inst", myCsurf.?);
 
     _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
 

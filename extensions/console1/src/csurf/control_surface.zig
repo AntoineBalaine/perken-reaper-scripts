@@ -6,7 +6,74 @@ const c_void = anyopaque;
 const State = @import("../internals/state.zig");
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
+    @cInclude("../WDL/swell/swell-types.h");
+    @cInclude("../WDL/swell/swell-functions.h");
+    @cInclude("../WDL/win32_utf8.h");
+    @cInclude("../WDL/wdltypes.h");
+    // @cInclude("../WDL/localize/localize.h");
+    @cInclude("resource.h");
 });
+pub var g_hInst: reaper.HINSTANCE = undefined;
+
+fn dlgProc(hwndDlg: reaper.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) c.WDL_DLGRET {
+    switch (uMsg) {
+        c.WM_INITDIALOG => {
+            var parms: [4]i32 = undefined;
+            parseParms(lParam, &parms);
+            c.ShowWindow(c.GetDlgItem(hwndDlg, c.IDC_EDIT1), c.SW_HIDE);
+            c.ShowWindow(c.GetDlgItem(hwndDlg, c.IDC_EDIT1_LBL), c.SW_HIDE);
+            c.ShowWindow(c.GetDlgItem(hwndDlg, c.IDC_EDIT2), c.SW_HIDE);
+            c.ShowWindow(c.GetDlgItem(hwndDlg, c.IDC_EDIT2_LBL), c.SW_HIDE);
+            c.ShowWindow(c.GetDlgItem(hwndDlg, c.IDC_EDIT2_LBL2), c.SW_HIDE);
+            c.WDL_UTF8_HookComboBox(c.GetDlgItem(hwndDlg, c.IDC_COMBO2));
+            c.WDL_UTF8_HookComboBox(c.GetDlgItem(hwndDlg, c.IDC_COMBO3));
+            const n = reaper.GetNumMIDIInputs();
+            var x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, c.__LOCALIZE("None", "csurf"));
+            c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, x, -1);
+            x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, c.__LOCALIZE("None", "csurf"));
+            c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, x, -1);
+            for (0..n) |cur| {
+                var buf: [512]c_char = undefined;
+                if (reaper.GetMIDIInputName(@as(c_int, cur), &buf, @sizeOf(@TypeOf(buf)))) {
+                    const a = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, &buf);
+                    c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, a, cur);
+                    if (cur == parms[2]) c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETCURSEL, a, 0);
+                }
+            }
+            n = reaper.GetNumMIDIOutputs();
+
+            for (0..n) |cur| {
+                var buf: [512]c_char = undefined;
+                if (reaper.GetMIDIOutputName(@as(c_int, cur), &buf, @sizeOf(@TypeOf(buf)))) {
+                    const a = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, &buf);
+                    c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, a, x);
+                    if (x == parms[3]) c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETCURSEL, a, 0);
+                }
+            }
+        },
+        c.WM_USER + 1024 => {
+            if (wParam > 1 and lParam) {
+                var tmp: [512]c_char = undefined;
+                var indev = -1;
+                var outdev = -1;
+                var r = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETCURSEL, 0, 0);
+                if (r != c.CB_ERR) indev = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETITEMDATA, r, 0);
+
+                r = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETCURSEL, 0, 0);
+                if (r != c.CB_ERR) outdev = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETITEMDATA, r, 0);
+                std.fmt.bufPrint(&tmp, "0 0 %d %d", .{ indev, outdev });
+                // FIXME: this is originally "lstrcpyn"
+                std.fmt.bufPrint(lParam, tmp, wParam);
+            }
+        },
+    }
+    return 0;
+}
+
+pub fn configFunc(type_string: [*:0]const c_char, parent: c.HWND, initConfigString: [*:0]const c_char) callconv(.C) c.HWND {
+    _ = type_string;
+    return c.CreateDialogParam(g_hInst, c.MAKEINTRESOURCE(c.IDD_SURFACEEDIT_MCU), parent, dlgProc, initConfigString);
+}
 
 fn parseParms(str: [*]const c_char, parms: *[4]i32) void {
     parms[0] = 0;
@@ -25,7 +92,7 @@ fn parseParms(str: [*]const c_char, parms: *[4]i32) void {
     }
 }
 
-fn createFunc(type_string: [*]const c_char, configString: [*]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
+fn createFunc(type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
     _ = type_string;
     var parms: [4]i32 = undefined;
     parseParms(configString, &parms);
@@ -38,16 +105,15 @@ const reaper_csurf_reg_t = extern struct {
     //
     type_string: [*:0]const u8,
     desc_string: [*:0]const u8,
-    IReaperControlSurface: *const fn (type_string: [*]const c_char, configString: [*]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface,
-    // ShowConfig: *const fn ([*c]const u8, ?*anyopaque, [*c]const u8) callconv(.C) ?*anyopaque,
-    ShowConfig: *anyopaque,
+    IReaperControlSurface: *const fn (type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface,
+    ShowConfig: *const fn (type_string: [*:0]const c_char, parent: c.HWND, initConfigString: [*:0]const c_char) callconv(.C) c.HWND,
 };
 
 pub const c1_reg = reaper_csurf_reg_t{
     .type_string = "Console1",
     .desc_string = "Softube Console1",
     .IReaperControlSurface = &createFunc,
-    .ShowConfig = @constCast(&c.configFunc),
+    .ShowConfig = &configFunc,
 };
 
 var state: *State = undefined;

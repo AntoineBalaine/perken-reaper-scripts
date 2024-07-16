@@ -41,7 +41,7 @@ void ControlSurface_Destroy(C_ControlSurface instance);
 /*int FakeCsurf_Extended(C_FakeCsurf instance, int call, void *parm1, void
  * *parm2,*/
 /*                       void *parm3);*/
-static HWND configFunc(const char *type_string, HWND parent, const char *initConfigString);
+HWND configFunc(const char *type_string, HWND parent, const char *initConfigString);
 #ifdef __cplusplus
 }
 #endif
