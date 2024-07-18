@@ -10,7 +10,6 @@ const c = @cImport({
     @cInclude("../WDL/swell/swell-functions.h");
     @cInclude("../WDL/win32_utf8.h");
     @cInclude("../WDL/wdltypes.h");
-    // @cInclude("../WDL/localize/localize.h");
     @cInclude("resource.h");
 });
 pub var g_hInst: reaper.HINSTANCE = undefined;
@@ -32,9 +31,10 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
             // c.WDL_UTF8_HookComboBox(c.GetDlgItem(hwndDlg, c.IDC_COMBO2));
             // c.WDL_UTF8_HookComboBox(c.GetDlgItem(hwndDlg, c.IDC_COMBO3));
             var n = reaper.GetNumMIDIInputs();
-            var x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(c.__LOCALIZE("None", "csurf")))));
+            const loc = reaper.LocalizeString("None", "csurf", 0);
+            var x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(loc))));
             _ = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, @as(c.WPARAM, @intCast(x)), -1);
-            x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(c.__LOCALIZE("None", "csurf")))));
+            x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(loc))));
             _ = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, @as(c.WPARAM, @intCast(x)), -1);
             var cur: c_int = 0;
             while (cur < n) : (cur += 1) {

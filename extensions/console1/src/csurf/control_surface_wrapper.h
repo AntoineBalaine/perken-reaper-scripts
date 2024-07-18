@@ -6,7 +6,6 @@
 /*#include "../WDL/localize/localize.h"*/
 extern "C" {
 #endif
-const char *__localizeFunc(const char *str, const char *subctx, int flags);
 #define __LOCALIZE(str, ctx) __localizeFunc("" str "", "" ctx "", 0)
 typedef void *C_ControlSurface;
 typedef struct MediaTrack
