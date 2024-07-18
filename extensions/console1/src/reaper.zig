@@ -1202,11 +1202,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetMIDIInputName
     /// returns true if device present
-    pub var GetMIDIInputName: *fn (dev: c_int, nameout: *c_char, nameout_sz: c_int) callconv(.C) bool = undefined;
+    pub var GetMIDIInputName: *fn (dev: c_int, nameout: [*]c_char, nameout_sz: c_int) callconv(.C) bool = undefined;
 
     /// GetMIDIOutputName
     /// returns true if device present
-    pub var GetMIDIOutputName: *fn (dev: c_int, nameout: *c_char, nameout_sz: c_int) callconv(.C) bool = undefined;
+    pub var GetMIDIOutputName: *fn (dev: c_int, nameout: [*]c_char, nameout_sz: c_int) callconv(.C) bool = undefined;
 
     /// GetMixerScroll
     /// Get the leftmost track visible in the mixer

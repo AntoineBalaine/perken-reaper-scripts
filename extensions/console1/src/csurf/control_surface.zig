@@ -25,45 +25,58 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
             c.ShowWindow(c.GetDlgItem(hwndDlg, c.IDC_EDIT2), c.SW_HIDE);
             c.ShowWindow(c.GetDlgItem(hwndDlg, c.IDC_EDIT2_LBL), c.SW_HIDE);
             c.ShowWindow(c.GetDlgItem(hwndDlg, c.IDC_EDIT2_LBL2), c.SW_HIDE);
-            c.WDL_UTF8_HookComboBox(c.GetDlgItem(hwndDlg, c.IDC_COMBO2));
-            c.WDL_UTF8_HookComboBox(c.GetDlgItem(hwndDlg, c.IDC_COMBO3));
-            const n = reaper.GetNumMIDIInputs();
-            var x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, c.__LOCALIZE("None", "csurf"));
-            c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, x, -1);
-            x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, c.__LOCALIZE("None", "csurf"));
-            c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, x, -1);
-            for (0..n) |cur| {
+
+            // zig’s translateC can’t convert the type of WDL_UTF8_HookComboBox.
+            // That function’s a compat define when utf8 is disabled.
+            // fingers crossed, and hope that doesn’t happen.
+            // c.WDL_UTF8_HookComboBox(c.GetDlgItem(hwndDlg, c.IDC_COMBO2));
+            // c.WDL_UTF8_HookComboBox(c.GetDlgItem(hwndDlg, c.IDC_COMBO3));
+            var n = reaper.GetNumMIDIInputs();
+            var x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(c.__LOCALIZE("None", "csurf")))));
+            _ = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, @as(c.WPARAM, @intCast(x)), -1);
+            x = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(c.__LOCALIZE("None", "csurf")))));
+            _ = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, @as(c.WPARAM, @intCast(x)), -1);
+            var cur: c_int = 0;
+            while (cur < n) : (cur += 1) {
                 var buf: [512]c_char = undefined;
-                if (reaper.GetMIDIInputName(@as(c_int, cur), &buf, @sizeOf(@TypeOf(buf)))) {
-                    const a = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, &buf);
-                    c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, a, cur);
-                    if (cur == parms[2]) c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETCURSEL, a, 0);
+                if (reaper.GetMIDIInputName(cur, &buf, @sizeOf(@TypeOf(buf)))) {
+                    const a: c.WPARAM = @intCast(c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, @as(c.WPARAM, 0), @as(c.LPARAM, @intCast(@intFromPtr(&buf)))));
+                    _ = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, a, cur);
+
+                    if (cur == parms[2]) {
+                        _ = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETCURSEL, a, 0);
+                    }
                 }
             }
-            n = reaper.GetNumMIDIOutputs();
 
-            for (0..n) |cur| {
+            n = reaper.GetNumMIDIOutputs();
+            cur = 0;
+
+            while (cur < n) : (cur += 1) {
                 var buf: [512]c_char = undefined;
-                if (reaper.GetMIDIOutputName(@as(c_int, cur), &buf, @sizeOf(@TypeOf(buf)))) {
-                    const a = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, &buf);
-                    c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, a, x);
-                    if (x == parms[3]) c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETCURSEL, a, 0);
+                if (reaper.GetMIDIOutputName(@intCast(cur), &buf, @sizeOf(@TypeOf(buf)))) {
+                    const a: c.WPARAM = @intCast(c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(&buf)))));
+                    _ = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, a, @as(c.LPARAM, @intCast(cur)));
+                    if (cur == parms[3]) {
+                        _ = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETCURSEL, a, 0);
+                    }
                 }
             }
         },
         c.WM_USER + 1024 => {
-            if (wParam > 1 and lParam) {
-                var tmp: [512]c_char = undefined;
-                var indev = -1;
-                var outdev = -1;
+            if (wParam > 1 and lParam != 0) {
+                var tmp: [512]u8 = undefined;
+                var indev: isize = -1;
+                var outdev: isize = -1;
                 var r = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETCURSEL, 0, 0);
-                if (r != c.CB_ERR) indev = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETITEMDATA, r, 0);
+                if (r != c.CB_ERR) indev = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
 
                 r = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETCURSEL, 0, 0);
-                if (r != c.CB_ERR) outdev = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETITEMDATA, r, 0);
-                std.fmt.bufPrint(&tmp, "0 0 %d %d", .{ indev, outdev });
-                // FIXME: this is originally "lstrcpyn"
-                std.fmt.bufPrint(lParam, tmp, wParam);
+                if (r != c.CB_ERR) outdev = c.SendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
+
+                const buffer: []u8 = &tmp;
+                _ = std.fmt.bufPrint(buffer, "0 0 {d} {d}", .{ indev, outdev }) catch {};
+                _ = c.lstrcpyn(lParam, &tmp, @as(c_int, @intCast(wParam)));
             }
         },
         else => {},
