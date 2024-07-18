@@ -8,7 +8,7 @@ pub const Dependencies = struct {
     ini: *std.Build.Dependency,
 };
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     // Create a library target
     const target = b.standardTargetOptions(.{});
 
@@ -33,7 +33,13 @@ pub fn build(b: *std.Build) void {
     lib.addCSourceFiles(sourcefileOpts);
     lib.linkLibC();
     lib.linkLibCpp();
-    const client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
+    var client_install: *std.Build.Step.InstallArtifact = undefined;
+    if (target.result.isDarwin()) {
+        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
+    } else {
+        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
+    }
+
     b.getInstallStep().dependOn(&client_install.step);
 
     // add dependencies: ini parser, etc.
