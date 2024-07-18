@@ -17,8 +17,18 @@ pub fn build(b: *std.Build) void {
     const root = b.path("./src/");
     lib.addIncludePath(root);
 
-    // -shared reaper_barebone.cpp -o reaper_barebone.so
-    const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{ .files = &.{ "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp" }, .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL" } };
+    if (target.result.isDarwin()) {
+        lib.root_module.linkFramework("AppKit", .{});
+    }
+    const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{
+        .files = &.{
+            "src/csurf/control_surface.cpp",
+            "src/csurf/control_surface_wrapper.cpp",
+            // "WDL/swell/swell-modstub-generic.cpp",
+            "WDL/swell/swell-modstub.mm",
+        },
+        .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" },
+    };
 
     lib.addCSourceFiles(sourcefileOpts);
     lib.linkLibC();
