@@ -34,15 +34,12 @@ pub fn build(b: *std.Build) !void {
         lib.linkLibCpp();
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
     } else {
-        // Not yet tested on Windows.
-        // Linux build has to be done by running the cpp build without zigcc,
-        // because SWELL’s "WDL/swell/swell-modstub-generic.cpp" needs stdlibc++ instead of libc++.
-        const cpp_step = b.addSystemCommand(&[_][]const u8{ "gcc", "-o", "zig-out/lib/control_surface.a", "WDL/swell/swell-modstub-generic.cpp", "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
+        const cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
+        const cpp_lib = cpp_cmd.addOutputFileArg("control_surface.o");
+        cpp_cmd.addArgs(&.{ "WDL/swell/swell-modstub-generic.cpp", "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
+        lib.addObjectFile(cpp_lib);
 
-        const cpp_lib = b.path("zig-out/lib/control_surface.a");
-        lib.root_module.addObjectFile(cpp_lib);
-
-        b.getInstallStep().dependOn(&cpp_step.step);
+        lib.linkLibC();
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
     }
 

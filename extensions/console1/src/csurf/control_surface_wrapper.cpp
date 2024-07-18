@@ -10,7 +10,7 @@
 #include "../../WDL/wdlstring.h"
 #include "../../WDL/wdlcstring.h"
 #include "../../WDL/win32_utf8.h"
-#include "resource.h"
+#include "../resource.h"
 #include <new>
 #include "../../WDL/swell/swell-types.h"
 

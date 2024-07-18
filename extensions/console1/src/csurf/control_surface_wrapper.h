@@ -6,7 +6,6 @@
 /*#include "../WDL/localize/localize.h"*/
 extern "C" {
 #endif
-#define __LOCALIZE(str, ctx) __localizeFunc("" str "", "" ctx "", 0)
 typedef void *C_ControlSurface;
 typedef struct MediaTrack
     MediaTrack; // Forward declaration of MediaTrack as an opaque struct
