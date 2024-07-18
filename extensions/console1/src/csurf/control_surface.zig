@@ -89,6 +89,7 @@ fn makeIntResource(x: anytype) [*c]const u8 {
 }
 
 pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND {
+    std.debug.print("configFunc\n", .{});
     _ = type_string;
     const cast: c.LPARAM = @intCast(@intFromPtr(initConfigString));
     // const cast: c.LPARAM = @intCast(initConfigString);
@@ -113,6 +114,7 @@ fn parseParms(str: [*c]const c_char, parms: *[4]i32) void {
 }
 
 fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
+    std.debug.print("createFunc\n", .{});
     _ = type_string;
     var parms: [4]i32 = undefined;
     parseParms(configString, &parms);
