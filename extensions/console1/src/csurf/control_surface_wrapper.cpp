@@ -35,14 +35,19 @@ extern "C"
     delete static_cast<ZigControlSurface *>(instance);
   }
 
-  void cMidiIn_start(midi_Input *m_midiin){
+  void MidiIn_start(midi_Input *m_midiin){
     m_midiin->start();
   }
-  void cMidiIn_SwapBufs(midi_Input *m_midiin, unsigned int timestamp){
+  void MidiIn_SwapBufs(midi_Input *m_midiin, unsigned int timestamp){
       m_midiin->SwapBufs(timestamp);
   }
-  MIDI_eventlist *cMidiIn_GetReadBuf(midi_Input *m_midiin){
+  MIDI_eventlist *MidiIn_GetReadBuf(midi_Input *m_midiin){
     return m_midiin->GetReadBuf();
   }
+
+void MidiOut_Send(midi_Output *m_midiout,unsigned char status, unsigned char d1, unsigned char d2, int frame_offset){
+  m_midiout->Send(statuse, d1, d2, frame_offset);
+}
+
 }
 #endif
