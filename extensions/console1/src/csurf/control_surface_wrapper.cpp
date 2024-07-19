@@ -14,6 +14,14 @@
 #include <new>
 #include "../../WDL/swell/swell-types.h"
 
+#ifndef _WIN32
+# include "../resource.h"
+# include "../../WDL/swell/swell-dlggen.h"
+# include "resource.rc_mac_dlg"
+# include "../../swell/swell-menugen.h"
+# include "resource.rc_mac_menu"
+#endif
+
 extern "C"
 {
 

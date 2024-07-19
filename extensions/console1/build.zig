@@ -1,6 +1,7 @@
 // zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_zig.so hello_world.zig -lc
 // or use
 // zig build --verbose && mv zig-out/lib/reaper_zig.so ~/.config/REAPER/UserPlugins/ && reaper
+// sudo zig build --verbose && mv zig-out/lib/reaper_zig.dylib ~/Library/Application\ Support/REAPER/UserPlugins
 const std = @import("std");
 const builtin = @import("builtin");
 const tests = @import("build_tests.zig");
@@ -18,30 +19,33 @@ pub fn build(b: *std.Build) !void {
     lib.addIncludePath(root);
 
     var client_install: *std.Build.Step.InstallArtifact = undefined;
+    // const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{
+    //     .files = &.{
+    //         "src/csurf/control_surface.cpp",
+    //         "src/csurf/control_surface_wrapper.cpp",
+    //         "WDL/swell/swell-modstub.mm",
+    //     },
+    //     .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" },
+    // };
+    //
+    // lib.addCSourceFiles(sourcefileOpts);
+    // lib.linkLibC();
+    // lib.linkLibCpp();
+    // client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
+    const cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
+    const cpp_lib = cpp_cmd.addOutputFileArg("control_surface.o");
+
     if (target.result.isDarwin()) {
         lib.root_module.linkFramework("AppKit", .{});
-        const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{
-            .files = &.{
-                "src/csurf/control_surface.cpp",
-                "src/csurf/control_surface_wrapper.cpp",
-                "WDL/swell/swell-modstub.mm",
-            },
-            .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" },
-        };
-
-        lib.addCSourceFiles(sourcefileOpts);
-        lib.linkLibC();
-        lib.linkLibCpp();
+        cpp_cmd.addArgs(&.{"WDL/swell/swell-modstub.mm"});
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
     } else {
-        const cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
-        const cpp_lib = cpp_cmd.addOutputFileArg("control_surface.o");
-        cpp_cmd.addArgs(&.{ "WDL/swell/swell-modstub-generic.cpp", "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
-        lib.addObjectFile(cpp_lib);
-
-        lib.linkLibC();
+        cpp_cmd.addArgs(&.{"WDL/swell/swell-modstub-generic.cpp"});
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
     }
+    cpp_cmd.addArgs(&.{ "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
+    lib.addObjectFile(cpp_lib);
+    lib.linkLibC();
 
     b.getInstallStep().dependOn(&client_install.step);
 
