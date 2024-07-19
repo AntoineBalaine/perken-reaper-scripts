@@ -18,7 +18,7 @@
 # include "../resource.h"
 # include "../../WDL/swell/swell-dlggen.h"
 # include "resource.rc_mac_dlg"
-# include "../../swell/swell-menugen.h"
+# include "../../WDL/swell/swell-menugen.h"
 # include "resource.rc_mac_menu"
 #endif
 
@@ -33,6 +33,16 @@ extern "C"
   void ControlSurface_Destroy(C_ControlSurface instance)
   {
     delete static_cast<ZigControlSurface *>(instance);
+  }
+
+  void cMidiIn_start(midi_Input *m_midiin){
+    m_midiin->start();
+  }
+  void cMidiIn_SwapBufs(midi_Input *m_midiin, unsigned int timestamp){
+      m_midiin->SwapBufs(timestamp);
+  }
+  MIDI_eventlist *cMidiIn_GetReadBuf(midi_Input *m_midiin){
+    return m_midiin->GetReadBuf();
   }
 }
 #endif

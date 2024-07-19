@@ -19,20 +19,25 @@ pub fn build(b: *std.Build) !void {
     lib.addIncludePath(root);
 
     var client_install: *std.Build.Step.InstallArtifact = undefined;
-    // const sourcefileOpts = std.Build.Module.AddCSourceFilesOptions{
-    //     .files = &.{
-    //         "src/csurf/control_surface.cpp",
-    //         "src/csurf/control_surface_wrapper.cpp",
-    //         "WDL/swell/swell-modstub.mm",
-    //     },
-    //     .flags = &.{ "-fPIC", "-O2", "-std=c++14", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" },
-    // };
-    //
-    // lib.addCSourceFiles(sourcefileOpts);
-    // lib.linkLibC();
-    // lib.linkLibCpp();
-    // client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
+
+    // create the file, call the resgen shell script, and then proceed with the rest
+    // WDL/snwell/swell_resgen.php resource.rc generates resource.rc_mac_dlg and .rc_mac_menu
+    // which must be compiled and linked into the executable
+    // touch src/csurf/resource.rc && ./WDL/swell/swell_resgen.sh src/csurf/resource.rc
+    var file = std.fs.cwd().createFile("src/csurf/resource.rc", .{ .exclusive = true }) catch |e|
+        switch (e) {
+        error.PathAlreadyExists => null,
+        else => return e,
+    };
+    if (file != null) file.?.close();
+    const php_cmd = b.addSystemCommand(&[_][]const u8{"bash"});
+    php_cmd.addFileArg(b.path("./WDL/swell/swell_resgen.sh"));
+    php_cmd.addArg("src/csurf/resource.rc");
+    php_cmd.expectExitCode(0);
+
     const cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
+    cpp_cmd.step.dependOn(&php_cmd.step);
+
     const cpp_lib = cpp_cmd.addOutputFileArg("control_surface.o");
 
     if (target.result.isDarwin()) {
@@ -43,6 +48,7 @@ pub fn build(b: *std.Build) !void {
         cpp_cmd.addArgs(&.{"WDL/swell/swell-modstub-generic.cpp"});
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
     }
+
     cpp_cmd.addArgs(&.{ "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
     lib.addObjectFile(cpp_lib);
     lib.linkLibC();
