@@ -33,6 +33,8 @@ pub fn build(b: *std.Build) !void {
     const php_cmd = b.addSystemCommand(&[_][]const u8{"bash"});
     php_cmd.addFileArg(b.path("./WDL/swell/swell_resgen.sh"));
     php_cmd.addArg("src/csurf/resource.rc");
+    php_cmd.expectExitCode(0);
+
     const cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
     cpp_cmd.step.dependOn(&php_cmd.step);
 
@@ -40,17 +42,14 @@ pub fn build(b: *std.Build) !void {
 
     if (target.result.isDarwin()) {
         lib.root_module.linkFramework("AppKit", .{});
-
-        php_cmd.addFileArg(b.path("./WDL/swell/swell-modstub.mm"));
+        cpp_cmd.addArgs(&.{"WDL/swell/swell-modstub.mm"});
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
     } else {
-        php_cmd.addFileArg(b.path("./WDL/swell/swell-modstub-generic.cpp"));
+        cpp_cmd.addArgs(&.{"WDL/swell/swell-modstub-generic.cpp"});
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
     }
 
-    cpp_cmd.addFileArg(b.path("./src/csurf/control_surface.cpp"));
-    cpp_cmd.addFileArg(b.path("./src/csurf/control_surface_wrapper.cpp"));
-    cpp_cmd.addArgs(&.{ "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP", "-v" });
+    cpp_cmd.addArgs(&.{ "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
     lib.addObjectFile(cpp_lib);
     lib.linkLibC();
 
