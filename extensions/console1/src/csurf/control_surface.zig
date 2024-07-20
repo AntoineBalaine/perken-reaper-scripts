@@ -13,6 +13,7 @@ const c = @cImport({
     @cInclude("../WDL/wdltypes.h");
     @cInclude("resource.h");
 });
+const m = @import("midi_wrapper.zig");
 pub var g_hInst: reaper.HINSTANCE = undefined;
 fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, lparam: c.LPARAM) c.LRESULT {
     // c.SendDlgItemMessage()
@@ -145,43 +146,43 @@ pub const c1_reg = reaper_csurf_reg_t{
     .ShowConfig = &configFunc,
 };
 
-m_midiin: reaper.midi_Input,
-m_midiout: reaper.midi_Output,
+var m_midiin: ?reaper.midi_Input = null;
+var m_midiout: ?reaper.midi_Output = null;
 
 var state: *State = undefined;
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
-    const m_midiin: ?*reaper.midi_Input = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
+    m_midiin = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
     // TODO : investigate whether the midioutput needs to be threaded
     // (this was the case in the faderport example)
-    const m_midiout = if (outdev >= 0) reaper.CreateMIDIOutput(outdev, false, null) else null;
-    if (errStats != null) {
-        if (indev >= 0 and m_midiin == null) errStats.* |= 1;
-        if (outdev >= 0 and m_midiout == null) errStats.* |= 2;
+    m_midiout = if (outdev >= 0) reaper.CreateMIDIOutput(outdev, false, null) else null;
+    if (errStats) |errstats| {
+        if (indev >= 0 and m_midiin == null) errstats.* |= 1;
+        if (outdev >= 0 and m_midiout == null) errstats.* |= 2;
     }
-    if (m_midiin != null) {
-        c.MidiIn_start(m_midiin);
+    if (m_midiin) |midi_in| {
+        m.MidiIn_start(midi_in);
     }
-    if (m_midiout != null) {
-        c.MidiOut_Send(m_midiout, 0xb0, 0x00, 0x06, -1);
-        c.MidiOut_Send(m_midiout, 0xb0, 0x20, 0x27, -1);
+    if (m_midiout) |midi_out| {
+        m.MidiOut_Send(midi_out, 0xb0, 0x00, 0x06, -1);
+        m.MidiOut_Send(midi_out, 0xb0, 0x20, 0x27, -1);
         for (0..0x30) |x| { // lights out
-            c.MidiOut_Send(m_midiout, 0xa0, x, 0x00, -1);
+            m.MidiOut_Send(midi_out, 0xa0, @as(u8, @intCast(x)), 0x00, -1);
         }
-        c.MidiOut_Send(m_midiout, 0x91, 0x00, 0x64, -1);
+        m.MidiOut_Send(midi_out, 0x91, 0x00, 0x64, -1);
     }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     return myCsurf;
 }
 
 pub fn deinit(csurf: c.C_ControlSurface) void {
-    if (m_midiout != null) {
+    if (m_midiout) |midiOut| {
         for (0..0x30) |x| { // lights out
-            c.MidiOut_Send(m_midiout, 0xa0, x, 0x00, -1);
+            m.MidiOut_Send(midiOut, 0xa0, @as(u8, @intCast(x)), 0x00, -1);
         }
     }
 
-    DELETE_ASYNC(m_midiout);
-    DELETE_ASYNC(m_midiin);
+    c.DELETE_ASYNC(m_midiout.?);
+    c.DELETE_ASYNC(m_midiin.?);
     c.ControlSurface_Destroy(csurf);
 }
 

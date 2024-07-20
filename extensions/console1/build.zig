@@ -49,7 +49,7 @@ pub fn build(b: *std.Build) !void {
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
     }
 
-    cpp_cmd.addArgs(&.{ "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
+    cpp_cmd.addArgs(&.{ "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "src/csurf/midi_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
     lib.addObjectFile(cpp_lib);
     lib.linkLibC();
 
