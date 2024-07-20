@@ -28,6 +28,12 @@ void MidiOut_SendMsg(midi_Output *m_midiout, MIDI_event_t *msg,
 void MidiOut_Send(midi_Output *m_midiout, unsigned char status,
                   unsigned char d1, unsigned char d2, int frame_offset);
 
+void MDEvtLs_AddItem(MIDI_eventlist *mdEvtLs, MIDI_event_t *evt);
+MIDI_event_t *MDEvtLs_EnumItems(MIDI_eventlist *mdEvtLs, int *bpos);
+void MDEvtLs_DeleteItem(MIDI_eventlist *mdEvtLs, int bpos);
+int MDEvtLs_GetSize(MIDI_eventlist *mdEvtLs); // size of block in bytes
+void MDEvtLs_Empty(MIDI_eventlist *mdEvtLs);
+
 #ifdef __cplusplus
 }
 #endif

@@ -74,4 +74,32 @@ void MidiOut_Send(midi_Output *m_midiout, unsigned char status,
     static_cast<midi_Output *>(m_midiout)->Send(status, d1, d2, frame_offset);
   }
 }
+
+void MDEvtLs_AddItem(MIDI_eventlist *mdEvtLs, MIDI_event_t *evt) {
+  if (mdEvtLs) {
+    mdEvtLs->AddItem(evt);
+  }
+};
+MIDI_event_t *MDEvtLs_EnumItems(MIDI_eventlist *mdEvtLs, int *bpos) {
+  if (mdEvtLs) {
+    return mdEvtLs->EnumItems(bpos);
+  }
+  return nullptr;
+};
+void MDEvtLs_DeleteItem(MIDI_eventlist *mdEvtLs, int bpos) {
+  if (mdEvtLs) {
+    mdEvtLs->DeleteItem(bpos);
+  }
+};
+int MDEvtLs_GetSize(MIDI_eventlist *mdEvtLs) {
+  if (mdEvtLs) {
+    return mdEvtLs->GetSize();
+  }
+  return 0;
+};
+void MDEvtLs_Empty(MIDI_eventlist *mdEvtLs) {
+  if (mdEvtLs) {
+    mdEvtLs->Empty();
+  }
+};
 }
