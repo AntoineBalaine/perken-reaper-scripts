@@ -217,16 +217,6 @@ export fn zExtended(call: c_int, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_vo
     return 0;
 }
 
-/// rewrite this cpp in zig
-//static int volToInt14(double vol)
-//{
-//  double d=(DB2SLIDER(VAL2DB(vol))*16383.0/1000.0);
-//  if (d<0.0)d=0.0;
-//  else if (d>16383.0)d=16383.0;
-//
-//  return (int)(d+0.5);
-//}
-
 const TWENTY_OVER_LN10 = 8.6858896380650365530225783783321;
 const LN10_OVER_TWENTY = 0.11512925464970228420089957273422;
 inline fn VAL2DB(x: f64) f64 {
@@ -252,30 +242,6 @@ fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, l
 
 const WDL_UTF8_OLDPROCPROP = "WDLUTF8OldProc";
 
-fn WDL_UTF8_HookListBox(h: c.HWND) void {
-    if (!h or
-        c.GetProp.?(h, WDL_UTF8_OLDPROCPROP)) return;
-    c.SetProp.?(h, WDL_UTF8_OLDPROCPROP
-    // "W" // WHAT IS THIS?
-    , @as(c.HANDLE, c.GetWindowLongW.?(h, c.GWLP_WNDPROC)));
-
-    c.SetProp.?(h, WDL_UTF8_OLDPROCPROP, @as(c.HANDLE, c.SetWindowLongPtr(h, c.GWLP_WNDPROC, @as(c.INT_PTR, c.cb_newProc))));
-}
-
-fn WDL_UTF8_HookComboBox(h: c.HWND) void {
-    WDL_UTF8_HookListBox(h);
-    if (h == null) return;
-    // const s_combobox_atom: c.ATOM = @as(c.ATOM, c.GetClassWord(h, c.GCW_ATOM));
-    // _ = s_combobox_atom; // autofix
-    const nu_h = c.FindWindowEx.?(h, null, "Edit", null);
-    if (nu_h != null and c.GetProp.?(nu_h.?, WDL_UTF8_OLDPROCPROP) == null) {
-        c.SetProp.?(nu_h.?,
-        // why is this marked as WDL_UTF8_OLDPROCPROP "W"?
-        WDL_UTF8_OLDPROCPROP, @as(c.HANDLE, c.GetWindowLongW.?(nu_h.?, c.GWLP_WNDPROC)));
-        c.SetProp.?(nu_h.?, WDL_UTF8_OLDPROCPROP, @as(c.HANDLE, c.SetWindowLongPtr(nu_h.?, c.GWLP_WNDPROC, @as(c.INT_PTR, c.cbedit_newProc))));
-    }
-}
-
 fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.C) c.WDL_DLGRET {
     switch (uMsg) {
         c.WM_INITDIALOG => {
@@ -290,8 +256,8 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
             // zig’s translateC can’t convert the type of WDL_UTF8_HookComboBox.
             // That function’s a compat define when utf8 is disabled.
             // fingers crossed, and hope that doesn’t happen.
-            WDL_UTF8_HookComboBox(c.GetDlgItem.?(hwndDlg, c.IDC_COMBO2));
-            WDL_UTF8_HookComboBox(c.GetDlgItem.?(hwndDlg, c.IDC_COMBO3));
+            // c.WDL_UTF8_HookComboBox.?(c.GetDlgItem.?(hwndDlg, c.IDC_COMBO2));
+            // WDL_UTF8_HookComboBox(c.GetDlgItem.?(hwndDlg, c.IDC_COMBO3));
             var n = reaper.GetNumMIDIInputs();
             const loc = reaper.LocalizeString("None", "csurf", 0);
             var x = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(loc))));

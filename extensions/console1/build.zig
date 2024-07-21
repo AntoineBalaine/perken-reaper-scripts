@@ -33,7 +33,6 @@ pub fn build(b: *std.Build) !void {
     const php_cmd = b.addSystemCommand(&[_][]const u8{"bash"});
     php_cmd.addFileArg(b.path("./WDL/swell/swell_resgen.sh"));
     php_cmd.addArg("src/csurf/resource.rc");
-    php_cmd.expectExitCode(0);
 
     const cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
     cpp_cmd.step.dependOn(&php_cmd.step);
