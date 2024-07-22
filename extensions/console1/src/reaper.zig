@@ -71,7 +71,7 @@ pub const reaper = struct { // @import("reaper");
     pub const audio_hook_register_t = *opaque {};
     pub const gfx = *opaque {};
     pub const joystick_device = *opaque {};
-    pub const midi_Input = *opaque {};
+    pub const midi_Input = opaque {};
     pub const midi_Output = *opaque {};
     pub const preview_register_t = *opaque {};
     pub const screensetNewCallbackFunc = *opaque {};
@@ -338,7 +338,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// CreateMIDIInput
     /// Can only reliably create midi access for devices not already opened in prefs/MIDI, suitable for control surfaces etc.
-    pub var CreateMIDIInput: *fn (dev: c_int) callconv(.C) midi_Input = undefined;
+    pub var CreateMIDIInput: *fn (dev: c_int) callconv(.C) *midi_Input = undefined;
 
     /// CreateMIDIOutput
     /// Can only reliably create midi access for devices not already opened in prefs/MIDI, suitable for control surfaces etc. If streamMode is set, msoffset100 points to a persistent variable that can change and reflects added delay to output in 100ths of a millisecond.

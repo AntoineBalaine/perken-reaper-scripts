@@ -17,12 +17,11 @@ const c = @cImport({
 const MIDI_event_t = @import("../reaper.zig").reaper.MIDI_event_t;
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
-const m = @import("midi_wrapper.zig");
 pub var g_hInst: reaper.HINSTANCE = undefined;
 
 var m_midi_in_dev: ?c_int = null;
 var m_midi_out_dev: ?c_int = null;
-var m_midiin: ?reaper.midi_Input = null;
+var m_midiin: ?*reaper.midi_Input = null;
 var m_midiout: ?reaper.midi_Output = null;
 var m_vol_lastpos: i32 = -1000;
 var m_bank_offset: i32 = 0;
@@ -46,15 +45,15 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     }
     if (m_midiin) |midi_in| {
         c.MidiIn_start(midi_in);
-        m.MidiIn_start(midi_in);
+        c.MidiIn_start(midi_in);
     }
     if (m_midiout) |midi_out| {
-        m.MidiOut_Send(midi_out, 0xb0, 0x00, 0x06, -1);
-        m.MidiOut_Send(midi_out, 0xb0, 0x20, 0x27, -1);
+        c.MidiOut_Send(midi_out, 0xb0, 0x00, 0x06, -1);
+        c.MidiOut_Send(midi_out, 0xb0, 0x20, 0x27, -1);
         for (0..0x30) |x| { // lights out
-            m.MidiOut_Send(midi_out, 0xa0, @as(u8, @intCast(x)), 0x00, -1);
+            c.MidiOut_Send(midi_out, 0xa0, @as(u8, @intCast(x)), 0x00, -1);
         }
-        m.MidiOut_Send(midi_out, 0x91, 0x00, 0x64, -1);
+        c.MidiOut_Send(midi_out, 0x91, 0x00, 0x64, -1);
     }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     return myCsurf;
@@ -63,7 +62,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 pub fn deinit(csurf: c.C_ControlSurface) void {
     if (m_midiout) |midi_out| {
         for (0..0x30) |x| { // lights out
-            m.MidiOut_Send(midi_out, 0xa0, @as(u8, @intCast(x)), 0x00, -1);
+            c.MidiOut_Send(midi_out, 0xa0, @as(u8, @intCast(x)), 0x00, -1);
         }
     }
 
@@ -118,20 +117,20 @@ export const zGetConfigString = &GetConfigString;
 
 export fn zCloseNoReset() callconv(.C) void {
     if (m_midiout) |midi_out| {
-        m.MidiOut_Destroy(midi_out);
+        c.MidiOut_Destroy(midi_out);
     }
     if (m_midiin) |midi_in| {
-        m.MidiIn_Destroy(midi_in);
+        c.MidiIn_Destroy(midi_in);
     }
     m_midiout = null;
     m_midiin = null;
 }
 export fn zRun() callconv(.C) void {
     if (m_midiin) |midi_in| {
-        m.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
-        const list: MIDI_eventlist = m.MidiIn_GetReadBuf(midi_in);
+        c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
+        const list = c.MidiIn_GetReadBuf(midi_in);
         var l: c_int = 0;
-        while (m.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
+        while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
             l += 1;
             OnMidiEvent(evts);
         }
@@ -150,8 +149,8 @@ export fn zSetSurfaceVolume(trackid: *MediaTrack, volume: f64) callconv(.C) void
         volint = @divTrunc(volint, 16);
         if (m_vol_lastpos != volint) {
             m_vol_lastpos = volint;
-            m.MidiOut_Send(m_midiout.?, 0xb0, 0x00, @as(u8, @intCast(volint >> 7)), -1);
-            m.MidiOut_Send(m_midiout.?, 0xb0, 0x20, @as(u8, @intCast(volint & 127)), -1);
+            c.MidiOut_Send(m_midiout.?, 0xb0, 0x00, @as(u8, @intCast(volint >> 7)), -1);
+            c.MidiOut_Send(m_midiout.?, 0xb0, 0x20, @as(u8, @intCast(volint & 127)), -1);
         }
     }
 }
