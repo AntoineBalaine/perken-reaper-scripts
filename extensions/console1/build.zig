@@ -24,18 +24,14 @@ pub fn build(b: *std.Build) !void {
     // WDL/snwell/swell_resgen.php resource.rc generates resource.rc_mac_dlg and .rc_mac_menu
     // which must be compiled and linked into the executable
     // touch src/csurf/resource.rc && ./WDL/swell/swell_resgen.sh src/csurf/resource.rc
-    var file = std.fs.cwd().createFile("src/csurf/resource.rc", .{ .exclusive = true }) catch |e|
-        switch (e) {
-        error.PathAlreadyExists => null,
-        else => return e,
-    };
-    if (file != null) file.?.close();
-    const php_cmd = b.addSystemCommand(&[_][]const u8{"bash"});
-    php_cmd.addFileArg(b.path("./WDL/swell/swell_resgen.sh"));
+    const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
+    php_cmd.addFileArg(b.path("WDL/swell/swell_resgen.php"));
     php_cmd.addFileArg(b.path("src/csurf/resource.rc"));
 
     const cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
-    cpp_cmd.step.dependOn(&php_cmd.step);
+    cpp_cmd.addFileInput(b.path("src/csurf/resource.rc_mac_dlg"));
+    cpp_cmd.addFileInput(b.path("src/csurf/resource.rc_mac_menu"));
+    cpp_cmd.step.dependOn(&php_cmd.step); // FIXME: don't re-run every time...
 
     const cpp_lib = cpp_cmd.addOutputFileArg("control_surface.o");
 
@@ -48,7 +44,14 @@ pub fn build(b: *std.Build) !void {
         client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
     }
 
-    cpp_cmd.addArgs(&.{ "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "src/csurf/midi_wrapper.cpp", "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
+    const cpp_files = [_][]const u8{
+        "src/csurf/control_surface.cpp",
+        "src/csurf/control_surface_wrapper.cpp",
+        "src/csurf/midi_wrapper.cpp",
+    };
+    inline for (cpp_files) |cpp|
+        cpp_cmd.addFileArg(b.path(cpp));
+    cpp_cmd.addArgs(&.{ "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
     lib.addObjectFile(cpp_lib);
     lib.linkLibC();
 
