@@ -18,9 +18,9 @@ pub extern fn MidiOut_EndBlock(midi_out: midi_Output, length: c_int, srate: f64,
 pub extern fn MidiOut_SendMsg(midi_out: midi_Output, msg: *MIDI_event_t, frame_offset: c_int) void;
 pub extern fn MidiOut_Send(midi_out: midi_Output, status: u8, d1: u8, d2: u8, frame_offset: c_int) void;
 
-pub extern fn MDEvtLs_AddItem(mdEvtLs: *MIDI_eventlist, evt: *MIDI_event_t) void;
+pub extern fn MDEvtLs_AddItem(mdEvtLs: MIDI_eventlist, evt: *MIDI_event_t) void;
 // QUESTION: why use a pointer to an int?
-pub extern fn MDEvtLs_EnumItems(mdEvtLs: *MIDI_eventlist, bpos: *c_int) *MIDI_event_t;
-pub extern fn MDEvtLs_DeleteItem(mdEvtLs: *MIDI_eventlist, bpos: c_int) void;
-pub extern fn MDEvtLs_GetSize(mdEvtLs: *MIDI_eventlist) c_int;
-pub extern fn MDEvtLs_Empty(mdEvtLs: *MIDI_eventlist) void;
+pub extern fn MDEvtLs_EnumItems(mdEvtLs: MIDI_eventlist, bpos: *c_int) ?*MIDI_event_t;
+pub extern fn MDEvtLs_DeleteItem(mdEvtLs: MIDI_eventlist, bpos: c_int) void;
+pub extern fn MDEvtLs_GetSize(mdEvtLs: MIDI_eventlist) c_int;
+pub extern fn MDEvtLs_Empty(mdEvtLs: MIDI_eventlist) void;
