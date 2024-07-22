@@ -12,8 +12,9 @@ const c = @cImport({
     @cInclude("../WDL/win32_utf8.h");
     @cInclude("../WDL/wdltypes.h");
     @cInclude("resource.h");
-    @cInclude("../WDL/win32_utf8.h");
 });
+const MIDI_event_t = @import("../reaper.zig").reaper.MIDI_event_t;
+const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
 const m = @import("midi_wrapper.zig");
 pub var g_hInst: reaper.HINSTANCE = undefined;
@@ -25,6 +26,11 @@ var @"midi_out?": ?reaper.midi_Output = null;
 var m_vol_lastpos: i32 = -1000;
 var m_bank_offset: i32 = 0;
 var tmp: [512]u8 = undefined;
+
+var m_button_states: i32 = 0;
+
+  var m_buttonstate_lastrun: c.DWORD ;
+
 
 var state: *State = undefined;
 // TODO : investigate whether the midioutput needs to be threaded
@@ -65,6 +71,26 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     c.ControlSurface_Destroy(csurf);
 }
 
+pub  fn OnMidiEvent(evt: MIDI_event_t) void {
+    const msg = evt.midi_message;
+    // const status = msg[0] & 0xf0;
+    // const chan = msg[0] & 0x0f;
+    // const data1 = msg[1];
+    // const data2 = msg[2];
+    switch (evt.midi_message[0]){
+        0xb0 =>{
+            if (evt.midi_message[1]==0){
+                m_faderport_lasthw=evt.midi_message[2];
+            } else if (evt.midi_message[1]==0x20){
+                const tr = reaper.CSurf_TrackFromID(trid,false);
+            }
+        },
+        0xa0 =>{},
+        0xe0=>{},
+        else=>{}
+    }
+}
+
 fn GetTypeString() callconv(.C) [*]const u8 {
     return "Console1";
 }
@@ -98,7 +124,16 @@ export fn zCloseNoReset() callconv(.C) void {
     @"midi_out?" = null;
     @"midi_in?" = null;
 }
-export fn zRun() callconv(.C) void {}
+export fn zRun() callconv(.C) void {
+    if (@"midi_in?") |midi_in| {
+        m.MidiIn_SwapBufs(c.timeGetTime());
+        const list: MIDI_eventlist = m.MidiIn_GetReadBuf();
+        var l = 0;
+        while (m.MDEvtLs_EnumItems(list, l)): (l+=1) |evts| { 
+            OnMidiEvent(evts);
+        }
+    }
+}
 export fn zSetTrackListChange() callconv(.C) void {}
 export fn zSetSurfaceVolume(trackid: *MediaTrack, volume: f64) callconv(.C) void {
     // QUESTION: what's MCP view in csurf ?

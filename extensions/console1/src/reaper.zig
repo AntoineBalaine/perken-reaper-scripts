@@ -494,7 +494,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_SetTrackListChange: *fn () callconv(.C) void = undefined;
 
     /// CSurf_TrackFromID
-    pub var CSurf_TrackFromID: *fn (idx: c_int, mcpView: bool) callconv(.C) *MediaTrack = undefined;
+    pub var CSurf_TrackFromID: *fn (idx: c_int, mcpView: bool) callconv(.C) MediaTrack = undefined;
 
     /// CSurf_TrackToID
     pub var CSurf_TrackToID: *fn (track: *MediaTrack, mcpView: bool) callconv(.C) c_int = undefined;
