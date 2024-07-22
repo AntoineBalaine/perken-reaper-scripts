@@ -1,5 +1,3 @@
-// midi_input_wrapper.cpp
-// midi_input_wrapper.cpp
 #include "midi_wrapper.h"
 #include "midi_wrapper_classes.h"
 

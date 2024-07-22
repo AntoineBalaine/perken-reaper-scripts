@@ -39,6 +39,9 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     m_midi_out_dev = outdev;
     m_midiin = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
     m_midiout = if (outdev >= 0) reaper.CreateMIDIOutput(outdev, false, null) else null;
+    if (m_midiin == null or m_midiout == null) {
+        std.debug.print("in: {any}, out: {any}\n", .{ m_midiin, m_midiout });
+    }
     if (errStats) |errstats| {
         if (indev >= 0 and m_midiin == null) errstats.* |= 1;
         if (outdev >= 0 and m_midiout == null) errstats.* |= 2;
@@ -132,7 +135,7 @@ export fn zRun() callconv(.C) void {
         var l: c_int = 0;
         while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
             l += 1;
-            OnMidiEvent(evts);
+            OnMidiEvent(@alignCast(@ptrCast(evts)));
         }
     }
 }
