@@ -14,7 +14,7 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
-const MIDI_event_t = @import("../reaper.zig").reaper.MIDI_event_t;
+
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
 pub var g_hInst: reaper.HINSTANCE = undefined;
@@ -74,13 +74,33 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     c.ControlSurface_Destroy(csurf);
 }
 
-pub fn OnMidiEvent(evt: *MIDI_event_t) void {
-    const msg = evt.midi_message;
+pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
+    // The console only sends cc messages, so we know that the status is always going to be 0x8,
+    // except when the message is a running status (i.e. the knobs are turned faster).
+    // In the case of running status, we do need to read the status byte to figure out which control is being touched.
+    // 0xb0 0x1f 0x7f 0x0
+    // ^    ^    ^    ^
+    // |    |    |    useless for our purposes
+    // |    |    value
+    // |    cc number
+    // status "cc message"
+    // 0x6b 0x46 0x0 0xdd
+    // ^    ^    ^    ^
+    // |    |    |    I assume this is noise
+    // |    |    empty
+    // |    value
+    // cc number (byte is < 0x80, so this is running status)
+    const msg = c.MIDI_event_message(evt);
     const status = msg[0] & 0xf0;
     const chan = msg[0] & 0x0f;
-    const data1 = msg[1];
-    const data2 = msg[2];
-    std.debug.print("{d}\t{d}\t{d}\t{d}\n", .{ status, chan, data1, data2 });
+    _ = chan;
+    const cc_id = if (status == 0x8) msg[1] else msg[0];
+    const val = if (status == 0x8) msg[2] else msg[1];
+
+    std.debug.print("0x{x}\t0x{x}\t0x{x}\n", .{ msg[0], cc_id, val });
+    // std.debug.print("\n", .{});
+    // if (m_midiout) m_midiout->Send(0xa0,3,evt->midi_message[2],-1);
+    // c.MidiOut_Send(m_midiout.?, status, data1, data2, -1);
     // switch (evt.midi_message[0]){
     //     0xb0 =>{
     //         if (evt.midi_message[1]==0){
@@ -96,19 +116,20 @@ pub fn OnMidiEvent(evt: *MIDI_event_t) void {
 }
 
 fn GetTypeString() callconv(.C) [*]const u8 {
-    return "Console1";
+    return "CONSOLE1";
 }
 
 fn GetDescString() callconv(.C) [*]const u8 {
     // example code does this weird thing:
     // descspace.SetFormatted(512,__LOCALIZE_VERFMT("PreSonus FaderPort (dev %d,%d)","csurf"),m_midi_in_dev,m_midi_out_dev);
-    return "Softube Console1";
+    return reaper.LocalizeString("Softube Console1", "csurf", 1);
 }
 
 fn GetConfigString() callconv(.C) [*]const u8 {
     const buffer: []u8 = &tmp;
     _ = std.fmt.bufPrint(buffer, "0 0 {d} {d}", .{ m_midi_in_dev.?, m_midi_out_dev.? }) catch {
-        return "";
+        std.debug.print("err: csurf console1 config string format\n", .{});
+        return "0 0 0 0";
     };
     return &tmp;
 }
@@ -133,9 +154,9 @@ export fn zRun() callconv(.C) void {
         c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
         const list = c.MidiIn_GetReadBuf(midi_in);
         var l: c_int = 0;
+        c.MidiOut_Send(m_midiout.?, 0xb, 0x34, 0x7f, -1);
         while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
-            l += 1;
-            OnMidiEvent(@alignCast(@ptrCast(evts)));
+            OnMidiEvent(evts);
         }
     }
 }

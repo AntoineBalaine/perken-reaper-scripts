@@ -55,3 +55,9 @@ protected:
   // delete only via the implementation pointer
   ~zMIDI_eventlist() override;
 };
+
+unsigned char *MIDI_event_message(MIDI_event_t *evt) {
+  return evt->midi_message;
+};
+
+int MIDI_event_size(MIDI_event_t *evt) { return evt->size; }
