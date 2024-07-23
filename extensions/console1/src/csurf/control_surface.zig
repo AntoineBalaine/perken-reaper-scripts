@@ -4,6 +4,7 @@ const reaper = Reaper.reaper;
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
 const State = @import("../internals/state.zig");
+const c1 = @import("../internals/c1.zig");
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
     @cInclude("csurf/control_surface_wrapper.h");
@@ -99,20 +100,12 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
 
     std.debug.print("0x{x}\t0x{x}\t0x{x}\n", .{ msg[0], cc_id, val });
     // std.debug.print("\n", .{});
-    // if (m_midiout) m_midiout->Send(0xa0,3,evt->midi_message[2],-1);
-    // c.MidiOut_Send(m_midiout.?, status, data1, data2, -1);
-    // switch (evt.midi_message[0]){
-    //     0xb0 =>{
-    //         if (evt.midi_message[1]==0){
-    //             m_faderport_lasthw=evt.midi_message[2];
-    //         } else if (evt.midi_message[1]==0x20){
-    //             const tr = reaper.CSurf_TrackFromID(trid,false);
-    //         }
-    //     },
-    //     0xa0 =>{},
-    //     0xe0=>{},
-    //     else=>{}
-    // }
+
+    //     reaper.CSurf_TrackToID(trackid,g_csurf_mcpmode);
+    //     reaper.CSurf_TrackFromID(idx: c_int, mcpView: bool);
+    //         reaper.GetTrackInfo(track: INT_PTR, flags: *c_int)
+    //         // use this when make
+    // reaper.TrackList_UpdateAllExternalSurfaces
 }
 
 fn GetTypeString() callconv(.C) [*]const u8 {
@@ -185,8 +178,7 @@ export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
 }
 export fn zSetSurfaceMute(trackid: *MediaTrack, mute: bool) callconv(.C) void {
     _ = trackid;
-    _ = mute;
-    // std.debug.print("SetSurfaceMute\n", .{});
+    c.MidiOut_Send(m_midiout, 0x8, c1.CCs.Out_mute, if (mute) 0x7f else 0x0, -1);
 }
 export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C) void {
     _ = trackid;
@@ -195,8 +187,7 @@ export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C)
 }
 export fn zSetSurfaceSolo(trackid: *MediaTrack, solo: bool) callconv(.C) void {
     _ = trackid;
-    _ = solo;
-    // std.debug.print("SetSurfaceSolo\n", .{});
+    c.MidiOut_Send(m_midiout, 0x8, c1.CCs.Out_solo, if (solo) 0x7f else 0x0, -1);
 }
 export fn zSetSurfaceRecArm(trackid: *MediaTrack, recarm: bool) callconv(.C) void {
     _ = trackid;
@@ -234,9 +225,16 @@ export fn zResetCachedVolPanStates() callconv(.C) void {
     // std.debug.print("ResetCachedVolPanStates\n", .{});
 }
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
-    _ = trackid;
     std.debug.print("OnTrackSelection\n", .{});
     // state.handleNewTrack(trackid);
+    // QUESTION: what does mcpView param do?
+    const id = reaper.CSurf_TracktoID(trackid, false);
+    if (m_bank_offset != id) {
+        // c1’s midi track ids go from 0x15 to 0x28
+        const c1_tr_id = (m_bank_offset % 20) + 0x15 - 1;
+        c.MidiOut_Send(m_midiout, 0x8, c1_tr_id, 0x0, -1); // set currently-selected to 0
+    }
+    m_bank_offset = id;
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;

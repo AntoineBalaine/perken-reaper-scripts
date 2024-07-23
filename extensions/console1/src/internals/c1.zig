@@ -328,7 +328,7 @@ pub const controller = std.EnumArray(Mode, Btns).init(.{
         .mute = null,
     }),
 });
-const console_controls = enum(u8) {
+pub const CCs = enum(u8) {
     Comp_Attack = 0x33,
     Comp_DryWet = 0x32,
     Comp_Ratio = 0x31,
