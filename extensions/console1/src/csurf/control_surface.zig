@@ -31,8 +31,8 @@ var m_button_states: i32 = 0;
 
 var m_buttonstate_lastrun: c.DWORD = 0;
 
-var testCC = 0;
-var testFrame = 0;
+var testCC: u8 = 0;
+var testFrame: u8 = 0;
 var testBlink: bool = false;
 
 fn iterCC() void {
@@ -46,12 +46,12 @@ fn iterCC() void {
     if (testFrame == 0) {
         testCC += 1;
         testBlink = !testBlink;
-        const onOff = if (testBlink) 0x7f else 0x0;
+        const onOff: u8 = if (testBlink) 0x0 else 0x0;
         c.MidiOut_Send(m_midiout, 0x8, testCC, onOff, -1);
         std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
     } else if (testFrame == 30) {
         testBlink = !testBlink;
-        const onOff = if (testBlink) 0x7f else 0x0;
+        const onOff: u8 = if (testBlink) 0x0 else 0x0;
         c.MidiOut_Send(m_midiout, 0x8, testCC, onOff, -1);
         std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
     }
