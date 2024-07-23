@@ -147,14 +147,13 @@ export fn zRun() callconv(.C) void {
         c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
         const list = c.MidiIn_GetReadBuf(midi_in);
         var l: c_int = 0;
-        c.MidiOut_Send(m_midiout.?, 0xb, 0x34, 0x7f, -1);
         while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
             OnMidiEvent(evts);
         }
     }
 }
 export fn zSetTrackListChange() callconv(.C) void {}
-export fn zSetSurfaceVolume(trackid: *MediaTrack, volume: f64) callconv(.C) void {
+export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
     // QUESTION: what's MCP view in csurf ?
     // QUESTION: what's the `FIXID` macro supposed to do ? reproducing it here, though.
     const oid = reaper.CSurf_TrackToID(trackid, false);
@@ -178,7 +177,8 @@ export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
 }
 export fn zSetSurfaceMute(trackid: *MediaTrack, mute: bool) callconv(.C) void {
     _ = trackid;
-    c.MidiOut_Send(m_midiout, 0x8, c1.CCs.Out_mute, if (mute) 0x7f else 0x0, -1);
+    const val = @intFromEnum(c1.CCs.Out_mute);
+    c.MidiOut_Send(m_midiout, 0x8, val, if (mute) 0x7f else 0x0, -1);
 }
 export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C) void {
     _ = trackid;
@@ -187,7 +187,7 @@ export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C)
 }
 export fn zSetSurfaceSolo(trackid: *MediaTrack, solo: bool) callconv(.C) void {
     _ = trackid;
-    c.MidiOut_Send(m_midiout, 0x8, c1.CCs.Out_solo, if (solo) 0x7f else 0x0, -1);
+    c.MidiOut_Send(m_midiout, 0x8, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
 }
 export fn zSetSurfaceRecArm(trackid: *MediaTrack, recarm: bool) callconv(.C) void {
     _ = trackid;
@@ -228,13 +228,16 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     std.debug.print("OnTrackSelection\n", .{});
     // state.handleNewTrack(trackid);
     // QUESTION: what does mcpView param do?
-    const id = reaper.CSurf_TracktoID(trackid, false);
+    const id = reaper.CSurf_TrackToID(trackid, false);
     if (m_bank_offset != id) {
         // c1’s midi track ids go from 0x15 to 0x28
-        const c1_tr_id = (m_bank_offset % 20) + 0x15 - 1;
-        c.MidiOut_Send(m_midiout, 0x8, c1_tr_id, 0x0, -1); // set currently-selected to 0
+
+        const c1_tr_id = @rem(m_bank_offset, 20) + 0x15 - 1;
+        c.MidiOut_Send(m_midiout, 0x8, @as(u8, @intCast(c1_tr_id)), 0x00, -1); // set currently-selected to 0
     }
     m_bank_offset = id;
+    const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
+    c.MidiOut_Send(m_midiout, 0x8, @as(u8, @intCast(new_cc)), 0x7f, -1); // set currently-selected to 0
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;

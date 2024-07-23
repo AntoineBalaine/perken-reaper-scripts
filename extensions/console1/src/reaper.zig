@@ -521,7 +521,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_TrackFromID: *fn (idx: c_int, mcpView: bool) callconv(.C) MediaTrack = undefined;
 
     /// CSurf_TrackToID
-    pub var CSurf_TrackToID: *fn (track: *MediaTrack, mcpView: bool) callconv(.C) c_int = undefined;
+    pub var CSurf_TrackToID: *fn (track: MediaTrack, mcpView: bool) callconv(.C) c_int = undefined;
 
     /// DB2SLIDER
     pub var DB2SLIDER: *fn (x: f64) callconv(.C) f64 = undefined;
