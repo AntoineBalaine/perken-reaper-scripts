@@ -27,10 +27,35 @@ var m_midiout: ?reaper.midi_Output = null;
 var m_vol_lastpos: i32 = -1000;
 var m_bank_offset: i32 = 0;
 var tmp: [512]u8 = undefined;
-
 var m_button_states: i32 = 0;
 
 var m_buttonstate_lastrun: c.DWORD = 0;
+
+var testCC = 0;
+var testFrame = 0;
+var testBlink: bool = false;
+
+fn iterCC() void {
+    testFrame += 1;
+    if (testFrame >= 60) { // reset frames once we get to 60 (== 2 second)
+        testFrame = 0;
+    }
+    if (testCC >= 123) { // reset CC to 0 once we get to the last CC control
+        testCC = 0;
+    }
+    if (testFrame == 0) {
+        testCC += 1;
+        testBlink = !testBlink;
+        const onOff = if (testBlink) 0x7f else 0x0;
+        c.MidiOut_Send(m_midiout, 0x8, testCC, onOff, -1);
+        std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
+    } else if (testFrame == 30) {
+        testBlink = !testBlink;
+        const onOff = if (testBlink) 0x7f else 0x0;
+        c.MidiOut_Send(m_midiout, 0x8, testCC, onOff, -1);
+        std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
+    }
+}
 
 var state: *State = undefined;
 // TODO : investigate whether the midioutput needs to be threaded
@@ -150,6 +175,7 @@ export fn zRun() callconv(.C) void {
         while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
             OnMidiEvent(evts);
         }
+        iterCC();
     }
 }
 export fn zSetTrackListChange() callconv(.C) void {}
