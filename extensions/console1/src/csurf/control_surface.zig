@@ -28,6 +28,8 @@ var m_vol_lastpos: i32 = -1000;
 var m_bank_offset: i32 = 0;
 var tmp: [512]u8 = undefined;
 var m_button_states: i32 = 0;
+var playState = false;
+var pauseState = false;
 
 var m_buttonstate_lastrun: c.DWORD = 0;
 
@@ -199,6 +201,19 @@ export fn zRun() callconv(.C) void {
         }
         iterCC();
     }
+    if (playState and !pauseState) {
+        if (m_midiout) |midiOut| {
+            const tr = reaper.CSurf_TrackFromID(m_bank_offset, false);
+            const left = reaper.Track_GetPeakInfo(tr, 1);
+            const right = reaper.Track_GetPeakInfo(tr, 2);
+            const left_midi: u8 = @truncate(left * 127);
+            const right_midi: u8 = @truncate(right * 127);
+            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
+            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
+            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
+            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
+        }
+    }
 }
 export fn zSetTrackListChange() callconv(.C) void {}
 export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
@@ -243,10 +258,18 @@ export fn zSetSurfaceRecArm(trackid: *MediaTrack, recarm: bool) callconv(.C) voi
     // std.debug.print("SetSurfaceRecArm\n", .{});
 }
 export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
-    _ = play;
-    _ = pause;
     _ = rec;
     // std.debug.print("SetPlayState\n", .{});
+    playState = play;
+    pauseState = pause;
+    if (!playState or pauseState) {
+        if (m_midiout) |midiOut| {
+            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
+            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
+            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
+            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
+        }
+    }
 }
 export fn zSetRepeatState(rep: bool) callconv(.C) void {
     _ = rep;
