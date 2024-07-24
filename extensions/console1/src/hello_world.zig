@@ -46,6 +46,7 @@ fn deinit() void {
 }
 
 export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
+    _ = instance; // autofix
     std.debug.print("entry\n", .{});
 
     if (rec == null or !reaper.init(rec.?)) {
@@ -54,7 +55,6 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         return 0;
     }
 
-    control_surface.g_hInst = instance;
     // init() catch {
     //     std.debug.print("catch\n", .{});
     //     return 0;

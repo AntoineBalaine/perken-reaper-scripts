@@ -17,14 +17,12 @@ const c = @cImport({
 });
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
-
-pub var g_hInst: reaper.HINSTANCE = undefined;
-
+const g_csurf_mcpmode = false;
 var m_midi_in_dev: ?c_int = null;
 var m_midi_out_dev: ?c_int = null;
 var m_midiin: ?*reaper.midi_Input = null;
 var m_midiout: ?reaper.midi_Output = null;
-var m_vol_lastpos: i32 = -1000;
+var m_vol_lastpos: u8 = 0;
 var m_bank_offset: i32 = 0;
 var tmp: [512]u8 = undefined;
 var m_button_states: i32 = 0;
@@ -65,32 +63,23 @@ fn iterCC() void {
 }
 
 var state: *State = undefined;
-// TODO : investigate whether the midioutput needs to be threaded
-// (this was the case in the faderport example)
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     m_midi_in_dev = indev;
     m_midi_out_dev = outdev;
     m_midiin = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
     m_midiout = if (outdev >= 0) c.CreateThreadedMIDIOutput(reaper.CreateMIDIOutput(outdev, false, null)) else null;
-    if (m_midiin == null or m_midiout == null) {
-        std.debug.print("in: {any}, out: {any}\n", .{ m_midiin, m_midiout });
-    }
     if (errStats) |errstats| {
         if (indev >= 0 and m_midiin == null) errstats.* |= 1;
         if (outdev >= 0 and m_midiout == null) errstats.* |= 2;
     }
     if (m_midiin) |midi_in| {
         c.MidiIn_start(midi_in);
-        c.MidiIn_start(midi_in);
     }
-    if (m_midiout) |midi_out| {
-        c.MidiOut_Send(midi_out, 0xb0, 0x00, 0x06, -1);
-        c.MidiOut_Send(midi_out, 0xb0, 0x20, 0x27, -1);
-        for (0..0x30) |x| { // lights out
-            c.MidiOut_Send(midi_out, 0xa0, @as(u8, @intCast(x)), 0x00, -1);
-        }
-        c.MidiOut_Send(midi_out, 0x91, 0x00, 0x64, -1);
-    }
+    // if (m_midiout) |midi_out| {
+    //     inline for (std.meta.fields(c1.CCs)) |f| {
+    //         outW(midi_out, 0x8, f.value, 0x0, -1);
+    //     }
+    // }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     my_csurf = myCsurf;
     return myCsurf;
@@ -98,15 +87,20 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 
 pub fn deinit(csurf: c.C_ControlSurface) void {
     if (m_midiout) |midi_out| {
-        for (0..0x30) |x| { // lights out
-            c.MidiOut_Send(midi_out, 0xa0, @as(u8, @intCast(x)), 0x00, -1);
+        // lights off
+        inline for (std.meta.fields(c1.CCs)) |f| {
+            outW(midi_out, 0x8, f.value, 0x0, -1);
         }
     }
 
-    c.MidiOut_Destroy(m_midiout.?);
-    c.MidiIn_Destroy(m_midiin.?);
-    m_midiout = null;
-    m_midiin = null;
+    if (m_midiout) |midi_out| {
+        c.MidiOut_Destroy(midi_out);
+        m_midiout = null;
+    }
+    if (m_midiin) |midi_in| {
+        c.MidiIn_Destroy(midi_in);
+        m_midiin = null;
+    }
     c.ControlSurface_Destroy(csurf);
 }
 
@@ -185,45 +179,54 @@ export fn zRun() callconv(.C) void {
     }
     if (playState and !pauseState) {
         if (m_midiout) |midiOut| {
-            const tr = reaper.CSurf_TrackFromID(m_bank_offset, false);
+            const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
             const left = reaper.Track_GetPeakInfo(tr, 1);
             const right = reaper.Track_GetPeakInfo(tr, 2);
             const left_midi: u8 = @intFromFloat(left * 127);
             const right_midi: u8 = @intFromFloat(right * 127);
-            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
-            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
-            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
-            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
+            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
+            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
         }
     }
 }
 export fn zSetTrackListChange() callconv(.C) void {}
-export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
-    // QUESTION: what's MCP view in csurf ?
-    // QUESTION: what's the `FIXID` macro supposed to do ? reproducing it here, though.
-    const oid = reaper.CSurf_TrackToID(trackid, false);
-    const id = oid - m_bank_offset;
 
-    if (m_midiout != null and id == 0) {
-        var volint = volToInt14(volume);
-        // QUESTION: What happens in cpp when you divid an int by 16 ?
-        volint = @divTrunc(volint, 16);
+inline fn FIXID(trackid: MediaTrack) c_int {
+    const oid = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
+    return oid - m_bank_offset;
+}
+
+export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
+    _ = trackid; // autofix
+    // FIXME: what's the id check for in the sdk examples?
+    // is meant to prevent using the csurf with the master track?
+    // const id = FIXID(trackid);
+    // _ = id; // autofix
+    if (m_midiout) |midiout| {
+        const volint: u8 = @intFromFloat((volume * 127) / 4); // tr volumes are 0.0-4.0
         if (m_vol_lastpos != volint) {
             m_vol_lastpos = volint;
-            c.MidiOut_Send(m_midiout.?, 0xb0, 0x00, @as(u8, @intCast(volint >> 7)), -1);
-            c.MidiOut_Send(m_midiout.?, 0xb0, 0x20, @as(u8, @intCast(volint & 127)), -1);
+            outW(midiout, 0xb, @intFromEnum(c1.CCs.Out_Vol), volint, -1);
         }
     }
 }
+
+// pan is btw -1.0 and 1.0
 export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
-    _ = trackid;
-    _ = pan;
-    // std.debug.print("SetSurfacePan\n", .{});
+    _ = trackid; // autofix
+    if (m_midiout) |midiout| {
+        // shift the range from [−1,1] to [0,2]
+        // scale the range from [0,2] to [0,1]
+        // scale the range from [0,1] to [0,127]
+        const val: u8 = @intFromFloat((pan + 1) / 2 * 127);
+        outW(midiout, 0x8, @intFromEnum(c1.CCs.Out_Pan), val, -1);
+    }
 }
 export fn zSetSurfaceMute(trackid: *MediaTrack, mute: bool) callconv(.C) void {
     _ = trackid;
-    const val = @intFromEnum(c1.CCs.Out_mute);
-    c.MidiOut_Send(m_midiout, 0x8, val, if (mute) 0x7f else 0x0, -1);
+    if (m_midiout) |midiout| {
+        outW(midiout, 0x8, @intFromEnum(c1.CCs.Out_mute), if (mute) 0x7f else 0x0, -1);
+    }
 }
 export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C) void {
     _ = trackid;
@@ -232,103 +235,103 @@ export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C)
 }
 export fn zSetSurfaceSolo(trackid: *MediaTrack, solo: bool) callconv(.C) void {
     _ = trackid;
-    c.MidiOut_Send(m_midiout, 0x8, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
+    if (m_midiout) |midiout| {
+        outW(midiout, 0x8, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
+    }
 }
 export fn zSetSurfaceRecArm(trackid: *MediaTrack, recarm: bool) callconv(.C) void {
     _ = trackid;
     _ = recarm;
-    // std.debug.print("SetSurfaceRecArm\n", .{});
 }
 export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     _ = rec;
-    // std.debug.print("SetPlayState\n", .{});
     playState = play;
     pauseState = pause;
     if (!playState or pauseState) {
         if (m_midiout) |midiOut| {
-            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
-            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
-            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
-            c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
+            // set meters to zero when not playing
+            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Inpt_MtrLft), 0x0, -1);
+            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Inpt_MtrRgt), 0x0, -1);
+            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
+            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
         }
     }
 }
 export fn zSetRepeatState(rep: bool) callconv(.C) void {
     _ = rep;
-    // std.debug.print("SetRepeatState\n", .{});
 }
 export fn zSetTrackTitle(trackid: *MediaTrack, title: [*]const u8) callconv(.C) void {
     _ = trackid;
     _ = title;
-    // std.debug.print("SetTrackTitle\n", .{});
 }
 export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
     _ = trackid;
     _ = isPan;
-    std.debug.print("GetTouchState\n", .{});
     return false;
 }
 export fn zSetAutoMode(mode: c_int) callconv(.C) void {
     _ = mode;
-
-    // std.debug.print("SetAutoMode\n", .{});
 }
+
 export fn zResetCachedVolPanStates() callconv(.C) void {
-    m_vol_lastpos = -1000;
-    // std.debug.print("ResetCachedVolPanStates\n", .{});
+    m_vol_lastpos = 0;
 }
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     std.debug.print("OnTrackSelection\n", .{});
     // state.handleNewTrack(trackid);
     // QUESTION: what does mcpView param do?
-    const id = reaper.CSurf_TrackToID(trackid, false);
+    const id = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
     if (m_bank_offset != id) {
+        m_bank_offset = id;
         // c1’s midi track ids go from 0x15 to 0x28
-
-        const c1_tr_id = @rem(m_bank_offset, 20) + 0x15 - 1;
-        c.MidiOut_Send(m_midiout, 0x8, @as(u8, @intCast(c1_tr_id)), 0x00, -1); // set currently-selected to 0
+        const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1));
+        // turnoff currently-selected track's lights
+        if (m_midiout) |midiout| {
+            outW(midiout, 0x8, c1_tr_id, 0x0, -1);
+        }
     }
-    m_bank_offset = id;
-    const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
-    c.MidiOut_Send(m_midiout, 0x8, @as(u8, @intCast(new_cc)), 0x7f, -1); // set currently-selected to 0
+    if (m_midiout) |midiout| {
+        const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
+        outW(midiout, 0x8, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
+    }
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;
-    // std.debug.print("IsKeyDown\n",.{});
     return false;
 }
 export fn zExtended(call: c_int, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {
+    _ = call; // autofix
     _ = parm1;
     _ = parm2;
     _ = parm3;
     // std.debug.print("Extended\n", .{});
-    switch (call) {
-        0x0001FFFF => std.debug.print("CSURF_EXT_RESET\n", .{}), // clear all surface state and reset (harder reset than SetTrackListChange)
-        0x00010001 => std.debug.print("CSURF_EXT_SETINPUTMONITOR\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recmonitor
-        0x00010002 => std.debug.print("CSURF_EXT_SETMETRONOME\n", .{}), // parm1=0 to disable metronome, !0 to enable
-        0x00010003 => std.debug.print("CSURF_EXT_SETAUTORECARM\n", .{}), // parm1=0 to disable autorecarm, !0 to enable
-        0x00010004 => std.debug.print("CSURF_EXT_SETRECMODE\n", .{}), // parm1=(int*)record mode: 0=autosplit and create takes, 1=replace (tape) mode
-        0x00010005 => std.debug.print("CSURF_EXT_SETSENDVOLUME\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)sendidx, parm3=(double*)volume
-        0x00010006 => std.debug.print("CSURF_EXT_SETSENDPAN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)sendidx, parm3=(double*)pan
-        0x00010007 => std.debug.print("CSURF_EXT_SETFXENABLED\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if bypassed, !0 if enabled
-        0x00010008 => std.debug.print("CSURF_EXT_SETFXPARAM\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)(fxidx<<16|paramidx), parm3=(double*)normalized value
-        0x00010018 => std.debug.print("CSURF_EXT_SETFXPARAM_RECFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)(fxidx<<16|paramidx), parm3=(double*)normalized value
-        0x00010009 => std.debug.print("CSURF_EXT_SETBPMANDPLAYRATE\n", .{}), // parm1=*(double*)bpm (may be NULL), parm2=*(double*)playrate (may be NULL)
-        0x0001000A => std.debug.print("CSURF_EXT_SETLASTTOUCHEDFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear last touched FX
-        0x0001000B => std.debug.print("CSURF_EXT_SETFOCUSEDFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear focused FX
-        0x0001000C => std.debug.print("CSURF_EXT_SETLASTTOUCHEDTRACK\n", .{}), // parm1=(MediaTrack*)track
-        0x0001000D => std.debug.print("CSURF_EXT_SETMIXERSCROLL\n", .{}), // parm1=(MediaTrack*)track, leftmost track visible in the mixer
-        0x0001000E => std.debug.print("CSURF_EXT_SETPAN_EX\n", .{}), // parm1=(MediaTrack*)track, parm2=(double*)pan, parm3=(int*)mode 0=v1-3 balance, 3=v4+ balance, 5=stereo pan, 6=dual pan. for modes 5 and 6, (double*)pan points to an array of two doubles.  if a csurf supports CSURF_EXT_SETPAN_EX, it should ignore CSurf_SetSurfacePan.
-        0x00010010 => std.debug.print("CSURF_EXT_SETRECVVOLUME\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recvidx, parm3=(double*)volume
-        0x00010011 => std.debug.print("CSURF_EXT_SETRECVPAN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recvidx, parm3=(double*)pan
-        0x00010012 => std.debug.print("CSURF_EXT_SETFXOPEN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if UI closed, !0 if open
-        0x00010013 => std.debug.print("CSURF_EXT_SETFXCHANGE\n", .{}), // parm1=(MediaTrack*)track, whenever FX are added, deleted, or change order. flags=(INT_PTR)parm2, &1=rec fx
-        0x00010014 => std.debug.print("CSURF_EXT_SETPROJECTMARKERCHANGE\n", .{}), // whenever project markers are changed
-        0x00010015 => std.debug.print("CSURF_EXT_TRACKFX_PRESET_CHANGED\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx (6.13+ probably)
-        0x00080001 => std.debug.print("CSURF_EXT_SUPPORTS_EXTENDED_TOUCH\n", .{}), // returns nonzero if GetTouchState can take isPan=2 for width, etc
-        0x00010099 => std.debug.print("CSURF_EXT_MIDI_DEVICE_REMAP\n", .{}), // parm1 = isout, parm2 = old idx, parm3 = new idx
-        else => unreachable,
-    }
+    // switch (call) {
+    //     0x0001FFFF => std.debug.print("CSURF_EXT_RESET\n", .{}), // clear all surface state and reset (harder reset than SetTrackListChange)
+    //     0x00010001 => std.debug.print("CSURF_EXT_SETINPUTMONITOR\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recmonitor
+    //     0x00010002 => std.debug.print("CSURF_EXT_SETMETRONOME\n", .{}), // parm1=0 to disable metronome, !0 to enable
+    //     0x00010003 => std.debug.print("CSURF_EXT_SETAUTORECARM\n", .{}), // parm1=0 to disable autorecarm, !0 to enable
+    //     0x00010004 => std.debug.print("CSURF_EXT_SETRECMODE\n", .{}), // parm1=(int*)record mode: 0=autosplit and create takes, 1=replace (tape) mode
+    //     0x00010005 => std.debug.print("CSURF_EXT_SETSENDVOLUME\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)sendidx, parm3=(double*)volume
+    //     0x00010006 => std.debug.print("CSURF_EXT_SETSENDPAN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)sendidx, parm3=(double*)pan
+    //     0x00010007 => std.debug.print("CSURF_EXT_SETFXENABLED\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if bypassed, !0 if enabled
+    //     0x00010008 => std.debug.print("CSURF_EXT_SETFXPARAM\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)(fxidx<<16|paramidx), parm3=(double*)normalized value
+    //     0x00010018 => std.debug.print("CSURF_EXT_SETFXPARAM_RECFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)(fxidx<<16|paramidx), parm3=(double*)normalized value
+    //     0x00010009 => std.debug.print("CSURF_EXT_SETBPMANDPLAYRATE\n", .{}), // parm1=*(double*)bpm (may be NULL), parm2=*(double*)playrate (may be NULL)
+    //     0x0001000A => std.debug.print("CSURF_EXT_SETLASTTOUCHEDFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear last touched FX
+    //     0x0001000B => std.debug.print("CSURF_EXT_SETFOCUSEDFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear focused FX
+    //     0x0001000C => std.debug.print("CSURF_EXT_SETLASTTOUCHEDTRACK\n", .{}), // parm1=(MediaTrack*)track
+    //     0x0001000D => std.debug.print("CSURF_EXT_SETMIXERSCROLL\n", .{}), // parm1=(MediaTrack*)track, leftmost track visible in the mixer
+    //     0x0001000E => std.debug.print("CSURF_EXT_SETPAN_EX\n", .{}), // parm1=(MediaTrack*)track, parm2=(double*)pan, parm3=(int*)mode 0=v1-3 balance, 3=v4+ balance, 5=stereo pan, 6=dual pan. for modes 5 and 6, (double*)pan points to an array of two doubles.  if a csurf supports CSURF_EXT_SETPAN_EX, it should ignore CSurf_SetSurfacePan.
+    //     0x00010010 => std.debug.print("CSURF_EXT_SETRECVVOLUME\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recvidx, parm3=(double*)volume
+    //     0x00010011 => std.debug.print("CSURF_EXT_SETRECVPAN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recvidx, parm3=(double*)pan
+    //     0x00010012 => std.debug.print("CSURF_EXT_SETFXOPEN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if UI closed, !0 if open
+    //     0x00010013 => std.debug.print("CSURF_EXT_SETFXCHANGE\n", .{}), // parm1=(MediaTrack*)track, whenever FX are added, deleted, or change order. flags=(INT_PTR)parm2, &1=rec fx
+    //     0x00010014 => std.debug.print("CSURF_EXT_SETPROJECTMARKERCHANGE\n", .{}), // whenever project markers are changed
+    //     0x00010015 => std.debug.print("CSURF_EXT_TRACKFX_PRESET_CHANGED\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx (6.13+ probably)
+    //     0x00080001 => std.debug.print("CSURF_EXT_SUPPORTS_EXTENDED_TOUCH\n", .{}), // returns nonzero if GetTouchState can take isPan=2 for width, etc
+    //     0x00010099 => std.debug.print("CSURF_EXT_MIDI_DEVICE_REMAP\n", .{}), // parm1 = isout, parm2 = old idx, parm3 = new idx
+    //     else => unreachable,
+    // }
     return 0;
 }
 
@@ -340,18 +343,7 @@ inline fn VAL2DB(x: f64) f64 {
     return if (v < -150.0) -150.0 else v;
 }
 
-pub fn volToInt14(vol: f64) i32 {
-    var d = (reaper.DB2SLIDER(VAL2DB(vol)) * 16383.0 / 1000.0);
-    if (d < 0.0) {
-        d = 0.0;
-    } else if (d > 16383.0) {
-        d = 16383.0;
-    }
-    return @intFromFloat(d + 0.5);
-}
-
 fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, lparam: c.LPARAM) c.LRESULT {
-    // c.SendDlgItemMessage()
     return c.SendMessage.?(c.GetDlgItem.?(hwnd, idx), msg, wparam, lparam);
 }
 
@@ -437,7 +429,6 @@ pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [
     // const cast: c.LPARAM = @intCast(initConfigString);
 
     return c.SWELL_CreateDialog.?(c.SWELL_curmodule_dialogresource_head, makeIntResource(c.IDD_SURFACEEDIT_MCU), parent, &dlgProc, cast);
-    // return c.CreateDialogParam.?(g_hInst, makeIntResource(c.IDD_SURFACEEDIT_MCU), parent, &dlgProc, cast);
 }
 
 fn parseParms(str: [*c]const c_char, parms: *[4]i32) void {
