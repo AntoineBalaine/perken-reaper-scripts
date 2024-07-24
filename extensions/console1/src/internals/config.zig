@@ -93,7 +93,7 @@ fn readConf(self: *Conf, allocator: std.mem.Allocator, cntrlrPth: []const u8) !v
     var defaultsParser = ini.parse(allocator, defaultsFile.reader());
     defer defaultsParser.deinit();
 
-    try ini.readToEnumArray(&self.defaults, ModulesList, &defaultsParser, allocator, null);
+    try readToEnumArray(&self.defaults, ModulesList, &defaultsParser, allocator, null);
 
     const modulesPath = try std.fs.path.resolve(allocator, &.{ cntrlrPth, "./resources/modules.ini" });
     defer allocator.free(modulesPath);
@@ -103,7 +103,66 @@ fn readConf(self: *Conf, allocator: std.mem.Allocator, cntrlrPth: []const u8) !v
     var modulesParser = ini.parse(allocator, modulesFile.reader());
     defer modulesParser.deinit();
 
-    try ini.readToEnumArray(&self.modules, ModulesList, &modulesParser, allocator, &self.modulesList);
+    try readToEnumArray(&self.modules, ModulesList, &modulesParser, allocator, &self.modulesList);
+}
+
+pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator, modulesList: ?*std.StringHashMap(Or_enum)) !void {
+    const T = @TypeOf(enum_arr.*);
+    std.debug.assert(@typeInfo(T) == .Struct);
+    std.debug.assert(@typeInfo(Or_enum) == .Enum);
+
+    // replace with parent enum
+    var cur_section: ?Or_enum = null;
+
+    while (try parser.*.next()) |record| {
+        switch (record) {
+            .section => |heading| {
+                // fit the enum
+                const head_val = std.meta.stringToEnum(Or_enum, heading);
+                if (head_val != null) {
+                    cur_section = head_val;
+                }
+            },
+            .property => {},
+            .enumeration => |value| {
+                var it = enum_arr.*.iterator();
+                var i: usize = 0;
+                while (it.next() != null) : (i += 1) {
+                    if (cur_section == null) {
+                        continue;
+                    }
+                    const idx = T.Indexer.indexOf(cur_section.?);
+                    if (i != idx) {
+                        continue;
+                    }
+                    std.debug.print("in loop\n", .{});
+
+                    const innerArray = enum_arr.get(cur_section.?);
+                    const X = @TypeOf(innerArray);
+                    if (X == std.ArrayList([]const u8) or X == std.ArrayList([]u8)) {
+                        const value_copy = try allocator.dupe(u8, value);
+                        var inn = enum_arr.getPtr(cur_section.?);
+                        try inn.append(value_copy);
+                    } else if (X == std.StringHashMap(void)) {
+                        const value_copy = try allocator.dupeZ(u8, value);
+                        var inn = enum_arr.getPtr(cur_section.?);
+                        try inn.put(value_copy, {});
+                        // FIXME: maybe this should have a dedicated match arm
+                        if (modulesList != null) {
+                            try modulesList.?.put(value_copy, cur_section.?);
+                        }
+                    } else if (X == [:0]const u8) {
+                        std.debug.print("val: {s}\n", .{value});
+                        const value_copy = try allocator.dupeZ(u8, value);
+                        enum_arr.set(cur_section.?, value_copy);
+                    } else {
+                        std.debug.print("\nfailed\n", .{});
+                        return error.NotConvertible;
+                    }
+                }
+            },
+        }
+    }
 }
 
 test readConf {
