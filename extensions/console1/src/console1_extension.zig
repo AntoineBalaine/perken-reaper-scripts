@@ -34,7 +34,7 @@ fn init() !void {
     conf = try config.init(gpa, controller_dir);
     errdefer conf.deinit(gpa);
     userSettings = UserSettings.init(gpa, controller_dir);
-    state = try State.init(gpa, userSettings);
+    state = try State.init(gpa);
 
     control_surface.state = state;
     control_surface.conf = conf;

@@ -34,7 +34,7 @@ pub const Track = struct {
     }
 
     /// if container_idx is provided, then load the chain into it.
-    pub fn loadDefaultChain(self: *Track, container_idx: ?c_int, defaults: std.EnumArray(ModulesList, []const u8)) !void {
+    fn loadDefaultChain(self: *Track, container_idx: ?c_int, defaults: std.EnumArray(ModulesList, []const u8)) !void {
         var cont_idx: c_int = undefined;
         if (container_idx == null) {
             cont_idx = reaper.TrackFX_AddByName(self.ptr.?, "container", false, -1);
@@ -92,8 +92,9 @@ pub const Track = struct {
             .SAT = .{ false, 4 },
         });
         for (0..count - 1) |idx| {
-            const cntr_rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, std.fmt.bufPrint("container_item.{d}", idx), buffer, buffer.len);
-            _ = cntr_rv; // autofix
+            const container_rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, std.fmt.bufPrint("container_item.{d}", idx), buffer, buffer.len);
+            // FIXME: this should be checked
+            _ = container_rv; // autofix
 
             const fx_name: [128]u8 = undefined;
             const fx_name_buffer: []u8 = &memory;
