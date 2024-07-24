@@ -37,7 +37,7 @@ fn init() !void {
 
 fn deinit() void {
     std.debug.print("Deinit\n", .{});
-    // control_surface.deinit(myCsurf);
+    control_surface.deinit(myCsurf);
     try state.deinit(gpa);
     const deinit_status = gpa_int.deinit();
     if (deinit_status == .leak) {

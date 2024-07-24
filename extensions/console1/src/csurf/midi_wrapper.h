@@ -39,6 +39,8 @@ int MIDI_event_size(MIDI_event_t *evt);
 
 unsigned char *MIDI_event_message(MIDI_event_t *evt);
 
+midi_Output_w CreateThreadedMIDIOutput(midi_Output_w output);
+
 #ifdef __cplusplus
 }
 #endif

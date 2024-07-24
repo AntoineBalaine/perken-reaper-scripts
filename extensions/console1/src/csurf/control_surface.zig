@@ -28,9 +28,7 @@ var m_vol_lastpos: i32 = -1000;
 var m_bank_offset: i32 = 0;
 var tmp: [512]u8 = undefined;
 var m_button_states: i32 = 0;
-var playState = false;
-var pauseState = false;
-
+var my_csurf: c.C_ControlSurface = undefined;
 var m_buttonstate_lastrun: c.DWORD = 0;
 
 var testCC: u8 = 0x6d;
@@ -88,7 +86,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     m_midi_in_dev = indev;
     m_midi_out_dev = outdev;
     m_midiin = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
-    m_midiout = if (outdev >= 0) reaper.CreateMIDIOutput(outdev, false, null) else null;
+    m_midiout = if (outdev >= 0) c.CreateThreadedMIDIOutput(reaper.CreateMIDIOutput(outdev, false, null)) else null;
     if (m_midiin == null or m_midiout == null) {
         std.debug.print("in: {any}, out: {any}\n", .{ m_midiin, m_midiout });
     }
@@ -109,6 +107,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         c.MidiOut_Send(midi_out, 0x91, 0x00, 0x64, -1);
     }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
+    my_csurf = myCsurf;
     return myCsurf;
 }
 
@@ -119,8 +118,10 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
         }
     }
 
-    c.DELETE_ASYNC(m_midiout.?);
-    c.DELETE_ASYNC(m_midiin.?);
+    c.MidiOut_Destroy(m_midiout.?);
+    c.MidiIn_Destroy(m_midiin.?);
+    m_midiout = null;
+    m_midiin = null;
     c.ControlSurface_Destroy(csurf);
 }
 
@@ -182,14 +183,8 @@ export const zGetDescString = &GetDescString;
 export const zGetConfigString = &GetConfigString;
 
 export fn zCloseNoReset() callconv(.C) void {
-    if (m_midiout) |midi_out| {
-        c.MidiOut_Destroy(midi_out);
-    }
-    if (m_midiin) |midi_in| {
-        c.MidiIn_Destroy(midi_in);
-    }
-    m_midiout = null;
-    m_midiin = null;
+    std.debug.print("CloseNoReset\n", .{});
+    deinit(my_csurf);
 }
 export fn zRun() callconv(.C) void {
     if (m_midiin) |midi_in| {
@@ -200,6 +195,8 @@ export fn zRun() callconv(.C) void {
             OnMidiEvent(evts);
         }
         iterCC();
+    } else {
+        std.debug.print("no midi in\n", .{});
     }
     if (playState and !pauseState) {
         if (m_midiout) |midiOut| {
