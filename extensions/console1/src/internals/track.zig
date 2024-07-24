@@ -28,33 +28,33 @@ pub const Track = struct {
         self.order = .@"S-EQ-C";
     }
 
-    fn getSubContainerIdx(self: *Track, subidx: u8, container_idx: c_int, fx_count: ?c_int) u32 {
-        if (fx_count == null) fx_count = reaper.TrackFX_GetCount(self.ptr);
-        return 0x2000000 + (fx_count.? + 1) * subidx + container_idx;
+    fn getSubContainerIdx(self: *Track, subidx: u8, container_idx: c_int, fx_count: ?c_int) c_int {
+        const fx_cnt = if (fx_count) |count| count else reaper.TrackFX_GetCount(self.ptr.?);
+        return 0x2000000 + (fx_cnt + 1) * subidx + container_idx;
     }
 
     /// if container_idx is provided, then load the chain into it.
     fn loadDefaultChain(self: *Track, container_idx: ?c_int, defaults: *std.EnumArray(ModulesList, [:0]const u8)) !void {
         var cont_idx: c_int = undefined;
-        if (container_idx == null) {
+        if (container_idx) |idx| {
+            cont_idx = idx;
+        } else {
             cont_idx = reaper.TrackFX_AddByName(self.ptr.?, "container", false, -1);
             if (cont_idx == -1) {
                 return TrckErr.fxAddFail;
             }
             // rename the container
-            reaper.TrackFX_SetNamedConfigParm(self.ptr.?, cont_idx, "renamed_name", CONTROLLER_NAME);
-        } else {
-            cont_idx = container_idx.?;
+            _ = reaper.TrackFX_SetNamedConfigParm(self.ptr.?, cont_idx, "renamed_name", CONTROLLER_NAME);
         }
 
-        const fx_count = reaper.TrackFX_GetCount(self.ptr);
+        const fx_count = reaper.TrackFX_GetCount(self.ptr.?);
 
         // push them into the current container.
-        const iterator = defaults.iterator();
-        var idx = 0;
+        var iterator = defaults.iterator();
+        var idx: u8 = 0;
         while (iterator.next()) |field| : (idx += 1) {
-            // FIXME: what are we getting back as a key from the iterator? enum variants or array indexes?
-            reaper.TrackFX_AddByName(self.ptr.?, defaults.get(field.key), false, self.getSubContainerIdx(idx, cont_idx, fx_count));
+            const v = defaults.get(field.key);
+            _ = reaper.TrackFX_AddByName(self.ptr.?, @as([*:0]const u8, v), false, self.getSubContainerIdx(idx, cont_idx, fx_count));
         }
     }
 
@@ -65,23 +65,24 @@ pub const Track = struct {
         const tr = self.ptr.?;
         const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
         if (container_idx == -1) {
-            try self.loadDefaultChain(null);
+            try self.loadDefaultChain(null, defaults);
             return;
         }
         var isDirty = false;
-        var memory: [1024]u8 = undefined;
-        var buffer: []u8 = &memory;
-        const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buffer, buffer.len);
+        // var memory: [1024]u8 = undefined;
+        // var buffer: []u8 = &memory;
+        var buf: [255:0]u8 = undefined;
+        const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
         if (!rv) {
-            try self.loadDefaultChain(container_idx);
+            try self.loadDefaultChain(container_idx, defaults);
             return;
         }
-        const count = try std.fmt.parseInt(i32, buffer, 10);
-        const fieldsLen = @typeInfo(ModulesList).fields.len;
+        const count = try std.fmt.parseInt(i32, &buf, 10);
+        const fieldsLen = @typeInfo(ModulesList).Enum.fields.len;
         if (count != fieldsLen) {
             // container's dirty, invalidate and reload
-            reaper.TrackFX_Delete(tr, container_idx);
-            try self.loadDefaultChain(null);
+            _ = reaper.TrackFX_Delete(tr, container_idx);
+            try self.loadDefaultChain(null, defaults);
             return;
         }
         var moduleChecks = ModuleCheck.init(.{
@@ -91,22 +92,24 @@ pub const Track = struct {
             .COMP = .{ false, 3 },
             .SAT = .{ false, 4 },
         });
-        for (0..count - 1) |idx| {
-            const container_rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, std.fmt.bufPrint("container_item.{d}", idx), buffer, buffer.len);
+        // NOTE: might need to check this needs to be count-1
+        for (0..@as(usize, @intCast(count))) |idx| {
+            var container_buf: [255:0]u8 = undefined;
+            _ = try std.fmt.bufPrint(&container_buf, "container_item.{d}", .{idx});
+            const container_rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, @as([*:0]const u8, &container_buf), &buf, buf.len + 1);
             // FIXME: this should be checked
             _ = container_rv; // autofix
 
-            const fx_name: [128]u8 = undefined;
-            const fx_name_buffer: []u8 = &memory;
-            const has_name = reaper.TrackFX_GetFXName(tr, container_idx, fx_name, fx_name_buffer.len);
+            var fx_name: [128:0]u8 = undefined;
+            const has_name = reaper.TrackFX_GetFXName(tr, container_idx, @as([*:0]u8, &fx_name), fx_name.len + 1);
             if (!has_name) {
                 continue;
             }
             // if fx is found in config, it’s valid.
-            const moduleType = modules.get(fx_name) orelse continue;
+            const moduleType = modules.get(&fx_name) orelse continue;
             var modcheck = moduleChecks.get(moduleType);
             modcheck[0] = true;
-            modcheck[1] = @as(u8, idx);
+            modcheck[1] = @as(u8, @intCast(idx));
             switch (moduleType) {
                 .INPUT => {
                     if (idx != 0) isDirty = true;
@@ -122,43 +125,45 @@ pub const Track = struct {
                 const subidx = moduleChecks.get(.INPUT)[1];
                 reaper.TrackFX_CopyToTrack(
                     tr,
-                    self.getSubContainerIdx(tr, subidx, container_idx, null),
+                    self.getSubContainerIdx(subidx, container_idx, null),
                     tr,
 
-                    self.getSubContainerIdx(tr, 0, container_idx, null),
+                    self.getSubContainerIdx(0, container_idx, null),
+                    true,
                 );
                 // now that the fx indexes are all invalid, let's recurse.
-                return try self.checkTrackState(modules);
+                return try self.checkTrackState(modules, defaults);
             }
 
             if (moduleChecks.get(.SAT)[1] != 0) {
                 const subidx = moduleChecks.get(.SAT)[1];
                 reaper.TrackFX_CopyToTrack(
                     tr,
-                    self.getSubContainerIdx(tr, subidx, container_idx, null),
+                    self.getSubContainerIdx(subidx, container_idx, null),
                     tr,
 
-                    self.getSubContainerIdx(tr, @typeInfo(ModulesList).fields.len, container_idx, null),
+                    self.getSubContainerIdx(@typeInfo(ModulesList).Enum.fields.len, container_idx, null),
+                    true,
                 );
                 // now that the fx indexes are all invalid, let's recurse.
-                return try self.checkTrackState(modules);
+                return try self.checkTrackState(modules, defaults);
             }
         }
 
         // for each missing module, insert it in the correct position
-        const it = moduleChecks.iterator();
+        var it = moduleChecks.iterator();
         while (it.next()) |moduleCheck| {
             if (!moduleCheck.value[0]) {
                 // TODO: config validation should make sure this can never be empty
                 const defaultForModule = defaults.get(moduleCheck.key);
                 const fx_idx = reaper.TrackFX_AddByName(tr, defaultForModule, false, -1);
-                reaper.TrackFX_CopyToTrack(tr, fx_idx, tr, self.getSubContainerIdx(moduleCheck.value[1], container_idx), true);
+                reaper.TrackFX_CopyToTrack(tr, fx_idx, tr, self.getSubContainerIdx(moduleCheck.value[1], container_idx, null), true);
             }
         }
         var order: ModulesOrder = undefined;
         if (moduleChecks.get(.EQ)[1] == 1 and moduleChecks.get(.GATE)[1] == 2 and moduleChecks.get(.COMP)[1] == 3) {
             order = .@"EQ-S-C";
-        } else if (moduleChecks.get(.GATE)[1] == 1 and moduleChecks.get(.COMP)[1] == 2 and moduleChecks.EQ[2] == 3) {
+        } else if (moduleChecks.get(.GATE)[1] == 1 and moduleChecks.get(.COMP)[1] == 2 and moduleChecks.get(.EQ)[1] == 3) {
             order = .@"EQ-S-C";
         } else {
             order = .@"S-EQ-C";
