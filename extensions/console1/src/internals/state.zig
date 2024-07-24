@@ -31,7 +31,6 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: []const u8, user_setti
     errdefer {
         self.actionIds.deinit();
     }
-    try registerButtonActions(&self, allocator);
     return self;
 }
 
@@ -40,31 +39,10 @@ pub fn deinit(self: *State, allocator: std.mem.Allocator) !void {
     self.actionIds.deinit();
 }
 
-///there's 1 realearn instance per module,
-///so query the three instances
-///and store them.
-///@return number|nil index
-fn getRealearnInstance() ?u8 {
-    const master = reaper.GetMasterTrack(0);
-    const inst = controller.c1;
-
-    for (inst.modules) |module| {
-        const idx = reaper.TrackFX_AddByName(master, module, true, 1);
-        if (idx == -1) {
-            reaper.MB("failed to load realearn instance", "Couldn't load the realearn instance", 2);
-            return null;
-        }
-        if (module.idx == null or module.idx != idx) {
-            module.idx = reaper.TrackFX_GetByName(master, module, false);
-        }
-    }
-}
 pub fn handleNewTrack(self: *State, trackid: reaper.MediaTrack) void {
-    // get realearn instances
     // update track
     // validate channel strip
     // load channel strip
-    // load matching preset into realearn
 
     if (self.track != null) {
         var tr = self.track.?;
@@ -73,30 +51,6 @@ pub fn handleNewTrack(self: *State, trackid: reaper.MediaTrack) void {
     const new_track: Track = Track.init(trackid);
     self.track = new_track;
     @panic("new_track logic not implemented yet");
-}
-
-/// register the controller’s buttons as actions in reaper’s actions list
-/// and load them into state.actionIds’ map.
-///
-/// If the registrations fail, return the error.
-/// It’s expected that the state catch the error, so that the program doesn’t crash.
-fn registerButtonActions(self: *State, allocator: std.mem.Allocator) !void {
-    for (std.enums.values(ActionId)) |action_id| {
-        const btn_name = @tagName(action_id);
-        const id_str = try std.fmt.allocPrintZ(allocator, "{s}{s}", .{ "_PRKN_", btn_name });
-        defer allocator.free(id_str);
-        const name_str = try std.fmt.allocPrintZ(allocator, "{s}{s}", .{ "perken controller: ", btn_name });
-        defer allocator.free(name_str);
-        const btn_action = reaper.custom_action_register_t{
-            //
-            .section = 0,
-            .id_str = id_str,
-            .name = name_str,
-        };
-        const id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&btn_action)));
-        self.actionIds.put(id, action_id) catch {};
-    }
-    return;
 }
 
 pub fn hookCommand(self: *State, id: c_int) bool {
@@ -111,8 +65,4 @@ pub fn hookCommand(self: *State, id: c_int) bool {
     }
 
     return true;
-}
-pub fn csurfCB(self: *State) void {
-    _ = self; // autofix
-    std.debug.print("CALLBACK\n", .{});
 }
