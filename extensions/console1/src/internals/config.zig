@@ -30,7 +30,7 @@ pub const ModulesList = enum {
 // TODO: use modulesList instead of modules
 modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
 modulesList: std.StringHashMap(ModulesList),
-defaults: std.EnumArray(ModulesList, []const u8),
+defaults: std.EnumArray(ModulesList, [:0]const u8),
 pub fn init(allocator: std.mem.Allocator, cntrlrPth: []const u8) !Conf {
     var self: Conf = .{
         .modules = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
@@ -41,7 +41,7 @@ pub fn init(allocator: std.mem.Allocator, cntrlrPth: []const u8) !Conf {
             .SAT = std.StringHashMap(void).init(allocator),
         }),
         .modulesList = std.StringHashMap(ModulesList).init(allocator),
-        .defaults = std.EnumArray(ModulesList, []const u8).initUndefined(),
+        .defaults = std.EnumArray(ModulesList, [:0]const u8).initUndefined(),
     };
     try self.readConf(allocator, cntrlrPth);
     return self;
