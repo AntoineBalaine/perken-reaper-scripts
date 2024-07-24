@@ -2,7 +2,7 @@ const std = @import("std");
 const Dependencies = @import("build.zig").Dependencies;
 
 pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: Dependencies) void {
-    const entry_point_path = b.path("src/hello_world.zig");
+    const entry_point_path = b.path("./src/console1_extension.zig");
     const test_exe = b.addTest(.{ .name = "reaper_zig_tests", .target = target, .optimize = .Debug, .root_source_file = entry_point_path });
     const test_root = b.path("./src/");
     test_exe.addIncludePath(test_root);

@@ -13,7 +13,7 @@ pub fn build(b: *std.Build) !void {
     // Create a library target
     const target = b.standardTargetOptions(.{});
 
-    const lib = b.addSharedLibrary(.{ .name = "reaper_zig", .root_source_file = b.path("src/hello_world.zig"), .target = target, .optimize = .Debug });
+    const lib = b.addSharedLibrary(.{ .name = "reaper_zig", .root_source_file = b.path("src/console1_extension.zig"), .target = target, .optimize = .Debug });
 
     const root = b.path("./src/");
     lib.addIncludePath(root);
