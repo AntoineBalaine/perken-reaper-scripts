@@ -203,8 +203,8 @@ export fn zRun() callconv(.C) void {
             const tr = reaper.CSurf_TrackFromID(m_bank_offset, false);
             const left = reaper.Track_GetPeakInfo(tr, 1);
             const right = reaper.Track_GetPeakInfo(tr, 2);
-            const left_midi: u8 = @truncate(left * 127);
-            const right_midi: u8 = @truncate(right * 127);
+            const left_midi: u8 = @intFromFloat(left * 127);
+            const right_midi: u8 = @intFromFloat(right * 127);
             c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
             c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
             c.MidiOut_Send(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);

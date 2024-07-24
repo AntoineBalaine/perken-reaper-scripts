@@ -3758,7 +3758,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// Track_GetPeakInfo
     /// Returns peak meter value (1.0=+0dB, 0.0=-inf) for channel. If channel==1024 or channel==1025, returns loudness values if this is the master track or this track's VU meters are set to display loudness.
-    pub var Track_GetPeakInfo: *fn (track: *MediaTrack, channel: c_int) callconv(.C) f64 = undefined;
+    pub var Track_GetPeakInfo: *fn (track: MediaTrack, channel: c_int) callconv(.C) f64 = undefined;
 
     /// TrackCtl_SetToolTip
     /// displays tooltip at location, or removes if empty string
