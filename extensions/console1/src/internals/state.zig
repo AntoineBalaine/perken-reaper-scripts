@@ -39,12 +39,10 @@ pub fn handleNewTrack(self: *State, trackid: reaper.MediaTrack) void {
     // validate channel strip
     // load channel strip
 
-    if (self.track != null) {
-        var tr = self.track.?;
+    if (self.track) |tr| {
         tr.deinit();
     }
-    const new_track: Track = Track.init(trackid);
-    self.track = new_track;
+    self.track = Track.init(trackid);
     @panic("new_track logic not implemented yet");
 }
 

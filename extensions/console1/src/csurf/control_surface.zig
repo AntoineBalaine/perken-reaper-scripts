@@ -3,7 +3,7 @@ const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
-const State = @import("../internals/state.zig");
+const State = @import("../internals/state.zig").State;
 const c1 = @import("../internals/c1.zig");
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
@@ -15,6 +15,13 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
+const Conf = @import("internals/config.zig").Conf;
+const UserSettings = @import("internals/userPrefs.zig").UserSettings;
+
+pub var state: State = undefined;
+pub var conf: Conf = undefined;
+pub var userSettings: UserSettings = undefined;
+pub var controller_dir: []const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 const g_csurf_mcpmode = false;
@@ -62,7 +69,6 @@ fn iterCC() void {
     }
 }
 
-var state: *State = undefined;
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     m_midi_in_dev = indev;
     m_midi_out_dev = outdev;
@@ -288,11 +294,9 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
         // turnoff currently-selected track's lights
         if (m_midiout) |midiout| {
             outW(midiout, 0x8, c1_tr_id, 0x0, -1);
+            const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
+            outW(midiout, 0x8, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
         }
-    }
-    if (m_midiout) |midiout| {
-        const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
-        outW(midiout, 0x8, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
     }
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {

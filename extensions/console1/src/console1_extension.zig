@@ -35,6 +35,11 @@ fn init() !void {
     errdefer conf.deinit(gpa);
     userSettings = UserSettings.init(gpa, controller_dir);
     state = try State.init(gpa, userSettings);
+
+    control_surface.state = state;
+    control_surface.conf = conf;
+    control_surface.userSettings = userSettings;
+    control_surface.controller_dir = controller_dir;
 }
 
 fn deinit() void {
