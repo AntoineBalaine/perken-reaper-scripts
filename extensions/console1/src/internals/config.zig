@@ -16,7 +16,7 @@ const std = @import("std");
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
 
-const Conf = @This();
+pub const Conf = @This();
 
 pub const ModulesList = enum {
     INPUT,
@@ -31,7 +31,7 @@ pub const ModulesList = enum {
 modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
 modulesList: std.StringHashMap(ModulesList),
 defaults: std.EnumArray(ModulesList, []const u8),
-pub fn init(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
+pub fn init(allocator: std.mem.Allocator, cntrlrPth: []const u8) !Conf {
     var self: Conf = .{
         .modules = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
             .INPUT = std.StringHashMap(void).init(allocator),
@@ -43,7 +43,7 @@ pub fn init(allocator: std.mem.Allocator, configPath: []const u8) !Conf {
         .modulesList = std.StringHashMap(ModulesList).init(allocator),
         .defaults = std.EnumArray(ModulesList, []const u8).initUndefined(),
     };
-    try self.readConf(allocator, configPath);
+    try self.readConf(allocator, cntrlrPth);
     return self;
 }
 
@@ -68,14 +68,24 @@ pub fn deinit(self: *Conf, allocator: std.mem.Allocator) void {
                     allocator.free(val);
                 }
             },
-            else => unreachable,
+            std.StringHashMap(ModulesList) => {
+                var iterator = V.iterator();
+                while (iterator.next()) |entry| {
+                    allocator.free(entry.key_ptr.*);
+                    // allocator.free(entry.value_ptr.*);
+                }
+            },
+            else => {
+                std.debug.print("Unknown type {s}: {s}\n", .{ field.name, @typeName(field.type) });
+                unreachable;
+            },
         }
     }
 }
 
 /// Inits the struct, and reads the  `defaults.ini` and `modules.ini` into it.
-fn readConf(self: *Conf, allocator: std.mem.Allocator, configPath: []const u8) !void {
-    const defaultsPath = try std.fs.path.resolve(allocator, &.{ configPath, "./defaults.ini" });
+fn readConf(self: *Conf, allocator: std.mem.Allocator, cntrlrPth: []const u8) !void {
+    const defaultsPath = try std.fs.path.resolve(allocator, &.{ cntrlrPth, "./resources/defaults.ini" });
     defer allocator.free(defaultsPath);
     const defaultsFile = try std.fs.openFileAbsolute(defaultsPath, .{});
     defer defaultsFile.close();
@@ -85,7 +95,7 @@ fn readConf(self: *Conf, allocator: std.mem.Allocator, configPath: []const u8) !
 
     try ini.readToEnumArray(&self.defaults, ModulesList, &defaultsParser, allocator, null);
 
-    const modulesPath = try std.fs.path.resolve(allocator, &.{ configPath, "./modules.ini" });
+    const modulesPath = try std.fs.path.resolve(allocator, &.{ cntrlrPth, "./resources/modules.ini" });
     defer allocator.free(modulesPath);
     const modulesFile = try std.fs.openFileAbsolute(modulesPath, .{});
     defer modulesFile.close();
@@ -103,7 +113,7 @@ test readConf {
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
 
-    const path = try std.fs.path.resolve(allocator, &.{ pth, "./resources" });
+    const path = try std.fs.path.resolve(allocator, &.{ pth, "./" });
     defer allocator.free(path);
     var conf = try init(allocator, path);
 

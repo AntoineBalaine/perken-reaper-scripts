@@ -11,14 +11,10 @@ pub const UserSettings = struct {
     ///  -- show plugin UI when tweaking corresponding knob.
     show_plugin_ui: bool = true,
 
-    pub fn init(allocator: Allocator, controller_name: []const u8) UserSettings {
+    pub fn init(allocator: Allocator, cntrlrPth: []const u8) UserSettings {
         var userSettings = UserSettings{};
-        const perken_path = getPerkenPath(allocator) catch {
-            return userSettings;
-        };
-        defer allocator.free(perken_path);
 
-        const paths = [_][]const u8{ perken_path, controller_name };
+        const paths = [_][]const u8{ cntrlrPth, "resources", "preferences.ini" };
         const controller_path = std.fs.path.join(allocator, &paths) catch {
             return userSettings;
         };
@@ -59,18 +55,9 @@ fn loadUserPrefs(allocator: Allocator, userPrefsPath: []const u8, userSettings: 
     }
 }
 
-/// caller must free
-fn getPerkenPath(allocator: Allocator) ![]const u8 {
-    const reaper_path = reaper.GetResourcePath();
-
-    const paths = [_][]const u8{ std.mem.sliceTo(reaper_path, 0), "Data", "PerkenControl" };
-    const Prk_path = try std.fs.path.join(allocator, &paths);
-    return Prk_path;
-}
-
 test "userPrefs" {
     const allocator = std.testing.allocator;
-    const userPrefsPath = "resources/userPrefs.ini";
+    const userPrefsPath = "resources/preferences.ini";
     const userPrefs = try allocator.create(UserSettings);
     defer allocator.destroy(userPrefs);
     userPrefs.* = UserSettings{};
@@ -78,25 +65,6 @@ test "userPrefs" {
     try std.testing.expectEqual(userPrefs.show_start_up_message, false);
     try std.testing.expectEqual(userPrefs.show_start_up_message, false);
     try std.testing.expectEqual(userPrefs.show_plugin_ui, false);
-}
-
-test "getPerkenPath" {
-    const some_struct = struct {
-        pub fn mockResourcePath() callconv(.C) [*:0]const u8 {
-            return "home/perken/.config/REAPER/";
-        }
-    };
-    reaper.GetResourcePath = &some_struct.mockResourcePath;
-
-    const allocator = std.testing.allocator;
-    const path = try getPerkenPath(allocator);
-    defer allocator.free(path);
-
-    const actual: []const u8 = "home/perken/.config/REAPER/Data/PerkenControl";
-    std.testing.expect(std.mem.eql(u8, path, actual)) catch |err| {
-        std.debug.print("error: expected {s}, found {s}\n", .{ actual, path });
-        return err;
-    };
 }
 
 test "controller prefs" {

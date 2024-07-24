@@ -14,7 +14,11 @@ const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
 const config = @import("internals/config.zig");
 
 const plugin_name = "Hello, Zig!";
+
 var state: State = undefined;
+var conf: config.Conf = undefined;
+var userSettings: UserSettings = undefined;
+var controller_dir: []const u8 = undefined;
 // var action_id: c_int = undefined;
 var myCsurf: c.C_ControlSurface = undefined;
 
@@ -25,16 +29,20 @@ const gpa = gpa_int.allocator();
 /// retrieve the controller config
 /// register the actions for each of the buttons
 fn init() !void {
-    const userSettings = UserSettings.init(gpa, "c1");
-    const controller_dir = try getControllerPath("c1", gpa);
-    state = try State.init(gpa, controller_dir, userSettings);
-    _ = try config.init(gpa, controller_dir);
+    controller_dir = try getControllerPath(gpa);
+    errdefer gpa.free(controller_dir);
+    conf = try config.init(gpa, controller_dir);
+    errdefer conf.deinit(gpa);
+    userSettings = UserSettings.init(gpa, controller_dir);
+    state = try State.init(gpa, userSettings);
 }
 
 fn deinit() void {
     std.debug.print("Deinit\n", .{});
+    gpa.free(controller_dir);
+    conf.deinit(gpa);
+    state.deinit();
     control_surface.deinit(myCsurf);
-    try state.deinit(gpa);
     const deinit_status = gpa_int.deinit();
     if (deinit_status == .leak) {
         std.debug.print("Memory leak detected\n", .{});
@@ -51,11 +59,11 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         return 0;
     }
 
-    // init() catch {
-    //     std.debug.print("catch\n", .{});
-    //     return 0;
-    // };
-    std.debug.print("init\n", .{});
+    init() catch {
+        std.debug.print("Csurf Console1 failed to init\n", .{});
+        return 0;
+    };
+    std.debug.print("Csurf Console1 init success\n", .{});
 
     _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
 

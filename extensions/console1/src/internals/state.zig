@@ -13,18 +13,14 @@ const State = @This();
 /// State has to be called from control_surface.zig
 /// Flow is : main.zig -> register Csurf -> Csurf forwards calls to control_surface.zig -> control_surface updates state
 actionIds: std.AutoHashMap(c_int, ActionId),
-allocator: std.mem.Allocator,
 controller: std.EnumArray(Mode, Btns) = controller,
-controller_dir: []const u8,
 mode: Mode = .fx_ctrl,
 track: ?Track = null,
 user_settings: UserSettings,
 
-pub fn init(allocator: std.mem.Allocator, controller_dir: []const u8, user_settings: UserSettings) !State {
+pub fn init(allocator: std.mem.Allocator, user_settings: UserSettings) !State {
     var self: State = .{
         .actionIds = std.AutoHashMap(c_int, ActionId).init(allocator),
-        .allocator = allocator,
-        .controller_dir = controller_dir,
         .user_settings = user_settings,
     };
 
@@ -34,8 +30,7 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: []const u8, user_setti
     return self;
 }
 
-pub fn deinit(self: *State, allocator: std.mem.Allocator) !void {
-    allocator.free(self.controller_dir);
+pub fn deinit(self: *State) void {
     self.actionIds.deinit();
 }
 
