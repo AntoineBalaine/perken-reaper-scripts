@@ -87,11 +87,11 @@ pub const Track = struct {
         count: i32,
         modules: std.StringHashMap(ModulesList),
         defaults: *std.EnumArray(ModulesList, [:0]const u8),
+        container_idx: c_int,
     ) !void {
         var tmp_buf: [255:0]u8 = undefined;
 
         const tr = self.ptr.?;
-        const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
         var moduleCounter = ModuleCounter{};
 
         for (0..@as(usize, @intCast(count))) |idx| {
@@ -164,7 +164,7 @@ pub const Track = struct {
             return;
         }
         const tr = self.ptr.?;
-        var container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
+        const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
         if (container_idx == -1) {
             try self.loadDefaultChain(null, defaults);
             return;
@@ -181,6 +181,7 @@ pub const Track = struct {
                 count,
                 modules,
                 defaults,
+                container_idx,
             );
         }
         var moduleChecks = ModuleCheck.init(.{
@@ -193,9 +194,6 @@ pub const Track = struct {
         var tmp_buf: [255:0]u8 = undefined;
 
         // we have to re-query since addMissingModules() might have made an update.
-        if (count != fieldsLen) {
-            container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
-        }
         for (0..@as(usize, @intCast(count))) |idx| {
             _ = try std.fmt.bufPrint(&tmp_buf, "container_item.{d}", .{idx});
             const moduleIdxFound = reaper.TrackFX_GetNamedConfigParm(
@@ -215,7 +213,7 @@ pub const Track = struct {
             const has_name = reaper.TrackFX_GetFXName(tr, fxId, @as([*:0]u8, &buf), buf.len + 1);
             if (!has_name) {
                 // FIXME: handle this more gracefully
-                std.debug.print("fxHasNoName\n", .{});
+                std.debug.print("\nfxHasNoName\n", .{});
                 return TrckErr.fxHasNoName;
             }
             const fxName = std.mem.span(@as([*:0]const u8, &buf));
@@ -224,22 +222,20 @@ pub const Track = struct {
                 continue;
             };
 
-            var modcheck = moduleChecks.get(moduleType);
-            if (modcheck[0] == true) { // already found
+            if (moduleChecks.get(moduleType)[0] == true) { // already found
                 continue;
             }
-            modcheck[0] = true;
-            modcheck[1] = @as(u8, @intCast(idx));
+            moduleChecks.set(moduleType, .{ true, @as(u8, @intCast(idx)) });
+
             switch (moduleType) {
                 .INPUT => {
                     if (idx != 0) {
-                        const cont_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
                         reaper.TrackFX_CopyToTrack(
                             tr,
-                            self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, cont_idx + 1),
+                            self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, container_idx + 1),
                             tr,
 
-                            self.getSubContainerIdx(0 + 1, cont_idx + 1),
+                            self.getSubContainerIdx(0 + 1, container_idx + 1),
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
@@ -248,15 +244,11 @@ pub const Track = struct {
                 },
                 .SAT => {
                     if (idx != (count - 1)) {
-                        const cont_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
-
-                        const src = self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, cont_idx + 1);
-                        const dest = self.getSubContainerIdx(@as(u8, @intCast(count)), cont_idx + 1);
                         reaper.TrackFX_CopyToTrack(
                             tr,
-                            src,
+                            self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, container_idx + 1),
                             tr,
-                            dest,
+                            self.getSubContainerIdx(@as(u8, @intCast(count)), container_idx + 1),
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
@@ -272,7 +264,14 @@ pub const Track = struct {
         const cp = moduleChecks.get(.COMP)[1];
         if (eq < gt and eq < cp) {
             if (cp < gt) {
-                // TODO: move the gate to be before the compressor
+                // move the gate to be before the compressor
+                reaper.TrackFX_CopyToTrack(
+                    tr,
+                    self.getSubContainerIdx(gt + 1, container_idx + 1),
+                    tr,
+                    self.getSubContainerIdx(cp + 1, container_idx + 1),
+                    true,
+                );
             }
             self.order = .@"EQ-S-C";
         } else if (gt < cp and gt < eq) {
@@ -281,12 +280,18 @@ pub const Track = struct {
             } else {
                 self.order = .@"S-EQ-C";
             }
-        } else if (cp < eq and gt < gt) {
+        } else if (cp < eq and cp < gt) {
+            // mv cmp after the gate
+            reaper.TrackFX_CopyToTrack(
+                tr,
+                self.getSubContainerIdx(cp + 1, container_idx + 1),
+                tr,
+                self.getSubContainerIdx(gt + 1, container_idx + 1),
+                true,
+            );
             if (eq < gt) {
-                // TODO: mv cmp after the two - first index after the gate
                 self.order = .@"EQ-S-C";
             } else {
-                // TODO: mv cmp between the two - first index after the gate
                 self.order = .@"S-C-EQ";
             }
         }
