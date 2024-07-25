@@ -180,8 +180,6 @@ export fn zRun() callconv(.C) void {
             OnMidiEvent(evts);
         }
         iterCC();
-    } else {
-        std.debug.print("no midi in\n", .{});
     }
     if (playState and !pauseState) {
         if (m_midiout) |midiOut| {
