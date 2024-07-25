@@ -18,6 +18,12 @@ const c = @cImport({
 const Conf = @import("../internals/config.zig").Conf;
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 
+// TODO: update ini module, move tests from module into project
+// TODO: fix mem leak (too many bytes freed)
+// TODO: fix missing fx modules in track - don't remove and re-add all the modules
+// TODO: fix persisting csurf selection in preferences
+// TODO: create fx mappings
+
 pub var state: State = undefined;
 pub var conf: Conf = undefined;
 pub var userSettings: UserSettings = undefined;
