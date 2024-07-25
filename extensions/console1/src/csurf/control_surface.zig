@@ -20,9 +20,8 @@ const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 
 // TODO: update ini module, move tests from module into project
 // TODO: fix mem leak (too many bytes freed)
-// TODO: fix missing fx modules in track - don't remove and re-add all the modules
 // TODO: fix persisting csurf selection in preferences
-// TODO: create fx mappings
+// TODO: on new track: get mappings. if an fx map in't in mem, load it. map actions depending on the track mode.
 
 pub var state: State = undefined;
 pub var conf: Conf = undefined;

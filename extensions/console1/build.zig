@@ -24,6 +24,8 @@ pub fn build(b: *std.Build) !void {
     // WDL/snwell/swell_resgen.php resource.rc generates resource.rc_mac_dlg and .rc_mac_menu
     // which must be compiled and linked into the executable
     // touch src/csurf/resource.rc && ./WDL/swell/swell_resgen.sh src/csurf/resource.rc
+    // if the file already exists, php will print
+    // processed 0, skipped 1, error 0
     const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
     php_cmd.addFileArg(b.path("WDL/swell/swell_resgen.php"));
     php_cmd.addFileArg(b.path("src/csurf/resource.rc"));
@@ -31,7 +33,7 @@ pub fn build(b: *std.Build) !void {
     const cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
     cpp_cmd.addFileInput(b.path("src/csurf/resource.rc_mac_dlg"));
     cpp_cmd.addFileInput(b.path("src/csurf/resource.rc_mac_menu"));
-    cpp_cmd.step.dependOn(&php_cmd.step); // FIXME: don't re-run every time...
+    cpp_cmd.step.dependOn(&php_cmd.step);
 
     const cpp_lib = cpp_cmd.addOutputFileArg("control_surface.o");
 

@@ -44,5 +44,5 @@ pub fn doSmth(alloc: std.mem.Allocator) !Conf {
 
 fn getValuesFromFile(file_name: []const u8) std.EnumMap(ModulesList, []const u8) {
     _ = file_name;
-    // TODO: read ini file into EnumMap
+    unreachable;
 }
