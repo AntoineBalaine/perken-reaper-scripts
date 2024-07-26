@@ -23,7 +23,7 @@ pub const ModulesList = enum {
     GATE,
     EQ,
     COMP,
-    SAT,
+    OUTPT,
 };
 
 // TODO: switch to StringHashMapUnmanaged
@@ -38,7 +38,7 @@ pub fn init(allocator: std.mem.Allocator, cntrlrPth: []const u8) !Conf {
             .GATE = std.StringHashMap(void).init(allocator),
             .EQ = std.StringHashMap(void).init(allocator),
             .COMP = std.StringHashMap(void).init(allocator),
-            .SAT = std.StringHashMap(void).init(allocator),
+            .OUTPT = std.StringHashMap(void).init(allocator),
         }),
         .modulesList = std.StringHashMap(ModulesList).init(allocator),
         .defaults = std.EnumArray(ModulesList, [:0]const u8).initUndefined(),
@@ -183,7 +183,7 @@ test readConf {
     try expect(std.mem.eql(u8, conf.defaults.get(.GATE), "VST: ReaGate (Cockos)"));
     try expect(std.mem.eql(u8, conf.defaults.get(.EQ), "VST: ReaEQ (Cockos)"));
     try expect(std.mem.eql(u8, conf.defaults.get(.COMP), "VST: ReaComp (Cockos)"));
-    try expect(std.mem.eql(u8, conf.defaults.get(.SAT), "JS: Saturation"));
+    try expect(std.mem.eql(u8, conf.defaults.get(.OUTPT), "JS: Saturation"));
 
     try expect(conf.modules.get(.INPUT).get("JS: Volume/Pan Smoother") != null);
     try expect(conf.modules.get(.INPUT).get("JS: Other input") != null);
@@ -193,5 +193,5 @@ test readConf {
     try expect(conf.modules.get(.EQ).get("JS: ReEQ") != null);
     try expect(conf.modules.get(.COMP).get("VST: ReaComp (Cockos)") != null);
     try expect(conf.modules.get(.COMP).get("VST: ReaXComp (Cockos)") != null);
-    try expect(conf.modules.get(.SAT).get("JS: Saturation") != null);
+    try expect(conf.modules.get(.OUTPT).get("JS: Saturation") != null);
 }

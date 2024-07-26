@@ -79,7 +79,7 @@ pub const Track = struct {
         EQ: u8 = 0,
         GATE: u8 = 0,
         COMP: u8 = 0,
-        SAT: u8 = 0,
+        OUTPT: u8 = 0,
     };
 
     pub fn addMissingModules(
@@ -125,7 +125,7 @@ pub const Track = struct {
                 .EQ => moduleCounter.EQ += 1,
                 .GATE => moduleCounter.GATE += 1,
                 .COMP => moduleCounter.COMP += 1,
-                .SAT => moduleCounter.SAT += 1,
+                .OUTPT => moduleCounter.OUTPT += 1,
             }
         }
         inline for (std.meta.fields(@TypeOf(moduleCounter))) |field| {
@@ -140,7 +140,7 @@ pub const Track = struct {
                     .EQ => 1,
                     .GATE => 2,
                     .COMP => 3,
-                    .SAT => 4,
+                    .OUTPT => 4,
                 };
 
                 const fx_added = reaper.TrackFX_AddByName(
@@ -189,7 +189,7 @@ pub const Track = struct {
             .EQ = .{ false, 1 },
             .GATE = .{ false, 2 },
             .COMP = .{ false, 3 },
-            .SAT = .{ false, 4 },
+            .OUTPT = .{ false, 4 },
         });
         var tmp_buf: [255:0]u8 = undefined;
 
@@ -242,7 +242,7 @@ pub const Track = struct {
                         return try self.checkTrackState(modules, defaults);
                     }
                 },
-                .SAT => {
+                .OUTPT => {
                     if (idx != (count - 1)) {
                         reaper.TrackFX_CopyToTrack(
                             tr,
