@@ -17,6 +17,7 @@ const c = @cImport({
 });
 const Conf = @import("../internals/config.zig").Conf;
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
+const MapStore = @import("../internals/mappings.zig").FxMap;
 
 // TODO: update ini module, move tests from module into project
 // TODO: fix mem leak (too many bytes freed)
@@ -27,6 +28,8 @@ pub var state: State = undefined;
 pub var conf: Conf = undefined;
 pub var userSettings: UserSettings = undefined;
 pub var controller_dir: []const u8 = undefined;
+// TODO: move to config?
+pub var mappings: MapStore = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 const g_csurf_mcpmode = false;

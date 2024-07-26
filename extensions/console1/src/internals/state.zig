@@ -7,6 +7,7 @@ const ActionId = ctr.ActionId;
 const Btns = ctr.Btns;
 const controller = ctr.controller;
 const Track = @import("track.zig").Track;
+const ModuleCheck = @import("track.zig").ModuleCheck;
 const Conf = @import("config.zig").Conf;
 
 pub const State = @This();
@@ -33,7 +34,7 @@ pub fn deinit(self: *State) void {
     self.actionIds.deinit();
 }
 
-pub fn updateTrack(self: *State, trackid: reaper.MediaTrack, config: *Conf) void {
+pub fn updateTrack(self: *State, trackid: reaper.MediaTrack, config: *Conf) Track {
     // update track
     // validate channel strip
     // load channel strip
@@ -46,4 +47,5 @@ pub fn updateTrack(self: *State, trackid: reaper.MediaTrack, config: *Conf) void
     self.track = tr;
     // NOTE: track validation is meant to fail silently.
     tr.checkTrackState(config.modulesList, &config.defaults) catch {};
+    return self.track;
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
 const config = @import("config.zig");
 const ModulesList = config.ModulesList;
+const FxMap = @import("mappings.zig").FxMap;
 const CONTROLLER_NAME = "PRKN_C1";
 
 const ModulesOrder = union(enum) {
@@ -10,7 +11,7 @@ const ModulesOrder = union(enum) {
     @"S-EQ-C",
 };
 
-const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
+pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
 const TrckErr = error{ fxAddFail, fxRenameFail, moduleFindFail, fxFindNameFail, fxHasNoName, enumConvertFail };
 // TODO: this is in top scope because I couldn't figure out how to pass the buffer as a fn param. the constness of fn params doesn't let me use the buffer
 var buf: [255:0]u8 = undefined;
@@ -18,6 +19,7 @@ var buf: [255:0]u8 = undefined;
 pub const Track = struct {
     ptr: ?reaper.MediaTrack,
     order: ModulesOrder = .@"S-EQ-C",
+    fxMap: ?FxMap = null,
     pub fn init(trackPtr: reaper.MediaTrack) Track {
         const track: Track = .{
             .ptr = trackPtr,
@@ -272,6 +274,9 @@ pub const Track = struct {
                     self.getSubContainerIdx(cp + 1, container_idx + 1),
                     true,
                 );
+                // update indexes
+                moduleChecks.set(.GATE, .{ true, cp });
+                moduleChecks.set(.COMP, .{ true, gt });
             }
             self.order = .@"EQ-S-C";
         } else if (gt < cp and gt < eq) {
@@ -289,11 +294,40 @@ pub const Track = struct {
                 self.getSubContainerIdx(gt + 1, container_idx + 1),
                 true,
             );
+            // TODO: double check these results.
+            moduleChecks.set(.COMP, .{ true, gt });
+            moduleChecks.set(.GATE, .{ true, cp });
+
+            // update indexes
             if (eq < gt) {
                 self.order = .@"EQ-S-C";
             } else {
                 self.order = .@"S-C-EQ";
             }
         }
+        self.fxMap = fxMapFromModuleCheck(moduleChecks);
     }
 };
+
+fn fxMapFromModuleCheck(moduleCheck: ModuleCheck) FxMap {
+    const map: FxMap = .{
+        .COMP = undefined,
+        .EQ = undefined,
+        .INPUT = undefined,
+        .OUTPT = undefined,
+        .GATE = undefined,
+    };
+    var iterator = moduleCheck.iterator();
+    while (iterator.next()) |field| {
+        const module = field.key;
+        const idx = field.value[1];
+        switch (module) {
+            .INPUT => map.INPUT = std.meta.Tuple(&.{ idx, null }),
+            .EQ => map.EQ = std.meta.Tuple(&.{ idx, null }),
+            .GATE => map.GATE = std.meta.Tuple(&.{ idx, null }),
+            .COMP => map.Comp = std.meta.Tuple(&.{ idx, null }),
+            .OUTPT => map.OUTPT = std.meta.Tuple(&.{ idx, null }),
+        }
+    }
+    return map;
+}
