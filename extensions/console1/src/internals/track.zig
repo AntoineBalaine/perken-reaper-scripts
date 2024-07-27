@@ -19,7 +19,7 @@ var buf: [255:0]u8 = undefined;
 pub const Track = struct {
     ptr: ?reaper.MediaTrack,
     order: ModulesOrder = .@"S-EQ-C",
-    fxMap: FxMap = FxMap.init(),
+    fxMap: FxMap = FxMap{},
 
     pub fn init(trackPtr: reaper.MediaTrack) Track {
         const track: Track = .{

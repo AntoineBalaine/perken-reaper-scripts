@@ -96,21 +96,12 @@ const Shp = struct {
 // Is the copy going to be costing a lot?
 /// FxMap associates an Fx index with a module map
 pub const FxMap = struct {
-    COMP: ?std.meta.Tuple(&.{ u8, ?Comp }),
-    EQ: ?std.meta.Tuple(&.{ u8, ?Eq }),
-    INPUT: ?std.meta.Tuple(&.{ u8, ?Inpt }),
-    OUTPT: ?std.meta.Tuple(&.{ u8, ?Outpt }),
-    GATE: ?std.meta.Tuple(&.{ u8, ?Shp }),
+    COMP: ?std.meta.Tuple(&.{ u8, ?Comp }) = null,
+    EQ: ?std.meta.Tuple(&.{ u8, ?Eq }) = null,
+    INPUT: ?std.meta.Tuple(&.{ u8, ?Inpt }) = null,
+    OUTPT: ?std.meta.Tuple(&.{ u8, ?Outpt }) = null,
+    GATE: ?std.meta.Tuple(&.{ u8, ?Shp }) = null,
     // Trk: std.meta.Tuple(&.{ u8, Trk }),
-    pub fn init() FxMap {
-        return .{
-            .COMP = null,
-            .EQ = null,
-            .INPUT = null,
-            .OUTPT = null,
-            .GATE = null,
-        };
-    }
 };
 
 const TaggedMapping = union(ModulesList) {
