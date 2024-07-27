@@ -133,24 +133,17 @@ pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, alloca
         switch (record) {
             .section => |heading| {
                 // fit the enum
-                const head_val = std.meta.stringToEnum(Or_enum, heading);
-                if (head_val != null) {
+                if (std.meta.stringToEnum(Or_enum, heading)) |head_val| {
                     cur_section = head_val;
                 }
             },
             .property => {},
             .enumeration => |value| {
                 var it = enum_arr.*.iterator();
-                var i: usize = 0;
-                while (it.next() != null) : (i += 1) {
-                    if (cur_section == null) {
+                while (it.next()) |val| {
+                    if (cur_section == null or cur_section.? != val.key) {
                         continue;
                     }
-                    const idx = T.Indexer.indexOf(cur_section.?);
-                    if (i != idx) {
-                        continue;
-                    }
-                    std.debug.print("in loop\n", .{});
 
                     const innerArray = enum_arr.get(cur_section.?);
                     const X = @TypeOf(innerArray);
@@ -175,6 +168,7 @@ pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, alloca
                         return error.NotConvertible;
                     }
                 }
+                cur_section = null;
             },
         }
     }
