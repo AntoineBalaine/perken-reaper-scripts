@@ -34,115 +34,58 @@ const Trk = enum {
 };
 
 const Comp = struct {
-    Comp_Attack: u8,
-    Comp_DryWet: u8,
-    Comp_Ratio: u8,
-    Comp_Release: u8,
-    Comp_Thresh: u8,
-    Comp_comp: u8,
+    Comp_Attack: u8 = 0,
+    Comp_DryWet: u8 = 0,
+    Comp_Ratio: u8 = 0,
+    Comp_Release: u8 = 0,
+    Comp_Thresh: u8 = 0,
+    Comp_comp: u8 = 0,
     // Comp_Mtr : u8,
-    pub fn init() Comp {
-        return .{
-            .Comp_Attack = 0,
-            .Comp_DryWet = 0,
-            .Comp_Ratio = 0,
-            .Comp_Release = 0,
-            .Comp_Thresh = 0,
-            .Comp_comp = 0,
-        };
-    }
 };
 const Eq = struct {
-    Eq_HiFrq: u8,
-    Eq_HiGain: u8,
-    Eq_HiMidFrq: u8,
-    Eq_HiMidGain: u8,
-    Eq_HiMidQ: u8,
-    Eq_LoFrq: u8,
-    Eq_LoGain: u8,
-    Eq_LoMidFrq: u8,
-    Eq_LoMidGain: u8,
-    Eq_LoMidQ: u8,
-    Eq_eq: u8,
-    Eq_hp_shape: u8,
-    Eq_lp_shape: u8,
-    pub fn init() Eq {
-        return .{
-            .Eq_HiFrq = 0,
-            .Eq_HiGain = 0,
-            .Eq_HiMidFrq = 0,
-            .Eq_HiMidGain = 0,
-            .Eq_HiMidQ = 0,
-            .Eq_LoFrq = 0,
-            .Eq_LoGain = 0,
-            .Eq_LoMidFrq = 0,
-            .Eq_LoMidGain = 0,
-            .Eq_LoMidQ = 0,
-            .Eq_eq = 0,
-            .Eq_hp_shape = 0,
-            .Eq_lp_shape = 0,
-        };
-    }
+    Eq_HiFrq: u8 = 0,
+    Eq_HiGain: u8 = 0,
+    Eq_HiMidFrq: u8 = 0,
+    Eq_HiMidGain: u8 = 0,
+    Eq_HiMidQ: u8 = 0,
+    Eq_LoFrq: u8 = 0,
+    Eq_LoGain: u8 = 0,
+    Eq_LoMidFrq: u8 = 0,
+    Eq_LoMidGain: u8 = 0,
+    Eq_LoMidQ: u8 = 0,
+    Eq_eq: u8 = 0,
+    Eq_hp_shape: u8 = 0,
+    Eq_lp_shape: u8 = 0,
 };
 const Inpt = struct {
-    // Inpt_MtrLft : u8,
-    // Inpt_MtrRgt : u8,
-    Inpt_Gain: u8,
-    Inpt_HiCut: u8,
-    Inpt_LoCut: u8,
-    Inpt_disp_mode: u8,
-    Inpt_disp_on: u8,
-    Inpt_filt_to_comp: u8,
-    Inpt_phase_inv: u8,
-    Inpt_preset: u8,
-    pub fn init() Inpt {
-        return .{
-            .Inpt_Gain = 0,
-            .Inpt_HiCut = 0,
-            .Inpt_LoCut = 0,
-            .Inpt_disp_mode = 0,
-            .Inpt_disp_on = 0,
-            .Inpt_filt_to_comp = 0,
-            .Inpt_phase_inv = 0,
-            .Inpt_preset = 0,
-        };
-    }
+    // Inpt_MtrLft : u8 = 0 ,
+    // Inpt_MtrRgt : u8 = 0 ,
+    Inpt_Gain: u8 = 0,
+    Inpt_HiCut: u8 = 0,
+    Inpt_LoCut: u8 = 0,
+    Inpt_disp_mode: u8 = 0,
+    Inpt_disp_on: u8 = 0,
+    Inpt_filt_to_comp: u8 = 0,
+    Inpt_phase_inv: u8 = 0,
+    Inpt_preset: u8 = 0,
 };
 const Outpt = struct {
-    Out_Drive: u8,
-    Out_DriveChar: u8,
-    // Out_MtrLft : u8,
-    // Out_MtrRgt : u8,
-    Out_Pan: u8,
-    Out_Vol: u8,
-    // Out_mute : u8,
-    // Out_solo : u8,
-    pub fn init() Outpt {
-        return .{
-            .Out_Drive = 0,
-            .Out_DriveChar = 0,
-            .Out_Pan = 0,
-            .Out_Vol = 0,
-        };
-    }
+    Out_Drive: u8 = 0,
+    Out_DriveChar: u8 = 0,
+    // Out_MtrLft : u8 = 0,
+    // Out_MtrRgt : u8 = 0,
+    Out_Pan: u8 = 0,
+    Out_Vol: u8 = 0,
+    // Out_mute : u8 = 0,
+    // Out_solo : u8 = 0,
 };
 const Shp = struct {
-    Shp_Gate: u8,
-    Shp_GateRelease: u8,
-    Shp_Punch: u8,
-    Shp_hard_gate: u8,
-    Shp_shape: u8,
-    Shp_sustain: u8,
-    pub fn init() Shp {
-        return .{
-            .Shp_Gate = 0,
-            .Shp_GateRelease = 0,
-            .Shp_Punch = 0,
-            .Shp_hard_gate = 0,
-            .Shp_shape = 0,
-            .Shp_sustain = 0,
-        };
-    }
+    Shp_Gate: u8 = 0,
+    Shp_GateRelease: u8 = 0,
+    Shp_Punch: u8 = 0,
+    Shp_hard_gate: u8 = 0,
+    Shp_shape: u8 = 0,
+    Shp_sustain: u8 = 0,
 };
 
 // FIXME: is there anyway the mapping portion of the tuple could be a pointer?
@@ -266,27 +209,27 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, controller
 
     const mapping: TaggedMapping = switch (module) {
         .COMP => {
-            const comp = Comp.init();
+            const comp = Comp{};
             _ = try readToU8Struct(&comp, &parser);
             return TaggedMapping{ .COMP = comp };
         },
         .EQ => {
-            var eq = Eq.init();
+            var eq = Eq{};
             _ = try readToU8Struct(&eq, &parser);
             return TaggedMapping{ .EQ = eq };
         },
         .INPUT => {
-            var inpt: Inpt = Inpt.init();
+            var inpt: Inpt = Inpt{};
             _ = try readToU8Struct(&inpt, &parser);
             return TaggedMapping{ .INPUT = inpt };
         },
         .OUTPT => {
-            var outpt: Outpt = Outpt.init();
+            var outpt: Outpt = Outpt{};
             _ = try readToU8Struct(&outpt, &parser);
             return TaggedMapping{ .OUTPT = outpt };
         },
         .GATE => {
-            var shp: Shp = Shp.init();
+            var shp: Shp = Shp{};
             _ = try readToU8Struct(&shp, &parser);
             return TaggedMapping{ .GATE = shp };
         },
