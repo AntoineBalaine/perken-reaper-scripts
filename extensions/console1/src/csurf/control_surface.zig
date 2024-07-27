@@ -21,8 +21,9 @@ const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 // TODO: update ini module, move tests from module into project
 // TODO: fix mem leak (too many bytes freed)
 // TODO: fix persisting csurf selection in preferences
-// TODO: on new track: get mappings. if an fx map in't in mem, load it. map actions depending on the track mode.
-
+// TODO: OUTPUT: send feedback to controller based on changes to fx parms in container
+// TODO: OUTPUT: send feedback to controller's meters (peaks, gain reductio, etc.)
+// TODO: INPUT: send commands to reaper based on controller
 pub var state: State = undefined;
 pub var conf: Conf = undefined;
 pub var userSettings: UserSettings = undefined;
@@ -293,11 +294,10 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     if (m_bank_offset != id) {
         _ = state.updateTrack(trackid, &conf);
         m_bank_offset = id;
-        // c1’s midi track ids go from 0x15 to 0x28
-        const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1));
-        // turnoff currently-selected track's lights
+
         if (m_midiout) |midiout| {
-            outW(midiout, 0x8, c1_tr_id, 0x0, -1);
+            const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
+            outW(midiout, 0x8, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
             const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
             outW(midiout, 0x8, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
         }
