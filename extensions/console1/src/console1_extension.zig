@@ -30,12 +30,21 @@ const gpa = gpa_int.allocator();
 /// register the actions for each of the buttons
 fn init() !void {
     myCsurf = control_surface.init(-1, -1, null);
-    controller_dir = try getControllerPath(gpa);
+    controller_dir = getControllerPath(gpa) catch |err| {
+        std.debug.print("Failed to create controller dir \n", .{});
+        return err;
+    };
     errdefer gpa.free(controller_dir);
-    conf = try config.init(gpa, controller_dir);
+    conf = config.init(gpa, &controller_dir) catch |err| {
+        std.debug.print("Failed to load config \n", .{});
+        return err;
+    };
     errdefer conf.deinit(gpa);
     userSettings = UserSettings.init(gpa, controller_dir);
-    state = try State.init(gpa);
+    state = State.init(gpa) catch |err| {
+        std.debug.print("Failed to init state \n", .{});
+        return err;
+    };
 
     control_surface.state = state;
     control_surface.conf = conf;
@@ -44,7 +53,6 @@ fn init() !void {
 }
 
 fn deinit() void {
-    std.debug.print("Deinit\n", .{});
     gpa.free(controller_dir);
     conf.deinit(gpa);
     state.deinit();
