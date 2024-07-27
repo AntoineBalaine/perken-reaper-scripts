@@ -218,7 +218,22 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList, mo
 fn getMap(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) !TaggedMapping {
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const subdir = @tagName(module);
-    const elements = [_][]const u8{ self.controller_dir.*, subdir, fxName };
+
+    // NOTE: should this really by 4096 bytes? Is there a cost to having a larger buffer?
+    var nameBuf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var sanitizedFxName: []const u8 = undefined;
+    const extension = ".ini";
+    if (std.mem.indexOfScalar(u8, fxName, '/') != null) {
+        _ = std.mem.replace(u8, fxName, "/", "_", &nameBuf);
+        @memcpy(nameBuf[fxName.len .. fxName.len + extension.len], extension);
+    } else {
+        @memcpy(nameBuf[0..fxName.len], fxName);
+        @memcpy(nameBuf[fxName.len .. fxName.len + extension.len], extension);
+    }
+    sanitizedFxName = nameBuf[0 .. fxName.len + extension.len];
+
+    const elements = [_][]const u8{ self.controller_dir.*, "resources", "maps", subdir, sanitizedFxName };
+
     var pos: usize = 0;
     for (elements, 0..) |element, idx| {
         @memcpy(buf[pos .. pos + element.len], element);
