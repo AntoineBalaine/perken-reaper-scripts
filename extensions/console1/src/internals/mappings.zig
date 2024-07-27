@@ -189,15 +189,15 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, controller
     const elements = [_][]const u8{ controller_dir.*, subdir, fxName };
     var pos: usize = 0;
     for (elements, 0..) |element, idx| {
-        @memcpy(buf[pos..], subdir);
+        @memcpy(buf[pos .. pos + element.len], element);
         pos += element.len;
         if (idx != elements.len - 1) { // not last in list
-            @memcpy(buf[pos..], &[_]u8{@as(u8, @intCast(std.fs.path.sep))});
+            @memcpy(buf[pos .. pos + 1], &[_]u8{@as(u8, @intCast(std.fs.path.sep))});
             pos += 1;
         }
     }
     const filePath = buf[0..pos];
-
+    std.debug.print("FILEPATH: {s}\n", .{filePath});
     const file = try std.fs.openFileAbsolute(filePath, .{});
     defer file.close();
     var parser = ini.parse(self.allocator, file.reader());

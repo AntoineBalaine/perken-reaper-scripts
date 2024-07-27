@@ -46,6 +46,8 @@ pub fn updateTrack(self: *State, trackid: reaper.MediaTrack, config: *Conf) ?Tra
 
     self.track = tr;
     // NOTE: track validation is meant to fail silently.
-    tr.checkTrackState(config.modulesList, &config.defaults, &config.mappings) catch {};
+    tr.checkTrackState(config.modulesList, &config.defaults, &config.mappings) catch {
+        std.debug.print("checkTrackState(): had error\n", .{});
+    };
     return self.track;
 }
