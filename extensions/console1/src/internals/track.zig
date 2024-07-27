@@ -45,7 +45,8 @@ pub const Track = struct {
     fn loadDefaultChain(
         self: *Track,
         container_idx: ?c_int,
-        defaults: *std.EnumArray(ModulesList, [:0]const u8),
+        defaults: *config.Defaults,
+        modules: config.Modules,
         mappings: *config.MapStore,
     ) !void {
         var cont_idx: c_int = undefined;
@@ -81,11 +82,11 @@ pub const Track = struct {
                 return TrckErr.fxAddFail;
             } else {
                 switch (field.key) {
-                    .INPUT => self.fxMap.INPUT = .{ idx, mappings.get(field.key, fxName).INPUT },
-                    .GATE => self.fxMap.GATE = .{ idx, mappings.get(field.key, fxName).GATE },
-                    .EQ => self.fxMap.EQ = .{ idx, mappings.get(field.key, fxName).EQ },
-                    .COMP => self.fxMap.COMP = .{ idx, mappings.get(field.key, fxName).COMP },
-                    .OUTPT => self.fxMap.OUTPT = .{ idx, mappings.get(field.key, fxName).OUTPT },
+                    .INPUT => self.fxMap.INPUT = .{ idx, mappings.get(fxName, field.key, modules).INPUT },
+                    .GATE => self.fxMap.GATE = .{ idx, mappings.get(fxName, field.key, modules).GATE },
+                    .EQ => self.fxMap.EQ = .{ idx, mappings.get(fxName, field.key, modules).EQ },
+                    .COMP => self.fxMap.COMP = .{ idx, mappings.get(fxName, field.key, modules).COMP },
+                    .OUTPT => self.fxMap.OUTPT = .{ idx, mappings.get(fxName, field.key, modules).OUTPT },
                 }
             }
         }
@@ -190,12 +191,12 @@ pub const Track = struct {
         const tr = self.ptr.?;
         const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
         if (container_idx == -1) {
-            try self.loadDefaultChain(null, defaults, mappings);
+            try self.loadDefaultChain(null, defaults, modules, mappings);
             return;
         }
         const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
         if (!rv) {
-            try self.loadDefaultChain(container_idx, defaults, mappings);
+            try self.loadDefaultChain(container_idx, defaults, modules, mappings);
             return;
         }
         const count = try std.fmt.parseInt(i32, std.mem.span(@as([*:0]const u8, &buf)), 10);
@@ -265,7 +266,7 @@ pub const Track = struct {
                         // now that the fx indexes are all invalid, let's recurse.
                         return try self.checkTrackState(modules, defaults, mappings);
                     } else {
-                        self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT };
+                        self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
                     }
                 },
                 .OUTPT => {
@@ -280,12 +281,12 @@ pub const Track = struct {
                         // now that the fx indexes are all invalid, let's recurse.
                         return try self.checkTrackState(modules, defaults, mappings);
                     } else {
-                        self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT };
+                        self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
                     }
                 },
-                .GATE => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT },
-                .EQ => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT },
-                .COMP => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT },
+                .GATE => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT },
+                .EQ => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT },
+                .COMP => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT },
             }
         }
 

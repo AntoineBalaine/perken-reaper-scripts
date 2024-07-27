@@ -15,7 +15,7 @@ pub const State = @This();
 /// State has to be called from control_surface.zig
 /// Flow is : main.zig -> register Csurf -> Csurf forwards calls to control_surface.zig -> control_surface updates state
 actionIds: std.AutoHashMap(c_int, ActionId),
-controller: std.EnumArray(Mode, Btns) = controller,
+controller: @TypeOf(controller) = controller,
 mode: Mode = .fx_ctrl,
 track: ?Track = null,
 

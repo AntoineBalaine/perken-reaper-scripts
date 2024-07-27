@@ -27,18 +27,24 @@ pub const ModulesList = enum {
     OUTPT,
 };
 
+pub const ModuleSet = std.EnumArray(ModulesList, std.StringHashMap(void));
+/// Maps Fx names to modules
+pub const Modules = std.StringHashMap(ModulesList);
+/// Default FX associated with each module
+pub const Defaults = std.EnumArray(ModulesList, [:0]const u8);
+
 // TODO: switch to StringHashMapUnmanaged
 // TODO: use modulesList instead of moduleSet
 /// Maps modules to FX names
-moduleSet: std.EnumArray(ModulesList, std.StringHashMap(void)),
+moduleSet: ModuleSet,
 /// Maps Fx names to modules
-modulesList: std.StringHashMap(ModulesList),
+modulesList: Modules,
 /// Default FX associated with each module
-defaults: std.EnumArray(ModulesList, [:0]const u8),
+defaults: Defaults,
 mappings: MapStore,
 pub fn init(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !Conf {
     var self: Conf = .{
-        .moduleSet = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
+        .moduleSet = ModuleSet.init(.{
             .INPUT = std.StringHashMap(void).init(allocator),
             .GATE = std.StringHashMap(void).init(allocator),
             .EQ = std.StringHashMap(void).init(allocator),
@@ -46,12 +52,12 @@ pub fn init(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !Conf {
             .OUTPT = std.StringHashMap(void).init(allocator),
         }),
         .mappings = undefined,
-        .modulesList = std.StringHashMap(ModulesList).init(allocator),
-        .defaults = std.EnumArray(ModulesList, [:0]const u8).initUndefined(),
+        .modulesList = Modules.init(allocator),
+        .defaults = Defaults.initUndefined(),
     };
 
     try self.readConf(allocator, cntrlrPth);
-    self.mappings = MapStore.init(allocator, &self.defaults, cntrlrPth);
+    self.mappings = MapStore.init(allocator, &cntrlrPth, &self.defaults, &self.modulesList);
 
     return self;
 }

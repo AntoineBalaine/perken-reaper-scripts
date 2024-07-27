@@ -1,6 +1,5 @@
 const std = @import("std");
 const config = @import("config.zig");
-const ModulesList = config.ModulesList;
 const ini = @import("ini");
 
 // Trk only carries action buttons, so no need to map them
@@ -104,7 +103,7 @@ pub const FxMap = struct {
     // Trk: std.meta.Tuple(&.{ u8, Trk }),
 };
 
-const TaggedMapping = union(ModulesList) {
+const TaggedMapping = union(config.ModulesList) {
     INPUT: ?Inpt,
     GATE: ?Shp,
     EQ: ?Eq,
@@ -122,7 +121,7 @@ GATE: std.StringHashMapUnmanaged(Shp),
 controller_dir: *const []const u8,
 allocator: std.mem.Allocator,
 // TRK: std.StringHashMap(Trk),
-pub fn init(allocator: std.mem.Allocator, defaults: *std.EnumArray(ModulesList, [:0]const u8), controller_dir: *const []const u8) MapStore {
+pub fn init(allocator: std.mem.Allocator, controller_dir: *const []const u8, defaults: *config.Defaults, modules: *config.Modules) MapStore {
     var self: MapStore = .{
         .COMP = std.StringHashMapUnmanaged(Comp){},
         .EQ = std.StringHashMapUnmanaged(Eq){},
@@ -134,13 +133,15 @@ pub fn init(allocator: std.mem.Allocator, defaults: *std.EnumArray(ModulesList, 
     };
     // find the mappings for the defaults
     var iterator = defaults.iterator();
-    while (iterator.next()) |module| {
-        const fxName = module.value;
+    while (iterator.next()) |defaultsEntry| {
+        const fxName = defaultsEntry.value;
         // use self.getMap() only for its side-effect: storing into the map.
         // Its return value is only meant to be used by self.get()
-        _ = self.getMap(fxName.*, module.key, controller_dir) catch {
-            continue;
-        };
+        if (modules.get(fxName.*) != null) {
+            _ = self.getMap(fxName.*, defaultsEntry.key) catch {
+                continue;
+            };
+        } else continue;
     }
     return self;
 }
@@ -163,21 +164,61 @@ pub fn deinit(self: *MapStore) void {
 }
 
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
-pub fn get(self: *MapStore, module: ModulesList, fxName: [:0]const u8) TaggedMapping {
-    return switch (module) {
-        .COMP => if (self.COMP.get(fxName)) |v| TaggedMapping{ .COMP = v } else self.getMap(fxName, module, self.controller_dir) catch TaggedMapping{ .COMP = null },
-        .EQ => if (self.EQ.get(fxName)) |v| TaggedMapping{ .EQ = v } else self.getMap(fxName, module, self.controller_dir) catch TaggedMapping{ .EQ = null },
-        .INPUT => if (self.INPUT.get(fxName)) |v| TaggedMapping{ .INPUT = v } else self.getMap(fxName, module, self.controller_dir) catch TaggedMapping{ .INPUT = null },
-        .OUTPT => if (self.OUTPT.get(fxName)) |v| TaggedMapping{ .OUTPT = v } else self.getMap(fxName, module, self.controller_dir) catch TaggedMapping{ .OUTPT = null },
-        .GATE => if (self.GATE.get(fxName)) |v| TaggedMapping{ .GATE = v } else self.getMap(fxName, module, self.controller_dir) catch TaggedMapping{ .GATE = null },
-    };
+pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList, modules: config.Modules) TaggedMapping {
+    switch (module) {
+        .COMP => {
+            if (modules.get(fxName) == null) {
+                return TaggedMapping{ .COMP = null };
+            } else if (self.COMP.get(fxName)) |v| {
+                return TaggedMapping{ .COMP = v };
+            } else {
+                return self.getMap(fxName, module) catch TaggedMapping{ .COMP = null };
+            }
+        },
+        .EQ => {
+            if (modules.get(fxName) == null) {
+                return TaggedMapping{ .EQ = null };
+            } else if (self.EQ.get(fxName)) |v| {
+                return TaggedMapping{ .EQ = v };
+            } else {
+                return self.getMap(fxName, module) catch TaggedMapping{ .EQ = null };
+            }
+        },
+        .INPUT => {
+            return if (modules.get(fxName) == null) {
+                return TaggedMapping{ .INPUT = null };
+            } else if (self.INPUT.get(fxName)) |v| {
+                return TaggedMapping{ .INPUT = v };
+            } else {
+                return self.getMap(fxName, module) catch TaggedMapping{ .INPUT = null };
+            };
+        },
+        .OUTPT => {
+            if (modules.get(fxName) == null) {
+                return TaggedMapping{ .OUTPT = null };
+            } else if (self.OUTPT.get(fxName)) |v| {
+                return TaggedMapping{ .OUTPT = v };
+            } else {
+                return self.getMap(fxName, module) catch TaggedMapping{ .OUTPT = null };
+            }
+        },
+        .GATE => {
+            if (modules.get(fxName) == null) {
+                return TaggedMapping{ .GATE = null };
+            } else if (self.GATE.get(fxName)) |v| {
+                return TaggedMapping{ .GATE = v };
+            } else {
+                return self.getMap(fxName, module) catch TaggedMapping{ .GATE = null };
+            }
+        },
+    }
 }
 
 /// fetch mapping from disk, parse it, store it, and return it.
-fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, controller_dir: *const []const u8) !TaggedMapping {
+fn getMap(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) !TaggedMapping {
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const subdir = @tagName(module);
-    const elements = [_][]const u8{ controller_dir.*, subdir, fxName };
+    const elements = [_][]const u8{ self.controller_dir.*, subdir, fxName };
     var pos: usize = 0;
     for (elements, 0..) |element, idx| {
         @memcpy(buf[pos .. pos + element.len], element);
