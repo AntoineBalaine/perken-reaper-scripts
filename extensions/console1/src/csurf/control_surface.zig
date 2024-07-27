@@ -17,7 +17,6 @@ const c = @cImport({
 });
 const Conf = @import("../internals/config.zig").Conf;
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
-const MapStore = @import("../internals/mappings.zig").FxMap;
 
 // TODO: update ini module, move tests from module into project
 // TODO: fix mem leak (too many bytes freed)
@@ -28,8 +27,6 @@ pub var state: State = undefined;
 pub var conf: Conf = undefined;
 pub var userSettings: UserSettings = undefined;
 pub var controller_dir: []const u8 = undefined;
-// TODO: move to config?
-pub var mappings: MapStore = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 const g_csurf_mcpmode = false;
@@ -294,7 +291,7 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     // QUESTION: what does mcpView param do?
     const id = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
     if (m_bank_offset != id) {
-        state.updateTrack(trackid, &conf);
+        _ = state.updateTrack(trackid, &conf);
         m_bank_offset = id;
         // c1’s midi track ids go from 0x15 to 0x28
         const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1));

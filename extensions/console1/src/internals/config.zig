@@ -15,6 +15,7 @@
 const std = @import("std");
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
+pub const MapStore = @import("mappings.zig");
 
 pub const Conf = @This();
 
@@ -27,23 +28,31 @@ pub const ModulesList = enum {
 };
 
 // TODO: switch to StringHashMapUnmanaged
-// TODO: use modulesList instead of modules
-modules: std.EnumArray(ModulesList, std.StringHashMap(void)),
+// TODO: use modulesList instead of moduleSet
+/// Maps modules to FX names
+moduleSet: std.EnumArray(ModulesList, std.StringHashMap(void)),
+/// Maps Fx names to modules
 modulesList: std.StringHashMap(ModulesList),
+/// Default FX associated with each module
 defaults: std.EnumArray(ModulesList, [:0]const u8),
+mappings: MapStore,
 pub fn init(allocator: std.mem.Allocator, cntrlrPth: []const u8) !Conf {
     var self: Conf = .{
-        .modules = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
+        .moduleSet = std.EnumArray(ModulesList, std.StringHashMap(void)).init(.{
             .INPUT = std.StringHashMap(void).init(allocator),
             .GATE = std.StringHashMap(void).init(allocator),
             .EQ = std.StringHashMap(void).init(allocator),
             .COMP = std.StringHashMap(void).init(allocator),
             .OUTPT = std.StringHashMap(void).init(allocator),
         }),
+        .mappings = undefined,
         .modulesList = std.StringHashMap(ModulesList).init(allocator),
         .defaults = std.EnumArray(ModulesList, [:0]const u8).initUndefined(),
     };
+
     try self.readConf(allocator, cntrlrPth);
+    self.mappings = MapStore.init(allocator, &self.defaults, &cntrlrPth);
+
     return self;
 }
 
@@ -103,7 +112,7 @@ fn readConf(self: *Conf, allocator: std.mem.Allocator, cntrlrPth: []const u8) !v
     var modulesParser = ini.parse(allocator, modulesFile.reader());
     defer modulesParser.deinit();
 
-    try readToEnumArray(&self.modules, ModulesList, &modulesParser, allocator, &self.modulesList);
+    try readToEnumArray(&self.moduleSet, ModulesList, &modulesParser, allocator, &self.modulesList);
 }
 
 pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator, modulesList: ?*std.StringHashMap(Or_enum)) !void {
@@ -185,13 +194,13 @@ test readConf {
     try expect(std.mem.eql(u8, conf.defaults.get(.COMP), "VST: ReaComp (Cockos)"));
     try expect(std.mem.eql(u8, conf.defaults.get(.OUTPT), "JS: Saturation"));
 
-    try expect(conf.modules.get(.INPUT).get("JS: Volume/Pan Smoother") != null);
-    try expect(conf.modules.get(.INPUT).get("JS: Other input") != null);
-    try expect(conf.modules.get(.GATE).get("VST: ReaGate (Cockos)") != null);
-    try expect(conf.modules.get(.GATE).get("VST: SOMEOTHERGATE") != null);
-    try expect(conf.modules.get(.EQ).get("VST: ReaEQ (Cockos)") != null);
-    try expect(conf.modules.get(.EQ).get("JS: ReEQ") != null);
-    try expect(conf.modules.get(.COMP).get("VST: ReaComp (Cockos)") != null);
-    try expect(conf.modules.get(.COMP).get("VST: ReaXComp (Cockos)") != null);
-    try expect(conf.modules.get(.OUTPT).get("JS: Saturation") != null);
+    try expect(conf.moduleSet.get(.INPUT).get("JS: Volume/Pan Smoother") != null);
+    try expect(conf.moduleSet.get(.INPUT).get("JS: Other input") != null);
+    try expect(conf.moduleSet.get(.GATE).get("VST: ReaGate (Cockos)") != null);
+    try expect(conf.moduleSet.get(.GATE).get("VST: SOMEOTHERGATE") != null);
+    try expect(conf.moduleSet.get(.EQ).get("VST: ReaEQ (Cockos)") != null);
+    try expect(conf.moduleSet.get(.EQ).get("JS: ReEQ") != null);
+    try expect(conf.moduleSet.get(.COMP).get("VST: ReaComp (Cockos)") != null);
+    try expect(conf.moduleSet.get(.COMP).get("VST: ReaXComp (Cockos)") != null);
+    try expect(conf.moduleSet.get(.OUTPT).get("JS: Saturation") != null);
 }

@@ -19,7 +19,8 @@ var buf: [255:0]u8 = undefined;
 pub const Track = struct {
     ptr: ?reaper.MediaTrack,
     order: ModulesOrder = .@"S-EQ-C",
-    fxMap: ?FxMap = null,
+    fxMap: FxMap = FxMap.init(),
+
     pub fn init(trackPtr: reaper.MediaTrack) Track {
         const track: Track = .{
             .ptr = trackPtr,
@@ -41,7 +42,12 @@ pub const Track = struct {
     }
 
     /// if container_idx is provided, then load the chain into it.
-    fn loadDefaultChain(self: *Track, container_idx: ?c_int, defaults: *std.EnumArray(ModulesList, [:0]const u8)) !void {
+    fn loadDefaultChain(
+        self: *Track,
+        container_idx: ?c_int,
+        defaults: *std.EnumArray(ModulesList, [:0]const u8),
+        mappings: *config.MapStore,
+    ) !void {
         var cont_idx: c_int = undefined;
         if (container_idx) |idx| {
             cont_idx = idx;
@@ -61,9 +67,10 @@ pub const Track = struct {
         var iterator = defaults.iterator();
         var idx: u8 = 0;
         while (iterator.next()) |field| : (idx += 1) {
+            const fxName = defaults.get(field.key);
             const fx_added = reaper.TrackFX_AddByName(
                 self.ptr.?,
-                @as([*:0]const u8, defaults.get(field.key)),
+                @as([*:0]const u8, fxName),
                 false,
                 self.getSubContainerIdx(
                     idx + 1, // make it 1-based
@@ -72,6 +79,14 @@ pub const Track = struct {
             );
             if (fx_added == -1) {
                 return TrckErr.fxAddFail;
+            } else {
+                switch (field.key) {
+                    .INPUT => self.fxMap.INPUT = .{ idx, mappings.get(field.key, fxName).INPUT },
+                    .GATE => self.fxMap.GATE = .{ idx, mappings.get(field.key, fxName).GATE },
+                    .EQ => self.fxMap.EQ = .{ idx, mappings.get(field.key, fxName).EQ },
+                    .COMP => self.fxMap.COMP = .{ idx, mappings.get(field.key, fxName).COMP },
+                    .OUTPT => self.fxMap.OUTPT = .{ idx, mappings.get(field.key, fxName).OUTPT },
+                }
             }
         }
     }
@@ -123,7 +138,9 @@ pub const Track = struct {
             };
 
             switch (moduleType) {
-                .INPUT => moduleCounter.INPUT += 1,
+                .INPUT => {
+                    moduleCounter.INPUT += 1;
+                },
                 .EQ => moduleCounter.EQ += 1,
                 .GATE => moduleCounter.GATE += 1,
                 .COMP => moduleCounter.COMP += 1,
@@ -161,19 +178,24 @@ pub const Track = struct {
         }
     }
 
-    pub fn checkTrackState(self: *Track, modules: std.StringHashMap(ModulesList), defaults: *std.EnumArray(ModulesList, [:0]const u8)) !void {
+    pub fn checkTrackState(
+        self: *Track,
+        modules: std.StringHashMap(ModulesList),
+        defaults: *std.EnumArray(ModulesList, [:0]const u8),
+        mappings: *config.MapStore,
+    ) !void {
         if (self.ptr == null) {
             return;
         }
         const tr = self.ptr.?;
         const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
         if (container_idx == -1) {
-            try self.loadDefaultChain(null, defaults);
+            try self.loadDefaultChain(null, defaults, mappings);
             return;
         }
         const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
         if (!rv) {
-            try self.loadDefaultChain(container_idx, defaults);
+            try self.loadDefaultChain(container_idx, defaults, mappings);
             return;
         }
         const count = try std.fmt.parseInt(i32, std.mem.span(@as([*:0]const u8, &buf)), 10);
@@ -220,7 +242,7 @@ pub const Track = struct {
             }
             const fxName = std.mem.span(@as([*:0]const u8, &buf));
 
-            const moduleType = modules.get(fxName) orelse {
+            const moduleType = modules.get(fxName) orelse { // no mapping available
                 continue;
             };
 
@@ -241,7 +263,10 @@ pub const Track = struct {
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
-                        return try self.checkTrackState(modules, defaults);
+                        // FIXME: do we really need to recurse?
+                        return try self.checkTrackState(modules, defaults, mappings);
+                    } else {
+                        self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT };
                     }
                 },
                 .OUTPT => {
@@ -254,10 +279,14 @@ pub const Track = struct {
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
-                        return try self.checkTrackState(modules, defaults);
+                        return try self.checkTrackState(modules, defaults, mappings);
+                    } else {
+                        self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT };
                     }
                 },
-                else => {},
+                .GATE => self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT },
+                .EQ => self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT },
+                .COMP => self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT },
             }
         }
 
@@ -305,12 +334,12 @@ pub const Track = struct {
                 self.order = .@"S-C-EQ";
             }
         }
-        self.fxMap = fxMapFromModuleCheck(moduleChecks);
+        self.fxMap = fxMapFromModuleCheck(&moduleChecks);
     }
 };
 
-fn fxMapFromModuleCheck(moduleCheck: ModuleCheck) FxMap {
-    const map: FxMap = .{
+fn fxMapFromModuleCheck(moduleCheck: *ModuleCheck) FxMap {
+    var map: FxMap = .{
         .COMP = undefined,
         .EQ = undefined,
         .INPUT = undefined,
@@ -322,11 +351,11 @@ fn fxMapFromModuleCheck(moduleCheck: ModuleCheck) FxMap {
         const module = field.key;
         const idx = field.value[1];
         switch (module) {
-            .INPUT => map.INPUT = std.meta.Tuple(&.{ idx, null }),
-            .EQ => map.EQ = std.meta.Tuple(&.{ idx, null }),
-            .GATE => map.GATE = std.meta.Tuple(&.{ idx, null }),
-            .COMP => map.Comp = std.meta.Tuple(&.{ idx, null }),
-            .OUTPT => map.OUTPT = std.meta.Tuple(&.{ idx, null }),
+            .COMP => map.COMP = .{ idx, null },
+            .EQ => map.EQ = .{ idx, null },
+            .INPUT => map.INPUT = .{ idx, null },
+            .OUTPT => map.OUTPT = .{ idx, null },
+            .GATE => map.GATE = .{ idx, null },
         }
     }
     return map;
