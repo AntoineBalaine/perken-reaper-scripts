@@ -263,10 +263,9 @@ pub const Track = struct {
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
-                        // FIXME: do we really need to recurse?
                         return try self.checkTrackState(modules, defaults, mappings);
                     } else {
-                        self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT };
+                        self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT };
                     }
                 },
                 .OUTPT => {
@@ -281,12 +280,12 @@ pub const Track = struct {
                         // now that the fx indexes are all invalid, let's recurse.
                         return try self.checkTrackState(modules, defaults, mappings);
                     } else {
-                        self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT };
+                        self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT };
                     }
                 },
-                .GATE => self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT },
-                .EQ => self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT },
-                .COMP => self.fxMap.INPUT = .{ idx, mappings.get(.INPUT, fxName).INPUT },
+                .GATE => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT },
+                .EQ => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT },
+                .COMP => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(.INPUT, fxName).INPUT },
             }
         }
 

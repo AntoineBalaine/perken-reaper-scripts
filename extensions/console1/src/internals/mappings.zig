@@ -145,16 +145,11 @@ pub fn init(allocator: std.mem.Allocator, defaults: *std.EnumArray(ModulesList, 
     var iterator = defaults.iterator();
     while (iterator.next()) |module| {
         const fxName = module.value;
-        const mapping = self.getMap(fxName.*, module.key, controller_dir) catch {
+        // use self.getMap() only for its side-effect: storing into the map.
+        // Its return value is only meant to be used by self.get()
+        _ = self.getMap(fxName.*, module.key, controller_dir) catch {
             continue;
         };
-        switch (mapping) {
-            .COMP => |opt| if (opt) |v| self.COMP.put(self.allocator, fxName.*, v) catch {},
-            .EQ => |opt| if (opt) |v| self.EQ.put(self.allocator, fxName.*, v) catch {},
-            .INPUT => |opt| if (opt) |v| self.INPUT.put(self.allocator, fxName.*, v) catch {},
-            .OUTPT => |opt| if (opt) |v| self.OUTPT.put(self.allocator, fxName.*, v) catch {},
-            .GATE => |opt| if (opt) |v| self.GATE.put(self.allocator, fxName.*, v) catch {},
-        }
     }
     return self;
 }
@@ -176,6 +171,7 @@ pub fn deinit(self: *MapStore) void {
     // }
 }
 
+/// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
 pub fn get(self: *MapStore, module: ModulesList, fxName: [:0]const u8) TaggedMapping {
     return switch (module) {
         .COMP => if (self.COMP.get(fxName)) |v| TaggedMapping{ .COMP = v } else self.getMap(fxName, module, self.controller_dir) catch TaggedMapping{ .COMP = null },
@@ -186,7 +182,7 @@ pub fn get(self: *MapStore, module: ModulesList, fxName: [:0]const u8) TaggedMap
     };
 }
 
-// FIXME: GETMAP should take care of storing into the map. This shouldn't be done by the init function
+/// fetch mapping from disk, parse it, store it, and return it.
 fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, controller_dir: *const []const u8) !TaggedMapping {
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const subdir = @tagName(module);
@@ -211,32 +207,39 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, controller
         .COMP => {
             const comp = Comp{};
             _ = try readToU8Struct(&comp, &parser);
+            self.COMP.put(self.allocator, fxName, comp) catch {}; // side-effect: store in hashmap
             return TaggedMapping{ .COMP = comp };
         },
         .EQ => {
             var eq = Eq{};
             _ = try readToU8Struct(&eq, &parser);
+            self.EQ.put(self.allocator, fxName, eq) catch {}; // side-effect: store in hashmap
             return TaggedMapping{ .EQ = eq };
         },
         .INPUT => {
             var inpt: Inpt = Inpt{};
             _ = try readToU8Struct(&inpt, &parser);
+            self.INPUT.put(self.allocator, fxName, inpt) catch {}; // side-effect: store in hashmap
             return TaggedMapping{ .INPUT = inpt };
         },
         .OUTPT => {
             var outpt: Outpt = Outpt{};
             _ = try readToU8Struct(&outpt, &parser);
+            self.OUTPT.put(self.allocator, fxName, outpt) catch {}; // side-effect: store in hashmap
             return TaggedMapping{ .OUTPT = outpt };
         },
         .GATE => {
             var shp: Shp = Shp{};
             _ = try readToU8Struct(&shp, &parser);
+            self.GATE.put(self.allocator, fxName, shp) catch {}; // side-effect: store in hashmap
             return TaggedMapping{ .GATE = shp };
         },
     };
+
     return mapping;
 }
 
+/// parse comp/eq/gate/input/output structs
 fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
     const T = @TypeOf(ret_struct.*);
     std.debug.assert(@typeInfo(T) == .Struct);
