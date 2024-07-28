@@ -392,7 +392,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnInputMonitorChangeEx: *fn (trackid: *MediaTrack, monitor: c_int, allowgang: bool) callconv(.C) c_int = undefined;
 
     /// CSurf_OnMuteChange
-    pub var CSurf_OnMuteChange: *fn (trackid: *MediaTrack, mute: c_int) callconv(.C) bool = undefined;
+    pub var CSurf_OnMuteChange: *fn (trackid: MediaTrack, mute: c_int) callconv(.C) bool = undefined;
 
     /// CSurf_OnMuteChangeEx
     pub var CSurf_OnMuteChangeEx: *fn (trackid: *MediaTrack, mute: c_int, allowgang: bool) callconv(.C) bool = undefined;
@@ -404,7 +404,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnOscControlMessage2: *fn (msg: [*:0]const u8, arg: *const f32, argstr: [*:0]const u8) callconv(.C) void = undefined;
 
     /// CSurf_OnPanChange
-    pub var CSurf_OnPanChange: *fn (trackid: *MediaTrack, pan: f64, relative: bool) callconv(.C) f64 = undefined;
+    pub var CSurf_OnPanChange: *fn (trackid: MediaTrack, pan: f64, relative: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnPanChangeEx
     pub var CSurf_OnPanChangeEx: *fn (trackid: *MediaTrack, pan: f64, relative: bool, allowGang: bool) callconv(.C) f64 = undefined;
@@ -452,7 +452,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnSendVolumeChange: *fn (trackid: *MediaTrack, send_index: c_int, volume: f64, relative: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnSoloChange
-    pub var CSurf_OnSoloChange: *fn (trackid: *MediaTrack, solo: c_int) callconv(.C) bool = undefined;
+    pub var CSurf_OnSoloChange: *fn (trackid: MediaTrack, solo: c_int) callconv(.C) bool = undefined;
 
     /// CSurf_OnSoloChangeEx
     pub var CSurf_OnSoloChangeEx: *fn (trackid: *MediaTrack, solo: c_int, allowgang: bool) callconv(.C) bool = undefined;
@@ -497,10 +497,10 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_SetRepeatState: *fn (rep: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceMute
-    pub var CSurf_SetSurfaceMute: *fn (trackid: *MediaTrack, mute: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
+    pub var CSurf_SetSurfaceMute: *fn (trackid: MediaTrack, mute: bool, ignoresurf: ?*IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfacePan
-    pub var CSurf_SetSurfacePan: *fn (trackid: *MediaTrack, pan: f64, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
+    pub var CSurf_SetSurfacePan: *fn (trackid: MediaTrack, pan: f64, ignoresurf: ?*IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceRecArm
     pub var CSurf_SetSurfaceRecArm: *fn (trackid: *MediaTrack, recarm: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
@@ -509,7 +509,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_SetSurfaceSelected: *fn (trackid: *MediaTrack, selected: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceSolo
-    pub var CSurf_SetSurfaceSolo: *fn (trackid: *MediaTrack, solo: bool, ignoresurf: *IReaperControlSurface) callconv(.C) void = undefined;
+    pub var CSurf_SetSurfaceSolo: *fn (trackid: MediaTrack, solo: bool, ignoresurf: ?*IReaperControlSurface) callconv(.C) void = undefined;
 
     /// CSurf_SetSurfaceVolume
     pub var CSurf_SetSurfaceVolume: *fn (trackid: MediaTrack, volume: f64, ignoresurf: ?*IReaperControlSurface) callconv(.C) void = undefined;

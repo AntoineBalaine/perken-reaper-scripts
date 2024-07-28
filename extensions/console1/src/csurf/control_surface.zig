@@ -80,6 +80,12 @@ fn u8ToVol(val: u8) f64 {
     return DB2VAL(pos);
 }
 
+fn u8ToPan(val: u8) f64 {
+    // Dividing by (127/2) scales the value to the range 0.0 to 2.0.
+    // Subtracting 1.0 shifts the range to -1.0 to 1.0.
+    return (@as(f64, @floatFromInt(val)) / (127 / 2)) - 1.0;
+}
+
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     m_midi_in_dev = indev;
     m_midi_out_dev = outdev;
@@ -147,6 +153,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     std.debug.print("0x{x}\t0x{x}\t0x{x}\t\t0x{x}\t0x{x}\t0x{x}\n", .{ status, msg[1], msg[2], status, if (status == 0xb0) msg[1] else msg[0], val });
 
     if (cc_enum) |cc| {
+        const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
         switch (cc) {
             .Comp_Attack => std.debug.print("CC Comp_Attack\n", .{}),
             .Comp_DryWet => std.debug.print("CC Comp_DryWet\n", .{}),
@@ -182,16 +189,20 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Out_DriveChar => std.debug.print("CC Out_DriveChar\n", .{}),
             .Out_MtrLft => {}, // meters unhandled
             .Out_MtrRgt => {}, // meters unhandled
-            .Out_Pan => std.debug.print("CC Out_Pan\n", .{}),
+            .Out_Pan => {
+                if (state.mode == .fx_ctrl) {
+                    const rv = reaper.CSurf_OnPanChange(tr, u8ToPan(val), false);
+                    reaper.CSurf_SetSurfacePan(tr, rv, null);
+                }
+            },
             .Out_Vol => {
                 if (state.mode == .fx_ctrl) {
-                    const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
                     const rv = reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false);
                     reaper.CSurf_SetSurfaceVolume(tr, rv, null);
                 }
             },
-            .Out_mute => std.debug.print("CC Out_mute\n", .{}),
-            .Out_solo => std.debug.print("CC Out_solo\n", .{}),
+            .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), null),
+            .Out_solo => reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), null),
             .Shp_Gate => std.debug.print("CC Shp_Gate\n", .{}),
             .Shp_GateRelease => std.debug.print("CC Shp_GateRelease\n", .{}),
             .Shp_Mtr => {}, // meters unhandled
