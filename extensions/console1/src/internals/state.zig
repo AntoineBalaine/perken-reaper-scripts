@@ -48,5 +48,4 @@ pub fn updateTrack(self: *State, trackid: reaper.MediaTrack, config: *Conf) void
     self.track.?.checkTrackState(config.modulesList, &config.defaults, &config.mappings) catch {
         std.debug.print("checkTrackState(): had error\n", .{});
     };
-    return self.track;
 }

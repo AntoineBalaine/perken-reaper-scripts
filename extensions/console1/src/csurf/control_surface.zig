@@ -423,7 +423,7 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     // QUESTION: what does mcpView param do?
     const id = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
     if (m_bank_offset != id) {
-        _ = state.updateTrack(trackid, &conf);
+        state.updateTrack(trackid, &conf);
         m_bank_offset = id;
 
         if (m_midiout) |midiout| {
