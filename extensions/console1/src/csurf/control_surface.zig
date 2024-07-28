@@ -74,6 +74,11 @@ fn iterCC() void {
         std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
     }
 }
+fn u8ToVol(val: u8) f64 {
+    var pos = (@as(f64, @floatFromInt(val)) * 1000.0) / 127.0; // scale to 1000
+    pos = reaper.SLIDER2DB(pos); // convert 0-1000 slider position to DB
+    return DB2VAL(pos);
+}
 
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     m_midi_in_dev = indev;
@@ -136,11 +141,92 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     const status = msg[0] & 0xf0;
     const chan = msg[0] & 0x0f;
     _ = chan;
-    const cc_id = if (status == 0x8) msg[1] else msg[0];
-    const val = if (status == 0x8) msg[2] else msg[1];
+    const cc_enum = std.meta.intToEnum(c1.CCs, if (status == 0xb0) msg[1] else msg[0]) catch null;
+    const val = if (status == 0xb0) msg[2] else msg[1];
 
-    std.debug.print("0x{x}\t0x{x}\t0x{x}\n", .{ msg[0], cc_id, val });
-    // std.debug.print("\n", .{});
+    std.debug.print("0x{x}\t0x{x}\t0x{x}\t\t0x{x}\t0x{x}\t0x{x}\n", .{ status, msg[1], msg[2], status, if (status == 0xb0) msg[1] else msg[0], val });
+
+    if (cc_enum) |cc| {
+        switch (cc) {
+            .Comp_Attack => std.debug.print("CC Comp_Attack\n", .{}),
+            .Comp_DryWet => std.debug.print("CC Comp_DryWet\n", .{}),
+            .Comp_Mtr => {}, // meters unhandled
+            .Comp_Ratio => std.debug.print("CC Comp_Ratio\n", .{}),
+            .Comp_Release => std.debug.print("CC Comp_Release\n", .{}),
+            .Comp_Thresh => std.debug.print("CC Comp_Thresh\n", .{}),
+            .Comp_comp => std.debug.print("CC Comp_comp\n", .{}),
+            .Eq_HiFrq => std.debug.print("CC Eq_HiFrq\n", .{}),
+            .Eq_HiGain => std.debug.print("CC Eq_HiGain\n", .{}),
+            .Eq_HiMidFrq => std.debug.print("CC Eq_HiMidFrq\n", .{}),
+            .Eq_HiMidGain => std.debug.print("CC Eq_HiMidGain\n", .{}),
+            .Eq_HiMidQ => std.debug.print("CC Eq_HiMidQ\n", .{}),
+            .Eq_LoFrq => std.debug.print("CC Eq_LoFrq\n", .{}),
+            .Eq_LoGain => std.debug.print("CC Eq_LoGain\n", .{}),
+            .Eq_LoMidFrq => std.debug.print("CC Eq_LoMidFrq\n", .{}),
+            .Eq_LoMidGain => std.debug.print("CC Eq_LoMidGain\n", .{}),
+            .Eq_LoMidQ => std.debug.print("CC Eq_LoMidQ\n", .{}),
+            .Eq_eq => std.debug.print("CC Eq_eq\n", .{}),
+            .Eq_hp_shape => std.debug.print("CC Eq_hp_shape\n", .{}),
+            .Eq_lp_shape => std.debug.print("CC Eq_lp_shape\n", .{}),
+            .Inpt_Gain => std.debug.print("CC Inpt_Gain\n", .{}),
+            .Inpt_HiCut => std.debug.print("CC Inpt_HiCut\n", .{}),
+            .Inpt_LoCut => std.debug.print("CC Inpt_LoCut\n", .{}),
+            .Inpt_MtrLft => {}, // meters unhandled
+            .Inpt_MtrRgt => {}, // meters unhandled
+            .Inpt_disp_mode => std.debug.print("CC Inpt_disp_mode\n", .{}),
+            .Inpt_disp_on => std.debug.print("CC Inpt_disp_on\n", .{}),
+            .Inpt_filt_to_comp => std.debug.print("CC Inpt_filt_to_comp\n", .{}),
+            .Inpt_phase_inv => std.debug.print("CC Inpt_phase_inv\n", .{}),
+            .Inpt_preset => std.debug.print("CC Inpt_preset\n", .{}),
+            .Out_Drive => std.debug.print("CC Out_Drive\n", .{}),
+            .Out_DriveChar => std.debug.print("CC Out_DriveChar\n", .{}),
+            .Out_MtrLft => {}, // meters unhandled
+            .Out_MtrRgt => {}, // meters unhandled
+            .Out_Pan => std.debug.print("CC Out_Pan\n", .{}),
+            .Out_Vol => {
+                if (state.mode == .fx_ctrl) {
+                    const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
+                    const rv = reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false);
+                    reaper.CSurf_SetSurfaceVolume(tr, rv, null);
+                }
+            },
+            .Out_mute => std.debug.print("CC Out_mute\n", .{}),
+            .Out_solo => std.debug.print("CC Out_solo\n", .{}),
+            .Shp_Gate => std.debug.print("CC Shp_Gate\n", .{}),
+            .Shp_GateRelease => std.debug.print("CC Shp_GateRelease\n", .{}),
+            .Shp_Mtr => {}, // meters unhandled
+            .Shp_Punch => std.debug.print("CC Shp_Punch\n", .{}),
+            .Shp_hard_gate => std.debug.print("CC Shp_hard_gate\n", .{}),
+            .Shp_shape => std.debug.print("CC Shp_shape\n", .{}),
+            .Shp_sustain => std.debug.print("CC Shp_sustain\n", .{}),
+            .Tr_ext_sidechain => std.debug.print("CC Tr_ext_sidechain\n", .{}),
+            .Tr_order => std.debug.print("CC Tr_order\n", .{}),
+            .Tr_pg_dn => std.debug.print("CC Tr_pg_dn\n", .{}),
+            .Tr_pg_up => std.debug.print("CC Tr_pg_up\n", .{}),
+            .Tr_tr1 => std.debug.print("CC Tr_tr1\n", .{}),
+            .Tr_tr10 => std.debug.print("CC Tr_tr10\n", .{}),
+            .Tr_tr11 => std.debug.print("CC Tr_tr11\n", .{}),
+            .Tr_tr12 => std.debug.print("CC Tr_tr12\n", .{}),
+            .Tr_tr13 => std.debug.print("CC Tr_tr13\n", .{}),
+            .Tr_tr14 => std.debug.print("CC Tr_tr14\n", .{}),
+            .Tr_tr15 => std.debug.print("CC Tr_tr15\n", .{}),
+            .Tr_tr16 => std.debug.print("CC Tr_tr16\n", .{}),
+            .Tr_tr17 => std.debug.print("CC Tr_tr17\n", .{}),
+            .Tr_tr18 => std.debug.print("CC Tr_tr18\n", .{}),
+            .Tr_tr19 => std.debug.print("CC Tr_tr19\n", .{}),
+            .Tr_tr2 => std.debug.print("CC Tr_tr2\n", .{}),
+            .Tr_tr20 => std.debug.print("CC Tr_tr20\n", .{}),
+            .Tr_tr3 => std.debug.print("CC Tr_tr3\n", .{}),
+            .Tr_tr4 => std.debug.print("CC Tr_tr4\n", .{}),
+            .Tr_tr5 => std.debug.print("CC Tr_tr5\n", .{}),
+            .Tr_tr6 => std.debug.print("CC Tr_tr6\n", .{}),
+            .Tr_tr7 => std.debug.print("CC Tr_tr7\n", .{}),
+            .Tr_tr8 => std.debug.print("CC Tr_tr8\n", .{}),
+            .Tr_tr9 => std.debug.print("CC Tr_tr9\n", .{}),
+            .Tr_tr_copy => std.debug.print("CC Tr_tr_copy\n", .{}),
+            .Tr_tr_grp => std.debug.print("CC Tr_tr_grp\n", .{}),
+        }
+    }
 
     //     reaper.CSurf_TrackToID(trackid,g_csurf_mcpmode);
     //     reaper.CSurf_TrackFromID(idx: c_int, mcpView: bool);
@@ -185,7 +271,7 @@ export fn zRun() callconv(.C) void {
         while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
             OnMidiEvent(evts);
         }
-        iterCC();
+        // iterCC();
     }
     if (playState and !pauseState) {
         if (m_midiout) |midiOut| {
@@ -288,7 +374,6 @@ export fn zResetCachedVolPanStates() callconv(.C) void {
 }
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     std.debug.print("OnTrackSelection\n", .{});
-    // state.handleNewTrack(trackid);
     // QUESTION: what does mcpView param do?
     const id = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
     if (m_bank_offset != id) {
@@ -307,42 +392,72 @@ export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;
     return false;
 }
-export fn zExtended(call: c_int, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {
-    _ = call; // autofix
+
+const Extended = enum(c_int) {
+    MIDI_DEVICE_REMAP = 0x00010099,
+    RESET = 0x0001FFFF,
+    SETAUTORECARM = 0x00010003,
+    SETBPMANDPLAYRATE = 0x00010009,
+    SETFOCUSEDFX = 0x0001000B,
+    SETFXCHANGE = 0x00010013,
+    SETFXENABLED = 0x00010007,
+    SETFXOPEN = 0x00010012,
+    SETFXPARAM = 0x00010008,
+    SETFXPARAM_RECFX = 0x00010018,
+    SETINPUTMONITOR = 0x00010001,
+    SETLASTTOUCHEDFX = 0x0001000A,
+    SETLASTTOUCHEDTRACK = 0x0001000C,
+    SETMETRONOME = 0x00010002,
+    SETMIXERSCROLL = 0x0001000D,
+    SETPAN_EX = 0x0001000E,
+    SETPROJECTMARKERCHANGE = 0x00010014,
+    SETRECMODE = 0x00010004,
+    SETRECVPAN = 0x00010011,
+    SETRECVVOLUME = 0x00010010,
+    SETSENDPAN = 0x00010006,
+    SETSENDVOLUME = 0x00010005,
+    SUPPORTS_EXTENDED_TOUCH = 0x00080001,
+    TRACKFX_PRESET_CHANGED = 0x00010015,
+    unknown,
+};
+
+export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {
     _ = parm1;
     _ = parm2;
     _ = parm3;
-    // std.debug.print("Extended\n", .{});
-    // switch (call) {
-    //     0x0001FFFF => std.debug.print("CSURF_EXT_RESET\n", .{}), // clear all surface state and reset (harder reset than SetTrackListChange)
-    //     0x00010001 => std.debug.print("CSURF_EXT_SETINPUTMONITOR\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recmonitor
-    //     0x00010002 => std.debug.print("CSURF_EXT_SETMETRONOME\n", .{}), // parm1=0 to disable metronome, !0 to enable
-    //     0x00010003 => std.debug.print("CSURF_EXT_SETAUTORECARM\n", .{}), // parm1=0 to disable autorecarm, !0 to enable
-    //     0x00010004 => std.debug.print("CSURF_EXT_SETRECMODE\n", .{}), // parm1=(int*)record mode: 0=autosplit and create takes, 1=replace (tape) mode
-    //     0x00010005 => std.debug.print("CSURF_EXT_SETSENDVOLUME\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)sendidx, parm3=(double*)volume
-    //     0x00010006 => std.debug.print("CSURF_EXT_SETSENDPAN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)sendidx, parm3=(double*)pan
-    //     0x00010007 => std.debug.print("CSURF_EXT_SETFXENABLED\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if bypassed, !0 if enabled
-    //     0x00010008 => std.debug.print("CSURF_EXT_SETFXPARAM\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)(fxidx<<16|paramidx), parm3=(double*)normalized value
-    //     0x00010018 => std.debug.print("CSURF_EXT_SETFXPARAM_RECFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)(fxidx<<16|paramidx), parm3=(double*)normalized value
-    //     0x00010009 => std.debug.print("CSURF_EXT_SETBPMANDPLAYRATE\n", .{}), // parm1=*(double*)bpm (may be NULL), parm2=*(double*)playrate (may be NULL)
-    //     0x0001000A => std.debug.print("CSURF_EXT_SETLASTTOUCHEDFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear last touched FX
-    //     0x0001000B => std.debug.print("CSURF_EXT_SETFOCUSEDFX\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear focused FX
-    //     0x0001000C => std.debug.print("CSURF_EXT_SETLASTTOUCHEDTRACK\n", .{}), // parm1=(MediaTrack*)track
-    //     0x0001000D => std.debug.print("CSURF_EXT_SETMIXERSCROLL\n", .{}), // parm1=(MediaTrack*)track, leftmost track visible in the mixer
-    //     0x0001000E => std.debug.print("CSURF_EXT_SETPAN_EX\n", .{}), // parm1=(MediaTrack*)track, parm2=(double*)pan, parm3=(int*)mode 0=v1-3 balance, 3=v4+ balance, 5=stereo pan, 6=dual pan. for modes 5 and 6, (double*)pan points to an array of two doubles.  if a csurf supports CSURF_EXT_SETPAN_EX, it should ignore CSurf_SetSurfacePan.
-    //     0x00010010 => std.debug.print("CSURF_EXT_SETRECVVOLUME\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recvidx, parm3=(double*)volume
-    //     0x00010011 => std.debug.print("CSURF_EXT_SETRECVPAN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)recvidx, parm3=(double*)pan
-    //     0x00010012 => std.debug.print("CSURF_EXT_SETFXOPEN\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if UI closed, !0 if open
-    //     0x00010013 => std.debug.print("CSURF_EXT_SETFXCHANGE\n", .{}), // parm1=(MediaTrack*)track, whenever FX are added, deleted, or change order. flags=(INT_PTR)parm2, &1=rec fx
-    //     0x00010014 => std.debug.print("CSURF_EXT_SETPROJECTMARKERCHANGE\n", .{}), // whenever project markers are changed
-    //     0x00010015 => std.debug.print("CSURF_EXT_TRACKFX_PRESET_CHANGED\n", .{}), // parm1=(MediaTrack*)track, parm2=(int*)fxidx (6.13+ probably)
-    //     0x00080001 => std.debug.print("CSURF_EXT_SUPPORTS_EXTENDED_TOUCH\n", .{}), // returns nonzero if GetTouchState can take isPan=2 for width, etc
-    //     0x00010099 => std.debug.print("CSURF_EXT_MIDI_DEVICE_REMAP\n", .{}), // parm1 = isout, parm2 = old idx, parm3 = new idx
-    //     else => unreachable,
-    // }
+    switch (call) {
+        .MIDI_DEVICE_REMAP => std.debug.print("MIDI_DEVICE_REMAP\n", .{}),
+        .RESET => std.debug.print("RESET\n", .{}),
+        .SETAUTORECARM => std.debug.print("SETAUTORECARM\n", .{}),
+        .SETBPMANDPLAYRATE => std.debug.print("SETBPMANDPLAYRATE\n", .{}),
+        .SETFOCUSEDFX => std.debug.print("SETFOCUSEDFX\n", .{}),
+        .SETFXCHANGE => std.debug.print("SETFXCHANGE\n", .{}),
+        .SETFXENABLED => std.debug.print("SETFXENABLED\n", .{}),
+        .SETFXOPEN => std.debug.print("SETFXOPEN\n", .{}),
+        .SETFXPARAM => std.debug.print("SETFXPARAM\n", .{}),
+        .SETFXPARAM_RECFX => std.debug.print("SETFXPARAM_RECFX\n", .{}),
+        .SETINPUTMONITOR => std.debug.print("SETINPUTMONITOR\n", .{}),
+        .SETLASTTOUCHEDFX => std.debug.print("SETLASTTOUCHEDFX\n", .{}),
+        .SETLASTTOUCHEDTRACK => std.debug.print("SETLASTTOUCHEDTRACK\n", .{}),
+        .SETMETRONOME => std.debug.print("SETMETRONOME\n", .{}),
+        .SETMIXERSCROLL => std.debug.print("SETMIXERSCROLL\n", .{}),
+        .SETPAN_EX => std.debug.print("SETPAN_EX\n", .{}),
+        .SETPROJECTMARKERCHANGE => std.debug.print("SETPROJECTMARKERCHANGE\n", .{}),
+        .SETRECMODE => std.debug.print("SETRECMODE\n", .{}),
+        .SETRECVPAN => std.debug.print("SETRECVPAN\n", .{}),
+        .SETRECVVOLUME => std.debug.print("SETRECVVOLUME\n", .{}),
+        .SETSENDPAN => std.debug.print("SETSENDPAN\n", .{}),
+        .SETSENDVOLUME => std.debug.print("SETSENDVOLUME\n", .{}),
+        .SUPPORTS_EXTENDED_TOUCH => std.debug.print("SUPPORTS_EXTENDED_TOUCH\n", .{}),
+        .TRACKFX_PRESET_CHANGED => std.debug.print("TRACKFX_PRESET_CHANGED\n", .{}),
+        else => {},
+    }
     return 0;
 }
 
+inline fn DB2VAL(x: f64) f64 {
+    return std.math.exp((x) * LN10_OVER_TWENTY);
+}
 const TWENTY_OVER_LN10 = 8.6858896380650365530225783783321;
 const LN10_OVER_TWENTY = 0.11512925464970228420089957273422;
 inline fn VAL2DB(x: f64) f64 {

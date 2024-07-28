@@ -79,8 +79,8 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     };
     std.debug.print("Csurf Console1 init success\n", .{});
 
-    _ = reaper.plugin_register("csurf_inst", myCsurf.?);
-    // _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
+    // _ = reaper.plugin_register("csurf_inst", myCsurf.?);
+    _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
 
     // const action = reaper.custom_action_register_t{ .section = 0, .id_str = "REAIMGUI_ZIG", .name = "ReaImGui Zig example" };
     // action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
