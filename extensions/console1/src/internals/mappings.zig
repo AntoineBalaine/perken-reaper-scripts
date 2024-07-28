@@ -252,7 +252,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) !Ta
 
     const mapping: TaggedMapping = switch (module) {
         .COMP => {
-            const comp = Comp{};
+            var comp = Comp{};
             _ = try readToU8Struct(&comp, &parser);
             self.COMP.put(self.allocator, fxName, comp) catch {}; // side-effect: store in hashmap
             return TaggedMapping{ .COMP = comp };
@@ -297,9 +297,10 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
                 inline for (std.meta.fields(T)) |ns_info| {
                     if (std.mem.eql(u8, ns_info.name, kv.key)) {
                         if (@TypeOf(@field(ret_struct, ns_info.name)) == u8) {
-                            var field = &@field(ret_struct, ns_info.name);
-                            var parsed = try std.fmt.parseInt(u8, kv.value, 10);
-                            field = &parsed;
+                            // const field = &@field(ret_struct, ns_info.name);
+                            // field.* = parsed;
+                            const parsed = try std.fmt.parseInt(u8, kv.value, 10);
+                            @field(ret_struct, ns_info.name) = parsed;
                         }
                     }
                 }
@@ -313,20 +314,19 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
 
 test readToU8Struct {
     const expect = std.testing.expect;
-    const allocator = std.testing.allocator;
     const ExampleStruct = struct {
         repositoryformatversion: u8,
     };
     const example =
-        \\ 	repositoryformatversion = 0
+        \\ 	repositoryformatversion = 8
     ;
     var fbs = std.io.fixedBufferStream(example);
     var parser = ini.parse(std.testing.allocator, fbs.reader());
     defer parser.deinit();
 
-    const ret_str = ExampleStruct{
+    var ret_str: ExampleStruct = .{
         .repositoryformatversion = 0,
     };
-    const result = try readToU8Struct(&ret_str, &parser, allocator);
-    try expect(result.repositoryformatversion == 0);
+    _ = try readToU8Struct(&ret_str, &parser);
+    try expect(ret_str.repositoryformatversion == 8);
 }
