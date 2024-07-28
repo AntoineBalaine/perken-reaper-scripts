@@ -17,7 +17,7 @@ const c = @cImport({
 });
 const Conf = @import("../internals/config.zig").Conf;
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
-
+const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
 // TODO: update ini module, move tests from module into project
 // TODO: fix mem leak (too many bytes freed)
 // TODO: fix persisting csurf selection in preferences
@@ -155,7 +155,42 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     if (cc_enum) |cc| {
         const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
         switch (cc) {
-            .Comp_Attack => std.debug.print("CC Comp_Attack\n", .{}),
+            .Comp_Attack => {
+                std.debug.print("CC Comp_Attack\n", .{});
+                if (state.mode == .fx_ctrl) {
+                    if (state.track) |*track| {
+                        if (track.fxMap.COMP) |cmp| {
+                            const fxIdx = cmp[0];
+                            const mapping = cmp[1];
+                            if (mapping) |fxPrm| {
+                                // at fxIdx, at fxPrm, set the value
+
+                                const cntnrIdx = track.getSubContainerIdx(
+                                    fxIdx + 1, // make it 1-based
+                                    reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
+                                );
+                                const normalized = @as(f64, @floatFromInt(val)) / 127;
+                                const success = reaper.TrackFX_SetParamNormalized(
+                                    tr,
+                                    cntnrIdx,
+                                    fxPrm.Comp_Attack,
+                                    normalized,
+                                );
+                                if (!success) {
+                                    std.debug.print("failed to set Comp_Attack\n", .{});
+                                    std.debug.print("tr {d}\tfxIdx {d}\tfxPrm {d}\tcontainer {d}\normalized val {d}\n", .{
+                                        tr,
+                                        fxIdx,
+                                        fxPrm.Comp_Attack,
+                                        cntnrIdx,
+                                        normalized,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             .Comp_DryWet => std.debug.print("CC Comp_DryWet\n", .{}),
             .Comp_Mtr => {}, // meters unhandled
             .Comp_Ratio => std.debug.print("CC Comp_Ratio\n", .{}),

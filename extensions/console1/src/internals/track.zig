@@ -3,7 +3,7 @@ const reaper = @import("../reaper.zig").reaper;
 const config = @import("config.zig");
 const ModulesList = config.ModulesList;
 const FxMap = @import("mappings.zig").FxMap;
-const CONTROLLER_NAME = "PRKN_C1";
+pub const CONTROLLER_NAME = "PRKN_C1";
 
 const ModulesOrder = union(enum) {
     @"EQ-S-C",
@@ -37,7 +37,7 @@ pub const Track = struct {
     // e.g. to address the third item in the container at the second position of the track FX chain for tr,
     // the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2.
     // This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic.
-    fn getSubContainerIdx(self: *Track, subidx: u8, container_idx: c_int) c_int {
+    pub fn getSubContainerIdx(self: *Track, subidx: u8, container_idx: c_int) c_int {
         return 0x2000000 + (subidx * (reaper.TrackFX_GetCount(self.ptr.?) + 1)) + container_idx;
     }
 
@@ -281,12 +281,12 @@ pub const Track = struct {
                         // now that the fx indexes are all invalid, let's recurse.
                         return try self.checkTrackState(modules, defaults, mappings);
                     } else {
-                        self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
+                        self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .OUTPT, modules).OUTPT };
                     }
                 },
-                .GATE => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT },
-                .EQ => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT },
-                .COMP => self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT },
+                .GATE => self.fxMap.GATE = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .GATE, modules).GATE },
+                .EQ => self.fxMap.EQ = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .EQ, modules).EQ },
+                .COMP => self.fxMap.COMP = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .COMP, modules).COMP },
             }
         }
 
@@ -334,29 +334,5 @@ pub const Track = struct {
                 self.order = .@"S-C-EQ";
             }
         }
-        self.fxMap = fxMapFromModuleCheck(&moduleChecks);
     }
 };
-
-fn fxMapFromModuleCheck(moduleCheck: *ModuleCheck) FxMap {
-    var map: FxMap = .{
-        .COMP = undefined,
-        .EQ = undefined,
-        .INPUT = undefined,
-        .OUTPT = undefined,
-        .GATE = undefined,
-    };
-    var iterator = moduleCheck.iterator();
-    while (iterator.next()) |field| {
-        const module = field.key;
-        const idx = field.value[1];
-        switch (module) {
-            .COMP => map.COMP = .{ idx, null },
-            .EQ => map.EQ = .{ idx, null },
-            .INPUT => map.INPUT = .{ idx, null },
-            .OUTPT => map.OUTPT = .{ idx, null },
-            .GATE => map.GATE = .{ idx, null },
-        }
-    }
-    return map;
-}
