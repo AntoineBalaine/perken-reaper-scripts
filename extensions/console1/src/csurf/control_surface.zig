@@ -66,12 +66,12 @@ fn iterCC() void {
         testBlink = !testBlink;
         const onOff: u8 = if (testBlink) 0x7f else 0x0;
 
-        outW(m_midiout, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), onOff, -1);
-        outW(m_midiout, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), onOff, -1);
-        outW(m_midiout, 0x8, @intFromEnum(c1.CCs.Inpt_MtrRgt), onOff, -1);
-        outW(m_midiout, 0x8, @intFromEnum(c1.CCs.Inpt_MtrLft), onOff, -1);
-        outW(m_midiout, 0x8, @intFromEnum(c1.CCs.Comp_Mtr), onOff, -1);
-        outW(m_midiout, 0x8, @intFromEnum(c1.CCs.Shp_Mtr), onOff, -1);
+        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), onOff, -1);
+        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), onOff, -1);
+        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), onOff, -1);
+        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), onOff, -1);
+        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), onOff, -1);
+        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Shp_Mtr), onOff, -1);
         std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
     }
 }
@@ -101,7 +101,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     }
     // if (m_midiout) |midi_out| {
     //     inline for (std.meta.fields(c1.CCs)) |f| {
-    //         outW(midi_out, 0x8, f.value, 0x0, -1);
+    //         outW(midi_out, 0xb0, f.value, 0x0, -1);
     //     }
     // }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
@@ -113,7 +113,7 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     if (m_midiout) |midi_out| {
         // lights off
         inline for (std.meta.fields(c1.CCs)) |f| {
-            outW(midi_out, 0x8, f.value, 0x0, -1);
+            outW(midi_out, 0xb0, f.value, 0x0, -1);
         }
     }
 
@@ -180,7 +180,7 @@ fn onPgChg(direction: PgChgDirection) void {
 }
 
 pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
-    // The console only sends cc messages, so we know that the status is always going to be 0x8,
+    // The console only sends cc messages, so we know that the status is always going to be 0xb0,
     // except when the message is a running status (i.e. the knobs are turned faster).
     // In the case of running status, we do need to read the status byte to figure out which control is being touched.
     // 0xb0 0x1f 0x7f 0x0
@@ -194,7 +194,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     // |    |    |    I assume this is noise
     // |    |    empty
     // |    value
-    // cc number (byte is < 0x80, so this is running status)
+    // cc number (byte is < 0xb0, so this is running status)
     const msg = c.MIDI_event_message(evt);
     const status = msg[0] & 0xf0;
     const chan = msg[0] & 0x0f;
@@ -407,8 +407,8 @@ export fn zRun() callconv(.C) void {
             const right = reaper.Track_GetPeakInfo(tr, 2);
             const left_midi: u8 = @intFromFloat(left * 127);
             const right_midi: u8 = @intFromFloat(right * 127);
-            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
-            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
+            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
+            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
         }
     }
 }
@@ -442,13 +442,13 @@ export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
         // scale the range from [0,2] to [0,1]
         // scale the range from [0,1] to [0,127]
         const val: u8 = @intFromFloat((pan + 1) / 2 * 127);
-        outW(midiout, 0x8, @intFromEnum(c1.CCs.Out_Pan), val, -1);
+        outW(midiout, 0xb0, @intFromEnum(c1.CCs.Out_Pan), val, -1);
     }
 }
 export fn zSetSurfaceMute(trackid: *MediaTrack, mute: bool) callconv(.C) void {
     _ = trackid;
     if (m_midiout) |midiout| {
-        outW(midiout, 0x8, @intFromEnum(c1.CCs.Out_mute), if (mute) 0x7f else 0x0, -1);
+        outW(midiout, 0xb0, @intFromEnum(c1.CCs.Out_mute), if (mute) 0x7f else 0x0, -1);
     }
 }
 export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C) void {
@@ -459,7 +459,7 @@ export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C)
 export fn zSetSurfaceSolo(trackid: *MediaTrack, solo: bool) callconv(.C) void {
     _ = trackid;
     if (m_midiout) |midiout| {
-        outW(midiout, 0x8, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
+        outW(midiout, 0xb0, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
     }
 }
 export fn zSetSurfaceRecArm(trackid: *MediaTrack, recarm: bool) callconv(.C) void {
@@ -473,10 +473,10 @@ export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     if (!playState or pauseState) {
         if (m_midiout) |midiOut| {
             // set meters to zero when not playing
-            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Inpt_MtrLft), 0x0, -1);
-            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Inpt_MtrRgt), 0x0, -1);
-            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
-            outW(midiOut, 0x8, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
+            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), 0x0, -1);
+            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), 0x0, -1);
+            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
+            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
         }
     }
 }
@@ -509,9 +509,9 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
 
         if (m_midiout) |midiout| {
             const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
-            outW(midiout, 0x8, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
+            outW(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
             const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
-            outW(midiout, 0x8, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
+            outW(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
         }
     }
 }
