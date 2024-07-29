@@ -1388,7 +1388,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSelectedTrack
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based). This function ignores the master track, see GetSelectedTrack2.
-    pub var GetSelectedTrack: *fn (proj: *ReaProject, seltrackidx: c_int) callconv(.C) *MediaTrack = undefined;
+    pub var GetSelectedTrack: *fn (proj: *ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack = undefined;
 
     /// GetSelectedTrack2
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based).

@@ -403,6 +403,29 @@ pub const CCs = enum(u8) {
     Tr_tr_grp = 0x78,
 };
 
+pub const Tracks = enum(u8) {
+    Tr_tr1 = 0x15,
+    Tr_tr2 = 0x16,
+    Tr_tr3 = 0x17,
+    Tr_tr4 = 0x18,
+    Tr_tr5 = 0x19,
+    Tr_tr6 = 0x1a,
+    Tr_tr7 = 0x1b,
+    Tr_tr8 = 0x1c,
+    Tr_tr9 = 0x1d,
+    Tr_tr10 = 0x1e,
+    Tr_tr11 = 0x1f,
+    Tr_tr12 = 0x20,
+    Tr_tr13 = 0x21,
+    Tr_tr14 = 0x22,
+    Tr_tr15 = 0x23,
+    Tr_tr16 = 0x24,
+    Tr_tr17 = 0x25,
+    Tr_tr18 = 0x26,
+    Tr_tr19 = 0x27,
+    Tr_tr20 = 0x28,
+};
+
 const Knobs = enum {
     Inpt_Gain,
     Inpt_HiCut,

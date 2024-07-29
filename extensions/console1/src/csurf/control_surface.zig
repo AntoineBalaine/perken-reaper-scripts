@@ -36,7 +36,8 @@ var m_midi_out_dev: ?c_int = null;
 var m_midiin: ?*reaper.midi_Input = null;
 var m_midiout: ?reaper.midi_Output = null;
 var m_vol_lastpos: u8 = 0;
-var m_bank_offset: i32 = 0;
+var m_bank_offset: i32 = 0; // track offset, named after Justin's code example
+var m_page_offset: u8 = 1; // page offset for the controller
 var tmp: [512]u8 = undefined;
 var m_button_states: i32 = 0;
 var my_csurf: c.C_ControlSurface = undefined;
@@ -151,6 +152,33 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
     }
 }
 
+const PgChgDirection = enum { Up, Down };
+
+fn onPgChg(direction: PgChgDirection) void {
+    // query trackCount
+    // trackCount / 20  = pageCount
+    const pageCount = @as(u8, @intCast(@ceil(reaper.CountTracks(0) / 20)));
+    m_page_offset = switch (direction) {
+        .Up => @rem(m_page_offset + 1, pageCount),
+        .Down => @as(u8, @intCast(@rem(@as(i16, @intCast(m_page_offset)) - 1, pageCount))),
+    };
+    if (m_midiout) |midi_out| {
+        inline for (std.meta.fields(c1.CCs)) |f| { // lights off
+            outW(midi_out, 0xb0, f.value, 0x0, -1);
+        }
+
+        // TODO check if that's actually an idx
+        const trackID = reaper.CSurf_TrackToID(reaper.GetSelectedTrack(0, 0), false);
+        if (trackID == -1) return;
+        const selTrkOffset = @rem(trackID, pageCount);
+        if (selTrkOffset == m_page_offset) { // if trk's on current page
+            // turn on the track's LED
+            const f = @typeInfo(c1.Tracks).Enum.fields[@as(isize, @intCast(selTrkOffset))];
+            outW(midi_out, 0xb0, f.value, 0x7f, -1);
+        }
+    }
+}
+
 pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     // The console only sends cc messages, so we know that the status is always going to be 0x8,
     // except when the message is a running status (i.e. the knobs are turned faster).
@@ -250,17 +278,14 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Shp_shape => setPrmVal(@tagName(c1.CCs.Shp_shape), .GATE, tr, val),
             .Shp_sustain => setPrmVal(@tagName(c1.CCs.Shp_sustain), .GATE, tr, val),
             .Tr_ext_sidechain => {
+                // hook track channels 3-4 to comp or gate
                 std.debug.print("CC Tr_ext_sidechain\n", .{});
             },
             .Tr_order => {
                 std.debug.print("CC Tr_order\n", .{});
             },
-            .Tr_pg_dn => {
-                std.debug.print("CC Tr_pg_dn\n", .{});
-            },
-            .Tr_pg_up => {
-                std.debug.print("CC Tr_pg_up\n", .{});
-            },
+            .Tr_pg_dn => onPgChg(.Down),
+            .Tr_pg_up => onPgChg(.Up),
             .Tr_tr1 => {
                 std.debug.print("CC Tr_tr1\n", .{});
             },
