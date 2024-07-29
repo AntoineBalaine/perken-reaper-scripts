@@ -32,6 +32,7 @@ const Trk = enum {
     Tr_tr_grp,
 };
 
+// FIXME: set these defaults to -1
 const Comp = struct {
     Comp_Attack: u8 = 0,
     Comp_DryWet: u8 = 0,
@@ -87,12 +88,6 @@ const Shp = struct {
     Shp_sustain: u8 = 0,
 };
 
-// FIXME: is there anyway the mapping portion of the tuple could be a pointer?
-// should it be a pointer?
-// upon selecting new track, the mapping is looked-up in the config.
-// if found, it ought to be copied.
-// else, it ought to be found read from fs, stored in config, and copied as well.
-// Is the copy going to be costing a lot?
 /// FxMap associates an Fx index with a module map
 pub const FxMap = struct {
     COMP: ?std.meta.Tuple(&.{ u8, ?Comp }) = null,

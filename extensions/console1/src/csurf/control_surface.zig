@@ -127,6 +127,30 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     c.ControlSurface_Destroy(csurf);
 }
 
+pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesList, tr: reaper.MediaTrack, val: u8) void {
+    if (state.track == null) return;
+    const nm = @tagName(section);
+
+    const fxMap = @field(state.track.?.fxMap, nm);
+    if (fxMap == null) return;
+    const fxIdx = fxMap.?[0];
+    const mapping = fxMap.?[1];
+    if (mapping) |map| {
+        const fxPrm = @field(map, structPrm);
+
+        // at fxIdx, at fxPrm, set the value
+        _ = reaper.TrackFX_SetParamNormalized(
+            tr,
+            state.track.?.getSubContainerIdx(
+                fxIdx + 1, // make it 1-based
+                reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
+            ),
+            fxPrm,
+            @as(f64, @floatFromInt(val)) / 127,
+        );
+    }
+}
+
 pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     // The console only sends cc messages, so we know that the status is always going to be 0x8,
     // except when the message is a running status (i.e. the knobs are turned faster).
@@ -150,78 +174,58 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     const cc_enum = std.meta.intToEnum(c1.CCs, if (status == 0xb0) msg[1] else msg[0]) catch null;
     const val = if (status == 0xb0) msg[2] else msg[1];
 
-    std.debug.print("0x{x}\t0x{x}\t0x{x}\t\t0x{x}\t0x{x}\t0x{x}\n", .{ status, msg[1], msg[2], status, if (status == 0xb0) msg[1] else msg[0], val });
+    // std.debug.print("0x{x}\t0x{x}\t0x{x}\t\t0x{x}\t0x{x}\t0x{x}\n", .{ status, msg[1], msg[2], status, if (status == 0xb0) msg[1] else msg[0], val });
 
     if (cc_enum) |cc| {
         const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
         switch (cc) {
             .Comp_Attack => {
-                std.debug.print("CC Comp_Attack\n", .{});
                 if (state.mode == .fx_ctrl) {
-                    if (state.track) |*track| {
-                        if (track.fxMap.COMP) |cmp| {
-                            const fxIdx = cmp[0];
-                            const mapping = cmp[1];
-                            if (mapping) |fxPrm| {
-                                // at fxIdx, at fxPrm, set the value
-
-                                const cntnrIdx = track.getSubContainerIdx(
-                                    fxIdx + 1, // make it 1-based
-                                    reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
-                                );
-                                const normalized = @as(f64, @floatFromInt(val)) / 127;
-                                const success = reaper.TrackFX_SetParamNormalized(
-                                    tr,
-                                    cntnrIdx,
-                                    fxPrm.Comp_Attack,
-                                    normalized,
-                                );
-                                if (!success) {
-                                    std.debug.print("failed to set Comp_Attack\n", .{});
-                                    std.debug.print("tr {d}\tfxIdx {d}\tfxPrm {d}\tcontainer {d}\normalized val {d}\n", .{
-                                        tr,
-                                        fxIdx,
-                                        fxPrm.Comp_Attack,
-                                        cntnrIdx,
-                                        normalized,
-                                    });
-                                }
-                            }
-                        }
-                    }
+                    setPrmVal(@tagName(c1.CCs.Comp_Attack), .COMP, tr, val);
                 }
             },
-            .Comp_DryWet => std.debug.print("CC Comp_DryWet\n", .{}),
+            .Comp_DryWet => setPrmVal(@tagName(c1.CCs.Comp_DryWet), .COMP, tr, val),
             .Comp_Mtr => {}, // meters unhandled
-            .Comp_Ratio => std.debug.print("CC Comp_Ratio\n", .{}),
-            .Comp_Release => std.debug.print("CC Comp_Release\n", .{}),
-            .Comp_Thresh => std.debug.print("CC Comp_Thresh\n", .{}),
-            .Comp_comp => std.debug.print("CC Comp_comp\n", .{}),
-            .Eq_HiFrq => std.debug.print("CC Eq_HiFrq\n", .{}),
-            .Eq_HiGain => std.debug.print("CC Eq_HiGain\n", .{}),
-            .Eq_HiMidFrq => std.debug.print("CC Eq_HiMidFrq\n", .{}),
-            .Eq_HiMidGain => std.debug.print("CC Eq_HiMidGain\n", .{}),
-            .Eq_HiMidQ => std.debug.print("CC Eq_HiMidQ\n", .{}),
-            .Eq_LoFrq => std.debug.print("CC Eq_LoFrq\n", .{}),
-            .Eq_LoGain => std.debug.print("CC Eq_LoGain\n", .{}),
-            .Eq_LoMidFrq => std.debug.print("CC Eq_LoMidFrq\n", .{}),
-            .Eq_LoMidGain => std.debug.print("CC Eq_LoMidGain\n", .{}),
-            .Eq_LoMidQ => std.debug.print("CC Eq_LoMidQ\n", .{}),
-            .Eq_eq => std.debug.print("CC Eq_eq\n", .{}),
-            .Eq_hp_shape => std.debug.print("CC Eq_hp_shape\n", .{}),
-            .Eq_lp_shape => std.debug.print("CC Eq_lp_shape\n", .{}),
-            .Inpt_Gain => std.debug.print("CC Inpt_Gain\n", .{}),
-            .Inpt_HiCut => std.debug.print("CC Inpt_HiCut\n", .{}),
-            .Inpt_LoCut => std.debug.print("CC Inpt_LoCut\n", .{}),
+            .Comp_Ratio => setPrmVal(@tagName(c1.CCs.Comp_Ratio), .COMP, tr, val),
+            .Comp_Release => setPrmVal(@tagName(c1.CCs.Comp_Release), .COMP, tr, val),
+            .Comp_Thresh => setPrmVal(@tagName(c1.CCs.Comp_Thresh), .COMP, tr, val),
+            .Comp_comp => setPrmVal(@tagName(c1.CCs.Comp_comp), .COMP, tr, val),
+            .Eq_HiFrq => setPrmVal(@tagName(c1.CCs.Eq_HiFrq), .EQ, tr, val),
+            .Eq_HiGain => setPrmVal(@tagName(c1.CCs.Eq_HiGain), .EQ, tr, val),
+            .Eq_HiMidFrq => setPrmVal(@tagName(c1.CCs.Eq_HiMidFrq), .EQ, tr, val),
+            .Eq_HiMidGain => setPrmVal(@tagName(c1.CCs.Eq_HiMidGain), .EQ, tr, val),
+            .Eq_HiMidQ => setPrmVal(@tagName(c1.CCs.Eq_HiMidQ), .EQ, tr, val),
+            .Eq_LoFrq => setPrmVal(@tagName(c1.CCs.Eq_LoFrq), .EQ, tr, val),
+            .Eq_LoGain => setPrmVal(@tagName(c1.CCs.Eq_LoGain), .EQ, tr, val),
+            .Eq_LoMidFrq => setPrmVal(@tagName(c1.CCs.Eq_LoMidFrq), .EQ, tr, val),
+            .Eq_LoMidGain => setPrmVal(@tagName(c1.CCs.Eq_LoMidGain), .EQ, tr, val),
+            .Eq_LoMidQ => setPrmVal(@tagName(c1.CCs.Eq_LoMidQ), .EQ, tr, val),
+            .Eq_eq => setPrmVal(@tagName(c1.CCs.Eq_eq), .EQ, tr, val),
+            .Eq_hp_shape => setPrmVal(@tagName(c1.CCs.Eq_hp_shape), .EQ, tr, val),
+            .Eq_lp_shape => setPrmVal(@tagName(c1.CCs.Eq_lp_shape), .EQ, tr, val),
+            .Inpt_Gain => setPrmVal(@tagName(c1.CCs.Inpt_Gain), .INPUT, tr, val),
+            .Inpt_HiCut => setPrmVal(@tagName(c1.CCs.Inpt_HiCut), .INPUT, tr, val),
+            .Inpt_LoCut => setPrmVal(@tagName(c1.CCs.Inpt_LoCut), .INPUT, tr, val),
             .Inpt_MtrLft => {}, // meters unhandled
             .Inpt_MtrRgt => {}, // meters unhandled
-            .Inpt_disp_mode => std.debug.print("CC Inpt_disp_mode\n", .{}),
-            .Inpt_disp_on => std.debug.print("CC Inpt_disp_on\n", .{}),
-            .Inpt_filt_to_comp => std.debug.print("CC Inpt_filt_to_comp\n", .{}),
-            .Inpt_phase_inv => std.debug.print("CC Inpt_phase_inv\n", .{}),
-            .Inpt_preset => std.debug.print("CC Inpt_preset\n", .{}),
-            .Out_Drive => std.debug.print("CC Out_Drive\n", .{}),
-            .Out_DriveChar => std.debug.print("CC Out_DriveChar\n", .{}),
+            .Inpt_disp_mode => {
+                // setPrmVal(@tagName(c1.CCs.Inpt_disp_mode), .INPUT, tr, val);
+            },
+            .Inpt_disp_on => {
+                std.debug.print("CC Inpt_disp_on\n", .{});
+            },
+            .Inpt_filt_to_comp => {
+                std.debug.print("CC Inpt_filt_to_comp\n", .{});
+            },
+            .Inpt_phase_inv => {
+                const phase = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE");
+                _ = reaper.SetMediaTrackInfo_Value(tr, "B_PHASE", if (phase == 0) 1 else 0);
+            },
+            .Inpt_preset => {
+                std.debug.print("CC Inpt_preset\n", .{});
+            },
+            .Out_Drive => setPrmVal(@tagName(c1.CCs.Out_Drive), .OUTPT, tr, val),
+            .Out_DriveChar => setPrmVal(@tagName(c1.CCs.Out_DriveChar), .OUTPT, tr, val),
             .Out_MtrLft => {}, // meters unhandled
             .Out_MtrRgt => {}, // meters unhandled
             .Out_Pan => {
@@ -238,39 +242,91 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), null),
             .Out_solo => reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), null),
-            .Shp_Gate => std.debug.print("CC Shp_Gate\n", .{}),
-            .Shp_GateRelease => std.debug.print("CC Shp_GateRelease\n", .{}),
+            .Shp_Gate => setPrmVal(@tagName(c1.CCs.Shp_Gate), .GATE, tr, val),
+            .Shp_GateRelease => setPrmVal(@tagName(c1.CCs.Shp_GateRelease), .GATE, tr, val),
             .Shp_Mtr => {}, // meters unhandled
-            .Shp_Punch => std.debug.print("CC Shp_Punch\n", .{}),
-            .Shp_hard_gate => std.debug.print("CC Shp_hard_gate\n", .{}),
-            .Shp_shape => std.debug.print("CC Shp_shape\n", .{}),
-            .Shp_sustain => std.debug.print("CC Shp_sustain\n", .{}),
-            .Tr_ext_sidechain => std.debug.print("CC Tr_ext_sidechain\n", .{}),
-            .Tr_order => std.debug.print("CC Tr_order\n", .{}),
-            .Tr_pg_dn => std.debug.print("CC Tr_pg_dn\n", .{}),
-            .Tr_pg_up => std.debug.print("CC Tr_pg_up\n", .{}),
-            .Tr_tr1 => std.debug.print("CC Tr_tr1\n", .{}),
-            .Tr_tr10 => std.debug.print("CC Tr_tr10\n", .{}),
-            .Tr_tr11 => std.debug.print("CC Tr_tr11\n", .{}),
-            .Tr_tr12 => std.debug.print("CC Tr_tr12\n", .{}),
-            .Tr_tr13 => std.debug.print("CC Tr_tr13\n", .{}),
-            .Tr_tr14 => std.debug.print("CC Tr_tr14\n", .{}),
-            .Tr_tr15 => std.debug.print("CC Tr_tr15\n", .{}),
-            .Tr_tr16 => std.debug.print("CC Tr_tr16\n", .{}),
-            .Tr_tr17 => std.debug.print("CC Tr_tr17\n", .{}),
-            .Tr_tr18 => std.debug.print("CC Tr_tr18\n", .{}),
-            .Tr_tr19 => std.debug.print("CC Tr_tr19\n", .{}),
-            .Tr_tr2 => std.debug.print("CC Tr_tr2\n", .{}),
-            .Tr_tr20 => std.debug.print("CC Tr_tr20\n", .{}),
-            .Tr_tr3 => std.debug.print("CC Tr_tr3\n", .{}),
-            .Tr_tr4 => std.debug.print("CC Tr_tr4\n", .{}),
-            .Tr_tr5 => std.debug.print("CC Tr_tr5\n", .{}),
-            .Tr_tr6 => std.debug.print("CC Tr_tr6\n", .{}),
-            .Tr_tr7 => std.debug.print("CC Tr_tr7\n", .{}),
-            .Tr_tr8 => std.debug.print("CC Tr_tr8\n", .{}),
-            .Tr_tr9 => std.debug.print("CC Tr_tr9\n", .{}),
-            .Tr_tr_copy => std.debug.print("CC Tr_tr_copy\n", .{}),
-            .Tr_tr_grp => std.debug.print("CC Tr_tr_grp\n", .{}),
+            .Shp_Punch => setPrmVal(@tagName(c1.CCs.Shp_Punch), .GATE, tr, val),
+            .Shp_hard_gate => setPrmVal(@tagName(c1.CCs.Shp_hard_gate), .GATE, tr, val),
+            .Shp_shape => setPrmVal(@tagName(c1.CCs.Shp_shape), .GATE, tr, val),
+            .Shp_sustain => setPrmVal(@tagName(c1.CCs.Shp_sustain), .GATE, tr, val),
+            .Tr_ext_sidechain => {
+                std.debug.print("CC Tr_ext_sidechain\n", .{});
+            },
+            .Tr_order => {
+                std.debug.print("CC Tr_order\n", .{});
+            },
+            .Tr_pg_dn => {
+                std.debug.print("CC Tr_pg_dn\n", .{});
+            },
+            .Tr_pg_up => {
+                std.debug.print("CC Tr_pg_up\n", .{});
+            },
+            .Tr_tr1 => {
+                std.debug.print("CC Tr_tr1\n", .{});
+            },
+            .Tr_tr10 => {
+                std.debug.print("CC Tr_tr10\n", .{});
+            },
+            .Tr_tr11 => {
+                std.debug.print("CC Tr_tr11\n", .{});
+            },
+            .Tr_tr12 => {
+                std.debug.print("CC Tr_tr12\n", .{});
+            },
+            .Tr_tr13 => {
+                std.debug.print("CC Tr_tr13\n", .{});
+            },
+            .Tr_tr14 => {
+                std.debug.print("CC Tr_tr14\n", .{});
+            },
+            .Tr_tr15 => {
+                std.debug.print("CC Tr_tr15\n", .{});
+            },
+            .Tr_tr16 => {
+                std.debug.print("CC Tr_tr16\n", .{});
+            },
+            .Tr_tr17 => {
+                std.debug.print("CC Tr_tr17\n", .{});
+            },
+            .Tr_tr18 => {
+                std.debug.print("CC Tr_tr18\n", .{});
+            },
+            .Tr_tr19 => {
+                std.debug.print("CC Tr_tr19\n", .{});
+            },
+            .Tr_tr2 => {
+                std.debug.print("CC Tr_tr2\n", .{});
+            },
+            .Tr_tr20 => {
+                std.debug.print("CC Tr_tr20\n", .{});
+            },
+            .Tr_tr3 => {
+                std.debug.print("CC Tr_tr3\n", .{});
+            },
+            .Tr_tr4 => {
+                std.debug.print("CC Tr_tr4\n", .{});
+            },
+            .Tr_tr5 => {
+                std.debug.print("CC Tr_tr5\n", .{});
+            },
+            .Tr_tr6 => {
+                std.debug.print("CC Tr_tr6\n", .{});
+            },
+            .Tr_tr7 => {
+                std.debug.print("CC Tr_tr7\n", .{});
+            },
+            .Tr_tr8 => {
+                std.debug.print("CC Tr_tr8\n", .{});
+            },
+            .Tr_tr9 => {
+                std.debug.print("CC Tr_tr9\n", .{});
+            },
+            .Tr_tr_copy => {
+                std.debug.print("CC Tr_tr_copy\n", .{});
+            },
+            .Tr_tr_grp => {
+                std.debug.print("CC Tr_tr_grp\n", .{});
+            },
         }
     }
 

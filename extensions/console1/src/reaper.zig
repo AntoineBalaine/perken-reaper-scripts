@@ -1222,7 +1222,7 @@ pub const reaper = struct { // @import("reaper");
     /// P_PARTRACK : MediaTrack * : parent track (read-only)
     /// P_PROJECT : ReaProject * : parent project (read-only)
     ///
-    pub var GetMediaTrackInfo_Value: *fn (tr: *MediaTrack, parmname: [*:0]const u8) callconv(.C) f64 = undefined;
+    pub var GetMediaTrackInfo_Value: *fn (tr: MediaTrack, parmname: [*:0]const u8) callconv(.C) f64 = undefined;
 
     /// GetMIDIInputName
     /// returns true if device present
@@ -1615,7 +1615,7 @@ pub const reaper = struct { // @import("reaper");
     /// I_PLAY_OFFSET_FLAG : c_int * : track media playback offset state, &1=bypassed, &2=offset value is measured in samples (otherwise measured in seconds)
     /// D_PLAY_OFFSET : f64 * : track media playback offset, units depend on I_PLAY_OFFSET_FLAG
     ///
-    pub var GetSetMediaTrackInfo: *fn (tr: *MediaTrack, parmname: [*:0]const u8, setNewValue: *void) callconv(.C) *void = undefined;
+    pub var GetSetMediaTrackInfo: *fn (tr: MediaTrack, parmname: [*:0]const u8, setNewValue: *u8) callconv(.C) *void = undefined;
 
     /// GetSetMediaTrackInfo_String
     /// Get or set track string attributes.
@@ -3252,7 +3252,7 @@ pub const reaper = struct { // @import("reaper");
     /// I_PLAY_OFFSET_FLAG : c_int * : track media playback offset state, &1=bypassed, &2=offset value is measured in samples (otherwise measured in seconds)
     /// D_PLAY_OFFSET : f64 * : track media playback offset, units depend on I_PLAY_OFFSET_FLAG
     ///
-    pub var SetMediaTrackInfo_Value: *fn (tr: *MediaTrack, parmname: [*:0]const u8, newvalue: f64) callconv(.C) bool = undefined;
+    pub var SetMediaTrackInfo_Value: *fn (tr: MediaTrack, parmname: [*:0]const u8, newvalue: f64) callconv(.C) bool = undefined;
 
     /// SetMIDIEditorGrid
     /// Set the MIDI editor grid division. 0.25=quarter note, 1.0/3.0=half note tripet, etc.
