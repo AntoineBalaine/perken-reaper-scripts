@@ -47,8 +47,14 @@ var testCC: u8 = 0x6d;
 var testFrame: u8 = 0;
 var testBlink: bool = false;
 fn outW(midiout: c.midi_Output_w, status: u8, d1: u8, d2: u8, frame_offset: c_int) void {
-    c.MidiOut_Send(midiout, status, d1, d2, frame_offset);
-    c.MidiOut_Send(midiout, status, d1, d2, frame_offset);
+    _ = midiout; // autofix
+    _ = status; // autofix
+    _ = d1; // autofix
+    _ = d2; // autofix
+    _ = frame_offset; // autofix
+    return;
+    // c.MidiOut_Send(midiout, status, d1, d2, frame_offset);
+    // c.MidiOut_Send(midiout, status, d1, d2, frame_offset);
 }
 
 fn iterCC() void {
@@ -155,28 +161,38 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
 const PgChgDirection = enum { Up, Down };
 
 fn onPgChg(direction: PgChgDirection) void {
+    const btn = if (direction == .Up) c1.CCs.Tr_pg_up else c1.CCs.Tr_pg_dn;
+    outW(m_midiout, 0xb0, @intFromEnum(btn), 0x0, -1); // don't light up the pgup/pgdn buttons
     // query trackCount
     // trackCount / 20  = pageCount
-    const pageCount = @as(u8, @intCast(@ceil(reaper.CountTracks(0) / 20)));
+    const idx: u8 = 0;
+    const pgCnt64: f64 = @ceil(@as(f64, @floatFromInt(reaper.CountTracks(idx))) / @as(f64, @floatCast(20)));
+    const pageCount = @as(u8, @intFromFloat(pgCnt64));
     m_page_offset = switch (direction) {
         .Up => @rem(m_page_offset + 1, pageCount),
         .Down => @as(u8, @intCast(@rem(@as(i16, @intCast(m_page_offset)) - 1, pageCount))),
     };
     if (m_midiout) |midi_out| {
-        inline for (std.meta.fields(c1.CCs)) |f| { // lights off
-            outW(midi_out, 0xb0, f.value, 0x0, -1);
-        }
-
-        // TODO check if that's actually an idx
-        const trackID = reaper.CSurf_TrackToID(reaper.GetSelectedTrack(0, 0), false);
-        if (trackID == -1) return;
-        const selTrkOffset = @rem(trackID, pageCount);
-        if (selTrkOffset == m_page_offset) { // if trk's on current page
-            // turn on the track's LED
-            const f = @typeInfo(c1.Tracks).Enum.fields[@as(isize, @intCast(selTrkOffset))];
-            outW(midi_out, 0xb0, f.value, 0x7f, -1);
+        if (m_bank_offset == -1) return;
+        const selTrckOffset = @rem(m_bank_offset, pageCount);
+        if (m_midiout) |midiout| {
+            inline for (@typeInfo(c1.Tracks).Enum.fields, 0..) |f, fieldIdx| {
+                if (fieldIdx == @as(usize, @intCast(selTrckOffset))) {
+                    outW(midi_out, 0xb0, f.value, 0x7f, -1);
+                }
+            }
+            if (selTrckOffset == m_page_offset) {
+                const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
+                outW(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
+            }
         }
     }
+}
+fn selTrck(idx: u8) void {
+    const unselected: f64 = 0.0;
+    reaper.SetMediaTrackInfo_Value(reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode), "I_SELECTED", unselected); // unselect current
+    // don't set the new bank offset, let the re-entrancy deal with it
+    reaper.SetTrackSelected(reaper.CSurf_TrackFromID(idx * m_page_offset, g_csurf_mcpmode), true);
 }
 
 pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
@@ -236,9 +252,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Inpt_LoCut => setPrmVal(@tagName(c1.CCs.Inpt_LoCut), .INPUT, tr, val),
             .Inpt_MtrLft => {}, // meters unhandled
             .Inpt_MtrRgt => {}, // meters unhandled
-            .Inpt_disp_mode => {
-                // setPrmVal(@tagName(c1.CCs.Inpt_disp_mode), .INPUT, tr, val);
-            },
+            .Inpt_disp_mode => {},
             .Inpt_disp_on => {
                 std.debug.print("CC Inpt_disp_on\n", .{});
             },
@@ -277,81 +291,33 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Shp_hard_gate => setPrmVal(@tagName(c1.CCs.Shp_hard_gate), .GATE, tr, val),
             .Shp_shape => setPrmVal(@tagName(c1.CCs.Shp_shape), .GATE, tr, val),
             .Shp_sustain => setPrmVal(@tagName(c1.CCs.Shp_sustain), .GATE, tr, val),
-            .Tr_ext_sidechain => {
-                // hook track channels 3-4 to comp or gate
-                std.debug.print("CC Tr_ext_sidechain\n", .{});
-            },
-            .Tr_order => {
-                std.debug.print("CC Tr_order\n", .{});
-            },
+            // hook track channels 3-4 to comp or gate
+            .Tr_ext_sidechain => {},
+            .Tr_order => {},
             .Tr_pg_dn => onPgChg(.Down),
             .Tr_pg_up => onPgChg(.Up),
-            .Tr_tr1 => {
-                std.debug.print("CC Tr_tr1\n", .{});
-            },
-            .Tr_tr10 => {
-                std.debug.print("CC Tr_tr10\n", .{});
-            },
-            .Tr_tr11 => {
-                std.debug.print("CC Tr_tr11\n", .{});
-            },
-            .Tr_tr12 => {
-                std.debug.print("CC Tr_tr12\n", .{});
-            },
-            .Tr_tr13 => {
-                std.debug.print("CC Tr_tr13\n", .{});
-            },
-            .Tr_tr14 => {
-                std.debug.print("CC Tr_tr14\n", .{});
-            },
-            .Tr_tr15 => {
-                std.debug.print("CC Tr_tr15\n", .{});
-            },
-            .Tr_tr16 => {
-                std.debug.print("CC Tr_tr16\n", .{});
-            },
-            .Tr_tr17 => {
-                std.debug.print("CC Tr_tr17\n", .{});
-            },
-            .Tr_tr18 => {
-                std.debug.print("CC Tr_tr18\n", .{});
-            },
-            .Tr_tr19 => {
-                std.debug.print("CC Tr_tr19\n", .{});
-            },
-            .Tr_tr2 => {
-                std.debug.print("CC Tr_tr2\n", .{});
-            },
-            .Tr_tr20 => {
-                std.debug.print("CC Tr_tr20\n", .{});
-            },
-            .Tr_tr3 => {
-                std.debug.print("CC Tr_tr3\n", .{});
-            },
-            .Tr_tr4 => {
-                std.debug.print("CC Tr_tr4\n", .{});
-            },
-            .Tr_tr5 => {
-                std.debug.print("CC Tr_tr5\n", .{});
-            },
-            .Tr_tr6 => {
-                std.debug.print("CC Tr_tr6\n", .{});
-            },
-            .Tr_tr7 => {
-                std.debug.print("CC Tr_tr7\n", .{});
-            },
-            .Tr_tr8 => {
-                std.debug.print("CC Tr_tr8\n", .{});
-            },
-            .Tr_tr9 => {
-                std.debug.print("CC Tr_tr9\n", .{});
-            },
-            .Tr_tr_copy => {
-                std.debug.print("CC Tr_tr_copy\n", .{});
-            },
-            .Tr_tr_grp => {
-                std.debug.print("CC Tr_tr_grp\n", .{});
-            },
+            .Tr_tr1 => selTrck(1),
+            .Tr_tr10 => selTrck(10),
+            .Tr_tr11 => selTrck(11),
+            .Tr_tr12 => selTrck(12),
+            .Tr_tr13 => selTrck(13),
+            .Tr_tr14 => selTrck(14),
+            .Tr_tr15 => selTrck(15),
+            .Tr_tr16 => selTrck(16),
+            .Tr_tr17 => selTrck(17),
+            .Tr_tr18 => selTrck(18),
+            .Tr_tr19 => selTrck(19),
+            .Tr_tr20 => selTrck(20),
+            .Tr_tr2 => selTrck(2),
+            .Tr_tr3 => selTrck(3),
+            .Tr_tr4 => selTrck(4),
+            .Tr_tr5 => selTrck(5),
+            .Tr_tr6 => selTrck(6),
+            .Tr_tr7 => selTrck(7),
+            .Tr_tr8 => selTrck(8),
+            .Tr_tr9 => selTrck(9),
+            .Tr_tr_copy => {},
+            .Tr_tr_grp => {},
         }
     }
 
@@ -505,14 +471,13 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     const id = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
     if (m_bank_offset != id) {
         state.updateTrack(trackid, &conf);
-        m_bank_offset = id;
-
         if (m_midiout) |midiout| {
             const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
             outW(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
-            const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
+            const new_cc = @rem(id, 20) + 0x15 - 1;
             outW(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
         }
+        m_bank_offset = id;
     }
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {

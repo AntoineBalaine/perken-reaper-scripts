@@ -330,7 +330,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// CountTracks
     /// count the number of tracks in the project (proj=0 for active project)
-    pub var CountTracks: *fn (projOptional: *ReaProject) callconv(.C) c_int = undefined;
+    pub var CountTracks: *fn (projOptional: ReaProject) callconv(.C) c_int = undefined;
 
     /// CreateLocalOscHandler
     /// callback is a function pointer: void (*callback)(*void obj, [*:0]const u8 msg, c_int msglen), which handles OSC messages sent from REAPER. The function return is a local osc handler. See SendLocalOscMessage, DestroyOscHandler.
@@ -1388,7 +1388,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSelectedTrack
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based). This function ignores the master track, see GetSelectedTrack2.
-    pub var GetSelectedTrack: *fn (proj: *ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack = undefined;
+    pub var GetSelectedTrack: *fn (proj: ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack = undefined;
 
     /// GetSelectedTrack2
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based).
