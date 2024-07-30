@@ -294,7 +294,8 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
                         if (@TypeOf(@field(ret_struct, ns_info.name)) == u8) {
                             // const field = &@field(ret_struct, ns_info.name);
                             // field.* = parsed;
-                            const parsed = try std.fmt.parseInt(u8, kv.value, 10);
+                            // FIXME: These should be set to -1;
+                            const parsed = std.fmt.parseInt(u8, kv.value, 10) catch 0;
                             @field(ret_struct, ns_info.name) = parsed;
                         }
                     }
