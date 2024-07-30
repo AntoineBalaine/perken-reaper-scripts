@@ -47,14 +47,7 @@ var testCC: u8 = 0x6d;
 var testFrame: u8 = 0;
 var testBlink: bool = false;
 fn outW(midiout: c.midi_Output_w, status: u8, d1: u8, d2: u8, frame_offset: c_int) void {
-    _ = midiout; // autofix
-    _ = status; // autofix
-    _ = d1; // autofix
-    _ = d2; // autofix
-    _ = frame_offset; // autofix
-    return;
-    // c.MidiOut_Send(midiout, status, d1, d2, frame_offset);
-    // c.MidiOut_Send(midiout, status, d1, d2, frame_offset);
+    c.MidiOut_Send(midiout, status, d1, d2, frame_offset);
 }
 
 fn iterCC() void {
@@ -105,11 +98,11 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     if (m_midiin) |midi_in| {
         c.MidiIn_start(midi_in);
     }
-    // if (m_midiout) |midi_out| {
-    //     inline for (std.meta.fields(c1.CCs)) |f| {
-    //         outW(midi_out, 0xb0, f.value, 0x0, -1);
-    //     }
-    // }
+    if (m_midiout) |midi_out| {
+        inline for (std.meta.fields(c1.CCs)) |f| {
+            outW(midi_out, 0xb0, f.value, 0x0, -1);
+        }
+    }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     my_csurf = myCsurf;
     return myCsurf;
