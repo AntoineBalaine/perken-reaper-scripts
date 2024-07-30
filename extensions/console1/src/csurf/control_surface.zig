@@ -38,7 +38,7 @@ var m_midiout: ?reaper.midi_Output = null;
 var m_vol_lastpos: u8 = 0;
 var m_bank_offset: i32 = 0; // track offset, named after Justin's code example
 var m_page_offset: u8 = 1; // page offset for the controller
-var tmp: [512]u8 = undefined;
+var tmp: [4096:0]u8 = undefined;
 var m_button_states: i32 = 0;
 var my_csurf: c.C_ControlSurface = undefined;
 var m_buttonstate_lastrun: c.DWORD = 0;
@@ -74,6 +74,16 @@ fn iterCC() void {
         std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
     }
 }
+
+fn volToInt14(vol: f64) u8 {
+    var d: f64 = (reaper.DB2SLIDER(vol) * 16383.0 / 1000.0);
+    d = if (d < 0.0) 0.0 else if (d > 16383.0) 16383.0 else d;
+    const range: u16 = 127;
+    const t: u16 = @intFromFloat(d + 0.5);
+    return @intCast(t & range);
+    // return @ceil(d + 0.5);
+}
+
 fn u8ToVol(val: u8) f64 {
     var pos = (@as(f64, @floatFromInt(val)) * 1000.0) / 127.0; // scale to 1000
     pos = reaper.SLIDER2DB(pos); // convert 0-1000 slider position to DB
@@ -182,10 +192,17 @@ fn onPgChg(direction: PgChgDirection) void {
     }
 }
 fn selTrck(idx: u8) void {
+    if (idx == m_bank_offset) return;
     const unselected: f64 = 0.0;
-    reaper.SetMediaTrackInfo_Value(reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode), "I_SELECTED", unselected); // unselect current
+    const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
+    const success = reaper.SetMediaTrackInfo_Value(tr, "I_SELECTED", unselected); // unselect current
+    if (!success) {
+        std.debug.print("failed to unselect track\n", .{});
+    }
     // don't set the new bank offset, let the re-entrancy deal with it
-    reaper.SetTrackSelected(reaper.CSurf_TrackFromID(idx * m_page_offset, g_csurf_mcpmode), true);
+    const new_tr = reaper.CSurf_TrackFromID(idx, g_csurf_mcpmode);
+    reaper.SetTrackSelected(new_tr, true);
+    zOnTrackSelection(new_tr);
 }
 
 pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
@@ -361,13 +378,45 @@ export fn zRun() callconv(.C) void {
     }
     if (playState and !pauseState) {
         if (m_midiout) |midiOut| {
-            const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
-            const left = reaper.Track_GetPeakInfo(tr, 1);
-            const right = reaper.Track_GetPeakInfo(tr, 2);
-            const left_midi: u8 = @intFromFloat(left * 127);
-            const right_midi: u8 = @intFromFloat(right * 127);
+            const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
+            const left = reaper.Track_GetPeakInfo(mediaTrack, 0);
+            const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
+            const left_midi: u8 = if (left > 1.0) 127 else @intFromFloat(left * 127);
+            const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
             outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
             outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
+            if (state.track) |*track| {
+                if (track.fxMap.COMP) |comp| {
+                    const success = reaper.TrackFX_GetNamedConfigParm(
+                        mediaTrack,
+                        track.getSubContainerIdx(
+                            comp[0] + 1, // make it 1-based
+                            reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
+                        ),
+                        "GainReduction_dB",
+                        tmp[0..],
+                        tmp.len,
+                    );
+                    if (!success) {
+                        std.debug.print("failed to get gain reduction\n", .{});
+                    } else {
+                        const slice = std.mem.sliceTo(&tmp, 0);
+                        const gainReduction = std.fmt.parseFloat(f64, slice) catch null;
+
+                        if (gainReduction) |GR| {
+                            const m_GR: f64 = if (GR < -20) 0.0 else @abs(GR);
+                            const conv = volToInt14(m_GR);
+                            std.debug.print("{d} {d}\n", .{ GR, conv });
+                            // ranges from 0 to -60
+                            // const m_GR: u8 = 127 - @as(u8, @intFromFloat((if (GR < -20) 0.0 else @abs(GR) / 20) * 127));
+                            // std.debug.print("GR\t{s}\tm_GR{d}\n", .{ tmp[0..], m_GR });
+                            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
+                        } else {
+                            std.debug.print("failed to parse gain reduction\n", .{});
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -458,20 +507,74 @@ export fn zSetAutoMode(mode: c_int) callconv(.C) void {
 export fn zResetCachedVolPanStates() callconv(.C) void {
     m_vol_lastpos = 0;
 }
-export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
-    std.debug.print("OnTrackSelection\n", .{});
+fn selectTrk(trackid: MediaTrack) void {
     // QUESTION: what does mcpView param do?
     const id = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
-    if (m_bank_offset != id) {
-        state.updateTrack(trackid, &conf);
-        if (m_midiout) |midiout| {
-            const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
-            outW(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
-            const new_cc = @rem(id, 20) + 0x15 - 1;
-            outW(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
-        }
-        m_bank_offset = id;
+    if (m_bank_offset == id) return;
+    state.updateTrack(trackid, &conf);
+    if (m_midiout) |midiout| {
+        const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
+        outW(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
+        const new_cc = @rem(id, 20) + 0x15 - 1;
+        outW(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
     }
+    m_bank_offset = id;
+    // set all knobs to the current track’s values
+    if (state.track) |*trk| {
+        if (m_midiout) |midiout| {
+            inline for (comptime std.enums.values(c1.CCs)) |CC| {
+                if (CC == c1.CCs.Out_Vol) {
+                    const volint: u8 = @intFromFloat((reaper.GetMediaTrackInfo_Value(trackid, "D_VOL") * 127) / 4); // tr volumes are 0.0-4.0
+                    outW(midiout, 0xb0, CC, volint, -1);
+                } else if (CC == c1.CCs.Out_Pan) {
+                    const pan = reaper.GetMediaTrackInfo_Value(trk, "D_PAN");
+                    const val: u8 = @intFromFloat((pan + 1) / 2 * 127);
+                    outW(midiout, 0xb0, CC, val, -1);
+                } else if (CC == c1.CCs.Out_mute) {
+                    const mute = reaper.GetMediaTrackInfo_Value(trk, "B_MUTE");
+                    outW(midiout, 0xb0, CC, if (mute == 1) 0x7f else 0x0, -1);
+                } else if (CC == c1.CCs.Out_solo) {
+                    const solo = reaper.GetMediaTrackInfo_Value(trk, "I_SOLO");
+                    outW(midiout, 0xb0, CC, if (solo == 1) 0x7f else 0x0, -1);
+                } else {
+                    comptime var variant: Conf.ModulesList = undefined;
+                    if (comptime std.mem.eql(u8, @tagName(CC)[0..4], "Comp")) {
+                        variant = .COMP;
+                    } else if (std.mem.eql(u8, @tagName(CC)[0..3], "Shp")) {
+                        variant = .GATE;
+                    } else if (std.mem.eql(u8, @tagName(CC)[0..2], "Eq")) {
+                        variant = .EQ;
+                    } else if (std.mem.eql(u8, @tagName(CC)[0..1], "Inpt")) {
+                        variant = .INPUT;
+                    } else { // "Out"
+                        variant = .OUTPT;
+                    }
+                    const fxMap = @field(trk.fxMap, @tagName(variant));
+                    if (fxMap) |fx| {
+                        const fxIdx = fx[0];
+                        const mapping = fx[1];
+                        if (mapping) |map| {
+                            const fxPrm = @field(map, @tagName(CC));
+                            const val = reaper.TrackFX_GetParamNormalized(
+                                trackid,
+                                trk.getSubContainerIdx(
+                                    fxIdx + 1, // make it 1-based
+                                    reaper.TrackFX_GetByName(trackid, CONTROLLER_NAME, false) + 1, // make it 1-based
+                                ),
+                                fxPrm,
+                            );
+                            const conv: u8 = @intFromFloat(val * 127);
+                            outW(midiout, 0xb0, CC, conv, -1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
+    std.debug.print("OnTrackSelection\n", .{});
+    selectTrk(trackid);
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     _ = key;
@@ -507,7 +610,6 @@ const Extended = enum(c_int) {
 };
 
 export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {
-    _ = parm1;
     _ = parm2;
     _ = parm3;
     switch (call) {
@@ -523,7 +625,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETFXPARAM_RECFX => std.debug.print("SETFXPARAM_RECFX\n", .{}),
         .SETINPUTMONITOR => std.debug.print("SETINPUTMONITOR\n", .{}),
         .SETLASTTOUCHEDFX => std.debug.print("SETLASTTOUCHEDFX\n", .{}),
-        .SETLASTTOUCHEDTRACK => std.debug.print("SETLASTTOUCHEDTRACK\n", .{}),
+        .SETLASTTOUCHEDTRACK => selectTrk(@ptrFromInt(@intFromPtr(parm1))),
         .SETMETRONOME => std.debug.print("SETMETRONOME\n", .{}),
         .SETMIXERSCROLL => std.debug.print("SETMIXERSCROLL\n", .{}),
         .SETPAN_EX => std.debug.print("SETPAN_EX\n", .{}),
