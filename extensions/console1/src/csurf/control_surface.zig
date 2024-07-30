@@ -525,29 +525,35 @@ fn selectTrk(trackid: MediaTrack) void {
             inline for (comptime std.enums.values(c1.CCs)) |CC| {
                 if (CC == c1.CCs.Out_Vol) {
                     const volint: u8 = @intFromFloat((reaper.GetMediaTrackInfo_Value(trackid, "D_VOL") * 127) / 4); // tr volumes are 0.0-4.0
-                    outW(midiout, 0xb0, CC, volint, -1);
+                    outW(midiout, 0xb0, @intFromEnum(CC), volint, -1);
                 } else if (CC == c1.CCs.Out_Pan) {
-                    const pan = reaper.GetMediaTrackInfo_Value(trk, "D_PAN");
+                    const pan = reaper.GetMediaTrackInfo_Value(trackid, "D_PAN");
                     const val: u8 = @intFromFloat((pan + 1) / 2 * 127);
-                    outW(midiout, 0xb0, CC, val, -1);
+                    outW(midiout, 0xb0, @intFromEnum(CC), val, -1);
                 } else if (CC == c1.CCs.Out_mute) {
-                    const mute = reaper.GetMediaTrackInfo_Value(trk, "B_MUTE");
-                    outW(midiout, 0xb0, CC, if (mute == 1) 0x7f else 0x0, -1);
+                    const mute = reaper.GetMediaTrackInfo_Value(trackid, "B_MUTE");
+                    outW(midiout, 0xb0, @intFromEnum(CC), if (mute == 1) 0x7f else 0x0, -1);
                 } else if (CC == c1.CCs.Out_solo) {
-                    const solo = reaper.GetMediaTrackInfo_Value(trk, "I_SOLO");
-                    outW(midiout, 0xb0, CC, if (solo == 1) 0x7f else 0x0, -1);
+                    const solo = reaper.GetMediaTrackInfo_Value(trackid, "I_SOLO");
+                    outW(midiout, 0xb0, @intFromEnum(CC), if (solo == 1) 0x7f else 0x0, -1);
                 } else {
                     comptime var variant: Conf.ModulesList = undefined;
                     if (comptime std.mem.eql(u8, @tagName(CC)[0..4], "Comp")) {
+                        if (comptime std.mem.eql(u8, @tagName(CC)[4..8], "_Mtr")) continue;
                         variant = .COMP;
-                    } else if (std.mem.eql(u8, @tagName(CC)[0..3], "Shp")) {
+                    } else if (comptime std.mem.eql(u8, @tagName(CC)[0..3], "Shp")) {
+                        if (comptime std.mem.eql(u8, @tagName(CC)[3..7], "_Mtr")) continue;
                         variant = .GATE;
-                    } else if (std.mem.eql(u8, @tagName(CC)[0..2], "Eq")) {
+                    } else if (comptime std.mem.eql(u8, @tagName(CC)[0..2], "Eq")) {
                         variant = .EQ;
-                    } else if (std.mem.eql(u8, @tagName(CC)[0..1], "Inpt")) {
+                    } else if (comptime std.mem.eql(u8, @tagName(CC)[0..4], "Inpt")) {
+                        if (comptime std.mem.eql(u8, @tagName(CC)[4..8], "_Mtr")) continue;
                         variant = .INPUT;
-                    } else { // "Out"
+                    } else if (comptime std.mem.eql(u8, @tagName(CC)[0..5], "Outpt")) {
+                        if (comptime std.mem.eql(u8, @tagName(CC)[5..9], "_Mtr")) continue;
                         variant = .OUTPT;
+                    } else {
+                        continue;
                     }
                     const fxMap = @field(trk.fxMap, @tagName(variant));
                     if (fxMap) |fx| {
@@ -564,7 +570,7 @@ fn selectTrk(trackid: MediaTrack) void {
                                 fxPrm,
                             );
                             const conv: u8 = @intFromFloat(val * 127);
-                            outW(midiout, 0xb0, CC, conv, -1);
+                            outW(midiout, 0xb0, @intFromEnum(CC), conv, -1);
                         }
                     }
                 }
