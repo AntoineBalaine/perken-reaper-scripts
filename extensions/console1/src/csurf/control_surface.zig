@@ -40,6 +40,10 @@ var m_bank_offset: i32 = 0; // track offset, named after Justin's code example
 var m_page_offset: u8 = 1; // page offset for the controller
 var tmp: [4096:0]u8 = undefined;
 var m_button_states: i32 = 0;
+var playState = false;
+var pauseState = false;
+var display = false;
+
 var my_csurf: c.C_ControlSurface = undefined;
 var m_buttonstate_lastrun: c.DWORD = 0;
 
@@ -109,8 +113,12 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         c.MidiIn_start(midi_in);
     }
     if (m_midiout) |midi_out| {
-        inline for (std.meta.fields(c1.CCs)) |f| {
-            outW(midi_out, 0xb0, f.value, 0x0, -1);
+        for (std.enums.values(c1.CCs)) |f| {
+            if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
+                outW(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
+            } else {
+                outW(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
+            }
         }
     }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
@@ -121,8 +129,12 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 pub fn deinit(csurf: c.C_ControlSurface) void {
     if (m_midiout) |midi_out| {
         // lights off
-        inline for (std.meta.fields(c1.CCs)) |f| {
-            outW(midi_out, 0xb0, f.value, 0x0, -1);
+        for (std.enums.values(c1.CCs)) |f| {
+            if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
+                outW(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
+            } else {
+                outW(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
+            }
         }
     }
 
