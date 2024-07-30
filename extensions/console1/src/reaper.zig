@@ -3369,7 +3369,7 @@ pub const reaper = struct { // @import("reaper");
     pub var SetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: *MediaTrack, pitch: c_int, chan: c_int, name: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// SetTrackSelected
-    pub var SetTrackSelected: *fn (track: *MediaTrack, selected: bool) callconv(.C) void = undefined;
+    pub var SetTrackSelected: *fn (track: MediaTrack, selected: bool) callconv(.C) void = undefined;
 
     /// SetTrackSendInfo_Value
     /// Set send/receive/hardware output numerical-value attributes, return true on success.
@@ -3947,7 +3947,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetParamNormalized
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetParamNormalized: *fn (track: *MediaTrack, fx: c_int, param: c_int) callconv(.C) f64 = undefined;
+    pub var TrackFX_GetParamNormalized: *fn (track: MediaTrack, fx: c_int, param: c_int) callconv(.C) f64 = undefined;
 
     /// TrackFX_GetPinMappings
     /// gets the effective channel mapping bitmask for a particular pin. high32Out will be set to the high 32 bits. Add 0x1000000 to pin index in order to access the second 64 bits of mappings independent of the first 64 bits. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
