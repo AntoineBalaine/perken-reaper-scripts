@@ -42,7 +42,7 @@ var tmp: [4096:0]u8 = undefined;
 var m_button_states: i32 = 0;
 var playState = false;
 var pauseState = false;
-var display = false;
+var display: ?u8 = null;
 
 var my_csurf: c.C_ControlSurface = undefined;
 var m_buttonstate_lastrun: c.DWORD = 0;
@@ -153,8 +153,24 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
     const fxMap = @field(state.track.?.fxMap, nm);
     if (fxMap == null) return;
     const fxIdx = fxMap.?[0];
+    if (display != null and display.? != fxIdx) { // handle display
+        const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
+        const cntrlrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
+        // check if fx chain is open
+        const isOpen = reaper.TrackFX_GetOpen(mediaTrack, cntrlrIdx);
+        if (isOpen) {
+            // ELSE we have to do TrackFX_Show
+            const subIdx = state.track.?.getSubContainerIdx(
+                fxIdx + 1, // make it 1-based
+                reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
+            );
+
+            _ = reaper.TrackFX_SetNamedConfigParm(mediaTrack, subIdx, "focused", "1");
+        }
+    }
+
     const mapping = fxMap.?[1];
-    if (mapping) |map| {
+    if (mapping) |map| { // handle mapping
         const fxPrm = @field(map, structPrm);
 
         // at fxIdx, at fxPrm, set the value
@@ -273,6 +289,18 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Inpt_MtrRgt => {}, // meters unhandled
             .Inpt_disp_mode => {},
             .Inpt_disp_on => {
+                const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
+                const cntnrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
+
+                if (display != null) { // hide chain
+                    // else use TrackFX_SetNamedConfigParm
+                    // _ = reaper.TrackFX_SetNamedConfigParm(mediaTrack, cntnrIdx, "focused", "1");
+                    reaper.TrackFX_Show(mediaTrack, cntnrIdx, 0);
+                    display = 1;
+                } else { // show chain
+                    reaper.TrackFX_Show(mediaTrack, cntnrIdx, 1);
+                    display = null;
+                }
                 std.debug.print("CC Inpt_disp_on\n", .{});
             },
             .Inpt_filt_to_comp => {
@@ -635,7 +663,22 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETFOCUSEDFX => std.debug.print("SETFOCUSEDFX\n", .{}),
         .SETFXCHANGE => std.debug.print("SETFXCHANGE\n", .{}),
         .SETFXENABLED => std.debug.print("SETFXENABLED\n", .{}),
-        .SETFXOPEN => std.debug.print("SETFXOPEN\n", .{}),
+        // TODO: sync with controller and state
+
+        // #define CSURF_EXT_SETFXOPEN 0x00010012 // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if UI closed, !0 if open
+        .SETFXOPEN => {
+            const trId = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr))) else null;
+            if (trId == null) return;
+            if (parm3) |ptr| {
+                const cast = @as(*u8, @ptrCast(ptr));
+                if (cast.* != 0) {
+                    display = fxIdx;
+                } else {
+                    display = null;
+                }
+            }
+            std.debug.print("SETFXOPEN\n", .{});
+        },
         .SETFXPARAM => std.debug.print("SETFXPARAM\n", .{}),
         .SETFXPARAM_RECFX => std.debug.print("SETFXPARAM_RECFX\n", .{}),
         .SETINPUTMONITOR => std.debug.print("SETINPUTMONITOR\n", .{}),
