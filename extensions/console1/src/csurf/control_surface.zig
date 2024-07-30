@@ -631,7 +631,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETFXPARAM_RECFX => std.debug.print("SETFXPARAM_RECFX\n", .{}),
         .SETINPUTMONITOR => std.debug.print("SETINPUTMONITOR\n", .{}),
         .SETLASTTOUCHEDFX => std.debug.print("SETLASTTOUCHEDFX\n", .{}),
-        .SETLASTTOUCHEDTRACK => selectTrk(@ptrFromInt(@intFromPtr(parm1))),
+        .SETLASTTOUCHEDTRACK => if (parm1) |mediaTrack| selectTrk(@as(reaper.MediaTrack, @ptrCast(mediaTrack))),
         .SETMETRONOME => std.debug.print("SETMETRONOME\n", .{}),
         .SETMIXERSCROLL => std.debug.print("SETMIXERSCROLL\n", .{}),
         .SETPAN_EX => std.debug.print("SETPAN_EX\n", .{}),
