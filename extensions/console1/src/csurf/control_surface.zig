@@ -50,9 +50,6 @@ var m_buttonstate_lastrun: c.DWORD = 0;
 var testCC: u8 = 0x6d;
 var testFrame: u8 = 0;
 var testBlink: bool = false;
-fn outW(midiout: c.midi_Output_w, status: u8, d1: u8, d2: u8, frame_offset: c_int) void {
-    c.MidiOut_Send(midiout, status, d1, d2, frame_offset);
-}
 
 fn iterCC() void {
     testFrame += 1;
@@ -69,12 +66,12 @@ fn iterCC() void {
         testBlink = !testBlink;
         const onOff: u8 = if (testBlink) 0x7f else 0x0;
 
-        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), onOff, -1);
-        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), onOff, -1);
-        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), onOff, -1);
-        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), onOff, -1);
-        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), onOff, -1);
-        outW(m_midiout, 0xb0, @intFromEnum(c1.CCs.Shp_Mtr), onOff, -1);
+        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), onOff, -1);
+        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), onOff, -1);
+        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), onOff, -1);
+        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), onOff, -1);
+        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), onOff, -1);
+        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Shp_Mtr), onOff, -1);
         std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
     }
 }
@@ -115,9 +112,9 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     if (m_midiout) |midi_out| {
         for (std.enums.values(c1.CCs)) |f| {
             if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
-                outW(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
+                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
             } else {
-                outW(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
+                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
             }
         }
     }
@@ -131,9 +128,9 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
         // lights off
         for (std.enums.values(c1.CCs)) |f| {
             if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
-                outW(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
+                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
             } else {
-                outW(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
+                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
             }
         }
     }
@@ -177,7 +174,7 @@ const PgChgDirection = enum { Up, Down };
 
 fn onPgChg(direction: PgChgDirection) void {
     const btn = if (direction == .Up) c1.CCs.Tr_pg_up else c1.CCs.Tr_pg_dn;
-    outW(m_midiout, 0xb0, @intFromEnum(btn), 0x0, -1); // don't light up the pgup/pgdn buttons
+    c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(btn), 0x0, -1); // don't light up the pgup/pgdn buttons
     // query trackCount
     // trackCount / 20  = pageCount
     const idx: u8 = 0;
@@ -193,12 +190,12 @@ fn onPgChg(direction: PgChgDirection) void {
         if (m_midiout) |midiout| {
             inline for (@typeInfo(c1.Tracks).Enum.fields, 0..) |f, fieldIdx| {
                 if (fieldIdx == @as(usize, @intCast(selTrckOffset))) {
-                    outW(midi_out, 0xb0, f.value, 0x7f, -1);
+                    c.MidiOut_Send(midi_out, 0xb0, f.value, 0x7f, -1);
                 }
             }
             if (selTrckOffset == m_page_offset) {
                 const new_cc = @rem(m_bank_offset, 20) + 0x15 - 1;
-                outW(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
+                c.MidiOut_Send(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
             }
         }
     }
@@ -395,8 +392,8 @@ export fn zRun() callconv(.C) void {
             const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
             const left_midi: u8 = if (left > 1.0) 127 else @intFromFloat(left * 127);
             const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
-            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
-            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
+            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
+            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
             if (state.track) |*track| {
                 if (track.fxMap.COMP) |comp| {
                     const success = reaper.TrackFX_GetNamedConfigParm(
@@ -422,7 +419,7 @@ export fn zRun() callconv(.C) void {
                             // ranges from 0 to -60
                             // const m_GR: u8 = 127 - @as(u8, @intFromFloat((if (GR < -20) 0.0 else @abs(GR) / 20) * 127));
                             // std.debug.print("GR\t{s}\tm_GR{d}\n", .{ tmp[0..], m_GR });
-                            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
+                            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
                         } else {
                             std.debug.print("failed to parse gain reduction\n", .{});
                         }
@@ -449,7 +446,7 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
         const volint: u8 = @intFromFloat((volume * 127) / 4); // tr volumes are 0.0-4.0
         if (m_vol_lastpos != volint) {
             m_vol_lastpos = volint;
-            outW(midiout, 0xb, @intFromEnum(c1.CCs.Out_Vol), volint, -1);
+            c.MidiOut_Send(midiout, 0xb, @intFromEnum(c1.CCs.Out_Vol), volint, -1);
         }
     }
 }
@@ -462,13 +459,13 @@ export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
         // scale the range from [0,2] to [0,1]
         // scale the range from [0,1] to [0,127]
         const val: u8 = @intFromFloat((pan + 1) / 2 * 127);
-        outW(midiout, 0xb0, @intFromEnum(c1.CCs.Out_Pan), val, -1);
+        c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Out_Pan), val, -1);
     }
 }
 export fn zSetSurfaceMute(trackid: *MediaTrack, mute: bool) callconv(.C) void {
     _ = trackid;
     if (m_midiout) |midiout| {
-        outW(midiout, 0xb0, @intFromEnum(c1.CCs.Out_mute), if (mute) 0x7f else 0x0, -1);
+        c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Out_mute), if (mute) 0x7f else 0x0, -1);
     }
 }
 export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C) void {
@@ -479,7 +476,7 @@ export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C)
 export fn zSetSurfaceSolo(trackid: *MediaTrack, solo: bool) callconv(.C) void {
     _ = trackid;
     if (m_midiout) |midiout| {
-        outW(midiout, 0xb0, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
+        c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
     }
 }
 export fn zSetSurfaceRecArm(trackid: *MediaTrack, recarm: bool) callconv(.C) void {
@@ -493,10 +490,10 @@ export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     if (!playState or pauseState) {
         if (m_midiout) |midiOut| {
             // set meters to zero when not playing
-            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), 0x0, -1);
-            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), 0x0, -1);
-            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
-            outW(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
+            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), 0x0, -1);
+            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), 0x0, -1);
+            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
+            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
         }
     }
 }
@@ -526,9 +523,9 @@ fn selectTrk(trackid: MediaTrack) void {
     state.updateTrack(trackid, &conf);
     if (m_midiout) |midiout| {
         const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
-        outW(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
+        c.MidiOut_Send(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
         const new_cc = @rem(id, 20) + 0x15 - 1;
-        outW(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
+        c.MidiOut_Send(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
     }
     m_bank_offset = id;
     // set all knobs to the current track’s values
@@ -537,17 +534,17 @@ fn selectTrk(trackid: MediaTrack) void {
             inline for (comptime std.enums.values(c1.CCs)) |CC| {
                 if (CC == c1.CCs.Out_Vol) {
                     const volint: u8 = @intFromFloat((reaper.GetMediaTrackInfo_Value(trackid, "D_VOL") * 127) / 4); // tr volumes are 0.0-4.0
-                    outW(midiout, 0xb0, @intFromEnum(CC), volint, -1);
+                    c.MidiOut_Send(midiout, 0xb0, @intFromEnum(CC), volint, -1);
                 } else if (CC == c1.CCs.Out_Pan) {
                     const pan = reaper.GetMediaTrackInfo_Value(trackid, "D_PAN");
                     const val: u8 = @intFromFloat((pan + 1) / 2 * 127);
-                    outW(midiout, 0xb0, @intFromEnum(CC), val, -1);
+                    c.MidiOut_Send(midiout, 0xb0, @intFromEnum(CC), val, -1);
                 } else if (CC == c1.CCs.Out_mute) {
                     const mute = reaper.GetMediaTrackInfo_Value(trackid, "B_MUTE");
-                    outW(midiout, 0xb0, @intFromEnum(CC), if (mute == 1) 0x7f else 0x0, -1);
+                    c.MidiOut_Send(midiout, 0xb0, @intFromEnum(CC), if (mute == 1) 0x7f else 0x0, -1);
                 } else if (CC == c1.CCs.Out_solo) {
                     const solo = reaper.GetMediaTrackInfo_Value(trackid, "I_SOLO");
-                    outW(midiout, 0xb0, @intFromEnum(CC), if (solo == 1) 0x7f else 0x0, -1);
+                    c.MidiOut_Send(midiout, 0xb0, @intFromEnum(CC), if (solo == 1) 0x7f else 0x0, -1);
                 } else {
                     comptime var variant: Conf.ModulesList = undefined;
                     if (comptime std.mem.eql(u8, @tagName(CC)[0..4], "Comp")) {
@@ -582,7 +579,7 @@ fn selectTrk(trackid: MediaTrack) void {
                                 fxPrm,
                             );
                             const conv: u8 = @intFromFloat(val * 127);
-                            outW(midiout, 0xb0, @intFromEnum(CC), conv, -1);
+                            c.MidiOut_Send(midiout, 0xb0, @intFromEnum(CC), conv, -1);
                         }
                     }
                 }
