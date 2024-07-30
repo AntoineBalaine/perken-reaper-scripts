@@ -153,20 +153,14 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
     const fxMap = @field(state.track.?.fxMap, nm);
     if (fxMap == null) return;
     const fxIdx = fxMap.?[0];
-    if (display != null and display.? != fxIdx) { // handle display
+    if (display != null) { // handle display
         const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
-        const cntrlrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
-        // check if fx chain is open
-        const isOpen = reaper.TrackFX_GetOpen(mediaTrack, cntrlrIdx);
-        if (isOpen) {
-            // ELSE we have to do TrackFX_Show
-            const subIdx = state.track.?.getSubContainerIdx(
-                fxIdx + 1, // make it 1-based
-                reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
-            );
+        const subIdx = state.track.?.getSubContainerIdx(
+            fxIdx + 1, // make it 1-based
+            reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
+        );
 
-            _ = reaper.TrackFX_SetNamedConfigParm(mediaTrack, subIdx, "focused", "1");
-        }
+        reaper.TrackFX_Show(mediaTrack, subIdx, 1);
     }
 
     const mapping = fxMap.?[1];
@@ -296,12 +290,11 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                     // else use TrackFX_SetNamedConfigParm
                     // _ = reaper.TrackFX_SetNamedConfigParm(mediaTrack, cntnrIdx, "focused", "1");
                     reaper.TrackFX_Show(mediaTrack, cntnrIdx, 0);
-                    display = 1;
+                    display = null;
                 } else { // show chain
                     reaper.TrackFX_Show(mediaTrack, cntnrIdx, 1);
-                    display = null;
+                    display = 1;
                 }
-                std.debug.print("CC Inpt_disp_on\n", .{});
             },
             .Inpt_filt_to_comp => {
                 std.debug.print("CC Inpt_filt_to_comp\n", .{});
@@ -653,28 +646,48 @@ const Extended = enum(c_int) {
 };
 
 export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {
-    _ = parm2;
-    _ = parm3;
     switch (call) {
         .MIDI_DEVICE_REMAP => std.debug.print("MIDI_DEVICE_REMAP\n", .{}),
         .RESET => std.debug.print("RESET\n", .{}),
         .SETAUTORECARM => std.debug.print("SETAUTORECARM\n", .{}),
         .SETBPMANDPLAYRATE => std.debug.print("SETBPMANDPLAYRATE\n", .{}),
-        .SETFOCUSEDFX => std.debug.print("SETFOCUSEDFX\n", .{}),
+
+        // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear focused FX
+        .SETFOCUSEDFX => {
+            std.debug.print("SETFOCUSEDFX\n", .{});
+            if (parm2 != null) return 1; // ignore media items' FXchains
+            const trId = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), g_csurf_mcpmode) else null;
+            if (trId == null) return 1;
+            if (parm3) |ptr| {
+                const fxIdx = @as(*u8, @ptrCast(ptr));
+                display = fxIdx.*;
+                std.debug.print("display: {d}\n", .{display.?});
+            }
+        },
         .SETFXCHANGE => std.debug.print("SETFXCHANGE\n", .{}),
         .SETFXENABLED => std.debug.print("SETFXENABLED\n", .{}),
         // TODO: sync with controller and state
 
         // #define CSURF_EXT_SETFXOPEN 0x00010012 // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if UI closed, !0 if open
         .SETFXOPEN => {
-            const trId = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr))) else null;
-            if (trId == null) return;
+            if (parm1 == null) {
+                display = null;
+                return 1;
+            }
+            // const mediaTrack =  @as(MediaTrack, @ptrCast(parm1.?));
             if (parm3) |ptr| {
-                const cast = @as(*u8, @ptrCast(ptr));
-                if (cast.* != 0) {
-                    display = fxIdx;
-                } else {
+                const isOpen = @intFromPtr(ptr);
+                // const isOpen = @as(*u8, @ptrCast(ptr));
+                if (isOpen == 0) { // UI closed
                     display = null;
+                } else {
+                    if (parm2) |fxIdxPtr| {
+                        // const cntrlrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
+                        //param.X.container_map.fx_index
+                        const cntnrIdx = @as(*u8, @ptrCast(fxIdxPtr)).*;
+                        _ = cntnrIdx;
+                        // TrackFX_GetNamedConfigParm()
+                    }
                 }
             }
             std.debug.print("SETFXOPEN\n", .{});
@@ -697,7 +710,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .TRACKFX_PRESET_CHANGED => std.debug.print("TRACKFX_PRESET_CHANGED\n", .{}),
         else => {},
     }
-    return 0;
+    return 1;
 }
 
 inline fn DB2VAL(x: f64) f64 {
