@@ -329,8 +329,14 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Shp_hard_gate => setPrmVal(@tagName(c1.CCs.Shp_hard_gate), .GATE, tr, val),
             .Shp_shape => setPrmVal(@tagName(c1.CCs.Shp_shape), .GATE, tr, val),
             .Shp_sustain => setPrmVal(@tagName(c1.CCs.Shp_sustain), .GATE, tr, val),
-            // hook track channels 3-4 to comp or gate
-            .Tr_ext_sidechain => {},
+            .Tr_ext_sidechain => {
+                // unpin prev 3-4 of comp or gate
+                if (state.track == null) return;
+                const track = state.track.?;
+                _ = track; // autofix
+                // TODO: track.checkTrackState()  ++ track.validTrackRouting()
+
+            },
             .Tr_order => {
                 if (state.track) |*track| {
                     const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);

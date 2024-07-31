@@ -11,6 +11,12 @@ const ModulesOrder = enum(u8) {
     @"S-EQ-C" = 0x0,
 };
 
+const SCRouting = enum(u8) {
+    off = 0x0,
+    toShape = 0x7F,
+    toComp = 0x3F,
+};
+
 pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
 const TrckErr = error{ fxAddFail, fxRenameFail, moduleFindFail, fxFindNameFail, fxHasNoName, enumConvertFail };
 // TODO: this is in top scope because I couldn't figure out how to pass the buffer as a fn param. the constness of fn params doesn't let me use the buffer
@@ -371,4 +377,90 @@ pub fn reorder(self: *Track, tr: reaper.MediaTrack, newOrder: ModulesOrder, cont
             }
         },
     }
+}
+
+// FIXME: 1. only change the routings when manual_routing is false in userSettings
+//        2. This doesn't actually perform validation yet:
+//              this should check that ONLY the gate OR the compressor OR none of the fx have SC enabled.
+/// validate track routing:
+/// set track to have 4 channels if it doesn't already.
+/// if called during track-init, toggle all the SC inputs (gate & comp) in the container to OFF
+/// else, just validate whether they're there.
+fn validTrackRouting(tr: reaper.MediaTrack, container_idx: c_int, moduleChecks: *ModuleCheck) bool {
+    var inputPinsOut: c_int = 0;
+    var outputPinsOut: c_int = 0;
+    _ = reaper.TrackFX_GetIOSize(tr, container_idx, &inputPinsOut, &outputPinsOut);
+    const trIns = reaper.GetMediaTrackInfo_Value(tr, "I_NCHAN");
+    if (trIns < 4) {
+        reaper.SetMediaTrackInfo_Value(tr, "I_NCHAN", "4");
+    }
+    const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_nch", &buf, buf.len);
+    if (!rv) return false;
+    const num = std.mem.span(@as([*:0]const u8, &buf));
+    const containerChannels = std.fmt.parseInt(u8, num, 10) catch {
+        return false;
+    };
+    if (containerChannels < 4) {
+        // create a container with 4 channels - mapping i/o should be automatic
+        // WARNING: for custom fx mappings (i.e. non-stock plugins),
+        // is the i/o setup really automatic?
+        reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch", "4");
+        reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch_in", "4");
+    }
+    var iterator = moduleChecks.iterator();
+    const success = true;
+    while (iterator.next()) |moduleCheck| {
+        const subIdx = getSubContainerIdx(moduleCheck.value[1], moduleCheck.value[1], tr);
+        if (!toggleFxSC(tr, subIdx, .turnOff)) {
+            success = false;
+        }
+    }
+    return success;
+}
+
+const ScChange = enum { turnOn, turnOff, toggle };
+
+/// turn fx side chain on channels 3-4.
+/// onOff: if null, then just toggle.
+/// returns whether the operation was successful.
+fn toggleFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ScChange) bool {
+    const toggleSuccess = true;
+    const isOutput: u8 = 0; // input = 0, output = 1
+
+    // since we expect chan#3 & chan#4 to go in fxIn#3 & fxIn#4, we can use the same var for both.
+    const channels = [2]u8{ 2, 3 };
+
+    var hi32: u8 = 0;
+
+    for (channels) |channel| {
+        // Get current pins
+        var low32 = reaper.TrackFX_GetPinMappings(tr, subIdx, isOutput, channel, &hi32);
+        const channelMask = 2 ^ channel;
+        // WARNING: is this correct? I'm using the same queries for pin mappings as if the fx was not in container
+        const isConnected = (low32 & channelMask) > 0;
+        if (isConnected) {
+            // would this work?    low32 = low32 & channelMask;
+            switch (onOff) {
+                .turnOn => {},
+                else => {
+                    // would this work?    low32 = low32 | channelMask;
+                    low32 = low32 - channelMask; // disconnect
+                },
+            }
+        } else {
+            switch (onOff) {
+                .turnOff => {},
+                else => {
+                    // would this work?    low32 = low32 | channelMask;
+                    low32 = low32 + channelMask; // connect
+                },
+            }
+        }
+
+        const pinSuccess = reaper.TrackFX_SetPinMappings(tr, subIdx, isOutput, channel, low32, hi32);
+        if (!pinSuccess) {
+            toggleSuccess = false;
+        }
+    }
+    return toggleSuccess;
 }

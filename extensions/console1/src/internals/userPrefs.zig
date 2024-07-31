@@ -10,6 +10,7 @@ pub const UserSettings = struct {
     show_feedback_window: bool = true,
     ///  -- show plugin UI when tweaking corresponding knob.
     show_plugin_ui: bool = true,
+    manual_routing: bool = false,
 
     pub fn init(allocator: Allocator, cntrlrPth: []const u8) UserSettings {
         var userSettings = UserSettings{};
