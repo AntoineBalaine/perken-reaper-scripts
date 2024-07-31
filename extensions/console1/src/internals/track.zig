@@ -17,19 +17,15 @@ const TrckErr = error{ fxAddFail, fxRenameFail, moduleFindFail, fxFindNameFail, 
 var buf: [255:0]u8 = undefined;
 
 pub const Track = struct {
-    ptr: ?reaper.MediaTrack,
     order: ModulesOrder = .@"S-EQ-C",
     fxMap: FxMap = FxMap{},
 
-    pub fn init(trackPtr: reaper.MediaTrack) Track {
-        const track: Track = .{
-            .ptr = trackPtr,
-        };
+    pub fn init() Track {
+        const track: Track = .{};
         return track;
     }
 
     pub fn deinit(self: *Track) void {
-        self.ptr = null;
         self.order = .@"S-EQ-C";
     }
 
@@ -37,8 +33,9 @@ pub const Track = struct {
     // e.g. to address the third item in the container at the second position of the track FX chain for tr,
     // the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2.
     // This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic.
-    pub fn getSubContainerIdx(self: *Track, subidx: u8, container_idx: c_int) c_int {
-        return 0x2000000 + (subidx * (reaper.TrackFX_GetCount(self.ptr.?) + 1)) + container_idx;
+    pub fn getSubContainerIdx(self: *Track, subidx: u8, container_idx: c_int, mediaTrack: reaper.MediaTrack) c_int {
+        _ = self;
+        return 0x2000000 + (subidx * (reaper.TrackFX_GetCount(mediaTrack) + 1)) + container_idx;
     }
 
     /// if container_idx is provided, then load the chain into it.
@@ -48,17 +45,18 @@ pub const Track = struct {
         defaults: *config.Defaults,
         modules: config.Modules,
         mappings: *config.MapStore,
+        mediaTrack: reaper.MediaTrack,
     ) !void {
         var cont_idx: c_int = undefined;
         if (container_idx) |idx| {
             cont_idx = idx;
         } else {
-            cont_idx = reaper.TrackFX_AddByName(self.ptr.?, "Container", false, -1);
+            cont_idx = reaper.TrackFX_AddByName(mediaTrack, "Container", false, -1);
             if (cont_idx == -1) {
                 return TrckErr.fxAddFail;
             }
             // rename the container
-            const rename_success = reaper.TrackFX_SetNamedConfigParm(self.ptr.?, cont_idx, "renamed_name", CONTROLLER_NAME);
+            const rename_success = reaper.TrackFX_SetNamedConfigParm(mediaTrack, cont_idx, "renamed_name", CONTROLLER_NAME);
             if (!rename_success) {
                 return TrckErr.fxRenameFail;
             }
@@ -70,13 +68,12 @@ pub const Track = struct {
         while (iterator.next()) |field| : (idx += 1) {
             const fxName = defaults.get(field.key);
             const fx_added = reaper.TrackFX_AddByName(
-                self.ptr.?,
+                mediaTrack,
                 @as([*:0]const u8, fxName),
                 false,
-                self.getSubContainerIdx(
-                    idx + 1, // make it 1-based
-                    reaper.TrackFX_GetByName(self.ptr.?, CONTROLLER_NAME, false) + 1, // make it 1-based
-                ),
+                self.getSubContainerIdx(idx + 1, // make it 1-based
+                    reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
+                    mediaTrack),
             );
             if (fx_added == -1) {
                 return TrckErr.fxAddFail;
@@ -107,10 +104,11 @@ pub const Track = struct {
         modules: std.StringHashMap(ModulesList),
         defaults: *std.EnumArray(ModulesList, [:0]const u8),
         container_idx: c_int,
+        mediaTrack: reaper.MediaTrack,
     ) !void {
         var tmp_buf: [255:0]u8 = undefined;
 
-        const tr = self.ptr.?;
+        const tr = mediaTrack;
         var moduleCounter = ModuleCounter{};
 
         for (0..@as(usize, @intCast(count))) |idx| {
@@ -165,13 +163,12 @@ pub const Track = struct {
                 };
 
                 const fx_added = reaper.TrackFX_AddByName(
-                    self.ptr.?,
+                    mediaTrack,
                     @as([*:0]const u8, defaultFX),
                     false,
-                    self.getSubContainerIdx(
-                        subidx + 1, // make it 1-based
-                        reaper.TrackFX_GetByName(self.ptr.?, CONTROLLER_NAME, false) + 1, // make it 1-based
-                    ),
+                    self.getSubContainerIdx(subidx + 1, // make it 1-based
+                        reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
+                        mediaTrack),
                 );
                 if (fx_added == -1) {
                     return TrckErr.fxAddFail;
@@ -186,30 +183,23 @@ pub const Track = struct {
         defaults: *std.EnumArray(ModulesList, [:0]const u8),
         mappings: *config.MapStore,
         newOrder: ?ModulesOrder,
+        mediaTrack: reaper.MediaTrack,
     ) !void {
-        if (self.ptr == null) {
-            return;
-        }
-        const tr = self.ptr.?;
+        const tr = mediaTrack;
         const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
         if (container_idx == -1) {
-            try self.loadDefaultChain(null, defaults, modules, mappings);
+            try self.loadDefaultChain(null, defaults, modules, mappings, mediaTrack);
             return;
         }
         const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
         if (!rv) {
-            try self.loadDefaultChain(container_idx, defaults, modules, mappings);
+            try self.loadDefaultChain(container_idx, defaults, modules, mappings, mediaTrack);
             return;
         }
         const count = try std.fmt.parseInt(i32, std.mem.span(@as([*:0]const u8, &buf)), 10);
         const fieldsLen = @typeInfo(ModulesList).Enum.fields.len;
         if (count != fieldsLen) {
-            try self.addMissingModules(
-                count,
-                modules,
-                defaults,
-                container_idx,
-            );
+            try self.addMissingModules(count, modules, defaults, container_idx, mediaTrack);
         }
         var moduleChecks = ModuleCheck.init(.{
             .INPUT = .{ false, 0 },
@@ -259,14 +249,14 @@ pub const Track = struct {
                     if (idx != 0) {
                         reaper.TrackFX_CopyToTrack(
                             tr,
-                            self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, container_idx + 1),
+                            self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, container_idx + 1, mediaTrack),
                             tr,
 
-                            self.getSubContainerIdx(0 + 1, container_idx + 1),
+                            self.getSubContainerIdx(0 + 1, container_idx + 1, mediaTrack),
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
-                        return try self.checkTrackState(modules, defaults, mappings, newOrder);
+                        return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack);
                     } else {
                         self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
                     }
@@ -275,13 +265,13 @@ pub const Track = struct {
                     if (idx != (count - 1)) {
                         reaper.TrackFX_CopyToTrack(
                             tr,
-                            self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, container_idx + 1),
+                            self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, container_idx + 1, mediaTrack),
                             tr,
-                            self.getSubContainerIdx(@as(u8, @intCast(count)), container_idx + 1),
+                            self.getSubContainerIdx(@as(u8, @intCast(count)), container_idx + 1, mediaTrack),
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
-                        return try self.checkTrackState(modules, defaults, mappings, newOrder);
+                        return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack);
                     } else {
                         self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .OUTPT, modules).OUTPT };
                     }
@@ -300,9 +290,9 @@ pub const Track = struct {
                 // move the gate to be before the compressor
                 reaper.TrackFX_CopyToTrack(
                     tr,
-                    self.getSubContainerIdx(gt + 1, container_idx + 1),
+                    self.getSubContainerIdx(gt + 1, container_idx + 1, mediaTrack),
                     tr,
-                    self.getSubContainerIdx(cp + 1, container_idx + 1),
+                    self.getSubContainerIdx(cp + 1, container_idx + 1, mediaTrack),
                     true,
                 );
                 // update indexes
@@ -320,9 +310,9 @@ pub const Track = struct {
             // mv cmp after the gate
             reaper.TrackFX_CopyToTrack(
                 tr,
-                self.getSubContainerIdx(cp + 1, container_idx + 1),
+                self.getSubContainerIdx(cp + 1, container_idx + 1, mediaTrack),
                 tr,
-                self.getSubContainerIdx(gt + 1, container_idx + 1),
+                self.getSubContainerIdx(gt + 1, container_idx + 1, mediaTrack),
                 true,
             );
             moduleChecks.set(.COMP, .{ true, gt });
@@ -352,9 +342,9 @@ pub const Track = struct {
                 // move eq before gate
                 reaper.TrackFX_CopyToTrack(
                     tr,
-                    self.getSubContainerIdx(eq + 1, container_idx + 1),
+                    self.getSubContainerIdx(eq + 1, container_idx + 1, tr),
                     tr,
-                    self.getSubContainerIdx(gt + 1, container_idx + 1),
+                    self.getSubContainerIdx(gt + 1, container_idx + 1, tr),
                     true,
                 );
             },
@@ -362,9 +352,9 @@ pub const Track = struct {
                 // move eq after compressor
                 reaper.TrackFX_CopyToTrack(
                     tr,
-                    self.getSubContainerIdx(eq + 1, container_idx + 1),
+                    self.getSubContainerIdx(eq + 1, container_idx + 1, tr),
                     tr,
-                    self.getSubContainerIdx(cp + 1, container_idx + 1),
+                    self.getSubContainerIdx(cp + 1, container_idx + 1, tr),
                     true,
                 );
             },
@@ -372,9 +362,9 @@ pub const Track = struct {
                 { // move eq before compressor
                     reaper.TrackFX_CopyToTrack(
                         tr,
-                        self.getSubContainerIdx(eq + 1, container_idx + 1),
+                        self.getSubContainerIdx(eq + 1, container_idx + 1, tr),
                         tr,
-                        self.getSubContainerIdx(cp, container_idx + 1),
+                        self.getSubContainerIdx(cp, container_idx + 1, tr),
                         true,
                     );
                 }

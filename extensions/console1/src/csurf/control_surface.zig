@@ -151,12 +151,11 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
     const fxMap = @field(state.track.?.fxMap, nm);
     if (fxMap == null) return;
     const fxIdx = fxMap.?[0];
+    const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
     if (display != null) { // handle display
-        const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
-        const subIdx = state.track.?.getSubContainerIdx(
-            fxIdx + 1, // make it 1-based
+        const subIdx = state.track.?.getSubContainerIdx(fxIdx + 1, // make it 1-based
             reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
-        );
+            mediaTrack);
 
         reaper.TrackFX_Show(mediaTrack, subIdx, 1);
     }
@@ -168,10 +167,9 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
         // at fxIdx, at fxPrm, set the value
         _ = reaper.TrackFX_SetParamNormalized(
             tr,
-            state.track.?.getSubContainerIdx(
-                fxIdx + 1, // make it 1-based
+            state.track.?.getSubContainerIdx(fxIdx + 1, // make it 1-based
                 reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
-            ),
+                mediaTrack),
             fxPrm,
             @as(f64, @floatFromInt(val)) / 127,
         );
@@ -181,6 +179,8 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
 const PgChgDirection = enum { Up, Down };
 
 fn onPgChg(direction: PgChgDirection) void {
+    // select tracks in page
+    // sws: VertZoomRange
     const btn = if (direction == .Up) c1.CCs.Tr_pg_up else c1.CCs.Tr_pg_dn;
     c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(btn), 0x0, -1); // don't light up the pgup/pgdn buttons
     // query trackCount
@@ -333,10 +333,11 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Tr_ext_sidechain => {},
             .Tr_order => {
                 if (state.track) |*track| {
+                    const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
                     _ = switch (val) {
-                        0x0 => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"S-EQ-C"),
-                        0x3f => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"S-C-EQ"),
-                        0x7f => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"EQ-S-C"),
+                        0x0 => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"S-EQ-C", mediaTrack),
+                        0x3f => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"S-C-EQ", mediaTrack),
+                        0x7f => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"EQ-S-C", mediaTrack),
                         else => {},
                     } catch {};
                 }
@@ -426,10 +427,9 @@ export fn zRun() callconv(.C) void {
                 if (track.fxMap.COMP) |comp| {
                     const success = reaper.TrackFX_GetNamedConfigParm(
                         mediaTrack,
-                        track.getSubContainerIdx(
-                            comp[0] + 1, // make it 1-based
+                        track.getSubContainerIdx(comp[0] + 1, // make it 1-based
                             reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
-                        ),
+                            mediaTrack),
                         "GainReduction_dB",
                         tmp[0..],
                         tmp.len,
@@ -597,10 +597,9 @@ fn selectTrk(trackid: MediaTrack) void {
                             const fxPrm = @field(map, @tagName(CC));
                             const val = reaper.TrackFX_GetParamNormalized(
                                 trackid,
-                                trk.getSubContainerIdx(
-                                    fxIdx + 1, // make it 1-based
+                                trk.getSubContainerIdx(fxIdx + 1, // make it 1-based
                                     reaper.TrackFX_GetByName(trackid, CONTROLLER_NAME, false) + 1, // make it 1-based
-                                ),
+                                    trackid),
                                 fxPrm,
                             );
                             const conv: u8 = @intFromFloat(val * 127);
@@ -707,9 +706,10 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             // csurf doesn't have means of checking if fx get re-ordered.
             // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
             if (state.track) |*track| {
-                _ = track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, null) catch {};
+                if (parm1) |mediaTrack| {
+                    _ = track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, null, mediaTrack) catch {};
+                }
             }
-            std.debug.print("SETPAN_EX\n", .{});
         },
         .SETPROJECTMARKERCHANGE => std.debug.print("SETPROJECTMARKERCHANGE\n", .{}),
         .SETRECMODE => std.debug.print("SETRECMODE\n", .{}),
