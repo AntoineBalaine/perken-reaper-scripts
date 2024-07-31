@@ -707,7 +707,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
             if (state.track) |*track| {
                 if (parm1) |mediaTrack| {
-                    _ = track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, null, mediaTrack) catch {};
+                    _ = track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, null, @as(MediaTrack, @ptrCast(mediaTrack))) catch {};
                 }
             }
         },
