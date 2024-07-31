@@ -561,6 +561,7 @@ fn selectTrk(trackid: MediaTrack) void {
         // set all knobs to the current track’s values
         if (state.track) |*trk| {
             // trk.order
+            c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Tr_order), @intFromEnum(trk.order), -1);
             inline for (comptime std.enums.values(c1.CCs)) |CC| { // update params according to mappings
                 if (CC == c1.CCs.Out_Vol) {
                     const volint: u8 = @intFromFloat((reaper.GetMediaTrackInfo_Value(trackid, "D_VOL") * 127) / 4); // tr volumes are 0.0-4.0

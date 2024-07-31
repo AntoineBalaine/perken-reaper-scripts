@@ -5,10 +5,10 @@ const ModulesList = config.ModulesList;
 const FxMap = @import("mappings.zig").FxMap;
 pub const CONTROLLER_NAME = "PRKN_C1";
 
-const ModulesOrder = union(enum) {
-    @"EQ-S-C",
-    @"S-C-EQ",
-    @"S-EQ-C",
+const ModulesOrder = enum(u8) {
+    @"EQ-S-C" = 0x7F,
+    @"S-C-EQ" = 0x3F,
+    @"S-EQ-C" = 0x0,
 };
 
 pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
@@ -343,63 +343,38 @@ pub const Track = struct {
     }
 
     pub fn reorder(self: *Track, tr: reaper.MediaTrack, newOrder: ModulesOrder, container_idx: c_int, moduleChecks: ModuleCheck) void {
+        if (newOrder == self.order) return;
         const eq = moduleChecks.get(.EQ)[1];
         const gt = moduleChecks.get(.GATE)[1];
         const cp = moduleChecks.get(.COMP)[1];
         switch (newOrder) {
             .@"EQ-S-C" => {
-                if (self.order == .@"S-C-EQ") { // move eq before gate
-                    reaper.TrackFX_CopyToTrack(
-                        tr,
-                        self.getSubContainerIdx(eq + 1, container_idx + 1),
-                        tr,
-                        self.getSubContainerIdx(gt + 1, container_idx + 1),
-                        true,
-                    );
-                } else if (self.order == .@"S-EQ-C") { // move eq before gate
-                    reaper.TrackFX_CopyToTrack(
-                        tr,
-                        self.getSubContainerIdx(eq + 1, container_idx + 1),
-                        tr,
-                        self.getSubContainerIdx(gt + 1, container_idx + 1),
-                        true,
-                    );
-                }
+                // move eq before gate
+                reaper.TrackFX_CopyToTrack(
+                    tr,
+                    self.getSubContainerIdx(eq + 1, container_idx + 1),
+                    tr,
+                    self.getSubContainerIdx(gt + 1, container_idx + 1),
+                    true,
+                );
             },
             .@"S-C-EQ" => {
-                if (self.order == .@"EQ-S-C") { // move eq after compressor
-                    reaper.TrackFX_CopyToTrack(
-                        tr,
-                        self.getSubContainerIdx(eq + 1, container_idx + 1),
-                        tr,
-                        self.getSubContainerIdx(cp + 1 + 1, container_idx + 1),
-                        true,
-                    );
-                } else if (self.order == .@"S-EQ-C") { // move eq after compressor
-                    reaper.TrackFX_CopyToTrack(
-                        tr,
-                        self.getSubContainerIdx(eq + 1, container_idx + 1),
-                        tr,
-                        self.getSubContainerIdx(cp + 1 + 1, container_idx + 1),
-                        true,
-                    );
-                }
+                // move eq after compressor
+                reaper.TrackFX_CopyToTrack(
+                    tr,
+                    self.getSubContainerIdx(eq + 1, container_idx + 1),
+                    tr,
+                    self.getSubContainerIdx(cp + 1, container_idx + 1),
+                    true,
+                );
             },
             .@"S-EQ-C" => {
-                if (self.order == .@"EQ-S-C") { // move eq before compressor
+                { // move eq before compressor
                     reaper.TrackFX_CopyToTrack(
                         tr,
                         self.getSubContainerIdx(eq + 1, container_idx + 1),
                         tr,
-                        self.getSubContainerIdx(cp + 1, container_idx + 1),
-                        true,
-                    );
-                } else if (self.order == .@"S-C-EQ") { // move comp before compressor
-                    reaper.TrackFX_CopyToTrack(
-                        tr,
-                        self.getSubContainerIdx(eq + 1, container_idx + 1),
-                        tr,
-                        self.getSubContainerIdx(cp + 1, container_idx + 1),
+                        self.getSubContainerIdx(cp, container_idx + 1),
                         true,
                     );
                 }
