@@ -90,6 +90,7 @@ pub const Track = struct {
                 }
             }
         }
+        self.order = .@"S-EQ-C"; // this assumes that iterators go in order of declaration
     }
 
     const ModuleCounter = struct {
@@ -184,6 +185,7 @@ pub const Track = struct {
         modules: std.StringHashMap(ModulesList),
         defaults: *std.EnumArray(ModulesList, [:0]const u8),
         mappings: *config.MapStore,
+        newOrder: ?ModulesOrder,
     ) !void {
         if (self.ptr == null) {
             return;
@@ -264,7 +266,7 @@ pub const Track = struct {
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
-                        return try self.checkTrackState(modules, defaults, mappings);
+                        return try self.checkTrackState(modules, defaults, mappings, newOrder);
                     } else {
                         self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
                     }
@@ -279,7 +281,7 @@ pub const Track = struct {
                             true,
                         );
                         // now that the fx indexes are all invalid, let's recurse.
-                        return try self.checkTrackState(modules, defaults, mappings);
+                        return try self.checkTrackState(modules, defaults, mappings, newOrder);
                     } else {
                         self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .OUTPT, modules).OUTPT };
                     }
@@ -305,7 +307,7 @@ pub const Track = struct {
                 );
                 // update indexes
                 moduleChecks.set(.GATE, .{ true, cp });
-                moduleChecks.set(.COMP, .{ true, gt });
+                moduleChecks.set(.COMP, .{ true, cp + 1 });
             }
             self.order = .@"EQ-S-C";
         } else if (gt < cp and gt < eq) {
@@ -323,9 +325,9 @@ pub const Track = struct {
                 self.getSubContainerIdx(gt + 1, container_idx + 1),
                 true,
             );
-            // TODO: double check these results.
             moduleChecks.set(.COMP, .{ true, gt });
-            moduleChecks.set(.GATE, .{ true, cp });
+            moduleChecks.set(.GATE, .{ true, gt - 1 });
+            moduleChecks.set(.EQ, .{ true, eq - 1 });
 
             // update indexes
             if (eq < gt) {
@@ -333,6 +335,75 @@ pub const Track = struct {
             } else {
                 self.order = .@"S-C-EQ";
             }
+        }
+
+        if (newOrder) |order| { // reorder fx after finding where they are
+            self.reorder(tr, order, container_idx, moduleChecks);
+        }
+    }
+
+    pub fn reorder(self: *Track, tr: reaper.MediaTrack, newOrder: ModulesOrder, container_idx: c_int, moduleChecks: ModuleCheck) void {
+        const eq = moduleChecks.get(.EQ)[1];
+        const gt = moduleChecks.get(.GATE)[1];
+        const cp = moduleChecks.get(.COMP)[1];
+        switch (newOrder) {
+            .@"EQ-S-C" => {
+                if (self.order == .@"S-C-EQ") { // move eq before gate
+                    reaper.TrackFX_CopyToTrack(
+                        tr,
+                        self.getSubContainerIdx(eq + 1, container_idx + 1),
+                        tr,
+                        self.getSubContainerIdx(gt + 1, container_idx + 1),
+                        true,
+                    );
+                } else if (self.order == .@"S-EQ-C") { // move eq before gate
+                    reaper.TrackFX_CopyToTrack(
+                        tr,
+                        self.getSubContainerIdx(eq + 1, container_idx + 1),
+                        tr,
+                        self.getSubContainerIdx(gt + 1, container_idx + 1),
+                        true,
+                    );
+                }
+            },
+            .@"S-C-EQ" => {
+                if (self.order == .@"EQ-S-C") { // move eq after compressor
+                    reaper.TrackFX_CopyToTrack(
+                        tr,
+                        self.getSubContainerIdx(eq + 1, container_idx + 1),
+                        tr,
+                        self.getSubContainerIdx(cp + 1 + 1, container_idx + 1),
+                        true,
+                    );
+                } else if (self.order == .@"S-EQ-C") { // move eq after compressor
+                    reaper.TrackFX_CopyToTrack(
+                        tr,
+                        self.getSubContainerIdx(eq + 1, container_idx + 1),
+                        tr,
+                        self.getSubContainerIdx(cp + 1 + 1, container_idx + 1),
+                        true,
+                    );
+                }
+            },
+            .@"S-EQ-C" => {
+                if (self.order == .@"EQ-S-C") { // move eq before compressor
+                    reaper.TrackFX_CopyToTrack(
+                        tr,
+                        self.getSubContainerIdx(eq + 1, container_idx + 1),
+                        tr,
+                        self.getSubContainerIdx(cp + 1, container_idx + 1),
+                        true,
+                    );
+                } else if (self.order == .@"S-C-EQ") { // move comp before compressor
+                    reaper.TrackFX_CopyToTrack(
+                        tr,
+                        self.getSubContainerIdx(eq + 1, container_idx + 1),
+                        tr,
+                        self.getSubContainerIdx(cp + 1, container_idx + 1),
+                        true,
+                    );
+                }
+            },
         }
     }
 };

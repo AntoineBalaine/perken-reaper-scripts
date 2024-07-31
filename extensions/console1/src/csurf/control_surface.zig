@@ -333,7 +333,16 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Shp_sustain => setPrmVal(@tagName(c1.CCs.Shp_sustain), .GATE, tr, val),
             // hook track channels 3-4 to comp or gate
             .Tr_ext_sidechain => {},
-            .Tr_order => {},
+            .Tr_order => {
+                if (state.track) |*track| {
+                    _ = switch (val) {
+                        0x0 => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"S-EQ-C"),
+                        0x3f => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"S-C-EQ"),
+                        0x7f => track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, .@"EQ-S-C"),
+                        else => {},
+                    } catch {};
+                }
+            },
             .Tr_pg_dn => onPgChg(.Down),
             .Tr_pg_up => onPgChg(.Up),
             .Tr_tr1 => selTrck(1),
@@ -547,12 +556,12 @@ fn selectTrk(trackid: MediaTrack) void {
         c.MidiOut_Send(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
         const new_cc = @rem(id, 20) + 0x15 - 1;
         c.MidiOut_Send(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
-    }
-    m_bank_offset = id;
-    // set all knobs to the current track’s values
-    if (state.track) |*trk| {
-        if (m_midiout) |midiout| {
-            inline for (comptime std.enums.values(c1.CCs)) |CC| {
+        m_bank_offset = id;
+        // TODO: update SideChain
+        // set all knobs to the current track’s values
+        if (state.track) |*trk| {
+            // trk.order
+            inline for (comptime std.enums.values(c1.CCs)) |CC| { // update params according to mappings
                 if (CC == c1.CCs.Out_Vol) {
                     const volint: u8 = @intFromFloat((reaper.GetMediaTrackInfo_Value(trackid, "D_VOL") * 127) / 4); // tr volumes are 0.0-4.0
                     c.MidiOut_Send(midiout, 0xb0, @intFromEnum(CC), volint, -1);
