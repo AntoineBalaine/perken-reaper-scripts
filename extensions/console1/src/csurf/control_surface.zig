@@ -76,13 +76,11 @@ fn iterCC() void {
     }
 }
 
-fn volToInt14(vol: f64) u8 {
-    var d: f64 = (reaper.DB2SLIDER(vol) * 16383.0 / 1000.0);
-    d = if (d < 0.0) 0.0 else if (d > 16383.0) 16383.0 else d;
-    const range: u16 = 127;
-    const t: u16 = @intFromFloat(d + 0.5);
-    return @intCast(t & range);
-    // return @ceil(d + 0.5);
+fn volToU8(vol: f64) u8 {
+    var d: f64 = (reaper.DB2SLIDER(vol) * 127.0 / 1000.0);
+    d = if (d < 0.0) 0.0 else if (d > 127.0) 127.0 else d;
+    const t: u16 = @intFromFloat(d);
+    return t;
 }
 
 fn u8ToVol(val: u8) f64 {
@@ -443,12 +441,8 @@ export fn zRun() callconv(.C) void {
                         const gainReduction = std.fmt.parseFloat(f64, slice) catch null;
 
                         if (gainReduction) |GR| {
-                            const m_GR: f64 = if (GR < -20) 0.0 else @abs(GR);
-                            const conv = volToInt14(m_GR);
-                            std.debug.print("{d} {d}\n", .{ GR, conv });
-                            // ranges from 0 to -60
-                            // const m_GR: u8 = 127 - @as(u8, @intFromFloat((if (GR < -20) 0.0 else @abs(GR) / 20) * 127));
-                            // std.debug.print("GR\t{s}\tm_GR{d}\n", .{ tmp[0..], m_GR });
+                            // not quite 1:1 with the console's meter, but good enough for jazz
+                            const conv: u8 = @intFromFloat(DB2VAL(GR) * 127);
                             c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
                         } else {
                             std.debug.print("failed to parse gain reduction\n", .{});
@@ -713,7 +707,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             // csurf doesn't have means of checking if fx get re-ordered.
             // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
             if (state.track) |*track| {
-                track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, null);
+                _ = track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, null) catch {};
             }
             std.debug.print("SETPAN_EX\n", .{});
         },
