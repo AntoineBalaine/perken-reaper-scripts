@@ -709,7 +709,14 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETLASTTOUCHEDTRACK => if (parm1) |mediaTrack| selectTrk(@as(reaper.MediaTrack, @ptrCast(mediaTrack))),
         .SETMETRONOME => std.debug.print("SETMETRONOME\n", .{}),
         .SETMIXERSCROLL => std.debug.print("SETMIXERSCROLL\n", .{}),
-        .SETPAN_EX => std.debug.print("SETPAN_EX\n", .{}),
+        .SETPAN_EX => {
+            // csurf doesn't have means of checking if fx get re-ordered.
+            // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
+            if (state.track) |*track| {
+                track.checkTrackState(conf.modulesList, &conf.defaults, &conf.mappings, null);
+            }
+            std.debug.print("SETPAN_EX\n", .{});
+        },
         .SETPROJECTMARKERCHANGE => std.debug.print("SETPROJECTMARKERCHANGE\n", .{}),
         .SETRECMODE => std.debug.print("SETRECMODE\n", .{}),
         .SETRECVPAN => std.debug.print("SETRECVPAN\n", .{}),
