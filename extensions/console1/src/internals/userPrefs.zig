@@ -4,27 +4,32 @@ const fs_helpers = @import("fs_helpers.zig");
 const Allocator = std.mem.Allocator;
 const ini = @import("ini");
 
-pub const UserSettings = struct {
-    show_start_up_message: bool = true,
-    ///  -- should the UI display?
-    show_feedback_window: bool = true,
-    ///  -- show plugin UI when tweaking corresponding knob.
-    show_plugin_ui: bool = true,
-    manual_routing: bool = false,
+pub const UserSettings = @This();
 
-    pub fn init(allocator: Allocator, cntrlrPth: []const u8) UserSettings {
-        var userSettings = UserSettings{};
+pub var show_start_up_message: bool = true;
+///  -- should the UI display?
+pub var show_feedback_window: bool = true;
+///  -- show plugin UI when tweaking corresponding knob.
+pub var show_plugin_ui: bool = true;
+pub var manual_routing: bool = false;
 
-        const paths = [_][]const u8{ cntrlrPth, "resources", "preferences.ini" };
-        const controller_path = std.fs.path.join(allocator, &paths) catch {
-            return userSettings;
-        };
-        defer allocator.free(controller_path);
-
-        loadUserPrefs(allocator, controller_path, &userSettings) catch {};
-        return userSettings;
-    }
+const SettingsEnum = enum {
+    show_start_up_message,
+    show_feedback_window,
+    show_plugin_ui,
+    manual_routing,
 };
+
+pub fn init(allocator: Allocator, cntrlrPth: []const u8) void {
+    const paths = [_][]const u8{ cntrlrPth, "resources", "preferences.ini" };
+    const controller_path = std.fs.path.join(allocator, &paths) catch {
+        return;
+    };
+    defer allocator.free(controller_path);
+
+    loadUserPrefs(allocator, controller_path) catch {};
+    return;
+}
 
 /// read config:
 /// find the reaper resource path
@@ -32,7 +37,7 @@ pub const UserSettings = struct {
 /// read the controller config INI file
 /// get the controller rfxChain
 /// read the fx prefs INI file
-fn loadUserPrefs(allocator: Allocator, userPrefsPath: []const u8, userSettings: *UserSettings) !void {
+fn loadUserPrefs(allocator: Allocator, userPrefsPath: []const u8) !void {
     const file = try std.fs.cwd().openFile(userPrefsPath, .{});
     defer file.close();
 
@@ -42,13 +47,12 @@ fn loadUserPrefs(allocator: Allocator, userPrefsPath: []const u8, userSettings: 
     while (try parser.next()) |record| {
         switch (record) {
             .property => |kv| {
-                const Case = std.meta.FieldEnum(UserSettings);
-                const case = std.meta.stringToEnum(Case, kv.key) orelse continue;
+                const case = std.meta.stringToEnum(SettingsEnum, kv.key) orelse continue;
                 switch (case) {
-                    .show_start_up_message => userSettings.show_start_up_message = std.mem.eql(u8, @tagName(case), "true"),
-                    .show_feedback_window => userSettings.show_feedback_window = std.mem.eql(u8, @tagName(case), "true"),
-                    .show_plugin_ui => userSettings.show_plugin_ui = std.mem.eql(u8, @tagName(case), "true"),
-                    .manual_routing => userSettings.manual_routing = std.mem.eql(u8, @tagName(case), "true"),
+                    .show_start_up_message => show_start_up_message = std.mem.eql(u8, @tagName(case), "true"),
+                    .show_feedback_window => show_feedback_window = std.mem.eql(u8, @tagName(case), "true"),
+                    .show_plugin_ui => show_plugin_ui = std.mem.eql(u8, @tagName(case), "true"),
+                    .manual_routing => manual_routing = std.mem.eql(u8, @tagName(case), "true"),
                 }
             },
             .section => {},

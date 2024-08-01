@@ -40,7 +40,7 @@ fn init() !void {
         return err;
     };
     errdefer conf.deinit(gpa);
-    userSettings = UserSettings.init(gpa, controller_dir);
+    UserSettings.init(gpa, controller_dir);
     state = State.init(gpa) catch |err| {
         std.debug.print("Failed to init state \n", .{});
         return err;
@@ -48,7 +48,6 @@ fn init() !void {
 
     control_surface.state = state;
     control_surface.conf = conf;
-    control_surface.userSettings = userSettings;
     control_surface.controller_dir = controller_dir;
 }
 

@@ -3,6 +3,7 @@ const reaper = @import("../reaper.zig").reaper;
 const config = @import("config.zig");
 const ModulesList = config.ModulesList;
 const FxMap = @import("mappings.zig").FxMap;
+const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 pub const CONTROLLER_NAME = "PRKN_C1";
 
 pub const ModulesOrder = enum(u8) {
@@ -192,7 +193,6 @@ pub fn checkTrackState(
     mappings: *config.MapStore,
     newOrder: ?ModulesOrder,
     mediaTrack: reaper.MediaTrack,
-    manual_routing: bool,
 ) !void {
     const tr = mediaTrack;
     const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
@@ -266,7 +266,7 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack, manual_routing);
+                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack, UserSettings.manual_routing);
                 } else {
                     self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
                 }
@@ -281,7 +281,7 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack, manual_routing);
+                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack, UserSettings.manual_routing);
                 } else {
                     self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .OUTPT, modules).OUTPT };
                 }
@@ -340,7 +340,7 @@ pub fn checkTrackState(
     if (newOrder) |order| { // reorder fx after finding where they are
         self.reorder(tr, order, container_idx, moduleChecks);
     }
-    if (!manual_routing) {
+    if (!UserSettings.manual_routing) {
         // validTrackRouting(tr, container_idx, moduleChecks, newRouting);
     }
 }
