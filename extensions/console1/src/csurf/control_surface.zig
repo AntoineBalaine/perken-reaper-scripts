@@ -17,9 +17,7 @@ const c = @cImport({
 });
 const Conf = @import("../internals/config.zig");
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
-const ModulesOrder = @import("../internals/track.zig").ModulesOrder;
 const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
-
 // TODO: update ini module, move tests from module into project
 // TODO: fix mem leak (too many bytes freed)
 // TODO: fix persisting csurf selection in preferences
@@ -331,27 +329,18 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Shp_sustain => setPrmVal(@tagName(c1.CCs.Shp_sustain), .GATE, tr, val),
             .Tr_ext_sidechain => {
                 // unpin prev 3-4 of comp or gate
-                if (state.track == null) return;
-                const track = state.track.?;
-                _ = track; // autofix
-                // TODO: track.checkTrackState()  ++ track.validTrackRouting()
-
+                if (state.track) |*track| {
+                    switch (val) {
+                        0x0, 0x3f, 0x7f => track.checkTrackState(null, tr, @enumFromInt(val)) catch {},
+                        else => {},
+                    }
+                }
             },
             .Tr_order => {
                 if (state.track) |*track| {
-                    const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
-                    const vari: ?ModulesOrder = switch (val) {
-                        0x0 => .@"S-EQ-C",
-                        0x3f => .@"S-C-EQ",
-                        0x7f => .@"EQ-S-C",
-                        else => null,
-                    };
-                    if (vari) |variant| {
-                        track.checkTrackState(
-                            variant,
-                            mediaTrack,
-                            null,
-                        ) catch {};
+                    switch (val) {
+                        0x0, 0x3f, 0x7f => track.checkTrackState(@enumFromInt(val), tr, null) catch {},
+                        else => {},
                     }
                 }
             },
