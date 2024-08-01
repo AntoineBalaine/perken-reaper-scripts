@@ -48,6 +48,7 @@ fn loadUserPrefs(allocator: Allocator, userPrefsPath: []const u8, userSettings: 
                     .show_start_up_message => userSettings.show_start_up_message = std.mem.eql(u8, @tagName(case), "true"),
                     .show_feedback_window => userSettings.show_feedback_window = std.mem.eql(u8, @tagName(case), "true"),
                     .show_plugin_ui => userSettings.show_plugin_ui = std.mem.eql(u8, @tagName(case), "true"),
+                    .manual_routing => userSettings.manual_routing = std.mem.eql(u8, @tagName(case), "true"),
                 }
             },
             .section => {},

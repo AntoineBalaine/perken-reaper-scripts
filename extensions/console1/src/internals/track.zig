@@ -386,7 +386,7 @@ pub fn reorder(self: *Track, tr: reaper.MediaTrack, newOrder: ModulesOrder, cont
 /// set track to have 4 channels if it doesn't already.
 /// if called during track-init, toggle all the SC inputs (gate & comp) in the container to OFF
 /// else, just validate whether they're there.
-fn validTrackRouting(tr: reaper.MediaTrack, container_idx: c_int, moduleChecks: *ModuleCheck) bool {
+fn validTrackRouting(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, moduleChecks: ?*ModuleCheck, newRouting: ?SCRouting) bool {
     var inputPinsOut: c_int = 0;
     var outputPinsOut: c_int = 0;
     _ = reaper.TrackFX_GetIOSize(tr, container_idx, &inputPinsOut, &outputPinsOut);
@@ -407,12 +407,32 @@ fn validTrackRouting(tr: reaper.MediaTrack, container_idx: c_int, moduleChecks: 
         reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch", "4");
         reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch_in", "4");
     }
-    var iterator = moduleChecks.iterator();
-    const success = true;
-    while (iterator.next()) |moduleCheck| {
-        const subIdx = getSubContainerIdx(moduleCheck.value[1], moduleCheck.value[1], tr);
-        if (!toggleFxSC(tr, subIdx, .turnOff)) {
-            success = false;
+
+    var success = true;
+
+    // just check
+    if (!newRouting) {
+        // if newRouting and !manual_routing
+        // iterate, if both gate and comp have routing, remove o
+    }
+    if (moduleChecks) |modules| {
+        var iterator = modules.iterator();
+        while (iterator.next()) |moduleCheck| {
+            const subIdx = getSubContainerIdx(moduleCheck.value[1], container_idx, tr);
+            if (!toggleFxSC(tr, subIdx, .turnOff)) {
+                success = false;
+            }
+        }
+    } else {
+        inline for (comptime std.meta.fields(@TypeOf(self.fxMap))) |f| {
+            const fx = @field(self, f.name);
+            if (fx) |fxTuple| {
+                const fxIdx = fxTuple[0];
+                const subIdx = getSubContainerIdx(fxIdx, container_idx, tr);
+                if (!toggleFxSC(tr, subIdx, .turnOff)) {
+                    success = false;
+                }
+            }
         }
     }
     return success;
@@ -422,13 +442,15 @@ const ScChange = enum { turnOn, turnOff, toggle };
 
 /// turn fx side chain on channels 3-4.
 /// onOff: if null, then just toggle.
-/// returns whether the operation was successful.
-fn toggleFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ScChange) bool {
-    const toggleSuccess = true;
-    const isOutput: u8 = 0; // input = 0, output = 1
+/// returns whether the FX' chan 3-4 are connected
+fn toggleFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
+    // WARNING: brittle - I'm assuming that both channels  have the same toggles here
+    // if they go out of sync (e.g. «chan3 is toggled, chan4 isn't»), this result will be false.
+    const connected = true;
 
     // since we expect chan#3 & chan#4 to go in fxIn#3 & fxIn#4, we can use the same var for both.
     const channels = [2]u8{ 2, 3 };
+    const isOutput: u8 = 0; // input = 0, output = 1
 
     var hi32: u8 = 0;
 
@@ -438,29 +460,32 @@ fn toggleFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ScChange) bool {
         const channelMask = 2 ^ channel;
         // WARNING: is this correct? I'm using the same queries for pin mappings as if the fx was not in container
         const isConnected = (low32 & channelMask) > 0;
-        if (isConnected) {
-            // would this work?    low32 = low32 & channelMask;
-            switch (onOff) {
-                .turnOn => {},
-                else => {
-                    // would this work?    low32 = low32 | channelMask;
-                    low32 = low32 - channelMask; // disconnect
-                },
+        if (onOff) {
+            if (isConnected) {
+                // would this work?    low32 = low32 & channelMask;
+                switch (onOff.?) {
+                    .turnOn => connected = isConnected,
+                    else => {
+                        // would this work?    low32 = low32 | channelMask;
+                        low32 = low32 - channelMask; // disconnect
+                        const pinSuccess = reaper.TrackFX_SetPinMappings(tr, subIdx, isOutput, channel, low32, hi32);
+                        connected = if (pinSuccess) !isConnected else isConnected;
+                    },
+                }
+            } else {
+                switch (onOff.?) {
+                    .turnOff => connected = isConnected,
+                    else => {
+                        // would this work?    low32 = low32 | channelMask;
+                        low32 = low32 + channelMask; // connect
+                        const pinSuccess = reaper.TrackFX_SetPinMappings(tr, subIdx, isOutput, channel, low32, hi32);
+                        connected = if (pinSuccess) !isConnected else isConnected;
+                    },
+                }
             }
         } else {
-            switch (onOff) {
-                .turnOff => {},
-                else => {
-                    // would this work?    low32 = low32 | channelMask;
-                    low32 = low32 + channelMask; // connect
-                },
-            }
-        }
-
-        const pinSuccess = reaper.TrackFX_SetPinMappings(tr, subIdx, isOutput, channel, low32, hi32);
-        if (!pinSuccess) {
-            toggleSuccess = false;
+            connected = isConnected;
         }
     }
-    return toggleSuccess;
+    return connected;
 }
