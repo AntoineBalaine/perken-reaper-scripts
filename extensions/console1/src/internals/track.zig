@@ -28,6 +28,7 @@ var buf: [255:0]u8 = undefined;
 pub const Track = @This();
 
 order: ModulesOrder = .@"S-EQ-C",
+scRouting: SCRouting = .off,
 fxMap: FxMap = FxMap{},
 
 pub fn init() Track {
@@ -186,6 +187,7 @@ pub fn checkTrackState(
     self: *Track,
     newOrder: ?ModulesOrder,
     mediaTrack: reaper.MediaTrack,
+    newRouting: ?SCRouting,
 ) !void {
     const tr = mediaTrack;
     const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
@@ -244,7 +246,7 @@ pub fn checkTrackState(
         if (moduleChecks.get(moduleType)[0] == true) { // already found
             continue;
         }
-        const scEnabled = toggleFxSC(tr, fxId, null);
+        const scEnabled = getSetFxSC(tr, fxId, null);
         moduleChecks.set(moduleType, .{ true, @as(u8, @intCast(idx)), scEnabled });
 
         switch (moduleType) {
@@ -259,7 +261,7 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(newOrder, mediaTrack);
+                    return try self.checkTrackState(newOrder, mediaTrack, newRouting);
                 } else {
                     self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .INPUT, Conf.modulesList).INPUT };
                 }
@@ -274,7 +276,7 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(newOrder, mediaTrack);
+                    return try self.checkTrackState(newOrder, mediaTrack, newRouting);
                 } else {
                     self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .OUTPT, Conf.modulesList).OUTPT };
                 }
@@ -334,7 +336,7 @@ pub fn checkTrackState(
         self.reorder(tr, order, container_idx, moduleChecks);
     }
     if (!UserSettings.manual_routing) {
-        // validTrackRouting(tr, container_idx, moduleChecks, newRouting);
+        self.setChanStripSC(tr, container_idx, moduleChecks, newRouting);
     }
 }
 
@@ -385,68 +387,96 @@ pub fn reorder(self: *Track, tr: reaper.MediaTrack, newOrder: ModulesOrder, cont
 /// set track to have 4 channels if it doesn't already.
 /// if called during track-init, toggle all the SC inputs (gate & comp) in the container to OFF
 /// else, just validate whether they're there.
-fn validTrackRouting(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, moduleChecks: ?*ModuleCheck, newRouting: ?SCRouting) bool {
-    _ = self; // autofix
+fn setChanStripSC(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, moduleChecks: ModuleCheck, newRouting: ?SCRouting) void {
     var inputPinsOut: c_int = 0;
     var outputPinsOut: c_int = 0;
     _ = reaper.TrackFX_GetIOSize(tr, container_idx, &inputPinsOut, &outputPinsOut);
     const trIns = reaper.GetMediaTrackInfo_Value(tr, "I_NCHAN");
     if (trIns < 4) {
-        reaper.SetMediaTrackInfo_Value(tr, "I_NCHAN", "4");
+        _ = reaper.SetMediaTrackInfo_Value(tr, "I_NCHAN", @as(f64, 4));
     }
-    const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_nch", &buf, buf.len);
-    if (!rv) return false;
+    _ = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_nch", &buf, buf.len);
     const num = std.mem.span(@as([*:0]const u8, &buf));
-    const containerChannels = std.fmt.parseInt(u8, num, 10) catch {
-        return false;
-    };
-    if (containerChannels < 4) {
-        // create a container with 4 channels - mapping i/o should be automatic
-        // WARNING: for custom fx mappings (i.e. non-stock plugins),
-        // is the i/o setup really automatic?
-        reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch", "4");
-        reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch_in", "4");
-    }
-
-    var success = true;
-
-    if (!newRouting) { // just validate
-
-        const gt = moduleChecks.get(.GATE);
-        const cp = moduleChecks.get(.COMP);
-        if (gt[2] and cp[2]) {
-            // it's invalid, toggle whichever's latest
-            toggleFxSC(
-                tr,
-                getSubContainerIdx(if (gt[1] > cp[1]) gt[1] else cp[1], container_idx, tr),
-                .Off,
-            );
+    const containerChannels = std.fmt.parseInt(u8, num, 10) catch null;
+    if (containerChannels) |containrChannels| {
+        if (containrChannels < 4) {
+            // create a container with 4 channels - mapping i/o should be automatic
+            // WARNING: for custom fx mappings (i.e. non-stock plugins),
+            // is the i/o setup really automatic?
+            _ = reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch", "4");
+            _ = reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch_in", "4");
         }
     }
-    // just check
-    if (moduleChecks) |modules| {
-        var iterator = modules.iterator();
-        while (iterator.next()) |moduleCheck| {
-            const subIdx = getSubContainerIdx(moduleCheck.value[1], container_idx, tr);
-            if (newRouting) {}
-            if (!toggleFxSC(tr, subIdx, .turnOff)) {
-                success = false;
-            }
+
+    self.scRouting = self.getRouting(tr, moduleChecks, container_idx);
+    if (newRouting) |newRoutg| {
+        if (self.scRouting == newRoutg) return;
+        switch (newRoutg) {
+            .off => {
+                if (self.scRouting == .toComp) {
+                    _ = getSetFxSC(
+                        tr,
+                        self.getSubContainerIdx(moduleChecks.get(.COMP)[1], container_idx, tr),
+                        .turnOff,
+                    );
+                } else if (self.scRouting == .toShape) {
+                    _ = getSetFxSC(
+                        tr,
+                        self.getSubContainerIdx(moduleChecks.get(.GATE)[1], container_idx, tr),
+                        .turnOff,
+                    );
+                }
+            },
+            .toShape => {
+                if (self.scRouting == .toComp) {
+                    _ = getSetFxSC(
+                        tr,
+                        self.getSubContainerIdx(moduleChecks.get(.COMP)[1], container_idx, tr),
+                        .turnOff,
+                    );
+                }
+                _ = getSetFxSC(
+                    tr,
+                    self.getSubContainerIdx(moduleChecks.get(.GATE)[1], container_idx, tr),
+                    .turnOn,
+                );
+            },
+            .toComp => {
+                if (self.scRouting == .toShape) {
+                    _ = getSetFxSC(
+                        tr,
+                        self.getSubContainerIdx(moduleChecks.get(.GATE)[1], container_idx, tr),
+                        .turnOff,
+                    );
+                }
+                _ = getSetFxSC(
+                    tr,
+                    self.getSubContainerIdx(moduleChecks.get(.COMP)[1], container_idx, tr),
+                    .turnOn,
+                );
+            },
         }
     }
-    // } else {
-    //     inline for (comptime std.meta.fields(@TypeOf(self.fxMap))) |f| {
-    //         const fx = @field(self, f.name);
-    //         if (fx) |fxTuple| {
-    //             const fxIdx = fxTuple[0];
-    //             const subIdx = getSubContainerIdx(fxIdx, container_idx, tr);
-    //             if (!toggleFxSC(tr, subIdx, .turnOff)) {
-    //                 success = false;
-    //             }
-    //         }
-    //     }
-    // }
-    return success;
+}
+
+fn getRouting(self: *Track, tr: reaper.MediaTrack, moduleChecks: ModuleCheck, container_idx: c_int) SCRouting {
+    const gt = moduleChecks.get(.GATE);
+    const cp = moduleChecks.get(.COMP);
+    // just validate
+    if (gt[2] and cp[2]) {
+        // it's invalid, toggle whichever's latest
+        _ = getSetFxSC(
+            tr,
+            self.getSubContainerIdx(if (gt[1] > cp[1]) gt[1] else cp[1], container_idx, tr),
+            .turnOff,
+        );
+        return if (gt[1] > cp[1]) .toComp else .toShape;
+    }
+    if (!gt[2] and !cp[2]) {
+        return .off;
+    } else {
+        return if (gt[2]) .toShape else .toComp;
+    }
 }
 
 const ScChange = enum { turnOn, turnOff, toggle };
@@ -454,7 +484,7 @@ const ScChange = enum { turnOn, turnOff, toggle };
 /// turn fx side chain on channels 3-4.
 /// onOff: if null, then just toggle.
 /// returns whether the FX' chan 3-4 are connected
-fn toggleFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
+fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
     // WARNING: brittle - I'm assuming that both channels  have the same toggles here
     // if they go out of sync (e.g. «chan3 is toggled, chan4 isn't»), this result will be false.
     var connected = true;

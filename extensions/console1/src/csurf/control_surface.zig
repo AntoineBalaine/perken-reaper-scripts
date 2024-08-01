@@ -350,6 +350,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                         track.checkTrackState(
                             variant,
                             mediaTrack,
+                            null,
                         ) catch {};
                     }
                 }
@@ -722,6 +723,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                     _ = track.checkTrackState(
                         null,
                         @as(MediaTrack, @ptrCast(mediaTrack)),
+                        null,
                     ) catch {};
                 }
             }

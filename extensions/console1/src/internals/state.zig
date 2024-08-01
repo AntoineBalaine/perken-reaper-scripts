@@ -50,6 +50,7 @@ pub fn updateTrack(
     self.track.?.checkTrackState(
         null,
         trackid,
+        null,
     ) catch {
         std.debug.print("checkTrackState(): had error\n", .{});
     };

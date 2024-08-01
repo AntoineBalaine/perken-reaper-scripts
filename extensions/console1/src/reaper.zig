@@ -3850,7 +3850,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetIOSize
     /// Gets the number of input/output pins for FX if available, returns plug-in type or -1 on error FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetIOSize: *fn (track: *MediaTrack, fx: c_int, inputPinsOut: *c_int, outputPinsOut: *c_int) callconv(.C) c_int = undefined;
+    pub var TrackFX_GetIOSize: *fn (track: MediaTrack, fx: c_int, inputPinsOut: *c_int, outputPinsOut: *c_int) callconv(.C) c_int = undefined;
 
     /// TrackFX_GetNamedConfigParm
     /// gets plug-in specific named configuration value (returns true on success).
