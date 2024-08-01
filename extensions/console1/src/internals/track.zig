@@ -5,7 +5,7 @@ const ModulesList = config.ModulesList;
 const FxMap = @import("mappings.zig").FxMap;
 pub const CONTROLLER_NAME = "PRKN_C1";
 
-const ModulesOrder = enum(u8) {
+pub const ModulesOrder = enum(u8) {
     @"EQ-S-C" = 0x7F,
     @"S-C-EQ" = 0x3F,
     @"S-EQ-C" = 0x0,
@@ -17,7 +17,8 @@ const SCRouting = enum(u8) {
     toComp = 0x3F,
 };
 
-pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
+// Tuple contains: found on track, idx, sideChaineRouted (hooked to channels 3-4)
+pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8, bool }));
 const TrckErr = error{ fxAddFail, fxRenameFail, moduleFindFail, fxFindNameFail, fxHasNoName, enumConvertFail };
 // TODO: this is in top scope because I couldn't figure out how to pass the buffer as a fn param. the constness of fn params doesn't let me use the buffer
 var buf: [255:0]u8 = undefined;
@@ -191,6 +192,7 @@ pub fn checkTrackState(
     mappings: *config.MapStore,
     newOrder: ?ModulesOrder,
     mediaTrack: reaper.MediaTrack,
+    manual_routing: bool,
 ) !void {
     const tr = mediaTrack;
     const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
@@ -209,11 +211,11 @@ pub fn checkTrackState(
         try self.addMissingModules(count, modules, defaults, container_idx, mediaTrack);
     }
     var moduleChecks = ModuleCheck.init(.{
-        .INPUT = .{ false, 0 },
-        .EQ = .{ false, 1 },
-        .GATE = .{ false, 2 },
-        .COMP = .{ false, 3 },
-        .OUTPT = .{ false, 4 },
+        .INPUT = .{ false, 0, false },
+        .EQ = .{ false, 1, false },
+        .GATE = .{ false, 2, false },
+        .COMP = .{ false, 3, false },
+        .OUTPT = .{ false, 4, false },
     });
     var tmp_buf: [255:0]u8 = undefined;
 
@@ -249,7 +251,8 @@ pub fn checkTrackState(
         if (moduleChecks.get(moduleType)[0] == true) { // already found
             continue;
         }
-        moduleChecks.set(moduleType, .{ true, @as(u8, @intCast(idx)) });
+        const scEnabled = toggleFxSC(tr, fxId, null);
+        moduleChecks.set(moduleType, .{ true, @as(u8, @intCast(idx)), scEnabled });
 
         switch (moduleType) {
             .INPUT => {
@@ -263,7 +266,7 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack);
+                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack, manual_routing);
                 } else {
                     self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
                 }
@@ -278,7 +281,7 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack);
+                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack, manual_routing);
                 } else {
                     self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .OUTPT, modules).OUTPT };
                 }
@@ -303,8 +306,8 @@ pub fn checkTrackState(
                 true,
             );
             // update indexes
-            moduleChecks.set(.GATE, .{ true, cp });
-            moduleChecks.set(.COMP, .{ true, cp + 1 });
+            moduleChecks.set(.GATE, .{ true, cp, moduleChecks.get(.GATE)[2] });
+            moduleChecks.set(.COMP, .{ true, cp + 1, moduleChecks.get(.COMP)[2] });
         }
         self.order = .@"EQ-S-C";
     } else if (gt < cp and gt < eq) {
@@ -322,9 +325,9 @@ pub fn checkTrackState(
             self.getSubContainerIdx(gt + 1, container_idx + 1, mediaTrack),
             true,
         );
-        moduleChecks.set(.COMP, .{ true, gt });
-        moduleChecks.set(.GATE, .{ true, gt - 1 });
-        moduleChecks.set(.EQ, .{ true, eq - 1 });
+        moduleChecks.set(.COMP, .{ true, gt, moduleChecks.get(.COMP)[2] });
+        moduleChecks.set(.GATE, .{ true, gt - 1, moduleChecks.get(.GATE)[2] });
+        moduleChecks.set(.EQ, .{ true, eq - 1, moduleChecks.get(.EQ)[2] });
 
         // update indexes
         if (eq < gt) {
@@ -336,6 +339,9 @@ pub fn checkTrackState(
 
     if (newOrder) |order| { // reorder fx after finding where they are
         self.reorder(tr, order, container_idx, moduleChecks);
+    }
+    if (!manual_routing) {
+        // validTrackRouting(tr, container_idx, moduleChecks, newRouting);
     }
 }
 
@@ -387,6 +393,7 @@ pub fn reorder(self: *Track, tr: reaper.MediaTrack, newOrder: ModulesOrder, cont
 /// if called during track-init, toggle all the SC inputs (gate & comp) in the container to OFF
 /// else, just validate whether they're there.
 fn validTrackRouting(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, moduleChecks: ?*ModuleCheck, newRouting: ?SCRouting) bool {
+    _ = self; // autofix
     var inputPinsOut: c_int = 0;
     var outputPinsOut: c_int = 0;
     _ = reaper.TrackFX_GetIOSize(tr, container_idx, &inputPinsOut, &outputPinsOut);
@@ -410,31 +417,42 @@ fn validTrackRouting(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, 
 
     var success = true;
 
-    // just check
-    if (!newRouting) {
-        // if newRouting and !manual_routing
-        // iterate, if both gate and comp have routing, remove o
+    if (!newRouting) { // just validate
+
+        const gt = moduleChecks.get(.GATE);
+        const cp = moduleChecks.get(.COMP);
+        if (gt[2] and cp[2]) {
+            // it's invalid, toggle whichever's latest
+            toggleFxSC(
+                tr,
+                getSubContainerIdx(if (gt[1] > cp[1]) gt[1] else cp[1], container_idx, tr),
+                .Off,
+            );
+        }
     }
+    // just check
     if (moduleChecks) |modules| {
         var iterator = modules.iterator();
         while (iterator.next()) |moduleCheck| {
             const subIdx = getSubContainerIdx(moduleCheck.value[1], container_idx, tr);
+            if (newRouting) {}
             if (!toggleFxSC(tr, subIdx, .turnOff)) {
                 success = false;
             }
         }
-    } else {
-        inline for (comptime std.meta.fields(@TypeOf(self.fxMap))) |f| {
-            const fx = @field(self, f.name);
-            if (fx) |fxTuple| {
-                const fxIdx = fxTuple[0];
-                const subIdx = getSubContainerIdx(fxIdx, container_idx, tr);
-                if (!toggleFxSC(tr, subIdx, .turnOff)) {
-                    success = false;
-                }
-            }
-        }
     }
+    // } else {
+    //     inline for (comptime std.meta.fields(@TypeOf(self.fxMap))) |f| {
+    //         const fx = @field(self, f.name);
+    //         if (fx) |fxTuple| {
+    //             const fxIdx = fxTuple[0];
+    //             const subIdx = getSubContainerIdx(fxIdx, container_idx, tr);
+    //             if (!toggleFxSC(tr, subIdx, .turnOff)) {
+    //                 success = false;
+    //             }
+    //         }
+    //     }
+    // }
     return success;
 }
 
@@ -446,13 +464,13 @@ const ScChange = enum { turnOn, turnOff, toggle };
 fn toggleFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
     // WARNING: brittle - I'm assuming that both channels  have the same toggles here
     // if they go out of sync (e.g. «chan3 is toggled, chan4 isn't»), this result will be false.
-    const connected = true;
+    var connected = true;
 
     // since we expect chan#3 & chan#4 to go in fxIn#3 & fxIn#4, we can use the same var for both.
     const channels = [2]u8{ 2, 3 };
     const isOutput: u8 = 0; // input = 0, output = 1
 
-    var hi32: u8 = 0;
+    var hi32: c_int = 0;
 
     for (channels) |channel| {
         // Get current pins
@@ -460,7 +478,7 @@ fn toggleFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
         const channelMask = 2 ^ channel;
         // WARNING: is this correct? I'm using the same queries for pin mappings as if the fx was not in container
         const isConnected = (low32 & channelMask) > 0;
-        if (onOff) {
+        if (onOff != null) {
             if (isConnected) {
                 // would this work?    low32 = low32 & channelMask;
                 switch (onOff.?) {
