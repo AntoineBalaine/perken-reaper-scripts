@@ -348,9 +348,6 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                     };
                     if (vari) |variant| {
                         track.checkTrackState(
-                            Conf.modulesList,
-                            &Conf.defaults,
-                            &Conf.mappings,
                             variant,
                             mediaTrack,
                         ) catch {};
@@ -723,9 +720,6 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             if (state.track) |*track| {
                 if (parm1) |mediaTrack| {
                     _ = track.checkTrackState(
-                        Conf.modulesList,
-                        &Conf.defaults,
-                        &Conf.mappings,
                         null,
                         @as(MediaTrack, @ptrCast(mediaTrack)),
                     ) catch {};

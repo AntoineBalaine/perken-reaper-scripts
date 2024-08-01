@@ -4,6 +4,7 @@ const config = @import("config.zig");
 const ModulesList = config.ModulesList;
 const FxMap = @import("mappings.zig").FxMap;
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
+const Conf = @import("config.zig");
 pub const CONTROLLER_NAME = "PRKN_C1";
 
 pub const ModulesOrder = enum(u8) {
@@ -51,9 +52,6 @@ pub fn getSubContainerIdx(self: *Track, subidx: u8, container_idx: c_int, mediaT
 fn loadDefaultChain(
     self: *Track,
     container_idx: ?c_int,
-    defaults: *config.Defaults,
-    modules: config.Modules,
-    mappings: *config.MapStore,
     mediaTrack: reaper.MediaTrack,
 ) !void {
     var cont_idx: c_int = undefined;
@@ -72,10 +70,10 @@ fn loadDefaultChain(
     }
 
     // push them into the current container.
-    var iterator = defaults.iterator();
+    var iterator = Conf.defaults.iterator();
     var idx: u8 = 0;
     while (iterator.next()) |field| : (idx += 1) {
-        const fxName = defaults.get(field.key);
+        const fxName = Conf.defaults.get(field.key);
         const fx_added = reaper.TrackFX_AddByName(
             mediaTrack,
             @as([*:0]const u8, fxName),
@@ -88,11 +86,11 @@ fn loadDefaultChain(
             return TrckErr.fxAddFail;
         } else {
             switch (field.key) {
-                .INPUT => self.fxMap.INPUT = .{ idx, mappings.get(fxName, field.key, modules).INPUT },
-                .GATE => self.fxMap.GATE = .{ idx, mappings.get(fxName, field.key, modules).GATE },
-                .EQ => self.fxMap.EQ = .{ idx, mappings.get(fxName, field.key, modules).EQ },
-                .COMP => self.fxMap.COMP = .{ idx, mappings.get(fxName, field.key, modules).COMP },
-                .OUTPT => self.fxMap.OUTPT = .{ idx, mappings.get(fxName, field.key, modules).OUTPT },
+                .INPUT => self.fxMap.INPUT = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).INPUT },
+                .GATE => self.fxMap.GATE = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).GATE },
+                .EQ => self.fxMap.EQ = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).EQ },
+                .COMP => self.fxMap.COMP = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).COMP },
+                .OUTPT => self.fxMap.OUTPT = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).OUTPT },
             }
         }
     }
@@ -110,8 +108,6 @@ const ModuleCounter = struct {
 pub fn addMissingModules(
     self: *Track,
     count: i32,
-    modules: std.StringHashMap(ModulesList),
-    defaults: *std.EnumArray(ModulesList, [:0]const u8),
     container_idx: c_int,
     mediaTrack: reaper.MediaTrack,
 ) !void {
@@ -142,7 +138,7 @@ pub fn addMissingModules(
         }
         const fxName = std.mem.span(@as([*:0]const u8, &buf));
         // if fx is found in config, it’s valid.
-        const moduleType = modules.get(fxName) orelse {
+        const moduleType = Conf.modulesList.get(fxName) orelse {
             continue;
         };
 
@@ -161,7 +157,7 @@ pub fn addMissingModules(
         if (V == 0) {
             // add the missing module
             const module = std.meta.stringToEnum(ModulesList, field.name) orelse return TrckErr.enumConvertFail;
-            const defaultFX = defaults.get(module);
+            const defaultFX = Conf.defaults.get(module);
 
             const subidx: u8 = switch (module) {
                 .INPUT => 0,
@@ -188,27 +184,24 @@ pub fn addMissingModules(
 
 pub fn checkTrackState(
     self: *Track,
-    modules: std.StringHashMap(ModulesList),
-    defaults: *std.EnumArray(ModulesList, [:0]const u8),
-    mappings: *config.MapStore,
     newOrder: ?ModulesOrder,
     mediaTrack: reaper.MediaTrack,
 ) !void {
     const tr = mediaTrack;
     const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
     if (container_idx == -1) {
-        try self.loadDefaultChain(null, defaults, modules, mappings, mediaTrack);
+        try self.loadDefaultChain(null, mediaTrack);
         return;
     }
     const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
     if (!rv) {
-        try self.loadDefaultChain(container_idx, defaults, modules, mappings, mediaTrack);
+        try self.loadDefaultChain(container_idx, mediaTrack);
         return;
     }
     const count = try std.fmt.parseInt(i32, std.mem.span(@as([*:0]const u8, &buf)), 10);
     const fieldsLen = @typeInfo(ModulesList).Enum.fields.len;
     if (count != fieldsLen) {
-        try self.addMissingModules(count, modules, defaults, container_idx, mediaTrack);
+        try self.addMissingModules(count, container_idx, mediaTrack);
     }
     var moduleChecks = ModuleCheck.init(.{
         .INPUT = .{ false, 0, false },
@@ -244,7 +237,7 @@ pub fn checkTrackState(
         }
         const fxName = std.mem.span(@as([*:0]const u8, &buf));
 
-        const moduleType = modules.get(fxName) orelse { // no mapping available
+        const moduleType = Conf.modulesList.get(fxName) orelse { // no mapping available
             continue;
         };
 
@@ -266,9 +259,9 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack);
+                    return try self.checkTrackState(newOrder, mediaTrack);
                 } else {
-                    self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
+                    self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .INPUT, Conf.modulesList).INPUT };
                 }
             },
             .OUTPT => {
@@ -281,14 +274,14 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack);
+                    return try self.checkTrackState(newOrder, mediaTrack);
                 } else {
-                    self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .OUTPT, modules).OUTPT };
+                    self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .OUTPT, Conf.modulesList).OUTPT };
                 }
             },
-            .GATE => self.fxMap.GATE = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .GATE, modules).GATE },
-            .EQ => self.fxMap.EQ = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .EQ, modules).EQ },
-            .COMP => self.fxMap.COMP = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .COMP, modules).COMP },
+            .GATE => self.fxMap.GATE = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .GATE, Conf.modulesList).GATE },
+            .EQ => self.fxMap.EQ = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .EQ, Conf.modulesList).EQ },
+            .COMP => self.fxMap.COMP = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .COMP, Conf.modulesList).COMP },
         }
     }
 
