@@ -11,12 +11,11 @@ const c = @cImport({
 });
 const UserSettings = @import("internals/userPrefs.zig").UserSettings;
 const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
-const config = @import("internals/config.zig");
+const Conf = @import("internals/config.zig");
 
 const plugin_name = "Hello, Zig!";
 
 var state: State = undefined;
-var conf: config.Conf = undefined;
 var userSettings: UserSettings = undefined;
 var controller_dir: []const u8 = undefined;
 // var action_id: c_int = undefined;
@@ -35,11 +34,11 @@ fn init() !void {
         return err;
     };
     errdefer gpa.free(controller_dir);
-    conf = config.init(gpa, &controller_dir) catch |err| {
+    Conf.init(gpa, &controller_dir) catch |err| {
         std.debug.print("Failed to load config \n", .{});
         return err;
     };
-    errdefer conf.deinit(gpa);
+    errdefer Conf.deinit(gpa);
     UserSettings.init(gpa, controller_dir);
     state = State.init(gpa) catch |err| {
         std.debug.print("Failed to init state \n", .{});
@@ -47,13 +46,12 @@ fn init() !void {
     };
 
     control_surface.state = state;
-    control_surface.conf = conf;
     control_surface.controller_dir = controller_dir;
 }
 
 fn deinit() void {
     gpa.free(controller_dir);
-    conf.deinit(gpa);
+    Conf.deinit(gpa);
     state.deinit();
     control_surface.deinit(myCsurf);
     const deinit_status = gpa_int.deinit();

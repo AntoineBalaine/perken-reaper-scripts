@@ -36,34 +36,47 @@ pub const Defaults = std.EnumArray(ModulesList, [:0]const u8);
 // TODO: switch to StringHashMapUnmanaged
 // TODO: use modulesList instead of moduleSet
 /// Maps modules to FX names
-moduleSet: ModuleSet,
+pub var moduleSet: ModuleSet = undefined;
 /// Maps Fx names to modules
-modulesList: Modules,
+pub var modulesList: Modules = undefined;
 /// Default FX associated with each module
-defaults: Defaults,
-mappings: MapStore,
-pub fn init(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !Conf {
-    var self: Conf = .{
-        .moduleSet = ModuleSet.init(.{
-            .INPUT = std.StringHashMap(void).init(allocator),
-            .GATE = std.StringHashMap(void).init(allocator),
-            .EQ = std.StringHashMap(void).init(allocator),
-            .COMP = std.StringHashMap(void).init(allocator),
-            .OUTPT = std.StringHashMap(void).init(allocator),
-        }),
-        .mappings = undefined,
-        .modulesList = Modules.init(allocator),
-        .defaults = Defaults.initUndefined(),
-    };
+pub var defaults: Defaults = undefined;
+pub var mappings: MapStore = undefined;
 
-    try self.readConf(allocator, cntrlrPth);
-    self.mappings = MapStore.init(allocator, &cntrlrPth, &self.defaults, &self.modulesList);
+const FieldEnum = enum {};
 
-    return self;
+pub fn init(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
+    moduleSet = ModuleSet.init(.{
+        .INPUT = std.StringHashMap(void).init(allocator),
+        .GATE = std.StringHashMap(void).init(allocator),
+        .EQ = std.StringHashMap(void).init(allocator),
+        .COMP = std.StringHashMap(void).init(allocator),
+        .OUTPT = std.StringHashMap(void).init(allocator),
+    });
+    mappings = undefined;
+    modulesList = Modules.init(allocator);
+    defaults = Defaults.initUndefined();
+
+    try readConf(allocator, cntrlrPth);
+
+    mappings = MapStore.init(allocator, cntrlrPth, &defaults, &modulesList);
 }
 
-pub fn deinit(self: *Conf, allocator: std.mem.Allocator) void {
-    inline for (std.meta.fields(@TypeOf(self.*))) |field| {
+const DeinitSelf = struct {
+    moduleSet: @TypeOf(moduleSet),
+    modulesList: @TypeOf(modulesList),
+    defaults: @TypeOf(defaults),
+    mappings: @TypeOf(mappings),
+};
+pub fn deinit(allocator: std.mem.Allocator) void {
+    const self = DeinitSelf{
+        .moduleSet = moduleSet,
+        .modulesList = modulesList,
+        .defaults = defaults,
+        .mappings = mappings,
+    };
+
+    inline for (std.meta.fields(@TypeOf(self))) |field| {
         const V = @field(self, field.name);
         switch (field.type) {
             std.EnumArray(ModulesList, std.StringHashMap(void)) => {
@@ -99,7 +112,7 @@ pub fn deinit(self: *Conf, allocator: std.mem.Allocator) void {
 }
 
 /// Inits the struct, and reads the  `defaults.ini` and `modules.ini` into it.
-fn readConf(self: *Conf, allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
+fn readConf(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
     const defaultsPath = try std.fs.path.resolve(allocator, &.{ cntrlrPth.*, "./resources/defaults.ini" });
     defer allocator.free(defaultsPath);
     const defaultsFile = try std.fs.openFileAbsolute(defaultsPath, .{});
@@ -108,7 +121,7 @@ fn readConf(self: *Conf, allocator: std.mem.Allocator, cntrlrPth: *const []const
     var defaultsParser = ini.parse(allocator, defaultsFile.reader());
     defer defaultsParser.deinit();
 
-    try readToEnumArray(&self.defaults, ModulesList, &defaultsParser, allocator, null);
+    try readToEnumArray(&defaults, ModulesList, &defaultsParser, allocator);
 
     const modulesPath = try std.fs.path.resolve(allocator, &.{ cntrlrPth.*, "./resources/modules.ini" });
     defer allocator.free(modulesPath);
@@ -118,10 +131,10 @@ fn readConf(self: *Conf, allocator: std.mem.Allocator, cntrlrPth: *const []const
     var modulesParser = ini.parse(allocator, modulesFile.reader());
     defer modulesParser.deinit();
 
-    try readToEnumArray(&self.moduleSet, ModulesList, &modulesParser, allocator, &self.modulesList);
+    try readToEnumArray(&moduleSet, ModulesList, &modulesParser, allocator);
 }
 
-pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator, modulesList: ?*std.StringHashMap(Or_enum)) !void {
+pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator) !void {
     const T = @TypeOf(enum_arr.*);
     std.debug.assert(@typeInfo(T) == .Struct);
     std.debug.assert(@typeInfo(Or_enum) == .Enum);
@@ -156,9 +169,7 @@ pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, alloca
                         var inn = enum_arr.getPtr(cur_section.?);
                         try inn.put(value_copy, {});
                         // FIXME: maybe this should have a dedicated match arm
-                        if (modulesList != null) {
-                            try modulesList.?.put(value_copy, cur_section.?);
-                        }
+                        try modulesList.put(value_copy, cur_section.?);
                     } else if (X == [:0]const u8) {
                         std.debug.print("val: {s}\n", .{value});
                         const value_copy = try allocator.dupeZ(u8, value);

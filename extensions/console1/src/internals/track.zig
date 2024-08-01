@@ -266,7 +266,7 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack, UserSettings.manual_routing);
+                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack);
                 } else {
                     self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .INPUT, modules).INPUT };
                 }
@@ -281,7 +281,7 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack, UserSettings.manual_routing);
+                    return try self.checkTrackState(modules, defaults, mappings, newOrder, mediaTrack);
                 } else {
                     self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), mappings.get(fxName, .OUTPT, modules).OUTPT };
                 }

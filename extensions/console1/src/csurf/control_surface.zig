@@ -15,7 +15,7 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
-const Conf = @import("../internals/config.zig").Conf;
+const Conf = @import("../internals/config.zig");
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 const ModulesOrder = @import("../internals/track.zig").ModulesOrder;
 const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
@@ -27,7 +27,6 @@ const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
 // TODO: OUTPUT: send feedback to controller's meters (peaks, gain reductio, etc.)
 // TODO: INPUT: send commands to reaper based on controller
 pub var state: State = undefined;
-pub var conf: Conf = undefined;
 pub var controller_dir: []const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
@@ -349,9 +348,9 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                     };
                     if (vari) |variant| {
                         track.checkTrackState(
-                            conf.modulesList,
-                            &conf.defaults,
-                            &conf.mappings,
+                            Conf.modulesList,
+                            &Conf.defaults,
+                            &Conf.mappings,
                             variant,
                             mediaTrack,
                         ) catch {};
@@ -560,7 +559,7 @@ fn selectTrk(trackid: MediaTrack) void {
     // QUESTION: what does mcpView param do?
     const id = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
     if (m_bank_offset == id) return;
-    state.updateTrack(trackid, &conf, UserSettings.manual_routing);
+    state.updateTrack(trackid);
     if (m_midiout) |midiout| {
         const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
         c.MidiOut_Send(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
@@ -724,9 +723,9 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             if (state.track) |*track| {
                 if (parm1) |mediaTrack| {
                     _ = track.checkTrackState(
-                        conf.modulesList,
-                        &conf.defaults,
-                        &conf.mappings,
+                        Conf.modulesList,
+                        &Conf.defaults,
+                        &Conf.mappings,
                         null,
                         @as(MediaTrack, @ptrCast(mediaTrack)),
                     ) catch {};

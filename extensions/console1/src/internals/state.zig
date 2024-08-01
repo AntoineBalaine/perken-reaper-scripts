@@ -37,7 +37,6 @@ pub fn deinit(self: *State) void {
 pub fn updateTrack(
     self: *State,
     trackid: reaper.MediaTrack,
-    config: *Conf,
 ) void {
     // update track
     // validate channel strip
@@ -51,9 +50,9 @@ pub fn updateTrack(
     // NOTE: track validation is meant to fail silently.
 
     self.track.?.checkTrackState(
-        config.modulesList,
-        &config.defaults,
-        &config.mappings,
+        Conf.modulesList,
+        &Conf.defaults,
+        &Conf.mappings,
         null,
         trackid,
     ) catch {
