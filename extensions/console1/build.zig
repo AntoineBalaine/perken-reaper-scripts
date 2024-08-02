@@ -34,12 +34,13 @@ pub fn build(b: *std.Build) !void {
     if (target.result.isDarwin()) {
         cpp_cmd = b.addSystemCommand(&[_][]const u8{ "clang", "-c" });
     } else {
-        cpp_cmd = b.addSystemCommand(&[_][]const u8{ "gcc", "-o" });
+        cpp_cmd = b.addSystemCommand(&[_][]const u8{"gcc"});
     }
     cpp_cmd.addFileInput(b.path("src/csurf/resource.rc_mac_dlg"));
     cpp_cmd.addFileInput(b.path("src/csurf/resource.rc_mac_menu"));
     cpp_cmd.step.dependOn(&php_cmd.step);
 
+    cpp_cmd.addArgs(&[_][]const u8{"-o"});
     const cpp_lib = cpp_cmd.addOutputFileArg("control_surface.o");
 
     if (target.result.isDarwin()) {
