@@ -19,6 +19,14 @@ pub fn build(b: *std.Build) !void {
     lib.addIncludePath(root);
 
     var client_install: *std.Build.Step.InstallArtifact = undefined;
+    lib.linkLibC();
+    if (target.result.isDarwin()) {
+        lib.root_module.linkFramework("AppKit", .{});
+        lib.linkLibCpp();
+        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
+    } else {
+        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
+    }
 
     // create the file, call the resgen shell script, and then proceed with the rest
     // WDL/snwell/swell_resgen.php resource.rc generates resource.rc_mac_dlg and .rc_mac_menu
@@ -30,39 +38,29 @@ pub fn build(b: *std.Build) !void {
     php_cmd.addFileArg(b.path("WDL/swell/swell_resgen.php"));
     php_cmd.addFileArg(b.path("src/csurf/resource.rc"));
 
-    var cpp_cmd: *std.Build.Step.Run = undefined;
-    if (target.result.isDarwin()) {
-        cpp_cmd = b.addSystemCommand(&[_][]const u8{ "clang", "-c" });
-    } else {
-        cpp_cmd = b.addSystemCommand(&[_][]const u8{"gcc"});
-    }
-    cpp_cmd.addFileInput(b.path("src/csurf/resource.rc_mac_dlg"));
-    cpp_cmd.addFileInput(b.path("src/csurf/resource.rc_mac_menu"));
-    cpp_cmd.step.dependOn(&php_cmd.step);
-
-    cpp_cmd.addArgs(&[_][]const u8{"-o"});
-    const cpp_lib = cpp_cmd.addOutputFileArg("control_surface.o");
-
-    if (target.result.isDarwin()) {
-        lib.root_module.linkFramework("AppKit", .{});
-
-        cpp_cmd.addArgs(&.{"WDL/swell/swell-modstub.mm"});
-        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
-    } else {
-        cpp_cmd.addArgs(&.{"WDL/swell/swell-modstub-generic.cpp"});
-        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
-    }
-
-    const cpp_files = [_][]const u8{
-        "src/csurf/control_surface.cpp",
-        "src/csurf/control_surface_wrapper.cpp",
-        "src/csurf/midi_wrapper.cpp",
+    const modstub = if (target.result.isDarwin()) "WDL/swell/swell-modstub.mm" else "WDL/swell/swell-modstub-generic.cpp";
+    const cppfiles = [4][]const u8{
+        "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "src/csurf/midi_wrapper.cpp",
+        modstub,
     };
-    inline for (cpp_files) |cpp|
-        cpp_cmd.addFileArg(b.path(cpp));
-    cpp_cmd.addArgs(&.{ "-fPIC", "-O2", "-std=c++14", "-shared", "-IWDL/WDL", "-DSWELL_PROVIDED_BY_APP" });
-    lib.addObjectFile(cpp_lib);
-    lib.linkLibC();
+
+    const compiler = if (target.result.isDarwin()) "clang" else "gcc";
+    inline for (comptime cppfiles) |cppfile| {
+        const cxx = b.addSystemCommand(&.{
+            compiler,
+            "-c",
+            "-fPIC",
+            "-O2",
+            "-std=c++14",
+            "-IWDL/WDL",
+            "-DSWELL_PROVIDED_BY_APP",
+            "-o",
+        });
+        const filearg = try std.fmt.allocPrint(b.allocator, "{s}.o", .{std.fs.path.basename(cppfile)});
+        lib.addObjectFile(cxx.addOutputFileArg(filearg));
+        cxx.addFileArg(b.path(cppfile));
+        cxx.step.dependOn(&php_cmd.step);
+    }
 
     b.getInstallStep().dependOn(&client_install.step);
 
