@@ -416,13 +416,13 @@ fn setChanStripSC(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, mod
                 if (self.scRouting == .toComp) {
                     _ = getSetFxSC(
                         tr,
-                        self.getSubContainerIdx(moduleChecks.get(.COMP)[1], container_idx, tr),
+                        self.getSubContainerIdx(moduleChecks.get(.COMP)[1] + 1, container_idx + 1, tr),
                         .turnOff,
                     );
                 } else if (self.scRouting == .toShape) {
                     _ = getSetFxSC(
                         tr,
-                        self.getSubContainerIdx(moduleChecks.get(.GATE)[1], container_idx, tr),
+                        self.getSubContainerIdx(moduleChecks.get(.GATE)[1] + 1, container_idx + 1, tr),
                         .turnOff,
                     );
                 }
@@ -431,13 +431,13 @@ fn setChanStripSC(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, mod
                 if (self.scRouting == .toComp) {
                     _ = getSetFxSC(
                         tr,
-                        self.getSubContainerIdx(moduleChecks.get(.COMP)[1], container_idx, tr),
+                        self.getSubContainerIdx(moduleChecks.get(.COMP)[1] + 1, container_idx + 1, tr),
                         .turnOff,
                     );
                 }
                 _ = getSetFxSC(
                     tr,
-                    self.getSubContainerIdx(moduleChecks.get(.GATE)[1], container_idx, tr),
+                    self.getSubContainerIdx(moduleChecks.get(.GATE)[1] + 1, container_idx + 1, tr),
                     .turnOn,
                 );
             },
@@ -445,13 +445,13 @@ fn setChanStripSC(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, mod
                 if (self.scRouting == .toShape) {
                     _ = getSetFxSC(
                         tr,
-                        self.getSubContainerIdx(moduleChecks.get(.GATE)[1], container_idx, tr),
+                        self.getSubContainerIdx(moduleChecks.get(.GATE)[1] + 1, container_idx + 1, tr),
                         .turnOff,
                     );
                 }
                 _ = getSetFxSC(
                     tr,
-                    self.getSubContainerIdx(moduleChecks.get(.COMP)[1], container_idx, tr),
+                    self.getSubContainerIdx(moduleChecks.get(.COMP)[1] + 1, container_idx + 1, tr),
                     .turnOn,
                 );
             },
@@ -465,9 +465,10 @@ fn getRouting(self: *Track, tr: reaper.MediaTrack, moduleChecks: ModuleCheck, co
     // just validate
     if (gt[2] and cp[2]) {
         // it's invalid, toggle whichever's latest
+        const subidx = if (gt[1] > cp[1]) gt[1] else cp[1];
         _ = getSetFxSC(
             tr,
-            self.getSubContainerIdx(if (gt[1] > cp[1]) gt[1] else cp[1], container_idx, tr),
+            self.getSubContainerIdx(subidx + 1, container_idx + 1, tr),
             .turnOff,
         );
         return if (gt[1] > cp[1]) .toComp else .toShape;
