@@ -71,6 +71,7 @@ local function getSetFxSC(tr, subidx, onoff)
 			connected = isConnected
 		end
 	end
+	return connected
 end
 
 function main()
@@ -82,8 +83,8 @@ function main()
 	---container_nch_out : number of output pints for container<br>
 	---container_nch_feedback : number of internal feedback channels enabled in container<br>
 
-	local subidx2, val = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_item.0")
-	local subidx = getSubContainerIdx(GATE, container_idx+1, tr)
-	getSetFxSC(tr, subidx, nil)
+	local subidx2, val = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_item.1")
+	local subidx = getSubContainerIdx(GATE + 1, container_idx + 1, tr)
+	getSetFxSC(tr, subidx, SCCHANGE.TURNOFF)
 end
 main()

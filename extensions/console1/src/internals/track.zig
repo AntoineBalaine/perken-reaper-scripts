@@ -19,8 +19,8 @@ const SCRouting = enum(u8) {
     toComp = 0x3F,
 };
 
-// Tuple contains: found on track, idx, sideChaineRouted (hooked to channels 3-4)
-pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8, bool }));
+// Tuple contains: isLoaded, idxInContainer
+pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
 const TrckErr = error{ fxAddFail, fxRenameFail, moduleFindFail, fxFindNameFail, fxHasNoName, enumConvertFail };
 // TODO: this is in top scope because I couldn't figure out how to pass the buffer as a fn param. the constness of fn params doesn't let me use the buffer
 var buf: [255:0]u8 = undefined;
@@ -197,7 +197,7 @@ pub fn checkTrackState(
         return self.checkTrackState(
             newOrder,
             mediaTrack,
-            newRouting,
+            if (newRouting == null) .off else newRouting, // new track's default routing is off
         );
     } else if (!reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1)) {
         try self.loadDefaultChain(container_idx, mediaTrack);
@@ -205,7 +205,7 @@ pub fn checkTrackState(
         return self.checkTrackState(
             newOrder,
             mediaTrack,
-            newRouting,
+            if (newRouting == null) .off else newRouting, // new track's default routing is off
         );
     }
     const count = try std.fmt.parseInt(i32, std.mem.span(@as([*:0]const u8, &buf)), 10);
@@ -214,11 +214,11 @@ pub fn checkTrackState(
         try self.addMissingModules(count, container_idx, mediaTrack);
     }
     var moduleChecks = ModuleCheck.init(.{
-        .INPUT = .{ false, 0, false },
-        .EQ = .{ false, 1, false },
-        .GATE = .{ false, 2, false },
-        .COMP = .{ false, 3, false },
-        .OUTPT = .{ false, 4, false },
+        .INPUT = .{ false, 0 },
+        .EQ = .{ false, 1 },
+        .GATE = .{ false, 2 },
+        .COMP = .{ false, 3 },
+        .OUTPT = .{ false, 4 },
     });
     var tmp_buf: [255:0]u8 = undefined;
 
@@ -254,8 +254,7 @@ pub fn checkTrackState(
         if (moduleChecks.get(moduleType)[0] == true) { // already found
             continue;
         }
-        const scEnabled = getSetFxSC(tr, fxId, null);
-        moduleChecks.set(moduleType, .{ true, @as(u8, @intCast(idx)), scEnabled });
+        moduleChecks.set(moduleType, .{ true, @as(u8, @intCast(idx)) });
 
         switch (moduleType) {
             .INPUT => {
@@ -309,8 +308,8 @@ pub fn checkTrackState(
                 true,
             );
             // update indexes
-            moduleChecks.set(.GATE, .{ true, cp, moduleChecks.get(.GATE)[2] });
-            moduleChecks.set(.COMP, .{ true, cp + 1, moduleChecks.get(.COMP)[2] });
+            moduleChecks.set(.GATE, .{ true, cp });
+            moduleChecks.set(.COMP, .{ true, cp + 1 });
         }
         self.order = .@"EQ-S-C";
     } else if (gt < cp and gt < eq) {
@@ -328,9 +327,9 @@ pub fn checkTrackState(
             self.getSubContainerIdx(gt + 1, container_idx + 1, mediaTrack),
             true,
         );
-        moduleChecks.set(.COMP, .{ true, gt, moduleChecks.get(.COMP)[2] });
-        moduleChecks.set(.GATE, .{ true, gt - 1, moduleChecks.get(.GATE)[2] });
-        moduleChecks.set(.EQ, .{ true, eq - 1, moduleChecks.get(.EQ)[2] });
+        moduleChecks.set(.COMP, .{ true, gt });
+        moduleChecks.set(.GATE, .{ true, gt - 1 });
+        moduleChecks.set(.EQ, .{ true, eq - 1 });
 
         // update indexes
         if (eq < gt) {
@@ -388,9 +387,6 @@ pub fn reorder(self: *Track, tr: reaper.MediaTrack, newOrder: ModulesOrder, cont
     }
 }
 
-// FIXME: 1. only change the routings when manual_routing is false in userSettings
-//        2. This doesn't actually perform validation yet:
-//              this should check that ONLY the gate OR the compressor OR none of the fx have SC enabled.
 /// validate track routing:
 /// set track to have 4 channels if it doesn't already.
 /// if called during track-init, toggle all the SC inputs (gate & comp) in the container to OFF
@@ -416,33 +412,26 @@ fn setChanStripSC(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, mod
         }
     }
 
-    self.scRouting = self.getRouting(tr, moduleChecks, container_idx);
     if (newRouting) |newRoutg| {
-        if (self.scRouting == newRoutg) return;
         switch (newRoutg) {
             .off => {
-                if (self.scRouting == .toComp) {
-                    _ = getSetFxSC(
-                        tr,
-                        self.getSubContainerIdx(moduleChecks.get(.COMP)[1] + 1, container_idx + 1, tr),
-                        .turnOff,
-                    );
-                } else if (self.scRouting == .toShape) {
-                    _ = getSetFxSC(
-                        tr,
-                        self.getSubContainerIdx(moduleChecks.get(.GATE)[1] + 1, container_idx + 1, tr),
-                        .turnOff,
-                    );
-                }
+                _ = getSetFxSC(
+                    tr,
+                    self.getSubContainerIdx(moduleChecks.get(.COMP)[1] + 1, container_idx + 1, tr),
+                    .turnOff,
+                );
+                _ = getSetFxSC(
+                    tr,
+                    self.getSubContainerIdx(moduleChecks.get(.GATE)[1] + 1, container_idx + 1, tr),
+                    .turnOff,
+                );
             },
             .toShape => {
-                if (self.scRouting == .toComp) {
-                    _ = getSetFxSC(
-                        tr,
-                        self.getSubContainerIdx(moduleChecks.get(.COMP)[1] + 1, container_idx + 1, tr),
-                        .turnOff,
-                    );
-                }
+                _ = getSetFxSC(
+                    tr,
+                    self.getSubContainerIdx(moduleChecks.get(.COMP)[1] + 1, container_idx + 1, tr),
+                    .turnOff,
+                );
                 _ = getSetFxSC(
                     tr,
                     self.getSubContainerIdx(moduleChecks.get(.GATE)[1] + 1, container_idx + 1, tr),
@@ -450,28 +439,41 @@ fn setChanStripSC(self: *Track, tr: reaper.MediaTrack, container_idx: c_int, mod
                 );
             },
             .toComp => {
-                if (self.scRouting == .toShape) {
-                    _ = getSetFxSC(
-                        tr,
-                        self.getSubContainerIdx(moduleChecks.get(.GATE)[1] + 1, container_idx + 1, tr),
-                        .turnOff,
-                    );
-                }
                 _ = getSetFxSC(
                     tr,
                     self.getSubContainerIdx(moduleChecks.get(.COMP)[1] + 1, container_idx + 1, tr),
                     .turnOn,
                 );
+                _ = getSetFxSC(
+                    tr,
+                    self.getSubContainerIdx(moduleChecks.get(.GATE)[1] + 1, container_idx + 1, tr),
+                    .turnOff,
+                );
             },
         }
+        self.scRouting = newRoutg;
+    } else {
+        self.scRouting = self.getRouting(tr, moduleChecks, container_idx);
     }
 }
 
 fn getRouting(self: *Track, tr: reaper.MediaTrack, moduleChecks: ModuleCheck, container_idx: c_int) SCRouting {
     const gt = moduleChecks.get(.GATE);
     const cp = moduleChecks.get(.COMP);
+    const gtConnected = getSetFxSC(
+        tr,
+        self.getSubContainerIdx(gt[1] + 1, container_idx + 1, tr),
+        null,
+    );
+    const cpConnected =
+        getSetFxSC(
+        tr,
+        self.getSubContainerIdx(gt[1] + 1, container_idx + 1, tr),
+        null,
+    );
+
     // just validate
-    if (gt[2] and cp[2]) {
+    if (gtConnected and cpConnected) {
         // it's invalid, toggle whichever's latest
         const subidx = if (gt[1] > cp[1]) gt[1] else cp[1];
         _ = getSetFxSC(
@@ -481,10 +483,10 @@ fn getRouting(self: *Track, tr: reaper.MediaTrack, moduleChecks: ModuleCheck, co
         );
         return if (gt[1] > cp[1]) .toComp else .toShape;
     }
-    if (!gt[2] and !cp[2]) {
+    if (!gtConnected and !cpConnected) {
         return .off;
     } else {
-        return if (gt[2]) .toShape else .toComp;
+        return if (gtConnected) .toShape else .toComp;
     }
 }
 
@@ -507,13 +509,12 @@ fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
     for (channels) |channel| {
         // Get current pins
         var low32 = reaper.TrackFX_GetPinMappings(tr, subIdx, isOutput, channel, &hi32);
-        const channelMask = 2 ^ channel;
-        // WARNING: is this correct? I'm using the same queries for pin mappings as if the fx was not in container
+        const channelMask = std.math.pow(u8, channel, 2);
         const isConnected = (low32 & channelMask) > 0;
-        if (onOff != null) {
+        if (onOff) |onoff| {
             if (isConnected) {
                 // would this work?    low32 = low32 & channelMask;
-                switch (onOff.?) {
+                switch (onoff) {
                     .turnOn => connected = isConnected,
                     else => {
                         // would this work?    low32 = low32 | channelMask;
@@ -523,7 +524,7 @@ fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
                     },
                 }
             } else {
-                switch (onOff.?) {
+                switch (onoff) {
                     .turnOff => connected = isConnected,
                     else => {
                         // would this work?    low32 = low32 | channelMask;
