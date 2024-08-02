@@ -193,12 +193,20 @@ pub fn checkTrackState(
     const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
     if (container_idx == -1) {
         try self.loadDefaultChain(null, mediaTrack);
-        return;
-    }
-    const rv = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
-    if (!rv) {
+        // recurse to update the sideChain routing
+        return self.checkTrackState(
+            newOrder,
+            mediaTrack,
+            newRouting,
+        );
+    } else if (!reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1)) {
         try self.loadDefaultChain(container_idx, mediaTrack);
-        return;
+        // recurse to update the sideChain routing
+        return self.checkTrackState(
+            newOrder,
+            mediaTrack,
+            newRouting,
+        );
     }
     const count = try std.fmt.parseInt(i32, std.mem.span(@as([*:0]const u8, &buf)), 10);
     const fieldsLen = @typeInfo(ModulesList).Enum.fields.len;
