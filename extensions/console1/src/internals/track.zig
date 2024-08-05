@@ -501,7 +501,7 @@ fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
     for (channels) |channel| {
         // Get current pins
         var low32 = reaper.TrackFX_GetPinMappings(tr, subIdx, isOutput, channel, &hi32);
-        const channelMask = std.math.pow(u8, channel, 2);
+        const channelMask = std.math.pow(u8, 2, channel);
         const isConnected = (low32 & channelMask) > 0;
         if (onOff) |onoff| {
             if (isConnected) {
@@ -509,7 +509,6 @@ fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
                 switch (onoff) {
                     .turnOn => connected = isConnected,
                     else => {
-                        // would this work?    low32 = low32 | channelMask;
                         low32 = low32 - channelMask; // disconnect
                         const pinSuccess = reaper.TrackFX_SetPinMappings(tr, subIdx, isOutput, channel, low32, hi32);
                         connected = if (pinSuccess) !isConnected else isConnected;
@@ -519,7 +518,6 @@ fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
                 switch (onoff) {
                     .turnOff => connected = isConnected,
                     else => {
-                        // would this work?    low32 = low32 | channelMask;
                         low32 = low32 + channelMask; // connect
                         const pinSuccess = reaper.TrackFX_SetPinMappings(tr, subIdx, isOutput, channel, low32, hi32);
                         connected = if (pinSuccess) !isConnected else isConnected;
