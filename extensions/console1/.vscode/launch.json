@@ -4,6 +4,16 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+           {
+      "type": "lua",
+      "request": "attach",
+      "name": "LuaPanda",
+      "cwd": "${workspaceFolder}",
+      "connectionPort": 8818,
+      "stopOnEntry": false,
+      "useCHook": true,
+      "address": "localhost"
+    },
         {
             "name": "(gdb) Launch",
             "type": "cppdbg",
