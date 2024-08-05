@@ -75,17 +75,22 @@ fn loadDefaultChain(
     var idx: u8 = 0;
     while (iterator.next()) |field| : (idx += 1) {
         const fxName = Conf.defaults.get(field.key);
+        const insertIdx = self.getSubContainerIdx(idx + 1, // make it 1-based
+            reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
+            mediaTrack);
+
         const fx_added = reaper.TrackFX_AddByName(
             mediaTrack,
             @as([*:0]const u8, fxName),
             false,
-            self.getSubContainerIdx(idx + 1, // make it 1-based
-                reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
-                mediaTrack),
+            insertIdx,
         );
         if (fx_added == -1) {
             return TrckErr.fxAddFail;
         } else {
+            if (field.key != Conf.ModulesList.INPUT and field.key != Conf.ModulesList.OUTPT) {
+                reaper.TrackFX_SetEnabled(mediaTrack, insertIdx, false);
+            }
             switch (field.key) {
                 .INPUT => self.fxMap.INPUT = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).INPUT },
                 .GATE => self.fxMap.GATE = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).GATE },
