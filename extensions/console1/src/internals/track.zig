@@ -191,12 +191,15 @@ pub fn checkTrackState(
 ) !void {
     const tr = mediaTrack;
     var container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
-    if (container_idx == -1) {
+    if (container_idx == -1) { // if no container
         try self.loadDefaultChain(null, mediaTrack);
         container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
-    } else if (!reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1)) {
+    }
+
+    // if no fx in container
+    if (!reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1)) {
         try self.loadDefaultChain(container_idx, mediaTrack);
-        reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
+        _ = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
     }
     const count = try std.fmt.parseInt(i32, std.mem.span(@as([*:0]const u8, &buf)), 10);
     const fieldsLen = @typeInfo(ModulesList).Enum.fields.len;
