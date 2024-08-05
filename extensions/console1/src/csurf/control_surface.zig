@@ -142,7 +142,8 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     c.ControlSurface_Destroy(csurf);
 }
 
-pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesList, tr: reaper.MediaTrack, val: u8) void {
+pub fn setPrmVal(comptime cc: c1.CCs, comptime section: Conf.ModulesList, tr: reaper.MediaTrack, val: u8) void {
+    const structPrm = @tagName(cc);
     if (state.track == null) return;
     const nm = @tagName(section);
 
@@ -150,7 +151,7 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
     if (fxMap == null) return;
     const fxIdx = fxMap.?[0];
     const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
-    if (display != null) { // handle display
+    if (display != null) { // show touched fx
         const subIdx = state.track.?.getSubContainerIdx(
             fxIdx + 1, // make it 1-based
             reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
@@ -252,31 +253,31 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
         switch (cc) {
             .Comp_Attack => {
                 if (state.mode == .fx_ctrl) {
-                    setPrmVal(@tagName(c1.CCs.Comp_Attack), .COMP, tr, val);
+                    setPrmVal(c1.CCs.Comp_Attack, .COMP, tr, val);
                 }
             },
-            .Comp_DryWet => setPrmVal(@tagName(c1.CCs.Comp_DryWet), .COMP, tr, val),
+            .Comp_DryWet => setPrmVal(c1.CCs.Comp_DryWet, .COMP, tr, val),
             .Comp_Mtr => {}, // meters unhandled
-            .Comp_Ratio => setPrmVal(@tagName(c1.CCs.Comp_Ratio), .COMP, tr, val),
-            .Comp_Release => setPrmVal(@tagName(c1.CCs.Comp_Release), .COMP, tr, val),
-            .Comp_Thresh => setPrmVal(@tagName(c1.CCs.Comp_Thresh), .COMP, tr, val),
-            .Comp_comp => setPrmVal(@tagName(c1.CCs.Comp_comp), .COMP, tr, val),
-            .Eq_HiFrq => setPrmVal(@tagName(c1.CCs.Eq_HiFrq), .EQ, tr, val),
-            .Eq_HiGain => setPrmVal(@tagName(c1.CCs.Eq_HiGain), .EQ, tr, val),
-            .Eq_HiMidFrq => setPrmVal(@tagName(c1.CCs.Eq_HiMidFrq), .EQ, tr, val),
-            .Eq_HiMidGain => setPrmVal(@tagName(c1.CCs.Eq_HiMidGain), .EQ, tr, val),
-            .Eq_HiMidQ => setPrmVal(@tagName(c1.CCs.Eq_HiMidQ), .EQ, tr, val),
-            .Eq_LoFrq => setPrmVal(@tagName(c1.CCs.Eq_LoFrq), .EQ, tr, val),
-            .Eq_LoGain => setPrmVal(@tagName(c1.CCs.Eq_LoGain), .EQ, tr, val),
-            .Eq_LoMidFrq => setPrmVal(@tagName(c1.CCs.Eq_LoMidFrq), .EQ, tr, val),
-            .Eq_LoMidGain => setPrmVal(@tagName(c1.CCs.Eq_LoMidGain), .EQ, tr, val),
-            .Eq_LoMidQ => setPrmVal(@tagName(c1.CCs.Eq_LoMidQ), .EQ, tr, val),
-            .Eq_eq => setPrmVal(@tagName(c1.CCs.Eq_eq), .EQ, tr, val),
-            .Eq_hp_shape => setPrmVal(@tagName(c1.CCs.Eq_hp_shape), .EQ, tr, val),
-            .Eq_lp_shape => setPrmVal(@tagName(c1.CCs.Eq_lp_shape), .EQ, tr, val),
-            .Inpt_Gain => setPrmVal(@tagName(c1.CCs.Inpt_Gain), .INPUT, tr, val),
-            .Inpt_HiCut => setPrmVal(@tagName(c1.CCs.Inpt_HiCut), .INPUT, tr, val),
-            .Inpt_LoCut => setPrmVal(@tagName(c1.CCs.Inpt_LoCut), .INPUT, tr, val),
+            .Comp_Ratio => setPrmVal(c1.CCs.Comp_Ratio, .COMP, tr, val),
+            .Comp_Release => setPrmVal(c1.CCs.Comp_Release, .COMP, tr, val),
+            .Comp_Thresh => setPrmVal(c1.CCs.Comp_Thresh, .COMP, tr, val),
+            .Comp_comp => setPrmVal(c1.CCs.Comp_comp, .COMP, tr, val),
+            .Eq_HiFrq => setPrmVal(c1.CCs.Eq_HiFrq, .EQ, tr, val),
+            .Eq_HiGain => setPrmVal(c1.CCs.Eq_HiGain, .EQ, tr, val),
+            .Eq_HiMidFrq => setPrmVal(c1.CCs.Eq_HiMidFrq, .EQ, tr, val),
+            .Eq_HiMidGain => setPrmVal(c1.CCs.Eq_HiMidGain, .EQ, tr, val),
+            .Eq_HiMidQ => setPrmVal(c1.CCs.Eq_HiMidQ, .EQ, tr, val),
+            .Eq_LoFrq => setPrmVal(c1.CCs.Eq_LoFrq, .EQ, tr, val),
+            .Eq_LoGain => setPrmVal(c1.CCs.Eq_LoGain, .EQ, tr, val),
+            .Eq_LoMidFrq => setPrmVal(c1.CCs.Eq_LoMidFrq, .EQ, tr, val),
+            .Eq_LoMidGain => setPrmVal(c1.CCs.Eq_LoMidGain, .EQ, tr, val),
+            .Eq_LoMidQ => setPrmVal(c1.CCs.Eq_LoMidQ, .EQ, tr, val),
+            .Eq_eq => setPrmVal(c1.CCs.Eq_eq, .EQ, tr, val),
+            .Eq_hp_shape => setPrmVal(c1.CCs.Eq_hp_shape, .EQ, tr, val),
+            .Eq_lp_shape => setPrmVal(c1.CCs.Eq_lp_shape, .EQ, tr, val),
+            .Inpt_Gain => setPrmVal(c1.CCs.Inpt_Gain, .INPUT, tr, val),
+            .Inpt_HiCut => setPrmVal(c1.CCs.Inpt_HiCut, .INPUT, tr, val),
+            .Inpt_LoCut => setPrmVal(c1.CCs.Inpt_LoCut, .INPUT, tr, val),
             .Inpt_MtrLft => {}, // meters unhandled
             .Inpt_MtrRgt => {}, // meters unhandled
             .Inpt_disp_mode => {},
@@ -304,8 +305,8 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Inpt_preset => {
                 std.debug.print("CC Inpt_preset\n", .{});
             },
-            .Out_Drive => setPrmVal(@tagName(c1.CCs.Out_Drive), .OUTPT, tr, val),
-            .Out_DriveChar => setPrmVal(@tagName(c1.CCs.Out_DriveChar), .OUTPT, tr, val),
+            .Out_Drive => setPrmVal(c1.CCs.Out_Drive, .OUTPT, tr, val),
+            .Out_DriveChar => setPrmVal(c1.CCs.Out_DriveChar, .OUTPT, tr, val),
             .Out_MtrLft => {}, // meters unhandled
             .Out_MtrRgt => {}, // meters unhandled
             .Out_Pan => {
@@ -321,13 +322,13 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), null),
             .Out_solo => reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), null),
-            .Shp_Gate => setPrmVal(@tagName(c1.CCs.Shp_Gate), .GATE, tr, val),
-            .Shp_GateRelease => setPrmVal(@tagName(c1.CCs.Shp_GateRelease), .GATE, tr, val),
+            .Shp_Gate => setPrmVal(c1.CCs.Shp_Gate, .GATE, tr, val),
+            .Shp_GateRelease => setPrmVal(c1.CCs.Shp_GateRelease, .GATE, tr, val),
             .Shp_Mtr => {}, // meters unhandled
-            .Shp_Punch => setPrmVal(@tagName(c1.CCs.Shp_Punch), .GATE, tr, val),
-            .Shp_hard_gate => setPrmVal(@tagName(c1.CCs.Shp_hard_gate), .GATE, tr, val),
-            .Shp_shape => setPrmVal(@tagName(c1.CCs.Shp_shape), .GATE, tr, val),
-            .Shp_sustain => setPrmVal(@tagName(c1.CCs.Shp_sustain), .GATE, tr, val),
+            .Shp_Punch => setPrmVal(c1.CCs.Shp_Punch, .GATE, tr, val),
+            .Shp_hard_gate => setPrmVal(c1.CCs.Shp_hard_gate, .GATE, tr, val),
+            .Shp_shape => setPrmVal(c1.CCs.Shp_shape, .GATE, tr, val),
+            .Shp_sustain => setPrmVal(c1.CCs.Shp_sustain, .GATE, tr, val),
             .Tr_ext_sidechain => {
                 // unpin prev 3-4 of comp or gate
                 if (state.track) |*track| {
