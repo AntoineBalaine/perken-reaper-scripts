@@ -179,7 +179,6 @@ pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, alloca
                         return error.NotConvertible;
                     }
                 }
-                cur_section = null;
             },
         }
     }
