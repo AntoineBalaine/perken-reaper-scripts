@@ -316,8 +316,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .Out_Vol => {
                 if (state.mode == .fx_ctrl) {
-                    const rv = reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false);
-                    reaper.CSurf_SetSurfaceVolume(tr, rv, null);
+                    _ = reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false);
                 }
             },
             .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), null),
