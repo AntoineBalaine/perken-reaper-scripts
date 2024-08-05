@@ -190,23 +190,13 @@ pub fn checkTrackState(
     newRouting: ?SCRouting,
 ) !void {
     const tr = mediaTrack;
-    const container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
+    var container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
     if (container_idx == -1) {
         try self.loadDefaultChain(null, mediaTrack);
-        // recurse to update the sideChain routing
-        return self.checkTrackState(
-            newOrder,
-            mediaTrack,
-            if (newRouting == null) .off else newRouting, // new track's default routing is off
-        );
+        container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
     } else if (!reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1)) {
         try self.loadDefaultChain(container_idx, mediaTrack);
-        // recurse to update the sideChain routing
-        return self.checkTrackState(
-            newOrder,
-            mediaTrack,
-            if (newRouting == null) .off else newRouting, // new track's default routing is off
-        );
+        reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_count", &buf, buf.len + 1);
     }
     const count = try std.fmt.parseInt(i32, std.mem.span(@as([*:0]const u8, &buf)), 10);
     const fieldsLen = @typeInfo(ModulesList).Enum.fields.len;
@@ -233,7 +223,6 @@ pub fn checkTrackState(
             buf.len + 1,
         );
         if (!moduleIdxFound) {
-            std.debug.print("moduleFindFail\n", .{});
             // FIXME: handle this more gracefully
             return TrckErr.moduleFindFail;
         }
