@@ -18,6 +18,7 @@ const c = @cImport({
 const Conf = @import("../internals/config.zig");
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
+const reaeq = @import("../internals/reaeq.zig");
 // TODO: update ini module, move tests from module into project
 // TODO: fix mem leak (too many bytes freed)
 // TODO: fix persisting csurf selection in preferences
@@ -151,14 +152,20 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: Conf.ModulesList, tr: re
     if (fxMap == null) return;
     const fxIdx = fxMap.?[0];
     const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
+    const subIdx = state.track.?.getSubContainerIdx(
+        fxIdx + 1, // make it 1-based
+        reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
+        mediaTrack,
+    );
     if (display != null) { // show touched fx
-        const subIdx = state.track.?.getSubContainerIdx(
-            fxIdx + 1, // make it 1-based
-            reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
-            mediaTrack,
-        );
-
         reaper.TrackFX_Show(mediaTrack, subIdx, 1);
+    }
+    // if setting filter types on reaeq
+    if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
+        const hasName = reaper.TrackFX_GetFXName(mediaTrack, subIdx, &tmp, tmp.len);
+        if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)"))
+            reaeq.setReaEqFilterType(mediaTrack, subIdx, cc, val);
+        return;
     }
 
     const mapping = fxMap.?[1];
