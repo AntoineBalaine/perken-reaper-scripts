@@ -3798,7 +3798,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetChainVisible
     /// returns index of effect visible in chain, or -1 for chain hidden, or -2 for chain visible but no effect selected
-    pub var TrackFX_GetChainVisible: *fn (track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var TrackFX_GetChainVisible: *fn (track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// TrackFX_GetCount
     pub var TrackFX_GetCount: *fn (track: MediaTrack) callconv(.C) c_int = undefined;

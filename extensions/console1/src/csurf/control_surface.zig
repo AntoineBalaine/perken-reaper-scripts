@@ -151,9 +151,11 @@ pub fn setPrmVal(comptime structPrm: []const u8, comptime section: Conf.ModulesL
     const fxIdx = fxMap.?[0];
     const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
     if (display != null) { // handle display
-        const subIdx = state.track.?.getSubContainerIdx(fxIdx + 1, // make it 1-based
+        const subIdx = state.track.?.getSubContainerIdx(
+            fxIdx + 1, // make it 1-based
             reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
-            mediaTrack);
+            mediaTrack,
+        );
 
         reaper.TrackFX_Show(mediaTrack, subIdx, 1);
     }
@@ -552,11 +554,12 @@ fn selectTrk(trackid: MediaTrack) void {
     state.updateTrack(trackid);
     if (display != null) { // display fxChain windows
         const prevTr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
-        const prevCntnrIdx = reaper.TrackFX_GetByName(prevTr, CONTROLLER_NAME, false) + 1; // make it 1-based
-        reaper.TrackFX_Show(prevTr, prevCntnrIdx, 1); // close window
+
+        const currentFX = reaper.TrackFX_GetChainVisible(prevTr);
+        reaper.TrackFX_Show(prevTr, currentFX, if (currentFX == -2 or currentFX >= 0) 0 else 1);
         if (state.track) |_| {
-            const CntnrIdx = reaper.TrackFX_GetByName(trackid, CONTROLLER_NAME, false) + 1; // make it 1-based
-            reaper.TrackFX_Show(trackid, CntnrIdx, 1); // close window
+            const cntnrIdx = reaper.TrackFX_GetByName(trackid, CONTROLLER_NAME, false) + 1; // make it 1-based
+            reaper.TrackFX_Show(trackid, cntnrIdx, 1); // close window
         }
     }
     if (m_midiout) |midiout| {
@@ -687,10 +690,6 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
 
         // #define CSURF_EXT_SETFXOPEN 0x00010012 // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if UI closed, !0 if open
         .SETFXOPEN => {
-            if (parm1 == null) {
-                display = null;
-                return 1;
-            }
             // const mediaTrack =  @as(MediaTrack, @ptrCast(parm1.?));
             if (parm3) |ptr| {
                 const isOpen = @intFromPtr(ptr);
@@ -706,8 +705,9 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                         // TrackFX_GetNamedConfigParm()
                     }
                 }
+            } else {
+                display = null;
             }
-            std.debug.print("SETFXOPEN\n", .{});
         },
         .SETFXPARAM => std.debug.print("SETFXPARAM\n", .{}),
         .SETFXPARAM_RECFX => std.debug.print("SETFXPARAM_RECFX\n", .{}),
