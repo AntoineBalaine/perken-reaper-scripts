@@ -545,8 +545,20 @@ export fn zResetCachedVolPanStates() callconv(.C) void {
 fn selectTrk(trackid: MediaTrack) void {
     // QUESTION: what does mcpView param do?
     const id = reaper.CSurf_TrackToID(trackid, g_csurf_mcpmode);
-    if (m_bank_offset == id) return;
+
+    if (m_bank_offset == id) {
+        return;
+    }
     state.updateTrack(trackid);
+    if (display != null) { // display fxChain windows
+        const prevTr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
+        const prevCntnrIdx = reaper.TrackFX_GetByName(prevTr, CONTROLLER_NAME, false) + 1; // make it 1-based
+        reaper.TrackFX_Show(prevTr, prevCntnrIdx, 1); // close window
+        if (state.track) |_| {
+            const CntnrIdx = reaper.TrackFX_GetByName(trackid, CONTROLLER_NAME, false) + 1; // make it 1-based
+            reaper.TrackFX_Show(trackid, CntnrIdx, 1); // close window
+        }
+    }
     if (m_midiout) |midiout| {
         const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
         c.MidiOut_Send(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
