@@ -76,9 +76,9 @@ fn iterCC() void {
 }
 
 fn volToU8(vol: f64) u8 {
-    var d: f64 = (reaper.DB2SLIDER(vol) * 127.0 / 1000.0);
+    var d: f64 = (reaper.DB2SLIDER(VAL2DB(vol)) * 127.0 / 1000.0);
     d = if (d < 0.0) 0.0 else if (d > 127.0) 127.0 else d;
-    const t: u16 = @intFromFloat(d);
+    const t: u8 = @intFromFloat(d + 0.5);
     return t;
 }
 
@@ -478,7 +478,7 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
     // const id = FIXID(trackid);
     // _ = id; // autofix
     if (m_midiout) |midiout| {
-        const volint: u8 = @intFromFloat((volume * 127) / 4); // tr volumes are 0.0-4.0
+        const volint = volToU8(volume);
         if (m_vol_lastpos != volint) {
             m_vol_lastpos = volint;
             c.MidiOut_Send(midiout, 0xb, @intFromEnum(c1.CCs.Out_Vol), volint, -1);
@@ -582,7 +582,8 @@ fn selectTrk(trackid: MediaTrack) void {
             c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Tr_order), @intFromEnum(trk.order), -1);
             inline for (comptime std.enums.values(c1.CCs)) |CC| { // update params according to mappings
                 if (CC == c1.CCs.Out_Vol) {
-                    const volint: u8 = @intFromFloat((reaper.GetMediaTrackInfo_Value(trackid, "D_VOL") * 127) / 4); // tr volumes are 0.0-4.0
+                    const volume = reaper.GetMediaTrackInfo_Value(trackid, "D_VOL");
+                    const volint = volToU8(volume);
                     c.MidiOut_Send(midiout, 0xb0, @intFromEnum(CC), volint, -1);
                 } else if (CC == c1.CCs.Out_Pan) {
                     const pan = reaper.GetMediaTrackInfo_Value(trackid, "D_PAN");
