@@ -132,14 +132,12 @@ pub fn addMissingModules(
             buf.len + 1,
         );
         if (!moduleIdxFound) {
-            std.debug.print("moduleFindFail\n", .{});
             return TrckErr.moduleFindFail;
         }
 
         const fxId: c_int = try std.fmt.parseInt(c_int, std.mem.span(@as([*:0]const u8, &buf)), 10);
         const has_name = reaper.TrackFX_GetFXName(tr, fxId, @as([*:0]u8, &buf), buf.len + 1);
         if (!has_name) {
-            std.debug.print("fxHasNoName\n", .{});
             return TrckErr.fxHasNoName;
         }
         const fxName = std.mem.span(@as([*:0]const u8, &buf));
@@ -234,15 +232,12 @@ pub fn checkTrackState(
             buf.len + 1,
         );
         if (!moduleIdxFound) {
-            // FIXME: handle this more gracefully
             return TrckErr.moduleFindFail;
         }
 
         const fxId: c_int = try std.fmt.parseInt(c_int, std.mem.span(@as([*:0]const u8, &buf)), 10);
         const has_name = reaper.TrackFX_GetFXName(tr, fxId, @as([*:0]u8, &buf), buf.len + 1);
         if (!has_name) {
-            // FIXME: handle this more gracefully
-            std.debug.print("\nfxHasNoName\n", .{});
             return TrckErr.fxHasNoName;
         }
         const fxName = std.mem.span(@as([*:0]const u8, &buf));

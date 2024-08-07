@@ -231,7 +231,6 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) !Ta
         }
     }
     const filePath = buf[0..pos];
-    std.debug.print("FILEPATH: {s}\n", .{filePath});
     const file = try std.fs.openFileAbsolute(filePath, .{});
     defer file.close();
     var parser = ini.parse(self.allocator, file.reader());

@@ -165,11 +165,9 @@ pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, alloca
                     const innerArray = enum_arr.get(cur_section.?);
                     const X = @TypeOf(innerArray);
                     if (X == [:0]const u8) {
-                        std.debug.print("val: {s}\n", .{value});
                         const value_copy = try allocator.dupeZ(u8, value);
                         enum_arr.set(cur_section.?, value_copy);
                     } else {
-                        std.debug.print("\nfailed\n", .{});
                         return error.NotConvertible;
                     }
                 }

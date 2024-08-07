@@ -51,7 +51,5 @@ pub fn updateTrack(
         null,
         trackid,
         null,
-    ) catch {
-        std.debug.print("checkTrackState(): had error\n", .{});
-    };
+    ) catch {};
 }

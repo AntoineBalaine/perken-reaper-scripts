@@ -62,19 +62,15 @@ fn deinit() void {
 
 export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
     _ = instance; // autofix
-    std.debug.print("entry\n", .{});
 
     if (rec == null or !reaper.init(rec.?)) {
         deinit();
-        std.debug.print("deinit\n", .{});
         return 0;
     }
 
     init() catch {
-        std.debug.print("Csurf Console1 failed to init\n", .{});
         return 0;
     };
-    std.debug.print("Csurf Console1 init success\n", .{});
 
     // _ = reaper.plugin_register("csurf_inst", myCsurf.?);
     _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
