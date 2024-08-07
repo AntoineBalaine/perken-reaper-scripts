@@ -27,16 +27,11 @@ pub const ModulesList = enum {
     OUTPT,
 };
 
-pub const ModuleSet = std.EnumArray(ModulesList, std.StringHashMap(void));
 /// Maps Fx names to modules
-pub const Modules = std.StringHashMap(ModulesList);
+pub const Modules = std.StringHashMapUnmanaged(ModulesList);
 /// Default FX associated with each module
 pub const Defaults = std.EnumArray(ModulesList, [:0]const u8);
 
-// TODO: switch to StringHashMapUnmanaged
-// TODO: use modulesList instead of moduleSet
-/// Maps modules to FX names
-pub var moduleSet: ModuleSet = undefined;
 /// Maps Fx names to modules
 pub var modulesList: Modules = undefined;
 /// Default FX associated with each module
@@ -46,15 +41,9 @@ pub var mappings: MapStore = undefined;
 const FieldEnum = enum {};
 
 pub fn init(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
-    moduleSet = ModuleSet.init(.{
-        .INPUT = std.StringHashMap(void).init(allocator),
-        .GATE = std.StringHashMap(void).init(allocator),
-        .EQ = std.StringHashMap(void).init(allocator),
-        .COMP = std.StringHashMap(void).init(allocator),
-        .OUTPT = std.StringHashMap(void).init(allocator),
-    });
     mappings = undefined;
-    modulesList = Modules.init(allocator);
+
+    modulesList = Modules{};
     defaults = Defaults.initUndefined();
 
     try readConf(allocator, cntrlrPth);
@@ -63,21 +52,19 @@ pub fn init(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
 }
 
 const DeinitSelf = struct {
-    moduleSet: @TypeOf(moduleSet),
-    modulesList: @TypeOf(modulesList),
-    defaults: @TypeOf(defaults),
-    mappings: @TypeOf(mappings),
+    modulesList: Modules,
+    defaults: Defaults,
+    // mappings: MapStore,
 };
 pub fn deinit(allocator: std.mem.Allocator) void {
     const self = DeinitSelf{
-        .moduleSet = moduleSet,
         .modulesList = modulesList,
         .defaults = defaults,
-        .mappings = mappings,
+        // .mappings = mappings,
     };
 
     inline for (std.meta.fields(@TypeOf(self))) |field| {
-        const V = @field(self, field.name);
+        var V = @field(self, field.name);
         switch (field.type) {
             std.EnumArray(ModulesList, std.StringHashMap(void)) => {
                 // free the keys of the set
@@ -90,18 +77,18 @@ pub fn deinit(allocator: std.mem.Allocator) void {
                     map.deinit();
                 }
             },
-            std.EnumArray(ModulesList, []const u8) => {
+            Defaults => {
                 inline for (std.meta.fields(ModulesList)) |f| {
                     const val = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
                     allocator.free(val);
                 }
             },
-            std.StringHashMap(ModulesList) => {
+            Modules => {
                 var iterator = V.iterator();
                 while (iterator.next()) |entry| {
                     allocator.free(entry.key_ptr.*);
-                    // allocator.free(entry.value_ptr.*);
                 }
+                V.deinit(allocator);
             },
             else => {
                 std.debug.print("Unknown type {s}: {s}\n", .{ field.name, @typeName(field.type) });
@@ -131,14 +118,39 @@ fn readConf(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
     var modulesParser = ini.parse(allocator, modulesFile.reader());
     defer modulesParser.deinit();
 
-    try readToEnumArray(&moduleSet, ModulesList, &modulesParser, allocator);
+    try readToHashMap(&modulesList, ModulesList, &modulesParser, allocator);
 }
 
-pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator) !void {
-    const T = @TypeOf(enum_arr.*);
-    std.debug.assert(@typeInfo(T) == .Struct);
+pub fn readToHashMap(hashmap: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator) !void {
     std.debug.assert(@typeInfo(Or_enum) == .Enum);
 
+    // replace with parent enum
+    var cur_section: ?Or_enum = null;
+
+    while (try parser.*.next()) |record| {
+        switch (record) {
+            .section => |heading| {
+                // heading is an enum key
+                if (std.meta.stringToEnum(Or_enum, heading)) |head_val| {
+                    cur_section = head_val;
+                }
+            },
+            .property => {},
+            .enumeration => |value| {
+                // pub const Modules = std.StringHashMapUnmanaged(ModulesList);
+                // value is the name of an FX
+                // var it = hashmap.*.iterator();
+                if (cur_section) |section| {
+                    const value_copy = try allocator.dupe(u8, value);
+                    try hashmap.put(allocator, value_copy, section);
+                }
+            },
+        }
+    }
+}
+pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator) !void {
+    // defaults: std.EnumArray(ModulesList, [:0]const u8);
+    std.debug.assert(@typeInfo(Or_enum) == .Enum);
     // replace with parent enum
     var cur_section: ?Or_enum = null;
 
@@ -160,17 +172,7 @@ pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, alloca
 
                     const innerArray = enum_arr.get(cur_section.?);
                     const X = @TypeOf(innerArray);
-                    if (X == std.ArrayList([]const u8) or X == std.ArrayList([]u8)) {
-                        const value_copy = try allocator.dupe(u8, value);
-                        var inn = enum_arr.getPtr(cur_section.?);
-                        try inn.append(value_copy);
-                    } else if (X == std.StringHashMap(void)) {
-                        const value_copy = try allocator.dupeZ(u8, value);
-                        var inn = enum_arr.getPtr(cur_section.?);
-                        try inn.put(value_copy, {});
-                        // FIXME: maybe this should have a dedicated match arm
-                        try modulesList.put(value_copy, cur_section.?);
-                    } else if (X == [:0]const u8) {
+                    if (X == [:0]const u8) {
                         std.debug.print("val: {s}\n", .{value});
                         const value_copy = try allocator.dupeZ(u8, value);
                         enum_arr.set(cur_section.?, value_copy);
@@ -203,14 +205,4 @@ test readConf {
     try expect(std.mem.eql(u8, conf.defaults.get(.EQ), "VST: ReaEQ (Cockos)"));
     try expect(std.mem.eql(u8, conf.defaults.get(.COMP), "VST: ReaComp (Cockos)"));
     try expect(std.mem.eql(u8, conf.defaults.get(.OUTPT), "JS: Saturation"));
-
-    try expect(conf.moduleSet.get(.INPUT).get("JS: Volume/Pan Smoother") != null);
-    try expect(conf.moduleSet.get(.INPUT).get("JS: Other input") != null);
-    try expect(conf.moduleSet.get(.GATE).get("VST: ReaGate (Cockos)") != null);
-    try expect(conf.moduleSet.get(.GATE).get("VST: SOMEOTHERGATE") != null);
-    try expect(conf.moduleSet.get(.EQ).get("VST: ReaEQ (Cockos)") != null);
-    try expect(conf.moduleSet.get(.EQ).get("JS: ReEQ") != null);
-    try expect(conf.moduleSet.get(.COMP).get("VST: ReaComp (Cockos)") != null);
-    try expect(conf.moduleSet.get(.COMP).get("VST: ReaXComp (Cockos)") != null);
-    try expect(conf.moduleSet.get(.OUTPT).get("JS: Saturation") != null);
 }
