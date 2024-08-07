@@ -143,19 +143,11 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: *const []const u8, def
 
 // FIXME: not sure if I need to do any freeing here.
 pub fn deinit(self: *MapStore) void {
-    _ = self; // autofix
-    // don't de-init the allocator here.
-    // don't de-init the controller_dir here
-    // don't de-init the hashmaps, they're un-managed?
-    // for (std.meta.fields(@TypeOf(self))) |field| {
-    //     const map = @field(self, field.name);
-    //     if (!std.mem.eql(field.name, "controller_dir") and !std.mem.eql(field.name, "allocator")) {
-    //         var iterator = map.iterator();
-    //         while (iterator.next()) |entry| {
-    //             self.allocator.free(entry);
-    //         }
-    //     }
-    // }
+    self.COMP.deinit(self.allocator);
+    self.EQ.deinit(self.allocator);
+    self.INPUT.deinit(self.allocator);
+    self.OUTPT.deinit(self.allocator);
+    self.GATE.deinit(self.allocator);
 }
 
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.

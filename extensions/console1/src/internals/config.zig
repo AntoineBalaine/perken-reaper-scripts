@@ -66,17 +66,6 @@ pub fn deinit(allocator: std.mem.Allocator) void {
     inline for (std.meta.fields(@TypeOf(self))) |field| {
         var V = @field(self, field.name);
         switch (field.type) {
-            std.EnumArray(ModulesList, std.StringHashMap(void)) => {
-                // free the keys of the set
-                inline for (std.meta.fields(ModulesList)) |f| {
-                    var map = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
-                    var keyIter = map.keyIterator();
-                    while (keyIter.next()) |key| {
-                        allocator.free(key.*);
-                    }
-                    map.deinit();
-                }
-            },
             Defaults => {
                 inline for (std.meta.fields(ModulesList)) |f| {
                     const val = V.get(std.meta.stringToEnum(ModulesList, f.name).?);
@@ -91,11 +80,7 @@ pub fn deinit(allocator: std.mem.Allocator) void {
                 V.deinit(allocator);
             },
             MapStore => {
-                V.COMP.deinit(allocator);
-                V.EQ.deinit(allocator);
-                V.INPUT.deinit(allocator);
-                V.OUTPT.deinit(allocator);
-                V.GATE.deinit(allocator);
+                V.deinit();
             },
             else => {
                 std.debug.print("Unknown type {s}: {s}\n", .{ field.name, @typeName(field.type) });
