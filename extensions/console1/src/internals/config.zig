@@ -54,13 +54,13 @@ pub fn init(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
 const DeinitSelf = struct {
     modulesList: Modules,
     defaults: Defaults,
-    // mappings: MapStore,
+    mappings: MapStore,
 };
 pub fn deinit(allocator: std.mem.Allocator) void {
     const self = DeinitSelf{
         .modulesList = modulesList,
         .defaults = defaults,
-        // .mappings = mappings,
+        .mappings = mappings,
     };
 
     inline for (std.meta.fields(@TypeOf(self))) |field| {
@@ -89,6 +89,13 @@ pub fn deinit(allocator: std.mem.Allocator) void {
                     allocator.free(entry.key_ptr.*);
                 }
                 V.deinit(allocator);
+            },
+            MapStore => {
+                V.COMP.deinit(allocator);
+                V.EQ.deinit(allocator);
+                V.INPUT.deinit(allocator);
+                V.OUTPT.deinit(allocator);
+                V.GATE.deinit(allocator);
             },
             else => {
                 std.debug.print("Unknown type {s}: {s}\n", .{ field.name, @typeName(field.type) });
