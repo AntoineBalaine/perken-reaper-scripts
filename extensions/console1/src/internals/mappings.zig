@@ -141,7 +141,6 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: *const []const u8, def
     return self;
 }
 
-// FIXME: not sure if I need to do any freeing here.
 pub fn deinit(self: *MapStore) void {
     self.COMP.deinit(self.allocator);
     self.EQ.deinit(self.allocator);

@@ -20,11 +20,9 @@ const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
 const reaeq = @import("../internals/reaeq.zig");
 // TODO: update ini module, move tests from module into project
-// TODO: fix mem leak (too many bytes freed)
 // TODO: fix persisting csurf selection in preferences
 // TODO: OUTPUT: send feedback to controller based on changes to fx parms in container
 // TODO: OUTPUT: send feedback to controller's meters (peaks, gain reductio, etc.)
-// TODO: INPUT: send commands to reaper based on controller
 pub var state: State = undefined;
 pub var controller_dir: []const u8 = undefined;
 
