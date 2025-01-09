@@ -1,7 +1,8 @@
-// zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_zig.so hello_world.zig -lc
+// zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_c1.so hello_world.zig -lc
 // or use
-// zig build --verbose && mv zig-out/lib/reaper_zig.so ~/.config/REAPER/UserPlugins/ && reaper
-// sudo zig build --verbose && mv zig-out/lib/reaper_zig.dylib ~/Library/Application\ Support/REAPER/UserPlugins
+// zig build --verbose && mv zig-out/lib/reaper_c1.so ~/.config/REAPER/UserPlugins/ && reaper
+// zig build --verbose && mv zig-out/lib/reaper_c1.dylib ~/Library/Application\ Support/REAPER/UserPlugins
+// zig build -Dtest=true --verbose && mv zig-out/lib/reaper_c1.dylib ~/Library/Application\ Support/REAPER/UserPlugins && /Applications/REAPER.app/Contents/MacOS/REAPER new
 const std = @import("std");
 const builtin = @import("builtin");
 const tests = @import("build_tests.zig");
@@ -13,7 +14,7 @@ pub fn build(b: *std.Build) !void {
     // Create a library target
     const target = b.standardTargetOptions(.{});
 
-    const lib = b.addSharedLibrary(.{ .name = "reaper_zig", .root_source_file = b.path("src/console1_extension.zig"), .target = target, .optimize = .Debug });
+    const lib = b.addSharedLibrary(.{ .name = "reaper_c1", .root_source_file = b.path("src/console1_extension.zig"), .target = target, .optimize = .Debug });
 
     const root = b.path("./src/");
     lib.addIncludePath(root);
@@ -23,10 +24,16 @@ pub fn build(b: *std.Build) !void {
     if (target.result.isDarwin()) {
         lib.root_module.linkFramework("AppKit", .{});
         lib.linkLibCpp();
-        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.dylib" });
+        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_c1.dylib" });
     } else {
-        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_zig.so" });
+        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_c1.so" });
     }
+
+    // allow passing testing flags
+    const test_cli_option = b.option(bool, "test", "") orelse false;
+    const options = b.addOptions();
+    options.addOption(bool, "test", test_cli_option);
+    lib.root_module.addOptions("config", options);
 
     // create the file, call the resgen shell script, and then proceed with the rest
     // WDL/snwell/swell_resgen.php resource.rc generates resource.rc_mac_dlg and .rc_mac_menu
@@ -70,6 +77,6 @@ pub fn build(b: *std.Build) !void {
 
     _ = tests.addTests(b, target, Dependencies{ .ini = ini });
     // Default step for building
-    const step = b.step("default", "Build reaper_zig.so");
+    const step = b.step("default", "Build reaper_c1.so");
     step.dependOn(&lib.step);
 }
