@@ -1,3 +1,0 @@
-[submodule "deps/ini"]
-	path = deps/ini
-	url = https://github.com/AntoineBalaine/ini
