@@ -40,7 +40,7 @@ pub var mappings: MapStore = undefined;
 
 const FieldEnum = enum {};
 
-pub fn init(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
+pub fn init(allocator: std.mem.Allocator, cntrlrPth: [*:0]const u8) !void {
     mappings = undefined;
 
     modulesList = Modules{};
@@ -91,8 +91,9 @@ pub fn deinit(allocator: std.mem.Allocator) void {
 }
 
 /// Inits the struct, and reads the  `defaults.ini` and `modules.ini` into it.
-fn readConf(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
-    const defaultsPath = try std.fs.path.resolve(allocator, &.{ cntrlrPth.*, "./resources/defaults.ini" });
+fn readConf(allocator: std.mem.Allocator, cntrlrPth: [*:0]const u8) !void {
+    const ctrl_pth = std.mem.span(cntrlrPth);
+    const defaultsPath = try std.fs.path.resolve(allocator, &.{ ctrl_pth, "./resources/defaults.ini" });
     defer allocator.free(defaultsPath);
     const defaultsFile = try std.fs.openFileAbsolute(defaultsPath, .{});
     defer defaultsFile.close();
@@ -102,7 +103,7 @@ fn readConf(allocator: std.mem.Allocator, cntrlrPth: *const []const u8) !void {
 
     try readToEnumArray(&defaults, ModulesList, &defaultsParser, allocator);
 
-    const modulesPath = try std.fs.path.resolve(allocator, &.{ cntrlrPth.*, "./resources/modules.ini" });
+    const modulesPath = try std.fs.path.resolve(allocator, &.{ ctrl_pth, "./resources/modules.ini" });
     defer allocator.free(modulesPath);
     const modulesFile = try std.fs.openFileAbsolute(modulesPath, .{});
     defer modulesFile.close();
@@ -184,15 +185,17 @@ test readConf {
     const pth = try std.fs.cwd().realpath(".", &mem);
 
     const path = try std.fs.path.resolve(allocator, &.{ pth, "./" });
+    const path_z = try allocator.dupeZ(u8, path);
     defer allocator.free(path);
-    var conf = try init(allocator, path);
+    defer allocator.free(path_z);
+    try init(allocator, path_z);
 
-    defer conf.deinit(allocator);
+    defer deinit(allocator);
 
     // test defaults
-    try expect(std.mem.eql(u8, conf.defaults.get(.INPUT), "JS: Volume/Pan Smoother"));
-    try expect(std.mem.eql(u8, conf.defaults.get(.GATE), "VST: ReaGate (Cockos)"));
-    try expect(std.mem.eql(u8, conf.defaults.get(.EQ), "VST: ReaEQ (Cockos)"));
-    try expect(std.mem.eql(u8, conf.defaults.get(.COMP), "VST: ReaComp (Cockos)"));
-    try expect(std.mem.eql(u8, conf.defaults.get(.OUTPT), "JS: Saturation"));
+    try expect(std.mem.eql(u8, defaults.get(.INPUT), "JS: Volume/Pan Smoother"));
+    try expect(std.mem.eql(u8, defaults.get(.GATE), "VST: ReaGate (Cockos)"));
+    try expect(std.mem.eql(u8, defaults.get(.EQ), "VST: ReaEQ (Cockos)"));
+    try expect(std.mem.eql(u8, defaults.get(.COMP), "VST: ReaComp (Cockos)"));
+    try expect(std.mem.eql(u8, defaults.get(.OUTPT), "JS: Saturation"));
 }

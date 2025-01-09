@@ -6,13 +6,6 @@ const ini = @import("ini");
 
 pub const UserSettings = @This();
 
-pub var show_start_up_message: bool = true;
-///  -- should the UI display?
-pub var show_feedback_window: bool = true;
-///  -- show plugin UI when tweaking corresponding knob.
-pub var show_plugin_ui: bool = true;
-pub var manual_routing: bool = false;
-
 const SettingsEnum = enum {
     show_start_up_message,
     show_feedback_window,
@@ -20,15 +13,14 @@ const SettingsEnum = enum {
     manual_routing,
 };
 
-pub fn init(allocator: Allocator, cntrlrPth: []const u8) void {
-    const paths = [_][]const u8{ cntrlrPth, "resources", "preferences.ini" };
-    const controller_path = std.fs.path.join(allocator, &paths) catch {
-        return;
-    };
+pub fn init(allocator: Allocator, cntrlrPth: [*:0]const u8) !UserSettings {
+    var self = UserSettings{};
+    const paths = [_][]const u8{ std.mem.span(cntrlrPth), "resources", "preferences.ini" };
+    const controller_path = try std.fs.path.joinZ(allocator, &paths);
     defer allocator.free(controller_path);
 
-    loadUserPrefs(allocator, controller_path) catch {};
-    return;
+    try self.loadUserPrefs(allocator, controller_path);
+    return self;
 }
 
 /// read config:
@@ -37,7 +29,7 @@ pub fn init(allocator: Allocator, cntrlrPth: []const u8) void {
 /// read the controller config INI file
 /// get the controller rfxChain
 /// read the fx prefs INI file
-fn loadUserPrefs(allocator: Allocator, userPrefsPath: []const u8) !void {
+fn loadUserPrefs(self: *@This(), allocator: Allocator, userPrefsPath: []const u8) !void {
     const file = try std.fs.cwd().openFile(userPrefsPath, .{});
     defer file.close();
 
@@ -49,10 +41,10 @@ fn loadUserPrefs(allocator: Allocator, userPrefsPath: []const u8) !void {
             .property => |kv| {
                 const case = std.meta.stringToEnum(SettingsEnum, kv.key) orelse continue;
                 switch (case) {
-                    .show_start_up_message => show_start_up_message = std.mem.eql(u8, @tagName(case), "true"),
-                    .show_feedback_window => show_feedback_window = std.mem.eql(u8, @tagName(case), "true"),
-                    .show_plugin_ui => show_plugin_ui = std.mem.eql(u8, @tagName(case), "true"),
-                    .manual_routing => manual_routing = std.mem.eql(u8, @tagName(case), "true"),
+                    .show_start_up_message => self.show_start_up_message = std.mem.eql(u8, @tagName(case), "true"),
+                    .show_feedback_window => self.show_feedback_window = std.mem.eql(u8, @tagName(case), "true"),
+                    .show_plugin_ui => self.show_plugin_ui = std.mem.eql(u8, @tagName(case), "true"),
+                    .manual_routing => self.manual_routing = std.mem.eql(u8, @tagName(case), "true"),
                 }
             },
             .section => {},
@@ -67,11 +59,20 @@ test "userPrefs" {
     const userPrefs = try allocator.create(UserSettings);
     defer allocator.destroy(userPrefs);
     userPrefs.* = UserSettings{};
-    try loadUserPrefs(allocator, userPrefsPath, userPrefs);
-    try std.testing.expectEqual(userPrefs.show_start_up_message, false);
-    try std.testing.expectEqual(userPrefs.show_start_up_message, false);
-    try std.testing.expectEqual(userPrefs.show_plugin_ui, false);
+    try userPrefs.loadUserPrefs(allocator, userPrefsPath);
+
+    try std.testing.expectEqual(userPrefs.show_start_up_message, true);
+    try std.testing.expectEqual(userPrefs.show_feedback_window, true);
+    try std.testing.expectEqual(userPrefs.show_plugin_ui, true);
+    try std.testing.expectEqual(userPrefs.manual_routing, false);
 }
+
+show_start_up_message: bool = true,
+///  -- should the UI display?
+show_feedback_window: bool = true,
+///  -- show plugin UI when tweaking corresponding knob.
+show_plugin_ui: bool = true,
+manual_routing: bool = false,
 
 test "controller prefs" {
     const ref =

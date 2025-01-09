@@ -11,11 +11,11 @@ pub fn getControllerConfigPath(allocator: Allocator, controller_name: [*:0]const
 }
 
 /// caller must free
-pub fn getControllerPath(allocator: Allocator) ![]const u8 {
+pub fn getControllerPath(allocator: Allocator) ![*:0]const u8 {
     const resourcePath = reaper.GetResourcePath();
     const paths = [_][]const u8{ std.mem.sliceTo(resourcePath, 0), "Data", "Perken", "Console1" };
 
-    return try std.fs.path.join(allocator, &paths);
+    return try std.fs.path.joinZ(allocator, &paths);
 }
 
 test getControllerPath {
@@ -28,10 +28,10 @@ test getControllerPath {
 
     const allocator = std.testing.allocator;
     const path = try getControllerPath(allocator);
-    defer allocator.free(path);
+    defer allocator.free(std.mem.span(path));
 
-    const actual: []const u8 = "home/perken/.config/REAPER/Data/Perken/Console1";
-    std.testing.expect(std.mem.eql(u8, path, actual)) catch |err| {
+    const actual: [*:0]const u8 = "home/perken/.config/REAPER/Data/Perken/Console1";
+    std.testing.expect(std.mem.eql(u8, std.mem.span(path), std.mem.span(actual))) catch |err| {
         std.debug.print("error: expected {s}, found {s}\n", .{ actual, path });
         return err;
     };

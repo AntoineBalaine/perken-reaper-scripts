@@ -18,8 +18,8 @@ const debugconfig = @import("config");
 const plugin_name = "Hello, Zig!";
 
 var state: State = undefined;
-var userSettings: UserSettings = undefined;
-var controller_dir: []const u8 = undefined;
+pub var userSettings: UserSettings = .{};
+var controller_dir: [*:0]const u8 = undefined;
 // var action_id: c_int = undefined;
 var myCsurf: c.C_ControlSurface = undefined;
 
@@ -36,13 +36,13 @@ fn init() !void {
         std.debug.print("Failed to create controller dir \n", .{});
         return err;
     };
-    errdefer gpa.free(controller_dir);
-    Conf.init(gpa, &controller_dir) catch |err| {
+    errdefer gpa.free(std.mem.span(controller_dir));
+    Conf.init(gpa, controller_dir) catch |err| {
         std.debug.print("Failed to load config \n", .{});
         return err;
     };
     errdefer Conf.deinit(gpa);
-    UserSettings.init(gpa, controller_dir);
+    userSettings = try UserSettings.init(gpa, controller_dir);
     state = State.init(gpa) catch |err| {
         std.debug.print("Failed to init state \n", .{});
         return err;
@@ -54,7 +54,9 @@ fn init() !void {
 }
 
 fn deinit() void {
-    gpa.free(controller_dir);
+    gpa.free(std.mem.span(controller_dir));
+    // gpa.free(std.mem.span(controller_dir));
+    // gpa.free(controller_dir);
     Conf.deinit(gpa);
     ImGuiLoop.deinit();
     state.deinit();

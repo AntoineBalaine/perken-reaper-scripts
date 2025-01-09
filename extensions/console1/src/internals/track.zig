@@ -3,7 +3,7 @@ const reaper = @import("../reaper.zig").reaper;
 const config = @import("config.zig");
 const ModulesList = config.ModulesList;
 const FxMap = @import("mappings.zig").FxMap;
-const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
+const ext = @import("../console1_extension.zig");
 const Conf = @import("config.zig");
 pub const CONTROLLER_NAME = "PRKN_C1";
 
@@ -337,7 +337,7 @@ pub fn checkTrackState(
     if (newOrder) |order| { // reorder fx after finding where they are
         self.reorder(tr, order, container_idx, moduleChecks);
     }
-    if (!UserSettings.manual_routing) {
+    if (!ext.userSettings.manual_routing) {
         self.setChanStripSC(tr, container_idx, moduleChecks, newRouting);
     }
 }

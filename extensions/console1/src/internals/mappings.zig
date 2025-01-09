@@ -113,10 +113,10 @@ EQ: std.StringHashMapUnmanaged(Eq),
 INPUT: std.StringHashMapUnmanaged(Inpt),
 OUTPT: std.StringHashMapUnmanaged(Outpt),
 GATE: std.StringHashMapUnmanaged(Shp),
-controller_dir: *const []const u8,
+controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
 // TRK: std.StringHashMap(Trk),
-pub fn init(allocator: std.mem.Allocator, controller_dir: *const []const u8, defaults: *config.Defaults, modules: *config.Modules) MapStore {
+pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *config.Defaults, modules: *config.Modules) MapStore {
     var self: MapStore = .{
         .COMP = std.StringHashMapUnmanaged(Comp){},
         .EQ = std.StringHashMapUnmanaged(Eq){},
@@ -218,7 +218,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) !Ta
     }
     sanitizedFxName = nameBuf[0 .. fxName.len + extension.len];
 
-    const elements = [_][]const u8{ self.controller_dir.*, "resources", "maps", subdir, sanitizedFxName };
+    const elements = [_][]const u8{ std.mem.span(self.controller_dir), "resources", "maps", subdir, sanitizedFxName };
 
     var pos: usize = 0;
     for (elements, 0..) |element, idx| {

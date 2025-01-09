@@ -24,7 +24,7 @@ const reaeq = @import("../internals/reaeq.zig");
 // TODO: OUTPUT: send feedback to controller based on changes to fx parms in container
 // TODO: OUTPUT: send feedback to controller's meters (peaks, gain reductio, etc.)
 pub var state: State = undefined;
-pub var controller_dir: []const u8 = undefined;
+pub var controller_dir: [*:0]const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 const g_csurf_mcpmode = false;
@@ -896,7 +896,7 @@ test parseParms {
     var parms: [4]c_int = undefined;
     var my_arr = [5]c_char{ '1', ' ', '2', ' ', '3' };
     const str: [*]const c_char = &my_arr;
-    try parseParms(str, &parms);
+    parseParms(str, &parms);
     try expect(parms[1] == 1);
     try expect(parms[2] == 2);
     // try expect(str[3] == 3);
