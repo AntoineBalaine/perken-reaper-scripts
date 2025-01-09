@@ -403,7 +403,7 @@ fn GetConfigString() callconv(.C) [*]const u8 {
     };
     return &tmp;
 }
-export const zGetTypeSattring = &GetTypeString;
+export const zGetTypeString = &GetTypeString;
 
 export const zGetDescString = &GetDescString;
 

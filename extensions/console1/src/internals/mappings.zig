@@ -33,7 +33,7 @@ const Trk = enum {
 };
 
 // FIXME: set these defaults to -1
-const Comp = struct {
+pub const Comp = struct {
     Comp_Attack: u8 = 0,
     Comp_DryWet: u8 = 0,
     Comp_Ratio: u8 = 0,
@@ -42,7 +42,7 @@ const Comp = struct {
     Comp_comp: u8 = 0,
     // Comp_Mtr : u8,
 };
-const Eq = struct {
+pub const Eq = struct {
     Eq_HiFrq: u8 = 0,
     Eq_HiGain: u8 = 0,
     Eq_HiMidFrq: u8 = 0,
@@ -57,7 +57,7 @@ const Eq = struct {
     Eq_hp_shape: u8 = 0,
     Eq_lp_shape: u8 = 0,
 };
-const Inpt = struct {
+pub const Inpt = struct {
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
     Inpt_Gain: u8 = 0,
@@ -69,7 +69,7 @@ const Inpt = struct {
     Inpt_phase_inv: u8 = 0,
     Inpt_preset: u8 = 0,
 };
-const Outpt = struct {
+pub const Outpt = struct {
     Out_Drive: u8 = 0,
     Out_DriveChar: u8 = 0,
     // Out_MtrLft : u8 = 0,
@@ -79,7 +79,7 @@ const Outpt = struct {
     // Out_mute : u8 = 0,
     // Out_solo : u8 = 0,
 };
-const Shp = struct {
+pub const Shp = struct {
     Shp_Gate: u8 = 0,
     Shp_GateRelease: u8 = 0,
     Shp_Punch: u8 = 0,

@@ -13,7 +13,7 @@ pub const ModulesOrder = enum(u8) {
     @"S-EQ-C" = 0x0,
 };
 
-const SCRouting = enum(u8) {
+pub const SCRouting = enum(u8) {
     off = 0x0,
     toShape = 0x7F,
     toComp = 0x3F,
