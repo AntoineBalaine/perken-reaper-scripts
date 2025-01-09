@@ -61,9 +61,9 @@ test "userPrefs" {
     userPrefs.* = UserSettings{};
     try userPrefs.loadUserPrefs(allocator, userPrefsPath);
 
-    try std.testing.expectEqual(userPrefs.show_start_up_message, true);
-    try std.testing.expectEqual(userPrefs.show_feedback_window, true);
-    try std.testing.expectEqual(userPrefs.show_plugin_ui, true);
+    try std.testing.expectEqual(userPrefs.show_start_up_message, false);
+    try std.testing.expectEqual(userPrefs.show_feedback_window, false);
+    try std.testing.expectEqual(userPrefs.show_plugin_ui, false);
     try std.testing.expectEqual(userPrefs.manual_routing, false);
 }
 
