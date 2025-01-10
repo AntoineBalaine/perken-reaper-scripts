@@ -14,7 +14,7 @@ const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
 const Conf = @import("internals/config.zig");
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
-
+const ConfigManager = @import("config_manager.zig");
 const plugin_name = "Hello, Zig!";
 
 var state: State = undefined;
@@ -51,6 +51,9 @@ fn init() !void {
 
     control_surface.state = state;
     control_surface.controller_dir = controller_dir;
+    const config_manager = try ConfigManager.init(gpa, std.mem.span(controller_dir));
+    _ = config_manager; // autofix
+
 }
 
 fn deinit() void {

@@ -114,17 +114,17 @@ fn readConf(allocator: std.mem.Allocator, cntrlrPth: [*:0]const u8) !void {
     try readToHashMap(&modulesList, ModulesList, &modulesParser, allocator);
 }
 
-pub fn readToHashMap(hashmap: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator) !void {
-    std.debug.assert(@typeInfo(Or_enum) == .Enum);
+pub fn readToHashMap(hashmap: anytype, OriginEnum: type, parser: anytype, allocator: std.mem.Allocator) !void {
+    std.debug.assert(@typeInfo(OriginEnum) == .Enum);
 
     // replace with parent enum
-    var cur_section: ?Or_enum = null;
+    var cur_section: ?OriginEnum = null;
 
     while (try parser.*.next()) |record| {
         switch (record) {
             .section => |heading| {
                 // heading is an enum key
-                if (std.meta.stringToEnum(Or_enum, heading)) |head_val| {
+                if (std.meta.stringToEnum(OriginEnum, heading)) |head_val| {
                     cur_section = head_val;
                 }
             },
@@ -141,17 +141,17 @@ pub fn readToHashMap(hashmap: anytype, Or_enum: type, parser: anytype, allocator
         }
     }
 }
-pub fn readToEnumArray(enum_arr: anytype, Or_enum: type, parser: anytype, allocator: std.mem.Allocator) !void {
+pub fn readToEnumArray(enum_arr: anytype, OriginEnum: type, parser: anytype, allocator: std.mem.Allocator) !void {
     // defaults: std.EnumArray(ModulesList, [:0]const u8);
-    std.debug.assert(@typeInfo(Or_enum) == .Enum);
+    std.debug.assert(@typeInfo(OriginEnum) == .Enum);
     // replace with parent enum
-    var cur_section: ?Or_enum = null;
+    var cur_section: ?OriginEnum = null;
 
     while (try parser.*.next()) |record| {
         switch (record) {
             .section => |heading| {
                 // fit the enum
-                if (std.meta.stringToEnum(Or_enum, heading)) |head_val| {
+                if (std.meta.stringToEnum(OriginEnum, heading)) |head_val| {
                     cur_section = head_val;
                 }
             },
