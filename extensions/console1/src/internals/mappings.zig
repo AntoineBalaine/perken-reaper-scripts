@@ -97,7 +97,7 @@ OUTPT: std.StringHashMapUnmanaged(Outpt),
 GATE: std.StringHashMapUnmanaged(Shp),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
-pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *config.Defaults, modules: *config.Modules) !MapStore {
+pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *config.Defaults) !MapStore {
     var self: MapStore = .{
         .COMP = std.StringHashMapUnmanaged(Comp){},
         .EQ = std.StringHashMapUnmanaged(Eq){},
@@ -113,11 +113,9 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, default
         const fxName = defaultsEntry.value;
         // use self.getMap() only for its side-effect: storing into the map.
         // Its return value is only meant to be used by self.get()
-        if (modules.get(fxName.*) != null) {
-            _ = self.getMap(fxName.*, defaultsEntry.key) catch {
-                continue;
-            };
-        } else continue;
+        _ = self.getMap(fxName.*, defaultsEntry.key) catch {
+            continue;
+        };
     }
     return self;
 }
@@ -133,48 +131,38 @@ pub fn deinit(self: *MapStore) void {
 }
 
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
-pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList, modules: config.Modules) TaggedMapping {
+pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) TaggedMapping {
     switch (module) {
         .COMP => {
-            if (modules.get(fxName) == null) {
-                return TaggedMapping{ .COMP = null };
-            } else if (self.COMP.get(fxName)) |v| {
+            if (self.COMP.get(fxName)) |v| {
                 return TaggedMapping{ .COMP = v };
             } else {
                 return self.getMap(fxName, module) catch TaggedMapping{ .COMP = null };
             }
         },
         .EQ => {
-            if (modules.get(fxName) == null) {
-                return TaggedMapping{ .EQ = null };
-            } else if (self.EQ.get(fxName)) |v| {
+            if (self.EQ.get(fxName)) |v| {
                 return TaggedMapping{ .EQ = v };
             } else {
                 return self.getMap(fxName, module) catch TaggedMapping{ .EQ = null };
             }
         },
         .INPUT => {
-            return if (modules.get(fxName) == null) {
-                return TaggedMapping{ .INPUT = null };
-            } else if (self.INPUT.get(fxName)) |v| {
+            return if (self.INPUT.get(fxName)) |v| {
                 return TaggedMapping{ .INPUT = v };
             } else {
                 return self.getMap(fxName, module) catch TaggedMapping{ .INPUT = null };
             };
         },
         .OUTPT => {
-            if (modules.get(fxName) == null) {
-                return TaggedMapping{ .OUTPT = null };
-            } else if (self.OUTPT.get(fxName)) |v| {
+            if (self.OUTPT.get(fxName)) |v| {
                 return TaggedMapping{ .OUTPT = v };
             } else {
                 return self.getMap(fxName, module) catch TaggedMapping{ .OUTPT = null };
             }
         },
         .GATE => {
-            if (modules.get(fxName) == null) {
-                return TaggedMapping{ .GATE = null };
-            } else if (self.GATE.get(fxName)) |v| {
+            if (self.GATE.get(fxName)) |v| {
                 return TaggedMapping{ .GATE = v };
             } else {
                 return self.getMap(fxName, module) catch TaggedMapping{ .GATE = null };
@@ -322,14 +310,16 @@ test "MapStore - initialization and caching" {
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
+    defer allocator.free(config_path_z);
 
     var cur_config = try config_manager.init(allocator, config_path);
     defer cur_config.deinit();
 
     // Now setup MapStore with initialized config
-    var modules = config.Modules{};
-    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
-        &modules // And its modules
+    var store = try MapStore.init(
+        allocator,
+        config_path_z,
+        &cur_config.default_fx, // Use cur_config's initialized defaults
     );
     defer store.deinit();
 
@@ -351,26 +341,27 @@ test "MapStore - lazy loading and caching" {
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
+    defer allocator.free(config_path_z);
 
     var cur_config = try config_manager.init(allocator, config_path);
     defer cur_config.deinit();
 
-    var modules = config.Modules{};
-    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
-        &modules // And its modules
+    var store = try MapStore.init(
+        allocator,
+        config_path_z,
+        &cur_config.default_fx, // Use cur_config's initialized defaults
     );
     defer store.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
-    try modules.put(allocator, test_fx, .COMP);
 
     // First access should load from disk
-    const first_result = store.get(test_fx, .COMP, modules);
+    const first_result = store.get(test_fx, .COMP);
     try expect(first_result.COMP != null);
     try expect(store.COMP.count() == 1);
 
     // Second access should use cache
-    const second_result = store.get(test_fx, .COMP, modules);
+    const second_result = store.get(test_fx, .COMP);
     try expect(second_result.COMP != null);
     try expect(store.COMP.count() == 1);
 
@@ -396,18 +387,20 @@ test "MapStore - invalid fx name" {
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
+    defer allocator.free(config_path_z);
     var cur_config = try config_manager.init(allocator, config_path);
     defer cur_config.deinit();
-    var modules = config.Modules{};
-    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
-        &modules // And its modules
+    var store = try MapStore.init(
+        allocator,
+        config_path_z,
+        &cur_config.default_fx, // Use cur_config's initialized defaults
     );
     defer store.deinit();
 
     const nonexistent_fx = "VST: NonexistentPlugin";
 
     // Should return null mapping for unknown FX
-    const result = store.get(nonexistent_fx, .COMP, modules);
+    const result = store.get(nonexistent_fx, .COMP);
     try expect(result.COMP == null);
     try expect(store.COMP.count() == 0); // Should not cache failed attempts
 }
@@ -421,19 +414,20 @@ test "MapStore - mapping validation" {
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
+    defer allocator.free(config_path_z);
 
     var cur_config = try config_manager.init(allocator, config_path);
     defer cur_config.deinit();
-    var modules = config.Modules{};
-    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
-        &modules // And its modules
+    var store = try MapStore.init(
+        allocator,
+        config_path_z,
+        &cur_config.default_fx, // Use cur_config's initialized defaults
     );
     defer store.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
-    try modules.put(allocator, test_fx, .COMP);
 
-    const result = store.get(test_fx, .COMP, modules);
+    const result = store.get(test_fx, .COMP);
     if (result.COMP) |comp| {
         // Test that all values are within MIDI range (0-127)
         try expect(comp.Comp_Attack <= 127);
@@ -454,30 +448,29 @@ test "MapStore - cross-module access" {
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
+    defer allocator.free(config_path_z);
 
     var cur_config = try config_manager.init(allocator, config_path);
     defer cur_config.deinit();
-    var modules = config.Modules{};
-    defer modules.deinit();
-    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
-        &modules // And its modules
+    var store = try MapStore.init(
+        allocator,
+        config_path_z,
+        &cur_config.default_fx, // Use cur_config's initialized defaults
     );
     defer store.deinit();
 
     const comp_fx = "VST: ReaComp (Cockos)";
     const eq_fx = "VST: ReaEQ (Cockos)";
-    try modules.put(allocator, comp_fx, .COMP);
-    try modules.put(allocator, eq_fx, .EQ);
 
     // Load both types of mappings
-    _ = store.get(comp_fx, .COMP, modules);
-    _ = store.get(eq_fx, .EQ, modules);
+    _ = store.get(comp_fx, .COMP);
+    _ = store.get(eq_fx, .EQ);
 
     // Verify separate caching
     try expect(store.COMP.count() == 1);
     try expect(store.EQ.count() == 1);
 
     // Try loading comp FX as EQ (should fail gracefully)
-    const wrong_module = store.get(comp_fx, .EQ, modules);
+    const wrong_module = store.get(comp_fx, .EQ);
     try expect(wrong_module.EQ == null);
 }

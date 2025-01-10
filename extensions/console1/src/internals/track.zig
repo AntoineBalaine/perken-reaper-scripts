@@ -92,11 +92,11 @@ fn loadDefaultChain(
                 reaper.TrackFX_SetEnabled(mediaTrack, insertIdx, false);
             }
             switch (field.key) {
-                .INPUT => self.fxMap.INPUT = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).INPUT },
-                .GATE => self.fxMap.GATE = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).GATE },
-                .EQ => self.fxMap.EQ = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).EQ },
-                .COMP => self.fxMap.COMP = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).COMP },
-                .OUTPT => self.fxMap.OUTPT = .{ idx, Conf.mappings.get(fxName, field.key, Conf.modulesList).OUTPT },
+                .INPUT => self.fxMap.INPUT = .{ idx, Conf.mappings.get(fxName, field.key).INPUT },
+                .GATE => self.fxMap.GATE = .{ idx, Conf.mappings.get(fxName, field.key).GATE },
+                .EQ => self.fxMap.EQ = .{ idx, Conf.mappings.get(fxName, field.key).EQ },
+                .COMP => self.fxMap.COMP = .{ idx, Conf.mappings.get(fxName, field.key).COMP },
+                .OUTPT => self.fxMap.OUTPT = .{ idx, Conf.mappings.get(fxName, field.key).OUTPT },
             }
         }
     }
@@ -265,7 +265,7 @@ pub fn checkTrackState(
                     // now that the fx indexes are all invalid, let's recurse.
                     return try self.checkTrackState(newOrder, mediaTrack, newRouting);
                 } else {
-                    self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .INPUT, Conf.modulesList).INPUT };
+                    self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .INPUT).INPUT };
                 }
             },
             .OUTPT => {
@@ -280,12 +280,12 @@ pub fn checkTrackState(
                     // now that the fx indexes are all invalid, let's recurse.
                     return try self.checkTrackState(newOrder, mediaTrack, newRouting);
                 } else {
-                    self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .OUTPT, Conf.modulesList).OUTPT };
+                    self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .OUTPT).OUTPT };
                 }
             },
-            .GATE => self.fxMap.GATE = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .GATE, Conf.modulesList).GATE },
-            .EQ => self.fxMap.EQ = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .EQ, Conf.modulesList).EQ },
-            .COMP => self.fxMap.COMP = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .COMP, Conf.modulesList).COMP },
+            .GATE => self.fxMap.GATE = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .GATE).GATE },
+            .EQ => self.fxMap.EQ = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .EQ).EQ },
+            .COMP => self.fxMap.COMP = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .COMP).COMP },
         }
     }
 

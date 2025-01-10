@@ -48,7 +48,7 @@ pub fn init(allocator: std.mem.Allocator, cntrlrPth: [*:0]const u8) !void {
 
     try readConf(allocator, cntrlrPth);
 
-    mappings = MapStore.init(allocator, cntrlrPth, &defaults, &modulesList);
+    mappings = try MapStore.init(allocator, cntrlrPth, &defaults);
 }
 
 const DeinitSelf = struct {
