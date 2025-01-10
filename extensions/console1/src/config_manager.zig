@@ -8,7 +8,7 @@ const logger = @import("logger.zig");
 
 // Hard-coded fallback defaults as EnumMap
 const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
-    .INPUT = "JS: Volume/Pan Smoother",
+    .INPUT = "JS: Volume_Pan Smoother v5",
     .GATE = "VST: ReaGate (Cockos)",
     .EQ = "VST: ReaEQ (Cockos)",
     .COMP = "VST: ReaComp (Cockos)",
@@ -198,7 +198,7 @@ test "preferences - fallback defaults when file not found" {
     try expect(prefs.manual_routing == false);
 
     // Test that fallback defaults were copied
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT), "JS: Volume/Pan Smoother"));
+    try expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT), "JS: Volume_Pan Smoother v5"));
     try expect(std.mem.eql(u8, prefs.default_fx.get(.GATE), "VST: ReaGate (Cockos)"));
     try expect(std.mem.eql(u8, prefs.default_fx.get(.EQ), "VST: ReaEQ (Cockos)"));
     try expect(std.mem.eql(u8, prefs.default_fx.get(.COMP), "VST: ReaComp (Cockos)"));
@@ -222,7 +222,7 @@ test "preferences - load from current directory" {
 
     // Test loaded values
     // Note: These values should match what's in your preferences.ini
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT), "JS: Volume/Pan Smoother"));
+    try expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT), "JS: Volume_Pan Smoother V5"));
     try expect(std.mem.eql(u8, prefs.default_fx.get(.GATE), "VST: ReaGate (Cockos)"));
     try expect(std.mem.eql(u8, prefs.default_fx.get(.EQ), "VST: ReaEQ (Cockos)"));
     try expect(std.mem.eql(u8, prefs.default_fx.get(.COMP), "VST: ReaComp (Cockos)"));

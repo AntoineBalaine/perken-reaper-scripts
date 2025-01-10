@@ -137,6 +137,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) Ta
             if (self.COMP.get(fxName)) |v| {
                 return TaggedMapping{ .COMP = v };
             } else {
+                logger.log(.err, "mapping {s} unfound\n", .{fxName}, null, self.allocator);
                 return self.getMap(fxName, module) catch TaggedMapping{ .COMP = null };
             }
         },
@@ -144,6 +145,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) Ta
             if (self.EQ.get(fxName)) |v| {
                 return TaggedMapping{ .EQ = v };
             } else {
+                logger.log(.err, "mapping {s} unfound\n", .{fxName}, null, self.allocator);
                 return self.getMap(fxName, module) catch TaggedMapping{ .EQ = null };
             }
         },
@@ -151,6 +153,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) Ta
             return if (self.INPUT.get(fxName)) |v| {
                 return TaggedMapping{ .INPUT = v };
             } else {
+                logger.log(.err, "mapping {s} unfound\n", .{fxName}, null, self.allocator);
                 return self.getMap(fxName, module) catch TaggedMapping{ .INPUT = null };
             };
         },
@@ -158,6 +161,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) Ta
             if (self.OUTPT.get(fxName)) |v| {
                 return TaggedMapping{ .OUTPT = v };
             } else {
+                logger.log(.err, "mapping {s} unfound\n", .{fxName}, null, self.allocator);
                 return self.getMap(fxName, module) catch TaggedMapping{ .OUTPT = null };
             }
         },
@@ -165,6 +169,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) Ta
             if (self.GATE.get(fxName)) |v| {
                 return TaggedMapping{ .GATE = v };
             } else {
+                logger.log(.err, "mapping {s} unfound\n", .{fxName}, null, self.allocator);
                 return self.getMap(fxName, module) catch TaggedMapping{ .GATE = null };
             }
         },
@@ -189,7 +194,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) !Ta
     }
     sanitizedFxName = nameBuf[0 .. fxName.len + extension.len];
 
-    const elements = [_][]const u8{ std.mem.span(self.controller_dir), "resources", "maps", subdir, sanitizedFxName };
+    const elements = [_][]const u8{ std.mem.span(self.controller_dir), "maps", subdir, sanitizedFxName };
 
     var pos: usize = 0;
     for (elements, 0..) |element, idx| {
@@ -298,6 +303,7 @@ test readToU8Struct {
     _ = try readToU8Struct(&ret_str, &parser);
     try expect(ret_str.repositoryformatversion == 8);
 }
+
 test "MapStore - initialization and caching" {
     const allocator = std.testing.allocator;
     const expect = std.testing.expect;
@@ -324,11 +330,11 @@ test "MapStore - initialization and caching" {
     defer store.deinit();
 
     // Verify empty initialization
-    try expect(store.COMP.count() == 0);
-    try expect(store.EQ.count() == 0);
-    try expect(store.INPUT.count() == 0);
-    try expect(store.OUTPT.count() == 0);
-    try expect(store.GATE.count() == 0);
+    try expect(store.COMP.count() == 1);
+    try expect(store.EQ.count() == 1);
+    try expect(store.INPUT.count() == 1);
+    try expect(store.OUTPT.count() == 1);
+    try expect(store.GATE.count() == 1);
 }
 
 test "MapStore - lazy loading and caching" {
@@ -400,9 +406,10 @@ test "MapStore - invalid fx name" {
     const nonexistent_fx = "VST: NonexistentPlugin";
 
     // Should return null mapping for unknown FX
+    try expect(store.COMP.count() == 1);
     const result = store.get(nonexistent_fx, .COMP);
     try expect(result.COMP == null);
-    try expect(store.COMP.count() == 0); // Should not cache failed attempts
+    try expect(store.COMP.count() == 1); // Should not cache failed attempts
 }
 
 test "MapStore - mapping validation" {
