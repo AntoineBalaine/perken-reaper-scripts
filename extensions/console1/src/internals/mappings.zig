@@ -2,7 +2,7 @@ const std = @import("std");
 const config = @import("config.zig");
 const ini = @import("ini");
 const logger = @import("../logger.zig");
-
+const config_manager = @import("../config_manager.zig");
 /// values are set to std.math.maxInt(u8) for unset mappings
 pub const Comp = struct {
     Comp_Attack: u8 = std.math.maxInt(u8),
@@ -97,14 +97,14 @@ OUTPT: std.StringHashMapUnmanaged(Outpt),
 GATE: std.StringHashMapUnmanaged(Shp),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
-pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *config.Defaults, modules: *config.Modules) MapStore {
+pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *config.Defaults, modules: *config.Modules) !MapStore {
     var self: MapStore = .{
         .COMP = std.StringHashMapUnmanaged(Comp){},
         .EQ = std.StringHashMapUnmanaged(Eq){},
         .INPUT = std.StringHashMapUnmanaged(Inpt){},
         .OUTPT = std.StringHashMapUnmanaged(Outpt){},
         .GATE = std.StringHashMapUnmanaged(Shp){},
-        .controller_dir = controller_dir,
+        .controller_dir = try allocator.dupeZ(u8, std.mem.span(controller_dir)),
         .allocator = allocator,
     };
     // find the mappings for the defaults
@@ -124,6 +124,7 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, default
 
 pub fn deinit(self: *MapStore) void {
     logger.log(.debug, "Cleaning up MapStore", .{}, null, self.allocator);
+    self.allocator.free(std.mem.span(self.controller_dir)); // Free our copy
     self.COMP.deinit(self.allocator);
     self.EQ.deinit(self.allocator);
     self.INPUT.deinit(self.allocator);
@@ -308,4 +309,175 @@ test readToU8Struct {
     };
     _ = try readToU8Struct(&ret_str, &parser);
     try expect(ret_str.repositoryformatversion == 8);
+}
+test "MapStore - initialization and caching" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+
+    // Setup test directory path
+    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+
+    // Initialize config manager first
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path_z = try allocator.dupeZ(u8, config_path);
+    defer allocator.free(config_path);
+
+    var cur_config = try config_manager.init(allocator, config_path);
+    defer cur_config.deinit();
+
+    // Now setup MapStore with initialized config
+    var modules = config.Modules{};
+    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
+        &modules // And its modules
+    );
+    defer store.deinit();
+
+    // Verify empty initialization
+    try expect(store.COMP.count() == 0);
+    try expect(store.EQ.count() == 0);
+    try expect(store.INPUT.count() == 0);
+    try expect(store.OUTPT.count() == 0);
+    try expect(store.GATE.count() == 0);
+}
+
+test "MapStore - lazy loading and caching" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+
+    // Setup config first
+    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path_z = try allocator.dupeZ(u8, config_path);
+    defer allocator.free(config_path);
+
+    var cur_config = try config_manager.init(allocator, config_path);
+    defer cur_config.deinit();
+
+    var modules = config.Modules{};
+    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
+        &modules // And its modules
+    );
+    defer store.deinit();
+
+    const test_fx = "VST: ReaComp (Cockos)";
+    try modules.put(allocator, test_fx, .COMP);
+
+    // First access should load from disk
+    const first_result = store.get(test_fx, .COMP, modules);
+    try expect(first_result.COMP != null);
+    try expect(store.COMP.count() == 1);
+
+    // Second access should use cache
+    const second_result = store.get(test_fx, .COMP, modules);
+    try expect(second_result.COMP != null);
+    try expect(store.COMP.count() == 1);
+
+    // Verify cached values match
+    if (first_result.COMP) |first| {
+        if (second_result.COMP) |second| {
+            try expect(first.Comp_Attack == second.Comp_Attack);
+            try expect(first.Comp_Release == second.Comp_Release);
+            // ... test other fields
+        } else {
+            try expect(false); // Should not happen
+        }
+    }
+}
+
+test "MapStore - invalid fx name" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+
+    // Setup config first
+    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path_z = try allocator.dupeZ(u8, config_path);
+    defer allocator.free(config_path);
+    var cur_config = try config_manager.init(allocator, config_path);
+    defer cur_config.deinit();
+    var modules = config.Modules{};
+    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
+        &modules // And its modules
+    );
+    defer store.deinit();
+
+    const nonexistent_fx = "VST: NonexistentPlugin";
+
+    // Should return null mapping for unknown FX
+    const result = store.get(nonexistent_fx, .COMP, modules);
+    try expect(result.COMP == null);
+    try expect(store.COMP.count() == 0); // Should not cache failed attempts
+}
+
+test "MapStore - mapping validation" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    // Setup config first
+    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path_z = try allocator.dupeZ(u8, config_path);
+    defer allocator.free(config_path);
+
+    var cur_config = try config_manager.init(allocator, config_path);
+    defer cur_config.deinit();
+    var modules = config.Modules{};
+    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
+        &modules // And its modules
+    );
+    defer store.deinit();
+
+    const test_fx = "VST: ReaComp (Cockos)";
+    try modules.put(allocator, test_fx, .COMP);
+
+    const result = store.get(test_fx, .COMP, modules);
+    if (result.COMP) |comp| {
+        // Test that all values are within MIDI range (0-127)
+        try expect(comp.Comp_Attack <= 127);
+        try expect(comp.Comp_Release <= 127);
+        try expect(comp.Comp_Thresh <= 127);
+        // ... test other fields
+    } else {
+        try expect(false); // Should not happen for known FX
+    }
+}
+
+test "MapStore - cross-module access" {
+    const allocator = std.testing.allocator;
+    const expect = std.testing.expect;
+    // Setup config first
+    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path_z = try allocator.dupeZ(u8, config_path);
+    defer allocator.free(config_path);
+
+    var cur_config = try config_manager.init(allocator, config_path);
+    defer cur_config.deinit();
+    var modules = config.Modules{};
+    defer modules.deinit();
+    var store = try MapStore.init(allocator, config_path_z, &cur_config.default_fx, // Use cur_config's initialized defaults
+        &modules // And its modules
+    );
+    defer store.deinit();
+
+    const comp_fx = "VST: ReaComp (Cockos)";
+    const eq_fx = "VST: ReaEQ (Cockos)";
+    try modules.put(allocator, comp_fx, .COMP);
+    try modules.put(allocator, eq_fx, .EQ);
+
+    // Load both types of mappings
+    _ = store.get(comp_fx, .COMP, modules);
+    _ = store.get(eq_fx, .EQ, modules);
+
+    // Verify separate caching
+    try expect(store.COMP.count() == 1);
+    try expect(store.EQ.count() == 1);
+
+    // Try loading comp FX as EQ (should fail gracefully)
+    const wrong_module = store.get(comp_fx, .EQ, modules);
+    try expect(wrong_module.EQ == null);
 }

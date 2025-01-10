@@ -16,7 +16,7 @@ const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
 });
 
 pub const DefaultFx = std.EnumArray(ModulesList, [:0]const u8);
-const Preferences = @This();
+pub const Preferences = @This();
 
 // Data
 show_startup_message: bool = false,
