@@ -1,91 +1,70 @@
 const std = @import("std");
 const config = @import("config.zig");
 const ini = @import("ini");
+const logger = @import("../logger.zig");
 
-// Trk only carries action buttons, so no need to map them
-const Trk = enum {
-    Tr_ext_sidechain,
-    Tr_order,
-    Tr_pg_dn,
-    Tr_pg_up,
-    Tr_tr1,
-    Tr_tr10,
-    Tr_tr11,
-    Tr_tr12,
-    Tr_tr13,
-    Tr_tr14,
-    Tr_tr15,
-    Tr_tr16,
-    Tr_tr17,
-    Tr_tr18,
-    Tr_tr19,
-    Tr_tr2,
-    Tr_tr20,
-    Tr_tr3,
-    Tr_tr4,
-    Tr_tr5,
-    Tr_tr6,
-    Tr_tr7,
-    Tr_tr8,
-    Tr_tr9,
-    Tr_tr_copy,
-    Tr_tr_grp,
-};
-
-// FIXME: set these defaults to -1
+/// values are set to std.math.maxInt(u8) for unset mappings
 pub const Comp = struct {
-    Comp_Attack: u8 = 0,
-    Comp_DryWet: u8 = 0,
-    Comp_Ratio: u8 = 0,
-    Comp_Release: u8 = 0,
-    Comp_Thresh: u8 = 0,
-    Comp_comp: u8 = 0,
+    Comp_Attack: u8 = std.math.maxInt(u8),
+    Comp_DryWet: u8 = std.math.maxInt(u8),
+    Comp_Ratio: u8 = std.math.maxInt(u8),
+    Comp_Release: u8 = std.math.maxInt(u8),
+    Comp_Thresh: u8 = std.math.maxInt(u8),
+    Comp_comp: u8 = std.math.maxInt(u8),
     // Comp_Mtr : u8,
 };
+
+/// values are set to std.math.maxInt(u8) for unset mappings
 pub const Eq = struct {
-    Eq_HiFrq: u8 = 0,
-    Eq_HiGain: u8 = 0,
-    Eq_HiMidFrq: u8 = 0,
-    Eq_HiMidGain: u8 = 0,
-    Eq_HiMidQ: u8 = 0,
-    Eq_LoFrq: u8 = 0,
-    Eq_LoGain: u8 = 0,
-    Eq_LoMidFrq: u8 = 0,
-    Eq_LoMidGain: u8 = 0,
-    Eq_LoMidQ: u8 = 0,
-    Eq_eq: u8 = 0,
-    Eq_hp_shape: u8 = 0,
-    Eq_lp_shape: u8 = 0,
+    Eq_HiFrq: u8 = std.math.maxInt(u8),
+    Eq_HiGain: u8 = std.math.maxInt(u8),
+    Eq_HiMidFrq: u8 = std.math.maxInt(u8),
+    Eq_HiMidGain: u8 = std.math.maxInt(u8),
+    Eq_HiMidQ: u8 = std.math.maxInt(u8),
+    Eq_LoFrq: u8 = std.math.maxInt(u8),
+    Eq_LoGain: u8 = std.math.maxInt(u8),
+    Eq_LoMidFrq: u8 = std.math.maxInt(u8),
+    Eq_LoMidGain: u8 = std.math.maxInt(u8),
+    Eq_LoMidQ: u8 = std.math.maxInt(u8),
+    Eq_eq: u8 = std.math.maxInt(u8),
+    Eq_hp_shape: u8 = std.math.maxInt(u8),
+    Eq_lp_shape: u8 = std.math.maxInt(u8),
 };
+
+/// values are set to std.math.maxInt(u8) for unset mappings
 pub const Inpt = struct {
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
-    Inpt_Gain: u8 = 0,
-    Inpt_HiCut: u8 = 0,
-    Inpt_LoCut: u8 = 0,
-    Inpt_disp_mode: u8 = 0,
-    Inpt_disp_on: u8 = 0,
-    Inpt_filt_to_comp: u8 = 0,
-    Inpt_phase_inv: u8 = 0,
-    Inpt_preset: u8 = 0,
+    Inpt_Gain: u8 = std.math.maxInt(u8),
+    Inpt_HiCut: u8 = std.math.maxInt(u8),
+    Inpt_LoCut: u8 = std.math.maxInt(u8),
+    Inpt_disp_mode: u8 = std.math.maxInt(u8),
+    Inpt_disp_on: u8 = std.math.maxInt(u8),
+    Inpt_filt_to_comp: u8 = std.math.maxInt(u8),
+    Inpt_phase_inv: u8 = std.math.maxInt(u8),
+    Inpt_preset: u8 = std.math.maxInt(u8),
 };
+
+/// values are set to std.math.maxInt(u8) for unset mappings
 pub const Outpt = struct {
-    Out_Drive: u8 = 0,
-    Out_DriveChar: u8 = 0,
-    // Out_MtrLft : u8 = 0,
-    // Out_MtrRgt : u8 = 0,
-    Out_Pan: u8 = 0,
-    Out_Vol: u8 = 0,
-    // Out_mute : u8 = 0,
-    // Out_solo : u8 = 0,
+    Out_Drive: u8 = std.math.maxInt(u8),
+    Out_DriveChar: u8 = std.math.maxInt(u8),
+    // Out_MtrLft : u8 = std.math.maxInt(u8),
+    // Out_MtrRgt : u8 = std.math.maxInt(u8),
+    Out_Pan: u8 = std.math.maxInt(u8),
+    Out_Vol: u8 = std.math.maxInt(u8),
+    // Out_mute : u8 = std.math.maxInt(u8),
+    // Out_solo : u8 = std.math.maxInt(u8),
 };
+
+/// values are set to std.math.maxInt(u8) for unset mappings
 pub const Shp = struct {
-    Shp_Gate: u8 = 0,
-    Shp_GateRelease: u8 = 0,
-    Shp_Punch: u8 = 0,
-    Shp_hard_gate: u8 = 0,
-    Shp_shape: u8 = 0,
-    Shp_sustain: u8 = 0,
+    Shp_Gate: u8 = std.math.maxInt(u8),
+    Shp_GateRelease: u8 = std.math.maxInt(u8),
+    Shp_Punch: u8 = std.math.maxInt(u8),
+    Shp_hard_gate: u8 = std.math.maxInt(u8),
+    Shp_shape: u8 = std.math.maxInt(u8),
+    Shp_sustain: u8 = std.math.maxInt(u8),
 };
 
 /// FxMap associates an Fx index with a module map
@@ -95,9 +74,10 @@ pub const FxMap = struct {
     INPUT: ?std.meta.Tuple(&.{ u8, ?Inpt }) = null,
     OUTPT: ?std.meta.Tuple(&.{ u8, ?Outpt }) = null,
     GATE: ?std.meta.Tuple(&.{ u8, ?Shp }) = null,
-    // Trk: std.meta.Tuple(&.{ u8, Trk }),
 };
 
+/// Tagged union representing a loaded mapping for any module type.
+/// null indicates no mapping was found or loading failed - or was never set.
 const TaggedMapping = union(config.ModulesList) {
     INPUT: ?Inpt,
     GATE: ?Shp,
@@ -106,6 +86,8 @@ const TaggedMapping = union(config.ModulesList) {
     OUTPT: ?Outpt,
 };
 
+/// MapStore manages FX parameter mappings with lazy loading.
+/// Mappings are loaded from disk only when requested and cached for future use.
 const MapStore = @This();
 
 COMP: std.StringHashMapUnmanaged(Comp),
@@ -115,7 +97,6 @@ OUTPT: std.StringHashMapUnmanaged(Outpt),
 GATE: std.StringHashMapUnmanaged(Shp),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
-// TRK: std.StringHashMap(Trk),
 pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *config.Defaults, modules: *config.Modules) MapStore {
     var self: MapStore = .{
         .COMP = std.StringHashMapUnmanaged(Comp){},
@@ -142,6 +123,7 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, default
 }
 
 pub fn deinit(self: *MapStore) void {
+    logger.log(.debug, "Cleaning up MapStore", .{}, null, self.allocator);
     self.COMP.deinit(self.allocator);
     self.EQ.deinit(self.allocator);
     self.INPUT.deinit(self.allocator);
@@ -239,31 +221,43 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) !Ta
         .COMP => {
             var comp = Comp{};
             _ = try readToU8Struct(&comp, &parser);
-            self.COMP.put(self.allocator, fxName, comp) catch {}; // side-effect: store in hashmap
+            // side-effect: store in hashmap
+            self.COMP.put(self.allocator, fxName, comp) catch |err| blk: {
+                logger.log(.err, "Failed to store mapping: {s}", .{@errorName(err)}, null, self.allocator);
+                break :blk;
+            };
             return TaggedMapping{ .COMP = comp };
         },
         .EQ => {
             var eq = Eq{};
             _ = try readToU8Struct(&eq, &parser);
-            self.EQ.put(self.allocator, fxName, eq) catch {}; // side-effect: store in hashmap
+            self.EQ.put(self.allocator, fxName, eq) catch |err| {
+                logger.log(.err, "Failed to store mapping: {s}", .{@errorName(err)}, null, self.allocator);
+            }; // side-effect: store in hashmap
             return TaggedMapping{ .EQ = eq };
         },
         .INPUT => {
             var inpt: Inpt = Inpt{};
             _ = try readToU8Struct(&inpt, &parser);
-            self.INPUT.put(self.allocator, fxName, inpt) catch {}; // side-effect: store in hashmap
+            self.INPUT.put(self.allocator, fxName, inpt) catch |err| {
+                logger.log(.err, "Failed to store mapping: {s}", .{@errorName(err)}, null, self.allocator);
+            }; // side-effect: store in hashmap
             return TaggedMapping{ .INPUT = inpt };
         },
         .OUTPT => {
             var outpt: Outpt = Outpt{};
             _ = try readToU8Struct(&outpt, &parser);
-            self.OUTPT.put(self.allocator, fxName, outpt) catch {}; // side-effect: store in hashmap
+            self.OUTPT.put(self.allocator, fxName, outpt) catch |err| {
+                logger.log(.err, "Failed to store mapping: {s}", .{@errorName(err)}, null, self.allocator);
+            }; // side-effect: store in hashmap
             return TaggedMapping{ .OUTPT = outpt };
         },
         .GATE => {
             var shp: Shp = Shp{};
             _ = try readToU8Struct(&shp, &parser);
-            self.GATE.put(self.allocator, fxName, shp) catch {}; // side-effect: store in hashmap
+            self.GATE.put(self.allocator, fxName, shp) catch |err| {
+                logger.log(.err, "Failed to store mapping: {s}", .{@errorName(err)}, null, self.allocator);
+            }; // side-effect: store in hashmap
             return TaggedMapping{ .GATE = shp };
         },
     };
@@ -284,8 +278,7 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
                         if (@TypeOf(@field(ret_struct, ns_info.name)) == u8) {
                             // const field = &@field(ret_struct, ns_info.name);
                             // field.* = parsed;
-                            // FIXME: These should be set to -1;
-                            const parsed = std.fmt.parseInt(u8, kv.value, 10) catch 0;
+                            const parsed = std.fmt.parseInt(u8, kv.value, 10) catch std.math.maxInt(u8);
                             @field(ret_struct, ns_info.name) = parsed;
                         }
                     }
