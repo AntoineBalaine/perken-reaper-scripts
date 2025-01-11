@@ -286,3 +286,21 @@ pub inline fn adjustBrightness(color: c_int, amt: i8, no_alpha: bool) c_int {
     }
     return @as(c_int, @bitCast(rgba));
 }
+
+pub fn getWidgetRect(ctx: imgui.ContextPtr, widget: *Knob) !Rectangle {
+    return Rectangle{
+        .min_x = widget.pos.x,
+        .min_y = widget.pos.y,
+        .max_x = widget.pos.x + widget.radius * 2,
+        .max_y = widget.pos.y + widget.radius * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+    };
+}
+
+pub fn getScreenWidgetRect(ctx: imgui.ContextPtr, widget_pos: Position, widget_radius: f64, win_pos: Position) !Rectangle {
+    return Rectangle{
+        .min_x = win_pos.x + widget_pos.x,
+        .min_y = win_pos.y + widget_pos.y,
+        .max_x = win_pos.x + widget_pos.x + widget_radius * 2,
+        .max_y = win_pos.y + widget_pos.y + widget_radius * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+    };
+}
