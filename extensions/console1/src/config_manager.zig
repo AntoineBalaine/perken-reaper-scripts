@@ -57,7 +57,7 @@ pub fn init(allocator: std.mem.Allocator, resource_path: []const u8) !Preference
 pub fn deinit(self: *Preferences) void {
     // Free all strings in default_fx - they're all allocated copies
     for (std.enums.values(ModulesList)) |module| {
-        self.allocator.free(self.default_fx.get(module));
+        self.allocator.free(self.default_fx.getPtr(module).*);
     }
     self.allocator.free(self.resource_path);
 }
