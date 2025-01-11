@@ -4,16 +4,19 @@ const Preferences = @import("config_manager.zig").Preferences;
 const MapStore = @import("internals/mappings.zig").MapStore;
 const logger = @import("logger.zig");
 const EventLog = logger.EventLog;
+const SettingsPanel = @import("settings_panel.zig");
+
 // State machine
 pub var state: State = undefined;
 
 // Configuration
 pub var preferences: Preferences = undefined;
 pub var map_store: MapStore = undefined;
+pub var settings_panel: ?SettingsPanel = null;
 
 // Logging
 pub var event_log: EventLog = undefined;
-var log_file: ?std.fs.File = null; // Store the actual file, not just a pointer
+pub var log_file: ?std.fs.File = null; // Store the actual file, not just a pointer
 
 // Resource management
 pub var allocator: std.mem.Allocator = undefined;

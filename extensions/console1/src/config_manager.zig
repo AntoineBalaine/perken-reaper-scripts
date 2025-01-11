@@ -193,6 +193,39 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
         }
     }
 }
+pub fn clone(self: *const @This(), allocator: std.mem.Allocator) !Preferences {
+    return .{
+        .show_startup_message = self.show_startup_message,
+        .show_feedback_window = self.show_feedback_window,
+        .show_plugin_ui = self.show_plugin_ui,
+        .manual_routing = self.manual_routing,
+        .log_to_file = self.log_to_file,
+        .log_level = self.log_level,
+        .default_fx = try self.default_fx.clone(allocator), // If DefaultFx needs deep copy
+    };
+}
+
+// Copy values from another instance
+pub fn copyFrom(self: *@This(), other: *const Preferences) !void {
+    self.show_startup_message = other.show_startup_message;
+    self.show_feedback_window = other.show_feedback_window;
+    self.show_plugin_ui = other.show_plugin_ui;
+    self.manual_routing = other.manual_routing;
+    self.log_to_file = other.log_to_file;
+    self.log_level = other.log_level;
+    try self.default_fx.cloneDefaultFx(&other.default_fx); // If DefaultFx needs deep copy
+}
+
+pub fn cloneDefaultFx(self: *const DefaultFx(), allocator: std.mem.Allocator) !DefaultFx {
+    var new_fx = DefaultFx.initUndefined();
+    // Clone each string in the enum array
+    inline for (std.enums.values(ModulesList)) |module| {
+        const value = self.get(module);
+        const value_copy = try allocator.dupeZ(u8, value);
+        new_fx.set(module, value_copy);
+    }
+    return new_fx;
+}
 
 test {
     std.testing.refAllDecls(@This());
