@@ -5,6 +5,7 @@ const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("internals/config.zig").ModulesList; // Changed from mappings_mod.FxMap
 const UserSettings = @import("internals/userPrefs.zig").UserSettings;
 const logger = @import("logger.zig");
+const LogLevel = logger.LogLevel;
 
 // Hard-coded fallback defaults as EnumMap
 const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
@@ -24,6 +25,8 @@ show_feedback_window: bool = false,
 show_plugin_ui: bool = false,
 manual_routing: bool = false,
 default_fx: DefaultFx,
+log_to_file: bool = false,
+log_level: LogLevel = .info,
 
 // Resource management
 allocator: std.mem.Allocator,
@@ -103,6 +106,15 @@ pub fn save(self: *Preferences) !void {
                     );
                 }
             },
+            LogLevel => {
+                try writer.print(
+                    "{s} = {s}\n",
+                    .{
+                        field.name,
+                        @tagName(@field(self, field.name)),
+                    },
+                );
+            },
             else => {},
         }
     }
@@ -160,6 +172,9 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
                                         std.mem.eql(u8, prop.value, "true");
                                 },
                                 // Add other types as needed
+                                LogLevel => {
+                                    @field(prefs, field.name) = std.meta.stringToEnum(LogLevel, prop.value) orelse .info;
+                                },
                                 else => {},
                             }
                         }

@@ -9,6 +9,8 @@ const statemachine = @import("statemachine.zig");
 const logger = @import("logger.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
+const globals = @import("globals");
+
 const allocator: std.mem.Allocator = undefined;
 const valid_transitions = statemachine.valid_transitions;
 // Base actions that can occur in any mode
@@ -79,6 +81,8 @@ const ModeAction = union(enum) {
     settings: union(enum) {
         set_show_plugin_ui: bool,
         set_manual_routing: bool,
+        set_log_to_file: bool,
+        set_log_level: logger.LogLevel,
         set_default_fx: struct {
             module: Conf.ModulesList,
             fx_name: []const u8,
@@ -200,6 +204,13 @@ fn handleModeAction(state: *State, action: ModeAction) void {
             .set_show_plugin_ui => |show| {
                 state.fx_ctrl.show_plugin_ui = show;
                 // Update settings file
+            },
+            .set_log_to_file => |enable| {
+                globals.preferences.log_to_file = enable;
+                try globals.updateLoggerState();
+            },
+            .set_log_level => |level| {
+                globals.preferences.log_level = level;
             },
             else => {},
             // ... other settings actions

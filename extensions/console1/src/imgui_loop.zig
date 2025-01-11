@@ -5,6 +5,9 @@ const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const configurations = @import("configurations.zig");
+const logger = @import("logger.zig");
+const debug_panel = @import("debug_panel.zig");
+const globals = @import("globals.zig");
 
 const plugin_name = "CONSOLE1";
 pub var action_id: c_int = undefined;
@@ -51,6 +54,10 @@ fn main() !void {
         }
         if (configurations.main_style_open) {
             try configurations.StyleEditor(ctx, .main);
+        }
+        // Add debug panel
+        if (logger.debug_window_active) {
+            try debug_panel.drawDebugPanel(ctx, &globals.state, &globals.event_log);
         }
     }
 

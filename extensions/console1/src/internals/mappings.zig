@@ -88,7 +88,7 @@ const TaggedMapping = union(config.ModulesList) {
 
 /// MapStore manages FX parameter mappings with lazy loading.
 /// Mappings are loaded from disk only when requested and cached for future use.
-const MapStore = @This();
+pub const MapStore = @This();
 
 COMP: std.StringHashMapUnmanaged(Comp),
 EQ: std.StringHashMapUnmanaged(Eq),

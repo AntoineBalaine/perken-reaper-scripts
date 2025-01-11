@@ -16,15 +16,13 @@ const std = @import("std");
 const Mode = @import("statemachine.zig").Mode;
 const c1 = @import("internals/c1.zig");
 const Conf = @import("internals/config.zig");
+
 pub var debug_window_active = false;
-var current_log_level: LogLevel = .info;
-var log_to_file: bool = false;
-var log_file: ?std.fs.File = null;
-var event_log: EventLog = EventLog.init();
+pub var event_log: ?*EventLog = null; // Pointer to state's event log
+pub var log_file: ?*std.fs.File = null; // Just need the file handle
+pub var log_level: ?*LogLevel = null; // Just need the level
 // Circular buffer for debug overlay
 const DebugBufferSize = 1024;
-var debug_buffer: [DebugBufferSize]u8 = undefined;
-var debug_buffer_pos: usize = 0;
 
 pub const LogLevel = enum(u8) {
     debug, // Very detailed information, function entries/exits
@@ -166,13 +164,15 @@ pub fn log(
     event: ?Event,
     allocator: std.mem.Allocator,
 ) void {
-    if (!level.shouldLog(current_log_level)) return;
+    if (log_level) |current_level| {
+        if (!level.shouldLog(current_level.*)) return;
+    }
 
     // Print to CLI
     std.debug.print("[{s}] " ++ format ++ "\n", .{@tagName(level)} ++ args);
 
     // Log to file if enabled
-    if (log_to_file) {
+    if (log_file) |file| {
         const timestamp = std.time.timestamp();
         const full_message = std.fmt.allocPrint(
             allocator,
@@ -181,38 +181,22 @@ pub fn log(
         ) catch return;
         defer allocator.free(full_message);
 
-        writeToLogFile(full_message) catch {};
+        file.writeAll(full_message) catch {};
     }
 
     // Add to event log if event provided
     if (event) |e| {
-        event_log.log(e);
+        if (event_log) |evt_log| {
+            std.debug.print("found\n", .{});
+            evt_log.log(e);
+        } else {
+            std.debug.print("unfound\n", .{});
+        }
+    } else {
+        std.debug.print("no event\n", .{});
     }
 
     // Update debug overlay if active
-    if (debug_window_active) {
-        updateDebugBuffer(format, args);
-    }
-}
-
-fn updateDebugBuffer(comptime format: []const u8, args: anytype) void {
-    const message = std.fmt.bufPrint(
-        debug_buffer[debug_buffer_pos..],
-        format ++ "\n",
-        args,
-    ) catch return;
-
-    debug_buffer_pos += message.len;
-    if (debug_buffer_pos >= DebugBufferSize) {
-        debug_buffer_pos = 0;
-    }
-}
-
-fn writeToLogFile(message: []const u8) !void {
-    if (log_file) |file| {
-        try file.writeAll(message);
-        try file.sync();
-    }
 }
 
 test {
@@ -221,9 +205,10 @@ test {
 
 test "eventlog" {
     const testing = std.testing;
-
+    var e_log = EventLog.init();
+    event_log = &e_log;
     // log some events
-    event_log.log(.{
+    event_log.?.log(.{
         .type = .parameter_update,
         .data = .{
             .parameter_update = .{
@@ -236,11 +221,11 @@ test "eventlog" {
     });
 
     // test recent events
-    const recent_events = event_log.recent(10);
+    const recent_events = event_log.?.recent(10);
     try testing.expect(recent_events.len == 1);
 
     // test finding last event
-    const last_param = event_log.findLastEvent(.parameter_update);
+    const last_param = event_log.?.findLastEvent(.parameter_update);
     try testing.expect(last_param != null);
     if (last_param) |event| {
         try testing.expect(event.data.parameter_update.value == 0.5);
@@ -250,6 +235,8 @@ test "eventlog" {
 test "log function" {
     const testing = std.testing;
     const tmp_allocator = testing.allocator;
+    var e_log = EventLog.init();
+    event_log = &e_log;
 
     // Test basic logging (will print to stderr during test)
     log(
@@ -265,7 +252,7 @@ test "log function" {
         .debug,
         "Parameter changed: {d}",
         .{0.5},
-        .{
+        Event{
             .type = .parameter_update,
             .data = .{
                 .parameter_update = .{
@@ -280,7 +267,7 @@ test "log function" {
     );
 
     // Verify event was logged
-    const last_param_event = event_log.findLastEvent(.parameter_update);
+    const last_param_event = event_log.?.findLastEvent(.parameter_update);
     try testing.expect(last_param_event != null);
     if (last_param_event) |event| {
         try testing.expect(event.data.parameter_update.value == 0.5);

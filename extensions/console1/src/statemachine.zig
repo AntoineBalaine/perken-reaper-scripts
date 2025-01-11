@@ -48,7 +48,7 @@ pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
 });
 
 pub const State = struct {
-    current_mode: Mode,
+    current_mode: Mode = .fx_ctrl,
 
     // Mode-specific states
     fx_ctrl: FxControlState,
@@ -56,23 +56,68 @@ pub const State = struct {
     mapping: MappingState,
     settings: SettingsState,
 
-    // Shared state that might be needed across modes
+    // Shared state
     last_touched_tr_id: ?c_int = null,
-    selectedTracks: std.AutoArrayHashMapUnmanaged(c_int, void),
-    gui_visible: bool,
-    mappings: MapStore,
+    selectedTracks: std.AutoArrayHashMapUnmanaged(c_int, void) = .{},
+    gui_visible: bool = true,
+
+    pub fn init() State {
+        return .{
+            .fx_ctrl = .{},
+            .fx_sel = .{
+                .current_category = .COMP, // Default category
+                .selected_fx = null,
+                .scroll_position = 0,
+            },
+            .mapping = .{
+                .target_fx = "",
+                .current_mappings = undefined, // Will be set when mapping starts
+                .midi_learn_active = false,
+                .selected_parameter = null,
+            },
+            .settings = .{
+                .show_startup_message = false,
+                .show_feedback_window = true,
+                .manual_routing = false,
+                .default_channel_strip = .{},
+            },
+            // Shared state uses default values
+        };
+    }
+
+    pub fn deinit(self: *State, allocator: std.mem.Allocator) void {
+        self.selectedTracks.deinit(allocator);
+        // Any other cleanup needed...
+    }
 };
 
 // Mode-specific state structures
 pub const FxControlState = struct {
-    // Current values of all CC controls
-    CCs: c1.CCs,
     // Current parameter mappings
-    fxMap: FxMap = *FxMap{},
+    fxMap: FxMap = FxMap{},
+
+    // Module ordering
     order: track.ModulesOrder = .@"S-EQ-C",
     scRouting: track.SCRouting = .off,
+
     // Display settings
-    show_plugin_ui: bool,
+    show_plugin_ui: bool = false,
+
+    // Paging
+    current_page: u8 = 0, // 0-based page number
+
+    pub fn getTrackOffset(self: @This()) usize {
+        return self.current_page * 20;
+    }
+
+    pub fn getPageForTrack(track_number: usize) u8 {
+        return @intCast(track_number / 20);
+    }
+
+    pub fn isTrackInCurrentPage(self: @This(), track_number: usize) bool {
+        const page_start = self.getTrackOffset();
+        return track_number >= page_start and track_number < page_start + 20;
+    }
 };
 
 pub const FxSelectionState = struct {

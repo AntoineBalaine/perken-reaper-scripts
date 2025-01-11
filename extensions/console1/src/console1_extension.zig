@@ -15,6 +15,7 @@ const Conf = @import("internals/config.zig");
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
 const ConfigManager = @import("config_manager.zig");
+const globals = @import("globals.zig");
 const plugin_name = "Hello, Zig!";
 
 var state: State = undefined;
@@ -53,13 +54,14 @@ fn init() !void {
     control_surface.controller_dir = controller_dir;
     const config_manager = try ConfigManager.init(gpa, std.mem.span(controller_dir));
     _ = config_manager; // autofix
-
+    try globals.init(gpa, controller_dir);
 }
 
 fn deinit() void {
     gpa.free(std.mem.span(controller_dir));
     // gpa.free(std.mem.span(controller_dir));
     // gpa.free(controller_dir);
+    globals.deinit();
     Conf.deinit(gpa);
     ImGuiLoop.deinit();
     state.deinit();

@@ -1,0 +1,80 @@
+const std = @import("std");
+const State = @import("statemachine.zig").State;
+const Preferences = @import("config_manager.zig").Preferences;
+const MapStore = @import("internals/mappings.zig").MapStore;
+const logger = @import("logger.zig");
+const EventLog = logger.EventLog;
+// State machine
+pub var state: State = undefined;
+
+// Configuration
+pub var preferences: Preferences = undefined;
+pub var map_store: MapStore = undefined;
+
+// Logging
+pub var event_log: EventLog = undefined;
+var log_file: ?std.fs.File = null; // Store the actual file, not just a pointer
+
+// Resource management
+pub var allocator: std.mem.Allocator = undefined;
+pub var resource_path: [:0]const u8 = undefined;
+
+pub fn init(alloc: std.mem.Allocator, path: [*:0]const u8) !void {
+    allocator = alloc;
+    resource_path = try allocator.dupeZ(u8, std.mem.span(path));
+
+    // Initialize in dependency order
+    preferences = try Preferences.init(allocator, resource_path);
+
+    map_store = try MapStore.init(allocator, resource_path, &preferences.default_fx);
+    event_log = EventLog.init();
+    state = State.init();
+
+    try initLoggerState();
+}
+
+pub fn deinit() void {
+    map_store.deinit();
+    preferences.deinit();
+    allocator.free(resource_path);
+}
+
+pub fn initLoggerState() !void {
+    // Set log level pointer
+    logger.log_level = &preferences.log_level;
+
+    // Set event log pointer
+    logger.event_log = &event_log;
+
+    // Handle file logging
+    if (preferences.log_to_file) {
+        const log_path = try std.fs.path.join(allocator, &.{ resource_path, "debug.log" });
+        defer allocator.free(log_path);
+
+        log_file = try std.fs.createFileAbsolute(log_path, .{});
+        logger.log_file = &log_file.?;
+    }
+}
+
+pub fn updateLoggerState() !void {
+    // Close existing file if any
+    if (logger.log_file) |_| {
+        logger.log_file = null;
+    }
+
+    // Also close our handle if it exists
+    if (log_file) |*file| {
+        file.close();
+    }
+
+    // Open new file if needed
+    if (preferences.log_to_file) {
+        const log_path = try std.fs.path.join(allocator, &.{ resource_path, "debug.log" });
+        defer allocator.free(log_path);
+
+        // Store the actual file in our module
+        log_file = try std.fs.createFileAbsolute(log_path, .{});
+        // Pass pointer to our stored file to logger
+        logger.log_file = &log_file.?;
+    }
+}
