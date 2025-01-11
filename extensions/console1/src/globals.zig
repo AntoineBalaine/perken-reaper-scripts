@@ -28,14 +28,15 @@ pub fn init(alloc: std.mem.Allocator, path: [*:0]const u8) !void {
 
     map_store = try MapStore.init(allocator, resource_path, &preferences.default_fx);
     event_log = EventLog.init();
-    state = State.init();
+    state = State.init(alloc);
 
     try initLoggerState();
 }
 
-pub fn deinit() void {
+pub fn deinit(alloc: std.mem.Allocator) void {
     map_store.deinit();
     preferences.deinit();
+    state.deinit(alloc);
     allocator.free(resource_path);
 }
 

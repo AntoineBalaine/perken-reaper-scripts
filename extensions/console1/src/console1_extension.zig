@@ -58,7 +58,7 @@ fn deinit() void {
     gpa.free(std.mem.span(controller_dir));
     // gpa.free(std.mem.span(controller_dir));
     // gpa.free(controller_dir);
-    globals.deinit();
+    globals.deinit(gpa);
     Conf.deinit(gpa);
     ImGuiLoop.deinit();
     state.deinit();

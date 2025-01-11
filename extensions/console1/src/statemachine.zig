@@ -11,6 +11,8 @@ const Conf = @import("internals/config.zig");
 const MapStore = @import("internals/mappings.zig");
 const FxMap = MapStore.FxMap;
 const track = @import("internals/track.zig");
+const FxControlState = @import("fx_ctrl_state.zig");
+
 pub const Mode = enum {
 
     // Main operation mode - controlling FX parameters
@@ -61,9 +63,9 @@ pub const State = struct {
     selectedTracks: std.AutoArrayHashMapUnmanaged(c_int, void) = .{},
     gui_visible: bool = true,
 
-    pub fn init() State {
+    pub fn init(gpa: std.mem.Allocator) State {
         return .{
-            .fx_ctrl = .{},
+            .fx_ctrl = FxControlState.init(gpa),
             .fx_sel = .{
                 .current_category = .COMP, // Default category
                 .selected_fx = null,
@@ -86,37 +88,9 @@ pub const State = struct {
     }
 
     pub fn deinit(self: *State, allocator: std.mem.Allocator) void {
+        self.fx_ctrl.deinit();
         self.selectedTracks.deinit(allocator);
         // Any other cleanup needed...
-    }
-};
-
-// Mode-specific state structures
-pub const FxControlState = struct {
-    // Current parameter mappings
-    fxMap: FxMap = FxMap{},
-
-    // Module ordering
-    order: track.ModulesOrder = .@"S-EQ-C",
-    scRouting: track.SCRouting = .off,
-
-    // Display settings
-    show_plugin_ui: bool = false,
-
-    // Paging
-    current_page: u8 = 0, // 0-based page number
-
-    pub fn getTrackOffset(self: @This()) usize {
-        return self.current_page * 20;
-    }
-
-    pub fn getPageForTrack(track_number: usize) u8 {
-        return @intCast(track_number / 20);
-    }
-
-    pub fn isTrackInCurrentPage(self: @This(), track_number: usize) bool {
-        const page_start = self.getTrackOffset();
-        return track_number >= page_start and track_number < page_start + 20;
     }
 };
 
