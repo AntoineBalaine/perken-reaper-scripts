@@ -8,7 +8,7 @@ const configurations = @import("configurations.zig");
 const logger = @import("logger.zig");
 const debug_panel = @import("debug_panel.zig");
 const globals = @import("globals.zig");
-
+const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const plugin_name = "CONSOLE1";
 pub var action_id: c_int = undefined;
 pub var allocator: std.mem.Allocator = undefined;
@@ -54,6 +54,12 @@ fn main() !void {
         }
         if (configurations.main_style_open) {
             try configurations.StyleEditor(ctx, .main);
+        }
+        switch (globals.state.current_mode) {
+            .fx_ctrl => {
+                try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state);
+            },
+            else => {},
         }
     }
     // Add debug panel
