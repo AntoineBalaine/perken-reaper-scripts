@@ -43,16 +43,17 @@ var out_knobs = [_]Knob{
 };
 pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
     _ = &state;
-    if (try imgui.Begin(.{ ctx, "FX Control", null })) {
-        defer imgui.End(.{ctx}) catch {};
 
-        var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
-        try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
-        const draw_list = try imgui.GetWindowDrawList(.{ctx});
+    var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
+    try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
+    const draw_list = try imgui.GetWindowDrawList(.{ctx});
 
-        // const knob_spacing = 10.0;
+    // const knob_spacing = 10.0;
 
-        // Input Section
+    // Input Section
+    {
+        try imgui.BeginGroup(.{ctx}); // Group the sections horizontally
+        defer imgui.EndGroup(.{ctx}) catch {};
         try imgui.Text(.{ ctx, "Input" });
         {
             for (&input_knobs, 0..) |*knob, i| {
@@ -61,10 +62,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
                 try Knobs.drawWidget(ctx, draw_list, knob, rect, knob.id, .{});
             }
         }
+        try imgui.SameLine(.{ctx});
+    }
 
-        try imgui.Spacing(.{ctx});
-        try imgui.Separator(.{ctx});
+    try imgui.Spacing(.{ctx});
+    try imgui.Separator(.{ctx});
 
+    {
+        try imgui.BeginGroup(.{ctx}); // Group the sections horizontally
+        defer imgui.EndGroup(.{ctx}) catch {};
         // Shape/Gate Section
         try imgui.Text(.{ ctx, "Shape" });
         {
@@ -74,7 +80,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
                 try Knobs.drawWidget(ctx, draw_list, knob, rect, knob.id, .{});
             }
         }
+        try imgui.SameLine(.{ctx});
+    }
 
+    {
+        try imgui.BeginGroup(.{ctx}); // Group the sections horizontally
+        defer imgui.EndGroup(.{ctx}) catch {};
         // EQ Section
         try imgui.Text(.{ ctx, "EQ" });
         {
@@ -84,7 +95,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
                 try Knobs.drawWidget(ctx, draw_list, knob, rect, knob.id, .{});
             }
         }
+        try imgui.SameLine(.{ctx});
+    }
 
+    {
+        try imgui.BeginGroup(.{ctx}); // Group the sections horizontally
+        defer imgui.EndGroup(.{ctx}) catch {};
         // Compressor Section
         try imgui.Text(.{ ctx, "Compressor" });
         {
@@ -94,7 +110,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
                 try Knobs.drawWidget(ctx, draw_list, knob, rect, knob.id, .{});
             }
         }
+        try imgui.SameLine(.{ctx});
+    }
 
+    {
+        try imgui.BeginGroup(.{ctx}); // Group the sections horizontally
+        defer imgui.EndGroup(.{ctx}) catch {};
         // Output Section
         try imgui.Text(.{ ctx, "Output" });
         {
@@ -104,6 +125,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
                 try Knobs.drawWidget(ctx, draw_list, knob, rect, knob.id, .{});
             }
         }
+        try imgui.SameLine(.{ctx});
     }
 }
 

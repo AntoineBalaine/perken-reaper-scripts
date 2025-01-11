@@ -18,6 +18,7 @@ const KnobLayout = struct {
 const COLUMN_SPACING = 20.0;
 const ROW_SPACING = 20.0;
 const MODULE_SPACING = 40.0;
+const MODULE_SPACING_H = 40.0;
 const ROW_HEIGHT = knob_size + ROW_SPACING;
 const COLUMN_WIDTH = knob_size + COLUMN_SPACING;
 
@@ -77,17 +78,17 @@ pub fn getKnobPosition(comptime cc: c1.CCs) Knobs.Position {
 
     const col_offset: f64 = @as(f64, @floatFromInt(@intFromEnum(layout.col))) * COLUMN_WIDTH;
 
-    const module_offset = switch (cc) {
+    const module_offset: f64 = switch (cc) {
         .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut => 0,
-        .Shp_Gate, .Shp_GateRelease, .Shp_hard_gate => ROW_HEIGHT * 3 + MODULE_SPACING,
-        .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain => ROW_HEIGHT * 6 + MODULE_SPACING * 2,
-        .Comp_Ratio, .Comp_Thresh, .Comp_Attack, .Comp_Release => ROW_HEIGHT * 9 + MODULE_SPACING * 3,
-        .Out_Drive, .Out_Pan, .Out_Vol => ROW_HEIGHT * 12 + MODULE_SPACING * 4,
+        .Shp_Gate, .Shp_GateRelease, .Shp_hard_gate => COLUMN_WIDTH * 4 + MODULE_SPACING_H,
+        .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain => COLUMN_WIDTH * 8 + MODULE_SPACING_H * 2,
+        .Comp_Ratio, .Comp_Thresh, .Comp_Attack, .Comp_Release => COLUMN_WIDTH * 12 + MODULE_SPACING_H * 3,
+        .Out_Drive, .Out_Pan, .Out_Vol => COLUMN_WIDTH * 16 + MODULE_SPACING_H * 4,
         else => unreachable,
     };
 
     return .{
-        .x = col_offset,
-        .y = row_offset + module_offset,
+        .x = col_offset + module_offset, // Add module_offset to x instead of y
+        .y = row_offset, // y only depends on row position
     };
 }

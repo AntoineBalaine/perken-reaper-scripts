@@ -48,7 +48,6 @@ fn main() !void {
     try imgui.SetNextWindowDockID(.{ ctx, -1 });
     if (try imgui.Begin(.{ ctx, plugin_name, &open, windowFlags })) {
         defer imgui.End(.{ctx}) catch {};
-        try imgui.Text(.{ ctx, "Hello World" });
         if (configurations.rack_style_open) {
             try configurations.StyleEditor(ctx, .rack);
         }
