@@ -1,6 +1,7 @@
 const std = @import("std");
 const imgui = @import("../reaper_imgui.zig");
 
+const knob_size = 40.0;
 const MAXVAL = 1.0;
 const MINVAL = 0.0;
 
@@ -66,14 +67,21 @@ inline fn center(drawCursor: f64, radius: f64) f64 {
 }
 pub fn drawWidget(
     ctx: imgui.ContextPtr,
-    drwls: imgui.DrawListPtr,
-    widget: *Knob,
-    widget_rect: Rectangle,
+    value: *f64,
     id: [:0]const u8,
     flags: ControlFlags,
 ) !void {
-    const radius = widget.radius;
-    const value = widget.value;
+    const drwls = try imgui.GetWindowDrawList(.{ctx});
+    const radius = knob_size / 2;
+
+    var cur_pos = Position{ .x = undefined, .y = undefined };
+    try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
+    const widget_rect = Rectangle{
+        .min_x = cur_pos.x,
+        .min_y = cur_pos.y,
+        .max_x = cur_pos.x + radius * 2,
+        .max_y = cur_pos.y + radius * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+    };
 
     {
         try imgui.PushClipRect(.{ ctx, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, true });
@@ -88,13 +96,13 @@ pub fn drawWidget(
 
         try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
 
-        const rv = try YControl(ctx, id, &widget.value, radius * 2, radius * 2, MINVAL, MAXVAL, .{
+        const rv = try YControl(ctx, id, value, radius * 2, radius * 2, MINVAL, MAXVAL, .{
             .invisible = true,
             .increment = false,
             .scale = .logarithmic,
         });
 
-        const angle_ = angle(value, 0.0, 1.0);
+        const angle_ = angle(value.*, 0.0, 1.0);
         var wiper_start: f64 = undefined;
         var wiper_end: f64 = undefined;
         switch (flags.trackStart) {
@@ -134,12 +142,18 @@ pub fn drawWidget(
         // Draw the value label below the button
         const label_y = center_y + radius + 5.0; // Add some padding
         var buf: [24]u8 = undefined;
-        const val_fmt = try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value});
+        const val_fmt = try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
         var txt_size: Size = .{ .w = undefined, .h = undefined };
         try imgui.CalcTextSize(.{ ctx, val_fmt.ptr, &txt_size.w, &txt_size.h });
-        try imgui.SetCursorScreenPos(.{ ctx, center_x - txt_size.w / 2.0, label_y });
-        try imgui.Text(.{ ctx, val_fmt });
+        try imgui.DrawList_AddText(.{ drwls, center_x - txt_size.w / 2.0, label_y, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), val_fmt });
     }
+
+    try imgui.SetCursorScreenPos(.{ ctx, widget_rect.min_x, widget_rect.min_y });
+    try imgui.Dummy(.{
+        ctx,
+        widget_rect.max_x - widget_rect.min_x,
+        widget_rect.max_y - widget_rect.min_y,
+    });
 }
 
 pub fn YControl(ctx: imgui.ContextPtr, id: [:0]const u8, value: *f64, w: f64, h: f64, min_val: f64, max_val: f64, flags: YControlFlags) !std.meta.Tuple(&[_]type{ bool, bool }) {
