@@ -19,7 +19,7 @@ fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) ![:0]const u8
 }
 
 pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.EventLog) !void {
-    if (try imgui.Begin(.{ ctx, "Debug Panel", null })) {
+    if (try imgui.Begin(.{ ctx, "Debug Panel" })) {
         defer imgui.End(.{ctx}) catch {};
 
         var buf: [DEBUG_BUF_SIZE:0]u8 = undefined;

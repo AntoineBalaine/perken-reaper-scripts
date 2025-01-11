@@ -16,8 +16,9 @@ const std = @import("std");
 const Mode = @import("statemachine.zig").Mode;
 const c1 = @import("internals/c1.zig");
 const Conf = @import("internals/config.zig");
+const debugconfig = @import("config");
 
-pub var debug_window_active = false;
+pub var debug_window_active = debugconfig.@"test";
 pub var event_log: ?*EventLog = null; // Pointer to state's event log
 pub var log_file: ?*std.fs.File = null; // Just need the file handle
 pub var log_level: ?*LogLevel = null; // Just need the level

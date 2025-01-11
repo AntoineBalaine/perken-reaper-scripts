@@ -55,10 +55,10 @@ fn main() !void {
         if (configurations.main_style_open) {
             try configurations.StyleEditor(ctx, .main);
         }
-        // Add debug panel
-        if (logger.debug_window_active) {
-            try debug_panel.drawDebugPanel(ctx, &globals.state, &globals.event_log);
-        }
+    }
+    // Add debug panel
+    if (logger.debug_window_active) {
+        try debug_panel.drawDebugPanel(ctx, &globals.state, &globals.event_log);
     }
 
     if (!open)
