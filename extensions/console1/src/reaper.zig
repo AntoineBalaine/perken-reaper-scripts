@@ -298,7 +298,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// CountSelectedTracks
     /// Count the number of selected tracks in the project (proj=0 for active project). This function ignores the master track, see CountSelectedTracks2.
-    pub var CountSelectedTracks: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var CountSelectedTracks: *fn (proj: ReaProject) callconv(.C) c_int = undefined;
 
     /// CountSelectedTracks2
     /// Count the number of selected tracks in the project (proj=0 for active project).
@@ -314,7 +314,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// CountTCPFXParms
     /// Count the number of FX parameter knobs displayed on the track control panel.
-    pub var CountTCPFXParms: *fn (project: *ReaProject, track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var CountTCPFXParms: *fn (project: *ReaProject, track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// CountTempoTimeSigMarkers
     /// Count the number of tempo/time signature markers in the project. See GetTempoTimeSigMarker, SetTempoTimeSigMarker, AddTempoTimeSigMarker.
@@ -322,11 +322,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// CountTrackEnvelopes
     /// see GetTrackEnvelope
-    pub var CountTrackEnvelopes: *fn (track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var CountTrackEnvelopes: *fn (track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// CountTrackMediaItems
     /// count the number of items in the track
-    pub var CountTrackMediaItems: *fn (track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var CountTrackMediaItems: *fn (track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// CountTracks
     /// count the number of tracks in the project (proj=0 for active project)
@@ -346,7 +346,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// CreateNewMIDIItemInProj
     /// Create a new MIDI media item, containing no MIDI events. Time is in seconds unless qn is set.
-    pub var CreateNewMIDIItemInProj: *fn (track: *MediaTrack, starttime: f64, endtime: f64, qnInOptional: *const bool) callconv(.C) *MediaItem = undefined;
+    pub var CreateNewMIDIItemInProj: *fn (track: MediaTrack, starttime: f64, endtime: f64, qnInOptional: *const bool) callconv(.C) *MediaItem = undefined;
 
     /// CreateTakeAudioAccessor
     /// Create an audio accessor object for this take. Must only call from the main thread. See CreateTrackAudioAccessor, DestroyAudioAccessor, AudioAccessorStateChanged, GetAudioAccessorStartTime, GetAudioAccessorEndTime, GetAudioAccessorSamples.
@@ -354,7 +354,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// CreateTrackAudioAccessor
     /// Create an audio accessor object for this track. Must only call from the main thread. See CreateTakeAudioAccessor, DestroyAudioAccessor, AudioAccessorStateChanged, GetAudioAccessorStartTime, GetAudioAccessorEndTime, GetAudioAccessorSamples.
-    pub var CreateTrackAudioAccessor: *fn (track: *MediaTrack) callconv(.C) *AudioAccessor = undefined;
+    pub var CreateTrackAudioAccessor: *fn (track: MediaTrack) callconv(.C) *AudioAccessor = undefined;
 
     /// CreateTrackSend
     /// Create a send/receive (desttrInOptional!=NULL), or a hardware output (desttrInOptional==NULL) with default properties, return >=0 on success (== new send/receive index). See RemoveTrackSend, GetSetTrackSendInfo, GetTrackSendInfo_Value, SetTrackSendInfo_Value.
@@ -383,7 +383,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnFwd: *fn (seekplay: c_int) callconv(.C) void = undefined;
 
     /// CSurf_OnFXChange
-    pub var CSurf_OnFXChange: *fn (trackid: *MediaTrack, en: c_int) callconv(.C) bool = undefined;
+    pub var CSurf_OnFXChange: *fn (trackid: MediaTrack, en: c_int) callconv(.C) bool = undefined;
 
     /// CSurf_OnInputMonitorChange
     pub var CSurf_OnInputMonitorChange: *fn (trackid: *MediaTrack, monitor: c_int) callconv(.C) c_int = undefined;
@@ -574,7 +574,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// DeleteTrack
     /// deletes a track
-    pub var DeleteTrack: *fn (tr: *MediaTrack) callconv(.C) void = undefined;
+    pub var DeleteTrack: *fn (tr: MediaTrack) callconv(.C) void = undefined;
 
     /// DeleteTrackMediaItem
     pub var DeleteTrackMediaItem: *fn (tr: *MediaTrack, it: *MediaItem) callconv(.C) bool = undefined;
@@ -681,7 +681,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// EnumTrackMIDIProgramNamesEx
     /// returns false if there are no plugins on the track that support MIDI programs,or if all programs have been enumerated
-    pub var EnumTrackMIDIProgramNamesEx: *fn (proj: *ReaProject, track: *MediaTrack, programNumber: c_int, programName: *c_char, programName_sz: c_int) callconv(.C) bool = undefined;
+    pub var EnumTrackMIDIProgramNamesEx: *fn (proj: *ReaProject, track: MediaTrack, programNumber: c_int, programName: *c_char, programName_sz: c_int) callconv(.C) bool = undefined;
 
     /// Envelope_Evaluate
     /// Get the effective envelope value at a given time position. samplesRequested is how long the caller expects until the next call to Envelope_Evaluate (often, the buffer block size). The return value is how many samples beyond that time position that the returned values are valid. dVdS is the change in value per sample (first derivative), ddVdS is the second derivative, dddVdS is the third derivative. See GetEnvelopeScalingMode.
@@ -945,7 +945,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetFXEnvelope
     /// Returns the FX parameter envelope. If the envelope does not exist and create=true, the envelope will be created. If the envelope already exists and is bypassed and create=true, then the envelope will be unbypassed.
-    pub var GetFXEnvelope: *fn (track: *MediaTrack, fxindex: c_int, parameterindex: c_int, create: bool) callconv(.C) *TrackEnvelope = undefined;
+    pub var GetFXEnvelope: *fn (track: MediaTrack, fxindex: c_int, parameterindex: c_int, create: bool) callconv(.C) *TrackEnvelope = undefined;
 
     /// GetGlobalAutomationOverride
     /// return -1=no override, 0=trim/read, 1=read, 2=touch, 3=write, 4=latch, 5=bypass
@@ -994,7 +994,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetItemStateChunk: *fn (item: *MediaItem, strNeedBig: *c_char, strNeedBig_sz: c_int, isundoOptional: bool) callconv(.C) bool = undefined;
 
     /// GetLastColorThemeFile
-    pub var GetLastColorThemeFile: *fn () callconv(.C) [*:0]const u8 = undefined;
+    pub var GetLastColorThemeFile: *fn () callconv(.C) ?[*:0]const u8 = undefined;
 
     /// GetLastMarkerAndCurRegion
     /// Get the last project marker before time, and/or the project region that includes time. markeridx and regionidx are returned not necessarily as the displayed marker/region index, but as the index that can be passed to EnumProjectMarkers. Either or both of markeridx and regionidx may be NULL. See EnumProjectMarkers.
@@ -1284,7 +1284,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetOutputLatency: *fn () callconv(.C) f64 = undefined;
 
     /// GetParentTrack
-    pub var GetParentTrack: *fn (track: *MediaTrack) callconv(.C) *MediaTrack = undefined;
+    pub var GetParentTrack: *fn (track: MediaTrack) callconv(.C) *MediaTrack = undefined;
 
     /// GetPeakFileName
     /// get the peak file name for a given file (can be either filename.reapeaks,or a hashed filename in another path)
@@ -1392,7 +1392,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSelectedTrack2
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based).
-    pub var GetSelectedTrack2: *fn (proj: *ReaProject, seltrackidx: c_int, wantmaster: bool) callconv(.C) *MediaTrack = undefined;
+    pub var GetSelectedTrack2: *fn (proj: ReaProject, seltrackidx: c_int, wantmaster: bool) callconv(.C) MediaTrack = undefined;
 
     /// GetSelectedTrackEnvelope
     /// get the currently selected track envelope, returns NULL/nil if no envelope is selected
@@ -1780,7 +1780,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSetTrackMIDISupportFile
     /// Get or set the filename for storage of various track MIDI c_characteristics. 0=MIDI colormap image file, 1 or 2=MIDI bank/program select file (2=set new default). If fn != NULL, a new track MIDI storage file will be set; otherwise the existing track MIDI storage file will be returned.
-    pub var GetSetTrackMIDISupportFile: *fn (proj: *ReaProject, track: *MediaTrack, which: c_int, filename: [*:0]const u8) callconv(.C) [*:0]const u8 = undefined;
+    pub var GetSetTrackMIDISupportFile: *fn (proj: *ReaProject, track: MediaTrack, which: c_int, filename: [*:0]const u8) callconv(.C) [*:0]const u8 = undefined;
 
     /// GetSetTrackSendInfo
     /// Get or set send/receive/hardware output attributes.
@@ -1813,11 +1813,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSetTrackState
     /// deprecated -- see SetTrackStateChunk, GetTrackStateChunk
-    pub var GetSetTrackState: *fn (track: *MediaTrack, str: *c_char, str_sz: c_int) callconv(.C) bool = undefined;
+    pub var GetSetTrackState: *fn (track: MediaTrack, str: *c_char, str_sz: c_int) callconv(.C) bool = undefined;
 
     /// GetSetTrackState2
     /// deprecated -- see SetTrackStateChunk, GetTrackStateChunk
-    pub var GetSetTrackState2: *fn (track: *MediaTrack, str: *c_char, str_sz: c_int, isundo: bool) callconv(.C) bool = undefined;
+    pub var GetSetTrackState2: *fn (track: MediaTrack, str: *c_char, str_sz: c_int, isundo: bool) callconv(.C) bool = undefined;
 
     /// GetSubProjectFromSource
     pub var GetSubProjectFromSource: *fn (src: *PCM_source) callconv(.C) *ReaProject = undefined;
@@ -1854,7 +1854,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTCPFXParm
     /// Get information about a specific FX parameter knob (see CountTCPFXParms).
-    pub var GetTCPFXParm: *fn (project: *ReaProject, track: *MediaTrack, index: c_int, fxindexOut: *c_int, parmidxOut: *c_int) callconv(.C) bool = undefined;
+    pub var GetTCPFXParm: *fn (project: *ReaProject, track: MediaTrack, index: c_int, fxindexOut: *c_int, parmidxOut: *c_int) callconv(.C) bool = undefined;
 
     /// GetTempoMatchPlayRate
     /// finds the playrate and target length to insert this item stretched to a round power-of-2 number of bars, between 1/8 and 256
@@ -1898,21 +1898,21 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrack
     /// get a track from a project by track count (zero-based) (proj=0 for active project)
-    pub var GetTrack: *fn (proj: *ReaProject, trackidx: c_int) callconv(.C) *MediaTrack = undefined;
+    pub var GetTrack: *fn (proj: *ReaProject, trackidx: c_int) callconv(.C) MediaTrack = undefined;
 
     /// GetTrackAutomationMode
     /// return the track mode, regardless of global override
-    pub var GetTrackAutomationMode: *fn (tr: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var GetTrackAutomationMode: *fn (tr: MediaTrack) callconv(.C) c_int = undefined;
 
     /// GetTrackColor
     /// Returns the track custom color as OS dependent color|0x1000000 (i.e. ColorToNative(r,g,b)|0x1000000). Black is returned as 0x1000000, no color setting is returned as 0.
-    pub var GetTrackColor: *fn (track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var GetTrackColor: *fn (track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// GetTrackDepth
-    pub var GetTrackDepth: *fn (track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var GetTrackDepth: *fn (track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// GetTrackEnvelope
-    pub var GetTrackEnvelope: *fn (track: *MediaTrack, envidx: c_int) callconv(.C) *TrackEnvelope = undefined;
+    pub var GetTrackEnvelope: *fn (track: MediaTrack, envidx: c_int) callconv(.C) *TrackEnvelope = undefined;
 
     /// GetTrackEnvelopeByChunkName
     /// Gets a built-in track envelope by configuration chunk name, like "<VOLENV", or GUID string, like "{B577250D-146F-B544-9B34-F24FBE488F1F}".
@@ -1920,7 +1920,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetTrackEnvelopeByChunkName: *fn (tr: *MediaTrack, cfgchunkname_or_guid: [*:0]const u8) callconv(.C) *TrackEnvelope = undefined;
 
     /// GetTrackEnvelopeByName
-    pub var GetTrackEnvelopeByName: *fn (track: *MediaTrack, envname: [*:0]const u8) callconv(.C) *TrackEnvelope = undefined;
+    pub var GetTrackEnvelopeByName: *fn (track: MediaTrack, envname: [*:0]const u8) callconv(.C) *TrackEnvelope = undefined;
 
     /// GetTrackFromPoint
     /// Returns the track from the screen coordinates specified. If the screen coordinates refer to a window associated to the track (such as FX), the track will be returned. infoOutOptional will be set to 1 if it is likely an envelope, 2 if it is likely a track FX. For a free item positioning or fixed lane track, the second byte of infoOutOptional will be set to the (approximate, for fipm tracks) item lane underneath the mouse. See GetThingFromPoint.
@@ -1951,7 +1951,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrackMIDILyrics
     /// Get all MIDI lyrics on the track. Lyrics will be returned as one string with tabs between each word. flag&1: f64 tabs at the end of each measure and triple tabs when skipping measures, flag&2: each lyric is preceded by its beat position in the project (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See SetTrackMIDILyrics
-    pub var GetTrackMIDILyrics: *fn (track: *MediaTrack, flag: c_int, bufOutWantNeedBig: *c_char, bufOutWantNeedBig_sz: *c_int) callconv(.C) bool = undefined;
+    pub var GetTrackMIDILyrics: *fn (track: MediaTrack, flag: c_int, bufOutWantNeedBig: *c_char, bufOutWantNeedBig_sz: *c_int) callconv(.C) bool = undefined;
 
     /// GetTrackMIDINoteName
     /// see GetTrackMIDINoteNameEx
@@ -1959,14 +1959,14 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrackMIDINoteNameEx
     /// Get note/CC name. pitch 128 for CC0 name, 129 for CC1 name, etc. See SetTrackMIDINoteNameEx
-    pub var GetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: *MediaTrack, pitch: c_int, chan: c_int) callconv(.C) [*:0]const u8 = undefined;
+    pub var GetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: MediaTrack, pitch: c_int, chan: c_int) callconv(.C) [*:0]const u8 = undefined;
 
     /// GetTrackMIDINoteRange
-    pub var GetTrackMIDINoteRange: *fn (proj: *ReaProject, track: *MediaTrack, note_loOut: *c_int, note_hiOut: *c_int) callconv(.C) void = undefined;
+    pub var GetTrackMIDINoteRange: *fn (proj: *ReaProject, track: MediaTrack, note_loOut: *c_int, note_hiOut: *c_int) callconv(.C) void = undefined;
 
     /// GetTrackName
     /// Returns "MASTER" for master track, "Track N" if track has no name.
-    pub var GetTrackName: *fn (track: *MediaTrack, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var GetTrackName: *fn (track: MediaTrack, bufOut: [*:0]const u8, bufOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// GetTrackNumMediaItems
     pub var GetTrackNumMediaItems: *fn (tr: *MediaTrack) callconv(.C) c_int = undefined;
@@ -1977,15 +1977,15 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrackReceiveName
     /// See GetTrackSendName.
-    pub var GetTrackReceiveName: *fn (track: *MediaTrack, recv_index: c_int, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var GetTrackReceiveName: *fn (track: MediaTrack, recv_index: c_int, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// GetTrackReceiveUIMute
     /// See GetTrackSendUIMute.
-    pub var GetTrackReceiveUIMute: *fn (track: *MediaTrack, recv_index: c_int, muteOut: *bool) callconv(.C) bool = undefined;
+    pub var GetTrackReceiveUIMute: *fn (track: MediaTrack, recv_index: c_int, muteOut: *bool) callconv(.C) bool = undefined;
 
     /// GetTrackReceiveUIVolPan
     /// See GetTrackSendUIVolPan.
-    pub var GetTrackReceiveUIVolPan: *fn (track: *MediaTrack, recv_index: c_int, volumeOut: *f64, panOut: *f64) callconv(.C) bool = undefined;
+    pub var GetTrackReceiveUIVolPan: *fn (track: MediaTrack, recv_index: c_int, volumeOut: *f64, panOut: *f64) callconv(.C) bool = undefined;
 
     /// GetTrackSendInfo_Value
     /// Get send/receive/hardware output numerical-value attributes.
@@ -2010,15 +2010,15 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrackSendName
     /// send_idx>=0 for hw ouputs, >=nb_of_hw_ouputs for sends. See GetTrackReceiveName.
-    pub var GetTrackSendName: *fn (track: *MediaTrack, send_index: c_int, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var GetTrackSendName: *fn (track: MediaTrack, send_index: c_int, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// GetTrackSendUIMute
     /// send_idx>=0 for hw ouputs, >=nb_of_hw_ouputs for sends. See GetTrackReceiveUIMute.
-    pub var GetTrackSendUIMute: *fn (track: *MediaTrack, send_index: c_int, muteOut: *bool) callconv(.C) bool = undefined;
+    pub var GetTrackSendUIMute: *fn (track: MediaTrack, send_index: c_int, muteOut: *bool) callconv(.C) bool = undefined;
 
     /// GetTrackSendUIVolPan
     /// send_idx>=0 for hw ouputs, >=nb_of_hw_ouputs for sends. See GetTrackReceiveUIVolPan.
-    pub var GetTrackSendUIVolPan: *fn (track: *MediaTrack, send_index: c_int, volumeOut: *f64, panOut: *f64) callconv(.C) bool = undefined;
+    pub var GetTrackSendUIVolPan: *fn (track: MediaTrack, send_index: c_int, volumeOut: *f64, panOut: *f64) callconv(.C) bool = undefined;
 
     /// GetTrackState
     /// Gets track state, returns track name.
@@ -2034,20 +2034,20 @@ pub const reaper = struct { // @import("reaper");
     /// &256=rec monitoring auto
     /// &512=hide from TCP
     /// &1024=hide from MCP
-    pub var GetTrackState: *fn (track: *MediaTrack, flagsOut: *c_int) callconv(.C) [*:0]const u8 = undefined;
+    pub var GetTrackState: *fn (track: MediaTrack, flagsOut: *c_int) callconv(.C) [*:0]const u8 = undefined;
 
     /// GetTrackStateChunk
     /// Gets the RPPXML state of a track, returns true if successful. Undo flag is a performance/caching hint.
-    pub var GetTrackStateChunk: *fn (track: *MediaTrack, strNeedBig: *c_char, strNeedBig_sz: c_int, isundoOptional: bool) callconv(.C) bool = undefined;
+    pub var GetTrackStateChunk: *fn (track: MediaTrack, strNeedBig: *c_char, strNeedBig_sz: c_int, isundoOptional: bool) callconv(.C) bool = undefined;
 
     /// GetTrackUIMute
-    pub var GetTrackUIMute: *fn (track: *MediaTrack, muteOut: *bool) callconv(.C) bool = undefined;
+    pub var GetTrackUIMute: *fn (track: MediaTrack, muteOut: *bool) callconv(.C) bool = undefined;
 
     /// GetTrackUIPan
-    pub var GetTrackUIPan: *fn (track: *MediaTrack, pan1Out: *f64, pan2Out: *f64, panmodeOut: *c_int) callconv(.C) bool = undefined;
+    pub var GetTrackUIPan: *fn (track: MediaTrack, pan1Out: *f64, pan2Out: *f64, panmodeOut: *c_int) callconv(.C) bool = undefined;
 
     /// GetTrackUIVolPan
-    pub var GetTrackUIVolPan: *fn (track: *MediaTrack, volumeOut: *f64, panOut: *f64) callconv(.C) bool = undefined;
+    pub var GetTrackUIVolPan: *fn (track: MediaTrack, volumeOut: *f64, panOut: *f64) callconv(.C) bool = undefined;
 
     /// GetUnderrunTime
     /// retrieves the last timestamps of audio xrun (yellow-flash, if available), media xrun (red-flash), and the current time stamp (all milliseconds)
@@ -2093,7 +2093,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// HasTrackMIDIProgramsEx
     /// returns name of track plugin that is supplying MIDI programs,or NULL if there is none
-    pub var HasTrackMIDIProgramsEx: *fn (proj: *ReaProject, track: *MediaTrack) callconv(.C) [*:0]const u8 = undefined;
+    pub var HasTrackMIDIProgramsEx: *fn (proj: *ReaProject, track: MediaTrack) callconv(.C) [*:0]const u8 = undefined;
 
     /// Help_Set
     pub var Help_Set: *fn (helpstring: [*:0]const u8, is_temporary_help: bool) callconv(.C) void = undefined;
@@ -2158,11 +2158,11 @@ pub const reaper = struct { // @import("reaper");
     pub var IsREAPER: *fn () callconv(.C) bool = undefined;
 
     /// IsTrackSelected
-    pub var IsTrackSelected: *fn (track: *MediaTrack) callconv(.C) bool = undefined;
+    pub var IsTrackSelected: *fn (track: MediaTrack) callconv(.C) bool = undefined;
 
     /// IsTrackVisible
     /// If mixer==true, returns true if the track is visible in the mixer.  If mixer==false, returns true if the track is visible in the track control panel.
-    pub var IsTrackVisible: *fn (track: *MediaTrack, mixer: bool) callconv(.C) bool = undefined;
+    pub var IsTrackVisible: *fn (track: MediaTrack, mixer: bool) callconv(.C) bool = undefined;
 
     /// joystick_create
     /// creates a joystick device
@@ -2441,7 +2441,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// MarkTrackItemsDirty
     /// If track is supplied, item is ignored
-    pub var MarkTrackItemsDirty: *fn (track: *MediaTrack, item: *MediaItem) callconv(.C) void = undefined;
+    pub var MarkTrackItemsDirty: *fn (track: MediaTrack, item: *MediaItem) callconv(.C) void = undefined;
 
     /// Master_GetPlayRate
     pub var Master_GetPlayRate: *fn (project: *ReaProject) callconv(.C) f64 = undefined;
@@ -2466,7 +2466,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// MediaItemDescendsFromTrack
     /// Returns 1 if the track holds the item, 2 if the track is a folder containing the track that holds the item, etc.
-    pub var MediaItemDescendsFromTrack: *fn (item: *MediaItem, track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var MediaItemDescendsFromTrack: *fn (item: *MediaItem, track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// Menu_GetHash
     /// Get a string that only changes when menu/toolbar entries are added or removed (not re-ordered). Can be used to determine if a customized menu/toolbar differs from the default, or if the default changed after a menu/toolbar was customized. flag==0: current default menu/toolbar; flag==1: current customized menu/toolbar; flag==2: default menu/toolbar at the time the current menu/toolbar was most recently customized, if it was customized in REAPER v7.08 or later.
@@ -2593,7 +2593,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// MIDI_GetTrackHash
     /// Get a string that only changes when the MIDI data changes. If notesonly==true, then the string changes only when the MIDI notes change. See MIDI_GetHash
-    pub var MIDI_GetTrackHash: *fn (track: *MediaTrack, notesonly: bool, hashOut: *c_char, hashOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var MIDI_GetTrackHash: *fn (track: MediaTrack, notesonly: bool, hashOut: *c_char, hashOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// midi_init
     /// Opens MIDI devices as configured in preferences. force_reinit_input and force_reinit_output force a particular device index to close/re-open (pass -1 to not force any devices to reopen).
@@ -2725,7 +2725,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// MIDIEditorFlagsForTrack
     /// Get or set MIDI editor settings for this track. pitchwheelrange: semitones up or down. flags &1: snap pitch lane edits to semitones if pitchwheel range is defined.
-    pub var MIDIEditorFlagsForTrack: *fn (track: *MediaTrack, pitchwheelrangeInOut: *c_int, flagsInOut: *c_int, is_set: bool) callconv(.C) void = undefined;
+    pub var MIDIEditorFlagsForTrack: *fn (track: MediaTrack, pitchwheelrangeInOut: *c_int, flagsInOut: *c_int, is_set: bool) callconv(.C) void = undefined;
 
     /// mkpanstr
     pub var mkpanstr: *fn (strNeed64: *c_char, pan: f64) callconv(.C) void = undefined;
@@ -2949,7 +2949,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// realloc_cmd_register_buf
     /// registers a buffer/buffer-size which may be reallocated by an API (ptr/ptr_size will be updated to the new values). returns a token which should be passed to realloc_cmd_clear after API call and values are read.
-    pub var realloc_cmd_register_buf: *fn (ptr: *c_char, ptr_size: *c_int) callconv(.C) c_int = undefined;
+    pub var realloc_cmd_register_buf: *fn (ptr: *[*]u8, ptr_size: *c_int) callconv(.C) c_int = undefined;
 
     /// ReaperGetPitchShiftAPI
     /// version must be REAPER_PITCHSHIFT_API_VER
@@ -3260,7 +3260,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetMixerScroll
     /// Scroll the mixer so that leftmosttrack is the leftmost visible track. Returns the leftmost track after scrolling, which may be different from the passed-in track if there are not enough tracks to its right.
-    pub var SetMixerScroll: *fn (leftmosttrack: *MediaTrack) callconv(.C) *MediaTrack = undefined;
+    pub var SetMixerScroll: *fn (leftmosttrack: MediaTrack) callconv(.C) *MediaTrack = undefined;
 
     /// SetMouseModifier
     /// Set the mouse modifier assignment for a specific modifier key assignment, in a specific context.
@@ -3283,7 +3283,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetOnlyTrackSelected
     /// Set exactly one track selected, deselect all others
-    pub var SetOnlyTrackSelected: *fn (track: *MediaTrack) callconv(.C) void = undefined;
+    pub var SetOnlyTrackSelected: *fn (track: MediaTrack) callconv(.C) void = undefined;
 
     /// SetProjectGrid
     /// Set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc.
@@ -3319,7 +3319,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetRegionRenderMatrix
     /// Add (flag > 0) or remove (flag < 0) a track from this region when using the region render matrix. If adding, flag==2 means force mono, flag==4 means force stereo, flag==N means force N/2 channels.
-    pub var SetRegionRenderMatrix: *fn (proj: *ReaProject, regionindex: c_int, track: *MediaTrack, flag: c_int) callconv(.C) void = undefined;
+    pub var SetRegionRenderMatrix: *fn (proj: *ReaProject, regionindex: c_int, track: MediaTrack, flag: c_int) callconv(.C) void = undefined;
 
     /// SetRenderLastError
     /// Used by pcmsink objects to set an error to display while creating the pcmsink object.
@@ -3350,15 +3350,15 @@ pub const reaper = struct { // @import("reaper");
     pub var SetToggleCommandState: *fn (section_id: c_int, command_id: c_int, state: c_int) callconv(.C) bool = undefined;
 
     /// SetTrackAutomationMode
-    pub var SetTrackAutomationMode: *fn (tr: *MediaTrack, mode: c_int) callconv(.C) void = undefined;
+    pub var SetTrackAutomationMode: *fn (tr: MediaTrack, mode: c_int) callconv(.C) void = undefined;
 
     /// SetTrackColor
     /// Set the custom track color, color is OS dependent (i.e. ColorToNative(r,g,b). To unset the track color, see SetMediaTrackInfo_Value I_CUSTOMCOLOR
-    pub var SetTrackColor: *fn (track: *MediaTrack, color: c_int) callconv(.C) void = undefined;
+    pub var SetTrackColor: *fn (track: MediaTrack, color: c_int) callconv(.C) void = undefined;
 
     /// SetTrackMIDILyrics
     /// Set all MIDI lyrics on the track. Lyrics will be stuffed into any MIDI items found in range. Flag is unused at present. str is passed in as beat position, tab, text, tab (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See GetTrackMIDILyrics
-    pub var SetTrackMIDILyrics: *fn (track: *MediaTrack, flag: c_int, str: [*:0]const u8) callconv(.C) bool = undefined;
+    pub var SetTrackMIDILyrics: *fn (track: MediaTrack, flag: c_int, str: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// SetTrackMIDINoteName
     /// channel < 0 assigns these note names to all channels.
@@ -3366,7 +3366,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetTrackMIDINoteNameEx
     /// channel < 0 assigns note name to all channels. pitch 128 assigns name for CC0, pitch 129 for CC1, etc.
-    pub var SetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: *MediaTrack, pitch: c_int, chan: c_int, name: [*:0]const u8) callconv(.C) bool = undefined;
+    pub var SetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: MediaTrack, pitch: c_int, chan: c_int, name: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// SetTrackSelected
     pub var SetTrackSelected: *fn (track: MediaTrack, selected: bool) callconv(.C) void = undefined;
@@ -3391,47 +3391,47 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetTrackSendUIPan
     /// send_idx<0 for receives, >=0 for hw ouputs, >=nb_of_hw_ouputs for sends. isend=1 for end of edit, -1 for an instant edit (such as reset), 0 for normal tweak.
-    pub var SetTrackSendUIPan: *fn (track: *MediaTrack, send_idx: c_int, pan: f64, isend: c_int) callconv(.C) bool = undefined;
+    pub var SetTrackSendUIPan: *fn (track: MediaTrack, send_idx: c_int, pan: f64, isend: c_int) callconv(.C) bool = undefined;
 
     /// SetTrackSendUIVol
     /// send_idx<0 for receives, >=0 for hw ouputs, >=nb_of_hw_ouputs for sends. isend=1 for end of edit, -1 for an instant edit (such as reset), 0 for normal tweak.
-    pub var SetTrackSendUIVol: *fn (track: *MediaTrack, send_idx: c_int, vol: f64, isend: c_int) callconv(.C) bool = undefined;
+    pub var SetTrackSendUIVol: *fn (track: MediaTrack, send_idx: c_int, vol: f64, isend: c_int) callconv(.C) bool = undefined;
 
     /// SetTrackStateChunk
     /// Sets the RPPXML state of a track, returns true if successful. Undo flag is a performance/caching hint.
-    pub var SetTrackStateChunk: *fn (track: *MediaTrack, str: [*:0]const u8, isundoOptional: bool) callconv(.C) bool = undefined;
+    pub var SetTrackStateChunk: *fn (track: MediaTrack, str: [*:0]const u8, isundoOptional: bool) callconv(.C) bool = undefined;
 
     /// SetTrackUIInputMonitor
     /// monitor: 0=no monitoring, 1=monitoring, 2=auto-monitoring. returns new value or -1 if error. igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
-    pub var SetTrackUIInputMonitor: *fn (track: *MediaTrack, monitor: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
+    pub var SetTrackUIInputMonitor: *fn (track: MediaTrack, monitor: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
 
     /// SetTrackUIMute
     /// mute: <0 toggles, >0 sets mute, 0=unsets mute. returns new value or -1 if error. igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
-    pub var SetTrackUIMute: *fn (track: *MediaTrack, mute: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
+    pub var SetTrackUIMute: *fn (track: MediaTrack, mute: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
 
     /// SetTrackUIPan
     /// igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
-    pub var SetTrackUIPan: *fn (track: *MediaTrack, pan: f64, relative: bool, done: bool, igngroupflags: c_int) callconv(.C) f64 = undefined;
+    pub var SetTrackUIPan: *fn (track: MediaTrack, pan: f64, relative: bool, done: bool, igngroupflags: c_int) callconv(.C) f64 = undefined;
 
     /// SetTrackUIPolarity
     /// polarity (AKA phase): <0 toggles, 0=normal, >0=inverted. returns new value or -1 if error.igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
-    pub var SetTrackUIPolarity: *fn (track: *MediaTrack, polarity: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
+    pub var SetTrackUIPolarity: *fn (track: MediaTrack, polarity: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
 
     /// SetTrackUIRecArm
     /// recarm: <0 toggles, >0 sets recarm, 0=unsets recarm. returns new value or -1 if error. igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
-    pub var SetTrackUIRecArm: *fn (track: *MediaTrack, recarm: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
+    pub var SetTrackUIRecArm: *fn (track: MediaTrack, recarm: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
 
     /// SetTrackUISolo
     /// solo: <0 toggles, 1 sets solo (default mode), 0=unsets solo, 2 sets solo (non-SIP), 4 sets solo (SIP). returns new value or -1 if error. igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
-    pub var SetTrackUISolo: *fn (track: *MediaTrack, solo: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
+    pub var SetTrackUISolo: *fn (track: MediaTrack, solo: c_int, igngroupflags: c_int) callconv(.C) c_int = undefined;
 
     /// SetTrackUIVolume
     /// igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
-    pub var SetTrackUIVolume: *fn (track: *MediaTrack, volume: f64, relative: bool, done: bool, igngroupflags: c_int) callconv(.C) f64 = undefined;
+    pub var SetTrackUIVolume: *fn (track: MediaTrack, volume: f64, relative: bool, done: bool, igngroupflags: c_int) callconv(.C) f64 = undefined;
 
     /// SetTrackUIWidth
     /// igngroupflags: &1 to prevent track grouping, &2 to prevent selection ganging
-    pub var SetTrackUIWidth: *fn (track: *MediaTrack, width: f64, relative: bool, done: bool, igngroupflags: c_int) callconv(.C) f64 = undefined;
+    pub var SetTrackUIWidth: *fn (track: MediaTrack, width: f64, relative: bool, done: bool, igngroupflags: c_int) callconv(.C) f64 = undefined;
 
     /// ShowActionList
     pub var ShowActionList: *fn (section: *KbdSectionInfo, callerWnd: HWND) callconv(.C) void = undefined;
@@ -3495,7 +3495,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TakeFX_CopyToTrack
     /// Copies (or moves) FX from src_take to dest_track. dest_fx can have 0x1000000 set to reference input FX. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TakeFX_CopyToTrack: *fn (src_take: *MediaItem_Take, src_fx: c_int, dest_track: *MediaTrack, dest_fx: c_int, is_move: bool) callconv(.C) void = undefined;
+    pub var TakeFX_CopyToTrack: *fn (src_take: *MediaItem_Take, src_fx: c_int, dest_track: MediaTrack, dest_fx: c_int, is_move: bool) callconv(.C) void = undefined;
 
     /// TakeFX_Delete
     /// Remove a FX from take chain (returns true on success) FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3750,11 +3750,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// ToggleTrackSendUIMute
     /// send_idx<0 for receives, >=0 for hw ouputs, >=nb_of_hw_ouputs for sends.
-    pub var ToggleTrackSendUIMute: *fn (track: *MediaTrack, send_idx: c_int) callconv(.C) bool = undefined;
+    pub var ToggleTrackSendUIMute: *fn (track: MediaTrack, send_idx: c_int) callconv(.C) bool = undefined;
 
     /// Track_GetPeakHoldDB
     /// Returns meter hold state, in *dB0.01 (0 = +0dB, -0.01 = -1dB, 0.02 = +2dB, etc). If clear is set, clears the meter hold. If channel==1024 or channel==1025, returns loudness values if this is the master track or this track's VU meters are set to display loudness.
-    pub var Track_GetPeakHoldDB: *fn (track: *MediaTrack, channel: c_int, clear: bool) callconv(.C) f64 = undefined;
+    pub var Track_GetPeakHoldDB: *fn (track: MediaTrack, channel: c_int, clear: bool) callconv(.C) f64 = undefined;
 
     /// Track_GetPeakInfo
     /// Returns peak meter value (1.0=+0dB, 0.0=-inf) for channel. If channel==1024 or channel==1025, returns loudness values if this is the master track or this track's VU meters are set to display loudness.
@@ -3770,7 +3770,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_CopyToTake
     /// Copies (or moves) FX from src_track to dest_take. src_fx can have 0x1000000 set to reference input FX. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_CopyToTake: *fn (src_track: *MediaTrack, src_fx: c_int, dest_take: *MediaItem_Take, dest_fx: c_int, is_move: bool) callconv(.C) void = undefined;
+    pub var TrackFX_CopyToTake: *fn (src_track: MediaTrack, src_fx: c_int, dest_take: *MediaItem_Take, dest_fx: c_int, is_move: bool) callconv(.C) void = undefined;
 
     /// TrackFX_CopyToTrack
     /// Copies (or moves) FX from src_track to dest_track. Can be used with src_track=dest_track to reorder, FX indices have 0x1000000 set to reference input FX. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3782,15 +3782,15 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_EndParamEdit
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_EndParamEdit: *fn (track: *MediaTrack, fx: c_int, param: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_EndParamEdit: *fn (track: MediaTrack, fx: c_int, param: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_FormatParamValue
     /// Note: only works with FX that support Cockos VST extensions. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_FormatParamValue: *fn (track: *MediaTrack, fx: c_int, param: c_int, val: f64, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_FormatParamValue: *fn (track: MediaTrack, fx: c_int, param: c_int, val: f64, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_FormatParamValueNormalized
     /// Note: only works with FX that support Cockos VST extensions. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_FormatParamValueNormalized: *fn (track: *MediaTrack, fx: c_int, param: c_int, value: f64, buf: *c_char, buf_sz: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_FormatParamValueNormalized: *fn (track: MediaTrack, fx: c_int, param: c_int, value: f64, buf: *c_char, buf_sz: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_GetByName
     /// Get the index of the first track FX insert that matches fxname. If the FX is not in the chain and instantiate is true, it will be inserted. See TrackFX_GetInstrument, TrackFX_GetEQ. Deprecated in favor of TrackFX_AddByName.
@@ -3805,11 +3805,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetEnabled
     /// See TrackFX_SetEnabled FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetEnabled: *fn (track: *MediaTrack, fx: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_GetEnabled: *fn (track: MediaTrack, fx: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_GetEQ
     /// Get the index of ReaEQ in the track FX chain. If ReaEQ is not in the chain and instantiate is true, it will be inserted. See TrackFX_GetInstrument, TrackFX_GetByName.
-    pub var TrackFX_GetEQ: *fn (track: *MediaTrack, instantiate: bool) callconv(.C) c_int = undefined;
+    pub var TrackFX_GetEQ: *fn (track: MediaTrack, instantiate: bool) callconv(.C) c_int = undefined;
 
     /// TrackFX_GetEQBandEnabled
     /// Returns true if the EQ band is enabled.
@@ -3818,7 +3818,7 @@ pub const reaper = struct { // @import("reaper");
     /// Bandidx (ignored for master gain): 0=target first band matching bandtype, 1=target 2nd band matching bandtype, etc.
     ///
     /// See TrackFX_GetEQ, TrackFX_GetEQParam, TrackFX_SetEQParam, TrackFX_SetEQBandEnabled. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetEQBandEnabled: *fn (track: *MediaTrack, fxidx: c_int, bandtype: c_int, bandidx: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_GetEQBandEnabled: *fn (track: MediaTrack, fxidx: c_int, bandtype: c_int, bandidx: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_GetEQParam
     /// Returns false if track/fxidx is not ReaEQ.
@@ -3826,19 +3826,19 @@ pub const reaper = struct { // @import("reaper");
     /// Bandidx (ignored for master gain): 0=target first band matching bandtype, 1=target 2nd band matching bandtype, etc.
     /// Paramtype (ignored for master gain): 0=freq, 1=gain, 2=Q.
     /// See TrackFX_GetEQ, TrackFX_SetEQParam, TrackFX_GetEQBandEnabled, TrackFX_SetEQBandEnabled. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetEQParam: *fn (track: *MediaTrack, fxidx: c_int, paramidx: c_int, bandtypeOut: *c_int, bandidxOut: *c_int, paramtypeOut: *c_int, normvalOut: *f64) callconv(.C) bool = undefined;
+    pub var TrackFX_GetEQParam: *fn (track: MediaTrack, fxidx: c_int, paramidx: c_int, bandtypeOut: *c_int, bandidxOut: *c_int, paramtypeOut: *c_int, normvalOut: *f64) callconv(.C) bool = undefined;
 
     /// TrackFX_GetFormattedParamValue
     /// returns HWND of f32ing window for effect index, if any FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetFloatingWindow: *fn (track: *MediaTrack, index: c_int) callconv(.C) HWND = undefined;
+    pub var TrackFX_GetFloatingWindow: *fn (track: MediaTrack, index: c_int) callconv(.C) ?HWND = undefined;
 
     /// TrackFX_GetFormattedParamValue
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetFormattedParamValue: *fn (track: *MediaTrack, fx: c_int, param: c_int, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_GetFormattedParamValue: *fn (track: MediaTrack, fx: c_int, param: c_int, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_GetFXGUID
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetFXGUID: *fn (track: *MediaTrack, fx: c_int) callconv(.C) *GUID = undefined;
+    pub var TrackFX_GetFXGUID: *fn (track: MediaTrack, fx: c_int) callconv(.C) *GUID = undefined;
 
     /// TrackFX_GetFXName
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3846,7 +3846,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetInstrument
     /// Get the index of the first track FX insert that is a virtual instrument, or -1 if none. See TrackFX_GetEQ, TrackFX_GetByName.
-    pub var TrackFX_GetInstrument: *fn (track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var TrackFX_GetInstrument: *fn (track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// TrackFX_GetIOSize
     /// Gets the number of input/output pins for FX if available, returns plug-in type or -1 on error FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3911,11 +3911,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetNumParams
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetNumParams: *fn (track: *MediaTrack, fx: c_int) callconv(.C) c_int = undefined;
+    pub var TrackFX_GetNumParams: *fn (track: MediaTrack, fx: c_int) callconv(.C) c_int = undefined;
 
     /// TrackFX_GetOffline
     /// See TrackFX_SetOffline FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetOffline: *fn (track: *MediaTrack, fx: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_GetOffline: *fn (track: MediaTrack, fx: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_GetOpen
     /// Returns true if this FX UI is open in the FX chain window or a f32ing window. See TrackFX_SetOpen FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3923,15 +3923,15 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetParam
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetParam: *fn (track: *MediaTrack, fx: c_int, param: c_int, minvalOut: *f64, maxvalOut: *f64) callconv(.C) f64 = undefined;
+    pub var TrackFX_GetParam: *fn (track: MediaTrack, fx: c_int, param: c_int, minvalOut: *f64, maxvalOut: *f64) callconv(.C) f64 = undefined;
 
     /// TrackFX_GetParameterStepSizes
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetParameterStepSizes: *fn (track: *MediaTrack, fx: c_int, param: c_int, stepOut: *f64, smallstepOut: *f64, largestepOut: *f64, istoggleOut: *bool) callconv(.C) bool = undefined;
+    pub var TrackFX_GetParameterStepSizes: *fn (track: MediaTrack, fx: c_int, param: c_int, stepOut: *f64, smallstepOut: *f64, largestepOut: *f64, istoggleOut: *bool) callconv(.C) bool = undefined;
 
     /// TrackFX_GetParamEx
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetParamEx: *fn (track: *MediaTrack, fx: c_int, param: c_int, minvalOut: *f64, maxvalOut: *f64, midvalOut: *f64) callconv(.C) f64 = undefined;
+    pub var TrackFX_GetParamEx: *fn (track: MediaTrack, fx: c_int, param: c_int, minvalOut: *f64, maxvalOut: *f64, midvalOut: *f64) callconv(.C) f64 = undefined;
 
     /// TrackFX_GetParamFromIdent
     /// gets the parameter index from an identifying string (:wet, :bypass, :delta, or a string returned from GetParamIdent), or -1 if unknown. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3939,11 +3939,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetParamIdent
     /// gets an identifying string for the parameter FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetParamIdent: *fn (track: *MediaTrack, fx: c_int, param: c_int, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_GetParamIdent: *fn (track: MediaTrack, fx: c_int, param: c_int, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_GetParamName
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetParamName: *fn (track: *MediaTrack, fx: c_int, param: c_int, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_GetParamName: *fn (track: MediaTrack, fx: c_int, param: c_int, bufOut: [*:0]const u8, bufOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_GetParamNormalized
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3955,27 +3955,27 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_GetPreset
     /// Get the name of the preset currently showing in the REAPER dropdown, or the full path to a factory preset file for VST3 plug-ins (.vstpreset). See TrackFX_SetPreset. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetPreset: *fn (track: *MediaTrack, fx: c_int, presetnameOut: *c_char, presetnameOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_GetPreset: *fn (track: MediaTrack, fx: c_int, presetnameOut: [*:0]u8, presetnameOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_GetPresetIndex
     /// Returns current preset index, or -1 if error. numberOfPresetsOut will be set to total number of presets available. See TrackFX_SetPresetByIndex FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetPresetIndex: *fn (track: *MediaTrack, fx: c_int, numberOfPresetsOut: *c_int) callconv(.C) c_int = undefined;
+    pub var TrackFX_GetPresetIndex: *fn (track: MediaTrack, fx: c_int, numberOfPresetsOut: *c_int) callconv(.C) c_int = undefined;
 
     /// TrackFX_GetRecChainVisible
     /// returns index of effect visible in record input chain, or -1 for chain hidden, or -2 for chain visible but no effect selected
-    pub var TrackFX_GetRecChainVisible: *fn (track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var TrackFX_GetRecChainVisible: *fn (track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// TrackFX_GetRecCount
     /// returns count of record input FX. To access record input FX, use a FX indices [0x1000000..0x1000000+n). On the master track, this accesses monitoring FX rather than record input FX.
-    pub var TrackFX_GetRecCount: *fn (track: *MediaTrack) callconv(.C) c_int = undefined;
+    pub var TrackFX_GetRecCount: *fn (track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// TrackFX_GetUserPresetFilename
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_GetUserPresetFilename: *fn (track: *MediaTrack, fx: c_int, fnOut: *c_char, fnOut_sz: c_int) callconv(.C) void = undefined;
+    pub var TrackFX_GetUserPresetFilename: *fn (track: MediaTrack, fx: c_int, fnOut: *c_char, fnOut_sz: c_int) callconv(.C) void = undefined;
 
     /// TrackFX_NavigatePresets
     /// presetmove==1 activates the next preset, presetmove==-1 activates the previous preset, etc. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_NavigatePresets: *fn (track: *MediaTrack, fx: c_int, presetmove: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_NavigatePresets: *fn (track: MediaTrack, fx: c_int, presetmove: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_SetEnabled
     /// See TrackFX_GetEnabled FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -3988,7 +3988,7 @@ pub const reaper = struct { // @import("reaper");
     /// Bandidx (ignored for master gain): 0=target first band matching bandtype, 1=target 2nd band matching bandtype, etc.
     ///
     /// See TrackFX_GetEQ, TrackFX_GetEQParam, TrackFX_SetEQParam, TrackFX_GetEQBandEnabled. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetEQBandEnabled: *fn (track: *MediaTrack, fxidx: c_int, bandtype: c_int, bandidx: c_int, enable: bool) callconv(.C) bool = undefined;
+    pub var TrackFX_SetEQBandEnabled: *fn (track: MediaTrack, fxidx: c_int, bandtype: c_int, bandidx: c_int, enable: bool) callconv(.C) bool = undefined;
 
     /// TrackFX_SetEQParam
     /// Returns false if track/fxidx is not ReaEQ. Targets a band matching bandtype.
@@ -3996,7 +3996,7 @@ pub const reaper = struct { // @import("reaper");
     /// Bandidx (ignored for master gain): 0=target first band matching bandtype, 1=target 2nd band matching bandtype, etc.
     /// Paramtype (ignored for master gain): 0=freq, 1=gain, 2=Q.
     /// See TrackFX_GetEQ, TrackFX_GetEQParam, TrackFX_GetEQBandEnabled, TrackFX_SetEQBandEnabled. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetEQParam: *fn (track: *MediaTrack, fxidx: c_int, bandtype: c_int, bandidx: c_int, paramtype: c_int, val: f64, isnorm: bool) callconv(.C) bool = undefined;
+    pub var TrackFX_SetEQParam: *fn (track: MediaTrack, fxidx: c_int, bandtype: c_int, bandidx: c_int, paramtype: c_int, val: f64, isnorm: bool) callconv(.C) bool = undefined;
 
     /// TrackFX_SetNamedConfigParm
     /// sets plug-in specific named configuration value (returns true on success).
@@ -4039,7 +4039,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_SetOffline
     /// See TrackFX_GetOffline FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetOffline: *fn (track: *MediaTrack, fx: c_int, offline: bool) callconv(.C) void = undefined;
+    pub var TrackFX_SetOffline: *fn (track: MediaTrack, fx: c_int, offline: bool) callconv(.C) void = undefined;
 
     /// TrackFX_SetOpen
     /// Open this FX UI. See TrackFX_GetOpen FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -4047,7 +4047,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_SetParam
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetParam: *fn (track: *MediaTrack, fx: c_int, param: c_int, val: f64) callconv(.C) bool = undefined;
+    pub var TrackFX_SetParam: *fn (track: MediaTrack, fx: c_int, param: c_int, val: f64) callconv(.C) bool = undefined;
 
     /// TrackFX_SetParamNormalized
     ///  FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
@@ -4059,11 +4059,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// TrackFX_SetPreset
     /// Activate a preset with the name shown in the REAPER dropdown. Full paths to .vstpreset files are also supported for VST3 plug-ins. See TrackFX_GetPreset. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetPreset: *fn (track: *MediaTrack, fx: c_int, presetname: [*:0]const u8) callconv(.C) bool = undefined;
+    pub var TrackFX_SetPreset: *fn (track: MediaTrack, fx: c_int, presetname: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// TrackFX_SetPresetByIndex
     /// Sets the preset idx, or the factory preset (idx==-2), or the default user preset (idx==-1). Returns true on success. See TrackFX_GetPresetIndex. FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
-    pub var TrackFX_SetPresetByIndex: *fn (track: *MediaTrack, fx: c_int, idx: c_int) callconv(.C) bool = undefined;
+    pub var TrackFX_SetPresetByIndex: *fn (track: MediaTrack, fx: c_int, idx: c_int) callconv(.C) bool = undefined;
 
     /// TrackFX_Show
     /// showflag=0 for hidechain, =1 for show chain(index valid), =2 for hide f32ing window(index valid), =3 for show f32ing window (index valid) FX indices for tracks can have 0x1000000 added to them in order to reference record input FX (normal tracks) or hardware output FX (master track). FX indices can have 0x2000000 added to them, in which case they will be used to address FX in containers. To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index. e.g. to address the third item in the container at the second position of the track FX chain for tr, the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2. This can be extended to sub-containers using TrackFX_GetNamedConfigParm with container_count and similar logic. In REAPER v7.06+, you can use the much more convenient method to navigate hierarchies, see TrackFX_GetNamedConfigParm with parent_container and container_item.X.
