@@ -158,6 +158,14 @@ pub const EventLog = struct {
     }
 };
 
+const Color = struct {
+    const reset = "\x1b[0m";
+    const red = "\x1b[31m";
+    const yellow = "\x1b[33m";
+    const blue = "\x1b[34m";
+    // Add more colors as needed
+};
+
 pub fn log(
     comptime level: LogLevel,
     comptime format: []const u8,
@@ -168,9 +176,17 @@ pub fn log(
     if (log_level) |current_level| {
         if (!level.shouldLog(current_level.*)) return;
     }
+    const color = switch (level) {
+        .debug => Color.blue,
+        .info => Color.blue,
+        .warning => Color.yellow,
+        .err => Color.red,
+    };
 
     // Print to CLI
-    std.debug.print("[{s}] " ++ format ++ "\n", .{@tagName(level)} ++ args);
+
+    std.debug.print(color ++ "[{s}] " ++ format ++ Color.reset ++ "\n", .{@tagName(level)} ++ args);
+    // std.debug.print("[{s}] " ++ format ++ "\n", .{@tagName(level)} ++ args);
 
     // Log to file if enabled
     if (log_file) |file| {
@@ -193,8 +209,6 @@ pub fn log(
         } else {
             std.debug.print("unfound\n", .{});
         }
-    } else {
-        std.debug.print("no event\n", .{});
     }
 
     // Update debug overlay if active

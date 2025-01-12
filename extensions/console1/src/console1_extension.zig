@@ -15,6 +15,8 @@ const Conf = @import("internals/config.zig");
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
 const globals = @import("globals.zig");
+const logger = @import("logger.zig");
+
 const plugin_name = "Hello, Zig!";
 
 var state: State = undefined;
@@ -33,18 +35,19 @@ var queries_id: c_int = undefined;
 fn init() !void {
     myCsurf = control_surface.init(-1, -1, null);
     controller_dir = getControllerPath(gpa) catch |err| {
-        std.debug.print("Failed to create controller dir \n", .{});
+        logger.log(.warning, "Failed to create controller dir \n", .{}, null, gpa);
         return err;
     };
-    errdefer gpa.free(std.mem.span(controller_dir));
-    Conf.init(gpa, controller_dir) catch |err| {
-        std.debug.print("Failed to load config \n", .{});
-        return err;
-    };
+    errdefer |err| {
+        logger.log(.err, "C1 init failed: {s}", .{@errorName(err)}, null, gpa);
+        gpa.free(std.mem.span(controller_dir));
+    }
+    try Conf.init(gpa, controller_dir);
     errdefer Conf.deinit(gpa);
+
     userSettings = try UserSettings.init(gpa, controller_dir);
     state = State.init(gpa) catch |err| {
-        std.debug.print("Failed to init state \n", .{});
+        logger.log(.warning, "Failed to init state \n", .{}, null, gpa);
         return err;
     };
     ImGuiLoop.allocator = gpa;

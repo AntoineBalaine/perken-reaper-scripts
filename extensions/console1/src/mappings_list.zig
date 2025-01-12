@@ -1,9 +1,10 @@
 const std = @import("std");
 const config = @import("internals/config.zig");
+const logger = @import("logger.zig");
+
 // Store just file names, not actual mappings
 list: std.EnumArray(config.ModulesList, std.StringHashMap(void)),
 allocator: std.mem.Allocator,
-
 pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
     var maps = std.EnumArray(config.ModulesList, std.StringHashMap(void)).initUndefined();
 
@@ -20,7 +21,10 @@ pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
         while (try iter.next()) |entry| {
             if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".ini")) {
                 const name = try gpa.dupe(u8, std.fs.path.stem(entry.name));
-                try maps.getPtr(module).put(name, {});
+                maps.getPtr(module).put(name, {}) catch {
+                    logger.log(.warning, "Mappings list: Failed to store fx name {s}\n", .{entry.name}, null, gpa);
+                    continue;
+                };
             }
         }
     }
