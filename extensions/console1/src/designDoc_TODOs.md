@@ -1,3 +1,6 @@
+WHAT TO DO WHEN THE RESOURCES FOLDER IS NOT FOUND 
+embed the resources folder in the binary and create the files.
+
 SCROLLING THROUGH THE BROWSER WITH THE CONSOLE
 Now, the idea here is that it’s possible to browse through the list of mappings with a knob of the console. This requires a scroll action for the fx_sel mode.
 In imgui, when scrolling through a menu, is there an api to find out the scroll position inside a menu, and is there an API for incrementing that scroll position/selection?
