@@ -3,68 +3,71 @@ const config = @import("config.zig");
 const ini = @import("ini");
 const logger = @import("../logger.zig");
 const settings = @import("../settings.zig");
+const MappingState = @import("../statemachine.zig").MappingState;
+pub const UNMAPPED_PARAM: u8 = std.math.maxInt(u8); // or -1, or another sentinel value
+
 /// values are set to std.math.maxInt(u8) for unset mappings
 pub const Comp = struct {
-    Comp_Attack: u8 = std.math.maxInt(u8),
-    Comp_DryWet: u8 = std.math.maxInt(u8),
-    Comp_Ratio: u8 = std.math.maxInt(u8),
-    Comp_Release: u8 = std.math.maxInt(u8),
-    Comp_Thresh: u8 = std.math.maxInt(u8),
-    Comp_comp: u8 = std.math.maxInt(u8),
+    Comp_Attack: u8 = UNMAPPED_PARAM,
+    Comp_DryWet: u8 = UNMAPPED_PARAM,
+    Comp_Ratio: u8 = UNMAPPED_PARAM,
+    Comp_Release: u8 = UNMAPPED_PARAM,
+    Comp_Thresh: u8 = UNMAPPED_PARAM,
+    Comp_comp: u8 = UNMAPPED_PARAM,
     // Comp_Mtr : u8,
 };
 
-/// values are set to std.math.maxInt(u8) for unset mappings
+/// values are set to UNMAPPED_PARAM for unset mappings
 pub const Eq = struct {
-    Eq_HiFrq: u8 = std.math.maxInt(u8),
-    Eq_HiGain: u8 = std.math.maxInt(u8),
-    Eq_HiMidFrq: u8 = std.math.maxInt(u8),
-    Eq_HiMidGain: u8 = std.math.maxInt(u8),
-    Eq_HiMidQ: u8 = std.math.maxInt(u8),
-    Eq_LoFrq: u8 = std.math.maxInt(u8),
-    Eq_LoGain: u8 = std.math.maxInt(u8),
-    Eq_LoMidFrq: u8 = std.math.maxInt(u8),
-    Eq_LoMidGain: u8 = std.math.maxInt(u8),
-    Eq_LoMidQ: u8 = std.math.maxInt(u8),
-    Eq_eq: u8 = std.math.maxInt(u8),
-    Eq_hp_shape: u8 = std.math.maxInt(u8),
-    Eq_lp_shape: u8 = std.math.maxInt(u8),
+    Eq_HiFrq: u8 = UNMAPPED_PARAM,
+    Eq_HiGain: u8 = UNMAPPED_PARAM,
+    Eq_HiMidFrq: u8 = UNMAPPED_PARAM,
+    Eq_HiMidGain: u8 = UNMAPPED_PARAM,
+    Eq_HiMidQ: u8 = UNMAPPED_PARAM,
+    Eq_LoFrq: u8 = UNMAPPED_PARAM,
+    Eq_LoGain: u8 = UNMAPPED_PARAM,
+    Eq_LoMidFrq: u8 = UNMAPPED_PARAM,
+    Eq_LoMidGain: u8 = UNMAPPED_PARAM,
+    Eq_LoMidQ: u8 = UNMAPPED_PARAM,
+    Eq_eq: u8 = UNMAPPED_PARAM,
+    Eq_hp_shape: u8 = UNMAPPED_PARAM,
+    Eq_lp_shape: u8 = UNMAPPED_PARAM,
 };
 
-/// values are set to std.math.maxInt(u8) for unset mappings
+/// values are set to UNMAPPED_PARAM for unset mappings
 pub const Inpt = struct {
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
-    Inpt_Gain: u8 = std.math.maxInt(u8),
-    Inpt_HiCut: u8 = std.math.maxInt(u8),
-    Inpt_LoCut: u8 = std.math.maxInt(u8),
-    Inpt_disp_mode: u8 = std.math.maxInt(u8),
-    Inpt_disp_on: u8 = std.math.maxInt(u8),
-    Inpt_filt_to_comp: u8 = std.math.maxInt(u8),
-    Inpt_phase_inv: u8 = std.math.maxInt(u8),
-    Inpt_preset: u8 = std.math.maxInt(u8),
+    Inpt_Gain: u8 = UNMAPPED_PARAM,
+    Inpt_HiCut: u8 = UNMAPPED_PARAM,
+    Inpt_LoCut: u8 = UNMAPPED_PARAM,
+    Inpt_disp_mode: u8 = UNMAPPED_PARAM,
+    Inpt_disp_on: u8 = UNMAPPED_PARAM,
+    Inpt_filt_to_comp: u8 = UNMAPPED_PARAM,
+    Inpt_phase_inv: u8 = UNMAPPED_PARAM,
+    Inpt_preset: u8 = UNMAPPED_PARAM,
 };
 
-/// values are set to std.math.maxInt(u8) for unset mappings
+/// values are set to UNMAPPED_PARAM for unset mappings
 pub const Outpt = struct {
-    Out_Drive: u8 = std.math.maxInt(u8),
-    Out_DriveChar: u8 = std.math.maxInt(u8),
-    // Out_MtrLft : u8 = std.math.maxInt(u8),
-    // Out_MtrRgt : u8 = std.math.maxInt(u8),
-    Out_Pan: u8 = std.math.maxInt(u8),
-    Out_Vol: u8 = std.math.maxInt(u8),
-    // Out_mute : u8 = std.math.maxInt(u8),
-    // Out_solo : u8 = std.math.maxInt(u8),
+    Out_Drive: u8 = UNMAPPED_PARAM,
+    Out_DriveChar: u8 = UNMAPPED_PARAM,
+    // Out_MtrLft : u8 = UNMAPPED_PARAM,
+    // Out_MtrRgt : u8 = UNMAPPED_PARAM,
+    Out_Pan: u8 = UNMAPPED_PARAM,
+    Out_Vol: u8 = UNMAPPED_PARAM,
+    // Out_mute : u8 = UNMAPPED_PARAM,
+    // Out_solo : u8 = UNMAPPED_PARAM,
 };
 
-/// values are set to std.math.maxInt(u8) for unset mappings
+/// values are set to UNMAPPED_PARAM for unset mappings
 pub const Shp = struct {
-    Shp_Gate: u8 = std.math.maxInt(u8),
-    Shp_GateRelease: u8 = std.math.maxInt(u8),
-    Shp_Punch: u8 = std.math.maxInt(u8),
-    Shp_hard_gate: u8 = std.math.maxInt(u8),
-    Shp_shape: u8 = std.math.maxInt(u8),
-    Shp_sustain: u8 = std.math.maxInt(u8),
+    Shp_Gate: u8 = UNMAPPED_PARAM,
+    Shp_GateRelease: u8 = UNMAPPED_PARAM,
+    Shp_Punch: u8 = UNMAPPED_PARAM,
+    Shp_hard_gate: u8 = UNMAPPED_PARAM,
+    Shp_shape: u8 = UNMAPPED_PARAM,
+    Shp_sustain: u8 = UNMAPPED_PARAM,
 };
 
 /// FxMap associates an Fx index with a module map
@@ -284,6 +287,66 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
         }
     }
     return ret_struct;
+}
+
+pub fn saveToFile(self: *MapStore, mapping_state: MappingState) !void {
+    // Build path: resourcePath/maps/<MODULE>/<target_fx>.ini
+
+    // Create path buffers and join components
+    var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const path = try std.fmt.bufPrint(
+        &path_buf,
+        "{s}/maps/{s}/{s}.ini",
+        .{
+            self.controller_dir,
+            @tagName(mapping_state.current_mappings),
+            mapping_state.target_fx,
+        },
+    );
+
+    // Create or truncate file
+    const file = try std.fs.createFileAbsolute(path, .{
+        .read = true,
+        .truncate = true,
+    });
+    defer file.close();
+
+    // Write mappings
+    var writer = file.writer();
+
+    // Write different fields based on module type
+    switch (mapping_state.current_mappings) {
+        .COMP => |comp| inline for (std.meta.fields(@TypeOf(comp))) |field| {
+            try writer.print("{s} = {d}\n", .{
+                field.name,
+                @field(comp, field.name),
+            });
+        },
+        .EQ => |eq| inline for (std.meta.fields(@TypeOf(eq))) |field| {
+            try writer.print("{s} = {d}\n", .{
+                field.name,
+                @field(eq, field.name),
+            });
+        },
+        .INPUT => |input| inline for (std.meta.fields(@TypeOf(input))) |field| {
+            try writer.print("{s} = {d}\n", .{
+                field.name,
+                @field(input, field.name),
+            });
+        },
+        .OUTPT => |outpt| inline for (std.meta.fields(@TypeOf(outpt))) |field| {
+            try writer.print("{s} = {d}\n", .{
+                field.name,
+                @field(outpt, field.name),
+            });
+        },
+        .GATE => |gate| inline for (std.meta.fields(@TypeOf(gate))) |field| {
+            try writer.print("{s} = {d}\n", .{
+                field.name,
+                @field(gate, field.name),
+            });
+        },
+    }
 }
 
 test readToU8Struct {

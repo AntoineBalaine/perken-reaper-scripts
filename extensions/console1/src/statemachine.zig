@@ -12,6 +12,7 @@ const MapStore = @import("internals/mappings.zig");
 const FxMap = MapStore.FxMap;
 const track = @import("internals/track.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
+const globals = @import("globals.zig");
 
 pub const Mode = enum {
 
@@ -117,11 +118,11 @@ pub const MappingState = struct {
         return .{
             .target_fx = try gpa.dupeZ(u8, fx_name),
             .current_mappings = switch (module_type) {
-                .COMP => .{ .COMP = .{} },
-                .EQ => .{ .EQ = .{} },
-                .INPUT => .{ .INPUT = .{} },
-                .OUTPT => .{ .OUTPT = .{} },
-                .GATE => .{ .GATE = .{} },
+                .COMP => globals.map_store.COMP.get(fx_name).?,
+                .EQ => globals.map_store.EQ.get(fx_name).?,
+                .INPUT => globals.map_store.INPUT.get(fx_name).?,
+                .OUTPT => globals.map_store.OUTPT.get(fx_name).?,
+                .GATE => globals.map_store.GATE.get(fx_name).?,
             },
             .selected_parameter = null,
             .selected_control = null,
