@@ -11,6 +11,8 @@ const globals = @import("globals.zig");
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const SettingsPanel = @import("settings_panel.zig");
 const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
+const fxParser = @import("fx_parser.zig");
+const fx_browser = @import("fx_browser.zig");
 
 const plugin_name = "CONSOLE1";
 pub var action_id: c_int = undefined;
@@ -24,6 +26,7 @@ fn init() !void {
     const ctx_flags = imgui.ConfigFlags_DockingEnable;
     ctx = try imgui.CreateContext(.{ plugin_name, ctx_flags });
 
+    try fxParser.init(allocator);
     try Theme.init(ctx, true);
     try styles.init(ctx);
 
@@ -33,7 +36,9 @@ fn init() !void {
         imgui.WindowFlags_NoNav + imgui.WindowFlags_NoFocusOnAppearing;
 }
 
-pub fn deinit() void {}
+pub fn deinit() void {
+    fxParser.deinit(allocator);
+}
 
 var buf: [128:0]u8 = undefined;
 
@@ -75,6 +80,9 @@ fn main() !void {
                         },
                     }
                 }
+            },
+            .fx_sel => {
+                try fx_browser.Popup(ctx);
             },
             else => {},
         }

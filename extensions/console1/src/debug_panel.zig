@@ -5,7 +5,7 @@ const logger = @import("logger.zig");
 
 const DEBUG_BUF_SIZE = 512;
 
-fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) ![:0]const u8 {
+pub fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) ![:0]const u8 {
     return std.fmt.bufPrintZ(buf, fmt, args) catch |err| switch (err) {
         error.NoSpaceLeft => blk: {
             const ellipsis = "…";

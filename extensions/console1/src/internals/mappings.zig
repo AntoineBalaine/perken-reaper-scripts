@@ -97,6 +97,7 @@ OUTPT: std.StringHashMapUnmanaged(Outpt),
 GATE: std.StringHashMapUnmanaged(Shp),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
+
 pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *config.Defaults) !MapStore {
     var self: MapStore = .{
         .COMP = std.StringHashMapUnmanaged(Comp){},

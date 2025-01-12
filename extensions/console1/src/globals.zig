@@ -5,6 +5,7 @@ const MapStore = @import("internals/mappings.zig").MapStore;
 const logger = @import("logger.zig");
 const EventLog = logger.EventLog;
 const SettingsPanel = @import("settings_panel.zig");
+const MappingsList = @import("mappings_list.zig");
 
 // State machine
 pub var state: State = undefined;
@@ -12,6 +13,9 @@ pub var state: State = undefined;
 // Configuration
 pub var preferences: Preferences = undefined;
 pub var map_store: MapStore = undefined;
+pub var mappings_list: MappingsList = undefined;
+
+// UI
 pub var settings_panel: ?SettingsPanel = null;
 
 // Logging
@@ -30,6 +34,7 @@ pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
     preferences = try Preferences.init(allocator, resource_path);
 
     map_store = try MapStore.init(allocator, resource_path, &preferences.default_fx);
+    mappings_list = try MappingsList.init(allocator, resource_path);
     event_log = EventLog.init();
     state = State.init(gpa);
     settings_panel = try SettingsPanel.init(&preferences, gpa);
@@ -38,6 +43,7 @@ pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
 
 pub fn deinit(alloc: std.mem.Allocator) void {
     map_store.deinit();
+    mappings_list.deinit();
     preferences.deinit();
     state.deinit(alloc);
     allocator.free(resource_path);

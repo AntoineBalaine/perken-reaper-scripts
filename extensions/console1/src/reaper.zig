@@ -636,15 +636,15 @@ pub const reaper = struct { // @import("reaper");
 
     /// EnumerateFiles
     /// List the files in the "path" directory. Returns NULL/nil when all files have been listed. Use fileindex = -1 to force re-read of directory (invalidate cache). See EnumerateSubdirectories
-    pub var EnumerateFiles: *fn (path: [*:0]const u8, fileindex: c_int) callconv(.C) [*:0]const u8 = undefined;
+    pub var EnumerateFiles: *fn (path: [*:0]const u8, fileindex: c_int) callconv(.C) ?[*:0]const u8 = undefined;
 
     /// EnumerateSubdirectories
     /// List the subdirectories in the "path" directory. Use subdirindex = -1 to force re-read of directory (invalidate cache). Returns NULL/nil when all subdirectories have been listed. See EnumerateFiles
-    pub var EnumerateSubdirectories: *fn (path: [*:0]const u8, subdirindex: c_int) callconv(.C) [*:0]const u8 = undefined;
+    pub var EnumerateSubdirectories: *fn (path: [*:0]const u8, subdirindex: c_int) callconv(.C) ?[*:0]const u8 = undefined;
 
     /// EnumInstalledFX
     /// Enumerates installed FX. Returns true if successful, sets nameOut and identOut to name and ident of FX at index.
-    pub var EnumInstalledFX: *fn (index: c_int, nameOut: [*:0]const u8, identOut: [*:0]const u8) callconv(.C) bool = undefined;
+    pub var EnumInstalledFX: *fn (index: c_int, nameOut: *[*:0]const u8, identOut: *[*:0]const u8) callconv(.C) bool = undefined;
 
     /// EnumPitchShiftModes
     /// Start querying modes at 0, returns FALSE when no more modes possible, sets strOut to NULL if a mode is currently unsupported
@@ -1388,7 +1388,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSelectedTrack
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based). This function ignores the master track, see GetSelectedTrack2.
-    pub var GetSelectedTrack: *fn (proj: ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack = undefined;
+    pub var GetSelectedTrack: *fn (proj: ReaProject, seltrackidx: c_int) callconv(.C) ?MediaTrack = undefined;
 
     /// GetSelectedTrack2
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based).
