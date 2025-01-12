@@ -10,7 +10,7 @@ const debug_panel = @import("debug_panel.zig");
 const globals = @import("globals.zig");
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const settings_panel = @import("settings_panel.zig");
-const ButtonsBar = @import("ButtonsBar.zig");
+const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 
 const plugin_name = "CONSOLE1";
 pub var action_id: c_int = undefined;

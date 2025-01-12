@@ -2,7 +2,7 @@ const std = @import("std");
 const config = @import("config.zig");
 const ini = @import("ini");
 const logger = @import("../logger.zig");
-const config_manager = @import("../config_manager.zig");
+const settings = @import("../settings.zig");
 /// values are set to std.math.maxInt(u8) for unset mappings
 pub const Comp = struct {
     Comp_Attack: u8 = std.math.maxInt(u8),
@@ -318,7 +318,7 @@ test "MapStore - initialization and caching" {
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
 
-    var cur_config = try config_manager.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path);
     defer cur_config.deinit();
 
     // Now setup MapStore with initialized config
@@ -349,7 +349,7 @@ test "MapStore - lazy loading and caching" {
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
 
-    var cur_config = try config_manager.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path);
     defer cur_config.deinit();
 
     var store = try MapStore.init(
@@ -394,7 +394,7 @@ test "MapStore - invalid fx name" {
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
-    var cur_config = try config_manager.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path);
     defer cur_config.deinit();
     var store = try MapStore.init(
         allocator,
@@ -423,7 +423,7 @@ test "MapStore - mapping validation" {
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
 
-    var cur_config = try config_manager.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path);
     defer cur_config.deinit();
     var store = try MapStore.init(
         allocator,
@@ -457,7 +457,7 @@ test "MapStore - cross-module access" {
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
 
-    var cur_config = try config_manager.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path);
     defer cur_config.deinit();
     var store = try MapStore.init(
         allocator,

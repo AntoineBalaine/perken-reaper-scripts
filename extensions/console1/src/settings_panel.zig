@@ -1,6 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
-const Preferences = @import("config_manager.zig");
+const Preferences = @import("settings.zig");
 const globals = @import("globals.zig");
 
 // Temporary copy for editing

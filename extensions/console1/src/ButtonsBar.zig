@@ -6,6 +6,7 @@ const Theme = @import("theme/Theme.zig");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");
 const globals = @import("globals.zig");
+
 pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
     var rv = true;
     try imgui.BeginGroup(.{ctx});

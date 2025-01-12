@@ -1,6 +1,6 @@
 const std = @import("std");
 const State = @import("statemachine.zig").State;
-const Preferences = @import("config_manager.zig").Preferences;
+const Preferences = @import("settings.zig").Preferences;
 const MapStore = @import("internals/mappings.zig").MapStore;
 const logger = @import("logger.zig");
 const EventLog = logger.EventLog;
