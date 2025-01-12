@@ -149,7 +149,7 @@ fn Menus(
 var counter: ?u8 = null;
 
 fn RescanButton(ctx: imgui.ContextPtr) !void {
-    if (imgui.Button(.{ ctx, "Rescan plugin list" })) {
+    if (try imgui.Button(.{ ctx, "Rescan plugin list" })) {
         fx_parser.deinit();
         fx_parser.init();
         counter = 0;
@@ -179,7 +179,7 @@ pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("internals/config.zig").ModulesList,
     mappings: std.StringHashMap(void),
-) !void {
+) !bool {
     const PopWindowStyle = try PushWindowStyle(ctx, .main);
     defer PopWindowStyle(ctx) catch {};
 
@@ -188,50 +188,70 @@ pub fn ModulePopup(
 
     var buf: [128:0]u8 = undefined;
     const title = try safePrint(&buf, "{s} FX Browser", .{@tagName(module)});
+    var open = true;
+    if (try imgui.Begin(.{ ctx, title, &open })) {
+        defer imgui.End(.{ctx}) catch {};
 
-    {
-        imgui.Text(.{ ctx, title });
+        try imgui.Text(.{ ctx, title });
+        var iterator = mappings.iterator();
+        while (iterator.next()) |entry| {
+            const fx_name: [:0]const u8 = @ptrCast(entry.key_ptr.*);
+            if (try imgui.Selectable(.{ ctx, fx_name })) {
+                const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
+                if (track) |tr| {
+                    _ = reaper.TrackFX_AddByName(
+                        tr,
+                        fx_name,
+                        false,
+                        -1000 - reaper.TrackFX_GetCount(tr),
+                    );
+                }
+                last_used_fx = fx_name;
+            }
+        }
+
         // if (try imgui.BeginPopup(.{ ctx, title, null })) {
         //     defer imgui.EndPopup(.{ctx}) catch {};
 
         // First, show section for mapped FX
-        if (try imgui.CollapsingHeader(.{ ctx, "Mapped FX", .{ .default_open = true } })) {
-            if (try imgui.BeginChild(.{ ctx, "mapped_fx_list", .{ .w = 0, .h = 150 } })) {
-                defer imgui.EndChild(.{ctx}) catch {};
-
-                // Iterate through mapped FX
-                var iterator = mappings.iterator();
-                while (iterator.next()) |entry| {
-                    const fx_name = entry.key_ptr.*;
-                    if (try imgui.Selectable(.{ ctx, fx_name })) {
-                        const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
-                        if (track) |tr| {
-                            _ = reaper.TrackFX_AddByName(
-                                tr,
-                                fx_name,
-                                false,
-                                -1000 - reaper.TrackFX_GetCount(tr),
-                            );
-                        }
-                        last_used_fx = fx_name;
-                    }
-                }
-            }
-        }
+        // if (try imgui.CollapsingHeader(.{ ctx, "Mapped FX" })) {
+        //     if (try imgui.BeginChild(.{ ctx, "mapped_fx_list", 0, 150 })) {
+        //         defer imgui.EndChild(.{ctx}) catch {};
+        //
+        //         // Iterate through mapped FX
+        //         var iterator = mappings.iterator();
+        //         while (iterator.next()) |entry| {
+        //             const fx_name: [:0]const u8 = @ptrCast(entry.key_ptr.*);
+        //             if (try imgui.Selectable(.{ ctx, fx_name })) {
+        //                 const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
+        //                 if (track) |tr| {
+        //                     _ = reaper.TrackFX_AddByName(
+        //                         tr,
+        //                         fx_name,
+        //                         false,
+        //                         -1000 - reaper.TrackFX_GetCount(tr),
+        //                     );
+        //                 }
+        //                 last_used_fx = fx_name;
+        //             }
+        //         }
+        //     }
+        // }
 
         // Separator between mapped and unmapped FX
         try imgui.Separator(.{ctx});
 
+        try Menus(ctx);
         // Then show regular browser menus for additional FX
-        if (try imgui.CollapsingHeader(.{ ctx, "All FX", .{ .default_open = true } })) {
-            if (try imgui.BeginChild(.{ ctx, "all_fx_browser" })) {
-                defer imgui.EndChild(.{ctx}) catch {};
-                try Menus(ctx);
-            }
-        }
+        // if (try imgui.CollapsingHeader(.{ ctx, "All FX" })) {
+        //     if (try imgui.BeginChild(.{ ctx, "all_fx_browser" })) {
+        //         defer imgui.EndChild(.{ctx}) catch {};
+        //     }
+        // }
 
         // Optional: Add rescan button at bottom
         try imgui.Separator(.{ctx});
-        try RescanButton(ctx);
+        // try RescanButton(ctx);
     }
+    return open;
 }

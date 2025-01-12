@@ -13,6 +13,7 @@ const SettingsPanel = @import("settings_panel.zig");
 const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fxParser = @import("fx_parser.zig");
 const fx_browser = @import("fx_browser.zig");
+const actions = @import("actions.zig");
 
 const plugin_name = "CONSOLE1";
 pub var action_id: c_int = undefined;
@@ -82,7 +83,19 @@ fn main() !void {
                 }
             },
             .fx_sel => {
-                try fx_browser.Popup(ctx);
+                try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state);
+                const module = globals.state.fx_sel.current_category;
+                const list = switch (module) {
+                    .INPUT => globals.mappings_list.list.get(.INPUT),
+                    .GATE => globals.mappings_list.list.get(.GATE),
+                    .EQ => globals.mappings_list.list.get(.EQ),
+                    .COMP => globals.mappings_list.list.get(.COMP),
+                    .OUTPT => globals.mappings_list.list.get(.OUTPT),
+                };
+
+                if (!try fx_browser.ModulePopup(ctx, module, list)) {
+                    actions.dispatch(&globals.state, .{ .fx_sel = .close_module_browser });
+                }
             },
             else => {},
         }
