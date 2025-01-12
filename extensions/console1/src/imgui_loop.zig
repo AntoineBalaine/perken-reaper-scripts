@@ -4,7 +4,7 @@ const imgui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
-const configurations = @import("configurations.zig");
+const styles = @import("styles.zig");
 const logger = @import("logger.zig");
 const debug_panel = @import("debug_panel.zig");
 const globals = @import("globals.zig");
@@ -25,7 +25,7 @@ fn init() !void {
     ctx = try imgui.CreateContext(.{ plugin_name, ctx_flags });
 
     try Theme.init(ctx, true);
-    try configurations.init(ctx);
+    try styles.init(ctx);
 
     windowFlags =
         imgui.WindowFlags_NoCollapse +
@@ -45,7 +45,7 @@ fn main() !void {
     var open: bool = true;
 
     try imgui.SetConfigVar(.{ ctx, imgui.ConfigVar_WindowsMoveFromTitleBarOnly, 1.0 });
-    const PopStyle = try configurations.PushStyle(ctx, .rack);
+    const PopStyle = try styles.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
 
     try imgui.SetNextWindowDockID(.{ ctx, -1 });
@@ -53,11 +53,11 @@ fn main() !void {
         defer imgui.End(.{ctx}) catch {};
 
         open = try ButtonsBar(ctx);
-        if (configurations.rack_style_open) {
-            try configurations.StyleEditor(ctx, .rack);
+        if (styles.rack_style_open) {
+            try styles.StyleEditor(ctx, .rack);
         }
-        if (configurations.main_style_open) {
-            try configurations.StyleEditor(ctx, .main);
+        if (styles.main_style_open) {
+            try styles.StyleEditor(ctx, .main);
         }
         switch (globals.state.current_mode) {
             .fx_ctrl => {

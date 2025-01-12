@@ -4,7 +4,7 @@ const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const defaults = @import("constants.zig");
-const Configurations = @import("configurations.zig");
+const styles = @import("styles.zig");
 const globals = @import("globals.zig");
 pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
     var rv = true;
@@ -38,7 +38,7 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
         defer imgui.PopFont(.{ctx}) catch {};
         const pinIcon = Theme.Icons.get(.arrow_right);
         if (try imgui.Button(.{ ctx, @as([*:0]const u8, pinIcon), defaults.button_size, defaults.button_size })) {
-            try Configurations.toggle_rack_style_win();
+            try styles.toggle_rack_style_win();
         }
     }
 
@@ -51,7 +51,7 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
         defer imgui.PopFont(.{ctx}) catch {};
         const pinIcon = Theme.Icons.get(.arrow_down);
         if (try imgui.Button(.{ ctx, @as([*:0]const u8, pinIcon), defaults.button_size, defaults.button_size })) {
-            try Configurations.toggle_main_style_win();
+            try styles.toggle_main_style_win();
         }
     }
 
