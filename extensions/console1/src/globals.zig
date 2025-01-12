@@ -22,8 +22,8 @@ pub var log_file: ?std.fs.File = null; // Store the actual file, not just a poin
 pub var allocator: std.mem.Allocator = undefined;
 pub var resource_path: [:0]const u8 = undefined;
 
-pub fn init(alloc: std.mem.Allocator, path: [*:0]const u8) !void {
-    allocator = alloc;
+pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
+    allocator = gpa;
     resource_path = try allocator.dupeZ(u8, std.mem.span(path));
 
     // Initialize in dependency order
@@ -31,8 +31,8 @@ pub fn init(alloc: std.mem.Allocator, path: [*:0]const u8) !void {
 
     map_store = try MapStore.init(allocator, resource_path, &preferences.default_fx);
     event_log = EventLog.init();
-    state = State.init(alloc);
-
+    state = State.init(gpa);
+    settings_panel = try SettingsPanel.init(&preferences, gpa);
     try initLoggerState();
 }
 

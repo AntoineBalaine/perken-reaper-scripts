@@ -9,28 +9,11 @@ const statemachine = @import("statemachine.zig");
 const logger = @import("logger.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
-const globals = @import("globals");
+const globals = @import("globals.zig");
+const SettingsPanel = @import("settings_panel.zig");
 
 const allocator: std.mem.Allocator = undefined;
 const valid_transitions = statemachine.valid_transitions;
-// Base actions that can occur in any mode
-const SystemAction = union(enum) {
-    // Track-related
-    track_selected: reaper.MediaTrack,
-    last_touched_track: reaper.MediaTrack,
-    track_list_changed,
-
-    // Transport
-    play_state_changed: struct {
-        playing: bool,
-        paused: bool,
-    },
-
-    // FX-related
-    fx_chain_changed: reaper.MediaTrack,
-    fx_param_changed: ParamChg,
-    fx_window_state: WinChg,
-};
 pub const ParamChg = struct {
     track: reaper.MediaTrack,
     fx_index: i32,
@@ -79,6 +62,9 @@ const ModeAction = union(enum) {
 
     // Settings Mode
     settings: union(enum) {
+        open, // Request to open settings
+        save, // Save and close
+        cancel, // Cancel and close
         set_show_plugin_ui: bool,
         set_manual_routing: bool,
         set_log_to_file: bool,
@@ -88,69 +74,25 @@ const ModeAction = union(enum) {
             fx_name: []const u8,
         },
     },
-
+    Csurf: union(enum) {
+        csurf_track_selected: reaper.MediaTrack,
+        csurf_last_touched_track: reaper.MediaTrack,
+        csurf_track_list_changed,
+        csurf_play_state_changed: struct {
+            playing: bool,
+            paused: bool,
+        },
+        csurf_fx_chain_changed: reaper.MediaTrack,
+        csurf_fx_param_changed: ParamChg,
+        csurf_fx_window_state: WinChg,
+    },
     // Mode transitions
     change_mode: Mode,
 };
 
-// Combined action type for state updates
-pub const Action = union(enum) {
-    system: SystemAction,
-    mode: ModeAction,
-};
-
 // Top-level update function
-pub fn handleAction(state: *State, action: Action) void {
+pub fn dispatch(state: *State, action: ModeAction) void {
     logger.log(.debug, "Handling action: {s}", .{@tagName(action)}, null, allocator);
-
-    switch (action) {
-        .system => |sys_action| handleSystemAction(state, sys_action),
-        .mode => |mode_action| handleModeAction(state, mode_action),
-    }
-}
-
-fn handleSystemAction(state: *State, action: SystemAction) void {
-    logger.log(.debug, "sys action: {s}", .{@tagName(action)}, null, allocator);
-    switch (action) {
-        .track_selected => |track| {
-            // Update selected tracks map
-            const id = reaper.CSurf_TrackToID(track, false);
-            state.selectedTracks.put(allocator, id, {}) catch return;
-        },
-        .last_touched_track => |track| {
-            const id = reaper.CSurf_TrackToID(track, false);
-            if (state.last_touched_tr_id != id) {
-                state.last_touched_tr_id = id;
-
-                // Update mode-specific state based on new track
-                switch (state.current_mode) {
-                    .fx_ctrl => updateFxControlTrack(state, track),
-                    else => {}, // Other modes might not need track updates
-                }
-            }
-        },
-        .fx_chain_changed => |track| {
-            // Revalidate FX chain for current track
-            validateFxChain(state, track);
-        },
-        .fx_param_changed => |param| {
-            if (state.current_mode == .fx_ctrl) {
-                updateControllerFeedback(state, param);
-            }
-        },
-        .play_state_changed => |transport| {
-            // Update metering state
-            if (transport.playing and !transport.paused) {
-                // Start meters update timer
-            } else {
-                // Stop meters update timer
-            }
-        },
-        else => {},
-    }
-}
-
-fn handleModeAction(state: *State, action: ModeAction) void {
     switch (action) {
         .change_mode => |new_mode| {
             // Validate mode transition
@@ -201,19 +143,83 @@ fn handleModeAction(state: *State, action: ModeAction) void {
             // ... other mapping actions
         },
         .settings => |set_action| switch (set_action) {
+            .open => {
+                if (globals.settings_panel == null) {
+                    globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.allocator) catch null;
+                }
+                state.current_mode = .settings;
+                dispatch(&globals.state, .{ .change_mode = .settings });
+            },
+            .save => {
+                if (globals.settings_panel) |*panel| {
+                    panel.save() catch {
+                        // if the panel fails to save to disk, just keep going?
+                    };
+                    panel.deinit();
+                    globals.settings_panel = null;
+                }
+                dispatch(&globals.state, .{ .change_mode = .fx_ctrl });
+            },
+            .cancel => {
+                if (globals.settings_panel) |*panel| {
+                    panel.deinit();
+                    globals.settings_panel = null;
+                }
+                state.current_mode = .fx_ctrl; // or previous mode
+            },
             .set_show_plugin_ui => |show| {
                 state.fx_ctrl.show_plugin_ui = show;
                 // Update settings file
             },
             .set_log_to_file => |enable| {
                 globals.preferences.log_to_file = enable;
-                try globals.updateLoggerState();
+                globals.updateLoggerState() catch {
+                    // if writing to log file fails, continue anyway?
+                };
             },
             .set_log_level => |level| {
                 globals.preferences.log_level = level;
             },
+
             else => {},
             // ... other settings actions
+        },
+        .Csurf => |set_action| switch (set_action) {
+            .csurf_track_selected => |track| {
+                // Update selected tracks map
+                const id = reaper.CSurf_TrackToID(track, false);
+                state.selectedTracks.put(allocator, id, {}) catch return;
+            },
+            .csurf_last_touched_track => |track| {
+                const id = reaper.CSurf_TrackToID(track, false);
+                if (state.last_touched_tr_id != id) {
+                    state.last_touched_tr_id = id;
+
+                    // Update mode-specific state based on new track
+                    switch (state.current_mode) {
+                        .fx_ctrl => updateFxControlTrack(state, track),
+                        else => {}, // Other modes might not need track updates
+                    }
+                }
+            },
+            .csurf_fx_chain_changed => |track| {
+                // Revalidate FX chain for current track
+                validateFxChain(state, track);
+            },
+            .csurf_fx_param_changed => |param| {
+                if (state.current_mode == .fx_ctrl) {
+                    updateControllerFeedback(state, param);
+                }
+            },
+            .csurf_play_state_changed => |transport| {
+                // Update metering state
+                if (transport.playing and !transport.paused) {
+                    // Start meters update timer
+                } else {
+                    // Stop meters update timer
+                }
+            },
+            else => {},
         },
     }
 }

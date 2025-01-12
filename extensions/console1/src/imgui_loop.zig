@@ -9,7 +9,7 @@ const logger = @import("logger.zig");
 const debug_panel = @import("debug_panel.zig");
 const globals = @import("globals.zig");
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
-const settings_panel = @import("settings_panel.zig");
+const SettingsPanel = @import("settings_panel.zig");
 const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 
 const plugin_name = "CONSOLE1";
@@ -53,6 +53,7 @@ fn main() !void {
         defer imgui.End(.{ctx}) catch {};
 
         open = try ButtonsBar(ctx);
+        try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
         if (styles.rack_style_open) {
             try styles.StyleEditor(ctx, .rack);
         }

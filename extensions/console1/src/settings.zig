@@ -193,7 +193,7 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
         }
     }
 }
-pub fn clone(self: *const @This(), allocator: std.mem.Allocator) !Preferences {
+pub fn clone(self: *const @This(), gpa: std.mem.Allocator) !Preferences {
     return .{
         .show_startup_message = self.show_startup_message,
         .show_feedback_window = self.show_feedback_window,
@@ -201,7 +201,9 @@ pub fn clone(self: *const @This(), allocator: std.mem.Allocator) !Preferences {
         .manual_routing = self.manual_routing,
         .log_to_file = self.log_to_file,
         .log_level = self.log_level,
-        .default_fx = try self.default_fx.clone(allocator), // If DefaultFx needs deep copy
+        .default_fx = try cloneDefaultFx(&self.default_fx, gpa), // If DefaultFx needs deep copy
+        .allocator = gpa,
+        .resource_path = try gpa.dupe(u8, self.resource_path),
     };
 }
 
@@ -213,13 +215,14 @@ pub fn copyFrom(self: *@This(), other: *const Preferences) !void {
     self.manual_routing = other.manual_routing;
     self.log_to_file = other.log_to_file;
     self.log_level = other.log_level;
-    try self.default_fx.cloneDefaultFx(&other.default_fx); // If DefaultFx needs deep copy
+    // FIXME: check on copying the default FX
+    // try cloneDefaultFx(&other.default_fx, other.allocator); // If DefaultFx needs deep copy
 }
 
-pub fn cloneDefaultFx(self: *const DefaultFx(), allocator: std.mem.Allocator) !DefaultFx {
+pub fn cloneDefaultFx(self: *const DefaultFx, allocator: std.mem.Allocator) !DefaultFx {
     var new_fx = DefaultFx.initUndefined();
     // Clone each string in the enum array
-    inline for (std.enums.values(ModulesList)) |module| {
+    inline for (comptime std.enums.values(ModulesList)) |module| {
         const value = self.get(module);
         const value_copy = try allocator.dupeZ(u8, value);
         new_fx.set(module, value_copy);
