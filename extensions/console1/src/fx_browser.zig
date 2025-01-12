@@ -189,8 +189,10 @@ pub fn ModulePopup(
     var buf: [128:0]u8 = undefined;
     const title = try safePrint(&buf, "{s} FX Browser", .{@tagName(module)});
 
-    if (try imgui.BeginPopup(.{ ctx, title, null })) {
-        defer imgui.EndPopup(.{ctx}) catch {};
+    {
+        imgui.Text(.{ ctx, title });
+        // if (try imgui.BeginPopup(.{ ctx, title, null })) {
+        //     defer imgui.EndPopup(.{ctx}) catch {};
 
         // First, show section for mapped FX
         if (try imgui.CollapsingHeader(.{ ctx, "Mapped FX", .{ .default_open = true } })) {

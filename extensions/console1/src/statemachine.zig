@@ -97,7 +97,7 @@ pub const State = struct {
 pub const FxSelectionState = struct {
     current_category: Conf.ModulesList,
     selected_fx: ?[]const u8,
-    scroll_position: usize,
+    scroll_position: usize = 0,
 };
 
 pub const MappingState = struct {

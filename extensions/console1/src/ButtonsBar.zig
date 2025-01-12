@@ -13,6 +13,7 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
+
         { // close the rack
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
@@ -24,11 +25,10 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
             try imgui.SetTooltip(.{ ctx, "close" });
         }
 
-        { // track routing matrix
+        { // settings win
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
-            const pinIcon = Theme.Icons.get(.pin);
-            if (try imgui.Button(.{ ctx, @as([*:0]const u8, pinIcon), defaults.button_size, defaults.button_size })) {
+            if (try imgui.Button(.{ ctx, Theme.Icons.get(.pin), defaults.button_size, defaults.button_size })) {
                 actions.dispatch(&globals.state, .{ .settings = .open });
             }
         }
@@ -36,30 +36,39 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
             try imgui.SetTooltip(.{ ctx, "Settings" });
         }
 
-        { // Rack win style config
+        { // main win style config
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
-            const pinIcon = Theme.Icons.get(.arrow_right);
-            if (try imgui.Button(.{ ctx, @as([*:0]const u8, pinIcon), defaults.button_size, defaults.button_size })) {
+            if (try imgui.Button(.{ ctx, Theme.Icons.get(.arrow_right), defaults.button_size, defaults.button_size })) {
                 try styles.toggle_rack_style_win();
             }
         }
 
         if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, "rack styles config" });
+            try imgui.SetTooltip(.{ ctx, "main window styles config" });
         }
 
-        { // Main Win styles config
+        { // Helper Win style config
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
-            const pinIcon = Theme.Icons.get(.arrow_down);
-            if (try imgui.Button(.{ ctx, @as([*:0]const u8, pinIcon), defaults.button_size, defaults.button_size })) {
+            if (try imgui.Button(.{ ctx, Theme.Icons.get(.arrow_down), defaults.button_size, defaults.button_size })) {
                 try styles.toggle_main_style_win();
             }
         }
 
         if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, "main window styles config" });
+            try imgui.SetTooltip(.{ ctx, "settings window styles config" });
+        }
+
+        { // fx_sel comp win
+            try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
+            defer imgui.PopFont(.{ctx}) catch {};
+            if (try imgui.Button(.{ ctx, Theme.Icons.get(.plus), defaults.button_size, defaults.button_size })) {
+                actions.dispatch(&globals.state, .{ .fx_sel = .{ .open_module_browser = .COMP } });
+            }
+        }
+        if (try imgui.IsItemHovered(.{ctx})) {
+            try imgui.SetTooltip(.{ ctx, "fx_sel comp" });
         }
     }
 

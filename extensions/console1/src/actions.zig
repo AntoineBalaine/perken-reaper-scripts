@@ -11,6 +11,8 @@ const Mode = statemachine.Mode;
 const State = statemachine.State;
 const globals = @import("globals.zig");
 const SettingsPanel = @import("settings_panel.zig");
+const config = @import("internals/config.zig");
+const mappings = @import("internals/mappings.zig");
 
 const allocator: std.mem.Allocator = undefined;
 const valid_transitions = statemachine.valid_transitions;
@@ -43,9 +45,23 @@ const ModeAction = union(enum) {
 
     // FX Selection Mode
     fx_sel: union(enum) {
-        select_category: Conf.ModulesList,
         select_fx: []const u8,
         scroll: i32,
+        open_module_browser: config.ModulesList, // Which module's browser to show
+        close_module_browser,
+
+        // Mapped FX selection
+        select_mapped_fx: struct {
+            module: config.ModulesList,
+            fx_name: []const u8,
+        },
+
+        // Regular browser selection
+        select_category_fx: struct {
+            module: config.ModulesList,
+            fx_name: []const u8,
+            category: []const u8,
+        },
     },
 
     // Mapping Mode
@@ -125,10 +141,35 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             // ... other fx_ctrl actions
         },
         .fx_sel => |sel_action| switch (sel_action) {
-            .select_category => |category| {
-                if (state.current_mode != .fx_sel) return;
-                state.fx_sel.current_category = category;
-                // Update GUI list
+            .open_module_browser => |module| {
+                state.fx_sel.current_category = module;
+                dispatch(state, .{ .change_mode = .fx_sel });
+            },
+            .select_mapped_fx => |selection| {
+                try loadModuleMapping(selection.module, selection.fx_name);
+                try updateTrackFx(selection.module, selection.fx_name);
+                // Dispatch mode change instead of direct assignment
+                dispatch(state, .{ .change_mode = .fx_ctrl });
+            },
+            .select_category_fx => |selection| {
+                if (!hasMappingFor(selection.module, selection.fx_name)) {
+                    state.mapping.target_fx = selection.fx_name;
+                    state.mapping.current_mappings = switch (selection.module) {
+                        .COMP => .{ .COMP = mappings.Comp{} },
+                        .EQ => .{ .EQ = mappings.Eq{} },
+                        .GATE => .{ .GATE = mappings.Shp{} },
+                        .OUTPT => .{ .OUTPT = mappings.Outpt{} },
+                        .INPUT => .{ .INPUT = mappings.Inpt{} },
+                    };
+                    dispatch(state, .{ .change_mode = .mapping_panel });
+                } else {
+                    try loadModuleMapping(selection.module, selection.fx_name);
+                    try updateTrackFx(selection.module, selection.fx_name);
+                    dispatch(state, .{ .change_mode = .fx_ctrl });
+                }
+            },
+            .close_module_browser => {
+                dispatch(state, .{ .change_mode = .fx_ctrl });
             },
             else => {},
             // ... other fx_sel actions
@@ -148,7 +189,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.allocator) catch null;
                 }
                 state.current_mode = .settings;
-                dispatch(&globals.state, .{ .change_mode = .settings });
+                dispatch(state, .{ .change_mode = .settings });
             },
             .save => {
                 if (globals.settings_panel) |*panel| {
@@ -158,7 +199,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     panel.deinit();
                     globals.settings_panel = null;
                 }
-                dispatch(&globals.state, .{ .change_mode = .fx_ctrl });
+                dispatch(state, .{ .change_mode = .fx_ctrl });
             },
             .cancel => {
                 if (globals.settings_panel) |*panel| {
@@ -262,4 +303,21 @@ fn updateFxControlTrack(state: *State, track: reaper.MediaTrack) void {
 
 test {
     std.testing.refAllDecls(@This());
+}
+
+fn loadModuleMapping(module: config.ModulesList, fx_name: []const u8) !void {
+    _ = module;
+    _ = fx_name;
+    unreachable;
+}
+
+fn updateTrackFx(module: config.ModulesList, fx_name: []const u8) !void {
+    _ = module;
+    _ = fx_name;
+    unreachable;
+}
+fn hasMappingFor(module: config.ModulesList, fx_name: []const u8) bool {
+    _ = module;
+    _ = fx_name;
+    unreachable;
 }
