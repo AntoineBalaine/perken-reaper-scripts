@@ -10,6 +10,7 @@ const debug_panel = @import("debug_panel.zig");
 const globals = @import("globals.zig");
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const settings_panel = @import("settings_panel.zig");
+const ButtonsBar = @import("ButtonsBar.zig");
 
 const plugin_name = "CONSOLE1";
 pub var action_id: c_int = undefined;
@@ -50,6 +51,8 @@ fn main() !void {
     try imgui.SetNextWindowDockID(.{ ctx, -1 });
     if (try imgui.Begin(.{ ctx, plugin_name, &open, windowFlags })) {
         defer imgui.End(.{ctx}) catch {};
+
+        open = try ButtonsBar(ctx);
         if (configurations.rack_style_open) {
             try configurations.StyleEditor(ctx, .rack);
         }

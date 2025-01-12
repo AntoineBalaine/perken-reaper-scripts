@@ -5,7 +5,6 @@ const Knob = Knobs.Knob;
 const Rectangle = @import("components/knob.zig").Rectangle;
 const State = @import("statemachine.zig").State;
 const c1 = @import("internals/c1.zig");
-const ModuleLayout = @import("fx_ctrl_panel_layout.zig");
 // Layout constants
 // const section_spacing = 10.0;
 const knob_size = 40.0;
