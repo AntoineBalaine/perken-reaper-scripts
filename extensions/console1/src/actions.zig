@@ -59,21 +59,32 @@ const ModeAction = union(enum) {
         // Regular browser selection
         select_category_fx: struct {
             module: config.ModulesList,
-            fx_name: []const u8,
-            category: []const u8,
+            fx_name: [:0]const u8,
+            category: [:0]const u8,
         },
     },
 
     // Mapping Mode
     mapping: union(enum) {
-        start_midi_learn,
-        assign_param: struct {
-            cc: c1.CCs,
+        // Parameter selection
+        select_parameter: ?u32, // null to deselect
+
+        // Control selection
+        select_control: ?c1.CCs, // null to deselect
+
+        // MIDI learn
+        toggle_midi_learn: void,
+
+        // Mapping operations
+        add_mapping: struct {
             param: u32,
+            control: c1.CCs,
         },
-        clear_mapping: c1.CCs,
-        save_mappings,
-        cancel_mapping,
+        remove_mapping: c1.CCs, // Remove mapping for this control
+
+        // Panel operations
+        save_mapping: void, // Save current mappings to MapStore
+        cancel_mapping: void, // Discard changes and exit mapping mode
     },
 
     // Settings Mode
@@ -175,13 +186,54 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             // ... other fx_sel actions
         },
         .mapping => |map_action| switch (map_action) {
-            .start_midi_learn => {
-                if (state.current_mode != .mapping_panel) return;
-                state.mapping.midi_learn_active = true;
-                // Update GUI state
+            .select_parameter => |maybe_param| {
+                state.mapping.selected_parameter = maybe_param;
+                // If we're in MIDI learn mode and a parameter is selected,
+                // we're ready to receive MIDI input
             },
-            else => {},
-            // ... other mapping actions
+            .select_control => |maybe_control| {
+                state.mapping.selected_control = maybe_control;
+                // If both parameter and control are selected, could auto-add mapping
+            },
+            .toggle_midi_learn => {
+                state.mapping.midi_learn_active = !state.mapping.midi_learn_active;
+                if (!state.mapping.midi_learn_active) {
+                    // Clear selection when exiting MIDI learn mode?
+                    state.mapping.selected_control = null;
+                }
+            },
+            .add_mapping => |mapping| {
+                // Add to current_mappings based on module type
+                switch (state.mapping.current_mappings) {
+                    inline else => |*impl| @field(impl.*, @tagName(mapping.control)) = mapping.param,
+                }
+                // Clear selections after mapping
+                state.mapping.selected_parameter = null;
+                state.mapping.selected_control = null;
+            },
+            .remove_mapping => |control| {
+                // Remove from current_mappings based on module type
+                switch (state.mapping.current_mappings) {
+                    inline else => |*impl| @field(impl.*, @tagName(control)) = mappings.UNMAPPED_PARAM,
+                }
+            },
+            .save_mapping => {
+                // Save to MapStore
+                switch (state.mapping.current_mappings) {
+                    .INPUT => |input| globals.map_store.INPUT.put(globals.allocator, state.mapping.target_fx, input),
+                    .GATE => |gate| globals.map_store.GATE.put(globals.allocator, state.mapping.target_fx, gate),
+                    .EQ => |eq| globals.map_store.EQ.put(globals.allocator, state.mapping.target_fx, eq),
+                    .COMP => |comp| globals.map_store.COMP.put(globals.allocator, state.mapping.target_fx, comp),
+                    .OUTPT => |outpt| globals.map_store.OUTPT.put(globals.allocator, state.mapping.target_fx, outpt),
+                }
+                // Switch back to previous mode?
+                dispatch(state, .{ .change_mode = .fx_ctrl });
+            },
+            .cancel_mapping => {
+                state.mapping.deinit(globals.allocator);
+                // Clean up and switch back to previous mode
+                dispatch(state, .{ .change_mode = .fx_ctrl });
+            },
         },
         .settings => |set_action| switch (set_action) {
             .open => {

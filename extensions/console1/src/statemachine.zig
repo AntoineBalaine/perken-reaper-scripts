@@ -101,16 +101,37 @@ pub const FxSelectionState = struct {
 };
 
 pub const MappingState = struct {
-    target_fx: []const u8,
-    current_mappings: union {
-        COMP: MapStore.Comp,
-        EQ: MapStore.Eq,
+    target_fx: [:0]const u8,
+    current_mappings: union(Conf.ModulesList) {
         INPUT: MapStore.Inpt,
-        OUTPT: MapStore.Outpt,
         GATE: MapStore.Shp,
+        EQ: MapStore.Eq,
+        COMP: MapStore.Comp,
+        OUTPT: MapStore.Outpt,
     },
-    midi_learn_active: bool,
-    selected_parameter: ?u32,
+    selected_parameter: ?u32 = null,
+    selected_control: ?c1.CCs = null,
+    midi_learn_active: bool = false,
+
+    pub fn init(gpa: std.mem.Allocator, fx_name: [:0]const u8, module_type: Conf.ModulesList) !MappingState {
+        return .{
+            .target_fx = try gpa.dupeZ(u8, fx_name),
+            .current_mappings = switch (module_type) {
+                .COMP => .{ .COMP = .{} },
+                .EQ => .{ .EQ = .{} },
+                .INPUT => .{ .INPUT = .{} },
+                .OUTPT => .{ .OUTPT = .{} },
+                .GATE => .{ .GATE = .{} },
+            },
+            .selected_parameter = null,
+            .selected_control = null,
+            .midi_learn_active = false,
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.target_fx);
+    }
 };
 
 pub const SettingsState = struct {
