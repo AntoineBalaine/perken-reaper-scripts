@@ -93,7 +93,7 @@ pub fn deinit(allocator: std.mem.Allocator) void {
 /// Inits the struct, and reads the  `defaults.ini` and `modules.ini` into it.
 fn readConf(allocator: std.mem.Allocator, cntrlrPth: [*:0]const u8) !void {
     const ctrl_pth = std.mem.span(cntrlrPth);
-    const defaultsPath = try std.fs.path.resolve(allocator, &.{ ctrl_pth, "./resources/defaults.ini" });
+    const defaultsPath = try std.fs.path.resolve(allocator, &.{ ctrl_pth, "./defaults.ini" });
     defer allocator.free(defaultsPath);
     const defaultsFile = try std.fs.openFileAbsolute(defaultsPath, .{});
     defer defaultsFile.close();
@@ -103,7 +103,7 @@ fn readConf(allocator: std.mem.Allocator, cntrlrPth: [*:0]const u8) !void {
 
     try readToEnumArray(&defaults, ModulesList, &defaultsParser, allocator);
 
-    const modulesPath = try std.fs.path.resolve(allocator, &.{ ctrl_pth, "./resources/modules.ini" });
+    const modulesPath = try std.fs.path.resolve(allocator, &.{ ctrl_pth, "./modules.ini" });
     defer allocator.free(modulesPath);
     const modulesFile = try std.fs.openFileAbsolute(modulesPath, .{});
     defer modulesFile.close();

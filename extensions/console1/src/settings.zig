@@ -48,7 +48,7 @@ pub fn init(allocator: std.mem.Allocator, resource_path: []const u8) !Preference
 
     // Try to load preferences from disk
     self.load() catch |err| {
-        logger.log(.warning, "Failed to load preferences: {s}, using copied defaults", .{@errorName(err)}, null, allocator);
+        logger.log(.warning, "Failed to load preferences: {s} at {s}, using copied defaults", .{ @errorName(err), resource_path }, null, allocator);
     };
 
     return self;

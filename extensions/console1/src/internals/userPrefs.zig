@@ -15,7 +15,7 @@ const SettingsEnum = enum {
 
 pub fn init(allocator: Allocator, cntrlrPth: [*:0]const u8) !UserSettings {
     var self = UserSettings{};
-    const paths = [_][]const u8{ std.mem.span(cntrlrPth), "resources", "preferences.ini" };
+    const paths = [_][]const u8{ std.mem.span(cntrlrPth), "preferences.ini" };
     const controller_path = try std.fs.path.joinZ(allocator, &paths);
     defer allocator.free(controller_path);
 

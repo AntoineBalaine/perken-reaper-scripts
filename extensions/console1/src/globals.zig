@@ -42,6 +42,9 @@ pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
 }
 
 pub fn deinit(alloc: std.mem.Allocator) void {
+    if (settings_panel) |*panel| {
+        panel.deinit();
+    }
     map_store.deinit();
     mappings_list.deinit();
     preferences.deinit();
