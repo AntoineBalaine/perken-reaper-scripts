@@ -27,10 +27,6 @@ pub const Mode = enum {
     // User preferences and global settings
     settings,
 
-    // Special sub-mode of settings for configuring default channel strip
-    // Could alternatively be handled as a settings panel state
-    settings_default_channel_strip,
-
     // Optional: Additional modes you might want to consider
     startup, // Initial mode when plugin loads
     midi_learn, // Specific mode for MIDI learning (if implemented separately)
