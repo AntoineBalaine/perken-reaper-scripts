@@ -14,6 +14,7 @@ const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fxParser = @import("fx_parser.zig");
 const fx_browser = @import("fx_browser.zig");
 const actions = @import("actions.zig");
+const mapping_panel = @import("mapping_panel.zig");
 
 const plugin_name = "CONSOLE1";
 pub var action_id: c_int = undefined;
@@ -96,6 +97,9 @@ fn main() !void {
                 if (!try fx_browser.ModulePopup(ctx, module, list)) {
                     actions.dispatch(&globals.state, .{ .fx_sel = .close_module_browser });
                 }
+            },
+            .mapping_panel => {
+                try mapping_panel.drawMappingPanel(ctx, &globals.state);
             },
             else => {},
         }

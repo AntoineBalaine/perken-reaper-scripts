@@ -9,7 +9,6 @@ const std = @import("std");
 const c1 = @import("internals/c1.zig");
 const Conf = @import("internals/config.zig");
 const MapStore = @import("internals/mappings.zig");
-const FxMap = MapStore.FxMap;
 const track = @import("internals/track.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
 const globals = @import("globals.zig");

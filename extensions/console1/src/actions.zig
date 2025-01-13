@@ -13,8 +13,8 @@ const globals = @import("globals.zig");
 const SettingsPanel = @import("settings_panel.zig");
 const config = @import("internals/config.zig");
 const mappings = @import("internals/mappings.zig");
+const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 
-const allocator: std.mem.Allocator = undefined;
 const valid_transitions = statemachine.valid_transitions;
 pub const ParamChg = struct {
     track: reaper.MediaTrack,
@@ -45,7 +45,7 @@ const ModeAction = union(enum) {
 
     // FX Selection Mode
     fx_sel: union(enum) {
-        select_fx: []const u8,
+        select_fx: [:0]const u8,
         scroll: i32,
         open_module_browser: config.ModulesList, // Which module's browser to show
         close_module_browser,
@@ -119,7 +119,7 @@ const ModeAction = union(enum) {
 
 // Top-level update function
 pub fn dispatch(state: *State, action: ModeAction) void {
-    logger.log(.debug, "Handling action: {s}", .{@tagName(action)}, null, allocator);
+    logger.log(.debug, "Handling action: {s}", .{@tagName(action)}, null, globals.allocator);
     switch (action) {
         .change_mode => |new_mode| {
             // Validate mode transition
@@ -131,7 +131,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     "Mode changed: {s} -> {s}",
                     .{ @tagName(old_mode), @tagName(new_mode) },
                     null,
-                    allocator,
+                    globals.allocator,
                 );
             }
         },
@@ -177,6 +177,28 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     try loadModuleMapping(selection.module, selection.fx_name);
                     try updateTrackFx(selection.module, selection.fx_name);
                     dispatch(state, .{ .change_mode = .fx_ctrl });
+                }
+            },
+            .select_fx => |fx_name| {
+                // Check if mapping exists
+                if (switch (globals.map_store.get(fx_name, state.fx_sel.current_category)) {
+                    inline else => |impl| impl == null,
+                }) {
+                    createEmptyMapping(state, fx_name) catch return;
+                    // Open mapping panel
+                    if (state.last_touched_tr_id) |track_id| {
+                        switch (state.fx_sel.current_category) {
+                            inline else => |variant| {
+                                const fxMap = @field(state.fx_ctrl.fxMap, @tagName(variant));
+
+                                if (fxMap == null) return;
+                                if (fxMap) |map| {
+                                    enterMappingMode(track_id, map[0]) catch {};
+                                    dispatch(state, .{ .change_mode = .mapping_panel });
+                                }
+                            },
+                        }
+                    }
                 }
             },
             .close_module_browser => {
@@ -338,6 +360,12 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 globals.map_store.saveToFile(state.mapping) catch {
                     logger.log(.warning, "Failed to save mapping {s} to file", .{state.mapping.target_fx}, null, globals.allocator);
                 };
+
+                // Clean up mapping panel
+                if (globals.mapping_panel) |*panel| {
+                    panel.deinit();
+                    globals.mapping_panel = null;
+                }
                 dispatch(state, .{ .change_mode = .fx_ctrl });
             },
             .cancel_mapping => {
@@ -349,6 +377,12 @@ pub fn dispatch(state: *State, action: ModeAction) void {
 
                 // Free allocated memory
                 state.mapping.deinit(globals.allocator);
+
+                // Clean up mapping panel
+                if (globals.mapping_panel) |*panel| {
+                    panel.deinit();
+                    globals.mapping_panel = null;
+                }
 
                 // Switch back to previous mode
                 dispatch(state, .{ .change_mode = .fx_ctrl });
@@ -400,7 +434,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             .csurf_track_selected => |track| {
                 // Update selected tracks map
                 const id = reaper.CSurf_TrackToID(track, false);
-                state.selectedTracks.put(allocator, id, {}) catch return;
+                state.selectedTracks.put(globals.allocator, id, {}) catch return;
             },
             .csurf_last_touched_track => |track| {
                 const id = reaper.CSurf_TrackToID(track, false);
@@ -433,6 +467,17 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             },
             else => {},
         },
+    }
+}
+
+/// Create empty mapping in MapStore
+fn createEmptyMapping(state: *State, fx_name: [:0]const u8) !void {
+    switch (state.fx_sel.current_category) {
+        .INPUT => try globals.map_store.INPUT.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Inpt{}),
+        .GATE => try globals.map_store.GATE.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Shp{}),
+        .EQ => try globals.map_store.EQ.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Eq{}),
+        .COMP => try globals.map_store.COMP.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Comp{}),
+        .OUTPT => try globals.map_store.OUTPT.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Outpt{}),
     }
 }
 
@@ -499,6 +544,15 @@ fn isValidCCForModule(cc: c1.CCs, module: Conf.ModulesList) bool {
         .OUTPT => std.mem.startsWith(u8, cc_name, "Out_"),
         .GATE => std.mem.startsWith(u8, cc_name, "Shp_"),
     };
+}
+
+pub fn enterMappingMode(track_id: c_int, fx_number: i32) !void {
+    const media_track =
+        reaper.CSurf_TrackFromID(track_id, false);
+    if (globals.mapping_panel == null) {
+        globals.mapping_panel = MappingPanel.init(globals.allocator);
+    }
+    try globals.mapping_panel.?.loadParameters(media_track, fx_number);
 }
 
 test {

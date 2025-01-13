@@ -6,6 +6,8 @@ const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
 const PushWindowStyle = @import("styles.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
+const dispatch = @import("actions.zig").dispatch;
+const globals = @import("globals.zig");
 
 const FxBrowser = @This();
 
@@ -65,6 +67,8 @@ fn FxList(ctx: imgui.ContextPtr, menuName: [:0]const u8, fxList: fx_parser.FxLis
             if (try imgui.Selectable(.{ ctx, name })) {
                 const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
                 if (track) |tr| {
+                    dispatch(&globals.state, .{ .fx_sel = .{ .select_fx = cast } });
+                    // FIXME: update the insert point, we want to replace here, not add to end of track.
                     _ = reaper.TrackFX_AddByName(
                         tr,
                         name,
@@ -199,6 +203,8 @@ pub fn ModulePopup(
             if (try imgui.Selectable(.{ ctx, fx_name })) {
                 const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
                 if (track) |tr| {
+                    dispatch(&globals.state, .{ .fx_sel = .{ .select_mapped_fx = .{ .fx_name = fx_name, .module = module } } });
+                    // FIXME: update the insert point, we want to replace here, not add to end of track.
                     _ = reaper.TrackFX_AddByName(
                         tr,
                         fx_name,
@@ -210,44 +216,10 @@ pub fn ModulePopup(
             }
         }
 
-        // if (try imgui.BeginPopup(.{ ctx, title, null })) {
-        //     defer imgui.EndPopup(.{ctx}) catch {};
-
-        // First, show section for mapped FX
-        // if (try imgui.CollapsingHeader(.{ ctx, "Mapped FX" })) {
-        //     if (try imgui.BeginChild(.{ ctx, "mapped_fx_list", 0, 150 })) {
-        //         defer imgui.EndChild(.{ctx}) catch {};
-        //
-        //         // Iterate through mapped FX
-        //         var iterator = mappings.iterator();
-        //         while (iterator.next()) |entry| {
-        //             const fx_name: [:0]const u8 = @ptrCast(entry.key_ptr.*);
-        //             if (try imgui.Selectable(.{ ctx, fx_name })) {
-        //                 const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
-        //                 if (track) |tr| {
-        //                     _ = reaper.TrackFX_AddByName(
-        //                         tr,
-        //                         fx_name,
-        //                         false,
-        //                         -1000 - reaper.TrackFX_GetCount(tr),
-        //                     );
-        //                 }
-        //                 last_used_fx = fx_name;
-        //             }
-        //         }
-        //     }
-        // }
-
         // Separator between mapped and unmapped FX
         try imgui.Separator(.{ctx});
 
         try Menus(ctx);
-        // Then show regular browser menus for additional FX
-        // if (try imgui.CollapsingHeader(.{ ctx, "All FX" })) {
-        //     if (try imgui.BeginChild(.{ ctx, "all_fx_browser" })) {
-        //         defer imgui.EndChild(.{ctx}) catch {};
-        //     }
-        // }
 
         // Optional: Add rescan button at bottom
         try imgui.Separator(.{ctx});

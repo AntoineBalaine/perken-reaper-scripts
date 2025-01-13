@@ -6,6 +6,7 @@ const logger = @import("logger.zig");
 const EventLog = logger.EventLog;
 const SettingsPanel = @import("settings_panel.zig");
 const MappingsList = @import("mappings_list.zig");
+const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 
 // State machine
 pub var state: State = undefined;
@@ -17,6 +18,7 @@ pub var mappings_list: MappingsList = undefined;
 
 // UI
 pub var settings_panel: ?SettingsPanel = null;
+pub var mapping_panel: ?MappingPanel = null;
 
 // Logging
 pub var event_log: EventLog = undefined;
