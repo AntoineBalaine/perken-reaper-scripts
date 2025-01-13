@@ -1,4 +1,12 @@
-WHAT TO DO WHEN THE RESOURCES FOLDER IS NOT FOUND 
+MODIFY BROWSER LOGIC TO ACCOUNT FOR INSERTION POSITION IN THE CHANNEL STRIP
+I’d like to rely on the re-entrancy for this - which requires replacing whatever module for which we’re trying to select.
+-> browser replaces an fx
+-> reaper calls csurf
+-> mapstore checks existence of mapping
+-> if doesn’t exists, creates one
+-> dispatches an action to open the mapping panel
+
+WHAT TO DO WHEN THE RESOURCES FOLDER IS NOT FOUND
 embed the resources folder in the binary and create the files.
 
 SCROLLING THROUGH THE BROWSER WITH THE CONSOLE
