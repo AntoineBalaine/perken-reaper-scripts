@@ -30,12 +30,12 @@ log_level: LogLevel = .info,
 
 // Resource management
 allocator: std.mem.Allocator,
-resource_path: []const u8,
+resource_path: [:0]const u8,
 
-pub fn init(allocator: std.mem.Allocator, resource_path: []const u8) !Preferences {
+pub fn init(allocator: std.mem.Allocator, resource_path: [:0]const u8) !Preferences {
     var self = Preferences{
         .allocator = allocator,
-        .resource_path = try allocator.dupe(u8, resource_path),
+        .resource_path = try allocator.dupeZ(u8, resource_path),
         .default_fx = DefaultFx.initUndefined(),
     };
 
@@ -73,7 +73,7 @@ fn load(self: *Preferences) !void {
     try self.parsePreferences(&parser);
 }
 
-pub fn save(self: *Preferences) !void {
+pub fn saveToDisk(self: *Preferences) !void {
     const path = try std.fs.path.join(self.allocator, &[_][]const u8{ self.resource_path, "preferences.ini" });
     defer self.allocator.free(path);
 
@@ -203,28 +203,28 @@ pub fn clone(self: *const @This(), gpa: std.mem.Allocator) !Preferences {
         .log_level = self.log_level,
         .default_fx = try cloneDefaultFx(&self.default_fx, gpa), // If DefaultFx needs deep copy
         .allocator = gpa,
-        .resource_path = try gpa.dupe(u8, self.resource_path),
+        .resource_path = try gpa.dupeZ(u8, self.resource_path),
     };
 }
 
 // Copy values from another instance
-pub fn copyFrom(self: *@This(), other: *const Preferences) !void {
+pub fn copyFrom(self: *@This(), other: *const Preferences, gpa: std.mem.Allocator) !void {
     self.show_startup_message = other.show_startup_message;
     self.show_feedback_window = other.show_feedback_window;
     self.show_plugin_ui = other.show_plugin_ui;
     self.manual_routing = other.manual_routing;
     self.log_to_file = other.log_to_file;
     self.log_level = other.log_level;
-    // FIXME: check on copying the default FX
-    // try cloneDefaultFx(&other.default_fx, other.allocator); // If DefaultFx needs deep copy
+    self.default_fx = try cloneDefaultFx(&other.default_fx, gpa);
+    self.resource_path = try gpa.dupeZ(u8, other.resource_path);
 }
 
-pub fn cloneDefaultFx(self: *const DefaultFx, allocator: std.mem.Allocator) !DefaultFx {
+pub fn cloneDefaultFx(self: *const DefaultFx, gpa: std.mem.Allocator) !DefaultFx {
     var new_fx = DefaultFx.initUndefined();
     // Clone each string in the enum array
     inline for (comptime std.enums.values(ModulesList)) |module| {
         const value = self.get(module);
-        const value_copy = try allocator.dupeZ(u8, value);
+        const value_copy = try gpa.dupeZ(u8, value);
         new_fx.set(module, value_copy);
     }
     return new_fx;
@@ -313,7 +313,7 @@ test "preferences - save and restore" {
     test_prefs.manual_routing = !original_prefs.manual_routing;
 
     // Save modified preferences
-    try test_prefs.save();
+    try test_prefs.saveToDisk();
 
     // Load preferences again to verify changes
     var verify_prefs = try Preferences.init(allocator, path);
@@ -331,7 +331,7 @@ test "preferences - save and restore" {
     }
 
     // Restore original preferences
-    try original_prefs.save();
+    try original_prefs.saveToDisk();
 
     // Verify restoration
     var final_verify = try Preferences.init(allocator, path);

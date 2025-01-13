@@ -2,6 +2,8 @@ const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const Preferences = @import("settings.zig");
 const globals = @import("globals.zig");
+const ModulesList = @import("internals/config.zig").ModulesList;
+const styles = @import("styles.zig");
 
 // Temporary copy for editing
 temp_settings: Preferences,
@@ -19,37 +21,38 @@ pub fn deinit(self: *SettingsPanel) void {
 }
 
 pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save, close_cancel } {
+    const PopStyle = try styles.PushStyle(ctx, .rack);
+    defer PopStyle(ctx) catch {};
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
         // Edit settings...
-        var changed = false;
 
         // UI Settings
         try imgui.TextWrapped(.{ ctx, "UI Settings" });
         if (try imgui.Checkbox(.{ ctx, "Show Startup Message##strtp", &self.temp_settings.show_startup_message })) {
-            changed = true;
+            self.dirty = true;
         }
         if (try imgui.Checkbox(.{ ctx, "Show Feedback Window##fdkw", &self.temp_settings.show_feedback_window })) {
-            changed = true;
+            self.dirty = true;
         }
         if (try imgui.Checkbox(.{ ctx, "Show Plugin UI##plgui", &self.temp_settings.show_plugin_ui })) {
-            changed = true;
+            self.dirty = true;
         }
         try imgui.Spacing(.{ctx});
 
         // Routing Settings
         try imgui.TextWrapped(.{ ctx, "Routing Settings ##rtstngs" });
         if (try imgui.Checkbox(.{ ctx, "Manual Routing ##mnlrtng", &self.temp_settings.manual_routing })) {
-            changed = true;
+            self.dirty = true;
         }
         try imgui.Spacing(.{ctx});
 
         // Logging Settings
         try imgui.TextWrapped(.{ ctx, "Logging Settings##lgstng" });
         if (try imgui.Checkbox(.{ ctx, "Log to File##lgfd", &self.temp_settings.log_to_file })) {
-            changed = true;
+            self.dirty = true;
         }
 
         try imgui.TextWrapped(.{ ctx, "Log Level" });
@@ -80,12 +83,11 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
                     })) {
                         current_level = @intCast(i);
                         self.temp_settings.log_level = @enumFromInt(current_level);
-                        changed = true;
+                        self.dirty = true;
                     }
                 }
             }
         }
-        if (changed) self.dirty = true;
 
         if (try imgui.Button(.{ ctx, "Save##stngs_sv" })) {
             if (self.dirty) {
@@ -97,13 +99,77 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
             return .close_cancel;
         }
     }
+
+    {
+        try imgui.SameLine(.{ctx});
+        try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
+
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+
+        // Default Channel Strip Settings
+        try imgui.Text(.{ ctx, "Default Channel Strip" });
+        try imgui.Spacing(.{ctx});
+
+        // For each module, show a combo with available mappings
+        inline for (comptime std.enums.values(ModulesList)) |module| {
+            const module_name = @tagName(module);
+            const current_fx = self.temp_settings.default_fx.get(module);
+
+            try imgui.PushItemWidth(.{ ctx, 300.0 });
+            defer imgui.PopItemWidth(.{ctx}) catch {};
+
+            // Begin combo for this module
+            if (try imgui.BeginCombo(.{
+                ctx,
+                module_name,
+                current_fx,
+                null,
+            })) {
+                defer imgui.EndCombo(.{ctx}) catch {};
+
+                // Get available mappings for this module
+                const mappings: std.StringHashMap(void) = globals.mappings_list.list.get(module);
+
+                // Show each available mapping as a selectable
+                var it = mappings.keyIterator();
+                while (it.next()) |fx_name| {
+                    var is_selected = std.mem.eql(u8, fx_name.*, current_fx);
+                    if (try imgui.Selectable(.{
+                        ctx,
+                        @as([:0]const u8, @ptrCast(fx_name.*)),
+                        &is_selected,
+                        null,
+                        null,
+                    })) {
+                        self.dirty = true;
+                        // Update temp settings with new selection
+                        const new_fx = try self.temp_settings.allocator.dupeZ(u8, fx_name.*);
+                        self.temp_settings.allocator.free(self.temp_settings.default_fx.get(module));
+                        self.temp_settings.default_fx.set(module, new_fx);
+                        self.dirty = true;
+                    }
+                }
+            }
+        }
+    }
     return .stay_open;
 }
 
+/// Copy temp_settings to `globals.preferences`.
+///
+/// If the copy fails, just return without committing the changes.
 pub fn save(self: *@This()) !void {
     // Copy temp settings back to global settings
-    try globals.preferences.copyFrom(&self.temp_settings);
-    try globals.preferences.save();
+    var copy: Preferences = .{
+        .default_fx = undefined,
+        .allocator = undefined,
+        .resource_path = undefined,
+    };
+    try copy.copyFrom(&copy, globals.allocator);
+    globals.preferences.deinit();
+    globals.preferences = copy;
+    try globals.preferences.saveToDisk();
 
     // Apply changes that need immediate effect
     if (self.temp_settings.log_to_file != globals.preferences.log_to_file) {

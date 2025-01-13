@@ -75,10 +75,11 @@ fn main() !void {
                 if (globals.settings_panel) |*panel| {
                     switch (try panel.draw(ctx)) {
                         .stay_open => {},
-                        .close_save, .close_cancel => {
-                            panel.deinit();
-                            globals.settings_panel = null;
-                            globals.state.current_mode = .fx_ctrl; // or previous mode
+                        .close_save => {
+                            actions.dispatch(&globals.state, .{ .settings = .save });
+                        },
+                        .close_cancel => {
+                            actions.dispatch(&globals.state, .{ .settings = .cancel });
                         },
                     }
                 }

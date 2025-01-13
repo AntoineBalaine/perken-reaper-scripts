@@ -92,14 +92,6 @@ const ModeAction = union(enum) {
         open, // Request to open settings
         save, // Save and close
         cancel, // Cancel and close
-        set_show_plugin_ui: bool,
-        set_manual_routing: bool,
-        set_log_to_file: bool,
-        set_log_level: logger.LogLevel,
-        set_default_fx: struct {
-            module: Conf.ModulesList,
-            fx_name: []const u8,
-        },
     },
     Csurf: union(enum) {
         csurf_track_selected: reaper.MediaTrack,
@@ -391,15 +383,23 @@ pub fn dispatch(state: *State, action: ModeAction) void {
         .settings => |set_action| switch (set_action) {
             .open => {
                 if (globals.settings_panel == null) {
-                    globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.allocator) catch null;
+                    globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.allocator) catch blk: {
+                        logger.log(.err, "open settings failed: {s}", .{@tagName(action)}, null, globals.allocator);
+                        break :blk null;
+                    };
                 }
-                state.current_mode = .settings;
-                dispatch(state, .{ .change_mode = .settings });
+                if (globals.settings_panel) |_| {
+                    state.current_mode = .settings;
+                    dispatch(state, .{ .change_mode = .settings });
+                }
             },
             .save => {
                 if (globals.settings_panel) |*panel| {
                     panel.save() catch {
-                        // if the panel fails to save to disk, just keep going?
+                        logger.log(.err, "save settings failed: {s}", .{@tagName(action)}, null, globals.allocator);
+                        return;
+                        // TODO: implement error handling
+                        // Show user notification
                     };
                     panel.deinit();
                     globals.settings_panel = null;
@@ -413,22 +413,6 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 }
                 state.current_mode = .fx_ctrl; // or previous mode
             },
-            .set_show_plugin_ui => |show| {
-                state.fx_ctrl.show_plugin_ui = show;
-                // Update settings file
-            },
-            .set_log_to_file => |enable| {
-                globals.preferences.log_to_file = enable;
-                globals.updateLoggerState() catch {
-                    // if writing to log file fails, continue anyway?
-                };
-            },
-            .set_log_level => |level| {
-                globals.preferences.log_level = level;
-            },
-
-            else => {},
-            // ... other settings actions
         },
         .Csurf => |set_action| switch (set_action) {
             .csurf_track_selected => |track| {
