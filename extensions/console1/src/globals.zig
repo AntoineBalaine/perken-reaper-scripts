@@ -7,6 +7,7 @@ const EventLog = logger.EventLog;
 const SettingsPanel = @import("settings_panel.zig");
 const MappingsList = @import("mappings_list.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
+const reaper = @import("reaper.zig").reaper;
 
 // State machine
 pub var state: State = undefined;
@@ -27,6 +28,12 @@ pub var log_file: ?std.fs.File = null; // Store the actual file, not just a poin
 // Resource management
 pub var allocator: std.mem.Allocator = undefined;
 pub var resource_path: [:0]const u8 = undefined;
+
+// midi
+pub var m_midi_in_dev: ?c_int = null;
+pub var m_midi_out_dev: ?c_int = null;
+pub var m_midi_in: ?*reaper.midi_Input = null;
+pub var m_midi_out: ?reaper.midi_Output = null;
 
 pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
     allocator = gpa;

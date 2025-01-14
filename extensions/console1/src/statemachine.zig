@@ -39,8 +39,6 @@ pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
     .fx_ctrl = &.{ .fx_sel, .settings, .mapping_panel },
     .fx_sel = &.{ .fx_ctrl, .mapping_panel },
     .mapping_panel = &.{ .fx_sel, .fx_ctrl },
-    .settings = &.{ .fx_ctrl, .settings_default_channel_strip },
-    .settings_default_channel_strip = &.{.settings},
     .midi_learn = &.{.mapping_panel},
     .error_state = &.{ .fx_ctrl, .settings },
 });

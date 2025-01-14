@@ -17,6 +17,8 @@ const c = @cImport({
 });
 const Conf = @import("../internals/config.zig");
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
+const globals = @import("../globals.zig");
+
 const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
 const reaeq = @import("../internals/reaeq.zig");
 // TODO: update ini module, move tests from module into project
@@ -28,10 +30,6 @@ pub var controller_dir: [*:0]const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 const g_csurf_mcpmode = false;
-var m_midi_in_dev: ?c_int = null;
-var m_midi_out_dev: ?c_int = null;
-var m_midiin: ?*reaper.midi_Input = null;
-var m_midiout: ?reaper.midi_Output = null;
 var m_vol_lastpos: u8 = 0;
 var m_bank_offset: i32 = 0; // track offset, named after Justin's code example
 var m_page_offset: u8 = 1; // page offset for the controller
@@ -63,12 +61,12 @@ fn iterCC() void {
         testBlink = !testBlink;
         const onOff: u8 = if (testBlink) 0x7f else 0x0;
 
-        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), onOff, -1);
-        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), onOff, -1);
-        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), onOff, -1);
-        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), onOff, -1);
-        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), onOff, -1);
-        c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(c1.CCs.Shp_Mtr), onOff, -1);
+        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), onOff, -1);
+        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), onOff, -1);
+        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), onOff, -1);
+        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), onOff, -1);
+        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), onOff, -1);
+        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Shp_Mtr), onOff, -1);
         std.debug.print("0x{x}\t0x{x}\n", .{ testCC, onOff });
     }
 }
@@ -93,18 +91,18 @@ fn u8ToPan(val: u8) f64 {
 }
 
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
-    m_midi_in_dev = indev;
-    m_midi_out_dev = outdev;
-    m_midiin = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
-    m_midiout = if (outdev >= 0) c.CreateThreadedMIDIOutput(reaper.CreateMIDIOutput(outdev, false, null)) else null;
+    globals.m_midi_in_dev = indev;
+    globals.m_midi_out_dev = outdev;
+    globals.m_midi_in = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
+    globals.m_midi_out = if (outdev >= 0) c.CreateThreadedMIDIOutput(reaper.CreateMIDIOutput(outdev, false, null)) else null;
     if (errStats) |errstats| {
-        if (indev >= 0 and m_midiin == null) errstats.* |= 1;
-        if (outdev >= 0 and m_midiout == null) errstats.* |= 2;
+        if (indev >= 0 and globals.m_midi_in == null) errstats.* |= 1;
+        if (outdev >= 0 and globals.m_midi_out == null) errstats.* |= 2;
     }
-    if (m_midiin) |midi_in| {
+    if (globals.m_midi_in) |midi_in| {
         c.MidiIn_start(midi_in);
     }
-    if (m_midiout) |midi_out| {
+    if (globals.m_midi_out) |midi_out| {
         for (std.enums.values(c1.CCs)) |f| {
             if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
                 c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
@@ -119,7 +117,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 }
 
 pub fn deinit(csurf: c.C_ControlSurface) void {
-    if (m_midiout) |midi_out| {
+    if (globals.m_midi_out) |midi_out| {
         // lights off
         for (std.enums.values(c1.CCs)) |f| {
             if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
@@ -130,13 +128,13 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
         }
     }
 
-    if (m_midiout) |midi_out| {
+    if (globals.m_midi_out) |midi_out| {
         c.MidiOut_Destroy(midi_out);
-        m_midiout = null;
+        globals.m_midi_out = null;
     }
-    if (m_midiin) |midi_in| {
+    if (globals.m_midi_in) |midi_in| {
         c.MidiIn_Destroy(midi_in);
-        m_midiin = null;
+        globals.m_midi_in = null;
     }
     c.ControlSurface_Destroy(csurf);
 }
@@ -188,7 +186,7 @@ fn onPgChg(direction: PgChgDirection) void {
     // select tracks in page
     // sws: VertZoomRange
     const btn = if (direction == .Up) c1.CCs.Tr_pg_up else c1.CCs.Tr_pg_dn;
-    c.MidiOut_Send(m_midiout, 0xb0, @intFromEnum(btn), 0x0, -1); // don't light up the pgup/pgdn buttons
+    c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(btn), 0x0, -1); // don't light up the pgup/pgdn buttons
     // query trackCount
     // trackCount / 20  = pageCount
     const idx: u8 = 0;
@@ -198,10 +196,10 @@ fn onPgChg(direction: PgChgDirection) void {
         .Up => @rem(m_page_offset + 1, pageCount),
         .Down => @as(u8, @intCast(@rem(@as(i16, @intCast(m_page_offset)) - 1, pageCount))),
     };
-    if (m_midiout) |midi_out| {
+    if (globals.m_midi_out) |midi_out| {
         if (m_bank_offset == -1) return;
         const selTrckOffset = @rem(m_bank_offset, pageCount);
-        if (m_midiout) |midiout| {
+        if (globals.m_midi_out) |midiout| {
             inline for (@typeInfo(c1.Tracks).Enum.fields, 0..) |f, fieldIdx| {
                 if (fieldIdx == @as(usize, @intCast(selTrckOffset))) {
                     c.MidiOut_Send(midi_out, 0xb0, f.value, 0x7f, -1);
@@ -256,33 +254,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     if (cc_enum) |cc| {
         const tr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
         switch (cc) {
-            .Comp_Attack => {
-                if (state.mode == .fx_ctrl) {
-                    setPrmVal(c1.CCs.Comp_Attack, .COMP, tr, val);
-                }
-            },
-            .Comp_DryWet => setPrmVal(c1.CCs.Comp_DryWet, .COMP, tr, val),
             .Comp_Mtr => {}, // meters unhandled
-            .Comp_Ratio => setPrmVal(c1.CCs.Comp_Ratio, .COMP, tr, val),
-            .Comp_Release => setPrmVal(c1.CCs.Comp_Release, .COMP, tr, val),
-            .Comp_Thresh => setPrmVal(c1.CCs.Comp_Thresh, .COMP, tr, val),
-            .Comp_comp => setPrmVal(c1.CCs.Comp_comp, .COMP, tr, val),
-            .Eq_HiFrq => setPrmVal(c1.CCs.Eq_HiFrq, .EQ, tr, val),
-            .Eq_HiGain => setPrmVal(c1.CCs.Eq_HiGain, .EQ, tr, val),
-            .Eq_HiMidFrq => setPrmVal(c1.CCs.Eq_HiMidFrq, .EQ, tr, val),
-            .Eq_HiMidGain => setPrmVal(c1.CCs.Eq_HiMidGain, .EQ, tr, val),
-            .Eq_HiMidQ => setPrmVal(c1.CCs.Eq_HiMidQ, .EQ, tr, val),
-            .Eq_LoFrq => setPrmVal(c1.CCs.Eq_LoFrq, .EQ, tr, val),
-            .Eq_LoGain => setPrmVal(c1.CCs.Eq_LoGain, .EQ, tr, val),
-            .Eq_LoMidFrq => setPrmVal(c1.CCs.Eq_LoMidFrq, .EQ, tr, val),
-            .Eq_LoMidGain => setPrmVal(c1.CCs.Eq_LoMidGain, .EQ, tr, val),
-            .Eq_LoMidQ => setPrmVal(c1.CCs.Eq_LoMidQ, .EQ, tr, val),
-            .Eq_eq => setPrmVal(c1.CCs.Eq_eq, .EQ, tr, val),
-            .Eq_hp_shape => setPrmVal(c1.CCs.Eq_hp_shape, .EQ, tr, val),
-            .Eq_lp_shape => setPrmVal(c1.CCs.Eq_lp_shape, .EQ, tr, val),
-            .Inpt_Gain => setPrmVal(c1.CCs.Inpt_Gain, .INPUT, tr, val),
-            .Inpt_HiCut => setPrmVal(c1.CCs.Inpt_HiCut, .INPUT, tr, val),
-            .Inpt_LoCut => setPrmVal(c1.CCs.Inpt_LoCut, .INPUT, tr, val),
             .Inpt_MtrLft => {}, // meters unhandled
             .Inpt_MtrRgt => {}, // meters unhandled
             .Inpt_disp_mode => {},
@@ -310,8 +282,6 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Inpt_preset => {
                 std.debug.print("CC Inpt_preset\n", .{});
             },
-            .Out_Drive => setPrmVal(c1.CCs.Out_Drive, .OUTPT, tr, val),
-            .Out_DriveChar => setPrmVal(c1.CCs.Out_DriveChar, .OUTPT, tr, val),
             .Out_MtrLft => {}, // meters unhandled
             .Out_MtrRgt => {}, // meters unhandled
             .Out_Pan => {
@@ -327,13 +297,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), null),
             .Out_solo => reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), null),
-            .Shp_Gate => setPrmVal(c1.CCs.Shp_Gate, .GATE, tr, val),
-            .Shp_GateRelease => setPrmVal(c1.CCs.Shp_GateRelease, .GATE, tr, val),
             .Shp_Mtr => {}, // meters unhandled
-            .Shp_Punch => setPrmVal(c1.CCs.Shp_Punch, .GATE, tr, val),
-            .Shp_hard_gate => setPrmVal(c1.CCs.Shp_hard_gate, .GATE, tr, val),
-            .Shp_shape => setPrmVal(c1.CCs.Shp_shape, .GATE, tr, val),
-            .Shp_sustain => setPrmVal(c1.CCs.Shp_sustain, .GATE, tr, val),
             .Tr_ext_sidechain => {
                 // unpin prev 3-4 of comp or gate
                 if (state.track) |*track| {
@@ -375,6 +339,14 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Tr_tr9 => selTrck(9),
             .Tr_tr_copy => {},
             .Tr_tr_grp => {},
+            inline else => |cc_| setPrmVal(cc_, switch (cc_) {
+                .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
+                .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
+                .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut => .INPUT,
+                .Out_Drive, .Out_DriveChar => .OUTPT,
+                .Shp_GateRelease, .Shp_Gate, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
+                else => unreachable,
+            }, tr, val),
         }
     }
 
@@ -391,13 +363,13 @@ fn GetTypeString() callconv(.C) [*]const u8 {
 
 fn GetDescString() callconv(.C) [*]const u8 {
     // example code does this weird thing:
-    // descspace.SetFormatted(512,__LOCALIZE_VERFMT("PreSonus FaderPort (dev %d,%d)","csurf"),m_midi_in_dev,m_midi_out_dev);
+    // descspace.SetFormatted(512,__LOCALIZE_VERFMT("PreSonus FaderPort (dev %d,%d)","csurf"),globals.m_midi_in_dev,globals.m_midi_out_dev);
     return reaper.LocalizeString("Softube Console1", "csurf", 1);
 }
 
 fn GetConfigString() callconv(.C) [*]const u8 {
     const buffer: []u8 = &tmp;
-    _ = std.fmt.bufPrint(buffer, "0 0 {d} {d}", .{ m_midi_in_dev.?, m_midi_out_dev.? }) catch {
+    _ = std.fmt.bufPrint(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
         std.debug.print("err: csurf console1 config string format\n", .{});
         return "0 0 0 0";
     };
@@ -414,7 +386,7 @@ export fn zCloseNoReset() callconv(.C) void {
     deinit(my_csurf);
 }
 export fn zRun() callconv(.C) void {
-    if (m_midiin) |midi_in| {
+    if (globals.m_midi_in) |midi_in| {
         c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
         const list = c.MidiIn_GetReadBuf(midi_in);
         var l: c_int = 0;
@@ -424,7 +396,7 @@ export fn zRun() callconv(.C) void {
         // iterCC();
     }
     if (playState and !pauseState) {
-        if (m_midiout) |midiOut| {
+        if (globals.m_midi_out) |midiOut| {
             const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
             const left = reaper.Track_GetPeakInfo(mediaTrack, 0);
             const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
@@ -475,7 +447,7 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
     // is meant to prevent using the csurf with the master track?
     // const id = FIXID(trackid);
     // _ = id; // autofix
-    if (m_midiout) |midiout| {
+    if (globals.m_midi_out) |midiout| {
         const volint = volToU8(volume);
         if (m_vol_lastpos != volint) {
             m_vol_lastpos = volint;
@@ -487,7 +459,7 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
 // pan is btw -1.0 and 1.0
 export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
     _ = trackid; // autofix
-    if (m_midiout) |midiout| {
+    if (globals.m_midi_out) |midiout| {
         // shift the range from [−1,1] to [0,2]
         // scale the range from [0,2] to [0,1]
         // scale the range from [0,1] to [0,127]
@@ -497,18 +469,17 @@ export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
 }
 export fn zSetSurfaceMute(trackid: *MediaTrack, mute: bool) callconv(.C) void {
     _ = trackid;
-    if (m_midiout) |midiout| {
+    if (globals.m_midi_out) |midiout| {
         c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Out_mute), if (mute) 0x7f else 0x0, -1);
     }
 }
 export fn zSetSurfaceSelected(trackid: *MediaTrack, selected: bool) callconv(.C) void {
     _ = trackid;
     _ = selected;
-    std.debug.print("SetSurfaceSelected\n", .{});
 }
 export fn zSetSurfaceSolo(trackid: *MediaTrack, solo: bool) callconv(.C) void {
     _ = trackid;
-    if (m_midiout) |midiout| {
+    if (globals.m_midi_out) |midiout| {
         c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
     }
 }
@@ -521,7 +492,7 @@ export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     playState = play;
     pauseState = pause;
     if (!playState or pauseState) {
-        if (m_midiout) |midiOut| {
+        if (globals.m_midi_out) |midiOut| {
             // set meters to zero when not playing
             c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), 0x0, -1);
             c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), 0x0, -1);
@@ -567,7 +538,7 @@ fn selectTrk(trackid: MediaTrack) void {
             reaper.TrackFX_Show(trackid, cntnrIdx, 1); // close window
         }
     }
-    if (m_midiout) |midiout| {
+    if (globals.m_midi_out) |midiout| {
         const c1_tr_id: u8 = @as(u8, @intCast(@rem(m_bank_offset, 20) + 0x15 - 1)); // c1’s midi track ids go from 0x15 to 0x28
         c.MidiOut_Send(midiout, 0xb0, c1_tr_id, 0x0, -1); // turnoff currently-selected track's lights
         const new_cc = @rem(id, 20) + 0x15 - 1;
