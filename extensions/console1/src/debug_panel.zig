@@ -41,7 +41,7 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
                 try imgui.TableHeadersRow(.{ctx});
 
                 // Get recent events (last 10 for example)
-                for (event_log.recent(10)) |event| {
+                for (event_log.getEventsByType(.state_change, 10)) |event| {
                     try imgui.TableNextRow(.{ctx});
 
                     if (try imgui.TableNextColumn(.{ctx})) {
@@ -55,11 +55,6 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
                                 const state_text = try safePrint(&buf, "{s} -> {s}", .{ @tagName(change.old_mode), @tagName(change.new_mode) });
                                 try imgui.Text(.{ ctx, state_text });
                             },
-                            .midi_input => |midi| {
-                                const midi_text = try safePrint(&buf, "CC: {s} Val: {d}", .{ @tagName(midi.cc), midi.value });
-                                try imgui.Text(.{ ctx, midi_text });
-                            },
-                            // ... other event types
                             else => {},
                         }
                     }
@@ -80,6 +75,15 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
         if (try imgui.CollapsingHeader(.{ ctx, "MIDI Monitor" })) {
             // Show recent MIDI activity
             // Could add meters visualization here
+            for (event_log.getEventsByType(.midi_input, 20)) |event| {
+                switch (event) {
+                    .midi_input => |midi| {
+                        const midi_text = try safePrint(&buf, "CC: {s} Val: {d}", .{ @tagName(midi.cc), midi.value });
+                        try imgui.Text(.{ ctx, midi_text });
+                    },
+                    else => {},
+                }
+            }
         }
     }
 }

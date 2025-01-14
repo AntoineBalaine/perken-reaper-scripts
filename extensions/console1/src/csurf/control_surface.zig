@@ -184,6 +184,7 @@ fn onPgChg(direction: PgChgDirection) void {
     const idx: u8 = 0;
     const pgCnt64: f64 = @ceil(@as(f64, @floatFromInt(reaper.CountTracks(idx))) / @as(f64, @floatCast(20)));
     const pageCount = @as(u8, @intFromFloat(pgCnt64));
+    if (pageCount == 0) return;
     globals.state.fx_ctrl.current_page = switch (direction) {
         .Up => @rem(globals.state.fx_ctrl.current_page + 1, pageCount),
         .Down => @as(u8, @intCast(@rem(@as(i16, @intCast(globals.state.fx_ctrl.current_page)) - 1, pageCount))),

@@ -121,7 +121,7 @@ pub const EventLog = struct {
         while (i < @min(self.count, MaxEvents) and count < max_items) : (i += 1) {
             const idx = (self.position - 1 + MaxEvents - i) % MaxEvents;
             const event = self.events[idx];
-            if (event.type == event_type) {
+            if (event == event_type) {
                 matching[count] = event;
                 count += 1;
             }
