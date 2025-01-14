@@ -3,7 +3,6 @@ const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
-const State = @import("../internals/state.zig").State;
 const c1 = @import("../internals/c1.zig");
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
@@ -18,6 +17,7 @@ const c = @cImport({
 const Conf = @import("../internals/config.zig");
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 const globals = @import("../globals.zig");
+const Track = @import("../internals/track.zig").Track;
 
 const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
 const reaeq = @import("../internals/reaeq.zig");
@@ -25,7 +25,6 @@ const reaeq = @import("../internals/reaeq.zig");
 // TODO: fix persisting csurf selection in preferences
 // TODO: OUTPUT: send feedback to controller based on changes to fx parms in container
 // TODO: OUTPUT: send feedback to controller's meters (peaks, gain reductio, etc.)
-pub var state: State = undefined;
 pub var controller_dir: [*:0]const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
@@ -45,6 +44,27 @@ var m_buttonstate_lastrun: c.DWORD = 0;
 var testCC: u8 = 0x6d;
 var testFrame: u8 = 0;
 var testBlink: bool = false;
+var trck: ?Track = null;
+
+pub fn updateTrack(
+    trackid: reaper.MediaTrack,
+) void {
+    // update track
+    // validate channel strip
+    // load channel strip
+
+    if (trck) |*tr| {
+        tr.order = .@"S-EQ-C";
+    }
+
+    trck = Track{};
+
+    trck.?.checkTrackState(
+        null,
+        trackid,
+        null,
+    ) catch {};
+}
 
 fn iterCC() void {
     testFrame += 1;
@@ -141,14 +161,14 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
 
 pub fn setPrmVal(comptime cc: c1.CCs, comptime section: Conf.ModulesList, tr: reaper.MediaTrack, val: u8) void {
     const structPrm = @tagName(cc);
-    if (state.track == null) return;
+    if (trck == null) return;
     const nm = @tagName(section);
 
-    const fxMap = @field(state.track.?.fxMap, nm);
+    const fxMap = @field(trck.?.fxMap, nm);
     if (fxMap == null) return;
     const fxIdx = fxMap.?[0];
     const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
-    const subIdx = state.track.?.getSubContainerIdx(
+    const subIdx = trck.?.getSubContainerIdx(
         fxIdx + 1, // make it 1-based
         reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
         mediaTrack,
@@ -171,7 +191,7 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: Conf.ModulesList, tr: re
         // at fxIdx, at fxPrm, set the value
         _ = reaper.TrackFX_SetParamNormalized(
             tr,
-            state.track.?.getSubContainerIdx(fxIdx + 1, // make it 1-based
+            trck.?.getSubContainerIdx(fxIdx + 1, // make it 1-based
                 reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
                 mediaTrack),
             fxPrm,
@@ -283,22 +303,18 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .Inpt_preset => {},
             .Out_Pan => {
-                if (state.mode == .fx_ctrl) {
-                    const rv = reaper.CSurf_OnPanChange(tr, u8ToPan(val), false);
-                    reaper.CSurf_SetSurfacePan(tr, rv, null);
-                }
+                const rv = reaper.CSurf_OnPanChange(tr, u8ToPan(val), false);
+                reaper.CSurf_SetSurfacePan(tr, rv, null);
             },
             .Out_Vol => {
-                if (state.mode == .fx_ctrl) {
-                    _ = reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false);
-                }
+                _ = reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false);
             },
             .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), null),
             .Out_solo => reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), null),
             .Shp_Mtr => {}, // meters unhandled
             .Tr_ext_sidechain => {
                 // unpin prev 3-4 of comp or gate
-                if (state.track) |*track| {
+                if (trck) |*track| {
                     switch (val) {
                         0x0, 0x3f, 0x7f => track.checkTrackState(null, tr, @enumFromInt(val)) catch {},
                         else => {},
@@ -306,7 +322,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                 }
             },
             .Tr_order => {
-                if (state.track) |*track| {
+                if (trck) |*track| {
                     switch (val) {
                         0x0, 0x3f, 0x7f => track.checkTrackState(@enumFromInt(val), tr, null) catch {},
                         else => {},
@@ -400,7 +416,7 @@ export fn zRun() callconv(.C) void {
             const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
             c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
             c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
-            if (state.track) |*track| {
+            if (trck) |*track| {
                 if (track.fxMap.COMP) |comp| {
                     const success = reaper.TrackFX_GetNamedConfigParm(
                         mediaTrack,
@@ -523,13 +539,13 @@ fn selectTrk(trackid: MediaTrack) void {
     if (m_bank_offset == id) {
         return;
     }
-    state.updateTrack(trackid);
+    updateTrack(trackid);
     if (display != null) { // display fxChain windows
         const prevTr = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
 
         const currentFX = reaper.TrackFX_GetChainVisible(prevTr);
         reaper.TrackFX_Show(prevTr, currentFX, if (currentFX == -2 or currentFX >= 0) 0 else 1);
-        if (state.track) |_| {
+        if (trck) |_| {
             const cntnrIdx = reaper.TrackFX_GetByName(trackid, CONTROLLER_NAME, false) + 1; // make it 1-based
             reaper.TrackFX_Show(trackid, cntnrIdx, 1); // close window
         }
@@ -542,7 +558,7 @@ fn selectTrk(trackid: MediaTrack) void {
         m_bank_offset = id;
         // TODO: update SideChain
         // set all knobs to the current track’s values
-        if (state.track) |*trk| {
+        if (trck) |*trk| {
             // trk.order
             c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Tr_order), @intFromEnum(trk.order), -1);
             inline for (comptime std.enums.values(c1.CCs)) |CC| { // update params according to mappings
@@ -692,7 +708,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETPAN_EX => {
             // csurf doesn't have means of checking if fx get re-ordered.
             // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
-            if (state.track) |*track| {
+            if (trck) |*track| {
                 if (parm1) |mediaTrack| {
                     _ = track.checkTrackState(
                         null,

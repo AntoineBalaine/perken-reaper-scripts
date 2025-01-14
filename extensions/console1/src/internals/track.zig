@@ -36,10 +36,6 @@ pub fn init() Track {
     return track;
 }
 
-pub fn deinit(self: *Track) void {
-    self.order = .@"S-EQ-C";
-}
-
 // To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index.
 // e.g. to address the third item in the container at the second position of the track FX chain for tr,
 // the index would be 0x2000000 + 3*(TrackFX_GetCount(tr)+1) + 2.
@@ -187,6 +183,7 @@ pub fn addMissingModules(
 }
 
 /// validate track
+/// NOTE: track validation is meant to fail silently.
 pub fn checkTrackState(
     self: *Track,
     newOrder: ?ModulesOrder,

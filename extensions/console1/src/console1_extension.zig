@@ -19,7 +19,7 @@ const logger = @import("logger.zig");
 
 const plugin_name = "Hello, Zig!";
 
-var state: State = undefined;
+var state: State = .{};
 pub var userSettings: UserSettings = .{};
 var controller_dir: [*:0]const u8 = undefined;
 // var action_id: c_int = undefined;
@@ -46,10 +46,6 @@ fn init() !void {
     errdefer Conf.deinit(gpa);
 
     userSettings = try UserSettings.init(gpa, controller_dir);
-    state = State.init(gpa) catch |err| {
-        logger.log(.warning, "Failed to init state \n", .{}, null, gpa);
-        return err;
-    };
     ImGuiLoop.allocator = gpa;
 
     control_surface.state = state;
@@ -64,7 +60,6 @@ fn deinit() void {
     globals.deinit(gpa);
     Conf.deinit(gpa);
     ImGuiLoop.deinit();
-    state.deinit();
     control_surface.deinit(myCsurf);
     const deinit_status = gpa_int.deinit();
     if (deinit_status == .leak) {
