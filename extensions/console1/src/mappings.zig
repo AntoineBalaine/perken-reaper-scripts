@@ -135,6 +135,17 @@ pub fn deinit(self: *MapStore) void {
     self.GATE.deinit(self.allocator);
 }
 
+pub fn getModuleByName(self: *MapStore, fx_name: [:0]const u8) ?ModulesList {
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        const field_name = @tagName(module);
+        const map = &@field(self, field_name);
+        if (map.contains(fx_name)) {
+            return module;
+        }
+    }
+    return null;
+}
+
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
 pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMapping {
     switch (module) {

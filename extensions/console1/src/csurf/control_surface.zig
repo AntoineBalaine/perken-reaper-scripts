@@ -58,7 +58,7 @@ pub fn updateTrack(
 
     trck = Track{};
 
-    trck.?.checkTrackState(
+    trck.?.validateTrack(
         null,
         trackid,
         null,
@@ -315,7 +315,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                 // unpin prev 3-4 of comp or gate
                 if (trck) |*track| {
                     switch (val) {
-                        0x0, 0x3f, 0x7f => track.checkTrackState(null, tr, @enumFromInt(val)) catch {},
+                        0x0, 0x3f, 0x7f => track.validateTrack(null, tr, @enumFromInt(val)) catch {},
                         else => {},
                     }
                 }
@@ -323,7 +323,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Tr_order => {
                 if (trck) |*track| {
                     switch (val) {
-                        0x0, 0x3f, 0x7f => track.checkTrackState(@enumFromInt(val), tr, null) catch {},
+                        0x0, 0x3f, 0x7f => track.validateTrack(@enumFromInt(val), tr, null) catch {},
                         else => {},
                     }
                 }
@@ -709,7 +709,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
             if (trck) |*track| {
                 if (parm1) |mediaTrack| {
-                    _ = track.checkTrackState(
+                    _ = track.validateTrack(
                         null,
                         @as(MediaTrack, @ptrCast(mediaTrack)),
                         null,

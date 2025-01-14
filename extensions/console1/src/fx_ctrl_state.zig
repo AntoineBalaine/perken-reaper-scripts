@@ -36,7 +36,7 @@ const MeterValue = struct {
     label: [:0]const u8,
 };
 
-// Union to handle different types of controls
+/// Union to handle different types of controls
 const ControlValue = union(enum) {
     param: ParamValue, // For FX parameters
     track: TrackValue, // For track selection buttons
@@ -44,18 +44,22 @@ const ControlValue = union(enum) {
     button: bool, // For simple on/off buttons (mute, solo, etc.)
 };
 
-// Current parameter mappings
+/// Current parameter mappings
 fxMap: FxMap = FxMap{},
 
+/// Static map containing all the CCs and their labels.
+///
+/// Unfortunately, I can’t use an enum map
+/// because of the eval branch quota limitations on large enums.
 values: std.AutoHashMap(c1.CCs, ControlValue),
-// Module ordering
+/// Module ordering
 order: ModulesOrder = .@"S-EQ-C",
 scRouting: SCRouting = .off,
 
-// Display settings
+/// Display settings
 show_plugin_ui: bool = false,
 
-// Paging
+/// Paging
 current_page: u8 = 0, // 0-based page number
 pub fn init(gpa: std.mem.Allocator) FxControlState {
     var values = std.AutoHashMap(c1.CCs, ControlValue).init(gpa);

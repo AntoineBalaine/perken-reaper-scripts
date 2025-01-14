@@ -1,11 +1,11 @@
 const std = @import("std");
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper.zig").reaper;
 const ModulesList = @import("statemachine.zig").ModulesList;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const SCRouting = fx_ctrl_state.SCRouting;
 const FxMap = @import("mappings.zig").FxMap;
-const ext = @import("console1_extension.zig");
+const globals = @import("globals.zig");
 pub const CONTROLLER_NAME = "PRKN_C1";
 
 // Tuple contains: isLoaded, idxInContainer
@@ -19,11 +19,6 @@ pub const Track = @This();
 order: ModulesOrder = .@"S-EQ-C",
 scRouting: SCRouting = .off,
 fxMap: FxMap = FxMap{},
-
-pub fn init() Track {
-    const track: Track = .{};
-    return track;
-}
 
 // To address a container, the 1-based subitem is multiplied by one plus the count of the FX chain and added to the 1-based container item index.
 // e.g. to address the third item in the container at the second position of the track FX chain for tr,
@@ -56,10 +51,10 @@ fn loadDefaultChain(
     }
 
     // push them into the current container.
-    var iterator = Conf.defaults.iterator();
+    var iterator = globals.preferences.default_fx.iterator();
     var idx: u8 = 0;
     while (iterator.next()) |field| : (idx += 1) {
-        const fxName = Conf.defaults.get(field.key);
+        const fxName = field.value.*;
         const insertIdx = self.getSubContainerIdx(idx + 1, // make it 1-based
             reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
             mediaTrack);
@@ -77,11 +72,11 @@ fn loadDefaultChain(
                 reaper.TrackFX_SetEnabled(mediaTrack, insertIdx, false);
             }
             switch (field.key) {
-                .INPUT => self.fxMap.INPUT = .{ idx, Conf.mappings.get(fxName, field.key).INPUT },
-                .GATE => self.fxMap.GATE = .{ idx, Conf.mappings.get(fxName, field.key).GATE },
-                .EQ => self.fxMap.EQ = .{ idx, Conf.mappings.get(fxName, field.key).EQ },
-                .COMP => self.fxMap.COMP = .{ idx, Conf.mappings.get(fxName, field.key).COMP },
-                .OUTPT => self.fxMap.OUTPT = .{ idx, Conf.mappings.get(fxName, field.key).OUTPT },
+                .INPUT => self.fxMap.INPUT = .{ idx, globals.map_store.get(fxName, field.key).INPUT },
+                .GATE => self.fxMap.GATE = .{ idx, globals.map_store.get(fxName, field.key).GATE },
+                .EQ => self.fxMap.EQ = .{ idx, globals.map_store.get(fxName, field.key).EQ },
+                .COMP => self.fxMap.COMP = .{ idx, globals.map_store.get(fxName, field.key).COMP },
+                .OUTPT => self.fxMap.OUTPT = .{ idx, globals.map_store.get(fxName, field.key).OUTPT },
             }
         }
     }
@@ -127,7 +122,7 @@ pub fn addMissingModules(
         }
         const fxName = std.mem.span(@as([*:0]const u8, &buf));
         // if fx is found in config, it’s valid.
-        const moduleType = Conf.modulesList.get(fxName) orelse {
+        const moduleType = globals.map_store.getModuleByName(fxName) orelse {
             continue;
         };
 
@@ -141,12 +136,12 @@ pub fn addMissingModules(
             .OUTPT => moduleCounter.OUTPT += 1,
         }
     }
-    inline for (std.meta.fields(@TypeOf(moduleCounter))) |field| {
+    inline for (comptime std.meta.fields(@TypeOf(moduleCounter))) |field| {
         const V = @field(moduleCounter, field.name);
         if (V == 0) {
             // add the missing module
             const module = std.meta.stringToEnum(ModulesList, field.name) orelse return TrckErr.enumConvertFail;
-            const defaultFX = Conf.defaults.get(module);
+            const defaultFX = globals.preferences.default_fx.get(module);
 
             const subidx: u8 = switch (module) {
                 .INPUT => 0,
@@ -173,7 +168,7 @@ pub fn addMissingModules(
 
 /// validate track
 /// NOTE: track validation is meant to fail silently.
-pub fn checkTrackState(
+pub fn validateTrack(
     self: *Track,
     newOrder: ?ModulesOrder,
     mediaTrack: reaper.MediaTrack,
@@ -229,7 +224,7 @@ pub fn checkTrackState(
         }
         const fxName = std.mem.span(@as([*:0]const u8, &buf));
 
-        const moduleType = Conf.modulesList.get(fxName) orelse { // no mapping available
+        const moduleType = globals.map_store.getModuleByName(fxName) orelse { // no mapping available
             continue;
         };
 
@@ -250,9 +245,9 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(newOrder, mediaTrack, newRouting);
+                    return try self.validateTrack(newOrder, mediaTrack, newRouting);
                 } else {
-                    self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .INPUT).INPUT };
+                    self.fxMap.INPUT = .{ @as(u8, @intCast(idx)), globals.map_store.get(fxName, .INPUT).INPUT };
                 }
             },
             .OUTPT => {
@@ -265,14 +260,14 @@ pub fn checkTrackState(
                         true,
                     );
                     // now that the fx indexes are all invalid, let's recurse.
-                    return try self.checkTrackState(newOrder, mediaTrack, newRouting);
+                    return try self.validateTrack(newOrder, mediaTrack, newRouting);
                 } else {
-                    self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .OUTPT).OUTPT };
+                    self.fxMap.OUTPT = .{ @as(u8, @intCast(idx)), globals.map_store.get(fxName, .OUTPT).OUTPT };
                 }
             },
-            .GATE => self.fxMap.GATE = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .GATE).GATE },
-            .EQ => self.fxMap.EQ = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .EQ).EQ },
-            .COMP => self.fxMap.COMP = .{ @as(u8, @intCast(idx)), Conf.mappings.get(fxName, .COMP).COMP },
+            .GATE => self.fxMap.GATE = .{ @as(u8, @intCast(idx)), globals.map_store.get(fxName, .GATE).GATE },
+            .EQ => self.fxMap.EQ = .{ @as(u8, @intCast(idx)), globals.map_store.get(fxName, .EQ).EQ },
+            .COMP => self.fxMap.COMP = .{ @as(u8, @intCast(idx)), globals.map_store.get(fxName, .COMP).COMP },
         }
     }
 
@@ -324,7 +319,7 @@ pub fn checkTrackState(
     if (newOrder) |order| { // reorder fx after finding where they are
         self.reorder(tr, order, container_idx, moduleChecks);
     }
-    if (!ext.userSettings.manual_routing) {
+    if (!globals.preferences.manual_routing) {
         self.setChanStripSC(tr, container_idx, moduleChecks, newRouting);
     }
 }
