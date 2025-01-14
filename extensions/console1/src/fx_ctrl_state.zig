@@ -1,5 +1,5 @@
 const std = @import("std");
-const track = @import("internals/track.zig");
+const track = @import("track.zig");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxMap = MapStore.FxMap;

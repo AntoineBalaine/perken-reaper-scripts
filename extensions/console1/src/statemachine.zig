@@ -8,7 +8,7 @@
 const std = @import("std");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
-const track = @import("internals/track.zig");
+const track = @import("track.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
 const globals = @import("globals.zig");
 

@@ -16,9 +16,9 @@ const c = @cImport({
 });
 const ModulesList = @import("../statemachine.zig").ModulesList;
 const globals = @import("../globals.zig");
-const Track = @import("../internals/track.zig").Track;
+const Track = @import("../track.zig").Track;
 
-const CONTROLLER_NAME = @import("../internals/track.zig").CONTROLLER_NAME;
+const CONTROLLER_NAME = @import("../track.zig").CONTROLLER_NAME;
 const reaeq = @import("../internals/reaeq.zig");
 // TODO: update ini module, move tests from module into project
 // TODO: fix persisting csurf selection in preferences
