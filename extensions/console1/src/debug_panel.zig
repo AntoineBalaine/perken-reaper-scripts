@@ -27,6 +27,9 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
         // Current State Section
         const mode_text = try safePrint(&buf, "Current Mode: {s}", .{@tagName(state.current_mode)});
         try imgui.TextWrapped(.{ ctx, mode_text });
+        if (logger.log_level) |level| {
+            try imgui.Text(.{ ctx, try safePrint(&buf, "Log level: {s}", .{@tagName(level.*)}) });
+        }
 
         if (try imgui.CollapsingHeader(.{ ctx, "Recent Events" })) {
             if (try imgui.BeginTable(.{ ctx, "Events", 3 })) {

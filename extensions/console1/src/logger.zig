@@ -27,10 +27,10 @@ pub var log_level: ?*LogLevel = null; // Just need the level
 const DebugBufferSize = 1024;
 
 pub const LogLevel = enum(u8) {
-    debug, // Very detailed information, function entries/exits
-    info, // General operational information
-    warning, // Issues that don't stop operation but need attention
-    err, // Serious issues that impair functionality
+    debug = 3, // Very detailed information, function entries/exits
+    info = 2, // General operational information
+    warning = 1, // Issues that don't stop operation but need attention
+    err = 0, // Serious issues that impair functionality
 
     // Helper to check if a level should be logged
     pub fn shouldLog(self: LogLevel, current_level: LogLevel) bool {
