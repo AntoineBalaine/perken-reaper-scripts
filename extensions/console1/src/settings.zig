@@ -3,7 +3,6 @@ const ini = @import("ini");
 const mappings_mod = @import("internals/mappings.zig");
 const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
-const UserSettings = @import("internals/userPrefs.zig").UserSettings;
 const logger = @import("logger.zig");
 const LogLevel = logger.LogLevel;
 

@@ -15,7 +15,6 @@ const c = @cImport({
     @cInclude("csurf/midi_wrapper.h");
 });
 const ModulesList = @import("../statemachine.zig").ModulesList;
-const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 const globals = @import("../globals.zig");
 const Track = @import("../internals/track.zig").Track;
 

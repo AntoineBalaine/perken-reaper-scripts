@@ -8,7 +8,6 @@ const control_surface = @import("csurf/control_surface.zig");
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
-const UserSettings = @import("internals/userPrefs.zig").UserSettings;
 const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
@@ -17,7 +16,6 @@ const logger = @import("logger.zig");
 
 const plugin_name = "Hello, Zig!";
 
-pub var userSettings: UserSettings = .{};
 var controller_dir: [*:0]const u8 = undefined;
 // var action_id: c_int = undefined;
 var myCsurf: c.C_ControlSurface = undefined;
@@ -40,7 +38,6 @@ fn init() !void {
         gpa.free(std.mem.span(controller_dir));
     }
 
-    userSettings = try UserSettings.init(gpa, controller_dir);
     ImGuiLoop.allocator = gpa;
 
     control_surface.controller_dir = controller_dir;
