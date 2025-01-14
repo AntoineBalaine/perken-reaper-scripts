@@ -1,5 +1,5 @@
 const std = @import("std");
-const c1 = @import("internals/c1.zig");
+const c1 = @import("c1.zig");
 const reaper = @import("reaper.zig").reaper;
 const track_mod = @import("internals/track.zig");
 const ModulesOrder = track_mod.ModulesOrder;

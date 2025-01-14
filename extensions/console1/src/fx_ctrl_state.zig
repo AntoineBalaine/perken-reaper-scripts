@@ -1,6 +1,6 @@
 const std = @import("std");
 const track = @import("internals/track.zig");
-const c1 = @import("internals/c1.zig");
+const c1 = @import("c1.zig");
 const MapStore = @import("internals/mappings.zig");
 const FxMap = MapStore.FxMap;
 // Mode-specific state structures

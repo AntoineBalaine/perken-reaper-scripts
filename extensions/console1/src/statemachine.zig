@@ -6,7 +6,7 @@
 //    - Update debug overlay to show new structures
 
 const std = @import("std");
-const c1 = @import("internals/c1.zig");
+const c1 = @import("c1.zig");
 const MapStore = @import("internals/mappings.zig");
 const track = @import("internals/track.zig");
 const FxControlState = @import("fx_ctrl_state.zig");

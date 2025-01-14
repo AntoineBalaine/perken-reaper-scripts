@@ -3,7 +3,7 @@ const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
-const c1 = @import("../internals/c1.zig");
+const c1 = @import("../c1.zig");
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
     @cInclude("csurf/control_surface_wrapper.h");

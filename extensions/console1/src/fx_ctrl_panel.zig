@@ -4,7 +4,7 @@ const Knobs = @import("components/knob.zig");
 const Knob = Knobs.Knob;
 const Rectangle = @import("components/knob.zig").Rectangle;
 const State = @import("statemachine.zig").State;
-const c1 = @import("internals/c1.zig");
+const c1 = @import("c1.zig");
 // Layout constants
 // const section_spacing = 10.0;
 const knob_size = 40.0;

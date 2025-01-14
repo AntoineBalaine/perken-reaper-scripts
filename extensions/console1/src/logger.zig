@@ -16,7 +16,7 @@ const std = @import("std");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const ModulesList = statemachine.ModulesList;
-const c1 = @import("internals/c1.zig");
+const c1 = @import("c1.zig");
 const debugconfig = @import("config");
 
 pub var debug_window_active = debugconfig.@"test";

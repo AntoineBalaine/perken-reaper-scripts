@@ -1,6 +1,6 @@
 const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
-const c1 = @import("c1.zig");
+const c1 = @import("../c1.zig");
 const bandtypes = enum(c_int) {
     allpass = 5,
     band = 8,

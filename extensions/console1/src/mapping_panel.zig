@@ -9,7 +9,7 @@ const safePrint = @import("debug_panel.zig").safePrint;
 const dispatch = @import("actions.zig").dispatch;
 const globals = @import("globals.zig");
 const State = @import("statemachine.zig").State;
-const c1 = @import("internals/c1.zig");
+const c1 = @import("c1.zig");
 const actions = @import("actions.zig");
 
 pub const FxParameter = struct {
