@@ -3,7 +3,6 @@ const reaper = @import("../reaper.zig").reaper;
 const ModulesList = @import("../statemachine.zig").ModulesList;
 const FxMap = @import("mappings.zig").FxMap;
 const ext = @import("../console1_extension.zig");
-const Conf = @import("config.zig");
 pub const CONTROLLER_NAME = "PRKN_C1";
 
 pub const ModulesOrder = enum(u8) {

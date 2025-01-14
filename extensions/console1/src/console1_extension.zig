@@ -10,7 +10,6 @@ const c = @cImport({
 });
 const UserSettings = @import("internals/userPrefs.zig").UserSettings;
 const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
-const Conf = @import("internals/config.zig");
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
 const globals = @import("globals.zig");
@@ -40,8 +39,6 @@ fn init() !void {
         logger.log(.err, "C1 init failed: {s}", .{@errorName(err)}, null, gpa);
         gpa.free(std.mem.span(controller_dir));
     }
-    try Conf.init(gpa, controller_dir);
-    errdefer Conf.deinit(gpa);
 
     userSettings = try UserSettings.init(gpa, controller_dir);
     ImGuiLoop.allocator = gpa;
@@ -55,7 +52,6 @@ fn deinit() void {
     // gpa.free(std.mem.span(controller_dir));
     // gpa.free(controller_dir);
     globals.deinit(gpa);
-    Conf.deinit(gpa);
     ImGuiLoop.deinit();
     control_surface.deinit(myCsurf);
     const deinit_status = gpa_int.deinit();

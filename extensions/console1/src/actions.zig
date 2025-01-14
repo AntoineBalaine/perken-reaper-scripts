@@ -1,6 +1,5 @@
 const std = @import("std");
 const c1 = @import("internals/c1.zig");
-const Conf = @import("internals/config.zig");
 const reaper = @import("reaper.zig").reaper;
 const track_mod = @import("internals/track.zig");
 const ModulesOrder = track_mod.ModulesOrder;
@@ -11,7 +10,6 @@ const Mode = statemachine.Mode;
 const State = statemachine.State;
 const globals = @import("globals.zig");
 const SettingsPanel = @import("settings_panel.zig");
-const config = @import("internals/config.zig");
 const mappings = @import("internals/mappings.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const ModulesList = statemachine.ModulesList;
