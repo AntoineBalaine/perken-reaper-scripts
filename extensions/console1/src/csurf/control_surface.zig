@@ -258,6 +258,10 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Inpt_MtrLft => {}, // meters unhandled
             .Inpt_MtrRgt => {}, // meters unhandled
             .Inpt_disp_mode => {},
+            .Tr_tr_copy => {},
+            .Tr_tr_grp => {},
+            .Out_MtrLft => {}, // meters unhandled
+            .Out_MtrRgt => {}, // meters unhandled
             .Inpt_disp_on => {
                 const mediaTrack = reaper.CSurf_TrackFromID(m_bank_offset, g_csurf_mcpmode);
                 const cntnrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
@@ -272,18 +276,12 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                     display = 1;
                 }
             },
-            .Inpt_filt_to_comp => {
-                std.debug.print("CC Inpt_filt_to_comp\n", .{});
-            },
+            .Inpt_filt_to_comp => {},
             .Inpt_phase_inv => {
                 const phase = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE");
                 _ = reaper.SetMediaTrackInfo_Value(tr, "B_PHASE", if (phase == 0) 1 else 0);
             },
-            .Inpt_preset => {
-                std.debug.print("CC Inpt_preset\n", .{});
-            },
-            .Out_MtrLft => {}, // meters unhandled
-            .Out_MtrRgt => {}, // meters unhandled
+            .Inpt_preset => {},
             .Out_Pan => {
                 if (state.mode == .fx_ctrl) {
                     const rv = reaper.CSurf_OnPanChange(tr, u8ToPan(val), false);
@@ -337,8 +335,6 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .Tr_tr7 => selTrck(7),
             .Tr_tr8 => selTrck(8),
             .Tr_tr9 => selTrck(9),
-            .Tr_tr_copy => {},
-            .Tr_tr_grp => {},
             inline else => |cc_| setPrmVal(cc_, switch (cc_) {
                 .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
                 .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,

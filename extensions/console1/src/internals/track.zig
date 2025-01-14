@@ -186,6 +186,7 @@ pub fn addMissingModules(
     }
 }
 
+/// validate track
 pub fn checkTrackState(
     self: *Track,
     newOrder: ?ModulesOrder,
