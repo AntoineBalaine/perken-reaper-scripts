@@ -1,21 +1,12 @@
 const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
 const ModulesList = @import("statemachine.zig").ModulesList;
+const fx_ctrl_state = @import("fx_ctrl_state.zig");
+const ModulesOrder = fx_ctrl_state.ModulesOrder;
+const SCRouting = fx_ctrl_state.SCRouting;
 const FxMap = @import("mappings.zig").FxMap;
 const ext = @import("console1_extension.zig");
 pub const CONTROLLER_NAME = "PRKN_C1";
-
-pub const ModulesOrder = enum(u8) {
-    @"EQ-S-C" = 0x7F,
-    @"S-C-EQ" = 0x3F,
-    @"S-EQ-C" = 0x0,
-};
-
-pub const SCRouting = enum(u8) {
-    off = 0x0,
-    toShape = 0x7F,
-    toComp = 0x3F,
-};
 
 // Tuple contains: isLoaded, idxInContainer
 pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));

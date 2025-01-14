@@ -1,13 +1,21 @@
 const std = @import("std");
-const track = @import("track.zig");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxMap = MapStore.FxMap;
 // Mode-specific state structures
 const FxControlState = @This();
-comptime {
-    @setEvalBranchQuota(9999999); // Increase the quota to handle the large enum
-}
+
+pub const ModulesOrder = enum(u8) {
+    @"EQ-S-C" = 0x7F,
+    @"S-C-EQ" = 0x3F,
+    @"S-EQ-C" = 0x0,
+};
+
+pub const SCRouting = enum(u8) {
+    off = 0x0,
+    toShape = 0x7F,
+    toComp = 0x3F,
+};
 
 // Value types for different CC controls
 const ParamValue = struct {
@@ -41,8 +49,8 @@ fxMap: FxMap = FxMap{},
 
 values: std.AutoHashMap(c1.CCs, ControlValue),
 // Module ordering
-order: track.ModulesOrder = .@"S-EQ-C",
-scRouting: track.SCRouting = .off,
+order: ModulesOrder = .@"S-EQ-C",
+scRouting: SCRouting = .off,
 
 // Display settings
 show_plugin_ui: bool = false,
