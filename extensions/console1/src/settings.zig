@@ -1,6 +1,6 @@
 const std = @import("std");
 const ini = @import("ini");
-const mappings_mod = @import("internals/mappings.zig");
+const mappings_mod = @import("mappings.zig");
 const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
 const logger = @import("logger.zig");

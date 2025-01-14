@@ -10,7 +10,7 @@ const Mode = statemachine.Mode;
 const State = statemachine.State;
 const globals = @import("globals.zig");
 const SettingsPanel = @import("settings_panel.zig");
-const mappings = @import("internals/mappings.zig");
+const mappings = @import("mappings.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const ModulesList = statemachine.ModulesList;
 

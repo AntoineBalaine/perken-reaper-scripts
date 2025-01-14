@@ -1,8 +1,8 @@
 const std = @import("std");
 const ini = @import("ini");
-const logger = @import("../logger.zig");
-const settings = @import("../settings.zig");
-const statemachine = @import("../statemachine.zig");
+const logger = @import("logger.zig");
+const settings = @import("settings.zig");
+const statemachine = @import("statemachine.zig");
 const MappingState = statemachine.MappingState;
 const ModulesList = statemachine.ModulesList;
 pub const UNMAPPED_PARAM: u8 = std.math.maxInt(u8); // or -1, or another sentinel value
