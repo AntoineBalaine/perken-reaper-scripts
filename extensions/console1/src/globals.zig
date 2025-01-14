@@ -35,6 +35,9 @@ pub var m_midi_out_dev: ?c_int = null;
 pub var m_midi_in: ?*reaper.midi_Input = null;
 pub var m_midi_out: ?reaper.midi_Output = null;
 
+pub var playState: bool = false;
+pub var pauseState: bool = false;
+
 pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
     allocator = gpa;
     resource_path = try allocator.dupeZ(u8, std.mem.span(path));

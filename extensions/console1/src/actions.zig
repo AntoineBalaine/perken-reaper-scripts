@@ -1,7 +1,6 @@
 const std = @import("std");
 const c1 = @import("c1.zig");
 const reaper = @import("reaper.zig").reaper;
-const track_mod = @import("track.zig");
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const SCRouting = fx_ctrl_state.SCRouting;
@@ -135,10 +134,8 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 updateFxParameter(state, param.cc, param.value);
             },
             .set_volume => |vol| {
-                if (state.last_touched_tr_id) |id| {
-                    const track = reaper.CSurf_TrackFromID(id, false);
-                    _ = reaper.CSurf_OnVolumeChange(track, vol, false);
-                }
+                const track = reaper.CSurf_TrackFromID(state.last_touched_tr_id, false);
+                _ = reaper.CSurf_OnVolumeChange(track, vol, false);
             },
             else => {},
             // ... other fx_ctrl actions
@@ -178,18 +175,16 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 }) {
                     createEmptyMapping(state, fx_name) catch return;
                     // Open mapping panel
-                    if (state.last_touched_tr_id) |track_id| {
-                        switch (state.fx_sel.current_category) {
-                            inline else => |variant| {
-                                const fxMap = @field(state.fx_ctrl.fxMap, @tagName(variant));
+                    switch (state.fx_sel.current_category) {
+                        inline else => |variant| {
+                            const fxMap = @field(state.fx_ctrl.fxMap, @tagName(variant));
 
-                                if (fxMap == null) return;
-                                if (fxMap) |map| {
-                                    enterMappingMode(track_id, map[0]) catch {};
-                                    dispatch(state, .{ .change_mode = .mapping_panel });
-                                }
-                            },
-                        }
+                            if (fxMap == null) return;
+                            if (fxMap) |map| {
+                                enterMappingMode(state.last_touched_tr_id, map[0]) catch {};
+                                dispatch(state, .{ .change_mode = .mapping_panel });
+                            }
+                        },
                     }
                 }
             },

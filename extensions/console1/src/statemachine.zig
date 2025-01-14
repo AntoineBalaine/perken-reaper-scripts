@@ -8,7 +8,6 @@
 const std = @import("std");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
-const track = @import("track.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
 const globals = @import("globals.zig");
 
@@ -59,7 +58,7 @@ pub const State = struct {
     mapping: MappingState,
 
     // Shared state
-    last_touched_tr_id: ?c_int = null,
+    last_touched_tr_id: c_int = 0,
     selectedTracks: std.AutoArrayHashMapUnmanaged(c_int, void) = .{},
     gui_visible: bool = true,
 

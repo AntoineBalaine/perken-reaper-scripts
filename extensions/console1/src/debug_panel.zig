@@ -71,16 +71,12 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
         }
 
         if (try imgui.CollapsingHeader(.{ ctx, "Track State" })) {
-            if (state.last_touched_tr_id) |tr_id| {
-                const track_text = try safePrint(&buf, "Last Touched Track: {d}", .{tr_id});
-                try imgui.Text(.{ ctx, track_text });
+            const track_text = try safePrint(&buf, "Last Touched Track: {d}", .{state.last_touched_tr_id});
+            try imgui.Text(.{ ctx, track_text });
 
-                if (state.fx_ctrl.fxMap.COMP) |comp| {
-                    const comp_text = try safePrint(&buf, "Comp FX: {d}", .{comp[0]});
-                    try imgui.Text(.{ ctx, comp_text });
-                }
-            } else {
-                try imgui.TextWrapped(.{ ctx, "No track selected" });
+            if (state.fx_ctrl.fxMap.COMP) |comp| {
+                const comp_text = try safePrint(&buf, "Comp FX: {d}", .{comp[0]});
+                try imgui.Text(.{ ctx, comp_text });
             }
         }
 
