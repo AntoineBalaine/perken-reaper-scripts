@@ -13,6 +13,8 @@ const SettingsPanel = @import("settings_panel.zig");
 const mappings = @import("mappings.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const ModulesList = statemachine.ModulesList;
+const constants = @import("constants.zig");
+const onMidiEvent_FxCtrl = @import("csurf/control_surface.zig").onMidiEvent_FxCtrl;
 
 const valid_transitions = statemachine.valid_transitions;
 pub const ParamChg = struct {
@@ -30,9 +32,9 @@ pub const WinChg = struct {
 const ModeAction = union(enum) {
     // FX Control Mode
     fx_ctrl: union(enum) {
-        set_param: struct {
+        midi_input: struct {
             cc: c1.CCs,
-            value: u7,
+            value: u8,
         },
         set_volume: f64,
         set_pan: f64,
@@ -121,21 +123,21 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     .info,
                     "Mode changed: {s} -> {s}",
                     .{ @tagName(old_mode), @tagName(new_mode) },
-                    null,
+                    .{ .state_change = .{ .new_mode = new_mode, .old_mode = old_mode } },
                     globals.allocator,
                 );
             }
         },
         .fx_ctrl => |fx_action| switch (fx_action) {
-            .set_param => |param| {
-                if (state.current_mode != .fx_ctrl) return;
-
-                // Update parameter value and send to DAW
-                updateFxParameter(state, param.cc, param.value);
-            },
-            .set_volume => |vol| {
-                const track = reaper.CSurf_TrackFromID(state.last_touched_tr_id, false);
-                _ = reaper.CSurf_OnVolumeChange(track, vol, false);
+            .midi_input => |input| {
+                logger.log(
+                    .debug,
+                    "MIDI input: {s} -> {d}",
+                    .{ @tagName(input.cc), input.value },
+                    .{ .midi_input = .{ .cc = input.cc, .value = input.value } },
+                    globals.allocator,
+                );
+                onMidiEvent_FxCtrl(input.cc, input.value);
             },
             else => {},
             // ... other fx_ctrl actions
@@ -384,8 +386,9 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     };
                 }
                 if (globals.settings_panel) |_| {
-                    state.current_mode = .settings;
                     dispatch(state, .{ .change_mode = .settings });
+                } else {
+                    logger.log(.err, "settings_panel data unfound: {s}", .{@tagName(action)}, null, globals.allocator);
                 }
             },
             .save => {
@@ -406,7 +409,9 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     panel.deinit();
                     globals.settings_panel = null;
                 }
-                state.current_mode = .fx_ctrl; // or previous mode
+                state.current_mode = .fx_ctrl;
+                // Dunno why, calling dispatch here crashes the UI.
+                // dispatch(state, .{ .change_mode = .fx_ctrl });
             },
         },
         .Csurf => |set_action| switch (set_action) {

@@ -41,30 +41,25 @@ pub const LogLevel = enum(u8) {
 const EventType = enum {
     state_change,
     midi_input,
-    mode_transition,
     parameter_update,
     // etc.
 };
 
-const Event = struct {
-    type: EventType,
-    data: union(EventType) {
-        state_change: struct {
-            old_mode: Mode,
-            new_mode: Mode,
-        },
-        midi_input: struct {
-            cc: c1.CCs,
-            value: u7,
-        },
-        mode_transition: Mode,
-        parameter_update: struct {
-            module: ModulesList,
-            param: u32,
-            value: f64,
-        },
+const Event =
+    union(EventType) {
+    state_change: struct {
+        old_mode: Mode,
+        new_mode: Mode,
     },
-    timestamp: i64, // for debugging/logging
+    midi_input: struct {
+        cc: c1.CCs,
+        value: u8,
+    },
+    parameter_update: struct {
+        module: ModulesList,
+        param: u32,
+        value: f64,
+    },
 };
 
 pub const EventLog = struct {
@@ -84,7 +79,7 @@ pub const EventLog = struct {
 
     pub fn log(self: *Self, event: Event) void {
         self.events[self.position] = event;
-        self.position = (self.position + 1) % MaxEvents;
+        self.position = @rem(self.position + 1, MaxEvents);
         self.count += 1;
     }
 
@@ -191,11 +186,10 @@ pub fn log(
 
     // Log to file if enabled
     if (log_file) |file| {
-        const timestamp = std.time.timestamp();
         const full_message = std.fmt.allocPrint(
             allocator,
-            "[{d}] [{s}] " ++ format ++ "\n",
-            .{ timestamp, @tagName(level) } ++ args,
+            "[{s}] " ++ format ++ "\n",
+            .{@tagName(level)} ++ args,
         ) catch return;
         defer allocator.free(full_message);
 
@@ -205,10 +199,7 @@ pub fn log(
     // Add to event log if event provided
     if (event) |e| {
         if (event_log) |evt_log| {
-            std.debug.print("found\n", .{});
             evt_log.log(e);
-        } else {
-            std.debug.print("unfound\n", .{});
         }
     }
 
@@ -225,15 +216,11 @@ test "eventlog" {
     event_log = &e_log;
     // log some events
     event_log.?.log(.{
-        .type = .parameter_update,
-        .data = .{
-            .parameter_update = .{
-                .module = .COMP,
-                .param = 1,
-                .value = 0.5,
-            },
+        .parameter_update = .{
+            .module = .COMP,
+            .param = 1,
+            .value = 0.5,
         },
-        .timestamp = 0,
     });
 
     // test recent events
@@ -277,7 +264,6 @@ test "log function" {
                     .value = 0.5,
                 },
             },
-            .timestamp = 0,
         },
         tmp_allocator,
     );

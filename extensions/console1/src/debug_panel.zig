@@ -33,7 +33,6 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
                 defer imgui.EndTable(.{ctx}) catch {};
                 // defer imgui.EndTable(.{ctx}) catch {};
 
-                try imgui.TableSetupColumn(.{ ctx, "Time" });
                 try imgui.TableSetupColumn(.{ ctx, "Type" });
                 try imgui.TableSetupColumn(.{ ctx, "Details" });
                 try imgui.TableHeadersRow(.{ctx});
@@ -43,17 +42,12 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
                     try imgui.TableNextRow(.{ctx});
 
                     if (try imgui.TableNextColumn(.{ctx})) {
-                        const timestamp = try safePrint(&buf, "{d}", .{event.timestamp});
-                        try imgui.Text(.{ ctx, timestamp });
-                    }
-
-                    if (try imgui.TableNextColumn(.{ctx})) {
-                        const event_type = try safePrint(&buf, "{s}", .{@tagName(event.type)});
+                        const event_type = try safePrint(&buf, "{s}", .{@tagName(event)});
                         try imgui.Text(.{ ctx, event_type });
                     }
 
                     if (try imgui.TableNextColumn(.{ctx})) {
-                        switch (event.data) {
+                        switch (event) {
                             .state_change => |change| {
                                 const state_text = try safePrint(&buf, "{s} -> {s}", .{ @tagName(change.old_mode), @tagName(change.new_mode) });
                                 try imgui.Text(.{ ctx, state_text });

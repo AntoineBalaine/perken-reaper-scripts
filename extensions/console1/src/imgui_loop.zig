@@ -73,7 +73,10 @@ fn main() !void {
             },
             .settings => {
                 if (globals.settings_panel) |*panel| {
-                    switch (try panel.draw(ctx)) {
+                    switch (panel.draw(ctx) catch |err| {
+                        logger.log(.err, "Error drawing settings panel: {s}", .{@errorName(err)}, null, allocator);
+                        return err;
+                    }) {
                         .stay_open => {},
                         .close_save => {
                             actions.dispatch(&globals.state, .{ .settings = .save });
