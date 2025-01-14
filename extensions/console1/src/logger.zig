@@ -13,7 +13,9 @@
 //      * MIDI activity monitor
 
 const std = @import("std");
-const Mode = @import("statemachine.zig").Mode;
+const statemachine = @import("statemachine.zig");
+const Mode = statemachine.Mode;
+const ModulesList = statemachine.ModulesList;
 const c1 = @import("internals/c1.zig");
 const Conf = @import("internals/config.zig");
 const debugconfig = @import("config");
@@ -58,7 +60,7 @@ const Event = struct {
         },
         mode_transition: Mode,
         parameter_update: struct {
-            module: Conf.ModulesList,
+            module: ModulesList,
             param: u32,
             value: f64,
         },

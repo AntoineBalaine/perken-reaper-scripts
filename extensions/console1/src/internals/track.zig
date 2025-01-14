@@ -1,7 +1,6 @@
 const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
-const config = @import("config.zig");
-const ModulesList = config.ModulesList;
+const ModulesList = @import("../statemachine.zig").ModulesList;
 const FxMap = @import("mappings.zig").FxMap;
 const ext = @import("../console1_extension.zig");
 const Conf = @import("config.zig");
@@ -84,7 +83,7 @@ fn loadDefaultChain(
         if (fx_added == -1) {
             return TrckErr.fxAddFail;
         } else {
-            if (field.key != Conf.ModulesList.INPUT and field.key != Conf.ModulesList.OUTPT) {
+            if (field.key != ModulesList.INPUT and field.key != ModulesList.OUTPT) {
                 reaper.TrackFX_SetEnabled(mediaTrack, insertIdx, false);
             }
             switch (field.key) {

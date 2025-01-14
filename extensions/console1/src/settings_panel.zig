@@ -2,7 +2,7 @@ const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const Preferences = @import("settings.zig");
 const globals = @import("globals.zig");
-const ModulesList = @import("internals/config.zig").ModulesList;
+const ModulesList = @import("statemachine.zig").ModulesList;
 const styles = @import("styles.zig");
 
 // Temporary copy for editing

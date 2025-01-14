@@ -7,11 +7,18 @@
 
 const std = @import("std");
 const c1 = @import("internals/c1.zig");
-const Conf = @import("internals/config.zig");
 const MapStore = @import("internals/mappings.zig");
 const track = @import("internals/track.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
 const globals = @import("globals.zig");
+
+pub const ModulesList = enum {
+    INPUT,
+    GATE,
+    EQ,
+    COMP,
+    OUTPT,
+};
 
 pub const Mode = enum {
 
@@ -50,7 +57,6 @@ pub const State = struct {
     fx_ctrl: FxControlState,
     fx_sel: FxSelectionState,
     mapping: MappingState,
-    settings: SettingsState,
 
     // Shared state
     last_touched_tr_id: ?c_int = null,
@@ -71,12 +77,6 @@ pub const State = struct {
                 .midi_learn_active = false,
                 .selected_parameter = null,
             },
-            .settings = .{
-                .show_startup_message = false,
-                .show_feedback_window = true,
-                .manual_routing = false,
-                .default_channel_strip = .{},
-            },
             // Shared state uses default values
         };
     }
@@ -89,14 +89,14 @@ pub const State = struct {
 };
 
 pub const FxSelectionState = struct {
-    current_category: Conf.ModulesList,
+    current_category: ModulesList,
     selected_fx: ?[]const u8,
     scroll_position: usize = 0,
 };
 
 pub const MappingState = struct {
     target_fx: [:0]const u8,
-    current_mappings: union(Conf.ModulesList) {
+    current_mappings: union(ModulesList) {
         INPUT: MapStore.Inpt,
         GATE: MapStore.Shp,
         EQ: MapStore.Eq,
@@ -107,7 +107,7 @@ pub const MappingState = struct {
     selected_control: ?c1.CCs = null,
     midi_learn_active: bool = false,
 
-    pub fn init(gpa: std.mem.Allocator, fx_name: [:0]const u8, module_type: Conf.ModulesList) !MappingState {
+    pub fn init(gpa: std.mem.Allocator, fx_name: [:0]const u8, module_type: ModulesList) !MappingState {
         return .{
             .target_fx = try gpa.dupeZ(u8, fx_name),
             .current_mappings = switch (module_type) {
@@ -126,19 +126,4 @@ pub const MappingState = struct {
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         allocator.free(self.target_fx);
     }
-};
-
-pub const SettingsState = struct {
-    show_startup_message: bool,
-    show_feedback_window: bool,
-    manual_routing: bool,
-    default_channel_strip: DefaultsMap,
-};
-
-pub const DefaultsMap = struct {
-    COMP: ?std.meta.Tuple(&.{ [*:0]const u8, MapStore.Comp }) = null,
-    EQ: ?std.meta.Tuple(&.{ [*:0]const u8, MapStore.Eq }) = null,
-    INPUT: ?std.meta.Tuple(&.{ [*:0]const u8, MapStore.Inpt }) = null,
-    OUTPT: ?std.meta.Tuple(&.{ [*:0]const u8, MapStore.Outpt }) = null,
-    GATE: ?std.meta.Tuple(&.{ [*:0]const u8, MapStore.Shp }) = null,
 };

@@ -14,6 +14,7 @@ const SettingsPanel = @import("settings_panel.zig");
 const config = @import("internals/config.zig");
 const mappings = @import("internals/mappings.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
+const ModulesList = statemachine.ModulesList;
 
 const valid_transitions = statemachine.valid_transitions;
 pub const ParamChg = struct {
@@ -47,18 +48,18 @@ const ModeAction = union(enum) {
     fx_sel: union(enum) {
         select_fx: [:0]const u8,
         scroll: i32,
-        open_module_browser: config.ModulesList, // Which module's browser to show
+        open_module_browser: ModulesList, // Which module's browser to show
         close_module_browser,
 
         // Mapped FX selection
         select_mapped_fx: struct {
-            module: config.ModulesList,
+            module: ModulesList,
             fx_name: []const u8,
         },
 
         // Regular browser selection
         select_category_fx: struct {
-            module: config.ModulesList,
+            module: ModulesList,
             fx_name: [:0]const u8,
             category: [:0]const u8,
         },
@@ -501,25 +502,25 @@ fn updateFxControlTrack(state: *State, track: reaper.MediaTrack) void {
     unreachable;
 }
 
-fn loadModuleMapping(module: config.ModulesList, fx_name: []const u8) !void {
+fn loadModuleMapping(module: ModulesList, fx_name: []const u8) !void {
     _ = module;
     _ = fx_name;
     unreachable;
 }
 
-fn updateTrackFx(module: config.ModulesList, fx_name: []const u8) !void {
+fn updateTrackFx(module: ModulesList, fx_name: []const u8) !void {
     _ = module;
     _ = fx_name;
     unreachable;
 }
-fn hasMappingFor(module: config.ModulesList, fx_name: []const u8) bool {
+fn hasMappingFor(module: ModulesList, fx_name: []const u8) bool {
     _ = module;
     _ = fx_name;
     unreachable;
 }
 
 // Helper function to validate CC against module type
-fn isValidCCForModule(cc: c1.CCs, module: Conf.ModulesList) bool {
+fn isValidCCForModule(cc: c1.CCs, module: ModulesList) bool {
     const cc_name = @tagName(cc);
     return switch (module) {
         .COMP => std.mem.startsWith(u8, cc_name, "Comp_"),

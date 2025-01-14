@@ -1,9 +1,10 @@
 const std = @import("std");
-const config = @import("config.zig");
 const ini = @import("ini");
 const logger = @import("../logger.zig");
 const settings = @import("../settings.zig");
-const MappingState = @import("../statemachine.zig").MappingState;
+const statemachine = @import("../statemachine.zig");
+const MappingState = statemachine.MappingState;
+const ModulesList = statemachine.ModulesList;
 pub const UNMAPPED_PARAM: u8 = std.math.maxInt(u8); // or -1, or another sentinel value
 
 /// values are set to std.math.maxInt(u8) for unset mappings
@@ -81,7 +82,7 @@ pub const FxMap = struct {
 
 /// Tagged union representing a loaded mapping for any module type.
 /// null indicates no mapping was found or loading failed - or was never set.
-const TaggedMapping = union(config.ModulesList) {
+const TaggedMapping = union(ModulesList) {
     INPUT: ?Inpt,
     GATE: ?Shp,
     EQ: ?Eq,
@@ -101,7 +102,7 @@ GATE: std.StringHashMapUnmanaged(Shp),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
 
-pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *config.Defaults) !MapStore {
+pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *settings.DefaultFx) !MapStore {
     var self: MapStore = .{
         .COMP = std.StringHashMapUnmanaged(Comp){},
         .EQ = std.StringHashMapUnmanaged(Eq){},
@@ -135,7 +136,7 @@ pub fn deinit(self: *MapStore) void {
 }
 
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
-pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) TaggedMapping {
+pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMapping {
     switch (module) {
         .COMP => {
             if (self.COMP.get(fxName)) |v| {
@@ -181,7 +182,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) Ta
 }
 
 /// fetch mapping from disk, parse it, store it, and return it.
-fn getMap(self: *MapStore, fxName: [:0]const u8, module: config.ModulesList) !TaggedMapping {
+fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMapping {
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const subdir = @tagName(module);
 

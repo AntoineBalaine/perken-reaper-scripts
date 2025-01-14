@@ -5,7 +5,6 @@ const ImGui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
-const State = @import("internals/state.zig");
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
@@ -19,7 +18,6 @@ const logger = @import("logger.zig");
 
 const plugin_name = "Hello, Zig!";
 
-var state: State = .{};
 pub var userSettings: UserSettings = .{};
 var controller_dir: [*:0]const u8 = undefined;
 // var action_id: c_int = undefined;
@@ -48,7 +46,6 @@ fn init() !void {
     userSettings = try UserSettings.init(gpa, controller_dir);
     ImGuiLoop.allocator = gpa;
 
-    control_surface.state = state;
     control_surface.controller_dir = controller_dir;
     try globals.init(gpa, controller_dir);
 }

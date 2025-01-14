@@ -16,16 +16,9 @@ const std = @import("std");
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
 pub const MapStore = @import("mappings.zig");
+const ModulesList = @import("../statemachine.zig").ModulesList;
 
 pub const Conf = @This();
-
-pub const ModulesList = enum {
-    INPUT,
-    GATE,
-    EQ,
-    COMP,
-    OUTPT,
-};
 
 /// Maps Fx names to modules
 pub const Modules = std.StringHashMapUnmanaged(ModulesList);

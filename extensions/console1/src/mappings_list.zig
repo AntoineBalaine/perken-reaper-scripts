@@ -1,14 +1,14 @@
 const std = @import("std");
-const config = @import("internals/config.zig");
+const ModulesList = @import("statemachine.zig").ModulesList;
 const logger = @import("logger.zig");
 
 // Store just file names, not actual mappings
-list: std.EnumArray(config.ModulesList, std.StringHashMap(void)),
+list: std.EnumArray(ModulesList, std.StringHashMap(void)),
 allocator: std.mem.Allocator,
 pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
-    var maps = std.EnumArray(config.ModulesList, std.StringHashMap(void)).initUndefined();
+    var maps = std.EnumArray(ModulesList, std.StringHashMap(void)).initUndefined();
 
-    inline for (comptime std.enums.values(config.ModulesList)) |module| {
+    inline for (comptime std.enums.values(ModulesList)) |module| {
         maps.set(module, std.StringHashMap(void).init(gpa));
 
         const module_path = try std.fs.path.join(gpa, &.{ resource_path, "maps", @tagName(module) });
@@ -36,7 +36,7 @@ pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
 }
 
 pub fn deinit(self: *@This()) void {
-    inline for (comptime std.enums.values(config.ModulesList)) |module| {
+    inline for (comptime std.enums.values(ModulesList)) |module| {
         var map = self.list.get(module);
         var iter = map.keyIterator();
         while (iter.next()) |key| {

@@ -14,7 +14,7 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
-const Conf = @import("../internals/config.zig");
+const ModulesList = @import("../statemachine.zig").ModulesList;
 const UserSettings = @import("../internals/userPrefs.zig").UserSettings;
 const globals = @import("../globals.zig");
 const Track = @import("../internals/track.zig").Track;
@@ -159,7 +159,7 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     c.ControlSurface_Destroy(csurf);
 }
 
-pub fn setPrmVal(comptime cc: c1.CCs, comptime section: Conf.ModulesList, tr: reaper.MediaTrack, val: u8) void {
+pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.MediaTrack, val: u8) void {
     const structPrm = @tagName(cc);
     if (trck == null) return;
     const nm = @tagName(section);
@@ -577,7 +577,7 @@ fn selectTrk(trackid: MediaTrack) void {
                     const solo = reaper.GetMediaTrackInfo_Value(trackid, "I_SOLO");
                     c.MidiOut_Send(midiout, 0xb0, @intFromEnum(CC), if (solo == 1) 0x7f else 0x0, -1);
                 } else {
-                    comptime var variant: Conf.ModulesList = undefined;
+                    comptime var variant: ModulesList = undefined;
                     if (comptime std.mem.eql(u8, @tagName(CC)[0..4], "Comp")) {
                         if (comptime std.mem.eql(u8, @tagName(CC)[4..8], "_Mtr")) continue;
                         variant = .COMP;

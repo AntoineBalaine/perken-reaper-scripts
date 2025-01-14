@@ -181,7 +181,7 @@ pub fn Popup(ctx: imgui.ContextPtr) !void {
 
 pub fn ModulePopup(
     ctx: imgui.ContextPtr,
-    module: @import("internals/config.zig").ModulesList,
+    module: @import("statemachine.zig").ModulesList,
     mappings: std.StringHashMap(void),
 ) !bool {
     const PopWindowStyle = try PushWindowStyle(ctx, .main);
