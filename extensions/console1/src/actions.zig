@@ -14,7 +14,7 @@ const mappings = @import("mappings.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const ModulesList = statemachine.ModulesList;
 const constants = @import("constants.zig");
-const onMidiEvent_FxCtrl = @import("csurf/control_surface.zig").onMidiEvent_FxCtrl;
+const onMidiEvent_FxCtrl = @import("csurf/midi_events_fxctrl.zig").onMidiEvent_FxCtrl;
 
 const valid_transitions = statemachine.valid_transitions;
 pub const ParamChg = struct {

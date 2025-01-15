@@ -71,7 +71,8 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .settings => {
                 switch (cc) {
-                    .Tr_tr20 => actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl }),
+                    .Out_solo => actions.dispatch(&globals.state, .{ .settings = .save }),
+                    .Out_mute, .Tr_tr20 => actions.dispatch(&globals.state, .{ .settings = .cancel }),
                     else => {},
                 }
             },
