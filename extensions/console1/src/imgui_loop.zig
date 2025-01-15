@@ -99,7 +99,7 @@ fn main() !void {
                 };
 
                 if (!try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) {
-                    actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } });
+                    actions.dispatch(&globals.state, .{ .fx_sel = .close_browser });
                 }
             },
             .mapping_panel => {

@@ -71,7 +71,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             dispatch(state, .{ .change_mode = .fx_ctrl });
         },
         .toggle_module_browser => |module| {
-            if (state.current_mode == .fx_sel) {
+            if (state.current_mode == .fx_sel and module == state.fx_sel.current_category) {
                 dispatch(state, .{ .change_mode = .fx_ctrl });
             } else {
                 state.fx_sel.current_category = module;

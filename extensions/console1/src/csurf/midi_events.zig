@@ -66,6 +66,13 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                         //     }
                         // }
                     },
+                    .Out_mute => actions.dispatch(&globals.state, .{ .fx_sel = .close_browser }),
+                    .Tr_tr1 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
+                    .Tr_tr2 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
+                    .Tr_tr3 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
+                    .Tr_tr4 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
+                    .Tr_tr5 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                    .Tr_tr20 => actions.dispatch(&globals.state, .{ .settings = .open }),
                     else => {},
                 }
             },
