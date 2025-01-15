@@ -48,8 +48,7 @@ const ModeAction = union(enum) {
     fx_sel: union(enum) {
         select_fx: [:0]const u8,
         scroll: u8,
-        open_module_browser: ModulesList, // Which module's browser to show
-        close_module_browser,
+        toggle_module_browser: ModulesList, // Which module's browser to show
 
         // Mapped FX selection
         select_mapped_fx: struct {
@@ -143,9 +142,13 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             // ... other fx_ctrl actions
         },
         .fx_sel => |sel_action| switch (sel_action) {
-            .open_module_browser => |module| {
-                state.fx_sel.current_category = module;
-                dispatch(state, .{ .change_mode = .fx_sel });
+            .toggle_module_browser => |module| {
+                if (state.current_mode == .fx_sel) {
+                    dispatch(state, .{ .change_mode = .fx_ctrl });
+                } else {
+                    state.fx_sel.current_category = module;
+                    dispatch(state, .{ .change_mode = .fx_sel });
+                }
             },
             .select_mapped_fx => |selection| {
                 try loadModuleMapping(selection.module, selection.fx_name);
@@ -189,9 +192,6 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                         },
                     }
                 }
-            },
-            .close_module_browser => {
-                dispatch(state, .{ .change_mode = .fx_ctrl });
             },
             .scroll => |new_pos| {
                 const old_pos = globals.state.fx_sel.scroll_position_abs;
