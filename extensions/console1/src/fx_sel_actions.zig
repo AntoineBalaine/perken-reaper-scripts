@@ -25,23 +25,51 @@ pub const FxSelActions = union(enum) {
     select_fx: [:0]const u8,
     scroll: u8,
     toggle_module_browser: ModulesList, // Which module's browser to show
-
-    // Mapped FX selection
-    select_mapped_fx: struct {
-        module: ModulesList,
-        fx_name: []const u8,
+    fx_chain: struct {
+        path: []const u8,
     },
-
-    // Regular browser selection
-    select_category_fx: struct {
-        module: ModulesList,
-        fx_name: [:0]const u8,
-        category: [:0]const u8,
+    track_template: struct {
+        path: [:0]const u8,
     },
+    plugin: struct {
+        name: [:0]const u8,
+    },
+    close_browser: void,
 };
 
 pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
     switch (sel_action) {
+        .fx_chain => |fx| {
+            const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
+            if (track) |tr| {
+                _ = reaper.TrackFX_AddByName(
+                    tr,
+                    @as([*:0]const u8, @ptrCast(fx.path)),
+                    false,
+                    -1000 - reaper.TrackFX_GetCount(tr),
+                );
+            }
+            dispatch(state, .{ .change_mode = .fx_ctrl });
+        },
+        .track_template => |template| {
+            reaper.Main_openProject(template.path);
+            dispatch(state, .{ .change_mode = .fx_ctrl });
+        },
+        .plugin => |plugin| {
+            const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
+            if (track) |tr| {
+                _ = reaper.TrackFX_AddByName(
+                    tr,
+                    plugin.name,
+                    false,
+                    -1000 - reaper.TrackFX_GetCount(tr),
+                );
+            }
+            dispatch(state, .{ .change_mode = .fx_ctrl });
+        },
+        .close_browser => {
+            dispatch(state, .{ .change_mode = .fx_ctrl });
+        },
         .toggle_module_browser => |module| {
             if (state.current_mode == .fx_sel) {
                 dispatch(state, .{ .change_mode = .fx_ctrl });
@@ -50,29 +78,23 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                 dispatch(state, .{ .change_mode = .fx_sel });
             }
         },
-        .select_mapped_fx => |selection| {
-            try loadModuleMapping(selection.module, selection.fx_name);
-            try updateTrackFx(selection.module, selection.fx_name);
-            // Dispatch mode change instead of direct assignment
-            dispatch(state, .{ .change_mode = .fx_ctrl });
-        },
-        .select_category_fx => |selection| {
-            if (!hasMappingFor(selection.module, selection.fx_name)) {
-                state.mapping.target_fx = selection.fx_name;
-                state.mapping.current_mappings = switch (selection.module) {
-                    .COMP => .{ .COMP = mappings.Comp{} },
-                    .EQ => .{ .EQ = mappings.Eq{} },
-                    .GATE => .{ .GATE = mappings.Shp{} },
-                    .OUTPT => .{ .OUTPT = mappings.Outpt{} },
-                    .INPUT => .{ .INPUT = mappings.Inpt{} },
-                };
-                dispatch(state, .{ .change_mode = .mapping_panel });
-            } else {
-                try loadModuleMapping(selection.module, selection.fx_name);
-                try updateTrackFx(selection.module, selection.fx_name);
-                dispatch(state, .{ .change_mode = .fx_ctrl });
-            }
-        },
+        // .select_category_fx => |selection| {
+        //     if (!hasMappingFor(selection.module, selection.fx_name)) {
+        //         state.mapping.target_fx = selection.fx_name;
+        //         state.mapping.current_mappings = switch (selection.module) {
+        //             .COMP => .{ .COMP = mappings.Comp{} },
+        //             .EQ => .{ .EQ = mappings.Eq{} },
+        //             .GATE => .{ .GATE = mappings.Shp{} },
+        //             .OUTPT => .{ .OUTPT = mappings.Outpt{} },
+        //             .INPUT => .{ .INPUT = mappings.Inpt{} },
+        //         };
+        //         dispatch(state, .{ .change_mode = .mapping_panel });
+        //     } else {
+        //         try loadModuleMapping(selection.module, selection.fx_name);
+        //         try updateTrackFx(selection.module, selection.fx_name);
+        //         dispatch(state, .{ .change_mode = .fx_ctrl });
+        //     }
+        // },
         .select_fx => |fx_name| {
             // Check if mapping exists
             if (switch (globals.map_store.get(fx_name, state.fx_sel.current_category)) {
@@ -134,7 +156,6 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                 globals.allocator,
             );
         },
-        // ... other fx_sel actions
     }
 }
 
@@ -149,6 +170,7 @@ fn updateTrackFx(module: ModulesList, fx_name: []const u8) !void {
     _ = fx_name;
     unreachable;
 }
+
 fn hasMappingFor(module: ModulesList, fx_name: []const u8) bool {
     _ = module;
     _ = fx_name;
