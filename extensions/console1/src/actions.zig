@@ -47,7 +47,7 @@ const ModeAction = union(enum) {
     // FX Selection Mode
     fx_sel: union(enum) {
         select_fx: [:0]const u8,
-        scroll: i32,
+        scroll: i16,
         open_module_browser: ModulesList, // Which module's browser to show
         close_module_browser,
 
@@ -192,6 +192,31 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             },
             .close_module_browser => {
                 dispatch(state, .{ .change_mode = .fx_ctrl });
+            },
+            .scroll => |delta| {
+                state.fx_sel.scroll_position_abs = @as(u8, @intCast(@min(@max(@as(i16, @intCast(state.fx_sel.scroll_position_abs)) + delta, 0), 127)));
+
+                const max_pos = switch (state.fx_sel.current_category) {
+                    inline else => |impl| @field(globals.map_store, @tagName(impl)).count(),
+                };
+
+                if (max_pos == 0) return; // Guard against empty list
+                // Update scroll position with wrapping
+                const new_val = @as(i32, @intCast(state.fx_sel.scroll_position_rel)) + delta;
+                var new_delta: usize = undefined;
+                if (new_val > max_pos) {
+                    new_delta = new_val - max_pos;
+                } else if (new_val < 0) {
+                    new_delta = max_pos - @abs(new_val);
+                }
+                // Log scroll action
+                logger.log(
+                    .debug,
+                    "Scroll: abs={d} delta={d} rel={d}/{d}",
+                    .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, max_pos },
+                    null,
+                    globals.allocator,
+                );
             },
             else => {},
             // ... other fx_sel actions

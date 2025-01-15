@@ -183,6 +183,7 @@ pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
     mappings: std.StringHashMap(void),
+    current_index: usize,
 ) !bool {
     const PopWindowStyle = try PushWindowStyle(ctx, .main);
     defer PopWindowStyle(ctx) catch {};
@@ -198,7 +199,12 @@ pub fn ModulePopup(
 
         try imgui.Text(.{ ctx, title });
         var iterator = mappings.iterator();
-        while (iterator.next()) |entry| {
+        var i: usize = 0;
+        while (iterator.next()) |entry| : (i += 1) {
+            const is_selected = (i == current_index);
+            if (is_selected) try imgui.PushStyleColor(.{ ctx, .Text, Theme.colors.active });
+            defer if (is_selected) imgui.PopStyleColor(.{ctx}) catch {};
+
             const fx_name: [:0]const u8 = @ptrCast(entry.key_ptr.*);
             if (try imgui.Selectable(.{ ctx, fx_name })) {
                 const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));

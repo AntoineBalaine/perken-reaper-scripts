@@ -247,6 +247,43 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             .fx_ctrl => {
                 actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .midi_input = .{ .cc = cc, .value = val } } });
             },
+            .fx_sel => {
+                switch (cc) {
+                    .Out_Vol => {
+                        // Volume knob for scrolling
+
+                        const new_pos = evt.value;
+                        const old_pos = globals.state.fx_sel.scroll_position_abs;
+                        var delta: i16 = undefined;
+                        if (new_pos == old_pos and (old_pos == 127 or old_pos == 0)) {
+                            if (old_pos == 127) delta = 1 else delta = -1;
+                        } else {
+                            delta = @as(i16, @intCast(new_pos)) - @as(i16, @intCast(old_pos));
+                        }
+
+                        actions.dispatch(&globals.state, .{ .fx_sel = .{ .scroll = delta } });
+                    },
+                    .Out_solo => {
+                        // Solo button for selection
+                        if (evt.value > 0) { // On button press
+                            const mappings = globals.map_store.getMappingsForModule(globals.state.fx_sel.current_category);
+                            if (mappings) |m| {
+                                var iterator = m.iterator();
+                                var i: usize = 0;
+                                while (iterator.next()) |entry| : (i += 1) {
+                                    if (i == globals.state.fx_sel.scroll_position) {
+                                        actions.dispatch(&globals.state, .{ .fx_sel = .{ .select_mapped_fx = .{
+                                            .fx_name = entry.key_ptr.*,
+                                            .module = globals.state.fx_sel.current_category,
+                                        } } });
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            },
             else => {},
         }
     }
