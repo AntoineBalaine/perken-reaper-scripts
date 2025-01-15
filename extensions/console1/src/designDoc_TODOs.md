@@ -1,4 +1,17 @@
-MODIFY BROWSER LOGIC TO ACCOUNT FOR INSERTION POSITION IN THE CHANNEL STRIP
+# Default Channel Strip Panel
+  * Open from settings menu
+    Check that it's possible to go through the git history of a file in neovim.
+    Add a default channel strip mode. Settings can transition to it, and it can only transition back to it. 
+    When open, it's assigned to a ModuleList, similar to the fx_sel mode.
+    Buttons track 1 through track 5 can open it.
+  * FX selection interface
+    Modify (again) the fx_browser so that it returns the fx selection
+    the fx_sel_panel should be re-used by the default fx for selecting a default fx. 
+    Update the UI from settings menu: default fX should have a circled numbered button that shows which track btns to click to open the panel.
+  * Order configuration
+    should be selectable from the settings menu
+
+# MODIFY BROWSER LOGIC TO ACCOUNT FOR INSERTION POSITION IN THE CHANNEL STRIP
 I’d like to rely on the re-entrancy for this - which requires replacing whatever module for which we’re trying to select.
 -> browser replaces an fx
 -> reaper calls csurf
@@ -6,10 +19,10 @@ I’d like to rely on the re-entrancy for this - which requires replacing whatev
 -> if doesn’t exists, creates one
 -> dispatches an action to open the mapping panel
 
-WHAT TO DO WHEN THE RESOURCES FOLDER IS NOT FOUND
+# WHAT TO DO WHEN THE RESOURCES FOLDER IS NOT FOUND
 embed the resources folder in the binary and create the files.
 
-SCROLLING THROUGH THE BROWSER WITH THE CONSOLE
+# SCROLLING THROUGH THE BROWSER WITH THE CONSOLE
 Now, the idea here is that it’s possible to browse through the list of mappings with a knob of the console. This requires a scroll action for the fx_sel mode.
 In imgui, when scrolling through a menu, is there an api to find out the scroll position inside a menu, and is there an API for incrementing that scroll position/selection?
 ImGui doesn't directly expose a scroll position for menu items, but there are a few approaches we could use:
