@@ -14,7 +14,8 @@ const Fonts = struct {
     ICON_FONT_SMALL: ImGui.FontPtr = undefined,
 };
 
-pub var clrs: std.EnumArray(std.meta.FieldEnum(ThemeTypes.ColorTable), ThemeTypes.ThemeColor) = undefined;
+pub const RColorsEnum = std.meta.FieldEnum(ThemeTypes.ColorTable);
+pub var clrs: std.EnumArray(RColorsEnum, ThemeTypes.ThemeColor) = undefined;
 
 pub var fonts = Fonts{};
 

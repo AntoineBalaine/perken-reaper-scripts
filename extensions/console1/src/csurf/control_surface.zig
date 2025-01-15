@@ -255,23 +255,24 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                     },
                     .Out_solo => {
                         // Solo button for selection
-                        if (evt.value > 0) { // On button press
-                            const mappings = globals.map_store.getMappingsForModule(globals.state.fx_sel.current_category);
-                            if (mappings) |m| {
-                                var iterator = m.iterator();
-                                var i: usize = 0;
-                                while (iterator.next()) |entry| : (i += 1) {
-                                    if (i == globals.state.fx_sel.scroll_position) {
-                                        actions.dispatch(&globals.state, .{ .fx_sel = .{ .select_mapped_fx = .{
-                                            .fx_name = entry.key_ptr.*,
-                                            .module = globals.state.fx_sel.current_category,
-                                        } } });
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+                        // if (val > 0) { // On button press
+                        //     const mappings = globals.map_store.getMappingsForModule(globals.state.fx_sel.current_category);
+                        //     if (mappings) |m| {
+                        //         var iterator = m.iterator();
+                        //         var i: usize = 0;
+                        //         while (iterator.next()) |entry| : (i += 1) {
+                        //             if (i == globals.state.fx_sel.scroll_position) {
+                        //                 actions.dispatch(&globals.state, .{ .fx_sel = .{ .select_mapped_fx = .{
+                        //                     .fx_name = entry.key_ptr.*,
+                        //                     .module = globals.state.fx_sel.current_category,
+                        //                 } } });
+                        //                 break;
+                        //             }
+                        //         }
+                        //     }
+                        // }
                     },
+                    else => {},
                 }
             },
             else => {},

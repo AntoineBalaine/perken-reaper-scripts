@@ -98,7 +98,7 @@ fn main() !void {
                     .OUTPT => globals.mappings_list.list.get(.OUTPT),
                 };
 
-                if (!try fx_browser.ModulePopup(ctx, module, list)) {
+                if (!try fx_browser.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) {
                     actions.dispatch(&globals.state, .{ .fx_sel = .close_module_browser });
                 }
             },

@@ -159,6 +159,7 @@ const Color = struct {
     const red = "\x1b[31m";
     const yellow = "\x1b[33m";
     const blue = "\x1b[34m";
+    const green = "\x1b[0;32m";
     // Add more colors as needed
 };
 
@@ -174,7 +175,7 @@ pub fn log(
     }
     const color = switch (level) {
         .debug => Color.blue,
-        .info => Color.blue,
+        .info => Color.green,
         .warning => Color.yellow,
         .err => Color.red,
     };

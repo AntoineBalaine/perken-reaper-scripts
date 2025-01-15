@@ -64,7 +64,7 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.plus), defaults.button_size, defaults.button_size })) {
-                actions.dispatch(&globals.state, .{ .fx_sel = .{ .open_module_browser = .COMP } });
+                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } });
             }
         }
         if (try imgui.IsItemHovered(.{ctx})) {

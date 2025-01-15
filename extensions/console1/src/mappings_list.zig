@@ -14,7 +14,7 @@ pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
         const module_path = try std.fs.path.join(gpa, &.{ resource_path, "maps", @tagName(module) });
         defer gpa.free(module_path);
 
-        var dir = try std.fs.openDirAbsolute(module_path, .{});
+        var dir = try std.fs.openDirAbsolute(module_path, .{ .iterate = true });
         defer dir.close();
 
         var iter = dir.iterate();

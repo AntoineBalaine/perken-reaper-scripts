@@ -210,13 +210,21 @@ pub fn dispatch(state: *State, action: ModeAction) void {
 
                 if (max_pos == 0) return; // Guard against empty list
                 // Update scroll position with wrapping
-                const new_val = @as(i32, @intCast(state.fx_sel.scroll_position_rel)) + delta;
-                var new_delta: usize = undefined;
-                if (new_val > max_pos) {
-                    new_delta = new_val - max_pos;
-                } else if (new_val < 0) {
-                    new_delta = max_pos - @abs(new_val);
-                }
+                // Calculate new position with wrapping
+                const current_pos = @as(i32, @intCast(state.fx_sel.scroll_position_rel));
+                const new_pos_rel = current_pos + delta;
+
+                // Wrap around using modulo
+                // Add max_pos before taking modulo to handle negative numbers correctly
+                state.fx_sel.scroll_position_rel = @intCast(@mod(@as(u32, @intCast(new_pos_rel)) + max_pos, max_pos));
+
+                // const new_val = @as(i32, @intCast(state.fx_sel.scroll_position_rel)) + delta;
+                // var new_delta: usize = undefined;
+                // if (new_val > max_pos) {
+                //     new_delta = new_val - max_pos;
+                // } else if (new_val < 0) {
+                //     new_delta = max_pos - @abs(new_val);
+                // }
                 // Log scroll action
                 logger.log(
                     .debug,
@@ -226,7 +234,6 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     globals.allocator,
                 );
             },
-            else => {},
             // ... other fx_sel actions
         },
         .mapping => |map_action| switch (map_action) {

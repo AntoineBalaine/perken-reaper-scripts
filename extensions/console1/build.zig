@@ -1,6 +1,6 @@
 // zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_c1.so hello_world.zig -lc
 // or use
-// zig build --verbose && mv zig-out/lib/reaper_c1.so ~/.config/REAPER/UserPlugins/ && reaper
+// zig build -Dtest=true --verbose && mv zig-out/lib/reaper_c1.so ~/.config/REAPER/UserPlugins/ && reaper
 // zig build --verbose && mv zig-out/lib/reaper_c1.dylib ~/Library/Application\ Support/REAPER/UserPlugins
 // zig build -Dtest=true --verbose && mv zig-out/lib/reaper_c1.dylib ~/Library/Application\ Support/REAPER/UserPlugins && /Applications/REAPER.app/Contents/MacOS/REAPER new
 const std = @import("std");

@@ -202,7 +202,8 @@ pub fn ModulePopup(
         var i: usize = 0;
         while (iterator.next()) |entry| : (i += 1) {
             const is_selected = (i == current_index);
-            if (is_selected) try imgui.PushStyleColor(.{ ctx, .Text, Theme.colors.active });
+
+            if (is_selected) try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, Theme.clrs.get(std.meta.stringToEnum(Theme.RColorsEnum, "genlist_fg").?).color });
             defer if (is_selected) imgui.PopStyleColor(.{ctx}) catch {};
 
             const fx_name: [:0]const u8 = @ptrCast(entry.key_ptr.*);

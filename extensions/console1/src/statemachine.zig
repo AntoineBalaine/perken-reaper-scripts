@@ -68,7 +68,6 @@ pub const State = struct {
             .fx_sel = .{
                 .current_category = .COMP, // Default category
                 .selected_fx = null,
-                .scroll_position = 0,
             },
             .mapping = .{
                 .target_fx = "",
@@ -91,7 +90,7 @@ pub const FxSelectionState = struct {
     current_category: ModulesList,
     selected_fx: ?[]const u8,
     scroll_position_abs: u8 = 0,
-    scroll_position_rel: isize = 0,
+    scroll_position_rel: usize = 0,
 };
 
 pub const MappingState = struct {
