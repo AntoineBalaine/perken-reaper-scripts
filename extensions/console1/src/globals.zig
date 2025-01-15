@@ -29,6 +29,9 @@ pub var log_file: ?std.fs.File = null; // Store the actual file, not just a poin
 pub var allocator: std.mem.Allocator = undefined;
 pub var resource_path: [:0]const u8 = undefined;
 
+// State flags
+pub var modifier_active: bool = false;
+
 // midi
 pub var m_midi_in_dev: ?c_int = null;
 pub var m_midi_out_dev: ?c_int = null;

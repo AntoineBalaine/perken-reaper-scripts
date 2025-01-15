@@ -798,23 +798,27 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Comp_Mtr => {}, // meters unhandled
         .Inpt_MtrLft => {}, // meters unhandled
         .Inpt_MtrRgt => {}, // meters unhandled
-        .Inpt_disp_mode => {},
+        .Inpt_disp_mode => {
+            globals.modifier_active = val == 127;
+        },
         .Tr_tr_copy => {},
         .Tr_tr_grp => {},
         .Out_MtrLft => {}, // meters unhandled
         .Out_MtrRgt => {}, // meters unhandled
         .Inpt_disp_on => {
-            const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
-            const cntnrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .{ .settings = .open });
+            } else {
+                const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
+                const cntnrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
 
-            if (globals.state.fx_ctrl.display != null) { // hide chain
-                // else use TrackFX_SetNamedConfigParm
-                // _ = reaper.TrackFX_SetNamedConfigParm(mediaTrack, cntnrIdx, "focused", "1");
-                reaper.TrackFX_Show(mediaTrack, cntnrIdx, 0);
-                globals.state.fx_ctrl.display = null;
-            } else { // show chain
-                reaper.TrackFX_Show(mediaTrack, cntnrIdx, 1);
-                globals.state.fx_ctrl.display = 1;
+                if (globals.state.fx_ctrl.display != null) { // hide chain
+                    reaper.TrackFX_Show(mediaTrack, cntnrIdx, 0);
+                    globals.state.fx_ctrl.display = null;
+                } else { // show chain
+                    reaper.TrackFX_Show(mediaTrack, cntnrIdx, 1);
+                    globals.state.fx_ctrl.display = 1;
+                }
             }
         },
         .Inpt_filt_to_comp => {},
@@ -848,7 +852,48 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         },
         .Tr_pg_dn => onPgChg(.Down),
         .Tr_pg_up => onPgChg(.Up),
-        .Tr_tr1 => selTrck(1),
+        .Tr_tr1 => {
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } });
+            } else {
+                selTrck(1);
+            }
+        },
+        .Tr_tr2 => {
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .GATE } });
+            } else {
+                selTrck(2);
+            }
+        },
+        .Tr_tr3 => {
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .EQ } });
+            } else {
+                selTrck(3);
+            }
+        },
+        .Tr_tr4 => {
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .COMP } });
+            } else {
+                selTrck(4);
+            }
+        },
+        .Tr_tr5 => {
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } });
+            } else {
+                selTrck(5);
+            }
+        },
+        .Tr_tr6 => {
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .{ .settings = .open });
+            } else {
+                selTrck(6);
+            }
+        },
         .Tr_tr10 => selTrck(10),
         .Tr_tr11 => selTrck(11),
         .Tr_tr12 => selTrck(12),
@@ -860,11 +905,6 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Tr_tr18 => selTrck(18),
         .Tr_tr19 => selTrck(19),
         .Tr_tr20 => selTrck(20),
-        .Tr_tr2 => selTrck(2),
-        .Tr_tr3 => selTrck(3),
-        .Tr_tr4 => selTrck(4),
-        .Tr_tr5 => selTrck(5),
-        .Tr_tr6 => selTrck(6),
         .Tr_tr7 => selTrck(7),
         .Tr_tr8 => selTrck(8),
         .Tr_tr9 => selTrck(9),
