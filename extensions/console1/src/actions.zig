@@ -47,7 +47,7 @@ const ModeAction = union(enum) {
     // FX Selection Mode
     fx_sel: union(enum) {
         select_fx: [:0]const u8,
-        scroll: i16,
+        scroll: u8,
         open_module_browser: ModulesList, // Which module's browser to show
         close_module_browser,
 
@@ -193,8 +193,16 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             .close_module_browser => {
                 dispatch(state, .{ .change_mode = .fx_ctrl });
             },
-            .scroll => |delta| {
-                state.fx_sel.scroll_position_abs = @as(u8, @intCast(@min(@max(@as(i16, @intCast(state.fx_sel.scroll_position_abs)) + delta, 0), 127)));
+            .scroll => |new_pos| {
+                const old_pos = globals.state.fx_sel.scroll_position_abs;
+                var delta: i16 = undefined;
+                if (new_pos == old_pos and (old_pos == 127 or old_pos == 0)) {
+                    if (old_pos == 127) delta = 1 else delta = -1;
+                } else {
+                    delta = @as(i16, @intCast(new_pos)) - @as(i16, @intCast(old_pos));
+                }
+
+                state.fx_sel.scroll_position_abs = new_pos;
 
                 const max_pos = switch (state.fx_sel.current_category) {
                     inline else => |impl| @field(globals.map_store, @tagName(impl)).count(),

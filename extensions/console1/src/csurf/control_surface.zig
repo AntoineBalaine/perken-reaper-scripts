@@ -251,17 +251,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                 switch (cc) {
                     .Out_Vol => {
                         // Volume knob for scrolling
-
-                        const new_pos = evt.value;
-                        const old_pos = globals.state.fx_sel.scroll_position_abs;
-                        var delta: i16 = undefined;
-                        if (new_pos == old_pos and (old_pos == 127 or old_pos == 0)) {
-                            if (old_pos == 127) delta = 1 else delta = -1;
-                        } else {
-                            delta = @as(i16, @intCast(new_pos)) - @as(i16, @intCast(old_pos));
-                        }
-
-                        actions.dispatch(&globals.state, .{ .fx_sel = .{ .scroll = delta } });
+                        actions.dispatch(&globals.state, .{ .fx_sel = .{ .scroll = val } });
                     },
                     .Out_solo => {
                         // Solo button for selection
