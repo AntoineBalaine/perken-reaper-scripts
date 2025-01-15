@@ -138,7 +138,8 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
 
             // Wrap around using modulo
             // Add max_pos before taking modulo to handle negative numbers correctly
-            state.fx_sel.scroll_position_rel = @intCast(@mod(@as(u32, @intCast(new_pos_rel)) + max_pos, max_pos));
+            const i_max_pos = @as(i32, @intCast(max_pos));
+            state.fx_sel.scroll_position_rel = @intCast(@mod(new_pos_rel + i_max_pos, i_max_pos));
 
             // const new_val = @as(i32, @intCast(state.fx_sel.scroll_position_rel)) + delta;
             // var new_delta: usize = undefined;

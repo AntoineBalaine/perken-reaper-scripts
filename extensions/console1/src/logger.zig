@@ -97,18 +97,21 @@ pub const EventLog = struct {
             return self.events[start..self.position];
         }
 
-        // If we've wrapped around, need to handle circular buffer
-        if (self.position >= num_items) {
-            return self.events[self.position - num_items .. self.position];
-        } else {
-            // Need to return items from end of buffer and start
-            const items_from_end = self.events[MaxEvents - (num_items - self.position) ..];
-            // const items_from_start = self.events[0..self.position];
-            // Note: In real implementation, you'd need to handle
-            // returning these two slices together somehow
-            // Could use an array list or custom iterator
-            return items_from_end;
+        // If we've wrapped around
+        var start = self.position;
+        if (start == 0) start = MaxEvents;
+        start = start - num_items;
+        if (start >= MaxEvents) start = 0;
+
+        // If the requested items span the buffer wrap-around point
+        if (start > self.position) {
+            // Need to return a new allocated array containing both parts
+            // This would require allocation though, which might not be suitable for real-time
+            // Alternative: Return only the most recent contiguous chunk
+            return self.events[start..MaxEvents];
         }
+
+        return self.events[start..self.position];
     }
 
     // Get events of specific type
@@ -145,7 +148,7 @@ pub const EventLog = struct {
             const idx = @mod(self.position - 1 + MaxEvents - i, MaxEvents);
             // const idx = std.math.mod() catch 0;
             const event = self.events[idx];
-            if (event.type == event_type) {
+            if (event == event_type) {
                 return event;
             }
         }
@@ -232,7 +235,7 @@ test "eventlog" {
     const last_param = event_log.?.findLastEvent(.parameter_update);
     try testing.expect(last_param != null);
     if (last_param) |event| {
-        try testing.expect(event.data.parameter_update.value == 0.5);
+        try testing.expect(event.parameter_update.value == 0.5);
     }
 }
 
@@ -257,13 +260,10 @@ test "log function" {
         "Parameter changed: {d}",
         .{0.5},
         Event{
-            .type = .parameter_update,
-            .data = .{
-                .parameter_update = .{
-                    .module = .COMP,
-                    .param = 1,
-                    .value = 0.5,
-                },
+            .parameter_update = .{
+                .module = .COMP,
+                .param = 1,
+                .value = 0.5,
             },
         },
         tmp_allocator,
@@ -273,8 +273,50 @@ test "log function" {
     const last_param_event = event_log.?.findLastEvent(.parameter_update);
     try testing.expect(last_param_event != null);
     if (last_param_event) |event| {
-        try testing.expect(event.data.parameter_update.value == 0.5);
-        try testing.expect(event.data.parameter_update.module == .COMP);
-        try testing.expect(event.data.parameter_update.param == 1);
+        try testing.expect(event.parameter_update.value == 0.5);
+        try testing.expect(event.parameter_update.module == .COMP);
+        try testing.expect(event.parameter_update.param == 1);
     }
+}
+
+test "midi events circular buffer" {
+    const testing = std.testing;
+    var e_log = EventLog.init();
+
+    // Insert 100 MIDI events with different CC values
+    var i: u8 = 0;
+    while (i < 100) : (i += 1) {
+        e_log.log(.{
+            .midi_input = .{
+                .cc = c1.CCs.Comp_Attack, // Using CC1 for example
+                .value = i, // Each event has a different value
+            },
+        });
+    }
+
+    // Get last 50 events
+    const recent_events = e_log.recent(50);
+
+    // Verify we got exactly 50 events
+    try testing.expectEqual(@as(usize, 50), recent_events.len);
+
+    // Verify the values are correct (should be the most recent ones: 50-99)
+    for (recent_events, 0..) |event, index| {
+        switch (event) {
+            .midi_input => |midi| {
+                // The values should start from 50 and go up to 99
+                const expected_value = @as(u8, 50) + @as(u8, @intCast(index));
+                try testing.expectEqual(expected_value, midi.value);
+            },
+            else => unreachable,
+        }
+    }
+
+    // Optional: Test getting more events than available
+    const too_many = e_log.recent(200);
+    try testing.expectEqual(@as(usize, 100), too_many.len); // Should be capped at MaxEvents
+
+    // Optional: Test getting fewer events
+    const fewer = e_log.recent(10);
+    try testing.expectEqual(@as(usize, 10), fewer.len);
 }
