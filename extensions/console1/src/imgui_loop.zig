@@ -12,7 +12,7 @@ const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const SettingsPanel = @import("settings_panel.zig");
 const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fxParser = @import("fx_parser.zig");
-const fx_browser = @import("fx_browser.zig");
+const fx_sel_panel = @import("fx_sel_panel.zig");
 const actions = @import("actions.zig");
 const mapping_panel = @import("mapping_panel.zig");
 
@@ -98,7 +98,7 @@ fn main() !void {
                     .OUTPT => globals.mappings_list.list.get(.OUTPT),
                 };
 
-                if (!try fx_browser.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) {
+                if (!try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) {
                     actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } });
                 }
             },

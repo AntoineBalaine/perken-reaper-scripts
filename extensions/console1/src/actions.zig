@@ -15,6 +15,12 @@ const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const ModulesList = statemachine.ModulesList;
 const constants = @import("constants.zig");
 const onMidiEvent_FxCtrl = @import("csurf/midi_events_fxctrl.zig").onMidiEvent_FxCtrl;
+const MappingAction = @import("mapping_actions.zig").MappingAction;
+const mappingActions = @import("mapping_actions.zig").mappingActions;
+const settings_actions = @import("settings_actions.zig");
+const SettingsActions = settings_actions.SettingsActions;
+const fx_sel_actions = @import("fx_sel_actions.zig");
+const FxSelActions = fx_sel_actions.FxSelActions;
 
 const valid_transitions = statemachine.valid_transitions;
 pub const ParamChg = struct {
@@ -29,7 +35,7 @@ pub const WinChg = struct {
     is_open: bool,
 };
 // Mode-specific actions
-const ModeAction = union(enum) {
+pub const ModeAction = union(enum) {
     // FX Control Mode
     fx_ctrl: union(enum) {
         midi_input: struct {
@@ -45,54 +51,13 @@ const ModeAction = union(enum) {
     },
 
     // FX Selection Mode
-    fx_sel: union(enum) {
-        select_fx: [:0]const u8,
-        scroll: u8,
-        toggle_module_browser: ModulesList, // Which module's browser to show
-
-        // Mapped FX selection
-        select_mapped_fx: struct {
-            module: ModulesList,
-            fx_name: []const u8,
-        },
-
-        // Regular browser selection
-        select_category_fx: struct {
-            module: ModulesList,
-            fx_name: [:0]const u8,
-            category: [:0]const u8,
-        },
-    },
+    fx_sel: FxSelActions,
 
     // Mapping Mode
-    mapping: union(enum) {
-        // Parameter selection
-        select_parameter: ?u32, // null to deselect
-
-        // Control selection
-        select_control: ?c1.CCs, // null to deselect
-
-        // MIDI learn
-        toggle_midi_learn: void,
-
-        // Mapping operations
-        add_mapping: struct {
-            param: u8,
-            control: c1.CCs,
-        },
-        remove_mapping: c1.CCs, // Remove mapping for this control
-
-        // Panel operations
-        save_mapping: void, // Save current mappings to MapStore
-        cancel_mapping: void, // Discard changes and exit mapping mode
-    },
+    mapping: MappingAction,
 
     // Settings Mode
-    settings: union(enum) {
-        open, // Request to open settings
-        save, // Save and close
-        cancel, // Cancel and close
-    },
+    settings: SettingsActions,
     Csurf: union(enum) {
         csurf_track_selected: reaper.MediaTrack,
         csurf_last_touched_track: reaper.MediaTrack,
@@ -141,318 +106,14 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             else => {},
             // ... other fx_ctrl actions
         },
-        .fx_sel => |sel_action| switch (sel_action) {
-            .toggle_module_browser => |module| {
-                if (state.current_mode == .fx_sel) {
-                    dispatch(state, .{ .change_mode = .fx_ctrl });
-                } else {
-                    state.fx_sel.current_category = module;
-                    dispatch(state, .{ .change_mode = .fx_sel });
-                }
-            },
-            .select_mapped_fx => |selection| {
-                try loadModuleMapping(selection.module, selection.fx_name);
-                try updateTrackFx(selection.module, selection.fx_name);
-                // Dispatch mode change instead of direct assignment
-                dispatch(state, .{ .change_mode = .fx_ctrl });
-            },
-            .select_category_fx => |selection| {
-                if (!hasMappingFor(selection.module, selection.fx_name)) {
-                    state.mapping.target_fx = selection.fx_name;
-                    state.mapping.current_mappings = switch (selection.module) {
-                        .COMP => .{ .COMP = mappings.Comp{} },
-                        .EQ => .{ .EQ = mappings.Eq{} },
-                        .GATE => .{ .GATE = mappings.Shp{} },
-                        .OUTPT => .{ .OUTPT = mappings.Outpt{} },
-                        .INPUT => .{ .INPUT = mappings.Inpt{} },
-                    };
-                    dispatch(state, .{ .change_mode = .mapping_panel });
-                } else {
-                    try loadModuleMapping(selection.module, selection.fx_name);
-                    try updateTrackFx(selection.module, selection.fx_name);
-                    dispatch(state, .{ .change_mode = .fx_ctrl });
-                }
-            },
-            .select_fx => |fx_name| {
-                // Check if mapping exists
-                if (switch (globals.map_store.get(fx_name, state.fx_sel.current_category)) {
-                    inline else => |impl| impl == null,
-                }) {
-                    createEmptyMapping(state, fx_name) catch return;
-                    // Open mapping panel
-                    switch (state.fx_sel.current_category) {
-                        inline else => |variant| {
-                            const fxMap = @field(state.fx_ctrl.fxMap, @tagName(variant));
-
-                            if (fxMap == null) return;
-                            if (fxMap) |map| {
-                                enterMappingMode(state.last_touched_tr_id, map[0]) catch {};
-                                dispatch(state, .{ .change_mode = .mapping_panel });
-                            }
-                        },
-                    }
-                }
-            },
-            .scroll => |new_pos| {
-                const old_pos = globals.state.fx_sel.scroll_position_abs;
-                var delta: i16 = undefined;
-                if (new_pos == old_pos and (old_pos == 127 or old_pos == 0)) {
-                    if (old_pos == 127) delta = 1 else delta = -1;
-                } else {
-                    delta = @as(i16, @intCast(new_pos)) - @as(i16, @intCast(old_pos));
-                }
-
-                state.fx_sel.scroll_position_abs = new_pos;
-
-                const max_pos = switch (state.fx_sel.current_category) {
-                    inline else => |impl| @field(globals.map_store, @tagName(impl)).count(),
-                };
-
-                if (max_pos == 0) return; // Guard against empty list
-                // Update scroll position with wrapping
-                // Calculate new position with wrapping
-                const current_pos = @as(i32, @intCast(state.fx_sel.scroll_position_rel));
-                const new_pos_rel = current_pos + delta;
-
-                // Wrap around using modulo
-                // Add max_pos before taking modulo to handle negative numbers correctly
-                state.fx_sel.scroll_position_rel = @intCast(@mod(@as(u32, @intCast(new_pos_rel)) + max_pos, max_pos));
-
-                // const new_val = @as(i32, @intCast(state.fx_sel.scroll_position_rel)) + delta;
-                // var new_delta: usize = undefined;
-                // if (new_val > max_pos) {
-                //     new_delta = new_val - max_pos;
-                // } else if (new_val < 0) {
-                //     new_delta = max_pos - @abs(new_val);
-                // }
-                // Log scroll action
-                logger.log(
-                    .debug,
-                    "Scroll: abs={d} delta={d} rel={d}/{d}",
-                    .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, max_pos },
-                    null,
-                    globals.allocator,
-                );
-            },
-            // ... other fx_sel actions
+        .fx_sel => |sel_action| {
+            fx_sel_actions.fxSelActions(state, sel_action);
         },
-        .mapping => |map_action| switch (map_action) {
-            .select_parameter => |maybe_param| {
-                logger.log(.debug, "Selected parameter: {?}", .{maybe_param}, null, globals.allocator);
-                state.mapping.selected_parameter = maybe_param;
-                // If we're in MIDI learn mode and a parameter is selected,
-                // we're ready to receive MIDI input
-            },
-            .select_control => |maybe_control| {
-                logger.log(.debug, "Selected control: {s}", .{if (maybe_control) |cc| @tagName(cc) else "none"}, null, globals.allocator);
-                state.mapping.selected_control = maybe_control;
-                // If both parameter and control are selected, could auto-add mapping
-            },
-            .toggle_midi_learn => {
-                logger.log(.debug, "MIDI learn {s}", .{if (state.mapping.midi_learn_active) "disabled" else "enabled"}, null, globals.allocator);
-                state.mapping.midi_learn_active = !state.mapping.midi_learn_active;
-                if (!state.mapping.midi_learn_active) {
-                    // Clear selection when exiting MIDI learn mode?
-                    state.mapping.selected_control = null;
-                }
-            },
-            .add_mapping => |mapping| {
-                logger.log(.info, "Added mapping: {s} -> param {d}", .{ @tagName(mapping.control), mapping.param }, null, globals.allocator);
-                // Add to current_mappings based on module type
-                switch (state.mapping.current_mappings) {
-                    .COMP => |*comp| switch (mapping.control) {
-                        .Comp_Attack => comp.Comp_Attack = mapping.param,
-                        .Comp_DryWet => comp.Comp_DryWet = mapping.param,
-                        .Comp_Ratio => comp.Comp_Ratio = mapping.param,
-                        .Comp_Release => comp.Comp_Release = mapping.param,
-                        .Comp_Thresh => comp.Comp_Thresh = mapping.param,
-                        .Comp_comp => comp.Comp_comp = mapping.param,
-                        else => {},
-                    },
-                    .EQ => |*eq| switch (mapping.control) {
-                        .Eq_HiFrq => eq.Eq_HiFrq = mapping.param,
-                        .Eq_HiGain => eq.Eq_HiGain = mapping.param,
-                        .Eq_HiMidFrq => eq.Eq_HiMidFrq = mapping.param,
-                        .Eq_HiMidGain => eq.Eq_HiMidGain = mapping.param,
-                        .Eq_HiMidQ => eq.Eq_HiMidQ = mapping.param,
-                        .Eq_LoFrq => eq.Eq_LoFrq = mapping.param,
-                        .Eq_LoGain => eq.Eq_LoGain = mapping.param,
-                        .Eq_LoMidFrq => eq.Eq_LoMidFrq = mapping.param,
-                        .Eq_LoMidGain => eq.Eq_LoMidGain = mapping.param,
-                        .Eq_LoMidQ => eq.Eq_LoMidQ = mapping.param,
-                        .Eq_eq => eq.Eq_eq = mapping.param,
-                        .Eq_hp_shape => eq.Eq_hp_shape = mapping.param,
-                        .Eq_lp_shape => eq.Eq_lp_shape = mapping.param,
-                        else => {},
-                    },
-                    .INPUT => |*input| switch (mapping.control) {
-                        .Inpt_Gain => input.Inpt_Gain = mapping.param,
-                        .Inpt_HiCut => input.Inpt_HiCut = mapping.param,
-                        .Inpt_LoCut => input.Inpt_LoCut = mapping.param,
-                        .Inpt_disp_mode => input.Inpt_disp_mode = mapping.param,
-                        .Inpt_disp_on => input.Inpt_disp_on = mapping.param,
-                        .Inpt_filt_to_comp => input.Inpt_filt_to_comp = mapping.param,
-                        .Inpt_phase_inv => input.Inpt_phase_inv = mapping.param,
-                        .Inpt_preset => input.Inpt_preset = mapping.param,
-                        else => {},
-                    },
-                    .OUTPT => |*output| switch (mapping.control) {
-                        .Out_Drive => output.Out_Drive = mapping.param,
-                        .Out_DriveChar => output.Out_DriveChar = mapping.param,
-                        .Out_Pan => output.Out_Pan = mapping.param,
-                        .Out_Vol => output.Out_Vol = mapping.param,
-                        else => {},
-                    },
-                    .GATE => |*gate| switch (mapping.control) {
-                        .Shp_Gate => gate.Shp_Gate = mapping.param,
-                        .Shp_GateRelease => gate.Shp_GateRelease = mapping.param,
-                        .Shp_Punch => gate.Shp_Punch = mapping.param,
-                        .Shp_hard_gate => gate.Shp_hard_gate = mapping.param,
-                        .Shp_shape => gate.Shp_shape = mapping.param,
-                        .Shp_sustain => gate.Shp_sustain = mapping.param,
-                        else => {},
-                    },
-                }
-                // Clear selections after mapping
-                state.mapping.selected_parameter = null;
-                state.mapping.selected_control = null;
-            },
-            .remove_mapping => |control| {
-                logger.log(.info, "Removed mapping for control: {s}", .{@tagName(control)}, null, globals.allocator);
-                // Remove from current_mappings based on module type
-                switch (state.mapping.current_mappings) {
-                    .COMP => |*comp| switch (control) {
-                        .Comp_Attack => comp.Comp_Attack = mappings.UNMAPPED_PARAM,
-                        .Comp_DryWet => comp.Comp_DryWet = mappings.UNMAPPED_PARAM,
-                        .Comp_Ratio => comp.Comp_Ratio = mappings.UNMAPPED_PARAM,
-                        .Comp_Release => comp.Comp_Release = mappings.UNMAPPED_PARAM,
-                        .Comp_Thresh => comp.Comp_Thresh = mappings.UNMAPPED_PARAM,
-                        .Comp_comp => comp.Comp_comp = mappings.UNMAPPED_PARAM,
-                        else => {},
-                    },
-                    .EQ => |*eq| switch (control) {
-                        .Eq_HiFrq => eq.Eq_HiFrq = mappings.UNMAPPED_PARAM,
-                        .Eq_HiGain => eq.Eq_HiGain = mappings.UNMAPPED_PARAM,
-                        .Eq_HiMidFrq => eq.Eq_HiMidFrq = mappings.UNMAPPED_PARAM,
-                        .Eq_HiMidGain => eq.Eq_HiMidGain = mappings.UNMAPPED_PARAM,
-                        .Eq_HiMidQ => eq.Eq_HiMidQ = mappings.UNMAPPED_PARAM,
-                        .Eq_LoFrq => eq.Eq_LoFrq = mappings.UNMAPPED_PARAM,
-                        .Eq_LoGain => eq.Eq_LoGain = mappings.UNMAPPED_PARAM,
-                        .Eq_LoMidFrq => eq.Eq_LoMidFrq = mappings.UNMAPPED_PARAM,
-                        .Eq_LoMidGain => eq.Eq_LoMidGain = mappings.UNMAPPED_PARAM,
-                        .Eq_LoMidQ => eq.Eq_LoMidQ = mappings.UNMAPPED_PARAM,
-                        .Eq_eq => eq.Eq_eq = mappings.UNMAPPED_PARAM,
-                        .Eq_hp_shape => eq.Eq_hp_shape = mappings.UNMAPPED_PARAM,
-                        .Eq_lp_shape => eq.Eq_lp_shape = mappings.UNMAPPED_PARAM,
-                        else => {},
-                    },
-                    .INPUT => |*input| switch (control) {
-                        .Inpt_Gain => input.Inpt_Gain = mappings.UNMAPPED_PARAM,
-                        .Inpt_HiCut => input.Inpt_HiCut = mappings.UNMAPPED_PARAM,
-                        .Inpt_LoCut => input.Inpt_LoCut = mappings.UNMAPPED_PARAM,
-                        .Inpt_disp_mode => input.Inpt_disp_mode = mappings.UNMAPPED_PARAM,
-                        .Inpt_disp_on => input.Inpt_disp_on = mappings.UNMAPPED_PARAM,
-                        .Inpt_filt_to_comp => input.Inpt_filt_to_comp = mappings.UNMAPPED_PARAM,
-                        .Inpt_phase_inv => input.Inpt_phase_inv = mappings.UNMAPPED_PARAM,
-                        .Inpt_preset => input.Inpt_preset = mappings.UNMAPPED_PARAM,
-                        else => {},
-                    },
-                    .OUTPT => |*output| switch (control) {
-                        .Out_Drive => output.Out_Drive = mappings.UNMAPPED_PARAM,
-                        .Out_DriveChar => output.Out_DriveChar = mappings.UNMAPPED_PARAM,
-                        .Out_Pan => output.Out_Pan = mappings.UNMAPPED_PARAM,
-                        .Out_Vol => output.Out_Vol = mappings.UNMAPPED_PARAM,
-                        else => {},
-                    },
-                    .GATE => |*gate| switch (control) {
-                        .Shp_Gate => gate.Shp_Gate = mappings.UNMAPPED_PARAM,
-                        .Shp_GateRelease => gate.Shp_GateRelease = mappings.UNMAPPED_PARAM,
-                        .Shp_Punch => gate.Shp_Punch = mappings.UNMAPPED_PARAM,
-                        .Shp_hard_gate => gate.Shp_hard_gate = mappings.UNMAPPED_PARAM,
-                        .Shp_shape => gate.Shp_shape = mappings.UNMAPPED_PARAM,
-                        .Shp_sustain => gate.Shp_sustain = mappings.UNMAPPED_PARAM,
-                        else => {},
-                    },
-                }
-            },
-            .save_mapping => {
-                logger.log(.info, "Saved mappings for FX: {s}", .{state.mapping.target_fx}, null, globals.allocator);
-                // Save to MapStore
-                switch (state.mapping.current_mappings) {
-                    .INPUT => |input| globals.map_store.INPUT.put(globals.allocator, state.mapping.target_fx, input) catch {},
-                    .GATE => |gate| globals.map_store.GATE.put(globals.allocator, state.mapping.target_fx, gate) catch {},
-                    .EQ => |eq| globals.map_store.EQ.put(globals.allocator, state.mapping.target_fx, eq) catch {},
-                    .COMP => |comp| globals.map_store.COMP.put(globals.allocator, state.mapping.target_fx, comp) catch {},
-                    .OUTPT => |outpt| globals.map_store.OUTPT.put(globals.allocator, state.mapping.target_fx, outpt) catch {},
-                }
-
-                globals.map_store.saveToFile(state.mapping) catch {
-                    logger.log(.warning, "Failed to save mapping {s} to file", .{state.mapping.target_fx}, null, globals.allocator);
-                };
-
-                // Clean up mapping panel
-                if (globals.mapping_panel) |*panel| {
-                    panel.deinit();
-                    globals.mapping_panel = null;
-                }
-                dispatch(state, .{ .change_mode = .fx_ctrl });
-            },
-            .cancel_mapping => {
-                logger.log(.info, "Cancelled mapping for FX: {s}", .{state.mapping.target_fx}, null, globals.allocator);
-                // Clean up mapping state
-                state.mapping.selected_parameter = null;
-                state.mapping.selected_control = null;
-                state.mapping.midi_learn_active = false;
-
-                // Free allocated memory
-                state.mapping.deinit(globals.allocator);
-
-                // Clean up mapping panel
-                if (globals.mapping_panel) |*panel| {
-                    panel.deinit();
-                    globals.mapping_panel = null;
-                }
-
-                // Switch back to previous mode
-                dispatch(state, .{ .change_mode = .fx_ctrl });
-            },
+        .mapping => |map_action| {
+            mappingActions(state, map_action);
         },
-        .settings => |set_action| switch (set_action) {
-            .open => {
-                if (globals.settings_panel == null) {
-                    globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.allocator) catch blk: {
-                        logger.log(.err, "open settings failed: {s}", .{@tagName(action)}, null, globals.allocator);
-                        break :blk null;
-                    };
-                }
-                if (globals.settings_panel) |_| {
-                    dispatch(state, .{ .change_mode = .settings });
-                } else {
-                    logger.log(.err, "settings_panel data unfound: {s}", .{@tagName(action)}, null, globals.allocator);
-                }
-            },
-            .save => {
-                if (globals.settings_panel) |*panel| {
-                    panel.save() catch {
-                        logger.log(.err, "save settings failed: {s}", .{@tagName(action)}, null, globals.allocator);
-                        return;
-                        // TODO: implement error handling
-                        // Show user notification
-                    };
-                    panel.deinit();
-                    globals.settings_panel = null;
-                }
-                dispatch(state, .{ .change_mode = .fx_ctrl });
-            },
-            .cancel => {
-                if (globals.settings_panel) |*panel| {
-                    panel.deinit();
-                    globals.settings_panel = null;
-                }
-                state.current_mode = .fx_ctrl;
-                // Dunno why, calling dispatch here crashes the UI.
-                // dispatch(state, .{ .change_mode = .fx_ctrl });
-            },
+        .settings => |set_action| {
+            settings_actions.settingsActions(state, set_action);
         },
         .Csurf => |set_action| switch (set_action) {
             .csurf_track_selected => |track| {
@@ -494,17 +155,6 @@ pub fn dispatch(state: *State, action: ModeAction) void {
     }
 }
 
-/// Create empty mapping in MapStore
-fn createEmptyMapping(state: *State, fx_name: [:0]const u8) !void {
-    switch (state.fx_sel.current_category) {
-        .INPUT => try globals.map_store.INPUT.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Inpt{}),
-        .GATE => try globals.map_store.GATE.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Shp{}),
-        .EQ => try globals.map_store.EQ.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Eq{}),
-        .COMP => try globals.map_store.COMP.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Comp{}),
-        .OUTPT => try globals.map_store.OUTPT.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Outpt{}),
-    }
-}
-
 // Helper functions
 fn validateFxChain(state: *State, track: reaper.MediaTrack) void {
     _ = track; // autofix
@@ -541,23 +191,6 @@ fn updateFxControlTrack(state: *State, track: reaper.MediaTrack) void {
     unreachable;
 }
 
-fn loadModuleMapping(module: ModulesList, fx_name: []const u8) !void {
-    _ = module;
-    _ = fx_name;
-    unreachable;
-}
-
-fn updateTrackFx(module: ModulesList, fx_name: []const u8) !void {
-    _ = module;
-    _ = fx_name;
-    unreachable;
-}
-fn hasMappingFor(module: ModulesList, fx_name: []const u8) bool {
-    _ = module;
-    _ = fx_name;
-    unreachable;
-}
-
 // Helper function to validate CC against module type
 fn isValidCCForModule(cc: c1.CCs, module: ModulesList) bool {
     const cc_name = @tagName(cc);
@@ -568,15 +201,6 @@ fn isValidCCForModule(cc: c1.CCs, module: ModulesList) bool {
         .OUTPT => std.mem.startsWith(u8, cc_name, "Out_"),
         .GATE => std.mem.startsWith(u8, cc_name, "Shp_"),
     };
-}
-
-pub fn enterMappingMode(track_id: c_int, fx_number: i32) !void {
-    const media_track =
-        reaper.CSurf_TrackFromID(track_id, false);
-    if (globals.mapping_panel == null) {
-        globals.mapping_panel = MappingPanel.init(globals.allocator);
-    }
-    try globals.mapping_panel.?.loadParameters(media_track, fx_number);
 }
 
 test {
