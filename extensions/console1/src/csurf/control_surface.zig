@@ -275,6 +275,12 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                     else => {},
                 }
             },
+            .settings => {
+                switch (cc) {
+                    .Tr_tr20 => actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl }),
+                    else => {},
+                }
+            },
             else => {},
         }
     }
@@ -887,13 +893,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
                 selTrck(5);
             }
         },
-        .Tr_tr6 => {
-            if (globals.modifier_active) {
-                actions.dispatch(&globals.state, .{ .settings = .open });
-            } else {
-                selTrck(6);
-            }
-        },
+        .Tr_tr6 => selTrck(6),
         .Tr_tr10 => selTrck(10),
         .Tr_tr11 => selTrck(11),
         .Tr_tr12 => selTrck(12),
@@ -904,7 +904,13 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Tr_tr17 => selTrck(17),
         .Tr_tr18 => selTrck(18),
         .Tr_tr19 => selTrck(19),
-        .Tr_tr20 => selTrck(20),
+        .Tr_tr20 => {
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .{ .settings = .open });
+            } else {
+                selTrck(20);
+            }
+        },
         .Tr_tr7 => selTrck(7),
         .Tr_tr8 => selTrck(8),
         .Tr_tr9 => selTrck(9),
