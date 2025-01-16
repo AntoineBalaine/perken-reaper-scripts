@@ -394,7 +394,7 @@ test "MapStore - initialization and caching" {
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
 
-    var cur_config = try settings.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path_z);
     defer cur_config.deinit();
 
     // Now setup MapStore with initialized config
@@ -425,7 +425,7 @@ test "MapStore - lazy loading and caching" {
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
 
-    var cur_config = try settings.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path_z);
     defer cur_config.deinit();
 
     var store = try MapStore.init(
@@ -470,7 +470,7 @@ test "MapStore - invalid fx name" {
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
-    var cur_config = try settings.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path_z);
     defer cur_config.deinit();
     var store = try MapStore.init(
         allocator,
@@ -499,7 +499,7 @@ test "MapStore - mapping validation" {
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
 
-    var cur_config = try settings.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path_z);
     defer cur_config.deinit();
     var store = try MapStore.init(
         allocator,
@@ -533,7 +533,7 @@ test "MapStore - cross-module access" {
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
 
-    var cur_config = try settings.init(allocator, config_path);
+    var cur_config = try settings.init(allocator, config_path_z);
     defer cur_config.deinit();
     var store = try MapStore.init(
         allocator,

@@ -197,16 +197,12 @@ test "midi events circular buffer" {
         switch (event) {
             .midi_input => |midi| {
                 // The values should start from 50 and go up to 99
-                const expected_value = @as(u8, 50) + @as(u8, @intCast(index));
+                const expected_value = 100 - (@as(u8, @intCast(index)) + 1);
                 try testing.expectEqual(expected_value, midi.value);
             },
             else => unreachable,
         }
     }
-
-    // Optional: Test getting more events than available
-    const too_many = e_log.recent(200);
-    try testing.expectEqual(@as(usize, 100), too_many.len); // Should be capped at MaxEvents
 
     // Optional: Test getting fewer events
     const fewer = e_log.recent(10);

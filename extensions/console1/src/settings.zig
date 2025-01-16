@@ -263,7 +263,9 @@ test "preferences - load from current directory" {
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
 
-    const path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const path_z = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    defer allocator.free(path_z);
+    const path = try allocator.dupeZ(u8, path_z);
     defer allocator.free(path);
 
     // Initialize preferences with current directory
@@ -294,7 +296,9 @@ test "preferences - save and restore" {
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
 
-    const path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const path_z = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    defer allocator.free(path_z);
+    const path = try allocator.dupeZ(u8, path_z);
     defer allocator.free(path);
 
     // First load current preferences to save them
