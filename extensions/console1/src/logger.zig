@@ -1,25 +1,12 @@
-// 2. Debugging Infrastructure
-//    - Event system implementation
-//      * EventType enum and Event union
-//      * EventLog struct with ArrayList
-//      * Basic logging functions
-//    - Debug levels
-//      * LogLevel enum
-//      * Integration with Reaper console
-//    - Debug overlay prototype
-//      * Collapsible ImGui window
-//      * Event history display
-//      * State visualization
-//      * MIDI activity monitor
-
 const std = @import("std");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const ModulesList = statemachine.ModulesList;
 const c1 = @import("c1.zig");
-const debugconfig = @import("config");
+// const debugconfig = @import("config");
 
-pub var debug_window_active = debugconfig.@"test";
+pub var debug_window_active = true;
+// pub var debug_window_active = debugconfig.@"test";
 pub var event_log: ?*EventLog = null; // Pointer to state's event log
 pub var log_file: ?*std.fs.File = null; // Just need the file handle
 pub var log_level: ?*LogLevel = null; // Just need the level
@@ -38,15 +25,14 @@ pub const LogLevel = enum(u8) {
     }
 };
 
-const EventType = enum {
+pub const EventType = enum {
     state_change,
     midi_input,
     parameter_update,
     // etc.
 };
 
-const Event =
-    union(EventType) {
+pub const Event = union(EventType) {
     state_change: struct {
         old_mode: Mode,
         new_mode: Mode,
@@ -61,101 +47,7 @@ const Event =
         value: f64,
     },
 };
-
-pub const EventLog = struct {
-    const Self = @This();
-    // Fixed size to avoid allocations during real-time operation
-    const MaxEvents = 128;
-
-    events: [MaxEvents]Event,
-    count: usize = 0, // Total number of events logged
-    position: usize = 0, // Current position in circular buffer
-
-    pub fn init() Self {
-        return .{
-            .events = undefined,
-        };
-    }
-
-    pub fn log(self: *Self, event: Event) void {
-        self.events[self.position] = event;
-        self.position = @rem(self.position + 1, MaxEvents);
-        self.count += 1;
-    }
-
-    // Returns slice of most recent events, newest first
-    pub fn recent(self: *Self, max_items: usize) []const Event {
-        const num_items = @min(max_items, @min(self.count, MaxEvents));
-        if (num_items == 0) return &[0]Event{};
-
-        // If we haven't wrapped around yet
-        if (self.count <= MaxEvents) {
-            const start = if (self.position >= num_items)
-                self.position - num_items
-            else
-                0;
-            return self.events[start..self.position];
-        }
-
-        // If we've wrapped around
-        var start = self.position;
-        if (start == 0) start = MaxEvents;
-        start = start - num_items;
-        if (start >= MaxEvents) start = 0;
-
-        // If the requested items span the buffer wrap-around point
-        if (start > self.position) {
-            // Need to return a new allocated array containing both parts
-            // This would require allocation though, which might not be suitable for real-time
-            // Alternative: Return only the most recent contiguous chunk
-            return self.events[start..MaxEvents];
-        }
-
-        return self.events[start..self.position];
-    }
-
-    // Get events of specific type
-    pub fn getEventsByType(self: *Self, event_type: EventType, max_items: usize) []const Event {
-        var matching: [MaxEvents]Event = undefined;
-        var count: usize = 0;
-
-        // Start from most recent
-        var i: usize = 0;
-        while (i < @min(self.count, MaxEvents) and count < max_items) : (i += 1) {
-            const idx = (self.position - 1 + MaxEvents - i) % MaxEvents;
-            const event = self.events[idx];
-            if (event == event_type) {
-                matching[count] = event;
-                count += 1;
-            }
-        }
-
-        return matching[0..count];
-    }
-
-    // Clear all events
-    pub fn clear(self: *Self) void {
-        self.count = 0;
-        self.position = 0;
-    }
-
-    // Example: Find last event of specific type
-    pub fn findLastEvent(self: *Self, event_type: EventType) ?Event {
-        if (self.count == 0) return null;
-
-        var i: usize = 0;
-        while (i < @min(self.count, MaxEvents)) : (i += 1) {
-            const idx = @mod(self.position - 1 + MaxEvents - i, MaxEvents);
-            // const idx = std.math.mod() catch 0;
-            const event = self.events[idx];
-            if (event == event_type) {
-                return event;
-            }
-        }
-
-        return null;
-    }
-};
+pub const EventLog = @import("logger_evt.zig");
 
 const Color = struct {
     const reset = "\x1b[0m";
@@ -298,7 +190,7 @@ test "midi events circular buffer" {
     const recent_events = e_log.recent(50);
 
     // Verify we got exactly 50 events
-    try testing.expectEqual(@as(usize, 50), recent_events.len);
+    try testing.expectEqual(50, recent_events.len);
 
     // Verify the values are correct (should be the most recent ones: 50-99)
     for (recent_events, 0..) |event, index| {
