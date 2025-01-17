@@ -21,6 +21,9 @@ const settings_actions = @import("settings_actions.zig");
 const SettingsActions = settings_actions.SettingsActions;
 const fx_sel_actions = @import("fx_sel_actions.zig");
 const FxSelActions = fx_sel_actions.FxSelActions;
+const fx_ctrl_actions = @import("fx_ctrl_actions.zig");
+const FxCtrlAction = fx_ctrl_actions.FxCtrlAction;
+const fxCtrlActions = fx_ctrl_actions.fxCtrlActions;
 
 const valid_transitions = statemachine.valid_transitions;
 pub const ParamChg = struct {
@@ -37,18 +40,7 @@ pub const WinChg = struct {
 // Mode-specific actions
 pub const ModeAction = union(enum) {
     // FX Control Mode
-    fx_ctrl: union(enum) {
-        midi_input: struct {
-            cc: c1.CCs,
-            value: u8,
-        },
-        set_volume: f64,
-        set_pan: f64,
-        toggle_mute,
-        toggle_solo,
-        set_routing_order: ModulesOrder,
-        set_sidechain: SCRouting,
-    },
+    fx_ctrl: FxCtrlAction,
 
     // FX Selection Mode
     fx_sel: FxSelActions,
@@ -92,20 +84,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 );
             }
         },
-        .fx_ctrl => |fx_action| switch (fx_action) {
-            .midi_input => |input| {
-                logger.log(
-                    .debug,
-                    "MIDI input: {s} -> {d}",
-                    .{ @tagName(input.cc), input.value },
-                    .{ .midi_input = .{ .cc = input.cc, .value = input.value } },
-                    globals.allocator,
-                );
-                onMidiEvent_FxCtrl(input.cc, input.value);
-            },
-            else => {},
-            // ... other fx_ctrl actions
-        },
+        .fx_ctrl => |fx_action| fxCtrlActions(state, fx_action),
         .fx_sel => |sel_action| {
             fx_sel_actions.fxSelActions(state, sel_action);
         },

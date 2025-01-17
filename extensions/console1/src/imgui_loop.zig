@@ -69,7 +69,9 @@ fn main() !void {
         }
         switch (globals.state.current_mode) {
             .fx_ctrl => {
-                try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state);
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state)) |ctrl_input| {
+                    actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .panel_input = ctrl_input } });
+                }
             },
             .settings => {
                 if (globals.settings_panel) |*panel| {
@@ -88,7 +90,9 @@ fn main() !void {
                 }
             },
             .fx_sel => {
-                try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state);
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state)) |ctrl_input| {
+                    actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .panel_input = ctrl_input } });
+                }
                 const module = globals.state.fx_sel.current_category;
                 const list = switch (module) {
                     .INPUT => globals.mappings_list.list.get(.INPUT),
