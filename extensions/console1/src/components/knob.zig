@@ -74,13 +74,18 @@ pub fn drawWidget(
     const drwls = try imgui.GetWindowDrawList(.{ctx});
     const radius = knob_size / 2;
 
+    // Calculate text size for label
+    var label_size: Size = .{ .w = undefined, .h = undefined };
+    try imgui.CalcTextSize(.{ ctx, id, &label_size.w, &label_size.h });
+    const text_padding = 2.0;
+
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
         .min_y = cur_pos.y,
-        .max_x = cur_pos.x + radius * 2,
-        .max_y = cur_pos.y + radius * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+        .max_x = cur_pos.x + @max(radius * 2, label_size.w),
+        .max_y = cur_pos.y + radius * 2 + label_size.h + text_padding * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
     };
 
     {
@@ -90,9 +95,12 @@ pub fn drawWidget(
         // Draw background color
         try imgui.DrawList_AddRectFilled(.{ drwls, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, 0xFFFFFF22 });
 
+        // Draw label at top
+        try imgui.DrawList_AddText(.{ drwls, widget_rect.min_x + (widget_rect.max_x - widget_rect.min_x - label_size.w) / 2, widget_rect.min_y + text_padding, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), id });
+
         // Draw "Empty" button in the center of the adjusted ClipRect
         const center_x = widget_rect.min_x + radius; // use radius => assume clipRect.w == diameter
-        const center_y = widget_rect.min_y + radius; // use radius => assume control is at top of clipRect
+        const center_y = widget_rect.min_y + label_size.h + text_padding * 2 + radius; // adjusted for label
 
         try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
 
