@@ -3,7 +3,6 @@ const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
-const Theme = @import("theme/Theme.zig");
 const styles = @import("styles.zig");
 const logger = @import("logger.zig");
 const debug_panel = @import("debug_panel.zig");
@@ -17,7 +16,6 @@ const actions = @import("actions.zig");
 const mapping_panel = @import("mapping_panel.zig");
 
 const plugin_name = "CONSOLE1";
-pub var action_id: c_int = undefined;
 pub var allocator: std.mem.Allocator = undefined;
 var ctx: imgui.ContextPtr = null;
 var text = std.mem.zeroes([255:0]u8);
@@ -28,18 +26,11 @@ fn init() !void {
     const ctx_flags = imgui.ConfigFlags_DockingEnable;
     ctx = try imgui.CreateContext(.{ plugin_name, ctx_flags });
 
-    try fxParser.init(allocator);
-    try Theme.init(ctx, true);
-    try styles.init(ctx);
-
     windowFlags =
         imgui.WindowFlags_NoCollapse +
         imgui.WindowFlags_NoTitleBar +
         imgui.WindowFlags_NoNav + imgui.WindowFlags_NoFocusOnAppearing;
-}
-
-pub fn deinit() void {
-    fxParser.deinit(allocator);
+    try styles.init(ctx);
 }
 
 var buf: [128:0]u8 = undefined;
@@ -134,15 +125,4 @@ fn onTimer() callconv(.C) void {
         reset();
         _ = reaper.ShowMessageBox(imgui.last_error.?, plugin_name, 0);
     };
-}
-
-pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
-    _ = .{ sec, val, val2hw, relmode, hwnd };
-
-    if (command == action_id) {
-        if (ctx == null) register() else reset();
-        return 1;
-    }
-
-    return 0;
 }

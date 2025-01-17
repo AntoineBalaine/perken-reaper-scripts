@@ -160,8 +160,11 @@ pub var RackStyle: StyleStruct = undefined;
 var RackStyleBkp: StyleStruct = undefined;
 pub var MainWinStyle: StyleStruct = undefined;
 var MainWinStyleBkp: StyleStruct = undefined;
-
+var has_been_init: bool = false;
 pub fn init(ctx: imgui.ContextPtr) !void {
+    if (has_been_init) {
+        return;
+    }
     RackStyle = std.mem.zeroes(StyleStruct);
     try getStyleData(ctx, &RackStyle);
     MainWinStyle = RackStyle; // copy
@@ -169,6 +172,7 @@ pub fn init(ctx: imgui.ContextPtr) !void {
     try loadStyle(&MainWinStyle, MAIN_WIN_STYLEVARS, MAIN_WIN_COLORS);
     RackStyleBkp = RackStyle; // make a copy
     MainWinStyleBkp = MainWinStyle; // make a copy
+    has_been_init = true;
 }
 
 pub fn StyleEditor(ctx: imgui.ContextPtr, win: WinStyle) !void {

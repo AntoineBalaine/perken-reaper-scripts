@@ -6,6 +6,7 @@ const Rectangle = @import("components/knob.zig").Rectangle;
 const State = @import("statemachine.zig").State;
 const c1 = @import("c1.zig");
 const WidgetInput = @import("fx_ctrl_actions.zig").WidgetInput;
+const globals = @import("globals.zig");
 
 // Layout constants
 // const section_spacing = 10.0;
@@ -353,6 +354,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
                 }
             }
         }
+    }
+
+    if (globals.m_midi_in == null) {
+        try imgui.SameLine(.{ctx});
+        try imgui.TextColored(.{ ctx, 0xFF0000FF, "Console disconnected" });
     }
     return rv;
 }

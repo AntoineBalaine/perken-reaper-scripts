@@ -13,8 +13,8 @@ const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
 const globals = @import("globals.zig");
 const logger = @import("logger.zig");
-
-const plugin_name = "Hello, Zig!";
+const hooks = @import("hooks.zig");
+const plugin_name = "Perken C1";
 
 var controller_dir: [*:0]const u8 = undefined;
 // var action_id: c_int = undefined;
@@ -49,7 +49,6 @@ fn deinit() void {
     // gpa.free(std.mem.span(controller_dir));
     // gpa.free(controller_dir);
     globals.deinit(gpa);
-    ImGuiLoop.deinit();
     control_surface.deinit(myCsurf);
     const deinit_status = gpa_int.deinit();
     if (deinit_status == .leak) {
@@ -72,11 +71,15 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     // _ = reaper.plugin_register("csurf_inst", myCsurf.?);
     _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
 
-    _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&ImGuiLoop.onCommand)));
-    ImGuiLoop.register();
-    // const action = reaper.custom_action_register_t{ .section = 0, .id_str = "REAIMGUI_ZIG", .name = "ReaImGui Zig example" };
-    // action_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
-    // _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
+    // Register toggle actions
+    _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&hooks.toggleActionHook)));
+    _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&hooks.onCommand)));
+
+    hooks.registerCommands();
+
+    if (globals.state.current_mode != .suspended) {
+        ImGuiLoop.register();
+    }
 
     if (debugconfig.@"test") {
         const query_action = reaper.custom_action_register_t{ .section = 0, .id_str = "C1 TEST", .name = "C1 TEST" };

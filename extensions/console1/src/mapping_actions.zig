@@ -213,3 +213,156 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
         },
     }
 }
+
+// test "MappingState - initialization and basic operations" {
+//     const testing = std.testing;
+//     const gpa = testing.allocator;
+//
+//     // Test init
+//     const fx_name = "Test FX";
+//     var mapping_state = try statemachine.MappingState.init(gpa, fx_name, .COMP);
+//     defer mapping_state.deinit(gpa);
+//
+//     try testing.expectEqualStrings(fx_name, mapping_state.target_fx);
+//     try testing.expect(mapping_state.current_mappings == .COMP);
+//     try testing.expect(mapping_state.selected_parameter == null);
+//     try testing.expect(mapping_state.selected_control == null);
+//     try testing.expect(mapping_state.midi_learn_active == false);
+// }
+//
+// test "MappingActions - parameter and control selection" {
+//     const testing = std.testing;
+//     const gpa = testing.allocator;
+//
+//     var state = State.init(gpa);
+//     defer state.deinit(gpa);
+//
+//     // Initialize mapping state
+//     state.mapping = try statemachine.MappingState.init(gpa, "Test FX", .COMP);
+//     state.current_mode = .mapping_panel;
+//
+//     // Test parameter selection
+//     dispatch(&state, .{ .mapping = .{ .select_parameter = 1 } });
+//     try testing.expect(state.mapping.selected_parameter.? == 1);
+//
+//     // Test parameter deselection
+//     dispatch(&state, .{ .mapping = .{ .select_parameter = null } });
+//     try testing.expect(state.mapping.selected_parameter == null);
+//
+//     // Test control selection
+//     dispatch(&state, .{ .mapping = .{ .select_control = .Comp_Attack } });
+//     try testing.expect(state.mapping.selected_control.? == .Comp_Attack);
+//
+//     // Test control deselection
+//     dispatch(&state, .{ .mapping = .{ .select_control = null } });
+//     try testing.expect(state.mapping.selected_control == null);
+// }
+//
+// test "MappingActions - MIDI learn toggle" {
+//     const testing = std.testing;
+//     const gpa = testing.allocator;
+//
+//     var state = State.init(gpa);
+//     defer state.deinit(gpa);
+//
+//     state.mapping = try statemachine.MappingState.init(gpa, "Test FX", .COMP);
+//     state.current_mode = .mapping_panel;
+//
+//     // Test MIDI learn activation
+//     dispatch(&state, .{ .mapping = .toggle_midi_learn });
+//     try testing.expect(state.mapping.midi_learn_active == true);
+//
+//     // Test MIDI learn deactivation
+//     dispatch(&state, .{ .mapping = .toggle_midi_learn });
+//     try testing.expect(state.mapping.midi_learn_active == false);
+//     try testing.expect(state.mapping.selected_control == null);
+// }
+//
+// test "MappingActions - add and remove mappings" {
+//     const testing = std.testing;
+//     const gpa = testing.allocator;
+//
+//     var state = State.init(gpa);
+//     defer state.deinit(gpa);
+//
+//     state.mapping = try statemachine.MappingState.init(gpa, "Test FX", .COMP);
+//     state.current_mode = .mapping_panel;
+//
+//     // Test adding mapping
+//     dispatch(&state, .{
+//         .mapping = .{
+//             .add_mapping = .{
+//                 .param = 1,
+//                 .control = .Comp_Attack,
+//             },
+//         },
+//     });
+//
+//     // Verify mapping was added
+//     switch (state.mapping.current_mappings) {
+//         .COMP => |comp| try testing.expect(comp.Comp_Attack == 1),
+//         else => try testing.expect(false),
+//     }
+//
+//     // Test removing mapping
+//     dispatch(&state, .{
+//         .mapping = .{
+//             .remove_mapping = .Comp_Attack,
+//         },
+//     });
+//
+//     // Verify mapping was removed
+//     switch (state.mapping.current_mappings) {
+//         .COMP => |comp| try testing.expect(comp.Comp_Attack == mappings.UNMAPPED_PARAM),
+//         else => try testing.expect(false),
+//     }
+// }
+//
+// test "MappingActions - save and cancel" {
+//     const testing = std.testing;
+//     const gpa = testing.allocator;
+//
+//     // Initialize global state (required for save operation)
+//     globals.allocator = gpa;
+//     globals.map_store = mappings.init(gpa);
+//     defer globals.map_store.deinit();
+//
+//     var state = State.init(gpa);
+//     defer state.deinit(gpa);
+//
+//     state.mapping = try statemachine.MappingState.init(gpa, "Test FX", .COMP);
+//     state.current_mode = .mapping_panel;
+//
+//     // Add a mapping
+//     dispatch(&state, .{
+//         .mapping = .{
+//             .add_mapping = .{
+//                 .param = 1,
+//                 .control = .Comp_Attack,
+//             },
+//         },
+//     });
+//
+//     // Test save mapping
+//     dispatch(&state, .{
+//         .mapping = .save_mapping,
+//     });
+//
+//     // Verify mode changed and mapping was saved
+//     try testing.expect(state.current_mode == .fx_ctrl);
+//     if (globals.map_store.COMP.get("Test FX")) |saved_mapping| {
+//         try testing.expect(saved_mapping.Comp_Attack == 1);
+//     } else {
+//         try testing.expect(false);
+//     }
+//
+//     // Test cancel mapping
+//     state.mapping = try statemachine.MappingState.init(gpa, "Test FX 2", .COMP);
+//     state.current_mode = .mapping_panel;
+//     dispatch(&state, .{
+//         .mapping = .cancel_mapping,
+//     });
+//
+//     try testing.expect(state.current_mode == .fx_ctrl);
+//     try testing.expect(globals.map_store.COMP.get("Test FX 2") == null);
+// }

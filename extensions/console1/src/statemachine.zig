@@ -20,33 +20,27 @@ pub const ModulesList = enum {
 };
 
 pub const Mode = enum {
-
-    // Main operation mode - controlling FX parameters
+    /// Main operation mode - controlling FX parameters
     fx_ctrl,
-
-    // Module selection and FX browser
+    /// Module selection and FX browser
     fx_sel,
-
-    // Mapping configuration for unmapped FX
+    /// Mapping configuration for unmapped FX
     mapping_panel,
-
-    // User preferences and global settings
+    /// User preferences and global settings
     settings,
-
-    // Optional: Additional modes you might want to consider
-    startup, // Initial mode when plugin loads
-    midi_learn, // Specific mode for MIDI learning (if implemented separately)
-    error_state, // For handling error conditions that need user intervention
+    /// Specific mode for MIDI learning (if implemented separately)
+    midi_learn,
+    /// if the user toggles the extension
+    suspended,
 };
 
 // Helper for valid transitions
 pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
-    .startup = &.{ .fx_ctrl, .settings },
     .fx_ctrl = &.{ .fx_sel, .settings, .mapping_panel },
     .fx_sel = &.{ .fx_ctrl, .mapping_panel, .settings },
     .mapping_panel = &.{ .fx_sel, .fx_ctrl },
     .midi_learn = &.{.mapping_panel},
-    .error_state = &.{ .fx_ctrl, .settings },
+    .suspended = &.{ .disconnected, .fx_ctrl },
 });
 
 pub const State = struct {
@@ -60,7 +54,7 @@ pub const State = struct {
     // Shared state
     last_touched_tr_id: c_int = 0,
     selectedTracks: std.AutoArrayHashMapUnmanaged(c_int, void) = .{},
-    gui_visible: bool = true,
+    fx_ctrl_gui_visible: bool = true,
 
     pub fn init(gpa: std.mem.Allocator) State {
         return .{

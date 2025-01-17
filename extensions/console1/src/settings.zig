@@ -25,6 +25,7 @@ show_plugin_ui: bool = false,
 manual_routing: bool = false,
 default_fx: DefaultFx,
 log_to_file: bool = false,
+suspended: bool = false,
 log_level: LogLevel = .info,
 
 // Resource management
