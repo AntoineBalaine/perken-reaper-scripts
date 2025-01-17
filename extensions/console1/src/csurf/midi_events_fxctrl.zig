@@ -57,10 +57,12 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         },
         .Inpt_preset => {},
         .Out_Pan => {
+            setUIVal(cc, u8ToPan(val));
             const rv = reaper.CSurf_OnPanChange(tr, u8ToPan(val), false);
             reaper.CSurf_SetSurfacePan(tr, rv, null);
         },
         .Out_Vol => {
+            setUIVal(cc, @as(f64, @floatFromInt(val)) / 127);
             _ = reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false);
         },
         .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), null),
@@ -208,7 +210,19 @@ fn selTrck(idx: u8) void {
     csurf.selectTrk(new_tr);
 }
 
+/// set the fx_ctrl UI values
+fn setUIVal(cc: c1.CCs, norm_val: f64) void {
+    var val_ptr = globals.state.fx_ctrl.values.getPtr(cc) orelse unreachable;
+    switch (val_ptr.*) {
+        .param => val_ptr.param.normalized = norm_val,
+        .button => val_ptr.button = norm_val != 0.0,
+        else => {},
+    }
+}
+
 pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.MediaTrack, val: u8) void {
+    const norm_val = @as(f64, @floatFromInt(val)) / 127;
+    setUIVal(cc, norm_val);
     const structPrm = @tagName(cc);
     const fxMap = @field(globals.state.fx_ctrl.fxMap, @tagName(section));
     if (fxMap == null) return;
@@ -241,7 +255,7 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
                 reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
                 mediaTrack),
             fxPrm,
-            @as(f64, @floatFromInt(val)) / 127,
+            norm_val,
         );
     }
 }

@@ -70,9 +70,10 @@ pub fn drawWidget(
     value: *f64,
     id: [:0]const u8,
     flags: ControlFlags,
-) !void {
+) !bool {
     const drwls = try imgui.GetWindowDrawList(.{ctx});
     const radius = knob_size / 2;
+    var active = false;
 
     // Calculate text size for label
     var label_size: Size = .{ .w = undefined, .h = undefined };
@@ -81,10 +82,12 @@ pub fn drawWidget(
 
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
+
+    const total_width = @max(radius * 2, label_size.w);
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
         .min_y = cur_pos.y,
-        .max_x = cur_pos.x + @max(radius * 2, label_size.w),
+        .max_x = cur_pos.x + total_width,
         .max_y = cur_pos.y + radius * 2 + label_size.h + text_padding * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
     };
 
@@ -96,10 +99,10 @@ pub fn drawWidget(
         try imgui.DrawList_AddRectFilled(.{ drwls, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, 0xFFFFFF22 });
 
         // Draw label at top
-        try imgui.DrawList_AddText(.{ drwls, widget_rect.min_x + (widget_rect.max_x - widget_rect.min_x - label_size.w) / 2, widget_rect.min_y + text_padding, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), id });
+        try imgui.DrawList_AddText(.{ drwls, widget_rect.min_x + (total_width - label_size.w) / 2, widget_rect.min_y + text_padding, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), id });
 
         // Draw "Empty" button in the center of the adjusted ClipRect
-        const center_x = widget_rect.min_x + radius; // use radius => assume clipRect.w == diameter
+        const center_x = widget_rect.min_x + total_width / 2; // centered based on total width
         const center_y = widget_rect.min_y + label_size.h + text_padding * 2 + radius; // adjusted for label
 
         try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
@@ -129,7 +132,7 @@ pub fn drawWidget(
         }
         const isHovered = rv[0];
 
-        const active = rv[1];
+        active = rv[1];
 
         const drwLs = try imgui.GetWindowDrawList(.{ctx});
         var circleColor = try imgui.GetStyleColor(.{ ctx, imgui.Col_TitleBg });
@@ -162,6 +165,7 @@ pub fn drawWidget(
         widget_rect.max_x - widget_rect.min_x,
         widget_rect.max_y - widget_rect.min_y,
     });
+    return active;
 }
 
 pub fn YControl(ctx: imgui.ContextPtr, id: [:0]const u8, value: *f64, w: f64, h: f64, min_val: f64, max_val: f64, flags: YControlFlags) !std.meta.Tuple(&[_]type{ bool, bool }) {

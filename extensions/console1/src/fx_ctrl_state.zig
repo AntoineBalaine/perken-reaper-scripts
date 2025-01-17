@@ -57,7 +57,7 @@ fxMap: FxMap = FxMap{},
 ///
 /// Unfortunately, I can’t use an enum map
 /// because of the eval branch quota limitations on large enums.
-values: std.AutoHashMap(c1.CCs, ControlValue),
+values: std.AutoArrayHashMap(c1.CCs, ControlValue),
 /// Module ordering
 order: ModulesOrder = .@"S-EQ-C",
 scRouting: SCRouting = .off,
@@ -69,7 +69,7 @@ vol_lastpos: u8 = 0,
 /// Paging
 current_page: u8 = 0, // 0-based page number
 pub fn init(gpa: std.mem.Allocator) FxControlState {
-    var values = std.AutoHashMap(c1.CCs, ControlValue).init(gpa);
+    var values = std.AutoArrayHashMap(c1.CCs, ControlValue).init(gpa);
 
     // Initialize with appropriate types and labels
     inline for (comptime std.enums.values(c1.CCs)) |cc| {

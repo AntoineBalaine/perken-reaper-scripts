@@ -52,9 +52,8 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
         try imgui.Text(.{ ctx, "Input" });
 
         // First column
-        const gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
-        var gain_val = gain_prm.normalized;
-        _ = try Knobs.drawWidget(ctx, &gain_val, gain_prm.label, .{});
+        var gain_prm = &fx_state.values.getPtr(.Inpt_Gain).?.param;
+        _ = try Knobs.drawWidget(ctx, &gain_prm.normalized, gain_prm.label, .{});
         try imgui.SameLine(.{ctx});
 
         // Second column (aligned right)
@@ -62,13 +61,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const hicut_prm = fx_state.values.get(.Inpt_HiCut).?.param;
-                var hicut_val = hicut_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &hicut_val, hicut_prm.label, .{});
+                var hicut_prm = &fx_state.values.getPtr(.Inpt_HiCut).?.param;
+                _ = try Knobs.drawWidget(ctx, &hicut_prm.normalized, hicut_prm.label, .{});
 
-                const locut_prm = fx_state.values.get(.Inpt_LoCut).?.param;
-                var locut_val = locut_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &locut_val, locut_prm.label, .{});
+                var locut_prm = &fx_state.values.getPtr(.Inpt_LoCut).?.param;
+                _ = try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_prm.label, .{});
             }
         }
     }
@@ -82,7 +79,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
-        const shp_bypass = fx_state.values.get(.Shp_shape).?.button;
+        const shp_bypass = fx_state.values.getPtr(.Shp_shape).?.button;
         var shp_bypass_val = shp_bypass;
         _ = try imgui.Checkbox(.{ ctx, "SHAPE##shp", &shp_bypass_val });
         // try imgui.Text(.{ ctx, "Shape" });
@@ -92,12 +89,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const gate_prm = fx_state.values.get(.Shp_Gate).?.param;
-                var gate_val = gate_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &gate_val, gate_prm.label, .{});
+                var gate_prm = &fx_state.values.getPtr(.Shp_Gate).?.param;
+                _ = try Knobs.drawWidget(ctx, &gate_prm.normalized, gate_prm.label, .{});
 
                 // For the checkbox, we need the button state
-                const hard_gate = fx_state.values.get(.Shp_hard_gate).?.button;
+                const hard_gate = fx_state.values.getPtr(.Shp_hard_gate).?.button;
                 var hard_gate_val = hard_gate;
                 _ = try imgui.Checkbox(.{ ctx, "hard gate##hardgate", &hard_gate_val });
             }
@@ -110,13 +106,14 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const release_prm = fx_state.values.get(.Shp_GateRelease).?.param;
-                var release_val = release_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &release_val, release_prm.label, .{});
+                var release_prm = &fx_state.values.getPtr(.Shp_GateRelease).?.param;
+                _ = try Knobs.drawWidget(ctx, &release_prm.normalized, release_prm.label, .{});
 
-                const punch_prm = fx_state.values.get(.Shp_Punch).?.param;
-                var punch_val = punch_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &punch_val, punch_prm.label, .{});
+                var sustain_prm = &fx_state.values.getPtr(.Shp_sustain).?.param;
+                _ = try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_prm.label, .{});
+
+                var punch_prm = &fx_state.values.getPtr(.Shp_Punch).?.param;
+                _ = try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_prm.label, .{});
             }
         }
     }
@@ -129,7 +126,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
-        const eq_bypass = fx_state.values.get(.Eq_eq).?.button;
+        const eq_bypass = fx_state.values.getPtr(.Eq_eq).?.button;
         var eq_bypass_val = eq_bypass;
         _ = try imgui.Checkbox(.{ ctx, "EQ##eq", &eq_bypass_val });
         // try imgui.SameLine(.{ctx});
@@ -138,17 +135,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const lo_shape = fx_state.values.get(.Eq_lp_shape).?.button;
+                const lo_shape = fx_state.values.getPtr(.Eq_lp_shape).?.button;
                 var lo_shape_val = lo_shape;
                 _ = try imgui.Checkbox(.{ ctx, "lo shape##eq_lo_shp", &lo_shape_val });
 
-                const lofreq_prm = fx_state.values.get(.Eq_LoFrq).?.param;
-                var lofreq_val = lofreq_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &lofreq_val, lofreq_prm.label, .{});
+                var lofreq_prm = &fx_state.values.getPtr(.Eq_LoFrq).?.param;
+                _ = try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_prm.label, .{});
 
-                const logain_prm = fx_state.values.get(.Eq_LoGain).?.param;
-                var logain_val = logain_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &logain_val, logain_prm.label, .{});
+                var logain_prm = &fx_state.values.getPtr(.Eq_LoGain).?.param;
+                _ = try Knobs.drawWidget(ctx, &logain_prm.normalized, logain_prm.label, .{});
             }
         }
 
@@ -158,17 +153,14 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const lomidq_prm = fx_state.values.get(.Eq_LoMidQ).?.param;
-                var lomidq_val = lomidq_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &lomidq_val, lomidq_prm.label, .{});
+                var lomidq_prm = &fx_state.values.getPtr(.Eq_LoMidQ).?.param;
+                _ = try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_prm.label, .{});
 
-                const lomidfreq_prm = fx_state.values.get(.Eq_LoMidFrq).?.param;
-                var lomidfreq_val = lomidfreq_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &lomidfreq_val, lomidfreq_prm.label, .{});
+                var lomidfreq_prm = &fx_state.values.getPtr(.Eq_LoMidFrq).?.param;
+                _ = try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_prm.label, .{});
 
-                const lomidgain_prm = fx_state.values.get(.Eq_LoMidGain).?.param;
-                var lomidgain_val = lomidgain_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &lomidgain_val, lomidgain_prm.label, .{});
+                var lomidgain_prm = &fx_state.values.getPtr(.Eq_LoMidGain).?.param;
+                _ = try Knobs.drawWidget(ctx, &lomidgain_prm.normalized, lomidgain_prm.label, .{});
             }
         }
 
@@ -178,17 +170,14 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const himidq_prm = fx_state.values.get(.Eq_HiMidQ).?.param;
-                var himidq_val = himidq_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &himidq_val, himidq_prm.label, .{});
+                var himidq_prm = &fx_state.values.getPtr(.Eq_HiMidQ).?.param;
+                _ = try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_prm.label, .{});
 
-                const himidfreq_prm = fx_state.values.get(.Eq_HiMidFrq).?.param;
-                var himidfreq_val = himidfreq_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &himidfreq_val, himidfreq_prm.label, .{});
+                var himidfreq_prm = &fx_state.values.getPtr(.Eq_HiMidFrq).?.param;
+                _ = try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_prm.label, .{});
 
-                const himidgain_prm = fx_state.values.get(.Eq_HiMidGain).?.param;
-                var himidgain_val = himidgain_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &himidgain_val, himidgain_prm.label, .{});
+                var himidgain_prm = &fx_state.values.getPtr(.Eq_HiMidGain).?.param;
+                _ = try Knobs.drawWidget(ctx, &himidgain_prm.normalized, himidgain_prm.label, .{});
             }
         }
 
@@ -198,17 +187,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const hi_shape = fx_state.values.get(.Eq_hp_shape).?.button;
+                const hi_shape = fx_state.values.getPtr(.Eq_hp_shape).?.button;
                 var hi_shape_val = hi_shape;
                 _ = try imgui.Checkbox(.{ ctx, "hi shape##eq_hi_shp", &hi_shape_val });
 
-                const hifreq_prm = fx_state.values.get(.Eq_HiFrq).?.param;
-                var hifreq_val = hifreq_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &hifreq_val, hifreq_prm.label, .{});
+                var hifreq_prm = &fx_state.values.getPtr(.Eq_HiFrq).?.param;
+                _ = try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_prm.label, .{});
 
-                const higain_prm = fx_state.values.get(.Eq_HiGain).?.param;
-                var higain_val = higain_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &higain_val, higain_prm.label, .{});
+                var higain_prm = &fx_state.values.getPtr(.Eq_HiGain).?.param;
+                _ = try Knobs.drawWidget(ctx, &higain_prm.normalized, higain_prm.label, .{});
             }
         }
     }
@@ -220,7 +207,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
-        const comp_bypass = fx_state.values.get(.Comp_comp).?.button;
+        const comp_bypass = fx_state.values.getPtr(.Comp_comp).?.button;
         var comp_bypass_val = comp_bypass;
         _ = try imgui.Checkbox(.{ ctx, "Compressor##comp_byp", &comp_bypass_val });
 
@@ -229,13 +216,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const ratio_prm = fx_state.values.get(.Comp_Ratio).?.param;
-                var ratio_val = ratio_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &ratio_val, ratio_prm.label, .{});
+                var ratio_prm = &fx_state.values.getPtr(.Comp_Ratio).?.param;
+                _ = try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_prm.label, .{});
 
-                const drywet_prm = fx_state.values.get(.Comp_DryWet).?.param;
-                var drywet_val = drywet_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &drywet_val, drywet_prm.label, .{});
+                var drywet_prm = &fx_state.values.getPtr(.Comp_DryWet).?.param;
+                _ = try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_prm.label, .{});
             }
         }
 
@@ -246,17 +231,14 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const thresh_prm = fx_state.values.get(.Comp_Thresh).?.param;
-                var thresh_val = thresh_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &thresh_val, thresh_prm.label, .{});
+                var attack_prm = &fx_state.values.getPtr(.Comp_Attack).?.param;
+                _ = try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_prm.label, .{});
 
-                const attack_prm = fx_state.values.get(.Comp_Attack).?.param;
-                var attack_val = attack_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &attack_val, attack_prm.label, .{});
+                var release_prm = &fx_state.values.getPtr(.Comp_Release).?.param;
+                _ = try Knobs.drawWidget(ctx, &release_prm.normalized, release_prm.label, .{});
 
-                const release_prm = fx_state.values.get(.Comp_Release).?.param;
-                var release_val = release_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &release_val, release_prm.label, .{});
+                var thresh_prm = &fx_state.values.getPtr(.Comp_Thresh).?.param;
+                _ = try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_prm.label, .{});
             }
         }
     }
@@ -275,17 +257,14 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const drive_prm = fx_state.values.get(.Out_Drive).?.param;
-                var drive_val = drive_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &drive_val, drive_prm.label, .{});
+                var drive_prm = &fx_state.values.getPtr(.Out_Drive).?.param;
+                _ = try Knobs.drawWidget(ctx, &drive_prm.normalized, drive_prm.label, .{});
 
-                const char_prm = fx_state.values.get(.Out_DriveChar).?.param;
-                var char_val = char_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &char_val, char_prm.label, .{});
+                var char_prm = &fx_state.values.getPtr(.Out_DriveChar).?.param;
+                _ = try Knobs.drawWidget(ctx, &char_prm.normalized, char_prm.label, .{});
 
-                const pan_prm = fx_state.values.get(.Out_Pan).?.param;
-                var pan_val = pan_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &pan_val, pan_prm.label, .{});
+                var pan_prm = &fx_state.values.getPtr(.Out_Pan).?.param;
+                _ = try Knobs.drawWidget(ctx, &pan_prm.normalized, pan_prm.label, .{});
             }
         }
         try imgui.SameLine(.{ctx});
@@ -295,19 +274,18 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !void {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
-                const solo = fx_state.values.get(.Out_solo).?.button;
+                const solo = fx_state.values.getPtr(.Out_solo).?.button;
                 var solo_val = solo;
                 _ = try imgui.Checkbox(.{ ctx, "solo##out_solo", &solo_val });
 
                 try imgui.SameLine(.{ctx});
 
-                const mute = fx_state.values.get(.Out_mute).?.button;
+                const mute = fx_state.values.getPtr(.Out_mute).?.button;
                 var mute_val = mute;
                 _ = try imgui.Checkbox(.{ ctx, "mute##out_mute", &mute_val });
 
-                const vol_prm = fx_state.values.get(.Out_Vol).?.param;
-                var vol_val = vol_prm.normalized;
-                _ = try Knobs.drawWidget(ctx, &vol_val, vol_prm.label, .{});
+                var vol_prm = &fx_state.values.getPtr(.Out_Vol).?.param;
+                _ = try Knobs.drawWidget(ctx, &vol_prm.normalized, vol_prm.label, .{});
             }
         }
     }
