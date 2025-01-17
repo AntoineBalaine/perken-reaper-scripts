@@ -40,13 +40,11 @@ pub fn recent(self: *Self, comptime max_items: usize) []const Event {
     var result: [count_max]Event = undefined;
 
     var found: usize = 0;
-    var i: usize = 0;
-    while (i < count) : (i += 1) {
-        // Get items in reverse order (newest first)
-        if (self.ring_buffer.get(self.ring_buffer.count - 1 - i)) |event| {
-            result[i] = event;
-            found += 1;
-        }
+    var it = self.ring_buffer.reverse_iterator();
+    while (it.next()) |event| {
+        if (found >= count) break;
+        result[found] = event;
+        found += 1;
     }
 
     // Shrink slice to actual size
@@ -61,7 +59,7 @@ pub fn getEventsByType(self: *Self, event_type: EventType, comptime max_items: u
     var result: [count_max]Event = undefined;
     var found: usize = 0;
 
-    var it = self.ring_buffer.iterator();
+    var it = self.ring_buffer.reverse_iterator();
     while (it.next()) |event| {
         if (found >= max_items) break;
         if (@as(EventType, event) == event_type) {

@@ -288,6 +288,51 @@ pub fn RingBufferType(
         pub fn iterator_mutable(self: *RingBuffer) IteratorMutable {
             return .{ .ring = self };
         }
+
+        pub const ReverseIterator = struct {
+            ring: *const RingBuffer,
+            count: usize = 0,
+
+            pub fn next(it: *ReverseIterator) ?T {
+                if (it.next_ptr()) |item| {
+                    return item.*;
+                }
+                return null;
+            }
+
+            pub fn next_ptr(it: *ReverseIterator) ?*const T {
+                assert(it.count <= it.ring.count);
+                if (it.ring.buffer.len == 0) return null;
+                if (it.count == it.ring.count) return null;
+                defer it.count += 1;
+                // Calculate reverse index: start from last item
+                const reverse_index = (it.ring.index + it.ring.count - 1 - it.count) % it.ring.buffer.len;
+                return &it.ring.buffer[reverse_index];
+            }
+        };
+
+        pub const ReverseIteratorMutable = struct {
+            ring: *RingBuffer,
+            count: usize = 0,
+
+            pub fn next_ptr(it: *ReverseIteratorMutable) ?*T {
+                assert(it.count <= it.ring.count);
+                if (it.ring.buffer.len == 0) return null;
+                if (it.count == it.ring.count) return null;
+                defer it.count += 1;
+                const reverse_index = (it.ring.index + it.ring.count - 1 - it.count) % it.ring.buffer.len;
+                return &it.ring.buffer[reverse_index];
+            }
+        };
+
+        // Add these methods to RingBuffer
+        pub fn reverse_iterator(self: *const RingBuffer) ReverseIterator {
+            return .{ .ring = self };
+        }
+
+        pub fn reverse_iterator_mutable(self: *RingBuffer) ReverseIteratorMutable {
+            return .{ .ring = self };
+        }
     };
 }
 
@@ -507,4 +552,47 @@ test "RingBuffer: push_head" {
 
 test "RingBuffer: count_max=0" {
     std.testing.refAllDecls(RingBufferType(u32, .{ .array = 0 }));
+}
+
+fn test_reverse_iterator(comptime T: type, ring: *T, values: []const u32) !void {
+    const ring_index = ring.index;
+
+    inline for (.{ .immutable, .mutable }) |mutability| {
+        for (0..2) |_| {
+            var iterator = switch (mutability) {
+                .immutable => ring.reverse_iterator(),
+                .mutable => ring.reverse_iterator_mutable(),
+            };
+
+            var index: u32 = @intCast(values.len);
+            switch (mutability) {
+                .immutable => while (iterator.next()) |item| {
+                    index -= 1;
+                    try testing.expectEqual(values[index], item);
+                },
+                .mutable => {
+                    const permutation = @divFloor(std.math.maxInt(u32), 2);
+                    while (iterator.next_ptr()) |item| {
+                        index -= 1;
+                        try testing.expectEqual(values[index], item.*);
+                        item.* += permutation + index;
+                    }
+
+                    iterator = ring.reverse_iterator_mutable();
+                    var check_index: u32 = @intCast(values.len);
+                    while (iterator.next_ptr()) |item| {
+                        check_index -= 1;
+                        try testing.expectEqual(
+                            values[check_index] + permutation + check_index,
+                            item.*,
+                        );
+                        item.* -= permutation + check_index;
+                    }
+                    try testing.expectEqual(index, check_index);
+                },
+            }
+            try testing.expectEqual(@as(u32, 0), index);
+        }
+        try testing.expectEqual(ring_index, ring.index);
+    }
 }
