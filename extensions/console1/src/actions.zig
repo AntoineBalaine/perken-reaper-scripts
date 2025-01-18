@@ -60,15 +60,11 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     // Stop GUI when suspending
                     imgui_loop.reset();
                     state.current_mode = .suspended;
-                    globals.preferences.suspended = true;
-                    globals.preferences.saveToDisk() catch {};
                 },
                 .fx_ctrl => {
                     switch (old_mode) {
                         .suspended => {
                             if (state.fx_ctrl_gui_visible) imgui_loop.register();
-                            globals.preferences.suspended = true;
-                            globals.preferences.saveToDisk() catch {};
                         },
                         else => if (!state.fx_ctrl_gui_visible) imgui_loop.reset(),
                     }

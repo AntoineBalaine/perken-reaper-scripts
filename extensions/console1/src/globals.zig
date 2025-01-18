@@ -55,7 +55,7 @@ pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
     state = State.init(gpa);
     settings_panel = try SettingsPanel.init(&preferences, gpa);
     try initLoggerState();
-    if (preferences.suspended) {
+    if (preferences.start_suspended) {
         state.current_mode = .suspended;
     }
 

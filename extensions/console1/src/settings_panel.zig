@@ -55,6 +55,14 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
             self.dirty = true;
         }
 
+        try imgui.Spacing(.{ctx});
+
+        // Logging Settings
+        try imgui.TextWrapped(.{ ctx, "Start extension suspended##strt_sspnd" });
+        if (try imgui.Checkbox(.{ ctx, "Start extension suspended##strt_sspndchkbx", &self.temp_settings.start_suspended })) {
+            self.dirty = true;
+        }
+
         try imgui.TextWrapped(.{ ctx, "Log Level" });
         const log_levels = [_][:0]const u8{ "Debug", "Info", "Warning", "Error" };
         var current_level = @intFromEnum(self.temp_settings.log_level);
