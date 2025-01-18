@@ -72,7 +72,6 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
 
     // Register toggle actions
-    _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&hooks.toggleActionHook)));
     _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&hooks.onCommand)));
 
     hooks.registerCommands();

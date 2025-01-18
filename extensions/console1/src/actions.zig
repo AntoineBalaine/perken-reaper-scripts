@@ -46,7 +46,7 @@ pub const ModeAction = union(enum) {
     Csurf: CsurfAction,
     // Mode transitions
     change_mode: Mode,
-    set_fx_ctrl_gui: bool,
+    set_fx_ctrl_gui,
 };
 
 // Top-level update function
@@ -84,9 +84,9 @@ pub fn dispatch(state: *State, action: ModeAction) void {
             }
             logger.log(.info, "Mode changed: {s} -> {s}", .{ @tagName(old_mode), @tagName(new_mode) }, .{ .state_change = .{ .new_mode = new_mode, .old_mode = old_mode } }, globals.allocator);
         },
-        .set_fx_ctrl_gui => |show| {
-            state.fx_ctrl_gui_visible = show;
-            if (show) {
+        .set_fx_ctrl_gui => {
+            state.fx_ctrl_gui_visible = !state.fx_ctrl_gui_visible;
+            if (state.fx_ctrl_gui_visible) {
                 imgui_loop.register();
             } else {
                 imgui_loop.reset();

@@ -18,8 +18,3 @@ pub const maxval: f64 = 1.0;
 pub const param_text_color: c_int = 0xFFFFFFFF;
 
 pub const g_csurf_mcpmode = false;
-
-pub const ActionID = struct {
-    pub const SUSPEND = "C1_SUSPEND";
-    pub const TOGGLE_FXCTRL_GUI = "C1_TOGGLE_GUI";
-};

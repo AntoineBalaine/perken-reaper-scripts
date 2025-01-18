@@ -39,15 +39,19 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Out_MtrLft => {}, // meters unhandled
         .Out_MtrRgt => {}, // meters unhandled
         .Inpt_disp_on => {
-            const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
-            const cntnrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
+            if (globals.modifier_active) {
+                actions.dispatch(&globals.state, .set_fx_ctrl_gui);
+            } else {
+                const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
+                const cntnrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
 
-            if (globals.state.fx_ctrl.display != null) { // hide chain
-                reaper.TrackFX_Show(mediaTrack, cntnrIdx, 0);
-                globals.state.fx_ctrl.display = null;
-            } else { // show chain
-                reaper.TrackFX_Show(mediaTrack, cntnrIdx, 1);
-                globals.state.fx_ctrl.display = 1;
+                if (globals.state.fx_ctrl.display != null) { // hide chain
+                    reaper.TrackFX_Show(mediaTrack, cntnrIdx, 0);
+                    globals.state.fx_ctrl.display = null;
+                } else { // show chain
+                    reaper.TrackFX_Show(mediaTrack, cntnrIdx, 1);
+                    globals.state.fx_ctrl.display = 1;
+                }
             }
         },
         .Inpt_filt_to_comp => {},
