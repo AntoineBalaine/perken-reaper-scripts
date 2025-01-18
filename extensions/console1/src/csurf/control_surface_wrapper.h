@@ -1,5 +1,5 @@
-#include "../../WDL/swell/swell-types.h"
-#include "../../WDL/wdltypes.h"
+#include "WDL/swell/swell-types.h"
+#include "WDL/wdltypes.h"
 #include <stdbool.h>
 #ifdef __cplusplus
 #include "../reaper_plugin.h"

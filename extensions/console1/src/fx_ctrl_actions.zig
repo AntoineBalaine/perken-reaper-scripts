@@ -15,10 +15,10 @@ const State = statemachine.State;
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
     @cInclude("csurf/control_surface_wrapper.h");
-    @cInclude("../WDL/swell/swell-types.h");
-    @cInclude("../WDL/swell/swell-functions.h");
-    @cInclude("../WDL/win32_utf8.h");
-    @cInclude("../WDL/wdltypes.h");
+    @cInclude("WDL/swell/swell-types.h");
+    @cInclude("WDL/swell/swell-functions.h");
+    @cInclude("WDL/win32_utf8.h");
+    @cInclude("WDL/wdltypes.h");
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });

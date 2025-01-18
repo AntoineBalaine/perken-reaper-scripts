@@ -19,6 +19,14 @@
             .url = "https://github.com/AntoineBalaine/ini/archive/cbe46150f1b376980bbf287de082ef6e22842c42.tar.gz",
             .hash = "1220c69834e52e8e357cf1375aa5687a76802e3b9a5e2ef239fad6b3e7e40921d8b5",
         },
+        .WDL = .{
+            .url = "https://github.com/justinfrankel/WDL/archive/dda0d7519ee9d50d59a39fc1b1a82001416a3dff.tar.gz",
+            .hash = "122026ee38b3ef9cbb44a2cf8f1735ba5dbaef29975560ad3e2f78b43437707a8b9a",
+        },
+        .@"reaper-sdk" = .{
+            .url = "https://github.com/justinfrankel/reaper-sdk/archive/refs/heads/main.tar.gz",
+            .hash = "1220bf1580743bb6aad5eb096a7abd189c227816620c138ab1290229505783d3e4b8",
+        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

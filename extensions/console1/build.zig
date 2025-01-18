@@ -14,6 +14,10 @@ pub const Dependencies = struct {
 pub fn build(b: *std.Build) !void {
     // Create a library target
     const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const wdl_dep = b.dependency("WDL", .{ .target = target, .optimize = optimize });
+    const reaper_sdk_dep = b.dependency("reaper-sdk", .{ .target = target, .optimize = optimize });
 
     const lib = b.addSharedLibrary(.{
         .name = "reaper_c1",
@@ -24,6 +28,9 @@ pub fn build(b: *std.Build) !void {
 
     // include path for c header files
     lib.addIncludePath(b.path("./src/"));
+    lib.addIncludePath(wdl_dep.path("")); // Root of WDL
+
+    lib.addIncludePath(reaper_sdk_dep.path("")); // Root of reaper-sdk
 
     var client_install: *std.Build.Step.InstallArtifact = undefined;
     lib.linkLibC();
@@ -51,39 +58,77 @@ pub fn build(b: *std.Build) !void {
     options.addOption(bool, "test", b.option(bool, "test", "Create actions to test inside reaper") orelse false);
     lib.root_module.addOptions("config", options);
 
-    // create the file, call the resgen shell script, and then proceed with the rest
-    // WDL/snwell/swell_resgen.php resource.rc generates resource.rc_mac_dlg and .rc_mac_menu
-    // which must be compiled and linked into the executable
-    // touch src/csurf/resource.rc && ./WDL/swell/swell_resgen.sh src/csurf/resource.rc
-    // if the file already exists, php will print
-    // processed 0, skipped 1, error 0
-    const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
-    php_cmd.addFileArg(b.path("WDL/swell/swell_resgen.php"));
-    php_cmd.addFileArg(b.path("src/csurf/resource.rc"));
+    const php_script = wdl_dep.path("WDL/swell/swell_resgen.php");
+    const resource_rc = b.path("src/csurf/resource.rc");
 
-    const modstub = if (target.result.isDarwin()) "WDL/swell/swell-modstub.mm" else "WDL/swell/swell-modstub-generic.cpp";
-    const cppfiles = [4][]const u8{
-        "src/csurf/control_surface.cpp", "src/csurf/control_surface_wrapper.cpp", "src/csurf/midi_wrapper.cpp",
-        modstub,
+    std.debug.print("WDL include path: {s}\n", .{wdl_dep.path("").getPath(b)});
+    std.debug.print(
+        "PHP Script relative path: {s}\n",
+        .{
+            php_script.getPath(b),
+        },
+    );
+    // Add system command to run PHP script
+    const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
+    php_cmd.addFileArg(php_script); // Convert LazyPath to string
+    php_cmd.addFileArg(resource_rc); // Convert LazyPath to string
+
+    const modstub = if (target.result.isDarwin())
+        wdl_dep.path("WDL/swell/swell-modstub.mm")
+    else
+        wdl_dep.path("WDL/swell/swell-modstub-generic.cpp");
+
+    // Define compiler flags similar to flatbufferz
+    const cpp_flags = [_][]const u8{
+        "-fPIC",
+        "-O2",
+        "-std=c++14",
+        b.fmt("-I{s}", .{wdl_dep.path("WDL").getPath(b)}),
+        "-DSWELL_PROVIDED_BY_APP",
+    };
+    // Define cpp files using dependency paths
+    const cppfiles = [_][]const u8{
+        "src/csurf/control_surface.cpp",
+        "src/csurf/control_surface_wrapper.cpp",
+        "src/csurf/midi_wrapper.cpp",
     };
 
-    const compiler = if (target.result.isDarwin()) "clang" else "gcc";
-    inline for (comptime cppfiles) |cppfile| {
-        const cxx = b.addSystemCommand(&.{
-            compiler,
-            "-c",
-            "-fPIC",
-            "-O2",
-            "-std=c++14",
-            "-IWDL/WDL",
-            "-DSWELL_PROVIDED_BY_APP",
-            "-o",
+    // Add the C++ source files to the library
+    for (cppfiles) |cppfile| {
+        lib.addCSourceFile(.{
+            .file = b.path(cppfile),
+            .flags = &cpp_flags,
         });
-        const filearg = try std.fmt.allocPrint(b.allocator, "{s}.o", .{std.fs.path.basename(cppfile)});
-        lib.addObjectFile(cxx.addOutputFileArg(filearg));
-        cxx.addFileArg(b.path(cppfile));
-        cxx.step.dependOn(&php_cmd.step);
     }
+    lib.addCSourceFile(.{
+        .file = modstub,
+        .flags = &cpp_flags,
+    });
+
+    lib.step.dependOn(&php_cmd.step);
+
+    // const compiler = if (target.result.isDarwin()) "clang" else "gcc";
+    // inline for (comptime cppfiles) |cppfile| {
+    //     const cxx = b.addSystemCommand(&.{
+    //         compiler,
+    //         "-c",
+    //         "-fPIC",
+    //         "-O2",
+    //         "-std=c++14",
+    //         // "-IWDL/WDL",
+    //         b.fmt("-I{s}", .{wdl_dep.path("WDL").getPath(b)}),
+    //         "-DSWELL_PROVIDED_BY_APP",
+    //         "-o",
+    //     });
+    //     const filearg = try std.fmt.allocPrint(
+    //         b.allocator,
+    //         "{s}.o",
+    //         .{std.fs.path.basename(cppfile)},
+    //     );
+    //     lib.addObjectFile(cxx.addOutputFileArg(filearg));
+    //     cxx.addFileArg(b.path(cppfile));
+    //     cxx.step.dependOn(&php_cmd.step);
+    // }
 
     b.getInstallStep().dependOn(&client_install.step);
 

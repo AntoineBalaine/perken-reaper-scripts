@@ -2,15 +2,15 @@
 #include "control_surface.h"
 #ifndef _CSURF_H_
 #define _CSURF_H_
-#include "../../WDL/localize/localize.h"
+#include "WDL/localize/localize.h"
 #include "../reaper_plugin.h"
 #include <stdio.h>
 
-#include "../../WDL/db2val.h"
-#include "../../WDL/swell/swell-types.h"
-#include "../../WDL/wdlcstring.h"
-#include "../../WDL/wdlstring.h"
-#include "../../WDL/win32_utf8.h"
+#include "WDL/db2val.h"
+#include "WDL/swell/swell-types.h"
+#include "WDL/wdlcstring.h"
+#include "WDL/wdlstring.h"
+#include "WDL/win32_utf8.h"
 #include "../resource.h"
 #include <new>
 
