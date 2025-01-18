@@ -32,10 +32,8 @@ fn init() !void {
     const ctx_flags = imgui.ConfigFlags_DockingEnable;
     ctx = try imgui.CreateContext(.{ plugin_name, ctx_flags });
 
-    if (!imgui_init) {
-        // only query the theme upon first run
-        try Theme.init(ctx, true);
-    }
+    // only query the theme upon first run
+    try Theme.init(ctx, true);
 
     windowFlags =
         imgui.WindowFlags_NoCollapse +
@@ -130,6 +128,7 @@ pub fn register() void {
 }
 
 pub fn reset() void {
+    ctx = null;
     _ = reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
 }
 
