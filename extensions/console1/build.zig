@@ -22,6 +22,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = .Debug,
     });
 
+    // include path for c header files
     lib.addIncludePath(b.path("./src/"));
 
     var client_install: *std.Build.Step.InstallArtifact = undefined;
