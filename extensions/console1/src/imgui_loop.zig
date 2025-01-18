@@ -14,23 +14,36 @@ const fxParser = @import("fx_parser.zig");
 const fx_sel_panel = @import("fx_sel_panel.zig");
 const actions = @import("actions.zig");
 const mapping_panel = @import("mapping_panel.zig");
+const Theme = @import("theme/Theme.zig");
 
 const plugin_name = "CONSOLE1";
 pub var allocator: std.mem.Allocator = undefined;
 var ctx: imgui.ContextPtr = null;
 var text = std.mem.zeroes([255:0]u8);
 var windowFlags: c_int = undefined;
-
+var imgui_init: bool = false;
 fn init() !void {
-    try imgui.init(reaper.plugin_getapi);
+    // try imgui.init(reaper.plugin_getapi);
+    imgui.init(reaper.plugin_getapi) catch |err| {
+        logger.log(.err, "Failed to initialize ImGui: {s}\n", .{@errorName(err)}, null, allocator);
+        return err;
+    };
+
     const ctx_flags = imgui.ConfigFlags_DockingEnable;
     ctx = try imgui.CreateContext(.{ plugin_name, ctx_flags });
+
+    if (!imgui_init) {
+        // only query the theme upon first run
+        try Theme.init(ctx, true);
+    }
 
     windowFlags =
         imgui.WindowFlags_NoCollapse +
         imgui.WindowFlags_NoTitleBar +
         imgui.WindowFlags_NoNav + imgui.WindowFlags_NoFocusOnAppearing;
     try styles.init(ctx);
+
+    imgui_init = true;
 }
 
 var buf: [128:0]u8 = undefined;

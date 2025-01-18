@@ -1,7 +1,7 @@
 // zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_zig.so hello_world.zig
 
 const std = @import("std");
-const ImGui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");

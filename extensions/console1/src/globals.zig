@@ -9,7 +9,6 @@ const MappingsList = @import("mappings_list.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
-const Theme = @import("theme/Theme.zig");
 
 // State machine
 pub var state: State = undefined;
@@ -61,7 +60,6 @@ pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
     }
 
     try fxParser.init(allocator);
-    try Theme.init(null, true);
 }
 
 pub fn deinit(alloc: std.mem.Allocator) void {
