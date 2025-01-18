@@ -1,8 +1,9 @@
-// zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_c1.so hello_world.zig -lc
-// or use
-// zig build -Dtest=true --verbose && mv zig-out/lib/reaper_c1.so ~/.config/REAPER/UserPlugins/ && reaper
-// zig build --verbose && mv zig-out/lib/reaper_c1.dylib ~/Library/Application\ Support/REAPER/UserPlugins
-// zig build -Dtest=true --verbose && mv zig-out/lib/reaper_c1.dylib ~/Library/Application\ Support/REAPER/UserPlugins && /Applications/REAPER.app/Contents/MacOS/REAPER new
+//! Run with
+//! zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_c1.so hello_world.zig -lc
+//! or use
+//! zig build -Dtest=true --prefix "~/.config/REAPER/UserPlugins" && reaper new
+//! or on MacOS:
+//! zig build -Dtest=true --prefix "/Users/a266836/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
 const std = @import("std");
 const builtin = @import("builtin");
 const tests = @import("build_tests.zig");
@@ -14,25 +15,39 @@ pub fn build(b: *std.Build) !void {
     // Create a library target
     const target = b.standardTargetOptions(.{});
 
-    const lib = b.addSharedLibrary(.{ .name = "reaper_c1", .root_source_file = b.path("src/console1_extension.zig"), .target = target, .optimize = .Debug });
+    const lib = b.addSharedLibrary(.{
+        .name = "reaper_c1",
+        .root_source_file = b.path("src/console1_extension.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
 
-    const root = b.path("./src/");
-    lib.addIncludePath(root);
+    lib.addIncludePath(b.path("./src/"));
 
     var client_install: *std.Build.Step.InstallArtifact = undefined;
     lib.linkLibC();
+
     if (target.result.isDarwin()) {
         lib.root_module.linkFramework("AppKit", .{});
         lib.linkLibCpp();
-        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_c1.dylib" });
+        client_install = b.addInstallArtifact(lib, .{
+            .dest_sub_path = "reaper_c1.dylib",
+            .dest_dir = .{ .override = .{
+                .custom = "",
+            } },
+        });
     } else {
-        client_install = b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_c1.so" });
+        client_install = b.addInstallArtifact(lib, .{
+            .dest_sub_path = "reaper_c1.so",
+            .dest_dir = .{ .override = .{
+                .custom = "",
+            } },
+        });
     }
 
     // allow passing testing flags
-    const test_cli_option = b.option(bool, "test", "") orelse false;
     const options = b.addOptions();
-    options.addOption(bool, "test", test_cli_option);
+    options.addOption(bool, "test", b.option(bool, "test", "Create actions to test inside reaper") orelse false);
     lib.root_module.addOptions("config", options);
 
     // create the file, call the resgen shell script, and then proceed with the rest
