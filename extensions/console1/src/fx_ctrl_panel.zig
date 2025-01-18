@@ -40,6 +40,9 @@ var out_vol: f64 = 0.5; // Out_Vol
 var out_pan: f64 = 0.5; // Out_Pan
 
 pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
+    if (globals.m_midi_in == null) try imgui.BeginDisabled(.{ctx});
+    defer if (globals.m_midi_in == null) imgui.EndDisabled(.{ctx}) catch {};
+
     const fx_state = &state.fx_ctrl;
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
