@@ -15,6 +15,15 @@ const globals = @import("globals.zig");
 const logger = @import("logger.zig");
 const hooks = @import("hooks.zig");
 const plugin_name = "Perken C1";
+pub const std_options = std.Options{
+    .log_level = switch (@import("builtin").mode) {
+        .Debug => .debug,
+        .ReleaseSafe => .info,
+        .ReleaseFast => .warn,
+        .ReleaseSmall => .err,
+    },
+    .logFn = logger.logFn,
+};
 
 var controller_dir: [*:0]const u8 = undefined;
 // var action_id: c_int = undefined;
@@ -28,6 +37,7 @@ var queries_id: c_int = undefined;
 /// retrieve the controller config
 /// register the actions for each of the buttons
 fn init() !void {
+    logger.init();
     myCsurf = control_surface.init(-1, -1, null);
     controller_dir = getControllerPath(gpa) catch |err| {
         logger.log(.warning, "Failed to create controller dir \n", .{}, null, gpa);
@@ -45,6 +55,7 @@ fn init() !void {
 }
 
 fn deinit() void {
+    logger.deinit();
     gpa.free(std.mem.span(controller_dir));
     // gpa.free(std.mem.span(controller_dir));
     // gpa.free(controller_dir);

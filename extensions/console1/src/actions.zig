@@ -49,8 +49,17 @@ pub const ModeAction = union(enum) {
     set_fx_ctrl_gui,
 };
 
+const log = std.log.scoped(.state);
+pub fn someStateFunction() void {
+    log.debug("State changed to: {s}", .{"new_state"});
+    log.info("Important state info: {d}", .{42});
+    log.warn("Unusual state transition from {s} to {s}", .{ "A", "B" });
+    log.err("Invalid state transition attempted", .{});
+}
+
 // Top-level update function
 pub fn dispatch(state: *State, action: ModeAction) void {
+    someStateFunction();
     logger.log(.debug, "Handling action: {s}", .{@tagName(action)}, null, globals.allocator);
     switch (action) {
         .change_mode => |new_mode| {

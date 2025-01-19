@@ -3,13 +3,14 @@ const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const ModulesList = statemachine.ModulesList;
 const c1 = @import("c1.zig");
-// const debugconfig = @import("config");
 
-pub var debug_window_active = true;
+pub const debug_window_active = @import("builtin").mode == .debug;
+
 // pub var debug_window_active = debugconfig.@"test";
 pub var event_log: ?*EventLog = null; // Pointer to state's event log
 pub var log_file: ?*std.fs.File = null; // Just need the file handle
 pub var log_level: ?*LogLevel = null; // Just need the level
+
 // Circular buffer for debug overlay
 const DebugBufferSize = 1024;
 
@@ -207,4 +208,57 @@ test "midi events circular buffer" {
     // Optional: Test getting fewer events
     const fewer = e_log.recent(10);
     try testing.expectEqual(@as(usize, 10), fewer.len);
+}
+
+// FIXME: set as main app log level
+pub const log_level_b: std.log.Level = @import("build_options").log_level;
+pub fn logFn(
+    comptime level: std.log.Level,
+    comptime scope: @TypeOf(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    // First argument could be your Event
+    const first_arg = args[0];
+    if (@TypeOf(first_arg) == Event) {
+        // Log the event to event_log
+        if (event_log) |evt_log| {
+            evt_log.log(first_arg);
+        }
+        // Remove the event from args for regular logging
+    }
+
+    const log_args = args[1..];
+    const color = switch (level) {
+        .debug => Color.blue,
+        .info => Color.green,
+        .warn => Color.yellow,
+        .err => Color.red,
+    };
+
+    // Regular logging
+    std.debug.print(color ++ "[{s}][{s}] " ++ format ++ Color.reset ++ "\n", .{ @tagName(level), @tagName(scope) } ++ log_args);
+
+    // File logging
+    if (log_file) |file| {
+        const message = std.fmt.allocPrint(
+            logging_allocator,
+            "[{s}][{s}] " ++ format ++ "\n",
+            .{ @tagName(level), @tagName(scope) } ++ log_args,
+        ) catch return;
+        defer logging_allocator.free(message);
+        file.writeAll(message) catch {};
+    }
+}
+
+var arena: std.heap.ArenaAllocator = undefined;
+var logging_allocator: std.mem.Allocator = undefined;
+
+pub fn init() void {
+    arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    logging_allocator = arena.allocator();
+}
+
+pub fn deinit() void {
+    arena.deinit();
 }

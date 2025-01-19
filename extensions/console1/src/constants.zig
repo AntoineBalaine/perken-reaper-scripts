@@ -1,10 +1,9 @@
 const std = @import("std");
-const imgui = @import("../reaper_imgui.zig");
-const Reaper = @import("../reaper.zig");
-const reaper = Reaper.reaper;
-const Theme = @import("../theme/Theme.zig");
-const fxParser = @import("../lib/fxparser.zig");
-const styles = @import("../lib/styles.zig");
+const imgui = @import("reaper_imgui.zig");
+const reaper = @import("reaper.zig").reaper;
+const Theme = @import("theme/Theme.zig");
+const fxParser = @import("fx_parser.zig");
+const styles = @import("styles.zig");
 
 pub const window_height: c_int = 240;
 pub const window_width: c_int = 280;
