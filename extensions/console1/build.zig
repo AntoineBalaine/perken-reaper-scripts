@@ -62,16 +62,12 @@ pub fn build(b: *std.Build) !void {
     const resource_rc = b.path("src/csurf/resource.rc");
 
     std.debug.print("WDL include path: {s}\n", .{wdl_dep.path("").getPath(b)});
-    std.debug.print(
-        "PHP Script relative path: {s}\n",
-        .{
-            php_script.getPath(b),
-        },
-    );
+
     // Add system command to run PHP script
     const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
     php_cmd.addFileArg(php_script); // Convert LazyPath to string
     php_cmd.addFileArg(resource_rc); // Convert LazyPath to string
+    lib.step.dependOn(&php_cmd.step);
 
     const modstub = if (target.result.isDarwin())
         wdl_dep.path("WDL/swell/swell-modstub.mm")
@@ -80,53 +76,40 @@ pub fn build(b: *std.Build) !void {
 
     // Define compiler flags similar to flatbufferz
     const cpp_flags = [_][]const u8{
+        // if (target.result.isDarwin()) "clang" else "gcc",
+        "-c",
         "-fPIC",
         "-O2",
         "-std=c++14",
         b.fmt("-I{s}", .{wdl_dep.path("WDL").getPath(b)}),
         "-DSWELL_PROVIDED_BY_APP",
+        // "-o",
     };
     // Define cpp files using dependency paths
-    const cppfiles = [_][]const u8{
-        "src/csurf/control_surface.cpp",
-        "src/csurf/control_surface_wrapper.cpp",
-        "src/csurf/midi_wrapper.cpp",
+    const cppfiles = [_]std.Build.LazyPath{
+        b.path("src/csurf/control_surface.cpp"),
+        b.path("src/csurf/control_surface_wrapper.cpp"),
+        b.path("src/csurf/midi_wrapper.cpp"),
+        modstub,
     };
 
     // Add the C++ source files to the library
     for (cppfiles) |cppfile| {
         lib.addCSourceFile(.{
-            .file = b.path(cppfile),
+            .file = cppfile,
             .flags = &cpp_flags,
         });
     }
-    lib.addCSourceFile(.{
-        .file = modstub,
-        .flags = &cpp_flags,
-    });
 
-    lib.step.dependOn(&php_cmd.step);
-
-    // const compiler = if (target.result.isDarwin()) "clang" else "gcc";
     // inline for (comptime cppfiles) |cppfile| {
-    //     const cxx = b.addSystemCommand(&.{
-    //         compiler,
-    //         "-c",
-    //         "-fPIC",
-    //         "-O2",
-    //         "-std=c++14",
-    //         // "-IWDL/WDL",
-    //         b.fmt("-I{s}", .{wdl_dep.path("WDL").getPath(b)}),
-    //         "-DSWELL_PROVIDED_BY_APP",
-    //         "-o",
-    //     });
     //     const filearg = try std.fmt.allocPrint(
     //         b.allocator,
     //         "{s}.o",
-    //         .{std.fs.path.basename(cppfile)},
+    //         .{std.fs.path.basename(cppfile.getPath(b))},
     //     );
+    //     const cxx = b.addSystemCommand(&cpp_flags);
     //     lib.addObjectFile(cxx.addOutputFileArg(filearg));
-    //     cxx.addFileArg(b.path(cppfile));
+    //     cxx.addFileArg(cppfile);
     //     cxx.step.dependOn(&php_cmd.step);
     // }
 
