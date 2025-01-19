@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) !void {
         .name = "reaper_c1",
         .root_source_file = b.path("src/console1_extension.zig"),
         .target = target,
-        .optimize = .Debug,
+        .optimize = optimize,
     });
 
     // include path for c header files
@@ -111,7 +111,7 @@ pub fn build(b: *std.Build) !void {
     b.getInstallStep().dependOn(&client_install.step);
 
     // add dependencies: ini parser, etc.
-    const ini = b.dependency("ini", .{ .target = target, .optimize = .Debug });
+    const ini = b.dependency("ini", .{ .target = target, .optimize = optimize });
     lib.root_module.addImport("ini", ini.module("ini"));
 
     _ = tests.addTests(b, target, Dependencies{ .ini = ini, .wdl = wdl_dep, .reaper_sdk = reaper_sdk_dep });
