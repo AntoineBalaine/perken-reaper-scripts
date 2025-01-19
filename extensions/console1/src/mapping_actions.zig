@@ -33,18 +33,18 @@ pub const MappingAction = union(enum) {
 pub fn mappingActions(state: *State, map_action: MappingAction) void {
     switch (map_action) {
         .select_parameter => |maybe_param| {
-            logger.log(.debug, "Selected parameter: {?}", .{maybe_param}, null, globals.allocator);
+            std.log.scoped(.todo).debug("Selected parameter: {?}", .{maybe_param});
             state.mapping.selected_parameter = maybe_param;
             // If we're in MIDI learn mode and a parameter is selected,
             // we're ready to receive MIDI input
         },
         .select_control => |maybe_control| {
-            logger.log(.debug, "Selected control: {s}", .{if (maybe_control) |cc| @tagName(cc) else "none"}, null, globals.allocator);
+            std.log.scoped(.todo).debug("Selected control: {s}", .{if (maybe_control) |cc| @tagName(cc) else "none"});
             state.mapping.selected_control = maybe_control;
             // If both parameter and control are selected, could auto-add mapping
         },
         .toggle_midi_learn => {
-            logger.log(.debug, "MIDI learn {s}", .{if (state.mapping.midi_learn_active) "disabled" else "enabled"}, null, globals.allocator);
+            std.log.scoped(.todo).debug("MIDI learn {s}", .{if (state.mapping.midi_learn_active) "disabled" else "enabled"});
             state.mapping.midi_learn_active = !state.mapping.midi_learn_active;
             if (!state.mapping.midi_learn_active) {
                 // Clear selection when exiting MIDI learn mode?
@@ -52,7 +52,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             }
         },
         .add_mapping => |mapping| {
-            logger.log(.info, "Added mapping: {s} -> param {d}", .{ @tagName(mapping.control), mapping.param }, null, globals.allocator);
+            std.log.scoped(.todo).info("Added mapping: {s} -> param {d}", .{ @tagName(mapping.control), mapping.param });
             // Add to current_mappings based on module type
             switch (state.mapping.current_mappings) {
                 .COMP => |*comp| switch (mapping.control) {
@@ -113,7 +113,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             state.mapping.selected_control = null;
         },
         .remove_mapping => |control| {
-            logger.log(.info, "Removed mapping for control: {s}", .{@tagName(control)}, null, globals.allocator);
+            std.log.scoped(.todo).info("Removed mapping for control: {s}", .{@tagName(control)});
             // Remove from current_mappings based on module type
             switch (state.mapping.current_mappings) {
                 .COMP => |*comp| switch (control) {
@@ -171,7 +171,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             }
         },
         .save_mapping => {
-            logger.log(.info, "Saved mappings for FX: {s}", .{state.mapping.target_fx}, null, globals.allocator);
+            std.log.scoped(.todo).info("Saved mappings for FX: {s}", .{state.mapping.target_fx});
             // Save to MapStore
             switch (state.mapping.current_mappings) {
                 .INPUT => |input| globals.map_store.INPUT.put(globals.allocator, state.mapping.target_fx, input) catch {},
@@ -182,7 +182,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             }
 
             globals.map_store.saveToFile(state.mapping) catch {
-                logger.log(.warning, "Failed to save mapping {s} to file", .{state.mapping.target_fx}, null, globals.allocator);
+                std.log.scoped(.todo).warn("Failed to save mapping {s} to file", .{state.mapping.target_fx});
             };
 
             // Clean up mapping panel
@@ -193,7 +193,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             dispatch(state, .{ .change_mode = .fx_ctrl });
         },
         .cancel_mapping => {
-            logger.log(.info, "Cancelled mapping for FX: {s}", .{state.mapping.target_fx}, null, globals.allocator);
+            std.log.scoped(.todo).info("Cancelled mapping for FX: {s}", .{state.mapping.target_fx});
             // Clean up mapping state
             state.mapping.selected_parameter = null;
             state.mapping.selected_control = null;

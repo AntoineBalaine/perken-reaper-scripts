@@ -149,13 +149,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             //     new_delta = max_pos - @abs(new_val);
             // }
             // Log scroll action
-            logger.log(
-                .debug,
-                "Scroll: abs={d} delta={d} rel={d}/{d}",
-                .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, max_pos },
-                null,
-                globals.allocator,
-            );
+            std.log.scoped(.todo).debug("Scroll: abs={d} delta={d} rel={d}/{d}", .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, max_pos });
         },
     }
 }

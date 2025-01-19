@@ -40,11 +40,11 @@ fn init() !void {
     logger.init();
     myCsurf = control_surface.init(-1, -1, null);
     controller_dir = getControllerPath(gpa) catch |err| {
-        logger.log(.warning, "Failed to create controller dir \n", .{}, null, gpa);
+        std.log.warn("Failed to create controller dir", .{});
         return err;
     };
     errdefer |err| {
-        logger.log(.err, "C1 init failed: {s}", .{@errorName(err)}, null, gpa);
+        std.log.err("C1 init failed: {s}", .{@errorName(err)});
         gpa.free(std.mem.span(controller_dir));
     }
 

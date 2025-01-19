@@ -60,7 +60,7 @@ pub fn someStateFunction() void {
 // Top-level update function
 pub fn dispatch(state: *State, action: ModeAction) void {
     someStateFunction();
-    logger.log(.debug, "Handling action: {s}", .{@tagName(action)}, null, globals.allocator);
+    std.log.scoped(.todo).debug("Handling action: {s}", .{@tagName(action)});
     switch (action) {
         .change_mode => |new_mode| {
             const old_mode = state.current_mode;
@@ -87,7 +87,14 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     state.current_mode = new_mode;
                 },
             }
-            logger.log(.info, "Mode changed: {s} -> {s}", .{ @tagName(old_mode), @tagName(new_mode) }, .{ .state_change = .{ .new_mode = new_mode, .old_mode = old_mode } }, globals.allocator);
+            std.log.scoped(.todo).info(
+                "Mode changed: {s} -> {s}",
+                .{
+                    @tagName(old_mode),
+                    @tagName(new_mode),
+                    logger.Event{ .state_change = .{ .new_mode = new_mode, .old_mode = old_mode } },
+                },
+            );
         },
         .set_fx_ctrl_gui => {
             state.fx_ctrl_gui_visible = !state.fx_ctrl_gui_visible;

@@ -206,7 +206,7 @@ fn selTrck(idx: u8) void {
     const tr = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
     const success = reaper.SetMediaTrackInfo_Value(tr, "I_SELECTED", unselected); // unselect current
     if (!success) {
-        logger.log(.err, "failed to unselect track\n", .{}, null, globals.allocator);
+        std.log.scoped(.todo).err("failed to unselect track\n", .{});
     }
     // don't set the new bank offset, let the re-entrancy deal with it
     const new_tr = reaper.CSurf_TrackFromID(idx, constants.g_csurf_mcpmode);

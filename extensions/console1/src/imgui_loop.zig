@@ -25,7 +25,7 @@ var imgui_init: bool = false;
 fn init() !void {
     // try imgui.init(reaper.plugin_getapi);
     imgui.init(reaper.plugin_getapi) catch |err| {
-        logger.log(.err, "Failed to initialize ImGui: {s}\n", .{@errorName(err)}, null, allocator);
+        std.log.scoped(.todo).err("Failed to initialize ImGui: {s}\n", .{@errorName(err)});
         return err;
     };
 
@@ -78,7 +78,7 @@ fn main() !void {
             .settings => {
                 if (globals.settings_panel) |*panel| {
                     switch (panel.draw(ctx) catch |err| {
-                        logger.log(.err, "Error drawing settings panel: {s}", .{@errorName(err)}, null, allocator);
+                        std.log.scoped(.todo).err("Error drawing settings panel: {s}", .{@errorName(err)});
                         return err;
                     }) {
                         .stay_open => {},

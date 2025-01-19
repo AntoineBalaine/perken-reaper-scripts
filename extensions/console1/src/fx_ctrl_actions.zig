@@ -46,12 +46,9 @@ pub const FxCtrlAction = union(enum) {
 pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
     switch (fx_action) {
         .midi_input => |input| {
-            logger.log(
-                .debug,
+            std.log.scoped(.midi).debug(
                 "MIDI input: {s} -> {d}",
-                .{ @tagName(input.cc), input.value },
-                .{ .midi_input = .{ .cc = input.cc, .value = input.value } },
-                globals.allocator,
+                .{ @tagName(input.cc), input.value, logger.Event{ .midi_input = .{ .cc = input.cc, .value = input.value } } },
             );
             onMidiEvent_FxCtrl(input.cc, input.value);
         },

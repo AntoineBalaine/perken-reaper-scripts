@@ -3,8 +3,6 @@ const ini = @import("ini");
 const mappings_mod = @import("mappings.zig");
 const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
-const logger = @import("logger.zig");
-const LogLevel = logger.LogLevel;
 
 // Hard-coded fallback defaults as EnumMap
 const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
@@ -26,7 +24,6 @@ manual_routing: bool = false,
 default_fx: DefaultFx,
 log_to_file: bool = false,
 start_suspended: bool = false,
-log_level: LogLevel = .info,
 
 // Resource management
 allocator: std.mem.Allocator,
@@ -48,7 +45,7 @@ pub fn init(allocator: std.mem.Allocator, resource_path: [:0]const u8) !Preferen
 
     // Try to load preferences from disk
     self.load() catch |err| {
-        logger.log(.warning, "Failed to load preferences: {s} at {s}, using copied defaults", .{ @errorName(err), resource_path }, null, allocator);
+        std.log.scoped(.todo).warn("Failed to load preferences: {s} at {s}, using copied defaults", .{ @errorName(err), resource_path });
     };
 
     return self;
@@ -106,15 +103,6 @@ pub fn saveToDisk(self: *Preferences) !void {
                     );
                 }
             },
-            LogLevel => {
-                try writer.print(
-                    "{s} = {s}\n",
-                    .{
-                        field.name,
-                        @tagName(@field(self, field.name)),
-                    },
-                );
-            },
             else => {},
         }
     }
@@ -138,13 +126,7 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
             .section => |heading| {
                 // Handle module sections (INPUT, GATE, etc.)
                 cur_section = std.meta.stringToEnum(ModulesList, heading) orelse {
-                    logger.log(
-                        .warning,
-                        "Invalid section in preferences: {s}",
-                        .{heading},
-                        null,
-                        prefs.allocator,
-                    );
+                    std.log.scoped(.todo).warn("Invalid section in preferences: {s}", .{heading});
                     continue;
                 };
             },
@@ -153,8 +135,8 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
                 if (cur_section == null) {
                     // Use @hasField to check if property exists in Preferences
                     // if (!@hasField(Preferences, prop.key)) {
-                    //     logger.log(
-                    //         .warning,
+                    //     std.log.scoped(.todo)(.log(
+                    //         .warn,
                     //         "Unknown preference: {s}",
                     //         .{prop.key},
                     //         null,
@@ -172,9 +154,6 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
                                         std.mem.eql(u8, prop.value, "true");
                                 },
                                 // Add other types as needed
-                                LogLevel => {
-                                    @field(prefs, field.name) = std.meta.stringToEnum(LogLevel, prop.value) orelse .info;
-                                },
                                 else => {},
                             }
                         }
@@ -200,7 +179,6 @@ pub fn clone(self: *const @This(), gpa: std.mem.Allocator) !Preferences {
         .show_plugin_ui = self.show_plugin_ui,
         .manual_routing = self.manual_routing,
         .log_to_file = self.log_to_file,
-        .log_level = self.log_level,
         .default_fx = try cloneDefaultFx(&self.default_fx, gpa), // If DefaultFx needs deep copy
         .allocator = gpa,
         .resource_path = try gpa.dupeZ(u8, self.resource_path),
@@ -214,7 +192,6 @@ pub fn copyFrom(self: *@This(), other: *const Preferences, gpa: std.mem.Allocato
     self.show_plugin_ui = other.show_plugin_ui;
     self.manual_routing = other.manual_routing;
     self.log_to_file = other.log_to_file;
-    self.log_level = other.log_level;
     self.default_fx = try cloneDefaultFx(&other.default_fx, gpa);
     self.resource_path = try gpa.dupeZ(u8, other.resource_path);
 }

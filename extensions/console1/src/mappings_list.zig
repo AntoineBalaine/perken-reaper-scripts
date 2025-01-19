@@ -22,7 +22,7 @@ pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
             if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".ini")) {
                 const name = try gpa.dupeZ(u8, std.fs.path.stem(entry.name));
                 maps.getPtr(module).put(name, {}) catch {
-                    logger.log(.warning, "Mappings list: Failed to store fx name {s}\n", .{entry.name}, null, gpa);
+                    std.log.scoped(.todo).warn("Mappings list: Failed to store fx name {s}\n", .{entry.name});
                     continue;
                 };
             }

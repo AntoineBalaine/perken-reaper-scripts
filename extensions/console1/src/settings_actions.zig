@@ -20,20 +20,20 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
         .open => {
             if (globals.settings_panel == null) {
                 globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.allocator) catch blk: {
-                    logger.log(.err, "open settings failed: {s}", .{@tagName(set_action)}, null, globals.allocator);
+                    std.log.scoped(.todo).err("open settings failed: {s}", .{@tagName(set_action)});
                     break :blk null;
                 };
             }
             if (globals.settings_panel) |_| {
                 dispatch(state, .{ .change_mode = .settings });
             } else {
-                logger.log(.err, "settings_panel data unfound: {s}", .{@tagName(set_action)}, null, globals.allocator);
+                std.log.scoped(.todo).err("settings_panel data unfound: {s}", .{@tagName(set_action)});
             }
         },
         .save => {
             if (globals.settings_panel) |*panel| {
                 panel.save() catch {
-                    logger.log(.err, "save settings failed: {s}", .{@tagName(set_action)}, null, globals.allocator);
+                    std.log.scoped(.todo).err("save settings failed: {s}", .{@tagName(set_action)});
                     return;
                     // TODO: implement error handling
                     // Show user notification

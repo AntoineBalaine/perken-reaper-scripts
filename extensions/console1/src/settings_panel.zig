@@ -63,40 +63,6 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
             self.dirty = true;
         }
 
-        try imgui.TextWrapped(.{ ctx, "Log Level" });
-        const log_levels = [_][:0]const u8{ "Debug", "Info", "Warning", "Error" };
-        var current_level = @intFromEnum(self.temp_settings.log_level);
-
-        // Begin combo
-        {
-            try imgui.PushItemWidth(.{ ctx, 100.0 });
-            defer imgui.PopItemWidth(.{ctx}) catch {};
-            if (try imgui.BeginCombo(.{
-                ctx,
-                "Log Level##log_level",
-                log_levels[@intCast(current_level)],
-                null,
-            })) {
-                defer imgui.EndCombo(.{ctx}) catch {};
-
-                // Draw selectable item for each level
-                for (log_levels, 0..) |level_name, i| {
-                    var is_selected = (i == current_level);
-                    if (try imgui.Selectable(.{
-                        ctx,
-                        level_name,
-                        &is_selected,
-                        null,
-                        null,
-                    })) {
-                        current_level = @intCast(i);
-                        self.temp_settings.log_level = @enumFromInt(current_level);
-                        self.dirty = true;
-                    }
-                }
-            }
-        }
-
         if (try imgui.Button(.{ ctx, "Save##stngs_sv" })) {
             if (self.dirty) {
                 return .close_save;

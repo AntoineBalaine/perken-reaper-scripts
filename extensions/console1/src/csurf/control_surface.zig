@@ -18,7 +18,6 @@ const ModulesList = @import("../statemachine.zig").ModulesList;
 const globals = @import("../globals.zig");
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
-const logger = @import("../logger.zig");
 const midi_events = @import("midi_events.zig");
 
 const CONTROLLER_NAME = @import("../fx_ctrl_state.zig").CONTROLLER_NAME;
@@ -61,7 +60,7 @@ fn iterCC() void {
         c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), onOff, -1);
         c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Shp_Mtr), onOff, -1);
 
-        logger.log(.debug, "blink msg:\t 0x{x}\t0x{x}\n", .{ testCC, onOff }, null, globals.allocator);
+        std.log.debug("blink msg:\t 0x{x}\t0x{x}\n", .{ testCC, onOff });
     }
 }
 
@@ -134,7 +133,7 @@ fn GetDescString() callconv(.C) [*]const u8 {
 fn GetConfigString() callconv(.C) [*]const u8 {
     const buffer: []u8 = &tmp;
     _ = std.fmt.bufPrint(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
-        logger.log(.err, "csurf console1 config string format\n", .{}, null, globals.allocator);
+        std.log.err("csurf console1 config string format", .{});
         return "0 0 0 0";
     };
     return &tmp;
@@ -180,7 +179,7 @@ export fn zRun() callconv(.C) void {
                 tmp.len,
             );
             if (!success) {
-                logger.log(.err, "failed to get gain reduction\n", .{}, null, globals.allocator);
+                std.log.err("failed to get gain reduction", .{});
             } else {
                 const slice = std.mem.sliceTo(&tmp, 0);
                 const gainReduction = std.fmt.parseFloat(f64, slice) catch null;
@@ -190,7 +189,7 @@ export fn zRun() callconv(.C) void {
                     const conv: u8 = @intFromFloat(DB2VAL(GR) * 127);
                     c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
                 } else {
-                    logger.log(.err, "failed to parse gain reduction\n", .{}, null, globals.allocator);
+                    std.log.err("failed to parse gain reduction", .{});
                 }
             }
         }
@@ -283,7 +282,7 @@ export fn zResetCachedVolPanStates() callconv(.C) void {
     globals.state.fx_ctrl.vol_lastpos = 0;
 }
 pub fn selectTrk(media_track: MediaTrack) void {
-    logger.log(.debug, "selectTrk()\n", .{}, null, globals.allocator);
+    std.log.scoped(.state).debug("selectTrk()", .{});
     // QUESTION: what does mcpView param do?
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
 
@@ -291,7 +290,7 @@ pub fn selectTrk(media_track: MediaTrack) void {
         return;
     }
     globals.state.fx_ctrl.validateTrack(null, media_track, null) catch {
-        logger.log(.err, "track validation failed: \ttrack {d}\n", .{id}, null, globals.allocator);
+        std.log.scoped(.state).err("track validation failed: track {d}", .{id});
     };
     if (globals.state.fx_ctrl.display) |_| { // display fxChain windows
         const prevTr = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
@@ -418,7 +417,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             if (parm3) |ptr| {
                 const fxIdx = @as(*u8, @ptrCast(ptr));
                 globals.state.fx_ctrl.display = fxIdx.*;
-                logger.log(.debug, "display: {d}\n", .{globals.state.fx_ctrl.display.?}, null, globals.allocator);
+                std.log.scoped(.state).debug("display: {d}", .{globals.state.fx_ctrl.display.?});
             }
         },
         .SETFXCHANGE => {},

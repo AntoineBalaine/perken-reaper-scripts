@@ -75,8 +75,6 @@ pub fn deinit(alloc: std.mem.Allocator) void {
 }
 
 pub fn initLoggerState() !void {
-    // Set log level pointer
-    logger.log_level = &preferences.log_level;
 
     // Set event log pointer
     logger.event_log = &event_log;

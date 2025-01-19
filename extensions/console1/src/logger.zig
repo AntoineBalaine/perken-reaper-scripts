@@ -4,27 +4,14 @@ const Mode = statemachine.Mode;
 const ModulesList = statemachine.ModulesList;
 const c1 = @import("c1.zig");
 
-pub const debug_window_active = @import("builtin").mode == .debug;
+pub const debug_window_active = @import("builtin").mode == .Debug;
 
 // pub var debug_window_active = debugconfig.@"test";
 pub var event_log: ?*EventLog = null; // Pointer to state's event log
 pub var log_file: ?*std.fs.File = null; // Just need the file handle
-pub var log_level: ?*LogLevel = null; // Just need the level
 
 // Circular buffer for debug overlay
 const DebugBufferSize = 1024;
-
-pub const LogLevel = enum(u8) {
-    debug = 3, // Very detailed information, function entries/exits
-    info = 2, // General operational information
-    warning = 1, // Issues that don't stop operation but need attention
-    err = 0, // Serious issues that impair functionality
-
-    // Helper to check if a level should be logged
-    pub fn shouldLog(self: LogLevel, current_level: LogLevel) bool {
-        return @intFromEnum(self) >= @intFromEnum(current_level);
-    }
-};
 
 pub const EventType = enum {
     state_change,
@@ -47,6 +34,37 @@ pub const Event = union(EventType) {
         param: u32,
         value: f64,
     },
+
+    pub fn format(
+        self: Event,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+        switch (self) {
+            .state_change => |state| {
+                try writer.print("State: {s} -> {s}", .{
+                    @tagName(state.old_mode),
+                    @tagName(state.new_mode),
+                });
+            },
+            .midi_input => |midi| {
+                try writer.print("MIDI CC {s}: {d}", .{
+                    @tagName(midi.cc),
+                    midi.value,
+                });
+            },
+            .parameter_update => |param| {
+                try writer.print("Parameter {s}.{d}: {d}", .{
+                    @tagName(param.module),
+                    param.param,
+                    param.value,
+                });
+            },
+        }
+    }
 };
 pub const EventLog = @import("logger_evt.zig");
 
@@ -58,50 +76,6 @@ const Color = struct {
     const green = "\x1b[0;32m";
     // Add more colors as needed
 };
-
-pub fn log(
-    comptime level: LogLevel,
-    comptime format: []const u8,
-    args: anytype,
-    event: ?Event,
-    allocator: std.mem.Allocator,
-) void {
-    if (log_level) |current_level| {
-        if (!level.shouldLog(current_level.*)) return;
-    }
-    const color = switch (level) {
-        .debug => Color.blue,
-        .info => Color.green,
-        .warning => Color.yellow,
-        .err => Color.red,
-    };
-
-    // Print to CLI
-
-    std.debug.print(color ++ "[{s}] " ++ format ++ Color.reset ++ "\n", .{@tagName(level)} ++ args);
-    // std.debug.print("[{s}] " ++ format ++ "\n", .{@tagName(level)} ++ args);
-
-    // Log to file if enabled
-    if (log_file) |file| {
-        const full_message = std.fmt.allocPrint(
-            allocator,
-            "[{s}] " ++ format ++ "\n",
-            .{@tagName(level)} ++ args,
-        ) catch return;
-        defer allocator.free(full_message);
-
-        file.writeAll(full_message) catch {};
-    }
-
-    // Add to event log if event provided
-    if (event) |e| {
-        if (event_log) |evt_log| {
-            evt_log.log(e);
-        }
-    }
-
-    // Update debug overlay if active
-}
 
 test {
     std.testing.refAllDecls(@This());
@@ -134,42 +108,33 @@ test "eventlog" {
 
 test "log function" {
     const testing = std.testing;
-    const tmp_allocator = testing.allocator;
+    init(); // Initialize logging allocator
     var e_log = EventLog.init();
     event_log = &e_log;
 
     // Test basic logging (will print to stderr during test)
-    log(
-        .info,
-        "Test message with value: {d}",
-        .{42},
-        null,
-        tmp_allocator,
-    );
+    std.log.scoped(.state).info("Test message with value: {d}", .{42});
 
     // Test event logging
-    log(
-        .debug,
-        "Parameter changed: {d}",
-        .{0.5},
-        Event{
-            .parameter_update = .{
-                .module = .COMP,
-                .param = 1,
-                .value = 0.5,
-            },
+    const event = Event{
+        .parameter_update = .{
+            .module = .COMP,
+            .param = 1,
+            .value = 0.5,
         },
-        tmp_allocator,
-    );
+    };
+    std.log.scoped(.parameters).debug("Parameter changed: {}", .{event});
 
     // Verify event was logged
     const last_param_event = event_log.?.findLastEvent(.parameter_update);
     try testing.expect(last_param_event != null);
-    if (last_param_event) |event| {
-        try testing.expect(event.parameter_update.value == 0.5);
-        try testing.expect(event.parameter_update.module == .COMP);
-        try testing.expect(event.parameter_update.param == 1);
+    if (last_param_event) |evt| {
+        try testing.expect(evt.parameter_update.value == 0.5);
+        try testing.expect(evt.parameter_update.module == .COMP);
+        try testing.expect(evt.parameter_update.param == 1);
     }
+
+    deinit(); // Clean up logging allocator
 }
 
 test "midi events circular buffer" {
@@ -211,24 +176,31 @@ test "midi events circular buffer" {
 }
 
 // FIXME: set as main app log level
-pub const log_level_b: std.log.Level = @import("build_options").log_level;
 pub fn logFn(
     comptime level: std.log.Level,
     comptime scope: @TypeOf(.EnumLiteral),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    // First argument could be your Event
-    const first_arg = args[0];
-    if (@TypeOf(first_arg) == Event) {
-        // Log the event to event_log
-        if (event_log) |evt_log| {
-            evt_log.log(first_arg);
+    // Check if any argument is an Event
+    const Args = @TypeOf(args);
+    const args_type_info = @typeInfo(Args);
+    if (args_type_info == .Struct) {
+        inline for (args_type_info.Struct.fields) |field| {
+            if (field.type == Event) {
+                if (event_log) |evt_log| {
+                    evt_log.log(@field(args, field.name));
+                }
+            }
         }
-        // Remove the event from args for regular logging
     }
 
-    const log_args = args[1..];
+    const scope_prefix = "(" ++ switch (scope) {
+        .state, .midi, .parameters => @tagName(scope),
+        .default => @tagName(scope),
+        else => @compileError("Unknown scope type: " ++ @tagName(scope)),
+    } ++ "): ";
+
     const color = switch (level) {
         .debug => Color.blue,
         .info => Color.green,
@@ -236,15 +208,20 @@ pub fn logFn(
         .err => Color.red,
     };
 
-    // Regular logging
-    std.debug.print(color ++ "[{s}][{s}] " ++ format ++ Color.reset ++ "\n", .{ @tagName(level), @tagName(scope) } ++ log_args);
+    const prefix = color ++ "[" ++ @tagName(level) ++ "] " ++ scope_prefix;
+
+    // Print the message to stderr, silently ignoring any errors
+    std.debug.lockStdErr();
+    defer std.debug.unlockStdErr();
+    const stderr = std.io.getStdErr().writer();
+    nosuspend stderr.print(prefix ++ format ++ Color.reset ++ "\n", args) catch return;
 
     // File logging
     if (log_file) |file| {
         const message = std.fmt.allocPrint(
             logging_allocator,
-            "[{s}][{s}] " ++ format ++ "\n",
-            .{ @tagName(level), @tagName(scope) } ++ log_args,
+            "[{s}]{s}" ++ format ++ "\n",
+            .{ @tagName(level), scope_prefix } ++ args,
         ) catch return;
         defer logging_allocator.free(message);
         file.writeAll(message) catch {};
