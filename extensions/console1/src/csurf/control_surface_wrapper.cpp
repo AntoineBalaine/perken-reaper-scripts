@@ -15,10 +15,10 @@
 #include <new>
 
 #ifndef _WIN32
-#include "../../WDL/swell/swell-dlggen.h"
+#include "WDL/swell/swell-dlggen.h"
 #include "../resource.h"
 #include "resource.rc_mac_dlg"
-#include "../../WDL/swell/swell-menugen.h"
+#include "WDL/swell/swell-menugen.h"
 #include "resource.rc_mac_menu"
 #endif
 

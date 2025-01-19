@@ -76,14 +76,14 @@ pub fn build(b: *std.Build) !void {
 
     // Define compiler flags similar to flatbufferz
     const cpp_flags = [_][]const u8{
-        // if (target.result.isDarwin()) "clang" else "gcc",
+        if (target.result.isDarwin()) "clang" else "gcc",
         "-c",
         "-fPIC",
         "-O2",
         "-std=c++14",
-        b.fmt("-I{s}", .{wdl_dep.path("WDL").getPath(b)}),
+        b.fmt("-I{s}", .{wdl_dep.path("").getPath(b)}),
         "-DSWELL_PROVIDED_BY_APP",
-        // "-o",
+        "-o",
     };
     // Define cpp files using dependency paths
     const cppfiles = [_]std.Build.LazyPath{
@@ -94,24 +94,17 @@ pub fn build(b: *std.Build) !void {
     };
 
     // Add the C++ source files to the library
-    for (cppfiles) |cppfile| {
-        lib.addCSourceFile(.{
-            .file = cppfile,
-            .flags = &cpp_flags,
-        });
+    inline for (comptime cppfiles) |cppfile| {
+        const filearg = try std.fmt.allocPrint(
+            b.allocator,
+            "{s}.o",
+            .{std.fs.path.basename(cppfile.getPath(b))},
+        );
+        const cxx = b.addSystemCommand(&cpp_flags);
+        lib.addObjectFile(cxx.addOutputFileArg(filearg));
+        cxx.addFileArg(cppfile);
+        cxx.step.dependOn(&php_cmd.step);
     }
-
-    // inline for (comptime cppfiles) |cppfile| {
-    //     const filearg = try std.fmt.allocPrint(
-    //         b.allocator,
-    //         "{s}.o",
-    //         .{std.fs.path.basename(cppfile.getPath(b))},
-    //     );
-    //     const cxx = b.addSystemCommand(&cpp_flags);
-    //     lib.addObjectFile(cxx.addOutputFileArg(filearg));
-    //     cxx.addFileArg(cppfile);
-    //     cxx.step.dependOn(&php_cmd.step);
-    // }
 
     b.getInstallStep().dependOn(&client_install.step);
 
