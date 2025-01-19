@@ -5,7 +5,6 @@ const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const SCRouting = fx_ctrl_state.SCRouting;
 const statemachine = @import("statemachine.zig");
-const logger = @import("logger.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
 const globals = @import("globals.zig");

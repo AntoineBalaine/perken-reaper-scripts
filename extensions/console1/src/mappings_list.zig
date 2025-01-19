@@ -1,6 +1,5 @@
 const std = @import("std");
 const ModulesList = @import("statemachine.zig").ModulesList;
-const logger = @import("logger.zig");
 
 // Store just file names, not actual mappings
 list: std.EnumArray(ModulesList, std.StringHashMap(void)),

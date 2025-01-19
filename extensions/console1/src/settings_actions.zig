@@ -2,7 +2,6 @@ const std = @import("std");
 const c1 = @import("c1.zig");
 const reaper = @import("reaper.zig").reaper;
 const statemachine = @import("statemachine.zig");
-const logger = @import("logger.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
 const globals = @import("globals.zig");

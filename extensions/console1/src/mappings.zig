@@ -1,6 +1,5 @@
 const std = @import("std");
 const ini = @import("ini");
-const logger = @import("logger.zig");
 const settings = @import("settings.zig");
 const statemachine = @import("statemachine.zig");
 const MappingState = statemachine.MappingState;

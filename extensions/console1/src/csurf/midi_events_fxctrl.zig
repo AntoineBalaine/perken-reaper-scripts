@@ -18,7 +18,6 @@ const ModulesList = @import("../statemachine.zig").ModulesList;
 const globals = @import("../globals.zig");
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
-const logger = @import("../logger.zig");
 const CONTROLLER_NAME = @import("../fx_ctrl_state.zig").CONTROLLER_NAME;
 const csurf = @import("control_surface.zig");
 const reaeq = @import("../internals/reaeq.zig");
