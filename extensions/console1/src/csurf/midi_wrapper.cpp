@@ -1,8 +1,8 @@
 #include "midi_wrapper.h"
-#include "../../WDL/heapbuf.h"
-#include "../../WDL/mutex.h"
-#include "../../WDL/ptrlist.h"
-#include "../../WDL/setthreadname.h"
+#include "WDL/heapbuf.h"
+#include "WDL/mutex.h"
+#include "WDL/ptrlist.h"
+#include "WDL/setthreadname.h"
 #include "midi_wrapper_classes.h"
 
 class threadedMIDIOutput : public midi_Output {
