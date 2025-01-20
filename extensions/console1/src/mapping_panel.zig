@@ -4,7 +4,6 @@ const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
-const PushWindowStyle = @import("styles.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const dispatch = @import("actions.zig").dispatch;
 const globals = @import("globals.zig");

@@ -22,6 +22,10 @@ const CONTROLLER_NAME = @import("../fx_ctrl_state.zig").CONTROLLER_NAME;
 const csurf = @import("control_surface.zig");
 const reaeq = @import("../internals/reaeq.zig");
 const log = std.log.scoped(.csurf);
+const track_list = @import("../tracklist_actions.zig");
+const TrackListAction = track_list.TrackListAction;
+const PgDirection = track_list.PgDirection;
+const TrackList = @import("../fx_ctrl_state.zig").TrackList;
 
 var tmp: [4096:0]u8 = undefined;
 
@@ -85,64 +89,57 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
                 else => {},
             }
         },
-        .Tr_pg_dn => onPgChg(.Down),
-        .Tr_pg_up => onPgChg(.Up),
-        .Tr_tr1 => {
+        // .Tr_pg_dn => onPgChg(.Down),
+        // .Tr_pg_up => onPgChg(.Up),
+        .Tr_pg_up => actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .up } }),
+        .Tr_pg_dn => actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .down } }),
+        .Tr_tr1,
+        .Tr_tr2,
+        .Tr_tr3,
+        .Tr_tr4,
+        .Tr_tr5,
+        => |cc_| {
             if (globals.modifier_active) {
-                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } });
+                const module: ModulesList = switch (cc_) {
+                    .Tr_tr1 => .INPUT,
+                    .Tr_tr2 => .GATE,
+                    .Tr_tr3 => .EQ,
+                    .Tr_tr4 => .COMP,
+                    .Tr_tr5 => .OUTPT,
+                    else => unreachable,
+                };
+                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } });
             } else {
-                selTrck(1);
+                const track_idx = getTrackIndex(cc_, globals.state.fx_ctrl.current_page);
+                actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
             }
         },
-        .Tr_tr2 => {
-            if (globals.modifier_active) {
-                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .GATE } });
-            } else {
-                selTrck(2);
-            }
+        .Tr_tr6,
+        .Tr_tr7,
+        .Tr_tr8,
+        .Tr_tr9,
+        .Tr_tr10,
+        .Tr_tr11,
+        .Tr_tr12,
+        .Tr_tr13,
+        .Tr_tr14,
+        .Tr_tr15,
+        .Tr_tr16,
+        .Tr_tr17,
+        .Tr_tr18,
+        .Tr_tr19,
+        => |cc_| {
+            const track_idx = getTrackIndex(cc_, globals.state.fx_ctrl.current_page);
+            actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
         },
-        .Tr_tr3 => {
-            if (globals.modifier_active) {
-                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .EQ } });
-            } else {
-                selTrck(3);
-            }
-        },
-        .Tr_tr4 => {
-            if (globals.modifier_active) {
-                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .COMP } });
-            } else {
-                selTrck(4);
-            }
-        },
-        .Tr_tr5 => {
-            if (globals.modifier_active) {
-                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } });
-            } else {
-                selTrck(5);
-            }
-        },
-        .Tr_tr6 => selTrck(6),
-        .Tr_tr10 => selTrck(10),
-        .Tr_tr11 => selTrck(11),
-        .Tr_tr12 => selTrck(12),
-        .Tr_tr13 => selTrck(13),
-        .Tr_tr14 => selTrck(14),
-        .Tr_tr15 => selTrck(15),
-        .Tr_tr16 => selTrck(16),
-        .Tr_tr17 => selTrck(17),
-        .Tr_tr18 => selTrck(18),
-        .Tr_tr19 => selTrck(19),
         .Tr_tr20 => {
             if (globals.modifier_active) {
                 actions.dispatch(&globals.state, .{ .settings = .open });
             } else {
-                selTrck(20);
+                const track_idx = getTrackIndex(.Tr_tr20, globals.state.fx_ctrl.current_page);
+                actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
             }
         },
-        .Tr_tr7 => selTrck(7),
-        .Tr_tr8 => selTrck(8),
-        .Tr_tr9 => selTrck(9),
         inline else => |cc_| setPrmVal(cc_, switch (cc_) {
             .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
             .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
@@ -200,20 +197,6 @@ fn onPgChg(direction: PgChgDirection) void {
     }
 }
 
-fn selTrck(idx: u8) void {
-    if (idx == globals.state.last_touched_tr_id) return;
-    const unselected: f64 = 0.0;
-    const tr = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
-    const success = reaper.SetMediaTrackInfo_Value(tr, "I_SELECTED", unselected); // unselect current
-    if (!success) {
-        log.err("failed to unselect track\n", .{});
-    }
-    // don't set the new bank offset, let the re-entrancy deal with it
-    const new_tr = reaper.CSurf_TrackFromID(idx, constants.g_csurf_mcpmode);
-    reaper.SetTrackSelected(new_tr, true);
-    csurf.selectTrk(new_tr);
-}
-
 /// set the fx_ctrl UI values
 fn setUIVal(cc: c1.CCs, norm_val: f64) void {
     var val_ptr = globals.state.fx_ctrl.values.getPtr(cc) orelse unreachable;
@@ -262,4 +245,9 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
             norm_val,
         );
     }
+}
+
+inline fn getTrackIndex(cc: c1.CCs, page_offset: u8) usize {
+    const button_idx = @intFromEnum(cc) - @intFromEnum(c1.CCs.Tr_tr1);
+    return page_offset * TrackList.PageSize + button_idx;
 }

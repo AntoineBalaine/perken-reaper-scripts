@@ -15,6 +15,7 @@ const fx_sel_panel = @import("fx_sel_panel.zig");
 const actions = @import("actions.zig");
 const mapping_panel = @import("mapping_panel.zig");
 const Theme = @import("theme/Theme.zig");
+const track_list_panel = @import("track_list_panel.zig");
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
@@ -58,7 +59,7 @@ fn main() !void {
     const PopStyle = try styles.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
 
-    try imgui.SetNextWindowDockID(.{ ctx, -1 });
+    try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.BOTTOM });
     if (try imgui.Begin(.{ ctx, plugin_name, &open, windowFlags })) {
         defer imgui.End(.{ctx}) catch {};
 
@@ -74,6 +75,14 @@ fn main() !void {
             .fx_ctrl => {
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state)) |ctrl_input| {
                     actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .panel_input = ctrl_input } });
+                }
+                if (globals.preferences.show_track_list) {
+                    if (try track_list_panel.drawTrackList(ctx, &globals.state)) |track_number| {
+                        actions.dispatch(
+                            &globals.state,
+                            .{ .track_list = .{ .track_select = @as(u8, @intCast(track_number)) } },
+                        );
+                    }
                 }
             },
             .settings => {

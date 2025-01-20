@@ -29,6 +29,9 @@ const CsurfAction = csurf_actions.CsurfAction;
 const csurfActions = csurf_actions.csurfActions;
 const imgui_loop = @import("imgui_loop.zig");
 const log = std.log.scoped(.dispatch);
+const tr_ls_act = @import("tracklist_actions.zig");
+const TrackListAction = tr_ls_act.TrackListAction;
+const trackListAction = tr_ls_act.trackListAction;
 
 const valid_transitions = statemachine.valid_transitions;
 // Mode-specific actions
@@ -48,6 +51,7 @@ pub const ModeAction = union(enum) {
     // Mode transitions
     change_mode: Mode,
     set_fx_ctrl_gui,
+    track_list: TrackListAction,
 };
 
 // Top-level update function
@@ -104,6 +108,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 .mapping => |map_action| mappingActions(state, map_action),
                 .settings => |set_action| settings_actions.settingsActions(state, set_action),
                 .Csurf => |set_action| csurfActions(state, set_action),
+                .track_list => |tr_action| trackListAction(state, tr_action),
                 else => unreachable,
             }
         },

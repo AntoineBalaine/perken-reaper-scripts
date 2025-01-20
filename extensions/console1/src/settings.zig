@@ -25,6 +25,8 @@ manual_routing: bool = false,
 default_fx: DefaultFx,
 log_to_file: bool = false,
 start_suspended: bool = false,
+show_track_list: bool = true,
+focus_page_tracks: bool = false,
 
 // Resource management
 allocator: std.mem.Allocator,

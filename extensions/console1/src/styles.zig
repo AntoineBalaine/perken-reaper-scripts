@@ -11,6 +11,13 @@ const Content = struct {
 };
 const content = Content{};
 
+pub const Docker = struct {
+    pub const UNDOCKED: i32 = 0;
+    pub const RIGHT: i32 = -2; // Or whichever docker number you want to use
+    pub const BOTTOM: i32 = -1;
+    // ... other docker positions
+};
+
 const WinStyle = enum { rack, main };
 
 const MAXCHAN: f64 = 128;

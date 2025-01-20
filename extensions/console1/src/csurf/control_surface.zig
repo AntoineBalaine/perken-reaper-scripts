@@ -20,50 +20,20 @@ const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const midi_events = @import("midi_events.zig");
 const log = std.log.scoped(.csurf);
-
-const CONTROLLER_NAME = @import("../fx_ctrl_state.zig").CONTROLLER_NAME;
-// TODO: update ini module, move tests from module into project
-// TODO: fix persisting csurf selection in preferences
-// TODO: OUTPUT: send feedback to controller based on changes to fx parms in container
-// TODO: OUTPUT: send feedback to controller's meters (peaks, gain reductio, etc.)
+const fx_ctrl_state = @import("../fx_ctrl_state.zig");
+const TrackList = fx_ctrl_state.TrackList;
+const CONTROLLER_NAME = fx_ctrl_state.CONTROLLER_NAME;
+const track_list_actions = @import("../tracklist_actions.zig");
 pub var controller_dir: [*:0]const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
 var tmp: [4096:0]u8 = undefined;
+var blink_frame: u8 = 0;
+var blink_state: bool = false;
 
 var my_csurf: c.C_ControlSurface = undefined;
 var m_buttonstate_lastrun: c.DWORD = 0;
-
-var testCC: u8 = 0x6d;
-var testFrame: u8 = 0;
-var testBlink: bool = false;
-
-fn iterCC() void {
-    testFrame += 1;
-    if (testFrame >= 60) { // reset frames once we get to 60 (== 2 second)
-        testFrame = 0;
-    }
-    if (testCC > 0x73) { // reset CC to 0 once we get to the last CC control
-        testCC = 0x6d;
-    }
-    if (testFrame == 0 or testFrame == 30) {
-        if (testFrame == 0) {
-            testCC += 1;
-        }
-        testBlink = !testBlink;
-        const onOff: u8 = if (testBlink) 0x7f else 0x0;
-
-        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), onOff, -1);
-        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), onOff, -1);
-        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), onOff, -1);
-        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), onOff, -1);
-        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), onOff, -1);
-        c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(c1.CCs.Shp_Mtr), onOff, -1);
-
-        log.debug("blink msg:\t 0x{x}\t0x{x}\n", .{ testCC, onOff });
-    }
-}
 
 fn volToU8(vol: f64) u8 {
     var d: f64 = (reaper.DB2SLIDER(VAL2DB(vol)) * 127.0 / 1000.0);
@@ -156,42 +126,47 @@ export fn zRun() callconv(.C) void {
         while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
             midi_events.OnMidiEvent(evts);
         }
-        // iterCC();
     }
-    if (!globals.playState or (globals.pauseState)) return;
 
-    // query meters
     if (globals.m_midi_out) |midiOut| {
-        const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
-        const left = reaper.Track_GetPeakInfo(mediaTrack, 0);
-        const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
-        const left_midi: u8 = if (left > 1.0) 127 else @intFromFloat(left * 127);
-        const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
-        c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
-        c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
-        if (globals.state.fx_ctrl.fxMap.COMP) |comp| {
-            const success = reaper.TrackFX_GetNamedConfigParm(
-                mediaTrack,
-                globals.state.fx_ctrl.getSubContainerIdx(comp[0] + 1, // make it 1-based
-                    reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
-                    mediaTrack),
-                "GainReduction_dB",
-                tmp[0..],
-                tmp.len,
-            );
-            if (!success) {
-                log.err("failed to get gain reduction", .{});
-            } else {
-                const slice = std.mem.sliceTo(&tmp, 0);
-                const gainReduction = std.fmt.parseFloat(f64, slice) catch null;
+        if (globals.state.current_mode == .fx_ctrl) {
+            blinkSelTrksLEDs(&blink_frame, &blink_state);
+        }
+        if (!globals.playState or (globals.pauseState)) return;
+        queryMeters(midiOut);
+    }
+}
 
-                if (gainReduction) |GR| {
-                    // not quite 1:1 with the console's meter, but good enough for jazz
-                    const conv: u8 = @intFromFloat(DB2VAL(GR) * 127);
-                    c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
-                } else {
-                    log.err("failed to parse gain reduction", .{});
-                }
+fn queryMeters(midiOut: reaper.midi_Output) void {
+    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
+    const left = reaper.Track_GetPeakInfo(mediaTrack, 0);
+    const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
+    const left_midi: u8 = if (left > 1.0) 127 else @intFromFloat(left * 127);
+    const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
+    c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
+    c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
+    if (globals.state.fx_ctrl.fxMap.COMP) |comp| {
+        const success = reaper.TrackFX_GetNamedConfigParm(
+            mediaTrack,
+            globals.state.fx_ctrl.getSubContainerIdx(comp[0] + 1, // make it 1-based
+                reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
+                mediaTrack),
+            "GainReduction_dB",
+            tmp[0..],
+            tmp.len,
+        );
+        if (!success) {
+            log.err("failed to get gain reduction", .{});
+        } else {
+            const slice = std.mem.sliceTo(&tmp, 0);
+            const gainReduction = std.fmt.parseFloat(f64, slice) catch null;
+
+            if (gainReduction) |GR| {
+                // not quite 1:1 with the console's meter, but good enough for jazz
+                const conv: u8 = @intFromFloat(DB2VAL(GR) * 127);
+                c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
+            } else {
+                log.err("failed to parse gain reduction", .{});
             }
         }
     }
@@ -367,6 +342,22 @@ pub fn selectTrk(media_track: MediaTrack) void {
         }
     }
 }
+
+pub fn blinkSelTrksLEDs(frame: *u8, blink_state_: *bool) void {
+    if (globals.state.current_mode != .fx_ctrl) return;
+
+    frame.* +%= 1;
+    if (frame.* == 30) {
+        frame.* = 0;
+        blink_state_.* = !blink_state_.*;
+
+        actions.dispatch(&globals.state, .{ .track_list = .{ .blink_leds = .{
+            .blink_state = blink_state_.*,
+            .midi_out = globals.m_midi_out.?,
+        } } });
+    }
+}
+
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     selectTrk(trackid);
 }

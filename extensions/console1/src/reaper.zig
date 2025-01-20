@@ -1898,7 +1898,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrack
     /// get a track from a project by track count (zero-based) (proj=0 for active project)
-    pub var GetTrack: *fn (proj: *ReaProject, trackidx: c_int) callconv(.C) MediaTrack = undefined;
+    pub var GetTrack: *fn (proj: ReaProject, trackidx: c_int) callconv(.C) MediaTrack = undefined;
 
     /// GetTrackAutomationMode
     /// return the track mode, regardless of global override

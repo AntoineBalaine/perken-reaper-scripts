@@ -13,7 +13,6 @@ const mappings = @import("mappings.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const ModulesList = statemachine.ModulesList;
 const constants = @import("constants.zig");
-const onMidiEvent_FxCtrl = @import("csurf/midi_events_fxctrl.zig").onMidiEvent_FxCtrl;
 const MappingAction = @import("mapping_actions.zig").MappingAction;
 const mappingActions = @import("mapping_actions.zig").mappingActions;
 const settings_actions = @import("settings_actions.zig");

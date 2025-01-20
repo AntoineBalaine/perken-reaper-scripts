@@ -209,6 +209,7 @@ pub fn logFn(
         .parameters,
         .preferences,
         .settings,
+        .track_list,
         => @tagName(scope),
         .default => @tagName(scope),
         else => @compileError("Unknown scope type: " ++ @tagName(scope)),

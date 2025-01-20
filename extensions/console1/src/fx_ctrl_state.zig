@@ -11,6 +11,22 @@ pub const CONTROLLER_NAME = "PRKN_C1";
 // Mode-specific state structures
 const FxControlState = @This();
 
+pub const TrackList = struct {
+    pub const TrackNameSize = 32; // Including null terminator
+    pub const PageSize = 20;
+
+    // Fixed size buffer for track names
+    track_names: [PageSize][TrackNameSize:0]u8,
+    name_count: usize = 0,
+    blink_counter: u8 = 0, // For LED blinking
+
+    pub fn init() TrackList {
+        return .{
+            .track_names = undefined,
+        };
+    }
+};
+
 pub const ModulesOrder = enum(u8) {
     @"EQ-S-C" = 0x7F,
     @"S-C-EQ" = 0x3F,
@@ -68,6 +84,8 @@ vol_lastpos: u8 = 0,
 
 /// Paging
 current_page: u8 = 0, // 0-based page number
+track_list: TrackList,
+
 pub fn init(gpa: std.mem.Allocator) FxControlState {
     var values = std.AutoArrayHashMap(c1.CCs, ControlValue).init(gpa);
 
@@ -103,6 +121,7 @@ pub fn init(gpa: std.mem.Allocator) FxControlState {
 
     return .{
         .values = values,
+        .track_list = TrackList.init(),
     };
 }
 
