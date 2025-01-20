@@ -77,11 +77,21 @@ fn main() !void {
                     actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .panel_input = ctrl_input } });
                 }
                 if (globals.preferences.show_track_list) {
-                    if (try track_list_panel.drawTrackList(ctx, &globals.state)) |track_number| {
-                        actions.dispatch(
-                            &globals.state,
-                            .{ .track_list = .{ .track_select = @as(u8, @intCast(track_number)) } },
-                        );
+                    if (try track_list_panel.drawTrackList(ctx, &globals.state, globals.modifier_active)) |action| {
+                        switch (action) {
+                            .select_track => |track_number| {
+                                actions.dispatch(
+                                    &globals.state,
+                                    .{ .track_list = .{ .track_select = @as(u8, @intCast(track_number)) } },
+                                );
+                            },
+                            .open_module_browser => |module| {
+                                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } });
+                            },
+                            .open_settings => {
+                                actions.dispatch(&globals.state, .{ .settings = .open });
+                            },
+                        }
                     }
                 }
             },
