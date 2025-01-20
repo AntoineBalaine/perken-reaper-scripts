@@ -48,7 +48,7 @@ pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
     switch (fx_action) {
         .midi_input => |input| {
             log.debug(
-                "MIDI input: {s} -> {d}",
+                "MIDI input: {s} -> {d} evt: {}",
                 .{ @tagName(input.cc), input.value, logger.Event{ .midi_input = .{ .cc = input.cc, .value = input.value } } },
             );
             onMidiEvent_FxCtrl(input.cc, input.value);

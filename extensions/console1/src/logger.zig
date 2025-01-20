@@ -196,8 +196,10 @@ pub fn logFn(
     }
 
     const scope_prefix = "(" ++ switch (scope) {
+        .gpa, // general purpose allocator
         .csurf,
         .dispatch,
+        .extension,
         .fx_sel_actions,
         .imgui_loop,
         .mapping_actions,
