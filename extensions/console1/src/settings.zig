@@ -3,6 +3,7 @@ const ini = @import("ini");
 const mappings_mod = @import("mappings.zig");
 const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
+const log = std.log.scoped(.preferences);
 
 // Hard-coded fallback defaults as EnumMap
 const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
@@ -45,7 +46,7 @@ pub fn init(allocator: std.mem.Allocator, resource_path: [:0]const u8) !Preferen
 
     // Try to load preferences from disk
     self.load() catch |err| {
-        std.log.scoped(.todo).warn("Failed to load preferences: {s} at {s}, using copied defaults", .{ @errorName(err), resource_path });
+        log.warn("Failed to load preferences: {s} at {s}, using copied defaults", .{ @errorName(err), resource_path });
     };
 
     return self;
@@ -126,7 +127,7 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
             .section => |heading| {
                 // Handle module sections (INPUT, GATE, etc.)
                 cur_section = std.meta.stringToEnum(ModulesList, heading) orelse {
-                    std.log.scoped(.todo).warn("Invalid section in preferences: {s}", .{heading});
+                    log.warn("Invalid section in preferences: {s}", .{heading});
                     continue;
                 };
             },
@@ -135,7 +136,7 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
                 if (cur_section == null) {
                     // Use @hasField to check if property exists in Preferences
                     // if (!@hasField(Preferences, prop.key)) {
-                    //     std.log.scoped(.todo)(.log(
+                    //     log(.log(
                     //         .warn,
                     //         "Unknown preference: {s}",
                     //         .{prop.key},

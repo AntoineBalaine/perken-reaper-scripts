@@ -21,6 +21,7 @@ const actions = @import("../actions.zig");
 const CONTROLLER_NAME = @import("../fx_ctrl_state.zig").CONTROLLER_NAME;
 const csurf = @import("control_surface.zig");
 const reaeq = @import("../internals/reaeq.zig");
+const log = std.log.scoped(.csurf);
 
 var tmp: [4096:0]u8 = undefined;
 
@@ -205,7 +206,7 @@ fn selTrck(idx: u8) void {
     const tr = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
     const success = reaper.SetMediaTrackInfo_Value(tr, "I_SELECTED", unselected); // unselect current
     if (!success) {
-        std.log.scoped(.todo).err("failed to unselect track\n", .{});
+        log.err("failed to unselect track\n", .{});
     }
     // don't set the new bank offset, let the re-entrancy deal with it
     const new_tr = reaper.CSurf_TrackFromID(idx, constants.g_csurf_mcpmode);

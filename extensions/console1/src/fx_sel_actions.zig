@@ -19,6 +19,7 @@ const mappingActions = @import("mapping_actions.zig").mappingActions;
 const settings_actions = @import("settings_actions.zig");
 const SettingsActions = settings_actions.SettingsActions;
 const dispatch = @import("actions.zig").dispatch;
+const log = std.log.scoped(.fx_sel_actions);
 
 pub const FxSelActions = union(enum) {
     select_fx: [:0]const u8,
@@ -148,7 +149,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             //     new_delta = max_pos - @abs(new_val);
             // }
             // Log scroll action
-            std.log.scoped(.todo).debug("Scroll: abs={d} delta={d} rel={d}/{d}", .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, max_pos });
+            log.debug("Scroll: abs={d} delta={d} rel={d}/{d}", .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, max_pos });
         },
     }
 }

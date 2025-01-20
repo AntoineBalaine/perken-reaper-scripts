@@ -16,6 +16,7 @@ const actions = @import("actions.zig");
 const mapping_panel = @import("mapping_panel.zig");
 const Theme = @import("theme/Theme.zig");
 
+const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
 pub var allocator: std.mem.Allocator = undefined;
 var ctx: imgui.ContextPtr = null;
@@ -25,7 +26,7 @@ var imgui_init: bool = false;
 fn init() !void {
     // try imgui.init(reaper.plugin_getapi);
     imgui.init(reaper.plugin_getapi) catch |err| {
-        std.log.scoped(.todo).err("Failed to initialize ImGui: {s}\n", .{@errorName(err)});
+        log.err("Failed to initialize ImGui: {s}\n", .{@errorName(err)});
         return err;
     };
 
@@ -78,7 +79,7 @@ fn main() !void {
             .settings => {
                 if (globals.settings_panel) |*panel| {
                     switch (panel.draw(ctx) catch |err| {
-                        std.log.scoped(.todo).err("Error drawing settings panel: {s}", .{@errorName(err)});
+                        log.err("Error drawing settings panel: {s}", .{@errorName(err)});
                         return err;
                     }) {
                         .stay_open => {},

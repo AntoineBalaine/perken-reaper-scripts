@@ -7,6 +7,7 @@ const State = statemachine.State;
 const globals = @import("globals.zig");
 const SettingsPanel = @import("settings_panel.zig");
 const dispatch = @import("actions.zig").dispatch;
+const log = std.log.scoped(.settings);
 
 pub const SettingsActions = union(enum) {
     open, // Request to open settings
@@ -19,22 +20,22 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
         .open => {
             if (globals.settings_panel == null) {
                 globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.allocator) catch blk: {
-                    std.log.scoped(.todo).err("open settings failed: {s}", .{@tagName(set_action)});
+                    log.err("open settings failed: {s}", .{@tagName(set_action)});
                     break :blk null;
                 };
             }
             if (globals.settings_panel) |_| {
                 dispatch(state, .{ .change_mode = .settings });
             } else {
-                std.log.scoped(.todo).err("settings_panel data unfound: {s}", .{@tagName(set_action)});
+                log.err("settings_panel data unfound: {s}", .{@tagName(set_action)});
             }
         },
         .save => {
             if (globals.settings_panel) |*panel| {
                 panel.save() catch {
-                    std.log.scoped(.todo).err("save settings failed: {s}", .{@tagName(set_action)});
+                    log.err("save settings failed: {s}", .{@tagName(set_action)});
                     return;
-                    // TODO: implement error handling
+                    // settings: implement error handling
                     // Show user notification
                 };
                 panel.deinit();

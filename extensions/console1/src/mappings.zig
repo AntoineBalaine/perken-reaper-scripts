@@ -5,6 +5,7 @@ const statemachine = @import("statemachine.zig");
 const MappingState = statemachine.MappingState;
 const ModulesList = statemachine.ModulesList;
 pub const UNMAPPED_PARAM: u8 = std.math.maxInt(u8); // or -1, or another sentinel value
+const log = std.log.scoped(.mappings);
 
 /// values are set to std.math.maxInt(u8) for unset mappings
 pub const Comp = struct {
@@ -125,7 +126,7 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, default
 }
 
 pub fn deinit(self: *MapStore) void {
-    std.log.debug("Cleaning up MapStore", .{});
+    log.debug("Cleaning up MapStore", .{});
     self.allocator.free(std.mem.span(self.controller_dir)); // Free our copy
     self.COMP.deinit(self.allocator);
     self.EQ.deinit(self.allocator);
@@ -152,7 +153,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
             if (self.COMP.get(fxName)) |v| {
                 return TaggedMapping{ .COMP = v };
             } else {
-                std.log.scoped(.mappings).err("mapping {s} unfound", .{fxName});
+                log.err("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch TaggedMapping{ .COMP = null };
             }
         },
@@ -160,7 +161,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
             if (self.EQ.get(fxName)) |v| {
                 return TaggedMapping{ .EQ = v };
             } else {
-                std.log.scoped(.mappings).err("mapping {s} unfound", .{fxName});
+                log.err("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch TaggedMapping{ .EQ = null };
             }
         },
@@ -168,7 +169,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
             return if (self.INPUT.get(fxName)) |v| {
                 return TaggedMapping{ .INPUT = v };
             } else {
-                std.log.scoped(.mappings).err("mapping {s} unfound", .{fxName});
+                log.err("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch TaggedMapping{ .INPUT = null };
             };
         },
@@ -176,7 +177,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
             if (self.OUTPT.get(fxName)) |v| {
                 return TaggedMapping{ .OUTPT = v };
             } else {
-                std.log.scoped(.mappings).err("mapping {s} unfound", .{fxName});
+                log.err("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch TaggedMapping{ .OUTPT = null };
             }
         },
@@ -184,7 +185,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
             if (self.GATE.get(fxName)) |v| {
                 return TaggedMapping{ .GATE = v };
             } else {
-                std.log.scoped(.mappings).err("mapping {s} unfound", .{fxName});
+                log.err("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch TaggedMapping{ .GATE = null };
             }
         },
@@ -232,7 +233,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
             _ = try readToU8Struct(&comp, &parser);
             // side-effect: store in hashmap
             self.COMP.put(self.allocator, fxName, comp) catch |err| blk: {
-                std.log.scoped(.todo).err("Failed to store mapping: {s}", .{@errorName(err)});
+                log.err("Failed to store mapping: {s}", .{@errorName(err)});
                 break :blk;
             };
             return TaggedMapping{ .COMP = comp };
@@ -241,7 +242,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
             var eq = Eq{};
             _ = try readToU8Struct(&eq, &parser);
             self.EQ.put(self.allocator, fxName, eq) catch |err| {
-                std.log.scoped(.todo).err("Failed to store mapping: {s}", .{@errorName(err)});
+                log.err("Failed to store mapping: {s}", .{@errorName(err)});
             }; // side-effect: store in hashmap
             return TaggedMapping{ .EQ = eq };
         },
@@ -249,7 +250,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
             var inpt: Inpt = Inpt{};
             _ = try readToU8Struct(&inpt, &parser);
             self.INPUT.put(self.allocator, fxName, inpt) catch |err| {
-                std.log.scoped(.todo).err("Failed to store mapping: {s}", .{@errorName(err)});
+                log.err("Failed to store mapping: {s}", .{@errorName(err)});
             }; // side-effect: store in hashmap
             return TaggedMapping{ .INPUT = inpt };
         },
@@ -257,7 +258,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
             var outpt: Outpt = Outpt{};
             _ = try readToU8Struct(&outpt, &parser);
             self.OUTPT.put(self.allocator, fxName, outpt) catch |err| {
-                std.log.scoped(.todo).err("Failed to store mapping: {s}", .{@errorName(err)});
+                log.err("Failed to store mapping: {s}", .{@errorName(err)});
             }; // side-effect: store in hashmap
             return TaggedMapping{ .OUTPT = outpt };
         },
@@ -265,7 +266,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
             var shp: Shp = Shp{};
             _ = try readToU8Struct(&shp, &parser);
             self.GATE.put(self.allocator, fxName, shp) catch |err| {
-                std.log.scoped(.todo).err("Failed to store mapping: {s}", .{@errorName(err)});
+                log.err("Failed to store mapping: {s}", .{@errorName(err)});
             }; // side-effect: store in hashmap
             return TaggedMapping{ .GATE = shp };
         },

@@ -113,7 +113,7 @@ test "log function" {
     event_log = &e_log;
 
     // Test basic logging (will print to stderr during test)
-    std.log.scoped(.state).info("Test message with value: {d}", .{42});
+    std.log.scoped(.midi_input).info("Test message with value: {d}", .{42});
 
     // Test event logging
     const event = Event{
@@ -196,7 +196,18 @@ pub fn logFn(
     }
 
     const scope_prefix = "(" ++ switch (scope) {
-        .state, .midi, .parameters => @tagName(scope),
+        .csurf,
+        .dispatch,
+        .fx_sel_actions,
+        .imgui_loop,
+        .mapping_actions,
+        .mapping_list,
+        .mappings,
+        .midi_input,
+        .parameters,
+        .preferences,
+        .settings,
+        => @tagName(scope),
         .default => @tagName(scope),
         else => @compileError("Unknown scope type: " ++ @tagName(scope)),
     } ++ "): ";

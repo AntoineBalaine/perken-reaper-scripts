@@ -28,6 +28,7 @@ const csurf_actions = @import("csurf_actions.zig");
 const CsurfAction = csurf_actions.CsurfAction;
 const csurfActions = csurf_actions.csurfActions;
 const imgui_loop = @import("imgui_loop.zig");
+const log = std.log.scoped(.dispatch);
 
 const valid_transitions = statemachine.valid_transitions;
 // Mode-specific actions
@@ -49,7 +50,6 @@ pub const ModeAction = union(enum) {
     set_fx_ctrl_gui,
 };
 
-const log = std.log.scoped(.state);
 pub fn someStateFunction() void {
     log.debug("State changed to: {s}", .{"new_state"});
     log.info("Important state info: {d}", .{42});
@@ -60,7 +60,7 @@ pub fn someStateFunction() void {
 // Top-level update function
 pub fn dispatch(state: *State, action: ModeAction) void {
     someStateFunction();
-    std.log.scoped(.todo).debug("Handling action: {s}", .{@tagName(action)});
+    log.debug("Handling action: {s}", .{@tagName(action)});
     switch (action) {
         .change_mode => |new_mode| {
             const old_mode = state.current_mode;
@@ -87,7 +87,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     state.current_mode = new_mode;
                 },
             }
-            std.log.scoped(.todo).info(
+            log.info(
                 "Mode changed: {s} -> {s}",
                 .{
                     @tagName(old_mode),

@@ -1,5 +1,6 @@
 const std = @import("std");
 const ModulesList = @import("statemachine.zig").ModulesList;
+const log = std.log.scoped(.mapping_list);
 
 // Store just file names, not actual mappings
 list: std.EnumArray(ModulesList, std.StringHashMap(void)),
@@ -21,7 +22,7 @@ pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
             if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".ini")) {
                 const name = try gpa.dupeZ(u8, std.fs.path.stem(entry.name));
                 maps.getPtr(module).put(name, {}) catch {
-                    std.log.scoped(.todo).warn("Mappings list: Failed to store fx name {s}\n", .{entry.name});
+                    log.warn("Mappings list: Failed to store fx name {s}\n", .{entry.name});
                     continue;
                 };
             }

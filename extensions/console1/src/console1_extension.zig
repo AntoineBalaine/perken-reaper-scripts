@@ -14,6 +14,8 @@ const debugconfig = @import("config");
 const globals = @import("globals.zig");
 const logger = @import("logger.zig");
 const hooks = @import("hooks.zig");
+const log = std.log.scoped(.extension);
+
 const plugin_name = "Perken C1";
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
@@ -40,11 +42,11 @@ fn init() !void {
     logger.init();
     myCsurf = control_surface.init(-1, -1, null);
     controller_dir = getControllerPath(gpa) catch |err| {
-        std.log.warn("Failed to create controller dir", .{});
+        log.warn("Failed to create controller dir", .{});
         return err;
     };
     errdefer |err| {
-        std.log.err("C1 init failed: {s}", .{@errorName(err)});
+        log.err("C1 init failed: {s}", .{@errorName(err)});
         gpa.free(std.mem.span(controller_dir));
     }
 

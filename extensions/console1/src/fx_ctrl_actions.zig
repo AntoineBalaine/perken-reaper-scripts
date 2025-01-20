@@ -22,6 +22,7 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
+const log = std.log.scoped(.midi_input);
 
 pub const MidiInput = struct {
     cc: c1.CCs,
@@ -46,7 +47,7 @@ pub const FxCtrlAction = union(enum) {
 pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
     switch (fx_action) {
         .midi_input => |input| {
-            std.log.scoped(.midi).debug(
+            log.debug(
                 "MIDI input: {s} -> {d}",
                 .{ @tagName(input.cc), input.value, logger.Event{ .midi_input = .{ .cc = input.cc, .value = input.value } } },
             );
