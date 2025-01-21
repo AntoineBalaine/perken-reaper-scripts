@@ -29,7 +29,6 @@ pub var controller_dir: [*:0]const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
-var tmp: [4096:0]u8 = undefined;
 var blink_frame: u8 = 0;
 var blink_state: bool = false;
 
@@ -48,14 +47,8 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     if (globals.m_midi_in) |midi_in| {
         c.MidiIn_start(midi_in);
     }
-    if (globals.m_midi_out) |midi_out| {
-        for (std.enums.values(c1.CCs)) |f| {
-            if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
-                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
-            } else {
-                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
-            }
-        }
+    if (globals.m_midi_out) |_| {
+        actions.dispatch(&globals.state, .{ .midi_out = .clear_all }); // lights off
     }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     my_csurf = myCsurf;
@@ -63,15 +56,8 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 }
 
 pub fn deinit(csurf: c.C_ControlSurface) void {
-    if (globals.m_midi_out) |midi_out| {
-        // lights off
-        for (std.enums.values(c1.CCs)) |f| {
-            if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
-                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
-            } else {
-                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
-            }
-        }
+    if (globals.m_midi_out) |_| {
+        actions.dispatch(&globals.state, .{ .midi_out = .clear_all }); // lights off
     }
 
     if (globals.m_midi_out) |midi_out| {
@@ -96,6 +82,7 @@ fn GetDescString() callconv(.C) [*]const u8 {
 }
 
 fn GetConfigString() callconv(.C) [*]const u8 {
+    var tmp: [4096:0]u8 = undefined;
     const buffer: []u8 = &tmp;
     _ = std.fmt.bufPrint(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
         log.err("csurf console1 config string format", .{});
@@ -123,49 +110,17 @@ export fn zRun() callconv(.C) void {
         }
     }
 
-    if (globals.m_midi_out) |midiOut| {
+    if (globals.m_midi_out) |_| {
         if (globals.state.current_mode == .fx_ctrl) {
             blinkSelTrksLEDs(&blink_frame, &blink_state);
         }
         if (!globals.playState or (globals.pauseState)) return;
-        queryMeters(midiOut);
+        // TODO: CALL midi_out.queryMeters.
+
+        actions.dispatch(&globals.state, .{ .midi_out = .queryMeters });
     }
 }
 
-fn queryMeters(midiOut: reaper.midi_Output) void {
-    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
-    const left = reaper.Track_GetPeakInfo(mediaTrack, 0);
-    const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
-    const left_midi: u8 = if (left > 1.0) 127 else @intFromFloat(left * 127);
-    const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
-    c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
-    c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
-    if (globals.state.fx_ctrl.fxMap.COMP) |comp| {
-        const success = reaper.TrackFX_GetNamedConfigParm(
-            mediaTrack,
-            globals.state.fx_ctrl.getSubContainerIdx(comp[0] + 1, // make it 1-based
-                reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
-                mediaTrack),
-            "GainReduction_dB",
-            tmp[0..],
-            tmp.len,
-        );
-        if (!success) {
-            log.err("failed to get gain reduction", .{});
-        } else {
-            const slice = std.mem.sliceTo(&tmp, 0);
-            const gainReduction = std.fmt.parseFloat(f64, slice) catch null;
-
-            if (gainReduction) |GR| {
-                // not quite 1:1 with the console's meter, but good enough for jazz
-                const conv: u8 = @intFromFloat(utils.DB2VAL(GR) * 127);
-                c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
-            } else {
-                log.err("failed to parse gain reduction", .{});
-            }
-        }
-    }
-}
 export fn zSetTrackListChange() callconv(.C) void {
     actions.dispatch(&globals.state, .{ .Csurf = .track_list_changed });
 }
@@ -176,45 +131,32 @@ inline fn FIXID(trackid: MediaTrack) c_int {
 }
 
 export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
-    _ = trackid; // autofix
-    // FIXME: what's the id check for in the sdk examples?
+    // NOTE: Justin’s logic uses FIXID here
     // is meant to prevent using the csurf with the master track?
     // const id = FIXID(trackid);
-    // _ = id; // autofix
-    if (globals.m_midi_out) |midiout| {
-        const volint = utils.volToU8(volume);
-        if (globals.state.fx_ctrl.vol_lastpos != volint) {
-            globals.state.fx_ctrl.vol_lastpos = volint;
-            c.MidiOut_Send(midiout, 0xb, @intFromEnum(c1.CCs.Out_Vol), volint, -1);
-        }
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.last_touched_tr_id) return;
+    const volint = utils.volToU8(volume);
+    if (globals.state.fx_ctrl.vol_lastpos != volint) {
+        globals.state.fx_ctrl.vol_lastpos = volint;
+        actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = volint } } });
     }
 }
 
 // pan is btw -1.0 and 1.0
-export fn zSetSurfacePan(trackid: *MediaTrack, pan: f64) callconv(.C) void {
-    _ = trackid; // autofix
-    if (globals.m_midi_out) |midiout| {
-        // shift the range from [−1,1] to [0,2]
-        // scale the range from [0,2] to [0,1]
-        // scale the range from [0,1] to [0,127]
-        const val: u8 = @intFromFloat((pan + 1) / 2 * 127);
-        c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Out_Pan), val, -1);
-    }
+export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.last_touched_tr_id) return;
+    actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = @intFromFloat((pan + 1) / 2 * 127) } } });
 }
-export fn zSetSurfaceMute(trackid: *MediaTrack, mute: bool) callconv(.C) void {
-    _ = trackid;
-    if (globals.m_midi_out) |midiout| {
-        c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Out_mute), if (mute) 0x7f else 0x0, -1);
-    }
+export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.last_touched_tr_id) return;
+    actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
 }
 export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) void {
     actions.dispatch(&globals.state, .{ .Csurf = .{ .track_selected = .{ .tr = trackid, .selected = selected } } });
 }
-export fn zSetSurfaceSolo(trackid: *MediaTrack, solo: bool) callconv(.C) void {
-    _ = trackid;
-    if (globals.m_midi_out) |midiout| {
-        c.MidiOut_Send(midiout, 0xb0, @intFromEnum(c1.CCs.Out_solo), if (solo) 0x7f else 0x0, -1);
-    }
+export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.last_touched_tr_id) return;
+    actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_solo, .value = if (solo) 0x7f else 0x0 } } });
 }
 
 export fn zSetSurfaceRecArm(trackid: *MediaTrack, recarm: bool) callconv(.C) void {
@@ -227,13 +169,7 @@ export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     globals.playState = play;
     globals.pauseState = pause;
     if (!globals.playState or globals.pauseState) {
-        if (globals.m_midi_out) |midiOut| {
-            // set meters to zero when not playing
-            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), 0x0, -1);
-            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), 0x0, -1);
-            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
-            c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
-        }
+        actions.dispatch(&globals.state, .{ .midi_out = .reset_meters });
     }
 }
 export fn zSetRepeatState(rep: bool) callconv(.C) void {
@@ -347,7 +283,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         },
 
         .SETLASTTOUCHEDTRACK => if (parm1) |mediaTrack|
-            actions.dispatch(&globals.state, .{ .Csurf = .{ .last_touched_track = mediaTrack } }),
+            actions.dispatch(&globals.state, .{ .Csurf = .{ .last_touched_track = @ptrCast(mediaTrack) } }),
         .SETPAN_EX => {
             // csurf doesn't have means of checking if fx get re-ordered.
             // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
@@ -441,6 +377,7 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
         },
         c.WM_USER + 1024 => {
             if (wParam > 1 and lParam != 0) {
+                var tmp: [4096:0]u8 = undefined;
                 var indev: isize = -1;
                 var outdev: isize = -1;
                 var r = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETCURSEL, 0, 0);

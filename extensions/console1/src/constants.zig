@@ -5,6 +5,7 @@ const Theme = @import("theme/Theme.zig");
 const fxParser = @import("fx_parser.zig");
 const styles = @import("styles.zig");
 
+pub const CONTROLLER_NAME = "PRKN_C1";
 pub const window_height: c_int = 240;
 pub const window_width: c_int = 280;
 pub const title_Clr: c_int = 0x000000FF;

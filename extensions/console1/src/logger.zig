@@ -210,6 +210,7 @@ pub fn logFn(
         .preferences,
         .settings,
         .track_list,
+        .midi_output,
         => @tagName(scope),
         .default => @tagName(scope),
         else => @compileError("Unknown scope type: " ++ @tagName(scope)),

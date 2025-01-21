@@ -6,7 +6,7 @@ const ModulesList = @import("statemachine.zig").ModulesList;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const FxMap = @import("mappings.zig").FxMap;
 const globals = @import("globals.zig");
-pub const CONTROLLER_NAME = "PRKN_C1";
+const constants = @import("constants.zig");
 
 // Mode-specific state structures
 const FxControlState = @This();
@@ -186,7 +186,7 @@ fn loadDefaultChain(
             return TrckErr.fxAddFail;
         }
         // rename the container
-        const rename_success = reaper.TrackFX_SetNamedConfigParm(mediaTrack, cont_idx, "renamed_name", CONTROLLER_NAME);
+        const rename_success = reaper.TrackFX_SetNamedConfigParm(mediaTrack, cont_idx, "renamed_name", constants.CONTROLLER_NAME);
         if (!rename_success) {
             return TrckErr.fxRenameFail;
         }
@@ -198,7 +198,7 @@ fn loadDefaultChain(
     while (iterator.next()) |field| : (idx += 1) {
         const fxName = field.value.*;
         const insertIdx = self.getSubContainerIdx(idx + 1, // make it 1-based
-            reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
+            reaper.TrackFX_GetByName(mediaTrack, constants.CONTROLLER_NAME, false) + 1, // make it 1-based
             mediaTrack);
 
         const fx_added = reaper.TrackFX_AddByName(
@@ -298,7 +298,7 @@ pub fn addMissingModules(
                 @as([*:0]const u8, defaultFX),
                 false,
                 self.getSubContainerIdx(subidx + 1, // make it 1-based
-                    reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1, // make it 1-based
+                    reaper.TrackFX_GetByName(mediaTrack, constants.CONTROLLER_NAME, false) + 1, // make it 1-based
                     mediaTrack),
             );
             if (fx_added == -1) {
@@ -318,10 +318,10 @@ pub fn validateTrack(
 ) !void {
     var newRouting = reRoute;
     const tr = mediaTrack;
-    var container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
+    var container_idx = reaper.TrackFX_GetByName(tr, constants.CONTROLLER_NAME, false);
     if (container_idx == -1) { // if no container
         try self.loadDefaultChain(null, mediaTrack);
-        container_idx = reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false);
+        container_idx = reaper.TrackFX_GetByName(tr, constants.CONTROLLER_NAME, false);
         if (newRouting == null) newRouting = .off;
     }
 

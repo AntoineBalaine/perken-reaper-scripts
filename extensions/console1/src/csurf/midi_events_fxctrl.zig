@@ -18,7 +18,7 @@ const ModulesList = @import("../statemachine.zig").ModulesList;
 const globals = @import("../globals.zig");
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
-const CONTROLLER_NAME = @import("../fx_ctrl_state.zig").CONTROLLER_NAME;
+const CONTROLLER_NAME = constants.CONTROLLER_NAME;
 const csurf = @import("control_surface.zig");
 const reaeq = @import("../internals/reaeq.zig");
 const log = std.log.scoped(.csurf);
@@ -33,14 +33,14 @@ var tmp: [4096:0]u8 = undefined;
 pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
     const tr = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
     switch (cc) {
-        .Comp_Mtr => {}, // meters unhandled
-        .Inpt_MtrLft => {}, // meters unhandled
-        .Inpt_MtrRgt => {}, // meters unhandled
         .Inpt_disp_mode => {
             globals.modifier_active = val == 127;
         },
         .Tr_tr_copy => {},
         .Tr_tr_grp => {},
+        .Comp_Mtr => {}, // meters unhandled
+        .Inpt_MtrLft => {}, // meters unhandled
+        .Inpt_MtrRgt => {}, // meters unhandled
         .Out_MtrLft => {}, // meters unhandled
         .Out_MtrRgt => {}, // meters unhandled
         .Inpt_disp_on => {
@@ -92,8 +92,14 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         },
         // .Tr_pg_dn => onPgChg(.Down),
         // .Tr_pg_up => onPgChg(.Up),
-        .Tr_pg_up => actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .up } }),
-        .Tr_pg_dn => actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .down } }),
+        .Tr_pg_up => {
+            actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .up } });
+            actions.dispatch(&globals.state, .{ .midi_out = .page_change });
+        },
+        .Tr_pg_dn => {
+            actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .down } });
+            actions.dispatch(&globals.state, .{ .midi_out = .page_change });
+        },
         .Tr_tr1,
         .Tr_tr2,
         .Tr_tr3,
@@ -166,6 +172,7 @@ fn u8ToVol(val: u8) f64 {
 
 const PgChgDirection = enum { Up, Down };
 
+// TODO: remove once we have the action tested in midi_out.zig
 fn onPgChg(direction: PgChgDirection) void {
     // select tracks in page
     // sws: VertZoomRange
