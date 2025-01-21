@@ -14,7 +14,7 @@ const TrackListPanelAction = union(enum) {
     open_settings,
 };
 pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool) !?TrackListPanelAction {
-    const PopStyle = try styles.PushStyle(ctx, .main);
+    const PopStyle = try styles.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
 
     try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.RIGHT });

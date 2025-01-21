@@ -52,7 +52,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             }
         },
         .add_mapping => |mapping| {
-            log.info("Added mapping: {s} -> param {d}", .{ @tagName(mapping.control), mapping.param });
+            log.debug("Added mapping: {s} -> param {d}", .{ @tagName(mapping.control), mapping.param });
             // Add to current_mappings based on module type
             switch (state.mapping.current_mappings) {
                 .COMP => |*comp| switch (mapping.control) {
@@ -113,7 +113,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             state.mapping.selected_control = null;
         },
         .remove_mapping => |control| {
-            log.info("Removed mapping for control: {s}", .{@tagName(control)});
+            log.debug("Removed mapping for control: {s}", .{@tagName(control)});
             // Remove from current_mappings based on module type
             switch (state.mapping.current_mappings) {
                 .COMP => |*comp| switch (control) {
@@ -171,7 +171,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             }
         },
         .save_mapping => {
-            log.info("Saved mappings for FX: {s}", .{state.mapping.target_fx});
+            log.debug("Saved mappings for FX: {s}", .{state.mapping.target_fx});
             // Save to MapStore
             switch (state.mapping.current_mappings) {
                 .INPUT => |input| globals.map_store.INPUT.put(globals.allocator, state.mapping.target_fx, input) catch {},
@@ -193,7 +193,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             dispatch(state, .{ .change_mode = .fx_ctrl });
         },
         .cancel_mapping => {
-            log.info("Cancelled mapping for FX: {s}", .{state.mapping.target_fx});
+            log.debug("Cancelled mapping for FX: {s}", .{state.mapping.target_fx});
             // Clean up mapping state
             state.mapping.selected_parameter = null;
             state.mapping.selected_control = null;

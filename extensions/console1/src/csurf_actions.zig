@@ -5,7 +5,7 @@ const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
 const globals = @import("globals.zig");
-
+const actions = @import("actions.zig");
 pub const WinChg = struct {
     track: reaper.MediaTrack,
     fx_index: i32,
@@ -20,26 +20,30 @@ pub const ParamChg = struct {
 };
 
 pub const CsurfAction = union(enum) {
-    csurf_track_selected: reaper.MediaTrack,
-    csurf_last_touched_track: reaper.MediaTrack,
-    csurf_track_list_changed,
-    csurf_play_state_changed: struct {
+    track_selected: struct { tr: reaper.MediaTrack, selected: bool },
+    last_touched_track: reaper.MediaTrack,
+    track_list_changed,
+    play_state_changed: struct {
         playing: bool,
         paused: bool,
     },
-    csurf_fx_chain_changed: reaper.MediaTrack,
-    csurf_fx_param_changed: ParamChg,
-    csurf_fx_window_state: WinChg,
+    fx_chain_changed: reaper.MediaTrack,
+    fx_param_changed: ParamChg,
+    fx_window_state: WinChg,
 };
 
 pub fn csurfActions(state: *State, set_action: CsurfAction) void {
     switch (set_action) {
-        .csurf_track_selected => |track| {
+        .track_selected => |selection| {
             // Update selected tracks map
-            const id = reaper.CSurf_TrackToID(track, false);
-            state.selectedTracks.put(globals.allocator, id, {}) catch return;
+            const id = reaper.CSurf_TrackToID(selection.tr, false);
+            if (selection.selected) {
+                state.selectedTracks.put(globals.allocator, id, {}) catch return;
+            } else {
+                _ = state.selectedTracks.orderedRemove(id);
+            }
         },
-        .csurf_last_touched_track => |track| {
+        .last_touched_track => |track| {
             const id = reaper.CSurf_TrackToID(track, false);
             if (state.last_touched_tr_id != id) {
                 state.last_touched_tr_id = id;
@@ -51,22 +55,22 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
                 }
             }
         },
-        .csurf_fx_chain_changed => |track| {
-            // Revalidate FX chain for current track
-            validateFxChain(state, track);
-        },
-        .csurf_fx_param_changed => |param| {
+        .fx_chain_changed => |track| actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .update_console_for_track = track } }),
+        .fx_param_changed => |param| {
             if (state.current_mode == .fx_ctrl) {
                 updateControllerFeedback(state, param);
             }
         },
-        .csurf_play_state_changed => |transport| {
+        .play_state_changed => |transport| {
             // Update metering state
             if (transport.playing and !transport.paused) {
                 // Start meters update timer
             } else {
                 // Stop meters update timer
             }
+        },
+        .track_list_changed => {
+            actions.dispatch(&globals.state, .{ .track_list = .refresh });
         },
         else => {},
     }

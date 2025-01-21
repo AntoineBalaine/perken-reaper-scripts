@@ -83,7 +83,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                     state.current_mode = new_mode;
                 },
             }
-            log.info(
+            log.debug(
                 "Mode changed: {s} -> {s} evt: {}",
                 .{
                     @tagName(old_mode),

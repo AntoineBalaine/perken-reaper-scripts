@@ -18,6 +18,7 @@ const c = @cImport({
     @cInclude("csurf/midi_wrapper.h");
 });
 const globals = @import("globals.zig");
+const actions = @import("actions.zig");
 
 pub const TrackListAction = union(enum) {
     page_change: PgDirection,
@@ -26,12 +27,17 @@ pub const TrackListAction = union(enum) {
         blink_state: bool,
         midi_out: reaper.midi_Output,
     },
+    refresh,
 };
 
 pub fn trackListAction(state: *State, action: TrackListAction) void {
     switch (action) {
         .page_change => |direction| handlePageChange(state, direction),
-        .track_select => |track_idx| selectTrack(state, track_idx),
+        .track_select => |track_idx| {
+            setReaperTrackSelection(state, track_idx);
+            const track = reaper.CSurf_TrackFromID(track_idx, constants.g_csurf_mcpmode);
+            actions.dispatch(state, .{ .fx_ctrl = .{ .update_console_for_track = track } });
+        },
         .blink_leds => |led_state| {
             const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
             const track_count = reaper.CountTracks(0);
@@ -55,6 +61,7 @@ pub fn trackListAction(state: *State, action: TrackListAction) void {
                 }
             }
         },
+        .refresh => updateTrackNames(state),
     }
 }
 
@@ -127,6 +134,7 @@ fn handlePageChange(state: *State, direction: PgDirection) void {
 }
 
 fn updateTrackNames(state: *State) void {
+    log.debug("refresh track names", .{});
     const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
 
     // Clear existing names
@@ -205,10 +213,10 @@ fn focusPageTracks(state: *State) void {
     }
 }
 
-fn selectTrack(state: *State, idx: u8) void {
+fn setReaperTrackSelection(state: *State, idx: u8) void {
     // 1. Check if index is valid
     const track_count = reaper.CountTracks(0);
-    if (track_count <= 0 or idx >= track_count) {
+    if (idx >= track_count) {
         log.warn("invalid track index: track {d} doesn’t exist\n", .{idx});
     }
 
@@ -225,5 +233,5 @@ fn selectTrack(state: *State, idx: u8) void {
 
     const new_tr = reaper.CSurf_TrackFromID(idx, constants.g_csurf_mcpmode);
     reaper.SetTrackSelected(new_tr, true);
-    csurf.selectTrk(new_tr);
+    // csurf.selectTrk(new_tr);
 }

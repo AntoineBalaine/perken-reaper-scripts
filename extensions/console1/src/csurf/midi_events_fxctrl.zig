@@ -26,6 +26,7 @@ const track_list = @import("../tracklist_actions.zig");
 const TrackListAction = track_list.TrackListAction;
 const PgDirection = track_list.PgDirection;
 const TrackList = @import("../fx_ctrl_state.zig").TrackList;
+const utils = @import("../utils.zig");
 
 var tmp: [4096:0]u8 = undefined;
 
@@ -160,7 +161,7 @@ fn u8ToPan(val: u8) f64 {
 fn u8ToVol(val: u8) f64 {
     var pos = (@as(f64, @floatFromInt(val)) * 1000.0) / 127.0; // scale to 1000
     pos = reaper.SLIDER2DB(pos); // convert 0-1000 slider position to DB
-    return csurf.DB2VAL(pos);
+    return utils.DB2VAL(pos);
 }
 
 const PgChgDirection = enum { Up, Down };
