@@ -18,7 +18,7 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
-
+const SettingsValUpdate = @import("settings_panel.zig").SettingsValUpdate;
 const TrackList = @import("fx_ctrl_state.zig").TrackList;
 
 pub const MidiOutAction = union(enum) {
@@ -34,7 +34,7 @@ pub const MidiOutAction = union(enum) {
     reset_meters,
     queryMeters,
     // settings
-    settings_changed, // preference field name
+    settings_changed: SettingsValUpdate, // preference field name
 };
 
 pub fn sendMidiFeedback(action: MidiOutAction) void {
@@ -413,4 +413,24 @@ fn prefsEntry(midi_out: reaper.midi_Output) void {
 
     // Settings mode indicator
     setButtonLED(c1.CCs.Tr_tr20, true, midi_out);
+}
+
+fn settingsChanged(update: SettingsValUpdate, midi_out: reaper.midi_Output) void {
+    if (std.mem.eql(u8, "show_startup_message", update.field)) {
+        setButtonLED(c1.CCs.Tr_tr6, update.val, midi_out);
+    } else if (std.mem.eql(u8, "show_feedback_window", update.field)) {
+        setButtonLED(c1.CCs.Tr_tr7, update.val, midi_out);
+    } else if (std.mem.eql(u8, "show_plugin_ui", update.field)) {
+        setButtonLED(c1.CCs.Tr_tr8, update.val, midi_out);
+    } else if (std.mem.eql(u8, "manual_routing", update.field)) {
+        setButtonLED(c1.CCs.Tr_tr9, update.val, midi_out);
+    } else if (std.mem.eql(u8, "log_to_file", update.field)) {
+        setButtonLED(c1.CCs.Tr_tr10, update.val, midi_out);
+    } else if (std.mem.eql(u8, "start_suspended", update.field)) {
+        setButtonLED(c1.CCs.Tr_tr11, update.val, midi_out);
+    } else if (std.mem.eql(u8, "show_track_list", update.field)) {
+        setButtonLED(c1.CCs.Tr_tr12, update.val, midi_out);
+    } else if (std.mem.eql(u8, "focus_page_tracks", update.field)) {
+        setButtonLED(c1.CCs.Tr_tr13, update.val, midi_out);
+    }
 }

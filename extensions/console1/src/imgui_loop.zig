@@ -102,6 +102,7 @@ fn main() !void {
                         return err;
                     }) {
                         .stay_open => {},
+                        .val_update => |update| actions.dispatch(&globals.state, .{ .midi_out = .{ .settings_changed = update } }),
                         .close_save => {
                             actions.dispatch(&globals.state, .{ .settings = .save });
                         },

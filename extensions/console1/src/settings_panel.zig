@@ -20,7 +20,15 @@ pub fn deinit(self: *SettingsPanel) void {
     self.temp_settings.deinit();
 }
 
-pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save, close_cancel } {
+pub const SettingsValUpdate = struct { field: []const u8, val: bool };
+const SettingsRV = union(enum) {
+    stay_open,
+    close_save,
+    close_cancel,
+    val_update: SettingsValUpdate,
+};
+pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !SettingsRV {
+    var rv: SettingsRV = .stay_open;
     const PopStyle = try styles.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
     {
@@ -32,12 +40,15 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
         // UI Settings
         try imgui.TextWrapped(.{ ctx, "UI Settings" });
         if (try imgui.Checkbox(.{ ctx, "Show Startup Message##strtp", &self.temp_settings.show_startup_message })) {
+            rv = .{ .val_update = .{ .field = "show_startup_message", .val = self.temp_settings.show_startup_message } };
             self.dirty = true;
         }
         if (try imgui.Checkbox(.{ ctx, "Show Feedback Window##fdkw", &self.temp_settings.show_feedback_window })) {
+            rv = .{ .val_update = .{ .field = "show_feedback_window", .val = self.temp_settings.show_feedback_window } };
             self.dirty = true;
         }
         if (try imgui.Checkbox(.{ ctx, "Show Plugin UI##plgui", &self.temp_settings.show_plugin_ui })) {
+            rv = .{ .val_update = .{ .field = "show_plugin_ui", .val = self.temp_settings.show_plugin_ui } };
             self.dirty = true;
         }
         try imgui.Spacing(.{ctx});
@@ -45,6 +56,7 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
         // Routing Settings
         try imgui.TextWrapped(.{ ctx, "Routing Settings ##rtstngs" });
         if (try imgui.Checkbox(.{ ctx, "Manual Routing ##mnlrtng", &self.temp_settings.manual_routing })) {
+            rv = .{ .val_update = .{ .field = "manual_routing", .val = self.temp_settings.manual_routing } };
             self.dirty = true;
         }
         try imgui.Spacing(.{ctx});
@@ -52,6 +64,7 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
         // Logging Settings
         try imgui.TextWrapped(.{ ctx, "Logging Settings##lgstng" });
         if (try imgui.Checkbox(.{ ctx, "Log to File##lgfd", &self.temp_settings.log_to_file })) {
+            rv = .{ .val_update = .{ .field = "log_to_file", .val = self.temp_settings.log_to_file } };
             self.dirty = true;
         }
 
@@ -60,6 +73,7 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
         // Logging Settings
         try imgui.TextWrapped(.{ ctx, "Start extension suspended##strt_sspnd" });
         if (try imgui.Checkbox(.{ ctx, "Start extension suspended##strt_sspndchkbx", &self.temp_settings.start_suspended })) {
+            rv = .{ .val_update = .{ .field = "start_suspended", .val = self.temp_settings.start_suspended } };
             self.dirty = true;
         }
 
@@ -127,7 +141,7 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !enum { stay_open, close_save
             }
         }
     }
-    return .stay_open;
+    return rv;
 }
 
 /// Copy temp_settings to `globals.preferences`.
