@@ -23,7 +23,6 @@ const midi_events = @import("midi_events.zig");
 const log = std.log.scoped(.csurf);
 const fx_ctrl_state = @import("../fx_ctrl_state.zig");
 const TrackList = fx_ctrl_state.TrackList;
-const CONTROLLER_NAME = fx_ctrl_state.CONTROLLER_NAME;
 const track_list_actions = @import("../tracklist_actions.zig");
 pub var controller_dir: [*:0]const u8 = undefined;
 
@@ -78,11 +77,11 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
 }
 
 export fn zGetTypeString() callconv(.C) [*]const u8 {
-    return "CONSOLE1";
+    return "Console1";
 }
 
 export fn zGetDescString() callconv(.C) [*]const u8 {
-    return reaper.LocalizeString("Softube Console1", "csurf", 1);
+    return reaper.LocalizeString("Perken C1", "csurf", 1);
 }
 
 var config_buf: [512:0]u8 = undefined;
@@ -485,7 +484,7 @@ const reaper_csurf_reg_t = extern struct {
 
 pub const c1_reg = reaper_csurf_reg_t{
     .type_string = "Console1",
-    .desc_string = "Softube Console1",
+    .desc_string = "Perken Console1",
     .IReaperControlSurface = &createFunc,
     .ShowConfig = &configFunc,
 };
