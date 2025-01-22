@@ -64,12 +64,10 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
 
             // Normal track selection handling
             if (is_selected) {
-                const bg_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_WindowBg });
-                const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_Text });
-                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, bg_color });
-                try imgui.PushStyleColor(.{ ctx, imgui.Col_FrameBg, text_color });
+                const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
+                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
             }
-            defer if (is_selected) imgui.PopStyleColor(.{ ctx, 2 }) catch {};
+            defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
             const label = try safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
