@@ -90,7 +90,7 @@ fn GetDescString() callconv(.C) [*]const u8 {
 fn GetConfigString() callconv(.C) [*]const u8 {
     var tmp: [4096:0]u8 = undefined;
     const buffer: []u8 = &tmp;
-    _ = std.fmt.bufPrint(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
+    _ = std.fmt.bufPrintZ(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
         log.err("csurf console1 config string format", .{});
         return "0 0 0 0";
     };
@@ -398,21 +398,44 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
                     }
                 }
             }
+
+            _ = c.SetDlgItemInt.?(hwndDlg, c.IDC_EDIT1, @intCast(parms[0]), c.TRUE);
+            _ = c.SetDlgItemInt.?(hwndDlg, c.IDC_EDIT2, @intCast(parms[1]), c.FALSE);
         },
         c.WM_USER + 1024 => {
             if (wParam > 1 and lParam != 0) {
-                var tmp: [4096:0]u8 = undefined;
                 var indev: isize = -1;
                 var outdev: isize = -1;
+                var offs: isize = 0;
+                var size: isize = 9;
+
+                // Get MIDI device selections
                 var r = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETCURSEL, 0, 0);
                 if (r != c.CB_ERR) indev = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
 
                 r = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETCURSEL, 0, 0);
                 if (r != c.CB_ERR) outdev = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
 
-                const buffer: []u8 = &tmp;
-                _ = std.fmt.bufPrint(buffer, "0 0 {d} {d}", .{ indev, outdev }) catch {};
-                _ = c.lstrcpyn.?(lParam, &tmp, @as(c_int, @intCast(wParam)));
+                // Get edit control values
+                var t: c_int = undefined;
+                r = c.GetDlgItemInt.?(hwndDlg, c.IDC_EDIT1, @ptrCast(&t), c.TRUE);
+                if (t != 0) offs = r;
+
+                r = c.GetDlgItemInt.?(hwndDlg, c.IDC_EDIT2, @ptrCast(&t), c.FALSE);
+                if (t != 0) {
+                    if (r < 1) {
+                        r = 1;
+                    } else if (r > 256) {
+                        r = 256;
+                    }
+                    size = r;
+                }
+
+                // Format config string
+                var tmp: [512:0]u8 = undefined;
+                _ = std.fmt.bufPrintZ(&tmp, "{d} {d} {d} {d}", .{ offs, size, indev, outdev }) catch return 0;
+
+                _ = c.lstrcpyn.?(lParam, &tmp, @intCast(wParam));
             }
         },
         else => {},
