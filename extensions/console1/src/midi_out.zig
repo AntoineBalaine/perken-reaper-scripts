@@ -38,6 +38,7 @@ pub const MidiOutAction = union(enum) {
 };
 
 pub fn sendMidiFeedback(action: MidiOutAction) void {
+    log.debug("send midi feedback: {s}", .{@tagName(action)});
     if (globals.m_midi_out) |midi_out| {
         switch (action) {
             .mode_entry => |mode| onModeEntry(mode, midi_out),
@@ -50,6 +51,8 @@ pub fn sendMidiFeedback(action: MidiOutAction) void {
             .queryMeters => queryMeters(midi_out),
             .settings_changed => prefsEntry(midi_out),
         }
+    } else {
+        log.err("no midi feedback available", .{});
     }
 }
 
@@ -84,6 +87,7 @@ fn handleTrackSelectFeedback(midi_out: reaper.midi_Output) void {
 }
 
 fn onModeEntry(mode: Mode, midi_out: reaper.midi_Output) void {
+    log.debug("on mode entry: {s}", .{@tagName(mode)});
     switch (mode) {
         .fx_ctrl => fxCtrlEntry(midi_out),
         .fx_sel => fxSelEntry(midi_out),

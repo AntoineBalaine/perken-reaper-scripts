@@ -45,10 +45,16 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         if (outdev >= 0 and globals.m_midi_out == null) errstats.* |= 2;
     }
     if (globals.m_midi_in) |midi_in| {
+        log.info("created midi in", .{});
         c.MidiIn_start(midi_in);
+    } else {
+        log.err("couldn’t create midi in", .{});
     }
     if (globals.m_midi_out) |_| {
+        log.info("created midi out", .{});
         actions.dispatch(&globals.state, .{ .midi_out = .clear_all }); // lights off
+    } else {
+        log.err("couldn’t create midi out", .{});
     }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     my_csurf = myCsurf;
