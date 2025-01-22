@@ -256,6 +256,6 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
 }
 
 inline fn getTrackIndex(cc: c1.CCs, page_offset: u8) usize {
-    const button_idx = @intFromEnum(cc) - @intFromEnum(c1.CCs.Tr_tr1) + 1;
+    const button_idx = @intFromEnum(cc) - @intFromEnum(c1.CCs.Tr_tr1);
     return page_offset * TrackList.PageSize + button_idx;
 }

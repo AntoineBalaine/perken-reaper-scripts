@@ -59,7 +59,7 @@ pub const ModeAction = union(enum) {
 
 // Top-level update function
 pub fn dispatch(state: *State, action: ModeAction) void {
-    log.debug("Handling action: {s}", .{@tagName(action)});
+    // log.debug("Handling action: {s}", .{@tagName(action)});
     switch (action) {
         .change_mode => |new_mode| {
             const old_mode = state.current_mode;

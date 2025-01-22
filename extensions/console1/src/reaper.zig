@@ -374,6 +374,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_GoStart: *fn () callconv(.C) void = undefined;
 
     /// CSurf_NumTracks
+    /// track count
     pub var CSurf_NumTracks: *fn (mcpView: bool) callconv(.C) c_int = undefined;
 
     /// CSurf_OnArrow
@@ -383,6 +384,8 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnFwd: *fn (seekplay: c_int) callconv(.C) void = undefined;
 
     /// CSurf_OnFXChange
+    /// toggle fx chain
+    /// en = 0 for inactive, 1 for active
     pub var CSurf_OnFXChange: *fn (trackid: MediaTrack, en: c_int) callconv(.C) bool = undefined;
 
     /// CSurf_OnInputMonitorChange
@@ -464,7 +467,7 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnTempoChange: *fn (bpm: f64) callconv(.C) void = undefined;
 
     /// CSurf_OnTrackSelection
-    pub var CSurf_OnTrackSelection: *fn (trackid: *MediaTrack) callconv(.C) void = undefined;
+    pub var CSurf_OnTrackSelection: *fn (trackid: MediaTrack) callconv(.C) void = undefined;
 
     /// CSurf_OnVolumeChange
     pub var CSurf_OnVolumeChange: *fn (trackid: MediaTrack, volume: f64, relative: bool) callconv(.C) f64 = undefined;

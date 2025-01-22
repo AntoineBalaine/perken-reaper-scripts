@@ -91,12 +91,6 @@ pub fn updateConsoleForTrack(media_track: MediaTrack) void {
     log.debug("update console", .{});
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
 
-    if (globals.state.last_touched_tr_id == id) {
-        return;
-    } else {
-        globals.state.last_touched_tr_id = id;
-    }
-
     globals.state.fx_ctrl.validateTrack(null, media_track, null) catch {
         log.err("track validation failed: track {d}", .{id});
     };

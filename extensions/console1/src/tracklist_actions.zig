@@ -34,9 +34,10 @@ pub fn trackListAction(state: *State, action: TrackListAction) void {
     switch (action) {
         .page_change => |direction| handlePageChange(state, direction),
         .track_select => |track_idx| {
-            setReaperTrackSelection(state, track_idx);
-            const track = reaper.CSurf_TrackFromID(track_idx, constants.g_csurf_mcpmode);
-            actions.dispatch(state, .{ .fx_ctrl = .{ .update_console_for_track = track } });
+            const track = setReaperTrackSelection(state, track_idx);
+            if (track) |tr| {
+                actions.dispatch(state, .{ .fx_ctrl = .{ .update_console_for_track = tr } });
+            }
         },
         .blink_leds => |led_state| {
             const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
@@ -162,14 +163,14 @@ fn focusPageTracks(state: *State) void {
     var i: usize = 0;
     while (i < track_count) : (i += 1) {
         const track = reaper.GetTrack(0, @intCast(i));
-        _ = reaper.SetTrackSelected(track, false);
+        reaper.CSurf_OnTrackSelection(track);
     }
 
     // Select tracks in current page
     i = page_start;
     while (i < page_end) : (i += 1) {
-        const tr = reaper.GetTrack(0, @intCast(i));
-        _ = reaper.SetTrackSelected(tr, true);
+        const track = reaper.GetTrack(0, @intCast(i));
+        reaper.CSurf_OnTrackSelection(track);
     }
 
     // Set vertical scroll to show selected tracks
@@ -213,25 +214,17 @@ fn focusPageTracks(state: *State) void {
     }
 }
 
-fn setReaperTrackSelection(state: *State, idx: u8) void {
+fn setReaperTrackSelection(state: *State, idx: u8) ?reaper.MediaTrack {
     // 1. Check if index is valid
     const track_count = reaper.CountTracks(0);
     if (idx >= track_count) {
         log.warn("invalid track index: track {d} doesn’t exist\n", .{idx});
     }
-
+    const media_track = reaper.GetTrack(0, idx);
+    const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
     // 2. Don't unselect if same track (your existing check)
-    if (idx == state.last_touched_tr_id) return;
+    if (id == state.last_touched_tr_id) return null;
 
-    const unselected: f64 = 0.0;
-
-    const tr = reaper.CSurf_TrackFromID(state.last_touched_tr_id, constants.g_csurf_mcpmode);
-    const success = reaper.SetMediaTrackInfo_Value(tr, "I_SELECTED", unselected); // unselect current
-    if (!success) {
-        log.err("failed to unselect track\n", .{});
-    }
-
-    const new_tr = reaper.CSurf_TrackFromID(idx, constants.g_csurf_mcpmode);
-    reaper.SetTrackSelected(new_tr, true);
-    // csurf.selectTrk(new_tr);
+    reaper.CSurf_OnTrackSelection(media_track);
+    return media_track;
 }

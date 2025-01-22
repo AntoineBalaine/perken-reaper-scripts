@@ -17,3 +17,9 @@ pub inline fn VAL2DB(x: f64) f64 {
     const v: f64 = std.math.log(@TypeOf(x), 10, x) * TWENTY_OVER_LN10;
     return if (v < -150.0) -150.0 else v;
 }
+
+pub fn getTrackIndex(track: reaper.MediaTrack) ?usize {
+    const track_number = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER");
+    if (track_number <= 0) return null; // Master track or invalid
+    return @intFromFloat(track_number - 1); // Convert 1-based to 0-based
+}

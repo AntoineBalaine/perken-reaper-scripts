@@ -43,8 +43,8 @@ pub fn sendMidiFeedback(action: MidiOutAction) void {
         switch (action) {
             .mode_entry => |mode| onModeEntry(mode, midi_out),
             .clear_all => clearAllLEDs(midi_out),
-            .track_select => handleTrackSelectFeedback(midi_out),
-            .page_change => handlePageChangeFeedback(midi_out),
+            .track_select => updateTrackListLEDs(midi_out),
+            .page_change => updateTrackListLEDs(midi_out),
             .set_param => |param| setParamLED(param.cc, param.value, midi_out),
             .blink => blinkSelectedTrks(midi_out),
             .reset_meters => resetMeters(midi_out),
@@ -53,36 +53,6 @@ pub fn sendMidiFeedback(action: MidiOutAction) void {
         }
     } else {
         log.err("no midi feedback available", .{});
-    }
-}
-
-/// Updates track selection feedback on Console1's track buttons.
-/// Only turns on the LED for the last touched track if it's on the current page.
-/// First clears all track button LEDs, then sets the appropriate LED.
-///
-/// This is distinct from handlePageChangeFeedback() which handles multiple selected tracks:
-/// - handleTrackSelectFeedback: last touched track only
-/// - handlePageChangeFeedback: all selected tracks plus last touched
-///
-/// Parameters:
-///   midi_out: MIDI output handle for sending feedback
-fn handleTrackSelectFeedback(midi_out: reaper.midi_Output) void {
-    const page_start = globals.state.fx_ctrl.current_page * TrackList.PageSize;
-
-    // Clear existing track selection LEDs
-    inline for (comptime std.enums.values(c1.CCs)) |cc| {
-        switch (cc) {
-            .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6, .Tr_tr7, .Tr_tr8, .Tr_tr9, .Tr_tr10, .Tr_tr11, .Tr_tr12, .Tr_tr13, .Tr_tr14, .Tr_tr15, .Tr_tr16, .Tr_tr17, .Tr_tr18, .Tr_tr19, .Tr_tr20 => setButtonLED(cc, false, midi_out),
-            else => {},
-        }
-    }
-
-    // Set LED for last touched track if it's on current page
-    const track_id = globals.state.last_touched_tr_id;
-    if (track_id >= page_start and track_id < page_start + TrackList.PageSize) {
-        const button_idx = track_id - page_start;
-        const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
-        setButtonLED(@enumFromInt(cc), true, midi_out);
     }
 }
 
@@ -120,7 +90,7 @@ var blink_state: bool = false;
 
 // TODO: handleTrackSelectFeedback and handlePageChangeFeedback have overlapping functionality
 // Could be consolidated or clearly differentiated
-pub fn handlePageChangeFeedback(midi_out: reaper.midi_Output) void {
+pub fn updateTrackListLEDs(midi_out: reaper.midi_Output) void {
 
     // First clear all track button LEDs
     inline for (comptime std.enums.values(c1.CCs)) |cc| {
@@ -158,20 +128,24 @@ pub fn handlePageChangeFeedback(midi_out: reaper.midi_Output) void {
     const page_start = globals.state.fx_ctrl.current_page * 20;
     var it = globals.state.selectedTracks.iterator();
     while (it.next()) |entry| {
-        const track_idx = entry.key_ptr.*;
-        if (track_idx >= page_start and track_idx < page_start + 20) {
-            const button_idx = track_idx - page_start;
-            const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
-            c.MidiOut_Send(midi_out, 0xb0, cc, 0x7f, -1);
+        const track_idx = utils.getTrackIndex(reaper.CSurf_TrackFromID(entry.key_ptr.*, constants.g_csurf_mcpmode));
+        if (track_idx) |idx| {
+            if (idx >= page_start and idx < page_start + 20) {
+                const button_idx = idx - page_start;
+                const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
+                c.MidiOut_Send(midi_out, 0xb0, cc, 0x7f, -1);
+            }
         }
     }
 
     // Always light up last touched track if it's on this page
-    const last_touched = globals.state.last_touched_tr_id;
-    if (last_touched >= page_start and last_touched < page_start + 20) {
-        const button_idx = last_touched - page_start;
-        const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
-        c.MidiOut_Send(midi_out, 0xb0, cc, 0x7f, -1);
+    const track_idx = utils.getTrackIndex(reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode));
+    if (track_idx) |idx| {
+        if (idx >= page_start and idx < page_start + 20) {
+            const button_idx = idx - page_start;
+            const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
+            c.MidiOut_Send(midi_out, 0xb0, cc, 0x7f, -1);
+        }
     }
 }
 
@@ -227,7 +201,7 @@ fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
 
     // 1. Set track selection LEDs
     // handleTrackSelectFeedback(midi_out);
-    handlePageChangeFeedback(midi_out);
+    updateTrackListLEDs(midi_out);
 
     // 2. Set track controls (vol, pan, mute, solo, phase inv.)
     sendTrkCtrlFdb(midi_out);
