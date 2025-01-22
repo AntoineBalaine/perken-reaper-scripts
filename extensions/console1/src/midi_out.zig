@@ -222,7 +222,8 @@ fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
     // if (globals.state.last_touched_tr_id == null) return;
 
     // 1. Set track selection LEDs
-    handleTrackSelectFeedback(midi_out);
+    // handleTrackSelectFeedback(midi_out);
+    handlePageChangeFeedback(midi_out);
 
     // 2. Set track controls (vol, pan, mute, solo, phase inv.)
     sendTrkCtrlFdb(midi_out);

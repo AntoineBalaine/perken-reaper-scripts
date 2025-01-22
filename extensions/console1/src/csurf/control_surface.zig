@@ -295,13 +295,31 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                 ) catch {};
             }
         },
+        .SETFXPARAM => {
+            const track: reaper.MediaTrack = @ptrCast(parm1);
+            const id = reaper.CSurf_TrackToID(track, constants.g_csurf_mcpmode);
+            if (globals.state.last_touched_tr_id == id) {
+                const f: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
+
+                const fxidx = (f >> 16) & 0xFFFF;
+                const fx_idx_cast: usize = @intCast(fxidx);
+                // const prmidx = f & 0xFFFF;
+                const prm_idx_cast: usize = @intCast(f & 0xFFFF);
+
+                actions.dispatch(&globals.state, .{ .Csurf = .{ .fx_param_changed = .{
+                    .track = track,
+                    .fx_index = fx_idx_cast,
+                    .param_index = prm_idx_cast,
+                    .value = @as(*f64, @alignCast(@ptrCast(parm3))).*,
+                } } });
+            }
+        },
         .SETFXCHANGE,
         .SETFXENABLED,
         .MIDI_DEVICE_REMAP,
         .RESET,
         .SETAUTORECARM,
         .SETBPMANDPLAYRATE,
-        .SETFXPARAM,
         .SETMETRONOME,
         .SETMIXERSCROLL,
         .SETFXPARAM_RECFX,
