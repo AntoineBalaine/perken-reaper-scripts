@@ -77,30 +77,23 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     c.ControlSurface_Destroy(csurf);
 }
 
-fn GetTypeString() callconv(.C) [*]const u8 {
+export fn zGetTypeString() callconv(.C) [*]const u8 {
     return "CONSOLE1";
 }
 
-fn GetDescString() callconv(.C) [*]const u8 {
-    // example code does this weird thing:
-    // descspace.SetFormatted(512,__LOCALIZE_VERFMT("PreSonus FaderPort (dev %d,%d)","csurf"),globals.m_midi_in_dev,globals.m_midi_out_dev);
+export fn zGetDescString() callconv(.C) [*]const u8 {
     return reaper.LocalizeString("Softube Console1", "csurf", 1);
 }
 
-fn GetConfigString() callconv(.C) [*]const u8 {
-    var tmp: [4096:0]u8 = undefined;
-    const buffer: []u8 = &tmp;
+var config_buf: [512:0]u8 = undefined;
+export fn zGetConfigString() callconv(.C) [*]const u8 {
+    const buffer: []u8 = &config_buf;
     _ = std.fmt.bufPrintZ(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
         log.err("csurf console1 config string format", .{});
         return "0 0 0 0";
     };
-    return &tmp;
+    return &config_buf;
 }
-export const zGetTypeString = &GetTypeString;
-
-export const zGetDescString = &GetDescString;
-
-export const zGetConfigString = &GetConfigString;
 
 export fn zCloseNoReset() callconv(.C) void {
     deinit(my_csurf);

@@ -1,6 +1,9 @@
 #include "control_surface.h"
 
 extern "C" {
+    const char* zGetTypeString();
+    const char* zGetDescString();
+    const char* zGetConfigString();
 void zCloseNoReset();
 void zRun();
 void zSetTrackListChange();
@@ -23,9 +26,9 @@ int zExtended(int call, void *parm1, void *parm2, void *parm3);
 
 ZigControlSurface::ZigControlSurface() {}
 
-const char *ZigControlSurface::GetTypeString() { return ""; }
-const char *ZigControlSurface::GetDescString() { return ""; }
-const char *ZigControlSurface::GetConfigString() { return ""; }
+const char* ZigControlSurface::GetTypeString() { return zGetTypeString(); }
+const char* ZigControlSurface::GetDescString() { return zGetDescString(); }
+const char* ZigControlSurface::GetConfigString() { return zGetConfigString(); }
 
 void ZigControlSurface::CloseNoReset() { zCloseNoReset(); }
 void ZigControlSurface::Run() { zRun(); }

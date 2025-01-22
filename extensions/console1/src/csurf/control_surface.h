@@ -4,9 +4,9 @@
 #include "../reaper_plugin_functions.h" // Include the header where IReaperControlSurface is declared
 
 // All of the following functions are called from C++ and implemented in Rust.
-// extern "C" const char *zGetTypeString();
-// extern "C" const char *zGetDescString();
-// extern "C" const char *zGetConfigString();
+extern "C" const char *zGetTypeString();
+extern "C" const char *zGetDescString();
+extern "C" const char *zGetConfigString();
 extern "C" void zCloseNoReset();
 extern "C" void zRun();
 extern "C" void zSetTrackListChange();
