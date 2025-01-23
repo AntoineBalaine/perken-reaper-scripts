@@ -93,10 +93,6 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         ImGuiLoop.register();
     }
 
-    if (debugconfig.@"test") {
-        const query_action = reaper.custom_action_register_t{ .section = 0, .id_str = "C1 TEST", .name = "C1 TEST" };
-        queries_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&query_action)));
-    }
     return 1;
 }
 

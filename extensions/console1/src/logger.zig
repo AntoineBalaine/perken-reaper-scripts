@@ -3,7 +3,7 @@ const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const ModulesList = statemachine.ModulesList;
 const c1 = @import("c1.zig");
-
+const reentrancy = @import("reentrancy.zig");
 pub const debug_window_active = @import("builtin").mode == .Debug;
 
 // pub var debug_window_active = debugconfig.@"test";
@@ -183,13 +183,36 @@ pub fn logFn(
     args: anytype,
 ) void {
     // Check if any argument is an Event
-    const Args = @TypeOf(args);
-    const args_type_info = @typeInfo(Args);
-    if (args_type_info == .Struct) {
-        inline for (args_type_info.Struct.fields) |field| {
-            if (field.type == Event) {
-                if (event_log) |evt_log| {
-                    evt_log.log(@field(args, field.name));
+    {
+        const Args = @TypeOf(args);
+        const args_type_info = @typeInfo(Args);
+        if (args_type_info == .Struct) {
+            inline for (args_type_info.Struct.fields) |field| {
+                if (field.type == Event) {
+                    if (event_log) |evt_log| {
+                        evt_log.log(@field(args, field.name));
+                    }
+                }
+            }
+        }
+    }
+    {
+        if (scope == .reentrancy) {
+            const Args = @TypeOf(args);
+            const args_type_info = @typeInfo(Args);
+            if (args_type_info == .Struct) {
+                inline for (args_type_info.Struct.fields) |field| {
+                    if (field.type == reentrancy.ReentrancyMessage) {
+                        if (reentrancy.current_test) |test_| {
+                            switch (@field(args, field.name)) {
+                                .notification => |notif| test_.notifications.append(notif) catch return,
+                                .api_call => {
+                                    // Optionally handle logging of API calls
+                                    // This might be useful for debugging/verification
+                                },
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -211,8 +234,10 @@ pub fn logFn(
         .settings,
         .track_list,
         .midi_output,
+        .hooks,
         => @tagName(scope),
         .default => @tagName(scope),
+        .reentrancy => "",
         else => @compileError("Unknown scope type: " ++ @tagName(scope)),
     } ++ "): ";
 

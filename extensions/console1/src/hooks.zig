@@ -4,10 +4,14 @@ const globals = @import("globals.zig");
 const actions = @import("actions.zig");
 const gui = @import("imgui_loop.zig");
 const Mode = @import("statemachine.zig").Mode;
+const debugconfig = @import("config");
+const reentrancy = @import("reentrancy.zig");
+const log = std.log.scoped(.hooks);
 
 // Store command IDs returned from registration
 pub var suspend_cmd_id: c_int = undefined;
 pub var toggle_gui_cmd_id: c_int = undefined;
+pub var reentrancy_test_cmd_id: c_int = undefined;
 
 // Command handler
 pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
@@ -21,10 +25,16 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
             .suspended;
         actions.dispatch(&globals.state, .{ .change_mode = new_mode });
         return 1;
-    }
-
-    if (command == toggle_gui_cmd_id) {
+    } else if (command == toggle_gui_cmd_id) {
         actions.dispatch(&globals.state, .set_fx_ctrl_gui);
+        return 1;
+    } else if (debugconfig.@"test" and command == reentrancy_test_cmd_id) {
+        // reentrancy.runAllTests(std.heap.page_allocator) catch |err| {
+        //     log.err("Failed to run reentrancy tests: {}", .{err});
+        // };
+        reentrancy.runInitialTest() catch |err| {
+            log.err("Failed to run initial reentrancy test: {}", .{err});
+        };
         return 1;
     }
 
@@ -47,6 +57,14 @@ pub fn registerCommands() void {
     };
     toggle_gui_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&toggle_gui_action)));
 
+    if (debugconfig.@"test") {
+        const reentrancy_test_action: reaper.custom_action_register_t = .{
+            .section = 0,
+            .id_str = "C1_REENTRANCY_TEST",
+            .name = "Console1: Run Reentrancy Tests",
+        };
+        reentrancy_test_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&reentrancy_test_action)));
+    }
     _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 }
 

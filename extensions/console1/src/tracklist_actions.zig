@@ -156,22 +156,6 @@ fn updateTrackNames(state: *State) void {
 
 fn focusPageTracks(state: *State) void {
     const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
-    const track_count = reaper.CountTracks(0);
-    const page_end = @min(page_start + TrackList.PageSize, track_count);
-
-    // First, unselect all tracks
-    var i: usize = 0;
-    while (i < track_count) : (i += 1) {
-        const track = reaper.GetTrack(0, @intCast(i));
-        reaper.CSurf_OnTrackSelection(track);
-    }
-
-    // Select tracks in current page
-    i = page_start;
-    while (i < page_end) : (i += 1) {
-        const track = reaper.GetTrack(0, @intCast(i));
-        reaper.CSurf_OnTrackSelection(track);
-    }
 
     // Set vertical scroll to show selected tracks
     // Note: this requires SWS extension
@@ -212,6 +196,7 @@ fn focusPageTracks(state: *State) void {
         //     }
         // }
     }
+    unreachable;
 }
 
 // unselect all other tracks.

@@ -473,13 +473,13 @@ pub const reaper = struct { // @import("reaper");
     pub var CSurf_OnVolumeChange: *fn (trackid: MediaTrack, volume: f64, relative: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnVolumeChangeEx
-    pub var CSurf_OnVolumeChangeEx: *fn (trackid: *MediaTrack, volume: f64, relative: bool, allowGang: bool) callconv(.C) f64 = undefined;
+    pub var CSurf_OnVolumeChangeEx: *fn (trackid: MediaTrack, volume: f64, relative: bool, allowGang: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnWidthChange
-    pub var CSurf_OnWidthChange: *fn (trackid: *MediaTrack, width: f64, relative: bool) callconv(.C) f64 = undefined;
+    pub var CSurf_OnWidthChange: *fn (trackid: MediaTrack, width: f64, relative: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnWidthChangeEx
-    pub var CSurf_OnWidthChangeEx: *fn (trackid: *MediaTrack, width: f64, relative: bool, allowGang: bool) callconv(.C) f64 = undefined;
+    pub var CSurf_OnWidthChangeEx: *fn (trackid: MediaTrack, width: f64, relative: bool, allowGang: bool) callconv(.C) f64 = undefined;
 
     /// CSurf_OnZoom
     pub var CSurf_OnZoom: *fn (xdir: c_int, ydir: c_int) callconv(.C) void = undefined;
