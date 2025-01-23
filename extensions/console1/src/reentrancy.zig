@@ -310,13 +310,13 @@ pub fn runAllTests(allocator: std.mem.Allocator) !void {
     }
 
     // Generate report
-    try generateReport(&test_);
+    try generateReport(&test_, null);
 }
 
-fn generateReport(test_: *const ApiTest) !void {
+fn generateReport(test_: *const ApiTest, filename: ?[]const u8) !void {
     // Open a file for writing
     const file = try std.fs.cwd().createFile(
-        "reentrancy_report.txt",
+        if (filename) |name| name else "reentrancy_report.txt",
         .{ .read = true },
     );
     defer file.close();
@@ -375,8 +375,27 @@ pub fn runInitialTest() !void {
     var test_ = ApiTest.init(arena.allocator());
 
     // Try just one simple test_ first
-    try test_.runTest(.SetTrackSelected, tracks.test_track, tracks.witness_track);
+    try test_.runTest(.TrackFX_AddByName, tracks.test_track, tracks.witness_track);
 
     // Generate and check report
-    try generateReport(&test_);
+    try generateReport(&test_, null);
+}
+
+pub fn runSingleTest(api_call: TestApiCall) !void {
+    const tracks = try setupTestEnvironment();
+
+    var test_ = ApiTest.init(std.heap.page_allocator);
+    defer {
+        for (test_.results.items) |*result| {
+            result.notifications.deinit();
+        }
+        test_.results.deinit();
+    }
+
+    try test_.runTest(api_call, tracks.test_track, tracks.witness_track);
+
+    // Generate report with specific name for this test
+    // var buf: [256]u8 = undefined;
+    // const report_name = try std.fmt.bufPrint(&buf, "reentrancy_report_{s}.txt", .{@tagName(api_call)});
+    // try generateReport(&test_, report_name);
 }

@@ -12,6 +12,28 @@ const log = std.log.scoped(.hooks);
 pub var suspend_cmd_id: c_int = undefined;
 pub var toggle_gui_cmd_id: c_int = undefined;
 pub var reentrancy_test_cmd_id: c_int = undefined;
+var testCommandIds: TestCommandIds = undefined;
+const TestCommandIds = struct {
+    map: std.EnumMap(reentrancy.TestApiCall, ?c_int),
+
+    pub fn init() @This() {
+        var self: @This() = .{ .map = std.EnumMap(reentrancy.TestApiCall, ?c_int).init(.{}) };
+        // Initialize all entries as null
+        inline for (std.meta.fields(reentrancy.TestApiCall)) |field| {
+            const variant = @field(reentrancy.TestApiCall, field.name);
+            self.map.put(variant, null);
+        }
+        return self;
+    }
+
+    pub fn get(self: *TestCommandIds, variant: reentrancy.TestApiCall) ?c_int {
+        return self.map.get(variant) orelse null;
+    }
+
+    pub fn set(self: *TestCommandIds, variant: reentrancy.TestApiCall, id: c_int) void {
+        self.map.put(variant, id);
+    }
+};
 
 // Command handler
 pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
@@ -36,8 +58,20 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
             log.err("Failed to run initial reentrancy test: {}", .{err});
         };
         return 1;
+    } else if (debugconfig.@"test") {
+        // Check if command matches any of our test command IDs
+        inline for (std.meta.fields(reentrancy.TestApiCall)) |field| {
+            const variant = @field(reentrancy.TestApiCall, field.name);
+            if (testCommandIds.get(variant)) |cmd_id| {
+                if (command == cmd_id) {
+                    reentrancy.runSingleTest(variant) catch |err| {
+                        log.err("Failed to run reentrancy test for {s}: {}", .{ @tagName(variant), err });
+                    };
+                    return 1;
+                }
+            }
+        }
     }
-
     return 0;
 }
 
@@ -58,6 +92,20 @@ pub fn registerCommands() void {
     toggle_gui_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&toggle_gui_action)));
 
     if (debugconfig.@"test") {
+        testCommandIds = TestCommandIds.init();
+        inline for (comptime std.meta.fields(reentrancy.TestApiCall)) |field| {
+            const variant = @field(reentrancy.TestApiCall, field.name);
+            const id_str = std.fmt.comptimePrint("C1_REENTRANCE_TEST_{s}", .{@tagName(variant)});
+            const name = std.fmt.comptimePrint("Console1: Run Reentrancy test {s}", .{@tagName(variant)});
+            const action = reaper.custom_action_register_t{
+                .section = 0,
+                .id_str = id_str,
+                .name = name,
+            };
+            const cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
+            testCommandIds.set(variant, cmd_id);
+        }
+
         const reentrancy_test_action: reaper.custom_action_register_t = .{
             .section = 0,
             .id_str = "C1_REENTRANCY_TEST",
