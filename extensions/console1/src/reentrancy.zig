@@ -3,6 +3,7 @@ const reaper = @import("reaper.zig").reaper;
 const log = std.log.scoped(.reentrancy);
 
 pub var current_test: ?*ApiTestResult = null;
+
 pub const ReentrancyMessage = union(enum) {
     api_call: TestApiCall,
     notification: Notification,
@@ -123,6 +124,9 @@ pub const Notification = struct {
         },
         // ... other specific notification data
     } = .{ .none = {} },
+    pub fn getDelayFromApiCall(self: @This(), api_start_time: i64) i64 {
+        return self.timestamp - api_start_time;
+    }
 };
 
 pub const ApiTestResult = struct {
@@ -352,7 +356,8 @@ fn generateReport(test_: *const ApiTest, filename: ?[]const u8) !void {
         try writer.writeAll("Notifications:\n");
 
         for (result.notifications.items) |notification| {
-            try writer.print("  - {s} (track: {?})\n", .{ notification.type.toString(), notification.track_id });
+            const delay = notification.getDelayFromApiCall(result.start_time);
+            try writer.print("  - {s} (track: {?}, delay: {}ms)\n", .{ notification.type.toString(), notification.track_id, delay });
 
             switch (notification.data) {
                 .none => {},
@@ -361,6 +366,13 @@ fn generateReport(test_: *const ApiTest, filename: ?[]const u8) !void {
                 .fx_param => |fx| try writer.print("    FX: {d} Param: {d} Value: {d:.2}\n", .{ fx.fx_index, fx.param_index, fx.value }),
             }
         }
+
+        if (result.notifications.items.len > 0) {
+            const last_notification = result.notifications.items[result.notifications.items.len - 1];
+            const max_delay = last_notification.getDelayFromApiCall(result.start_time);
+            try writer.print("\nMax notification delay: {}ms\n", .{max_delay});
+        }
+
         try writer.writeAll("\n");
     }
 }
