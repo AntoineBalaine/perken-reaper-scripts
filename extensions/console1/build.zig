@@ -63,8 +63,6 @@ pub fn build(b: *std.Build) !void {
     const php_script = wdl_dep.path("WDL/swell/swell_resgen.php");
     const resource_rc = b.path("src/csurf/resource.rc");
 
-    std.debug.print("WDL include path: {s}\n", .{wdl_dep.path("").getPath(b)});
-
     // Add system command to run PHP script
     const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
     php_cmd.addFileArg(php_script); // Convert LazyPath to string

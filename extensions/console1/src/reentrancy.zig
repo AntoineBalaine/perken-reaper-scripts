@@ -9,6 +9,7 @@ pub const ReentrancyMessage = union(enum) {
 };
 
 pub const TestApiCall = enum {
+    SetTrackSelected,
     // Track Info
     SetMediaTrackInfo_Value_Phase,
     SetMediaTrackInfo_Value_NChan,
@@ -126,6 +127,10 @@ pub const ApiTest = struct {
         current_test = null;
 
         switch (api_call) {
+            .SetTrackSelected => {
+                _ = reaper.DeleteTrack(test_track);
+                _ = reaper.DeleteTrack(witness_track);
+            },
             .SetMediaTrackInfo_Value_Phase => {
                 _ = reaper.SetMediaTrackInfo_Value(test_track, "B_PHASE", 0);
             },
@@ -182,71 +187,71 @@ pub const ApiTest = struct {
             .end_time = undefined,
         };
 
-        current_test = &test_result;
-        defer current_test = null;
+        {
+            current_test = &test_result;
+            // clear current test before teardown
+            defer current_test = null;
 
-        // Log that we're starting this API call
-        log.debug("{}", .{ReentrancyMessage{ .api_call = api_call }});
+            // Log that we're starting this API call
+            log.debug("{}", .{ReentrancyMessage{ .api_call = api_call }});
 
-        switch (api_call) {
-            .SetMediaTrackInfo_Value_Phase => {
-                _ = reaper.SetMediaTrackInfo_Value(test_track, "B_PHASE", 1);
-            },
-            .SetMediaTrackInfo_Value_NChan => {
-                _ = reaper.SetMediaTrackInfo_Value(test_track, "I_NCHAN", 4);
-            },
-            .TrackFX_AddByName => {
-                _ = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-            },
-            .TrackFX_CopyToTrack => {
-                const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-                _ = reaper.TrackFX_CopyToTrack(test_track, fx_idx, witness_track, fx_idx, true);
-            },
-            .TrackFX_SetEnabled => {
-                const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-                reaper.TrackFX_SetEnabled(test_track, fx_idx, false);
-            },
-            .TrackFX_SetNamedConfigParm_RenamedName => {
-                const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-                _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "renamed_name", "Console1");
-            },
-            .TrackFX_SetNamedConfigParm_BandType => {
-                const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-                _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "band_type", "0");
-            },
-            .TrackFX_SetParamNormalized => {
-                const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-                _ = reaper.TrackFX_SetParamNormalized(test_track, fx_idx, 0, 0.5);
-            },
-            .TrackFX_SetPinMappings => {
-                const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-                _ = reaper.TrackFX_SetPinMappings(test_track, fx_idx, 0, 0, 1, 0);
-            },
-            .CSurf_OnArrow => reaper.CSurf_OnArrow(0, false),
-            .CSurf_OnFwd => reaper.CSurf_OnFwd(5),
-            .CSurf_OnFXChange => _ = reaper.CSurf_OnFXChange(test_track, 0),
-            .CSurf_OnPlayRateChange => reaper.CSurf_OnPlayRateChange(1.5),
-            // .CSurf_OnRecord => reaper.CSurf_OnRecord(),
-            .CSurf_OnRecvPanChange => _ = reaper.CSurf_OnRecvPanChange(test_track, 0, 0.5, false),
-            .CSurf_OnRew => reaper.CSurf_OnRew(5),
-            .CSurf_OnRewFwd => reaper.CSurf_OnRewFwd(5, 1),
-            .CSurf_OnScroll => reaper.CSurf_OnScroll(1, 0),
-            .CSurf_OnSendPanChange => _ = reaper.CSurf_OnSendPanChange(test_track, 0, 0.5, false),
-            .CSurf_OnSendVolumeChange => _ = reaper.CSurf_OnSendVolumeChange(test_track, 0, 0.5, false),
-            .CSurf_OnStop => reaper.CSurf_OnStop(),
-            .CSurf_OnTempoChange => reaper.CSurf_OnTempoChange(120.0),
-            .CSurf_OnVolumeChangeEx => _ = reaper.CSurf_OnVolumeChangeEx(test_track, 0.5, false, false),
-            .CSurf_OnWidthChange => _ = reaper.CSurf_OnWidthChange(test_track, 0.5, false),
-            .CSurf_OnWidthChangeEx => _ = reaper.CSurf_OnWidthChangeEx(test_track, 0.5, false, false),
-            .CSurf_OnZoom => reaper.CSurf_OnZoom(0, 0),
-            else => {},
+            switch (api_call) {
+                .SetTrackSelected => reaper.SetTrackSelected(test_track, true),
+                .SetMediaTrackInfo_Value_Phase => {
+                    _ = reaper.SetMediaTrackInfo_Value(test_track, "B_PHASE", 1);
+                },
+                .SetMediaTrackInfo_Value_NChan => {
+                    _ = reaper.SetMediaTrackInfo_Value(test_track, "I_NCHAN", 4);
+                },
+                .TrackFX_AddByName => {
+                    _ = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                },
+                .TrackFX_CopyToTrack => {
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    _ = reaper.TrackFX_CopyToTrack(test_track, fx_idx, witness_track, fx_idx, true);
+                },
+                .TrackFX_SetEnabled => {
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    reaper.TrackFX_SetEnabled(test_track, fx_idx, false);
+                },
+                .TrackFX_SetNamedConfigParm_RenamedName => {
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "renamed_name", "Console1");
+                },
+                .TrackFX_SetNamedConfigParm_BandType => {
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "band_type", "0");
+                },
+                .TrackFX_SetParamNormalized => {
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    _ = reaper.TrackFX_SetParamNormalized(test_track, fx_idx, 0, 0.5);
+                },
+                .TrackFX_SetPinMappings => {
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    _ = reaper.TrackFX_SetPinMappings(test_track, fx_idx, 0, 0, 1, 0);
+                },
+                .CSurf_OnArrow => reaper.CSurf_OnArrow(0, false),
+                .CSurf_OnFwd => reaper.CSurf_OnFwd(5),
+                .CSurf_OnFXChange => _ = reaper.CSurf_OnFXChange(test_track, 0),
+                .CSurf_OnPlayRateChange => reaper.CSurf_OnPlayRateChange(1.5),
+                // .CSurf_OnRecord => reaper.CSurf_OnRecord(),
+                .CSurf_OnRecvPanChange => _ = reaper.CSurf_OnRecvPanChange(test_track, 0, 0.5, false),
+                .CSurf_OnRew => reaper.CSurf_OnRew(5),
+                .CSurf_OnRewFwd => reaper.CSurf_OnRewFwd(5, 1),
+                .CSurf_OnScroll => reaper.CSurf_OnScroll(1, 0),
+                .CSurf_OnSendPanChange => _ = reaper.CSurf_OnSendPanChange(test_track, 0, 0.5, false),
+                .CSurf_OnSendVolumeChange => _ = reaper.CSurf_OnSendVolumeChange(test_track, 0, 0.5, false),
+                .CSurf_OnStop => reaper.CSurf_OnStop(),
+                .CSurf_OnTempoChange => reaper.CSurf_OnTempoChange(120.0),
+                .CSurf_OnVolumeChangeEx => _ = reaper.CSurf_OnVolumeChangeEx(test_track, 0.5, false, false),
+                .CSurf_OnWidthChange => _ = reaper.CSurf_OnWidthChange(test_track, 0.5, false),
+                .CSurf_OnWidthChangeEx => _ = reaper.CSurf_OnWidthChangeEx(test_track, 0.5, false, false),
+                .CSurf_OnZoom => reaper.CSurf_OnZoom(0, 0),
+                else => {},
+            }
+
+            test_result.end_time = std.time.milliTimestamp();
         }
-
-        std.time.sleep(50 * std.time.ns_per_ms);
-        test_result.end_time = std.time.milliTimestamp();
-
-        // Clear current_test before teardown
-        current_test = null;
 
         // Tear down the test
         tearDown(api_call, test_track, witness_track);
@@ -287,7 +292,7 @@ pub fn runAllTests(allocator: std.mem.Allocator) !void {
 fn generateReport(test_: *const ApiTest) !void {
     // Open a file for writing
     const file = try std.fs.cwd().createFile(
-        "reentrancy_test_results.txt",
+        "reentrancy_report.txt",
         .{ .read = true },
     );
     defer file.close();
@@ -320,7 +325,7 @@ fn setupTestEnvironment() !struct { test_track: reaper.MediaTrack, witness_track
     // Clear existing tracks if any
     const count = reaper.CountTracks(0);
     var idx: c_int = 0;
-    while (idx < count) : (idx += 1) {
+    while (idx < count - 1) : (idx += 1) {
         const track = reaper.GetTrack(0, idx);
         reaper.DeleteTrack(track);
     }
@@ -338,16 +343,15 @@ fn setupTestEnvironment() !struct { test_track: reaper.MediaTrack, witness_track
 pub fn runInitialTest() !void {
     const tracks = try setupTestEnvironment();
 
-    var test_ = ApiTest.init(std.heap.page_allocator);
-    defer {
-        for (test_.results.items) |*result| {
-            result.notifications.deinit();
-        }
-        test_.results.deinit();
-    }
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    defer arena.deinit(); // This will free all allocations
+
+    var test_ = ApiTest.init(arena.allocator());
 
     // Try just one simple test_ first
-    try test_.runTest(.SetMediaTrackInfo_Value_Phase, tracks.test_track, tracks.witness_track);
+    try test_.runTest(.SetTrackSelected, tracks.test_track, tracks.witness_track);
 
     // Generate and check report
     try generateReport(&test_);

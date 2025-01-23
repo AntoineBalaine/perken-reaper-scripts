@@ -234,6 +234,7 @@ pub fn logFn(
         .settings,
         .track_list,
         .midi_output,
+        .fs_helpers,
         .hooks,
         => @tagName(scope),
         .default => @tagName(scope),

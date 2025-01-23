@@ -65,7 +65,7 @@ fn deinit() void {
     control_surface.deinit(myCsurf);
     const deinit_status = gpa_int.deinit();
     if (deinit_status == .leak) {
-        std.debug.print("Memory leak detected\n", .{});
+        log.err("Memory leak detected\n", .{});
     }
 }
 

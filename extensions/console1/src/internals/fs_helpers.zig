@@ -1,6 +1,7 @@
 const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
 const Allocator = std.mem.Allocator;
+const log = std.log.scoped(.fs_helpers);
 
 /// caller must free
 pub fn getControllerConfigPath(allocator: Allocator, controller_name: [*:0]const u8) ![]const u8 {
@@ -32,7 +33,7 @@ test getControllerPath {
 
     const actual: [*:0]const u8 = "home/perken/.config/REAPER/Data/Perken/Console1";
     std.testing.expect(std.mem.eql(u8, std.mem.span(path), std.mem.span(actual))) catch |err| {
-        std.debug.print("error: expected {s}, found {s}\n", .{ actual, path });
+        log.err("expected {s}, found {s}\n", .{ actual, path });
         return err;
     };
 }
