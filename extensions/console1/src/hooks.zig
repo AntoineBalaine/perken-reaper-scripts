@@ -51,12 +51,12 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
         actions.dispatch(&globals.state, .set_fx_ctrl_gui);
         return 1;
     } else if (debugconfig.@"test" and command == reentrancy_test_cmd_id) {
-        // reentrancy.runAllTests(std.heap.page_allocator) catch |err| {
-        //     log.err("Failed to run reentrancy tests: {}", .{err});
-        // };
-        reentrancy.runInitialTest() catch |err| {
-            log.err("Failed to run initial reentrancy test: {}", .{err});
+        reentrancy.runAllTests() catch |err| {
+            log.err("Failed to run reentrancy tests: {}", .{err});
         };
+        // reentrancy.runInitialTest() catch |err| {
+        //     log.err("Failed to run initial reentrancy test: {}", .{err});
+        // };
         return 1;
     } else if (debugconfig.@"test") {
         // Check if command matches any of our test command IDs

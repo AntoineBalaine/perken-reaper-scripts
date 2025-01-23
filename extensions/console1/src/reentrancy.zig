@@ -284,14 +284,13 @@ pub const ApiTest = struct {
     }
 };
 
-pub fn runAllTests(allocator: std.mem.Allocator) !void {
-    var test_ = ApiTest.init(allocator);
-    defer {
-        for (test_.results.items) |*result| {
-            result.notifications.deinit();
-        }
-        test_.results.deinit();
-    }
+pub fn runAllTests() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    defer arena.deinit(); // This will free all allocations
+
+    var test_ = ApiTest.init(arena.allocator());
 
     // Get or create test_ tracks
     const track_count = reaper.CountTracks(0);
