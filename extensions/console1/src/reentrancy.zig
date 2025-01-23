@@ -61,6 +61,7 @@ pub const NotificationType = enum {
     SetSurfaceSelected,
     SetSurfaceSolo,
     SetSurfaceRecArm,
+    SetTrackTitle,
 
     // Playback notifications
     SetPlayState,
@@ -71,6 +72,25 @@ pub const NotificationType = enum {
     Extended_SetFXEnabled,
     Extended_SetFocusedFX,
     Extended_SetLastTouchedTrack,
+    Extended_SetFXOpen,
+    Extended_SetFXChange,
+    Extended_MidiDeviceRemap,
+    Extended_Reset,
+    Extended_SetAutoRecArm,
+    Extended_SetBPMAndPlayrate,
+    Extended_SetMetronome,
+    Extended_SetMixerScroll,
+    Extended_SetFXParamRecFX,
+    Extended_SetInputMonitor,
+    Extended_SetLastTouchedFX,
+    Extended_SetProjectMarkerChange,
+    Extended_SetRecMode,
+    Extended_SetRecvPan,
+    Extended_SetRecvVolume,
+    Extended_SetSendPan,
+    Extended_SetSendVolume,
+    Extended_SupportsExtendedTouch,
+    Extended_TrackFXPresetChanged,
 
     // Other notifications
     SetAutoMode,
@@ -138,24 +158,28 @@ pub const ApiTest = struct {
                 _ = reaper.SetMediaTrackInfo_Value(test_track, "I_NCHAN", 2); // Reset to stereo
             },
             .TrackFX_AddByName => {
-                const fx_idx = reaper.TrackFX_GetByName(test_track, "Console1", false);
+                const fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter", false);
                 _ = reaper.TrackFX_Delete(test_track, fx_idx);
             },
             .TrackFX_CopyToTrack => {
                 // Remove from both tracks
-                const test_fx_idx = reaper.TrackFX_GetByName(test_track, "Console1", false);
+                const test_fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter", false);
                 _ = reaper.TrackFX_Delete(test_track, test_fx_idx);
 
-                const wit_fx_idx = reaper.TrackFX_GetByName(witness_track, "Console1", false);
+                const wit_fx_idx = reaper.TrackFX_GetByName(witness_track, "JS: DC Filter", false);
                 _ = reaper.TrackFX_Delete(witness_track, wit_fx_idx);
             },
             .TrackFX_SetEnabled => {
-                const fx_idx = reaper.TrackFX_GetByName(test_track, "Console1", false);
+                const fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter", false);
                 reaper.TrackFX_SetEnabled(test_track, fx_idx, true);
                 _ = reaper.TrackFX_Delete(test_track, fx_idx);
             },
-            .TrackFX_SetNamedConfigParm_RenamedName, .TrackFX_SetNamedConfigParm_BandType, .TrackFX_SetParamNormalized, .TrackFX_SetPinMappings => {
-                const fx_idx = reaper.TrackFX_GetByName(test_track, "Console1", false);
+            .TrackFX_SetNamedConfigParm_RenamedName => {
+                const fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter_perkn", false);
+                _ = reaper.TrackFX_Delete(test_track, fx_idx);
+            },
+            .TrackFX_SetNamedConfigParm_BandType, .TrackFX_SetParamNormalized, .TrackFX_SetPinMappings => {
+                const fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter", false);
                 _ = reaper.TrackFX_Delete(test_track, fx_idx);
             },
             .CSurf_OnArrow => {}, // These are momentary actions, no teardown needed
@@ -204,30 +228,30 @@ pub const ApiTest = struct {
                     _ = reaper.SetMediaTrackInfo_Value(test_track, "I_NCHAN", 4);
                 },
                 .TrackFX_AddByName => {
-                    _ = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    _ = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
                 },
                 .TrackFX_CopyToTrack => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
                     _ = reaper.TrackFX_CopyToTrack(test_track, fx_idx, witness_track, fx_idx, true);
                 },
                 .TrackFX_SetEnabled => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
                     reaper.TrackFX_SetEnabled(test_track, fx_idx, false);
                 },
                 .TrackFX_SetNamedConfigParm_RenamedName => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-                    _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "renamed_name", "Console1");
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
+                    _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "renamed_name", "JS: DC Filter_perkn");
                 },
                 .TrackFX_SetNamedConfigParm_BandType => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
                     _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "band_type", "0");
                 },
                 .TrackFX_SetParamNormalized => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
-                    _ = reaper.TrackFX_SetParamNormalized(test_track, fx_idx, 0, 0.5);
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
+                    _ = reaper.TrackFX_SetParamNormalized(test_track, fx_idx, 0, 0);
                 },
                 .TrackFX_SetPinMappings => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "Console1", false, -1);
+                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
                     _ = reaper.TrackFX_SetPinMappings(test_track, fx_idx, 0, 0, 1, 0);
                 },
                 .CSurf_OnArrow => reaper.CSurf_OnArrow(0, false),
@@ -270,7 +294,7 @@ pub fn runAllTests(allocator: std.mem.Allocator) !void {
     }
 
     // Get or create test_ tracks
-    const track_count = reaper.CountTracks(null);
+    const track_count = reaper.CountTracks(0);
     if (track_count < 2) {
         reaper.InsertTrackAtIndex(0, true);
         reaper.InsertTrackAtIndex(1, true);
