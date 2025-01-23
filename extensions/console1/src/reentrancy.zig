@@ -284,6 +284,13 @@ pub const ApiTest = struct {
     }
 };
 
+fn isFXRelatedTest(api_call: TestApiCall) bool {
+    return switch (api_call) {
+        .TrackFX_AddByName, .TrackFX_CopyToTrack, .TrackFX_SetEnabled, .TrackFX_SetNamedConfigParm_RenamedName, .TrackFX_SetNamedConfigParm_BandType, .TrackFX_SetParamNormalized => true,
+        else => false,
+    };
+}
+
 pub fn runAllTests() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -299,13 +306,24 @@ pub fn runAllTests() !void {
         reaper.InsertTrackAtIndex(1, true);
     }
 
-    const test_track = reaper.GetTrack(0, 0);
-    const witness_track = reaper.GetTrack(0, 1);
+    const tracks = try setupTestEnvironment();
 
     // Run test_s for each API call
     inline for (comptime std.meta.fields(TestApiCall)) |field| {
         const api_call = @field(TestApiCall, field.name);
-        try test_.runTest(api_call, test_track, witness_track);
+        if (!isFXRelatedTest(api_call)) {
+            try test_.runTest(api_call, tracks.test_track, tracks.witness_track);
+            std.time.sleep(50 * std.time.ns_per_ms);
+        }
+    }
+
+    // Then run FX tests with more delay
+    inline for (std.meta.fields(TestApiCall)) |field| {
+        const api_call = @field(TestApiCall, field.name);
+        if (isFXRelatedTest(api_call)) {
+            try test_.runTest(api_call, tracks.test_track, tracks.witness_track);
+            std.time.sleep(100 * std.time.ns_per_ms);
+        }
     }
 
     // Generate report
@@ -313,16 +331,20 @@ pub fn runAllTests() !void {
 }
 
 fn generateReport(test_: *const ApiTest, filename: ?[]const u8) !void {
-    // Open a file for writing
-    const file = try std.fs.cwd().createFile(
-        if (filename) |name| name else "reentrancy_report.txt",
-        .{ .read = true },
-    );
+    const path = if (filename) |name| name else "reentrancy_report.txt";
+
+    // Try to open existing file, create if doesn't exist
+    var file = std.fs.cwd().openFile(path, .{ .mode = .read_write }) catch std.fs.cwd().createFile(path, .{}) catch return;
     defer file.close();
+
+    // Seek to end of file
+    const stat = try file.stat();
+    try file.seekTo(stat.size);
 
     const writer = file.writer();
 
-    try writer.writeAll("Reentrancy Test Results\n====================\n\n");
+    // Add separator between test runs
+    try writer.writeAll("\n=================================\n");
 
     for (test_.results.items) |result| {
         try writer.print("\nAPI Call: {s}\n", .{@tagName(result.api_call)});
@@ -332,7 +354,6 @@ fn generateReport(test_: *const ApiTest, filename: ?[]const u8) !void {
         for (result.notifications.items) |notification| {
             try writer.print("  - {s} (track: {?})\n", .{ notification.type.toString(), notification.track_id });
 
-            // Print notification-specific data
             switch (notification.data) {
                 .none => {},
                 .volume => |v| try writer.print("    Volume: {d:.2}\n", .{v}),
@@ -396,5 +417,5 @@ pub fn runSingleTest(api_call: TestApiCall) !void {
     // Generate report with specific name for this test
     // var buf: [256]u8 = undefined;
     // const report_name = try std.fmt.bufPrint(&buf, "reentrancy_report_{s}.txt", .{@tagName(api_call)});
-    // try generateReport(&test_, report_name);
+    try generateReport(&test_, null);
 }
