@@ -67,15 +67,14 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Inpt_preset => {},
         .Out_Pan => {
             setUIVal(cc, u8ToPan(val));
-            const rv = reaper.CSurf_OnPanChange(tr, u8ToPan(val), false);
-            reaper.CSurf_SetSurfacePan(tr, rv, null);
+            reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), @ptrCast(csurf.my_csurf));
         },
         .Out_Vol => {
             setUIVal(cc, @as(f64, @floatFromInt(val)) / 127);
-            _ = reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false);
+            reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), @ptrCast(csurf.my_csurf));
         },
-        .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), null),
-        .Out_solo => reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), null),
+        .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), @ptrCast(csurf.my_csurf)),
+        .Out_solo => reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), @ptrCast(csurf.my_csurf)),
         .Shp_Mtr => {}, // meters unhandled
         .Tr_ext_sidechain => {
             // unpin prev 3-4 of comp or gate

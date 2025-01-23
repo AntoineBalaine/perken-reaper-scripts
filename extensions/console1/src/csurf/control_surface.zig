@@ -31,7 +31,7 @@ const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 var blink_frame: u8 = 0;
 var blink_state: bool = false;
 
-var my_csurf: c.C_ControlSurface = undefined;
+pub var my_csurf: c.C_ControlSurface = undefined;
 var m_buttonstate_lastrun: c.DWORD = 0;
 
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {

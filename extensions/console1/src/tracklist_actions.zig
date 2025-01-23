@@ -214,17 +214,31 @@ fn focusPageTracks(state: *State) void {
     }
 }
 
+// unselect all other tracks.
 fn setReaperTrackSelection(state: *State, idx: u8) ?reaper.MediaTrack {
     // 1. Check if index is valid
     const track_count = reaper.CountTracks(0);
     if (idx >= track_count) {
-        log.warn("invalid track index: track {d} doesn’t exist\n", .{idx});
+        log.warn("invalid track index: track {d} doesn't exist\n", .{idx});
     }
+
+    // First unselect all tracks
+
+    var it = globals.state.selectedTracks.iterator();
+    while (it.next()) |entry| {
+        const tr_id = entry.key_ptr.*;
+        const track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+        reaper.CSurf_SetSurfaceSelected(track, reaper.CSurf_OnSelectedChange(track, 0), @ptrCast(csurf.my_csurf));
+    }
+    globals.state.selectedTracks.clearRetainingCapacity();
+
     const media_track = reaper.GetTrack(0, idx);
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
+
+    globals.state.selectedTracks.put(globals.allocator, id, {}) catch {};
     // 2. Don't unselect if same track (your existing check)
     if (id == state.last_touched_tr_id) return null;
 
-    reaper.CSurf_OnTrackSelection(media_track);
+    reaper.CSurf_SetSurfaceSelected(media_track, reaper.CSurf_OnSelectedChange(media_track, 1), @ptrCast(csurf.my_csurf));
     return media_track;
 }
