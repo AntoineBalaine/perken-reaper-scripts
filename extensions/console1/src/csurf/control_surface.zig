@@ -31,6 +31,7 @@ const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
 var blink_frame: u8 = 0;
 var blink_state: bool = false;
+pub var ignore_notifications = false;
 
 pub var my_csurf: c.C_ControlSurface = undefined;
 var m_buttonstate_lastrun: c.DWORD = 0;
@@ -100,6 +101,7 @@ export fn zCloseNoReset() callconv(.C) void {
 }
 
 export fn zRun() callconv(.C) void {
+    if (ignore_notifications) return;
     if (globals.m_midi_in) |midi_in| {
         c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
         const list = c.MidiIn_GetReadBuf(midi_in);
@@ -121,6 +123,7 @@ export fn zRun() callconv(.C) void {
 }
 
 export fn zSetTrackListChange() callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetTrackListChange,
         .track_id = null,
@@ -136,6 +139,7 @@ inline fn FIXID(trackid: MediaTrack) c_int {
 }
 
 export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
+    if (ignore_notifications) return;
     // NOTE: Justin's logic uses FIXID here
     // is meant to prevent using the csurf with the master track?
     // const id = FIXID(trackid);
@@ -155,6 +159,7 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
 
 // pan is btw -1.0 and 1.0
 export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetSurfacePan,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
@@ -165,6 +170,7 @@ export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
     actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = @intFromFloat((pan + 1) / 2 * 127) } } });
 }
 export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetSurfaceMute,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
@@ -175,6 +181,7 @@ export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
     actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
 }
 export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetSurfaceSelected,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
@@ -184,6 +191,7 @@ export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) 
     actions.dispatch(&globals.state, .{ .Csurf = .{ .track_selected = .{ .tr = trackid, .selected = selected } } });
 }
 export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetSurfaceSolo,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
@@ -195,6 +203,7 @@ export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
 }
 
 export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetSurfaceRecArm,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
@@ -205,6 +214,7 @@ export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.C) void
 }
 
 export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetPlayState,
         .track_id = null,
@@ -219,6 +229,7 @@ export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     }
 }
 export fn zSetRepeatState(rep: bool) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetRepeatState,
         .track_id = null,
@@ -228,6 +239,7 @@ export fn zSetRepeatState(rep: bool) callconv(.C) void {
     _ = rep;
 }
 export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetTrackTitle,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
@@ -237,11 +249,13 @@ export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.C) v
     _ = title;
 }
 export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
+    if (ignore_notifications) return false;
     _ = trackid;
     _ = isPan;
     return false;
 }
 export fn zSetAutoMode(mode: c_int) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetAutoMode,
         .track_id = null,
@@ -252,6 +266,7 @@ export fn zSetAutoMode(mode: c_int) callconv(.C) void {
 }
 
 export fn zResetCachedVolPanStates() callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .ResetCachedVolPanStates,
         .track_id = null,
@@ -277,6 +292,7 @@ pub fn blinkSelTrksLEDs(frame: *u8, blink_state_: *bool) void {
 }
 
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
+    if (ignore_notifications) return;
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .OnTrackSelection,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
@@ -287,6 +303,7 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .update_console_for_track = trackid } });
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
+    if (ignore_notifications) return false;
     _ = key;
     return false;
 }
@@ -320,6 +337,7 @@ const Extended = enum(c_int) {
 };
 
 export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {
+    if (ignore_notifications) return 1;
     switch (call) {
 
         // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear focused FX
