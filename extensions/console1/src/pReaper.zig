@@ -1,5 +1,5 @@
 const std = @import("std");
-const ignore_notifications = @import("csurf/control_surface.zig").ignore_notifications;
+
 const reaper = @import("reaper.zig").reaper;
 const ACCEL = reaper.ACCEL;
 const AudioAccessor = reaper.AudioAccessor;
@@ -6520,8 +6520,9 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
             }
 
             // Set ignore notifications flag
-            ignore_notifications = true;
-            defer ignore_notifications = false;
+            const csurf = @import("csurf/control_surface.zig");
+            csurf.ignore_notifications = true;
+            defer csurf.ignore_notifications = false;
 
             inline for (0..cast_args.len) |i| {
                 if (i >= args.len) {

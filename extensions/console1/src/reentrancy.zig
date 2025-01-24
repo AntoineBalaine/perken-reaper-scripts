@@ -1,4 +1,5 @@
 const std = @import("std");
+const pReaper = @import("pReaper.zig");
 const reaper = @import("reaper.zig").reaper;
 const log = std.log.scoped(.reentrancy);
 
@@ -152,57 +153,57 @@ pub const ApiTest = struct {
 
         switch (api_call) {
             .SetTrackSelected => {
-                _ = reaper.DeleteTrack(test_track);
-                _ = reaper.DeleteTrack(witness_track);
+                _ = pReaper.DeleteTrack(.{test_track});
+                _ = pReaper.DeleteTrack(.{witness_track});
             },
             .SetMediaTrackInfo_Value_Phase => {
-                _ = reaper.SetMediaTrackInfo_Value(test_track, "B_PHASE", 0);
+                _ = pReaper.SetMediaTrackInfo_Value(.{ test_track, "B_PHASE", 0 });
             },
             .SetMediaTrackInfo_Value_NChan => {
-                _ = reaper.SetMediaTrackInfo_Value(test_track, "I_NCHAN", 2); // Reset to stereo
+                _ = pReaper.SetMediaTrackInfo_Value(.{ test_track, "I_NCHAN", 2 }); // Reset to stereo
             },
             .TrackFX_AddByName => {
                 const fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter", false);
-                _ = reaper.TrackFX_Delete(test_track, fx_idx);
+                _ = pReaper.TrackFX_Delete(.{ test_track, fx_idx });
             },
             .TrackFX_CopyToTrack => {
                 // Remove from both tracks
                 const test_fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter", false);
-                _ = reaper.TrackFX_Delete(test_track, test_fx_idx);
+                _ = pReaper.TrackFX_Delete(.{ test_track, test_fx_idx });
 
                 const wit_fx_idx = reaper.TrackFX_GetByName(witness_track, "JS: DC Filter", false);
-                _ = reaper.TrackFX_Delete(witness_track, wit_fx_idx);
+                _ = pReaper.TrackFX_Delete(.{ witness_track, wit_fx_idx });
             },
             .TrackFX_SetEnabled => {
                 const fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter", false);
-                reaper.TrackFX_SetEnabled(test_track, fx_idx, true);
-                _ = reaper.TrackFX_Delete(test_track, fx_idx);
+                pReaper.TrackFX_SetEnabled(.{ test_track, fx_idx, true });
+                _ = pReaper.TrackFX_Delete(.{ test_track, fx_idx });
             },
             .TrackFX_SetNamedConfigParm_RenamedName => {
                 const fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter_perkn", false);
-                _ = reaper.TrackFX_Delete(test_track, fx_idx);
+                _ = pReaper.TrackFX_Delete(.{ test_track, fx_idx });
             },
             .TrackFX_SetNamedConfigParm_BandType, .TrackFX_SetParamNormalized, .TrackFX_SetPinMappings => {
                 const fx_idx = reaper.TrackFX_GetByName(test_track, "JS: DC Filter", false);
-                _ = reaper.TrackFX_Delete(test_track, fx_idx);
+                _ = pReaper.TrackFX_Delete(.{ test_track, fx_idx });
             },
             .CSurf_OnArrow => {}, // These are momentary actions, no teardown needed
             .CSurf_OnFwd => {},
             .CSurf_OnFXChange => {},
-            .CSurf_OnPlayRateChange => reaper.CSurf_OnPlayRateChange(1.0), // Reset to normal rate
+            .CSurf_OnPlayRateChange => pReaper.CSurf_OnPlayRateChange(.{1.0}), // Reset to normal rate
             .CSurf_OnRecord => {}, // Momentary
-            .CSurf_OnRecvPanChange => _ = reaper.CSurf_OnRecvPanChange(test_track, 0, 0.0, false),
-            .CSurf_OnRecvVolumeChange => _ = reaper.CSurf_OnRecvVolumeChange(test_track, 0, 1.0, false),
+            .CSurf_OnRecvPanChange => _ = pReaper.CSurf_OnRecvPanChange(.{ test_track, 0, 0.0, false }),
+            .CSurf_OnRecvVolumeChange => _ = pReaper.CSurf_OnRecvVolumeChange(.{ test_track, 0, 1.0, false }),
             .CSurf_OnRew => {},
             .CSurf_OnRewFwd => {},
             .CSurf_OnScroll => {},
-            .CSurf_OnSendPanChange => _ = reaper.CSurf_OnSendPanChange(test_track, 0, 0.0, false),
-            .CSurf_OnSendVolumeChange => _ = reaper.CSurf_OnSendVolumeChange(test_track, 0, 1.0, false),
+            .CSurf_OnSendPanChange => _ = pReaper.CSurf_OnSendPanChange(.{ test_track, 0, 0.0, false }),
+            .CSurf_OnSendVolumeChange => _ = pReaper.CSurf_OnSendVolumeChange(.{ test_track, 0, 1.0, false }),
             .CSurf_OnStop => {},
-            .CSurf_OnTempoChange => reaper.CSurf_OnTempoChange(120.0), // Reset to default
-            .CSurf_OnVolumeChangeEx => _ = reaper.CSurf_OnVolumeChangeEx(test_track, 1.0, false, false),
-            .CSurf_OnWidthChange => _ = reaper.CSurf_OnWidthChange(test_track, 1.0, false),
-            .CSurf_OnWidthChangeEx => _ = reaper.CSurf_OnWidthChangeEx(test_track, 1.0, false, false),
+            .CSurf_OnTempoChange => pReaper.CSurf_OnTempoChange(.{120.0}), // Reset to default
+            .CSurf_OnVolumeChangeEx => _ = pReaper.CSurf_OnVolumeChangeEx(.{ test_track, 1.0, false, false }),
+            .CSurf_OnWidthChange => _ = pReaper.CSurf_OnWidthChange(.{ test_track, 1.0, false }),
+            .CSurf_OnWidthChangeEx => _ = pReaper.CSurf_OnWidthChangeEx(.{ test_track, 1.0, false, false }),
             .CSurf_OnZoom => {},
         }
     }
@@ -224,57 +225,57 @@ pub const ApiTest = struct {
             log.debug("{}", .{ReentrancyMessage{ .api_call = api_call }});
 
             switch (api_call) {
-                .SetTrackSelected => reaper.SetTrackSelected(test_track, true),
+                .SetTrackSelected => pReaper.SetTrackSelected(.{ test_track, true }),
                 .SetMediaTrackInfo_Value_Phase => {
-                    _ = reaper.SetMediaTrackInfo_Value(test_track, "B_PHASE", 1);
+                    _ = pReaper.SetMediaTrackInfo_Value(.{ test_track, "B_PHASE", 1 });
                 },
                 .SetMediaTrackInfo_Value_NChan => {
-                    _ = reaper.SetMediaTrackInfo_Value(test_track, "I_NCHAN", 4);
+                    _ = pReaper.SetMediaTrackInfo_Value(.{ test_track, "I_NCHAN", 4 });
                 },
                 .TrackFX_AddByName => {
-                    _ = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
+                    _ = pReaper.TrackFX_AddByName(.{ test_track, "JS: DC Filter", false, -1 });
                 },
                 .TrackFX_CopyToTrack => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
-                    _ = reaper.TrackFX_CopyToTrack(test_track, fx_idx, witness_track, fx_idx, true);
+                    const fx_idx = pReaper.TrackFX_AddByName(.{ test_track, "JS: DC Filter", false, -1 });
+                    _ = pReaper.TrackFX_CopyToTrack(.{ test_track, fx_idx, witness_track, fx_idx, true });
                 },
                 .TrackFX_SetEnabled => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
-                    reaper.TrackFX_SetEnabled(test_track, fx_idx, false);
+                    const fx_idx = pReaper.TrackFX_AddByName(.{ test_track, "JS: DC Filter", false, -1 });
+                    pReaper.TrackFX_SetEnabled(.{ test_track, fx_idx, false });
                 },
                 .TrackFX_SetNamedConfigParm_RenamedName => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
-                    _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "renamed_name", "JS: DC Filter_perkn");
+                    const fx_idx = pReaper.TrackFX_AddByName(.{ test_track, "JS: DC Filter", false, -1 });
+                    _ = pReaper.TrackFX_SetNamedConfigParm(.{ test_track, fx_idx, "renamed_name", "JS: DC Filter_perkn" });
                 },
                 .TrackFX_SetNamedConfigParm_BandType => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
-                    _ = reaper.TrackFX_SetNamedConfigParm(test_track, fx_idx, "band_type", "0");
+                    const fx_idx = pReaper.TrackFX_AddByName(.{ test_track, "JS: DC Filter", false, -1 });
+                    _ = pReaper.TrackFX_SetNamedConfigParm(.{ test_track, fx_idx, "band_type", "0" });
                 },
                 .TrackFX_SetParamNormalized => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
-                    _ = reaper.TrackFX_SetParamNormalized(test_track, fx_idx, 0, 0);
+                    const fx_idx = pReaper.TrackFX_AddByName(.{ test_track, "JS: DC Filter", false, -1 });
+                    _ = pReaper.TrackFX_SetParamNormalized(.{ test_track, fx_idx, 0, 0 });
                 },
                 .TrackFX_SetPinMappings => {
-                    const fx_idx = reaper.TrackFX_AddByName(test_track, "JS: DC Filter", false, -1);
-                    _ = reaper.TrackFX_SetPinMappings(test_track, fx_idx, 0, 0, 1, 0);
+                    const fx_idx = pReaper.TrackFX_AddByName(.{ test_track, "JS: DC Filter", false, -1 });
+                    _ = pReaper.TrackFX_SetPinMappings(.{ test_track, fx_idx, 0, 0, 1, 0 });
                 },
-                .CSurf_OnArrow => reaper.CSurf_OnArrow(0, false),
-                .CSurf_OnFwd => reaper.CSurf_OnFwd(5),
-                .CSurf_OnFXChange => _ = reaper.CSurf_OnFXChange(test_track, 0),
-                .CSurf_OnPlayRateChange => reaper.CSurf_OnPlayRateChange(1.5),
-                // .CSurf_OnRecord => reaper.CSurf_OnRecord(),
-                .CSurf_OnRecvPanChange => _ = reaper.CSurf_OnRecvPanChange(test_track, 0, 0.5, false),
-                .CSurf_OnRew => reaper.CSurf_OnRew(5),
-                .CSurf_OnRewFwd => reaper.CSurf_OnRewFwd(5, 1),
-                .CSurf_OnScroll => reaper.CSurf_OnScroll(1, 0),
-                .CSurf_OnSendPanChange => _ = reaper.CSurf_OnSendPanChange(test_track, 0, 0.5, false),
-                .CSurf_OnSendVolumeChange => _ = reaper.CSurf_OnSendVolumeChange(test_track, 0, 0.5, false),
-                .CSurf_OnStop => reaper.CSurf_OnStop(),
-                .CSurf_OnTempoChange => reaper.CSurf_OnTempoChange(120.0),
-                .CSurf_OnVolumeChangeEx => _ = reaper.CSurf_OnVolumeChangeEx(test_track, 0.5, false, false),
-                .CSurf_OnWidthChange => _ = reaper.CSurf_OnWidthChange(test_track, 0.5, false),
-                .CSurf_OnWidthChangeEx => _ = reaper.CSurf_OnWidthChangeEx(test_track, 0.5, false, false),
-                .CSurf_OnZoom => reaper.CSurf_OnZoom(0, 0),
+                .CSurf_OnArrow => pReaper.CSurf_OnArrow(.{ 0, false }),
+                .CSurf_OnFwd => pReaper.CSurf_OnFwd(.{5}),
+                .CSurf_OnFXChange => _ = pReaper.CSurf_OnFXChange(.{ test_track, 0 }),
+                .CSurf_OnPlayRateChange => pReaper.CSurf_OnPlayRateChange(.{1.5}),
+                // .CSurf_OnRecord => pReaper.CSurf_OnRecord.{ ( }),
+                .CSurf_OnRecvPanChange => _ = pReaper.CSurf_OnRecvPanChange(.{ test_track, 0, 0.5, false }),
+                .CSurf_OnRew => pReaper.CSurf_OnRew(.{5}),
+                .CSurf_OnRewFwd => pReaper.CSurf_OnRewFwd(.{ 5, 1 }),
+                .CSurf_OnScroll => pReaper.CSurf_OnScroll(.{ 1, 0 }),
+                .CSurf_OnSendPanChange => _ = pReaper.CSurf_OnSendPanChange(.{ test_track, 0, 0.5, false }),
+                .CSurf_OnSendVolumeChange => _ = pReaper.CSurf_OnSendVolumeChange(.{ test_track, 0, 0.5, false }),
+                .CSurf_OnStop => pReaper.CSurf_OnStop(.{}),
+                .CSurf_OnTempoChange => pReaper.CSurf_OnTempoChange(.{120.0}),
+                .CSurf_OnVolumeChangeEx => _ = pReaper.CSurf_OnVolumeChangeEx(.{ test_track, 0.5, false, false }),
+                .CSurf_OnWidthChange => _ = pReaper.CSurf_OnWidthChange(.{ test_track, 0.5, false }),
+                .CSurf_OnWidthChangeEx => _ = pReaper.CSurf_OnWidthChangeEx(.{ test_track, 0.5, false, false }),
+                .CSurf_OnZoom => pReaper.CSurf_OnZoom(.{ 0, 0 }),
                 else => {},
             }
 

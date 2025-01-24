@@ -7050,6 +7050,7 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
 
             var call_args: std.meta.ArgsTuple(funcType(func)) = undefined;
             inline for (0..call_args.len) |i| {
+                @setEvalBranchQuota(0x1000);
                 const cast_arg_type = @typeInfo(@TypeOf(cast_args[i]));
                 call_args[i] =
                     if (cast_arg_type == .Optional)
