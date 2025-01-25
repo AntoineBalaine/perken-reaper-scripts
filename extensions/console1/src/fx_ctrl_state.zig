@@ -2,6 +2,7 @@ const std = @import("std");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const reaper = @import("reaper.zig").reaper;
+const pReaper = @import("pReaper.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const FxMap = @import("mappings.zig").FxMap;
@@ -182,12 +183,12 @@ fn loadDefaultChain(
     if (container_idx) |idx| {
         cont_idx = idx;
     } else {
-        cont_idx = reaper.TrackFX_AddByName(mediaTrack, "Container", false, -1);
+        cont_idx = pReaper.TrackFX_AddByName(.{ mediaTrack, "Container", false, -1 });
         if (cont_idx == -1) {
             return TrckErr.fxAddFail;
         }
         // rename the container
-        const rename_success = reaper.TrackFX_SetNamedConfigParm(mediaTrack, cont_idx, "renamed_name", constants.CONTROLLER_NAME);
+        const rename_success = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, cont_idx, "renamed_name", constants.CONTROLLER_NAME });
         if (!rename_success) {
             return TrckErr.fxRenameFail;
         }
@@ -202,17 +203,17 @@ fn loadDefaultChain(
             reaper.TrackFX_GetByName(mediaTrack, constants.CONTROLLER_NAME, false) + 1, // make it 1-based
             mediaTrack);
 
-        const fx_added = reaper.TrackFX_AddByName(
+        const fx_added = pReaper.TrackFX_AddByName(.{
             mediaTrack,
             @as([*:0]const u8, fxName),
             false,
             insertIdx,
-        );
+        });
         if (fx_added == -1) {
             return TrckErr.fxAddFail;
         } else {
             if (field.key != ModulesList.INPUT and field.key != ModulesList.OUTPT) {
-                reaper.TrackFX_SetEnabled(mediaTrack, insertIdx, false);
+                pReaper.TrackFX_SetEnabled(.{ mediaTrack, insertIdx, false });
             }
             switch (field.key) {
                 .INPUT => self.fxMap.INPUT = .{ idx, globals.map_store.get(fxName, field.key).INPUT },
@@ -294,14 +295,14 @@ pub fn addMissingModules(
                 .OUTPT => 4,
             };
 
-            const fx_added = reaper.TrackFX_AddByName(
+            const fx_added = pReaper.TrackFX_AddByName(.{
                 mediaTrack,
                 @as([*:0]const u8, defaultFX),
                 false,
                 self.getSubContainerIdx(subidx + 1, // make it 1-based
                     reaper.TrackFX_GetByName(mediaTrack, constants.CONTROLLER_NAME, false) + 1, // make it 1-based
                     mediaTrack),
-            );
+            });
             if (fx_added == -1) {
                 return TrckErr.fxAddFail;
             }
@@ -379,14 +380,14 @@ pub fn validateTrack(
         switch (moduleType) {
             .INPUT => {
                 if (idx != 0) {
-                    reaper.TrackFX_CopyToTrack(
+                    pReaper.TrackFX_CopyToTrack(.{
                         tr,
                         self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, container_idx + 1, mediaTrack),
                         tr,
 
                         self.getSubContainerIdx(0 + 1, container_idx + 1, mediaTrack),
                         true,
-                    );
+                    });
                     // now that the fx indexes are all invalid, let's recurse.
                     return try self.validateTrack(newOrder, mediaTrack, newRouting);
                 } else {
@@ -395,13 +396,13 @@ pub fn validateTrack(
             },
             .OUTPT => {
                 if (idx != (count - 1)) {
-                    reaper.TrackFX_CopyToTrack(
+                    pReaper.TrackFX_CopyToTrack(.{
                         tr,
                         self.getSubContainerIdx(@as(u8, @intCast(idx)) + 1, container_idx + 1, mediaTrack),
                         tr,
                         self.getSubContainerIdx(@as(u8, @intCast(count)), container_idx + 1, mediaTrack),
                         true,
-                    );
+                    });
                     // now that the fx indexes are all invalid, let's recurse.
                     return try self.validateTrack(newOrder, mediaTrack, newRouting);
                 } else {
@@ -420,13 +421,13 @@ pub fn validateTrack(
     if (eq < gt and eq < cp) {
         if (cp < gt) {
             // move the gate to be before the compressor
-            reaper.TrackFX_CopyToTrack(
+            pReaper.TrackFX_CopyToTrack(.{
                 tr,
                 self.getSubContainerIdx(gt + 1, container_idx + 1, mediaTrack),
                 tr,
                 self.getSubContainerIdx(cp + 1, container_idx + 1, mediaTrack),
                 true,
-            );
+            });
             // update indexes
             moduleChecks.set(.GATE, .{ true, cp });
             moduleChecks.set(.COMP, .{ true, cp + 1 });
@@ -440,13 +441,13 @@ pub fn validateTrack(
         }
     } else if (cp < eq and cp < gt) {
         // mv cmp after the gate
-        reaper.TrackFX_CopyToTrack(
+        pReaper.TrackFX_CopyToTrack(.{
             tr,
             self.getSubContainerIdx(cp + 1, container_idx + 1, mediaTrack),
             tr,
             self.getSubContainerIdx(gt + 1, container_idx + 1, mediaTrack),
             true,
-        );
+        });
         moduleChecks.set(.COMP, .{ true, gt });
         moduleChecks.set(.GATE, .{ true, gt - 1 });
         moduleChecks.set(.EQ, .{ true, eq - 1 });
@@ -475,23 +476,23 @@ pub fn reorder(self: *@This(), tr: reaper.MediaTrack, newOrder: ModulesOrder, co
     switch (newOrder) {
         .@"EQ-S-C" => {
             // move eq before gate
-            reaper.TrackFX_CopyToTrack(
+            pReaper.TrackFX_CopyToTrack(.{
                 tr,
                 self.getSubContainerIdx(eq + 1, container_idx + 1, tr),
                 tr,
                 self.getSubContainerIdx(gt + 1, container_idx + 1, tr),
                 true,
-            );
+            });
         },
         .@"S-C-EQ" => {
             // move eq after compressor
-            reaper.TrackFX_CopyToTrack(
+            pReaper.TrackFX_CopyToTrack(.{
                 tr,
                 self.getSubContainerIdx(eq + 1, container_idx + 1, tr),
                 tr,
                 self.getSubContainerIdx(cp + 1, container_idx + 1, tr),
                 true,
-            );
+            });
         },
         .@"S-EQ-C" => {
             { // move eq before compressor
@@ -517,7 +518,7 @@ fn setChanStripSC(self: *@This(), tr: reaper.MediaTrack, container_idx: c_int, m
     _ = reaper.TrackFX_GetIOSize(tr, container_idx, &inputPinsOut, &outputPinsOut);
     const trIns = reaper.GetMediaTrackInfo_Value(tr, "I_NCHAN");
     if (trIns < 4) {
-        _ = reaper.SetMediaTrackInfo_Value(tr, "I_NCHAN", @as(f64, 4));
+        _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "I_NCHAN", @as(f64, 4) });
     }
     _ = reaper.TrackFX_GetNamedConfigParm(tr, container_idx, "container_nch", &buf, buf.len);
     const num = std.mem.span(@as([*:0]const u8, &buf));
@@ -527,8 +528,8 @@ fn setChanStripSC(self: *@This(), tr: reaper.MediaTrack, container_idx: c_int, m
             // create a container with 4 channels - mapping i/o should be automatic
             // WARNING: for custom fx mappings (i.e. non-stock plugins),
             // is the i/o setup really automatic?
-            _ = reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch", "4");
-            _ = reaper.TrackFX_SetNamedConfigParm(tr, container_idx, "container_nch_in", "4");
+            _ = pReaper.TrackFX_SetNamedConfigParm(.{ tr, container_idx, "container_nch", "4" });
+            _ = pReaper.TrackFX_SetNamedConfigParm(.{ tr, container_idx, "container_nch_in", "4" });
         }
     }
 
@@ -638,7 +639,7 @@ fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
                     .turnOn => connected = isConnected,
                     else => {
                         low32 = low32 - channelMask; // disconnect
-                        const pinSuccess = reaper.TrackFX_SetPinMappings(tr, subIdx, isOutput, channel, low32, hi32);
+                        const pinSuccess = pReaper.TrackFX_SetPinMappings(.{ tr, subIdx, isOutput, channel, low32, hi32 });
                         connected = if (pinSuccess) !isConnected else isConnected;
                     },
                 }
@@ -647,7 +648,7 @@ fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
                     .turnOff => connected = isConnected,
                     else => {
                         low32 = low32 + channelMask; // connect
-                        const pinSuccess = reaper.TrackFX_SetPinMappings(tr, subIdx, isOutput, channel, low32, hi32);
+                        const pinSuccess = pReaper.TrackFX_SetPinMappings(.{ tr, subIdx, isOutput, channel, low32, hi32 });
                         connected = if (pinSuccess) !isConnected else isConnected;
                     },
                 }
