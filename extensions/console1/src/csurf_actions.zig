@@ -22,7 +22,6 @@ pub const ParamChg = struct {
 pub const CsurfAction = union(enum) {
     track_selected: struct { tr: reaper.MediaTrack, selected: bool },
     last_touched_track: reaper.MediaTrack,
-    track_list_changed,
     play_state_changed: struct {
         playing: bool,
         paused: bool,
@@ -96,9 +95,6 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
             } else {
                 // Stop meters update timer
             }
-        },
-        .track_list_changed => {
-            actions.dispatch(&globals.state, .{ .track_list = .refresh });
         },
         else => {},
     }

@@ -130,7 +130,7 @@ export fn zSetTrackListChange() callconv(.C) void {
         .timestamp = std.time.milliTimestamp(),
         .data = .{ .none = {} },
     } }});
-    actions.dispatch(&globals.state, .{ .Csurf = .track_list_changed });
+    actions.dispatch(&globals.state, .{ .track_list = .refresh });
 }
 
 inline fn FIXID(trackid: MediaTrack) c_int {
