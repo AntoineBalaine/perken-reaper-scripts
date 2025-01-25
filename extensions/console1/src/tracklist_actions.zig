@@ -22,7 +22,8 @@ const actions = @import("actions.zig");
 
 pub const TrackListAction = union(enum) {
     page_change: PgDirection,
-    track_select: u8,
+    /// API Setter: tell reaper to unselect all tracks other than the csurf_id passed.
+    track_select: c_int,
     blink_leds: struct {
         blink_state: bool,
         midi_out: reaper.midi_Output,
@@ -33,29 +34,29 @@ pub const TrackListAction = union(enum) {
 pub fn trackListAction(state: *State, action: TrackListAction) void {
     switch (action) {
         .page_change => |direction| handlePageChange(state, direction),
-        .track_select => |track_idx| {
-            const track = setReaperTrackSelection(state, track_idx);
+        .track_select => |track_id| {
+            const track = setReaperTrackSelection(track_id);
             if (track) |tr| {
                 actions.dispatch(state, .{ .fx_ctrl = .{ .update_console_for_track = tr } });
             }
         },
         .blink_leds => |led_state| {
             const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
-            const track_count = reaper.CountTracks(0);
+            const track_count = reaper.CountTracks(0) + 1; // +  1 to account for master
 
             // Iterate through track buttons in current page
             var i: usize = 0;
             while (i < TrackList.PageSize) : (i += 1) {
-                const track_idx = page_start + i;
-                if (track_idx >= track_count) break;
+                const track_id: c_int = @intCast(page_start + i);
+                if (track_id >= track_count) break;
 
                 // Skip if this is the last touched track
-                if (track_idx == state.last_touched_tr_id) {
+                if (track_id == state.last_touched_tr_id) {
                     continue;
                 }
 
                 // If track is selected, blink its LED
-                if (state.selectedTracks.contains(@intCast(track_idx))) {
+                if (state.selectedTracks.contains(track_id)) {
                     const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(i));
                     const value: u8 = if (led_state.blink_state) 0x7f else 0x0;
                     c.MidiOut_Send(led_state.midi_out, 0xb0, cc, value, -1);
@@ -106,7 +107,7 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
 const PgDirection = enum { up, down };
 
 fn handlePageChange(state: *State, direction: PgDirection) void {
-    const track_count = reaper.CountTracks(0);
+    const track_count = reaper.CountTracks(0) + 1; // + 1 to account for master
     if (track_count <= 0) return;
 
     // Calculate total pages (ceiling division)
@@ -144,12 +145,14 @@ fn updateTrackNames(state: *State) void {
     // Get names for tracks in current page
     var i: usize = 0;
     while (i < TrackList.PageSize) : (i += 1) {
-        const track_idx = page_start + i;
+        const track_id: c_int = @intCast(page_start + i);
 
-        if (track_idx >= reaper.CountTracks(0)) break;
+        if (track_id >= reaper.CountTracks(0) + 1) break; // +  1 to account for master
 
-        const track = reaper.GetTrack(0, @intCast(track_idx));
-        _ = reaper.GetTrackName(track, &state.fx_ctrl.track_list.track_names[i], TrackList.TrackNameSize);
+        // ASSUMPTION: csurf track ids are sequential, start 0 for master track
+        const track = reaper.CSurf_TrackFromID(@intCast(track_id), constants.g_csurf_mcpmode);
+        state.fx_ctrl.track_list.track_names[i].id = track_id;
+        _ = reaper.GetTrackName(track, &state.fx_ctrl.track_list.track_names[i].name, TrackList.TrackNameSize);
         state.fx_ctrl.track_list.name_count += 1;
     }
 }
@@ -200,15 +203,14 @@ fn focusPageTracks(state: *State) void {
 }
 
 // unselect all other tracks.
-fn setReaperTrackSelection(state: *State, idx: u8) ?reaper.MediaTrack {
+fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
     // 1. Check if index is valid
-    const track_count = reaper.CountTracks(0);
-    if (idx >= track_count) {
-        log.warn("invalid track index: track {d} doesn't exist\n", .{idx});
+    const track_count = reaper.CountTracks(0) + 1; // +  1 to account for master
+    if (csurf_id >= track_count) {
+        log.warn("invalid track index: track {d} doesn't exist\n", .{csurf_id});
     }
 
     // First unselect all tracks
-
     var it = globals.state.selectedTracks.iterator();
     while (it.next()) |entry| {
         const tr_id = entry.key_ptr.*;
@@ -217,12 +219,9 @@ fn setReaperTrackSelection(state: *State, idx: u8) ?reaper.MediaTrack {
     }
     globals.state.selectedTracks.clearRetainingCapacity();
 
-    const media_track = reaper.GetTrack(0, idx);
-    const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
+    const media_track = reaper.CSurf_TrackFromID(csurf_id, constants.g_csurf_mcpmode);
 
-    globals.state.selectedTracks.put(globals.allocator, id, {}) catch {};
-    // 2. Don't unselect if same track (your existing check)
-    if (id == state.last_touched_tr_id) return null;
+    globals.state.selectedTracks.put(globals.allocator, csurf_id, {}) catch {};
 
     reaper.CSurf_SetSurfaceSelected(media_track, reaper.CSurf_OnSelectedChange(media_track, 1), @ptrCast(csurf.my_csurf));
     return media_track;

@@ -128,21 +128,9 @@ pub fn updateTrackListLEDs(midi_out: reaper.midi_Output) void {
     const page_start = globals.state.fx_ctrl.current_page * 20;
     var it = globals.state.selectedTracks.iterator();
     while (it.next()) |entry| {
-        const track_idx = utils.getTrackIndex(reaper.CSurf_TrackFromID(entry.key_ptr.*, constants.g_csurf_mcpmode));
-        if (track_idx) |idx| {
-            if (idx >= page_start and idx < page_start + 20) {
-                const button_idx = idx - page_start;
-                const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
-                c.MidiOut_Send(midi_out, 0xb0, cc, 0x7f, -1);
-            }
-        }
-    }
-
-    // Always light up last touched track if it's on this page
-    const track_idx = utils.getTrackIndex(reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode));
-    if (track_idx) |idx| {
-        if (idx >= page_start and idx < page_start + 20) {
-            const button_idx = idx - page_start;
+        const track_id = entry.key_ptr.*;
+        if (track_id >= page_start and track_id < page_start + 20) {
+            const button_idx = track_id - page_start;
             const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
             c.MidiOut_Send(midi_out, 0xb0, cc, 0x7f, -1);
         }
@@ -163,8 +151,6 @@ pub fn blinkSelectedTrks(midi_out: reaper.midi_Output) void {
         var it = globals.state.selectedTracks.iterator();
         while (it.next()) |entry| {
             const track_idx = entry.key_ptr.*;
-            // Skip last touched track
-            if (track_idx == globals.state.last_touched_tr_id) continue;
 
             if (track_idx >= page_start and track_idx < page_start + 20) {
                 const button_idx = track_idx - page_start;

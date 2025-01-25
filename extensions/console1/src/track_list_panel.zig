@@ -9,7 +9,7 @@ const TrackList = @import("fx_ctrl_state.zig").TrackList;
 const PushWindowStyle = styles.PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const TrackListPanelAction = union(enum) {
-    select_track: usize,
+    select_track: c_int,
     open_module_browser: ModulesList,
     open_settings,
 };
@@ -24,12 +24,12 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
     if (try imgui.Begin(.{ ctx, "Track List" })) {
         defer imgui.End(.{ctx}) catch {};
 
-        const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
         var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
 
-        for (state.fx_ctrl.track_list.track_names, 0..) |name, i| {
-            const track_number = page_start + i + 1;
-            const is_selected = state.selectedTracks.contains(@intCast(track_number));
+        for (state.fx_ctrl.track_list.track_names, 0..) |tr, i| {
+            const name = tr.name;
+            const tr_id = tr.id;
+            const is_selected = state.selectedTracks.contains(@intCast(tr_id));
 
             // Special handling for modifier keys
             if (modifier_active and (i < 5 or i == 19)) {
@@ -72,7 +72,7 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
             const label = try safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
             if (try imgui.Selectable(.{ ctx, label })) {
-                action = .{ .select_track = track_number };
+                action = .{ .select_track = tr_id };
             }
         }
     }

@@ -82,7 +82,7 @@ fn main() !void {
                             .select_track => |track_number| {
                                 actions.dispatch(
                                     &globals.state,
-                                    .{ .track_list = .{ .track_select = @as(u8, @intCast(track_number)) } },
+                                    .{ .track_list = .{ .track_select = track_number } },
                                 );
                             },
                             .open_module_browser => |module| {

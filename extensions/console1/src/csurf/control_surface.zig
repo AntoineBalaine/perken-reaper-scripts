@@ -29,8 +29,6 @@ pub var controller_dir: [*:0]const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
-var blink_frame: u8 = 0;
-var blink_state: bool = false;
 pub var ignore_notifications = false;
 
 pub var my_csurf: c.C_ControlSurface = undefined;
@@ -111,14 +109,11 @@ export fn zRun() callconv(.C) void {
         }
     }
 
-    if (globals.m_midi_out) |_| {
-        if (globals.state.current_mode == .fx_ctrl) {
-            blinkSelTrksLEDs(&blink_frame, &blink_state);
+    if (globals.state.current_mode == .fx_ctrl and globals.state.selectedTracks.count() > 1) {
+        actions.dispatch(&globals.state, .{ .midi_out = .blink });
+        if (globals.playState and !globals.pauseState) {
+            actions.dispatch(&globals.state, .{ .midi_out = .queryMeters });
         }
-        if (!globals.playState or (globals.pauseState)) return;
-        // TODO: CALL midi_out.queryMeters.
-
-        actions.dispatch(&globals.state, .{ .midi_out = .queryMeters });
     }
 }
 
@@ -274,21 +269,6 @@ export fn zResetCachedVolPanStates() callconv(.C) void {
         .data = .{ .none = {} },
     } }});
     globals.state.fx_ctrl.vol_lastpos = 0;
-}
-
-pub fn blinkSelTrksLEDs(frame: *u8, blink_state_: *bool) void {
-    if (globals.state.current_mode != .fx_ctrl) return;
-
-    frame.* +%= 1;
-    if (frame.* == 30) {
-        frame.* = 0;
-        blink_state_.* = !blink_state_.*;
-
-        actions.dispatch(&globals.state, .{ .track_list = .{ .blink_leds = .{
-            .blink_state = blink_state_.*,
-            .midi_out = globals.m_midi_out.?,
-        } } });
-    }
 }
 
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {

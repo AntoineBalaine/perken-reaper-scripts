@@ -16,7 +16,7 @@ pub const TrackList = struct {
     pub const PageSize = 20;
 
     // Fixed size buffer for track names
-    track_names: [PageSize][TrackNameSize:0]u8,
+    track_names: [PageSize]struct { id: c_int, name: [TrackNameSize:0]u8 },
     name_count: usize = 0,
     blink_counter: u8 = 0, // For LED blinking
 
@@ -83,7 +83,8 @@ display: ?u8 = null,
 vol_lastpos: u8 = 0,
 
 /// Paging
-current_page: u8 = 0, // 0-based page number
+/// 0-based page number
+current_page: u8 = 0,
 track_list: TrackList,
 
 pub fn init(gpa: std.mem.Allocator) FxControlState {
