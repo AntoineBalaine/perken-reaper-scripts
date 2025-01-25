@@ -131,31 +131,6 @@ pub fn deinit(self: *@This()) void {
     self.values.deinit();
 }
 
-pub fn getTrackOffset(self: @This()) usize {
-    return self.current_page * 20;
-}
-
-pub fn getPageForTrack(track_number: usize) u8 {
-    return @intCast(track_number / 20);
-}
-
-pub fn isTrackInCurrentPage(self: @This(), track_number: usize) bool {
-    const page_start = self.getTrackOffset();
-    return track_number >= page_start and track_number < page_start + 20;
-}
-
-// Helper to update a parameter value
-pub fn updateParam(self: *@This(), cc: c1.CCs, normalized: f64, formatted: ?[]const u8) void {
-    if (self.values.getPtr(cc)) |value| {
-        if (value.* == .param) {
-            value.param.normalized = normalized;
-            if (formatted) |fmt| {
-                value.param.formatted = fmt;
-            }
-        }
-    }
-}
-
 // Tuple contains: isLoaded, idxInContainer
 pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
 const TrckErr = error{ fxAddFail, fxRenameFail, moduleFindFail, fxFindNameFail, fxHasNoName, enumConvertFail };
