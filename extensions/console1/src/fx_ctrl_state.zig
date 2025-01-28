@@ -8,6 +8,7 @@ const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const FxMap = @import("mappings.zig").FxMap;
 const globals = @import("globals.zig");
 const constants = @import("constants.zig");
+const validation = @import("fx_ctrl_validation.zig");
 
 // Mode-specific state structures
 const FxControlState = @This();
@@ -293,6 +294,10 @@ pub fn validateTrack(
     mediaTrack: reaper.MediaTrack,
     reRoute: ?SCRouting,
 ) !void {
+    var trackState: validation.TrackState = .{};
+    validation.validateTrack(&trackState, mediaTrack, globals.allocator) catch {
+        return;
+    };
     var newRouting = reRoute;
     const tr = mediaTrack;
     var container_idx = reaper.TrackFX_GetByName(tr, constants.CONTROLLER_NAME, false);
