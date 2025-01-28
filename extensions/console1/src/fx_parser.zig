@@ -94,31 +94,31 @@ fn toPluginsByType(allocator: std.mem.Allocator, plugin_list: PluginsList) !FxBy
 
 fn parseFX(name: [:0]const u8) ?FxType {
     var fxtype: ?FxType = null;
-    if (std.mem.eql(u8, name[0..4], "VST:")) {
+    if (std.mem.startsWith(u8, name, "VST:")) {
         fxtype = FxType.VST;
-    } else if (std.mem.eql(u8, name[0..5], "VSTi:")) {
+    } else if (std.mem.startsWith(u8, name, "VSTi:")) {
         fxtype = FxType.VSTi;
-    } else if (std.mem.eql(u8, name[0..5], "VST3:")) {
+    } else if (std.mem.startsWith(u8, name, "VST3:")) {
         fxtype = FxType.VST3;
-    } else if (std.mem.eql(u8, name[0..6], "VST3i:")) {
+    } else if (std.mem.startsWith(u8, name, "VST3i:")) {
         fxtype = FxType.VST3i;
-    } else if (std.mem.eql(u8, name[0..3], "JS:")) {
+    } else if (std.mem.startsWith(u8, name, "JS:")) {
         fxtype = FxType.JS;
-    } else if (std.mem.eql(u8, name[0..3], "AU:")) {
+    } else if (std.mem.startsWith(u8, name, "AU:")) {
         fxtype = FxType.AU;
-    } else if (std.mem.eql(u8, name[0..4], "AUi:")) {
+    } else if (std.mem.startsWith(u8, name, "AUi:")) {
         fxtype = FxType.AUi;
-    } else if (std.mem.eql(u8, name[0..5], "CLAP:")) {
+    } else if (std.mem.startsWith(u8, name, "CLAP:")) {
         fxtype = FxType.CLAP;
-    } else if (std.mem.eql(u8, name[0..6], "CLAPi:")) {
+    } else if (std.mem.startsWith(u8, name, "CLAPi:")) {
         fxtype = FxType.CLAPi;
-    } else if (std.mem.eql(u8, name[0..4], "LV2:")) {
+    } else if (std.mem.startsWith(u8, name, "LV2:")) {
         fxtype = FxType.LV2;
-    } else if (std.mem.eql(u8, name[0..5], "LV2i:")) {
+    } else if (std.mem.startsWith(u8, name, "LV2i:")) {
         fxtype = FxType.LV2i;
-    } else if (std.mem.eql(u8, name[0..9], "Container")) {
+    } else if (std.mem.startsWith(u8, name, "Container")) {
         fxtype = FxType.Container;
-    } else if (std.mem.eql(u8, name[0..15], "Video processor")) {
+    } else if (std.mem.startsWith(u8, name, "Video processor")) {
         fxtype = FxType.VideoProcessor;
     }
     return fxtype;
