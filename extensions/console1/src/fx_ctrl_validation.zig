@@ -1,5 +1,7 @@
 const std = @import("std");
 const reaper = @import("reaper.zig").reaper;
+const pReaper = @import("pReaper.zig");
+const MediaTrack = reaper.MediaTrack;
 const ModulesList = @import("statemachine.zig").ModulesList;
 const globals = @import("globals.zig");
 const MapStore = @import("mappings.zig");
@@ -179,6 +181,171 @@ fn analyzeCoverage(parsed_fx: []const ParsedFx) !ModuleCoverage {
     }
 
     return coverage;
+}
+
+fn removeDuplicateModule(
+    fx_name: [:0]const u8,
+    fx_index: i32,
+    module_to_remove: ModulesList,
+    media_track: MediaTrack,
+) void {
+    var buf: [512]u8 = undefined;
+
+    const suffix_start = std.mem.lastIndexOf(u8, fx_name, "(C1-").?;
+    const suffix_end = std.mem.indexOfPos(u8, fx_name, suffix_start, ")").?;
+
+    _ = std.fmt.bufPrintZ(&buf, "{s}(C1-", .{
+        fx_name[0..suffix_start],
+    }) catch return;
+
+    var pos = suffix_start + 4;
+    for (fx_name[suffix_start + 4 .. suffix_end]) |c| {
+        if (pos >= buf.len - 1) break; // Ensure room for null terminator
+
+        switch (module_to_remove) {
+            .INPUT => if (c == 'I') continue,
+            .GATE => if (c == 'S') continue,
+            .EQ => if (c == 'E') continue,
+            .COMP => if (c == 'C') continue,
+            .OUTPT => if (c == 'O') continue,
+        }
+        buf[pos] = c;
+        pos += 1;
+    }
+
+    const new_name = std.fmt.bufPrintZ(buf[pos..], "){s}", .{
+        fx_name[suffix_end + 1 ..],
+    }) catch return;
+
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, fx_index, "renamed_name", new_name });
+}
+
+var last_fx_name: ?[]const u8 = null;
+
+fn mockTrackFX_SetNamedConfigParm(
+    track: reaper.MediaTrack,
+    fx_index: c_int,
+    parm_name: [*:0]const u8,
+    parm_value: [*:0]const u8,
+) callconv(.C) bool {
+    _ = fx_index; // autofix
+    _ = track;
+    if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+        last_fx_name = std.mem.span(parm_value);
+    }
+    return true;
+}
+
+test "removeDuplicateModule" {
+    const testing = std.testing;
+
+    // Save original function pointer and replace with mock
+    const real_fn = reaper.TrackFX_SetNamedConfigParm;
+    @constCast(&reaper.TrackFX_SetNamedConfigParm).* = @constCast(&mockTrackFX_SetNamedConfigParm);
+    defer @constCast(&reaper.TrackFX_SetNamedConfigParm).* = real_fn;
+
+    const dummy_track: MediaTrack = @ptrCast(@alignCast(@as(*anyopaque, @constCast(&[_]u8{0}))));
+
+    // Test 1: Remove INPUT module from a multi-module suffix
+    {
+        const orig_name = "ReaComp (C1-IC)";
+        removeDuplicateModule(orig_name, 0, .INPUT, dummy_track);
+        try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-C)"));
+    }
+
+    // Test 2: Remove middle module
+    {
+        const orig_name = "ReaEQ (C1-SEC)";
+        removeDuplicateModule(orig_name, 1, .EQ, dummy_track);
+        try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaEQ (C1-SC)"));
+    }
+
+    // Test 3: FX name with text after suffix
+    {
+        const orig_name = "ReaComp (C1-IC) my settings";
+        removeDuplicateModule(orig_name, 2, .INPUT, dummy_track);
+        try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-C) my settings"));
+    }
+
+    // Test 4: Single module suffix
+    {
+        const orig_name = "ReaComp (C1-C)";
+        removeDuplicateModule(orig_name, 3, .COMP, dummy_track);
+        try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-)"));
+    }
+}
+
+test "analyzeCoverage" {
+    const testing = std.testing;
+
+    // Test case 1: Valid coverage with no duplicates
+    {
+        const parsed_fx = [_]ParsedFx{
+            .{
+                .index = 0,
+                .original_name = "Test FX 1",
+                .renamed_name = "Test FX 1",
+                .active_modules = .{
+                    .INPUT = true,
+                    .GATE = false,
+                    .EQ = false,
+                    .COMP = false,
+                    .OUTPT = false,
+                },
+            },
+            .{
+                .index = 1,
+                .original_name = "Test FX 2",
+                .renamed_name = "Test FX 2",
+                .active_modules = .{
+                    .INPUT = false,
+                    .GATE = true,
+                    .EQ = false,
+                    .COMP = false,
+                    .OUTPT = false,
+                },
+            },
+        };
+
+        const coverage = try analyzeCoverage(&parsed_fx);
+        try testing.expect(coverage.covered.INPUT == true);
+        try testing.expect(coverage.covered.GATE == true);
+        try testing.expect(coverage.covered.EQ == false);
+        try testing.expect(coverage.providers.INPUT == 0);
+        try testing.expect(coverage.providers.GATE == 1);
+    }
+
+    // Test case 2: Duplicate module (should error)
+    {
+        const parsed_fx = [_]ParsedFx{
+            .{
+                .index = 0,
+                .original_name = "Test FX 1",
+                .renamed_name = "Test FX 1",
+                .active_modules = .{
+                    .INPUT = true,
+                    .GATE = false,
+                    .EQ = false,
+                    .COMP = false,
+                    .OUTPT = false,
+                },
+            },
+            .{
+                .index = 1,
+                .original_name = "Test FX 2",
+                .renamed_name = "Test FX 2",
+                .active_modules = .{
+                    .INPUT = true, // Duplicate INPUT module
+                    .GATE = false,
+                    .EQ = false,
+                    .COMP = false,
+                    .OUTPT = false,
+                },
+            },
+        };
+
+        try testing.expectError(error.DuplicateModule, analyzeCoverage(&parsed_fx));
+    }
 }
 
 fn addMissingModules(
