@@ -93,7 +93,7 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, al
         });
     }
 
-    const coverage = try analyzeCoverage(parsed_fx.items);
+    const coverage = try analyzeCoverage(parsed_fx.items, mediaTrack);
     try addMissingModules(&parsed_fx, coverage, mediaTrack, allocator);
 
     try reorderFx(parsed_fx.items, mediaTrack, allocator);
@@ -158,7 +158,10 @@ const ModuleCoverage = struct {
     } = .{},
 };
 
-fn analyzeCoverage(parsed_fx: []const ParsedFx) !ModuleCoverage {
+fn analyzeCoverage(
+    parsed_fx: []const ParsedFx,
+    media_track: MediaTrack,
+) !ModuleCoverage {
     var coverage = ModuleCoverage{};
 
     for (parsed_fx) |fx| {
@@ -169,12 +172,13 @@ fn analyzeCoverage(parsed_fx: []const ParsedFx) !ModuleCoverage {
                 if (is_active) {
                     // Check if module already covered
                     if (@field(coverage.covered, field.name)) {
-                        return error.DuplicateModule;
+                        const module = @field(ModulesList, field.name);
+                        removeDuplicateModule(fx.renamed_name, fx.index, module, media_track);
+                    } else {
+                        // Mark as covered and record provider
+                        @field(coverage.covered, field.name) = true;
+                        @field(coverage.providers, field.name) = fx.index;
                     }
-
-                    // Mark as covered and record provider
-                    @field(coverage.covered, field.name) = true;
-                    @field(coverage.providers, field.name) = fx.index;
                 }
             }
         }
@@ -213,13 +217,14 @@ fn removeDuplicateModule(
         pos += 1;
     }
 
-    const new_name = std.fmt.bufPrintZ(buf[pos..], "){s}", .{
+    _ = std.fmt.bufPrintZ(buf[pos..], "){s}", .{
         fx_name[suffix_end + 1 ..],
     }) catch return;
 
-    _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, fx_index, "renamed_name", new_name });
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, fx_index, "renamed_name", @as([:0]const u8, @ptrCast(&buf)) });
 }
 
+var mock_buffer: [512]u8 = undefined;
 var last_fx_name: ?[]const u8 = null;
 
 fn mockTrackFX_SetNamedConfigParm(
@@ -231,7 +236,9 @@ fn mockTrackFX_SetNamedConfigParm(
     _ = fx_index; // autofix
     _ = track;
     if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
-        last_fx_name = std.mem.span(parm_value);
+        const value = std.mem.span(parm_value);
+        @memcpy(mock_buffer[0..value.len], value);
+        last_fx_name = mock_buffer[0..value.len];
     }
     return true;
 }
@@ -277,6 +284,7 @@ test "removeDuplicateModule" {
 
 test "analyzeCoverage" {
     const testing = std.testing;
+    const dummy_track: MediaTrack = @ptrCast(@alignCast(@as(*anyopaque, @constCast(&[_]u8{0}))));
 
     // Test case 1: Valid coverage with no duplicates
     {
@@ -284,7 +292,7 @@ test "analyzeCoverage" {
             .{
                 .index = 0,
                 .original_name = "Test FX 1",
-                .renamed_name = "Test FX 1",
+                .renamed_name = "Test FX 1 (C1-I)",
                 .active_modules = .{
                     .INPUT = true,
                     .GATE = false,
@@ -296,7 +304,7 @@ test "analyzeCoverage" {
             .{
                 .index = 1,
                 .original_name = "Test FX 2",
-                .renamed_name = "Test FX 2",
+                .renamed_name = "Test FX 2 (C1-S)",
                 .active_modules = .{
                     .INPUT = false,
                     .GATE = true,
@@ -307,7 +315,7 @@ test "analyzeCoverage" {
             },
         };
 
-        const coverage = try analyzeCoverage(&parsed_fx);
+        const coverage = try analyzeCoverage(&parsed_fx, dummy_track);
         try testing.expect(coverage.covered.INPUT == true);
         try testing.expect(coverage.covered.GATE == true);
         try testing.expect(coverage.covered.EQ == false);
@@ -321,7 +329,7 @@ test "analyzeCoverage" {
             .{
                 .index = 0,
                 .original_name = "Test FX 1",
-                .renamed_name = "Test FX 1",
+                .renamed_name = "Test FX 1 (C1-I)",
                 .active_modules = .{
                     .INPUT = true,
                     .GATE = false,
@@ -333,7 +341,7 @@ test "analyzeCoverage" {
             .{
                 .index = 1,
                 .original_name = "Test FX 2",
-                .renamed_name = "Test FX 2",
+                .renamed_name = "Test FX 2 (C1-I)",
                 .active_modules = .{
                     .INPUT = true, // Duplicate INPUT module
                     .GATE = false,
@@ -344,7 +352,7 @@ test "analyzeCoverage" {
             },
         };
 
-        try testing.expectError(error.DuplicateModule, analyzeCoverage(&parsed_fx));
+        try testing.expectError(error.DuplicateModule, analyzeCoverage(&parsed_fx, dummy_track));
     }
 }
 
