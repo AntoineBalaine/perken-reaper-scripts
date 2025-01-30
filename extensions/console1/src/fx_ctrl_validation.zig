@@ -10,6 +10,8 @@ const Shp = MapStore.Shp;
 const Eq = MapStore.Eq;
 const Comp = MapStore.Comp;
 const Outpt = MapStore.Outpt;
+const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
+const DefaultFx = @import("preferences.zig").DefaultFx;
 const MAX_FX = 5;
 
 const ValidationErr = error{
@@ -52,12 +54,11 @@ const ActiveModules = packed struct {
 
 const ParsedFx = struct {
     index: i32,
-    original_name: [:0]const u8,
-    renamed_name: [:0]const u8,
     active_modules: ?ActiveModules = null,
 };
 
 pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, allocator: std.mem.Allocator) !void {
+    _ = track_state; // autofix
     var buf: [512:0]u8 = undefined;
 
     // Get total FX count
@@ -70,35 +71,26 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, al
 
     var i: i32 = 0;
     while (i < fx_count) : (i += 1) {
-        // Get original name
-        if (!reaper.TrackFX_GetFXName(mediaTrack, i, &buf, buf.len)) {
-            continue; // Skip if can't get name
+        // Check renamed name first
+        if (reaper.TrackFX_GetNamedConfigParm(mediaTrack, i, "renamed_name", &buf, buf.len)) {
+            const renamed_name = std.mem.span(@as([*:0]const u8, &buf));
+            if (renamed_name.len == 0) continue; // Skip if no rename
+
+            // Parse for C1 modules
+            if (parseC1Suffix(renamed_name)) |active_modules| {
+                try parsed_fx.append(.{
+                    .index = i,
+                    .active_modules = active_modules,
+                });
+            }
         }
-        const original_name = std.mem.span(@as([*:0]const u8, &buf));
-
-        // Get renamed name (if any)
-        const renamed_name: [:0]const u8 = if (reaper.TrackFX_GetNamedConfigParm(mediaTrack, i, "renamed_name", &buf, buf.len))
-            std.mem.span(@as([*:0]const u8, &buf))
-        else
-            original_name;
-
-        // Parse for C1 modules
-        const active_modules = parseC1Suffix(renamed_name);
-
-        try parsed_fx.append(.{
-            .index = i,
-            .original_name = try allocator.dupeZ(u8, original_name),
-            .renamed_name = try allocator.dupeZ(u8, renamed_name),
-            .active_modules = active_modules,
-        });
     }
 
-    const coverage = try analyzeCoverage(parsed_fx.items, mediaTrack);
-    try addMissingModules(&parsed_fx, coverage, mediaTrack, allocator);
+    var coverage = try analyzeCoverage(parsed_fx.items, mediaTrack);
 
-    try reorderFx(parsed_fx.items, mediaTrack, allocator);
+    try reorderFx(&coverage, mediaTrack, globals.preferences.default_fx);
 
-    updateTrackState(track_state, parsed_fx.items);
+    // updateTrackState(track_state, parsed_fx.items);
 }
 
 fn parseC1Suffix(name: [:0]const u8) ?ActiveModules {
@@ -173,7 +165,7 @@ fn analyzeCoverage(
                     // Check if module already covered
                     if (@field(coverage.covered, field.name)) {
                         const module = @field(ModulesList, field.name);
-                        removeDuplicateModule(fx.renamed_name, fx.index, module, media_track);
+                        removeDuplicateModule(fx.index, module, media_track);
                     } else {
                         // Mark as covered and record provider
                         @field(coverage.covered, field.name) = true;
@@ -188,11 +180,18 @@ fn analyzeCoverage(
 }
 
 fn removeDuplicateModule(
-    fx_name: [:0]const u8,
     fx_index: i32,
     module_to_remove: ModulesList,
     media_track: MediaTrack,
 ) void {
+    var name_buf: [512]u8 = undefined;
+
+    // Get current name
+    if (!reaper.TrackFX_GetNamedConfigParm(media_track, fx_index, "renamed_name", @ptrCast(&name_buf), name_buf.len)) {
+        return;
+    }
+    const fx_name = std.mem.span(@as([*:0]const u8, @ptrCast(&name_buf)));
+
     var buf: [512]u8 = undefined;
 
     const suffix_start = std.mem.lastIndexOf(u8, fx_name, "(C1-").?;
@@ -224,8 +223,31 @@ fn removeDuplicateModule(
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, fx_index, "renamed_name", @as([:0]const u8, @ptrCast(&buf)) });
 }
 
+/// test-related
 var mock_buffer: [512]u8 = undefined;
+/// test-related
 var last_fx_name: ?[]const u8 = null;
+/// test-related
+var current_test_name: [:0]const u8 = undefined;
+
+fn mockTrackFX_GetNamedConfigParm(
+    track: reaper.MediaTrack,
+    fx_index: c_int,
+    parm_name: [*:0]const u8,
+    parm_value: [*:0]u8,
+    parm_value_sz: c_int,
+) callconv(.C) bool {
+    _ = fx_index; // autofix
+    _ = track; // autofix
+    if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+        const value = current_test_name;
+        if (value.len >= parm_value_sz) return false;
+        @memcpy(@as([*]u8, @ptrCast(parm_value))[0..value.len], value);
+        @as([*]u8, @ptrCast(parm_value))[value.len] = 0;
+        return true;
+    }
+    return false;
+}
 
 fn mockTrackFX_SetNamedConfigParm(
     track: reaper.MediaTrack,
@@ -234,7 +256,7 @@ fn mockTrackFX_SetNamedConfigParm(
     parm_value: [*:0]const u8,
 ) callconv(.C) bool {
     _ = fx_index; // autofix
-    _ = track;
+    _ = track; // autofix
     if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
         const value = std.mem.span(parm_value);
         @memcpy(mock_buffer[0..value.len], value);
@@ -246,38 +268,43 @@ fn mockTrackFX_SetNamedConfigParm(
 test "removeDuplicateModule" {
     const testing = std.testing;
 
-    // Save original function pointer and replace with mock
-    const real_fn = reaper.TrackFX_SetNamedConfigParm;
+    // Save original functions and replace with mocks
+    const real_get_fn = reaper.TrackFX_GetNamedConfigParm;
+    const real_set_fn = reaper.TrackFX_SetNamedConfigParm;
+    @constCast(&reaper.TrackFX_GetNamedConfigParm).* = @constCast(&mockTrackFX_GetNamedConfigParm);
     @constCast(&reaper.TrackFX_SetNamedConfigParm).* = @constCast(&mockTrackFX_SetNamedConfigParm);
-    defer @constCast(&reaper.TrackFX_SetNamedConfigParm).* = real_fn;
+    defer {
+        @constCast(&reaper.TrackFX_GetNamedConfigParm).* = real_get_fn;
+        @constCast(&reaper.TrackFX_SetNamedConfigParm).* = real_set_fn;
+    }
 
-    const dummy_track: MediaTrack = @ptrCast(@alignCast(@as(*anyopaque, @constCast(&[_]u8{0}))));
+    const dummy_track: MediaTrack = @ptrFromInt(0xdeadbeef);
 
     // Test 1: Remove INPUT module from a multi-module suffix
     {
-        const orig_name = "ReaComp (C1-IC)";
-        removeDuplicateModule(orig_name, 0, .INPUT, dummy_track);
+        current_test_name = "ReaComp (C1-IC)";
+        removeDuplicateModule(0, .INPUT, dummy_track);
         try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-C)"));
     }
 
     // Test 2: Remove middle module
     {
-        const orig_name = "ReaEQ (C1-SEC)";
-        removeDuplicateModule(orig_name, 1, .EQ, dummy_track);
+        current_test_name = "ReaEQ (C1-SEC)";
+        removeDuplicateModule(1, .EQ, dummy_track);
         try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaEQ (C1-SC)"));
     }
 
     // Test 3: FX name with text after suffix
     {
-        const orig_name = "ReaComp (C1-IC) my settings";
-        removeDuplicateModule(orig_name, 2, .INPUT, dummy_track);
+        current_test_name = "ReaComp (C1-IC) my settings";
+        removeDuplicateModule(2, .INPUT, dummy_track);
         try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-C) my settings"));
     }
 
     // Test 4: Single module suffix
     {
-        const orig_name = "ReaComp (C1-C)";
-        removeDuplicateModule(orig_name, 3, .COMP, dummy_track);
+        current_test_name = "ReaComp (C1-C)";
+        removeDuplicateModule(3, .COMP, dummy_track);
         try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-)"));
     }
 }
@@ -291,8 +318,8 @@ test "analyzeCoverage" {
         const parsed_fx = [_]ParsedFx{
             .{
                 .index = 0,
-                .original_name = "Test FX 1",
-                .renamed_name = "Test FX 1 (C1-I)",
+                // .original_name = "Test FX 1",
+                // .renamed_name = "Test FX 1 (C1-I)",
                 .active_modules = .{
                     .INPUT = true,
                     .GATE = false,
@@ -303,8 +330,8 @@ test "analyzeCoverage" {
             },
             .{
                 .index = 1,
-                .original_name = "Test FX 2",
-                .renamed_name = "Test FX 2 (C1-S)",
+                // .original_name = "Test FX 2",
+                // .renamed_name = "Test FX 2 (C1-S)",
                 .active_modules = .{
                     .INPUT = false,
                     .GATE = true,
@@ -328,8 +355,8 @@ test "analyzeCoverage" {
         const parsed_fx = [_]ParsedFx{
             .{
                 .index = 0,
-                .original_name = "Test FX 1",
-                .renamed_name = "Test FX 1 (C1-I)",
+                // .original_name = "Test FX 1",
+                // .renamed_name = "Test FX 1 (C1-I)",
                 .active_modules = .{
                     .INPUT = true,
                     .GATE = false,
@@ -340,8 +367,8 @@ test "analyzeCoverage" {
             },
             .{
                 .index = 1,
-                .original_name = "Test FX 2",
-                .renamed_name = "Test FX 2 (C1-I)",
+                // .original_name = "Test FX 2",
+                // .renamed_name = "Test FX 2 (C1-I)",
                 .active_modules = .{
                     .INPUT = true, // Duplicate INPUT module
                     .GATE = false,
@@ -356,149 +383,26 @@ test "analyzeCoverage" {
     }
 }
 
-fn addMissingModules(
-    parsed_fx: *std.ArrayList(ParsedFx),
-    coverage: ModuleCoverage,
-    mediaTrack: reaper.MediaTrack,
-    allocator: std.mem.Allocator,
-) !void {
-    var buf: [512:0]u8 = undefined;
-
-    // Check each module
-    inline for (std.meta.fields(@TypeOf(coverage.covered))) |field| {
-        if (!@field(coverage.covered, field.name)) {
-            // Get default FX for this module
-            const default_fx = globals.preferences.default_fx.get(@field(ModulesList, field.name));
-
-            // Add FX to track
-            const fx_index = reaper.TrackFX_AddByName(
-                mediaTrack,
-                default_fx,
-                false,
-                -1, // Add to end of chain
-            );
-            if (fx_index < 0) return error.FxAddFailed;
-
-            // Create C1 suffix for this module
-            const suffix = try std.fmt.bufPrintZ(
-                &buf,
-                "(C1-{c})",
-                .{if (comptime std.mem.eql(u8, field.name, "INPUT"))
-                    'I'
-                else if (comptime std.mem.eql(u8, field.name, "GATE"))
-                    'S'
-                else if (comptime std.mem.eql(u8, field.name, "EQ"))
-                    'E'
-                else if (comptime std.mem.eql(u8, field.name, "COMP"))
-                    'C'
-                else if (comptime std.mem.eql(u8, field.name, "OUTPT"))
-                    'O'
-                else
-                    unreachable},
-            );
-
-            // Get original name
-            if (!reaper.TrackFX_GetFXName(mediaTrack, fx_index, &buf, buf.len)) {
-                return error.GetNameFailed;
-            }
-            const original_name = std.mem.span(@as([*:0]const u8, &buf));
-
-            // Create new name with suffix
-            var new_name_buf: [512:0]u8 = undefined;
-            const new_name = try std.fmt.bufPrintZ(
-                &new_name_buf,
-                "{s} {s}",
-                .{ original_name, suffix },
-            );
-
-            // Set renamed name
-            if (!reaper.TrackFX_SetNamedConfigParm(
-                mediaTrack,
-                fx_index,
-                "renamed_name",
-                new_name.ptr,
-            )) {
-                return error.RenameFailed;
-            }
-
-            // Add to parsed_fx list
-            try parsed_fx.append(.{
-                .index = fx_index,
-                .original_name = try allocator.dupeZ(u8, original_name),
-                .renamed_name = try allocator.dupeZ(u8, new_name),
-                .active_modules = .{
-                    .INPUT = std.mem.eql(u8, field.name, "INPUT"),
-                    .GATE = std.mem.eql(u8, field.name, "GATE"),
-                    .EQ = std.mem.eql(u8, field.name, "EQ"),
-                    .COMP = std.mem.eql(u8, field.name, "COMP"),
-                    .OUTPT = std.mem.eql(u8, field.name, "OUTPT"),
-                },
-            });
-        }
-    }
+fn moduleToSuffix(buf: *[64:0]u8, comptime field_name: []const u8) ![:0]const u8 {
+    return std.fmt.bufPrintZ(
+        buf,
+        "(C1-{c})",
+        .{if (comptime std.mem.eql(u8, field_name, "INPUT"))
+            'I'
+        else if (comptime std.mem.eql(u8, field_name, "GATE"))
+            'S'
+        else if (comptime std.mem.eql(u8, field_name, "EQ"))
+            'E'
+        else if (comptime std.mem.eql(u8, field_name, "COMP"))
+            'C'
+        else if (comptime std.mem.eql(u8, field_name, "OUTPT"))
+            'O'
+        else
+            unreachable},
+    );
 }
 
-fn reorderFx(
-    parsed_fx: []const ParsedFx,
-    mediaTrack: reaper.MediaTrack,
-    allocator: std.mem.Allocator,
-) !void {
-    // First, create ordered list of indices
-    var ordered_indices = std.ArrayList(i32).init(allocator);
-    defer ordered_indices.deinit();
-
-    // 1. Find and move INPUT to front
-    for (parsed_fx) |fx| {
-        if (fx.active_modules) |modules| {
-            if (modules.INPUT) {
-                try ordered_indices.append(fx.index);
-                break;
-            }
-        }
-    }
-    if (ordered_indices.items.len == 0) return error.NoInputModule;
-
-    // 2. Add middle modules in correct order
-    // GATE->EQ->COMP or EQ->GATE->COMP etc. based on current order setting
-    const module_order = [3][]const u8{ "GATE", "EQ", "COMP" }; // This should come from settings
-    for (module_order) |module_name| {
-        for (parsed_fx) |fx| {
-            if (fx.active_modules) |modules| {
-                const is_active = if (std.mem.eql(u8, module_name, "GATE"))
-                    modules.GATE
-                else if (std.mem.eql(u8, module_name, "EQ"))
-                    modules.EQ
-                else if (std.mem.eql(u8, module_name, "COMP"))
-                    modules.COMP
-                else
-                    false;
-
-                if (is_active) {
-                    try ordered_indices.append(fx.index);
-                }
-            }
-        }
-    }
-
-    // 3. Find and move OUTPUT to end
-    for (parsed_fx) |fx| {
-        if (fx.active_modules) |modules| {
-            if (modules.OUTPT) {
-                try ordered_indices.append(fx.index);
-                break;
-            }
-        }
-    }
-
-    // Now reorder FX chain
-    var current_pos: i32 = 0;
-    for (ordered_indices.items) |target_idx| {
-        // Move FX to current_pos
-        _ = reaper.TrackFX_CopyToTrack(mediaTrack, target_idx, mediaTrack, current_pos, true);
-        current_pos += 1;
-    }
-}
-
+/// For now, assume that missing modules are always going to be one fx per module
 pub fn updateTrackState(
     track_state: *TrackState,
     parsed_fx: []const ParsedFx,
@@ -538,5 +442,145 @@ pub fn updateTrackState(
 
             track_state.fx_count += 1;
         }
+    }
+}
+
+fn reorderFx(
+    coverage: *ModuleCoverage,
+    mediaTrack: MediaTrack,
+    default_fx: DefaultFx,
+) !void {
+    // 1. Handle INPUT
+    if (coverage.covered.INPUT) |INPUT| {
+        var lowest_idx = INPUT;
+        inline for (std.meta.fields(@TypeOf(coverage.providers))) |field| {
+            if (@field(coverage.covered, field.name)) {
+                lowest_idx = @min(lowest_idx, @field(coverage.providers, field.name));
+            }
+        }
+        if (lowest_idx < coverage.providers.INPUT) {
+            _ = pReaper.TrackFX_CopyToTrack(.{ mediaTrack, INPUT, mediaTrack, 1000 - lowest_idx, true });
+            coverage.providers.INPUT = lowest_idx;
+        }
+    } else {
+        // Find the lowest position among module-linked FX
+        const insert_pos = blk: {
+            var min_pos: i32 = std.math.maxInt(i32);
+            var found_any = false;
+            inline for (std.meta.fields(@TypeOf(coverage.providers))) |field| {
+                if (@field(coverage.covered, field.name)) {
+                    min_pos = @min(min_pos, @field(coverage.providers, field.name));
+                    found_any = true;
+                }
+            }
+            // Convert to TrackFX_AddByName position format (-1000 based)
+            break :blk if (found_any) -1000 - min_pos else -1; // use -1 to add at end of chain.
+        };
+
+        _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.INPUT), false, insert_pos });
+        coverage.covered.INPUT = true;
+        // Convert back from -1000 based to actual position
+        coverage.providers.INPUT = -(insert_pos + 1000);
+
+        // Shift other positions up
+        inline for (std.meta.fields(@TypeOf(coverage.providers))) |field| {
+            if (@field(coverage.covered, field.name) and !std.mem.eql(u8, field.name, "INPUT")) {
+                @field(coverage.providers, field.name) += 1;
+            }
+        }
+    }
+
+    // 2. Handle OUTPUT
+    if (coverage.covered.OUTPT) |OUTPT| {
+        var highest_idx = OUTPT;
+        inline for (std.meta.fields(@TypeOf(coverage.providers))) |field| {
+            if (@field(coverage.covered, field.name)) {
+                highest_idx = @max(highest_idx, @field(coverage.providers, field.name));
+            }
+        }
+        if (highest_idx > coverage.providers.OUTPT) {
+            _ = pReaper.TrackFX_CopyToTrack(.{ mediaTrack, OUTPT, mediaTrack, -1000 - highest_idx, true });
+            coverage.providers.OUTPT = highest_idx;
+        }
+    } else {
+        // For OUTPUT not found, add at the end and update coverage
+        const last_position = blk: {
+            var max_pos: i32 = -1; // Default to end of chain
+            var found_any = false;
+            inline for (std.meta.fields(@TypeOf(coverage.providers))) |field| {
+                if (@field(coverage.covered, field.name)) {
+                    max_pos = @max(max_pos, @field(coverage.providers, field.name));
+                    found_any = true;
+                }
+            }
+            // If we found module-linked FX, insert after the last one, else at chain end
+            break :blk if (found_any) -1000 - (max_pos + 1) else -1;
+        };
+
+        _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.OUTPT), false, last_position });
+        coverage.covered.OUTPT = true;
+        coverage.providers.OUTPT = if (last_position != -1)
+            -(last_position + 1000)
+        else
+            last_position;
+    }
+
+    // 3. Handle GATE and COMP
+    if (coverage.covered.GATE) |GATE| {
+        if (coverage.covered.COMP) |COMP| {
+            // Both exist, ensure GATE is before COMP
+            if (GATE > COMP) {
+                _ = pReaper.TrackFX_CopyToTrack(.{ mediaTrack, GATE, mediaTrack, -1000 - COMP, true });
+                coverage.providers.GATE = COMP;
+                coverage.providers.COMP = COMP + 1;
+            }
+        } else {
+            // Add COMP after GATE
+            const insert_pos = -1000 - (GATE + 1);
+            _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.COMP), false, insert_pos });
+            coverage.covered.COMP = true;
+            coverage.providers.COMP = GATE + 1;
+        }
+    } else {
+        if (coverage.covered.COMP) |COMP| {
+            // Add GATE before COMP
+            const insert_pos = -1000 - COMP;
+            _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.GATE), false, insert_pos });
+            coverage.covered.GATE = true;
+            coverage.providers.GATE = COMP;
+            coverage.providers.COMP += 1;
+        } else {
+            if (coverage.covered.EQ) |EQ| {
+                // Add after EQ
+                const insert_pos = -1000 - (EQ + 1);
+                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.GATE), false, insert_pos });
+                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.COMP), false, insert_pos - 1 });
+                coverage.covered.GATE = true;
+                coverage.covered.COMP = true;
+                coverage.providers.GATE = EQ + 1;
+                coverage.providers.COMP = EQ + 2;
+            } else {
+                // Add gate, eq, comp in sequence after INPUT
+                const base_pos = coverage.providers.INPUT + 1;
+                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.GATE), false, -1000 - base_pos });
+                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.EQ), false, -1000 - (base_pos + 1) });
+                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.COMP), false, -1000 - (base_pos + 2) });
+                coverage.covered.GATE = true;
+                coverage.covered.EQ = true;
+                coverage.covered.COMP = true;
+                coverage.providers.GATE = base_pos;
+                coverage.providers.EQ = base_pos + 1;
+                coverage.providers.COMP = base_pos + 2;
+            }
+        }
+    }
+
+    // 4. Handle missing EQ
+    if (!coverage.covered.EQ) {
+        const insert_pos = -1000 - coverage.providers.OUTPT.?; // Insert before OUTPUT
+        _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.EQ), false, insert_pos });
+        coverage.covered.EQ = true;
+        coverage.providers.EQ = coverage.providers.OUTPT;
+        coverage.providers.OUTPT += 1;
     }
 }
