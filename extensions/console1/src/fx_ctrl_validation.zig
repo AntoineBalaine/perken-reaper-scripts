@@ -562,3 +562,294 @@ fn reorderFx(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx
     }
     return coverage;
 }
+
+const log = std.log.scoped(.validation);
+
+fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx) ModuleCoverage {
+    var coverage = cvrg;
+
+    // Handle INPUT first
+    if (coverage.INPUT) |input_pos| {
+        var lowest_idx = input_pos;
+        inline for (std.meta.fields(ModuleCoverage)) |field| {
+            if (@field(coverage, field.name)) |pos| {
+                lowest_idx = @min(lowest_idx, pos);
+            }
+        }
+
+        if (lowest_idx < input_pos) {
+            const result = handleInsertWithConsolidation(mediaTrack, .INPUT, lowest_idx, default_fx, coverage);
+            if (result.position) |pos| {
+                coverage.INPUT = pos;
+            } else {
+                log.err("Failed to move INPUT FX to front position", .{});
+            }
+        }
+    } else {
+        // Find lowest position among module-linked FX
+        const insert_pos = blk: {
+            var min_pos: i32 = std.math.maxInt(i32);
+            var found_any = false;
+            inline for (std.meta.fields(ModuleCoverage)) |field| {
+                if (@field(coverage, field.name)) |pos| {
+                    min_pos = @min(min_pos, pos);
+                    found_any = true;
+                }
+            }
+            break :blk if (found_any) min_pos else -1;
+        };
+
+        const result = handleInsertWithConsolidation(mediaTrack, .INPUT, if (insert_pos == -1) 0 else insert_pos, default_fx, coverage);
+        if (result.position) |pos| {
+            coverage.INPUT = pos;
+        } else {
+            log.err("Failed to add INPUT FX", .{});
+        }
+    }
+
+    // Handle GATE and COMP together due to their ordering dependency
+    if (coverage.GATE) |gate_pos| {
+        if (coverage.COMP) |comp_pos| {
+            // Both exist, ensure GATE is before COMP
+            if (gate_pos > comp_pos) {
+                const result = handleInsertWithConsolidation(mediaTrack, .GATE, comp_pos, default_fx, coverage);
+                if (result.position) |pos| {
+                    coverage.GATE = pos;
+                    if (!result.did_consolidate) {
+                        coverage.COMP = pos + 1;
+                    }
+                } else {
+                    log.err("Failed to move GATE FX before COMP", .{});
+                }
+            }
+        } else {
+            // Add COMP after GATE
+            const result = handleInsertWithConsolidation(mediaTrack, .COMP, gate_pos + 1, default_fx, coverage);
+            if (result.position) |pos| {
+                coverage.COMP = pos;
+            } else {
+                log.err("Failed to add COMP FX after GATE", .{});
+            }
+        }
+    } else if (coverage.COMP) |comp_pos| {
+        // Add GATE before COMP
+        const result = handleInsertWithConsolidation(mediaTrack, .GATE, comp_pos, default_fx, coverage);
+        if (result.position) |pos| {
+            coverage.GATE = pos;
+            if (!result.did_consolidate) {
+                coverage.COMP = pos + 1;
+            }
+        } else {
+            log.err("Failed to add GATE FX before COMP", .{});
+        }
+    } else {
+        // Neither exists, check EQ position or add after INPUT
+        const insert_pos = if (coverage.EQ) |eq_pos|
+            eq_pos + 1
+        else if (coverage.INPUT) |input_pos|
+            input_pos + 1
+        else
+            0;
+
+        // Add GATE first
+        const gate_result = handleInsertWithConsolidation(mediaTrack, .GATE, insert_pos, default_fx, coverage);
+        if (gate_result.position) |gate_pos| {
+            coverage.GATE = gate_pos;
+
+            // Then add COMP
+            const comp_result = handleInsertWithConsolidation(mediaTrack, .COMP, gate_pos + 1, default_fx, coverage);
+            if (comp_result.position) |comp_pos| {
+                coverage.COMP = comp_pos;
+            } else {
+                log.err("Failed to add COMP FX after newly added GATE", .{});
+            }
+        } else {
+            log.err("Failed to add GATE FX", .{});
+        }
+    }
+
+    // Handle EQ
+    if (coverage.EQ == null) {
+        const insert_pos = if (coverage.GATE) |gate_pos|
+            gate_pos + 1
+        else if (coverage.INPUT) |input_pos|
+            input_pos + 1
+        else
+            0;
+
+        const result = handleInsertWithConsolidation(mediaTrack, .EQ, insert_pos, default_fx, coverage);
+        if (result.position) |pos| {
+            coverage.EQ = pos;
+        } else {
+            log.err("Failed to add EQ FX", .{});
+        }
+    }
+
+    // Handle OUTPUT last
+    if (coverage.OUTPT) |output_pos| {
+        var highest_idx = output_pos;
+        inline for (std.meta.fields(ModuleCoverage)) |field| {
+            if (@field(coverage, field.name)) |pos| {
+                highest_idx = @max(highest_idx, pos);
+            }
+        }
+
+        if (highest_idx > output_pos) {
+            const result = handleInsertWithConsolidation(mediaTrack, .OUTPT, highest_idx, default_fx, coverage);
+            if (result.position) |pos| {
+                coverage.OUTPT = pos;
+            } else {
+                log.err("Failed to move OUTPUT FX to last position", .{});
+            }
+        }
+    } else {
+        const result = handleInsertWithConsolidation(mediaTrack, .OUTPT, if (coverage.INPUT == null) 0 else -1, // -1 for end of chain
+            default_fx, coverage);
+        if (result.position) |pos| {
+            coverage.OUTPT = pos;
+        } else {
+            log.err("Failed to add OUTPUT FX", .{});
+        }
+    }
+
+    return coverage;
+}
+
+const ConsolidationResult = struct {
+    did_consolidate: bool,
+    position: ?i32,
+};
+
+fn handleInsertWithConsolidation(
+    mediaTrack: MediaTrack,
+    module: ModulesList,
+    insert_pos: i32,
+    default_fx: DefaultFx,
+    coverage: ModuleCoverage,
+) ConsolidationResult {
+    const fx_name = default_fx.get(module);
+
+    // Find preceding and following module-linked FX
+    var prev_fx: ?i32 = null;
+    var next_fx: ?i32 = null;
+    var prev_name: ?[:0]const u8 = null;
+    var next_name: ?[:0]const u8 = null;
+
+    inline for (std.meta.fields(ModuleCoverage)) |field| {
+        if (@field(coverage, field.name)) |pos| {
+            if (pos == insert_pos - 1) {
+                prev_fx = pos;
+                var buf: [512:0]u8 = undefined;
+                if (pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, pos, "original_name", @ptrCast(&buf), buf.len })) {
+                    prev_name = std.mem.span(@as([*:0]const u8, &buf));
+                }
+            } else if (pos == insert_pos + 1) {
+                next_fx = pos;
+                var buf: [512:0]u8 = undefined;
+                if (pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, pos, "original_name", @ptrCast(&buf), buf.len })) {
+                    next_name = std.mem.span(@as([*:0]const u8, &buf));
+                }
+            }
+        }
+    }
+
+    // Case 1: Can consolidate with both prev and next
+    // Skip if INPUT (no preceding) or OUTPUT (no following)
+    if (module != .INPUT and module != .OUTPT and
+        prev_fx != null and next_fx != null and
+        prev_name != null and next_name != null and
+        std.mem.eql(u8, prev_name.?, fx_name) and
+        std.mem.eql(u8, next_name.?, fx_name))
+    {
+        // Update prev FX suffix to include all three
+        if (consolidateWithFx(mediaTrack, prev_fx.?, module)) {
+            // Remove next FX as it's now consolidated
+            _ = pReaper.TrackFX_Delete(.{ mediaTrack, next_fx.? });
+            return .{ .did_consolidate = true, .position = prev_fx };
+        }
+    }
+
+    // Case 2: Can consolidate with prev only
+    // Skip if INPUT (no preceding)
+    if (module != .INPUT and
+        prev_fx != null and prev_name != null and
+        std.mem.eql(u8, prev_name.?, fx_name))
+    {
+        if (consolidateWithFx(mediaTrack, prev_fx.?, module)) {
+            return .{ .did_consolidate = true, .position = prev_fx };
+        }
+    }
+
+    // Case 3: Can consolidate with next only
+    // Skip if OUTPUT (no following)
+    if (module != .OUTPT and
+        next_fx != null and next_name != null and
+        std.mem.eql(u8, next_name.?, fx_name))
+    {
+        if (consolidateWithFx(mediaTrack, next_fx.?, module)) {
+            return .{ .did_consolidate = true, .position = next_fx };
+        }
+    }
+
+    // Case 4: No consolidation possible, perform normal insertion
+    const add_result = pReaper.TrackFX_AddByName(.{ mediaTrack, fx_name, false, -1000 - insert_pos });
+    return .{
+        .did_consolidate = false,
+        .position = if (add_result >= 0) insert_pos else null,
+    };
+}
+
+fn consolidateWithFx(
+    mediaTrack: MediaTrack,
+    target_fx: i32,
+    module: ModulesList,
+) bool {
+    var buf: [512:0]u8 = undefined;
+
+    // Get current renamed name
+    if (!pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, target_fx, "renamed_name", @ptrCast(&buf), buf.len })) {
+        log.err("Failed to get renamed name for FX at position {}", .{target_fx});
+        return false;
+    }
+
+    const current_name = std.mem.span(@as([*:0]const u8, &buf));
+
+    // Find C1 suffix
+    const suffix_start = std.mem.lastIndexOf(u8, current_name, "(C1-") orelse {
+        log.err("No C1 suffix found in FX name {s}", .{current_name});
+        return false;
+    };
+
+    const suffix_end = std.mem.indexOfPos(u8, current_name, suffix_start, ")") orelse {
+        log.err("Malformed C1 suffix in FX name {s}", .{current_name});
+        return false;
+    };
+
+    // Add new module to suffix
+    const module_char = switch (module) {
+        .INPUT => "I",
+        .GATE => "S",
+        .EQ => "E",
+        .COMP => "C",
+        .OUTPT => "O",
+    };
+
+    // Build new name with updated suffix
+    const new_name = std.fmt.bufPrintZ(&buf, "{s}(C1-{s}{s}){s}", .{
+        current_name[0..suffix_start],
+        current_name[suffix_start + 4 .. suffix_end],
+        module_char,
+        current_name[suffix_end + 1 ..],
+    }) catch |err| {
+        log.err("Failed to build new name: {}", .{err});
+        return false;
+    };
+
+    // Update FX name
+    if (!pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, target_fx, "renamed_name", new_name.ptr })) {
+        log.err("Failed to set new name for FX at position {}", .{target_fx});
+        return false;
+    }
+
+    return true;
+}
