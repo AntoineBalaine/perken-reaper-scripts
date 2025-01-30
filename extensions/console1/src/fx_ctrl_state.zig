@@ -295,7 +295,7 @@ pub fn validateTrack(
     reRoute: ?SCRouting,
 ) !void {
     var trackState: validation.TrackState = .{};
-    validation.validateTrack(&trackState, mediaTrack, globals.allocator) catch {
+    validation.validateTrack(&trackState, mediaTrack) catch {
         return;
     };
     var newRouting = reRoute;

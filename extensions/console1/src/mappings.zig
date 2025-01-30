@@ -82,7 +82,7 @@ pub const FxMap = struct {
 
 /// Tagged union representing a loaded mapping for any module type.
 /// null indicates no mapping was found or loading failed - or was never set.
-const TaggedMapping = union(ModulesList) {
+pub const TaggedMapping = union(ModulesList) {
     INPUT: ?Inpt,
     GATE: ?Shp,
     EQ: ?Eq,
