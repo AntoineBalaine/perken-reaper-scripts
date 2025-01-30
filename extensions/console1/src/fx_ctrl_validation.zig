@@ -218,56 +218,60 @@ fn removeDuplicateModule(
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, fx_index, "renamed_name", @as([:0]const u8, @ptrCast(&buf)) });
 }
 
-/// test-related
-var mock_buffer: [512]u8 = undefined;
-/// test-related
-var last_fx_name: ?[]const u8 = null;
-/// test-related
-var current_test_name: [:0]const u8 = undefined;
-
-fn mockTrackFX_GetNamedConfigParm(
-    track: reaper.MediaTrack,
-    fx_index: c_int,
-    parm_name: [*:0]const u8,
-    parm_value: [*:0]u8,
-    parm_value_sz: c_int,
-) callconv(.C) bool {
-    _ = fx_index; // autofix
-    _ = track; // autofix
-    if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
-        const value = current_test_name;
-        if (value.len >= parm_value_sz) return false;
-        @memcpy(@as([*]u8, @ptrCast(parm_value))[0..value.len], value);
-        @as([*]u8, @ptrCast(parm_value))[value.len] = 0;
-        return true;
-    }
-    return false;
-}
-
-fn mockTrackFX_SetNamedConfigParm(
-    track: reaper.MediaTrack,
-    fx_index: c_int,
-    parm_name: [*:0]const u8,
-    parm_value: [*:0]const u8,
-) callconv(.C) bool {
-    _ = fx_index; // autofix
-    _ = track; // autofix
-    if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
-        const value = std.mem.span(parm_value);
-        @memcpy(mock_buffer[0..value.len], value);
-        last_fx_name = mock_buffer[0..value.len];
-    }
-    return true;
-}
-
 test "removeDuplicateModule" {
     const testing = std.testing;
+
+    const Mock = struct {
+        var buffer: [512]u8 = undefined;
+        var last_fx_name: ?[]const u8 = null;
+        var current_test_name: [:0]const u8 = undefined;
+
+        fn mockTrackFX_GetNamedConfigParm(
+            track: reaper.MediaTrack,
+            fx_index: c_int,
+            parm_name: [*:0]const u8,
+            parm_value: [*:0]u8,
+            parm_value_sz: c_int,
+        ) callconv(.C) bool {
+            _ = fx_index; // autofix
+            _ = track; // autofix
+            if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+                const value = current_test_name;
+                if (value.len >= parm_value_sz) return false;
+                @memcpy(@as([*]u8, @ptrCast(parm_value))[0..value.len], value);
+                @as([*]u8, @ptrCast(parm_value))[value.len] = 0;
+                return true;
+            }
+            return false;
+        }
+
+        fn mockTrackFX_SetNamedConfigParm(
+            track: reaper.MediaTrack,
+            fx_index: c_int,
+            parm_name: [*:0]const u8,
+            parm_value: [*:0]const u8,
+        ) callconv(.C) bool {
+            _ = fx_index; // autofix
+            _ = track; // autofix
+            if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+                const value = std.mem.span(parm_value);
+                @memcpy(buffer[0..value.len], value);
+                last_fx_name = buffer[0..value.len];
+            }
+            return true;
+        }
+
+        fn reset() void {
+            last_fx_name = null;
+        }
+    };
 
     // Save original functions and replace with mocks
     const real_get_fn = reaper.TrackFX_GetNamedConfigParm;
     const real_set_fn = reaper.TrackFX_SetNamedConfigParm;
-    @constCast(&reaper.TrackFX_GetNamedConfigParm).* = @constCast(&mockTrackFX_GetNamedConfigParm);
-    @constCast(&reaper.TrackFX_SetNamedConfigParm).* = @constCast(&mockTrackFX_SetNamedConfigParm);
+
+    @constCast(&reaper.TrackFX_GetNamedConfigParm).* = @constCast(&Mock.mockTrackFX_GetNamedConfigParm);
+    @constCast(&reaper.TrackFX_SetNamedConfigParm).* = @constCast(&Mock.mockTrackFX_SetNamedConfigParm);
     defer {
         @constCast(&reaper.TrackFX_GetNamedConfigParm).* = real_get_fn;
         @constCast(&reaper.TrackFX_SetNamedConfigParm).* = real_set_fn;
@@ -277,30 +281,34 @@ test "removeDuplicateModule" {
 
     // Test 1: Remove INPUT module from a multi-module suffix
     {
-        current_test_name = "ReaComp (C1-IC)";
+        Mock.reset();
+        Mock.current_test_name = "ReaComp (C1-IC)";
         removeDuplicateModule(0, .INPUT, dummy_track);
-        try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-C)"));
+        try testing.expect(std.mem.eql(u8, Mock.last_fx_name.?, "ReaComp (C1-C)"));
     }
 
     // Test 2: Remove middle module
     {
-        current_test_name = "ReaEQ (C1-SEC)";
+        Mock.reset();
+        Mock.current_test_name = "ReaEQ (C1-SEC)";
         removeDuplicateModule(1, .EQ, dummy_track);
-        try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaEQ (C1-SC)"));
+        try testing.expect(std.mem.eql(u8, Mock.last_fx_name.?, "ReaEQ (C1-SC)"));
     }
 
     // Test 3: FX name with text after suffix
     {
-        current_test_name = "ReaComp (C1-IC) my settings";
+        Mock.reset();
+        Mock.current_test_name = "ReaComp (C1-IC) my settings";
         removeDuplicateModule(2, .INPUT, dummy_track);
-        try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-C) my settings"));
+        try testing.expect(std.mem.eql(u8, Mock.last_fx_name.?, "ReaComp (C1-C) my settings"));
     }
 
     // Test 4: Single module suffix
     {
-        current_test_name = "ReaComp (C1-C)";
+        Mock.reset();
+        Mock.current_test_name = "ReaComp (C1-C)";
         removeDuplicateModule(3, .COMP, dummy_track);
-        try testing.expect(std.mem.eql(u8, last_fx_name.?, "ReaComp (C1-)"));
+        try testing.expect(std.mem.eql(u8, Mock.last_fx_name.?, "ReaComp (C1-)"));
     }
 }
 
