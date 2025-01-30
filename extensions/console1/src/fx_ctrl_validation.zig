@@ -333,7 +333,7 @@ test "analyzeCoverage" {
             },
         };
 
-        const coverage = try analyzeCoverage(&parsed_fx, dummy_track);
+        const coverage = analyzeCoverage(&parsed_fx, dummy_track);
         try testing.expect(coverage.INPUT == 0);
         try testing.expect(coverage.GATE == 1);
     }
@@ -363,7 +363,8 @@ test "analyzeCoverage" {
             },
         };
 
-        try testing.expectError(error.DuplicateModule, analyzeCoverage(&parsed_fx, dummy_track));
+        const coverage = analyzeCoverage(&parsed_fx, dummy_track);
+        try testing.expect(coverage.INPUT == 0);
     }
 }
 
@@ -762,7 +763,7 @@ fn handleInsertWithConsolidation(
         std.mem.eql(u8, next_name.?, fx_name))
     {
         // Update prev FX suffix to include all three
-        if (consolidateWithFx(mediaTrack, prev_fx.?, module)) {
+        if (consolidateWithFxSuffix(mediaTrack, prev_fx.?, module)) {
             // Remove next FX as it's now consolidated
             _ = pReaper.TrackFX_Delete(.{ mediaTrack, next_fx.? });
             return .{ .did_consolidate = true, .position = prev_fx };
@@ -775,7 +776,7 @@ fn handleInsertWithConsolidation(
         prev_fx != null and prev_name != null and
         std.mem.eql(u8, prev_name.?, fx_name))
     {
-        if (consolidateWithFx(mediaTrack, prev_fx.?, module)) {
+        if (consolidateWithFxSuffix(mediaTrack, prev_fx.?, module)) {
             return .{ .did_consolidate = true, .position = prev_fx };
         }
     }
@@ -786,7 +787,7 @@ fn handleInsertWithConsolidation(
         next_fx != null and next_name != null and
         std.mem.eql(u8, next_name.?, fx_name))
     {
-        if (consolidateWithFx(mediaTrack, next_fx.?, module)) {
+        if (consolidateWithFxSuffix(mediaTrack, next_fx.?, module)) {
             return .{ .did_consolidate = true, .position = next_fx };
         }
     }
@@ -799,7 +800,7 @@ fn handleInsertWithConsolidation(
     };
 }
 
-fn consolidateWithFx(
+fn consolidateWithFxSuffix(
     mediaTrack: MediaTrack,
     target_fx: i32,
     module: ModulesList,
@@ -807,7 +808,7 @@ fn consolidateWithFx(
     var buf: [512:0]u8 = undefined;
 
     // Get current renamed name
-    if (!pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, target_fx, "renamed_name", @ptrCast(&buf), buf.len })) {
+    if (!pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, target_fx, "renamed_name", @as([*:0]u8, @constCast(&buf)), buf.len })) {
         log.err("Failed to get renamed name for FX at position {}", .{target_fx});
         return false;
     }
@@ -852,4 +853,87 @@ fn consolidateWithFx(
     }
 
     return true;
+}
+
+test "consolidateWithFx" {
+    const testing = std.testing;
+
+    const Mock = struct {
+        var buffer: [512]u8 = undefined;
+        var last_renamed_name: ?[]const u8 = null;
+
+        fn mockTrackFX_GetNamedConfigParm(
+            track: reaper.MediaTrack,
+            fx_index: c_int,
+            parm_name: [*:0]const u8,
+            parm_value: [*:0]u8,
+            parm_value_sz: c_int,
+        ) callconv(.C) bool {
+            _ = fx_index; // autofix
+            _ = track; // autofix
+            if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+                const test_name = "Test FX (C1-EC)";
+                if (test_name.len >= parm_value_sz) return false;
+                @memcpy(@as([*]u8, @ptrCast(parm_value))[0..test_name.len], test_name);
+                @as([*]u8, @ptrCast(parm_value))[test_name.len] = 0;
+                return true;
+            }
+            return false;
+        }
+
+        fn mockTrackFX_SetNamedConfigParm(
+            track: reaper.MediaTrack,
+            fx_index: c_int,
+            parm_name: [*:0]const u8,
+            parm_value: [*:0]const u8,
+        ) callconv(.C) bool {
+            _ = fx_index; // autofix
+            _ = track; // autofix
+            if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+                const value = std.mem.span(parm_value);
+                @memcpy(buffer[0..value.len], value);
+                last_renamed_name = buffer[0..value.len];
+                return true;
+            }
+            return true;
+        }
+
+        fn reset() void {
+            last_renamed_name = null;
+        }
+    };
+
+    // Save original functions and replace with mocks
+    const real_get_fn = reaper.TrackFX_GetNamedConfigParm;
+    const real_set_fn = reaper.TrackFX_SetNamedConfigParm;
+
+    @constCast(&reaper.TrackFX_GetNamedConfigParm).* = @constCast(&Mock.mockTrackFX_GetNamedConfigParm);
+    @constCast(&reaper.TrackFX_SetNamedConfigParm).* = @constCast(&Mock.mockTrackFX_SetNamedConfigParm);
+    defer {
+        @constCast(&reaper.TrackFX_GetNamedConfigParm).* = real_get_fn;
+        @constCast(&reaper.TrackFX_SetNamedConfigParm).* = real_set_fn;
+    }
+
+    const dummy_track: MediaTrack = @ptrFromInt(0xdeadbeef);
+
+    // Test 1: Add COMP to existing EQ
+    {
+        Mock.last_renamed_name = null;
+        try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .COMP));
+        try testing.expect(std.mem.eql(u8, Mock.last_renamed_name.?, "Test FX (C1-EC)"));
+    }
+
+    // Test 2: Add INPUT to existing EQ
+    {
+        Mock.last_renamed_name = null;
+        try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .INPUT));
+        try testing.expect(std.mem.eql(u8, Mock.last_renamed_name.?, "Test FX (C1-IEC)"));
+    }
+
+    // Test 3: Add OUTPUT to existing EQ
+    {
+        Mock.last_renamed_name = null;
+        try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .OUTPT));
+        try testing.expect(std.mem.eql(u8, Mock.last_renamed_name.?, "Test FX (C1-ECO)"));
+    }
 }
