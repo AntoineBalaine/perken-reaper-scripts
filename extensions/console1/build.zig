@@ -1,9 +1,9 @@
 //! Run with
 //! zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_c1.so hello_world.zig -lc
 //! or use
-//! zig build -Dtest=true --prefix "~/.config/REAPER/UserPlugins" && reaper new
+//! zig build -Dtest=true --prefix "$HOME/.config/REAPER/UserPlugins" && reaper new
 //! or on MacOS:
-//! zig build -Dtest=true --prefix "/Users/a266836/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
+//! zig build -Dtest=true --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
 const std = @import("std");
 const builtin = @import("builtin");
 const tests = @import("build_tests.zig");
