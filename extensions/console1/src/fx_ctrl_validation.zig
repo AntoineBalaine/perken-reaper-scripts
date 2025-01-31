@@ -90,7 +90,7 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) !v
     }
 
     var coverage = analyzeCoverage(parsed_fx_buf[0..parsed_fx_count], mediaTrack);
-    coverage = reorderFx(coverage, mediaTrack, globals.preferences.default_fx);
+    coverage = reorderFx2(coverage, mediaTrack, globals.preferences.default_fx);
     updateTrackState(track_state, parsed_fx_buf[0..parsed_fx_count], coverage, mediaTrack, &buf);
 }
 
@@ -724,6 +724,410 @@ fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultF
     return coverage;
 }
 
+test "reorderFx2" {
+    const testing = std.testing;
+
+    const Mock = struct {
+        var buffer: [512]u8 = undefined;
+        var fx_at_positions: std.AutoHashMap(i32, [:0]const u8) = undefined;
+        var last_deleted_fx: ?i32 = null;
+        var fx_chain_changed = false;
+
+        fn mockTrackFX_GetNamedConfigParm(
+            track: MediaTrack,
+            fx_index: c_int,
+            parm_name: [*:0]const u8,
+            parm_value: [*:0]u8,
+            parm_value_sz: c_int,
+        ) callconv(.C) bool {
+            _ = track; // autofix
+            if (std.mem.eql(u8, std.mem.span(parm_name), "original_name") or
+                std.mem.eql(u8, std.mem.span(parm_name), "renamed_name"))
+            {
+                if (fx_at_positions.get(@intCast(fx_index))) |name| {
+                    if (name.len >= parm_value_sz) return false;
+                    @memcpy(@as([*]u8, @ptrCast(parm_value))[0..name.len], name);
+                    @as([*]u8, @ptrCast(parm_value))[name.len] = 0;
+                    return true;
+                }
+                return false;
+            }
+            return false;
+        }
+
+        fn mockTrackFX_SetNamedConfigParm(
+            track: MediaTrack,
+            fx_index: c_int,
+            parm_name: [*:0]const u8,
+            parm_value: [*:0]const u8,
+        ) callconv(.C) bool {
+            _ = track; // autofix
+            if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+                const value = std.mem.span(parm_value);
+                if (fx_at_positions.get(@intCast(fx_index))) |_| {
+                    fx_at_positions.put(@intCast(fx_index), value) catch return false;
+                    fx_chain_changed = true;
+                }
+            }
+            return true;
+        }
+
+        fn mockTrackFX_Delete(
+            track: MediaTrack,
+            fx_index: c_int,
+        ) callconv(.C) bool {
+            _ = track; // autofix
+            last_deleted_fx = fx_index;
+            _ = fx_at_positions.remove(@intCast(fx_index));
+            fx_chain_changed = true;
+            return true;
+        }
+
+        fn mockTrackFX_AddByName(
+            track: MediaTrack,
+            fx_name: [*:0]const u8,
+            recfx: bool,
+            pos: c_int,
+        ) callconv(.C) c_int {
+            _ = recfx; // autofix
+            _ = track; // autofix
+            const insert_pos = if (pos < -999) -(pos + 1000) else pos;
+            fx_at_positions.put(@intCast(insert_pos), std.mem.span(fx_name)) catch return -1;
+            fx_chain_changed = true;
+            return insert_pos;
+        }
+
+        fn mockTrackFX_CopyToTrack(
+            track: MediaTrack,
+            src_fx: c_int,
+            dest_track: MediaTrack,
+            dest_fx: c_int,
+            delete: bool,
+        ) callconv(.C) void {
+            _ = dest_track; // autofix
+            _ = track; // autofix
+            const src_name = fx_at_positions.get(@intCast(src_fx)) orelse return;
+            const dest_pos = if (dest_fx < -999) -(dest_fx + 1000) else dest_fx;
+
+            fx_at_positions.put(@intCast(dest_pos), src_name) catch return;
+            if (delete) {
+                _ = fx_at_positions.remove(@intCast(src_fx));
+            }
+            fx_chain_changed = true;
+        }
+
+        fn reset(allocator: std.mem.Allocator) !void {
+            last_deleted_fx = null;
+            fx_chain_changed = false;
+            fx_at_positions = std.AutoHashMap(i32, [:0]const u8).init(allocator);
+        }
+
+        fn deinit() void {
+            fx_at_positions.deinit();
+        }
+
+        fn getChainState() ![]const [:0]const u8 {
+            var state = std.ArrayList([:0]const u8).init(std.testing.allocator);
+            defer state.deinit();
+
+            var i: i32 = 0;
+            while (i < 100) : (i += 1) { // reasonable upper limit
+                if (fx_at_positions.get(i)) |name| {
+                    try state.append(name);
+                } else break;
+            }
+            return state.toOwnedSlice();
+        }
+    };
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try Mock.reset(arena.allocator());
+
+    // Setup mock functions
+    const real_get_fn = reaper.TrackFX_GetNamedConfigParm;
+    const real_set_fn = reaper.TrackFX_SetNamedConfigParm;
+    const real_del_fn = reaper.TrackFX_Delete;
+    const real_add_fn = reaper.TrackFX_AddByName;
+    const real_copy_fn = reaper.TrackFX_CopyToTrack;
+    @constCast(&reaper.TrackFX_GetNamedConfigParm).* = @constCast(&Mock.mockTrackFX_GetNamedConfigParm);
+    @constCast(&reaper.TrackFX_SetNamedConfigParm).* = @constCast(&Mock.mockTrackFX_SetNamedConfigParm);
+    @constCast(&reaper.TrackFX_Delete).* = @constCast(&Mock.mockTrackFX_Delete);
+    @constCast(&reaper.TrackFX_AddByName).* = @constCast(&Mock.mockTrackFX_AddByName);
+    @constCast(&reaper.TrackFX_CopyToTrack).* = @constCast(&Mock.mockTrackFX_CopyToTrack);
+    defer {
+        @constCast(&reaper.TrackFX_GetNamedConfigParm).* = real_get_fn;
+        @constCast(&reaper.TrackFX_SetNamedConfigParm).* = real_set_fn;
+        @constCast(&reaper.TrackFX_Delete).* = real_del_fn;
+        @constCast(&reaper.TrackFX_AddByName).* = real_add_fn;
+        @constCast(&reaper.TrackFX_CopyToTrack).* = real_copy_fn;
+    }
+
+    const dummy_track: MediaTrack = @ptrFromInt(0xdeadbeef);
+    var default_fx = DefaultFx.init(.{
+        .INPUT = "Standard Input",
+        .GATE = "Standard Gate",
+        .EQ = "Standard EQ",
+        .COMP = "Standard Comp",
+        .OUTPT = "Standard Output",
+    });
+
+    // Test 1: Empty coverage
+    {
+        try Mock.reset(arena.allocator());
+        var coverage = ModuleCoverage{};
+
+        coverage = reorderFx2(coverage, dummy_track, default_fx);
+
+        try testing.expect(coverage.INPUT != null);
+        try testing.expect(coverage.GATE != null);
+        try testing.expect(coverage.EQ != null);
+        try testing.expect(coverage.COMP != null);
+        try testing.expect(coverage.OUTPT != null);
+
+        // Verify order
+        const chain = try Mock.getChainState();
+        defer std.testing.allocator.free(chain);
+
+        try testing.expect(chain.len == 5);
+        try testing.expect(std.mem.eql(u8, chain[0], "Standard Input (C1-I)"));
+        try testing.expect(std.mem.eql(u8, chain[1], "Standard Gate (C1-S)"));
+        try testing.expect(std.mem.eql(u8, chain[2], "Standard EQ (C1-E)"));
+        try testing.expect(std.mem.eql(u8, chain[3], "Standard Comp (C1-C)"));
+        try testing.expect(std.mem.eql(u8, chain[4], "Standard Output (C1-O)"));
+    }
+
+    // Test 2: Incorrect order needing fixes
+    {
+        try Mock.reset(arena.allocator());
+
+        // Setup initial chain state
+        try Mock.fx_at_positions.put(2, "Standard Input (C1-I)");
+        try Mock.fx_at_positions.put(0, "Standard Comp (C1-C)");
+        try Mock.fx_at_positions.put(3, "Standard Gate (C1-S)");
+        try Mock.fx_at_positions.put(1, "Standard Output (C1-O)");
+        try Mock.fx_at_positions.put(4, "Standard EQ (C1-E)");
+
+        var coverage = ModuleCoverage{
+            .INPUT = 2,
+            .GATE = 3,
+            .EQ = 4,
+            .COMP = 0,
+            .OUTPT = 1,
+        };
+
+        coverage = reorderFx2(coverage, dummy_track, default_fx);
+
+        // Verify final order
+        const chain = try Mock.getChainState();
+        defer std.testing.allocator.free(chain);
+
+        try testing.expect(chain.len == 5);
+        try testing.expect(std.mem.eql(u8, chain[0], "Standard Input (C1-I)"));
+        try testing.expect(std.mem.eql(u8, chain[1], "Standard Gate (C1-S)"));
+        try testing.expect(std.mem.eql(u8, chain[2], "Standard EQ (C1-E)"));
+        try testing.expect(std.mem.eql(u8, chain[3], "Standard Comp (C1-C)"));
+        try testing.expect(std.mem.eql(u8, chain[4], "Standard Output (C1-O)"));
+    }
+
+    // Test 3: Correct order with some modules
+    {
+        try Mock.reset(arena.allocator());
+
+        try Mock.fx_at_positions.put(0, "Standard Input (C1-I)");
+        try Mock.fx_at_positions.put(1, "Standard EQ (C1-E)");
+        try Mock.fx_at_positions.put(2, "Standard Output (C1-O)");
+
+        var coverage = ModuleCoverage{
+            .INPUT = 0,
+            .EQ = 1,
+            .OUTPT = 2,
+        };
+
+        coverage = reorderFx2(coverage, dummy_track, default_fx);
+
+        const chain = try Mock.getChainState();
+        defer std.testing.allocator.free(chain);
+
+        try testing.expect(chain.len == 5); // Should add missing GATE and COMP
+        try testing.expect(std.mem.eql(u8, chain[0], "Standard Input (C1-I)"));
+        try testing.expect(std.mem.eql(u8, chain[1], "Standard Gate (C1-S)"));
+        try testing.expect(std.mem.eql(u8, chain[2], "Standard EQ (C1-E)"));
+        try testing.expect(std.mem.eql(u8, chain[3], "Standard Comp (C1-C)"));
+        try testing.expect(std.mem.eql(u8, chain[4], "Standard Output (C1-O)"));
+    }
+
+    // Test 4: Missing middle modules
+    {
+        try Mock.reset(arena.allocator());
+
+        try Mock.fx_at_positions.put(0, "Standard Input (C1-I)");
+        try Mock.fx_at_positions.put(1, "Standard Output (C1-O)");
+
+        var coverage = ModuleCoverage{
+            .INPUT = 0,
+            .OUTPT = 1,
+        };
+
+        coverage = reorderFx2(coverage, dummy_track, default_fx);
+
+        const chain = try Mock.getChainState();
+        defer std.testing.allocator.free(chain);
+
+        try testing.expect(chain.len == 5);
+        try testing.expect(std.mem.eql(u8, chain[0], "Standard Input (C1-I)"));
+        try testing.expect(std.mem.eql(u8, chain[1], "Standard Gate (C1-S)"));
+        try testing.expect(std.mem.eql(u8, chain[2], "Standard EQ (C1-E)"));
+        try testing.expect(std.mem.eql(u8, chain[3], "Standard Comp (C1-C)"));
+        try testing.expect(std.mem.eql(u8, chain[4], "Standard Output (C1-O)"));
+    }
+
+    // Test 5: Consolidation during reordering
+    {
+        try Mock.reset(arena.allocator());
+        default_fx = DefaultFx.init(.{
+            .INPUT = "Channel Strip",
+            .GATE = "Channel Strip",
+            .EQ = "Channel Strip",
+            .COMP = "Channel Strip",
+            .OUTPT = "Different Output",
+        });
+
+        try Mock.fx_at_positions.put(1, "Channel Strip (C1-I)");
+        try Mock.fx_at_positions.put(0, "Channel Strip (C1-C)");
+
+        var coverage = ModuleCoverage{
+            .INPUT = 1,
+            .COMP = 0,
+        };
+
+        coverage = reorderFx2(coverage, dummy_track, default_fx);
+
+        const chain = try Mock.getChainState();
+        defer std.testing.allocator.free(chain);
+
+        // Should consolidate INPUT, GATE, EQ, COMP into one FX
+        try testing.expect(chain.len == 2); // Consolidated FX + OUTPUT
+        try testing.expect(std.mem.eql(u8, chain[0], "Channel Strip (C1-ISEC)"));
+        try testing.expect(std.mem.eql(u8, chain[1], "Different Output (C1-O)"));
+    }
+
+    // Test 6: Partial chain with incorrect order
+    {
+        try Mock.reset(arena.allocator());
+
+        // Setup initial incorrect order: COMP before GATE
+        try Mock.fx_at_positions.put(1, "Standard Gate (C1-S)");
+        try Mock.fx_at_positions.put(0, "Standard Comp (C1-C)");
+
+        var coverage = ModuleCoverage{
+            .GATE = 1,
+            .COMP = 0,
+        };
+
+        coverage = reorderFx2(coverage, dummy_track, default_fx);
+
+        const chain = try Mock.getChainState();
+        defer std.testing.allocator.free(chain);
+
+        try testing.expect(chain.len == 5);
+        // Verify final order:
+        // 1. INPUT should be added first
+        // 2. GATE should be moved before COMP
+        // 3. EQ should be added between GATE and COMP
+        // 4. OUTPUT should be added last
+        try testing.expect(std.mem.eql(u8, chain[0], "Standard Input (C1-I)"));
+        try testing.expect(std.mem.eql(u8, chain[1], "Standard Gate (C1-S)"));
+        try testing.expect(std.mem.eql(u8, chain[2], "Standard EQ (C1-E)"));
+        try testing.expect(std.mem.eql(u8, chain[3], "Standard Comp (C1-C)"));
+        try testing.expect(std.mem.eql(u8, chain[4], "Standard Output (C1-O)"));
+
+        // Verify coverage was updated correctly
+        try testing.expect(coverage.INPUT.? == 0);
+        try testing.expect(coverage.GATE.? == 1);
+        try testing.expect(coverage.EQ.? == 2);
+        try testing.expect(coverage.COMP.? == 3);
+        try testing.expect(coverage.OUTPT.? == 4);
+    }
+
+    // Test 7: Edge case with single FX handling multiple modules
+    {
+        try Mock.reset(arena.allocator());
+
+        // Setup initial state: one FX handling both INPUT and EQ
+        try Mock.fx_at_positions.put(0, "Standard Input (C1-IE)");
+
+        var coverage = ModuleCoverage{
+            .INPUT = 0,
+            .EQ = 0,
+        };
+
+        coverage = reorderFx2(coverage, dummy_track, default_fx);
+
+        const chain = try Mock.getChainState();
+        defer std.testing.allocator.free(chain);
+
+        // Should split the consolidated FX and add missing modules in correct order
+        try testing.expect(chain.len == 5);
+        try testing.expect(std.mem.eql(u8, chain[0], "Standard Input (C1-I)"));
+        try testing.expect(std.mem.eql(u8, chain[1], "Standard Gate (C1-S)"));
+        try testing.expect(std.mem.eql(u8, chain[2], "Standard EQ (C1-E)"));
+        try testing.expect(std.mem.eql(u8, chain[3], "Standard Comp (C1-C)"));
+        try testing.expect(std.mem.eql(u8, chain[4], "Standard Output (C1-O)"));
+
+        // Verify coverage reflects the split and new positions
+        try testing.expect(coverage.INPUT.? == 0);
+        try testing.expect(coverage.GATE.? == 1);
+        try testing.expect(coverage.EQ.? == 2);
+        try testing.expect(coverage.COMP.? == 3);
+        try testing.expect(coverage.OUTPT.? == 4);
+    }
+
+    // Test 8: Case where default FX for adjacent modules are the same
+    {
+        try Mock.reset(arena.allocator());
+
+        // Setup where GATE and COMP will use the same default FX
+        default_fx = DefaultFx.init(.{
+            .INPUT = "Standard Input",
+            .GATE = "Dynamics Processor", // Same FX for GATE and COMP
+            .EQ = "Standard EQ",
+            .COMP = "Dynamics Processor", // Same FX for GATE and COMP
+            .OUTPT = "Standard Output",
+        });
+
+        // Start with just INPUT and EQ
+        try Mock.fx_at_positions.put(0, "Standard Input (C1-I)");
+        try Mock.fx_at_positions.put(1, "Standard EQ (C1-E)");
+
+        var coverage = ModuleCoverage{
+            .INPUT = 0,
+            .EQ = 1,
+        };
+
+        coverage = reorderFx2(coverage, dummy_track, default_fx);
+
+        const chain = try Mock.getChainState();
+        defer std.testing.allocator.free(chain);
+
+        // Should add GATE and COMP as one consolidated FX
+        try testing.expect(chain.len == 4); // INPUT, GATE+COMP(consolidated), EQ, OUTPUT
+        try testing.expect(std.mem.eql(u8, chain[0], "Standard Input (C1-I)"));
+        try testing.expect(std.mem.eql(u8, chain[1], "Dynamics Processor (C1-SC)")); // Consolidated
+        try testing.expect(std.mem.eql(u8, chain[2], "Standard EQ (C1-E)"));
+        try testing.expect(std.mem.eql(u8, chain[3], "Standard Output (C1-O)"));
+
+        // Verify coverage reflects consolidated positions
+        try testing.expect(coverage.INPUT.? == 0);
+        try testing.expect(coverage.GATE.? == 1); // Both GATE and COMP
+        try testing.expect(coverage.COMP.? == 1); // point to same position
+        try testing.expect(coverage.EQ.? == 2);
+        try testing.expect(coverage.OUTPT.? == 3);
+
+        // Verify the consolidation was tracked
+        try testing.expect(Mock.fx_chain_changed);
+    }
+}
 const ConsolidationResult = struct {
     did_consolidate: bool,
     position: ?i32,
