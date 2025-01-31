@@ -16,15 +16,6 @@ const TaggedMapping = MapStore.TaggedMapping;
 const MAX_FX = 5;
 const MAX_PARSED_FX = MAX_FX * 2; // Allow for reasonable number of duplicates
 
-const ValidationErr = error{
-    NoFx,
-    DuplicateModule,
-    FxAddFailed,
-    GetNameFailed,
-    RenameFailed,
-    NoInputModule,
-};
-
 const ModuleLocation = std.EnumArray(ModulesList, ?struct {
     fx_index: c_int,
     mapping: ?TaggedMapping,
@@ -42,6 +33,7 @@ pub const TrackState = struct {
     // Quick module -> FX lookup for parameter setting
     module_locations: ModuleLocation = undefined,
 };
+
 const ActiveModules = packed struct {
     INPUT: bool = false,
     GATE: bool = false,
@@ -55,7 +47,7 @@ const ParsedFx = struct {
     active_modules: ?ActiveModules = null,
 };
 
-pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) !void {
+pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) void {
     // Initialize track state
     track_state.* = .{ .fx_states = undefined, .fx_count = 0, .module_locations = ModuleLocation.initFill(null) };
 
@@ -63,7 +55,6 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) !v
 
     // Get total FX count
     const fx_count = reaper.TrackFX_GetCount(mediaTrack);
-    if (fx_count <= 0) return error.NoFx;
 
     // Scan FX chain
     // Use fixed-size array for parsed FX
@@ -1512,4 +1503,109 @@ test "consolidateWithFx" {
         try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .OUTPT));
         try testing.expect(std.mem.eql(u8, Mock.last_renamed_name.?, "Test FX (C1-ECO)"));
     }
+}
+
+pub fn setModulesOrder(self: *TrackState, order: ModulesOrder, mediaTrack: MediaTrack) !void {
+    // Early return if we don't have all three modules
+    const eq_loc = self.module_locations.get(.EQ);
+    const gate_loc = self.module_locations.get(.GATE);
+    const comp_loc = self.module_locations.get(.COMP);
+
+    if (eq_loc == null or gate_loc == null or comp_loc == null) return;
+
+    var coverage = ModuleCoverage{
+        .INPUT = if (self.module_locations.get(.INPUT)) |loc| loc.fx_index else null,
+        .GATE = gate_loc.?.fx_index,
+        .EQ = eq_loc.?.fx_index,
+        .COMP = comp_loc.?.fx_index,
+        .OUTPT = if (self.module_locations.get(.OUTPT)) |loc| loc.fx_index else null,
+    };
+
+    // Calculate target position for EQ based on desired order
+    const eq_target_pos = switch (order) {
+        .@"EQ-S-C" => gate_loc.?.fx_index, // EQ should go before GATE
+        .@"S-C-EQ" => comp_loc.?.fx_index + 1, // EQ should go after COMP
+        .@"S-EQ-C" => gate_loc.?.fx_index + 1, // EQ should go between GATE and COMP
+    };
+
+    // Only move if needed
+    if (eq_loc.?.fx_index == eq_target_pos) return;
+
+    _ = pReaper.TrackFX_CopyToTrack(.{
+        mediaTrack,
+        eq_loc.?.fx_index,
+        mediaTrack,
+        -1000 - eq_target_pos,
+        true,
+    });
+
+    // Update coverage with new position
+    coverage.EQ = eq_target_pos;
+
+    // Adjust other positions if needed
+    if (eq_target_pos < eq_loc.?.fx_index) {
+        // Moving earlier in chain, shift others up
+        if (coverage.GATE) |pos| {
+            if (pos > eq_target_pos) {
+                coverage.GATE = pos + 1;
+            }
+        }
+        if (coverage.COMP) |pos| {
+            if (pos > eq_target_pos) {
+                coverage.COMP = pos + 1;
+            }
+        }
+    } else {
+        // Moving later in chain, shift others down
+        if (coverage.GATE) |pos| {
+            if (pos < eq_target_pos) {
+                coverage.GATE = pos - 1;
+            }
+        }
+        if (coverage.COMP) |pos| {
+            if (pos < eq_target_pos) {
+                coverage.COMP = pos - 1;
+            }
+        }
+    }
+
+    // Update module_locations with new positions
+    inline for (std.enums.values(ModulesList)) |module| {
+        const pos = switch (module) {
+            .INPUT => coverage.INPUT,
+            .GATE => coverage.GATE,
+            .EQ => coverage.EQ,
+            .COMP => coverage.COMP,
+            .OUTPT => coverage.OUTPT,
+        };
+        if (pos) |fx_index| {
+            if (self.module_locations.get(module)) |loc| {
+                self.module_locations.set(module, .{
+                    .fx_index = fx_index,
+                    .mapping = loc.mapping,
+                });
+            }
+        }
+    }
+}
+
+pub fn getModulesOrder(self: TrackState) ModulesOrder {
+    // Gate before Comp is guaranteed by reorderFx
+    const eq_loc = self.module_locations.get(.EQ);
+    const gate_loc = self.module_locations.get(.GATE);
+    const comp_loc = self.module_locations.get(.COMP);
+
+    if (eq_loc) |eq| {
+        if (gate_loc) |gate| {
+            if (eq.fx_index < gate.fx_index) {
+                return .@"EQ-S-C";
+            } else if (comp_loc) |comp| {
+                return if (comp.fx_index < eq.fx_index)
+                    .@"S-C-EQ"
+                else
+                    .@"S-EQ-C";
+            }
+        }
+    }
+    return .@"S-EQ-C"; // default if can't determine
 }
