@@ -1505,7 +1505,7 @@ test "consolidateWithFx" {
     }
 }
 
-pub fn setModulesOrder(self: *TrackState, order: ModulesOrder, mediaTrack: MediaTrack) !void {
+pub fn setModulesOrder(self: *TrackState, order: ModulesOrder, mediaTrack: MediaTrack) void {
     // Early return if we don't have all three modules
     const eq_loc = self.module_locations.get(.EQ);
     const gate_loc = self.module_locations.get(.GATE);

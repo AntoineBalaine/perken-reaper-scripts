@@ -167,94 +167,86 @@ pub fn validateTrack(
     validation.validateTrack(&self.track_state, mediaTrack);
 
     if (!globals.preferences.manual_routing) {
-        // Always get and update current routing
-        self.scRouting = self.getCurrentRouting(mediaTrack);
-
-        // If reRoute specified, apply new routing
-        if (reRoute) |routing| {
-            try self.setSideChainRouting(mediaTrack, routing);
-        }
+        self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);
     }
 
     if (newOrder) |order| {
-        try validation.setModulesOrder(&self.track_state, order, mediaTrack);
+        validation.setModulesOrder(&self.track_state, order, mediaTrack);
     }
 }
 
-fn validateTrackChannels(mediaTrack: reaper.MediaTrack) !void {
-    const track_channels = reaper.GetMediaTrackInfo_Value(mediaTrack, "I_NCHAN");
-    if (track_channels < 4) {
-        _ = pReaper.SetMediaTrackInfo_Value(.{ mediaTrack, "I_NCHAN", @as(f64, 4) });
-    }
-}
-
-fn setSideChainRouting(
+fn getSetSideChainRouting(
     self: *@This(),
     mediaTrack: reaper.MediaTrack,
-    new_routing: SCRouting,
-) !void {
-    // Get current FX indices from track_state
+    new_routing: ?SCRouting,
+) SCRouting {
     const gate_loc = self.track_state.module_locations.get(.GATE);
     const comp_loc = self.track_state.module_locations.get(.COMP);
 
-    if (gate_loc) |gate| {
-        _ = getSetFxSC(
-            mediaTrack,
-            gate.fx_index,
-            if (new_routing == .toShape) .turnOn else .turnOff,
-        );
-    }
+    // Early return if modules aren't found
+    if (gate_loc == null or comp_loc == null) return .off;
 
-    if (comp_loc) |comp| {
-        _ = getSetFxSC(
-            mediaTrack,
-            comp.fx_index,
-            if (new_routing == .toComp) .turnOn else .turnOff,
-        );
-    }
+    // Get current track channels
+    const track_channels = reaper.GetMediaTrackInfo_Value(mediaTrack, "I_NCHAN");
 
-    self.scRouting = new_routing;
-}
+    // If only getting current routing
+    if (new_routing == null) {
+        // Return .off if track can't support sidechain
+        if (track_channels < 4) return .off;
 
-const SCAction = enum {
-    turnOn,
-    turnOff,
-};
-
-fn getCurrentRouting(self: *@This(), mediaTrack: reaper.MediaTrack) SCRouting {
-    const gate_loc = self.track_state.module_locations.get(.GATE);
-    const comp_loc = self.track_state.module_locations.get(.COMP);
-
-    if (gate_loc != null and comp_loc != null) {
         const gate_connected = getSetFxSC(mediaTrack, gate_loc.?.fx_index, null);
         const comp_connected = getSetFxSC(mediaTrack, comp_loc.?.fx_index, null);
 
         // Check for invalid state (both connected)
         if (gate_connected and comp_connected) {
-            // Turn off the one that was connected last
-            if (gate_loc.?.fx_index > comp_loc.?.fx_index) {
-                _ = getSetFxSC(mediaTrack, gate_loc.?.fx_index, .turnOff);
-                return .toComp;
-            } else {
-                _ = getSetFxSC(mediaTrack, comp_loc.?.fx_index, .turnOff);
-                return .toShape;
-            }
+            // Turn off the comp
+            _ = getSetFxSC(mediaTrack, comp_loc.?.fx_index, .turnOff);
+            return .toShape;
         }
 
-        if (!gate_connected and !comp_connected) {
-            return .off;
-        } else {
-            return if (gate_connected) .toShape else .toComp;
-        }
+        return if (!gate_connected and !comp_connected)
+            .off
+        else if (gate_connected)
+            .toShape
+        else
+            .toComp;
     }
 
-    return .off; // Default if modules aren't found
+    { // Setting new routing
+        const routing = new_routing.?;
+
+        // If turning off, just disable both
+        if (routing == .off) {
+            // TODO: remove tr channels 3 and 4 if no other fx are connected
+            _ = getSetFxSC(mediaTrack, gate_loc.?.fx_index, .turnOff);
+            _ = getSetFxSC(mediaTrack, comp_loc.?.fx_index, .turnOff);
+            return .off;
+        }
+
+        // Ensure track has enough channels for sidechain
+        if (track_channels < 4) {
+            _ = pReaper.SetMediaTrackInfo_Value(.{ mediaTrack, "I_NCHAN", @as(f64, 4) });
+        }
+
+        // Set new routing
+        _ = getSetFxSC(
+            mediaTrack,
+            gate_loc.?.fx_index,
+            if (routing == .toShape) .turnOn else .turnOff,
+        );
+        _ = getSetFxSC(
+            mediaTrack,
+            comp_loc.?.fx_index,
+            if (routing == .toComp) .turnOn else .turnOff,
+        );
+
+        return routing;
+    }
 }
 
-const ScChange = enum { turnOn, turnOff, toggle };
+const ScChange = enum { turnOn, turnOff };
 
 /// turn fx side chain on channels 3-4.
-/// onOff: if null, then just toggle.
 /// returns whether the FX' chan 3-4 are connected
 fn getSetFxSC(tr: reaper.MediaTrack, subIdx: c_int, onOff: ?ScChange) bool {
     // WARNING: brittle - I'm assuming that both channels  have the same toggles here
