@@ -749,13 +749,13 @@ fn handleInsertWithConsolidation(
             if (pos == insert_pos - 1) {
                 prev_fx = pos;
                 var buf: [512:0]u8 = undefined;
-                if (pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, pos, "original_name", @ptrCast(&buf), buf.len })) {
+                if (pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, pos, "original_name", @as([*:0]u8, &buf), buf.len })) {
                     prev_name = std.mem.span(@as([*:0]const u8, &buf));
                 }
             } else if (pos == insert_pos + 1) {
                 next_fx = pos;
                 var buf: [512:0]u8 = undefined;
-                if (pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, pos, "original_name", @ptrCast(&buf), buf.len })) {
+                if (pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, pos, "original_name", @as([*:0]u8, &buf), buf.len })) {
                     next_name = std.mem.span(@as([*:0]const u8, &buf));
                 }
             }
@@ -806,6 +806,170 @@ fn handleInsertWithConsolidation(
         .did_consolidate = false,
         .position = if (add_result >= 0) insert_pos else null,
     };
+}
+
+test "handleInsertWithConsolidation" {
+    const testing = std.testing;
+
+    const Mock = struct {
+        var buffer: [512]u8 = undefined;
+        var last_renamed_name: ?[]const u8 = null;
+        var current_fx_name: [:0]const u8 = undefined;
+        var fx_at_positions: std.AutoHashMap(i32, [:0]const u8) = undefined;
+        var last_deleted_fx: ?i32 = null;
+
+        fn mockTrackFX_GetNamedConfigParm(
+            track: reaper.MediaTrack,
+            fx_index: c_int,
+            parm_name: [*:0]const u8,
+            parm_value: [*:0]u8,
+            parm_value_sz: c_int,
+        ) callconv(.C) bool {
+            _ = track; // autofix
+            if (std.mem.eql(u8, std.mem.span(parm_name), "original_name")) {
+                if (fx_at_positions.get(@intCast(fx_index))) |name| {
+                    if (name.len >= parm_value_sz) return false;
+                    @memcpy(@as([*]u8, @ptrCast(parm_value))[0..name.len], name);
+                    @as([*]u8, @ptrCast(parm_value))[name.len] = 0;
+                    return true;
+                }
+                return false;
+            }
+            if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+                if (fx_at_positions.get(@intCast(fx_index))) |name| {
+                    if (name.len >= parm_value_sz) return false;
+                    @memcpy(@as([*]u8, @ptrCast(parm_value))[0..name.len], name);
+                    @as([*]u8, @ptrCast(parm_value))[name.len] = 0;
+                    return true;
+                }
+                return false;
+            }
+            return false;
+        }
+
+        fn mockTrackFX_SetNamedConfigParm(
+            track: reaper.MediaTrack,
+            fx_index: c_int,
+            parm_name: [*:0]const u8,
+            parm_value: [*:0]const u8,
+        ) callconv(.C) bool {
+            _ = fx_index; // autofix
+            _ = track; // autofix
+            if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
+                const value = std.mem.span(parm_value);
+                @memcpy(buffer[0..value.len], value);
+                last_renamed_name = buffer[0..value.len];
+            }
+            return true;
+        }
+
+        fn mockTrackFX_Delete(
+            track: reaper.MediaTrack,
+            fx_index: c_int,
+        ) callconv(.C) bool {
+            _ = track; // autofix
+            last_deleted_fx = fx_index;
+            _ = fx_at_positions.remove(@intCast(fx_index));
+            return true;
+        }
+
+        fn mockTrackFX_AddByName(
+            track: reaper.MediaTrack,
+            fx_name: [*:0]const u8,
+            recfx: bool,
+            pos: c_int,
+        ) callconv(.C) c_int {
+            _ = recfx; // autofix
+            _ = track; // autofix
+            const insert_pos = if (pos < -999) -(pos + 1000) else pos;
+            fx_at_positions.put(@intCast(insert_pos), std.mem.span(fx_name)) catch return -1;
+            return insert_pos;
+        }
+
+        fn reset(allocator: std.mem.Allocator) !void {
+            last_renamed_name = null;
+            last_deleted_fx = null;
+            fx_at_positions = std.AutoHashMap(i32, [:0]const u8).init(allocator);
+        }
+
+        fn deinit() void {
+            fx_at_positions.deinit();
+        }
+    };
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try Mock.reset(arena.allocator());
+
+    // Save original functions and replace with mocks
+    const real_get_fn = reaper.TrackFX_GetNamedConfigParm;
+    const real_set_fn = reaper.TrackFX_SetNamedConfigParm;
+    const real_del_fn = reaper.TrackFX_Delete;
+    const real_add_fn = reaper.TrackFX_AddByName;
+    @constCast(&reaper.TrackFX_GetNamedConfigParm).* = @constCast(&Mock.mockTrackFX_GetNamedConfigParm);
+    @constCast(&reaper.TrackFX_SetNamedConfigParm).* = @constCast(&Mock.mockTrackFX_SetNamedConfigParm);
+    @constCast(&reaper.TrackFX_Delete).* = @constCast(&Mock.mockTrackFX_Delete);
+    @constCast(&reaper.TrackFX_AddByName).* = @constCast(&Mock.mockTrackFX_AddByName);
+    defer {
+        @constCast(&reaper.TrackFX_GetNamedConfigParm).* = real_get_fn;
+        @constCast(&reaper.TrackFX_SetNamedConfigParm).* = real_set_fn;
+        @constCast(&reaper.TrackFX_Delete).* = real_del_fn;
+        @constCast(&reaper.TrackFX_AddByName).* = real_add_fn;
+    }
+
+    const dummy_track: MediaTrack = @ptrFromInt(0xdeadbeef);
+    const default_fx = DefaultFx.init(.{
+        .INPUT = "Test FX",
+        .GATE = "Test FX",
+        .EQ = "Test FX",
+        .COMP = "Different FX",
+        .OUTPT = "Test FX",
+    });
+
+    // Test 1: Insert with no pre-existing FX
+    {
+        try Mock.reset(arena.allocator());
+        const result = handleInsertWithConsolidation(dummy_track, .EQ, 0, default_fx, .{});
+        try testing.expect(!result.did_consolidate);
+        try testing.expect(result.position.? == 0);
+    }
+
+    // Test 2: Insert for consolidation with previous
+    {
+        try Mock.reset(arena.allocator());
+        try Mock.fx_at_positions.put(0, "Test FX (C1-E)");
+
+        const result = handleInsertWithConsolidation(dummy_track, .GATE, 1, default_fx, .{ .EQ = 0 });
+        try testing.expect(result.did_consolidate);
+        try testing.expect(result.position.? == 0);
+        try testing.expect(std.mem.eql(u8, Mock.last_renamed_name.?, "Test FX (C1-ES)"));
+    }
+
+    // Test 3: Insert between for consolidation
+    {
+        try Mock.reset(arena.allocator());
+        try Mock.fx_at_positions.put(0, "Test FX (C1-E)");
+        try Mock.fx_at_positions.put(2, "Test FX (C1-O)");
+
+        const result = handleInsertWithConsolidation(dummy_track, .GATE, 1, default_fx, .{
+            .EQ = 0,
+            .OUTPT = 2,
+        });
+        try testing.expect(result.did_consolidate);
+        try testing.expect(result.position.? == 0);
+        try testing.expect(Mock.last_deleted_fx.? == 2);
+        try testing.expect(std.mem.eql(u8, Mock.last_renamed_name.?, "Test FX (C1-ESO)"));
+    }
+
+    // Test 4: Insert without consolidation
+    {
+        try Mock.reset(arena.allocator());
+        try Mock.fx_at_positions.put(0, "Test FX (C1-E)");
+
+        const result = handleInsertWithConsolidation(dummy_track, .COMP, 1, default_fx, .{ .EQ = 0 });
+        try testing.expect(!result.did_consolidate);
+        try testing.expect(result.position.? == 1);
+    }
 }
 
 fn consolidateWithFxSuffix(
