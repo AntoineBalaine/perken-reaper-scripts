@@ -288,8 +288,24 @@ fn updateAllModuleParams(midi_out: reaper.midi_Output) void {
                             // Get parameter index from mpng
                             const param_idx = @field(@field(map, @tagName(mod)), @tagName(cc));
                             const val = reaper.TrackFX_GetParamNormalized(track, fx_idx, param_idx);
-                            const conv: u8 = @intFromFloat(val * 127);
-                            setParamLED(cc, conv, midi_out);
+
+                            if (val < 0) {
+                                var buf: [512:0]u8 = undefined;
+                                const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, fx_idx, "original_name", &buf, buf.len))
+                                    std.mem.span(@as([*:0]const u8, &buf))
+                                else
+                                    "unknown";
+
+                                log.err("Failed to get parameter value: FX '{s}' at index {}, parameter '{s}' at index {}", .{
+                                    fx_name,
+                                    fx_idx,
+                                    @tagName(cc),
+                                    param_idx,
+                                });
+                            } else {
+                                const conv: u8 = @intFromFloat(val * 127);
+                                setParamLED(cc, conv, midi_out);
+                            }
                         }
                     }
                 }
