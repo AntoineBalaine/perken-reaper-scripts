@@ -8,7 +8,6 @@ const control_surface = @import("csurf/control_surface.zig");
 const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
-const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
 const globals = @import("globals.zig");
@@ -27,12 +26,9 @@ pub const std_options = std.Options{
     .logFn = logger.logFn,
 };
 
-var controller_dir: [*:0]const u8 = undefined;
 // var action_id: c_int = undefined;
 var myCsurf: c.C_ControlSurface = undefined;
 
-var gpa_int = std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }){};
-const gpa = gpa_int.allocator();
 var queries_id: c_int = undefined;
 
 /// retrieve user settings
@@ -41,32 +37,14 @@ var queries_id: c_int = undefined;
 fn init() !void {
     logger.init();
     myCsurf = control_surface.init(-1, -1, null);
-    controller_dir = getControllerPath(gpa) catch |err| {
-        log.warn("Failed to create controller dir", .{});
-        return err;
-    };
-    errdefer |err| {
-        log.err("C1 init failed: {s}", .{@errorName(err)});
-        gpa.free(std.mem.span(controller_dir));
-    }
 
-    ImGuiLoop.allocator = gpa;
-
-    control_surface.controller_dir = controller_dir;
-    try globals.init(gpa, controller_dir);
+    try globals.init();
 }
 
 fn deinit() void {
     logger.deinit();
-    gpa.free(std.mem.span(controller_dir));
-    // gpa.free(std.mem.span(controller_dir));
-    // gpa.free(controller_dir);
-    globals.deinit(gpa);
+    globals.deinit();
     control_surface.deinit(myCsurf);
-    const deinit_status = gpa_int.deinit();
-    if (deinit_status == .leak) {
-        log.err("Memory leak detected\n", .{});
-    }
 }
 
 export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {

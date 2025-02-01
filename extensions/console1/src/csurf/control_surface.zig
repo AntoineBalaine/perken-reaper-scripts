@@ -25,7 +25,6 @@ const log = std.log.scoped(.csurf);
 const fx_ctrl_state = @import("../fx_ctrl_state.zig");
 const TrackList = fx_ctrl_state.TrackList;
 const track_list_actions = @import("../tracklist_actions.zig");
-pub var controller_dir: [*:0]const u8 = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 

@@ -237,6 +237,7 @@ pub fn logFn(
         .fs_helpers,
         .hooks,
         .validation,
+        .globals,
         => @tagName(scope),
         .default => @tagName(scope),
         .reentrancy => "",

@@ -19,7 +19,6 @@ const track_list_panel = @import("track_list_panel.zig");
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
-pub var allocator: std.mem.Allocator = undefined;
 var ctx: imgui.ContextPtr = null;
 var text = std.mem.zeroes([255:0]u8);
 var windowFlags: c_int = undefined;

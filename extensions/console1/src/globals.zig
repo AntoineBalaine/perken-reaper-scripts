@@ -9,7 +9,8 @@ const MappingsList = @import("mappings_list.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
-
+const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
+const log = std.log.scoped(.globals);
 // State machine
 pub var state: State = undefined;
 
@@ -27,6 +28,7 @@ pub var event_log: EventLog = undefined;
 pub var log_file: ?std.fs.File = null; // Store the actual file, not just a pointer
 
 // Resource management
+var gpa_int: std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }) = undefined;
 pub var allocator: std.mem.Allocator = undefined;
 pub var resource_path: [:0]const u8 = undefined;
 
@@ -42,19 +44,29 @@ pub var m_midi_out: ?reaper.midi_Output = null;
 pub var playState: bool = false;
 pub var pauseState: bool = false;
 
-pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
+pub fn init() !void {
+    gpa_int = @TypeOf(gpa_int){};
+    const gpa = gpa_int.allocator();
+    event_log = EventLog.init();
+    try initLoggerState();
     allocator = gpa;
-    resource_path = try allocator.dupeZ(u8, std.mem.span(path));
+    const path: [*:0]const u8 = getControllerPath(gpa) catch |err| {
+        log.warn("Failed to create controller dir", .{});
+        return err;
+    };
+    resource_path = std.mem.span(path);
+    errdefer |err| {
+        log.err("C1 init failed: {s}", .{@errorName(err)});
+        gpa.free(resource_path);
+    }
 
     // Initialize in dependency order
     preferences = try Preferences.init(allocator, resource_path);
 
     map_store = try MapStore.init(allocator, resource_path, &preferences.default_fx);
     mappings_list = try MappingsList.init(allocator, resource_path);
-    event_log = EventLog.init();
     state = State.init(gpa);
     settings_panel = try SettingsPanel.init(&preferences, gpa);
-    try initLoggerState();
     if (preferences.start_suspended) {
         state.current_mode = .suspended;
     }
@@ -62,15 +74,20 @@ pub fn init(gpa: std.mem.Allocator, path: [*:0]const u8) !void {
     try fxParser.init(allocator);
 }
 
-pub fn deinit(alloc: std.mem.Allocator) void {
-    fxParser.deinit(alloc);
+pub fn deinit() void {
+    fxParser.deinit(allocator);
+    const deinit_status = gpa_int.deinit();
+    if (deinit_status == .leak) {
+        log.err("Memory leak detected\n", .{});
+    }
+    allocator.free(resource_path);
     if (settings_panel) |*panel| {
         panel.deinit();
     }
     map_store.deinit();
     mappings_list.deinit();
     preferences.deinit();
-    state.deinit(alloc);
+    state.deinit(allocator);
     allocator.free(resource_path);
 }
 
