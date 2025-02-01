@@ -1,13 +1,10 @@
 # FEATURES
-- implement re-entrancy protection
 - Default fx mode: Channel Strip Panel [MODIFY BROWSER]
-- track list panel? [PAGINATION + GUI]
-- midi feedback upon state changes
+- track list panel rewrite [PAGINATION + GUI]
 - save preset?
 # BUGS
-- fix loading fx upon track validation
-  - fix scrolling through the browser with the console
-  - modify browser logic to account for insertion position in the channel strip
+- fix scrolling through the browser with the console
+- modify browser logic to account for insertion position in the channel strip
 - `Auto` modifier
 # ARCH
 - use arenas
@@ -15,54 +12,18 @@
 - validate state transitions at compile time?
 # WIDGETS
 - How can the knob display its «disabled» state?
-# BUILD
-- [fix] generate evts to be stored in evt log from logFn
-- expose components such as Knob as modules?
-- it would be clearer and safer to structure the call to external compiler like this (don’t forget to replicate in the test build):
-```zig
-const cpp_flags = [_][]const u8{
-    "-c",
-    "-fPIC",
-    "-O2",
-    "-std=c++14",
-    b.fmt("-I{s}", .{wdl_dep.path("").getPath(b)}),
-    "-DSWELL_PROVIDED_BY_APP",
-};
-
-inline for (comptime cppfiles) |cppfile| {
-    const filearg = try std.fmt.allocPrint(
-        b.allocator,
-        "{s}.o",
-        .{std.fs.path.basename(cppfile.getPath(b))},
-    );
-    const cxx = b.addSystemCommand(&[_][]const u8{
-        if (target.result.isDarwin()) "clang" else "gcc",
-    });
-    cxx.addArgs(&cpp_flags);
-    cxx.addArg("-o");
-    lib.addObjectFile(cxx.addOutputFileArg(filearg));
-    cxx.addFileArg(cppfile);
-    cxx.step.dependOn(&php_cmd.step);
-}
-```
-
 # midi feedback upon state changes
-- fx_ctrl => implemented
-- fx_sel
 - mapping_panel,
 - settings,
 - startup,
 - midi_learn,
 - error_state,
 # Error handling: GUI, file reading, allocations
-# validate state transitions at compile time
+
 # memory management: use arenas for session data
 - temporary alloc,
 - session-wide alloc (one a startup, one at close-up): use an arena
   if some config files can’t be found, embed basic config in the binary to provide them.
-# build.zig: pull cpp dependencies from `zig fetch`
-- https://github.com/travisstaloch/flatbufferz/blob/main/build.zig#L98
-# save preset?
 # track list panel
 # fix loading fx upon track validation
 # implement hiding the GUI
@@ -74,10 +35,6 @@ inline for (comptime cppfiles) |cppfile| {
 # Default fx mode: Channel Strip Panel
 # MODIFY BROWSER LOGIC TO ACCOUNT FOR INSERTION POSITION IN THE CHANNEL STRIP
 # FIX SCROLLING THROUGH THE BROWSER WITH THE CONSOLE
-
-features
-build
-nice to have
 
 # Default fx mode: Channel Strip Panel
   * Open from settings menu
