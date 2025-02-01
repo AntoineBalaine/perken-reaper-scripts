@@ -16,23 +16,31 @@ const TaggedMapping = MapStore.TaggedMapping;
 const MAX_FX = 5;
 const MAX_PARSED_FX = MAX_FX * 2; // Allow for reasonable number of duplicates
 
-const ModuleLocation = std.EnumArray(ModulesList, ?struct {
+const Location = struct {
     fx_index: c_int,
     mapping: ?TaggedMapping,
-});
-
-pub const TrackState = struct {
-    // FX tracking for validation
-    fx_states: [MAX_FX]struct {
-        fx_index: i32,
-        // Use bit mask for quick module presence check
-        modules: ActiveModules = .{},
-    } = undefined,
-    fx_count: usize = 0,
-
-    // Quick module -> FX lookup for parameter setting
-    module_locations: ModuleLocation = undefined,
 };
+
+const ModuleLocation = std.EnumArray(ModulesList, ?Location);
+
+pub const TrackState = @This();
+// FX tracking for validation
+fx_states: [MAX_FX]struct {
+    fx_index: i32,
+    // Use bit mask for quick module presence check
+    modules: ActiveModules = .{},
+} = undefined,
+fx_count: usize = 0,
+
+// Quick module -> FX lookup for parameter setting
+module_locations: ModuleLocation = undefined,
+// const array = std.enums.directEnumArrayDefault(
+//     ModulesList,
+//     ?Location,
+//     @as(?Location, null),
+//     0,
+//     .{ .INPUT = null, .GATE = null, .EQ = null, .COMP = null, .OUTPT = null },
+// );
 
 const ActiveModules = packed struct {
     INPUT: bool = false,
@@ -1570,7 +1578,7 @@ pub fn setModulesOrder(self: *TrackState, order: ModulesOrder, mediaTrack: Media
     }
 
     // Update module_locations with new positions
-    inline for (std.enums.values(ModulesList)) |module| {
+    inline for (comptime std.enums.values(ModulesList)) |module| {
         const pos = switch (module) {
             .INPUT => coverage.INPUT,
             .GATE => coverage.GATE,

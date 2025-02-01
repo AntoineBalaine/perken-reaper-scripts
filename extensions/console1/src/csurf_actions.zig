@@ -63,13 +63,14 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
                     if (prm_chg.fx_index >= container_fx_idx and prm_chg.fx_index < container_fx_idx + 5) {
                         var cc: c1.CCs = undefined;
 
-                        blk: inline for (@typeInfo(@TypeOf(state.fx_ctrl.fxMap)).Struct.fields) |field| {
-                            if (@field(state.fx_ctrl.fxMap, field.name)) |mod_map| {
-                                const idx = mod_map[0];
+                        blk: inline for (comptime std.enums.values(statemachine.ModulesList)) |field| {
+                            if (state.fx_ctrl.track_state.module_locations.get(field)) |mod_map| {
+                                const idx = mod_map.fx_index;
                                 if (idx == prm_chg.fx_index) {
-                                    if (mod_map[1]) |mapping| {
-                                        inline for (@typeInfo(@TypeOf(mapping)).Struct.fields) |param_field| {
-                                            const param_idx = @field(mapping, param_field.name);
+                                    if (mod_map.mapping) |mapping| {
+                                        const map_variant = @field(mapping, @tagName(field));
+                                        inline for (@typeInfo(@TypeOf(map_variant)).Struct.fields) |param_field| {
+                                            const param_idx = @field(map_variant, param_field.name);
                                             if (param_idx == prm_chg.param_index) {
                                                 cc = @field(c1.CCs, param_field.name);
                                                 break :blk;

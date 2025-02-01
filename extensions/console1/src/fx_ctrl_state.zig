@@ -8,7 +8,7 @@ const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const FxMap = @import("mappings.zig").FxMap;
 const globals = @import("globals.zig");
 const constants = @import("constants.zig");
-const validation = @import("fx_ctrl_validation.zig");
+pub const TrackState = @import("track_state.zig");
 
 // Mode-specific state structures
 const FxControlState = @This();
@@ -69,7 +69,7 @@ const ControlValue = union(enum) {
 };
 
 /// Track FX state and mappings
-track_state: validation.TrackState = validation.TrackState{},
+track_state: TrackState = .{},
 
 /// Static map containing all the CCs and their labels.
 ///
@@ -164,14 +164,14 @@ pub fn validateTrack(
     mediaTrack: reaper.MediaTrack,
     reRoute: ?SCRouting,
 ) !void {
-    validation.validateTrack(&self.track_state, mediaTrack);
+    TrackState.validateTrack(&self.track_state, mediaTrack);
 
     if (!globals.preferences.manual_routing) {
         self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);
     }
 
     if (newOrder) |order| {
-        validation.setModulesOrder(&self.track_state, order, mediaTrack);
+        self.track_state.setModulesOrder(order, mediaTrack);
     }
 }
 

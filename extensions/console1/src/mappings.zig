@@ -83,11 +83,11 @@ pub const FxMap = struct {
 /// Tagged union representing a loaded mapping for any module type.
 /// null indicates no mapping was found or loading failed - or was never set.
 pub const TaggedMapping = union(ModulesList) {
-    INPUT: ?Inpt,
-    GATE: ?Shp,
-    EQ: ?Eq,
-    COMP: ?Comp,
-    OUTPT: ?Outpt,
+    INPUT: Inpt,
+    GATE: Shp,
+    EQ: Eq,
+    COMP: Comp,
+    OUTPT: Outpt,
 };
 
 /// MapStore manages FX parameter mappings with lazy loading.
@@ -147,14 +147,14 @@ pub fn getModuleByName(self: *MapStore, fx_name: [:0]const u8) ?ModulesList {
 }
 
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
-pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMapping {
+pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMapping {
     switch (module) {
         .COMP => {
             if (self.COMP.get(fxName)) |v| {
                 return TaggedMapping{ .COMP = v };
             } else {
                 log.err("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch TaggedMapping{ .COMP = null };
+                return self.getMap(fxName, module) catch null;
             }
         },
         .EQ => {
@@ -162,7 +162,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
                 return TaggedMapping{ .EQ = v };
             } else {
                 log.err("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch TaggedMapping{ .EQ = null };
+                return self.getMap(fxName, module) catch null;
             }
         },
         .INPUT => {
@@ -170,7 +170,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
                 return TaggedMapping{ .INPUT = v };
             } else {
                 log.err("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch TaggedMapping{ .INPUT = null };
+                return self.getMap(fxName, module) catch null;
             };
         },
         .OUTPT => {
@@ -178,7 +178,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
                 return TaggedMapping{ .OUTPT = v };
             } else {
                 log.err("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch TaggedMapping{ .OUTPT = null };
+                return self.getMap(fxName, module) catch null;
             }
         },
         .GATE => {
@@ -186,7 +186,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) TaggedMap
                 return TaggedMapping{ .GATE = v };
             } else {
                 log.err("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch TaggedMapping{ .GATE = null };
+                return self.getMap(fxName, module) catch null;
             }
         },
     }
@@ -439,17 +439,19 @@ test "MapStore - lazy loading and caching" {
 
     // First access should load from disk
     const first_result = store.get(test_fx, .COMP);
-    try expect(first_result.COMP != null);
+    try expect(first_result != null);
     try expect(store.COMP.count() == 1);
 
     // Second access should use cache
     const second_result = store.get(test_fx, .COMP);
-    try expect(second_result.COMP != null);
+    try expect(second_result != null);
     try expect(store.COMP.count() == 1);
 
     // Verify cached values match
-    if (first_result.COMP) |first| {
-        if (second_result.COMP) |second| {
+    if (first_result) |comp_first| {
+        const first = comp_first.COMP;
+        if (second_result) |comp_second| {
+            const second = comp_second.COMP;
             try expect(first.Comp_Attack == second.Comp_Attack);
             try expect(first.Comp_Release == second.Comp_Release);
             // ... test other fields
@@ -484,7 +486,7 @@ test "MapStore - invalid fx name" {
     // Should return null mapping for unknown FX
     try expect(store.COMP.count() == 1);
     const result = store.get(nonexistent_fx, .COMP);
-    try expect(result.COMP == null);
+    try expect(result == null);
     try expect(store.COMP.count() == 1); // Should not cache failed attempts
 }
 
@@ -511,7 +513,8 @@ test "MapStore - mapping validation" {
     const test_fx = "VST: ReaComp (Cockos)";
 
     const result = store.get(test_fx, .COMP);
-    if (result.COMP) |comp| {
+    if (result) |COMP| {
+        const comp = COMP.COMP;
         // Test that all values are within MIDI range (0-127)
         try expect(comp.Comp_Attack <= 127);
         try expect(comp.Comp_Release <= 127);
@@ -555,5 +558,5 @@ test "MapStore - cross-module access" {
 
     // Try loading comp FX as EQ (should fail gracefully)
     const wrong_module = store.get(comp_fx, .EQ);
-    try expect(wrong_module.EQ == null);
+    try expect(wrong_module == null);
 }

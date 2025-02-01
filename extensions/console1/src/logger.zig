@@ -236,6 +236,7 @@ pub fn logFn(
         .midi_output,
         .fs_helpers,
         .hooks,
+        .validation,
         => @tagName(scope),
         .default => @tagName(scope),
         .reentrancy => "",

@@ -193,7 +193,7 @@ fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
     sendTrkCtrlFdb(midi_out);
 
     // 3. Set module order LED
-    setParamLED(c1.CCs.Tr_order, @intFromEnum(globals.state.fx_ctrl.order), midi_out);
+    setParamLED(c1.CCs.Tr_order, @intFromEnum(globals.state.fx_ctrl.track_state.getModulesOrder()), midi_out);
 
     // 4. Set all module parameters based on mappings
     updateAllModuleParams(midi_out);
@@ -280,18 +280,14 @@ fn updateAllModuleParams(midi_out: reaper.midi_Output) void {
                 // Determine module and get mapping
                 const module = comptime getModuleForCC(cc);
                 if (module) |mod| {
-                    const fx_map = @field(globals.state.fx_ctrl.fxMap, @tagName(mod));
-                    if (fx_map) |fxmap| {
-                        const fx_idx = fxmap[0];
-                        const mapping = fxmap[1];
+                    const module_loc = globals.state.fx_ctrl.track_state.module_locations.get(mod);
+                    if (module_loc) |fxmap| {
+                        const fx_idx = fxmap.fx_index;
+                        const mapping = fxmap.mapping;
                         if (mapping) |map| {
                             // Get parameter index from mpng
-                            const param_idx = @field(map, @tagName(cc));
-                            const val = reaper.TrackFX_GetParamNormalized(
-                                track,
-                                globals.state.fx_ctrl.getSubContainerIdx(fx_idx + 1, reaper.TrackFX_GetByName(track, constants.CONTROLLER_NAME, false) + 1, track),
-                                param_idx,
-                            );
+                            const param_idx = @field(@field(map, @tagName(mod)), @tagName(cc));
+                            const val = reaper.TrackFX_GetParamNormalized(track, fx_idx, param_idx);
                             const conv: u8 = @intFromFloat(val * 127);
                             setParamLED(cc, conv, midi_out);
                         }
@@ -330,16 +326,8 @@ fn queryMeters(midiOut: reaper.midi_Output) void {
     const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
     c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
     c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
-    if (globals.state.fx_ctrl.fxMap.COMP) |comp| {
-        const success = reaper.TrackFX_GetNamedConfigParm(
-            mediaTrack,
-            globals.state.fx_ctrl.getSubContainerIdx(comp[0] + 1, // make it 1-based
-                reaper.TrackFX_GetByName(mediaTrack, constants.CONTROLLER_NAME, false) + 1, // make it 1-based
-                mediaTrack),
-            "GainReduction_dB",
-            tmp[0..],
-            tmp.len,
-        );
+    if (globals.state.fx_ctrl.track_state.module_locations.get(.COMP)) |comp| {
+        const success = reaper.TrackFX_GetNamedConfigParm(mediaTrack, comp.fx_index, "GainReduction_dB", tmp[0..], tmp.len);
         if (!success) {
             log.err("failed to get gain reduction", .{});
         } else {

@@ -218,39 +218,27 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
     const norm_val = @as(f64, @floatFromInt(val)) / 127;
     setUIVal(cc, norm_val);
     const structPrm = @tagName(cc);
-    const fxMap = @field(globals.state.fx_ctrl.fxMap, @tagName(section));
+    const fxMap = globals.state.fx_ctrl.track_state.module_locations.get(section);
     if (fxMap == null) return;
-    const fxIdx = fxMap.?[0];
+    const fxIdx = fxMap.?.fx_index;
     const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
-    const subIdx = globals.state.fx_ctrl.getSubContainerIdx(
-        fxIdx + 1, // make it 1-based
-        reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
-        mediaTrack,
-    );
     if (globals.state.fx_ctrl.display != null) { // show touched fx
-        reaper.TrackFX_Show(mediaTrack, subIdx, 1);
+        reaper.TrackFX_Show(mediaTrack, fxIdx, 1);
     }
     // if setting filter types on reaeq
     if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
-        const hasName = reaper.TrackFX_GetFXName(mediaTrack, subIdx, &tmp, tmp.len);
+        const hasName = reaper.TrackFX_GetFXName(mediaTrack, fxIdx, &tmp, tmp.len);
         if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)"))
-            reaeq.setReaEqFilterType(mediaTrack, subIdx, cc, val);
+            reaeq.setReaEqFilterType(mediaTrack, fxIdx, cc, val);
         return;
     }
 
-    const mapping = fxMap.?[1];
+    const mapping = fxMap.?.mapping;
     if (mapping) |map| { // handle mapping
-        const fxPrm = @field(map, structPrm);
+        const fxPrm = @field(@field(map, @tagName(section)), structPrm);
 
         // at fxIdx, at fxPrm, set the value
-        _ = reaper.TrackFX_SetParamNormalized(
-            tr,
-            globals.state.fx_ctrl.getSubContainerIdx(fxIdx + 1, // make it 1-based
-                reaper.TrackFX_GetByName(tr, CONTROLLER_NAME, false) + 1, // make it 1-based
-                mediaTrack),
-            fxPrm,
-            norm_val,
-        );
+        _ = reaper.TrackFX_SetParamNormalized(tr, fxIdx, fxPrm, norm_val);
     }
 }
 

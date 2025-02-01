@@ -96,18 +96,16 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
         // },
         .select_fx => |fx_name| {
             // Check if mapping exists
-            if (switch (globals.map_store.get(fx_name, state.fx_sel.current_category)) {
-                inline else => |impl| impl == null,
-            }) {
+            if (globals.map_store.get(fx_name, state.fx_sel.current_category) == null) {
                 createEmptyMapping(state, fx_name) catch return;
                 // Open mapping panel
                 switch (state.fx_sel.current_category) {
                     inline else => |variant| {
-                        const fxMap = @field(state.fx_ctrl.fxMap, @tagName(variant));
+                        const fxMap = state.fx_ctrl.track_state.module_locations.get(variant);
 
                         if (fxMap == null) return;
                         if (fxMap) |map| {
-                            enterMappingMode(state.last_touched_tr_id, map[0]) catch {};
+                            enterMappingMode(state.last_touched_tr_id, map.fx_index) catch {};
                             dispatch(state, .{ .change_mode = .mapping_panel });
                         }
                     },

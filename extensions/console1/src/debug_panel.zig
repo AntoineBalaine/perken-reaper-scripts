@@ -63,8 +63,8 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
             const track_text = try safePrint(&buf, "Last Touched Track: {d}", .{state.last_touched_tr_id});
             try imgui.Text(.{ ctx, track_text });
 
-            if (state.fx_ctrl.fxMap.COMP) |comp| {
-                const comp_text = try safePrint(&buf, "Comp FX: {d}", .{comp[0]});
+            if (state.fx_ctrl.track_state.module_locations.get(.COMP)) |comp| {
+                const comp_text = try safePrint(&buf, "Comp FX: {d}", .{comp.fx_index});
                 try imgui.Text(.{ ctx, comp_text });
             }
         }
