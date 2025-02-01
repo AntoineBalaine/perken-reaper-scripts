@@ -61,10 +61,10 @@ pub fn init() !void {
     }
 
     // Initialize in dependency order
-    preferences = try Preferences.init(allocator, resource_path);
+    preferences = try Preferences.init(gpa, resource_path);
 
-    map_store = try MapStore.init(allocator, resource_path, &preferences.default_fx);
-    mappings_list = try MappingsList.init(allocator, resource_path);
+    map_store = try MapStore.init(gpa, resource_path, &preferences.default_fx);
+    mappings_list = try MappingsList.init(gpa, resource_path);
     state = State.init(gpa);
     settings_panel = try SettingsPanel.init(&preferences, gpa);
     if (preferences.start_suspended) {
@@ -76,10 +76,6 @@ pub fn init() !void {
 
 pub fn deinit() void {
     fxParser.deinit(allocator);
-    const deinit_status = gpa_int.deinit();
-    if (deinit_status == .leak) {
-        log.err("Memory leak detected\n", .{});
-    }
     allocator.free(resource_path);
     if (settings_panel) |*panel| {
         panel.deinit();
@@ -89,6 +85,10 @@ pub fn deinit() void {
     preferences.deinit();
     state.deinit(allocator);
     allocator.free(resource_path);
+    const deinit_status = gpa_int.deinit();
+    if (deinit_status == .leak) {
+        log.err("Memory leak detected\n", .{});
+    }
 }
 
 pub fn initLoggerState() !void {
