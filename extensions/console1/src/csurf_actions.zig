@@ -71,7 +71,7 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
                                         const map_variant = @field(mapping, @tagName(field));
                                         inline for (@typeInfo(@TypeOf(map_variant)).Struct.fields) |param_field| {
                                             const param_idx = @field(map_variant, param_field.name);
-                                            if (param_idx == prm_chg.param_index) {
+                                            if (param_idx != null and param_idx.? == prm_chg.param_index) {
                                                 cc = @field(c1.CCs, param_field.name);
                                                 break :blk;
                                             }

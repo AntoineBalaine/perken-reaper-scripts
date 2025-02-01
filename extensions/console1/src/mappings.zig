@@ -4,71 +4,65 @@ const settings = @import("settings.zig");
 const statemachine = @import("statemachine.zig");
 const MappingState = statemachine.MappingState;
 const ModulesList = statemachine.ModulesList;
-pub const UNMAPPED_PARAM: u8 = std.math.maxInt(u8); // or -1, or another sentinel value
 const log = std.log.scoped(.mappings);
 
-/// values are set to std.math.maxInt(u8) for unset mappings
 pub const Comp = struct {
-    Comp_Attack: u8 = UNMAPPED_PARAM,
-    Comp_DryWet: u8 = UNMAPPED_PARAM,
-    Comp_Ratio: u8 = UNMAPPED_PARAM,
-    Comp_Release: u8 = UNMAPPED_PARAM,
-    Comp_Thresh: u8 = UNMAPPED_PARAM,
-    Comp_comp: u8 = UNMAPPED_PARAM,
+    Comp_Attack: ?u8 = null,
+    Comp_DryWet: ?u8 = null,
+    Comp_Ratio: ?u8 = null,
+    Comp_Release: ?u8 = null,
+    Comp_Thresh: ?u8 = null,
+    Comp_comp: ?u8 = null,
     // Comp_Mtr : u8,
 };
 
-/// values are set to UNMAPPED_PARAM for unset mappings
 pub const Eq = struct {
-    Eq_HiFrq: u8 = UNMAPPED_PARAM,
-    Eq_HiGain: u8 = UNMAPPED_PARAM,
-    Eq_HiMidFrq: u8 = UNMAPPED_PARAM,
-    Eq_HiMidGain: u8 = UNMAPPED_PARAM,
-    Eq_HiMidQ: u8 = UNMAPPED_PARAM,
-    Eq_LoFrq: u8 = UNMAPPED_PARAM,
-    Eq_LoGain: u8 = UNMAPPED_PARAM,
-    Eq_LoMidFrq: u8 = UNMAPPED_PARAM,
-    Eq_LoMidGain: u8 = UNMAPPED_PARAM,
-    Eq_LoMidQ: u8 = UNMAPPED_PARAM,
-    Eq_eq: u8 = UNMAPPED_PARAM,
-    Eq_hp_shape: u8 = UNMAPPED_PARAM,
-    Eq_lp_shape: u8 = UNMAPPED_PARAM,
+    Eq_HiFrq: ?u8 = null,
+    Eq_HiGain: ?u8 = null,
+    Eq_HiMidFrq: ?u8 = null,
+    Eq_HiMidGain: ?u8 = null,
+    Eq_HiMidQ: ?u8 = null,
+    Eq_LoFrq: ?u8 = null,
+    Eq_LoGain: ?u8 = null,
+    Eq_LoMidFrq: ?u8 = null,
+    Eq_LoMidGain: ?u8 = null,
+    Eq_LoMidQ: ?u8 = null,
+    Eq_eq: ?u8 = null,
+    Eq_hp_shape: ?u8 = null,
+    Eq_lp_shape: ?u8 = null,
 };
 
-/// values are set to UNMAPPED_PARAM for unset mappings
 pub const Inpt = struct {
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
-    Inpt_Gain: u8 = UNMAPPED_PARAM,
-    Inpt_HiCut: u8 = UNMAPPED_PARAM,
-    Inpt_LoCut: u8 = UNMAPPED_PARAM,
-    Inpt_disp_mode: u8 = UNMAPPED_PARAM,
-    Inpt_disp_on: u8 = UNMAPPED_PARAM,
-    Inpt_filt_to_comp: u8 = UNMAPPED_PARAM,
-    Inpt_phase_inv: u8 = UNMAPPED_PARAM,
-    Inpt_preset: u8 = UNMAPPED_PARAM,
+    Inpt_Gain: ?u8 = null,
+    Inpt_HiCut: ?u8 = null,
+    Inpt_LoCut: ?u8 = null,
+    Inpt_disp_mode: ?u8 = null,
+    Inpt_disp_on: ?u8 = null,
+    Inpt_filt_to_comp: ?u8 = null,
+    Inpt_phase_inv: ?u8 = null,
+    Inpt_preset: ?u8 = null,
 };
 
-/// values are set to UNMAPPED_PARAM for unset mappings
 pub const Outpt = struct {
-    Out_Drive: u8 = UNMAPPED_PARAM,
-    Out_DriveChar: u8 = UNMAPPED_PARAM,
-    // Out_MtrLft : u8 = UNMAPPED_PARAM,
-    // Out_MtrRgt : u8 = UNMAPPED_PARAM,
-    Out_Pan: u8 = UNMAPPED_PARAM,
-    Out_Vol: u8 = UNMAPPED_PARAM,
-    // Out_mute : u8 = UNMAPPED_PARAM,
-    // Out_solo : u8 = UNMAPPED_PARAM,
+    Out_Drive: ?u8 = null,
+    Out_DriveChar: ?u8 = null,
+    // Out_MtrLft : u8 = null,
+    // Out_MtrRgt : u8 = null,
+    Out_Pan: ?u8 = null,
+    Out_Vol: ?u8 = null,
+    // Out_mute : u8 = null,
+    // Out_solo : u8 = null,
 };
 
-/// values are set to UNMAPPED_PARAM for unset mappings
 pub const Shp = struct {
-    Shp_Gate: u8 = UNMAPPED_PARAM,
-    Shp_GateRelease: u8 = UNMAPPED_PARAM,
-    Shp_Punch: u8 = UNMAPPED_PARAM,
-    Shp_hard_gate: u8 = UNMAPPED_PARAM,
-    Shp_shape: u8 = UNMAPPED_PARAM,
-    Shp_sustain: u8 = UNMAPPED_PARAM,
+    Shp_Gate: ?u8 = null,
+    Shp_GateRelease: ?u8 = null,
+    Shp_Punch: ?u8 = null,
+    Shp_hard_gate: ?u8 = null,
+    Shp_shape: ?u8 = null,
+    Shp_sustain: ?u8 = null,
 };
 
 /// FxMap associates an Fx index with a module map
@@ -285,11 +279,13 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
             .property => |kv| {
                 inline for (std.meta.fields(T)) |ns_info| {
                     if (std.mem.eql(u8, ns_info.name, kv.key)) {
-                        if (@TypeOf(@field(ret_struct, ns_info.name)) == u8) {
+                        if (@TypeOf(@field(ret_struct, ns_info.name)) == ?u8) {
                             // const field = &@field(ret_struct, ns_info.name);
                             // field.* = parsed;
-                            const parsed = std.fmt.parseInt(u8, kv.value, 10) catch std.math.maxInt(u8);
-                            @field(ret_struct, ns_info.name) = parsed;
+                            const parsed = std.fmt.parseInt(u8, kv.value, 10) catch null;
+                            if (parsed) |val| {
+                                @field(ret_struct, ns_info.name) = val;
+                            }
                         }
                     }
                 }
@@ -299,6 +295,21 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
         }
     }
     return ret_struct;
+}
+
+fn formatOptionalU8(value: anytype, writer: anytype) !void {
+    const T = @TypeOf(value);
+    const info = @typeInfo(T);
+    comptime {
+        if (info != .Optional) @compileError("Expected optional type, got " ++ @typeName(T));
+        if (@typeInfo(info.Optional.child) != .Int and @typeInfo(info.Optional.child) != .Float) @compileError("Expected optional number type, got optional " ++ @typeName(info.Optional.child));
+    }
+    if (value) |v| {
+        try writer.print("{d}", .{v});
+    } else {
+        // Print nothing for null
+        try writer.writeAll("");
+    }
 }
 
 pub fn saveToFile(self: *MapStore, mapping_state: MappingState) !void {
@@ -329,34 +340,29 @@ pub fn saveToFile(self: *MapStore, mapping_state: MappingState) !void {
     // Write different fields based on module type
     switch (mapping_state.current_mappings) {
         .COMP => |comp| inline for (std.meta.fields(@TypeOf(comp))) |field| {
-            try writer.print("{s} = {d}\n", .{
-                field.name,
-                @field(comp, field.name),
-            });
+            try writer.print("{s} = ", .{field.name});
+            try formatOptionalU8(@field(comp, field.name), writer);
+            try writer.writeByte('\n');
         },
         .EQ => |eq| inline for (std.meta.fields(@TypeOf(eq))) |field| {
-            try writer.print("{s} = {d}\n", .{
-                field.name,
-                @field(eq, field.name),
-            });
+            try writer.print("{s} = ", .{field.name});
+            try formatOptionalU8(@field(eq, field.name), writer);
+            try writer.writeByte('\n');
         },
         .INPUT => |input| inline for (std.meta.fields(@TypeOf(input))) |field| {
-            try writer.print("{s} = {d}\n", .{
-                field.name,
-                @field(input, field.name),
-            });
+            try writer.print("{s} = ", .{field.name});
+            try formatOptionalU8(@field(input, field.name), writer);
+            try writer.writeByte('\n');
         },
         .OUTPT => |outpt| inline for (std.meta.fields(@TypeOf(outpt))) |field| {
-            try writer.print("{s} = {d}\n", .{
-                field.name,
-                @field(outpt, field.name),
-            });
+            try writer.print("{s} = ", .{field.name});
+            try formatOptionalU8(@field(outpt, field.name), writer);
+            try writer.writeByte('\n');
         },
         .GATE => |gate| inline for (std.meta.fields(@TypeOf(gate))) |field| {
-            try writer.print("{s} = {d}\n", .{
-                field.name,
-                @field(gate, field.name),
-            });
+            try writer.print("{s} = ", .{field.name});
+            try formatOptionalU8(@field(gate, field.name), writer);
+            try writer.writeByte('\n');
         },
     }
 }
@@ -516,9 +522,9 @@ test "MapStore - mapping validation" {
     if (result) |COMP| {
         const comp = COMP.COMP;
         // Test that all values are within MIDI range (0-127)
-        try expect(comp.Comp_Attack <= 127);
-        try expect(comp.Comp_Release <= 127);
-        try expect(comp.Comp_Thresh <= 127);
+        try expect(comp.Comp_Attack.? <= 127);
+        try expect(comp.Comp_Release.? <= 127);
+        try expect(comp.Comp_Thresh.? <= 127);
         // ... test other fields
     } else {
         try expect(false); // Should not happen for known FX

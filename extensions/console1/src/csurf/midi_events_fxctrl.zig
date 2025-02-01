@@ -238,7 +238,10 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
         const fxPrm = @field(@field(map, @tagName(section)), structPrm);
 
         // at fxIdx, at fxPrm, set the value
-        _ = reaper.TrackFX_SetParamNormalized(tr, fxIdx, fxPrm, norm_val);
+        if (fxPrm) |param| {
+            log.info("set param\n", .{});
+            _ = reaper.TrackFX_SetParamNormalized(tr, fxIdx, param, norm_val);
+        }
     }
 }
 
