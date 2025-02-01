@@ -37,3 +37,22 @@ test getControllerPath {
         return err;
     };
 }
+
+pub fn joinStrings(buffer: []u8, strings: []const []const u8) ![]const u8 {
+    var path_list = std.ArrayListUnmanaged(u8).initBuffer(buffer);
+    for (strings) |s| {
+        path_list.appendSliceAssumeCapacity(s);
+    }
+    return path_list.items;
+}
+
+test "joinStrings" {
+    const testing = std.testing;
+
+    var buffer: [100]u8 = undefined;
+    const result = try joinStrings(&buffer, &.{ "hello", "world" });
+    try testing.expectEqualStrings("helloworld", result);
+
+    const result2 = try joinStrings(&buffer, &.{ "path", "/", "to", "/", "file" });
+    try testing.expectEqualStrings("path/to/file", result2);
+}

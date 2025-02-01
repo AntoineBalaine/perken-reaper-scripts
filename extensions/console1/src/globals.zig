@@ -9,7 +9,8 @@ const MappingsList = @import("mappings_list.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
-const getControllerPath = @import("internals/fs_helpers.zig").getControllerPath;
+const fs_helpers = @import("internals/fs_helpers.zig");
+const getControllerPath = fs_helpers.getControllerPath;
 const log = std.log.scoped(.globals);
 // State machine
 pub var state: State = undefined;
@@ -47,7 +48,6 @@ pub var pauseState: bool = false;
 pub fn init() !void {
     gpa_int = @TypeOf(gpa_int){};
     const gpa = gpa_int.allocator();
-    event_log = EventLog.init();
     try initLoggerState();
     allocator = gpa;
     const path: [*:0]const u8 = getControllerPath(gpa) catch |err| {
@@ -92,16 +92,20 @@ pub fn deinit() void {
 }
 
 pub fn initLoggerState() !void {
-
+    event_log = EventLog.init();
     // Set event log pointer
     logger.event_log = &event_log;
-
     // Handle file logging
-    if (preferences.log_to_file) {
-        const log_path = try std.fs.path.join(allocator, &.{ resource_path, "debug.log" });
-        defer allocator.free(log_path);
 
-        log_file = try std.fs.createFileAbsolute(log_path, .{});
+    if (preferences.log_to_file) {
+        var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+        const path = try fs_helpers.joinStrings(&path_buffer, &.{
+            resource_path,
+            std.fs.path.sep_str,
+            "debug.log",
+        });
+
+        log_file = try std.fs.createFileAbsolute(path, .{});
         logger.log_file = &log_file.?;
     }
 }
@@ -119,8 +123,12 @@ pub fn updateLoggerState() !void {
 
     // Open new file if needed
     if (preferences.log_to_file) {
-        const log_path = try std.fs.path.join(allocator, &.{ resource_path, "debug.log" });
-        defer allocator.free(log_path);
+        var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+        const log_path = try fs_helpers.joinStrings(&path_buffer, &.{
+            resource_path,
+            std.fs.path.sep_str,
+            "debug.log",
+        });
 
         // Store the actual file in our module
         log_file = try std.fs.createFileAbsolute(log_path, .{});
