@@ -380,13 +380,13 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETPAN_EX => {
             // csurf doesn't have means of checking if fx get re-ordered.
             // SETPAN_EX does get called if the fx chain is open and the user re-orders the fx, though.
-            if (parm1) |mediaTrack| {
-                _ = globals.state.fx_ctrl.validateTrack(
-                    null,
-                    @as(MediaTrack, @ptrCast(mediaTrack)),
-                    null,
-                ) catch {};
-            }
+            // if (parm1) |mediaTrack| {
+            //     _ = globals.state.fx_ctrl.validateTrack(
+            //         null,
+            //         @as(MediaTrack, @ptrCast(mediaTrack)),
+            //         null,
+            //     ) catch {};
+            // }
         },
         .SETFXPARAM => {
             const track: reaper.MediaTrack = @ptrCast(parm1);

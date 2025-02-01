@@ -164,7 +164,7 @@ pub fn validateTrack(
     mediaTrack: reaper.MediaTrack,
     reRoute: ?SCRouting,
 ) !void {
-    TrackState.validateTrack(&self.track_state, mediaTrack);
+    self.track_state.validateTrack(mediaTrack);
 
     if (!globals.preferences.manual_routing) {
         self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);

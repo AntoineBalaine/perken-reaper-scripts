@@ -48,10 +48,10 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
                 state.last_touched_tr_id = id;
 
                 // Update mode-specific state based on new track
-                switch (state.current_mode) {
-                    .fx_ctrl => actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .update_console_for_track = track } }),
-                    else => {}, // Other modes might not need track updates
-                }
+                // switch (state.current_mode) {
+                //     .fx_ctrl => actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .update_console_for_track = track } }),
+                //     else => {}, // Other modes might not need track updates
+                // }
             }
         },
         .fx_chain_changed => |track| actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .update_console_for_track = track } }),

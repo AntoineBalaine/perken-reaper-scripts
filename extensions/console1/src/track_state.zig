@@ -178,7 +178,7 @@ fn removeDuplicateModule(
     module_to_remove: ModulesList,
     media_track: MediaTrack,
 ) void {
-    var name_buf: [512]u8 = undefined;
+    var name_buf: [512:0]u8 = undefined;
 
     // Get current name
     if (!reaper.TrackFX_GetNamedConfigParm(media_track, fx_index, "renamed_name", @ptrCast(&name_buf), name_buf.len)) {
@@ -186,7 +186,7 @@ fn removeDuplicateModule(
     }
     const fx_name = std.mem.span(@as([*:0]const u8, @ptrCast(&name_buf)));
 
-    var buf: [512]u8 = undefined;
+    var buf: [512:0]u8 = undefined;
 
     const suffix_start = std.mem.lastIndexOf(u8, fx_name, "(C1-").?;
     const suffix_end = std.mem.indexOfPos(u8, fx_name, suffix_start, ")").?;
@@ -221,7 +221,7 @@ test "removeDuplicateModule" {
     const testing = std.testing;
 
     const Mock = struct {
-        var buffer: [512]u8 = undefined;
+        var buffer: [512:0]u8 = undefined;
         var last_fx_name: ?[]const u8 = null;
         var current_test_name: [:0]const u8 = undefined;
 
@@ -400,7 +400,7 @@ pub fn updateTrackState(
     parsed_fx: []const ParsedFx,
     coverage: ModuleCoverage,
     mediaTrack: MediaTrack,
-    buf: *[512]u8,
+    buf: *[512:0]u8,
 ) void {
     // Reset current state
     track_state.fx_count = 0;
@@ -431,7 +431,7 @@ pub fn updateTrackState(
                     );
                     track_state.module_locations.set(module, .{
                         .fx_index = @field(coverage, field.name).?,
-                        .mapping = globals.map_store.get(@ptrCast(buf), module),
+                        .mapping = globals.map_store.get(std.mem.span(@as([*:0]const u8, buf)), module),
                     });
                 }
             }
@@ -727,7 +727,7 @@ test "reorderFx2" {
     const testing = std.testing;
 
     const Mock = struct {
-        var buffer: [512]u8 = undefined;
+        var buffer: [512:0]u8 = undefined;
         var fx_at_positions: std.AutoHashMap(i32, [:0]const u8) = undefined;
         var last_deleted_fx: ?i32 = null;
         var fx_chain_changed = false;
@@ -1205,17 +1205,29 @@ fn handleInsertWithConsolidation(
 
     // Case 4: No consolidation possible, perform normal insertion
     const add_result = pReaper.TrackFX_AddByName(.{ mediaTrack, fx_name, false, -1000 - insert_pos });
-    return .{
-        .did_consolidate = false,
-        .position = if (add_result >= 0) insert_pos else null,
-    };
+    if (add_result >= 0) {
+        const module_char = switch (module) {
+            .INPUT => "I",
+            .GATE => "S",
+            .EQ => "E",
+            .COMP => "C",
+            .OUTPT => "O",
+        };
+
+        var name_buf: [512:0]u8 = undefined;
+        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ fx_name, module_char }) catch return .{ .did_consolidate = false, .position = null };
+
+        _ = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, add_result, "renamed_name", new_name });
+        return .{ .did_consolidate = false, .position = insert_pos };
+    }
+    return .{ .did_consolidate = false, .position = null };
 }
 
 test "handleInsertWithConsolidation" {
     const testing = std.testing;
 
     const Mock = struct {
-        var buffer: [512]u8 = undefined;
+        var buffer: [512:0]u8 = undefined;
         var last_renamed_name: ?[]const u8 = null;
         var current_fx_name: [:0]const u8 = undefined;
         var fx_at_positions: std.AutoHashMap(i32, [:0]const u8) = undefined;
@@ -1383,7 +1395,7 @@ fn consolidateWithFxSuffix(
     var buf: [512:0]u8 = undefined;
 
     // Get current renamed name
-    if (!pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, target_fx, "renamed_name", @as([*:0]u8, @constCast(&buf)), buf.len })) {
+    if (!pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, target_fx, "renamed_name", @as([*:0]u8, &buf), buf.len })) {
         log.err("Failed to get renamed name for FX at position {}", .{target_fx});
         return false;
     }
@@ -1434,7 +1446,7 @@ test "consolidateWithFx" {
     const testing = std.testing;
 
     const Mock = struct {
-        var buffer: [512]u8 = undefined;
+        var buffer: [512:0]u8 = undefined;
         var last_renamed_name: ?[]const u8 = null;
 
         fn mockTrackFX_GetNamedConfigParm(
