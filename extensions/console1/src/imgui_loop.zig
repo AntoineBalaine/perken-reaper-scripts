@@ -76,6 +76,7 @@ fn main() !void {
                 }
                 if (globals.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
+                    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, globals.modifier_active)) |action| {
                         switch (action) {
                             .select_track => |track_number| {

@@ -34,7 +34,7 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
 
             // Special handling for modifier keys
             if (modifier_active and (i < 5 or i == 19)) {
-                const label = try safePrint(&buf, "{d:>2}. {s}", .{
+                const label = safePrint(&buf, "{d:>2}. {s}", .{
                     i + 1,
                     switch (i) {
                         0 => "Input Load",
@@ -70,7 +70,7 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
             }
             defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
-            const label = try safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+            const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
             if (try imgui.Selectable(.{ ctx, label })) {
                 action = .{ .select_track = tr_id };
@@ -88,6 +88,22 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
     var action: ?TrackListPanelAction = null;
     var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
 
+    const max_label = safePrint(&buf, "{d:>2}. {s}", .{ 20, "X" ** (TrackList.TrackNameSize - 1) });
+    var max_label_width: f64 = undefined;
+    var max_label_height: f64 = undefined;
+    try imgui.CalcTextSize(.{ ctx, max_label, &max_label_width, &max_label_height, false, -1.0 });
+
+    // Get starting X position
+    const start_x = (try imgui.GetCursorPosX(.{ctx}));
+    const second_column_x = start_x + max_label_width + 20; // 20px spacing
+
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
+
+    const page_text = safePrint(&buf, "Page {d}", .{state.fx_ctrl.current_page + 1});
+    try imgui.Text(.{ ctx, page_text });
+    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
+
     // First column (tracks 1-10)
     {
         try imgui.BeginGroup(.{ctx});
@@ -100,7 +116,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
 
             // Special handling for modifier keys
             if (modifier_active and i < 5) {
-                const label = try safePrint(&buf, "{d:>2}. {s}", .{
+                const label = safePrint(&buf, "{d:>2}. {s}", .{
                     i + 1,
                     switch (i) {
                         0 => "Input Load",
@@ -132,7 +148,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
             }
             defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
-            const label = try safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+            const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
             if (try imgui.Selectable(.{ ctx, label })) {
                 action = .{ .select_track = tr_id };
@@ -141,7 +157,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
     }
 
     try imgui.SameLine(.{ctx});
-    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
+    try imgui.SetCursorPosX(.{ ctx, second_column_x });
 
     // Second column (tracks 11-20)
     {
@@ -154,7 +170,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
 
             // Special handling for settings (i == 19)
             if (modifier_active and i == 19) {
-                const label = try safePrint(&buf, "{d:>2}. Settings", .{i + 1});
+                const label = safePrint(&buf, "{d:>2}. Settings", .{i + 1});
                 if (try imgui.Selectable(.{ ctx, label })) {
                     action = .{ .open_settings = {} };
                 }
@@ -168,7 +184,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
             }
             defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
-            const label = try safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+            const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
             if (try imgui.Selectable(.{ ctx, label })) {
                 action = .{ .select_track = tr_id };

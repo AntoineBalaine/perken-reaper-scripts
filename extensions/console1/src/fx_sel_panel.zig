@@ -37,7 +37,7 @@ fn Directory(ctx: imgui.ContextPtr, directory: fx_parser.Directory, isFxChain: b
         while (filesIt.next()) |entry| {
             const file = @as([:0]const u8, @ptrCast(entry.key_ptr.*));
             if (try imgui.Selectable(.{ ctx, file })) {
-                const fullPathFile = try safePrint(&buf, "{s}/{s}", .{ directory.path, file });
+                const fullPathFile = safePrint(&buf, "{s}/{s}", .{ directory.path, file });
                 if (isFxChain) {
                     return .{ .fx_chain = .{ .path = fullPathFile } };
                 } else {
@@ -165,7 +165,7 @@ pub fn ModulePopup(
     try imgui.SetNextWindowSize(.{ ctx, 400, 300, null });
 
     var buf: [128:0]u8 = undefined;
-    const title = try safePrint(&buf, "{s} FX Browser", .{@tagName(module)});
+    const title = safePrint(&buf, "{s} FX Browser", .{@tagName(module)});
     var open = true;
     if (try imgui.Begin(.{ ctx, title, &open })) {
         defer imgui.End(.{ctx}) catch {};

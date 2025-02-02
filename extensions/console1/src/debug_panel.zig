@@ -5,7 +5,7 @@ const logger = @import("logger.zig");
 
 const DEBUG_BUF_SIZE = 512;
 
-pub fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) ![:0]const u8 {
+pub fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) [:0]const u8 {
     return std.fmt.bufPrintZ(buf, fmt, args) catch |err| switch (err) {
         error.NoSpaceLeft => blk: {
             const ellipsis = "…";
@@ -14,7 +14,6 @@ pub fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) ![:0]cons
             buf[end + ellipsis.len] = '\x00';
             break :blk @as([:0]const u8, buf[0 .. end + ellipsis.len :0]);
         },
-        else => return err,
     };
 }
 
@@ -25,7 +24,7 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
         var buf: [DEBUG_BUF_SIZE:0]u8 = undefined;
 
         // Current State Section
-        const mode_text = try safePrint(&buf, "Current Mode: {s}", .{@tagName(state.current_mode)});
+        const mode_text = safePrint(&buf, "Current Mode: {s}", .{@tagName(state.current_mode)});
         try imgui.TextWrapped(.{ ctx, mode_text });
 
         if (try imgui.CollapsingHeader(.{ ctx, "Recent Events" })) {
@@ -42,14 +41,14 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
                     try imgui.TableNextRow(.{ctx});
 
                     if (try imgui.TableNextColumn(.{ctx})) {
-                        const event_type = try safePrint(&buf, "{s}", .{@tagName(event)});
+                        const event_type = safePrint(&buf, "{s}", .{@tagName(event)});
                         try imgui.Text(.{ ctx, event_type });
                     }
 
                     if (try imgui.TableNextColumn(.{ctx})) {
                         switch (event) {
                             .state_change => |change| {
-                                const state_text = try safePrint(&buf, "{s} -> {s}", .{ @tagName(change.old_mode), @tagName(change.new_mode) });
+                                const state_text = safePrint(&buf, "{s} -> {s}", .{ @tagName(change.old_mode), @tagName(change.new_mode) });
                                 try imgui.Text(.{ ctx, state_text });
                             },
                             else => {},
@@ -60,11 +59,11 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
         }
 
         if (try imgui.CollapsingHeader(.{ ctx, "Track State" })) {
-            const track_text = try safePrint(&buf, "Last Touched Track: {d}", .{state.last_touched_tr_id});
+            const track_text = safePrint(&buf, "Last Touched Track: {d}", .{state.last_touched_tr_id});
             try imgui.Text(.{ ctx, track_text });
 
             if (state.fx_ctrl.track_state.module_locations.get(.COMP)) |comp| {
-                const comp_text = try safePrint(&buf, "Comp FX: {d}", .{comp.fx_index});
+                const comp_text = safePrint(&buf, "Comp FX: {d}", .{comp.fx_index});
                 try imgui.Text(.{ ctx, comp_text });
             }
         }
@@ -76,7 +75,7 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
             var it = event_log.ring_buffer.reverse_iterator();
             while (it.next()) |event| {
                 if (@as(logger.EventType, event) == .midi_input) {
-                    const midi_text = try safePrint(&buf, "CC: {s} Val: {d}", .{ @tagName(event.midi_input.cc), event.midi_input.value });
+                    const midi_text = safePrint(&buf, "CC: {s} Val: {d}", .{ @tagName(event.midi_input.cc), event.midi_input.value });
                     try imgui.Text(.{ ctx, midi_text });
                 }
             }
@@ -92,42 +91,42 @@ test "safePrint" {
     // Test buffer that's large enough
     {
         var buf: [32:0]u8 = undefined;
-        const result = try safePrint(&buf, "test {d}", .{42});
+        const result = safePrint(&buf, "test {d}", .{42});
         try expectEqualStrings("test 42", result);
     }
 
     // Test buffer that's exactly the right size (including null terminator)
     {
         var buf: [8:0]u8 = undefined;
-        const result = try safePrint(&buf, "test {d}", .{42});
+        const result = safePrint(&buf, "test {d}", .{42});
         try expectEqualStrings("test 42", result);
     }
 
     // Test truncation
     {
         var buf: [7:0]u8 = undefined;
-        const result = try safePrint(&buf, "test {d}", .{42});
+        const result = safePrint(&buf, "test {d}", .{42});
         try expectEqualStrings("tes…", result);
     }
 
     // Test very small buffer
     {
         var buf: [4:0]u8 = undefined;
-        const result = try safePrint(&buf, "test this", .{});
+        const result = safePrint(&buf, "test this", .{});
         try expectEqualStrings("…", result);
     }
 
     // Test empty format string
     {
         var buf: [8:0]u8 = undefined;
-        const result = try safePrint(&buf, "", .{});
+        const result = safePrint(&buf, "", .{});
         try expectEqualStrings("", result);
     }
 
     // Verify null termination
     {
         var buf: [8:0]u8 = undefined;
-        _ = try safePrint(&buf, "test", .{});
+        _ = safePrint(&buf, "test", .{});
         try expect(buf[4] == 0);
     }
 }
