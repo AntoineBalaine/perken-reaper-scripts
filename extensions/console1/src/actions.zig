@@ -62,6 +62,13 @@ pub fn dispatch(state: *State, action: ModeAction) void {
     // log.debug("Handling action: {s}", .{@tagName(action)});
     switch (action) {
         .change_mode => |new_mode| {
+            if (!validateTransition(state.current_mode, new_mode)) {
+                log.err(
+                    "Invalid mode transition: {s} -> {s}",
+                    .{ @tagName(state.current_mode), @tagName(new_mode) },
+                );
+                return;
+            }
             const old_mode = state.current_mode;
             switch (new_mode) {
                 .suspended => {
