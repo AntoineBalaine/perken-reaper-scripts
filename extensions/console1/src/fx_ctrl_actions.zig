@@ -18,6 +18,7 @@ const Mode = statemachine.Mode;
 const State = statemachine.State;
 const ModulesList = statemachine.ModulesList;
 const actions = @import("actions.zig");
+const pReaper = @import("pReaper.zig");
 
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
@@ -49,7 +50,8 @@ pub const FxCtrlAction = union(enum) {
     toggle_solo,
     set_routing_order: ModulesOrder,
     set_sidechain: SCRouting,
-    update_console_for_track: MediaTrack,
+    on_track_entry: MediaTrack,
+    fx_win_disp: MediaTrack,
 };
 
 pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
@@ -65,8 +67,8 @@ pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
             state.fx_ctrl.values.getPtr(input.cc).?.param.normalized = input.value;
             actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
         },
-        .update_console_for_track => |media_track| updateConsoleForTrack(media_track),
-
+        .on_track_entry => |media_track| onTrackEntry(media_track),
+        .fx_win_disp => |media_track| handleFxWindowDisplay(media_track),
         else => {},
         // ... other fx_ctrl actions
     }
@@ -75,20 +77,22 @@ pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
 /// Handles FX window visibility when switching tracks
 /// Closes FX window of previous track and opens FX window of new track if display mode is active
 fn handleFxWindowDisplay(media_track: MediaTrack) void {
+    const count = reaper.GetNumTracks();
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        const tr = reaper.CSurf_TrackFromID(i, false);
+        pReaper.TrackFX_Show(.{ tr, -1, 0 }); // no valid index required for closing FX chain
+    }
     if (globals.state.fx_ctrl.display) |_| {
-        const prevTr = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
-        const currentFX = reaper.TrackFX_GetChainVisible(prevTr);
-        reaper.TrackFX_Show(prevTr, currentFX, if (currentFX == -2 or currentFX >= 0) 0 else 1);
-        const cntnrIdx = reaper.TrackFX_GetByName(media_track, CONTROLLER_NAME, false) + 1;
-        reaper.TrackFX_Show(media_track, cntnrIdx, 1);
+        pReaper.TrackFX_Show(.{ media_track, 0, 1 });
     }
 }
 
 /// Main track selection handler for Console1
 /// Validates track's FX chain, updates window display,
 /// and synchronizes all controller feedback (LEDs, knobs) with track state
-pub fn updateConsoleForTrack(media_track: MediaTrack) void {
-    log.debug("update console", .{});
+fn onTrackEntry(media_track: MediaTrack) void {
+    log.debug("track entry", .{});
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
 
     globals.state.fx_ctrl.validateTrack(null, media_track, null) catch {

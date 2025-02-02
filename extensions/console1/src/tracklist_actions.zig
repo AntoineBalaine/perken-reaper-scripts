@@ -37,7 +37,7 @@ pub fn trackListAction(state: *State, action: TrackListAction) void {
         .track_select => |track_id| {
             const track = setReaperTrackSelection(track_id);
             if (track) |tr| {
-                actions.dispatch(state, .{ .fx_ctrl = .{ .update_console_for_track = tr } });
+                actions.dispatch(state, .{ .fx_ctrl = .{ .on_track_entry = tr } });
             }
         },
         .blink_leds => |led_state| {
@@ -205,7 +205,7 @@ fn focusPageTracks(state: *State) void {
 // unselect all other tracks.
 fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
     // 1. Check if index is valid
-    const track_count = reaper.CountTracks(0) + 1; // +  1 to account for master
+    const track_count = reaper.GetNumTracks(); // including master
     if (csurf_id >= track_count) {
         log.warn("invalid track index: track {d} doesn't exist\n", .{csurf_id});
     }

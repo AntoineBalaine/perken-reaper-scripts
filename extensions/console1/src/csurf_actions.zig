@@ -49,12 +49,12 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
 
                 // Update mode-specific state based on new track
                 // switch (state.current_mode) {
-                //     .fx_ctrl => actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .update_console_for_track = track } }),
+                //     .fx_ctrl => actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = track } }),
                 //     else => {}, // Other modes might not need track updates
                 // }
             }
         },
-        .fx_chain_changed => |track| actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .update_console_for_track = track } }),
+        .fx_chain_changed => |track| actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = track } }),
         .fx_param_changed => |prm_chg| {
             if (state.current_mode == .fx_ctrl) {
                 const container_idx = reaper.TrackFX_GetByName(prm_chg.track, "C1_CHANNEL", false);

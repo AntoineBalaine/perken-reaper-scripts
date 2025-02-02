@@ -1,7 +1,7 @@
 const std = @import("std");
-const Reaper = @import("../reaper.zig");
-const reaper = Reaper.reaper;
-const MediaTrack = Reaper.reaper.MediaTrack;
+const reaper = @import("../reaper.zig").reaper;
+const pReaper = @import("../pReaper.zig");
+const MediaTrack = reaper.MediaTrack;
 const c_void = anyopaque;
 const c1 = @import("../c1.zig");
 const c = @cImport({
@@ -48,21 +48,15 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
                 actions.dispatch(&globals.state, .set_fx_ctrl_gui);
             } else {
                 const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
-                const cntnrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
-
-                if (globals.state.fx_ctrl.display != null) { // hide chain
-                    reaper.TrackFX_Show(mediaTrack, cntnrIdx, 0);
-                    globals.state.fx_ctrl.display = null;
-                } else { // show chain
-                    reaper.TrackFX_Show(mediaTrack, cntnrIdx, 1);
-                    globals.state.fx_ctrl.display = 1;
-                }
+                globals.state.fx_ctrl.display = if (globals.state.fx_ctrl.display) |_| null else 1;
+                actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
             }
         },
         .Inpt_filt_to_comp => {},
         .Inpt_phase_inv => {
             const phase = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE");
-            _ = reaper.SetMediaTrackInfo_Value(tr, "B_PHASE", if (phase == 0) 1 else 0);
+            const phase_val: f64 = if (phase == 0) 1 else 0;
+            _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "B_PHASE", phase_val });
         },
         .Inpt_preset => {},
         .Out_Pan => {

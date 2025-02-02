@@ -279,7 +279,7 @@ export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
         .data = .{ .none = {} },
     } }});
     // FIXME: should we be using this ?
-    actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .update_console_for_track = trackid } });
+    actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = trackid } });
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     if (ignore_notifications) return false;
@@ -352,14 +352,6 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                 // const isOpen = @as(*u8, @ptrCast(ptr));
                 if (isOpen == 0) { // UI closed
                     globals.state.fx_ctrl.display = null;
-                } else {
-                    if (parm2) |fxIdxPtr| {
-                        // const cntrlrIdx = reaper.TrackFX_GetByName(mediaTrack, CONTROLLER_NAME, false) + 1; // make it 1-based
-                        //param.X.container_map.fx_index
-                        const cntnrIdx = @as(*u8, @ptrCast(fxIdxPtr)).*;
-                        _ = cntnrIdx;
-                        // TrackFX_GetNamedConfigParm()
-                    }
                 }
             } else {
                 globals.state.fx_ctrl.display = null;
