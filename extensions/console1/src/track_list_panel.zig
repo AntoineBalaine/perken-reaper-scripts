@@ -110,9 +110,15 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
         defer imgui.EndGroup(.{ctx}) catch {};
 
         for (state.fx_ctrl.track_list.track_names[0..10], 0..) |tr, i| {
-            const name = tr.name;
-            const tr_id = tr.id;
-            const is_selected = state.selectedTracks.contains(@intCast(tr_id));
+            var name: [TrackList.TrackNameSize:0]u8 = undefined;
+            name[0] = '\x00';
+            var is_selected = false;
+            var tr_id: ?c_int = null;
+            if (i < state.fx_ctrl.track_list.name_count) {
+                name = tr.name;
+                tr_id = tr.id;
+                is_selected = state.selectedTracks.contains(@intCast(tr_id.?));
+            }
 
             // Special handling for modifier keys
             if (modifier_active and i < 5) {
@@ -139,19 +145,21 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
                     } };
                 }
                 continue;
-            }
+            } else {
+                // Normal track selection handling
+                if (is_selected) {
+                    const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
+                    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
+                }
+                defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
-            // Normal track selection handling
-            if (is_selected) {
-                const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
-                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
-            }
-            defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+                const label = safePrint(&buf, "{d:>2}. {s}{s}", .{ i + 1, if (i + 1 > 10) " " else "", name });
 
-            const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
-
-            if (try imgui.Selectable(.{ ctx, label })) {
-                action = .{ .select_track = tr_id };
+                if (try imgui.Selectable(.{ ctx, label })) {
+                    if (tr_id) |trid| {
+                        action = .{ .select_track = trid };
+                    }
+                }
             }
         }
     }
@@ -164,10 +172,18 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
         for (state.fx_ctrl.track_list.track_names[10..], 10..) |tr, i| {
-            const name = tr.name;
-            const tr_id = tr.id;
-            const is_selected = state.selectedTracks.contains(@intCast(tr_id));
+            var name: [TrackList.TrackNameSize:0]u8 = undefined;
+            name[0] = '\x00';
+            var is_selected = false;
+            var tr_id: ?c_int = null;
+            if (i < state.fx_ctrl.track_list.name_count) {
+                name = tr.name;
+                tr_id = tr.id;
+                is_selected = state.selectedTracks.contains(@intCast(tr_id.?));
+            }
 
+            try imgui.PushItemWidth(.{ ctx, max_label_width });
+            defer imgui.PopItemWidth(.{ctx}) catch {};
             // Special handling for settings (i == 19)
             if (modifier_active and i == 19) {
                 const label = safePrint(&buf, "{d:>2}. Settings", .{i + 1});
@@ -175,19 +191,22 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
                     action = .{ .open_settings = {} };
                 }
                 continue;
-            }
+            } else {
 
-            // Normal track selection handling
-            if (is_selected) {
-                const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
-                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
-            }
-            defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+                // Normal track selection handling
+                if (is_selected) {
+                    const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
+                    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
+                }
+                defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
-            const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+                const label = safePrint(&buf, "{d:>2}. {s}{s}", .{ i + 1, if (i + 1 > 10) " " else "", name });
 
-            if (try imgui.Selectable(.{ ctx, label })) {
-                action = .{ .select_track = tr_id };
+                if (try imgui.Selectable(.{ ctx, label })) {
+                    if (tr_id) |trid| {
+                        action = .{ .select_track = trid };
+                    }
+                }
             }
         }
     }
