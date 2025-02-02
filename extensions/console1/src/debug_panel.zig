@@ -59,7 +59,7 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
         }
 
         if (try imgui.CollapsingHeader(.{ ctx, "Track State" })) {
-            const track_text = safePrint(&buf, "Last Touched Track: {d}", .{state.last_touched_tr_id});
+            const track_text = safePrint(&buf, "Last Touched Track: {d}", .{state.current_tr_id});
             try imgui.Text(.{ ctx, track_text });
 
             if (state.fx_ctrl.track_state.module_locations.get(.COMP)) |comp| {

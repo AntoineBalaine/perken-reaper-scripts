@@ -129,7 +129,7 @@ export fn zSetTrackListChange() callconv(.C) void {
 
 inline fn FIXID(trackid: MediaTrack) c_int {
     const oid = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode);
-    return oid - globals.state.last_touched_tr_id;
+    return oid - globals.state.current_tr_id;
 }
 
 export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
@@ -143,7 +143,7 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
         .timestamp = std.time.milliTimestamp(),
         .data = .{ .volume = volume },
     } }});
-    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.last_touched_tr_id) return;
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     const volint = utils.volToU8(volume);
     if (globals.state.fx_ctrl.vol_lastpos != volint) {
         globals.state.fx_ctrl.vol_lastpos = volint;
@@ -160,7 +160,7 @@ export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
         .timestamp = std.time.milliTimestamp(),
         .data = .{ .pan = pan },
     } }});
-    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.last_touched_tr_id) return;
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = @intFromFloat((pan + 1) / 2 * 127) } } });
 }
 export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
@@ -171,11 +171,12 @@ export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
         .timestamp = std.time.milliTimestamp(),
         .data = .{ .none = {} },
     } }});
-    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.last_touched_tr_id) return;
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
 }
 export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) void {
     if (ignore_notifications) return;
+    log.info("set surface selected", .{});
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetSurfaceSelected,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
@@ -192,7 +193,7 @@ export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
         .timestamp = std.time.milliTimestamp(),
         .data = .{ .none = {} },
     } }});
-    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.last_touched_tr_id) return;
+    if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_solo, .value = if (solo) 0x7f else 0x0 } } });
 }
 
@@ -359,6 +360,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         },
 
         .SETLASTTOUCHEDTRACK => {
+            log.info("set last touched track", .{});
             std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
                 .type = .Extended_SetLastTouchedTrack,
                 .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
@@ -382,7 +384,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETFXPARAM => {
             const track: reaper.MediaTrack = @ptrCast(parm1);
             const id = reaper.CSurf_TrackToID(track, constants.g_csurf_mcpmode);
-            if (globals.state.last_touched_tr_id == id) {
+            if (globals.state.current_tr_id == id) {
                 const f: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
 
                 const fxidx = (f >> 16) & 0xFFFF;

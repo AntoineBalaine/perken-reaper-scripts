@@ -52,7 +52,7 @@ pub const State = struct {
     mapping: MappingState,
 
     // Shared state
-    last_touched_tr_id: c_int = 0,
+    current_tr_id: ?c_int = null,
     selectedTracks: std.AutoArrayHashMapUnmanaged(c_int, void) = .{},
     fx_ctrl_gui_visible: bool = true,
 

@@ -182,9 +182,6 @@ fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
     // First clear everything
     clearAllLEDs(midi_out);
 
-    // If no track selected, we're done
-    // if (globals.state.last_touched_tr_id == null) return;
-
     // 1. Set track selection LEDs
     // handleTrackSelectFeedback(midi_out);
     updateTrackListLEDs(midi_out);
@@ -202,7 +199,7 @@ fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
 /// Set track controls’ LEDs (vol, pan, mute, solo, phase inv.)
 /// Queries reaper ap
 pub fn sendTrkCtrlFdb(midi_out: reaper.midi_Output) void {
-    const track = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
+    const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
     // Preserve volume/pan/mute/solo state
     const volume = reaper.GetMediaTrackInfo_Value(track, "D_VOL");
     const pan = reaper.GetMediaTrackInfo_Value(track, "D_PAN");
@@ -238,7 +235,7 @@ fn MappingsEntry(midi_out: reaper.midi_Output) void {
 
 /// Updates Console1's module parameters based on FX mapping
 fn updateAllModuleParams(midi_out: reaper.midi_Output) void {
-    const track = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, false);
+    const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id, false);
 
     // Module Parameters
     inline for (comptime std.enums.values(c1.CCs)) |cc| {
@@ -337,7 +334,7 @@ fn getModuleForCC(comptime cc: c1.CCs) ?statemachine.ModulesList {
 
 fn queryMeters(midiOut: reaper.midi_Output) void {
     var tmp: [512:0]u8 = undefined;
-    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
+    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
     const left = reaper.Track_GetPeakInfo(mediaTrack, 0);
     const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
     const left_midi: u8 = if (left > 1.0) 127 else @intFromFloat(left * 127);

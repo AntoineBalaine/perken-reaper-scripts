@@ -105,7 +105,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
 
                         if (fxMap == null) return;
                         if (fxMap) |map| {
-                            enterMappingMode(state.last_touched_tr_id, map.fx_index) catch {};
+                            enterMappingMode(state.current_tr_id, map.fx_index) catch {};
                             dispatch(state, .{ .change_mode = .mapping_panel });
                         }
                     },

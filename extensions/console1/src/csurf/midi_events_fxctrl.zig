@@ -31,7 +31,6 @@ const utils = @import("../utils.zig");
 var tmp: [4096:0]u8 = undefined;
 
 pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
-    const tr = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
     switch (cc) {
         .Inpt_disp_mode => {
             globals.modifier_active = val == 127;
@@ -47,44 +46,53 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
             if (globals.modifier_active) {
                 actions.dispatch(&globals.state, .set_fx_ctrl_gui);
             } else {
-                const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
+                const mediaTrack = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
                 globals.state.fx_ctrl.display = if (globals.state.fx_ctrl.display) |_| null else 1;
                 actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
             }
         },
         .Inpt_filt_to_comp => {},
         .Inpt_phase_inv => {
+            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
             const phase = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE");
             const phase_val: f64 = if (phase == 0) 1 else 0;
             _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "B_PHASE", phase_val });
         },
         .Inpt_preset => {},
         .Out_Pan => {
+            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
             setUIVal(cc, u8ToPan(val));
             reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), @ptrCast(csurf.my_csurf));
         },
         .Out_Vol => {
+            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
             setUIVal(cc, @as(f64, @floatFromInt(val)) / 127);
             reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), @ptrCast(csurf.my_csurf));
         },
-        .Out_mute => reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), @ptrCast(csurf.my_csurf)),
-        .Out_solo => reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), @ptrCast(csurf.my_csurf)),
+        .Out_mute => {
+            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
+            reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), @ptrCast(csurf.my_csurf));
+        },
+        .Out_solo => {
+            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
+            reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), @ptrCast(csurf.my_csurf));
+        },
         .Shp_Mtr => {}, // meters unhandled
         .Tr_ext_sidechain => {
             // unpin prev 3-4 of comp or gate
+            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
             switch (val) {
                 0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val)) catch {},
                 else => {},
             }
         },
         .Tr_order => {
+            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
             switch (val) {
                 0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null) catch {},
                 else => {},
             }
         },
-        // .Tr_pg_dn => onPgChg(.Down),
-        // .Tr_pg_up => onPgChg(.Up),
         .Tr_pg_up => {
             actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .up } });
             actions.dispatch(&globals.state, .{ .midi_out = .page_change });
@@ -140,14 +148,17 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
                 actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
             }
         },
-        inline else => |cc_| setPrmVal(cc_, switch (cc_) {
-            .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
-            .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
-            .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut => .INPUT,
-            .Out_Drive, .Out_DriveChar => .OUTPT,
-            .Shp_GateRelease, .Shp_Gate, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
-            else => unreachable,
-        }, tr, val),
+        inline else => |cc_| {
+            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
+            setPrmVal(cc_, switch (cc_) {
+                .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
+                .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
+                .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut => .INPUT,
+                .Out_Drive, .Out_DriveChar => .OUTPT,
+                .Shp_GateRelease, .Shp_Gate, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
+                else => unreachable,
+            }, tr, val);
+        },
     }
 }
 
@@ -164,39 +175,6 @@ fn u8ToVol(val: u8) f64 {
 }
 
 const PgChgDirection = enum { Up, Down };
-
-// TODO: remove once we have the action tested in midi_out.zig
-fn onPgChg(direction: PgChgDirection) void {
-    // select tracks in page
-    // sws: VertZoomRange
-    const btn = if (direction == .Up) c1.CCs.Tr_pg_up else c1.CCs.Tr_pg_dn;
-    c.MidiOut_Send(globals.m_midi_out, 0xb0, @intFromEnum(btn), 0x0, -1); // don't light up the pgup/pgdn buttons
-    // query trackCount
-    // trackCount / 20  = pageCount
-    const idx: u8 = 0;
-    const pgCnt64: f64 = @ceil(@as(f64, @floatFromInt(reaper.CountTracks(idx))) / @as(f64, @floatCast(20)));
-    const pageCount = @as(u8, @intFromFloat(pgCnt64));
-    if (pageCount == 0) return;
-    globals.state.fx_ctrl.current_page = switch (direction) {
-        .Up => @rem(globals.state.fx_ctrl.current_page + 1, pageCount),
-        .Down => @as(u8, @intCast(@rem(@as(i16, @intCast(globals.state.fx_ctrl.current_page)) - 1, pageCount))),
-    };
-    if (globals.m_midi_out) |midi_out| {
-        if (globals.state.last_touched_tr_id == -1) return;
-        const selTrckOffset = @rem(globals.state.last_touched_tr_id, pageCount);
-        if (globals.m_midi_out) |midiout| {
-            inline for (@typeInfo(c1.Tracks).Enum.fields, 0..) |f, fieldIdx| {
-                if (fieldIdx == @as(usize, @intCast(selTrckOffset))) {
-                    c.MidiOut_Send(midi_out, 0xb0, f.value, 0x7f, -1);
-                }
-            }
-            if (selTrckOffset == globals.state.fx_ctrl.current_page) {
-                const new_cc = @rem(globals.state.last_touched_tr_id, 20) + 0x15 - 1;
-                c.MidiOut_Send(midiout, 0xb0, @as(u8, @intCast(new_cc)), 0x7f, -1); // set newly-selected to on
-            }
-        }
-    }
-}
 
 /// set the fx_ctrl UI values
 fn setUIVal(cc: c1.CCs, norm_val: f64) void {
@@ -215,9 +193,9 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
     const fxMap = globals.state.fx_ctrl.track_state.module_locations.get(section);
     if (fxMap == null) return;
     const fxIdx = fxMap.?.fx_index;
-    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.last_touched_tr_id, constants.g_csurf_mcpmode);
+    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
     if (globals.state.fx_ctrl.display != null) { // show touched fx
-        reaper.TrackFX_Show(mediaTrack, fxIdx, 1);
+        pReaper.TrackFX_Show(.{ mediaTrack, fxIdx, 1 });
     }
     // if setting filter types on reaeq
     if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
@@ -234,7 +212,7 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
         // at fxIdx, at fxPrm, set the value
         if (fxPrm) |param| {
             log.info("set param\n", .{});
-            _ = reaper.TrackFX_SetParamNormalized(tr, fxIdx, param, norm_val);
+            _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
         }
     }
 }

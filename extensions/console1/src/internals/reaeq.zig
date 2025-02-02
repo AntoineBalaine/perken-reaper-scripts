@@ -1,5 +1,6 @@
 const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
+const pReaper = @import("../pReaper.zig");
 const c1 = @import("../c1.zig");
 const bandtypes = enum(c_int) {
     allpass = 5,
@@ -40,6 +41,6 @@ pub fn setReaEqFilterType(mediaTrack: reaper.MediaTrack, fxidx: c_int, cc: c1.CC
         _ = std.fmt.bufPrintZ(&valueBuf, "{d}", .{@intFromEnum(value)}) catch {
             return;
         };
-        _ = reaper.TrackFX_SetNamedConfigParm(mediaTrack, fxidx, @as([*:0]u8, &bandTypeBuf), @as([*:0]u8, &valueBuf));
+        _ = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, fxidx, @as([*:0]u8, &bandTypeBuf), @as([*:0]u8, &valueBuf) });
     }
 }

@@ -35,23 +35,35 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
     switch (set_action) {
         .track_selected => |selection| {
             // Update selected tracks map
-            const id = reaper.CSurf_TrackToID(selection.tr, false);
+            const tr_id = reaper.CSurf_TrackToID(selection.tr, false);
             if (selection.selected) {
-                state.selectedTracks.put(globals.arena, id, {}) catch return;
+                state.selectedTracks.put(globals.arena, tr_id, {}) catch return;
+                // If no current track, use this one
+                if (state.current_tr_id == null) {
+                    state.current_tr_id = tr_id;
+                    actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = selection.tr } });
+                }
             } else {
-                _ = state.selectedTracks.orderedRemove(id);
+                _ = state.selectedTracks.orderedRemove(tr_id);
+                // If this was our current track, fall back to another selected track
+                if (state.current_tr_id == tr_id) {
+                    state.current_tr_id = if (state.selectedTracks.count() > 0) state.selectedTracks.keys()[0] else null;
+                    if (state.current_tr_id) |id| {
+                        actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = reaper.CSurf_TrackFromID(id, false) } });
+                    }
+                }
             }
         },
         .last_touched_track => |track| {
-            const id = reaper.CSurf_TrackToID(track, false);
-            if (state.last_touched_tr_id != id) {
-                state.last_touched_tr_id = id;
-
-                // Update mode-specific state based on new track
-                // switch (state.current_mode) {
-                //     .fx_ctrl => actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = track } }),
-                //     else => {}, // Other modes might not need track updates
-                // }
+            const tr_id = reaper.CSurf_TrackToID(track, false);
+            // Update current_tr_id if:
+            // - We have no current track, or
+            // - We have multiple tracks selected and this is a different track
+            if (state.current_tr_id == null or
+                (state.selectedTracks.count() > 1 and state.current_tr_id != tr_id))
+            {
+                state.current_tr_id = tr_id;
+                actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = track } });
             }
         },
         .fx_chain_changed => |track| actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = track } }),

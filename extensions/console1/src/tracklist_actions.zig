@@ -51,7 +51,7 @@ pub fn trackListAction(state: *State, action: TrackListAction) void {
                 if (track_id >= track_count) break;
 
                 // Skip if this is the last touched track
-                if (track_id == state.last_touched_tr_id) {
+                if (track_id == state.current_tr_id) {
                     continue;
                 }
 
@@ -93,7 +93,7 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
     }
 
     // Always light up last touched track
-    if (state.last_touched_tr_id) |track_id| {
+    if (state.current_tr_id) |track_id| {
         if (track_id >= page_start and
             track_id < page_start + TrackList.PageSize)
         {
