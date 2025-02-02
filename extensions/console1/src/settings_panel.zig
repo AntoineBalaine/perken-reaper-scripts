@@ -154,7 +154,7 @@ pub fn save(self: *@This()) !void {
         .allocator = undefined,
         .resource_path = undefined,
     };
-    try copy.copyFrom(&copy, globals.allocator);
+    try copy.copyFrom(&copy, globals.arena);
     globals.preferences.deinit();
     globals.preferences = copy;
     try globals.preferences.saveToDisk();

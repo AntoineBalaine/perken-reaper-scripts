@@ -37,7 +37,7 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
             // Update selected tracks map
             const id = reaper.CSurf_TrackToID(selection.tr, false);
             if (selection.selected) {
-                state.selectedTracks.put(globals.allocator, id, {}) catch return;
+                state.selectedTracks.put(globals.arena, id, {}) catch return;
             } else {
                 _ = state.selectedTracks.orderedRemove(id);
             }

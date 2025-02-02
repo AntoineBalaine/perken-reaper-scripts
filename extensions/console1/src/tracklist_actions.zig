@@ -221,7 +221,7 @@ fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
 
     const media_track = reaper.CSurf_TrackFromID(csurf_id, constants.g_csurf_mcpmode);
 
-    globals.state.selectedTracks.put(globals.allocator, csurf_id, {}) catch {};
+    globals.state.selectedTracks.put(globals.arena, csurf_id, {}) catch {};
 
     reaper.CSurf_SetSurfaceSelected(media_track, reaper.CSurf_OnSelectedChange(media_track, 1), @ptrCast(csurf.my_csurf));
     return media_track;

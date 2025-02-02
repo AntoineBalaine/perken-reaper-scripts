@@ -172,11 +172,11 @@ fn hasMappingFor(module: ModulesList, fx_name: []const u8) bool {
 /// Create empty mapping in MapStore
 fn createEmptyMapping(state: *State, fx_name: [:0]const u8) !void {
     switch (state.fx_sel.current_category) {
-        .INPUT => try globals.map_store.INPUT.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Inpt{}),
-        .GATE => try globals.map_store.GATE.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Shp{}),
-        .EQ => try globals.map_store.EQ.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Eq{}),
-        .COMP => try globals.map_store.COMP.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Comp{}),
-        .OUTPT => try globals.map_store.OUTPT.put(globals.allocator, try globals.allocator.dupeZ(u8, fx_name), mappings.Outpt{}),
+        .INPUT => try globals.map_store.INPUT.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Inpt{}),
+        .GATE => try globals.map_store.GATE.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Shp{}),
+        .EQ => try globals.map_store.EQ.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Eq{}),
+        .COMP => try globals.map_store.COMP.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Comp{}),
+        .OUTPT => try globals.map_store.OUTPT.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Outpt{}),
     }
 }
 
@@ -184,7 +184,7 @@ pub fn enterMappingMode(track_id: c_int, fx_number: i32) !void {
     const media_track =
         reaper.CSurf_TrackFromID(track_id, false);
     if (globals.mapping_panel == null) {
-        globals.mapping_panel = MappingPanel.init(globals.allocator);
+        globals.mapping_panel = MappingPanel.init(globals.arena);
     }
     try globals.mapping_panel.?.loadParameters(media_track, fx_number);
 }

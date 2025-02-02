@@ -174,11 +174,11 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             log.debug("Saved mappings for FX: {s}", .{state.mapping.target_fx});
             // Save to MapStore
             switch (state.mapping.current_mappings) {
-                .INPUT => |input| globals.map_store.INPUT.put(globals.allocator, state.mapping.target_fx, input) catch {},
-                .GATE => |gate| globals.map_store.GATE.put(globals.allocator, state.mapping.target_fx, gate) catch {},
-                .EQ => |eq| globals.map_store.EQ.put(globals.allocator, state.mapping.target_fx, eq) catch {},
-                .COMP => |comp| globals.map_store.COMP.put(globals.allocator, state.mapping.target_fx, comp) catch {},
-                .OUTPT => |outpt| globals.map_store.OUTPT.put(globals.allocator, state.mapping.target_fx, outpt) catch {},
+                .INPUT => |input| globals.map_store.INPUT.put(globals.arena, state.mapping.target_fx, input) catch {},
+                .GATE => |gate| globals.map_store.GATE.put(globals.arena, state.mapping.target_fx, gate) catch {},
+                .EQ => |eq| globals.map_store.EQ.put(globals.arena, state.mapping.target_fx, eq) catch {},
+                .COMP => |comp| globals.map_store.COMP.put(globals.arena, state.mapping.target_fx, comp) catch {},
+                .OUTPT => |outpt| globals.map_store.OUTPT.put(globals.arena, state.mapping.target_fx, outpt) catch {},
             }
 
             globals.map_store.saveToFile(state.mapping) catch {
@@ -200,7 +200,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             state.mapping.midi_learn_active = false;
 
             // Free allocated memory
-            state.mapping.deinit(globals.allocator);
+            state.mapping.deinit(globals.arena);
 
             // Clean up mapping panel
             if (globals.mapping_panel) |*panel| {
@@ -323,7 +323,7 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
 //     const gpa = testing.allocator;
 //
 //     // Initialize global state (required for save operation)
-//     globals.allocator = gpa;
+//     globals.arena = gpa;
 //     globals.map_store = mappings.init(gpa);
 //     defer globals.map_store.deinit();
 //

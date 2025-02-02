@@ -19,7 +19,7 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
     switch (set_action) {
         .open => {
             if (globals.settings_panel == null) {
-                globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.allocator) catch blk: {
+                globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.arena) catch blk: {
                     log.err("open settings failed: {s}", .{@tagName(set_action)});
                     break :blk null;
                 };

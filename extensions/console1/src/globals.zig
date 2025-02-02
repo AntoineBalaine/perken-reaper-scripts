@@ -29,7 +29,8 @@ pub var log_file: ?std.fs.File = null; // Store the actual file, not just a poin
 
 // Resource management
 var gpa_int: std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }) = undefined;
-pub var allocator: std.mem.Allocator = undefined;
+var arena_int: std.heap.ArenaAllocator = undefined;
+pub var arena: std.mem.Allocator = undefined;
 pub var resource_path: [:0]const u8 = undefined;
 
 // State flags
@@ -46,36 +47,31 @@ pub var pauseState: bool = false;
 
 pub fn init() !void {
     gpa_int = @TypeOf(gpa_int){};
-    const gpa = gpa_int.allocator();
+    arena_int = std.heap.ArenaAllocator.init(gpa_int.allocator());
+    arena = arena_int.allocator();
+
     try initLoggerState();
-    allocator = gpa;
-    resource_path = std.mem.span(try fs_helpers.getControllerPath(gpa));
+    resource_path = std.mem.span(try fs_helpers.getControllerPath(arena));
 
     // Initialize in dependency order
-    preferences = try Preferences.init(gpa, resource_path);
+    preferences = try Preferences.init(arena, resource_path);
 
-    map_store = try MapStore.init(gpa, resource_path, &preferences.default_fx);
-    mappings_list = try MappingsList.init(gpa, resource_path);
-    state = State.init(gpa);
-    settings_panel = try SettingsPanel.init(&preferences, gpa);
+    map_store = try MapStore.init(arena, resource_path, &preferences.default_fx);
+    mappings_list = try MappingsList.init(arena, resource_path);
+    state = State.init(arena);
+    settings_panel = try SettingsPanel.init(&preferences, arena);
     if (preferences.start_suspended) {
         state.current_mode = .suspended;
     }
 
-    try fxParser.init(allocator);
+    try fxParser.init(gpa_int.allocator());
 }
 
 pub fn deinit() void {
-    fxParser.deinit(allocator);
-    allocator.free(resource_path);
-    if (settings_panel) |*panel| {
-        panel.deinit();
-    }
-    map_store.deinit();
-    mappings_list.deinit();
-    preferences.deinit();
-    state.deinit(allocator);
-    allocator.free(resource_path);
+    fxParser.deinit(gpa_int.allocator());
+
+    arena_int.deinit();
+
     const deinit_status = gpa_int.deinit();
     if (deinit_status == .leak) {
         log.err("Memory leak detected\n", .{});
