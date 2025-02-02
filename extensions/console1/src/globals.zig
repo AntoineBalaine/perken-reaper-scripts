@@ -10,7 +10,6 @@ const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
 const fs_helpers = @import("internals/fs_helpers.zig");
-const getControllerPath = fs_helpers.getControllerPath;
 const log = std.log.scoped(.globals);
 // State machine
 pub var state: State = undefined;
@@ -50,15 +49,7 @@ pub fn init() !void {
     const gpa = gpa_int.allocator();
     try initLoggerState();
     allocator = gpa;
-    const path: [*:0]const u8 = getControllerPath(gpa) catch |err| {
-        log.warn("Failed to create controller dir", .{});
-        return err;
-    };
-    resource_path = std.mem.span(path);
-    errdefer |err| {
-        log.err("C1 init failed: {s}", .{@errorName(err)});
-        gpa.free(resource_path);
-    }
+    resource_path = std.mem.span(try fs_helpers.getControllerPath(gpa));
 
     // Initialize in dependency order
     preferences = try Preferences.init(gpa, resource_path);
