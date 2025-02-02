@@ -47,7 +47,7 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
                 _ = state.selectedTracks.orderedRemove(tr_id);
                 // If this was our current track, fall back to another selected track
                 if (state.current_tr_id == tr_id) {
-                    state.current_tr_id = if (state.selectedTracks.count() > 0) state.selectedTracks.keys()[0] else null;
+                    state.current_tr_id = if (state.selectedTracks.count() > 0) state.selectedTracks.keys()[0] else null; // fallback
                     if (state.current_tr_id) |id| {
                         actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = reaper.CSurf_TrackFromID(id, false) } });
                     }

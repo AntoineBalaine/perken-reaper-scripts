@@ -103,10 +103,15 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                     inline else => |variant| {
                         const fxMap = state.fx_ctrl.track_state.module_locations.get(variant);
 
-                        if (fxMap == null) return;
                         if (fxMap) |map| {
-                            enterMappingMode(state.current_tr_id, map.fx_index) catch {};
-                            dispatch(state, .{ .change_mode = .mapping_panel });
+                            if (state.current_tr_id) |tr_id| {
+                                enterMappingMode(tr_id, map.fx_index) catch {};
+                                dispatch(state, .{ .change_mode = .mapping_panel });
+                            } else {
+                                dispatch(state, .{ .change_mode = .fx_ctrl });
+                            }
+                        } else {
+                            dispatch(state, .{ .change_mode = .fx_ctrl });
                         }
                     },
                 }

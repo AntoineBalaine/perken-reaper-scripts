@@ -127,16 +127,8 @@ export fn zSetTrackListChange() callconv(.C) void {
     actions.dispatch(&globals.state, .{ .track_list = .refresh });
 }
 
-inline fn FIXID(trackid: MediaTrack) c_int {
-    const oid = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode);
-    return oid - globals.state.current_tr_id;
-}
-
 export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
     if (ignore_notifications) return;
-    // NOTE: Justin's logic uses FIXID here
-    // is meant to prevent using the csurf with the master track?
-    // const id = FIXID(trackid);
     std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
         .type = .SetSurfaceVolume,
         .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),

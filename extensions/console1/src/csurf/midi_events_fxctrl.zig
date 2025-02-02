@@ -30,67 +30,75 @@ const utils = @import("../utils.zig");
 
 var tmp: [4096:0]u8 = undefined;
 
+/// Helper function to get track or return early
+fn getTrack() ?MediaTrack {
+    return if (globals.state.current_tr_id) |id|
+        reaper.CSurf_TrackFromID(id, constants.g_csurf_mcpmode)
+    else
+        null;
+}
+
 pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
     switch (cc) {
         .Inpt_disp_mode => {
             globals.modifier_active = val == 127;
         },
-        .Tr_tr_copy => {},
-        .Tr_tr_grp => {},
-        .Comp_Mtr => {}, // meters unhandled
-        .Inpt_MtrLft => {}, // meters unhandled
-        .Inpt_MtrRgt => {}, // meters unhandled
-        .Out_MtrLft => {}, // meters unhandled
-        .Out_MtrRgt => {}, // meters unhandled
+        .Tr_tr_copy, .Tr_tr_grp => {},
+        .Comp_Mtr, .Inpt_MtrLft, .Inpt_MtrRgt, .Out_MtrLft, .Out_MtrRgt => {}, // meters unhandled
         .Inpt_disp_on => {
             if (globals.modifier_active) {
                 actions.dispatch(&globals.state, .set_fx_ctrl_gui);
-            } else {
-                const mediaTrack = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
+            } else if (getTrack()) |mediaTrack| {
                 globals.state.fx_ctrl.display = if (globals.state.fx_ctrl.display) |_| null else 1;
                 actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
             }
         },
         .Inpt_filt_to_comp => {},
         .Inpt_phase_inv => {
-            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
-            const phase = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE");
-            const phase_val: f64 = if (phase == 0) 1 else 0;
-            _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "B_PHASE", phase_val });
+            if (getTrack()) |tr| {
+                const phase = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE");
+                const phase_val: f64 = if (phase == 0) 1 else 0;
+                _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "B_PHASE", phase_val });
+            }
         },
         .Inpt_preset => {},
         .Out_Pan => {
-            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
-            setUIVal(cc, u8ToPan(val));
-            reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), @ptrCast(csurf.my_csurf));
+            if (getTrack()) |tr| {
+                setUIVal(cc, u8ToPan(val));
+                reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), @ptrCast(csurf.my_csurf));
+            }
         },
         .Out_Vol => {
-            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
-            setUIVal(cc, @as(f64, @floatFromInt(val)) / 127);
-            reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), @ptrCast(csurf.my_csurf));
+            if (getTrack()) |tr| {
+                setUIVal(cc, @as(f64, @floatFromInt(val)) / 127);
+                reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), @ptrCast(csurf.my_csurf));
+            }
         },
         .Out_mute => {
-            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
-            reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), @ptrCast(csurf.my_csurf));
+            if (getTrack()) |tr| {
+                reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), @ptrCast(csurf.my_csurf));
+            }
         },
         .Out_solo => {
-            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
-            reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), @ptrCast(csurf.my_csurf));
+            if (getTrack()) |tr| {
+                reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), @ptrCast(csurf.my_csurf));
+            }
         },
         .Shp_Mtr => {}, // meters unhandled
         .Tr_ext_sidechain => {
-            // unpin prev 3-4 of comp or gate
-            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
-            switch (val) {
-                0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val)) catch {},
-                else => {},
+            if (getTrack()) |tr| {
+                switch (val) {
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val)) catch {},
+                    else => {},
+                }
             }
         },
         .Tr_order => {
-            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
-            switch (val) {
-                0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null) catch {},
-                else => {},
+            if (getTrack()) |tr| {
+                switch (val) {
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null) catch {},
+                    else => {},
+                }
             }
         },
         .Tr_pg_up => {
@@ -149,15 +157,16 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
             }
         },
         inline else => |cc_| {
-            const tr = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
-            setPrmVal(cc_, switch (cc_) {
-                .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
-                .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
-                .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut => .INPUT,
-                .Out_Drive, .Out_DriveChar => .OUTPT,
-                .Shp_GateRelease, .Shp_Gate, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
-                else => unreachable,
-            }, tr, val);
+            if (getTrack()) |tr| {
+                setPrmVal(cc_, switch (cc_) {
+                    .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
+                    .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
+                    .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut => .INPUT,
+                    .Out_Drive, .Out_DriveChar => .OUTPT,
+                    .Shp_GateRelease, .Shp_Gate, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
+                    else => unreachable,
+                }, tr, val);
+            }
         },
     }
 }
@@ -193,15 +202,14 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
     const fxMap = globals.state.fx_ctrl.track_state.module_locations.get(section);
     if (fxMap == null) return;
     const fxIdx = fxMap.?.fx_index;
-    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
     if (globals.state.fx_ctrl.display != null) { // show touched fx
-        pReaper.TrackFX_Show(.{ mediaTrack, fxIdx, 1 });
+        pReaper.TrackFX_Show(.{ tr, fxIdx, 1 });
     }
     // if setting filter types on reaeq
     if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
-        const hasName = reaper.TrackFX_GetFXName(mediaTrack, fxIdx, &tmp, tmp.len);
+        const hasName = reaper.TrackFX_GetFXName(tr, fxIdx, &tmp, tmp.len);
         if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)"))
-            reaeq.setReaEqFilterType(mediaTrack, fxIdx, cc, val);
+            reaeq.setReaEqFilterType(tr, fxIdx, cc, val);
         return;
     }
 

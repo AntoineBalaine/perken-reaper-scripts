@@ -186,20 +186,22 @@ fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
     // handleTrackSelectFeedback(midi_out);
     updateTrackListLEDs(midi_out);
 
-    // 2. Set track controls (vol, pan, mute, solo, phase inv.)
-    sendTrkCtrlFdb(midi_out);
+    if (globals.state.current_tr_id) |tr_id| {
+        const track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+        // 2. Set track controls (vol, pan, mute, solo, phase inv.)
+        sendTrkCtrlFdb(midi_out, track);
 
-    // 3. Set module order LED
-    setParamLED(c1.CCs.Tr_order, @intFromEnum(globals.state.fx_ctrl.track_state.getModulesOrder()), midi_out);
+        // 3. Set module order LED
+        setParamLED(c1.CCs.Tr_order, @intFromEnum(globals.state.fx_ctrl.track_state.getModulesOrder()), midi_out);
 
-    // 4. Set all module parameters based on mappings
-    updateAllModuleParams(midi_out);
+        // 4. Set all module parameters based on mappings
+        updateAllModuleParams(midi_out, track);
+    }
 }
 
 /// Set track controls’ LEDs (vol, pan, mute, solo, phase inv.)
 /// Queries reaper ap
-pub fn sendTrkCtrlFdb(midi_out: reaper.midi_Output) void {
-    const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
+fn sendTrkCtrlFdb(midi_out: reaper.midi_Output, track: reaper.MediaTrack) void {
     // Preserve volume/pan/mute/solo state
     const volume = reaper.GetMediaTrackInfo_Value(track, "D_VOL");
     const pan = reaper.GetMediaTrackInfo_Value(track, "D_PAN");
@@ -234,8 +236,7 @@ fn MappingsEntry(midi_out: reaper.midi_Output) void {
 }
 
 /// Updates Console1's module parameters based on FX mapping
-fn updateAllModuleParams(midi_out: reaper.midi_Output) void {
-    const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id, false);
+fn updateAllModuleParams(midi_out: reaper.midi_Output, track: reaper.MediaTrack) void {
 
     // Module Parameters
     inline for (comptime std.enums.values(c1.CCs)) |cc| {
@@ -333,8 +334,9 @@ fn getModuleForCC(comptime cc: c1.CCs) ?statemachine.ModulesList {
 }
 
 fn queryMeters(midiOut: reaper.midi_Output) void {
+    if (globals.state.current_tr_id == null) return;
     var tmp: [512:0]u8 = undefined;
-    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.current_tr_id, constants.g_csurf_mcpmode);
+    const mediaTrack = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
     const left = reaper.Track_GetPeakInfo(mediaTrack, 0);
     const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
     const left_midi: u8 = if (left > 1.0) 127 else @intFromFloat(left * 127);
