@@ -4,10 +4,21 @@ A control surface to integrate the console 1 MKII into Reaper. I’d gotten frus
 If anyone’s interested in trying this thing, bear in mind it is still at the experimental phase. 
 ### If you want to try it
 This is for the tech-inclined. You’ll have to compile the project yourself. 
-- pull WDL  and reaper’s SDK into the root of the project folder.
 - install Zig. 
-- run `zig build` from the project folder’s root
-- move the resulting build’s `reaper-zig.so` into `REAPER/UserPlugins/`
+- Macos: make sure clang is installed
+- Linux: make sure gcc is installed
+- build the application
+
+MacOS:
+```bash
+zig build --prefix "$HOME/Library/Application Support/REAPER/UserPlugins"
+```
+Linux:
+```bash
+zig build --prefix "$HOME/.config/REAPER/UserPlugins" 
+```
+This moves the compiled binary to reaper’s user plugins folder.
+If you are using a portable install, you might want to fix the path of your `UserPlugins` folder.
 - move the project’s `resources` folder to `REAPER/Data/Perken/Console1/resources/`
 - start reaper
 - de-activate the console’s midi input in `settings => midi devices`
@@ -38,11 +49,6 @@ This is for the tech-inclined. You’ll have to compile the project yourself.
 - Buttons `Dupl Track All/Group` do not work either.
 ### Know issues:
 - going back and forth between multiple project tabs crashes reaper when the console is active
-- small memory leak that I’m still chasing
-- `Page Up/Down` crashes reaper
 
 ### Some features I’d like to build
-- multiple modes for the console - besides controlling FX, this could be «transport control» or «sample edit controls»
-- swapping fx mappings mid-session
-- A GUI window to display visual feedback
 - Creating more fx mappings
