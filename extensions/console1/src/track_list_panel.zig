@@ -13,6 +13,7 @@ const TrackListPanelAction = union(enum) {
     open_module_browser: ModulesList,
     open_settings,
 };
+
 pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool) !?TrackListPanelAction {
     const PopStyle = try styles.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
@@ -58,6 +59,104 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
                             4 => .OUTPT,
                             else => unreachable,
                         } };
+                }
+                continue;
+            }
+
+            // Normal track selection handling
+            if (is_selected) {
+                const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
+                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
+            }
+            defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+
+            const label = try safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+
+            if (try imgui.Selectable(.{ ctx, label })) {
+                action = .{ .select_track = tr_id };
+            }
+        }
+    }
+
+    return action;
+}
+
+pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_active: bool) !?TrackListPanelAction {
+    const PopStyle = try styles.PushStyle(ctx, .rack);
+    defer PopStyle(ctx) catch {};
+
+    var action: ?TrackListPanelAction = null;
+    var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
+
+    // First column (tracks 1-10)
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+
+        for (state.fx_ctrl.track_list.track_names[0..10], 0..) |tr, i| {
+            const name = tr.name;
+            const tr_id = tr.id;
+            const is_selected = state.selectedTracks.contains(@intCast(tr_id));
+
+            // Special handling for modifier keys
+            if (modifier_active and i < 5) {
+                const label = try safePrint(&buf, "{d:>2}. {s}", .{
+                    i + 1,
+                    switch (i) {
+                        0 => "Input Load",
+                        1 => "Gate Load",
+                        2 => "EQ Load",
+                        3 => "Comp Load",
+                        4 => "Output Load",
+                        else => unreachable,
+                    },
+                });
+
+                if (try imgui.Selectable(.{ ctx, label })) {
+                    action = .{ .open_module_browser = switch (i) {
+                        0 => .INPUT,
+                        1 => .GATE,
+                        2 => .EQ,
+                        3 => .COMP,
+                        4 => .OUTPT,
+                        else => unreachable,
+                    } };
+                }
+                continue;
+            }
+
+            // Normal track selection handling
+            if (is_selected) {
+                const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
+                try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
+            }
+            defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+
+            const label = try safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+
+            if (try imgui.Selectable(.{ ctx, label })) {
+                action = .{ .select_track = tr_id };
+            }
+        }
+    }
+
+    try imgui.SameLine(.{ctx});
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
+
+    // Second column (tracks 11-20)
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+        for (state.fx_ctrl.track_list.track_names[10..], 10..) |tr, i| {
+            const name = tr.name;
+            const tr_id = tr.id;
+            const is_selected = state.selectedTracks.contains(@intCast(tr_id));
+
+            // Special handling for settings (i == 19)
+            if (modifier_active and i == 19) {
+                const label = try safePrint(&buf, "{d:>2}. Settings", .{i + 1});
+                if (try imgui.Selectable(.{ ctx, label })) {
+                    action = .{ .open_settings = {} };
                 }
                 continue;
             }

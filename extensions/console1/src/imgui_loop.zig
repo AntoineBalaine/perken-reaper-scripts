@@ -61,7 +61,6 @@ fn main() !void {
     try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.BOTTOM });
     if (try imgui.Begin(.{ ctx, plugin_name, &open, windowFlags })) {
         defer imgui.End(.{ctx}) catch {};
-
         open = try ButtonsBar(ctx);
         try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
         if (styles.rack_style_open) {
@@ -76,7 +75,8 @@ fn main() !void {
                     actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .panel_input = ctrl_input } });
                 }
                 if (globals.preferences.show_track_list) {
-                    if (try track_list_panel.drawTrackList(ctx, &globals.state, globals.modifier_active)) |action| {
+                    try imgui.SameLine(.{ctx});
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, globals.modifier_active)) |action| {
                         switch (action) {
                             .select_track => |track_number| {
                                 actions.dispatch(
