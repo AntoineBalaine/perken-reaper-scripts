@@ -17,6 +17,16 @@ pub const ModulesList = enum {
     EQ,
     COMP,
     OUTPT,
+
+    pub fn toModulePrefixChar(self: ModulesList) u8 {
+        return switch (self) {
+            .INPUT => "I",
+            .GATE => "S", // "S" for Shape/Gate
+            .EQ => "E",
+            .COMP => "C",
+            .OUTPT => "O",
+        };
+    }
 };
 
 pub const Mode = enum {

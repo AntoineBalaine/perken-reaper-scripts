@@ -1206,14 +1206,7 @@ fn handleInsertWithConsolidation(
     // Case 4: No consolidation possible, perform normal insertion
     const add_result = pReaper.TrackFX_AddByName(.{ mediaTrack, fx_name, false, -1000 - insert_pos });
     if (add_result >= 0) {
-        const module_char = switch (module) {
-            .INPUT => "I",
-            .GATE => "S",
-            .EQ => "E",
-            .COMP => "C",
-            .OUTPT => "O",
-        };
-
+        const module_char = module.toModulePrefixChar();
         var name_buf: [512:0]u8 = undefined;
         const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ fx_name, module_char }) catch return .{ .did_consolidate = false, .position = null };
 
@@ -1414,13 +1407,7 @@ fn consolidateWithFxSuffix(
     };
 
     // Add new module to suffix
-    const module_char = switch (module) {
-        .INPUT => "I",
-        .GATE => "S",
-        .EQ => "E",
-        .COMP => "C",
-        .OUTPT => "O",
-    };
+    const module_char = module.toModulePrefixChar();
 
     // Build new name with updated suffix
     const new_name = std.fmt.bufPrintZ(&buf, "{s}(C1-{s}{s}){s}", .{

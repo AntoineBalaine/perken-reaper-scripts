@@ -68,13 +68,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
 
                 if (new_fx_index >= 0) {
                     { // append C1 suffix
-                        const module_char = switch (current_module) {
-                            .INPUT => "I",
-                            .GATE => "S",
-                            .EQ => "E",
-                            .COMP => "C",
-                            .OUTPT => "O",
-                        };
+                        const module_char = current_module.toModulePrefixChar();
                         var name_buf: [512:0]u8 = undefined;
                         const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }) catch {
                             log.err("Failed to format FX name with suffix", .{});
