@@ -176,12 +176,52 @@ pub fn ModulePopup(
         while (iterator.next()) |entry| : (i += 1) {
             const is_selected = (i == current_index);
 
-            if (is_selected) try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, Theme.clrs.get(std.meta.stringToEnum(Theme.RColorsEnum, "genlist_fg").?).color });
-            defer if (is_selected) imgui.PopStyleColor(.{ctx}) catch {};
-
             const fx_name: [:0]const u8 = @ptrCast(entry.key_ptr.*);
             if (try imgui.Selectable(.{ ctx, fx_name })) {
                 dispatch(&globals.state, .{ .fx_sel = .{ .plugin = .{ .name = fx_name } } });
+            }
+            if (is_selected) {
+                const drw_ls = try imgui.GetWindowDrawList(.{ctx});
+                if (globals.drwls_splitter == null or !try imgui.ValidatePtr(.{ @as(*anyopaque, @ptrCast(globals.drwls_splitter.?)), "ImGui_DrawListSplitter*" })) {
+                    globals.drwls_splitter = try imgui.CreateDrawListSplitter(.{drw_ls});
+                }
+                const splitter = globals.drwls_splitter;
+                try imgui.DrawListSplitter_Split(.{ splitter, 2 });
+                try imgui.DrawListSplitter_SetCurrentChannel(.{ splitter, 0 });
+
+                var prev_min_x: f64 = undefined;
+                var prev_min_y: f64 = undefined;
+                try imgui.GetItemRectMin(.{ ctx, &prev_min_x, &prev_min_y });
+
+                var prev_max_x: f64 = undefined;
+                var prev_max_y: f64 = undefined;
+                try imgui.GetItemRectMax(.{ ctx, &prev_max_x, &prev_max_y });
+
+                const bg_color = Theme.clrs.get(std.meta.stringToEnum(Theme.RColorsEnum, "genlist_fg").?).color;
+                try imgui.DrawList_AddRectFilled(.{
+                    drw_ls,
+                    prev_min_x,
+                    prev_min_y,
+                    prev_max_x,
+                    prev_max_y,
+                    bg_color,
+                });
+
+                // Draw text in inverted color
+                try imgui.DrawListSplitter_SetCurrentChannel(.{ splitter, 1 });
+                const text_color = Theme.clrs.get(std.meta.stringToEnum(Theme.RColorsEnum, "genlist_bg").?).color;
+                var frame_padding_x: f64 = undefined;
+                var frame_padding_y: f64 = undefined;
+                try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_FramePadding, &frame_padding_x, &frame_padding_y });
+                try imgui.DrawList_AddText(.{
+                    drw_ls,
+                    prev_min_x + frame_padding_x,
+                    prev_min_y + frame_padding_y,
+                    text_color,
+                    fx_name,
+                });
+
+                try imgui.DrawListSplitter_Merge(.{splitter});
             }
         }
 

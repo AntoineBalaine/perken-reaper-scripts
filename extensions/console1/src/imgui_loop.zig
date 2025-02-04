@@ -154,8 +154,11 @@ pub fn reset() void {
 }
 
 fn onTimer() callconv(.C) void {
-    main() catch {
+    main() catch |err| {
         reset();
-        _ = reaper.ShowMessageBox(imgui.last_error.?, plugin_name, 0);
+        log.err("Error in main loop: {s}\n", .{@errorName(err)});
+        if (imgui.last_error) |last_err| {
+            _ = reaper.ShowMessageBox(last_err, plugin_name, 0);
+        }
     };
 }

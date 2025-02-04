@@ -182,6 +182,10 @@ fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
     // First clear everything
     clearAllLEDs(midi_out);
 
+    if (globals.modifier_active) {
+        setParamLED(c1.CCs.Inpt_disp_mode, 0x7f, midi_out);
+    }
+
     // 1. Set track selection LEDs
     // handleTrackSelectFeedback(midi_out);
     updateTrackListLEDs(midi_out);
@@ -218,6 +222,7 @@ fn sendTrkCtrlFdb(midi_out: reaper.midi_Output, track: reaper.MediaTrack) void {
 fn fxSelEntry(midi_out: reaper.midi_Output) void {
     // Clear everything first
     clearAllLEDs(midi_out);
+    setParamLED(c1.CCs.Inpt_disp_mode, 0x7f, midi_out);
 }
 
 fn MappingsEntry(midi_out: reaper.midi_Output) void {

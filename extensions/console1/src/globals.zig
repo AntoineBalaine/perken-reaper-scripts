@@ -11,6 +11,7 @@ const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
 const fs_helpers = @import("internals/fs_helpers.zig");
 const log = std.log.scoped(.globals);
+const imgui = @import("reaper_imgui.zig");
 // State machine
 pub var state: State = undefined;
 
@@ -22,7 +23,7 @@ pub var mappings_list: MappingsList = undefined;
 // UI
 pub var settings_panel: ?SettingsPanel = null;
 pub var mapping_panel: ?MappingPanel = null;
-
+pub var drwls_splitter: imgui.DrawListSplitterPtr = null;
 // Logging
 pub var event_log: EventLog = undefined;
 pub var log_file: ?std.fs.File = null; // Store the actual file, not just a pointer
