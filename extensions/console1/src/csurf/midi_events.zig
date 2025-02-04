@@ -49,22 +49,15 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                     },
                     .Out_solo => {
                         // Solo button for selection
-                        // if (val > 0) { // On button press
-                        //     const mappings = globals.map_store.getMappingsForModule(globals.state.fx_sel.current_category);
-                        //     if (mappings) |m| {
-                        //         var iterator = m.iterator();
-                        //         var i: usize = 0;
-                        //         while (iterator.next()) |entry| : (i += 1) {
-                        //             if (i == globals.state.fx_sel.scroll_position) {
-                        //                 actions.dispatch(&globals.state, .{ .fx_sel = .{ .select_mapped_fx = .{
-                        //                     .fx_name = entry.key_ptr.*,
-                        //                     .module = globals.state.fx_sel.current_category,
-                        //                 } } });
-                        //                 break;
-                        //             }
-                        //         }
-                        //     }
-                        // }
+                        const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
+                        var iterator = mappings.keyIterator();
+                        var i: usize = 0;
+                        while (iterator.next()) |entry| : (i += 1) {
+                            if (i == globals.state.fx_sel.scroll_position_rel) {
+                                actions.dispatch(&globals.state, .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(entry.*) } } });
+                                break;
+                            }
+                        }
                     },
                     .Out_mute => actions.dispatch(&globals.state, .{ .fx_sel = .close_browser }),
                     .Tr_tr1 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),

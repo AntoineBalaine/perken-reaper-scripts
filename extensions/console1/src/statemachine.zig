@@ -18,7 +18,7 @@ pub const ModulesList = enum {
     COMP,
     OUTPT,
 
-    pub fn toModulePrefixChar(self: ModulesList) u8 {
+    pub fn toModulePrefixChar(self: ModulesList) [:0]const u8 {
         return switch (self) {
             .INPUT => "I",
             .GATE => "S", // "S" for Shape/Gate

@@ -72,7 +72,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                         var name_buf: [512:0]u8 = undefined;
                         const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }) catch {
                             log.err("Failed to format FX name with suffix", .{});
-                            pReaper.TrackFX_Delete(.{ track, current_fx_index }); // Undo insertion.
+                            _ = pReaper.TrackFX_Delete(.{ track, current_fx_index }); // Undo insertion.
                             return;
                         };
                         _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
