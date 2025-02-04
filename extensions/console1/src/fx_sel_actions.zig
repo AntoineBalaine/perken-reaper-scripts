@@ -1,6 +1,7 @@
 const std = @import("std");
 const c1 = @import("c1.zig");
 const reaper = @import("reaper.zig").reaper;
+const pReaper = @import("pReaper.zig");
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const SCRouting = fx_ctrl_state.SCRouting;
@@ -55,14 +56,51 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             dispatch(state, .{ .change_mode = .fx_ctrl });
         },
         .plugin => |plugin| {
-            const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
-            if (track) |tr| {
-                _ = reaper.TrackFX_AddByName(
-                    tr,
-                    plugin.name,
-                    false,
-                    -1000 - reaper.TrackFX_GetCount(tr),
-                );
+            if (state.current_tr_id == null) dispatch(state, .{ .change_mode = .fx_ctrl });
+            const track = reaper.CSurf_TrackFromID(state.current_tr_id.?, constants.g_csurf_mcpmode);
+
+            const current_module = state.fx_sel.current_category;
+            if (state.fx_ctrl.track_state.module_locations.get(current_module)) |module_loc| {
+                const current_fx_index = module_loc.fx_index;
+
+                // Add new FX at same position
+                const new_fx_index = pReaper.TrackFX_AddByName(.{ track, plugin.name, false, -1000 - current_fx_index });
+
+                if (new_fx_index >= 0) {
+                    { // append C1 suffix
+                        const module_char = switch (current_module) {
+                            .INPUT => "I",
+                            .GATE => "S",
+                            .EQ => "E",
+                            .COMP => "C",
+                            .OUTPT => "O",
+                        };
+                        var name_buf: [512:0]u8 = undefined;
+                        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }) catch {
+                            log.err("Failed to format FX name with suffix", .{});
+                            pReaper.TrackFX_Delete(.{ track, current_fx_index }); // Undo insertion.
+                            return;
+                        };
+                        _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
+                    }
+
+                    // Remove old FX (index has shifted by +1 due to insertion)
+                    if (!pReaper.TrackFX_Delete(.{ track, current_fx_index + 1 })) {
+                        var buf: [512:0]u8 = undefined;
+                        const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, current_fx_index + 1, "original_name", &buf, buf.len))
+                            std.mem.span(@as([*:0]const u8, &buf))
+                        else
+                            "unknown";
+                        log.err("Failed to remove old FX: {s}", .{fx_name});
+                    }
+
+                    // Validate track to update module locations - will consolidate if needed
+                    state.fx_ctrl.track_state.validateTrack(track);
+                } else {
+                    log.err("Failed to add new FX: {s}", .{plugin.name});
+                }
+            } else {
+                log.err("No FX found for module {s}", .{@tagName(current_module)});
             }
             dispatch(state, .{ .change_mode = .fx_ctrl });
         },
