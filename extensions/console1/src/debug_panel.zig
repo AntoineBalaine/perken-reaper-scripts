@@ -23,6 +23,9 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
 
         var buf: [DEBUG_BUF_SIZE:0]u8 = undefined;
 
+        const frame_rate = safePrint(&buf, "Frame rate: {d}", .{try imgui.GetFramerate(.{ctx})});
+        try imgui.Text(.{ ctx, frame_rate });
+
         // Current State Section
         const mode_text = safePrint(&buf, "Current Mode: {s}", .{@tagName(state.current_mode)});
         try imgui.TextWrapped(.{ ctx, mode_text });
