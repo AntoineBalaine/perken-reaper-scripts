@@ -91,7 +91,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                     // Validate track to update module locations - will consolidate if needed
                     state.fx_ctrl.track_state.validateTrack(track);
                 } else {
-                    log.err("Failed to add new FX: {s}", .{plugin.name});
+                    log.err("Failed to add new FX: {s} at position {d}", .{ plugin.name, current_fx_index });
                 }
             } else {
                 log.err("No FX found for module {s}", .{@tagName(current_module)});

@@ -38,7 +38,7 @@ test getControllerPath {
     };
 }
 
-pub fn joinStrings(buffer: []u8, strings: []const []const u8) ![]const u8 {
+pub fn joinStrings(buffer: []u8, strings: []const []const u8) []const u8 {
     var path_list = std.ArrayListUnmanaged(u8).initBuffer(buffer);
     for (strings) |s| {
         path_list.appendSliceAssumeCapacity(s);

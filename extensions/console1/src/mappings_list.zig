@@ -1,18 +1,26 @@
 const std = @import("std");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const log = std.log.scoped(.mapping_list);
+const ini = @import("ini");
+const fs_helpers = @import("internals/fs_helpers.zig");
 
 // Store just file names, not actual mappings
 list: std.EnumArray(ModulesList, std.StringHashMap(void)),
-allocator: std.mem.Allocator,
-pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
+arena: std.mem.Allocator,
+pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
     var maps = std.EnumArray(ModulesList, std.StringHashMap(void)).initUndefined();
 
     inline for (comptime std.enums.values(ModulesList)) |module| {
-        maps.set(module, std.StringHashMap(void).init(gpa));
+        maps.set(module, std.StringHashMap(void).init(arena));
 
-        const module_path = try std.fs.path.join(gpa, &.{ resource_path, "maps", @tagName(module) });
-        defer gpa.free(module_path);
+        var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+        const module_path = fs_helpers.joinStrings(&path_buffer, &.{
+            resource_path,
+            std.fs.path.sep_str,
+            "maps",
+            std.fs.path.sep_str,
+            @tagName(module),
+        });
 
         var dir = try std.fs.openDirAbsolute(module_path, .{ .iterate = true });
         defer dir.close();
@@ -20,28 +28,55 @@ pub fn init(gpa: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
         var iter = dir.iterate();
         while (try iter.next()) |entry| {
             if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".ini")) {
-                const name: [:0]const u8 = try gpa.dupeZ(u8, std.fs.path.stem(entry.name));
-                maps.getPtr(module).put(name, {}) catch {
-                    log.warn("Mappings list: Failed to store fx name {s}\n", .{entry.name});
-                    continue;
-                };
+                // Get full file path
+                const file_path = fs_helpers.joinStrings(&path_buffer, &.{
+                    resource_path,
+                    std.fs.path.sep_str,
+                    "maps",
+                    std.fs.path.sep_str,
+                    @tagName(module),
+                    std.fs.path.sep_str,
+                    entry.name,
+                });
+
+                const file = try std.fs.openFileAbsolute(file_path, .{});
+                defer file.close();
+
+                if (try parseFxName(arena, file)) |actual_name| {
+                    maps.getPtr(module).put(actual_name, {}) catch {
+                        log.warn("Mappings list: Failed to store fx name {s}", .{actual_name});
+                        continue;
+                    };
+                } else {
+                    log.warn("Mappings list: No fx_name found in {s}", .{entry.name});
+                }
             }
         }
     }
 
     return .{
         .list = maps,
-        .allocator = gpa,
+        .arena = arena,
     };
 }
 
 pub fn deinit(self: *@This()) void {
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        var map = self.list.get(module);
-        var iter = map.keyIterator();
-        while (iter.next()) |key| {
-            self.allocator.free(@as([:0]const u8, @ptrCast(key.*)));
+    self.arena.deinit();
+}
+
+fn parseFxName(allocator: std.mem.Allocator, file: std.fs.File) !?[:0]const u8 {
+    var parser = ini.parse(allocator, file.reader());
+    defer parser.deinit();
+
+    while (try parser.next()) |record| {
+        switch (record) {
+            .property => |kv| {
+                if (std.mem.eql(u8, kv.key, "fx_name")) {
+                    return try allocator.dupeZ(u8, kv.value);
+                }
+            },
+            .section, .enumeration => continue,
         }
-        map.deinit();
     }
+    return null;
 }

@@ -87,7 +87,7 @@ pub fn initLoggerState() !void {
 
     if (preferences.log_to_file) {
         var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-        const path = try fs_helpers.joinStrings(&path_buffer, &.{
+        const path = fs_helpers.joinStrings(&path_buffer, &.{
             resource_path,
             std.fs.path.sep_str,
             "debug.log",
@@ -112,7 +112,7 @@ pub fn updateLoggerState() !void {
     // Open new file if needed
     if (preferences.log_to_file) {
         var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-        const log_path = try fs_helpers.joinStrings(&path_buffer, &.{
+        const log_path = fs_helpers.joinStrings(&path_buffer, &.{
             resource_path,
             std.fs.path.sep_str,
             "debug.log",

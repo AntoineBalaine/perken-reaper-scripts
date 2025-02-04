@@ -4,6 +4,7 @@ const settings = @import("settings.zig");
 const statemachine = @import("statemachine.zig");
 const MappingState = statemachine.MappingState;
 const ModulesList = statemachine.ModulesList;
+const fs_helpers = @import("internals/fs_helpers.zig");
 const log = std.log.scoped(.mappings);
 
 pub const Comp = struct {
@@ -186,36 +187,31 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
     }
 }
 
+fn sanitizeFxName(buf: *[512:0]u8, fx_name: []const u8) ![:0]const u8 {
+    const base_name = try std.fmt.bufPrintZ(buf, "{s}", .{fx_name});
+    _ = std.mem.replace(u8, base_name, "/", "_", buf);
+    return base_name;
+}
+
 /// fetch mapping from disk, parse it, store it, and return it.
 fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMapping {
-    var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const subdir = @tagName(module);
+    var name_buf: [512:0]u8 = undefined;
+    const sanitized_name = try sanitizeFxName(&name_buf, fxName);
 
-    // NOTE: should this really by 4096 bytes? Is there a cost to having a larger buffer?
-    var nameBuf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    var sanitizedFxName: []const u8 = undefined;
-    const extension = ".ini";
-    if (std.mem.indexOfScalar(u8, fxName, '/') != null) {
-        _ = std.mem.replace(u8, fxName, "/", "_", &nameBuf);
-        @memcpy(nameBuf[fxName.len .. fxName.len + extension.len], extension);
-    } else {
-        @memcpy(nameBuf[0..fxName.len], fxName);
-        @memcpy(nameBuf[fxName.len .. fxName.len + extension.len], extension);
-    }
-    sanitizedFxName = nameBuf[0 .. fxName.len + extension.len];
+    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const filePath = fs_helpers.joinStrings(&path_buffer, &.{
+        std.mem.span(self.controller_dir),
+        std.fs.path.sep_str,
+        "maps",
+        std.fs.path.sep_str,
+        @tagName(module),
+        std.fs.path.sep_str,
+        sanitized_name,
+        ".ini",
+    });
 
-    const elements = [_][]const u8{ std.mem.span(self.controller_dir), "maps", subdir, sanitizedFxName };
+    log.debug("Loading mapping from {s}", .{filePath});
 
-    var pos: usize = 0;
-    for (elements, 0..) |element, idx| {
-        @memcpy(buf[pos .. pos + element.len], element);
-        pos += element.len;
-        if (idx != elements.len - 1) { // not last in list
-            @memcpy(buf[pos .. pos + 1], &[_]u8{@as(u8, @intCast(std.fs.path.sep))});
-            pos += 1;
-        }
-    }
-    const filePath = buf[0..pos];
     const file = try std.fs.openFileAbsolute(filePath, .{});
     defer file.close();
     var parser = ini.parse(self.allocator, file.reader());

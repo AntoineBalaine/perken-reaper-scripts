@@ -117,14 +117,8 @@ fn main() !void {
                     actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .panel_input = ctrl_input } });
                 }
                 const module = globals.state.fx_sel.current_category;
-                const list = switch (module) {
-                    .INPUT => globals.mappings_list.list.get(.INPUT),
-                    .GATE => globals.mappings_list.list.get(.GATE),
-                    .EQ => globals.mappings_list.list.get(.EQ),
-                    .COMP => globals.mappings_list.list.get(.COMP),
-                    .OUTPT => globals.mappings_list.list.get(.OUTPT),
-                };
 
+                const list = globals.mappings_list.list.get(module);
                 if (!try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) {
                     actions.dispatch(&globals.state, .{ .fx_sel = .close_browser });
                 }
