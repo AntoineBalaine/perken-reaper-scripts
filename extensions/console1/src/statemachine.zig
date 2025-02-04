@@ -37,7 +37,7 @@ pub const Mode = enum {
 // Helper for valid transitions
 pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
     .fx_ctrl = &.{ .fx_sel, .settings, .mapping_panel },
-    .fx_sel = &.{ .fx_ctrl, .mapping_panel, .settings },
+    .fx_sel = &.{ .fx_ctrl, .mapping_panel, .settings, .fx_sel },
     .mapping_panel = &.{ .fx_sel, .fx_ctrl },
     .midi_learn = &.{.mapping_panel},
     .suspended = &.{.fx_ctrl},
