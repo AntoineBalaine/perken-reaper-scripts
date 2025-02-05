@@ -148,7 +148,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             if (self.COMP.get(fxName)) |v| {
                 return TaggedMapping{ .COMP = v };
             } else {
-                log.err("mapping {s} unfound", .{fxName});
+                log.warn("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             }
         },
@@ -156,7 +156,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             if (self.EQ.get(fxName)) |v| {
                 return TaggedMapping{ .EQ = v };
             } else {
-                log.err("mapping {s} unfound", .{fxName});
+                log.warn("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             }
         },
@@ -164,7 +164,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             return if (self.INPUT.get(fxName)) |v| {
                 return TaggedMapping{ .INPUT = v };
             } else {
-                log.err("mapping {s} unfound", .{fxName});
+                log.warn("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             };
         },
@@ -172,7 +172,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             if (self.OUTPT.get(fxName)) |v| {
                 return TaggedMapping{ .OUTPT = v };
             } else {
-                log.err("mapping {s} unfound", .{fxName});
+                log.warn("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             }
         },
@@ -180,7 +180,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             if (self.GATE.get(fxName)) |v| {
                 return TaggedMapping{ .GATE = v };
             } else {
-                log.err("mapping {s} unfound", .{fxName});
+                log.warn("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             }
         },
@@ -310,18 +310,21 @@ fn formatOptionalU8(value: anytype, writer: anytype) !void {
 
 pub fn saveToFile(self: *MapStore, mapping_state: MappingState) !void {
     // Build path: resourcePath/maps/<MODULE>/<target_fx>.ini
-
+    var name_buf: [512:0]u8 = undefined;
+    const sanitized_name = try sanitizeFxName(&name_buf, mapping_state.target_fx);
     // Create path buffers and join components
     var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const path = try std.fmt.bufPrint(
-        &path_buf,
-        "{s}/maps/{s}/{s}.ini",
-        .{
-            self.controller_dir,
-            @tagName(mapping_state.current_mappings),
-            mapping_state.target_fx,
-        },
-    );
+
+    const path = fs_helpers.joinStrings(&path_buf, &.{
+        std.mem.span(self.controller_dir),
+        std.fs.path.sep_str,
+        "maps",
+        std.fs.path.sep_str,
+        @tagName(mapping_state.current_mappings),
+        std.fs.path.sep_str,
+        sanitized_name,
+        ".ini",
+    });
 
     // Create or truncate file
     const file = try std.fs.createFileAbsolute(path, .{
