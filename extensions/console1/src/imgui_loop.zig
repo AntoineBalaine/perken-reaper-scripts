@@ -19,7 +19,7 @@ const track_list_panel = @import("track_list_panel.zig");
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
-var ctx: imgui.ContextPtr = null;
+pub var ctx: imgui.ContextPtr = null;
 var text = std.mem.zeroes([255:0]u8);
 var windowFlags: c_int = undefined;
 var imgui_init: bool = false;
@@ -151,8 +151,10 @@ fn onTimer() callconv(.C) void {
     main() catch |err| {
         reset();
         log.err("Error in main loop: {s}\n", .{@errorName(err)});
-        if (imgui.last_error) |last_err| {
-            _ = reaper.ShowMessageBox(last_err, plugin_name, 0);
+        if (err == error.Imgui or imgui.last_error != null) {
+            const msg: [:0]const u8 = "ImGui error occurred";
+            _ = reaper.ShowMessageBox(msg, plugin_name, 0);
         }
+        actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl });
     };
 }
