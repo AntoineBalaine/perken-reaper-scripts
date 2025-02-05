@@ -94,8 +94,14 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
     try imgui.CalcTextSize(.{ ctx, max_label, &max_label_width, &max_label_height, false, -1.0 });
 
     // Get starting X position
-    const start_x = (try imgui.GetCursorPosX(.{ctx}));
+    const start_x = try imgui.GetCursorPosX(.{ctx});
     const second_column_x = start_x + max_label_width + 20; // 20px spacing
+
+    // Get frame padding for accurate selectable width
+    var frame_padding_x: f64 = undefined;
+    var frame_padding_y: f64 = undefined;
+    try imgui.GetStyleVar(.{ ctx, imgui.StyleVar_FramePadding, &frame_padding_x, &frame_padding_y });
+    const selectable_width = max_label_width + (frame_padding_x * 2);
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
@@ -134,7 +140,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
                     },
                 });
 
-                if (try imgui.Selectable(.{ ctx, label })) {
+                if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
                     action = .{ .open_module_browser = switch (i) {
                         0 => .INPUT,
                         1 => .GATE,
@@ -155,7 +161,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
 
                 const label = safePrint(&buf, "{d:>2}. {s}{s}", .{ i + 1, if (i + 1 > 10) " " else "", name });
 
-                if (try imgui.Selectable(.{ ctx, label })) {
+                if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
                     if (tr_id) |trid| {
                         action = .{ .select_track = trid };
                     }
@@ -187,7 +193,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
             // Special handling for settings (i == 19)
             if (modifier_active and i == 19) {
                 const label = safePrint(&buf, "{d:>2}. Settings", .{i + 1});
-                if (try imgui.Selectable(.{ ctx, label })) {
+                if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
                     action = .{ .open_settings = {} };
                 }
                 continue;
@@ -202,7 +208,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
 
                 const label = safePrint(&buf, "{d:>2}. {s}{s}", .{ i + 1, if (i + 1 > 10) " " else "", name });
 
-                if (try imgui.Selectable(.{ ctx, label })) {
+                if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
                     if (tr_id) |trid| {
                         action = .{ .select_track = trid };
                     }
