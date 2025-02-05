@@ -54,6 +54,19 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     } else {
         log.err("couldn’t create midi out", .{});
     }
+
+    // If MIDI devices are successfully created, switch to fx_ctrl mode
+    if (globals.m_midi_in != null and globals.m_midi_out != null) {
+        log.info("MIDI devices connected", .{});
+        if (globals.state.current_mode == .suspended) {
+            actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl });
+        }
+    } else {
+        log.err("MIDI devices not available", .{});
+        if (globals.state.current_mode != .suspended) {
+            actions.dispatch(&globals.state, .{ .change_mode = .suspended });
+        }
+    }
     const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
     my_csurf = myCsurf;
     return myCsurf;
