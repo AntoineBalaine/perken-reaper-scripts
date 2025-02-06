@@ -79,36 +79,24 @@ fn main() !void {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, globals.modifier_active)) |action| {
                         switch (action) {
-                            .select_track => |track_number| {
-                                actions.dispatch(
-                                    &globals.state,
-                                    .{ .track_list = .{ .track_select = track_number } },
-                                );
-                            },
-                            .open_module_browser => |module| {
-                                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } });
-                            },
-                            .open_settings => {
-                                actions.dispatch(&globals.state, .{ .settings = .open });
-                            },
+                            .select_track => |track_number| actions.dispatch(
+                                &globals.state,
+                                .{ .track_list = .{ .track_select = track_number } },
+                            ),
+                            .open_module_browser => |module| actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } }),
+                            .open_settings => actions.dispatch(&globals.state, .{ .settings = .open }),
                         }
                     }
                 }
             },
             .settings => {
                 if (globals.settings_panel) |*panel| {
-                    switch (panel.draw(ctx) catch |err| {
-                        log.err("Error drawing settings panel: {s}", .{@errorName(err)});
-                        return err;
-                    }) {
-                        .stay_open => {},
-                        .val_update => |update| actions.dispatch(&globals.state, .{ .midi_out = .{ .settings_changed = update } }),
-                        .close_save => {
-                            actions.dispatch(&globals.state, .{ .settings = .save });
-                        },
-                        .close_cancel => {
-                            actions.dispatch(&globals.state, .{ .settings = .cancel });
-                        },
+                    if (try panel.draw(ctx)) |val| {
+                        switch (val) {
+                            .val_update => |update| actions.dispatch(&globals.state, .{ .midi_out = .{ .settings_changed = update } }),
+                            .close_save => actions.dispatch(&globals.state, .{ .settings = .save }),
+                            .close_cancel => actions.dispatch(&globals.state, .{ .settings = .cancel }),
+                        }
                     }
                 }
             },
@@ -124,7 +112,9 @@ fn main() !void {
                 }
             },
             .mapping_panel => {
-                try mapping_panel.drawMappingPanel(ctx, &globals.state);
+                if (try mapping_panel.drawMappingPanel(ctx, &globals.state)) |map_action| {
+                    actions.dispatch(&globals.state, .{ .mapping = map_action });
+                }
             },
             else => {},
         }

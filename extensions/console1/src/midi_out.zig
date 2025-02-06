@@ -375,19 +375,21 @@ const PreferenceButton = struct {
 
 // Then the function could be written as:
 fn prefsEntry(midi_out: reaper.midi_Output) void {
-    clearAllLEDs(midi_out);
-    const preferences = globals.preferences;
-    setButtonLED(c1.CCs.Tr_tr6, preferences.show_startup_message, midi_out);
-    setButtonLED(c1.CCs.Tr_tr7, preferences.show_feedback_window, midi_out);
-    setButtonLED(c1.CCs.Tr_tr8, preferences.show_plugin_ui, midi_out);
-    setButtonLED(c1.CCs.Tr_tr9, preferences.manual_routing, midi_out);
-    setButtonLED(c1.CCs.Tr_tr10, preferences.log_to_file, midi_out);
-    setButtonLED(c1.CCs.Tr_tr11, preferences.start_suspended, midi_out);
-    setButtonLED(c1.CCs.Tr_tr12, preferences.show_track_list, midi_out);
-    setButtonLED(c1.CCs.Tr_tr13, preferences.focus_page_tracks, midi_out);
+    if (globals.settings_panel) |settings_panel| {
+        const temp_settings = settings_panel.temp_settings;
+        clearAllLEDs(midi_out);
+        setButtonLED(c1.CCs.Tr_tr6, temp_settings.show_startup_message, midi_out);
+        setButtonLED(c1.CCs.Tr_tr7, temp_settings.show_feedback_window, midi_out);
+        setButtonLED(c1.CCs.Tr_tr8, temp_settings.show_plugin_ui, midi_out);
+        setButtonLED(c1.CCs.Tr_tr9, temp_settings.manual_routing, midi_out);
+        setButtonLED(c1.CCs.Tr_tr10, temp_settings.log_to_file, midi_out);
+        setButtonLED(c1.CCs.Tr_tr11, temp_settings.start_suspended, midi_out);
+        setButtonLED(c1.CCs.Tr_tr12, temp_settings.show_track_list, midi_out);
+        setButtonLED(c1.CCs.Tr_tr13, temp_settings.focus_page_tracks, midi_out);
 
-    // Settings mode indicator
-    setButtonLED(c1.CCs.Tr_tr20, true, midi_out);
+        // Settings mode indicator
+        setButtonLED(c1.CCs.Tr_tr20, true, midi_out);
+    }
 }
 
 fn settingsChanged(update: SettingsValUpdate, midi_out: reaper.midi_Output) void {

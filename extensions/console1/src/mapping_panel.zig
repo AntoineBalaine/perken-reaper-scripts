@@ -5,8 +5,8 @@ const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
 const safePrint = @import("debug_panel.zig").safePrint;
-const dispatch = @import("actions.zig").dispatch;
 const globals = @import("globals.zig");
+const mapping_actions = @import("mapping_actions.zig");
 const State = @import("statemachine.zig").State;
 const c1 = @import("c1.zig");
 const actions = @import("actions.zig");
@@ -61,7 +61,8 @@ pub const MappingPanel = struct {
     }
 };
 
-pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !void {
+pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.MappingAction {
+    var rv: ?mapping_actions.MappingAction = null;
     if (try imgui.Begin(.{ ctx, "Mapping Panel", null })) {
         defer imgui.End(.{ctx}) catch {};
 
@@ -98,11 +99,7 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !void {
                                 null,
                                 0.0, // full width
                             })) {
-                                actions.dispatch(state, .{
-                                    .mapping = .{
-                                        .select_parameter = @intCast(i),
-                                    },
-                                });
+                                rv = .{ .select_parameter = @intCast(i) };
                             }
 
                             if (isParamMapped(state, i)) {
@@ -124,13 +121,13 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !void {
                     try imgui.Text(.{ ctx, "Module: {s}", .{module_type} });
                     try imgui.Separator(.{ctx});
 
-                    switch (state.mapping.current_mappings) {
-                        .COMP => try drawModuleControls(ctx, state, &compressor_controls),
-                        .EQ => try drawModuleControls(ctx, state, &eq_controls),
-                        .INPUT => try drawModuleControls(ctx, state, &input_controls),
-                        .OUTPT => try drawModuleControls(ctx, state, &output_controls),
-                        .GATE => try drawModuleControls(ctx, state, &gate_controls),
-                    }
+                    if (try drawModuleControls(ctx, state, switch (state.mapping.current_mappings) {
+                        .EQ => &eq_controls,
+                        .COMP => &compressor_controls,
+                        .INPUT => &input_controls,
+                        .OUTPT => &output_controls,
+                        .GATE => &gate_controls,
+                    })) |map_action| rv = map_action;
                 }
 
                 // Bottom panel with buttons
@@ -142,30 +139,25 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !void {
                         "MIDI Learn";
 
                     if (try imgui.Button(.{ ctx, midi_learn_text })) {
-                        actions.dispatch(state, .{
-                            .mapping = .{ .toggle_midi_learn = {} },
-                        });
+                        rv = .{ .toggle_midi_learn = {} };
                     }
 
                     try imgui.SameLine(.{ctx});
 
                     if (try imgui.Button(.{ ctx, "Save Mapping" })) {
-                        actions.dispatch(state, .{
-                            .mapping = .{ .save_mapping = {} },
-                        });
+                        rv = .{ .save_mapping = {} };
                     }
 
                     try imgui.SameLine(.{ctx});
 
                     if (try imgui.Button(.{ ctx, "Cancel" })) {
-                        actions.dispatch(state, .{
-                            .mapping = .{ .cancel_mapping = {} },
-                        });
+                        rv = .{ .cancel_mapping = {} };
                     }
                 }
             }
         }
     }
+    return rv;
 }
 
 // Helper function to draw module-specific controls
@@ -173,7 +165,8 @@ fn drawModuleControls(
     ctx: imgui.ContextPtr,
     state: *State,
     controls: []const c1.CCs,
-) !void {
+) !?mapping_actions.MappingAction {
+    var rv: ?mapping_actions.MappingAction = null;
     for (controls) |cc| {
         var is_selected = if (state.mapping.selected_control) |sel|
             sel == cc
@@ -187,11 +180,7 @@ fn drawModuleControls(
             null,
             -1.0,
         })) {
-            actions.dispatch(state, .{
-                .mapping = .{
-                    .select_control = cc,
-                },
-            });
+            rv = .{ .select_control = cc };
         }
 
         // Show mapped parameter if any
@@ -200,6 +189,7 @@ fn drawModuleControls(
             try imgui.TextDisabled(.{ ctx, "(-> Param {d})", .{param_idx} });
         }
     }
+    return rv;
 }
 
 fn isParamMapped(state: *State, i: usize) bool {

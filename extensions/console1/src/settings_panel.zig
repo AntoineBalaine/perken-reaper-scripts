@@ -3,6 +3,7 @@ const imgui = @import("reaper_imgui.zig");
 const Preferences = @import("settings.zig");
 const globals = @import("globals.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
+const settings_actions = @import("settings_actions.zig");
 const styles = @import("styles.zig");
 
 // Temporary copy for editing
@@ -22,13 +23,12 @@ pub fn deinit(self: *SettingsPanel) void {
 
 pub const SettingsValUpdate = struct { field: []const u8, val: bool };
 const SettingsRV = union(enum) {
-    stay_open,
     close_save,
     close_cancel,
     val_update: SettingsValUpdate,
 };
-pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !SettingsRV {
-    var rv: SettingsRV = .stay_open;
+pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
+    var rv: ?SettingsRV = null;
     const PopStyle = try styles.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
     {
