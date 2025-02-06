@@ -4,7 +4,7 @@ const mappings_mod = @import("mappings.zig");
 const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
 const log = std.log.scoped(.preferences);
-const fs_helpers = @import("internals/fs_helpers.zig");
+const fs_helpers = @import("fs_helpers.zig");
 
 // Hard-coded fallback defaults as EnumMap
 const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
@@ -242,7 +242,7 @@ test "preferences - load from current directory" {
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
 
-    const path_z = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const path_z = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     defer allocator.free(path_z);
     const path = try allocator.dupeZ(u8, path_z);
     defer allocator.free(path);
@@ -275,7 +275,7 @@ test "preferences - save and restore" {
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
 
-    const path_z = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const path_z = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     defer allocator.free(path_z);
     const path = try allocator.dupeZ(u8, path_z);
     defer allocator.free(path);

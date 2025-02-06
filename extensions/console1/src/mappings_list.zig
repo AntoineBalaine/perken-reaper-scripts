@@ -2,7 +2,7 @@ const std = @import("std");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const log = std.log.scoped(.mapping_list);
 const ini = @import("ini");
-const fs_helpers = @import("internals/fs_helpers.zig");
+const fs_helpers = @import("fs_helpers.zig");
 
 // Store just file names, not actual mappings
 list: std.EnumArray(ModulesList, std.StringHashMap(void)),

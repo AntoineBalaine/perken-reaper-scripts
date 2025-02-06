@@ -9,7 +9,7 @@ const MappingsList = @import("mappings_list.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
-const fs_helpers = @import("internals/fs_helpers.zig");
+const fs_helpers = @import("fs_helpers.zig");
 const log = std.log.scoped(.globals);
 const imgui = @import("reaper_imgui.zig");
 // State machine
@@ -52,6 +52,7 @@ pub fn init() !void {
     arena = arena_int.allocator();
 
     try initLoggerState();
+    fs_helpers.ensureConfigPath() catch {};
     resource_path = std.mem.span(try fs_helpers.getControllerPath(arena));
 
     // Initialize in dependency order

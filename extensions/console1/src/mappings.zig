@@ -4,7 +4,7 @@ const settings = @import("settings.zig");
 const statemachine = @import("statemachine.zig");
 const MappingState = statemachine.MappingState;
 const ModulesList = statemachine.ModulesList;
-const fs_helpers = @import("internals/fs_helpers.zig");
+const fs_helpers = @import("fs_helpers.zig");
 const log = std.log.scoped(.mappings);
 
 pub const Comp = struct {
@@ -394,7 +394,7 @@ test "MapStore - initialization and caching" {
     const pth = try std.fs.cwd().realpath(".", &mem);
 
     // Initialize config manager first
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
@@ -425,7 +425,7 @@ test "MapStore - lazy loading and caching" {
     // Setup config first
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
@@ -473,7 +473,7 @@ test "MapStore - invalid fx name" {
     // Setup config first
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
@@ -501,7 +501,7 @@ test "MapStore - mapping validation" {
     // Setup config first
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
@@ -536,7 +536,7 @@ test "MapStore - cross-module access" {
     // Setup config first
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "./resources/" });
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
     defer allocator.free(config_path);
     defer allocator.free(config_path_z);
