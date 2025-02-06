@@ -7,48 +7,53 @@ const fs_helpers = @import("internals/fs_helpers.zig");
 // Store just file names, not actual mappings
 list: std.EnumArray(ModulesList, std.StringHashMap(void)),
 arena: std.mem.Allocator,
-pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !@This() {
+pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
     var maps = std.EnumArray(ModulesList, std.StringHashMap(void)).initUndefined();
 
     inline for (comptime std.enums.values(ModulesList)) |module| {
-        maps.set(module, std.StringHashMap(void).init(arena));
+        inline_blk: {
+            maps.set(module, std.StringHashMap(void).init(arena));
 
-        var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-        const module_path = fs_helpers.joinStrings(&path_buffer, &.{
-            resource_path,
-            std.fs.path.sep_str,
-            "maps",
-            std.fs.path.sep_str,
-            @tagName(module),
-        });
+            var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+            const module_path = fs_helpers.joinStrings(&path_buffer, &.{
+                resource_path,
+                std.fs.path.sep_str,
+                "maps",
+                std.fs.path.sep_str,
+                @tagName(module),
+            });
 
-        var dir = try std.fs.openDirAbsolute(module_path, .{ .iterate = true });
-        defer dir.close();
+            var dir = std.fs.openDirAbsolute(module_path, .{ .iterate = true }) catch {
+                break :inline_blk;
+            };
 
-        var iter = dir.iterate();
-        while (try iter.next()) |entry| {
-            if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".ini")) {
-                // Get full file path
-                const file_path = fs_helpers.joinStrings(&path_buffer, &.{
-                    resource_path,
-                    std.fs.path.sep_str,
-                    "maps",
-                    std.fs.path.sep_str,
-                    @tagName(module),
-                    std.fs.path.sep_str,
-                    entry.name,
-                });
+            defer dir.close();
 
-                const file = try std.fs.openFileAbsolute(file_path, .{});
-                defer file.close();
+            var iter = dir.iterate();
+            while (iter.next() catch break :inline_blk) |entry| {
+                if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".ini")) {
+                    // Get full file path
+                    const file_path = fs_helpers.joinStrings(&path_buffer, &.{
+                        resource_path,
+                        std.fs.path.sep_str,
+                        "maps",
+                        std.fs.path.sep_str,
+                        @tagName(module),
+                        std.fs.path.sep_str,
+                        entry.name,
+                    });
 
-                if (try parseFxName(arena, file)) |actual_name| {
-                    maps.getPtr(module).put(actual_name, {}) catch {
-                        log.warn("Mappings list: Failed to store fx name {s}", .{actual_name});
-                        continue;
-                    };
-                } else {
-                    log.warn("Mappings list: No fx_name found in {s}", .{entry.name});
+                    const file = std.fs.openFileAbsolute(file_path, .{}) catch continue;
+                    defer file.close();
+
+                    if (parseFxName(arena, file) catch continue) |actual_name| {
+                        maps.getPtr(module).put(actual_name, {}) catch {
+                            log.warn("Mappings list: Failed to store fx name {s}", .{actual_name});
+                            continue;
+                        };
+                    } else {
+                        log.warn("Mappings list: No fx_name found in {s}", .{entry.name});
+                    }
                 }
             }
         }

@@ -58,7 +58,7 @@ pub fn init() !void {
     preferences = try Preferences.init(arena, resource_path);
 
     map_store = try MapStore.init(arena, resource_path, &preferences.default_fx);
-    mappings_list = try MappingsList.init(arena, resource_path);
+    mappings_list = MappingsList.init(arena, resource_path);
     state = State.init(arena);
     settings_panel = try SettingsPanel.init(&preferences, arena);
     if (preferences.start_suspended) {
