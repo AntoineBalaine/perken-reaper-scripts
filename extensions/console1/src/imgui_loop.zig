@@ -119,8 +119,8 @@ fn main() !void {
                 const module = globals.state.fx_sel.current_category;
 
                 const list = globals.mappings_list.list.get(module);
-                if (!try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) {
-                    actions.dispatch(&globals.state, .{ .fx_sel = .close_browser });
+                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) |sel_action| {
+                    actions.dispatch(&globals.state, .{ .fx_sel = sel_action });
                 }
             },
             .mapping_panel => {

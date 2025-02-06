@@ -6,7 +6,6 @@ const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
 const PushWindowStyle = @import("styles.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
-const dispatch = @import("actions.zig").dispatch;
 const globals = @import("globals.zig");
 const fx_sel_actions = @import("fx_sel_actions.zig");
 
@@ -158,7 +157,9 @@ pub fn ModulePopup(
     module: @import("statemachine.zig").ModulesList,
     mappings: std.StringHashMap(void),
     current_index: usize,
-) !bool {
+) !?fx_sel_actions.FxSelActions {
+    var rv: ?fx_sel_actions.FxSelActions = null;
+
     const PopWindowStyle = try PushWindowStyle(ctx, .main);
     defer PopWindowStyle(ctx) catch {};
 
@@ -178,7 +179,7 @@ pub fn ModulePopup(
 
             const fx_name: [:0]const u8 = @ptrCast(entry.key_ptr.*);
             if (try imgui.Selectable(.{ ctx, fx_name })) {
-                dispatch(&globals.state, .{ .fx_sel = .{ .plugin = .{ .name = fx_name } } });
+                rv = .{ .plugin = .{ .name = fx_name } };
             }
             if (is_selected) {
                 try drawInvertedSlctblColors(ctx, fx_name);
@@ -189,15 +190,16 @@ pub fn ModulePopup(
         try imgui.Separator(.{ctx});
 
         if (try Menus(ctx)) |selection| {
-            dispatch(&globals.state, .{ .fx_sel = selection });
+            rv = selection;
         }
 
         // Optional: Add rescan button at bottom
         try imgui.Separator(.{ctx});
         // try RescanButton(ctx);
     }
+    if (!open) rv = .close_browser;
 
-    return open;
+    return rv;
 }
 
 fn drawInvertedSlctblColors(ctx: imgui.ContextPtr, fx_name: [:0]const u8) !void {
