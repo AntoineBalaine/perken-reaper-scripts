@@ -4,6 +4,7 @@ const mappings_mod = @import("mappings.zig");
 const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
 const log = std.log.scoped(.preferences);
+const fs_helpers = @import("internals/fs_helpers.zig");
 
 // Hard-coded fallback defaults as EnumMap
 const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
@@ -63,8 +64,12 @@ pub fn deinit(self: *Preferences) void {
 }
 
 fn load(self: *Preferences) !void {
-    const path = try std.fs.path.join(self.allocator, &[_][]const u8{ self.resource_path, "preferences.ini" });
-    defer self.allocator.free(path);
+    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const path = fs_helpers.joinStrings(&path_buffer, &.{
+        self.resource_path,
+        std.fs.path.sep_str,
+        "preferences.ini",
+    });
 
     const file = try std.fs.openFileAbsolute(path, .{});
     defer file.close();
@@ -74,8 +79,12 @@ fn load(self: *Preferences) !void {
 }
 
 pub fn saveToDisk(self: *Preferences) !void {
-    const path = try std.fs.path.join(self.allocator, &[_][]const u8{ self.resource_path, "preferences.ini" });
-    defer self.allocator.free(path);
+    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const path = fs_helpers.joinStrings(&path_buffer, &.{
+        self.resource_path,
+        std.fs.path.sep_str,
+        "preferences.ini",
+    });
 
     const file = try std.fs.createFileAbsolute(path, .{
         .read = true,
@@ -136,17 +145,6 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
             .property => |prop| {
                 // Handle top-level properties when not in a module section
                 if (cur_section == null) {
-                    // Use @hasField to check if property exists in Preferences
-                    // if (!@hasField(Preferences, prop.key)) {
-                    //     log(.log(
-                    //         .warn,
-                    //         "Unknown preference: {s}",
-                    //         .{prop.key},
-                    //         null,
-                    //         prefs.allocator,
-                    //     );
-                    //     continue;
-                    // }
 
                     // Set the preference value based on its type
                     inline for (std.meta.fields(Preferences)) |field| {
