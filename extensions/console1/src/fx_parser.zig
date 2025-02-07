@@ -187,8 +187,10 @@ fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
     const file = try std.fs.openFileAbsolute(path, .{});
     defer file.close();
 
-    var parser = ini.parse(allocator, file.reader());
-    defer parser.deinit();
+    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer temp_arena.deinit();
+    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    defer parser.deinit(); // doesn’t actually do anything because of arena
 
     var fxtags = FxTags{
         .category = TagList{},

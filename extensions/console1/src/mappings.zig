@@ -214,8 +214,11 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
 
     const file = try std.fs.openFileAbsolute(filePath, .{});
     defer file.close();
-    var parser = ini.parse(self.allocator, file.reader());
-    defer parser.deinit();
+
+    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer temp_arena.deinit();
+    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    defer parser.deinit(); // doesn’t actually do anything because of arena
 
     const mapping: TaggedMapping = switch (module) {
         .COMP => {

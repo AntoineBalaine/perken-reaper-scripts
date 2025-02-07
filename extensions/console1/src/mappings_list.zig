@@ -69,15 +69,17 @@ pub fn deinit(self: *@This()) void {
     self.arena.deinit();
 }
 
-fn parseFxName(allocator: std.mem.Allocator, file: std.fs.File) !?[:0]const u8 {
-    var parser = ini.parse(allocator, file.reader());
+fn parseFxName(arena: std.mem.Allocator, file: std.fs.File) !?[:0]const u8 {
+    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer temp_arena.deinit();
+    var parser = ini.parse(temp_arena.allocator(), file.reader());
     defer parser.deinit();
 
     while (try parser.next()) |record| {
         switch (record) {
             .property => |kv| {
                 if (std.mem.eql(u8, kv.key, "fx_name")) {
-                    return try allocator.dupeZ(u8, kv.value);
+                    return try arena.dupeZ(u8, kv.value);
                 }
             },
             .section, .enumeration => continue,
