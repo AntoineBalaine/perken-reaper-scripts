@@ -49,38 +49,34 @@ start_suspended: bool = false,
 show_track_list: bool = true,
 focus_page_tracks: bool = false,
 
-// Resource management
-allocator: std.mem.Allocator,
-
-pub fn init(allocator: std.mem.Allocator, resource_path: [:0]const u8) !Preferences {
+pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences {
     var self = Preferences{
-        .allocator = allocator,
         .default_fx = DefaultFx.initUndefined(),
     };
 
     // Always start by copying fallback defaults
     inline for (comptime std.enums.values(ModulesList)) |module| {
         const fallback = fallback_defaults.get(module).?;
-        const owned_copy = try allocator.dupeZ(u8, fallback);
+        const owned_copy = try arena.dupeZ(u8, fallback);
         self.default_fx.set(module, owned_copy);
     }
 
     // Try to load preferences from disk
-    self.load(resource_path) catch |err| {
+    self.load(resource_path, arena) catch |err| {
         log.warn("Failed to load preferences: {s} at {s}, using copied defaults", .{ @errorName(err), resource_path });
     };
 
     return self;
 }
 
-pub fn deinit(self: *Preferences) void {
+pub fn test_deinit(self: *Preferences, testing_allocator: std.mem.allocator) void {
     // Free all strings in default_fx - they're all allocated copies
     for (std.enums.values(ModulesList)) |module| {
-        self.allocator.free(self.default_fx.getPtr(module).*);
+        testing_allocator.free(self.default_fx.getPtr(module).*);
     }
 }
 
-fn load(self: *Preferences, resource_path: [:0]const u8) !void {
+fn load(self: *Preferences, resource_path: [:0]const u8, arena: std.mem.Allocator) !void {
     var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
         resource_path,
@@ -90,9 +86,11 @@ fn load(self: *Preferences, resource_path: [:0]const u8) !void {
 
     const file = try std.fs.openFileAbsolute(path, .{});
     defer file.close();
-    var parser = ini.parse(self.allocator, file.reader());
-    defer parser.deinit();
-    try self.parsePreferences(&parser);
+
+    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer temp_arena.deinit();
+    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    try self.parsePreferences(&parser, arena);
 }
 
 pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
@@ -119,9 +117,7 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
         switch (field.type) {
             bool => {
                 // Skip resource management fields
-                if (!(std.mem.eql(u8, field.name, "allocator") or
-                    std.mem.eql(u8, field.name, "default_fx")))
-                {
+                if (!(std.mem.eql(u8, field.name, "default_fx"))) {
                     try writer.print(
                         "{s} = {s}\n",
                         .{
@@ -146,7 +142,7 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
     }
 }
 
-pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
+pub fn parsePreferences(self: *Preferences, parser: anytype, arena: std.mem.Allocator) !void {
     var cur_section: ?ModulesList = null;
 
     while (try parser.*.next()) |record| {
@@ -167,7 +163,7 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
                         if (std.mem.eql(u8, field.name, prop.key)) {
                             switch (field.type) {
                                 bool => {
-                                    @field(prefs, field.name) =
+                                    @field(self, field.name) =
                                         std.mem.eql(u8, prop.value, "true");
                                 },
                                 // Add other types as needed
@@ -180,46 +176,13 @@ pub fn parsePreferences(prefs: *Preferences, parser: anytype) !void {
             .enumeration => |value| {
                 // Handle FX assignments in module sections
                 if (cur_section) |module| {
-                    prefs.allocator.free(prefs.default_fx.get(module));
                     // Allocate and store new value
-                    const value_copy = try prefs.allocator.dupeZ(u8, value);
-                    prefs.default_fx.set(module, value_copy);
+                    const value_copy = try arena.dupeZ(u8, value);
+                    self.default_fx.set(module, value_copy);
                 }
             },
         }
     }
-}
-pub fn clone(self: *const @This(), gpa: std.mem.Allocator) !Preferences {
-    return .{
-        .show_startup_message = self.show_startup_message,
-        .show_feedback_window = self.show_feedback_window,
-        .show_plugin_ui = self.show_plugin_ui,
-        .manual_routing = self.manual_routing,
-        .log_to_file = self.log_to_file,
-        .default_fx = try cloneDefaultFx(&self.default_fx, gpa), // If DefaultFx needs deep copy
-        .allocator = gpa,
-    };
-}
-
-// Copy values from another instance
-pub fn copyFrom(self: *@This(), other: *const Preferences, gpa: std.mem.Allocator) !void {
-    self.show_startup_message = other.show_startup_message;
-    self.show_feedback_window = other.show_feedback_window;
-    self.show_plugin_ui = other.show_plugin_ui;
-    self.manual_routing = other.manual_routing;
-    self.log_to_file = other.log_to_file;
-    self.default_fx = try cloneDefaultFx(&other.default_fx, gpa);
-}
-
-pub fn cloneDefaultFx(self: *const DefaultFx, gpa: std.mem.Allocator) !DefaultFx {
-    var new_fx = DefaultFx.initUndefined();
-    // Clone each string in the enum array
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        const value = self.get(module);
-        const value_copy = try gpa.dupeZ(u8, value);
-        new_fx.set(module, value_copy);
-    }
-    return new_fx;
 }
 
 pub fn toggleField(self: *@This(), field: SettingsFields) void {
@@ -245,7 +208,7 @@ test "preferences - fallback defaults when file not found" {
 
     // Initialize with non-existent path
     var prefs = try Preferences.init(allocator, "/path/that/does/not/exist");
-    defer prefs.deinit();
+    defer prefs.test_deinit();
 
     // Test that fallback values are used
     try expect(prefs.show_startup_message == false);
@@ -276,7 +239,7 @@ test "preferences - load from current directory" {
 
     // Initialize preferences with current directory
     var prefs = try Preferences.init(allocator, path);
-    defer prefs.deinit();
+    defer prefs.test_deinit();
 
     // Test loaded values
     // Note: These values should match what's in your preferences.ini
@@ -309,11 +272,11 @@ test "preferences - save and restore" {
 
     // First load current preferences to save them
     var original_prefs = try Preferences.init(allocator, path);
-    defer original_prefs.deinit();
+    defer original_prefs.test_deinit();
 
     // Create new preferences with different values
     var test_prefs = try Preferences.init(allocator, path);
-    defer test_prefs.deinit();
+    defer test_prefs.test_deinit();
 
     // Modify all boolean values to their opposite
     test_prefs.show_startup_message = !original_prefs.show_startup_message;
@@ -326,7 +289,7 @@ test "preferences - save and restore" {
 
     // Load preferences again to verify changes
     var verify_prefs = try Preferences.init(allocator, path);
-    defer verify_prefs.deinit();
+    defer verify_prefs.test_deinit();
 
     // Verify that values were changed
     try expect(verify_prefs.show_startup_message == !original_prefs.show_startup_message);
@@ -344,7 +307,7 @@ test "preferences - save and restore" {
 
     // Verify restoration
     var final_verify = try Preferences.init(allocator, path);
-    defer final_verify.deinit();
+    defer final_verify.test_deinit();
 
     try expect(final_verify.show_startup_message == original_prefs.show_startup_message);
     try expect(final_verify.show_feedback_window == original_prefs.show_feedback_window);

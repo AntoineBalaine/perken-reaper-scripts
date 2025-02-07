@@ -13,14 +13,10 @@ scroll_position_rel: u8 = 0,
 scroll_position_abs: u8 = 0,
 
 const SettingsPanel = @This();
-pub fn init(current: *const Preferences, gpa: std.mem.Allocator) !SettingsPanel {
+pub fn init(current: *const Preferences) !SettingsPanel {
     return .{
-        .temp_settings = try current.clone(gpa),
+        .temp_settings = current.*,
     };
-}
-
-pub fn deinit(self: *SettingsPanel) void {
-    self.temp_settings.deinit();
 }
 
 pub const SettingsValUpdate = struct { field: []const u8, val: bool };
@@ -159,9 +155,7 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
                         })) {
                             self.dirty = true;
                             // Update temp settings with new selection
-                            const new_fx = try self.temp_settings.allocator.dupeZ(u8, fx_name.*);
-                            self.temp_settings.allocator.free(self.temp_settings.default_fx.get(module));
-                            self.temp_settings.default_fx.set(module, new_fx);
+                            self.temp_settings.default_fx.set(module, @ptrCast(fx_name.*));
                             self.dirty = true;
                         }
                     }
@@ -176,14 +170,13 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
 ///
 /// If the copy fails, just return without committing the changes.
 pub fn save(self: *@This()) !void {
-    // Copy temp settings back to global settings
-    var copy: Preferences = .{
-        .default_fx = undefined,
-        .allocator = undefined,
-    };
-    try copy.copyFrom(&copy, globals.arena);
-    globals.preferences = copy;
+    // Just copy the values, including string slices
+    globals.preferences = self.temp_settings;
     try globals.preferences.saveToDisk(globals.resource_path);
+
+    if (self.temp_settings.log_to_file != globals.preferences.log_to_file) {
+        try globals.updateLoggerState();
+    }
 
     // Apply changes that need immediate effect
     if (self.temp_settings.log_to_file != globals.preferences.log_to_file) {

@@ -61,7 +61,7 @@ pub fn init() !void {
     map_store = try MapStore.init(arena, resource_path, &preferences.default_fx);
     mappings_list = MappingsList.init(arena, resource_path);
     state = State.init(arena);
-    settings_panel = try SettingsPanel.init(&preferences, arena);
+    settings_panel = try SettingsPanel.init(&preferences);
     if (preferences.start_suspended) {
         state.current_mode = .suspended;
     }

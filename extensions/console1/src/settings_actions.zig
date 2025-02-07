@@ -22,7 +22,7 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
     switch (set_action) {
         .open => {
             if (globals.settings_panel == null) {
-                globals.settings_panel = SettingsPanel.init(&globals.preferences, globals.arena) catch blk: {
+                globals.settings_panel = SettingsPanel.init(&globals.preferences) catch blk: {
                     log.err("open settings failed: {s}", .{@tagName(set_action)});
                     break :blk null;
                 };
@@ -41,14 +41,12 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
                     // settings: implement error handling
                     // Show user notification
                 };
-                panel.deinit();
                 globals.settings_panel = null;
             }
             dispatch(state, .{ .change_mode = .fx_ctrl });
         },
         .cancel => {
-            if (globals.settings_panel) |*panel| {
-                panel.deinit();
+            if (globals.settings_panel) |_| {
                 globals.settings_panel = null;
             }
             state.current_mode = .fx_ctrl;
