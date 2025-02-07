@@ -99,11 +99,11 @@ allocator: std.mem.Allocator,
 
 pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *settings.DefaultFx) !MapStore {
     var self: MapStore = .{
-        .COMP = std.StringHashMapUnmanaged(Comp){},
-        .EQ = std.StringHashMapUnmanaged(Eq){},
         .INPUT = std.StringHashMapUnmanaged(Inpt){},
-        .OUTPT = std.StringHashMapUnmanaged(Outpt){},
         .GATE = std.StringHashMapUnmanaged(Shp){},
+        .EQ = std.StringHashMapUnmanaged(Eq){},
+        .COMP = std.StringHashMapUnmanaged(Comp){},
+        .OUTPT = std.StringHashMapUnmanaged(Outpt){},
         .controller_dir = try allocator.dupeZ(u8, std.mem.span(controller_dir)),
         .allocator = allocator,
     };

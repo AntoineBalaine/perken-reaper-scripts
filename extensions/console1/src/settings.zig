@@ -18,6 +18,26 @@ const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
 pub const DefaultFx = std.EnumArray(ModulesList, [:0]const u8);
 pub const Preferences = @This();
 
+pub const SettingsFields = enum {
+    show_startup_message,
+    show_feedback_window,
+    show_plugin_ui,
+    manual_routing,
+    log_to_file,
+    start_suspended,
+    // Module combos start at 7
+    default_INPUT,
+    default_GATE,
+    default_COMP,
+    default_EQ,
+    default_OUTPT,
+    // ... other fields
+
+    pub fn fromIndex(index: u8) ?SettingsFields {
+        return std.meta.intToEnum(SettingsFields, index) catch null;
+    }
+};
+
 // Data
 show_startup_message: bool = false,
 show_feedback_window: bool = false,
@@ -31,12 +51,10 @@ focus_page_tracks: bool = false,
 
 // Resource management
 allocator: std.mem.Allocator,
-resource_path: [:0]const u8,
 
 pub fn init(allocator: std.mem.Allocator, resource_path: [:0]const u8) !Preferences {
     var self = Preferences{
         .allocator = allocator,
-        .resource_path = try allocator.dupeZ(u8, resource_path),
         .default_fx = DefaultFx.initUndefined(),
     };
 
@@ -48,7 +66,7 @@ pub fn init(allocator: std.mem.Allocator, resource_path: [:0]const u8) !Preferen
     }
 
     // Try to load preferences from disk
-    self.load() catch |err| {
+    self.load(resource_path) catch |err| {
         log.warn("Failed to load preferences: {s} at {s}, using copied defaults", .{ @errorName(err), resource_path });
     };
 
@@ -60,13 +78,12 @@ pub fn deinit(self: *Preferences) void {
     for (std.enums.values(ModulesList)) |module| {
         self.allocator.free(self.default_fx.getPtr(module).*);
     }
-    self.allocator.free(self.resource_path);
 }
 
-fn load(self: *Preferences) !void {
+fn load(self: *Preferences, resource_path: [:0]const u8) !void {
     var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
-        self.resource_path,
+        resource_path,
         std.fs.path.sep_str,
         "preferences.ini",
     });
@@ -78,10 +95,10 @@ fn load(self: *Preferences) !void {
     try self.parsePreferences(&parser);
 }
 
-pub fn saveToDisk(self: *Preferences) !void {
+pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
     var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
-        self.resource_path,
+        resource_path,
         std.fs.path.sep_str,
         "preferences.ini",
     });
@@ -103,7 +120,6 @@ pub fn saveToDisk(self: *Preferences) !void {
             bool => {
                 // Skip resource management fields
                 if (!(std.mem.eql(u8, field.name, "allocator") or
-                    std.mem.eql(u8, field.name, "resource_path") or
                     std.mem.eql(u8, field.name, "default_fx")))
                 {
                     try writer.print(
@@ -182,7 +198,6 @@ pub fn clone(self: *const @This(), gpa: std.mem.Allocator) !Preferences {
         .log_to_file = self.log_to_file,
         .default_fx = try cloneDefaultFx(&self.default_fx, gpa), // If DefaultFx needs deep copy
         .allocator = gpa,
-        .resource_path = try gpa.dupeZ(u8, self.resource_path),
     };
 }
 
@@ -194,7 +209,6 @@ pub fn copyFrom(self: *@This(), other: *const Preferences, gpa: std.mem.Allocato
     self.manual_routing = other.manual_routing;
     self.log_to_file = other.log_to_file;
     self.default_fx = try cloneDefaultFx(&other.default_fx, gpa);
-    self.resource_path = try gpa.dupeZ(u8, other.resource_path);
 }
 
 pub fn cloneDefaultFx(self: *const DefaultFx, gpa: std.mem.Allocator) !DefaultFx {
@@ -206,6 +220,19 @@ pub fn cloneDefaultFx(self: *const DefaultFx, gpa: std.mem.Allocator) !DefaultFx
         new_fx.set(module, value_copy);
     }
     return new_fx;
+}
+
+pub fn toggleField(self: *@This(), field: SettingsFields) void {
+    switch (field) {
+        .show_startup_message => self.show_startup_message = !self.show_startup_message,
+        .show_feedback_window => self.show_feedback_window = !self.show_feedback_window,
+        .show_plugin_ui => self.show_plugin_ui = !self.show_plugin_ui,
+        .manual_routing => self.manual_routing = !self.manual_routing,
+        .log_to_file => self.log_to_file = !self.log_to_file,
+        .start_suspended => self.start_suspended = !self.start_suspended,
+        // Handle combo boxes differently
+        else => {},
+    }
 }
 
 test {
@@ -295,7 +322,7 @@ test "preferences - save and restore" {
     test_prefs.manual_routing = !original_prefs.manual_routing;
 
     // Save modified preferences
-    try test_prefs.saveToDisk();
+    try test_prefs.saveToDisk(path_z);
 
     // Load preferences again to verify changes
     var verify_prefs = try Preferences.init(allocator, path);
@@ -313,7 +340,7 @@ test "preferences - save and restore" {
     }
 
     // Restore original preferences
-    try original_prefs.saveToDisk();
+    try original_prefs.saveToDisk(path_z);
 
     // Verify restoration
     var final_verify = try Preferences.init(allocator, path);

@@ -43,10 +43,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .fx_sel => {
                 switch (cc) {
-                    .Out_Vol => {
-                        // Volume knob for scrolling
-                        actions.dispatch(&globals.state, .{ .fx_sel = .{ .scroll = val } });
-                    },
+                    .Out_Vol => actions.dispatch(&globals.state, .{ .fx_sel = .{ .scroll = val } }),
                     .Out_solo => {
                         // Solo button for selection
                         const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
@@ -71,8 +68,10 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .settings => {
                 switch (cc) {
-                    .Out_solo => actions.dispatch(&globals.state, .{ .settings = .save }),
-                    .Out_mute, .Tr_tr20 => actions.dispatch(&globals.state, .{ .settings = .cancel }),
+                    .Tr_tr20 => actions.dispatch(&globals.state, .{ .settings = .save }),
+                    .Out_mute => actions.dispatch(&globals.state, .{ .settings = .cancel }),
+                    .Out_solo => actions.dispatch(&globals.state, .{ .settings = .toggle }),
+                    .Out_Vol => actions.dispatch(&globals.state, .{ .settings = .{ .scroll = val } }),
                     else => {},
                 }
             },

@@ -183,7 +183,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             }
 
             // Log scroll action
-            log.debug("Scroll: abs={d} delta={d} rel={d}/{d}", .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, fx_count });
+            log.debug("FxSel scroll: abs={d} delta={d} rel={d}/{d}", .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, fx_count });
         },
     }
 }

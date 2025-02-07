@@ -122,11 +122,11 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.
                     try imgui.Separator(.{ctx});
 
                     if (try drawModuleControls(ctx, state, switch (state.mapping.current_mappings) {
+                        .INPUT => &input_controls,
+                        .GATE => &gate_controls,
                         .EQ => &eq_controls,
                         .COMP => &compressor_controls,
-                        .INPUT => &input_controls,
                         .OUTPT => &output_controls,
-                        .GATE => &gate_controls,
                     })) |map_action| rv = map_action;
                 }
 

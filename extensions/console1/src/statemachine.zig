@@ -50,6 +50,7 @@ pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
     .fx_sel = &.{ .fx_ctrl, .mapping_panel, .settings, .fx_sel, .suspended },
     .mapping_panel = &.{ .fx_sel, .fx_ctrl, .suspended },
     .midi_learn = &.{ .mapping_panel, .suspended },
+    .settings = &.{ .fx_ctrl, .suspended },
     .suspended = &.{.fx_ctrl},
 });
 
@@ -97,6 +98,11 @@ pub const FxSelectionState = struct {
     scroll_position_rel: usize = 0,
 };
 
+pub const SettingsSelectionState = struct {
+    scroll_position_abs: u8 = 0,
+    scroll_position_rel: usize = 0,
+};
+
 pub const MappingState = struct {
     target_fx: [:0]const u8,
     current_mappings: union(ModulesList) {
@@ -114,11 +120,11 @@ pub const MappingState = struct {
         return .{
             .target_fx = try gpa.dupeZ(u8, fx_name),
             .current_mappings = switch (module_type) {
-                .COMP => globals.map_store.COMP.get(fx_name).?,
-                .EQ => globals.map_store.EQ.get(fx_name).?,
                 .INPUT => globals.map_store.INPUT.get(fx_name).?,
-                .OUTPT => globals.map_store.OUTPT.get(fx_name).?,
                 .GATE => globals.map_store.GATE.get(fx_name).?,
+                .EQ => globals.map_store.EQ.get(fx_name).?,
+                .COMP => globals.map_store.COMP.get(fx_name).?,
+                .OUTPT => globals.map_store.OUTPT.get(fx_name).?,
             },
             .selected_parameter = null,
             .selected_control = null,
