@@ -35,6 +35,7 @@ pub const MidiOutAction = union(enum) {
     queryMeters,
     // settings
     settings_changed: SettingsValUpdate, // preference field name
+
 };
 
 pub fn sendMidiFeedback(action: MidiOutAction) void {
@@ -64,9 +65,14 @@ fn onModeEntry(mode: Mode, midi_out: reaper.midi_Output) void {
         .mapping_panel => MappingsEntry(midi_out),
         .settings => prefsEntry(midi_out),
         .suspended => clearAllLEDs(midi_out),
+        .transport => transportEntry(midi_out),
         else => clearAllLEDs(midi_out),
         // etc.
     }
+}
+
+fn transportEntry(midi_out: reaper.midi_Output) void {
+    clearAllLEDs(midi_out);
 }
 
 fn clearAllLEDs(midi_out: reaper.midi_Output) void {

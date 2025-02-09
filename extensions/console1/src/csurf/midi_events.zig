@@ -78,6 +78,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .transport => {
                 switch (cc) {
+                    .Inpt_disp_mode => actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl }),
                     .Inpt_disp_on => actions.dispatch(&globals.state, .set_fx_ctrl_gui),
                     .Inpt_Gain => actions.dispatch(&globals.state, .{ .transport = .{ .tr_sel = val } }),
                     .Inpt_LoCut => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_horizontal = val } }),

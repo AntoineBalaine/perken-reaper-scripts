@@ -41,14 +41,12 @@ fn getTrack() ?MediaTrack {
 pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
     switch (cc) {
         .Inpt_disp_mode => {
-            globals.modifier_active = val == 127;
+            actions.dispatch(&globals.state, .{ .change_mode = .transport });
         },
         .Tr_tr_copy, .Tr_tr_grp => {},
         .Comp_Mtr, .Inpt_MtrLft, .Inpt_MtrRgt, .Out_MtrLft, .Out_MtrRgt => {}, // meters unhandled
         .Inpt_disp_on => {
-            if (globals.modifier_active) {
-                actions.dispatch(&globals.state, .set_fx_ctrl_gui);
-            } else if (getTrack()) |mediaTrack| {
+            if (getTrack()) |mediaTrack| {
                 globals.state.fx_ctrl.display = if (globals.state.fx_ctrl.display) |_| null else 1;
                 actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
             }
@@ -115,20 +113,8 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Tr_tr4,
         .Tr_tr5,
         => |cc_| {
-            if (globals.modifier_active) {
-                const module: ModulesList = switch (cc_) {
-                    .Tr_tr1 => .INPUT,
-                    .Tr_tr2 => .GATE,
-                    .Tr_tr3 => .EQ,
-                    .Tr_tr4 => .COMP,
-                    .Tr_tr5 => .OUTPT,
-                    else => unreachable,
-                };
-                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } });
-            } else {
-                const track_idx = getTrackIndex(cc_, globals.state.fx_ctrl.current_page);
-                actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
-            }
+            const track_idx = getTrackIndex(cc_, globals.state.fx_ctrl.current_page);
+            actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
         },
         .Tr_tr6,
         .Tr_tr7,
@@ -149,12 +135,8 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
             actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
         },
         .Tr_tr20 => {
-            if (globals.modifier_active) {
-                actions.dispatch(&globals.state, .{ .settings = .open });
-            } else {
-                const track_idx = getTrackIndex(.Tr_tr20, globals.state.fx_ctrl.current_page);
-                actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
-            }
+            const track_idx = getTrackIndex(.Tr_tr20, globals.state.fx_ctrl.current_page);
+            actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
         },
         inline else => |cc_| {
             if (getTrack()) |tr| {

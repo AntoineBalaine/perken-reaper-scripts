@@ -45,19 +45,16 @@ pub const SCRouting = enum(u8) {
 const ParamValue = struct {
     normalized: f64 = 0.0,
     formatted: ?[:0]const u8 = null,
-    label: [:0]const u8, // Hardcoded label matching Console1
 };
 
 const TrackValue = struct {
     is_selected: bool = false,
     track_number: ?usize = null, // null if no track at this position
-    label: [:0]const u8, // "Track 1", "Track 2", etc.
 };
 
 const MeterValue = struct {
     current_value: f64 = 0.0,
     peak_value: f64 = 0.0,
-    label: [:0]const u8,
 };
 
 /// Union to handle different types of controls
@@ -94,13 +91,9 @@ pub fn init(gpa: std.mem.Allocator) FxControlState {
     inline for (comptime std.enums.values(c1.CCs)) |cc| {
         values.put(cc, switch (cc) {
             // Track selection buttons
-            .Tr_tr1, .Tr_tr10, .Tr_tr11, .Tr_tr12, .Tr_tr13, .Tr_tr14, .Tr_tr15, .Tr_tr16, .Tr_tr17, .Tr_tr18, .Tr_tr19, .Tr_tr2, .Tr_tr20, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6, .Tr_tr7, .Tr_tr8, .Tr_tr9 => .{ .track = .{
-                .label = cc.getLabel(),
-            } },
+            .Tr_tr1, .Tr_tr10, .Tr_tr11, .Tr_tr12, .Tr_tr13, .Tr_tr14, .Tr_tr15, .Tr_tr16, .Tr_tr17, .Tr_tr18, .Tr_tr19, .Tr_tr2, .Tr_tr20, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6, .Tr_tr7, .Tr_tr8, .Tr_tr9 => .{ .track = .{} },
             // Meters
-            .Shp_Mtr, .Comp_Mtr, .Inpt_MtrLft, .Inpt_MtrRgt, .Out_MtrLft, .Out_MtrRgt => .{ .meter = .{
-                .label = cc.getLabel(),
-            } },
+            .Shp_Mtr, .Comp_Mtr, .Inpt_MtrLft, .Inpt_MtrRgt, .Out_MtrLft, .Out_MtrRgt => .{ .meter = .{} },
             // Simple buttons
             .Out_mute,
             .Out_solo,
@@ -114,9 +107,7 @@ pub fn init(gpa: std.mem.Allocator) FxControlState {
                 .button = false,
             },
             // Everything else is a parameter
-            else => .{ .param = .{
-                .label = cc.getLabel(),
-            } },
+            else => .{ .param = .{} },
         }) catch unreachable;
     }
 

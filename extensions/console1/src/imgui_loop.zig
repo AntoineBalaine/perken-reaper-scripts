@@ -116,6 +116,7 @@ fn main() !void {
                     actions.dispatch(&globals.state, .{ .mapping = map_action });
                 }
             },
+            .transport => {},
             else => {},
         }
     }
