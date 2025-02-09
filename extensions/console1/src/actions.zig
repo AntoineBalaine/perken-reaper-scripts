@@ -34,7 +34,9 @@ const TrackListAction = tr_ls_act.TrackListAction;
 const trackListAction = tr_ls_act.trackListAction;
 const midi_out = @import("midi_out.zig");
 const MidiOutAction = midi_out.MidiOutAction;
-const transportAction = @import("transport_actions.zig").transportAction;
+const transport_actions = @import("transport_actions.zig");
+const TransportAction = transport_actions.TransportAction;
+const transportAction = transport_actions.transportAction;
 
 const valid_transitions = statemachine.valid_transitions;
 // Mode-specific actions
@@ -44,7 +46,7 @@ pub const ModeAction = union(enum) {
 
     // FX Selection Mode
     fx_sel: FxSelActions,
-
+    transport: TransportAction,
     // Mapping Mode
     mapping: MappingAction,
 

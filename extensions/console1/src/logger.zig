@@ -238,6 +238,7 @@ pub fn logFn(
         .hooks,
         .validation,
         .globals,
+        .transport,
         => @tagName(scope),
         .default => @tagName(scope),
         .reentrancy => "",

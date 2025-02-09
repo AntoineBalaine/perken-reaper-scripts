@@ -18,13 +18,14 @@ const AutomationMode = enum {
     write,
 };
 
-const TransportState = struct {
+pub const TransportState = struct {
     jog: u8 = 64,
     jog_item: u8 = 64,
     jog_marker: u8 = 64,
-    scrub: u8 = 64,
     zoom_horizontal: u8 = 64,
     zoom_vertical: u8 = 64,
+    rate: u8 = 64,
+    tr_sel: u8 = 0,
 };
 
 pub const TransportAction = union(enum) {
@@ -37,12 +38,12 @@ pub const TransportAction = union(enum) {
     loop_toggle,
     marker_set,
     play,
-    rate,
+    rate: u8,
     rec,
     rec_arm,
     scrub: u8,
     stop,
-    tr_sel,
+    tr_sel: u8,
     zoom_horizontal: u8,
     zoom_vertical: u8,
 };
@@ -66,6 +67,7 @@ const RprCmds = enum(c_int) {
     ID_SET_MARKER1 = 40657,
     ID_ITM_TRSNT_NEXT = 40375,
     ID_ITM_TRSNT_PREV = 40376,
+    ID_TRK_UNSEL_ALL = 40297,
 };
 
 pub fn transportAction(state: *State, action: TransportAction) void {
@@ -73,9 +75,9 @@ pub fn transportAction(state: *State, action: TransportAction) void {
         .automation_mode => {},
         .jog => |new_pos| {
             var pos_rel: u8 = state.transport.jog;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog, &pos_rel, new_pos, 128)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog, &pos_rel, new_pos, 127)) |delta| {
                 state.transport.jog = pos_rel;
-                pReaper.CSurf_OnRewFwd(.{ 128, delta });
+                pReaper.CSurf_OnRewFwd(.{ 127, delta });
                 if (new_pos != state.transport.jog) {
                     actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_LoMidGain, .value = state.transport.jog } } });
                 }
@@ -84,7 +86,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
         },
         .jog_marker => |new_pos| {
             var pos_rel: u8 = state.transport.jog_marker;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_marker, &pos_rel, new_pos, 128)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_marker, &pos_rel, new_pos, 127)) |delta| {
                 state.transport.jog_marker = pos_rel;
                 if (delta > 0) {
                     pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_MARKER_NEXT), 0 });
@@ -99,7 +101,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
 
         .jog_item => |new_pos| {
             var pos_rel: u8 = state.transport.jog_item;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_item, &pos_rel, new_pos, 128)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_item, &pos_rel, new_pos, 127)) |delta| {
                 state.transport.jog_item = pos_rel;
                 if (delta > 0) {
                     pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_ITM_TRSNT_NEXT), 0 });
@@ -112,22 +114,11 @@ pub fn transportAction(state: *State, action: TransportAction) void {
             }
         },
 
-        .scrub => |new_pos| {
-            var pos_rel: u8 = state.transport.scrub;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.scrub, &pos_rel, new_pos, 128)) |delta| {
-                state.transport.scrub = pos_rel;
-                pReaper.CSurf_OnRewFwd(.{ 1, delta }); // smaller multiplier for finer control
-                if (new_pos != state.transport.scrub) {
-                    actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_LoGain, .value = state.transport.scrub } } });
-                }
-            }
-        },
-
         .zoom_horizontal => |new_pos| {
             var pos_rel: u8 = state.transport.zoom_horizontal;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.zoom_horizontal, &pos_rel, new_pos, 128)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.zoom_horizontal, &pos_rel, new_pos, 127)) |delta| {
                 state.transport.zoom_horizontal = pos_rel;
-                pReaper.CSurf_OnZoom(delta, 0); // horizontal zoom
+                pReaper.CSurf_OnZoom(.{ delta, 0 }); // horizontal zoom
                 if (new_pos != state.transport.zoom_horizontal) {
                     actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_LoCut, .value = state.transport.zoom_horizontal } } });
                 }
@@ -136,24 +127,66 @@ pub fn transportAction(state: *State, action: TransportAction) void {
 
         .zoom_vertical => |new_pos| {
             var pos_rel: u8 = state.transport.zoom_vertical;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.zoom_vertical, &pos_rel, new_pos, 128)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.zoom_vertical, &pos_rel, new_pos, 127)) |delta| {
                 state.transport.zoom_vertical = pos_rel;
-                pReaper.CSurf_OnZoom(0, delta); // vertical zoom
+                pReaper.CSurf_OnZoom(.{ 0, delta }); // vertical zoom
                 if (new_pos != state.transport.zoom_vertical) {
                     actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_HiCut, .value = state.transport.zoom_vertical } } });
                 }
             }
         },
-        .loop_end => {},
-        .loop_start => {},
-        .loop_toggle => {},
-        .marker_set => {},
-        .play => {},
-        .rate => {},
-        .rec => {},
-        .rec_arm => {},
-        .scrub => {},
-        .stop => {},
-        .tr_sel => {},
+        .loop_end => pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_LOOP_SETEND), 0 }),
+        .loop_start => pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_LOOP_SETSTART), 0 }),
+        .loop_toggle => pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.IDC_REPEAT), 0 }),
+        .marker_set => pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_INSERT_MARKER), 0 }),
+        .play => pReaper.CSurf_OnPlay(.{}),
+        .rate => |new_pos| {
+            var pos_rel: u8 = state.transport.rate;
+            if (utils.calculateNewScrollPosition(i16, &state.transport.rate, &pos_rel, new_pos, 127)) |delta| {
+                state.transport.rate = pos_rel;
+                const norm_rate: f64 = reaper.Master_NormalizePlayRate(reaper.Master_GetPlayRate(0), false);
+
+                const ROTARY_STEP: f64 = 1.0 / 1024.0;
+                const new_norm = norm_rate + (ROTARY_STEP * 2.0 * @as(f64, @floatFromInt(delta)));
+
+                const new_rate = reaper.Master_NormalizePlayRate(new_norm, true);
+                pReaper.CSurf_OnPlayRateChange(.{new_rate});
+
+                // Send MIDI feedback if wrapped
+                if (new_pos != state.transport.rate) {
+                    actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Drive, .value = state.transport.rate } } });
+                }
+
+                log.debug("Transport rate: abs={d} delta={d} rate={d}", .{ state.transport.rate, delta, new_rate });
+            }
+        },
+        .rec => pReaper.CSurf_OnRecord(.{}),
+        .rec_arm => {
+            if (state.current_tr_id) |tr_id| {
+                _ = pReaper.CSurf_OnRecArmChange(.{ reaper.CSurf_TrackFromID(tr_id, false), 0 });
+            }
+        },
+        .stop => pReaper.CSurf_OnStop(.{}),
+        .tr_sel => |new_pos| {
+            const num_tracks = reaper.GetNumTracks();
+            var pos_rel: u8 = if (state.current_tr_id) |id| @intCast(id) else 0;
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.tr_sel, &pos_rel, new_pos, num_tracks)) |_| {
+                state.transport.tr_sel = pos_rel;
+
+                const new_tr_id = pos_rel;
+
+                pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_TRK_UNSEL_ALL), 0 });
+                const new_media_tr = reaper.CSurf_TrackFromID(new_tr_id, false);
+                pReaper.CSurf_OnTrackSelection(.{new_media_tr});
+                state.current_tr_id = new_tr_id;
+                actions.dispatch(state, .{ .fx_ctrl = .{ .on_track_entry = new_media_tr } });
+
+                if (new_pos != state.transport.tr_sel) {
+                    actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_Gain, .value = state.transport.tr_sel } } });
+                }
+            }
+        },
+        // .scrub => {},
+        else => {},
     }
 }

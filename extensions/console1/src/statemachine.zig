@@ -10,6 +10,7 @@ const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
 const globals = @import("globals.zig");
+const TransportState = @import("transport_actions.zig").TransportState;
 
 pub const ModulesList = enum {
     INPUT,
@@ -62,7 +63,7 @@ pub const State = struct {
     // Mode-specific states
     fx_ctrl: FxControlState,
     fx_sel: FxSelectionState,
-    transport: @import("transport_actions.zig").TransportState,
+    transport: TransportState = .{},
     mapping: MappingState,
 
     // Shared state

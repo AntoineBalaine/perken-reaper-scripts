@@ -42,7 +42,7 @@ pub fn trackListAction(state: *State, action: TrackListAction) void {
         },
         .blink_leds => |led_state| {
             const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
-            const track_count = reaper.CountTracks(0) + 1; // +  1 to account for master
+            const track_count = reaper.GetNumTracks(); // +  1 to account for master
 
             // Iterate through track buttons in current page
             var i: usize = 0;
@@ -107,7 +107,7 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
 const PgDirection = enum { up, down };
 
 fn handlePageChange(state: *State, direction: PgDirection) void {
-    const track_count = reaper.CountTracks(0) + 1; // + 1 to account for master
+    const track_count = reaper.GetNumTracks();
     if (track_count <= 0) return;
 
     // Calculate total pages (ceiling division)
@@ -147,7 +147,7 @@ fn updateTrackNames(state: *State) void {
     while (i < TrackList.PageSize) : (i += 1) {
         const track_id: c_int = @intCast(page_start + i);
 
-        if (track_id >= reaper.CountTracks(0) + 1) break; // +  1 to account for master
+        if (track_id >= reaper.GetNumTracks()) break; // +  1 to account for master
 
         // ASSUMPTION: csurf track ids are sequential, start 0 for master track
         const track = reaper.CSurf_TrackFromID(@intCast(track_id), constants.g_csurf_mcpmode);

@@ -34,11 +34,19 @@ pub fn calculateDelta(comptime T: type, old_pos_abs: u8, new_pos: u8) T {
 pub fn calculateNewScrollPosition(
     comptime T: type,
     pos_abs: *u8,
-    pos_rel: *u8,
+    pos_rel: anytype,
     new_pos: u8,
     wrap_count: T,
 ) ?T {
     if (wrap_count == 0) return null;
+
+    const PosRelType = @typeInfo(@TypeOf(pos_rel));
+    if (PosRelType != .Pointer) {
+        @compileError("pos_rel must be a pointer");
+    }
+    if (@typeInfo(PosRelType.Pointer.child) != .Int) {
+        @compileError("pos_rel must point to an integer type");
+    }
 
     const old_pos_abs = pos_abs.*;
     pos_abs.* = new_pos;

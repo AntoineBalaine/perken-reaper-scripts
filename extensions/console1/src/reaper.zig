@@ -2445,7 +2445,7 @@ pub const reaper = struct { // @import("reaper");
     pub var MarkTrackItemsDirty: *fn (track: MediaTrack, item: *MediaItem) callconv(.C) void = undefined;
 
     /// Master_GetPlayRate
-    pub var Master_GetPlayRate: *fn (project: *ReaProject) callconv(.C) f64 = undefined;
+    pub var Master_GetPlayRate: *fn (project: ReaProject) callconv(.C) f64 = undefined;
 
     /// Master_GetPlayRateAtTime
     pub var Master_GetPlayRateAtTime: *fn (time_s: f64, proj: *ReaProject) callconv(.C) f64 = undefined;
