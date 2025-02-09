@@ -150,40 +150,24 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             }
         },
         .scroll => |new_pos| {
-            const old_pos_abs = globals.state.fx_sel.scroll_position_abs;
-            state.fx_sel.scroll_position_abs = new_pos;
-
-            var delta: i16 = undefined;
-            if ((old_pos_abs == 127 or old_pos_abs == 0) and new_pos == old_pos_abs) {
-                if (old_pos_abs == 127) delta = 1 else delta = -1;
-            } else {
-                delta = @as(i16, @intCast(new_pos)) - @as(i16, @intCast(old_pos_abs));
-            }
-
             const fx_count: i32 = @intCast(switch (state.fx_sel.current_category) {
                 inline else => |impl| globals.mappings_list.list.get(impl).count(),
             });
 
-            if (fx_count == 0) return; // Guard against empty list
-            // Update scroll position with wrapping
-            // Calculate new position with wrapping
-            const new_pos_rel = @as(i32, @intCast(state.fx_sel.scroll_position_rel)) + delta;
-
-            // Wrap around using modulo
-            // Add max_pos before taking modulo to handle negative numbers correctly
-            if (new_pos_rel >= fx_count) {
-                // Wrap forward using remainder
-                state.fx_sel.scroll_position_rel = @intCast(@rem(new_pos_rel, fx_count));
-            } else if (new_pos_rel < 0) {
-                // Wrap backward
-                const wrapped = fx_count - @rem(@as(i32, @intCast(@abs(new_pos_rel))), fx_count);
-                state.fx_sel.scroll_position_rel = @intCast(if (wrapped == fx_count) 0 else wrapped);
-            } else {
-                state.fx_sel.scroll_position_rel = @intCast(new_pos_rel);
+            if (@import("utils.zig").calculateNewScrollPosition(
+                i32,
+                &state.fx_sel.scroll_position_abs,
+                &state.fx_sel.scroll_position_rel,
+                new_pos,
+                @intCast(fx_count),
+            )) |delta| {
+                log.debug("FxSel scroll: abs={d} delta={d} rel={d}/{d}", .{
+                    state.fx_sel.scroll_position_abs,
+                    delta,
+                    state.fx_sel.scroll_position_rel,
+                    fx_count,
+                });
             }
-
-            // Log scroll action
-            log.debug("FxSel scroll: abs={d} delta={d} rel={d}/{d}", .{ state.fx_sel.scroll_position_abs, delta, state.fx_sel.scroll_position_rel, fx_count });
         },
     }
 }

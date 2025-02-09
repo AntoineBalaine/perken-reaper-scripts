@@ -32,6 +32,8 @@ pub const ModulesList = enum {
 pub const Mode = enum {
     /// Main operation mode - controlling FX parameters
     fx_ctrl,
+    /// transport mode
+    transport,
     /// Module selection and FX browser
     fx_sel,
     /// Mapping configuration for unmapped FX
@@ -60,6 +62,7 @@ pub const State = struct {
     // Mode-specific states
     fx_ctrl: FxControlState,
     fx_sel: FxSelectionState,
+    transport: @import("transport_actions.zig").TransportState,
     mapping: MappingState,
 
     // Shared state

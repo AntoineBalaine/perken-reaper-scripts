@@ -34,6 +34,7 @@ const TrackListAction = tr_ls_act.TrackListAction;
 const trackListAction = tr_ls_act.trackListAction;
 const midi_out = @import("midi_out.zig");
 const MidiOutAction = midi_out.MidiOutAction;
+const transportAction = @import("transport_actions.zig").transportAction;
 
 const valid_transitions = statemachine.valid_transitions;
 // Mode-specific actions
@@ -122,6 +123,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 .Csurf => |set_action| csurfActions(state, set_action),
                 .track_list => |tr_action| trackListAction(state, tr_action),
                 .midi_out => |m_out_action| midi_out.sendMidiFeedback(m_out_action),
+                .transport => |trspt_act| transportAction(state, trspt_act),
                 else => unreachable,
             }
         },

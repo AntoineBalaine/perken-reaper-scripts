@@ -61,44 +61,22 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
             }
         },
         .scroll => |new_pos| {
-            if (globals.settings_panel == null) return;
-            const old_pos_abs = globals.settings_panel.?.scroll_position_abs;
-            globals.settings_panel.?.scroll_position_abs = new_pos;
-
-            var delta: i16 = undefined;
-            if ((old_pos_abs == 127 or old_pos_abs == 0) and new_pos == old_pos_abs) {
-                if (old_pos_abs == 127) delta = 1 else delta = -1;
-            } else {
-                delta = @as(i16, @intCast(new_pos)) - @as(i16, @intCast(old_pos_abs));
+            if (globals.settings_panel) |*settings_panel| {
+                if (@import("utils.zig").calculateNewScrollPosition(
+                    i16,
+                    &settings_panel.scroll_position_abs,
+                    &settings_panel.scroll_position_rel,
+                    new_pos,
+                    12,
+                )) |delta| {
+                    log.debug("Settings scroll: abs={d} delta={d} rel={d}/{d}", .{
+                        settings_panel.scroll_position_abs,
+                        delta,
+                        settings_panel.scroll_position_rel,
+                        12,
+                    });
+                }
             }
-
-            const prefs_count: i16 = 12;
-
-            if (prefs_count == 0) return; // Guard against empty list
-            // Update scroll position with wrapping
-            // Calculate new position with wrapping
-            const new_pos_rel = @as(i16, @intCast(globals.settings_panel.?.scroll_position_rel)) + delta;
-
-            // Wrap around using modulo
-            // Add max_pos before taking modulo to handle negative numbers correctly
-            if (new_pos_rel >= prefs_count) {
-                // Wrap forward using remainder
-                globals.settings_panel.?.scroll_position_rel = @intCast(@rem(new_pos_rel, prefs_count));
-            } else if (new_pos_rel < 0) {
-                // Wrap backward
-                const wrapped = prefs_count - @rem(@as(i32, @intCast(@abs(new_pos_rel))), prefs_count);
-                globals.settings_panel.?.scroll_position_rel = @intCast(if (wrapped == prefs_count) 0 else wrapped);
-            } else {
-                globals.settings_panel.?.scroll_position_rel = @intCast(new_pos_rel);
-            }
-
-            // Log scroll action
-            log.debug("Settings scroll: abs={d} delta={d} rel={d}/{d}", .{
-                globals.settings_panel.?.scroll_position_abs,
-                delta,
-                globals.settings_panel.?.scroll_position_rel,
-                prefs_count,
-            });
         },
     }
 }
