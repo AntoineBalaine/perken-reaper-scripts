@@ -79,6 +79,9 @@ pub const RprCmds = struct {
     pub const OPT_SAVE_SNAP = 40755;
     pub const OPT_TGL_GRID = 40145;
     pub const OPT_TGL_SNAP = 1157;
+    pub const SEL_TR_ITMS = 40421;
+    pub const _SWS_SAVEALLSELITEMS1: [:0]const u8 = "_SWS_SAVEALLSELITEMS1";
+    pub const _SWS_RESTALLSELITEMS1: [:0]const u8 = "_SWS_RESTALLSELITEMS1";
 };
 
 pub fn transportAction(state: *State, action: TransportAction) void {
@@ -218,6 +221,9 @@ pub fn transportAction(state: *State, action: TransportAction) void {
             var pos_rel: u8 = state.transport.jog_item;
             if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_item, &pos_rel, new_pos, 127, null)) |delta| {
                 state.transport.jog_item = pos_rel;
+                pReaper.Main_OnCommand(.{ reaper.NamedCommandLookup(RprCmds._SWS_SAVEALLSELITEMS1), 0 });
+                defer pReaper.Main_OnCommand(.{ reaper.NamedCommandLookup(RprCmds._SWS_RESTALLSELITEMS1), 0 });
+                pReaper.Main_OnCommand(.{ RprCmds.SEL_TR_ITMS, 0 });
                 if (delta > 0) {
                     pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_NEXT, 0 });
                 } else if (delta < 0) {
