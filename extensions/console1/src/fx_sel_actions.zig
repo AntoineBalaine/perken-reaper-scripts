@@ -160,7 +160,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                 &state.fx_sel.scroll_position_rel,
                 new_pos,
                 @intCast(fx_count),
-                null,
+                1,
             )) |delta| {
                 log.debug("FxSel scroll: abs={d} delta={d} rel={d}/{d}", .{
                     state.fx_sel.scroll_position_abs,
