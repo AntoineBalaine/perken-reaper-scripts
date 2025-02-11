@@ -55,7 +55,7 @@ pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
     .midi_learn = &.{ .mapping_panel, .suspended },
     .settings = &.{ .fx_ctrl, .transport, .suspended },
     .suspended = &.{.fx_ctrl},
-    .transport = &.{ .fx_ctrl, .settings, .suspended },
+    .transport = &.{ .fx_ctrl, .settings, .fx_sel, .suspended },
 });
 
 pub const State = struct {
