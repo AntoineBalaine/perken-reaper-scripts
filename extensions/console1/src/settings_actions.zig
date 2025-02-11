@@ -68,6 +68,7 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
                     &settings_panel.scroll_position_rel,
                     new_pos,
                     12,
+                    null,
                 )) |delta| {
                     log.debug("Settings scroll: abs={d} delta={d} rel={d}/{d}", .{
                         settings_panel.scroll_position_abs,

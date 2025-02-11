@@ -37,6 +37,7 @@ pub fn calculateNewScrollPosition(
     pos_rel: anytype,
     new_pos: u8,
     wrap_count: T,
+    max_increment: ?T,
 ) ?T {
     if (wrap_count == 0) return null;
 
@@ -51,7 +52,14 @@ pub fn calculateNewScrollPosition(
     const old_pos_abs = pos_abs.*;
     pos_abs.* = new_pos;
 
-    const delta = calculateDelta(T, old_pos_abs, new_pos);
+    var delta = calculateDelta(T, old_pos_abs, new_pos);
+
+    if (max_increment) |max_inc| {
+        if (@abs(delta) > max_inc) {
+            delta = if (delta > 0) max_inc else -max_inc;
+        }
+    }
+
     const new_pos_rel = @as(T, @intCast(pos_rel.*)) + @as(T, @intCast(delta));
 
     if (new_pos_rel >= wrap_count) {

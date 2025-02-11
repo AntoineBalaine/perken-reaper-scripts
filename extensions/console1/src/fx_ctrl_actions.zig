@@ -77,7 +77,7 @@ pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
 /// Handles FX window visibility when switching tracks
 /// Closes FX window of previous track and opens FX window of new track if display mode is active
 fn handleFxWindowDisplay(media_track: MediaTrack) void {
-    const count = reaper.GetNumTracks();
+    const count = reaper.GetNumTracks() + 1;
     var i: c_int = 0;
     while (i < count) : (i += 1) {
         const tr = reaper.CSurf_TrackFromID(i, false);

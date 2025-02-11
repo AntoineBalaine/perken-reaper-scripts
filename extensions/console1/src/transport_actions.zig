@@ -9,6 +9,7 @@ const constants = @import("constants.zig");
 const csurf = @import("csurf/control_surface.zig");
 const utils = @import("utils.zig");
 const actions = @import("actions.zig");
+const track_list_actions = @import("tracklist_actions.zig");
 
 const AutomationMode = enum(c_int) {
     trim,
@@ -85,7 +86,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
         .automation_mode => |mode| reaper.SetAutomationMode(@intFromEnum(mode), false),
         .grid => |new_pos| {
             var pos_rel: u8 = state.transport.grid;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.grid, &pos_rel, new_pos, 127)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.grid, &pos_rel, new_pos, 127, null)) |delta| {
                 state.transport.grid = pos_rel;
 
                 // Adjust grid size based on delta
@@ -109,7 +110,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
         },
         .jog => |new_pos| {
             var pos_rel: u8 = state.transport.jog;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog, &pos_rel, new_pos, 127)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog, &pos_rel, new_pos, 127, null)) |delta| {
                 state.transport.jog = pos_rel;
 
                 const use_grid = reaper.GetToggleCommandState(RprCmds.OPT_TGL_GRID) == 1 and reaper.GetToggleCommandState(RprCmds.OPT_TGL_SNAP) == 1;
@@ -200,7 +201,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
         },
         .jog_marker => |new_pos| {
             var pos_rel: u8 = state.transport.jog_marker;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_marker, &pos_rel, new_pos, 127)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_marker, &pos_rel, new_pos, 127, null)) |delta| {
                 state.transport.jog_marker = pos_rel;
                 if (delta > 0) {
                     pReaper.Main_OnCommand(.{ RprCmds.ID_MARKER_NEXT, 0 });
@@ -215,7 +216,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
 
         .jog_item => |new_pos| {
             var pos_rel: u8 = state.transport.jog_item;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_item, &pos_rel, new_pos, 127)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_item, &pos_rel, new_pos, 127, null)) |delta| {
                 state.transport.jog_item = pos_rel;
                 if (delta > 0) {
                     pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_NEXT, 0 });
@@ -230,7 +231,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
 
         .zoom_horizontal => |new_pos| {
             var pos_rel: u8 = state.transport.zoom_horizontal;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.zoom_horizontal, &pos_rel, new_pos, 127)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.zoom_horizontal, &pos_rel, new_pos, 127, null)) |delta| {
                 state.transport.zoom_horizontal = pos_rel;
                 pReaper.CSurf_OnZoom(.{ delta, 0 }); // horizontal zoom
                 if (new_pos != state.transport.zoom_horizontal) {
@@ -241,7 +242,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
 
         .zoom_vertical => |new_pos| {
             var pos_rel: u8 = state.transport.zoom_vertical;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.zoom_vertical, &pos_rel, new_pos, 127)) |delta| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.zoom_vertical, &pos_rel, new_pos, 127, null)) |delta| {
                 state.transport.zoom_vertical = pos_rel;
                 pReaper.CSurf_OnZoom(.{ 0, delta }); // vertical zoom
                 if (new_pos != state.transport.zoom_vertical) {
@@ -256,7 +257,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
         .play => pReaper.CSurf_OnPlay(.{}),
         .rate => |new_pos| {
             var pos_rel: u8 = state.transport.rate;
-            if (utils.calculateNewScrollPosition(i16, &state.transport.rate, &pos_rel, new_pos, 127)) |delta| {
+            if (utils.calculateNewScrollPosition(i16, &state.transport.rate, &pos_rel, new_pos, 127, null)) |delta| {
                 state.transport.rate = pos_rel;
                 const norm_rate: f64 = reaper.Master_NormalizePlayRate(reaper.Master_GetPlayRate(0), false);
 
@@ -282,21 +283,19 @@ pub fn transportAction(state: *State, action: TransportAction) void {
         },
         .stop => pReaper.CSurf_OnStop(.{}),
         .tr_sel => |new_pos| {
-            const num_tracks = reaper.GetNumTracks();
+            log.debug("trsprt tr_sel: old={d} new={d}", .{ state.transport.tr_sel, new_pos });
+            const num_tracks = reaper.GetNumTracks() + 1;
             var pos_rel: u8 = if (state.current_tr_id) |id| @intCast(id) else 0;
-            if (utils.calculateNewScrollPosition(c_int, &state.transport.tr_sel, &pos_rel, new_pos, num_tracks)) |_| {
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.tr_sel, &pos_rel, new_pos, num_tracks, 1)) |_| {
                 state.transport.tr_sel = pos_rel;
 
                 const new_tr_id = pos_rel;
 
-                pReaper.Main_OnCommand(.{ RprCmds.ID_TRK_UNSEL_ALL, 0 });
-                const new_media_tr = reaper.CSurf_TrackFromID(new_tr_id, false);
-                pReaper.CSurf_OnTrackSelection(.{new_media_tr});
+                _ = track_list_actions.setReaperTrackSelection(new_tr_id);
                 state.current_tr_id = new_tr_id;
-                actions.dispatch(state, .{ .fx_ctrl = .{ .on_track_entry = new_media_tr } });
 
                 if (new_pos != state.transport.tr_sel) {
-                    actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_Gain, .value = state.transport.tr_sel } } });
+                    actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = state.transport.tr_sel } } });
                 }
             }
         },

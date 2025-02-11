@@ -19,6 +19,7 @@ const c = @cImport({
 });
 const globals = @import("globals.zig");
 const actions = @import("actions.zig");
+const pReaper = @import("pReaper.zig");
 
 pub const TrackListAction = union(enum) {
     page_change: PgDirection,
@@ -42,7 +43,7 @@ pub fn trackListAction(state: *State, action: TrackListAction) void {
         },
         .blink_leds => |led_state| {
             const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
-            const track_count = reaper.GetNumTracks(); // +  1 to account for master
+            const track_count = reaper.GetNumTracks() + 1; // +  1 to account for master
 
             // Iterate through track buttons in current page
             var i: usize = 0;
@@ -107,7 +108,7 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
 const PgDirection = enum { up, down };
 
 fn handlePageChange(state: *State, direction: PgDirection) void {
-    const track_count = reaper.GetNumTracks();
+    const track_count = reaper.GetNumTracks() + 1;
     if (track_count <= 0) return;
 
     // Calculate total pages (ceiling division)
@@ -147,7 +148,7 @@ fn updateTrackNames(state: *State) void {
     while (i < TrackList.PageSize) : (i += 1) {
         const track_id: c_int = @intCast(page_start + i);
 
-        if (track_id >= reaper.GetNumTracks()) break; // +  1 to account for master
+        if (track_id >= reaper.GetNumTracks() + 1) break; // +  1 to account for master
 
         // ASSUMPTION: csurf track ids are sequential, start 0 for master track
         const track = reaper.CSurf_TrackFromID(@intCast(track_id), constants.g_csurf_mcpmode);
@@ -203,9 +204,9 @@ fn focusPageTracks(state: *State) void {
 }
 
 // unselect all other tracks.
-fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
+pub fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
     // 1. Check if index is valid
-    const track_count = reaper.GetNumTracks(); // including master
+    const track_count = reaper.GetNumTracks() + 1; // including master
     if (csurf_id >= track_count) {
         log.warn("invalid track index: track {d} doesn't exist\n", .{csurf_id});
     }
@@ -215,7 +216,7 @@ fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
     while (it.next()) |entry| {
         const tr_id = entry.key_ptr.*;
         const track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-        reaper.CSurf_SetSurfaceSelected(track, reaper.CSurf_OnSelectedChange(track, 0), @ptrCast(csurf.my_csurf));
+        pReaper.CSurf_SetSurfaceSelected(.{ track, pReaper.CSurf_OnSelectedChange(.{ track, 0 }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
     }
     globals.state.selectedTracks.clearRetainingCapacity();
 
@@ -223,6 +224,6 @@ fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
 
     globals.state.selectedTracks.put(globals.arena, csurf_id, {}) catch {};
 
-    reaper.CSurf_SetSurfaceSelected(media_track, reaper.CSurf_OnSelectedChange(media_track, 1), @ptrCast(csurf.my_csurf));
+    pReaper.CSurf_SetSurfaceSelected(.{ media_track, pReaper.CSurf_OnSelectedChange(.{ media_track, 1 }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
     return media_track;
 }
