@@ -1,5 +1,5 @@
 const std = @import("std");
-
+const ModulesList = @import("statemachine.zig").ModulesList;
 const imgui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
@@ -16,6 +16,7 @@ const actions = @import("actions.zig");
 const mapping_panel = @import("mapping_panel.zig");
 const Theme = @import("theme/Theme.zig");
 const track_list_panel = @import("track_list_panel.zig");
+const c1 = @import("c1.zig");
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
@@ -77,14 +78,12 @@ fn main() !void {
                 if (globals.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, globals.modifier_active)) |action| {
-                        switch (action) {
-                            .select_track => |track_number| actions.dispatch(
-                                &globals.state,
-                                .{ .track_list = .{ .track_select = track_number } },
-                            ),
-                            .open_module_browser => |module| actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } }),
-                            .open_settings => actions.dispatch(&globals.state, .{ .settings = .open }),
+
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
+                        const track_id = @intFromEnum(tr_cc) - @intFromEnum(c1.CCs.Tr_tr1);
+                        if (track_id < globals.state.fx_ctrl.track_list.name_count) {
+                            const tr_id = globals.state.fx_ctrl.track_list.track_names[track_id].id;
+                            actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = tr_id } });
                         }
                     }
                 }
@@ -116,7 +115,63 @@ fn main() !void {
                     actions.dispatch(&globals.state, .{ .mapping = map_action });
                 }
             },
-            .transport => {},
+            .transport => {
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state)) |ctrl_input| {
+                    const val: u8 = @intFromFloat(ctrl_input.value * 127.0);
+                    switch (ctrl_input.cc) {
+                        .Out_Vol => actions.dispatch(&globals.state, .{ .transport = .{ .tr_sel = val } }),
+                        .Out_Drive => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_horizontal = val } }),
+                        .Out_DriveChar => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_vertical = val } }),
+                        .Out_Pan => actions.dispatch(&globals.state, .{ .transport = .{ .grid = val } }),
+                        .Eq_eq => actions.dispatch(&globals.state, .{ .transport = .loop_toggle }),
+                        .Eq_lp_shape => actions.dispatch(&globals.state, .{ .transport = .loop_start }),
+                        .Eq_hp_shape => actions.dispatch(&globals.state, .{ .transport = .loop_end }),
+                        .Eq_LoGain => actions.dispatch(&globals.state, .{ .transport = .{ .scrub = val } }),
+                        .Eq_LoMidGain => actions.dispatch(&globals.state, .{ .transport = .{ .jog = val } }),
+                        .Eq_HiMidGain => actions.dispatch(&globals.state, .{ .transport = .{ .jog_marker = val } }),
+                        .Eq_HiGain => actions.dispatch(&globals.state, .{ .transport = .{ .jog_item = val } }),
+                        .Comp_comp => actions.dispatch(&globals.state, .{ .transport = .marker_set }),
+                        .Inpt_HiCut => actions.dispatch(&globals.state, .{ .transport = .{ .rate = val } }),
+                        .Out_solo => actions.dispatch(&globals.state, .{ .transport = .snap_tgl }),
+                        else => {},
+                    }
+                }
+                if (globals.preferences.show_track_list) {
+                    try imgui.SameLine(.{ctx});
+                    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
+
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
+                        switch (tr_cc) {
+                            .Tr_tr1,
+                            .Tr_tr2,
+                            .Tr_tr3,
+                            .Tr_tr4,
+                            .Tr_tr5,
+                            => |cc_| {
+                                const module: ModulesList = switch (cc_) {
+                                    .Tr_tr1 => .INPUT,
+                                    .Tr_tr2 => .GATE,
+                                    .Tr_tr3 => .EQ,
+                                    .Tr_tr4 => .COMP,
+                                    .Tr_tr5 => .OUTPT,
+                                    else => unreachable,
+                                };
+                                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } });
+                            },
+                            .Tr_tr6 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .trim } }),
+                            .Tr_tr7 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .read } }),
+                            .Tr_tr8 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .latch } }),
+                            .Tr_tr9 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .preview } }),
+                            .Tr_tr10 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .write } }),
+                            .Tr_tr17 => actions.dispatch(&globals.state, .{ .transport = .play }),
+                            .Tr_tr18 => actions.dispatch(&globals.state, .{ .transport = .stop }),
+                            .Tr_tr19 => actions.dispatch(&globals.state, .{ .transport = .rec }),
+                            .Tr_tr20 => actions.dispatch(&globals.state, .{ .settings = .open }),
+                            else => {},
+                        }
+                    }
+                }
+            },
             else => {},
         }
     }

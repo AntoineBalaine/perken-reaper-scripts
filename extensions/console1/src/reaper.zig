@@ -316,7 +316,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// CountTempoTimeSigMarkers
     /// Count the number of tempo/time signature markers in the project. See GetTempoTimeSigMarker, SetTempoTimeSigMarker, AddTempoTimeSigMarker.
-    pub var CountTempoTimeSigMarkers: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var CountTempoTimeSigMarkers: *fn (proj: ReaProject) callconv(.C) c_int = undefined;
 
     /// CountTrackEnvelopes
     /// see GetTrackEnvelope
@@ -718,7 +718,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// FindTempoTimeSigMarker
     /// Find the tempo/time signature marker that falls at or before this time position (the marker that is in effect as of this time position).
-    pub var FindTempoTimeSigMarker: *fn (project: *ReaProject, time: f64) callconv(.C) c_int = undefined;
+    pub var FindTempoTimeSigMarker: *fn (project: ReaProject, time: f64) callconv(.C) c_int = undefined;
 
     /// format_timestr
     /// Format tpos (which is time in seconds) as hh:mm:ss.sss. See format_timestr_pos, format_timestr_len.
@@ -1654,7 +1654,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSetProjectGrid
     /// Get or set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc. swingmode can be 1 for swing enabled, swingamt is -1..1. swingmode can be 3 for measure-grid. Returns grid configuration flags
-    pub var GetSetProjectGrid: *fn (project: *ReaProject, set: bool, divisionInOutOptional: *f64, swingmodeInOutOptional: *c_int, swingamtInOutOptional: *f64) callconv(.C) c_int = undefined;
+    pub var GetSetProjectGrid: *fn (project: ReaProject, set: bool, divisionInOutOptional: ?*f64, swingmodeInOutOptional: ?*c_int, swingamtInOutOptional: ?*f64) callconv(.C) c_int = undefined;
 
     /// GetSetProjectInfo
     /// Get or set project information.
@@ -1863,7 +1863,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTempoTimeSigMarker
     /// Get information about a tempo/time signature marker. See CountTempoTimeSigMarkers, SetTempoTimeSigMarker, AddTempoTimeSigMarker.
-    pub var GetTempoTimeSigMarker: *fn (proj: *ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.C) bool = undefined;
+    pub var GetTempoTimeSigMarker: *fn (proj: ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.C) bool = undefined;
 
     /// GetThemeColor
     /// Returns the theme color specified, or -1 on failure. If the low bit of flags is set, the color as originally specified by the theme (before any transformations) is returned, otherwise the current (possibly transformed and modified) color is returned. See SetThemeColor for a list of valid ini_key.
@@ -3453,7 +3453,7 @@ pub const reaper = struct { // @import("reaper");
     pub var SLIDER2DB: *fn (y: f64) callconv(.C) f64 = undefined;
 
     /// SnapToGrid
-    pub var SnapToGrid: *fn (project: *ReaProject, time_pos: f64) callconv(.C) f64 = undefined;
+    pub var SnapToGrid: *fn (project: ReaProject, time_pos: f64) callconv(.C) f64 = undefined;
 
     /// SoloAllTracks
     /// solo=2 for SIP
@@ -3711,7 +3711,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TimeMap_curFrameRate
     /// Gets project framerate, and optionally whether it is drop-frame timecode
-    pub var TimeMap_curFrameRate: *fn (proj: *ReaProject, dropFrameOut: *bool) callconv(.C) f64 = undefined;
+    pub var TimeMap_curFrameRate: *fn (proj: ReaProject, dropFrameOut: *bool) callconv(.C) f64 = undefined;
 
     /// TimeMap_GetDividedBpmAtTime
     /// get the effective BPM at the time (seconds) position (i.e. 2x in /8 signatures)

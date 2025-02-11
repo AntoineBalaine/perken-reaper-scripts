@@ -1,9 +1,5 @@
 const std = @import("std");
-
-pub const Mode = enum {
-    fx_ctrl,
-    fx_sel,
-};
+const Mode = @import("statemachine.zig").Mode;
 
 pub const ActionId = enum {
     disp_on,
@@ -238,14 +234,38 @@ pub const CCs = enum(u8) {
                 .Tr_tr_copy => "tr_copy",
                 .Tr_tr_grp => "tr_grp",
             },
-            .fx_sel => switch (self) {
-                .Comp_Attack => "Jog",
-                .Comp_Release => "Scrub",
-                .Comp_DryWet => "Rate",
-                .Comp_Ratio => "Zoom H",
-                .Comp_Thresh => "Zoom V",
-                else => "",
+            .transport => switch (self) {
+                .Inpt_HiCut => "rate",
+                .Eq_eq => "loop",
+                .Eq_lp_shape => "loop strt",
+                .Eq_hp_shape => "loop end",
+                .Eq_LoGain => "scrub",
+                .Eq_LoMidGain => "jog",
+                .Eq_HiMidGain => "jog marker",
+                .Eq_HiGain => "jog item",
+                .Comp_comp => "marker set",
+                .Tr_tr1 => "input",
+                .Tr_tr2 => "gate",
+                .Tr_tr3 => "eq",
+                .Tr_tr4 => "comp",
+                .Tr_tr5 => "outpt",
+                .Tr_tr6 => "auto trim",
+                .Tr_tr7 => "auto read",
+                .Tr_tr8 => "auto latch",
+                .Tr_tr9 => "auto preview",
+                .Tr_tr10 => "auto write",
+                .Tr_tr17 => "play",
+                .Tr_tr18 => "stop",
+                .Tr_tr19 => "rec",
+                .Tr_tr20 => "settings",
+                .Out_Vol => "Tr slct",
+                .Out_Drive => "zoom H",
+                .Out_DriveChar => "zoom V",
+                .Out_Pan => "grid",
+                .Out_solo => "snap",
+                else => "-",
             },
+            else => "-",
         };
     }
 };

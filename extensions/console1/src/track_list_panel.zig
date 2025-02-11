@@ -2,12 +2,15 @@ const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const Preferences = @import("settings.zig");
 const globals = @import("globals.zig");
-const ModulesList = @import("statemachine.zig").ModulesList;
+const statemachine = @import("statemachine.zig");
+const ModulesList = statemachine.ModulesList;
 const styles = @import("styles.zig");
 const State = @import("statemachine.zig").State;
 const TrackList = @import("fx_ctrl_state.zig").TrackList;
 const PushWindowStyle = styles.PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
+const c1 = @import("c1.zig");
+
 const TrackListPanelAction = union(enum) {
     select_track: c_int,
     open_module_browser: ModulesList,
@@ -81,11 +84,12 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
     return action;
 }
 
-pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_active: bool) !?TrackListPanelAction {
+pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State) !?c1.CCs {
+    const mode = state.current_mode;
     const PopStyle = try styles.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
 
-    var action: ?TrackListPanelAction = null;
+    var rv: ?c1.CCs = null;
     var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
 
     const max_label = safePrint(&buf, "{d:>2}. {s}", .{ 20, "X" ** (TrackList.TrackNameSize - 1) });
@@ -115,57 +119,43 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
-        for (state.fx_ctrl.track_list.track_names[0..10], 0..) |tr, i| {
-            var name: [TrackList.TrackNameSize:0]u8 = undefined;
-            name[0] = '\x00';
-            var is_selected = false;
-            var tr_id: ?c_int = null;
-            if (i < state.fx_ctrl.track_list.name_count) {
-                name = tr.name;
-                tr_id = tr.id;
-                is_selected = state.selectedTracks.contains(@intCast(tr_id.?));
-            }
+        const first_column_ccs = [_]c1.CCs{
+            .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5,
+            .Tr_tr6, .Tr_tr7, .Tr_tr8, .Tr_tr9, .Tr_tr10,
+        };
+        for (first_column_ccs, 0..) |cc, i| {
+            switch (mode) {
+                .transport => {
+                    const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc.getLabel(mode) });
 
-            // Special handling for modifier keys
-            if (modifier_active and i < 5) {
-                const label = safePrint(&buf, "{d:>2}. {s}", .{
-                    i + 1,
-                    switch (i) {
-                        0 => "Input Load",
-                        1 => "Gate Load",
-                        2 => "EQ Load",
-                        3 => "Comp Load",
-                        4 => "Output Load",
-                        else => unreachable,
-                    },
-                });
-
-                if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
-                    action = .{ .open_module_browser = switch (i) {
-                        0 => .INPUT,
-                        1 => .GATE,
-                        2 => .EQ,
-                        3 => .COMP,
-                        4 => .OUTPT,
-                        else => unreachable,
-                    } };
-                }
-                continue;
-            } else {
-                // Normal track selection handling
-                if (is_selected) {
-                    const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
-                    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
-                }
-                defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
-
-                const label = safePrint(&buf, "{d:>2}. {s}{s}", .{ i + 1, if (i + 1 > 10) " " else "", name });
-
-                if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
-                    if (tr_id) |trid| {
-                        action = .{ .select_track = trid };
+                    if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
+                        rv = cc;
                     }
-                }
+                },
+                .fx_ctrl => {
+                    var name: [TrackList.TrackNameSize:0]u8 = undefined;
+                    name[0] = '\x00';
+                    var tr_id: ?c_int = null;
+
+                    if (i < state.fx_ctrl.track_list.name_count) {
+                        name = state.fx_ctrl.track_list.track_names[i].name;
+                        tr_id = state.fx_ctrl.track_list.track_names[i].id;
+                        const is_selected = state.selectedTracks.contains(@intCast(tr_id.?));
+
+                        if (is_selected) {
+                            const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
+                            try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
+                        }
+                        defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+                    }
+
+                    const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+
+                    if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
+                        rv = cc;
+                    }
+                },
+                else => {},
             }
         }
     }
@@ -177,45 +167,48 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, modifier_ac
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
-        for (state.fx_ctrl.track_list.track_names[10..], 10..) |tr, i| {
-            var name: [TrackList.TrackNameSize:0]u8 = undefined;
-            name[0] = '\x00';
-            var is_selected = false;
-            var tr_id: ?c_int = null;
-            if (i < state.fx_ctrl.track_list.name_count) {
-                name = tr.name;
-                tr_id = tr.id;
-                is_selected = state.selectedTracks.contains(@intCast(tr_id.?));
-            }
 
-            try imgui.PushItemWidth(.{ ctx, max_label_width });
-            defer imgui.PopItemWidth(.{ctx}) catch {};
-            // Special handling for settings (i == 19)
-            if (modifier_active and i == 19) {
-                const label = safePrint(&buf, "{d:>2}. Settings", .{i + 1});
-                if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
-                    action = .{ .open_settings = {} };
-                }
-                continue;
-            } else {
+        const second_column_ccs = [_]c1.CCs{
+            .Tr_tr11, .Tr_tr12, .Tr_tr13, .Tr_tr14, .Tr_tr15,
+            .Tr_tr16, .Tr_tr17, .Tr_tr18, .Tr_tr19, .Tr_tr20,
+        };
 
-                // Normal track selection handling
-                if (is_selected) {
-                    const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
-                    try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
-                }
-                defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+        for (second_column_ccs, 10..) |cc, i| {
+            switch (mode) {
+                .transport => {
+                    const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc.getLabel(mode) });
 
-                const label = safePrint(&buf, "{d:>2}. {s}{s}", .{ i + 1, if (i + 1 > 10) " " else "", name });
-
-                if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
-                    if (tr_id) |trid| {
-                        action = .{ .select_track = trid };
+                    if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
+                        rv = cc;
                     }
-                }
+                },
+                .fx_ctrl => {
+                    var name: [TrackList.TrackNameSize:0]u8 = undefined;
+                    name[0] = '\x00';
+                    var tr_id: ?c_int = null;
+
+                    if (i < state.fx_ctrl.track_list.name_count) {
+                        name = state.fx_ctrl.track_list.track_names[i].name;
+                        tr_id = state.fx_ctrl.track_list.track_names[i].id;
+                        const is_selected = state.selectedTracks.contains(@intCast(tr_id.?));
+
+                        if (is_selected) {
+                            const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
+                            try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
+                        }
+                        defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+                    }
+
+                    const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
+
+                    if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
+                        rv = cc;
+                    }
+                },
+                else => {},
             }
         }
     }
 
-    return action;
+    return rv;
 }

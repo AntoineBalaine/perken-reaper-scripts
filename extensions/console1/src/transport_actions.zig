@@ -10,9 +10,10 @@ const csurf = @import("csurf/control_surface.zig");
 const utils = @import("utils.zig");
 const actions = @import("actions.zig");
 
-const AutomationMode = enum {
+const AutomationMode = enum(c_int) {
     trim,
     read,
+    touch,
     latch,
     preview,
     write,
@@ -26,13 +27,16 @@ pub const TransportState = struct {
     zoom_vertical: u8 = 64,
     rate: u8 = 64,
     tr_sel: u8 = 0,
+    grid: u8 = 0,
 };
 
 pub const TransportAction = union(enum) {
     automation_mode: AutomationMode,
+    grid: u8,
+    snap_tgl,
     jog: u8,
-    jog_marker: u8,
     jog_item: u8,
+    jog_marker: u8,
     loop_end,
     loop_start,
     loop_toggle,
@@ -48,36 +52,146 @@ pub const TransportAction = union(enum) {
     zoom_vertical: u8,
 };
 
-const RprCmds = enum(c_int) {
-    IDC_REPEAT = 1068,
-    ID_FILE_SAVEAS = 40022,
-    ID_FILE_NEWPROJECT = 40023,
-    ID_FILE_OPENPROJECT = 40025,
-    ID_FILE_SAVEPROJECT = 40026,
-    IDC_EDIT_UNDO = 40029,
-    IDC_EDIT_REDO = 40030,
-    ID_MARKER_PREV = 40172,
-    ID_MARKER_NEXT = 40173,
-    ID_INSERT_MARKERRGN = 40174,
-    ID_INSERT_MARKER = 40157,
-    ID_LOOP_SETSTART = 40222,
-    ID_LOOP_SETEND = 40223,
-    ID_METRONOME = 40364,
-    ID_GOTO_MARKER1 = 40161,
-    ID_SET_MARKER1 = 40657,
-    ID_ITM_TRSNT_NEXT = 40375,
-    ID_ITM_TRSNT_PREV = 40376,
-    ID_TRK_UNSEL_ALL = 40297,
+pub const RprCmds = struct {
+    pub const IDC_REPEAT = 1068;
+    pub const ID_FILE_SAVEAS = 40022;
+    pub const ID_FILE_NEWPROJECT = 40023;
+    pub const ID_FILE_OPENPROJECT = 40025;
+    pub const ID_FILE_SAVEPROJECT = 40026;
+    pub const IDC_EDIT_UNDO = 40029;
+    pub const IDC_EDIT_REDO = 40030;
+    pub const ID_MARKER_PREV = 40172;
+    pub const ID_MARKER_NEXT = 40173;
+    pub const ID_INSERT_MARKERRGN = 40174;
+    pub const ID_INSERT_MARKER = 40157;
+    pub const ID_LOOP_SETSTART = 40222;
+    pub const ID_LOOP_SETEND = 40223;
+    pub const ID_METRONOME = 40364;
+    pub const ID_GOTO_MARKER1 = 40161;
+    pub const ID_SET_MARKER1 = 40657;
+    pub const ID_ITM_TRSNT_NEXT = 40375;
+    pub const ID_ITM_TRSNT_PREV = 40376;
+    pub const ID_TRK_UNSEL_ALL = 40297;
+    pub const ID_GRID_BY1_5 = 40783; // No need for @"" syntax
+    pub const ID_GRID_BY2 = 40786;
+    pub const OPT_RSTR_SNAP = 40756;
+    pub const OPT_SAVE_SNAP = 40755;
+    pub const OPT_TGL_GRID = 40145;
+    pub const OPT_TGL_SNAP = 1157;
 };
 
 pub fn transportAction(state: *State, action: TransportAction) void {
     switch (action) {
-        .automation_mode => {},
+        .automation_mode => |mode| reaper.SetAutomationMode(@intFromEnum(mode), false),
+        .grid => |new_pos| {
+            var pos_rel: u8 = state.transport.grid;
+            if (utils.calculateNewScrollPosition(c_int, &state.transport.grid, &pos_rel, new_pos, 127)) |delta| {
+                state.transport.grid = pos_rel;
+
+                // Adjust grid size based on delta
+                if (delta > 0) {
+                    pReaper.Main_OnCommand(.{ RprCmds.ID_GRID_BY2, 0 }); // Grid: Adjust by 2x
+                } else if (delta < 0) {
+                    pReaper.Main_OnCommand(.{ RprCmds.ID_GRID_BY1_5, 0 }); // Grid: Adjust by 1/2
+                }
+
+                // Send MIDI feedback if wrapped
+                if (new_pos != state.transport.grid) {
+                    actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Comp_Release, .value = state.transport.grid } } });
+                }
+
+                log.debug("Transport grid: abs={d} delta={d}", .{ state.transport.grid, delta });
+            }
+        },
+        .snap_tgl => {
+            const snap: c_int = if (reaper.GetToggleCommandState(RprCmds.OPT_TGL_SNAP) == 1) 0 else 1;
+            pReaper.Main_OnCommand(.{ RprCmds.OPT_TGL_SNAP, snap });
+        },
         .jog => |new_pos| {
             var pos_rel: u8 = state.transport.jog;
             if (utils.calculateNewScrollPosition(c_int, &state.transport.jog, &pos_rel, new_pos, 127)) |delta| {
                 state.transport.jog = pos_rel;
-                pReaper.CSurf_OnRewFwd(.{ 127, delta });
+
+                const use_grid = reaper.GetToggleCommandState(RprCmds.OPT_TGL_GRID) == 1 and reaper.GetToggleCommandState(RprCmds.OPT_TGL_SNAP) == 1;
+                if (!use_grid) {
+                    // Regular jogging behavior
+                    pReaper.CSurf_OnRewFwd(.{ 127, delta });
+                } else {
+                    // adapted from amalgama
+                    reaper.PreventUIRefresh(1);
+                    defer reaper.PreventUIRefresh(-1);
+                    const cursor_pos = reaper.GetCursorPosition();
+                    var grid_pos: f64 = undefined;
+
+                    // Move to next/previous grid line based on delta
+                    // Save snap state
+                    pReaper.Main_OnCommand(.{ RprCmds.OPT_SAVE_SNAP, 0 });
+                    pReaper.Main_OnCommand(.{ RprCmds.OPT_TGL_SNAP, 0 });
+                    var dropFrameOut: bool = false;
+                    const grid_duration = if (reaper.GetToggleCommandState(41885) == 1)
+                        0.4 / reaper.TimeMap_curFrameRate(0, &dropFrameOut)
+                    else blk: {
+                        var division: f64 = undefined;
+                        _ = reaper.GetSetProjectGrid(0, false, &division, null, null);
+                        const tmsgn_cnt = reaper.CountTempoTimeSigMarkers(0);
+                        var tempo: f64 = undefined;
+                        if (tmsgn_cnt == 0) {
+                            tempo = reaper.Master_GetTempo();
+                        } else {
+                            const ptidx = reaper.FindTempoTimeSigMarker(0, cursor_pos);
+                            var timeposOut: f64 = undefined;
+                            var measureposOut: c_int = undefined;
+                            var beatposOut: f64 = undefined;
+                            var timesig_numOut: c_int = undefined;
+                            var timesig_denomOut: c_int = undefined;
+                            var lineartempoOut: bool = undefined;
+                            _ = reaper.GetTempoTimeSigMarker(
+                                0,
+                                ptidx,
+                                &timeposOut,
+                                &measureposOut,
+                                &beatposOut,
+                                &tempo,
+                                &timesig_numOut,
+                                &timesig_denomOut,
+                                &lineartempoOut,
+                            );
+                        }
+                        break :blk 60.0 / tempo * division;
+                    };
+
+                    const snapped = reaper.SnapToGrid(0, cursor_pos);
+                    if (delta > 0) {
+                        grid_pos = if (snapped > cursor_pos)
+                            snapped
+                        else blk: {
+                            var next_pos = cursor_pos;
+                            while (reaper.SnapToGrid(0, next_pos) <= cursor_pos) {
+                                next_pos += grid_duration;
+                            }
+                            break :blk reaper.SnapToGrid(0, next_pos);
+                        };
+                    } else if (cursor_pos > 0) {
+                        grid_pos = if (snapped < cursor_pos)
+                            snapped
+                        else blk: {
+                            var pos = cursor_pos;
+                            while (pos >= cursor_pos) {
+                                pos -= grid_duration;
+                                if (pos >= grid_duration) {
+                                    const grid = reaper.SnapToGrid(0, pos);
+                                    if (grid < cursor_pos) break :blk grid;
+                                } else {
+                                    break :blk 0;
+                                }
+                            }
+                            break :blk 0;
+                        };
+                    }
+                    // Set cursor position
+                    reaper.SetEditCurPos(grid_pos, true, true);
+                    pReaper.Main_OnCommand(.{ RprCmds.OPT_RSTR_SNAP, 0 });
+                }
                 if (new_pos != state.transport.jog) {
                     actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_LoMidGain, .value = state.transport.jog } } });
                 }
@@ -89,9 +203,9 @@ pub fn transportAction(state: *State, action: TransportAction) void {
             if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_marker, &pos_rel, new_pos, 127)) |delta| {
                 state.transport.jog_marker = pos_rel;
                 if (delta > 0) {
-                    pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_MARKER_NEXT), 0 });
+                    pReaper.Main_OnCommand(.{ RprCmds.ID_MARKER_NEXT, 0 });
                 } else if (delta < 0) {
-                    pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_MARKER_PREV), 0 });
+                    pReaper.Main_OnCommand(.{ RprCmds.ID_MARKER_PREV, 0 });
                 }
                 if (new_pos != state.transport.jog_marker) {
                     actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiMidGain, .value = state.transport.jog_marker } } });
@@ -104,9 +218,9 @@ pub fn transportAction(state: *State, action: TransportAction) void {
             if (utils.calculateNewScrollPosition(c_int, &state.transport.jog_item, &pos_rel, new_pos, 127)) |delta| {
                 state.transport.jog_item = pos_rel;
                 if (delta > 0) {
-                    pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_ITM_TRSNT_NEXT), 0 });
+                    pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_NEXT, 0 });
                 } else if (delta < 0) {
-                    pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_ITM_TRSNT_PREV), 0 });
+                    pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_PREV, 0 });
                 }
                 if (new_pos != state.transport.jog_item) {
                     actions.dispatch(state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiGain, .value = state.transport.jog_item } } });
@@ -135,10 +249,10 @@ pub fn transportAction(state: *State, action: TransportAction) void {
                 }
             }
         },
-        .loop_end => pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_LOOP_SETEND), 0 }),
-        .loop_start => pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_LOOP_SETSTART), 0 }),
-        .loop_toggle => pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.IDC_REPEAT), 0 }),
-        .marker_set => pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_INSERT_MARKER), 0 }),
+        .loop_end => pReaper.Main_OnCommand(.{ RprCmds.ID_LOOP_SETEND, 0 }),
+        .loop_start => pReaper.Main_OnCommand(.{ RprCmds.ID_LOOP_SETSTART, 0 }),
+        .loop_toggle => pReaper.Main_OnCommand(.{ RprCmds.IDC_REPEAT, 0 }),
+        .marker_set => pReaper.Main_OnCommand(.{ RprCmds.ID_INSERT_MARKER, 0 }),
         .play => pReaper.CSurf_OnPlay(.{}),
         .rate => |new_pos| {
             var pos_rel: u8 = state.transport.rate;
@@ -175,7 +289,7 @@ pub fn transportAction(state: *State, action: TransportAction) void {
 
                 const new_tr_id = pos_rel;
 
-                pReaper.Main_OnCommand(.{ @intFromEnum(RprCmds.ID_TRK_UNSEL_ALL), 0 });
+                pReaper.Main_OnCommand(.{ RprCmds.ID_TRK_UNSEL_ALL, 0 });
                 const new_media_tr = reaper.CSurf_TrackFromID(new_tr_id, false);
                 pReaper.CSurf_OnTrackSelection(.{new_media_tr});
                 state.current_tr_id = new_tr_id;

@@ -78,11 +78,9 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
             },
             .transport => {
                 switch (cc) {
+                    .Inpt_HiCut => actions.dispatch(&globals.state, .{ .transport = .{ .rate = val } }),
                     .Inpt_disp_mode => actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl }),
                     .Inpt_disp_on => actions.dispatch(&globals.state, .set_fx_ctrl_gui),
-                    .Inpt_Gain => actions.dispatch(&globals.state, .{ .transport = .{ .tr_sel = val } }),
-                    .Inpt_LoCut => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_horizontal = val } }),
-                    .Inpt_HiCut => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_vertical = val } }),
                     .Tr_tr1,
                     .Tr_tr2,
                     .Tr_tr3,
@@ -116,7 +114,11 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                     .Eq_HiMidGain => actions.dispatch(&globals.state, .{ .transport = .{ .jog_marker = val } }),
                     .Eq_HiGain => actions.dispatch(&globals.state, .{ .transport = .{ .jog_item = val } }),
                     .Comp_comp => actions.dispatch(&globals.state, .{ .transport = .marker_set }),
-                    .Out_Drive => actions.dispatch(&globals.state, .{ .transport = .{ .rate = val } }),
+                    .Out_Vol => actions.dispatch(&globals.state, .{ .transport = .{ .tr_sel = val } }),
+                    .Out_Drive => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_horizontal = val } }),
+                    .Out_DriveChar => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_vertical = val } }),
+                    .Out_Pan => actions.dispatch(&globals.state, .{ .transport = .{ .grid = val } }),
+                    .Out_solo => actions.dispatch(&globals.state, .{ .transport = .snap_tgl }),
                     else => {},
                 }
             },

@@ -39,7 +39,8 @@ var out_drive: f64 = 0.5; // Out_Drive
 var out_vol: f64 = 0.5; // Out_Vol
 var out_pan: f64 = 0.5; // Out_Pan
 
-pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State, mode: @import("statemachine.zig").Mode) !?WidgetInput {
+pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
+    const mode: @import("statemachine.zig").Mode = state.current_mode;
     const fx_state = &state.fx_ctrl;
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
@@ -311,17 +312,17 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State, mode: @import("s
             defer imgui.EndGroup(.{ctx}) catch {};
             {
                 var drive_prm = fx_state.values.get(.Out_Drive).?.param;
-                if (try Knobs.drawWidget(ctx, &drive_prm.normalized, drive_prm.label, .{})) {
+                if (try Knobs.drawWidget(ctx, &drive_prm.normalized, c1.CCs.Out_Drive.getLabel(mode), .{})) {
                     rv = .{ .cc = .Out_Drive, .value = drive_prm.normalized };
                 }
 
                 var char_prm = fx_state.values.get(.Out_DriveChar).?.param;
-                if (try Knobs.drawWidget(ctx, &char_prm.normalized, char_prm.label, .{})) {
+                if (try Knobs.drawWidget(ctx, &char_prm.normalized, c1.CCs.Out_DriveChar.getLabel(mode), .{})) {
                     rv = .{ .cc = .Out_DriveChar, .value = char_prm.normalized };
                 }
 
                 var pan_prm = fx_state.values.get(.Out_Pan).?.param;
-                if (try Knobs.drawWidget(ctx, &pan_prm.normalized, pan_prm.label, .{})) {
+                if (try Knobs.drawWidget(ctx, &pan_prm.normalized, c1.CCs.Out_Pan.getLabel(mode), .{})) {
                     rv = .{ .cc = .Out_Pan, .value = pan_prm.normalized };
                 }
             }
@@ -349,7 +350,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State, mode: @import("s
                 }
 
                 var vol_prm = fx_state.values.get(.Out_Vol).?.param;
-                if (try Knobs.drawWidget(ctx, &vol_prm.normalized, vol_prm.label, .{})) {
+                if (try Knobs.drawWidget(ctx, &vol_prm.normalized, c1.CCs.Out_Vol.getLabel(mode), .{})) {
                     rv = .{ .cc = .Out_Vol, .value = vol_prm.normalized };
                 }
             }
