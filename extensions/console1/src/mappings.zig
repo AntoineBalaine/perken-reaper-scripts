@@ -89,21 +89,21 @@ pub const TaggedMapping = union(ModulesList) {
 /// Mappings are loaded from disk only when requested and cached for future use.
 pub const MapStore = @This();
 
-COMP: std.StringHashMapUnmanaged(Comp),
-EQ: std.StringHashMapUnmanaged(Eq),
-INPUT: std.StringHashMapUnmanaged(Inpt),
-OUTPT: std.StringHashMapUnmanaged(Outpt),
-GATE: std.StringHashMapUnmanaged(Shp),
+COMP: std.StringArrayHashMapUnmanaged(Comp),
+EQ: std.StringArrayHashMapUnmanaged(Eq),
+INPUT: std.StringArrayHashMapUnmanaged(Inpt),
+OUTPT: std.StringArrayHashMapUnmanaged(Outpt),
+GATE: std.StringArrayHashMapUnmanaged(Shp),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
 
 pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *settings.DefaultFx) !MapStore {
     var self: MapStore = .{
-        .INPUT = std.StringHashMapUnmanaged(Inpt){},
-        .GATE = std.StringHashMapUnmanaged(Shp){},
-        .EQ = std.StringHashMapUnmanaged(Eq){},
-        .COMP = std.StringHashMapUnmanaged(Comp){},
-        .OUTPT = std.StringHashMapUnmanaged(Outpt){},
+        .INPUT = std.StringArrayHashMapUnmanaged(Inpt){},
+        .GATE = std.StringArrayHashMapUnmanaged(Shp){},
+        .EQ = std.StringArrayHashMapUnmanaged(Eq){},
+        .COMP = std.StringArrayHashMapUnmanaged(Comp){},
+        .OUTPT = std.StringArrayHashMapUnmanaged(Outpt){},
         .controller_dir = try allocator.dupeZ(u8, std.mem.span(controller_dir)),
         .allocator = allocator,
     };
