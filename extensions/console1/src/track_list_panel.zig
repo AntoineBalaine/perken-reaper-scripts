@@ -125,7 +125,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State) !?c1.CCs {
         };
         for (first_column_ccs, 0..) |cc, i| {
             switch (mode) {
-                .transport => {
+                .fx_sel, .transport => {
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc.getLabel(mode) });
 
                     if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
@@ -175,7 +175,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State) !?c1.CCs {
 
         for (second_column_ccs, 10..) |cc, i| {
             switch (mode) {
-                .transport => {
+                .fx_sel, .transport => {
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc.getLabel(mode) });
 
                     if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {

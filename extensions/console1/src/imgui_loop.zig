@@ -112,22 +112,26 @@ fn main() !void {
                         else => {},
                     }
                 }
-                const module = globals.state.fx_sel.current_category;
 
+                if (globals.preferences.show_track_list) {
+                    try imgui.SameLine(.{ctx});
+                    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
+                        switch (tr_cc) {
+                            .Tr_tr1 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
+                            .Tr_tr2 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
+                            .Tr_tr3 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
+                            .Tr_tr4 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
+                            .Tr_tr5 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                            else => {},
+                        }
+                    }
+                }
+
+                const module = globals.state.fx_sel.current_category;
                 const list = globals.mappings_list.list.get(module);
                 if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) |sel_action| {
                     actions.dispatch(&globals.state, .{ .fx_sel = sel_action });
-                }
-
-                if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
-                    switch (tr_cc) {
-                        .Tr_tr1 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
-                        .Tr_tr2 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
-                        .Tr_tr3 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
-                        .Tr_tr4 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
-                        .Tr_tr5 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
-                        else => {},
-                    }
                 }
             },
             .mapping_panel => {
