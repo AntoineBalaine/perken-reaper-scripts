@@ -5,14 +5,14 @@ const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
 
 // Store just file names, not actual mappings
-list: std.EnumArray(ModulesList, std.StringHashMap(void)),
+list: std.EnumArray(ModulesList, std.StringArrayHashMap(void)),
 arena: std.mem.Allocator,
 pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
-    var maps = std.EnumArray(ModulesList, std.StringHashMap(void)).initUndefined();
+    var maps = std.EnumArray(ModulesList, std.StringArrayHashMap(void)).initUndefined();
 
     inline for (comptime std.enums.values(ModulesList)) |module| {
         inline_blk: {
-            maps.set(module, std.StringHashMap(void).init(arena));
+            maps.set(module, std.StringArrayHashMap(void).init(arena));
 
             var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
             const module_path = fs_helpers.joinStrings(&path_buffer, &.{

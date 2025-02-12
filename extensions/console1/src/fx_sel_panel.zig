@@ -155,7 +155,7 @@ fn RescanButton(ctx: imgui.ContextPtr) !void {
 pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
-    mappings: std.StringHashMap(void),
+    mappings: std.StringArrayHashMap(void),
     current_index: usize,
 ) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;

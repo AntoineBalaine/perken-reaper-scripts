@@ -101,13 +101,33 @@ fn main() !void {
             },
             .fx_sel => {
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state)) |ctrl_input| {
-                    actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .panel_input = ctrl_input } });
+                    switch (ctrl_input.cc) {
+                        .Out_Vol => actions.dispatch(&globals.state, .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } }),
+                        .Out_solo => {
+                            const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
+                            const fx_name = mappings.unmanaged.keys()[globals.state.fx_sel.scroll_position_rel];
+                            actions.dispatch(&globals.state, .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } });
+                        },
+                        .Out_mute => actions.dispatch(&globals.state, .{ .fx_sel = .close_browser }),
+                        else => {},
+                    }
                 }
                 const module = globals.state.fx_sel.current_category;
 
                 const list = globals.mappings_list.list.get(module);
                 if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) |sel_action| {
                     actions.dispatch(&globals.state, .{ .fx_sel = sel_action });
+                }
+
+                if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
+                    switch (tr_cc) {
+                        .Tr_tr1 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
+                        .Tr_tr2 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
+                        .Tr_tr3 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
+                        .Tr_tr4 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
+                        .Tr_tr5 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                        else => {},
+                    }
                 }
             },
             .mapping_panel => {
@@ -142,12 +162,7 @@ fn main() !void {
 
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
                         switch (tr_cc) {
-                            .Tr_tr1,
-                            .Tr_tr2,
-                            .Tr_tr3,
-                            .Tr_tr4,
-                            .Tr_tr5,
-                            => |cc_| {
+                            .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5 => |cc_| {
                                 const module: ModulesList = switch (cc_) {
                                     .Tr_tr1 => .INPUT,
                                     .Tr_tr2 => .GATE,

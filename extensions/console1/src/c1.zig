@@ -265,6 +265,17 @@ pub const CCs = enum(u8) {
                 .Out_solo => "snap",
                 else => "-",
             },
+            .fx_sel => switch (self) {
+                .Tr_tr1 => "input",
+                .Tr_tr2 => "gate",
+                .Tr_tr3 => "eq",
+                .Tr_tr4 => "comp",
+                .Tr_tr5 => "outpt",
+                .Out_Vol => "scroll",
+                .Out_solo => "select",
+                .Out_mute => "cancel",
+                else => "-",
+            },
             else => "-",
         };
     }

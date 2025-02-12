@@ -140,22 +140,23 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
                     defer imgui.EndCombo(.{ctx}) catch {};
 
                     // Get available mappings for this module
-                    const mappings: std.StringHashMap(void) = globals.mappings_list.list.get(module);
+                    const mappings = globals.mappings_list.list.get(module);
 
                     // Show each available mapping as a selectable
-                    var it = mappings.keyIterator();
-                    while (it.next()) |fx_name| {
-                        var is_selected = std.mem.eql(u8, fx_name.*, current_fx);
+                    var it = mappings.iterator();
+                    while (it.next()) |entry| {
+                        const fx_name = entry.key_ptr.*;
+                        var is_selected = std.mem.eql(u8, fx_name, current_fx);
                         if (try imgui.Selectable(.{
                             ctx,
-                            @as([:0]const u8, @ptrCast(fx_name.*)),
+                            @as([:0]const u8, @ptrCast(fx_name)),
                             &is_selected,
                             null,
                             null,
                         })) {
                             self.dirty = true;
                             // Update temp settings with new selection
-                            self.temp_settings.default_fx.set(module, @ptrCast(fx_name.*));
+                            self.temp_settings.default_fx.set(module, @ptrCast(fx_name));
                             self.dirty = true;
                         }
                     }
