@@ -57,7 +57,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
         modstub,
     };
 
-    inline for (comptime cppfiles) |cppfile| {
+    inline for (cppfiles) |cppfile| {
         const filearg = std.fmt.allocPrint(
             b.allocator,
             "{s}.o",

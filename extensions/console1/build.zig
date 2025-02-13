@@ -94,7 +94,7 @@ pub fn build(b: *std.Build) !void {
     };
 
     // Add the C++ source files to the library
-    inline for (comptime cppfiles) |cppfile| {
+    inline for (cppfiles) |cppfile| {
         const filearg = try std.fmt.allocPrint(
             b.allocator,
             "{s}.o",

@@ -1951,7 +1951,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetTrackMediaItem: *fn (tr: *MediaTrack, itemidx: c_int) callconv(.C) *MediaItem = undefined;
 
     /// GetTrackMIDILyrics
-    /// Get all MIDI lyrics on the track. Lyrics will be returned as one string with tabs between each word. flag&1: f64 tabs at the end of each measure and triple tabs when skipping measures, flag&2: each lyric is preceded by its beat position in the project (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See SetTrackMIDILyrics
+    /// Get all MIDI lyrics on the track. Lyrics will be returned as one string with tabs between each word. flag&1: f64 tabs at the end of each measure and triple tabs when skipping measures, flag&2: each lyric is preceded by its beat position in the project (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1"). See SetTrackMIDILyrics
     pub var GetTrackMIDILyrics: *fn (track: MediaTrack, flag: c_int, bufOutWantNeedBig: *c_char, bufOutWantNeedBig_sz: *c_int) callconv(.C) bool = undefined;
 
     /// GetTrackMIDINoteName
@@ -3358,7 +3358,7 @@ pub const reaper = struct { // @import("reaper");
     pub var SetTrackColor: *fn (track: MediaTrack, color: c_int) callconv(.C) void = undefined;
 
     /// SetTrackMIDILyrics
-    /// Set all MIDI lyrics on the track. Lyrics will be stuffed into any MIDI items found in range. Flag is unused at present. str is passed in as beat position, tab, text, tab (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See GetTrackMIDILyrics
+    /// Set all MIDI lyrics on the track. Lyrics will be stuffed into any MIDI items found in range. Flag is unused at present. str is passed in as beat position, tab, text, tab (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1"). See GetTrackMIDILyrics
     pub var SetTrackMIDILyrics: *fn (track: MediaTrack, flag: c_int, str: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// SetTrackMIDINoteName
