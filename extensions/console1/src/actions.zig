@@ -73,6 +73,12 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 return;
             }
             const old_mode = state.current_mode;
+            switch (old_mode) {
+                .fx_ctrl => {
+                    state.current_tr_id = null;
+                },
+                else => {},
+            }
             switch (new_mode) {
                 .suspended => {
                     // Stop GUI when suspending
@@ -87,9 +93,6 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                         else => if (!state.fx_ctrl_gui_visible) imgui_loop.reset(),
                     }
                     state.current_mode = .fx_ctrl;
-                    if (state.current_tr_id) |cur_tr| {
-                        dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = reaper.CSurf_TrackFromID(cur_tr, false) } });
-                    }
                 },
                 else => {
                     switch (old_mode) {
