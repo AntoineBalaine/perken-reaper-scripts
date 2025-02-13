@@ -20,7 +20,7 @@ var last_used_fx: ?[:0]const u8 = null;
 ///Recursively draw the fx chains or track templates
 ///pass the `isFxChain` boolean to distinguish between the two
 fn Directory(ctx: imgui.ContextPtr, directory: fx_parser.Directory, isFxChain: bool) !?fx_sel_actions.FxSelActions {
-    var buf: [std.fs.MAX_PATH_BYTES:0]u8 = undefined;
+    var buf: [std.fs.max_path_bytes:0]u8 = undefined;
 
     var rv: ?fx_sel_actions.FxSelActions = null;
     if (directory.subdirs) |subdirs| {
@@ -85,7 +85,7 @@ fn PluginsByType(ctx: imgui.ContextPtr, translations: *TranslationStore) !?fx_se
 
 fn FxTags(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
-    inline for (@typeInfo(@TypeOf(fx_parser.fx_tags)).Struct.fields) |field| {
+    inline for (@typeInfo(@TypeOf(fx_parser.fx_tags)).@"struct".fields) |field| {
         var tagList = @field(fx_parser.fx_tags, field.name);
         if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(field.name)), null })) {
             defer imgui.EndMenu(.{ctx}) catch {};

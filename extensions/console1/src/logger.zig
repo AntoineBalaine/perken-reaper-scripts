@@ -186,8 +186,8 @@ pub fn logFn(
     {
         const Args = @TypeOf(args);
         const args_type_info = @typeInfo(Args);
-        if (args_type_info == .Struct) {
-            inline for (args_type_info.Struct.fields) |field| {
+        if (args_type_info == .@"struct") {
+            inline for (args_type_info.@"struct".fields) |field| {
                 if (field.type == Event) {
                     if (event_log) |evt_log| {
                         evt_log.log(@field(args, field.name));
@@ -200,8 +200,8 @@ pub fn logFn(
         if (scope == .reentrancy) {
             const Args = @TypeOf(args);
             const args_type_info = @typeInfo(Args);
-            if (args_type_info == .Struct) {
-                inline for (args_type_info.Struct.fields) |field| {
+            if (args_type_info == .@"struct") {
+                inline for (args_type_info.@"struct".fields) |field| {
                     if (field.type == reentrancy.ReentrancyMessage) {
                         if (reentrancy.current_test) |test_| {
                             switch (@field(args, field.name)) {

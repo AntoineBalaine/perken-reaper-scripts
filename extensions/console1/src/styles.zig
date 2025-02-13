@@ -42,7 +42,7 @@ pub fn usestruct() type {
         .type = stylevarEnumArr,
         .is_comptime = false,
         .alignment = @alignOf(stylevarEnumArr),
-        .default_value = null,
+        .default_value_ptr = null,
     };
 
     const colorEnumArr = std.EnumArray(ColorsEnum, c_int);
@@ -52,9 +52,9 @@ pub fn usestruct() type {
         .type = colorEnumArr,
         .is_comptime = false,
         .alignment = @alignOf(colorEnumArr),
-        .default_value = null,
+        .default_value_ptr = null,
     };
-    return @Type(.{ .Struct = .{
+    return @Type(.{ .@"struct" = .{
         .layout = .auto,
         .fields = &[2]std.builtin.Type.StructField{ style_var_field, color_field },
         .decls = &[_]std.builtin.Type.Declaration{},
@@ -66,7 +66,7 @@ pub fn createstruct() struct { stylevars_enum: type, colors_enum: type } {
     var style_var_count = 0;
     var color_count = 0;
     @setEvalBranchQuota(10000);
-    inline for (@typeInfo(imgui).Struct.decls) |field| {
+    inline for (@typeInfo(imgui).@"struct".decls) |field| {
         if (isStyleVar(field.name)) {
             style_var_count += 1;
         } else if (isColor(field.name)) {
@@ -81,15 +81,16 @@ pub fn createstruct() struct { stylevars_enum: type, colors_enum: type } {
     var color_fields: [color_count]std.builtin.Type.StructField = undefined;
     var style_var_idx = -1;
     var color_idx = -1;
-    for (@typeInfo(imgui).Struct.decls) |decl| {
+    for (@typeInfo(imgui).@"struct".decls) |decl| {
         const tag_name = decl.name;
+        @setEvalBranchQuota(20_000);
         if (isStyleVar(tag_name)) {
             const m_struct = std.builtin.Type.StructField{
                 .name = tag_name,
                 .type = XYStruct,
                 .is_comptime = false,
                 .alignment = @alignOf(XYStruct),
-                .default_value = null,
+                .default_value_ptr = null,
             };
             style_var_idx += 1;
             style_var_fields[style_var_idx] = m_struct;
@@ -103,7 +104,7 @@ pub fn createstruct() struct { stylevars_enum: type, colors_enum: type } {
                 .type = c_int,
                 .is_comptime = false,
                 .alignment = @alignOf(c_int),
-                .default_value = null,
+                .default_value_ptr = null,
             };
             color_idx += 1;
             color_fields[color_idx] = m_struct;
@@ -114,13 +115,13 @@ pub fn createstruct() struct { stylevars_enum: type, colors_enum: type } {
         }
     }
 
-    const stylevars_enum = @Type(.{ .Enum = .{
+    const stylevars_enum = @Type(.{ .@"enum" = .{
         .tag_type = i16,
         .fields = style_var_enum_fields[0..],
         .decls = &[_]std.builtin.Type.Declaration{},
         .is_exhaustive = true,
     } });
-    const colors_enum = @Type(.{ .Enum = .{
+    const colors_enum = @Type(.{ .@"enum" = .{
         .tag_type = i16,
         .fields = color_enum_fields[0..],
         .decls = &[_]std.builtin.Type.Declaration{},
@@ -136,12 +137,12 @@ pub const ColorsEnum = T.colors_enum;
 pub const StyleStruct = usestruct();
 
 pub fn getStyleData(ctx: imgui.ContextPtr, stylesData: *StyleStruct) !void {
-    inline for (@typeInfo(StyleVarsEnum).Enum.fields) |field| {
+    inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
         const xy = stylesData.style_vars.getPtr(@enumFromInt(field.value));
         const imguiStyleVar = @field(imgui, field.name);
         try imgui.GetStyleVar(.{ ctx, imguiStyleVar, &@field(xy.*, "x"), &@field(xy.*, "y") });
     }
-    inline for (@typeInfo(ColorsEnum).Enum.fields) |field| {
+    inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
         const imguiColor = @field(imgui, field.name);
         const val = try imgui.GetStyleColor(.{ ctx, imguiColor });
         stylesData.colors.getPtr(@enumFromInt(field.value)).* = val;
@@ -181,7 +182,7 @@ pub const VEC = std.StaticStringMap(void).initComptime(.{
 });
 
 const MAIN_WIN_STYLEVARS = std.StaticStringMap(XYStruct).initComptime(.{
-    .{ "FrameBorderSize", .{ .x = 1, .y = 0 } },
+    .{ "FrameBorderSize", XYStruct{ .x = 1, .y = 0 } },
 });
 const MAIN_WIN_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "CheckMark", "genlist_selbg" },
@@ -201,11 +202,11 @@ const MAIN_WIN_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
 });
 
 const RACK_STYLEVARS = std.StaticStringMap(XYStruct).initComptime(.{
-    .{ "ChildRounding", .{ .x = 4, .y = 0 } },
-    .{ "FrameBorderSize", .{ .x = 1, .y = 0 } },
-    .{ "FrameRounding", .{ .x = 4, .y = 0 } },
-    .{ "ItemSpacing", .{ .x = 4, .y = 2 } },
-    .{ "WindowPadding", .{ .x = 4, .y = 4 } },
+    .{ "ChildRounding", XYStruct{ .x = 4, .y = 0 } },
+    .{ "FrameBorderSize", XYStruct{ .x = 1, .y = 0 } },
+    .{ "FrameRounding", XYStruct{ .x = 4, .y = 0 } },
+    .{ "ItemSpacing", XYStruct{ .x = 4, .y = 2 } },
+    .{ "WindowPadding", XYStruct{ .x = 4, .y = 4 } },
 });
 const RACK_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "Border", "selcol_tr2_bg" }, // same as text, alternatively use selcol_tr2_bg
@@ -230,7 +231,7 @@ const RACK_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
 
 pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStringMap(XYStruct), comptime colors_map: std.StaticStringMap([:0]const u8)) !void {
     // push theme colors into the styleStruct
-    inline for (@typeInfo(StyleVarsEnum).Enum.fields) |field| {
+    inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
         const xy = stylesData.style_vars.getPtr(@enumFromInt(field.value));
         const val = stylevars_map.get(field.name[9..]);
         if (val) |styleVarVal| {
@@ -239,11 +240,70 @@ pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStr
         }
     }
     const rColorsEnum = std.meta.FieldEnum(Theme.ThemeTypes.ColorTable);
-    inline for (@typeInfo(ColorsEnum).Enum.fields) |field| {
+    inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
         const reaper_theme_col_name = comptime colors_map.get(field.name[4..]);
         if (reaper_theme_col_name) |theme_col| {
             const val = Theme.clrs.get(std.meta.stringToEnum(rColorsEnum, theme_col).?).color;
             stylesData.colors.getPtr(@enumFromInt(field.value)).* = val;
         }
+    }
+}
+
+pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle) !*const fn (ctx: imgui.ContextPtr) anyerror!void {
+    var style_push_count: u8 = 0;
+    var color_push_count: u8 = 0;
+    const style = switch (win_style) {
+        .rack => RackStyle,
+        .main => MainWinStyle,
+    };
+    try imgui.PushFont(.{ ctx, Theme.fonts.MAIN });
+    inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
+        const xy = style.style_vars.get(@enumFromInt(field.value));
+        const stylevar = @field(imgui, field.name);
+        if (VEC.get(field.name[9..])) |_| {
+            try imgui.PushStyleVar(.{ ctx, stylevar, xy.x, xy.y });
+            style_push_count += 1;
+        } else {
+            try imgui.PushStyleVar(.{ ctx, stylevar, xy.x });
+            style_push_count += 1;
+        }
+    }
+    std.debug.assert(@typeInfo(StyleVarsEnum).@"enum".fields.len == style_push_count);
+
+    inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
+        const stylevar = @field(imgui, field.name);
+        const color = style.colors.get(@enumFromInt(field.value));
+        try imgui.PushStyleColor(.{ ctx, stylevar, color });
+        color_push_count += 1;
+    }
+    std.debug.assert(@typeInfo(ColorsEnum).@"enum".fields.len == color_push_count);
+
+    return switch (win_style) {
+        .rack => struct {
+            fn pop(cntx: imgui.ContextPtr) !void {
+                try imgui.PopFont(.{cntx});
+                try imgui.PopStyleVar(.{ cntx, @typeInfo(StyleVarsEnum).@"enum".fields.len });
+                try imgui.PopStyleColor(.{ cntx, @typeInfo(ColorsEnum).@"enum".fields.len });
+            }
+        }.pop,
+        .main => struct {
+            fn pop(cntx: imgui.ContextPtr) !void {
+                try imgui.PopFont(.{cntx});
+                try imgui.PopStyleVar(.{ cntx, @typeInfo(StyleVarsEnum).@"enum".fields.len });
+                try imgui.PopStyleColor(.{ cntx, @typeInfo(ColorsEnum).@"enum".fields.len });
+            }
+        }.pop,
+    };
+}
+
+// Helper to display a little (?) mark which shows a tooltip when hovered.
+// In your own code you may want to display an actual icon if you are using a merged icon fonts (see docs/FONTS.md)
+pub fn HelpMarker(ctx: imgui.ContextPtr, desc: [:0]const u8) !void {
+    try imgui.TextDisabled(.{ ctx, "(?)" });
+    if (try imgui.BeginItemTooltip(.{ctx})) {
+        try imgui.PushTextWrapPos(.{ ctx, try imgui.GetFontSize(.{ctx}) * 35.0 });
+        try imgui.Text(.{ ctx, desc });
+        try imgui.PopTextWrapPos(.{ctx});
+        try imgui.EndTooltip(.{ctx});
     }
 }

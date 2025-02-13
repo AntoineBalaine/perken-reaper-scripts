@@ -97,12 +97,12 @@ pub const reaper = struct { // @import("reaper");
         }
 
         const getFunc = rec.getFunc.?;
-        inline for (@typeInfo(@This()).Struct.decls) |decl| {
+        inline for (@typeInfo(@This()).@"struct".decls) |decl| {
             comptime var decl_type = @typeInfo(@TypeOf(@field(@This(), decl.name)));
-            const is_optional = decl_type == .Optional;
+            const is_optional = decl_type == .optional;
             if (is_optional)
-                decl_type = @typeInfo(decl_type.Optional.child);
-            if (decl_type != .Pointer or @typeInfo(decl_type.Pointer.child) != .Fn)
+                decl_type = @typeInfo(decl_type.optional.child);
+            if (decl_type != .pointer or @typeInfo(decl_type.pointer.child) != .@"fn")
                 continue;
             if (getFunc(decl.name)) |func|
                 @field(@This(), decl.name) = @alignCast(@ptrCast(func))
@@ -645,7 +645,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// EnumInstalledFX
     /// Enumerates installed FX. Returns true if successful, sets nameOut and identOut to name and ident of FX at index.
-    pub var EnumInstalledFX: *fn (index: c_int, nameOut: *[*:0]const u8, identOut: *[*:0]const u8) callconv(.C) bool = undefined;
+    pub var EnumInstalledFX: *fn (index: c_int, nameOut: *[*:0]u8, identOut: *[*:0]u8) callconv(.C) bool = undefined;
 
     /// EnumPitchShiftModes
     /// Start querying modes at 0, returns FALSE when no more modes possible, sets strOut to NULL if a mode is currently unsupported

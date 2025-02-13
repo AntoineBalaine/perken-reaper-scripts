@@ -202,7 +202,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
     var name_buf: [512:0]u8 = undefined;
     const sanitized_name = try sanitizeFxName(&name_buf, fxName);
 
-    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const filePath = fs_helpers.joinStrings(&path_buffer, &.{
         std.mem.span(self.controller_dir),
         std.fs.path.sep_str,
@@ -275,7 +275,7 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
 /// parse comp/eq/gate/input/output structs
 fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
     const T = @TypeOf(ret_struct.*);
-    std.debug.assert(@typeInfo(T) == .Struct);
+    std.debug.assert(@typeInfo(T) == .@"struct");
 
     while (try parser.*.next()) |record| {
         switch (record) {
@@ -303,8 +303,8 @@ fn formatOptionalU8(value: anytype, writer: anytype) !void {
     const T = @TypeOf(value);
     const info = @typeInfo(T);
     comptime {
-        if (info != .Optional) @compileError("Expected optional type, got " ++ @typeName(T));
-        if (@typeInfo(info.Optional.child) != .Int and @typeInfo(info.Optional.child) != .Float) @compileError("Expected optional number type, got optional " ++ @typeName(info.Optional.child));
+        if (info != .optional) @compileError("Expected optional type, got " ++ @typeName(T));
+        if (@typeInfo(info.optional.child) != .int and @typeInfo(info.optional.child) != .Float) @compileError("Expected optional number type, got optional " ++ @typeName(info.optional.child));
     }
     if (value) |v| {
         try writer.print("{d}", .{v});
@@ -319,7 +319,7 @@ pub fn saveToFile(self: *MapStore, mapping_state: MappingState) !void {
     var name_buf: [512:0]u8 = undefined;
     const sanitized_name = try sanitizeFxName(&name_buf, mapping_state.target_fx);
     // Create path buffers and join components
-    var path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
 
     const path = fs_helpers.joinStrings(&path_buf, &.{
         std.mem.span(self.controller_dir),
@@ -400,8 +400,8 @@ test "MapStore - initialization and caching" {
     const allocator = arena.allocator();
 
     // Setup test directory path
-    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const pth = try std.fs.cwd().realpathZ(".", &mem);
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
 
     // Initialize config manager first
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
@@ -433,7 +433,7 @@ test "MapStore - lazy loading and caching" {
     const allocator = arena.allocator();
 
     // Setup config first
-    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
@@ -481,7 +481,7 @@ test "MapStore - invalid fx name" {
     const allocator = arena.allocator();
 
     // Setup config first
-    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
@@ -512,7 +512,7 @@ test "MapStore - mapping validation" {
     const allocator = arena.allocator();
 
     // Setup config first
-    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
@@ -613,7 +613,7 @@ test "MapStore - cross-module access" {
     const allocator = arena.allocator();
 
     // Setup config first
-    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);

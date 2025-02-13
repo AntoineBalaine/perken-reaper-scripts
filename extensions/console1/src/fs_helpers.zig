@@ -76,7 +76,7 @@ const default_mappings = struct {
 /// check for existence of config files, create them if necessary
 pub fn ensureConfigPath() !void {
     const reaper_path = reaper.GetResourcePath();
-    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
 
     // First ensure Perken directory exists
     const perken_path = joinStrings(&path_buffer, &.{

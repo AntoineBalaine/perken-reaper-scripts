@@ -83,7 +83,7 @@ fn onTimer() callconv(.C) void {
     if (ctx == null) {
         init() catch |err| handleGuiError(err);
     }
-    var style_manager = .{
+    var style_manager: styles.StyleManager = .{
         .main_style_open = &styles.main_style_open,
         .rack_style_open = &styles.rack_style_open,
         .RackStyle = &styles.RackStyle,

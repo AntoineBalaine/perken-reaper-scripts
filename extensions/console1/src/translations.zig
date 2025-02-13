@@ -502,7 +502,7 @@ pub const TranslationStore = struct {
 
         var store = StringStore.init();
 
-        var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+        var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
         const lang_file_path = fs_helpers.joinStrings(&path_buffer, &.{
             resource_path,
             std.fs.path.sep_str,
@@ -597,7 +597,7 @@ fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.fs.Dir,
 pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const u8) ![]LanguageInfo {
     var languages = std.ArrayList(LanguageInfo).init(g_arena);
 
-    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const lang_dir = fs_helpers.joinStrings(&path_buffer, &.{
         resource_path,
         std.fs.path.sep_str,

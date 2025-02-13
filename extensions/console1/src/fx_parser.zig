@@ -135,7 +135,7 @@ fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) 
     parseLoop: while (try parser.*.next()) |record| {
         switch (record) {
             .section => |heading| {
-                inline for (@typeInfo(@TypeOf(fxtags.*)).Struct.fields) |field| {
+                inline for (@typeInfo(@TypeOf(fxtags.*)).@"struct".fields) |field| {
                     if (std.mem.eql(u8, heading, field.name)) {
                         cur_section = field.name;
                         continue :parseLoop;
@@ -211,7 +211,7 @@ fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
 }
 
 fn deinitFXTags(self: *FxTags, allocator: std.mem.Allocator) void {
-    inline for (@typeInfo(@TypeOf(self.*)).Struct.fields) |field| {
+    inline for (@typeInfo(@TypeOf(self.*)).@"struct".fields) |field| {
         // categories or devs
         var taglist = @field(self, field.name);
 

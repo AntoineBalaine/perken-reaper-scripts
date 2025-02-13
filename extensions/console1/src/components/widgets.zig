@@ -36,14 +36,14 @@ pub const vSeparator = function(&vSeparatorWidget, 2, &.{
 
 fn funcType(comptime func: anytype) type {
     return switch (@typeInfo(@TypeOf(func))) {
-        .Fn => @TypeOf(func),
-        .Pointer => |ptr| ptr.child,
+        .@"fn" => @TypeOf(func),
+        .pointer => |ptr| ptr.child,
         else => @compileError("Expected function or function pointer"),
     };
 }
 
 fn returnType(comptime func: anytype) type {
-    return @typeInfo(funcType(func)).Fn.return_type.?;
+    return @typeInfo(funcType(func)).@"fn".return_type.?;
 }
 
 fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: []const type) fn (args: anytype) callconv(.Inline) returnType(func) {
@@ -61,11 +61,11 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
                 }
                 const arg_type = @typeInfo(@TypeOf(args[i]));
                 comptime var cast_arg_type = @typeInfo(@TypeOf(cast_args[i]));
-                if (cast_arg_type == .Optional)
-                    cast_arg_type = @typeInfo(cast_arg_type.Optional.child);
-                cast_args[i] = if (cast_arg_type == .Int and
-                    ((arg_type == .ComptimeInt and args[i] > std.math.maxInt(c_int)) or
-                    (arg_type == .Int and arg_type.Int.signedness == .unsigned)))
+                if (cast_arg_type == .optional)
+                    cast_arg_type = @typeInfo(cast_arg_type.optional.child);
+                cast_args[i] = if (cast_arg_type == .int and
+                    ((arg_type == .comptime_int and args[i] > std.math.maxInt(c_int)) or
+                        (arg_type == .int and arg_type.int.signedness == .unsigned)))
                     @bitCast(@as(c_uint, args[i]))
                 else
                     args[i];
@@ -75,16 +75,16 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
             inline for (0..call_args.len) |i| {
                 const cast_arg_type = @typeInfo(@TypeOf(cast_args[i]));
                 call_args[i] =
-                    if (cast_arg_type == .Optional)
-                    if (cast_args[i]) |*arg_val|
-                        if (@typeInfo(cast_arg_type.Optional.child) == .Pointer)
-                            arg_val.*
+                    if (cast_arg_type == .optional)
+                        if (cast_args[i]) |*arg_val|
+                            if (@typeInfo(cast_arg_type.optional.child) == .pointer)
+                                arg_val.*
+                            else
+                                arg_val.*
                         else
-                            arg_val.*
+                            null
                     else
-                        null
-                else
-                    cast_args[i];
+                        cast_args[i];
             }
 
             const rv = @call(.auto, func.*, call_args);

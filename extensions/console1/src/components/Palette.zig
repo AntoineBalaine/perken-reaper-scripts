@@ -85,7 +85,7 @@ pub fn Palette(ctx: imgui.ContextPtr, cur_col: *c_int, name: [:0]const u8) !bool
         try imgui.Text(.{ ctx, @as([*:0]const u8, content.themeColors) });
         if (try imgui.BeginChild(.{ ctx, @as([*:0]const u8, content.themeColorsPaletteTag) })) {
             defer imgui.EndChild(.{ctx}) catch {};
-            inline for (comptime @typeInfo(Theme.ThemeTypes.ColorTable).Struct.fields, 0..) |field, idx| {
+            inline for (comptime @typeInfo(Theme.ThemeTypes.ColorTable).@"struct".fields, 0..) |field, idx| {
                 const themeColor = Theme.clrs.getPtr(std.meta.stringToEnum(std.meta.FieldEnum(Theme.ThemeTypes.ColorTable), field.name).?);
                 const col = themeColor.color;
                 const description = themeColor.description;

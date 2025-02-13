@@ -34,13 +34,13 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     php_cmd.addFileArg(resource_rc);
     test_exe.step.dependOn(&php_cmd.step);
 
-    const modstub = if (target.result.isDarwin())
+    const modstub = if (target.result.isDarwinLibC())
         dependencies.wdl.path("WDL/swell/swell-modstub.mm")
     else
         dependencies.wdl.path("WDL/swell/swell-modstub-generic.cpp");
 
     const cpp_flags = [_][]const u8{
-        if (target.result.isDarwin()) "clang" else "gcc",
+        if (target.result.isDarwinLibC()) "clang" else "gcc",
         "-c",
         "-fPIC",
         "-O2",
@@ -75,7 +75,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     // Link required libraries
     test_exe.linkLibC();
     test_exe.linkLibCpp();
-    if (target.result.isDarwin()) {
+    if (target.result.isDarwinLibC()) {
         test_exe.root_module.linkFramework("AppKit", .{});
     }
 

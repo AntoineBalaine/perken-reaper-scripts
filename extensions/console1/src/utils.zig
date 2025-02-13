@@ -42,10 +42,10 @@ pub fn calculateNewScrollPosition(
     if (wrap_count == 0) return null;
 
     const PosRelType = @typeInfo(@TypeOf(pos_rel));
-    if (PosRelType != .Pointer) {
+    if (PosRelType != .pointer) {
         @compileError("pos_rel must be a pointer");
     }
-    if (@typeInfo(PosRelType.Pointer.child) != .Int) {
+    if (@typeInfo(PosRelType.pointer.child) != .int) {
         @compileError("pos_rel must point to an integer type");
     }
 

@@ -93,7 +93,7 @@ pub fn initLoggerState(self: *Globals) !void {
     logger.event_log = &self.event_log;
 
     if (self.preferences.log_to_file) {
-        var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+        var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
         const path = fs_helpers.joinStrings(&path_buffer, &.{
             self.resource_path,
             std.fs.path.sep_str,
@@ -114,8 +114,9 @@ pub fn updateLoggerState(self: *Globals) !void {
         file.close();
     }
 
+    // Open new file if needed
     if (self.preferences.log_to_file) {
-        var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+        var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
         const log_path = fs_helpers.joinStrings(&path_buffer, &.{
             self.resource_path,
             std.fs.path.sep_str,

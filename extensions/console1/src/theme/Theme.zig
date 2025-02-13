@@ -38,7 +38,7 @@ pub fn attachFonts(ctx: ImGui.ContextPtr) !void {
 /// If an ImGui context is provided, the fonts will be attached to the context, and created
 pub fn init(ctx: ImGui.ContextPtr, convert_colors: bool) !void {
     clrs = std.EnumArray(std.meta.FieldEnum(ThemeTypes.ColorTable), ThemeTypes.ThemeColor).initUndefined();
-    inline for (@typeInfo(ThemeTypes.ThemeVars).Struct.fields) |themeVar| {
+    inline for (@typeInfo(ThemeTypes.ThemeVars).@"struct".fields) |themeVar| {
         const varName: [:0]const u8 = themeVar.name;
         const description = @field(ThemeTypes.themeVars, varName);
         // const description = themeVar.default_value;

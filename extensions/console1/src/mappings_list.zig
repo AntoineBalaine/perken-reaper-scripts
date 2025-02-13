@@ -14,7 +14,7 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
         inline_blk: {
             maps.set(module, std.StringArrayHashMap(void).init(arena));
 
-            var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+            var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const module_path = fs_helpers.joinStrings(&path_buffer, &.{
                 resource_path,
                 std.fs.path.sep_str,

@@ -146,13 +146,13 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
 fn countFields(comptime T: type) comptime_int {
     const type_info = @typeInfo(T);
     return switch (type_info) {
-        .Struct => blk: {
+        .@"struct" => blk: {
             var count = 0;
-            inline for (type_info.Struct.fields) |field| {
+            inline for (type_info.@"struct".fields) |field| {
                 // If it's an EnumArray, count the enum variants
                 if (std.mem.eql(u8, field.name, "default_fx")) {
                     const enum_type = @import("statemachine.zig").ModulesList;
-                    count += @typeInfo(enum_type).Enum.fields.len;
+                    count += @typeInfo(enum_type).@"enum".fields.len;
                 } else {
                     // Recursively count fields for nested structs
                     count += countFields(field.type);
@@ -160,9 +160,9 @@ fn countFields(comptime T: type) comptime_int {
             }
             break :blk count;
         },
-        .Enum => type_info.Enum.fields.len,
+        .@"enum" => type_info.@"enum".fields.len,
         // Scalar types count as 1
-        .Bool, .Int, .Float, .Pointer => 1,
+        .bool, .int, .float, .pointer => 1,
         else => @compileError("Unsupported type: " ++ @typeName(T)),
     };
 }

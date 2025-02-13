@@ -71,8 +71,8 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences 
     return self;
 }
 
-fn load(self: *Preferences, resource_path: [:0]const u8, g_arena: std.mem.Allocator) !void {
-    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+fn load(self: *Preferences, resource_path: [:0]const u8, arena: std.mem.Allocator) !void {
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
         resource_path,
         std.fs.path.sep_str,
@@ -85,11 +85,11 @@ fn load(self: *Preferences, resource_path: [:0]const u8, g_arena: std.mem.Alloca
     var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer temp_arena.deinit();
     var parser = ini.parse(temp_arena.allocator(), file.reader());
-    try self.parsePreferences(&parser, g_arena);
+    try self.parsePreferences(&parser, arena);
 }
 
 pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
-    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
         resource_path,
         std.fs.path.sep_str,
@@ -243,8 +243,8 @@ test "preferences - load from current directory" {
     const allocator = arena.allocator();
 
     // Get current directory path
-    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const pth = try std.fs.cwd().realpathZ(".", &mem);
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
 
     const path_z = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const path = try allocator.dupeZ(u8, path_z);
@@ -277,7 +277,7 @@ test "preferences - save and restore" {
     const allocator = arena.allocator();
 
     // Get current directory path
-    var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
 
     const path_z = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });

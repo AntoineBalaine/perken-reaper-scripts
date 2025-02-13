@@ -6504,11 +6504,11 @@ pub const ViewPrefs = function(&reaper.ViewPrefs, 2, &.{ c_int, [*:0]const u8 })
 pub const WDL_VirtualWnd_ScaledBlitBG = function(&reaper.WDL_VirtualWnd_ScaledBlitBG, 12, &.{ *LICE_IBitmap, *WDL_VirtualWnd_BGCfg, c_int, c_int, c_int, c_int, c_int, c_int, c_int, c_int, f32, c_int });
 
 fn funcType(comptime func: anytype) type {
-    return @typeInfo(@TypeOf(func.*)).Pointer.child;
+    return @typeInfo(@TypeOf(func.*)).pointer.child;
 }
 
 fn returnType(comptime func: anytype) type {
-    return @typeInfo(funcType(func)).Fn.return_type.?;
+    return @typeInfo(funcType(func)).@"fn".return_type.?;
 }
 
 fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: []const type) fn (args: anytype) callconv(.Inline) returnType(func) {
@@ -6531,11 +6531,11 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
                 }
                 const arg_type = @typeInfo(@TypeOf(args[i]));
                 comptime var cast_arg_type = @typeInfo(@TypeOf(cast_args[i]));
-                if (cast_arg_type == .Optional)
-                    cast_arg_type = @typeInfo(cast_arg_type.Optional.child);
-                cast_args[i] = if (cast_arg_type == .Int and
-                    ((arg_type == .ComptimeInt and args[i] > std.math.maxInt(c_int)) or
-                    (arg_type == .Int and arg_type.Int.signedness == .unsigned)))
+                if (cast_arg_type == .optional)
+                    cast_arg_type = @typeInfo(cast_arg_type.optional.child);
+                cast_args[i] = if (cast_arg_type == .int and
+                    ((arg_type == .comptime_int and args[i] > std.math.maxInt(c_int)) or
+                    (arg_type == .int and arg_type.int.signedness == .unsigned)))
                     @bitCast(@as(c_uint, args[i]))
                 else
                     args[i];
@@ -6545,9 +6545,9 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
             inline for (0..call_args.len) |i| {
                 const cast_arg_type = @typeInfo(@TypeOf(cast_args[i]));
                 call_args[i] =
-                    if (cast_arg_type == .Optional)
+                    if (cast_arg_type == .optional)
                     if (cast_args[i]) |*arg_val|
-                        if (@typeInfo(cast_arg_type.Optional.child) == .Pointer)
+                        if (@typeInfo(cast_arg_type.optional.child) == .pointer)
                             arg_val.*
                         else
                             arg_val

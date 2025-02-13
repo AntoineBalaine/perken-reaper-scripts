@@ -136,7 +136,7 @@ fn ShowStyleEditor(ctx: imgui.ContextPtr, window: WinStyle, style_manager: *styl
                     var colors = &@field(style_struct, "colors");
                     _ = &colors;
 
-                    inline for (@typeInfo(ColorsEnum).Enum.fields) |field| {
+                    inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
                         const name = field.name;
                         const val = colors.getPtr(@enumFromInt(field.value));
                         _ = try Palette(ctx, val, name);
@@ -162,7 +162,7 @@ pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle, style_manager: *sty
         .main => style_manager.MainWinStyle.*,
     };
     try imgui.PushFont(.{ ctx, Theme.fonts.MAIN });
-    inline for (@typeInfo(StyleVarsEnum).Enum.fields) |field| {
+    inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
         const xy = style.style_vars.get(@enumFromInt(field.value));
         const stylevar = @field(imgui, field.name);
         if (styles.VEC.get(field.name[9..])) |_| {
@@ -173,29 +173,29 @@ pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle, style_manager: *sty
             style_push_count += 1;
         }
     }
-    std.debug.assert(@typeInfo(StyleVarsEnum).Enum.fields.len == style_push_count);
+    std.debug.assert(@typeInfo(StyleVarsEnum).@"enum".fields.len == style_push_count);
 
-    inline for (@typeInfo(ColorsEnum).Enum.fields) |field| {
+    inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
         const stylevar = @field(imgui, field.name);
         const color = style.colors.get(@enumFromInt(field.value));
         try imgui.PushStyleColor(.{ ctx, stylevar, color });
         color_push_count += 1;
     }
-    std.debug.assert(@typeInfo(ColorsEnum).Enum.fields.len == color_push_count);
+    std.debug.assert(@typeInfo(ColorsEnum).@"enum".fields.len == color_push_count);
 
     return switch (win_style) {
         .rack => struct {
             fn pop(cntx: imgui.ContextPtr) !void {
                 try imgui.PopFont(.{cntx});
-                try imgui.PopStyleVar(.{ cntx, @typeInfo(StyleVarsEnum).Enum.fields.len });
-                try imgui.PopStyleColor(.{ cntx, @typeInfo(ColorsEnum).Enum.fields.len });
+                try imgui.PopStyleVar(.{ cntx, @typeInfo(StyleVarsEnum).@"enum".fields.len });
+                try imgui.PopStyleColor(.{ cntx, @typeInfo(ColorsEnum).@"enum".fields.len });
             }
         }.pop,
         .main => struct {
             fn pop(cntx: imgui.ContextPtr) !void {
                 try imgui.PopFont(.{cntx});
-                try imgui.PopStyleVar(.{ cntx, @typeInfo(StyleVarsEnum).Enum.fields.len });
-                try imgui.PopStyleColor(.{ cntx, @typeInfo(ColorsEnum).Enum.fields.len });
+                try imgui.PopStyleVar(.{ cntx, @typeInfo(StyleVarsEnum).@"enum".fields.len });
+                try imgui.PopStyleColor(.{ cntx, @typeInfo(ColorsEnum).@"enum".fields.len });
             }
         }.pop,
     };
