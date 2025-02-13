@@ -62,22 +62,47 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
         },
         .scroll => |new_pos| {
             if (globals.settings_panel) |*settings_panel| {
+                const fields_count = comptime countFields(@TypeOf(globals.preferences));
                 if (@import("utils.zig").calculateNewScrollPosition(
                     i16,
                     &settings_panel.scroll_position_abs,
                     &settings_panel.scroll_position_rel,
                     new_pos,
-                    12,
-                    null,
+                    fields_count,
+                    1,
                 )) |delta| {
                     log.debug("Settings scroll: abs={d} delta={d} rel={d}/{d}", .{
                         settings_panel.scroll_position_abs,
                         delta,
                         settings_panel.scroll_position_rel,
-                        12,
+                        fields_count,
                     });
                 }
             }
         },
     }
+}
+
+fn countFields(comptime T: type) comptime_int {
+    const type_info = @typeInfo(T);
+    return switch (type_info) {
+        .Struct => blk: {
+            var count = 0;
+            inline for (type_info.Struct.fields) |field| {
+                // If it's an EnumArray, count the enum variants
+                if (std.mem.eql(u8, field.name, "default_fx")) {
+                    const enum_type = @import("statemachine.zig").ModulesList;
+                    count += @typeInfo(enum_type).Enum.fields.len;
+                } else {
+                    // Recursively count fields for nested structs
+                    count += countFields(field.type);
+                }
+            }
+            break :blk count;
+        },
+        .Enum => type_info.Enum.fields.len,
+        // Scalar types count as 1
+        .Bool, .Int, .Float, .Pointer => 1,
+        else => @compileError("Unsupported type: " ++ @typeName(T)),
+    };
 }
