@@ -120,14 +120,31 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.
                     const module_type = @tagName(state.mapping.current_mappings);
                     try imgui.Text(.{ ctx, "Module: {s}", .{module_type} });
                     try imgui.Separator(.{ctx});
+                    switch (state.mapping.current_mappings) {
+                        .INPUT => {
+                            if (try drawModuleControls(ctx, state, &input_controls)) |act| rv = act;
+                        },
+                        .GATE => {
+                            if (try drawModuleControls(ctx, state, &gate_controls)) |act| rv = act;
+                        },
+                        .EQ => {
+                            if (try drawModuleControls(ctx, state, &eq_controls)) |act| rv = act;
+                        },
+                        .COMP => {
+                            if (try drawModuleControls(ctx, state, &compressor_controls)) |act| rv = act;
+                        },
+                        .OUTPT => {
+                            if (try drawModuleControls(ctx, state, &output_controls)) |act| rv = act;
+                        },
+                    }
 
-                    if (try drawModuleControls(ctx, state, switch (state.mapping.current_mappings) {
-                        .INPUT => &input_controls,
-                        .GATE => &gate_controls,
-                        .EQ => &eq_controls,
-                        .COMP => &compressor_controls,
-                        .OUTPT => &output_controls,
-                    })) |map_action| rv = map_action;
+                    // if (try drawModuleControls(ctx, state, switch (state.mapping.current_mappings) {
+                    //     .INPUT => &input_controls,
+                    //     .GATE => &gate_controls,
+                    //     .EQ => &eq_controls,
+                    //     .COMP => &compressor_controls,
+                    //     .OUTPT => &output_controls,
+                    // })) |map_action| rv = map_action;
                 }
 
                 // Bottom panel with buttons
@@ -164,10 +181,10 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.
 fn drawModuleControls(
     ctx: imgui.ContextPtr,
     state: *State,
-    controls: []const c1.CCs,
+    comptime controls: []const c1.CCs,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
-    for (controls) |cc| {
+    inline for (controls) |cc| {
         var is_selected = if (state.mapping.selected_control) |sel|
             sel == cc
         else
@@ -192,17 +209,36 @@ fn drawModuleControls(
     return rv;
 }
 
-fn isParamMapped(state: *State, i: usize) bool {
-    _ = state;
-    _ = i;
-    unreachable;
+fn isParamMapped(state: *State, param_idx: usize) bool {
+    const param: u8 = @intCast(param_idx);
+    switch (state.mapping.current_mappings) {
+        inline else => |mapping| {
+            inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+                if (@field(mapping, field.name)) |mapped_param| {
+                    if (mapped_param == param) return true;
+                }
+            }
+        },
+    }
+    return false;
 }
 
 fn getControlMapping(state: *State, cc: c1.CCs) ?u32 {
-    _ = state;
-    _ = cc;
-    unreachable;
+    const cc_name = @tagName(cc);
+    switch (state.mapping.current_mappings) {
+        inline else => |mapping| {
+            inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+                if (std.mem.eql(u8, field.name, cc_name)) {
+                    if (@field(mapping, field.name)) |param| {
+                        return @intCast(param);
+                    }
+                }
+            }
+            return null;
+        },
+    }
 }
+
 const compressor_controls = [_]c1.CCs{
     .Comp_Attack,
     .Comp_Release,
