@@ -157,6 +157,7 @@ pub fn ModulePopup(
     module: @import("statemachine.zig").ModulesList,
     mappings: std.StringArrayHashMap(void),
     current_index: usize,
+    display_menus: bool,
 ) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
 
@@ -186,16 +187,18 @@ pub fn ModulePopup(
             }
         }
 
-        // Separator between mapped and unmapped FX
-        try imgui.Separator(.{ctx});
+        if (display_menus) {
+            // Separator between mapped and unmapped FX
+            try imgui.Separator(.{ctx});
 
-        if (try Menus(ctx)) |selection| {
-            rv = selection;
+            if (try Menus(ctx)) |selection| {
+                rv = selection;
+            }
+
+            // Optional: Add rescan button at bottom
+            try imgui.Separator(.{ctx});
+            // try RescanButton(ctx);
         }
-
-        // Optional: Add rescan button at bottom
-        try imgui.Separator(.{ctx});
-        // try RescanButton(ctx);
     }
     if (!open) rv = .close_browser;
 

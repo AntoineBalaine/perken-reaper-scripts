@@ -99,6 +99,22 @@ fn main() !void {
                     }
                 }
             },
+            .default_fx_sel => {
+                if (globals.settings_panel) |*panel| {
+                    if (try panel.draw(ctx)) |val| {
+                        switch (val) {
+                            .val_update => |update| actions.dispatch(&globals.state, .{ .midi_out = .{ .settings_changed = update } }),
+                            .close_save => actions.dispatch(&globals.state, .{ .settings = .save }),
+                            .close_cancel => actions.dispatch(&globals.state, .{ .settings = .cancel }),
+                        }
+                    }
+                }
+                const module = globals.state.default_fx_sel.current_category;
+                const list = globals.mappings_list.list.get(module);
+                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.default_fx_sel.scroll_position_rel, false)) |sel_action| {
+                    actions.dispatch(&globals.state, .{ .fx_sel = sel_action });
+                }
+            },
             .fx_sel => {
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, &globals.state)) |ctrl_input| {
                     switch (ctrl_input.cc) {
@@ -130,7 +146,7 @@ fn main() !void {
 
                 const module = globals.state.fx_sel.current_category;
                 const list = globals.mappings_list.list.get(module);
-                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel)) |sel_action| {
+                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel, true)) |sel_action| {
                     actions.dispatch(&globals.state, .{ .fx_sel = sel_action });
                 }
             },

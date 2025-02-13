@@ -37,6 +37,7 @@ const MidiOutAction = midi_out.MidiOutAction;
 const transport_actions = @import("transport_actions.zig");
 const TransportAction = transport_actions.TransportAction;
 const transportAction = transport_actions.transportAction;
+const default_fx_sel_actions = @import("default_fx_sel_actions.zig");
 
 const valid_transitions = statemachine.valid_transitions;
 // Mode-specific actions
@@ -52,6 +53,7 @@ pub const ModeAction = union(enum) {
 
     // Settings Mode
     settings: SettingsActions,
+    default_fx_sel: FxSelActions,
     Csurf: CsurfAction,
     // Mode transitions
     change_mode: Mode,
@@ -128,6 +130,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 .fx_sel => |sel_action| fx_sel_actions.fxSelActions(state, sel_action),
                 .mapping => |map_action| mappingActions(state, map_action),
                 .settings => |set_action| settings_actions.settingsActions(state, set_action),
+                .default_fx_sel => |sel_action| default_fx_sel_actions.defaultFxSelActions(state, sel_action),
                 .Csurf => |set_action| csurfActions(state, set_action),
                 .track_list => |tr_action| trackListAction(state, tr_action),
                 .midi_out => |m_out_action| midi_out.sendMidiFeedback(m_out_action),

@@ -56,7 +56,31 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
         .toggle => {
             if (globals.settings_panel) |*panel| {
                 if (Preferences.SettingsFields.fromIndex(panel.scroll_position_rel)) |field| {
-                    _ = panel.temp_settings.toggleField(field);
+                    switch (field) {
+                        .show_startup_message,
+                        .show_feedback_window,
+                        .show_plugin_ui,
+                        .manual_routing,
+                        .log_to_file,
+                        .start_suspended,
+                        => _ = panel.temp_settings.toggleField(field),
+                        .default_INPUT,
+                        .default_GATE,
+                        .default_COMP,
+                        .default_EQ,
+                        .default_OUTPT,
+                        => |cat| {
+                            state.default_fx_sel.current_category = switch (cat) {
+                                .default_INPUT => .INPUT,
+                                .default_GATE => .GATE,
+                                .default_COMP => .COMP,
+                                .default_EQ => .EQ,
+                                .default_OUTPT => .OUTPT,
+                                else => unreachable,
+                            };
+                            dispatch(state, .{ .change_mode = .default_fx_sel });
+                        },
+                    }
                 }
             }
         },

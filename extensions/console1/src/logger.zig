@@ -239,6 +239,7 @@ pub fn logFn(
         .validation,
         .globals,
         .transport,
+        .default_fx_sel_actions,
         => @tagName(scope),
         .default => @tagName(scope),
         .reentrancy => "",

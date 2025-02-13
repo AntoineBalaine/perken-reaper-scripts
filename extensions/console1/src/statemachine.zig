@@ -41,6 +41,8 @@ pub const Mode = enum {
     mapping_panel,
     /// User preferences and global settings
     settings,
+    /// Default Fx selection - in settings
+    default_fx_sel,
     /// Specific mode for MIDI learning (if implemented separately)
     midi_learn,
     /// if the user toggles the extension
@@ -51,9 +53,10 @@ pub const Mode = enum {
 pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
     .fx_ctrl = &.{ .fx_sel, .mapping_panel, .suspended, .transport },
     .fx_sel = &.{ .fx_ctrl, .mapping_panel, .settings, .fx_sel, .suspended },
+    .default_fx_sel = &.{ .settings, .default_fx_sel, .suspended },
     .mapping_panel = &.{ .fx_sel, .fx_ctrl, .suspended },
     .midi_learn = &.{ .mapping_panel, .suspended },
-    .settings = &.{ .fx_ctrl, .transport, .suspended },
+    .settings = &.{ .fx_ctrl, .transport, .suspended, .default_fx_sel },
     .suspended = &.{.fx_ctrl},
     .transport = &.{ .fx_ctrl, .settings, .fx_sel, .suspended },
 });
@@ -63,7 +66,8 @@ pub const State = struct {
 
     // Mode-specific states
     fx_ctrl: FxControlState,
-    fx_sel: FxSelectionState,
+    fx_sel: FxSelectionState = .{},
+    default_fx_sel: FxSelectionState = .{},
     transport: TransportState = .{},
     mapping: MappingState,
 
@@ -75,10 +79,6 @@ pub const State = struct {
     pub fn init(gpa: std.mem.Allocator) State {
         return .{
             .fx_ctrl = FxControlState.init(gpa),
-            .fx_sel = .{
-                .current_category = .COMP, // Default category
-                .selected_fx = null,
-            },
             .mapping = .{
                 .target_fx = "",
                 .current_mappings = undefined, // Will be set when mapping starts
@@ -97,8 +97,7 @@ pub const State = struct {
 };
 
 pub const FxSelectionState = struct {
-    current_category: ModulesList,
-    selected_fx: ?[]const u8,
+    current_category: ModulesList = .COMP,
     scroll_position_abs: u8 = 0,
     scroll_position_rel: usize = 0,
 };
