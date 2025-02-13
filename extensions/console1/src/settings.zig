@@ -15,7 +15,7 @@ const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
     .OUTPT = "JS: Saturation",
 });
 
-pub const DefaultFx = std.EnumArray(ModulesList, [:0]const u8);
+pub const DefaultFx = std.EnumArray(ModulesList, ?[:0]const u8);
 pub const Preferences = @This();
 
 pub const SettingsFields = enum {
@@ -137,7 +137,7 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
     inline for (comptime std.enums.values(ModulesList)) |module| {
         try writer.print("[{s}]\n{s}\n\n", .{
             @tagName(module),
-            self.default_fx.get(module),
+            if (self.default_fx.get(module)) |module_fx| module_fx else "",
         });
     }
 }
@@ -177,8 +177,13 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, arena: std.mem.Allo
                 // Handle FX assignments in module sections
                 if (cur_section) |module| {
                     // Allocate and store new value
-                    const value_copy = try arena.dupeZ(u8, value);
-                    self.default_fx.set(module, value_copy);
+                    if (std.mem.eql(u8, value, "")) {
+                        self.default_fx.set(module, null);
+                        // log.warn("Empty value in preferences for {s}", .{@tagName(module)});
+                    } else {
+                        const value_copy = try arena.dupeZ(u8, value);
+                        self.default_fx.set(module, value_copy);
+                    }
                 }
             },
         }

@@ -116,7 +116,7 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
         // For each module, show a combo with available mappings
         inline for (comptime std.enums.values(ModulesList)) |module| {
             const module_name = @tagName(module);
-            const current_fx = self.temp_settings.default_fx.get(module);
+            const current_fx: ?[:0]const u8 = self.temp_settings.default_fx.get(module);
 
             try imgui.PushItemWidth(.{ ctx, 300.0 });
             defer imgui.PopItemWidth(.{ctx}) catch {};
@@ -134,26 +134,32 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
                 if (try imgui.BeginCombo(.{
                     ctx,
                     module_name,
-                    current_fx,
+                    current_fx orelse "none",
                     null,
                 })) {
                     defer imgui.EndCombo(.{ctx}) catch {};
 
-                    // Get available mappings for this module
+                    {
+                        var is_selected = current_fx == null;
+                        if (try imgui.Selectable(.{ ctx, "none", &is_selected })) {
+                            self.dirty = true;
+                            // Update temp settings with new selection
+                            self.temp_settings.default_fx.set(module, null);
+                            self.dirty = true;
+                        }
+                    } // Get available mappings for this module
                     const mappings = globals.mappings_list.list.get(module);
 
                     // Show each available mapping as a selectable
                     var it = mappings.iterator();
                     while (it.next()) |entry| {
                         const fx_name = entry.key_ptr.*;
-                        var is_selected = std.mem.eql(u8, fx_name, current_fx);
-                        if (try imgui.Selectable(.{
-                            ctx,
-                            @as([:0]const u8, @ptrCast(fx_name)),
-                            &is_selected,
-                            null,
-                            null,
-                        })) {
+                        var is_selected = false;
+                        if (current_fx) |cur_fx| {
+                            is_selected = std.mem.eql(u8, fx_name, cur_fx);
+                        }
+
+                        if (try imgui.Selectable(.{ ctx, @as([:0]const u8, @ptrCast(fx_name)), &is_selected })) {
                             self.dirty = true;
                             // Update temp settings with new selection
                             self.temp_settings.default_fx.set(module, @ptrCast(fx_name));

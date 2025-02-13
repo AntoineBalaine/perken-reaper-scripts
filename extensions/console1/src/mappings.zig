@@ -110,12 +110,15 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, default
     // find the mappings for the defaults
     var iterator = defaults.iterator();
     while (iterator.next()) |defaultsEntry| {
-        const fxName = defaultsEntry.value;
-        // use self.getMap() only for its side-effect: storing into the map.
-        // Its return value is only meant to be used by self.get()
-        _ = self.getMap(fxName.*, defaultsEntry.key) catch {
-            continue;
-        };
+        const fxName = defaultsEntry.value.*;
+
+        if (fxName) |fx_name| {
+            // use self.getMap() only for its side-effect: storing into the map.
+            // Its return value is only meant to be used by self.get()
+            _ = self.getMap(fx_name, defaultsEntry.key) catch {
+                continue;
+            };
+        }
     }
     return self;
 }

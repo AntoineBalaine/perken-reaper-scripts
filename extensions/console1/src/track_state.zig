@@ -1139,8 +1139,7 @@ fn handleInsertWithConsolidation(
     default_fx: DefaultFx,
     coverage: ModuleCoverage,
 ) ConsolidationResult {
-    const fx_name = default_fx.get(module);
-
+    const fx_name: [:0]const u8 = default_fx.get(module) orelse return .{ .did_consolidate = false, .position = null };
     // Find preceding and following module-linked FX
     var prev_fx: ?i32 = null;
     var next_fx: ?i32 = null;
