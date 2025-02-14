@@ -31,20 +31,22 @@ pub fn Palette(ctx: imgui.ContextPtr, cur_col: *c_int, name: [:0]const u8) !bool
         "{s}{s}",
         .{ content.themePalette, name },
     );
-    try imgui.PushStyleColor(.{ ctx, imgui.Col_Button, cur_col.* });
-    const themePaletteTag = try std.fmt.bufPrintZ(
-        &buf,
-        "{s}{s}",
-        .{ content.themePaletteTag, name },
-    );
-    if (try imgui.Button(.{ ctx, @as(
-        [*:0]const u8,
-        themePaletteTag,
-    ), 20, 20 })) {
-        try imgui.OpenPopup(.{ ctx, @as([*:0]const u8, popupTitle) });
-        backup_col = cur_col.*;
+    {
+        try imgui.PushStyleColor(.{ ctx, imgui.Col_Button, cur_col.* });
+        defer imgui.PopStyleColor(.{ctx}) catch {};
+        const themePaletteTag = try std.fmt.bufPrintZ(
+            &buf,
+            "{s}{s}",
+            .{ content.themePaletteTag, name },
+        );
+        if (try imgui.Button(.{ ctx, @as(
+            [*:0]const u8,
+            themePaletteTag,
+        ), 20, 20 })) {
+            try imgui.OpenPopup(.{ ctx, @as([*:0]const u8, popupTitle) });
+            backup_col = cur_col.*;
+        }
     }
-    try imgui.PopStyleColor(.{ctx});
 
     try imgui.SetNextWindowSize(.{ ctx, 470, 295 });
     if (try imgui.BeginPopup(.{ ctx, @as([*:0]const u8, popupTitle) })) {

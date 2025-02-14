@@ -20,13 +20,14 @@ var last_used_fx: ?[:0]const u8 = null;
 fn Directory(ctx: imgui.ContextPtr, directory: fx_parser.Directory, isFxChain: bool) !?fx_sel_actions.FxSelActions {
     var buf: [std.fs.MAX_PATH_BYTES:0]u8 = undefined;
 
+    var rv: ?fx_sel_actions.FxSelActions = null;
     if (directory.subdirs) |subdirs| {
         var subdirIt = subdirs.iterator();
         while (subdirIt.next()) |subdir| {
             if (try imgui.BeginMenu(.{ ctx, subdir.value_ptr.*.name, null })) {
                 defer imgui.EndMenu(.{ctx}) catch {};
                 if (try Directory(ctx, subdir.value_ptr.*, isFxChain)) |action| {
-                    return action;
+                    rv = action;
                 }
             }
         }
@@ -38,17 +39,18 @@ fn Directory(ctx: imgui.ContextPtr, directory: fx_parser.Directory, isFxChain: b
             if (try imgui.Selectable(.{ ctx, file })) {
                 const fullPathFile = safePrint(&buf, "{s}/{s}", .{ directory.path, file });
                 if (isFxChain) {
-                    return .{ .fx_chain = .{ .path = fullPathFile } };
+                    rv = .{ .fx_chain = .{ .path = fullPathFile } };
                 } else {
-                    return .{ .track_template = .{ .path = fullPathFile } };
+                    rv = .{ .track_template = .{ .path = fullPathFile } };
                 }
             }
         }
     }
-    return null;
+    return rv;
 }
 
 fn FxList(ctx: imgui.ContextPtr, menuName: [:0]const u8, fxList: fx_parser.FxList) !?fx_sel_actions.FxSelActions {
+    var rv: ?fx_sel_actions.FxSelActions = null;
     if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(menuName)), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
         var iterator = fxList.iterator();
@@ -58,27 +60,29 @@ fn FxList(ctx: imgui.ContextPtr, menuName: [:0]const u8, fxList: fx_parser.FxLis
                 continue;
             }
             if (try imgui.Selectable(.{ ctx, cast })) {
-                return .{ .plugin = .{ .name = cast } };
+                rv = .{ .plugin = .{ .name = cast } };
             }
         }
     }
-    return null;
+    return rv;
 }
 
 fn PluginsByType(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
+    var rv: ?fx_sel_actions.FxSelActions = null;
     if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast("all plugins")), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
         var iterator = fx_parser.pluginsByType.iterator();
         while (iterator.next()) |entry| {
             if (try FxList(ctx, @tagName(entry.key), entry.value.*)) |selection| {
-                return selection;
+                rv = selection;
             }
         }
     }
-    return null;
+    return rv;
 }
 
 fn FxTags(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
+    var rv: ?fx_sel_actions.FxSelActions = null;
     inline for (@typeInfo(@TypeOf(fx_parser.fx_tags)).Struct.fields) |field| {
         var tagList = @field(fx_parser.fx_tags, field.name);
         if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(field.name)), null })) {
@@ -87,38 +91,40 @@ fn FxTags(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
             while (iterator.next()) |entry| {
                 const tagName = @as([:0]const u8, @ptrCast(entry.key_ptr.*));
                 if (try FxList(ctx, tagName, entry.value_ptr.*)) |selection| {
-                    return selection;
+                    rv = selection;
                 }
             }
         }
     }
-    return null;
+    return rv;
 }
 
 fn Menus(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
     const filteredFxCount = null;
     if (filteredFxCount != null) return null; // don't display the component if there's some filtered fx
 
+    var rv: ?fx_sel_actions.FxSelActions = null;
+
     if (try imgui.BeginMenu(.{ ctx, "fx chains", null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
         if (try Directory(ctx, fx_parser.fx_chains, true)) |selection| {
-            return selection;
+            rv = selection;
         }
     }
 
     if (try imgui.BeginMenu(.{ ctx, "track templates", null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
         if (try Directory(ctx, fx_parser.track_templates, false)) |selection| {
-            return selection;
+            rv = selection;
         }
     }
 
     if (try PluginsByType(ctx)) |selection| {
-        return selection;
+        rv = selection;
     }
 
     if (try FxTags(ctx)) |selection| {
-        return selection;
+        rv = selection;
     }
 
     const elements = [3][:0]const u8{ "Container", "Video processor", "recent: " };
@@ -126,11 +132,11 @@ fn Menus(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
         if (try imgui.Selectable(.{ ctx, element })) {
             const isLastUsed = std.mem.eql(u8, element, "recent: ");
             const lastUsed = if (isLastUsed) if (last_used_fx) |lastUsed| lastUsed else element else element;
-            return .{ .plugin = .{ .name = lastUsed } };
+            rv = .{ .plugin = .{ .name = lastUsed } };
         }
     }
 
-    return null;
+    return rv;
 }
 
 var counter: ?u8 = null;
@@ -212,6 +218,7 @@ fn drawInvertedSlctblColors(ctx: imgui.ContextPtr, fx_name: [:0]const u8) !void 
     }
     const splitter = globals.drwls_splitter;
     try imgui.DrawListSplitter_Split(.{ splitter, 2 });
+    defer imgui.DrawListSplitter_Merge(.{splitter}) catch {};
     try imgui.DrawListSplitter_SetCurrentChannel(.{ splitter, 0 });
 
     var prev_min_x: f64 = undefined;
@@ -245,6 +252,4 @@ fn drawInvertedSlctblColors(ctx: imgui.ContextPtr, fx_name: [:0]const u8) !void 
         text_color,
         fx_name,
     });
-
-    try imgui.DrawListSplitter_Merge(.{splitter});
 }

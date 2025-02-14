@@ -75,12 +75,6 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 return;
             }
             const old_mode = state.current_mode;
-            switch (old_mode) {
-                .fx_ctrl => {
-                    state.current_tr_id = null;
-                },
-                else => {},
-            }
             switch (new_mode) {
                 .suspended => {
                     // Stop GUI when suspending
@@ -113,7 +107,7 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 },
             );
 
-            dispatch(&globals.state, .{ .midi_out = .{ .mode_entry = new_mode } });
+            midi_out.sendMidiFeedback(.{ .mode_entry = new_mode });
         },
         .set_fx_ctrl_gui => {
             state.fx_ctrl_gui_visible = !state.fx_ctrl_gui_visible;

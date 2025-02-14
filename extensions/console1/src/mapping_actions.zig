@@ -200,11 +200,11 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             state.mapping.midi_learn_active = false;
 
             // Free allocated memory
-            state.mapping.deinit(globals.arena);
+            // state.mapping.deinit(globals.arena);
 
             // Clean up mapping panel
-            if (globals.mapping_panel) |*panel| {
-                panel.deinit();
+            if (globals.mapping_panel) |_| {
+                // panel.deinit();
                 globals.mapping_panel = null;
             }
 

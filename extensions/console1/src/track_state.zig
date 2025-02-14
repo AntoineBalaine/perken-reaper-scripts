@@ -67,7 +67,7 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) vo
     // Scan FX chain
     // Use fixed-size array for parsed FX
     var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
-    var parsed_fx_count: usize = 0;
+    var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
 
     var i: i32 = 0;
     while (i < fx_count) : (i += 1) {
@@ -76,21 +76,20 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) vo
             if (renamed_name.len == 0) continue; // Skip if no rename
 
             if (parseC1Suffix(renamed_name)) |active_modules| {
-                if (parsed_fx_count < MAX_PARSED_FX) {
-                    parsed_fx_buf[parsed_fx_count] = .{
+                if (parsed_fx.items.len < MAX_PARSED_FX) {
+                    parsed_fx.appendAssumeCapacity(.{
                         .index = i,
                         .active_modules = active_modules,
-                    };
-                    parsed_fx_count += 1;
+                    });
                 }
                 // Silently ignore if we've reached capacity
             }
         }
     }
 
-    var coverage = analyzeCoverage(parsed_fx_buf[0..parsed_fx_count], mediaTrack);
+    var coverage = analyzeCoverage(&parsed_fx, mediaTrack);
     coverage = reorderFx2(coverage, mediaTrack, globals.preferences.default_fx);
-    updateTrackState(track_state, parsed_fx_buf[0..parsed_fx_count], coverage, mediaTrack, &buf);
+    updateTrackState(track_state, &parsed_fx, coverage, mediaTrack, &buf);
 }
 
 fn parseC1Suffix(name: [:0]const u8) ?ActiveModules {
@@ -146,12 +145,14 @@ const ModuleCoverage = struct {
 };
 
 fn analyzeCoverage(
-    parsed_fx: []const ParsedFx,
+    parsed_fx: *std.ArrayListUnmanaged(ParsedFx),
     media_track: MediaTrack,
 ) ModuleCoverage {
     var coverage = ModuleCoverage{};
 
-    for (parsed_fx) |fx| {
+    var i: usize = 0;
+    while (i < parsed_fx.items.len) : (i += 1) {
+        const fx = parsed_fx.items[i];
         if (fx.active_modules) |modules| {
             // For each active module in this FX
             inline for (std.meta.fields(@TypeOf(modules))) |field| {
@@ -161,6 +162,8 @@ fn analyzeCoverage(
                     if (@field(coverage, field.name) != null) {
                         const module = @field(ModulesList, field.name);
                         removeDuplicateModule(fx.index, module, media_track);
+                        _ = parsed_fx.orderedRemove(i);
+                        i -= 1;
                     } else {
                         // Mark as covered and record provider
                         @field(coverage, field.name) = fx.index;
@@ -397,7 +400,7 @@ fn moduleToSuffix(buf: *[64:0]u8, comptime field_name: []const u8) ![:0]const u8
 /// For now, assume that missing modules are always going to be one fx per module
 pub fn updateTrackState(
     track_state: *TrackState,
-    parsed_fx: []const ParsedFx,
+    parsed_fx: *std.ArrayListUnmanaged(ParsedFx),
     coverage: ModuleCoverage,
     mediaTrack: MediaTrack,
     buf: *[512:0]u8,
@@ -409,7 +412,9 @@ pub fn updateTrackState(
     }
 
     // Update FX states and module locations
-    for (parsed_fx) |fx| {
+    var i: usize = 0;
+    while (i < parsed_fx.items.len and i < MAX_FX) : (i += 1) {
+        const fx = parsed_fx.items[i];
         if (fx.active_modules) |modules| {
             // Add to fx_states using positions from coverage
             track_state.fx_states[track_state.fx_count] = .{
@@ -1614,4 +1619,28 @@ pub fn getModulesOrder(self: TrackState) ModulesOrder {
         }
     }
     return .@"S-EQ-C"; // default if can't determine
+}
+
+pub fn getFirstModuleIndex(self: *const TrackState) ?i32 {
+    var first_idx: ?i32 = null;
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        if (self.module_locations.get(module)) |location| {
+            if (first_idx == null or location.fx_index < first_idx.?) {
+                first_idx = location.fx_index;
+            }
+        }
+    }
+    return first_idx;
+}
+
+pub fn getLastModuleIndex(self: *const TrackState) ?i32 {
+    var last_idx: ?i32 = null;
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        if (self.module_locations.get(module)) |location| {
+            if (last_idx == null or location.fx_index > last_idx.?) {
+                last_idx = location.fx_index;
+            }
+        }
+    }
+    return last_idx;
 }

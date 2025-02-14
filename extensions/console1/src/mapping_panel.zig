@@ -63,115 +63,104 @@ pub const MappingPanel = struct {
 
 pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
-    if (try imgui.Begin(.{ ctx, "Mapping Panel", null })) {
-        defer imgui.End(.{ctx}) catch {};
 
-        // Main table for two-column layout
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
 
-        if (try imgui.BeginTable(.{ ctx, "mapping_table", 2, imgui.TableFlags_Resizable + imgui.TableFlags_Borders + imgui.TableFlags_BordersInnerH })) {
-            defer imgui.EndTable(.{ctx}) catch {};
+    try imgui.Text(.{ ctx, "Mapping Panel" });
+    // Main table for two-column layout
 
-            // Setup columns
-            try imgui.TableSetupColumn(.{ ctx, "FX Parameters" });
-            try imgui.TableSetupColumn(.{ ctx, "Console Controls" });
-            try imgui.TableHeadersRow(.{ctx});
+    if (try imgui.BeginTable(.{ ctx, "mapping_table", 2, imgui.TableFlags_Resizable + imgui.TableFlags_Borders + imgui.TableFlags_BordersInnerH })) {
+        defer imgui.EndTable(.{ctx}) catch {};
 
-            // Parameters column
-            try imgui.TableNextRow(.{ctx});
-            if (try imgui.TableNextColumn(.{ctx})) {
-                if (try imgui.BeginChild(.{
-                    ctx, "params_list", 0.0, // fill column
-                    -50.0, // leave space for buttons
-                })) {
-                    defer imgui.EndChild(.{ctx}) catch {};
+        // Setup columns
+        try imgui.TableSetupColumn(.{ ctx, "FX Parameters" });
+        try imgui.TableSetupColumn(.{ ctx, "Console Controls" });
+        try imgui.TableHeadersRow(.{ctx});
 
-                    if (globals.mapping_panel) |panel| {
-                        for (panel.fx_params.items, 0..) |param, i| {
-                            var is_selected = if (state.mapping.selected_parameter) |sel|
-                                sel == i
-                            else
-                                false;
-
-                            if (try imgui.Selectable(.{
-                                ctx,
-                                param.name,
-                                &is_selected,
-                                null,
-                                0.0, // full width
-                            })) {
-                                rv = .{ .select_parameter = @intCast(i) };
-                            }
-
-                            if (isParamMapped(state, i)) {
-                                try imgui.SameLine(.{ctx});
-                                try imgui.TextDisabled(.{ ctx, "(Mapped)" });
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Controls column
-
-            if (try imgui.TableNextColumn(.{ctx})) {
-                if (try imgui.BeginChild(.{ ctx, "controls_list", 0.0, -50.0 })) {
-                    defer imgui.EndChild(.{ctx}) catch {};
-
-                    const module_type = @tagName(state.mapping.current_mappings);
-                    try imgui.Text(.{ ctx, "Module: {s}", .{module_type} });
-                    try imgui.Separator(.{ctx});
-                    switch (state.mapping.current_mappings) {
-                        .INPUT => {
-                            if (try drawModuleControls(ctx, state, &input_controls)) |act| rv = act;
-                        },
-                        .GATE => {
-                            if (try drawModuleControls(ctx, state, &gate_controls)) |act| rv = act;
-                        },
-                        .EQ => {
-                            if (try drawModuleControls(ctx, state, &eq_controls)) |act| rv = act;
-                        },
-                        .COMP => {
-                            if (try drawModuleControls(ctx, state, &compressor_controls)) |act| rv = act;
-                        },
-                        .OUTPT => {
-                            if (try drawModuleControls(ctx, state, &output_controls)) |act| rv = act;
-                        },
-                    }
-
-                    // if (try drawModuleControls(ctx, state, switch (state.mapping.current_mappings) {
-                    //     .INPUT => &input_controls,
-                    //     .GATE => &gate_controls,
-                    //     .EQ => &eq_controls,
-                    //     .COMP => &compressor_controls,
-                    //     .OUTPT => &output_controls,
-                    // })) |map_action| rv = map_action;
-                }
-
-                // Bottom panel with buttons
-                try imgui.Separator(.{ctx});
-                {
-                    const midi_learn_text = if (state.mapping.midi_learn_active)
-                        "MIDI Learn (Active)"
+        // // Parameters column
+        try imgui.TableNextRow(.{ctx});
+        if (try imgui.TableNextColumn(.{ctx})) {
+            if (globals.mapping_panel) |panel| {
+                for (panel.fx_params.items, 0..) |param, i| {
+                    var is_selected = if (state.mapping.selected_parameter) |sel|
+                        sel == i
                     else
-                        "MIDI Learn";
+                        false;
 
-                    if (try imgui.Button(.{ ctx, midi_learn_text })) {
-                        rv = .{ .toggle_midi_learn = {} };
+                    if (try imgui.Selectable(.{
+                        ctx,
+                        param.name,
+                        &is_selected,
+                        null,
+                        0.0, // full width
+                    })) {
+                        rv = .{ .select_parameter = @intCast(i) };
                     }
 
-                    try imgui.SameLine(.{ctx});
-
-                    if (try imgui.Button(.{ ctx, "Save Mapping" })) {
-                        rv = .{ .save_mapping = {} };
-                    }
-
-                    try imgui.SameLine(.{ctx});
-
-                    if (try imgui.Button(.{ ctx, "Cancel" })) {
-                        rv = .{ .cancel_mapping = {} };
+                    if (isParamMapped(state, i)) {
+                        try imgui.SameLine(.{ctx});
+                        try imgui.TextDisabled(.{ ctx, "(Mapped)" });
                     }
                 }
             }
+        }
+        //
+        // // Controls column
+        //
+        if (try imgui.TableNextColumn(.{ctx})) {
+            const module_type = @tagName(state.mapping.current_mappings);
+            try imgui.Text(.{ ctx, "Module: {s}", .{module_type} });
+            try imgui.Separator(.{ctx});
+            switch (state.mapping.current_mappings) {
+                .INPUT => {
+                    if (try drawModuleControls(ctx, state, &input_controls)) |act| rv = act;
+                },
+                .GATE => {
+                    if (try drawModuleControls(ctx, state, &gate_controls)) |act| rv = act;
+                },
+                .EQ => {
+                    if (try drawModuleControls(ctx, state, &eq_controls)) |act| rv = act;
+                },
+                .COMP => {
+                    if (try drawModuleControls(ctx, state, &compressor_controls)) |act| rv = act;
+                },
+                .OUTPT => {
+                    if (try drawModuleControls(ctx, state, &output_controls)) |act| rv = act;
+                },
+            }
+
+            // if (try drawModuleControls(ctx, state, switch (state.mapping.current_mappings) {
+            //     .INPUT => &input_controls,
+            //     .GATE => &gate_controls,
+            //     .EQ => &eq_controls,
+            //     .COMP => &compressor_controls,
+            //     .OUTPT => &output_controls,
+            // })) |map_action| rv = map_action;
+        }
+    }
+    // Bottom panel with buttons
+    try imgui.Separator(.{ctx});
+    {
+        const midi_learn_text = if (state.mapping.midi_learn_active)
+            "MIDI Learn (Active)"
+        else
+            "MIDI Learn";
+
+        if (try imgui.Button(.{ ctx, midi_learn_text })) {
+            rv = .{ .toggle_midi_learn = {} };
+        }
+
+        try imgui.SameLine(.{ctx});
+
+        if (try imgui.Button(.{ ctx, "Save Mapping" })) {
+            rv = .{ .save_mapping = {} };
+        }
+
+        try imgui.SameLine(.{ctx});
+
+        if (try imgui.Button(.{ ctx, "Cancel" })) {
+            rv = .{ .cancel_mapping = {} };
         }
     }
     return rv;
