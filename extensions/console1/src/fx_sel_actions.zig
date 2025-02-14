@@ -20,6 +20,7 @@ const settings_actions = @import("settings_actions.zig");
 const SettingsActions = settings_actions.SettingsActions;
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.fx_sel_actions);
+const TrackState = @import("track_state.zig").TrackState;
 
 pub const FxSelActions = union(enum) {
     select_fx: [:0]const u8,
@@ -56,47 +57,76 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             dispatch(state, .{ .change_mode = .fx_ctrl });
         },
         .plugin => |plugin| {
-            if (state.current_tr_id == null) dispatch(state, .{ .change_mode = .fx_ctrl });
-            const track = reaper.CSurf_TrackFromID(state.current_tr_id.?, constants.g_csurf_mcpmode);
-
-            const current_module = state.fx_sel.current_category;
-            if (state.fx_ctrl.track_state.module_locations.get(current_module)) |module_loc| {
-                const current_fx_index = module_loc.fx_index;
-
-                // Add new FX at same position
-                const new_fx_index = pReaper.TrackFX_AddByName(.{ track, plugin.name, false, -1000 - current_fx_index });
-
-                if (new_fx_index >= 0) {
-                    { // append C1 suffix
-                        const module_char = current_module.toModulePrefixChar();
-                        var name_buf: [512:0]u8 = undefined;
-                        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }) catch {
-                            log.err("Failed to format FX name with suffix", .{});
-                            _ = pReaper.TrackFX_Delete(.{ track, current_fx_index }); // Undo insertion.
-                            return;
-                        };
-                        _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
-                    }
-
-                    // Remove old FX (index has shifted by +1 due to insertion)
-                    if (!pReaper.TrackFX_Delete(.{ track, current_fx_index + 1 })) {
-                        var buf: [512:0]u8 = undefined;
-                        const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, current_fx_index + 1, "original_name", &buf, buf.len))
-                            std.mem.span(@as([*:0]const u8, &buf))
-                        else
-                            "unknown";
-                        log.err("Failed to remove old FX: {s}", .{fx_name});
-                    }
-
-                    // Validate track to update module locations - will consolidate if needed
-                    state.fx_ctrl.track_state.validateTrack(track);
-                } else {
-                    log.err("Failed to add new FX: {s} at position {d}", .{ plugin.name, current_fx_index });
-                }
-            } else {
-                log.err("No FX found for module {s}", .{@tagName(current_module)});
+            if (state.current_tr_id == null) {
+                dispatch(state, .{ .change_mode = .fx_ctrl });
+                return;
             }
-            dispatch(state, .{ .change_mode = .fx_ctrl });
+            const track = reaper.CSurf_TrackFromID(state.current_tr_id.?, constants.g_csurf_mcpmode);
+            const current_module = state.fx_sel.current_category;
+            const track_state = &state.fx_ctrl.track_state;
+
+            // Use existing determineInsertionIndex function
+            const insert_idx = determineInsertionIndex(state, track, current_module);
+
+            const needs_mapping = (globals.map_store.get(plugin.name, current_module) == null);
+
+            // Create empty mapping if needed
+            if (needs_mapping) {
+                createEmptyMapping(state, plugin.name) catch {
+                    dispatch(state, .{ .change_mode = .fx_ctrl });
+                    return;
+                };
+            }
+
+            // Add new FX
+            const new_fx_index = pReaper.TrackFX_AddByName(.{ track, plugin.name, false, insert_idx });
+            if (new_fx_index < 0) {
+                log.err("Failed to add new FX: {s}", .{plugin.name});
+                dispatch(state, .{ .change_mode = .fx_ctrl });
+                return;
+            }
+
+            // Append C1 suffix
+            {
+                const module_char = current_module.toModulePrefixChar();
+                var name_buf: [512:0]u8 = undefined;
+                const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }) catch {
+                    log.err("Failed to format FX name with suffix", .{});
+                    _ = pReaper.TrackFX_Delete(.{ track, new_fx_index });
+                    dispatch(state, .{ .change_mode = .fx_ctrl });
+                    return;
+                };
+                _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
+            }
+
+            // If replacing existing module FX, remove it
+            if (track_state.module_locations.get(current_module)) |old_loc| {
+                if (!pReaper.TrackFX_Delete(.{ track, old_loc.fx_index + 1 })) {
+                    var buf: [512:0]u8 = undefined;
+                    const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, old_loc.fx_index + 1, "original_name", &buf, buf.len))
+                        std.mem.span(@as([*:0]const u8, &buf))
+                    else
+                        "unknown";
+                    log.err("Failed to remove old FX: {s}", .{fx_name});
+                }
+            }
+
+            // // Update track state
+            track_state.validateTrack(track);
+
+            // state.current_mode = .mapping_panel;
+            // Enter mapping mode if needed, otherwise return to fx_ctrl
+            if (needs_mapping) {
+                enterMappingMode(state.current_tr_id.?, new_fx_index) catch {
+                    log.err("failed to enter load data for mapping mode", .{});
+                    dispatch(state, .{ .change_mode = .fx_ctrl });
+                    return;
+                };
+
+                dispatch(state, .{ .change_mode = .mapping_panel });
+            } else {
+                dispatch(state, .{ .change_mode = .fx_ctrl });
+            }
         },
         .close_browser => {
             dispatch(state, .{ .change_mode = .fx_ctrl });
@@ -107,46 +137,6 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             } else {
                 state.fx_sel.current_category = module;
                 dispatch(state, .{ .change_mode = .fx_sel });
-            }
-        },
-        // .select_category_fx => |selection| {
-        //     if (!hasMappingFor(selection.module, selection.fx_name)) {
-        //         state.mapping.target_fx = selection.fx_name;
-        //         state.mapping.current_mappings = switch (selection.module) {
-        //             .COMP => .{ .COMP = mappings.Comp{} },
-        //             .EQ => .{ .EQ = mappings.Eq{} },
-        //             .GATE => .{ .GATE = mappings.Shp{} },
-        //             .OUTPT => .{ .OUTPT = mappings.Outpt{} },
-        //             .INPUT => .{ .INPUT = mappings.Inpt{} },
-        //         };
-        //         dispatch(state, .{ .change_mode = .mapping_panel });
-        //     } else {
-        //         try loadModuleMapping(selection.module, selection.fx_name);
-        //         try updateTrackFx(selection.module, selection.fx_name);
-        //         dispatch(state, .{ .change_mode = .fx_ctrl });
-        //     }
-        // },
-        .select_fx => |fx_name| {
-            // Check if mapping exists
-            if (globals.map_store.get(fx_name, state.fx_sel.current_category) == null) {
-                createEmptyMapping(state, fx_name) catch return;
-                // Open mapping panel
-                switch (state.fx_sel.current_category) {
-                    inline else => |variant| {
-                        const fxMap = state.fx_ctrl.track_state.module_locations.get(variant);
-
-                        if (fxMap) |map| {
-                            if (state.current_tr_id) |tr_id| {
-                                enterMappingMode(tr_id, map.fx_index) catch {};
-                                dispatch(state, .{ .change_mode = .mapping_panel });
-                            } else {
-                                dispatch(state, .{ .change_mode = .fx_ctrl });
-                            }
-                        } else {
-                            dispatch(state, .{ .change_mode = .fx_ctrl });
-                        }
-                    },
-                }
             }
         },
         .scroll => |new_pos| {
@@ -170,35 +160,18 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                 });
             }
         },
+        else => {},
     }
-}
-
-fn loadModuleMapping(module: ModulesList, fx_name: []const u8) !void {
-    _ = module;
-    _ = fx_name;
-    unreachable;
-}
-
-fn updateTrackFx(module: ModulesList, fx_name: []const u8) !void {
-    _ = module;
-    _ = fx_name;
-    unreachable;
-}
-
-fn hasMappingFor(module: ModulesList, fx_name: []const u8) bool {
-    _ = module;
-    _ = fx_name;
-    unreachable;
 }
 
 /// Create empty mapping in MapStore
 fn createEmptyMapping(state: *State, fx_name: [:0]const u8) !void {
     switch (state.fx_sel.current_category) {
-        .INPUT => try globals.map_store.INPUT.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Inpt{}),
-        .GATE => try globals.map_store.GATE.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Shp{}),
-        .EQ => try globals.map_store.EQ.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Eq{}),
-        .COMP => try globals.map_store.COMP.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Comp{}),
-        .OUTPT => try globals.map_store.OUTPT.put(globals.arena, try globals.arena.dupeZ(u8, fx_name), mappings.Outpt{}),
+        .INPUT => try globals.map_store.INPUT.put(globals.arena, fx_name, mappings.Inpt{}),
+        .GATE => try globals.map_store.GATE.put(globals.arena, fx_name, mappings.Shp{}),
+        .EQ => try globals.map_store.EQ.put(globals.arena, fx_name, mappings.Eq{}),
+        .COMP => try globals.map_store.COMP.put(globals.arena, fx_name, mappings.Comp{}),
+        .OUTPT => try globals.map_store.OUTPT.put(globals.arena, fx_name, mappings.Outpt{}),
     }
 }
 
@@ -209,4 +182,59 @@ pub fn enterMappingMode(track_id: c_int, fx_number: i32) !void {
         globals.mapping_panel = MappingPanel.init(globals.arena);
     }
     try globals.mapping_panel.?.loadParameters(media_track, fx_number);
+}
+
+fn countModuleLocations(track_state: *const TrackState) usize {
+    var count: usize = 0;
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        if (track_state.module_locations.get(module) != null) {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+fn determineInsertionIndex(state: *State, track: reaper.MediaTrack, module: ModulesList) i32 {
+    const track_state = &state.fx_ctrl.track_state;
+
+    // If no modules exist, add at end
+    if (countModuleLocations(track_state) == 0) {
+        return -1000 - reaper.TrackFX_GetCount(track);
+    }
+
+    // For each module type, determine correct position based on other modules
+    return switch (module) {
+        .INPUT => if (track_state.getFirstModuleIndex()) |first_idx|
+            -1000 - first_idx
+        else
+            -1000 - reaper.TrackFX_GetCount(track),
+
+        .GATE => if (track_state.module_locations.get(.COMP)) |comp_loc|
+            -1000 - comp_loc.fx_index
+        else if (track_state.getLastModuleIndex()) |last_idx|
+            -1000 - last_idx
+        else
+            -1000 - reaper.TrackFX_GetCount(track),
+
+        .EQ => if (track_state.module_locations.get(.INPUT)) |input_loc|
+            -1000 - (input_loc.fx_index + 1)
+        else if (track_state.getFirstModuleIndex()) |first_idx|
+            -1000 - first_idx
+        else
+            -1000 - reaper.TrackFX_GetCount(track),
+
+        .COMP => if (track_state.module_locations.get(.GATE)) |gate_loc|
+            -1000 - (gate_loc.fx_index + 1)
+        else if (track_state.module_locations.get(.EQ)) |eq_loc|
+            -1000 - (eq_loc.fx_index + 1)
+        else if (track_state.getLastModuleIndex()) |last_idx|
+            -1000 - last_idx
+        else
+            -1000 - reaper.TrackFX_GetCount(track),
+
+        .OUTPT => if (track_state.getLastModuleIndex()) |last_idx|
+            -1000 - (last_idx + 1)
+        else
+            -1000 - reaper.TrackFX_GetCount(track),
+    };
 }
