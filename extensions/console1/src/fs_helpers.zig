@@ -50,10 +50,10 @@ test "joinStrings" {
     const testing = std.testing;
 
     var buffer: [100]u8 = undefined;
-    const result = try joinStrings(&buffer, &.{ "hello", "world" });
+    const result = joinStrings(&buffer, &.{ "hello", "world" });
     try testing.expectEqualStrings("helloworld", result);
 
-    const result2 = try joinStrings(&buffer, &.{ "path", "/", "to", "/", "file" });
+    const result2 = joinStrings(&buffer, &.{ "path", "/", "to", "/", "file" });
     try testing.expectEqualStrings("path/to/file", result2);
 }
 

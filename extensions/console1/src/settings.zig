@@ -69,13 +69,6 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences 
     return self;
 }
 
-pub fn test_deinit(self: *Preferences, testing_allocator: std.mem.allocator) void {
-    // Free all strings in default_fx - they're all allocated copies
-    for (std.enums.values(ModulesList)) |module| {
-        testing_allocator.free(self.default_fx.getPtr(module).*);
-    }
-}
-
 fn load(self: *Preferences, resource_path: [:0]const u8, arena: std.mem.Allocator) !void {
     var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
@@ -208,80 +201,81 @@ test {
 }
 
 test "preferences - fallback defaults when file not found" {
-    const allocator = std.testing.allocator;
-    const expect = std.testing.expect;
+    const testing = std.testing;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     // Initialize with non-existent path
     var prefs = try Preferences.init(allocator, "/path/that/does/not/exist");
-    defer prefs.test_deinit();
 
     // Test that fallback values are used
-    try expect(prefs.show_startup_message == false);
-    try expect(prefs.show_feedback_window == false);
-    try expect(prefs.show_plugin_ui == false);
-    try expect(prefs.manual_routing == false);
+    try testing.expect(prefs.show_startup_message == false);
+    try testing.expect(prefs.show_feedback_window == false);
+    try testing.expect(prefs.show_plugin_ui == false);
+    try testing.expect(prefs.manual_routing == false);
 
     // Test that fallback defaults were copied
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT), "JS: Volume_Pan Smoother v5"));
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.GATE), "VST: ReaGate (Cockos)"));
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.EQ), "VST: ReaEQ (Cockos)"));
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.COMP), "VST: ReaComp (Cockos)"));
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.OUTPT), "JS: Saturation"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT).?, "JS: Volume_Pan Smoother v5"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.GATE).?, "VST: ReaGate (Cockos)"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.EQ).?, "VST: ReaEQ (Cockos)"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.COMP).?, "VST: ReaComp (Cockos)"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.OUTPT).?, "JS: Saturation"));
 }
 
 test "preferences - load from current directory" {
-    const allocator = std.testing.allocator;
-    const expect = std.testing.expect;
+    const testing = std.testing;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     // Get current directory path
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
 
     const path_z = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    defer allocator.free(path_z);
     const path = try allocator.dupeZ(u8, path_z);
-    defer allocator.free(path);
 
     // Initialize preferences with current directory
     var prefs = try Preferences.init(allocator, path);
-    defer prefs.test_deinit();
 
     // Test loaded values
     // Note: These values should match what's in your preferences.ini
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT), "JS: Volume_Pan Smoother V5"));
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.GATE), "VST: ReaGate (Cockos)"));
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.EQ), "VST: ReaEQ (Cockos)"));
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.COMP), "VST: ReaComp (Cockos)"));
-    try expect(std.mem.eql(u8, prefs.default_fx.get(.OUTPT), "JS: Saturation"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT).?, "JS: Volume_Pan Smoother V5"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.GATE).?, "VST: ReaGate (Cockos)"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.EQ).?, "VST: ReaEQ (Cockos)"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.COMP).?, "VST: ReaComp (Cockos)"));
+    try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.OUTPT).?, "JS: Saturation"));
 
     // Test boolean preferences
     // These should match your preferences.ini values
-    try expect(prefs.show_startup_message == true);
-    try expect(prefs.show_feedback_window == true);
-    try expect(prefs.show_plugin_ui == true);
-    try expect(prefs.manual_routing == true);
+    try testing.expect(prefs.show_startup_message == true);
+    try testing.expect(prefs.show_feedback_window == true);
+    try testing.expect(prefs.show_plugin_ui == true);
+    try testing.expect(prefs.manual_routing == true);
 }
 
 test "preferences - save and restore" {
-    const allocator = std.testing.allocator;
-    const expect = std.testing.expect;
+    const testing = std.testing;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     // Get current directory path
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
 
     const path_z = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    defer allocator.free(path_z);
     const path = try allocator.dupeZ(u8, path_z);
-    defer allocator.free(path);
 
     // First load current preferences to save them
     var original_prefs = try Preferences.init(allocator, path);
-    defer original_prefs.test_deinit();
 
     // Create new preferences with different values
     var test_prefs = try Preferences.init(allocator, path);
-    defer test_prefs.test_deinit();
 
     // Modify all boolean values to their opposite
     test_prefs.show_startup_message = !original_prefs.show_startup_message;
@@ -290,32 +284,36 @@ test "preferences - save and restore" {
     test_prefs.manual_routing = !original_prefs.manual_routing;
 
     // Save modified preferences
-    try test_prefs.saveToDisk(path_z);
+    try test_prefs.saveToDisk(path);
 
     // Load preferences again to verify changes
     var verify_prefs = try Preferences.init(allocator, path);
-    defer verify_prefs.test_deinit();
 
     // Verify that values were changed
-    try expect(verify_prefs.show_startup_message == !original_prefs.show_startup_message);
-    try expect(verify_prefs.show_feedback_window == !original_prefs.show_feedback_window);
-    try expect(verify_prefs.show_plugin_ui == !original_prefs.show_plugin_ui);
-    try expect(verify_prefs.manual_routing == !original_prefs.manual_routing);
+    try testing.expect(verify_prefs.show_startup_message == !original_prefs.show_startup_message);
+    try testing.expect(verify_prefs.show_feedback_window == !original_prefs.show_feedback_window);
+    try testing.expect(verify_prefs.show_plugin_ui == !original_prefs.show_plugin_ui);
+    try testing.expect(verify_prefs.manual_routing == !original_prefs.manual_routing);
 
     // Verify that module defaults remained unchanged
     inline for (comptime std.enums.values(ModulesList)) |module| {
-        try expect(std.mem.eql(u8, verify_prefs.default_fx.get(module), original_prefs.default_fx.get(module)));
+        const verify_default = verify_prefs.default_fx.get(module);
+        const original_default = original_prefs.default_fx.get(module);
+        if (verify_default == null) {
+            try testing.expect(original_default == null);
+        } else {
+            try testing.expect(std.mem.eql(u8, verify_default.?, original_default.?));
+        }
     }
 
     // Restore original preferences
-    try original_prefs.saveToDisk(path_z);
+    try original_prefs.saveToDisk(path);
 
     // Verify restoration
-    var final_verify = try Preferences.init(allocator, path);
-    defer final_verify.test_deinit();
+    const final_verify = try Preferences.init(allocator, path);
 
-    try expect(final_verify.show_startup_message == original_prefs.show_startup_message);
-    try expect(final_verify.show_feedback_window == original_prefs.show_feedback_window);
-    try expect(final_verify.show_plugin_ui == original_prefs.show_plugin_ui);
-    try expect(final_verify.manual_routing == original_prefs.manual_routing);
+    try testing.expect(final_verify.show_startup_message == original_prefs.show_startup_message);
+    try testing.expect(final_verify.show_feedback_window == original_prefs.show_feedback_window);
+    try testing.expect(final_verify.show_plugin_ui == original_prefs.show_plugin_ui);
+    try testing.expect(final_verify.manual_routing == original_prefs.manual_routing);
 }

@@ -318,9 +318,13 @@ test "analyzeCoverage" {
     const testing = std.testing;
     const dummy_track: MediaTrack = @ptrCast(@alignCast(@as(*anyopaque, @constCast(&[_]u8{0}))));
 
+    var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
+    var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
+
     // Test case 1: Valid coverage with no duplicates
     {
-        const parsed_fx = [_]ParsedFx{
+        parsed_fx.clearRetainingCapacity();
+        const items = [_]ParsedFx{
             .{
                 .index = 0,
                 .active_modules = .{
@@ -342,6 +346,7 @@ test "analyzeCoverage" {
                 },
             },
         };
+        parsed_fx.appendSliceAssumeCapacity(&items);
 
         const coverage = analyzeCoverage(&parsed_fx, dummy_track);
         try testing.expect(coverage.INPUT == 0);
@@ -350,7 +355,8 @@ test "analyzeCoverage" {
 
     // Test case 2: Duplicate module (should error)
     {
-        const parsed_fx = [_]ParsedFx{
+        parsed_fx.clearRetainingCapacity();
+        const items = [_]ParsedFx{
             .{
                 .index = 0,
                 .active_modules = .{
@@ -372,6 +378,7 @@ test "analyzeCoverage" {
                 },
             },
         };
+        parsed_fx.appendSliceAssumeCapacity(&items);
 
         const coverage = analyzeCoverage(&parsed_fx, dummy_track);
         try testing.expect(coverage.INPUT == 0);

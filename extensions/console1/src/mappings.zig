@@ -281,9 +281,8 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
             .property => |kv| {
                 inline for (std.meta.fields(T)) |ns_info| {
                     if (std.mem.eql(u8, ns_info.name, kv.key)) {
-                        if (@TypeOf(@field(ret_struct, ns_info.name)) == ?u8) {
-                            // const field = &@field(ret_struct, ns_info.name);
-                            // field.* = parsed;
+                        const field_type = @TypeOf(@field(ret_struct, ns_info.name));
+                        if (field_type == ?u8 or field_type == u8) {
                             const parsed = std.fmt.parseInt(u8, kv.value, 10) catch null;
                             if (parsed) |val| {
                                 @field(ret_struct, ns_info.name) = val;
@@ -378,7 +377,7 @@ test readToU8Struct {
         repositoryformatversion: u8,
     };
     const example =
-        \\ 	repositoryformatversion = 8
+        \\ repositoryformatversion=8
     ;
     var fbs = std.io.fixedBufferStream(example);
     var parser = ini.parse(std.testing.allocator, fbs.reader());
@@ -392,21 +391,22 @@ test readToU8Struct {
 }
 
 test "MapStore - initialization and caching" {
-    const allocator = std.testing.allocator;
-    const expect = std.testing.expect;
+    const testing = std.testing;
+    const expect = testing.expect;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     // Setup test directory path
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = try std.fs.cwd().realpathZ(".", &mem);
 
     // Initialize config manager first
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
-    defer allocator.free(config_path);
-    defer allocator.free(config_path_z);
 
     var cur_config = try settings.init(allocator, config_path_z);
-    defer cur_config.test_deinit(allocator);
 
     // Now setup MapStore with initialized config
     var store = try MapStore.init(
@@ -414,7 +414,6 @@ test "MapStore - initialization and caching" {
         config_path_z,
         &cur_config.default_fx, // Use cur_config's initialized defaults
     );
-    defer store.deinit();
 
     // Verify empty initialization
     try expect(store.COMP.count() == 1);
@@ -425,26 +424,26 @@ test "MapStore - initialization and caching" {
 }
 
 test "MapStore - lazy loading and caching" {
-    const allocator = std.testing.allocator;
-    const expect = std.testing.expect;
+    const testing = std.testing;
+    const expect = testing.expect;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     // Setup config first
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
-    defer allocator.free(config_path);
-    defer allocator.free(config_path_z);
 
     var cur_config = try settings.init(allocator, config_path_z);
-    defer cur_config.test_deinit(allocator);
 
     var store = try MapStore.init(
         allocator,
         config_path_z,
         &cur_config.default_fx, // Use cur_config's initialized defaults
     );
-    defer store.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
@@ -473,24 +472,26 @@ test "MapStore - lazy loading and caching" {
 }
 
 test "MapStore - invalid fx name" {
-    const allocator = std.testing.allocator;
-    const expect = std.testing.expect;
+    const testing = std.testing;
+    const expect = testing.expect;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     // Setup config first
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
-    defer allocator.free(config_path);
-    defer allocator.free(config_path_z);
+
     var cur_config = try settings.init(allocator, config_path_z);
-    defer cur_config.test_deinit(allocator);
+
     var store = try MapStore.init(
         allocator,
         config_path_z,
         &cur_config.default_fx, // Use cur_config's initialized defaults
     );
-    defer store.deinit();
 
     const nonexistent_fx = "VST: NonexistentPlugin";
 
@@ -502,24 +503,26 @@ test "MapStore - invalid fx name" {
 }
 
 test "MapStore - mapping validation" {
-    const allocator = std.testing.allocator;
-    const expect = std.testing.expect;
+    const testing = std.testing;
+    const expect = testing.expect;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
     // Setup config first
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
-    defer allocator.free(config_path);
-    defer allocator.free(config_path_z);
 
     var cur_config = try settings.init(allocator, config_path_z);
-    defer cur_config.test_deinit(allocator);
+
     var store = try MapStore.init(
         allocator,
         config_path_z,
         &cur_config.default_fx, // Use cur_config's initialized defaults
     );
-    defer store.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
@@ -537,24 +540,26 @@ test "MapStore - mapping validation" {
 }
 
 test "MapStore - cross-module access" {
-    const allocator = std.testing.allocator;
-    const expect = std.testing.expect;
+    const testing = std.testing;
+    const expect = testing.expect;
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
     // Setup config first
     var mem: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
-    defer allocator.free(config_path);
-    defer allocator.free(config_path_z);
 
     var cur_config = try settings.init(allocator, config_path_z);
-    defer cur_config.test_deinit(allocator);
+
     var store = try MapStore.init(
         allocator,
         config_path_z,
         &cur_config.default_fx, // Use cur_config's initialized defaults
     );
-    defer store.deinit();
 
     const comp_fx = "VST: ReaComp (Cockos)";
     const eq_fx = "VST: ReaEQ (Cockos)";
