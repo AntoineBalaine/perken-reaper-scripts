@@ -232,9 +232,13 @@ fn onTimer() callconv(.C) void {
     main() catch |err| {
         reset();
         log.err("Error in main loop: {s}\n", .{@errorName(err)});
-        if (err == error.Imgui or imgui.last_error != null) {
-            const msg: [:0]const u8 = "ImGui error occurred";
-            _ = reaper.ShowMessageBox(msg, plugin_name, 0);
+
+        if (imgui.last_error) |last_err| {
+            log.err("last_error: {s}", .{std.mem.span(last_err)});
+        }
+
+        if (err == error.Imgui) {
+            _ = reaper.ShowMessageBox("ImGui error occurred", plugin_name, 0);
         }
         actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl });
     };

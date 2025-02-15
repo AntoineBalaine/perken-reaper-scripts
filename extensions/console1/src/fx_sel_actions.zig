@@ -135,6 +135,8 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             if (state.current_mode == .fx_sel and module == state.fx_sel.current_category) {
                 dispatch(state, .{ .change_mode = .fx_ctrl });
             } else {
+                state.fx_sel.scroll_position_abs = 0;
+                state.fx_sel.scroll_position_rel = 0;
                 state.fx_sel.current_category = module;
                 dispatch(state, .{ .change_mode = .fx_sel });
             }

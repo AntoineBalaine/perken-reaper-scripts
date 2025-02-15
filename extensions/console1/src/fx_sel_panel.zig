@@ -8,7 +8,7 @@ const PushWindowStyle = @import("styles.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const globals = @import("globals.zig");
 const fx_sel_actions = @import("fx_sel_actions.zig");
-
+const log = std.log.scoped(.fx_sel_panel);
 const FxBrowser = @This();
 
 pub const NAME: [:0]const u8 = "Fx Browser";
@@ -172,13 +172,12 @@ pub fn ModulePopup(
 
     try imgui.SetNextWindowSize(.{ ctx, 400, 300, null });
 
-    var buf: [128:0]u8 = undefined;
-    const title = safePrint(&buf, "{s} FX Browser", .{@tagName(module)});
     var open = true;
-    if (try imgui.Begin(.{ ctx, title, &open })) {
+
+    if (try imgui.Begin(.{ ctx, "FX Browser", &open })) {
         defer imgui.End(.{ctx}) catch {};
 
-        try imgui.Text(.{ ctx, title });
+        try imgui.Text(.{ ctx, @tagName(module) });
         var iterator = mappings.iterator();
         var i: usize = 0;
         while (iterator.next()) |entry| : (i += 1) {
@@ -217,6 +216,7 @@ fn drawInvertedSlctblColors(ctx: imgui.ContextPtr, fx_name: [:0]const u8) !void 
         globals.drwls_splitter = try imgui.CreateDrawListSplitter(.{drw_ls});
     }
     const splitter = globals.drwls_splitter;
+
     try imgui.DrawListSplitter_Split(.{ splitter, 2 });
     defer imgui.DrawListSplitter_Merge(.{splitter}) catch {};
     try imgui.DrawListSplitter_SetCurrentChannel(.{ splitter, 0 });

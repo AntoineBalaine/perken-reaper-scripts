@@ -240,6 +240,7 @@ pub fn logFn(
         .globals,
         .transport,
         .default_fx_sel_actions,
+        .fx_sel_panel,
         => @tagName(scope),
         .default => @tagName(scope),
         .reentrancy => "",
