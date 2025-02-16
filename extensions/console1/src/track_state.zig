@@ -234,45 +234,45 @@ test "removeDuplicateModule" {
     // Test 1: Remove INPUT module from a multi-module suffix
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "ReaComp",
             .renamed_name = "ReaComp (C1-IC)",
         });
         removeDuplicateModule(0, .INPUT, dummy_track);
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(0).?.renamed_name, "ReaComp (C1-C)"));
+        try testing.expectEqualStrings("ReaComp (C1-C)", MockReaper.fx_chain.items[0].renamed_name);
     }
 
     // Test 2: Remove middle module
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(1, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "ReaEQ",
             .renamed_name = "ReaEQ (C1-SEC)",
         });
         removeDuplicateModule(1, .EQ, dummy_track);
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(1).?.renamed_name, "ReaEQ (C1-SC)"));
+        try testing.expectEqualStrings("ReaEQ (C1-SC)", MockReaper.fx_chain.items[0].renamed_name);
     }
 
     // Test 3: FX name with text after suffix
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(2, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "ReaComp",
             .renamed_name = "ReaComp (C1-IC) my settings",
         });
         removeDuplicateModule(2, .INPUT, dummy_track);
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(2).?.renamed_name, "ReaComp (C1-C) my settings"));
+        try testing.expectEqualStrings("ReaComp (C1-C) my settings", MockReaper.fx_chain.items[0].renamed_name);
     }
 
     // Test 4: Single module suffix
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(3, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "ReaComp",
             .renamed_name = "ReaComp (C1-C)",
         });
         removeDuplicateModule(3, .COMP, dummy_track);
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(3).?.renamed_name, "ReaComp (C1-)"));
+        try testing.expectEqualStrings("ReaComp (C1-)", MockReaper.fx_chain.items[0].renamed_name);
     }
 }
 
@@ -326,11 +326,11 @@ test "analyzeCoverage" {
     // Test case 2: Duplicate module (should error)
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-I)",
         });
-        try MockReaper.fx_at_positions.put(1, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-I)", // Second FX with duplicate INPUT module
         });
@@ -360,7 +360,7 @@ test "analyzeCoverage" {
         parsed_fx.appendSliceAssumeCapacity(&items);
 
         const coverage = analyzeCoverage(&parsed_fx, dummy_track);
-        try testing.expect(coverage.INPUT == 0);
+        try testing.expectEqual(0, coverage.INPUT);
         try testing.expect(MockReaper.fx_chain_changed);
     }
 }
@@ -749,12 +749,12 @@ test "reorderFx2" {
         const chain = try MockReaper.getChainState();
         defer std.testing.allocator.free(chain);
 
-        try testing.expectEqual(5, chain.len);
-        try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Standard Input (C1-I)"));
-        try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Standard Gate (C1-S)"));
-        try testing.expect(std.mem.eql(u8, chain[2].renamed_name, "Standard EQ (C1-E)"));
-        try testing.expect(std.mem.eql(u8, chain[3].renamed_name, "Standard Comp (C1-C)"));
-        try testing.expect(std.mem.eql(u8, chain[4].renamed_name, "Standard Output (C1-O)"));
+        try testing.expectEqual(@as(usize, 5), chain.len);
+        try testing.expectEqualStrings("Standard Input (C1-I)", chain[0].renamed_name);
+        try testing.expectEqualStrings("Standard Gate (C1-S)", chain[1].renamed_name);
+        try testing.expectEqualStrings("Standard EQ (C1-E)", chain[2].renamed_name);
+        try testing.expectEqualStrings("Standard Comp (C1-C)", chain[3].renamed_name);
+        try testing.expectEqualStrings("Standard Output (C1-O)", chain[4].renamed_name);
     }
 
     // Test 2: Incorrect order needing fixes
@@ -762,23 +762,23 @@ test "reorderFx2" {
         try MockReaper.reset(allocator);
 
         // Setup initial chain state
-        try MockReaper.fx_at_positions.put(2, .{
-            .original_name = "Standard Input",
-            .renamed_name = "Standard Input (C1-I)",
-        });
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Comp",
             .renamed_name = "Standard Comp (C1-C)",
         });
-        try MockReaper.fx_at_positions.put(3, .{
-            .original_name = "Standard Gate",
-            .renamed_name = "Standard Gate (C1-S)",
-        });
-        try MockReaper.fx_at_positions.put(1, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Output",
             .renamed_name = "Standard Output (C1-O)",
         });
-        try MockReaper.fx_at_positions.put(4, .{
+        try MockReaper.fx_chain.append(.{
+            .original_name = "Standard Input",
+            .renamed_name = "Standard Input (C1-I)",
+        });
+        try MockReaper.fx_chain.append(.{
+            .original_name = "Standard Gate",
+            .renamed_name = "Standard Gate (C1-S)",
+        });
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard EQ",
             .renamed_name = "Standard EQ (C1-E)",
         });
@@ -797,27 +797,27 @@ test "reorderFx2" {
         const chain = try MockReaper.getChainState();
         defer std.testing.allocator.free(chain);
 
-        try testing.expect(chain.len == 5);
-        try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Standard Input (C1-I)"));
-        try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Standard Gate (C1-S)"));
-        try testing.expect(std.mem.eql(u8, chain[2].renamed_name, "Standard EQ (C1-E)"));
-        try testing.expect(std.mem.eql(u8, chain[3].renamed_name, "Standard Comp (C1-C)"));
-        try testing.expect(std.mem.eql(u8, chain[4].renamed_name, "Standard Output (C1-O)"));
+        try testing.expectEqual(5, chain.len);
+        try testing.expectEqualStrings("Standard Input (C1-I)", chain[0].renamed_name);
+        try testing.expectEqualStrings("Standard Gate (C1-S)", chain[1].renamed_name);
+        try testing.expectEqualStrings("Standard EQ (C1-E)", chain[2].renamed_name);
+        try testing.expectEqualStrings("Standard Comp (C1-C)", chain[3].renamed_name);
+        try testing.expectEqualStrings("Standard Output (C1-O)", chain[4].renamed_name);
     }
 
     // Test 3: Correct order with some modules
     {
         try MockReaper.reset(allocator);
 
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Input",
             .renamed_name = "Standard Input (C1-I)",
         });
-        try MockReaper.fx_at_positions.put(1, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard EQ",
             .renamed_name = "Standard EQ (C1-E)",
         });
-        try MockReaper.fx_at_positions.put(2, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Output",
             .renamed_name = "Standard Output (C1-O)",
         });
@@ -834,22 +834,22 @@ test "reorderFx2" {
         defer std.testing.allocator.free(chain);
 
         try testing.expect(chain.len == 5); // Should add missing GATE and COMP
-        try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Standard Input (C1-I)"));
-        try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Standard Gate (C1-S)"));
-        try testing.expect(std.mem.eql(u8, chain[2].renamed_name, "Standard EQ (C1-E)"));
-        try testing.expect(std.mem.eql(u8, chain[3].renamed_name, "Standard Comp (C1-C)"));
-        try testing.expect(std.mem.eql(u8, chain[4].renamed_name, "Standard Output (C1-O)"));
+        try testing.expectEqualStrings("Standard Input (C1-I)", chain[0].renamed_name);
+        try testing.expectEqualStrings("Standard Gate (C1-S)", chain[1].renamed_name);
+        try testing.expectEqualStrings("Standard EQ (C1-E)", chain[2].renamed_name);
+        try testing.expectEqualStrings("Standard Comp (C1-C)", chain[3].renamed_name);
+        try testing.expectEqualStrings("Standard Output (C1-O)", chain[4].renamed_name);
     }
 
     // Test 4: Missing middle modules
     {
         try MockReaper.reset(allocator);
 
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Input",
             .renamed_name = "Standard Input (C1-I)",
         });
-        try MockReaper.fx_at_positions.put(1, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Output",
             .renamed_name = "Standard Output (C1-O)",
         });
@@ -865,11 +865,11 @@ test "reorderFx2" {
         defer std.testing.allocator.free(chain);
 
         try testing.expect(chain.len == 5);
-        try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Standard Input (C1-I)"));
-        try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Standard Gate (C1-S)"));
-        try testing.expect(std.mem.eql(u8, chain[2].renamed_name, "Standard EQ (C1-E)"));
-        try testing.expect(std.mem.eql(u8, chain[3].renamed_name, "Standard Comp (C1-C)"));
-        try testing.expect(std.mem.eql(u8, chain[4].renamed_name, "Standard Output (C1-O)"));
+        try testing.expectEqualStrings("Standard Input (C1-I)", chain[0].renamed_name);
+        try testing.expectEqualStrings("Standard Gate (C1-S)", chain[1].renamed_name);
+        try testing.expectEqualStrings("Standard EQ (C1-E)", chain[2].renamed_name);
+        try testing.expectEqualStrings("Standard Comp (C1-C)", chain[3].renamed_name);
+        try testing.expectEqualStrings("Standard Output (C1-O)", chain[4].renamed_name);
     }
 
     // Test 5: Consolidation during reordering
@@ -883,13 +883,13 @@ test "reorderFx2" {
             .OUTPT = "Different Output",
         });
 
-        try MockReaper.fx_at_positions.put(1, .{
-            .original_name = "Channel Strip",
-            .renamed_name = "Channel Strip (C1-I)",
-        });
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Channel Strip",
             .renamed_name = "Channel Strip (C1-C)",
+        });
+        try MockReaper.fx_chain.append(.{
+            .original_name = "Channel Strip",
+            .renamed_name = "Channel Strip (C1-I)",
         });
 
         var coverage = ModuleCoverage{
@@ -904,8 +904,8 @@ test "reorderFx2" {
 
         // Should consolidate INPUT, GATE, EQ, COMP into one FX
         try testing.expect(chain.len == 2); // Consolidated FX + OUTPUT
-        try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Channel Strip (C1-ISEC)"));
-        try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Different Output (C1-O)"));
+        try testing.expectEqualStrings("Channel Strip (C1-ISEC)", chain[0].renamed_name);
+        try testing.expectEqualStrings("Different Output (C1-O)", chain[1].renamed_name);
     }
 
     // Test 6: Partial chain with incorrect order
@@ -913,13 +913,13 @@ test "reorderFx2" {
         try MockReaper.reset(allocator);
 
         // Setup initial incorrect order: COMP before GATE
-        try MockReaper.fx_at_positions.put(1, .{
-            .original_name = "Standard Gate",
-            .renamed_name = "Standard Gate (C1-S)",
-        });
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Comp",
             .renamed_name = "Standard Comp (C1-C)",
+        });
+        try MockReaper.fx_chain.append(.{
+            .original_name = "Standard Gate",
+            .renamed_name = "Standard Gate (C1-S)",
         });
 
         var coverage = ModuleCoverage{
@@ -938,18 +938,18 @@ test "reorderFx2" {
         // 2. GATE should be moved before COMP
         // 3. EQ should be added between GATE and COMP
         // 4. OUTPUT should be added last
-        try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Standard Input (C1-I)"));
-        try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Standard Gate (C1-S)"));
-        try testing.expect(std.mem.eql(u8, chain[2].renamed_name, "Standard EQ (C1-E)"));
-        try testing.expect(std.mem.eql(u8, chain[3].renamed_name, "Standard Comp (C1-C)"));
-        try testing.expect(std.mem.eql(u8, chain[4].renamed_name, "Standard Output (C1-O)"));
+        try testing.expectEqualStrings("Standard Input (C1-I)", chain[0].renamed_name);
+        try testing.expectEqualStrings("Standard Gate (C1-S)", chain[1].renamed_name);
+        try testing.expectEqualStrings("Standard EQ (C1-E)", chain[2].renamed_name);
+        try testing.expectEqualStrings("Standard Comp (C1-C)", chain[3].renamed_name);
+        try testing.expectEqualStrings("Standard Output (C1-O)", chain[4].renamed_name);
 
         // Verify coverage was updated correctly
-        try testing.expect(coverage.INPUT.? == 0);
-        try testing.expect(coverage.GATE.? == 1);
-        try testing.expect(coverage.EQ.? == 2);
-        try testing.expect(coverage.COMP.? == 3);
-        try testing.expect(coverage.OUTPT.? == 4);
+        try testing.expectEqual(@as(i32, 0), coverage.INPUT.?);
+        try testing.expectEqual(@as(i32, 1), coverage.GATE.?);
+        try testing.expectEqual(@as(i32, 2), coverage.EQ.?);
+        try testing.expectEqual(@as(i32, 3), coverage.COMP.?);
+        try testing.expectEqual(@as(i32, 4), coverage.OUTPT.?);
     }
 
     // Test 7: Edge case with single FX handling multiple modules
@@ -957,7 +957,7 @@ test "reorderFx2" {
         try MockReaper.reset(allocator);
 
         // Setup initial state: one FX handling both INPUT and EQ
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Input",
             .renamed_name = "Standard Input (C1-IE)",
         });
@@ -973,19 +973,19 @@ test "reorderFx2" {
         defer std.testing.allocator.free(chain);
 
         // Should split the consolidated FX and add missing modules in correct order
-        try testing.expect(chain.len == 5);
-        try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Standard Input (C1-I)"));
-        try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Standard Gate (C1-S)"));
-        try testing.expect(std.mem.eql(u8, chain[2].renamed_name, "Standard EQ (C1-E)"));
-        try testing.expect(std.mem.eql(u8, chain[3].renamed_name, "Standard Comp (C1-C)"));
-        try testing.expect(std.mem.eql(u8, chain[4].renamed_name, "Standard Output (C1-O)"));
+        try testing.expectEqual(@as(usize, 5), chain.len);
+        try testing.expectEqualStrings("Standard Input (C1-I)", chain[0].renamed_name);
+        try testing.expectEqualStrings("Standard Gate (C1-S)", chain[1].renamed_name);
+        try testing.expectEqualStrings("Standard EQ (C1-E)", chain[2].renamed_name);
+        try testing.expectEqualStrings("Standard Comp (C1-C)", chain[3].renamed_name);
+        try testing.expectEqualStrings("Standard Output (C1-O)", chain[4].renamed_name);
 
         // Verify coverage reflects the split and new positions
-        try testing.expect(coverage.INPUT.? == 0);
-        try testing.expect(coverage.GATE.? == 1);
-        try testing.expect(coverage.EQ.? == 2);
-        try testing.expect(coverage.COMP.? == 3);
-        try testing.expect(coverage.OUTPT.? == 4);
+        try testing.expectEqual(@as(i32, 0), coverage.INPUT.?);
+        try testing.expectEqual(@as(i32, 1), coverage.GATE.?);
+        try testing.expectEqual(@as(i32, 2), coverage.EQ.?);
+        try testing.expectEqual(@as(i32, 3), coverage.COMP.?);
+        try testing.expectEqual(@as(i32, 4), coverage.OUTPT.?);
     }
 
     // Test 8: Case where default FX for adjacent modules are the same
@@ -1002,11 +1002,11 @@ test "reorderFx2" {
         });
 
         // Start with just INPUT and EQ
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard Input",
             .renamed_name = "Standard Input (C1-I)",
         });
-        try MockReaper.fx_at_positions.put(1, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Standard EQ",
             .renamed_name = "Standard EQ (C1-E)",
         });
@@ -1022,18 +1022,18 @@ test "reorderFx2" {
         defer std.testing.allocator.free(chain);
 
         // Should add GATE and COMP as one consolidated FX
-        try testing.expect(chain.len == 4); // INPUT, GATE+COMP(consolidated), EQ, OUTPUT
-        try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Standard Input (C1-I)"));
-        try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Dynamics Processor (C1-SC)")); // Consolidated
-        try testing.expect(std.mem.eql(u8, chain[2].renamed_name, "Standard EQ (C1-E)"));
-        try testing.expect(std.mem.eql(u8, chain[3].renamed_name, "Standard Output (C1-O)"));
+        try testing.expectEqual(@as(usize, 4), chain.len); // INPUT, GATE+COMP(consolidated), EQ, OUTPUT
+        try testing.expectEqualStrings("Standard Input (C1-I)", chain[0].renamed_name);
+        try testing.expectEqualStrings("Dynamics Processor (C1-SC)", chain[1].renamed_name); // Consolidated
+        try testing.expectEqualStrings("Standard EQ (C1-E)", chain[2].renamed_name);
+        try testing.expectEqualStrings("Standard Output (C1-O)", chain[3].renamed_name);
 
         // Verify coverage reflects consolidated positions
-        try testing.expect(coverage.INPUT.? == 0);
-        try testing.expect(coverage.GATE.? == 1); // Both GATE and COMP
-        try testing.expect(coverage.COMP.? == 1); // point to same position
-        try testing.expect(coverage.EQ.? == 2);
-        try testing.expect(coverage.OUTPT.? == 3);
+        try testing.expectEqual(@as(i32, 0), coverage.INPUT.?);
+        try testing.expectEqual(@as(i32, 1), coverage.GATE.?); // Both GATE and COMP
+        try testing.expectEqual(@as(i32, 1), coverage.COMP.?); // point to same position
+        try testing.expectEqual(@as(i32, 2), coverage.EQ.?);
+        try testing.expectEqual(@as(i32, 3), coverage.OUTPT.?);
 
         // Verify the consolidation was tracked
         try testing.expect(MockReaper.fx_chain_changed);
@@ -1149,59 +1149,59 @@ test "handleInsertWithConsolidation" {
     {
         try MockReaper.reset(allocator);
         const result = handleInsertWithConsolidation(dummy_track, .EQ, 0, default_fx, .{});
-        try testing.expect(!result.did_consolidate);
-        try testing.expect(result.position.? == 0);
+        try testing.expectEqual(false, result.did_consolidate);
+        try testing.expectEqual(@as(i32, 0), result.position.?);
     }
 
     // Test 2: Insert for consolidation with previous
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-E)",
         });
 
         const result = handleInsertWithConsolidation(dummy_track, .GATE, 1, default_fx, .{ .EQ = 0 });
-        try testing.expect(result.did_consolidate);
-        try testing.expect(result.position.? == 0);
-        // try testing.expect(std.mem.eql(u8, Mock.last_renamed_name.?, "Test FX (C1-SE)"));
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(0).?.renamed_name, "Test FX (C1-SE)"));
+        try testing.expectEqual(true, result.did_consolidate);
+        try testing.expectEqual(@as(i32, 0), result.position.?);
+        try testing.expectEqualStrings("Test FX (C1-SE)", MockReaper.fx_chain.items[0].renamed_name);
     }
 
     // Test 3: Insert between for consolidation
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-E)",
         });
-        try MockReaper.fx_at_positions.put(2, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-O)",
         });
 
         const result = handleInsertWithConsolidation(dummy_track, .GATE, 1, default_fx, .{
             .EQ = 0,
-            .OUTPT = 2,
+            .OUTPT = 1,
         });
-        try testing.expect(result.did_consolidate);
-        try testing.expect(result.position.? == 0);
-        try testing.expect(MockReaper.last_deleted_fx.? == 2);
-        // try testing.expect(std.mem.eql(u8, Mock.last_renamed_name.?, "Test FX (C1-SEO)"));
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(0).?.renamed_name, "Test FX (C1-SEO)"));
+        try testing.expectEqual(true, result.did_consolidate);
+        try testing.expectEqual(@as(i32, 0), result.position.?);
+        const chain = try MockReaper.getChainState();
+        defer testing.allocator.free(chain);
+        try testing.expectEqual(@as(usize, 1), chain.len);
+        try testing.expectEqualStrings("Test FX (C1-SEO)", MockReaper.fx_chain.items[0].renamed_name);
     }
 
     // Test 4: Insert without consolidation
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-E)",
         });
 
         const result = handleInsertWithConsolidation(dummy_track, .COMP, 1, default_fx, .{ .EQ = 0 });
-        try testing.expect(!result.did_consolidate);
-        try testing.expect(result.position.? == 1);
+        try testing.expectEqual(false, result.did_consolidate);
+        try testing.expectEqual(@as(i32, 1), result.position.?);
     }
 }
 
@@ -1295,34 +1295,34 @@ test "consolidateWithFx" {
     // Test 1: Add COMP to existing EQ
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-E)",
         });
         try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .COMP));
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(0).?.renamed_name, "Test FX (C1-EC)"));
+        try testing.expect(std.mem.eql(u8, MockReaper.fx_chain.items[0].renamed_name, "Test FX (C1-EC)"));
     }
 
     // Test 2: Add INPUT to existing EQ
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-E)",
         });
         try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .INPUT));
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(0).?.renamed_name, "Test FX (C1-IE)"));
+        try testing.expect(std.mem.eql(u8, MockReaper.fx_chain.items[0].renamed_name, "Test FX (C1-IE)"));
     }
 
     // Test 3: Add OUTPUT to existing EQ
     {
         try MockReaper.reset(allocator);
-        try MockReaper.fx_at_positions.put(0, .{
+        try MockReaper.fx_chain.append(.{
             .original_name = "Test FX",
             .renamed_name = "Test FX (C1-E)",
         });
         try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .OUTPT));
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_at_positions.get(0).?.renamed_name, "Test FX (C1-EO)"));
+        try testing.expect(std.mem.eql(u8, MockReaper.fx_chain.items[0].renamed_name, "Test FX (C1-EO)"));
     }
 }
 
