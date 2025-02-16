@@ -749,7 +749,7 @@ test "reorderFx2" {
         const chain = try MockReaper.getChainState();
         defer std.testing.allocator.free(chain);
 
-        try testing.expect(chain.len == 5);
+        try testing.expectEqual(5, chain.len);
         try testing.expect(std.mem.eql(u8, chain[0].renamed_name, "Standard Input (C1-I)"));
         try testing.expect(std.mem.eql(u8, chain[1].renamed_name, "Standard Gate (C1-S)"));
         try testing.expect(std.mem.eql(u8, chain[2].renamed_name, "Standard EQ (C1-E)"));
@@ -1115,7 +1115,7 @@ fn handleInsertWithConsolidation(
     }
 
     // Case 4: No consolidation possible, perform normal insertion
-    const add_result = pReaper.TrackFX_AddByName(.{ mediaTrack, fx_name, false, -1000 - insert_pos });
+    const add_result = pReaper.TrackFX_AddByName(.{ mediaTrack, fx_name, false, if (insert_pos >= 0) -1000 - insert_pos else insert_pos });
     if (add_result >= 0) {
         const module_char = module.toModulePrefix();
         var name_buf: [512:0]u8 = undefined;

@@ -149,7 +149,19 @@ pub fn mockTrackFX_AddByName(
 ) callconv(.C) c_int {
     _ = track;
     _ = recfx;
-    const insert_pos = if (pos < -999) -(pos + 1000) else pos;
+    // For pos == -1, find the highest existing position and add after it
+    const insert_pos = if (pos == -1) blk: {
+        var max_pos: i32 = -1;
+        var iterator = fx_at_positions.iterator();
+        while (iterator.next()) |entry| {
+            max_pos = @max(max_pos, entry.key_ptr.*);
+        }
+        break :blk max_pos + 1;
+    } else if (pos < -999)
+        -(pos + 1000)
+    else
+        pos;
+
     const name = std.mem.span(fx_name);
 
     // Create initial FX info with original name
