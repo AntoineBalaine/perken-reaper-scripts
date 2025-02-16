@@ -3,11 +3,18 @@ const Dependencies = @import("build.zig").Dependencies;
 
 pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: Dependencies) void {
     const entry_point_path = b.path("./src/console1_extension.zig");
+
+    const test_filters: []const []const u8 = b.option(
+        []const []const u8,
+        "test-filter",
+        "Skip tests that do not match any of the specified filters",
+    ) orelse &.{};
     const test_exe = b.addTest(.{
         .name = "reaper_zig_tests",
         .target = target,
         .optimize = .Debug,
         .root_source_file = entry_point_path,
+        .filters = test_filters, // Add this line
     });
 
     test_exe.addIncludePath(b.path("./src/"));
@@ -76,6 +83,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
 
     // Create and configure the test step
     const run_test = b.addRunArtifact(test_exe);
+
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&install_test.step);
     test_step.dependOn(&run_test.step);
