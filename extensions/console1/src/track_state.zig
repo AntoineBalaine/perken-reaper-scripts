@@ -15,8 +15,8 @@ const DefaultFx = @import("settings.zig").DefaultFx;
 const TaggedMapping = MapStore.TaggedMapping;
 const MockReaper = @import("mock_reaper.zig");
 
-const MAX_FX = 5;
-const MAX_PARSED_FX = MAX_FX * 2; // Allow for reasonable number of duplicates
+pub const MAX_FX = 5;
+pub const MAX_PARSED_FX = MAX_FX * 2; // Allow for reasonable number of duplicates
 
 const Location = struct {
     fx_index: c_int,
@@ -52,7 +52,7 @@ const ActiveModules = packed struct {
     OUTPT: bool = false,
 };
 
-const ParsedFx = struct {
+pub const ParsedFx = struct {
     index: i32,
     active_modules: ?ActiveModules = null,
 };
@@ -138,7 +138,7 @@ test "parseC1Suffix" {
 }
 
 /// Tracks which FX provides each module
-const ModuleCoverage = struct {
+pub const ModuleCoverage = struct {
     INPUT: ?c_int = null,
     GATE: ?c_int = null,
     EQ: ?c_int = null,
@@ -146,7 +146,7 @@ const ModuleCoverage = struct {
     OUTPT: ?c_int = null,
 };
 
-fn analyzeCoverage(
+pub fn analyzeCoverage(
     parsed_fx: *std.ArrayListUnmanaged(ParsedFx),
     media_track: MediaTrack,
 ) ModuleCoverage {
@@ -176,7 +176,7 @@ fn analyzeCoverage(
     return coverage;
 }
 
-fn removeDuplicateModule(
+pub fn removeDuplicateModule(
     fx_index: i32,
     module_to_remove: ModulesList,
     media_track: MediaTrack,
@@ -565,7 +565,7 @@ fn reorderFx(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx
 
 const log = std.log.scoped(.validation);
 
-fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx) ModuleCoverage {
+pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx) ModuleCoverage {
     var coverage = cvrg;
 
     // Handle INPUT first
@@ -1044,7 +1044,7 @@ const ConsolidationResult = struct {
     position: ?i32,
 };
 
-fn handleInsertWithConsolidation(
+pub fn handleInsertWithConsolidation(
     mediaTrack: MediaTrack,
     module: ModulesList,
     insert_pos: i32,
@@ -1226,7 +1226,7 @@ fn toOrderedSuffix(current_modules: ActiveModules, new_module: ModulesList, buf:
     return buf[0..len :0];
 }
 
-fn consolidateWithFxSuffix(
+pub fn consolidateWithFxSuffix(
     mediaTrack: MediaTrack,
     target_fx: i32,
     module: ModulesList,

@@ -10,12 +10,7 @@ pub const TestCase = struct {
     setup: ?*const fn () anyerror!void = null,
     run: *const fn () TestError!void,
 };
-pub const TestError = error{
-    TrackNotFound,
-    FxNotFound,
-    ValidationFailed,
-    TestExpectedEqual,
-};
+pub const TestError = error{ TrackNotFound, FxNotFound, ValidationFailed, TestExpectedEqual, TestUnexpectedResult };
 
 pub const TestResult = struct {
     name: []const u8,
@@ -40,7 +35,6 @@ pub fn deinit(self: *TestRunner) void {
 
 pub fn runTest(self: *@This(), test_case: TestCase) !void {
     log.debug("Running test: {s}", .{test_case.name});
-    const start_time = std.time.nanoTimestamp();
 
     // Begin undo block for this test
     if (self.project) |proj| {
@@ -72,7 +66,6 @@ pub fn runTest(self: *@This(), test_case: TestCase) !void {
             .name = test_case.name,
             .passed = false,
             .err = err,
-            .duration_ns = std.time.nanoTimestamp() - start_time,
         });
 
         if (self.project) |proj| {
@@ -90,7 +83,6 @@ pub fn runTest(self: *@This(), test_case: TestCase) !void {
         .name = test_case.name,
         .passed = true,
         .err = null,
-        .duration_ns = std.time.nanoTimestamp() - start_time,
     });
 }
 
