@@ -10,7 +10,7 @@ const csurf = @import("csurf/control_surface.zig");
 const utils = @import("utils.zig");
 const actions = @import("actions.zig");
 const track_list_actions = @import("tracklist_actions.zig");
-
+const RprCmds = @import("reaper_cmds.zig");
 const AutomationMode = enum(c_int) {
     trim,
     read,
@@ -51,37 +51,6 @@ pub const TransportAction = union(enum) {
     tr_sel: u8,
     zoom_horizontal: u8,
     zoom_vertical: u8,
-};
-
-pub const RprCmds = struct {
-    pub const IDC_REPEAT = 1068;
-    pub const ID_FILE_SAVEAS = 40022;
-    pub const ID_FILE_NEWPROJECT = 40023;
-    pub const ID_FILE_OPENPROJECT = 40025;
-    pub const ID_FILE_SAVEPROJECT = 40026;
-    pub const IDC_EDIT_UNDO = 40029;
-    pub const IDC_EDIT_REDO = 40030;
-    pub const ID_MARKER_PREV = 40172;
-    pub const ID_MARKER_NEXT = 40173;
-    pub const ID_INSERT_MARKERRGN = 40174;
-    pub const ID_INSERT_MARKER = 40157;
-    pub const ID_LOOP_SETSTART = 40222;
-    pub const ID_LOOP_SETEND = 40223;
-    pub const ID_METRONOME = 40364;
-    pub const ID_GOTO_MARKER1 = 40161;
-    pub const ID_SET_MARKER1 = 40657;
-    pub const ID_ITM_TRSNT_NEXT = 40375;
-    pub const ID_ITM_TRSNT_PREV = 40376;
-    pub const ID_TRK_UNSEL_ALL = 40297;
-    pub const ID_GRID_BY1_5 = 40783; // No need for @"" syntax
-    pub const ID_GRID_BY2 = 40786;
-    pub const OPT_RSTR_SNAP = 40756;
-    pub const OPT_SAVE_SNAP = 40755;
-    pub const OPT_TGL_GRID = 40145;
-    pub const OPT_TGL_SNAP = 1157;
-    pub const SEL_TR_ITMS = 40421;
-    pub const _SWS_SAVEALLSELITEMS1: [:0]const u8 = "_SWS_SAVEALLSELITEMS1";
-    pub const _SWS_RESTALLSELITEMS1: [:0]const u8 = "_SWS_RESTALLSELITEMS1";
 };
 
 pub fn transportAction(state: *State, action: TransportAction) void {

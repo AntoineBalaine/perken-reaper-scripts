@@ -12,7 +12,9 @@ const log = std.log.scoped(.hooks);
 pub var suspend_cmd_id: c_int = undefined;
 pub var toggle_gui_cmd_id: c_int = undefined;
 pub var reentrancy_test_cmd_id: c_int = undefined;
+pub var track_state_tests_cmd_id: c_int = undefined;
 var testCommandIds: TestCommandIds = undefined;
+
 const TestCommandIds = struct {
     map: std.EnumMap(reentrancy.TestApiCall, ?c_int),
 
@@ -57,6 +59,11 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
         // reentrancy.runInitialTest() catch |err| {
         //     log.err("Failed to run initial reentrancy test: {}", .{err});
         // };
+        return 1;
+    } else if (debugconfig.@"test" and command == track_state_tests_cmd_id) {
+        @import("tests/track_state_tests.zig").runTrackStateTests() catch |err| {
+            log.err("Failed to run track state tests: {}", .{err});
+        };
         return 1;
     } else if (debugconfig.@"test") {
         // Check if command matches any of our test command IDs
@@ -112,6 +119,16 @@ pub fn registerCommands() void {
             .name = "Console1: Run Reentrancy Tests",
         };
         reentrancy_test_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&reentrancy_test_action)));
+
+        const track_state_test_action: reaper.custom_action_register_t = .{
+            .section = 0,
+            .id_str = "C1_TRACK_STATE_TESTS",
+            .name = "Console1: Run Track State Tests",
+        };
+        track_state_tests_cmd_id = reaper.plugin_register(
+            "custom_action",
+            @constCast(@ptrCast(&track_state_test_action)),
+        );
     }
     _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 }

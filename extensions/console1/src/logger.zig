@@ -241,6 +241,7 @@ pub fn logFn(
         .transport,
         .default_fx_sel_actions,
         .fx_sel_panel,
+        .tests,
         => @tagName(scope),
         .default => @tagName(scope),
         .reentrancy => "",
