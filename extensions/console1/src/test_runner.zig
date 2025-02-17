@@ -36,18 +36,18 @@ pub fn init(allocator: std.mem.Allocator) TestRunner {
 
 pub fn deinit(self: *TestRunner) void {
     self.results.deinit();
-    reaper.Main_OnCommand(RprCmds.IDC_EDIT_UNDO, 0);
 }
 
 pub fn runTest(self: *@This(), test_case: TestCase) !void {
     log.debug("Running test: {s}", .{test_case.name});
     const start_time = std.time.nanoTimestamp();
 
+    // Begin undo block for this test
     if (self.project) |proj| {
         reaper.Undo_BeginBlock2(proj);
     }
 
-    // Run test
+    // Run test steps
     if (test_case.setup) |setup| {
         setup() catch |err| {
             log.err("Test setup failed: {s} - {s}", .{
@@ -72,6 +72,7 @@ pub fn runTest(self: *@This(), test_case: TestCase) !void {
             .name = test_case.name,
             .passed = false,
             .err = err,
+            .duration_ns = std.time.nanoTimestamp() - start_time,
         });
 
         if (self.project) |proj| {
@@ -80,19 +81,16 @@ pub fn runTest(self: *@This(), test_case: TestCase) !void {
         return;
     };
 
+    // End undo block and record success
     if (self.project) |proj| {
         reaper.Undo_EndBlock2(proj, "Test Completed", -1);
     }
-
-    log.debug("Test passed: {s} ({d}ns)", .{
-        test_case.name,
-        std.time.nanoTimestamp() - start_time,
-    });
 
     try self.results.append(.{
         .name = test_case.name,
         .passed = true,
         .err = null,
+        .duration_ns = std.time.nanoTimestamp() - start_time,
     });
 }
 

@@ -2,6 +2,7 @@ const std = @import("std");
 const TestRunner = @import("../test_runner.zig");
 const reaper = @import("../reaper.zig").reaper;
 const TrackState = @import("../track_state.zig").TrackState;
+const RprCmds = @import("../reaper_cmds.zig");
 const log = std.log.scoped(.track_tests);
 
 pub fn runTrackStateTests() !void {
@@ -19,6 +20,7 @@ pub fn runTrackStateTests() !void {
 
     for (test_cases) |test_case| {
         try test_runner.runTest(test_case);
+        reaper.Main_OnCommand(RprCmds.IDC_EDIT_UNDO, 0);
     }
 
     test_runner.reportResults();
