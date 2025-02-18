@@ -5,7 +5,6 @@ const utils = @import("../utils.zig");
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
 const c1 = @import("../c1.zig");
-const ReentrancyMessage = @import("../reentrancy.zig").ReentrancyMessage;
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
     @cInclude("csurf/control_surface_wrapper.h");
@@ -43,13 +42,13 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         if (outdev >= 0 and globals.m_midi_out == null) errstats.* |= 2;
     }
     if (globals.m_midi_in) |midi_in| {
-        log.info("created midi in", .{});
+        log.debug("created midi in", .{});
         c.MidiIn_start(midi_in);
     } else {
         log.err("couldn’t create midi in", .{});
     }
     if (globals.m_midi_out) |_| {
-        log.info("created midi out", .{});
+        log.debug("created midi out", .{});
         actions.dispatch(&globals.state, .{ .midi_out = .clear_all }); // lights off
     } else {
         log.err("couldn’t create midi out", .{});
@@ -57,7 +56,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 
     // If MIDI devices are successfully created, switch to fx_ctrl mode
     if (globals.m_midi_in != null and globals.m_midi_out != null) {
-        log.info("MIDI devices connected", .{});
+        log.debug("MIDI devices connected", .{});
         if (globals.state.current_mode == .suspended) {
             actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl });
         }
@@ -131,23 +130,11 @@ export fn zRun() callconv(.C) void {
 
 export fn zSetTrackListChange() callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetTrackListChange,
-        .track_id = null,
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     actions.dispatch(&globals.state, .{ .track_list = .refresh });
 }
 
 export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetSurfaceVolume,
-        .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .volume = volume },
-    } }});
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     const volint = utils.volToU8(volume);
     if (globals.state.fx_ctrl.vol_lastpos != volint) {
@@ -159,68 +146,33 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
 // pan is btw -1.0 and 1.0
 export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetSurfacePan,
-        .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .pan = pan },
-    } }});
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = @intFromFloat((pan + 1) / 2 * 127) } } });
 }
 export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetSurfaceMute,
-        .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
 }
 export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) void {
     if (ignore_notifications) return;
-    log.info("set surface selected", .{});
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetSurfaceSelected,
-        .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
+    log.debug("set surface selected", .{});
     actions.dispatch(&globals.state, .{ .Csurf = .{ .track_selected = .{ .tr = trackid, .selected = selected } } });
 }
 export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetSurfaceSolo,
-        .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_solo, .value = if (solo) 0x7f else 0x0 } } });
 }
 
 export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.C) void {
+    _ = trackid; // autofix
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetSurfaceRecArm,
-        .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     _ = recarm;
 }
 
 export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetPlayState,
-        .track_id = null,
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     _ = rec;
     globals.playState = play;
     globals.pauseState = pause;
@@ -230,22 +182,11 @@ export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
 }
 export fn zSetRepeatState(rep: bool) callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetRepeatState,
-        .track_id = null,
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     _ = rep;
 }
 export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.C) void {
+    _ = trackid; // autofix
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetTrackTitle,
-        .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     _ = title;
 }
 export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
@@ -256,34 +197,16 @@ export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
 }
 export fn zSetAutoMode(mode: c_int) callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .SetAutoMode,
-        .track_id = null,
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     _ = mode;
 }
 
 export fn zResetCachedVolPanStates() callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .ResetCachedVolPanStates,
-        .track_id = null,
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     globals.state.fx_ctrl.vol_lastpos = 0;
 }
 
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     if (ignore_notifications) return;
-    std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-        .type = .OnTrackSelection,
-        .track_id = reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode),
-        .timestamp = std.time.milliTimestamp(),
-        .data = .{ .none = {} },
-    } }});
     // FIXME: should we be using this ?
     actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = trackid } });
 }
@@ -327,12 +250,6 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
 
         // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (may be NULL), parm3=(int*)fxidx. all parms NULL=clear focused FX
         .SETFOCUSEDFX => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetFocusedFX,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
             if (parm2 != null) return 1; // ignore media items' FXchains
             const trId = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null;
             if (trId == null) return 1;
@@ -346,12 +263,6 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
 
         // #define CSURF_EXT_SETFXOPEN 0x00010012 // parm1=(MediaTrack*)track, parm2=(int*)fxidx, parm3=0 if UI closed, !0 if open
         .SETFXOPEN => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetFXOpen,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
             // const mediaTrack =  @as(MediaTrack, @ptrCast(parm1.?));
             if (parm3) |ptr| {
                 const isOpen = @intFromPtr(ptr);
@@ -365,13 +276,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         },
 
         .SETLASTTOUCHEDTRACK => {
-            log.info("set last touched track", .{});
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetLastTouchedTrack,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
+            log.debug("set last touched track", .{});
             if (parm1) |mediaTrack|
                 actions.dispatch(&globals.state, .{ .Csurf = .{ .last_touched_track = @ptrCast(mediaTrack) } });
         },
@@ -398,17 +303,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                 const prm_idx_cast: usize = @intCast(f & 0xFFFF);
 
                 const value = @as(*f64, @alignCast(@ptrCast(parm3))).*;
-
-                std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                    .type = .Extended_SetFXParam,
-                    .track_id = id,
-                    .timestamp = std.time.milliTimestamp(),
-                    .data = .{ .fx_param = .{
-                        .fx_index = fx_idx_cast,
-                        .param_index = prm_idx_cast,
-                        .value = value,
-                    } },
-                } }});
+                _ = value; // autofix
 
                 actions.dispatch(&globals.state, .{ .Csurf = .{ .fx_param_changed = .{
                     .track = track,
@@ -418,158 +313,25 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                 } } });
             }
         },
-        .SETFXCHANGE => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetFXChange,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETFXENABLED => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetFXEnabled,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .MIDI_DEVICE_REMAP => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_MidiDeviceRemap,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .RESET => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_Reset,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETAUTORECARM => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetAutoRecArm,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETBPMANDPLAYRATE => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetBPMAndPlayrate,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETMETRONOME => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetMetronome,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETMIXERSCROLL => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetMixerScroll,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETFXPARAM_RECFX => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetFXParamRecFX,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETINPUTMONITOR => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetInputMonitor,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETLASTTOUCHEDFX => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetLastTouchedFX,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETPROJECTMARKERCHANGE => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetProjectMarkerChange,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETRECMODE => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetRecMode,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETRECVPAN => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetRecvPan,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETRECVVOLUME => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetRecvVolume,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETSENDPAN => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetSendPan,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SETSENDVOLUME => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SetSendVolume,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .SUPPORTS_EXTENDED_TOUCH => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_SupportsExtendedTouch,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
-        .TRACKFX_PRESET_CHANGED => {
-            std.log.scoped(.reentrancy).debug("{}", .{ReentrancyMessage{ .notification = .{
-                .type = .Extended_TrackFXPresetChanged,
-                .track_id = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null,
-                .timestamp = std.time.milliTimestamp(),
-                .data = .{ .none = {} },
-            } }});
-        },
+        .SETFXCHANGE => {},
+        .SETFXENABLED => {},
+        .MIDI_DEVICE_REMAP => {},
+        .RESET => {},
+        .SETAUTORECARM => {},
+        .SETBPMANDPLAYRATE => {},
+        .SETMETRONOME => {},
+        .SETMIXERSCROLL => {},
+        .SETFXPARAM_RECFX => {},
+        .SETINPUTMONITOR => {},
+        .SETLASTTOUCHEDFX => {},
+        .SETPROJECTMARKERCHANGE => {},
+        .SETRECMODE => {},
+        .SETRECVPAN => {},
+        .SETRECVVOLUME => {},
+        .SETSENDPAN => {},
+        .SETSENDVOLUME => {},
+        .SUPPORTS_EXTENDED_TOUCH => {},
+        .TRACKFX_PRESET_CHANGED => {},
         else => {},
     }
     return 1;
