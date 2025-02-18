@@ -1,6 +1,7 @@
 const std = @import("std");
 const log = std.log.scoped(.tests);
 const reaper = @import("reaper.zig").reaper;
+const pReaper = @import("pReaper.zig");
 const RprCmds = @import("reaper_cmds.zig");
 
 const TestRunner = @This();
@@ -25,7 +26,7 @@ pub fn init(allocator: std.mem.Allocator) TestRunner {
     log.debug("Initializing test runner", .{});
     return .{
         .results = std.ArrayList(TestResult).init(allocator),
-        .project = reaper.EnumProjects(-1, null),
+        .project = pReaper.EnumProjects(.{ -1, null }),
     };
 }
 
@@ -33,12 +34,14 @@ pub fn deinit(self: *TestRunner) void {
     self.results.deinit();
 }
 
+/// Returns failures only if setup or allocations fail.
+/// Failing cases are logged and skipped.
 pub fn runTest(self: *@This(), test_case: TestCase) !void {
     log.debug("Running test: {s}", .{test_case.name});
 
     // Begin undo block for this test
     if (self.project) |proj| {
-        reaper.Undo_BeginBlock2(proj);
+        pReaper.Undo_BeginBlock2(.{proj});
     }
 
     // Run test steps
@@ -50,7 +53,7 @@ pub fn runTest(self: *@This(), test_case: TestCase) !void {
             });
 
             if (self.project) |proj| {
-                reaper.Undo_EndBlock2(proj, "Test Setup Failed", -1);
+                pReaper.Undo_EndBlock2(.{ proj, "Test Setup Failed", -1 });
             }
             return err;
         };
@@ -69,14 +72,14 @@ pub fn runTest(self: *@This(), test_case: TestCase) !void {
         });
 
         if (self.project) |proj| {
-            reaper.Undo_EndBlock2(proj, "Test Failed", -1);
+            pReaper.Undo_EndBlock2(.{ proj, "Test Failed", -1 });
         }
         return;
     };
 
     // End undo block and record success
     if (self.project) |proj| {
-        reaper.Undo_EndBlock2(proj, "Test Completed", -1);
+        pReaper.Undo_EndBlock2(.{ proj, "Test Completed", -1 });
     }
 
     try self.results.append(.{

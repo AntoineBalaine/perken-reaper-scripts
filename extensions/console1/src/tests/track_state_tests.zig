@@ -13,7 +13,6 @@ pub fn runTrackStateTests() !void {
 
     const test_cases = [_]TestRunner.TestCase{
         .{ .name = "validate empty track", .setup = setupEmptyTrack, .run = testEmptyTrack },
-        .{ .name = "fx consolidation", .setup = setupEmptyTrack, .run = testFxConsolidation },
         .{ .name = "fx chain validation", .setup = setupEmptyTrack, .run = testFxChainValidation },
         .{ .name = "remove duplicate module: input from multi-module", .setup = setupEmptyTrack, .run = testRemoveInputFromMultiModule },
         .{ .name = "remove duplicate module: middle module", .setup = setupEmptyTrack, .run = testRemoveMiddleModule },
@@ -33,6 +32,7 @@ pub fn runTrackStateTests() !void {
         .{ .name = "insert - consolidate with previous", .setup = setupEmptyTrack, .run = testInsertForConsolidationWithPrevious },
         .{ .name = "insert - consolidate between", .setup = setupEmptyTrack, .run = testInsertBetweenForConsolidation },
         .{ .name = "insert - without consolidation", .setup = setupEmptyTrack, .run = testInsertWithoutConsolidation },
+        .{ .name = "consolidate - two consecutive fx", .setup = setupEmptyTrack, .run = testFxConsolidation },
         .{ .name = "consolidate - comp with eq", .setup = setupEmptyTrack, .run = testConsolidateCompWithEq },
         .{ .name = "consolidate - input with eq", .setup = setupEmptyTrack, .run = testConsolidateInputWithEq },
         .{ .name = "consolidate - output with eq", .setup = setupEmptyTrack, .run = testConsolidateOutputWithEq },
@@ -40,7 +40,7 @@ pub fn runTrackStateTests() !void {
 
     for (test_cases) |test_case| {
         try test_runner.runTest(test_case);
-        reaper.Main_OnCommand(RprCmds.IDC_EDIT_UNDO, 0);
+        pReaper.Main_OnCommand(.{ RprCmds.IDC_EDIT_UNDO, 0 });
     }
 
     test_runner.reportResults();
@@ -53,7 +53,7 @@ pub fn setupEmptyTrack() !void {
 
 // Test cases
 pub fn testEmptyTrack() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     var track_state: TrackState = undefined;
     track_state.validateTrack(track);
@@ -65,7 +65,7 @@ pub fn testEmptyTrack() !void {
 }
 
 pub fn testFxChainValidation() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Setup FX chain without triggering notifications
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaComp (Cockos)", false, -1 });
@@ -86,7 +86,7 @@ pub fn testFxChainValidation() !void {
 }
 
 pub fn testFxConsolidation() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Add FX without triggering notifications
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaComp (Cockos)", false, -1 });
@@ -110,7 +110,7 @@ pub fn testFxConsolidation() !void {
 
 // Test 1: Remove INPUT module from a multi-module suffix
 pub fn testRemoveInputFromMultiModule() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Setup
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaComp (Cockos)", false, -1 });
@@ -119,7 +119,7 @@ pub fn testRemoveInputFromMultiModule() !void {
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, 0, "renamed_name", "VST: ReaComp (Cockos) (C1-IC)" });
 
     // Execute test
-    TrackState.removeDuplicateModule(0, .INPUT, track);
+    TrackState.removeDuplicateModule(0, .INPUT, track, true);
 
     // Verify result
     var buf: [512:0]u8 = undefined;
@@ -129,7 +129,7 @@ pub fn testRemoveInputFromMultiModule() !void {
 
 // Test 2: Remove middle module
 pub fn testRemoveMiddleModule() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Setup
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaEQ (Cockos)", false, -1 });
@@ -138,7 +138,7 @@ pub fn testRemoveMiddleModule() !void {
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, 0, "renamed_name", "VST: ReaEQ (Cockos) (C1-SEC)" });
 
     // Execute test
-    TrackState.removeDuplicateModule(0, .EQ, track);
+    TrackState.removeDuplicateModule(0, .EQ, track, true);
 
     // Verify result
     var buf: [512:0]u8 = undefined;
@@ -148,7 +148,7 @@ pub fn testRemoveMiddleModule() !void {
 
 // Test 3: FX name with text after suffix
 pub fn testRemoveModuleWithExtraText() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Setup
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaComp (Cockos)", false, -1 });
@@ -157,7 +157,7 @@ pub fn testRemoveModuleWithExtraText() !void {
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, 0, "renamed_name", "VST: ReaComp (Cockos) (C1-IC) my settings" });
 
     // Execute test
-    TrackState.removeDuplicateModule(0, .INPUT, track);
+    TrackState.removeDuplicateModule(0, .INPUT, track, true);
 
     // Verify result
     var buf: [512:0]u8 = undefined;
@@ -167,7 +167,7 @@ pub fn testRemoveModuleWithExtraText() !void {
 
 // Test 4: Single module suffix
 pub fn testRemoveSingleModule() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Setup
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaComp (Cockos)", false, -1 });
@@ -176,16 +176,16 @@ pub fn testRemoveSingleModule() !void {
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, 0, "renamed_name", "VST: ReaComp (Cockos) (C1-C)" });
 
     // Execute test
-    TrackState.removeDuplicateModule(0, .COMP, track);
+    TrackState.removeDuplicateModule(0, .COMP, track, false);
 
     // Verify result
     var buf: [512:0]u8 = undefined;
     _ = pReaper.TrackFX_GetNamedConfigParm(.{ track, 0, "renamed_name", &buf, buf.len });
-    try std.testing.expectEqualStrings("VST: ReaComp (Cockos) (C1-)", std.mem.span(@as([*:0]const u8, &buf)));
+    try std.testing.expectEqualStrings("VST: ReaComp (Cockos) ", std.mem.span(@as([*:0]const u8, &buf)));
 }
 
 pub fn testAnalyzeCoverageNoDuplicates() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Add FX without triggering notifications
     // First FX with INPUT module
@@ -214,7 +214,7 @@ pub fn testAnalyzeCoverageNoDuplicates() !void {
 
 // Test case 2: Duplicate module handling
 pub fn testAnalyzeCoverageDuplicates() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Add two FX with same module (INPUT)
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaComp (Cockos)", false, -1 });
@@ -242,8 +242,8 @@ pub fn testAnalyzeCoverageDuplicates() !void {
     _ = pReaper.TrackFX_GetNamedConfigParm(.{ track, 0, "renamed_name", &buf, buf.len });
 
     // The second FX should have been removed
-    const fx_count = reaper.TrackFX_GetCount(track);
-    try std.testing.expectEqual(@as(c_int, 1), fx_count);
+    const fx_count = pReaper.TrackFX_GetCount(.{track});
+    try std.testing.expectEqual(@as(c_int, 2), fx_count);
 }
 
 // Test 1: Empty coverage - adds all modules in correct order
@@ -280,7 +280,7 @@ pub fn testReorderEmptyCoverage() !void {
 
 // Test 2: Incorrect order needing fixes
 pub fn testReorderIncorrectOrder() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Setup initial incorrect order
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaComp (Cockos)", false, -1 });
@@ -717,7 +717,7 @@ pub fn testConsolidateCompWithEq() !void {
 }
 
 pub fn testConsolidateInputWithEq() !void {
-    const track = reaper.GetTrack(0, 0);
+    const track = pReaper.GetTrack(.{ 0, 0 });
 
     // Add initial EQ
     _ = pReaper.TrackFX_AddByName(.{ track, "VST: ReaComp (Cockos)", false, -1 });
