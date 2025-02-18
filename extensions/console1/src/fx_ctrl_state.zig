@@ -155,14 +155,14 @@ pub fn validateTrack(
     mediaTrack: reaper.MediaTrack,
     reRoute: ?SCRouting,
 ) !void {
-    self.track_state.validateTrack(mediaTrack);
+    const coverage = self.track_state.validateTrack(mediaTrack);
 
     if (!globals.preferences.manual_routing) {
         self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);
     }
 
     if (newOrder) |order| {
-        self.track_state.setModulesOrder(order, mediaTrack);
+        self.track_state.setModulesOrder(order, mediaTrack, coverage);
     }
 }
 

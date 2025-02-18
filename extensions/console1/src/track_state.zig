@@ -14,6 +14,8 @@ const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const DefaultFx = @import("settings.zig").DefaultFx;
 const TaggedMapping = MapStore.TaggedMapping;
 const MockReaper = @import("mock_reaper.zig");
+const Guid = @import("utils.zig").Guid;
+const log = std.log.scoped(.validation);
 
 pub const MAX_FX = 5;
 pub const MAX_PARSED_FX = MAX_FX * 2; // Allow for reasonable number of duplicates
@@ -23,7 +25,7 @@ const Location = struct {
     mapping: ?TaggedMapping,
 };
 
-const ModuleLocation = std.EnumArray(ModulesList, ?Location);
+const ModuleLocations = std.EnumArray(ModulesList, ?Location);
 
 pub const TrackState = @This();
 // FX tracking for validation
@@ -35,7 +37,7 @@ fx_states: [MAX_FX]struct {
 fx_count: usize = 0,
 
 // Quick module -> FX lookup for parameter setting
-module_locations: ModuleLocation = undefined,
+module_locations: ModuleLocations = undefined,
 // const array = std.enums.directEnumArrayDefault(
 //     ModulesList,
 //     ?Location,
@@ -54,12 +56,13 @@ const ActiveModules = packed struct {
 
 pub const ParsedFx = struct {
     index: i32,
-    active_modules: ?ActiveModules = null,
+    guid: Guid,
+    active_modules: ?ModulesList = null,
 };
 
-pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) void {
+pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) ModuleCoverage {
     // Initialize track state
-    track_state.* = .{ .fx_states = undefined, .fx_count = 0, .module_locations = ModuleLocation.initFill(null) };
+    track_state.* = .{ .fx_states = undefined, .fx_count = 0, .module_locations = ModuleLocations.initFill(null) };
 
     var buf: [512:0]u8 = undefined;
 
@@ -81,6 +84,7 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) vo
                 if (parsed_fx.items.len < MAX_PARSED_FX) {
                     parsed_fx.appendAssumeCapacity(.{
                         .index = i,
+                        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(mediaTrack, i)),
                         .active_modules = active_modules,
                     });
                 }
@@ -91,10 +95,11 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) vo
 
     var coverage = analyzeCoverage(&parsed_fx, mediaTrack);
     coverage = reorderFx2(coverage, mediaTrack, globals.preferences.default_fx);
-    updateTrackState(track_state, &parsed_fx, coverage, mediaTrack, &buf);
+    updateTrackState(track_state, coverage, mediaTrack, &buf);
+    return coverage;
 }
 
-fn parseC1Suffix(name: [:0]const u8) ?ActiveModules {
+fn parseC1Suffix(name: [:0]const u8) ?ModulesList {
     // Look for last "(C1-" occurrence
     const suffix_start = if (std.mem.lastIndexOf(u8, name, "(C1-")) |start| start else return null;
 
@@ -104,19 +109,19 @@ fn parseC1Suffix(name: [:0]const u8) ?ActiveModules {
     // Extract module identifiers
     const modules = name[suffix_start + 4 .. suffix_end];
 
-    var result: ActiveModules = .{};
+    // Return first found valid module
     for (modules) |c| {
-        switch (c) {
-            'I' => result.INPUT = true,
-            'S' => result.GATE = true,
-            'E' => result.EQ = true,
-            'C' => result.COMP = true,
-            'O' => result.OUTPT = true,
-            else => {}, // ignore invalid characters
-        }
+        return switch (c) {
+            'I' => .INPUT,
+            'S' => .GATE,
+            'E' => .EQ,
+            'C' => .COMP,
+            'O' => .OUTPT,
+            else => continue,
+        };
     }
 
-    return result;
+    return null;
 }
 
 test "parseC1Suffix" {
@@ -138,12 +143,17 @@ test "parseC1Suffix" {
 }
 
 /// Tracks which FX provides each module
+const ModuleLocation = struct {
+    index: c_int,
+    guid: Guid,
+};
+
 pub const ModuleCoverage = struct {
-    INPUT: ?c_int = null,
-    GATE: ?c_int = null,
-    EQ: ?c_int = null,
-    COMP: ?c_int = null,
-    OUTPT: ?c_int = null,
+    INPUT: ?ModuleLocation = null,
+    GATE: ?ModuleLocation = null,
+    EQ: ?ModuleLocation = null,
+    COMP: ?ModuleLocation = null,
+    OUTPT: ?ModuleLocation = null,
 };
 
 pub fn analyzeCoverage(
@@ -154,21 +164,22 @@ pub fn analyzeCoverage(
 
     var i: usize = 0;
     while (i < parsed_fx.items.len) : (i += 1) {
-        const fx = parsed_fx.items[i];
-        if (fx.active_modules) |modules| {
-            // For each active module in this FX
-            inline for (std.meta.fields(@TypeOf(modules))) |field| {
-                const is_active = @field(modules, field.name);
-                if (is_active) {
-                    // Check if module already covered
-                    if (@field(coverage, field.name) != null) {
-                        const module = @field(ModulesList, field.name);
-                        removeDuplicateModule(fx.index, module, media_track);
+        const fx = &parsed_fx.items[i];
+        if (fx.active_modules) |module| {
+            // Check if module already covered
+            switch (module) {
+                inline else => |impl| {
+                    if (@field(coverage, @tagName(impl)) != null) {
+                        // Found duplicate, remove suffix only
+                        removeDuplicateModule(fx.index, media_track);
                     } else {
                         // Mark as covered and record provider
-                        @field(coverage, field.name) = fx.index;
+                        @field(coverage, @tagName(impl)) = .{
+                            .index = fx.index,
+                            .guid = fx.guid,
+                        };
                     }
-                }
+                },
             }
         }
     }
@@ -176,12 +187,9 @@ pub fn analyzeCoverage(
     return coverage;
 }
 
-pub fn removeDuplicateModule(
-    fx_index: i32,
-    module_to_remove: ModulesList,
-    media_track: MediaTrack,
-) void {
+pub fn removeDuplicateModule(fx_index: i32, media_track: MediaTrack) void {
     var name_buf: [512:0]u8 = undefined;
+    var buf: [512:0]u8 = undefined;
 
     // Get current name
     if (!reaper.TrackFX_GetNamedConfigParm(media_track, fx_index, "renamed_name", @ptrCast(&name_buf), name_buf.len)) {
@@ -189,32 +197,19 @@ pub fn removeDuplicateModule(
     }
     const fx_name = std.mem.span(@as([*:0]const u8, @ptrCast(&name_buf)));
 
-    var buf: [512:0]u8 = undefined;
+    const suffix_start = std.mem.lastIndexOf(u8, fx_name, "(C1-") orelse return;
+    const suffix_end = std.mem.indexOfPos(u8, fx_name, suffix_start, ")") orelse return;
 
-    const suffix_start = std.mem.lastIndexOf(u8, fx_name, "(C1-").?;
-    const suffix_end = std.mem.indexOfPos(u8, fx_name, suffix_start, ")").?;
-
-    _ = std.fmt.bufPrintZ(&buf, "{s}(C1-", .{
-        fx_name[0..suffix_start],
-    }) catch return;
-
-    var pos = suffix_start + 4;
-    for (fx_name[suffix_start + 4 .. suffix_end]) |c| {
-        if (pos >= buf.len - 1) break; // Ensure room for null terminator
-
-        switch (module_to_remove) {
-            .INPUT => if (c == 'I') continue,
-            .GATE => if (c == 'S') continue,
-            .EQ => if (c == 'E') continue,
-            .COMP => if (c == 'C') continue,
-            .OUTPT => if (c == 'O') continue,
-        }
-        buf[pos] = c;
-        pos += 1;
+    // Trim any trailing spaces before the suffix
+    var prefix_end = suffix_start;
+    while (prefix_end > 0 and fx_name[prefix_end - 1] == ' ') {
+        prefix_end -= 1;
     }
 
-    _ = std.fmt.bufPrintZ(buf[pos..], "){s}", .{
-        fx_name[suffix_end + 1 ..],
+    // Remove suffix and maintain proper spacing
+    _ = std.fmt.bufPrintZ(&buf, "{s}{s}", .{
+        fx_name[0..prefix_end],
+        if (suffix_end + 1 < fx_name.len) fx_name[suffix_end + 1 ..] else "",
     }) catch return;
 
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, fx_index, "renamed_name", @as([:0]const u8, @ptrCast(&buf)) });
@@ -387,47 +382,43 @@ fn moduleToSuffix(buf: *[64:0]u8, comptime field_name: []const u8) ![:0]const u8
 /// For now, assume that missing modules are always going to be one fx per module
 pub fn updateTrackState(
     track_state: *TrackState,
-    parsed_fx: *std.ArrayListUnmanaged(ParsedFx),
     coverage: ModuleCoverage,
     mediaTrack: MediaTrack,
     buf: *[512:0]u8,
 ) void {
     // Reset current state
     track_state.fx_count = 0;
-    for (std.enums.values(ModulesList)) |module| {
-        track_state.module_locations.set(module, null);
+    inline for (std.meta.fields(ModulesList)) |field| {
+        track_state.module_locations.set(@field(ModulesList, field.name), null);
     }
 
-    // Update FX states and module locations
-    var i: usize = 0;
-    while (i < parsed_fx.items.len and i < MAX_FX) : (i += 1) {
-        const fx = parsed_fx.items[i];
-        if (fx.active_modules) |modules| {
-            // Add to fx_states using positions from coverage
+    // Iterate through coverage to update module locations
+    inline for (std.meta.fields(ModuleCoverage)) |field| {
+        if (@field(coverage, field.name)) |location| {
+            // Get original FX name for mapping lookup
+            _ = reaper.TrackFX_GetNamedConfigParm(
+                mediaTrack,
+                location.index,
+                "original_name",
+                buf,
+                buf.len,
+            );
+
+            const module = @field(ModulesList, field.name);
+            track_state.module_locations.set(module, .{
+                .fx_index = location.index,
+                .mapping = globals.map_store.get(std.mem.span(@as([*:0]const u8, buf)), module),
+            });
+
+            // Create ActiveModules with single module
+            var modules = ActiveModules{};
+            @field(modules, field.name) = true;
+
+            // Update fx_states
             track_state.fx_states[track_state.fx_count] = .{
-                .fx_index = fx.index,
+                .fx_index = location.index,
                 .modules = modules,
             };
-
-            // Update module locations using coverage positions
-            inline for (std.meta.fields(@TypeOf(modules))) |field| {
-                const is_active = @field(modules, field.name);
-                if (is_active) {
-                    const module = @field(ModulesList, field.name);
-                    _ = reaper.TrackFX_GetNamedConfigParm(
-                        mediaTrack,
-                        fx.index,
-                        "original_name",
-                        @ptrCast(buf),
-                        buf.len,
-                    );
-                    track_state.module_locations.set(module, .{
-                        .fx_index = @field(coverage, field.name).?,
-                        .mapping = globals.map_store.get(std.mem.span(@as([*:0]const u8, buf)), module),
-                    });
-                }
-            }
-
             track_state.fx_count += 1;
         }
     }
@@ -563,150 +554,173 @@ fn reorderFx(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx
     return coverage;
 }
 
-const log = std.log.scoped(.validation);
+fn insertModuleLinkedFx(
+    mediaTrack: MediaTrack,
+    module: ModulesList,
+    insert_pos: i32,
+    default_fx: DefaultFx,
+) ?struct { index: i32, guid: Guid } {
+    const fx_name = default_fx.get(module) orelse return null;
+
+    // Insert FX at position
+    const add_result = pReaper.TrackFX_AddByName(.{
+        mediaTrack,
+        fx_name,
+        false,
+        if (insert_pos >= 0) -1000 - insert_pos else insert_pos,
+    });
+
+    if (add_result >= 0) {
+        // Set module suffix
+        var name_buf: [512:0]u8 = undefined;
+        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ fx_name, module.toModulePrefix() }) catch return null;
+
+        _ = pReaper.TrackFX_SetNamedConfigParm(.{
+            mediaTrack,
+            add_result,
+            "renamed_name",
+            new_name,
+        });
+
+        // Get GUID of newly inserted FX
+        const guid_ptr = reaper.TrackFX_GetFXGUID(mediaTrack, add_result);
+        const guid = Guid.fromReaperGUID(guid_ptr);
+
+        return .{ .index = add_result, .guid = guid };
+    }
+
+    return null;
+}
+
+fn updateCoveragePositions(coverage: *ModuleCoverage, mediaTrack: MediaTrack) void {
+    const fx_count = reaper.TrackFX_GetCount(mediaTrack);
+
+    var i: i32 = 0;
+    while (i < fx_count) : (i += 1) {
+        const guid_ptr = reaper.TrackFX_GetFXGUID(mediaTrack, i);
+        const guid = Guid.fromReaperGUID(guid_ptr);
+
+        // Check if this FX matches any of our covered modules
+        blk: {
+            inline for (std.meta.fields(ModuleCoverage)) |field| {
+                if (@field(coverage, field.name)) |*location| {
+                    if (std.mem.eql(u8, &guid.bytes, &location.guid.bytes)) {
+                        location.index = i;
+                        break :blk; // Break out of the comparison block once we find a match
+                    }
+                }
+            }
+        }
+    }
+}
 
 pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx) ModuleCoverage {
     var coverage = cvrg;
 
     // Handle INPUT first
-    if (coverage.INPUT) |input_pos| {
-        var lowest_idx = input_pos;
-        inline for (std.meta.fields(ModuleCoverage)) |field| {
-            if (@field(coverage, field.name)) |pos| {
-                lowest_idx = @min(lowest_idx, pos);
-            }
-        }
-
-        if (lowest_idx < input_pos) {
-            const result = handleInsertWithConsolidation(mediaTrack, .INPUT, lowest_idx, default_fx, coverage);
-            if (result.position) |pos| {
-                coverage.INPUT = pos;
-            } else {
-                log.err("Failed to move INPUT FX to front position", .{});
-            }
-        }
-    } else {
+    if (coverage.INPUT == null) {
         // Find lowest position among module-linked FX
         const insert_pos = blk: {
             var min_pos: i32 = std.math.maxInt(i32);
             var found_any = false;
             inline for (std.meta.fields(ModuleCoverage)) |field| {
                 if (@field(coverage, field.name)) |pos| {
-                    min_pos = @min(min_pos, pos);
+                    min_pos = @min(min_pos, pos.index);
                     found_any = true;
                 }
             }
             break :blk if (found_any) min_pos else -1;
         };
 
-        const result = handleInsertWithConsolidation(mediaTrack, .INPUT, if (insert_pos == -1) 0 else insert_pos, default_fx, coverage);
-        if (result.position) |pos| {
-            coverage.INPUT = pos;
+        if (insertModuleLinkedFx(mediaTrack, .INPUT, insert_pos, default_fx)) |result| {
+            coverage.INPUT = .{ .index = result.index, .guid = result.guid };
+            updateCoveragePositions(&coverage, mediaTrack);
         } else {
             log.err("Failed to add INPUT FX", .{});
         }
     }
 
-    // Handle GATE and COMP together due to their ordering dependency
-    if (coverage.GATE) |gate_pos| {
+    // Handle missing GATE
+    if (coverage.GATE == null) {
         if (coverage.COMP) |comp_pos| {
-            // Both exist, ensure GATE is before COMP
-            if (gate_pos > comp_pos) {
-                const result = handleInsertWithConsolidation(mediaTrack, .GATE, comp_pos, default_fx, coverage);
-                if (result.position) |pos| {
-                    coverage.GATE = pos;
-                    if (!result.did_consolidate) {
-                        coverage.COMP = pos + 1;
-                    }
-                } else {
-                    log.err("Failed to move GATE FX before COMP", .{});
-                }
-            }
-        } else {
-            // Add COMP after GATE
-            const result = handleInsertWithConsolidation(mediaTrack, .COMP, gate_pos + 1, default_fx, coverage);
-            if (result.position) |pos| {
-                coverage.COMP = pos;
+            const insert_pos = comp_pos.index;
+            // Add GATE before COMP
+            if (insertModuleLinkedFx(mediaTrack, .GATE, insert_pos, default_fx)) |result| {
+                coverage.GATE = .{ .index = result.index, .guid = result.guid };
+                updateCoveragePositions(&coverage, mediaTrack);
             } else {
-                log.err("Failed to add COMP FX after GATE", .{});
-            }
-        }
-    } else if (coverage.COMP) |comp_pos| {
-        // Add GATE before COMP
-        const result = handleInsertWithConsolidation(mediaTrack, .GATE, comp_pos, default_fx, coverage);
-        if (result.position) |pos| {
-            coverage.GATE = pos;
-            if (!result.did_consolidate) {
-                coverage.COMP = pos + 1;
+                log.err("Failed to add GATE FX before COMP", .{});
             }
         } else {
-            log.err("Failed to add GATE FX before COMP", .{});
+            // Neither exists, check EQ position or add after INPUT
+            const insert_pos = if (coverage.EQ) |eq_pos|
+                eq_pos.index + 1
+            else if (coverage.INPUT) |input_pos|
+                input_pos.index + 1
+            else
+                -1;
+
+            // Add GATE first
+            if (insertModuleLinkedFx(mediaTrack, .GATE, insert_pos, default_fx)) |result| {
+                coverage.GATE = .{ .index = result.index, .guid = result.guid };
+                updateCoveragePositions(&coverage, mediaTrack);
+            } else {
+                log.err("Failed to add GATE FX", .{});
+            }
         }
-    } else {
-        // Neither exists, check EQ position or add after INPUT
-        const insert_pos = if (coverage.EQ) |eq_pos|
-            eq_pos + 1
-        else if (coverage.INPUT) |input_pos|
-            input_pos + 1
+    }
+
+    // Handle missing COMP
+    if (coverage.COMP == null) {
+        const insert_pos = if (coverage.GATE) |gate|
+            gate.index + 1
+        else if (coverage.EQ) |eq|
+            eq.index + 1
+        else if (coverage.INPUT) |input|
+            input.index + 1
         else
-            0;
+            -1;
 
-        // Add GATE first
-        const gate_result = handleInsertWithConsolidation(mediaTrack, .GATE, insert_pos, default_fx, coverage);
-        if (gate_result.position) |gate_pos| {
-            coverage.GATE = gate_pos;
-
-            // Then add COMP
-            const comp_result = handleInsertWithConsolidation(mediaTrack, .COMP, gate_pos + 1, default_fx, coverage);
-            if (comp_result.position) |comp_pos| {
-                coverage.COMP = comp_pos;
-            } else {
-                log.err("Failed to add COMP FX after newly added GATE", .{});
-            }
+        if (insertModuleLinkedFx(mediaTrack, .COMP, insert_pos, default_fx)) |result| {
+            coverage.COMP = .{ .index = result.index, .guid = result.guid };
+            updateCoveragePositions(&coverage, mediaTrack);
         } else {
-            log.err("Failed to add GATE FX", .{});
+            log.err("Failed to add COMP FX", .{});
         }
     }
 
     // Handle EQ
     if (coverage.EQ == null) {
         const insert_pos = if (coverage.GATE) |gate_pos|
-            gate_pos + 1
+            gate_pos.index + 1
         else if (coverage.INPUT) |input_pos|
-            input_pos + 1
+            input_pos.index + 1
         else
-            0;
+            -1;
 
-        const result = handleInsertWithConsolidation(mediaTrack, .EQ, insert_pos, default_fx, coverage);
-        if (result.position) |pos| {
-            coverage.EQ = pos;
+        if (insertModuleLinkedFx(mediaTrack, .EQ, insert_pos, default_fx)) |result| {
+            coverage.EQ = .{ .index = result.index, .guid = result.guid };
+            updateCoveragePositions(&coverage, mediaTrack);
         } else {
             log.err("Failed to add EQ FX", .{});
         }
     }
 
     // Handle OUTPUT last
-    if (coverage.OUTPT) |output_pos| {
-        var highest_idx = output_pos;
-        inline for (std.meta.fields(ModuleCoverage)) |field| {
-            if (@field(coverage, field.name)) |pos| {
-                highest_idx = @max(highest_idx, pos);
+    if (coverage.OUTPT == null) {
+        const insert_pos = blk: {
+            var high_pos: i32 = -1;
+            inline for (std.meta.fields(ModuleCoverage)) |field| {
+                if (@field(coverage, field.name)) |pos| {
+                    high_pos = @max(high_pos, pos.index);
+                }
             }
-        }
+            break :blk high_pos;
+        };
 
-        if (highest_idx > output_pos) {
-            const result = handleInsertWithConsolidation(mediaTrack, .OUTPT, highest_idx, default_fx, coverage);
-            if (result.position) |pos| {
-                coverage.OUTPT = pos;
-            } else {
-                log.err("Failed to move OUTPUT FX to last position", .{});
-            }
-        }
-    } else {
-        const result = handleInsertWithConsolidation(mediaTrack, .OUTPT, if (coverage.INPUT == null) 0 else -1, // -1 for end of chain
-            default_fx, coverage);
-        if (result.position) |pos| {
-            coverage.OUTPT = pos;
+        if (insertModuleLinkedFx(mediaTrack, .OUTPT, insert_pos, default_fx)) |result| {
+            coverage.OUTPT = .{ .index = result.index, .guid = result.guid };
+            updateCoveragePositions(&coverage, mediaTrack);
         } else {
             log.err("Failed to add OUTPUT FX", .{});
         }
@@ -1044,167 +1058,6 @@ const ConsolidationResult = struct {
     position: ?i32,
 };
 
-pub fn handleInsertWithConsolidation(
-    mediaTrack: MediaTrack,
-    module: ModulesList,
-    insert_pos: i32,
-    default_fx: DefaultFx,
-    coverage: ModuleCoverage,
-) ConsolidationResult {
-    const fx_name: [:0]const u8 = default_fx.get(module) orelse return .{ .did_consolidate = false, .position = null };
-    // Find preceding and following module-linked FX
-    var prev_fx: ?i32 = null;
-    var next_fx: ?i32 = null;
-    var prev_name: ?[:0]const u8 = null;
-    var next_name: ?[:0]const u8 = null;
-
-    inline for (std.meta.fields(ModuleCoverage)) |field| {
-        if (@field(coverage, field.name)) |pos| {
-            if (pos == insert_pos - 1) {
-                prev_fx = pos;
-                var buf: [512:0]u8 = undefined;
-                if (pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, pos, "original_name", @as([*:0]u8, &buf), buf.len })) {
-                    prev_name = std.mem.span(@as([*:0]const u8, &buf));
-                }
-            } else if (pos == insert_pos + 1) {
-                next_fx = pos;
-                var buf: [512:0]u8 = undefined;
-                if (pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, pos, "original_name", @as([*:0]u8, &buf), buf.len })) {
-                    next_name = std.mem.span(@as([*:0]const u8, &buf));
-                }
-            }
-        }
-    }
-
-    // Case 1: Can consolidate with both prev and next
-    // Skip if INPUT (no preceding) or OUTPUT (no following)
-    if (module != .INPUT and module != .OUTPT and
-        prev_fx != null and next_fx != null and
-        prev_name != null and next_name != null and
-        std.mem.eql(u8, prev_name.?, fx_name) and
-        std.mem.eql(u8, next_name.?, fx_name))
-    {
-        // Update prev FX suffix to include all three
-        if (consolidateWithFxSuffix(mediaTrack, prev_fx.?, module)) {
-            // Remove next FX as it's now consolidated
-            _ = pReaper.TrackFX_Delete(.{ mediaTrack, next_fx.? });
-            return .{ .did_consolidate = true, .position = prev_fx };
-        }
-    }
-
-    // Case 2: Can consolidate with prev only
-    // Skip if INPUT (no preceding)
-    if (module != .INPUT and
-        prev_fx != null and prev_name != null and
-        std.mem.eql(u8, prev_name.?, fx_name))
-    {
-        if (consolidateWithFxSuffix(mediaTrack, prev_fx.?, module)) {
-            return .{ .did_consolidate = true, .position = prev_fx };
-        }
-    }
-
-    // Case 3: Can consolidate with next only
-    // Skip if OUTPUT (no following)
-    if (module != .OUTPT and
-        next_fx != null and next_name != null and
-        std.mem.eql(u8, next_name.?, fx_name))
-    {
-        if (consolidateWithFxSuffix(mediaTrack, next_fx.?, module)) {
-            return .{ .did_consolidate = true, .position = next_fx };
-        }
-    }
-
-    // Case 4: No consolidation possible, perform normal insertion
-    const add_result = pReaper.TrackFX_AddByName(.{ mediaTrack, fx_name, false, if (insert_pos >= 0) -1000 - insert_pos else insert_pos });
-    if (add_result >= 0) {
-        const module_char = module.toModulePrefix();
-        var name_buf: [512:0]u8 = undefined;
-        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ fx_name, module_char }) catch return .{ .did_consolidate = false, .position = null };
-
-        _ = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, add_result, "renamed_name", new_name });
-        return .{ .did_consolidate = false, .position = insert_pos };
-    }
-    return .{ .did_consolidate = false, .position = null };
-}
-
-test "handleInsertWithConsolidation" {
-    const testing = std.testing;
-
-    const allocator = std.testing.allocator;
-
-    // Save original functions and replace with mocks
-    MockReaper.init(testing.allocator);
-    defer MockReaper.deinit();
-
-    const dummy_track: MediaTrack = @ptrFromInt(0xdeadbeef);
-    const default_fx = DefaultFx.init(.{
-        .INPUT = "Test FX",
-        .GATE = "Test FX",
-        .EQ = "Test FX",
-        .COMP = "Different FX",
-        .OUTPT = "Test FX",
-    });
-
-    // Test 1: Insert with no pre-existing FX
-    {
-        try MockReaper.reset(allocator);
-        const result = handleInsertWithConsolidation(dummy_track, .EQ, 0, default_fx, .{});
-        try testing.expectEqual(false, result.did_consolidate);
-        try testing.expectEqual(@as(i32, 0), result.position.?);
-    }
-
-    // Test 2: Insert for consolidation with previous
-    {
-        try MockReaper.reset(allocator);
-        try MockReaper.fx_chain.append(.{
-            .original_name = "Test FX",
-            .renamed_name = "Test FX (C1-E)",
-        });
-
-        const result = handleInsertWithConsolidation(dummy_track, .GATE, 1, default_fx, .{ .EQ = 0 });
-        try testing.expectEqual(true, result.did_consolidate);
-        try testing.expectEqual(@as(i32, 0), result.position.?);
-        try testing.expectEqualStrings("Test FX (C1-SE)", MockReaper.fx_chain.items[0].renamed_name);
-    }
-
-    // Test 3: Insert between for consolidation
-    {
-        try MockReaper.reset(allocator);
-        try MockReaper.fx_chain.append(.{
-            .original_name = "Test FX",
-            .renamed_name = "Test FX (C1-E)",
-        });
-        try MockReaper.fx_chain.append(.{
-            .original_name = "Test FX",
-            .renamed_name = "Test FX (C1-O)",
-        });
-
-        const result = handleInsertWithConsolidation(dummy_track, .GATE, 1, default_fx, .{
-            .EQ = 0,
-            .OUTPT = 1,
-        });
-        try testing.expectEqual(true, result.did_consolidate);
-        try testing.expectEqual(@as(i32, 0), result.position.?);
-        const chain = try MockReaper.getChainState();
-        defer testing.allocator.free(chain);
-        try testing.expectEqual(@as(usize, 1), chain.len);
-        try testing.expectEqualStrings("Test FX (C1-SEO)", MockReaper.fx_chain.items[0].renamed_name);
-    }
-
-    // Test 4: Insert without consolidation
-    {
-        try MockReaper.reset(allocator);
-        try MockReaper.fx_chain.append(.{
-            .original_name = "Test FX",
-            .renamed_name = "Test FX (C1-E)",
-        });
-
-        const result = handleInsertWithConsolidation(dummy_track, .COMP, 1, default_fx, .{ .EQ = 0 });
-        try testing.expectEqual(false, result.did_consolidate);
-        try testing.expectEqual(@as(i32, 1), result.position.?);
-    }
-}
-
 fn toOrderedSuffix(current_modules: ActiveModules, new_module: ModulesList, buf: *[5:0]u8) [:0]const u8 {
     var active_modules = current_modules;
 
@@ -1326,21 +1179,19 @@ test "consolidateWithFx" {
     }
 }
 
-pub fn setModulesOrder(self: *TrackState, order: ModulesOrder, mediaTrack: MediaTrack) void {
+pub fn setModulesOrder(
+    self: *TrackState,
+    order: ModulesOrder,
+    mediaTrack: MediaTrack,
+    ref_coverage: ModuleCoverage,
+) void {
+    var coverage = ref_coverage;
     // Early return if we don't have all three modules
     const eq_loc = self.module_locations.get(.EQ);
     const gate_loc = self.module_locations.get(.GATE);
     const comp_loc = self.module_locations.get(.COMP);
 
     if (eq_loc == null or gate_loc == null or comp_loc == null) return;
-
-    var coverage = ModuleCoverage{
-        .INPUT = if (self.module_locations.get(.INPUT)) |loc| loc.fx_index else null,
-        .GATE = gate_loc.?.fx_index,
-        .EQ = eq_loc.?.fx_index,
-        .COMP = comp_loc.?.fx_index,
-        .OUTPT = if (self.module_locations.get(.OUTPT)) |loc| loc.fx_index else null,
-    };
 
     // Calculate target position for EQ based on desired order
     const eq_target_pos = switch (order) {
@@ -1360,32 +1211,17 @@ pub fn setModulesOrder(self: *TrackState, order: ModulesOrder, mediaTrack: Media
         true,
     });
 
-    // Update coverage with new position
-    coverage.EQ = eq_target_pos;
+    // Update coverage with new positions
+    updateCoveragePositions(&coverage, mediaTrack);
 
-    // Adjust other positions if needed
-    if (eq_target_pos < eq_loc.?.fx_index) {
-        // Moving earlier in chain, shift others up
-        if (coverage.GATE) |pos| {
-            if (pos > eq_target_pos) {
-                coverage.GATE = pos + 1;
-            }
-        }
-        if (coverage.COMP) |pos| {
-            if (pos > eq_target_pos) {
-                coverage.COMP = pos + 1;
-            }
-        }
-    } else {
-        // Moving later in chain, shift others down
-        if (coverage.GATE) |pos| {
-            if (pos < eq_target_pos) {
-                coverage.GATE = pos - 1;
-            }
-        }
-        if (coverage.COMP) |pos| {
-            if (pos < eq_target_pos) {
-                coverage.COMP = pos - 1;
+    // Update module_locations with new positions
+    inline for ([_]ModulesList{ .EQ, .GATE, .COMP }) |module| {
+        if (@field(coverage, @tagName(module))) |loc| {
+            if (self.module_locations.get(module)) |old_loc| {
+                self.module_locations.set(module, .{
+                    .fx_index = loc.index,
+                    .mapping = old_loc.mapping,
+                });
             }
         }
     }
@@ -1393,16 +1229,12 @@ pub fn setModulesOrder(self: *TrackState, order: ModulesOrder, mediaTrack: Media
     // Update module_locations with new positions
     inline for (comptime std.enums.values(ModulesList)) |module| {
         const pos = switch (module) {
-            .INPUT => coverage.INPUT,
-            .GATE => coverage.GATE,
-            .EQ => coverage.EQ,
-            .COMP => coverage.COMP,
-            .OUTPT => coverage.OUTPT,
+            inline else => |impl| @field(coverage, @tagName(impl)),
         };
-        if (pos) |fx_index| {
+        if (pos) |module_coverage| {
             if (self.module_locations.get(module)) |loc| {
                 self.module_locations.set(module, .{
-                    .fx_index = fx_index,
+                    .fx_index = module_coverage.index,
                     .mapping = loc.mapping,
                 });
             }

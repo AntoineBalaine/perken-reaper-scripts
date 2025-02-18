@@ -112,7 +112,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             }
 
             // // Update track state
-            track_state.validateTrack(track);
+            _ = track_state.validateTrack(track);
 
             // state.current_mode = .mapping_panel;
             // Enter mapping mode if needed, otherwise return to fx_ctrl
