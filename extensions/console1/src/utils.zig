@@ -72,3 +72,74 @@ pub fn calculateNewScrollPosition(
     }
     return delta;
 }
+
+pub const Guid = struct {
+    bytes: [16]u8,
+
+    pub fn fromReaperGUID(reaper_guid: *const reaper.GUID) Guid {
+        // Safe to reinterpret the opaque pointer as a pointer to 16 bytes
+        const bytes_ptr: *const [16]u8 = @ptrCast(reaper_guid);
+        return .{ .bytes = bytes_ptr.* };
+    }
+
+    pub fn fromString(str: []const u8) !Guid {
+        if (str.len != 38 or str[0] != '{' or str[37] != '}')
+            return error.InvalidGuidFormat;
+
+        var bytes: [16]u8 = undefined;
+        var byte_idx: usize = 0;
+
+        var i: usize = 1;
+        while (byte_idx < 16) : (byte_idx += 1) {
+            while (str[i] == '-') i += 1;
+
+            const high = try std.fmt.parseInt(u4, str[i..][0..1], 16);
+            const low = try std.fmt.parseInt(u4, str[i + 1 ..][0..1], 16);
+            bytes[byte_idx] = @as(u8, high) << 4 | @as(u8, low);
+            i += 2;
+        }
+
+        return Guid{ .bytes = bytes };
+    }
+
+    pub fn toString(self: Guid, buf: *[38:0]u8) void {
+        // Format: {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}
+        buf[0] = '{';
+        buf[37] = '}';
+
+        var str_idx: usize = 1;
+        for (self.bytes, 0..) |byte, i| {
+            // Add hyphens at appropriate positions
+            if (i == 4 or i == 6 or i == 8 or i == 10) {
+                buf[str_idx] = '-';
+                str_idx += 1;
+            }
+
+            // Convert each byte to two hex digits
+            const high: u4 = @truncate(byte >> 4);
+            const low: u4 = @truncate(byte & 0x0F);
+            buf[str_idx] = std.fmt.digitToChar(@as(u8, high), .upper);
+            buf[str_idx + 1] = std.fmt.digitToChar(@as(u8, low), .upper);
+            str_idx += 2;
+        }
+        buf[38] = 0;
+    }
+};
+
+test "Guid conversion" {
+    const testing = std.testing;
+    const guid_str = "{6FE63880-278A-F842-B9E4-FE7E6A81FDA4}";
+
+    // Test string to Guid
+    const guid = try Guid.fromString(guid_str);
+
+    // Test Guid back to string
+    var buf: [38:0]u8 = undefined;
+    guid.toString(&buf);
+
+    try testing.expectEqualStrings(guid_str, &buf);
+
+    // Test another conversion round-trip
+    const guid2 = try Guid.fromString(&buf);
+    try testing.expectEqual(guid, guid2);
+}
