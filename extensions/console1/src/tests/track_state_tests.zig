@@ -18,6 +18,7 @@ pub fn runTrackStateTests() !void {
         .{ .name = "analyze coverage - no duplicates", .setup = setupEmptyTrack, .run = testAnalyzeCoverageNoDuplicates },
         .{ .name = "analyze coverage - removes duplicates fx suffix", .setup = setupEmptyTrack, .run = testAnalyzeCoverageDuplicates },
         .{ .name = "insert missing modules", .setup = setupEmptyTrack, .run = testAddMissingModules },
+        .{ .name = "default fx chain order", .setup = setupEmptyTrack, .run = testDefaultFxChainOrder },
     };
 
     for (test_cases) |test_case| {
@@ -31,6 +32,24 @@ pub fn runTrackStateTests() !void {
 // Setup/teardown functions
 pub fn setupEmptyTrack() !void {
     _ = pReaper.InsertTrackAtIndex(.{ 0, false });
+}
+
+pub fn testDefaultFxChainOrder() !void {
+    const track = reaper.GetTrack(0, 0);
+
+    var track_state: TrackState = undefined;
+    const coverage = track_state.validateTrack(track);
+
+    // Verify all modules were added and positioned correctly
+    try std.testing.expectEqual(@as(i32, 0), coverage.INPUT.?.index);
+    try std.testing.expectEqual(@as(i32, 1), coverage.GATE.?.index);
+    try std.testing.expectEqual(@as(i32, 2), coverage.EQ.?.index);
+    try std.testing.expectEqual(@as(i32, 3), coverage.COMP.?.index);
+    try std.testing.expectEqual(@as(i32, 4), coverage.OUTPT.?.index);
+
+    // Verify total FX count
+    const fx_count = pReaper.TrackFX_GetCount(.{track});
+    try std.testing.expectEqual(@as(c_int, 5), fx_count);
 }
 
 pub fn testFxChainValidation() !void {

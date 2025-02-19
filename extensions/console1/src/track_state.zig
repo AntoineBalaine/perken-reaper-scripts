@@ -715,7 +715,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                     high_pos = @max(high_pos, pos.index);
                 }
             }
-            break :blk high_pos;
+            break :blk if (high_pos == -1) high_pos else high_pos + 1;
         };
 
         if (insertModuleLinkedFx(mediaTrack, .OUTPT, insert_pos, default_fx)) |result| {
@@ -1077,106 +1077,6 @@ fn toOrderedSuffix(current_modules: ActiveModules, new_module: ModulesList, buf:
 
     buf[len] = 0;
     return buf[0..len :0];
-}
-
-pub fn consolidateWithFxSuffix(
-    mediaTrack: MediaTrack,
-    target_fx: i32,
-    module: ModulesList,
-) bool {
-    var name_buf: [512:0]u8 = undefined;
-    var buf: [512:0]u8 = undefined;
-    var suffix_buf: [5:0]u8 = undefined;
-
-    // Get current renamed name
-    if (!pReaper.TrackFX_GetNamedConfigParm(.{ mediaTrack, target_fx, "renamed_name", @as([*:0]u8, &name_buf), name_buf.len })) {
-        log.err("Failed to get renamed name for FX at position {}", .{target_fx});
-        return false;
-    }
-
-    const current_name = std.mem.span(@as([*:0]const u8, &name_buf));
-
-    // Parse current modules using existing function
-    const current_modules = parseC1Suffix(current_name) orelse {
-        log.err("Failed to parse C1 suffix from name {s}", .{current_name});
-        return false;
-    };
-
-    // Find C1 suffix
-    const suffix_start = std.mem.lastIndexOf(u8, current_name, "(C1-") orelse {
-        log.err("No C1 suffix found in FX name {s}", .{current_name});
-        return false;
-    };
-
-    const suffix_end = std.mem.indexOfPos(u8, current_name, suffix_start, ")") orelse {
-        log.err("Malformed C1 suffix in FX name {s}", .{current_name});
-        return false;
-    };
-
-    // Build ordered suffix
-    const ordered_suffix = toOrderedSuffix(current_modules, module, &suffix_buf);
-
-    // Build new name with ordered suffix
-    const new_name = std.fmt.bufPrintZ(&buf, "{s}(C1-{s}){s}", .{
-        current_name[0..suffix_start],
-        ordered_suffix,
-        current_name[suffix_end + 1 ..],
-    }) catch |err| {
-        log.err("Failed to build new name: {}", .{err});
-        return false;
-    };
-
-    // Update FX name
-    if (!pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, target_fx, "renamed_name", new_name.ptr })) {
-        log.err("Failed to set new name for FX at position {}", .{target_fx});
-        return false;
-    }
-
-    return true;
-}
-
-test "consolidateWithFx" {
-    const testing = std.testing;
-
-    const allocator = testing.allocator;
-
-    MockReaper.init(allocator);
-    defer MockReaper.deinit();
-
-    const dummy_track: MediaTrack = @ptrFromInt(0xdeadbeef);
-
-    // Test 1: Add COMP to existing EQ
-    {
-        try MockReaper.reset(allocator);
-        try MockReaper.fx_chain.append(.{
-            .original_name = "Test FX",
-            .renamed_name = "Test FX (C1-E)",
-        });
-        try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .COMP));
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_chain.items[0].renamed_name, "Test FX (C1-EC)"));
-    }
-
-    // Test 2: Add INPUT to existing EQ
-    {
-        try MockReaper.reset(allocator);
-        try MockReaper.fx_chain.append(.{
-            .original_name = "Test FX",
-            .renamed_name = "Test FX (C1-E)",
-        });
-        try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .INPUT));
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_chain.items[0].renamed_name, "Test FX (C1-IE)"));
-    }
-
-    // Test 3: Add OUTPUT to existing EQ
-    {
-        try MockReaper.reset(allocator);
-        try MockReaper.fx_chain.append(.{
-            .original_name = "Test FX",
-            .renamed_name = "Test FX (C1-E)",
-        });
-        try testing.expect(consolidateWithFxSuffix(dummy_track, 0, .OUTPT));
-        try testing.expect(std.mem.eql(u8, MockReaper.fx_chain.items[0].renamed_name, "Test FX (C1-EO)"));
-    }
 }
 
 pub fn setModulesOrder(
