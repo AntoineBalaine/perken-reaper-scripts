@@ -8,7 +8,8 @@ const Rectangle = knob.Rectangle;
 pub const TextPosition = enum {
     above, // default
     right,
-    // You can add more positions like 'left', 'below' if needed
+    below,
+    // You can add more positions like 'left' if needed
 };
 
 pub fn roundButton(
@@ -36,11 +37,11 @@ pub fn roundButton(
     // Calculate total widget dimensions based on text position
     const button_size = radius * 2;
     const total_width = switch (text_pos) {
-        .above => @max(button_size, label_size.w),
+        .above, .below => @max(button_size, label_size.w),
         .right => button_size + text_padding * 2 + label_size.w,
     };
     const total_height = switch (text_pos) {
-        .above => button_size + label_size.h + text_padding * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+        .above, .below => button_size + label_size.h + text_padding * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
         .right => @max(button_size, label_size.h),
     };
 
@@ -57,21 +58,23 @@ pub fn roundButton(
 
         // Calculate circle position
         const center_x = switch (text_pos) {
-            .above => widget_rect.min_x + total_width / 2,
+            .above, .below => widget_rect.min_x + total_width / 2,
             .right => widget_rect.min_x + radius,
         };
         const center_y = switch (text_pos) {
             .above => widget_rect.min_y + label_size.h + text_padding * 2 + radius,
+            .below => widget_rect.min_y + radius,
             .right => widget_rect.min_y + total_height / 2,
         };
 
         // Calculate label position
         const label_pos_x = switch (text_pos) {
-            .above => widget_rect.min_x + (total_width - label_size.w) / 2,
+            .above, .below => widget_rect.min_x + (total_width - label_size.w) / 2,
             .right => center_x + radius + text_padding * 2,
         };
         const label_pos_y = switch (text_pos) {
             .above => widget_rect.min_y + text_padding,
+            .below => widget_rect.min_y + button_size + text_padding * 2,
             .right => center_y - label_size.h / 2,
         };
 
