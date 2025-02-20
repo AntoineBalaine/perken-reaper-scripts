@@ -95,9 +95,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
         defer imgui.EndGroup(.{ctx}) catch {};
 
         const shp_bypass = fx_state.values.get(.Shp_shape).?.button;
-        var shp_bypass_val = shp_bypass;
-        if (try imgui.Checkbox(.{ ctx, c1.CCs.Shp_shape.getLabel(mode), &shp_bypass_val })) {
-            rv = .{ .cc = .Shp_shape, .value = if (shp_bypass_val) 1 else 0 };
+        const shp_bypass_val = shp_bypass;
+        if (try roundButton(.{ ctx, c1.CCs.Shp_shape.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right })) {
+            rv = .{ .cc = .Shp_shape, .value = if (shp_bypass_val) 0 else 1 };
         }
 
         // First column
@@ -111,9 +111,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
                 }
 
                 const hard_gate = fx_state.values.get(.Shp_hard_gate).?.button;
-                var hard_gate_val = hard_gate;
-                if (try imgui.Checkbox(.{ ctx, c1.CCs.Shp_hard_gate.getLabel(mode), &hard_gate_val })) {
-                    rv = .{ .cc = .Shp_hard_gate, .value = if (hard_gate_val) 1 else 0 };
+                const hard_gate_val = hard_gate;
+                if (try roundButton(.{ ctx, c1.CCs.Shp_hard_gate.getLabel(mode), "##" ++ @tagName(c1.CCs.Shp_hard_gate), null, null, .below })) {
+                    rv = .{ .cc = .Shp_hard_gate, .value = if (hard_gate_val) 0 else 1 };
                 }
             }
         }
@@ -152,9 +152,8 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
         defer imgui.EndGroup(.{ctx}) catch {};
 
         const eq_bypass = fx_state.values.get(.Eq_eq).?.button;
-        var eq_bypass_val = eq_bypass;
-        if (try imgui.Checkbox(.{ ctx, c1.CCs.Eq_eq.getLabel(mode), &eq_bypass_val })) {
-            rv = .{ .cc = .Eq_eq, .value = if (eq_bypass_val) 1 else 0 };
+        if (try roundButton(.{ ctx, c1.CCs.Eq_eq.getLabel(mode), "##" ++ @tagName(c1.CCs.Eq_eq), null, null, .right })) {
+            rv = .{ .cc = .Eq_eq, .value = if (eq_bypass) 0 else 1 };
         }
 
         { // first column
@@ -162,9 +161,8 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
             defer imgui.EndGroup(.{ctx}) catch {};
             {
                 const lo_shape = fx_state.values.get(.Eq_lp_shape).?.button;
-                var lo_shape_val = lo_shape;
-                if (try imgui.Checkbox(.{ ctx, c1.CCs.Eq_lp_shape.getLabel(mode), &lo_shape_val })) {
-                    rv = .{ .cc = .Eq_lp_shape, .value = if (lo_shape_val) 1 else 0 };
+                if (try roundButton(.{ ctx, c1.CCs.Eq_lp_shape.getLabel(mode), "##" ++ @tagName(c1.CCs.Eq_lp_shape), null, null, .right })) {
+                    rv = .{ .cc = .Eq_lp_shape, .value = if (lo_shape) 0 else 1 };
                 }
 
                 var lofreq_prm = fx_state.values.get(.Eq_LoFrq).?.param;
@@ -232,9 +230,8 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
             defer imgui.EndGroup(.{ctx}) catch {};
             {
                 const hi_shape = fx_state.values.get(.Eq_hp_shape).?.button;
-                var hi_shape_val = hi_shape;
-                if (try imgui.Checkbox(.{ ctx, c1.CCs.Eq_hp_shape.getLabel(mode), &hi_shape_val })) {
-                    rv = .{ .cc = .Eq_hp_shape, .value = if (hi_shape_val) 1 else 0 };
+                if (try roundButton(.{ ctx, c1.CCs.Eq_hp_shape.getLabel(mode), "##" ++ @tagName(c1.CCs.Eq_hp_shape), null, null, .right })) {
+                    rv = .{ .cc = .Eq_hp_shape, .value = if (hi_shape) 0 else 1 };
                 }
 
                 var hifreq_prm = fx_state.values.get(.Eq_HiFrq).?.param;
@@ -258,9 +255,8 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
         const comp_bypass = fx_state.values.get(.Comp_comp).?.button;
-        var comp_bypass_val = comp_bypass;
-        if (try imgui.Checkbox(.{ ctx, c1.CCs.Comp_comp.getLabel(mode), &comp_bypass_val })) {
-            rv = .{ .cc = .Comp_comp, .value = if (comp_bypass_val) 1 else 0 };
+        if (try roundButton(.{ ctx, c1.CCs.Comp_comp.getLabel(mode), "##" ++ @tagName(c1.CCs.Comp_comp), null, null, .right })) {
+            rv = .{ .cc = .Comp_comp, .value = if (comp_bypass) 0 else 1 };
         }
 
         // First column
@@ -343,18 +339,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
             defer imgui.EndGroup(.{ctx}) catch {};
             {
                 const solo = fx_state.values.get(.Out_solo).?.button;
-                var solo_val = solo;
-
-                if (try imgui.Checkbox(.{ ctx, c1.CCs.Out_solo.getLabel(mode), &solo_val })) {
-                    rv = .{ .cc = .Out_solo, .value = if (solo_val) 1 else 0 };
+                if (try roundButton(.{ ctx, c1.CCs.Out_solo.getLabel(mode), "##" ++ @tagName(c1.CCs.Out_solo), null, null, .below })) {
+                    rv = .{ .cc = .Out_solo, .value = if (solo) 0 else 1 };
                 }
 
                 try imgui.SameLine(.{ctx});
 
                 const mute = fx_state.values.get(.Out_mute).?.button;
-                var mute_val = mute;
-                if (try imgui.Checkbox(.{ ctx, c1.CCs.Out_mute.getLabel(mode), &mute_val })) {
-                    rv = .{ .cc = .Out_mute, .value = if (mute_val) 1 else 0 };
+                if (try roundButton(.{ ctx, c1.CCs.Out_mute.getLabel(mode), "##" ++ @tagName(c1.CCs.Out_mute), null, null, .below })) {
+                    rv = .{ .cc = .Out_mute, .value = if (mute) 0 else 1 };
                 }
 
                 var vol_prm = fx_state.values.get(.Out_Vol).?.param;
