@@ -7,7 +7,7 @@ const State = @import("statemachine.zig").State;
 const c1 = @import("c1.zig");
 const WidgetInput = @import("fx_ctrl_actions.zig").WidgetInput;
 const globals = @import("globals.zig");
-const roundButton = @import("components/button.zig").roundButton;
+const roundButton = @import("components/widgets.zig").roundButton;
 // Layout constants
 // const section_spacing = 10.0;
 const knob_size = 40.0;
@@ -46,19 +46,16 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
     var rv: ?WidgetInput = null;
     const section_spacing = 40.0;
-    {
-        try imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-        if (try roundButton(ctx, "FX", "##fx_thingy", null, "Toggle FX on/off")) {
-            // log.info("FX button clicked");
-        }
-    }
     // Input Section
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
-        try imgui.Text(.{ ctx, "Input" });
+        // try imgui.Text(.{ ctx, "Input" });
+
+        if (try roundButton(.{ ctx, c1.CCs.Inpt_disp_on.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_disp_on) })) {}
+        try imgui.SameLine(.{ctx});
+        if (try roundButton(.{ ctx, c1.CCs.Inpt_disp_mode.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_disp_on) })) {}
 
         // First column
         var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
@@ -82,6 +79,10 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
                     rv = .{ .cc = .Inpt_LoCut, .value = locut_prm.normalized };
                 }
             }
+
+            if (try roundButton(.{ ctx, c1.CCs.Inpt_filt_to_comp.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right })) {}
+            if (try roundButton(.{ ctx, c1.CCs.Inpt_phase_inv.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right })) {}
+            if (try roundButton(.{ ctx, c1.CCs.Inpt_preset.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right })) {}
         }
     }
 

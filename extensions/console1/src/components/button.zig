@@ -4,38 +4,23 @@ const knob = @import("knob.zig");
 const Size = knob.Size;
 const Position = knob.Position;
 const Rectangle = knob.Rectangle;
-/// Label must contain an id using "##<id>"
-// pub fn roundButton(ctx: imgui.ContextPtr, label: [:0]const u8, provided_radius: ?f64) !bool {
-//     const radius = if (provided_radius) |rad| rad else 5.0;
-//     const draw_list = try imgui.GetWindowDrawList(.{ctx});
-//     var pos_x: f64 = undefined;
-//     var pos_y: f64 = undefined;
-//     try imgui.GetCursorScreenPos(.{ ctx, &pos_x, &pos_y });
-//
-//     // Draw circle outline
-//     try imgui.DrawList_AddCircleFilled(.{
-//         draw_list,
-//         pos_x + radius, // center x
-//         pos_y + radius, // center y
-//         radius,
-//         0xFFFFFFFF, // color (white)
-//         0, // num segments (0 for auto)
-//         2.0, // thickness
-//     });
-//
-//     // Make it clickable
-//     const button_size = radius * 2;
-//     return try imgui.InvisibleButton(.{ ctx, label, button_size, button_size });
-// }
+
+pub const TextPosition = enum {
+    above, // default
+    right,
+    // You can add more positions like 'left', 'below' if needed
+};
 
 pub fn roundButton(
     ctx: imgui.ContextPtr,
     label: [:0]const u8,
     id: [:0]const u8,
-    provided_radius: ?f64,
     tooltip: ?[:0]const u8,
+    provided_radius: ?f64,
+    text_position: ?TextPosition,
 ) !bool {
     const radius = if (provided_radius) |rad| rad else 5.0;
+    const text_pos = if (text_position) |pos| pos else TextPosition.above;
     const draw_list = try imgui.GetWindowDrawList(.{ctx});
     var rv: bool = false;
 
@@ -48,41 +33,49 @@ pub fn roundButton(
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
-    // Calculate total widget dimensions
+    // Calculate total widget dimensions based on text position
     const button_size = radius * 2;
-    const total_width = @max(button_size, label_size.w);
+    const total_width = switch (text_pos) {
+        .above => @max(button_size, label_size.w),
+        .right => button_size + text_padding * 2 + label_size.w,
+    };
+    const total_height = switch (text_pos) {
+        .above => button_size + label_size.h + text_padding * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+        .right => @max(button_size, label_size.h),
+    };
+
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
         .min_y = cur_pos.y,
         .max_x = cur_pos.x + total_width,
-        .max_y = cur_pos.y + button_size + label_size.h + text_padding * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+        .max_y = cur_pos.y + total_height,
     };
 
-    // Create clipping rectangle and draw components
     {
-        try imgui.PushClipRect(.{
-            ctx,
-            widget_rect.min_x,
-            widget_rect.min_y,
-            widget_rect.max_x,
-            widget_rect.max_y,
-            true,
-        });
+        try imgui.PushClipRect(.{ ctx, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, true });
         defer imgui.PopClipRect(.{ctx}) catch {};
 
-        // Draw label at top
-        try imgui.DrawList_AddText(.{
-            draw_list,
-            widget_rect.min_x + (total_width - label_size.w) / 2,
-            widget_rect.min_y + text_padding,
-            try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }),
-            label,
-        });
+        // Calculate circle position
+        const center_x = switch (text_pos) {
+            .above => widget_rect.min_x + total_width / 2,
+            .right => widget_rect.min_x + radius,
+        };
+        const center_y = switch (text_pos) {
+            .above => widget_rect.min_y + label_size.h + text_padding * 2 + radius,
+            .right => widget_rect.min_y + total_height / 2,
+        };
 
-        // Draw label at top and create invisible button for tooltip
-        const label_pos_x = widget_rect.min_x + (total_width - label_size.w) / 2;
-        const label_pos_y = widget_rect.min_y + text_padding;
+        // Calculate label position
+        const label_pos_x = switch (text_pos) {
+            .above => widget_rect.min_x + (total_width - label_size.w) / 2,
+            .right => center_x + radius + text_padding * 2,
+        };
+        const label_pos_y = switch (text_pos) {
+            .above => widget_rect.min_y + text_padding,
+            .right => center_y - label_size.h / 2,
+        };
 
+        // Draw label
         try imgui.DrawList_AddText(.{
             draw_list,
             label_pos_x,
@@ -93,18 +86,13 @@ pub fn roundButton(
 
         // Add invisible button over label for tooltip
         try imgui.SetCursorScreenPos(.{ ctx, label_pos_x, label_pos_y });
-        _ = try imgui.InvisibleButton(.{ ctx, "##label", label_size.w, label_size.h });
+        if (try imgui.InvisibleButton(.{ ctx, "##label", label_size.w, label_size.h })) {}
 
-        // Show tooltip if provided and label is hovered
         if (tooltip) |tip| {
             if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None })) {
                 try imgui.SetTooltip(.{ ctx, tip });
             }
         }
-
-        // Calculate circle position (centered horizontally, below label)
-        const center_x = widget_rect.min_x + total_width / 2;
-        const center_y = widget_rect.min_y + label_size.h + text_padding * 2 + radius;
 
         // Draw circle
         try imgui.DrawList_AddCircleFilled(.{
@@ -112,9 +100,9 @@ pub fn roundButton(
             center_x,
             center_y,
             radius,
-            0xFFFFFFFF, // color (white)
-            0, // num segments (0 for auto)
-            2.0, // thickness
+            0xFFFFFFFF,
+            0,
+            2.0,
         });
 
         // Position and create the invisible button
@@ -123,6 +111,7 @@ pub fn roundButton(
     }
 
     // Create dummy space for entire widget
+    try imgui.SetCursorScreenPos(.{ ctx, widget_rect.min_x, widget_rect.min_y });
     try imgui.Dummy(.{
         ctx,
         widget_rect.max_x - widget_rect.min_x,

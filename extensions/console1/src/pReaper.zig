@@ -2673,7 +2673,7 @@ pub const GetTrackInfo = function(&reaper.GetTrackInfo, 2, &.{ INT_PTR, *c_int }
 pub const GetTrackMediaItem = function(&reaper.GetTrackMediaItem, 2, &.{ *MediaTrack, c_int });
 
 /// GetTrackMIDILyrics
-/// Get all MIDI lyrics on the track. Lyrics will be returned as one string with tabs between each word. flag&1: f64 tabs at the end of each measure and triple tabs when skipping measures, flag&2: each lyric is preceded by its beat position in the project (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See SetTrackMIDILyrics
+/// Get all MIDI lyrics on the track. Lyrics will be returned as one string with tabs between each word. flag&1: f64 tabs at the end of each measure and triple tabs when skipping measures, flag&2: each lyric is preceded by its beat position in the project (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1"). See SetTrackMIDILyrics
 ///-- @param track MediaTrack
 ///-- @param flag c_int
 ///-- @param bufOutWantNeedBig *c_char
@@ -5153,7 +5153,7 @@ pub const SetTrackAutomationMode = function(&reaper.SetTrackAutomationMode, 2, &
 pub const SetTrackColor = function(&reaper.SetTrackColor, 2, &.{ MediaTrack, c_int });
 
 /// SetTrackMIDILyrics
-/// Set all MIDI lyrics on the track. Lyrics will be stuffed into any MIDI items found in range. Flag is unused at present. str is passed in as beat position, tab, text, tab (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1	"). See GetTrackMIDILyrics
+/// Set all MIDI lyrics on the track. Lyrics will be stuffed into any MIDI items found in range. Flag is unused at present. str is passed in as beat position, tab, text, tab (example with flag=2: "1.1.2\tLyric for measure 1 beat 2\t2.1.1\tLyric for measure 2 beat 1"). See GetTrackMIDILyrics
 ///-- @param track MediaTrack
 ///-- @param flag c_int
 ///-- @param str [*:0]const u8
