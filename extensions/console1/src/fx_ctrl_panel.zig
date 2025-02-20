@@ -49,7 +49,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
-        if (try roundButton(ctx, "FX##fx_thingy", null)) {
+        if (try roundButton(ctx, "FX", "##fx_thingy", null, "Toggle FX on/off")) {
             // log.info("FX button clicked");
         }
     }
