@@ -7,7 +7,7 @@ const State = @import("statemachine.zig").State;
 const c1 = @import("c1.zig");
 const WidgetInput = @import("fx_ctrl_actions.zig").WidgetInput;
 const globals = @import("globals.zig");
-
+const roundButton = @import("components/button.zig").roundButton;
 // Layout constants
 // const section_spacing = 10.0;
 const knob_size = 40.0;
@@ -46,6 +46,13 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
     var rv: ?WidgetInput = null;
     const section_spacing = 40.0;
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+        if (try roundButton(ctx, "FX##fx_thingy", null)) {
+            // log.info("FX button clicked");
+        }
+    }
     // Input Section
     {
         try imgui.BeginGroup(.{ctx});
