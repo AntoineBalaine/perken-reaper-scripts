@@ -424,136 +424,6 @@ pub fn updateTrackState(
     }
 }
 
-fn reorderFx(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx) ModuleCoverage {
-    var coverage = cvrg;
-    // 1. Handle INPUT
-    if (coverage.INPUT) |INPUT| {
-        var lowest_idx = INPUT;
-        inline for (std.meta.fields(@TypeOf(coverage))) |field| {
-            if (@field(coverage, field.name)) |field_idx| {
-                lowest_idx = @min(lowest_idx, field_idx);
-            }
-        }
-        if (lowest_idx < INPUT) {
-            _ = pReaper.TrackFX_CopyToTrack(.{ mediaTrack, INPUT, mediaTrack, 1000 - lowest_idx, true });
-            coverage.INPUT = lowest_idx;
-        }
-    } else {
-        // Find the lowest position among module-linked FX
-        const insert_pos = blk: {
-            var min_pos: i32 = std.math.maxInt(i32);
-            var found_any = false;
-            inline for (std.meta.fields(@TypeOf(coverage))) |field| {
-                if (@field(coverage, field.name)) |field_idx| {
-                    min_pos = @min(min_pos, field_idx);
-                    found_any = true;
-                }
-            }
-            // Convert to TrackFX_AddByName position format (-1000 based)
-            break :blk if (found_any) -1000 - min_pos else -1; // use -1 to add at end of chain.
-        };
-
-        _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.INPUT), false, insert_pos });
-        // Convert back from -1000 based to actual position
-        coverage.INPUT = -(insert_pos + 1000);
-
-        // Shift other positions up
-        inline for (std.meta.fields(@TypeOf(coverage))) |field| {
-            if (!std.mem.eql(u8, field.name, "INPUT")) {
-                if (@field(coverage, field.name)) |field_idx| {
-                    @field(coverage, field.name) = field_idx + 1;
-                }
-            }
-        }
-    }
-
-    // 2. Handle OUTPUT
-    if (coverage.OUTPT) |OUTPT| {
-        var highest_idx = OUTPT;
-        inline for (std.meta.fields(@TypeOf(coverage))) |field| {
-            if (@field(coverage, field.name)) |field_idx| {
-                highest_idx = @max(highest_idx, field_idx);
-            }
-        }
-        if (highest_idx > OUTPT) {
-            _ = pReaper.TrackFX_CopyToTrack(.{ mediaTrack, OUTPT, mediaTrack, -1000 - highest_idx, true });
-            coverage.OUTPT = highest_idx;
-        }
-    } else {
-        // For OUTPUT not found, add at the end and update coverage
-        const last_position = blk: {
-            var max_pos: i32 = -1; // Default to end of chain
-            var found_any = false;
-            inline for (std.meta.fields(@TypeOf(coverage))) |field| {
-                if (@field(coverage, field.name)) |field_idx| {
-                    max_pos = @max(max_pos, field_idx);
-                    found_any = true;
-                }
-            }
-            // If we found module-linked FX, insert after the last one, else at chain end
-            break :blk if (found_any) -1000 - (max_pos + 1) else -1;
-        };
-
-        _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.OUTPT), false, last_position });
-        coverage.OUTPT = if (last_position != -1)
-            -(last_position + 1000)
-        else
-            last_position;
-    }
-
-    // 3. Handle GATE and COMP
-    if (coverage.GATE) |GATE| {
-        if (coverage.COMP) |COMP| {
-            // Both exist, ensure GATE is before COMP
-            if (GATE > COMP) {
-                _ = pReaper.TrackFX_CopyToTrack(.{ mediaTrack, GATE, mediaTrack, -1000 - COMP, true });
-                coverage.GATE = COMP;
-                coverage.COMP = COMP + 1;
-            }
-        } else {
-            // Add COMP after GATE
-            const insert_pos = -1000 - (GATE + 1);
-            _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.COMP), false, insert_pos });
-            coverage.COMP = GATE + 1;
-        }
-    } else {
-        if (coverage.COMP) |COMP| {
-            // Add GATE before COMP
-            const insert_pos = -1000 - COMP;
-            _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.GATE), false, insert_pos });
-            coverage.GATE = COMP;
-            coverage.COMP.? += 1;
-        } else {
-            if (coverage.EQ) |EQ| {
-                // Add after EQ
-                const insert_pos = -1000 - (EQ + 1);
-                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.GATE), false, insert_pos });
-                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.COMP), false, insert_pos - 1 });
-                coverage.GATE = EQ + 1;
-                coverage.COMP = EQ + 2;
-            } else {
-                // Add gate, eq, comp in sequence after INPUT
-                const base_pos = coverage.INPUT.? + 1;
-                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.GATE), false, -1000 - base_pos });
-                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.EQ), false, -1000 - (base_pos + 1) });
-                _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.COMP), false, -1000 - (base_pos + 2) });
-                coverage.GATE = base_pos;
-                coverage.EQ = base_pos + 1;
-                coverage.COMP = base_pos + 2;
-            }
-        }
-    }
-
-    // 4. Handle missing EQ
-    if (coverage.EQ == null) {
-        const insert_pos = -1000 - coverage.OUTPT.?; // Insert before OUTPUT
-        _ = pReaper.TrackFX_AddByName(.{ mediaTrack, default_fx.get(.EQ), false, insert_pos });
-        coverage.EQ = coverage.OUTPT;
-        coverage.OUTPT.? += 1;
-    }
-    return coverage;
-}
-
 fn insertModuleLinkedFx(
     mediaTrack: MediaTrack,
     module: ModulesList,
@@ -1092,39 +962,23 @@ pub fn setModulesOrder(
     const comp_loc = self.module_locations.get(.COMP);
 
     if (eq_loc == null or gate_loc == null or comp_loc == null) return;
+    const eq = eq_loc.?.fx_index;
+    const gate = gate_loc.?.fx_index;
+    const comp = comp_loc.?.fx_index;
 
-    // Calculate target position for EQ based on desired order
-    const eq_target_pos = switch (order) {
-        .@"EQ-S-C" => gate_loc.?.fx_index, // EQ should go before GATE
-        .@"S-C-EQ" => comp_loc.?.fx_index + 1, // EQ should go after COMP
-        .@"S-EQ-C" => gate_loc.?.fx_index + 1, // EQ should go between GATE and COMP
+    const eq_target_pos: c_int = switch (order) {
+        .@"EQ-S-C" => if (eq > gate) gate else gate - 1,
+        .@"S-C-EQ" => if (eq > comp) eq else comp,
+        .@"S-EQ-C" => if (eq > comp) comp else comp - 1,
     };
 
     // Only move if needed
     if (eq_loc.?.fx_index == eq_target_pos) return;
 
-    _ = pReaper.TrackFX_CopyToTrack(.{
-        mediaTrack,
-        eq_loc.?.fx_index,
-        mediaTrack,
-        -1000 - eq_target_pos,
-        true,
-    });
+    pReaper.TrackFX_CopyToTrack(.{ mediaTrack, eq_loc.?.fx_index, mediaTrack, eq_target_pos, true });
 
     // Update coverage with new positions
     updateCoveragePositions(&coverage, mediaTrack);
-
-    // Update module_locations with new positions
-    inline for ([_]ModulesList{ .EQ, .GATE, .COMP }) |module| {
-        if (@field(coverage, @tagName(module))) |loc| {
-            if (self.module_locations.get(module)) |old_loc| {
-                self.module_locations.set(module, .{
-                    .fx_index = loc.index,
-                    .mapping = old_loc.mapping,
-                });
-            }
-        }
-    }
 
     // Update module_locations with new positions
     inline for (comptime std.enums.values(ModulesList)) |module| {
