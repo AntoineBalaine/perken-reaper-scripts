@@ -112,7 +112,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             }
 
             // // Update track state
-            _ = track_state.validateTrack(track);
+            _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store);
 
             // state.current_mode = .mapping_panel;
             // Enter mapping mode if needed, otherwise return to fx_ctrl

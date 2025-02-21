@@ -1,4 +1,5 @@
 const std = @import("std");
+const extension = @import("../console1_extension.zig");
 const TestRunner = @import("../test_runner.zig");
 const reaper = @import("../reaper.zig").reaper;
 const pReaper = @import("../pReaper.zig");
@@ -6,6 +7,7 @@ const TrackState = @import("../track_state.zig");
 const RprCmds = @import("../reaper_cmds.zig");
 const DefaultFx = @import("../settings.zig").DefaultFx;
 const utils = @import("../utils.zig");
+const MapStore = @import("../mappings.zig");
 const log = std.log.scoped(.track_tests);
 
 pub fn runTrackStateTests() !void {
@@ -38,7 +40,8 @@ pub fn testDefaultFxChainOrder() !void {
     const track = reaper.GetTrack(0, 0);
 
     var track_state: TrackState = undefined;
-    const coverage = track_state.validateTrack(track);
+    const globals = extension.getGlobals();
+    const coverage = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store);
 
     // Verify all modules were added and positioned correctly
     try std.testing.expectEqual(@as(i32, 0), coverage.INPUT.?.index);
@@ -65,7 +68,10 @@ pub fn testFxChainValidation() !void {
 
     // Now we can test the validation logic directly
     var track_state: TrackState = undefined;
-    _ = track_state.validateTrack(track);
+
+    const globals = extension.getGlobals();
+
+    _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store);
 
     // Verify results
     try std.testing.expectEqual(track_state.fx_count, 5); // assuming default config

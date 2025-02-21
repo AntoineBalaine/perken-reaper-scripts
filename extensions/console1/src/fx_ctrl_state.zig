@@ -9,6 +9,7 @@ const FxMap = @import("mappings.zig").FxMap;
 const Globals = @import("globals.zig").Globals;
 const constants = @import("constants.zig");
 pub const TrackState = @import("track_state.zig");
+const DefaultFx = @import("settings.zig").DefaultFx;
 
 // Mode-specific state structures
 pub const FxControlState = @This();
@@ -155,8 +156,10 @@ pub fn validateTrack(
     mediaTrack: reaper.MediaTrack,
     reRoute: ?SCRouting,
     manual_routing: bool,
+    default_fx: DefaultFx,
+    map_store: *MapStore,
 ) !void {
-    const coverage = self.track_state.validateTrack(mediaTrack);
+    const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store);
 
     if (!manual_routing) {
         self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);

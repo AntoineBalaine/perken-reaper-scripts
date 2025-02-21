@@ -95,7 +95,7 @@ fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
     log.debug("track entry", .{});
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
 
-    globals.state.fx_ctrl.validateTrack(null, media_track, null, globals.preferences.manual_routing) catch {
+    globals.state.fx_ctrl.validateTrack(null, media_track, null, globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store) catch {
         log.err("track validation failed: track {d}", .{id});
     };
 

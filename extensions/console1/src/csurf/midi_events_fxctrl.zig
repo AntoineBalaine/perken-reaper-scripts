@@ -87,7 +87,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
         .Tr_ext_sidechain => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
-                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val), globals.preferences.manual_routing) catch {},
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val), globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store) catch {},
                     else => {},
                 }
             }
@@ -95,7 +95,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
         .Tr_order => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
-                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null, globals.preferences.manual_routing) catch {},
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null, globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store) catch {},
                     else => {},
                 }
             }

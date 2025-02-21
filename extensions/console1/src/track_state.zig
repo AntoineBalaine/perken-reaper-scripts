@@ -60,7 +60,7 @@ pub const ParsedFx = struct {
     active_modules: ?ModulesList = null,
 };
 
-pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, preferences: *Preferences, mapStore: *MapStore) ModuleCoverage {
+pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, default_fx: DefaultFx, map_store: *MapStore) ModuleCoverage {
     // Initialize track state
     track_state.* = .{ .fx_states = undefined, .fx_count = 0, .module_locations = ModuleLocations.initFill(null) };
 
@@ -94,8 +94,8 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, pr
     }
 
     var coverage = analyzeCoverage(&parsed_fx, mediaTrack);
-    coverage = reorderFx2(coverage, mediaTrack, preferences.default_fx);
-    updateTrackState(track_state, coverage, mediaTrack, &buf, mapStore);
+    coverage = reorderFx2(coverage, mediaTrack, default_fx);
+    updateTrackState(track_state, coverage, mediaTrack, &buf, map_store);
     return coverage;
 }
 
