@@ -25,7 +25,6 @@ const log = std.log.scoped(.csurf);
 const fx_ctrl_state = @import("../fx_ctrl_state.zig");
 const TrackList = fx_ctrl_state.TrackList;
 const track_list_actions = @import("../tracklist_actions.zig");
-var globals: *Globals = undefined;
 
 const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
@@ -35,7 +34,7 @@ pub var my_csurf: c.C_ControlSurface = undefined;
 var m_buttonstate_lastrun: c.DWORD = 0;
 
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
-    globals = getGlobals();
+    var globals = getGlobals();
     globals.m_midi_in_dev = indev;
     globals.m_midi_out_dev = outdev;
     globals.m_midi_in = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
@@ -75,6 +74,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 }
 
 pub fn deinit(csurf: c.C_ControlSurface) void {
+    var globals = getGlobals();
     if (globals.m_midi_out) |_| {
         actions.dispatch(globals, .{ .midi_out = .clear_all }); // lights off
     }
@@ -101,6 +101,8 @@ export fn zGetDescString() callconv(.C) [*]const u8 {
 var config_buf: [512:0]u8 = undefined;
 export fn zGetConfigString() callconv(.C) [*]const u8 {
     const buffer: []u8 = &config_buf;
+    var globals = getGlobals();
+    _ = &globals;
     _ = std.fmt.bufPrintZ(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
         log.err("csurf console1 config string format", .{});
         return "0 0 0 0";
@@ -114,6 +116,7 @@ export fn zCloseNoReset() callconv(.C) void {
 
 export fn zRun() callconv(.C) void {
     if (ignore_notifications) return;
+    var globals = getGlobals();
     if (globals.m_midi_in) |midi_in| {
         c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
         const list = c.MidiIn_GetReadBuf(midi_in);
@@ -133,11 +136,12 @@ export fn zRun() callconv(.C) void {
 
 export fn zSetTrackListChange() callconv(.C) void {
     if (ignore_notifications) return;
-    actions.dispatch(globals, .{ .track_list = .refresh });
+    actions.dispatch(getGlobals(), .{ .track_list = .refresh });
 }
 
 export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
     if (ignore_notifications) return;
+    var globals = getGlobals();
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     const volint = utils.volToU8(volume);
     if (globals.state.fx_ctrl.vol_lastpos != volint) {
@@ -149,21 +153,29 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
 // pan is btw -1.0 and 1.0
 export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
     if (ignore_notifications) return;
+    var globals = getGlobals();
+    _ = &globals;
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = @intFromFloat((pan + 1) / 2 * 127) } } });
 }
 export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
     if (ignore_notifications) return;
+    var globals = getGlobals();
+    _ = &globals;
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
 }
 export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) void {
     if (ignore_notifications) return;
     log.debug("set surface selected", .{});
+    var globals = getGlobals();
+    _ = &globals;
     actions.dispatch(globals, .{ .Csurf = .{ .track_selected = .{ .tr = trackid, .selected = selected } } });
 }
 export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
     if (ignore_notifications) return;
+    var globals = getGlobals();
+    _ = &globals;
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_solo, .value = if (solo) 0x7f else 0x0 } } });
 }
@@ -177,6 +189,8 @@ export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.C) void
 export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
     if (ignore_notifications) return;
     _ = rec;
+    var globals = getGlobals();
+    _ = &globals;
     globals.playState = play;
     globals.pauseState = pause;
     if (!globals.playState or globals.pauseState) {
@@ -205,13 +219,15 @@ export fn zSetAutoMode(mode: c_int) callconv(.C) void {
 
 export fn zResetCachedVolPanStates() callconv(.C) void {
     if (ignore_notifications) return;
+    var globals = getGlobals();
+    _ = &globals;
     globals.state.fx_ctrl.vol_lastpos = 0;
 }
 
 export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
     if (ignore_notifications) return;
     // FIXME: should we be using this ?
-    actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = trackid } });
+    actions.dispatch(getGlobals(), .{ .fx_ctrl = .{ .on_track_entry = trackid } });
 }
 export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     if (ignore_notifications) return false;
@@ -258,6 +274,7 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             if (trId == null) return 1;
             if (parm3) |ptr| {
                 const fxIdx = @as(*u8, @ptrCast(ptr));
+                var globals = getGlobals();
                 globals.state.fx_ctrl.display = fxIdx.*;
                 log.debug("display: {d}", .{globals.state.fx_ctrl.display.?});
             }
@@ -271,17 +288,17 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                 const isOpen = @intFromPtr(ptr);
                 // const isOpen = @as(*u8, @ptrCast(ptr));
                 if (isOpen == 0) { // UI closed
-                    globals.state.fx_ctrl.display = null;
+                    getGlobals().state.fx_ctrl.display = null;
                 }
             } else {
-                globals.state.fx_ctrl.display = null;
+                getGlobals().state.fx_ctrl.display = null;
             }
         },
 
         .SETLASTTOUCHEDTRACK => {
             log.debug("set last touched track", .{});
             if (parm1) |mediaTrack|
-                actions.dispatch(globals, .{ .Csurf = .{ .last_touched_track = @ptrCast(mediaTrack) } });
+                actions.dispatch(getGlobals(), .{ .Csurf = .{ .last_touched_track = @ptrCast(mediaTrack) } });
         },
         .SETPAN_EX => {
             // csurf doesn't have means of checking if fx get re-ordered.
@@ -297,6 +314,8 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETFXPARAM => {
             const track: reaper.MediaTrack = @ptrCast(parm1);
             const id = reaper.CSurf_TrackToID(track, constants.g_csurf_mcpmode);
+            var globals = getGlobals();
+            _ = &globals;
             if (globals.state.current_tr_id == id) {
                 const f: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
 

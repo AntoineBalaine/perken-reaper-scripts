@@ -14,6 +14,7 @@ const log = std.log.scoped(.globals);
 const imgui = @import("reaper_imgui.zig");
 
 pub const Globals = @This();
+pub var instance: Globals = undefined;
 
 // State machine
 state: State = undefined,
@@ -47,28 +48,27 @@ m_midi_out: ?reaper.midi_Output = null,
 playState: bool = false,
 pauseState: bool = false,
 
-pub fn init() !Globals {
-    var self: Globals = .{};
-    self.gpa_int = @TypeOf(self.gpa_int){};
-    self.arena_int = std.heap.ArenaAllocator.init(self.gpa_int.allocator());
-    self.arena = self.arena_int.allocator();
+pub fn init() !void {
+    instance = .{};
+    const gpa = std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }){};
+    instance.gpa_int = gpa;
+    instance.arena_int = std.heap.ArenaAllocator.init(instance.gpa_int.allocator());
+    instance.arena = instance.arena_int.allocator();
 
-    try self.initLoggerState();
     fs_helpers.ensureConfigPath() catch {};
-    self.resource_path = std.mem.span(try fs_helpers.getControllerPath(self.arena));
+    instance.resource_path = std.mem.span(try fs_helpers.getControllerPath(instance.arena));
 
     // Initialize in dependency order
-    self.preferences = try Preferences.init(self.arena, self.resource_path);
-    self.map_store = try MapStore.init(self.arena, self.resource_path, &self.preferences.default_fx);
-    self.mappings_list = MappingsList.init(self.arena, self.resource_path);
-    self.state = State.init(self.arena);
-    self.settings_panel = try SettingsPanel.init(&self.preferences);
-    if (self.preferences.start_suspended) {
-        self.state.current_mode = .suspended;
+    instance.preferences = try Preferences.init(instance.arena, instance.resource_path);
+    instance.map_store = try MapStore.init(instance.arena, instance.resource_path, &instance.preferences.default_fx);
+    instance.mappings_list = MappingsList.init(instance.arena, instance.resource_path);
+    instance.state = State.init(instance.arena);
+    instance.settings_panel = try SettingsPanel.init(&instance.preferences);
+    if (instance.preferences.start_suspended) {
+        instance.state.current_mode = .suspended;
     }
 
-    try fxParser.init(self.gpa_int.allocator());
-    return self;
+    try fxParser.init(instance.gpa_int.allocator());
 }
 
 pub fn deinit(self: *Globals) void {
@@ -81,7 +81,7 @@ pub fn deinit(self: *Globals) void {
     }
 }
 
-fn initLoggerState(self: *Globals) !void {
+pub fn initLoggerState(self: *Globals) !void {
     self.event_log = EventLog.init();
     logger.event_log = &self.event_log;
 

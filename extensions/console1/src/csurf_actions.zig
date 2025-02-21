@@ -44,7 +44,7 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
                     actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = selection.tr } });
                 }
             } else {
-                _ = globals.state.selectedTracks.orderedRemove(tr_id);
+                _ = globals.state.selectedTracks.swapRemove(tr_id);
                 // If this was our current track, fall back to another selected track
                 if (globals.state.current_tr_id == tr_id) {
                     globals.state.current_tr_id = if (globals.state.selectedTracks.count() > 0) globals.state.selectedTracks.keys()[0] else null; // fallback

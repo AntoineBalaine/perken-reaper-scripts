@@ -10,12 +10,12 @@ const c = @cImport({
 });
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
-const Globals = @import("globals.zig").Globals;
-var globals: Globals = undefined;
+const Globals = @import("globals.zig");
 
 pub fn getGlobals() *Globals {
-    return &globals;
+    return &Globals.instance;
 }
+
 const logger = @import("logger.zig");
 const hooks = @import("hooks.zig");
 const log = std.log.scoped(.extension);
@@ -41,14 +41,14 @@ var queries_id: c_int = undefined;
 /// register the actions for each of the buttons
 fn init() !void {
     logger.init();
+    try Globals.init();
+    try Globals.instance.initLoggerState();
     myCsurf = control_surface.init(-1, -1, null);
-
-    globals = try Globals.init();
 }
 
 fn deinit() void {
     logger.deinit();
-    globals.deinit();
+    Globals.instance.deinit();
     control_surface.deinit(myCsurf);
 }
 
@@ -72,7 +72,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
 
     hooks.registerCommands();
 
-    if (globals.state.current_mode != .suspended) {
+    if (Globals.instance.state.current_mode != .suspended) {
         ImGuiLoop.register();
     }
 

@@ -23,7 +23,7 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
 
         var buf: [DEBUG_BUF_SIZE:0]u8 = undefined;
 
-        const frame_rate = safePrint(&buf, "Frame rate: {d}", .{try imgui.GetFramerate(.{ctx})});
+        const frame_rate = safePrint(&buf, "Frame rate: {d:.0}", .{try imgui.GetFramerate(.{ctx})});
         try imgui.Text(.{ ctx, frame_rate });
 
         // Current State Section
@@ -64,6 +64,14 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
         if (try imgui.CollapsingHeader(.{ ctx, "Track State" })) {
             const track_text = safePrint(&buf, "Last Touched Track: {?}", .{state.current_tr_id});
             try imgui.Text(.{ ctx, track_text });
+            const sel_count = safePrint(&buf, "Selected tracks: {?}", .{state.selectedTracks.count()});
+            try imgui.Text(.{ ctx, sel_count });
+
+            var it = state.selectedTracks.iterator();
+            while (it.next()) |entry| {
+                const tr_text = safePrint(&buf, "Track: {d}", .{entry.key_ptr.*});
+                try imgui.Text(.{ ctx, tr_text });
+            }
 
             if (state.fx_ctrl.track_state.module_locations.get(.COMP)) |comp| {
                 const comp_text = safePrint(&buf, "Comp FX: {d}", .{comp.fx_index});
