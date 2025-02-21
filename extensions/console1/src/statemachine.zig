@@ -9,7 +9,6 @@ const std = @import("std");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
-const globals = @import("globals.zig");
 const TransportState = @import("transport_actions.zig").TransportState;
 
 pub const ModulesList = enum {
@@ -129,15 +128,15 @@ pub const MappingState = struct {
     selected_control: ?c1.CCs = null,
     midi_learn_active: bool = false,
 
-    pub fn init(gpa: std.mem.Allocator, fx_name: [:0]const u8, module_type: ModulesList) !MappingState {
+    pub fn init(gpa: std.mem.Allocator, fx_name: [:0]const u8, module_type: ModulesList, map_store: *MapStore.MapStore) !MappingState {
         return .{
             .target_fx = try gpa.dupeZ(u8, fx_name),
             .current_mappings = switch (module_type) {
-                .INPUT => globals.map_store.INPUT.get(fx_name).?,
-                .GATE => globals.map_store.GATE.get(fx_name).?,
-                .EQ => globals.map_store.EQ.get(fx_name).?,
-                .COMP => globals.map_store.COMP.get(fx_name).?,
-                .OUTPT => globals.map_store.OUTPT.get(fx_name).?,
+                .INPUT => map_store.INPUT.get(fx_name).?,
+                .GATE => map_store.GATE.get(fx_name).?,
+                .EQ => map_store.EQ.get(fx_name).?,
+                .COMP => map_store.COMP.get(fx_name).?,
+                .OUTPT => map_store.OUTPT.get(fx_name).?,
             },
             .selected_parameter = null,
             .selected_control = null,

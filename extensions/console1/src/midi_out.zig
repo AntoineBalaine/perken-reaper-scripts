@@ -3,7 +3,7 @@ const reaper = @import("reaper.zig").reaper;
 const c1 = @import("c1.zig");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const constants = @import("constants.zig");
 const log = std.log.scoped(.midi_output);
 const utils = @import("utils.zig");
@@ -38,32 +38,32 @@ pub const MidiOutAction = union(enum) {
 
 };
 
-pub fn sendMidiFeedback(action: MidiOutAction) void {
+pub fn sendMidiFeedback(globals: *Globals, action: MidiOutAction) void {
     log.debug("send midi feedback: {s}", .{@tagName(action)});
     if (globals.m_midi_out) |midi_out| {
         switch (action) {
-            .mode_entry => |mode| onModeEntry(mode, midi_out),
+            .mode_entry => |mode| onModeEntry(globals, mode, midi_out),
             .clear_all => clearAllLEDs(midi_out),
-            .track_select => updateTrackListLEDs(midi_out),
-            .page_change => updateTrackListLEDs(midi_out),
+            .track_select => updateTrackListLEDs(globals, midi_out),
+            .page_change => updateTrackListLEDs(globals, midi_out),
             .set_param => |param| setParamLED(param.cc, param.value, midi_out),
-            .blink => blinkSelectedTrks(midi_out),
+            .blink => blinkSelectedTrks(globals, midi_out),
             .reset_meters => resetMeters(midi_out),
-            .queryMeters => queryMeters(midi_out),
-            .settings_changed => prefsEntry(midi_out),
+            .queryMeters => queryMeters(globals, midi_out),
+            .settings_changed => prefsEntry(globals, midi_out),
         }
     } else {
         log.err("no midi feedback available", .{});
     }
 }
 
-fn onModeEntry(mode: Mode, midi_out: reaper.midi_Output) void {
+fn onModeEntry(globals: *Globals, mode: Mode, midi_out: reaper.midi_Output) void {
     log.debug("on mode entry: {s}", .{@tagName(mode)});
     switch (mode) {
-        .fx_ctrl => fxCtrlEntry(midi_out),
+        .fx_ctrl => fxCtrlEntry(globals, midi_out),
         .fx_sel => fxSelEntry(midi_out),
-        .mapping_panel => MappingsEntry(midi_out),
-        .settings => prefsEntry(midi_out),
+        .mapping_panel => MappingsEntry(globals, midi_out),
+        .settings => prefsEntry(globals, midi_out),
         .suspended => clearAllLEDs(midi_out),
         .transport => transportEntry(midi_out),
         else => clearAllLEDs(midi_out),
@@ -97,8 +97,7 @@ var blink_state: bool = false;
 
 // TODO: handleTrackSelectFeedback and handlePageChangeFeedback have overlapping functionality
 // Could be consolidated or clearly differentiated
-pub fn updateTrackListLEDs(midi_out: reaper.midi_Output) void {
-
+pub fn updateTrackListLEDs(globals: *Globals, midi_out: reaper.midi_Output) void {
     // First clear all track button LEDs
     inline for (comptime std.enums.values(c1.CCs)) |cc| {
         switch (cc) {
@@ -146,7 +145,7 @@ pub fn updateTrackListLEDs(midi_out: reaper.midi_Output) void {
 
 // Add these additional functions:
 // FIXME: this is duplicate from the control surface
-pub fn blinkSelectedTrks(midi_out: reaper.midi_Output) void {
+pub fn blinkSelectedTrks(globals: *Globals, midi_out: reaper.midi_Output) void {
     if (globals.state.current_mode != .fx_ctrl) return;
 
     blink_frame +%= 1;
@@ -185,13 +184,13 @@ test {
     std.testing.refAllDecls(@This());
 }
 
-fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
+fn fxCtrlEntry(globals: *Globals, midi_out: reaper.midi_Output) void {
     // First clear everything
     clearAllLEDs(midi_out);
 
     // 1. Set track selection LEDs
     // handleTrackSelectFeedback(midi_out);
-    updateTrackListLEDs(midi_out);
+    updateTrackListLEDs(globals, midi_out);
 
     if (globals.state.current_tr_id) |tr_id| {
         const track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
@@ -202,11 +201,10 @@ fn fxCtrlEntry(midi_out: reaper.midi_Output) void {
         setParamLED(c1.CCs.Tr_order, @intFromEnum(globals.state.fx_ctrl.track_state.getModulesOrder()), midi_out);
 
         // 4. Set all module parameters based on mappings
-        updateAllModuleParams(midi_out, track);
+        updateAllModuleParams(globals, midi_out, track);
     }
 }
-
-/// Set track controls’ LEDs (vol, pan, mute, solo, phase inv.)
+/// Set track controls' LEDs (vol, pan, mute, solo, phase inv.)
 /// Queries reaper ap
 fn sendTrkCtrlFdb(midi_out: reaper.midi_Output, track: reaper.MediaTrack) void {
     // Preserve volume/pan/mute/solo state
@@ -227,8 +225,7 @@ fn fxSelEntry(midi_out: reaper.midi_Output) void {
     clearAllLEDs(midi_out);
     setParamLED(c1.CCs.Inpt_disp_mode, 0x7f, midi_out);
 }
-
-fn MappingsEntry(midi_out: reaper.midi_Output) void {
+fn MappingsEntry(globals: *Globals, midi_out: reaper.midi_Output) void {
     // Clear everything first
     clearAllLEDs(midi_out);
 
@@ -244,7 +241,7 @@ fn MappingsEntry(midi_out: reaper.midi_Output) void {
 }
 
 /// Updates Console1's module parameters based on FX mapping
-fn updateAllModuleParams(midi_out: reaper.midi_Output, track: reaper.MediaTrack) void {
+fn updateAllModuleParams(globals: *Globals, midi_out: reaper.midi_Output, track: reaper.MediaTrack) void {
 
     // Module Parameters
     inline for (comptime std.enums.values(c1.CCs)) |cc| {
@@ -341,7 +338,7 @@ fn getModuleForCC(comptime cc: c1.CCs) ?statemachine.ModulesList {
         null;
 }
 
-fn queryMeters(midiOut: reaper.midi_Output) void {
+fn queryMeters(globals: *Globals, midiOut: reaper.midi_Output) void {
     if (globals.state.current_tr_id == null) return;
     var tmp: [512:0]u8 = undefined;
     const mediaTrack = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
@@ -377,7 +374,7 @@ const PreferenceButton = struct {
 };
 
 // Then the function could be written as:
-fn prefsEntry(midi_out: reaper.midi_Output) void {
+fn prefsEntry(globals: *Globals, midi_out: reaper.midi_Output) void {
     if (globals.settings_panel) |settings_panel| {
         const temp_settings = settings_panel.temp_settings;
         clearAllLEDs(midi_out);

@@ -3,7 +3,7 @@ const c1 = @import("c1.zig");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const mappings = @import("mappings.zig");
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.mapping_actions);
@@ -30,31 +30,31 @@ pub const MappingAction = union(enum) {
     cancel_mapping: void, // Discard changes and exit mapping mode
 };
 
-pub fn mappingActions(state: *State, map_action: MappingAction) void {
+pub fn mappingActions(app: *Globals, map_action: MappingAction) void {
     switch (map_action) {
         .select_parameter => |maybe_param| {
             log.debug("Selected parameter: {?}", .{maybe_param});
-            state.mapping.selected_parameter = maybe_param;
+            app.state.mapping.selected_parameter = maybe_param;
             // If we're in MIDI learn mode and a parameter is selected,
             // we're ready to receive MIDI input
         },
         .select_control => |maybe_control| {
             log.debug("Selected control: {s}", .{if (maybe_control) |cc| @tagName(cc) else "none"});
-            state.mapping.selected_control = maybe_control;
+            app.state.mapping.selected_control = maybe_control;
             // If both parameter and control are selected, could auto-add mapping
         },
         .toggle_midi_learn => {
-            log.debug("MIDI learn {s}", .{if (state.mapping.midi_learn_active) "disabled" else "enabled"});
-            state.mapping.midi_learn_active = !state.mapping.midi_learn_active;
-            if (!state.mapping.midi_learn_active) {
+            log.debug("MIDI learn {s}", .{if (app.state.mapping.midi_learn_active) "disabled" else "enabled"});
+            app.state.mapping.midi_learn_active = !app.state.mapping.midi_learn_active;
+            if (!app.state.mapping.midi_learn_active) {
                 // Clear selection when exiting MIDI learn mode?
-                state.mapping.selected_control = null;
+                app.state.mapping.selected_control = null;
             }
         },
         .add_mapping => |mapping| {
             log.debug("Added mapping: {s} -> param {d}", .{ @tagName(mapping.control), mapping.param });
             // Add to current_mappings based on module type
-            switch (state.mapping.current_mappings) {
+            switch (app.state.mapping.current_mappings) {
                 .COMP => |*comp| switch (mapping.control) {
                     .Comp_Attack => comp.Comp_Attack = mapping.param,
                     .Comp_DryWet => comp.Comp_DryWet = mapping.param,
@@ -109,13 +109,13 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
                 },
             }
             // Clear selections after mapping
-            state.mapping.selected_parameter = null;
-            state.mapping.selected_control = null;
+            app.state.mapping.selected_parameter = null;
+            app.state.mapping.selected_control = null;
         },
         .remove_mapping => |control| {
             log.debug("Removed mapping for control: {s}", .{@tagName(control)});
             // Remove from current_mappings based on module type
-            switch (state.mapping.current_mappings) {
+            switch (app.state.mapping.current_mappings) {
                 .COMP => |*comp| switch (control) {
                     .Comp_Attack => comp.Comp_Attack = null,
                     .Comp_DryWet => comp.Comp_DryWet = null,
@@ -171,49 +171,48 @@ pub fn mappingActions(state: *State, map_action: MappingAction) void {
             }
         },
         .save_mapping => {
-            log.debug("Saved mappings for FX: {s}", .{state.mapping.target_fx});
+            log.debug("Saved mappings for FX: {s}", .{app.state.mapping.target_fx});
             // Save to MapStore
-            switch (state.mapping.current_mappings) {
-                .INPUT => |input| globals.map_store.INPUT.put(globals.arena, state.mapping.target_fx, input) catch {},
-                .GATE => |gate| globals.map_store.GATE.put(globals.arena, state.mapping.target_fx, gate) catch {},
-                .EQ => |eq| globals.map_store.EQ.put(globals.arena, state.mapping.target_fx, eq) catch {},
-                .COMP => |comp| globals.map_store.COMP.put(globals.arena, state.mapping.target_fx, comp) catch {},
-                .OUTPT => |outpt| globals.map_store.OUTPT.put(globals.arena, state.mapping.target_fx, outpt) catch {},
+            switch (app.state.mapping.current_mappings) {
+                .INPUT => |input| app.map_store.INPUT.put(app.allocator, app.state.mapping.target_fx, input) catch {},
+                .GATE => |gate| app.map_store.GATE.put(app.allocator, app.state.mapping.target_fx, gate) catch {},
+                .EQ => |eq| app.map_store.EQ.put(app.allocator, app.state.mapping.target_fx, eq) catch {},
+                .COMP => |comp| app.map_store.COMP.put(app.allocator, app.state.mapping.target_fx, comp) catch {},
+                .OUTPT => |outpt| app.map_store.OUTPT.put(app.allocator, app.state.mapping.target_fx, outpt) catch {},
             }
 
-            globals.map_store.saveToFile(state.mapping) catch {
-                log.warn("Failed to save mapping {s} to file", .{state.mapping.target_fx});
+            app.map_store.saveToFile(app.state.mapping) catch {
+                log.warn("Failed to save mapping {s} to file", .{app.state.mapping.target_fx});
             };
 
             // Clean up mapping panel
-            if (globals.mapping_panel) |*panel| {
+            if (app.mapping_panel) |*panel| {
                 panel.deinit();
-                globals.mapping_panel = null;
+                app.mapping_panel = null;
             }
-            dispatch(state, .{ .change_mode = .fx_ctrl });
+            dispatch(app, .{ .change_mode = .fx_ctrl });
         },
         .cancel_mapping => {
-            log.debug("Cancelled mapping for FX: {s}", .{state.mapping.target_fx});
+            log.debug("Cancelled mapping for FX: {s}", .{app.state.mapping.target_fx});
             // Clean up mapping state
-            state.mapping.selected_parameter = null;
-            state.mapping.selected_control = null;
-            state.mapping.midi_learn_active = false;
+            app.state.mapping.selected_parameter = null;
+            app.state.mapping.selected_control = null;
+            app.state.mapping.midi_learn_active = false;
 
             // Free allocated memory
-            // state.mapping.deinit(globals.arena);
+            // state.mapping.deinit(app.allocator);
 
             // Clean up mapping panel
-            if (globals.mapping_panel) |_| {
+            if (app.mapping_panel) |_| {
                 // panel.deinit();
-                globals.mapping_panel = null;
+                app.mapping_panel = null;
             }
 
             // Switch back to previous mode
-            dispatch(state, .{ .change_mode = .fx_ctrl });
+            dispatch(app, .{ .change_mode = .fx_ctrl });
         },
     }
 }
-
 // test "MappingState - initialization and basic operations" {
 //     const testing = std.testing;
 //     const gpa = testing.allocator;

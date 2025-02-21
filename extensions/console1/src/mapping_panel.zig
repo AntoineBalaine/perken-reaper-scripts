@@ -5,7 +5,7 @@ const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
 const safePrint = @import("debug_panel.zig").safePrint;
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const mapping_actions = @import("mapping_actions.zig");
 const State = @import("statemachine.zig").State;
 const c1 = @import("c1.zig");
@@ -61,7 +61,7 @@ pub const MappingPanel = struct {
     }
 };
 
-pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.MappingAction {
+pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
 
     try imgui.BeginGroup(.{ctx});
@@ -83,7 +83,7 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.
         if (try imgui.TableNextColumn(.{ctx})) {
             if (globals.mapping_panel) |panel| {
                 for (panel.fx_params.items, 0..) |param, i| {
-                    var is_selected = if (state.mapping.selected_parameter) |sel|
+                    var is_selected = if (globals.state.mapping.selected_parameter) |sel|
                         sel == i
                     else
                         false;
@@ -98,7 +98,7 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.
                         rv = .{ .select_parameter = @intCast(i) };
                     }
 
-                    if (isParamMapped(state, i)) {
+                    if (isParamMapped(globals.state, i)) {
                         try imgui.SameLine(.{ctx});
                         try imgui.TextDisabled(.{ ctx, "(Mapped)" });
                     }
@@ -109,24 +109,24 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.
         // // Controls column
         //
         if (try imgui.TableNextColumn(.{ctx})) {
-            const module_type = @tagName(state.mapping.current_mappings);
+            const module_type = @tagName(globals.state.mapping.current_mappings);
             try imgui.Text(.{ ctx, "Module: {s}", .{module_type} });
             try imgui.Separator(.{ctx});
-            switch (state.mapping.current_mappings) {
+            switch (globals.state.mapping.current_mappings) {
                 .INPUT => {
-                    if (try drawModuleControls(ctx, state, &input_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, globals.state, &input_controls)) |act| rv = act;
                 },
                 .GATE => {
-                    if (try drawModuleControls(ctx, state, &gate_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, globals.state, &gate_controls)) |act| rv = act;
                 },
                 .EQ => {
-                    if (try drawModuleControls(ctx, state, &eq_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, globals.state, &eq_controls)) |act| rv = act;
                 },
                 .COMP => {
-                    if (try drawModuleControls(ctx, state, &compressor_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, globals.state, &compressor_controls)) |act| rv = act;
                 },
                 .OUTPT => {
-                    if (try drawModuleControls(ctx, state, &output_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, globals.state, &output_controls)) |act| rv = act;
                 },
             }
 
@@ -142,7 +142,7 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, state: *State) !?mapping_actions.
     // Bottom panel with buttons
     try imgui.Separator(.{ctx});
     {
-        const midi_learn_text = if (state.mapping.midi_learn_active)
+        const midi_learn_text = if (globals.state.mapping.midi_learn_active)
             "MIDI Learn (Active)"
         else
             "MIDI Learn";

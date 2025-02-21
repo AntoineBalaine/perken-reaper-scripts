@@ -6,7 +6,6 @@ const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
 const PushWindowStyle = @import("styles.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
-const globals = @import("globals.zig");
 const fx_sel_actions = @import("fx_sel_actions.zig");
 const log = std.log.scoped(.fx_sel_panel);
 const FxBrowser = @This();
@@ -164,6 +163,7 @@ pub fn ModulePopup(
     mappings: std.StringArrayHashMap(void),
     current_index: usize,
     display_menus: bool,
+    g_drwls_splitter: *imgui.DrawListSplitterPtr,
 ) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
 
@@ -188,7 +188,7 @@ pub fn ModulePopup(
                 rv = .{ .plugin = .{ .name = fx_name } };
             }
             if (is_selected) {
-                try drawInvertedSlctblColors(ctx, fx_name);
+                try drawInvertedSlctblColors(ctx, fx_name, g_drwls_splitter);
             }
         }
 
@@ -210,12 +210,13 @@ pub fn ModulePopup(
     return rv;
 }
 
-fn drawInvertedSlctblColors(ctx: imgui.ContextPtr, fx_name: [:0]const u8) !void {
+fn drawInvertedSlctblColors(ctx: imgui.ContextPtr, fx_name: [:0]const u8, g_drwls_splitter: *imgui.DrawListSplitterPtr) !void {
+    const splitter = g_drwls_splitter.*;
     const drw_ls = try imgui.GetWindowDrawList(.{ctx});
-    if (globals.drwls_splitter == null or !try imgui.ValidatePtr(.{ @as(*anyopaque, @ptrCast(globals.drwls_splitter.?)), "ImGui_DrawListSplitter*" })) {
-        globals.drwls_splitter = try imgui.CreateDrawListSplitter(.{drw_ls});
+    if (splitter == null or !try imgui.ValidatePtr(.{ @as(*anyopaque, @ptrCast(splitter.?)), "ImGui_DrawListSplitter*" })) {
+        g_drwls_splitter.* = try imgui.CreateDrawListSplitter(.{drw_ls});
+        splitter = g_drwls_splitter.*;
     }
-    const splitter = globals.drwls_splitter;
 
     try imgui.DrawListSplitter_Split(.{ splitter, 2 });
     defer imgui.DrawListSplitter_Merge(.{splitter}) catch {};

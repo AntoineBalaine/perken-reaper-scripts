@@ -5,10 +5,10 @@ const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const actions = @import("actions.zig");
 
-pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
+pub fn ButtonsBar(ctx: imgui.ContextPtr, globals: *Globals) !bool {
     var rv = true;
     {
         try imgui.BeginGroup(.{ctx});
@@ -29,7 +29,7 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.pin), defaults.button_size, defaults.button_size })) {
-                actions.dispatch(&globals.state, .{ .settings = .open });
+                actions.dispatch(globals, .{ .settings = .open });
             }
         }
         if (try imgui.IsItemHovered(.{ctx})) {
@@ -64,7 +64,7 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr) !bool {
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.plus), defaults.button_size, defaults.button_size })) {
-                actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } });
+                actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } });
             }
         }
         if (try imgui.IsItemHovered(.{ctx})) {

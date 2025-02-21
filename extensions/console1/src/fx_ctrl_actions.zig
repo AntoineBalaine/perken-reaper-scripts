@@ -10,7 +10,7 @@ const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const SCRouting = fx_ctrl_state.SCRouting;
 const statemachine = @import("statemachine.zig");
 const logger = @import("logger.zig");
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const onMidiEvent_FxCtrl = @import("csurf/midi_events_fxctrl.zig").onMidiEvent_FxCtrl;
 const fx_sel_actions = @import("fx_sel_actions.zig");
 const FxSelActions = fx_sel_actions.FxSelActions;
@@ -54,7 +54,7 @@ pub const FxCtrlAction = union(enum) {
     fx_win_disp: MediaTrack,
 };
 
-pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
+pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
     switch (fx_action) {
         .midi_input => |input| {
             log.debug(
@@ -64,11 +64,11 @@ pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
             onMidiEvent_FxCtrl(input.cc, input.value);
         },
         .panel_input => |input| {
-            state.fx_ctrl.values.getPtr(input.cc).?.param.normalized = input.value;
-            actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
+            globals.state.fx_ctrl.values.getPtr(input.cc).?.param.normalized = input.value;
+            actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
         },
-        .on_track_entry => |media_track| onTrackEntry(media_track),
-        .fx_win_disp => |media_track| handleFxWindowDisplay(media_track),
+        .on_track_entry => |media_track| onTrackEntry(globals, media_track),
+        .fx_win_disp => |media_track| handleFxWindowDisplay(globals, media_track),
         else => {},
         // ... other fx_ctrl actions
     }
@@ -76,7 +76,7 @@ pub fn fxCtrlActions(state: *State, fx_action: FxCtrlAction) void {
 
 /// Handles FX window visibility when switching tracks
 /// Closes FX window of previous track and opens FX window of new track if display mode is active
-fn handleFxWindowDisplay(media_track: MediaTrack) void {
+fn handleFxWindowDisplay(globals: *Globals, media_track: MediaTrack) void {
     const count = reaper.GetNumTracks() + 1;
     var i: c_int = 0;
     while (i < count) : (i += 1) {
@@ -91,15 +91,15 @@ fn handleFxWindowDisplay(media_track: MediaTrack) void {
 /// Main track selection handler for Console1
 /// Validates track's FX chain, updates window display,
 /// and synchronizes all controller feedback (LEDs, knobs) with track state
-fn onTrackEntry(media_track: MediaTrack) void {
+fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
     log.debug("track entry", .{});
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
 
-    globals.state.fx_ctrl.validateTrack(null, media_track, null) catch {
+    globals.state.fx_ctrl.validateTrack(null, media_track, null, globals.preferences.manual_routing) catch {
         log.err("track validation failed: track {d}", .{id});
     };
 
-    handleFxWindowDisplay(media_track);
+    handleFxWindowDisplay(globals, media_track);
 
-    actions.dispatch(&globals.state, .{ .midi_out = .{ .mode_entry = .fx_ctrl } });
+    actions.dispatch(globals, .{ .midi_out = .{ .mode_entry = .fx_ctrl } });
 }

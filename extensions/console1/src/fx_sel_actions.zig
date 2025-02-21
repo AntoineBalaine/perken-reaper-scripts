@@ -8,7 +8,6 @@ const SCRouting = fx_ctrl_state.SCRouting;
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
-const globals = @import("globals.zig");
 const SettingsPanel = @import("settings_panel.zig");
 const mappings = @import("mappings.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
@@ -21,6 +20,7 @@ const SettingsActions = settings_actions.SettingsActions;
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.fx_sel_actions);
 const TrackState = @import("track_state.zig").TrackState;
+const Globals = @import("globals.zig").Globals;
 
 pub const FxSelActions = union(enum) {
     select_fx: [:0]const u8,
@@ -38,7 +38,7 @@ pub const FxSelActions = union(enum) {
     close_browser: void,
 };
 
-pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
+pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
     switch (sel_action) {
         .fx_chain => |fx| {
             const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
@@ -50,30 +50,30 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                     -1000 - reaper.TrackFX_GetCount(tr),
                 );
             }
-            dispatch(state, .{ .change_mode = .fx_ctrl });
+            dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
         .track_template => |template| {
             reaper.Main_openProject(template.path);
-            dispatch(state, .{ .change_mode = .fx_ctrl });
+            dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
         .plugin => |plugin| {
-            if (state.current_tr_id == null) {
-                dispatch(state, .{ .change_mode = .fx_ctrl });
+            if (globals.state.current_tr_id == null) {
+                dispatch(globals, .{ .change_mode = .fx_ctrl });
                 return;
             }
-            const track = reaper.CSurf_TrackFromID(state.current_tr_id.?, constants.g_csurf_mcpmode);
-            const current_module = state.fx_sel.current_category;
-            const track_state = &state.fx_ctrl.track_state;
+            const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
+            const current_module = globals.state.fx_sel.current_category;
+            const track_state = &globals.state.fx_ctrl.track_state;
 
             // Use existing determineInsertionIndex function
-            const insert_idx = determineInsertionIndex(state, track, current_module);
+            const insert_idx = determineInsertionIndex(&globals.state, track, current_module);
 
             const needs_mapping = (globals.map_store.get(plugin.name, current_module) == null);
 
             // Create empty mapping if needed
             if (needs_mapping) {
-                createEmptyMapping(state, plugin.name) catch {
-                    dispatch(state, .{ .change_mode = .fx_ctrl });
+                createEmptyMapping(globals, plugin.name) catch {
+                    dispatch(globals, .{ .change_mode = .fx_ctrl });
                     return;
                 };
             }
@@ -82,7 +82,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             const new_fx_index = pReaper.TrackFX_AddByName(.{ track, plugin.name, false, insert_idx });
             if (new_fx_index < 0) {
                 log.err("Failed to add new FX: {s}", .{plugin.name});
-                dispatch(state, .{ .change_mode = .fx_ctrl });
+                dispatch(globals, .{ .change_mode = .fx_ctrl });
                 return;
             }
 
@@ -93,7 +93,7 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
                 const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }) catch {
                     log.err("Failed to format FX name with suffix", .{});
                     _ = pReaper.TrackFX_Delete(.{ track, new_fx_index });
-                    dispatch(state, .{ .change_mode = .fx_ctrl });
+                    dispatch(globals, .{ .change_mode = .fx_ctrl });
                     return;
                 };
                 _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
@@ -117,47 +117,47 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
             // state.current_mode = .mapping_panel;
             // Enter mapping mode if needed, otherwise return to fx_ctrl
             if (needs_mapping) {
-                enterMappingMode(state.current_tr_id.?, new_fx_index) catch {
+                enterMappingMode(globals, globals.state.current_tr_id.?, new_fx_index) catch {
                     log.err("failed to enter load data for mapping mode", .{});
-                    dispatch(state, .{ .change_mode = .fx_ctrl });
+                    dispatch(globals, .{ .change_mode = .fx_ctrl });
                     return;
                 };
 
-                dispatch(state, .{ .change_mode = .mapping_panel });
+                dispatch(globals, .{ .change_mode = .mapping_panel });
             } else {
-                dispatch(state, .{ .change_mode = .fx_ctrl });
+                dispatch(globals, .{ .change_mode = .fx_ctrl });
             }
         },
         .close_browser => {
-            dispatch(state, .{ .change_mode = .fx_ctrl });
+            dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
         .toggle_module_browser => |module| {
-            if (state.current_mode == .fx_sel and module == state.fx_sel.current_category) {
-                dispatch(state, .{ .change_mode = .fx_ctrl });
+            if (globals.state.current_mode == .fx_sel and module == globals.state.fx_sel.current_category) {
+                dispatch(globals, .{ .change_mode = .fx_ctrl });
             } else {
-                state.fx_sel.scroll_position_abs = 0;
-                state.fx_sel.scroll_position_rel = 0;
-                state.fx_sel.current_category = module;
-                dispatch(state, .{ .change_mode = .fx_sel });
+                globals.state.fx_sel.scroll_position_abs = 0;
+                globals.state.fx_sel.scroll_position_rel = 0;
+                globals.state.fx_sel.current_category = module;
+                dispatch(globals, .{ .change_mode = .fx_sel });
             }
         },
         .scroll => |new_pos| {
-            const fx_count: i32 = @intCast(switch (state.fx_sel.current_category) {
+            const fx_count: i32 = @intCast(switch (globals.state.fx_sel.current_category) {
                 inline else => |impl| globals.mappings_list.list.get(impl).count(),
             });
 
             if (@import("utils.zig").calculateNewScrollPosition(
                 i32,
-                &state.fx_sel.scroll_position_abs,
-                &state.fx_sel.scroll_position_rel,
+                &globals.state.fx_sel.scroll_position_abs,
+                &globals.state.fx_sel.scroll_position_rel,
                 new_pos,
                 @intCast(fx_count),
                 1,
             )) |delta| {
                 log.debug("FxSel scroll: abs={d} delta={d} rel={d}/{d}", .{
-                    state.fx_sel.scroll_position_abs,
+                    globals.state.fx_sel.scroll_position_abs,
                     delta,
-                    state.fx_sel.scroll_position_rel,
+                    globals.state.fx_sel.scroll_position_rel,
                     fx_count,
                 });
             }
@@ -167,21 +167,21 @@ pub fn fxSelActions(state: *State, sel_action: FxSelActions) void {
 }
 
 /// Create empty mapping in MapStore
-fn createEmptyMapping(state: *State, fx_name: [:0]const u8) !void {
-    switch (state.fx_sel.current_category) {
-        .INPUT => try globals.map_store.INPUT.put(globals.arena, fx_name, mappings.Inpt{}),
-        .GATE => try globals.map_store.GATE.put(globals.arena, fx_name, mappings.Shp{}),
-        .EQ => try globals.map_store.EQ.put(globals.arena, fx_name, mappings.Eq{}),
-        .COMP => try globals.map_store.COMP.put(globals.arena, fx_name, mappings.Comp{}),
-        .OUTPT => try globals.map_store.OUTPT.put(globals.arena, fx_name, mappings.Outpt{}),
+fn createEmptyMapping(globals: *Globals, fx_name: [:0]const u8) !void {
+    switch (globals.state.fx_sel.current_category) {
+        .INPUT => try globals.map_store.INPUT.put(globals.allocator, fx_name, mappings.Inpt{}),
+        .GATE => try globals.map_store.GATE.put(globals.allocator, fx_name, mappings.Shp{}),
+        .EQ => try globals.map_store.EQ.put(globals.allocator, fx_name, mappings.Eq{}),
+        .COMP => try globals.map_store.COMP.put(globals.allocator, fx_name, mappings.Comp{}),
+        .OUTPT => try globals.map_store.OUTPT.put(globals.allocator, fx_name, mappings.Outpt{}),
     }
 }
 
-pub fn enterMappingMode(track_id: c_int, fx_number: i32) !void {
+pub fn enterMappingMode(globals: *Globals, track_id: c_int, fx_number: i32) !void {
     const media_track =
         reaper.CSurf_TrackFromID(track_id, false);
     if (globals.mapping_panel == null) {
-        globals.mapping_panel = MappingPanel.init(globals.arena);
+        globals.mapping_panel = MappingPanel.init(globals.allocator);
     }
     try globals.mapping_panel.?.loadParameters(media_track, fx_number);
 }

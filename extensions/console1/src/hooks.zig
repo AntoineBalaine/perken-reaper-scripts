@@ -1,6 +1,6 @@
 const std = @import("std");
 const reaper = @import("reaper.zig").reaper;
-const globals = @import("globals.zig");
+const globals = @import("console1_extension.zig").globals;
 const actions = @import("actions.zig");
 const gui = @import("imgui_loop.zig");
 const Mode = @import("statemachine.zig").Mode;

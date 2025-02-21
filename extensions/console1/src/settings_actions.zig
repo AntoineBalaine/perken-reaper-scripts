@@ -4,7 +4,7 @@ const reaper = @import("reaper.zig").reaper;
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const SettingsPanel = @import("settings_panel.zig");
 const Preferences = @import("settings.zig");
 const dispatch = @import("actions.zig").dispatch;
@@ -18,7 +18,7 @@ pub const SettingsActions = union(enum) {
     toggle,
 };
 
-pub fn settingsActions(state: *State, set_action: SettingsActions) void {
+pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
     switch (set_action) {
         .open => {
             if (globals.settings_panel == null) {
@@ -28,14 +28,14 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
                 };
             }
             if (globals.settings_panel) |_| {
-                dispatch(state, .{ .change_mode = .settings });
+                dispatch(globals, .{ .change_mode = .settings });
             } else {
                 log.err("settings_panel data unfound: {s}", .{@tagName(set_action)});
             }
         },
         .save => {
             if (globals.settings_panel) |*panel| {
-                panel.save() catch {
+                panel.save(globals) catch {
                     log.err("save settings failed: {s}", .{@tagName(set_action)});
                     return;
                     // settings: implement error handling
@@ -43,15 +43,15 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
                 };
                 globals.settings_panel = null;
             }
-            dispatch(state, .{ .change_mode = .fx_ctrl });
+            dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
         .cancel => {
             if (globals.settings_panel) |_| {
                 globals.settings_panel = null;
             }
-            state.current_mode = .fx_ctrl;
+            globals.state.current_mode = .fx_ctrl;
             // Dunno why, calling dispatch here crashes the UI.
-            // dispatch(state, .{ .change_mode = .fx_ctrl });
+            // dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
         .toggle => {
             if (globals.settings_panel) |*panel| {
@@ -70,7 +70,7 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
                         .default_EQ,
                         .default_OUTPT,
                         => |cat| {
-                            state.default_fx_sel.current_category = switch (cat) {
+                            globals.state.default_fx_sel.current_category = switch (cat) {
                                 .default_INPUT => .INPUT,
                                 .default_GATE => .GATE,
                                 .default_COMP => .COMP,
@@ -78,7 +78,7 @@ pub fn settingsActions(state: *State, set_action: SettingsActions) void {
                                 .default_OUTPT => .OUTPT,
                                 else => unreachable,
                             };
-                            dispatch(state, .{ .change_mode = .default_fx_sel });
+                            dispatch(globals, .{ .change_mode = .default_fx_sel });
                         },
                     }
                 }

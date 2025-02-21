@@ -8,7 +8,7 @@ const statemachine = @import("statemachine.zig");
 const logger = @import("logger.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const SettingsPanel = @import("settings_panel.zig");
 const mappings = @import("mappings.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
@@ -63,39 +63,39 @@ pub const ModeAction = union(enum) {
 };
 
 // Top-level update function
-pub fn dispatch(state: *State, action: ModeAction) void {
+pub fn dispatch(app: *Globals, action: ModeAction) void {
     // log.debug("Handling action: {s}", .{@tagName(action)});
     switch (action) {
         .change_mode => |new_mode| {
-            if (!validateTransition(state.current_mode, new_mode)) {
+            if (!validateTransition(app.state.current_mode, new_mode)) {
                 log.err(
                     "Invalid mode transition: {s} -> {s}",
-                    .{ @tagName(state.current_mode), @tagName(new_mode) },
+                    .{ @tagName(app.state.current_mode), @tagName(new_mode) },
                 );
                 return;
             }
-            const old_mode = state.current_mode;
+            const old_mode = app.state.current_mode;
             switch (new_mode) {
                 .suspended => {
                     // Stop GUI when suspending
                     imgui_loop.reset();
-                    state.current_mode = .suspended;
+                    app.state.current_mode = .suspended;
                 },
                 .fx_ctrl => {
                     switch (old_mode) {
                         .suspended => {
-                            if (state.fx_ctrl_gui_visible) imgui_loop.register();
+                            if (app.state.fx_ctrl_gui_visible) imgui_loop.register();
                         },
-                        else => if (!state.fx_ctrl_gui_visible) imgui_loop.reset(),
+                        else => if (!app.state.fx_ctrl_gui_visible) imgui_loop.reset(),
                     }
-                    state.current_mode = .fx_ctrl;
+                    app.state.current_mode = .fx_ctrl;
                 },
                 else => {
                     switch (old_mode) {
-                        .fx_ctrl => if (!state.fx_ctrl_gui_visible) imgui_loop.register(),
+                        .fx_ctrl => if (!app.state.fx_ctrl_gui_visible) imgui_loop.register(),
                         else => {},
                     }
-                    state.current_mode = new_mode;
+                    app.state.current_mode = new_mode;
                 },
             }
             log.debug(
@@ -107,28 +107,28 @@ pub fn dispatch(state: *State, action: ModeAction) void {
                 },
             );
 
-            midi_out.sendMidiFeedback(.{ .mode_entry = new_mode });
+            midi_out.sendMidiFeedback(app, .{ .mode_entry = new_mode });
         },
         .set_fx_ctrl_gui => {
-            state.fx_ctrl_gui_visible = !state.fx_ctrl_gui_visible;
-            if (state.fx_ctrl_gui_visible) {
+            app.state.fx_ctrl_gui_visible = !app.state.fx_ctrl_gui_visible;
+            if (app.state.fx_ctrl_gui_visible) {
                 imgui_loop.register();
             } else {
                 imgui_loop.reset();
             }
         },
         else => |mode_action| {
-            if (state.current_mode == .suspended) return;
+            if (app.state.current_mode == .suspended) return;
             switch (mode_action) {
-                .fx_ctrl => |fx_action| fxCtrlActions(state, fx_action),
-                .fx_sel => |sel_action| fx_sel_actions.fxSelActions(state, sel_action),
-                .mapping => |map_action| mappingActions(state, map_action),
-                .settings => |set_action| settings_actions.settingsActions(state, set_action),
-                .default_fx_sel => |sel_action| default_fx_sel_actions.defaultFxSelActions(state, sel_action),
-                .Csurf => |set_action| csurfActions(state, set_action),
-                .track_list => |tr_action| trackListAction(state, tr_action),
-                .midi_out => |m_out_action| midi_out.sendMidiFeedback(m_out_action),
-                .transport => |trspt_act| transportAction(state, trspt_act),
+                .fx_ctrl => |fx_action| fxCtrlActions(app, fx_action),
+                .fx_sel => |sel_action| fx_sel_actions.fxSelActions(app, sel_action),
+                .mapping => |map_action| mappingActions(app, map_action),
+                .settings => |set_action| settings_actions.settingsActions(app, set_action),
+                .default_fx_sel => |sel_action| default_fx_sel_actions.defaultFxSelActions(app, sel_action),
+                .Csurf => |set_action| csurfActions(app, set_action),
+                .track_list => |tr_action| trackListAction(app, tr_action),
+                .midi_out => |m_out_action| midi_out.sendMidiFeedback(app, m_out_action),
+                .transport => |trspt_act| transportAction(app, trspt_act),
                 else => unreachable,
             }
         },

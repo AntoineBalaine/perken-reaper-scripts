@@ -15,7 +15,7 @@ const c = @cImport({
     @cInclude("csurf/midi_wrapper.h");
 });
 const ModulesList = @import("../statemachine.zig").ModulesList;
-const globals = @import("../globals.zig");
+const globals = @import("../console1_extension.zig").globals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const CONTROLLER_NAME = constants.CONTROLLER_NAME;
@@ -48,7 +48,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Inpt_disp_on => {
             if (getTrack()) |mediaTrack| {
                 globals.state.fx_ctrl.display = if (globals.state.fx_ctrl.display) |_| null else 1;
-                actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
+                actions.dispatch(&globals, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
             }
         },
         .Inpt_filt_to_comp => {},
@@ -86,7 +86,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Tr_ext_sidechain => {
             if (getTrack()) |tr| {
                 switch (val) {
-                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val)) catch {},
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val), globals.preferences.manual_routing) catch {},
                     else => {},
                 }
             }
@@ -94,7 +94,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Tr_order => {
             if (getTrack()) |tr| {
                 switch (val) {
-                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null) catch {},
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null, globals.preferences.manual_routing) catch {},
                     else => {},
                 }
             }

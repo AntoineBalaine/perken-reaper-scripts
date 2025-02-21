@@ -3,10 +3,9 @@ const imgui = @import("reaper_imgui.zig");
 const Knobs = @import("components/knob.zig");
 const Knob = Knobs.Knob;
 const Rectangle = @import("components/knob.zig").Rectangle;
-const State = @import("statemachine.zig").State;
 const c1 = @import("c1.zig");
 const WidgetInput = @import("fx_ctrl_actions.zig").WidgetInput;
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const roundButton = @import("components/widgets.zig").roundButton;
 // Layout constants
 // const section_spacing = 10.0;
@@ -39,9 +38,9 @@ var out_drive: f64 = 0.5; // Out_Drive
 var out_vol: f64 = 0.5; // Out_Vol
 var out_pan: f64 = 0.5; // Out_Pan
 
-pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
-    const mode: @import("statemachine.zig").Mode = state.current_mode;
-    const fx_state = &state.fx_ctrl;
+pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInput {
+    const mode: @import("statemachine.zig").Mode = globals.state.current_mode;
+    const fx_state = &globals.state.fx_ctrl;
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
     var rv: ?WidgetInput = null;

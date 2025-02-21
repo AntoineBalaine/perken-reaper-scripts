@@ -10,7 +10,8 @@ const c = @cImport({
 });
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
+pub var globals: Globals = undefined;
 const logger = @import("logger.zig");
 const hooks = @import("hooks.zig");
 const log = std.log.scoped(.extension);
@@ -38,7 +39,7 @@ fn init() !void {
     logger.init();
     myCsurf = control_surface.init(-1, -1, null);
 
-    try globals.init();
+    globals = try Globals.init();
 }
 
 fn deinit() void {

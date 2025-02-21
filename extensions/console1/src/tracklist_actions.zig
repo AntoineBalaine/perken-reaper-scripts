@@ -17,9 +17,9 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
-const globals = @import("globals.zig");
 const actions = @import("actions.zig");
 const pReaper = @import("pReaper.zig");
+const Globals = @import("globals.zig").Globals;
 
 pub const TrackListAction = union(enum) {
     page_change: PgDirection,
@@ -32,17 +32,17 @@ pub const TrackListAction = union(enum) {
     refresh,
 };
 
-pub fn trackListAction(state: *State, action: TrackListAction) void {
+pub fn trackListAction(globals: *Globals, action: TrackListAction) void {
     switch (action) {
-        .page_change => |direction| handlePageChange(state, direction),
+        .page_change => |direction| handlePageChange(globals, direction),
         .track_select => |track_id| {
-            const track = setReaperTrackSelection(track_id);
+            const track = setReaperTrackSelection(globals, track_id);
             if (track) |tr| {
-                actions.dispatch(state, .{ .fx_ctrl = .{ .on_track_entry = tr } });
+                actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = tr } });
             }
         },
         .blink_leds => |led_state| {
-            const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
+            const page_start = globals.state.fx_ctrl.current_page * TrackList.PageSize;
             const track_count = reaper.GetNumTracks() + 1; // +  1 to account for master
 
             // Iterate through track buttons in current page
@@ -52,19 +52,19 @@ pub fn trackListAction(state: *State, action: TrackListAction) void {
                 if (track_id >= track_count) break;
 
                 // Skip if this is the last touched track
-                if (track_id == state.current_tr_id) {
+                if (track_id == globals.state.current_tr_id) {
                     continue;
                 }
 
                 // If track is selected, blink its LED
-                if (state.selectedTracks.contains(track_id)) {
+                if (globals.state.selectedTracks.contains(track_id)) {
                     const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(i));
                     const value: u8 = if (led_state.blink_state) 0x7f else 0x0;
                     c.MidiOut_Send(led_state.midi_out, 0xb0, cc, value, -1);
                 }
             }
         },
-        .refresh => updateTrackNames(state),
+        .refresh => updateTrackNames(globals),
     }
 }
 
@@ -107,7 +107,7 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
 
 const PgDirection = enum { up, down };
 
-fn handlePageChange(state: *State, direction: PgDirection) void {
+fn handlePageChange(globals: *Globals, direction: PgDirection) void {
     const track_count = reaper.GetNumTracks() + 1;
     if (track_count <= 0) return;
 
@@ -116,32 +116,32 @@ fn handlePageChange(state: *State, direction: PgDirection) void {
     const total_pages = (track_count_uz + TrackList.PageSize - 1) / TrackList.PageSize;
 
     // Update page with wrapping
-    state.fx_ctrl.current_page = switch (direction) {
-        .up => if (state.fx_ctrl.current_page >= total_pages - 1)
+    globals.state.fx_ctrl.current_page = switch (direction) {
+        .up => if (globals.state.fx_ctrl.current_page >= total_pages - 1)
             0
         else
-            state.fx_ctrl.current_page + 1,
-        .down => if (state.fx_ctrl.current_page == 0)
+            globals.state.fx_ctrl.current_page + 1,
+        .down => if (globals.state.fx_ctrl.current_page == 0)
             @intCast(total_pages - 1)
         else
-            state.fx_ctrl.current_page - 1,
+            globals.state.fx_ctrl.current_page - 1,
     };
 
     // Update track names for new page
-    updateTrackNames(state);
+    updateTrackNames(globals);
 
     // Focus tracks in TCP if enabled
     if (globals.preferences.focus_page_tracks) {
-        focusPageTracks(state);
+        focusPageTracks(globals);
     }
 }
 
-fn updateTrackNames(state: *State) void {
+fn updateTrackNames(globals: *Globals) void {
     log.debug("refresh track names", .{});
-    const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
+    const page_start = globals.state.fx_ctrl.current_page * TrackList.PageSize;
 
     // Clear existing names
-    state.fx_ctrl.track_list.name_count = 0;
+    globals.state.fx_ctrl.track_list.name_count = 0;
 
     // Get names for tracks in current page
     var i: usize = 0;
@@ -152,14 +152,14 @@ fn updateTrackNames(state: *State) void {
 
         // ASSUMPTION: csurf track ids are sequential, start 0 for master track
         const track = reaper.CSurf_TrackFromID(@intCast(track_id), constants.g_csurf_mcpmode);
-        state.fx_ctrl.track_list.track_names[i].id = track_id;
-        _ = reaper.GetTrackName(track, &state.fx_ctrl.track_list.track_names[i].name, TrackList.TrackNameSize);
-        state.fx_ctrl.track_list.name_count += 1;
+        globals.state.fx_ctrl.track_list.track_names[i].id = track_id;
+        _ = reaper.GetTrackName(track, &globals.state.fx_ctrl.track_list.track_names[i].name, TrackList.TrackNameSize);
+        globals.state.fx_ctrl.track_list.name_count += 1;
     }
 }
 
-fn focusPageTracks(state: *State) void {
-    const page_start = state.fx_ctrl.current_page * TrackList.PageSize;
+fn focusPageTracks(globals: *Globals) void {
+    const page_start = globals.state.fx_ctrl.current_page * TrackList.PageSize;
 
     // Set vertical scroll to show selected tracks
     // Note: this requires SWS extension
@@ -204,7 +204,7 @@ fn focusPageTracks(state: *State) void {
 }
 
 // unselect all other tracks.
-pub fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
+pub fn setReaperTrackSelection(globals: *Globals, csurf_id: c_int) ?reaper.MediaTrack {
     // 1. Check if index is valid
     const track_count = reaper.GetNumTracks() + 1; // including master
     if (csurf_id >= track_count) {
@@ -222,7 +222,7 @@ pub fn setReaperTrackSelection(csurf_id: c_int) ?reaper.MediaTrack {
 
     const media_track = reaper.CSurf_TrackFromID(csurf_id, constants.g_csurf_mcpmode);
 
-    globals.state.selectedTracks.put(globals.arena, csurf_id, {}) catch {};
+    globals.state.selectedTracks.put(globals.allocator, csurf_id, {}) catch {};
 
     pReaper.CSurf_SetSurfaceSelected(.{ media_track, pReaper.CSurf_OnSelectedChange(.{ media_track, 1 }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
     return media_track;

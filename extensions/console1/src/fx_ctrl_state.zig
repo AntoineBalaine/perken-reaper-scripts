@@ -6,7 +6,7 @@ const pReaper = @import("pReaper.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const FxMap = @import("mappings.zig").FxMap;
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const constants = @import("constants.zig");
 pub const TrackState = @import("track_state.zig");
 
@@ -154,10 +154,11 @@ pub fn validateTrack(
     newOrder: ?ModulesOrder,
     mediaTrack: reaper.MediaTrack,
     reRoute: ?SCRouting,
+    manual_routing: bool,
 ) !void {
     const coverage = self.track_state.validateTrack(mediaTrack);
 
-    if (!globals.preferences.manual_routing) {
+    if (!manual_routing) {
         self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);
     }
 

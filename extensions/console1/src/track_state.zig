@@ -3,7 +3,6 @@ const reaper = @import("reaper.zig").reaper;
 const pReaper = @import("pReaper.zig");
 const MediaTrack = reaper.MediaTrack;
 const ModulesList = @import("statemachine.zig").ModulesList;
-const globals = @import("globals.zig");
 const MapStore = @import("mappings.zig");
 const Inpt = MapStore.Inpt;
 const Shp = MapStore.Shp;
@@ -16,6 +15,7 @@ const TaggedMapping = MapStore.TaggedMapping;
 const MockReaper = @import("mock_reaper.zig");
 const Guid = @import("utils.zig").Guid;
 const log = std.log.scoped(.validation);
+const Preferences = @import("settings.zig").Preferences;
 
 pub const MAX_FX = 5;
 pub const MAX_PARSED_FX = MAX_FX * 2; // Allow for reasonable number of duplicates
@@ -60,7 +60,7 @@ pub const ParsedFx = struct {
     active_modules: ?ModulesList = null,
 };
 
-pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) ModuleCoverage {
+pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, preferences: *Preferences, mapStore: *MapStore) ModuleCoverage {
     // Initialize track state
     track_state.* = .{ .fx_states = undefined, .fx_count = 0, .module_locations = ModuleLocations.initFill(null) };
 
@@ -94,8 +94,8 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack) Mo
     }
 
     var coverage = analyzeCoverage(&parsed_fx, mediaTrack);
-    coverage = reorderFx2(coverage, mediaTrack, globals.preferences.default_fx);
-    updateTrackState(track_state, coverage, mediaTrack, &buf);
+    coverage = reorderFx2(coverage, mediaTrack, preferences.default_fx);
+    updateTrackState(track_state, coverage, mediaTrack, &buf, mapStore);
     return coverage;
 }
 
@@ -385,6 +385,7 @@ pub fn updateTrackState(
     coverage: ModuleCoverage,
     mediaTrack: MediaTrack,
     buf: *[512:0]u8,
+    map_store: *MapStore,
 ) void {
     // Reset current state
     track_state.fx_count = 0;
@@ -407,7 +408,7 @@ pub fn updateTrackState(
             const module = @field(ModulesList, field.name);
             track_state.module_locations.set(module, .{
                 .fx_index = location.index,
-                .mapping = globals.map_store.get(std.mem.span(@as([*:0]const u8, buf)), module),
+                .mapping = map_store.get(std.mem.span(@as([*:0]const u8, buf)), module),
             });
 
             // Create ActiveModules with single module

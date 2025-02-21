@@ -1,10 +1,11 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const Preferences = @import("settings.zig");
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const ModulesList = @import("statemachine.zig").ModulesList;
 const settings_actions = @import("settings_actions.zig");
 const styles = @import("styles.zig");
+const MappingsList = @import("mappings_list.zig");
 
 // Temporary copy for editing
 temp_settings: Preferences,
@@ -25,7 +26,7 @@ const SettingsRV = union(enum) {
     close_cancel,
     val_update: SettingsValUpdate,
 };
-pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
+pub fn draw(self: *@This(), ctx: imgui.ContextPtr, mappings_list: *MappingsList) !?SettingsRV {
     var rv: ?SettingsRV = null;
     const scroll_pos = self.scroll_position_rel;
     const PopStyle = try styles.PushStyle(ctx, .rack);
@@ -148,7 +149,7 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
                             self.dirty = true;
                         }
                     } // Get available mappings for this module
-                    const mappings = globals.mappings_list.list.get(module);
+                    const mappings = mappings_list.list.get(module);
 
                     // Show each available mapping as a selectable
                     var it = mappings.iterator();
@@ -176,7 +177,7 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr) !?SettingsRV {
 /// Copy temp_settings to `globals.preferences`.
 ///
 /// If the copy fails, just return without committing the changes.
-pub fn save(self: *@This()) !void {
+pub fn save(self: *@This(), globals: *Globals) !void {
     // Just copy the values, including string slices
     globals.preferences = self.temp_settings;
     try globals.preferences.saveToDisk(globals.resource_path);

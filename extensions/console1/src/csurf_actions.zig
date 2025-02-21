@@ -4,7 +4,7 @@ const reaper = @import("reaper.zig").reaper;
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
-const globals = @import("globals.zig");
+const Globals = @import("globals.zig").Globals;
 const actions = @import("actions.zig");
 pub const WinChg = struct {
     track: reaper.MediaTrack,
@@ -31,25 +31,25 @@ pub const CsurfAction = union(enum) {
     fx_window_state: WinChg,
 };
 
-pub fn csurfActions(state: *State, set_action: CsurfAction) void {
+pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
     switch (set_action) {
         .track_selected => |selection| {
             // Update selected tracks map
             const tr_id = reaper.CSurf_TrackToID(selection.tr, false);
             if (selection.selected) {
-                state.selectedTracks.put(globals.arena, tr_id, {}) catch return;
+                globals.state.selectedTracks.put(globals.arena_allocator, tr_id, {}) catch return;
                 // If no current track, use this one
-                if (state.current_tr_id == null) {
-                    state.current_tr_id = tr_id;
-                    actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = selection.tr } });
+                if (globals.state.current_tr_id == null) {
+                    globals.state.current_tr_id = tr_id;
+                    actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = selection.tr } });
                 }
             } else {
-                _ = state.selectedTracks.orderedRemove(tr_id);
+                _ = globals.state.selectedTracks.orderedRemove(tr_id);
                 // If this was our current track, fall back to another selected track
-                if (state.current_tr_id == tr_id) {
-                    state.current_tr_id = if (state.selectedTracks.count() > 0) state.selectedTracks.keys()[0] else null; // fallback
-                    if (state.current_tr_id) |id| {
-                        actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = reaper.CSurf_TrackFromID(id, false) } });
+                if (globals.state.current_tr_id == tr_id) {
+                    globals.state.current_tr_id = if (globals.state.selectedTracks.count() > 0) globals.state.selectedTracks.keys()[0] else null; // fallback
+                    if (globals.state.current_tr_id) |id| {
+                        actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = reaper.CSurf_TrackFromID(id, false) } });
                     }
                 }
             }
@@ -59,16 +59,16 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
             // Update current_tr_id if:
             // - We have no current track, or
             // - We have multiple tracks selected and this is a different track
-            if (state.current_tr_id == null or
-                (state.selectedTracks.count() > 1 and state.current_tr_id != tr_id))
+            if (globals.state.current_tr_id == null or
+                (globals.state.selectedTracks.count() > 1 and globals.state.current_tr_id != tr_id))
             {
-                state.current_tr_id = tr_id;
-                actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = track } });
+                globals.state.current_tr_id = tr_id;
+                actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = track } });
             }
         },
-        .fx_chain_changed => |track| actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .on_track_entry = track } }),
+        .fx_chain_changed => |track| actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = track } }),
         .fx_param_changed => |prm_chg| {
-            if (state.current_mode == .fx_ctrl) {
+            if (globals.state.current_mode == .fx_ctrl) {
                 const container_idx = reaper.TrackFX_GetByName(prm_chg.track, "C1_CHANNEL", false);
                 if (container_idx >= 0) {
                     const container_fx_idx = @as(usize, @intCast(container_idx));
@@ -76,7 +76,7 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
                         var cc: c1.CCs = undefined;
 
                         blk: inline for (comptime std.enums.values(statemachine.ModulesList)) |field| {
-                            if (state.fx_ctrl.track_state.module_locations.get(field)) |mod_map| {
+                            if (globals.state.fx_ctrl.track_state.module_locations.get(field)) |mod_map| {
                                 const idx = mod_map.fx_index;
                                 if (idx == prm_chg.fx_index) {
                                     if (mod_map.mapping) |mapping| {
@@ -92,7 +92,7 @@ pub fn csurfActions(state: *State, set_action: CsurfAction) void {
                                 }
                             }
                         }
-                        actions.dispatch(&globals.state, .{ .midi_out = .{ .set_param = .{ .cc = cc, .value = @intFromFloat(prm_chg.value * 127.0) } } });
+                        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = cc, .value = @intFromFloat(prm_chg.value * 127.0) } } });
                         // actions.dispatch(state, .{ .midi_out = .{ .set_param = .{
                         //     .cc = @field(state.fx_ctrl.fxMap, @tagName(module))[1].param_index,
                         //     .value = midi_value,
