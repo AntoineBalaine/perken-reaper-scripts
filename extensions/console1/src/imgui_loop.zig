@@ -49,16 +49,17 @@ fn init() !void {
 
 var buf: [128:0]u8 = undefined;
 
-fn main(globals: *Globals) !void {
+fn main(globals: *Globals) !?actions.ModeAction {
     if (ctx == null) {
         try init();
     }
 
     var open: bool = true;
-
     try imgui.SetConfigVar(.{ ctx, imgui.ConfigVar_WindowsMoveFromTitleBarOnly, 1.0 });
     const PopStyle = try styles.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
+
+    var rv: ?actions.ModeAction = null;
 
     try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.BOTTOM });
     if (try imgui.Begin(.{ ctx, plugin_name, &open, windowFlags })) {
@@ -74,7 +75,7 @@ fn main(globals: *Globals) !void {
         switch (globals.state.current_mode) {
             .fx_ctrl => {
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals)) |ctrl_input| {
-                    actions.dispatch(globals, .{ .fx_ctrl = .{ .panel_input = ctrl_input } });
+                    rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } };
                 }
                 if (globals.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
@@ -84,7 +85,7 @@ fn main(globals: *Globals) !void {
                         const track_id = @intFromEnum(tr_cc) - @intFromEnum(c1.CCs.Tr_tr1);
                         if (track_id < globals.state.fx_ctrl.track_list.name_count) {
                             const tr_id = globals.state.fx_ctrl.track_list.track_names[track_id].id;
-                            actions.dispatch(globals, .{ .track_list = .{ .track_select = tr_id } });
+                            rv = .{ .track_list = .{ .track_select = tr_id } };
                         }
                     }
                 }
@@ -93,9 +94,9 @@ fn main(globals: *Globals) !void {
                 if (globals.settings_panel) |*panel| {
                     if (try panel.draw(ctx, &globals.mappings_list)) |val| {
                         switch (val) {
-                            .val_update => |update| actions.dispatch(globals, .{ .midi_out = .{ .settings_changed = update } }),
-                            .close_save => actions.dispatch(globals, .{ .settings = .save }),
-                            .close_cancel => actions.dispatch(globals, .{ .settings = .cancel }),
+                            .val_update => |update| rv = .{ .midi_out = .{ .settings_changed = update } },
+                            .close_save => rv = .{ .settings = .save },
+                            .close_cancel => rv = .{ .settings = .cancel },
                         }
                     }
                 }
@@ -104,28 +105,28 @@ fn main(globals: *Globals) !void {
                 if (globals.settings_panel) |*panel| {
                     if (try panel.draw(ctx, &globals.mappings_list)) |val| {
                         switch (val) {
-                            .val_update => |update| actions.dispatch(globals, .{ .midi_out = .{ .settings_changed = update } }),
-                            .close_save => actions.dispatch(globals, .{ .settings = .save }),
-                            .close_cancel => actions.dispatch(globals, .{ .settings = .cancel }),
+                            .val_update => |update| rv = .{ .midi_out = .{ .settings_changed = update } },
+                            .close_save => rv = .{ .settings = .save },
+                            .close_cancel => rv = .{ .settings = .cancel },
                         }
                     }
                 }
                 const module = globals.state.default_fx_sel.current_category;
                 const list = globals.mappings_list.list.get(module);
                 if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.default_fx_sel.scroll_position_rel, false, &globals.drwls_splitter)) |sel_action| {
-                    actions.dispatch(globals, .{ .fx_sel = sel_action });
+                    rv = .{ .fx_sel = sel_action };
                 }
             },
             .fx_sel => {
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals)) |ctrl_input| {
                     switch (ctrl_input.cc) {
-                        .Out_Vol => actions.dispatch(globals, .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } }),
+                        .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
                         .Out_solo => {
                             const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
                             const fx_name = mappings.unmanaged.keys()[globals.state.fx_sel.scroll_position_rel];
-                            actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } });
+                            rv = .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } };
                         },
-                        .Out_mute => actions.dispatch(globals, .{ .fx_sel = .close_browser }),
+                        .Out_mute => rv = .{ .fx_sel = .close_browser },
                         else => {},
                     }
                 }
@@ -135,11 +136,11 @@ fn main(globals: *Globals) !void {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
                         switch (tr_cc) {
-                            .Tr_tr1 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
-                            .Tr_tr2 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
-                            .Tr_tr3 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
-                            .Tr_tr4 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
-                            .Tr_tr5 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                            .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
+                            .Tr_tr2 => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
+                            .Tr_tr3 => rv = .{ .fx_sel = .{ .toggle_module_browser = .EQ } },
+                            .Tr_tr4 => rv = .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
+                            .Tr_tr5 => rv = .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
                             else => {},
                         }
                     }
@@ -148,32 +149,32 @@ fn main(globals: *Globals) !void {
                 const module = globals.state.fx_sel.current_category;
                 const list = globals.mappings_list.list.get(module);
                 if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel, true, &globals.drwls_splitter)) |sel_action| {
-                    actions.dispatch(globals, .{ .fx_sel = sel_action });
+                    rv = .{ .fx_sel = sel_action };
                 }
             },
             .mapping_panel => {
                 if (try mapping_panel.drawMappingPanel(ctx, globals)) |map_action| {
-                    actions.dispatch(globals, .{ .mapping = map_action });
+                    rv = .{ .mapping = map_action };
                 }
             },
             .transport => {
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals)) |ctrl_input| {
                     const val: u8 = @intFromFloat(ctrl_input.value * 127.0);
                     switch (ctrl_input.cc) {
-                        .Out_Vol => actions.dispatch(globals, .{ .transport = .{ .tr_sel = val } }),
-                        .Out_Drive => actions.dispatch(globals, .{ .transport = .{ .zoom_horizontal = val } }),
-                        .Out_DriveChar => actions.dispatch(globals, .{ .transport = .{ .zoom_vertical = val } }),
-                        .Out_Pan => actions.dispatch(globals, .{ .transport = .{ .grid = val } }),
-                        .Eq_eq => actions.dispatch(globals, .{ .transport = .loop_toggle }),
-                        .Eq_lp_shape => actions.dispatch(globals, .{ .transport = .loop_start }),
-                        .Eq_hp_shape => actions.dispatch(globals, .{ .transport = .loop_end }),
-                        .Eq_LoGain => actions.dispatch(globals, .{ .transport = .{ .scrub = val } }),
-                        .Eq_LoMidGain => actions.dispatch(globals, .{ .transport = .{ .jog = val } }),
-                        .Eq_HiMidGain => actions.dispatch(globals, .{ .transport = .{ .jog_marker = val } }),
-                        .Eq_HiGain => actions.dispatch(globals, .{ .transport = .{ .jog_item = val } }),
-                        .Comp_comp => actions.dispatch(globals, .{ .transport = .marker_set }),
-                        .Inpt_HiCut => actions.dispatch(globals, .{ .transport = .{ .rate = val } }),
-                        .Out_solo => actions.dispatch(globals, .{ .transport = .snap_tgl }),
+                        .Out_Vol => rv = .{ .transport = .{ .tr_sel = val } },
+                        .Out_Drive => rv = .{ .transport = .{ .zoom_horizontal = val } },
+                        .Out_DriveChar => rv = .{ .transport = .{ .zoom_vertical = val } },
+                        .Out_Pan => rv = .{ .transport = .{ .grid = val } },
+                        .Eq_eq => rv = .{ .transport = .loop_toggle },
+                        .Eq_lp_shape => rv = .{ .transport = .loop_start },
+                        .Eq_hp_shape => rv = .{ .transport = .loop_end },
+                        .Eq_LoGain => rv = .{ .transport = .{ .scrub = val } },
+                        .Eq_LoMidGain => rv = .{ .transport = .{ .jog = val } },
+                        .Eq_HiMidGain => rv = .{ .transport = .{ .jog_marker = val } },
+                        .Eq_HiGain => rv = .{ .transport = .{ .jog_item = val } },
+                        .Comp_comp => rv = .{ .transport = .marker_set },
+                        .Inpt_HiCut => rv = .{ .transport = .{ .rate = val } },
+                        .Out_solo => rv = .{ .transport = .snap_tgl },
                         else => {},
                     }
                 }
@@ -192,17 +193,17 @@ fn main(globals: *Globals) !void {
                                     .Tr_tr5 => .OUTPT,
                                     else => unreachable,
                                 };
-                                actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = module } });
+                                rv = .{ .fx_sel = .{ .toggle_module_browser = module } };
                             },
-                            .Tr_tr6 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .trim } }),
-                            .Tr_tr7 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .read } }),
-                            .Tr_tr8 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .latch } }),
-                            .Tr_tr9 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .preview } }),
-                            .Tr_tr10 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .write } }),
-                            .Tr_tr17 => actions.dispatch(globals, .{ .transport = .play }),
-                            .Tr_tr18 => actions.dispatch(globals, .{ .transport = .stop }),
-                            .Tr_tr19 => actions.dispatch(globals, .{ .transport = .rec }),
-                            .Tr_tr20 => actions.dispatch(globals, .{ .settings = .open }),
+                            .Tr_tr6 => rv = .{ .transport = .{ .automation_mode = .trim } },
+                            .Tr_tr7 => rv = .{ .transport = .{ .automation_mode = .read } },
+                            .Tr_tr8 => rv = .{ .transport = .{ .automation_mode = .latch } },
+                            .Tr_tr9 => rv = .{ .transport = .{ .automation_mode = .preview } },
+                            .Tr_tr10 => rv = .{ .transport = .{ .automation_mode = .write } },
+                            .Tr_tr17 => rv = .{ .transport = .play },
+                            .Tr_tr18 => rv = .{ .transport = .stop },
+                            .Tr_tr19 => rv = .{ .transport = .rec },
+                            .Tr_tr20 => rv = .{ .settings = .open },
                             else => {},
                         }
                     }
@@ -218,6 +219,8 @@ fn main(globals: *Globals) !void {
 
     if (!open)
         reset();
+
+    return rv;
 }
 
 pub fn register() void {
@@ -232,7 +235,11 @@ pub fn reset() void {
 fn onTimer() callconv(.C) void {
     var globals = extension.getGlobals();
     _ = &globals;
-    main(globals) catch |err| {
+    if (main(globals)) |maybe_action| {
+        if (maybe_action) |action| {
+            actions.dispatch(globals, action);
+        }
+    } else |err| {
         reset();
         log.err("Error in main loop: {s}\n", .{@errorName(err)});
 
@@ -244,5 +251,5 @@ fn onTimer() callconv(.C) void {
             _ = reaper.ShowMessageBox("ImGui error occurred", plugin_name, 0);
         }
         actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
-    };
+    }
 }
