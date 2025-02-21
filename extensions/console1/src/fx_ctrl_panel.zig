@@ -53,14 +53,16 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
 
         // try imgui.Text(.{ ctx, "Input" });
 
-        if (try roundButton(.{ ctx, c1.CCs.Inpt_disp_on.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_disp_on) })) {}
-        try imgui.SameLine(.{ctx});
-        if (try roundButton(.{ ctx, c1.CCs.Inpt_disp_mode.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_disp_on) })) {}
+        { // First column
+            try imgui.BeginGroup(.{ctx});
+            defer imgui.EndGroup(.{ctx}) catch {};
 
-        // First column
-        var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
-        if (try Knobs.drawWidget(ctx, &gain_prm.normalized, c1.CCs.Inpt_Gain.getLabel(mode), .{})) {
-            rv = .{ .cc = .Inpt_Gain, .value = gain_prm.normalized };
+            if (try roundButton(.{ ctx, c1.CCs.Inpt_disp_on.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_disp_on) })) {}
+            try imgui.Dummy(.{ ctx, 0, knob_size * 2 });
+            var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
+            if (try Knobs.drawWidget(ctx, &gain_prm.normalized, c1.CCs.Inpt_Gain.getLabel(mode), .{})) {
+                rv = .{ .cc = .Inpt_Gain, .value = gain_prm.normalized };
+            }
         }
         try imgui.SameLine(.{ctx});
 
@@ -68,6 +70,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
         {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
+            if (try roundButton(.{ ctx, c1.CCs.Inpt_disp_mode.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_disp_on) })) {}
             {
                 var hicut_prm = fx_state.values.get(.Inpt_HiCut).?.param;
                 if (try Knobs.drawWidget(ctx, &hicut_prm.normalized, c1.CCs.Inpt_HiCut.getLabel(mode), .{})) {
@@ -105,6 +108,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
+                try imgui.Dummy(.{ ctx, 0, knob_size * 0.75 });
                 var gate_prm = fx_state.values.get(.Shp_Gate).?.param;
                 if (try Knobs.drawWidget(ctx, &gate_prm.normalized, c1.CCs.Shp_Gate.getLabel(mode), .{})) {
                     rv = .{ .cc = .Shp_Gate, .value = gate_prm.normalized };
@@ -160,6 +164,8 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
+                try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
+
                 const lo_shape = fx_state.values.get(.Eq_lp_shape).?.button;
                 if (try roundButton(.{ ctx, c1.CCs.Eq_lp_shape.getLabel(mode), "##" ++ @tagName(c1.CCs.Eq_lp_shape), null, null, .right })) {
                     rv = .{ .cc = .Eq_lp_shape, .value = if (lo_shape) 0 else 1 };
@@ -229,6 +235,8 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
+                try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
+
                 const hi_shape = fx_state.values.get(.Eq_hp_shape).?.button;
                 if (try roundButton(.{ ctx, c1.CCs.Eq_hp_shape.getLabel(mode), "##" ++ @tagName(c1.CCs.Eq_hp_shape), null, null, .right })) {
                     rv = .{ .cc = .Eq_hp_shape, .value = if (hi_shape) 0 else 1 };
@@ -264,6 +272,8 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
             {
+                try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
+
                 var ratio_prm = fx_state.values.get(.Comp_Ratio).?.param;
                 if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, c1.CCs.Comp_Ratio.getLabel(mode), .{})) {
                     rv = .{ .cc = .Comp_Ratio, .value = ratio_prm.normalized };
@@ -308,12 +318,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
-        try imgui.Text(.{ ctx, "Output" });
 
         // First column
         {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
+            if (try roundButton(.{ ctx, c1.CCs.Tr_order.getLabel(mode), "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right })) {}
             {
                 var drive_prm = fx_state.values.get(.Out_Drive).?.param;
                 if (try Knobs.drawWidget(ctx, &drive_prm.normalized, c1.CCs.Out_Drive.getLabel(mode), .{})) {
@@ -337,7 +347,10 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, state: *State) !?WidgetInput {
         {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
+
+            if (try roundButton(.{ ctx, c1.CCs.Tr_ext_sidechain.getLabel(mode), "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right })) {}
             {
+                try imgui.Dummy(.{ ctx, knob_size * 2, knob_size * 2 });
                 const solo = fx_state.values.get(.Out_solo).?.button;
                 if (try roundButton(.{ ctx, c1.CCs.Out_solo.getLabel(mode), "##" ++ @tagName(c1.CCs.Out_solo), null, null, .below })) {
                     rv = .{ .cc = .Out_solo, .value = if (solo) 0 else 1 };
