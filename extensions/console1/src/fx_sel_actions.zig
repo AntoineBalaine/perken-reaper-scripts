@@ -169,11 +169,11 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
 /// Create empty mapping in MapStore
 fn createEmptyMapping(globals: *Globals, fx_name: [:0]const u8) !void {
     switch (globals.state.fx_sel.current_category) {
-        .INPUT => try globals.map_store.INPUT.put(globals.allocator, fx_name, mappings.Inpt{}),
-        .GATE => try globals.map_store.GATE.put(globals.allocator, fx_name, mappings.Shp{}),
-        .EQ => try globals.map_store.EQ.put(globals.allocator, fx_name, mappings.Eq{}),
-        .COMP => try globals.map_store.COMP.put(globals.allocator, fx_name, mappings.Comp{}),
-        .OUTPT => try globals.map_store.OUTPT.put(globals.allocator, fx_name, mappings.Outpt{}),
+        .INPUT => try globals.map_store.INPUT.put(globals.arena, fx_name, mappings.Inpt{}),
+        .GATE => try globals.map_store.GATE.put(globals.arena, fx_name, mappings.Shp{}),
+        .EQ => try globals.map_store.EQ.put(globals.arena, fx_name, mappings.Eq{}),
+        .COMP => try globals.map_store.COMP.put(globals.arena, fx_name, mappings.Comp{}),
+        .OUTPT => try globals.map_store.OUTPT.put(globals.arena, fx_name, mappings.Outpt{}),
     }
 }
 
@@ -181,7 +181,7 @@ pub fn enterMappingMode(globals: *Globals, track_id: c_int, fx_number: i32) !voi
     const media_track =
         reaper.CSurf_TrackFromID(track_id, false);
     if (globals.mapping_panel == null) {
-        globals.mapping_panel = MappingPanel.init(globals.allocator);
+        globals.mapping_panel = MappingPanel.init(globals.arena);
     }
     try globals.mapping_panel.?.loadParameters(media_track, fx_number);
 }

@@ -174,11 +174,11 @@ pub fn mappingActions(app: *Globals, map_action: MappingAction) void {
             log.debug("Saved mappings for FX: {s}", .{app.state.mapping.target_fx});
             // Save to MapStore
             switch (app.state.mapping.current_mappings) {
-                .INPUT => |input| app.map_store.INPUT.put(app.allocator, app.state.mapping.target_fx, input) catch {},
-                .GATE => |gate| app.map_store.GATE.put(app.allocator, app.state.mapping.target_fx, gate) catch {},
-                .EQ => |eq| app.map_store.EQ.put(app.allocator, app.state.mapping.target_fx, eq) catch {},
-                .COMP => |comp| app.map_store.COMP.put(app.allocator, app.state.mapping.target_fx, comp) catch {},
-                .OUTPT => |outpt| app.map_store.OUTPT.put(app.allocator, app.state.mapping.target_fx, outpt) catch {},
+                .INPUT => |input| app.map_store.INPUT.put(app.arena, app.state.mapping.target_fx, input) catch {},
+                .GATE => |gate| app.map_store.GATE.put(app.arena, app.state.mapping.target_fx, gate) catch {},
+                .EQ => |eq| app.map_store.EQ.put(app.arena, app.state.mapping.target_fx, eq) catch {},
+                .COMP => |comp| app.map_store.COMP.put(app.arena, app.state.mapping.target_fx, comp) catch {},
+                .OUTPT => |outpt| app.map_store.OUTPT.put(app.arena, app.state.mapping.target_fx, outpt) catch {},
             }
 
             app.map_store.saveToFile(app.state.mapping) catch {

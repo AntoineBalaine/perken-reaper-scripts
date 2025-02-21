@@ -33,9 +33,9 @@ event_log: EventLog = undefined,
 log_file: ?std.fs.File = null,
 
 // Resource management
-gpa: std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }) = undefined,
-arena_allocator: std.heap.ArenaAllocator = undefined,
-allocator: std.mem.Allocator = undefined,
+gpa_int: std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }) = undefined,
+arena_int: std.heap.ArenaAllocator = undefined,
+arena: std.mem.Allocator = undefined,
 resource_path: [:0]const u8 = undefined,
 
 // midi
@@ -49,33 +49,33 @@ pauseState: bool = false,
 
 pub fn init() !Globals {
     var self: Globals = .{};
-    self.gpa = @TypeOf(self.gpa){};
-    self.arena_allocator = std.heap.ArenaAllocator.init(self.gpa.allocator());
-    self.allocator = self.arena_allocator.allocator();
+    self.gpa_int = @TypeOf(self.gpa_int){};
+    self.arena_int = std.heap.ArenaAllocator.init(self.gpa_int.allocator());
+    self.arena = self.arena_int.allocator();
 
     try self.initLoggerState();
     fs_helpers.ensureConfigPath() catch {};
-    self.resource_path = std.mem.span(try fs_helpers.getControllerPath(self.allocator));
+    self.resource_path = std.mem.span(try fs_helpers.getControllerPath(self.arena));
 
     // Initialize in dependency order
-    self.preferences = try Preferences.init(self.allocator, self.resource_path);
-    self.map_store = try MapStore.init(self.allocator, self.resource_path, &self.preferences.default_fx);
-    self.mappings_list = MappingsList.init(self.allocator, self.resource_path);
-    self.state = State.init(self.allocator);
+    self.preferences = try Preferences.init(self.arena, self.resource_path);
+    self.map_store = try MapStore.init(self.arena, self.resource_path, &self.preferences.default_fx);
+    self.mappings_list = MappingsList.init(self.arena, self.resource_path);
+    self.state = State.init(self.arena);
     self.settings_panel = try SettingsPanel.init(&self.preferences);
     if (self.preferences.start_suspended) {
         self.state.current_mode = .suspended;
     }
 
-    try fxParser.init(self.gpa.allocator());
+    try fxParser.init(self.gpa_int.allocator());
     return self;
 }
 
 pub fn deinit(self: *Globals) void {
-    fxParser.deinit(self.gpa.allocator());
-    self.arena_allocator.deinit();
+    fxParser.deinit(self.gpa_int.allocator());
+    self.arena_int.deinit();
 
-    const deinit_status = self.gpa.deinit();
+    const deinit_status = self.gpa_int.deinit();
     if (deinit_status == .leak) {
         log.err("Memory leak detected\n", .{});
     }
