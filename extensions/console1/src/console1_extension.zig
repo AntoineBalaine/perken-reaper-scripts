@@ -11,7 +11,11 @@ const c = @cImport({
 const ImGuiLoop = @import("imgui_loop.zig");
 const debugconfig = @import("config");
 const Globals = @import("globals.zig").Globals;
-pub var globals: Globals = undefined;
+var globals: Globals = undefined;
+
+pub fn getGlobals() *Globals {
+    return &globals;
+}
 const logger = @import("logger.zig");
 const hooks = @import("hooks.zig");
 const log = std.log.scoped(.extension);

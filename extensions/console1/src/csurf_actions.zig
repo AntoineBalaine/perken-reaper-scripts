@@ -37,7 +37,7 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
             // Update selected tracks map
             const tr_id = reaper.CSurf_TrackToID(selection.tr, false);
             if (selection.selected) {
-                globals.state.selectedTracks.put(globals.arena_allocator, tr_id, {}) catch return;
+                globals.state.selectedTracks.put(globals.allocator, tr_id, {}) catch return;
                 // If no current track, use this one
                 if (globals.state.current_tr_id == null) {
                     globals.state.current_tr_id = tr_id;

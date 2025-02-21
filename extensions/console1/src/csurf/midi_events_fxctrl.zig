@@ -15,7 +15,7 @@ const c = @cImport({
     @cInclude("csurf/midi_wrapper.h");
 });
 const ModulesList = @import("../statemachine.zig").ModulesList;
-const globals = @import("../console1_extension.zig").globals;
+const Globals = @import("../globals.zig").Globals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const CONTROLLER_NAME = constants.CONTROLLER_NAME;
@@ -27,33 +27,34 @@ const TrackListAction = track_list.TrackListAction;
 const PgDirection = track_list.PgDirection;
 const TrackList = @import("../fx_ctrl_state.zig").TrackList;
 const utils = @import("../utils.zig");
+const FxCtrlState = @import("../fx_ctrl_state.zig").FxControlState;
 
 var tmp: [4096:0]u8 = undefined;
 
 /// Helper function to get track or return early
-fn getTrack() ?MediaTrack {
-    return if (globals.state.current_tr_id) |id|
+fn getTrack(current_tr_id: ?c_int) ?MediaTrack {
+    return if (current_tr_id) |id|
         reaper.CSurf_TrackFromID(id, constants.g_csurf_mcpmode)
     else
         null;
 }
 
-pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
+pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
     switch (cc) {
         .Inpt_disp_mode => {
-            actions.dispatch(&globals.state, .{ .change_mode = .transport });
+            actions.dispatch(globals, .{ .change_mode = .transport });
         },
         .Tr_tr_copy, .Tr_tr_grp => {},
         .Comp_Mtr, .Inpt_MtrLft, .Inpt_MtrRgt, .Out_MtrLft, .Out_MtrRgt => {}, // meters unhandled
         .Inpt_disp_on => {
-            if (getTrack()) |mediaTrack| {
+            if (getTrack(globals.state.current_tr_id)) |mediaTrack| {
                 globals.state.fx_ctrl.display = if (globals.state.fx_ctrl.display) |_| null else 1;
-                actions.dispatch(&globals, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
+                actions.dispatch(globals, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
             }
         },
         .Inpt_filt_to_comp => {},
         .Inpt_phase_inv => {
-            if (getTrack()) |tr| {
+            if (getTrack(globals.state.current_tr_id)) |tr| {
                 const phase = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE");
                 const phase_val: f64 = if (phase == 0) 1 else 0;
                 _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "B_PHASE", phase_val });
@@ -61,30 +62,30 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         },
         .Inpt_preset => {},
         .Out_Pan => {
-            if (getTrack()) |tr| {
-                setUIVal(cc, u8ToPan(val));
+            if (getTrack(globals.state.current_tr_id)) |tr| {
+                setUIVal(cc, u8ToPan(val), &globals.state.fx_ctrl);
                 reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), @ptrCast(csurf.my_csurf));
             }
         },
         .Out_Vol => {
-            if (getTrack()) |tr| {
-                setUIVal(cc, @as(f64, @floatFromInt(val)) / 127);
+            if (getTrack(globals.state.current_tr_id)) |tr| {
+                setUIVal(cc, @as(f64, @floatFromInt(val)) / 127, &globals.state.fx_ctrl);
                 reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), @ptrCast(csurf.my_csurf));
             }
         },
         .Out_mute => {
-            if (getTrack()) |tr| {
+            if (getTrack(globals.state.current_tr_id)) |tr| {
                 reaper.CSurf_SetSurfaceMute(tr, reaper.CSurf_OnMuteChange(tr, -1), @ptrCast(csurf.my_csurf));
             }
         },
         .Out_solo => {
-            if (getTrack()) |tr| {
+            if (getTrack(globals.state.current_tr_id)) |tr| {
                 reaper.CSurf_SetSurfaceSolo(tr, reaper.CSurf_OnSoloChange(tr, -1), @ptrCast(csurf.my_csurf));
             }
         },
         .Shp_Mtr => {}, // meters unhandled
         .Tr_ext_sidechain => {
-            if (getTrack()) |tr| {
+            if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
                     0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val), globals.preferences.manual_routing) catch {},
                     else => {},
@@ -92,7 +93,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
             }
         },
         .Tr_order => {
-            if (getTrack()) |tr| {
+            if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
                     0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null, globals.preferences.manual_routing) catch {},
                     else => {},
@@ -100,12 +101,12 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
             }
         },
         .Tr_pg_up => {
-            actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .up } });
-            actions.dispatch(&globals.state, .{ .midi_out = .page_change });
+            actions.dispatch(globals, .{ .track_list = .{ .page_change = .up } });
+            actions.dispatch(globals, .{ .midi_out = .page_change });
         },
         .Tr_pg_dn => {
-            actions.dispatch(&globals.state, .{ .track_list = .{ .page_change = .down } });
-            actions.dispatch(&globals.state, .{ .midi_out = .page_change });
+            actions.dispatch(globals, .{ .track_list = .{ .page_change = .down } });
+            actions.dispatch(globals, .{ .midi_out = .page_change });
         },
         .Tr_tr1,
         .Tr_tr2,
@@ -114,7 +115,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Tr_tr5,
         => |cc_| {
             const track_idx = getTrackIndex(cc_, globals.state.fx_ctrl.current_page);
-            actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
+            actions.dispatch(globals, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
         },
         .Tr_tr6,
         .Tr_tr7,
@@ -132,14 +133,14 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
         .Tr_tr19,
         => |cc_| {
             const track_idx = getTrackIndex(cc_, globals.state.fx_ctrl.current_page);
-            actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
+            actions.dispatch(globals, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
         },
         .Tr_tr20 => {
             const track_idx = getTrackIndex(.Tr_tr20, globals.state.fx_ctrl.current_page);
-            actions.dispatch(&globals.state, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
+            actions.dispatch(globals, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
         },
         inline else => |cc_| {
-            if (getTrack()) |tr| {
+            if (getTrack(globals.state.current_tr_id)) |tr| {
                 setPrmVal(cc_, switch (cc_) {
                     .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
                     .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
@@ -147,7 +148,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8) void {
                     .Out_Drive, .Out_DriveChar => .OUTPT,
                     .Shp_GateRelease, .Shp_Gate, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
                     else => unreachable,
-                }, tr, val);
+                }, tr, val, &globals.state.fx_ctrl);
             }
         },
     }
@@ -168,8 +169,8 @@ fn u8ToVol(val: u8) f64 {
 const PgChgDirection = enum { Up, Down };
 
 /// set the fx_ctrl UI values
-fn setUIVal(cc: c1.CCs, norm_val: f64) void {
-    var val_ptr = globals.state.fx_ctrl.values.getPtr(cc) orelse unreachable;
+fn setUIVal(cc: c1.CCs, norm_val: f64, fx_ctrl: *FxCtrlState) void {
+    var val_ptr = fx_ctrl.values.getPtr(cc) orelse unreachable;
     switch (val_ptr.*) {
         .param => val_ptr.param.normalized = norm_val,
         .button => val_ptr.button = norm_val != 0.0,
@@ -177,14 +178,14 @@ fn setUIVal(cc: c1.CCs, norm_val: f64) void {
     }
 }
 
-pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.MediaTrack, val: u8) void {
+pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.MediaTrack, val: u8, fx_ctrl: *FxCtrlState) void {
     const norm_val = @as(f64, @floatFromInt(val)) / 127;
-    setUIVal(cc, norm_val);
+    setUIVal(cc, norm_val, fx_ctrl);
     const structPrm = @tagName(cc);
-    const fxMap = globals.state.fx_ctrl.track_state.module_locations.get(section);
+    const fxMap = fx_ctrl.track_state.module_locations.get(section);
     if (fxMap == null) return;
     const fxIdx = fxMap.?.fx_index;
-    if (globals.state.fx_ctrl.display != null) { // show touched fx
+    if (fx_ctrl.display != null) { // show touched fx
         pReaper.TrackFX_Show(.{ tr, fxIdx, 1 });
     }
     // if setting filter types on reaeq

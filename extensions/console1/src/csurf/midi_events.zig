@@ -10,11 +10,11 @@ const c = @cImport({
     @cInclude("csurf/midi_wrapper.h");
 });
 const c1 = @import("../c1.zig");
-const globals = @import("../console1_extension.zig").globals;
+const Globals = @import("../globals.zig").Globals;
 const actions = @import("../actions.zig");
 const ModulesList = @import("../statemachine.zig").ModulesList;
 
-pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
+pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
     // The console only sends cc messages, so we know that the status is always going to be 0xb0,
     // except when the message is a running status (i.e. the knobs are turned faster).
     // In the case of running status, we do need to read the status byte to figure out which control is being touched.
@@ -40,60 +40,60 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
     if (cc_enum) |cc| {
         switch (globals.state.current_mode) {
             .fx_ctrl => {
-                actions.dispatch(&globals.state, .{ .fx_ctrl = .{ .midi_input = .{ .cc = cc, .value = val } } });
+                actions.dispatch(globals, .{ .fx_ctrl = .{ .midi_input = .{ .cc = cc, .value = val } } });
             },
             .fx_sel => {
                 switch (cc) {
-                    .Out_Vol => actions.dispatch(&globals.state, .{ .fx_sel = .{ .scroll = val } }),
+                    .Out_Vol => actions.dispatch(globals, .{ .fx_sel = .{ .scroll = val } }),
                     .Out_solo => {
                         // Solo button for selection
                         const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
                         const fx_name = mappings.unmanaged.keys()[globals.state.fx_sel.scroll_position_rel];
-                        actions.dispatch(&globals.state, .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } });
+                        actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } });
                     },
-                    .Out_mute => actions.dispatch(&globals.state, .{ .fx_sel = .close_browser }),
-                    .Tr_tr1 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
-                    .Tr_tr2 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
-                    .Tr_tr3 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
-                    .Tr_tr4 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
-                    .Tr_tr5 => actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
-                    .Tr_tr20 => actions.dispatch(&globals.state, .{ .settings = .open }),
+                    .Out_mute => actions.dispatch(globals, .{ .fx_sel = .close_browser }),
+                    .Tr_tr1 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
+                    .Tr_tr2 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .GATE } }),
+                    .Tr_tr3 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .EQ } }),
+                    .Tr_tr4 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
+                    .Tr_tr5 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                    .Tr_tr20 => actions.dispatch(globals, .{ .settings = .open }),
                     else => {},
                 }
             },
             .default_fx_sel => {
                 switch (cc) {
-                    .Out_Vol => actions.dispatch(&globals.state, .{ .default_fx_sel = .{ .scroll = val } }),
+                    .Out_Vol => actions.dispatch(globals, .{ .default_fx_sel = .{ .scroll = val } }),
                     .Out_solo => {
                         // Solo button for selection
                         const def_fx_sel_state = globals.state.default_fx_sel;
                         const mappings = globals.mappings_list.list.get(def_fx_sel_state.current_category);
                         const fx_name = mappings.unmanaged.keys()[def_fx_sel_state.scroll_position_rel];
-                        actions.dispatch(&globals.state, .{ .default_fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } });
+                        actions.dispatch(globals, .{ .default_fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } });
                     },
-                    .Out_mute => actions.dispatch(&globals.state, .{ .default_fx_sel = .close_browser }),
-                    .Tr_tr1 => actions.dispatch(&globals.state, .{ .default_fx_sel = .{ .toggle_module_browser = .INPUT } }),
-                    .Tr_tr2 => actions.dispatch(&globals.state, .{ .default_fx_sel = .{ .toggle_module_browser = .GATE } }),
-                    .Tr_tr3 => actions.dispatch(&globals.state, .{ .default_fx_sel = .{ .toggle_module_browser = .EQ } }),
-                    .Tr_tr4 => actions.dispatch(&globals.state, .{ .default_fx_sel = .{ .toggle_module_browser = .COMP } }),
-                    .Tr_tr5 => actions.dispatch(&globals.state, .{ .default_fx_sel = .{ .toggle_module_browser = .OUTPT } }),
+                    .Out_mute => actions.dispatch(globals, .{ .default_fx_sel = .close_browser }),
+                    .Tr_tr1 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .INPUT } }),
+                    .Tr_tr2 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .GATE } }),
+                    .Tr_tr3 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .EQ } }),
+                    .Tr_tr4 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .COMP } }),
+                    .Tr_tr5 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .OUTPT } }),
                     else => {},
                 }
             },
             .settings => {
                 switch (cc) {
-                    .Tr_tr20 => actions.dispatch(&globals.state, .{ .settings = .save }),
-                    .Out_mute => actions.dispatch(&globals.state, .{ .settings = .cancel }),
-                    .Out_solo => actions.dispatch(&globals.state, .{ .settings = .toggle }),
-                    .Out_Vol => actions.dispatch(&globals.state, .{ .settings = .{ .scroll = val } }),
+                    .Tr_tr20 => actions.dispatch(globals, .{ .settings = .save }),
+                    .Out_mute => actions.dispatch(globals, .{ .settings = .cancel }),
+                    .Out_solo => actions.dispatch(globals, .{ .settings = .toggle }),
+                    .Out_Vol => actions.dispatch(globals, .{ .settings = .{ .scroll = val } }),
                     else => {},
                 }
             },
             .transport => {
                 switch (cc) {
-                    .Inpt_HiCut => actions.dispatch(&globals.state, .{ .transport = .{ .rate = val } }),
-                    .Inpt_disp_mode => actions.dispatch(&globals.state, .{ .change_mode = .fx_ctrl }),
-                    .Inpt_disp_on => actions.dispatch(&globals.state, .set_fx_ctrl_gui),
+                    .Inpt_HiCut => actions.dispatch(globals, .{ .transport = .{ .rate = val } }),
+                    .Inpt_disp_mode => actions.dispatch(globals, .{ .change_mode = .fx_ctrl }),
+                    .Inpt_disp_on => actions.dispatch(globals, .set_fx_ctrl_gui),
                     .Tr_tr1,
                     .Tr_tr2,
                     .Tr_tr3,
@@ -108,30 +108,30 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t) void {
                             .Tr_tr5 => .OUTPT,
                             else => unreachable,
                         };
-                        actions.dispatch(&globals.state, .{ .fx_sel = .{ .toggle_module_browser = module } });
+                        actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = module } });
                     },
-                    .Tr_tr6 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .trim } }),
-                    .Tr_tr7 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .read } }),
-                    .Tr_tr8 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .latch } }),
-                    .Tr_tr9 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .preview } }),
-                    .Tr_tr10 => actions.dispatch(&globals.state, .{ .transport = .{ .automation_mode = .write } }),
-                    .Tr_tr17 => actions.dispatch(&globals.state, .{ .transport = .play }),
-                    .Tr_tr18 => actions.dispatch(&globals.state, .{ .transport = .stop }),
-                    .Tr_tr19 => actions.dispatch(&globals.state, .{ .transport = .rec }),
-                    .Tr_tr20 => actions.dispatch(&globals.state, .{ .settings = .open }),
-                    .Eq_eq => actions.dispatch(&globals.state, .{ .transport = .loop_toggle }),
-                    .Eq_lp_shape => actions.dispatch(&globals.state, .{ .transport = .loop_start }),
-                    .Eq_hp_shape => actions.dispatch(&globals.state, .{ .transport = .loop_end }),
-                    .Eq_LoGain => actions.dispatch(&globals.state, .{ .transport = .{ .scrub = val } }),
-                    .Eq_LoMidGain => actions.dispatch(&globals.state, .{ .transport = .{ .jog = val } }),
-                    .Eq_HiMidGain => actions.dispatch(&globals.state, .{ .transport = .{ .jog_marker = val } }),
-                    .Eq_HiGain => actions.dispatch(&globals.state, .{ .transport = .{ .jog_item = val } }),
-                    .Comp_comp => actions.dispatch(&globals.state, .{ .transport = .marker_set }),
-                    .Out_Vol => actions.dispatch(&globals.state, .{ .transport = .{ .tr_sel = val } }),
-                    .Out_Drive => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_horizontal = val } }),
-                    .Out_DriveChar => actions.dispatch(&globals.state, .{ .transport = .{ .zoom_vertical = val } }),
-                    .Out_Pan => actions.dispatch(&globals.state, .{ .transport = .{ .grid = val } }),
-                    .Out_solo => actions.dispatch(&globals.state, .{ .transport = .snap_tgl }),
+                    .Tr_tr6 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .trim } }),
+                    .Tr_tr7 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .read } }),
+                    .Tr_tr8 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .latch } }),
+                    .Tr_tr9 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .preview } }),
+                    .Tr_tr10 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .write } }),
+                    .Tr_tr17 => actions.dispatch(globals, .{ .transport = .play }),
+                    .Tr_tr18 => actions.dispatch(globals, .{ .transport = .stop }),
+                    .Tr_tr19 => actions.dispatch(globals, .{ .transport = .rec }),
+                    .Tr_tr20 => actions.dispatch(globals, .{ .settings = .open }),
+                    .Eq_eq => actions.dispatch(globals, .{ .transport = .loop_toggle }),
+                    .Eq_lp_shape => actions.dispatch(globals, .{ .transport = .loop_start }),
+                    .Eq_hp_shape => actions.dispatch(globals, .{ .transport = .loop_end }),
+                    .Eq_LoGain => actions.dispatch(globals, .{ .transport = .{ .scrub = val } }),
+                    .Eq_LoMidGain => actions.dispatch(globals, .{ .transport = .{ .jog = val } }),
+                    .Eq_HiMidGain => actions.dispatch(globals, .{ .transport = .{ .jog_marker = val } }),
+                    .Eq_HiGain => actions.dispatch(globals, .{ .transport = .{ .jog_item = val } }),
+                    .Comp_comp => actions.dispatch(globals, .{ .transport = .marker_set }),
+                    .Out_Vol => actions.dispatch(globals, .{ .transport = .{ .tr_sel = val } }),
+                    .Out_Drive => actions.dispatch(globals, .{ .transport = .{ .zoom_horizontal = val } }),
+                    .Out_DriveChar => actions.dispatch(globals, .{ .transport = .{ .zoom_vertical = val } }),
+                    .Out_Pan => actions.dispatch(globals, .{ .transport = .{ .grid = val } }),
+                    .Out_solo => actions.dispatch(globals, .{ .transport = .snap_tgl }),
                     else => {},
                 }
             },

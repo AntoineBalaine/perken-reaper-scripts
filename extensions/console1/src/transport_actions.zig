@@ -55,13 +55,13 @@ pub const TransportAction = union(enum) {
     zoom_vertical: u8,
 };
 
-pub fn transportAction(app: *Globals, action: TransportAction) void {
+pub fn transportAction(globals: *Globals, action: TransportAction) void {
     switch (action) {
         .automation_mode => |mode| reaper.SetAutomationMode(@intFromEnum(mode), false),
         .grid => |new_pos| {
-            var pos_rel: u8 = app.state.transport.grid;
-            if (utils.calculateNewScrollPosition(c_int, &app.state.transport.grid, &pos_rel, new_pos, 127, null)) |delta| {
-                app.state.transport.grid = pos_rel;
+            var pos_rel: u8 = globals.state.transport.grid;
+            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.grid, &pos_rel, new_pos, 127, null)) |delta| {
+                globals.state.transport.grid = pos_rel;
 
                 // Adjust grid size based on delta
                 if (delta > 0) {
@@ -71,11 +71,11 @@ pub fn transportAction(app: *Globals, action: TransportAction) void {
                 }
 
                 // Send MIDI feedback if wrapped
-                if (new_pos != app.state.transport.grid) {
-                    actions.dispatch(&app.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Comp_Release, .value = app.state.transport.grid } } });
+                if (new_pos != globals.state.transport.grid) {
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Comp_Release, .value = globals.state.transport.grid } } });
                 }
 
-                log.debug("Transport grid: abs={d} delta={d}", .{ app.state.transport.grid, delta });
+                log.debug("Transport grid: abs={d} delta={d}", .{ globals.state.transport.grid, delta });
             }
         },
         .snap_tgl => {
@@ -83,9 +83,9 @@ pub fn transportAction(app: *Globals, action: TransportAction) void {
             pReaper.Main_OnCommand(.{ RprCmds.OPT_TGL_SNAP, snap });
         },
         .jog => |new_pos| {
-            var pos_rel: u8 = app.state.transport.jog;
-            if (utils.calculateNewScrollPosition(c_int, &app.state.transport.jog, &pos_rel, new_pos, 127, null)) |delta| {
-                app.state.transport.jog = pos_rel;
+            var pos_rel: u8 = globals.state.transport.jog;
+            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.jog, &pos_rel, new_pos, 127, null)) |delta| {
+                globals.state.transport.jog = pos_rel;
 
                 const use_grid = reaper.GetToggleCommandState(RprCmds.OPT_TGL_GRID) == 1 and reaper.GetToggleCommandState(RprCmds.OPT_TGL_SNAP) == 1;
                 if (!use_grid) {
@@ -167,31 +167,31 @@ pub fn transportAction(app: *Globals, action: TransportAction) void {
                     reaper.SetEditCurPos(grid_pos, true, true);
                     pReaper.Main_OnCommand(.{ RprCmds.OPT_RSTR_SNAP, 0 });
                 }
-                if (new_pos != app.state.transport.jog) {
-                    actions.dispatch(&app.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_LoMidGain, .value = app.state.transport.jog } } });
+                if (new_pos != globals.state.transport.jog) {
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_LoMidGain, .value = globals.state.transport.jog } } });
                 }
-                log.debug("Transport jog: abs={d} delta={d}", .{ app.state.transport.jog, delta });
+                log.debug("Transport jog: abs={d} delta={d}", .{ globals.state.transport.jog, delta });
             }
         },
         .jog_marker => |new_pos| {
-            var pos_rel: u8 = app.state.transport.jog_marker;
-            if (utils.calculateNewScrollPosition(c_int, &app.state.transport.jog_marker, &pos_rel, new_pos, 127, null)) |delta| {
-                app.state.transport.jog_marker = pos_rel;
+            var pos_rel: u8 = globals.state.transport.jog_marker;
+            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.jog_marker, &pos_rel, new_pos, 127, null)) |delta| {
+                globals.state.transport.jog_marker = pos_rel;
                 if (delta > 0) {
                     pReaper.Main_OnCommand(.{ RprCmds.ID_MARKER_NEXT, 0 });
                 } else if (delta < 0) {
                     pReaper.Main_OnCommand(.{ RprCmds.ID_MARKER_PREV, 0 });
                 }
-                if (new_pos != app.state.transport.jog_marker) {
-                    actions.dispatch(&app.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiMidGain, .value = app.state.transport.jog_marker } } });
+                if (new_pos != globals.state.transport.jog_marker) {
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiMidGain, .value = globals.state.transport.jog_marker } } });
                 }
             }
         },
 
         .jog_item => |new_pos| {
-            var pos_rel: u8 = app.state.transport.jog_item;
-            if (utils.calculateNewScrollPosition(c_int, &app.state.transport.jog_item, &pos_rel, new_pos, 127, null)) |delta| {
-                app.state.transport.jog_item = pos_rel;
+            var pos_rel: u8 = globals.state.transport.jog_item;
+            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.jog_item, &pos_rel, new_pos, 127, null)) |delta| {
+                globals.state.transport.jog_item = pos_rel;
                 pReaper.Main_OnCommand(.{ reaper.NamedCommandLookup(RprCmds._SWS_SAVEALLSELITEMS1), 0 });
                 defer pReaper.Main_OnCommand(.{ reaper.NamedCommandLookup(RprCmds._SWS_RESTALLSELITEMS1), 0 });
                 pReaper.Main_OnCommand(.{ RprCmds.SEL_TR_ITMS, 0 });
@@ -200,30 +200,30 @@ pub fn transportAction(app: *Globals, action: TransportAction) void {
                 } else if (delta < 0) {
                     pReaper.Main_OnCommand(.{ RprCmds.ID_ITM_TRSNT_PREV, 0 });
                 }
-                if (new_pos != app.state.transport.jog_item) {
-                    actions.dispatch(&app.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiGain, .value = app.state.transport.jog_item } } });
+                if (new_pos != globals.state.transport.jog_item) {
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_HiGain, .value = globals.state.transport.jog_item } } });
                 }
             }
         },
 
         .zoom_horizontal => |new_pos| {
-            var pos_rel: u8 = app.state.transport.zoom_horizontal;
-            if (utils.calculateNewScrollPosition(c_int, &app.state.transport.zoom_horizontal, &pos_rel, new_pos, 127, null)) |delta| {
-                app.state.transport.zoom_horizontal = pos_rel;
+            var pos_rel: u8 = globals.state.transport.zoom_horizontal;
+            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.zoom_horizontal, &pos_rel, new_pos, 127, null)) |delta| {
+                globals.state.transport.zoom_horizontal = pos_rel;
                 pReaper.CSurf_OnZoom(.{ delta, 0 }); // horizontal zoom
-                if (new_pos != app.state.transport.zoom_horizontal) {
-                    actions.dispatch(&app.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_LoCut, .value = app.state.transport.zoom_horizontal } } });
+                if (new_pos != globals.state.transport.zoom_horizontal) {
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_LoCut, .value = globals.state.transport.zoom_horizontal } } });
                 }
             }
         },
 
         .zoom_vertical => |new_pos| {
-            var pos_rel: u8 = app.state.transport.zoom_vertical;
-            if (utils.calculateNewScrollPosition(c_int, &app.state.transport.zoom_vertical, &pos_rel, new_pos, 127, null)) |delta| {
-                app.state.transport.zoom_vertical = pos_rel;
+            var pos_rel: u8 = globals.state.transport.zoom_vertical;
+            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.zoom_vertical, &pos_rel, new_pos, 127, null)) |delta| {
+                globals.state.transport.zoom_vertical = pos_rel;
                 pReaper.CSurf_OnZoom(.{ 0, delta }); // vertical zoom
-                if (new_pos != app.state.transport.zoom_vertical) {
-                    actions.dispatch(&app.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_HiCut, .value = app.state.transport.zoom_vertical } } });
+                if (new_pos != globals.state.transport.zoom_vertical) {
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_HiCut, .value = globals.state.transport.zoom_vertical } } });
                 }
             }
         },
@@ -233,9 +233,9 @@ pub fn transportAction(app: *Globals, action: TransportAction) void {
         .marker_set => pReaper.Main_OnCommand(.{ RprCmds.ID_INSERT_MARKER, 0 }),
         .play => pReaper.CSurf_OnPlay(.{}),
         .rate => |new_pos| {
-            var pos_rel: u8 = app.state.transport.rate;
-            if (utils.calculateNewScrollPosition(i16, &app.state.transport.rate, &pos_rel, new_pos, 127, null)) |delta| {
-                app.state.transport.rate = pos_rel;
+            var pos_rel: u8 = globals.state.transport.rate;
+            if (utils.calculateNewScrollPosition(i16, &globals.state.transport.rate, &pos_rel, new_pos, 127, null)) |delta| {
+                globals.state.transport.rate = pos_rel;
                 const norm_rate: f64 = reaper.Master_NormalizePlayRate(reaper.Master_GetPlayRate(0), false);
 
                 const ROTARY_STEP: f64 = 1.0 / 1024.0;
@@ -245,34 +245,34 @@ pub fn transportAction(app: *Globals, action: TransportAction) void {
                 pReaper.CSurf_OnPlayRateChange(.{new_rate});
 
                 // Send MIDI feedback if wrapped
-                if (new_pos != app.state.transport.rate) {
-                    actions.dispatch(&app.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Drive, .value = app.state.transport.rate } } });
+                if (new_pos != globals.state.transport.rate) {
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Drive, .value = globals.state.transport.rate } } });
                 }
 
-                log.debug("Transport rate: abs={d} delta={d} rate={d}", .{ app.state.transport.rate, delta, new_rate });
+                log.debug("Transport rate: abs={d} delta={d} rate={d}", .{ globals.state.transport.rate, delta, new_rate });
             }
         },
         .rec => pReaper.CSurf_OnRecord(.{}),
         .rec_arm => {
-            if (app.state.current_tr_id) |tr_id| {
+            if (globals.state.current_tr_id) |tr_id| {
                 _ = pReaper.CSurf_OnRecArmChange(.{ reaper.CSurf_TrackFromID(tr_id, false), 0 });
             }
         },
         .stop => pReaper.CSurf_OnStop(.{}),
         .tr_sel => |new_pos| {
-            log.debug("trsprt tr_sel: old={d} new={d}", .{ app.state.transport.tr_sel, new_pos });
+            log.debug("trsprt tr_sel: old={d} new={d}", .{ globals.state.transport.tr_sel, new_pos });
             const num_tracks = reaper.GetNumTracks() + 1;
-            var pos_rel: u8 = if (app.state.current_tr_id) |id| @intCast(id) else 0;
-            if (utils.calculateNewScrollPosition(c_int, &app.state.transport.tr_sel, &pos_rel, new_pos, num_tracks, 1)) |_| {
-                app.state.transport.tr_sel = pos_rel;
+            var pos_rel: u8 = if (globals.state.current_tr_id) |id| @intCast(id) else 0;
+            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.tr_sel, &pos_rel, new_pos, num_tracks, 1)) |_| {
+                globals.state.transport.tr_sel = pos_rel;
 
                 const new_tr_id = pos_rel;
 
-                _ = track_list_actions.setReaperTrackSelection(new_tr_id);
-                app.state.current_tr_id = new_tr_id;
+                _ = track_list_actions.setReaperTrackSelection(globals, new_tr_id);
+                globals.state.current_tr_id = new_tr_id;
 
-                if (new_pos != app.state.transport.tr_sel) {
-                    actions.dispatch(app.state, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = app.state.transport.tr_sel } } });
+                if (new_pos != globals.state.transport.tr_sel) {
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = globals.state.transport.tr_sel } } });
                 }
             }
         },

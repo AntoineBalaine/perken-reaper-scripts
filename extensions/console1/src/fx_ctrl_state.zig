@@ -11,7 +11,7 @@ const constants = @import("constants.zig");
 pub const TrackState = @import("track_state.zig");
 
 // Mode-specific state structures
-const FxControlState = @This();
+pub const FxControlState = @This();
 
 pub const TrackList = struct {
     pub const TrackNameSize = 32; // Including null terminator

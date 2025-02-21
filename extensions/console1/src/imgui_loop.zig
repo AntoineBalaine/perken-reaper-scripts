@@ -230,7 +230,9 @@ pub fn reset() void {
 }
 
 fn onTimer() callconv(.C) void {
-    main(&extension.globals) catch |err| {
+    var globals = extension.getGlobals();
+    _ = &globals;
+    main(globals) catch |err| {
         reset();
         log.err("Error in main loop: {s}\n", .{@errorName(err)});
 
@@ -241,6 +243,6 @@ fn onTimer() callconv(.C) void {
         if (err == error.Imgui) {
             _ = reaper.ShowMessageBox("ImGui error occurred", plugin_name, 0);
         }
-        actions.dispatch(&extension.globals, .{ .change_mode = .fx_ctrl });
+        actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
     };
 }

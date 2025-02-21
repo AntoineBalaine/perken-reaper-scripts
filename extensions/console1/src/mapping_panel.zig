@@ -98,7 +98,7 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals) !?mapping_acti
                         rv = .{ .select_parameter = @intCast(i) };
                     }
 
-                    if (isParamMapped(globals.state, i)) {
+                    if (isParamMapped(&globals.state, i)) {
                         try imgui.SameLine(.{ctx});
                         try imgui.TextDisabled(.{ ctx, "(Mapped)" });
                     }
@@ -114,19 +114,19 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals) !?mapping_acti
             try imgui.Separator(.{ctx});
             switch (globals.state.mapping.current_mappings) {
                 .INPUT => {
-                    if (try drawModuleControls(ctx, globals.state, &input_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &input_controls)) |act| rv = act;
                 },
                 .GATE => {
-                    if (try drawModuleControls(ctx, globals.state, &gate_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &gate_controls)) |act| rv = act;
                 },
                 .EQ => {
-                    if (try drawModuleControls(ctx, globals.state, &eq_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &eq_controls)) |act| rv = act;
                 },
                 .COMP => {
-                    if (try drawModuleControls(ctx, globals.state, &compressor_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &compressor_controls)) |act| rv = act;
                 },
                 .OUTPT => {
-                    if (try drawModuleControls(ctx, globals.state, &output_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &output_controls)) |act| rv = act;
                 },
             }
 

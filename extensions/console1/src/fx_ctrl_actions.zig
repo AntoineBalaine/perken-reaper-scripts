@@ -61,7 +61,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                 "MIDI input: {s} -> {d} evt: {}",
                 .{ @tagName(input.cc), input.value, logger.Event{ .midi_input = .{ .cc = input.cc, .value = input.value } } },
             );
-            onMidiEvent_FxCtrl(input.cc, input.value);
+            onMidiEvent_FxCtrl(input.cc, input.value, globals);
         },
         .panel_input => |input| {
             globals.state.fx_ctrl.values.getPtr(input.cc).?.param.normalized = input.value;
