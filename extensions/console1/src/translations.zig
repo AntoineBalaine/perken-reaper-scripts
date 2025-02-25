@@ -69,7 +69,42 @@ pub const TranslationKey = enum(u16) {
     settings_eq,
     settings_comp,
     settings_output,
-    // ... other settings keys
+
+    // Track List panel translations
+    track_list_title,
+    track_list_page,
+    track_list_input_load,
+    track_list_gate_load,
+    track_list_eq_load,
+    track_list_comp_load,
+    track_list_output_load,
+    track_list_settings,
+    track_list_track_format,
+
+    // FX Selection panel translations
+    fx_sel_title,
+    fx_sel_all_plugins,
+    fx_sel_fx_chains,
+    fx_sel_track_templates,
+    fx_sel_container,
+    fx_sel_video_processor,
+    fx_sel_recent,
+    fx_sel_rescan,
+    fx_sel_done,
+    // Note: module type translations (input, gate, etc.) could be shared
+    // with the settings panel if we want to avoid duplication
+
+    // Mapping panel translations
+    mapping_title,
+    mapping_fx_parameters,
+    mapping_console_controls,
+    mapping_mapped,
+    mapping_param_mapped,
+    mapping_module_prefix,
+    mapping_midi_learn,
+    mapping_midi_learn_active,
+    mapping_save,
+    mapping_cancel,
 };
 
 const TranslationsData = struct {
@@ -150,9 +185,122 @@ const TranslationsData = struct {
         comp: []const u8, // "COMP"
         output: []const u8, // "OUTPT"
     },
+    track_list: struct {
+        // Window title
+        title: []const u8, // "Track List"
+
+        // Page indicator
+        page: []const u8, // "Page {d}"
+
+        // Module browser labels (used when modifier is active)
+        input_load: []const u8, // "Input Load"
+        gate_load: []const u8, // "Gate Load"
+        eq_load: []const u8, // "EQ Load"
+        comp_load: []const u8, // "Comp Load"
+        output_load: []const u8, // "Output Load"
+        settings: []const u8, // "Settings"
+
+        // Track format string
+        track_format: []const u8, // "{d:>2}. {s}" - might want to make this configurable
+    },
+
+    fx_sel: struct {
+        // Window and section titles
+        title: []const u8, // "FX Browser"
+        all_plugins: []const u8, // "all plugins"
+        fx_chains: []const u8, // "fx chains"
+        track_templates: []const u8, // "track templates"
+
+        // Special items
+        container: []const u8, // "Container"
+        video_processor: []const u8, // "Video processor"
+        recent: []const u8, // "recent: "
+
+        // Buttons and controls
+        rescan: []const u8, // "Rescan plugin list"
+        done: []const u8, // "Done!"
+
+        // Module types (might overlap with settings panel)
+        input: []const u8, // "INPUT"
+        gate: []const u8, // "GATE"
+        eq: []const u8, // "EQ"
+        comp: []const u8, // "COMP"
+        output: []const u8, // "OUTPT"
+    },
+
+    mapping: struct {
+        // Window and section titles
+        title: []const u8, // "Mapping Panel"
+        fx_parameters: []const u8, // "FX Parameters"
+        console_controls: []const u8, // "Console Controls"
+
+        // Status indicators
+        mapped: []const u8, // "(Mapped)"
+        param_mapped: []const u8, // "(-> Param {d})"
+        module_prefix: []const u8, // "Module: {s}"
+
+        // MIDI learn states
+        midi_learn: []const u8, // "MIDI Learn"
+        midi_learn_active: []const u8, // "MIDI Learn (Active)"
+
+        // Buttons
+        save: []const u8, // "Save Mapping"
+        cancel: []const u8, // "Cancel"
+
+        // Module names could be shared with other panels
+        module_input: []const u8, // "INPUT"
+        module_gate: []const u8, // "GATE"
+        module_eq: []const u8, // "EQ"
+        module_comp: []const u8, // "COMP"
+        module_output: []const u8, // "OUTPT"
+    },
 };
 
 const default_translations: TranslationsData = .{
+    .mapping = .{
+        .title = "Mapping Panel",
+        .fx_parameters = "FX Parameters",
+        .console_controls = "Console Controls",
+        .mapped = "(Mapped)",
+        .param_mapped = "(-> Param {d})",
+        .module_prefix = "Module: {s}",
+        .midi_learn = "MIDI Learn",
+        .midi_learn_active = "MIDI Learn (Active)",
+        .save = "Save Mapping",
+        .cancel = "Cancel",
+        .module_input = "INPUT",
+        .module_gate = "GATE",
+        .module_eq = "EQ",
+        .module_comp = "COMP",
+        .module_output = "OUTPT",
+    },
+    .fx_sel = .{
+        .title = "FX Browser",
+        .all_plugins = "all plugins",
+        .fx_chains = "fx chains",
+        .track_templates = "track templates",
+        .container = "Container",
+        .video_processor = "Video processor",
+        .recent = "recent: ",
+        .rescan = "Rescan plugin list",
+        .done = "Done!",
+        .input = "INPUT",
+        .gate = "GATE",
+        .eq = "EQ",
+        .comp = "COMP",
+        .output = "OUTPT",
+    },
+    .track_list = .{
+        .title = "Track List",
+        .page = "Page {d}",
+        .input_load = "Input Load",
+        .gate_load = "Gate Load",
+        .eq_load = "EQ Load",
+        .comp_load = "Comp Load",
+        .output_load = "Output Load",
+        .settings = "Settings",
+        .track_format = "{d:>2}. {s}",
+    },
     .fx_ctrl = .{
         .Comp_Attack = "Attack",
         .Comp_DryWet = "Dry/Wet",
