@@ -3,6 +3,7 @@ const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
 const Mode = @import("statemachine.zig").Mode;
 const CCs = @import("c1.zig").CCs;
+const log = std.log.scoped(.translations);
 
 pub const TranslationKey = enum {
 
@@ -451,13 +452,28 @@ pub const TranslationStore = struct {
     current_language: []const u8,
 
     pub fn init(g_arena: std.mem.Allocator, resource_path: []const u8, language: []const u8) !TranslationStore {
+        // First get available languages
+        const languages = try getAvailableLanguages(g_arena, resource_path);
+
+        // Verify the requested language exists, fallback to "en" if not
+        const requested_lang = blk: {
+            for (languages) |lang| {
+                if (std.mem.eql(u8, lang.code, language)) {
+                    break :blk language;
+                }
+            }
+            // Language not found, fallback to English
+            log.warn("Language {s} not found, falling back to English", .{language});
+            break :blk "en";
+        };
+
         var store = StringStore.init();
 
         var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
         const lang_file_path = fs_helpers.joinStrings(&path_buffer, &.{
             resource_path,
             "langPacks",
-            language,
+            requested_lang,
             ".ini",
         });
 
@@ -471,7 +487,8 @@ pub const TranslationStore = struct {
 
         return .{
             .store = store,
-            .current_language = language,
+            .current_language = requested_lang,
+            .available_languages = languages,
         };
     }
 
@@ -483,4 +500,75 @@ pub const TranslationStore = struct {
 // Helper function
 pub fn tr(store: *const TranslationStore, key: TranslationKey) []const u8 {
     return store.getString(key);
+}
+
+pub const LanguageInfo = struct {
+    code: [:0]const u8, // "en", "fr", etc.
+    display_name: [:0]const u8, // "English", "Français", etc.
+};
+
+fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.fs.Dir, filename: []const u8) ![:0]const u8 {
+    const file = try dir.openFile(filename, .{});
+    defer file.close();
+
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    var parser = ini.parse(arena.allocator(), file.reader());
+    defer parser.deinit();
+
+    while (try parser.next()) |record| {
+        switch (record) {
+            .section => |section| {
+                if (std.mem.eql(u8, section, "metadata")) {
+                    while (try parser.next()) |meta_record| {
+                        switch (meta_record) {
+                            .property => |kv| {
+                                if (std.mem.eql(u8, kv.key, "language_name")) {
+                                    return allocator.dupeZ(u8, kv.value);
+                                }
+                            },
+                            .section => break,
+                            .enumeration => {},
+                        }
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+
+    // Fallback to using the code if no display name found
+    const code = filename[0 .. filename.len - 4];
+    return allocator.dupeZ(u8, code);
+}
+
+pub fn getAvailableLanguages(g_allocator: std.mem.Allocator, resource_path: []const u8) ![]LanguageInfo {
+    var languages = std.ArrayList(LanguageInfo).init(g_allocator);
+    errdefer languages.deinit();
+
+    var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    const lang_dir = fs_helpers.joinStrings(&path_buffer, &.{
+        resource_path,
+        "langPacks",
+    });
+
+    var dir = try std.fs.openDirAbsolute(lang_dir, .{ .iterate = true });
+    defer dir.close();
+
+    var iter = dir.iterate();
+    while (try iter.next()) |entry| {
+        if (entry.kind != .File) continue;
+        if (!std.mem.endsWith(u8, entry.name, ".ini")) continue;
+
+        const code = try g_allocator.dupeZ(u8, entry.name[0 .. entry.name.len - 4]);
+        const display_name = try getLanguageDisplayNameFromFile(g_allocator, dir, entry.name);
+
+        try languages.append(.{
+            .code = code,
+            .display_name = display_name,
+        });
+    }
+
+    return languages.toOwnedSlice();
 }

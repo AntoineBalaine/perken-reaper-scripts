@@ -19,6 +19,7 @@ pub const DefaultFx = std.EnumArray(ModulesList, ?[:0]const u8);
 pub const Preferences = @This();
 
 pub const SettingsFields = enum {
+    language,
     show_startup_message,
     show_feedback_window,
     show_plugin_ui,
@@ -39,6 +40,7 @@ pub const SettingsFields = enum {
 };
 
 // Data
+language: [:0]const u8 = "en",
 show_startup_message: bool = false,
 show_feedback_window: bool = false,
 show_plugin_ui: bool = false,
@@ -69,7 +71,7 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences 
     return self;
 }
 
-fn load(self: *Preferences, resource_path: [:0]const u8, arena: std.mem.Allocator) !void {
+fn load(self: *Preferences, resource_path: [:0]const u8, g_arena: std.mem.Allocator) !void {
     var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
         resource_path,
@@ -83,7 +85,7 @@ fn load(self: *Preferences, resource_path: [:0]const u8, arena: std.mem.Allocato
     var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer temp_arena.deinit();
     var parser = ini.parse(temp_arena.allocator(), file.reader());
-    try self.parsePreferences(&parser, arena);
+    try self.parsePreferences(&parser, g_arena);
 }
 
 pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
@@ -104,6 +106,9 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
 
     // Write top-level preferences first
     try writer.writeAll("; Console1 Preferences\n");
+
+    // Write language setting first
+    try writer.print("language = {s}\n", .{self.language});
 
     // Use comptime field iteration to write boolean settings
     inline for (std.meta.fields(Preferences)) |field| {
@@ -135,7 +140,7 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
     }
 }
 
-pub fn parsePreferences(self: *Preferences, parser: anytype, arena: std.mem.Allocator) !void {
+pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Allocator) !void {
     var cur_section: ?ModulesList = null;
 
     while (try parser.*.next()) |record| {
@@ -159,6 +164,11 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, arena: std.mem.Allo
                                     @field(self, field.name) =
                                         std.mem.eql(u8, prop.value, "true");
                                 },
+                                [:0]const u8 => {
+                                    if (std.mem.eql(u8, field.name, "language")) {
+                                        @field(self, field.name) = try g_arena.dupeZ(u8, prop.value);
+                                    }
+                                },
                                 // Add other types as needed
                                 else => {},
                             }
@@ -174,7 +184,7 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, arena: std.mem.Allo
                         self.default_fx.set(module, null);
                         // log.warn("Empty value in preferences for {s}", .{@tagName(module)});
                     } else {
-                        const value_copy = try arena.dupeZ(u8, value);
+                        const value_copy = try g_arena.dupeZ(u8, value);
                         self.default_fx.set(module, value_copy);
                     }
                 }
@@ -215,6 +225,7 @@ test "preferences - fallback defaults when file not found" {
     try testing.expect(prefs.show_feedback_window == false);
     try testing.expect(prefs.show_plugin_ui == false);
     try testing.expect(prefs.manual_routing == false);
+    try testing.expect(std.mem.eql(u8, prefs.language, "en"));
 
     // Test that fallback defaults were copied
     try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.INPUT).?, "JS: Volume/Pan Smoother v5"));
@@ -249,8 +260,9 @@ test "preferences - load from current directory" {
     try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.COMP).?, "VST: ReaComp (Cockos)"));
     try testing.expect(std.mem.eql(u8, prefs.default_fx.get(.OUTPT).?, "JS: Saturation"));
 
-    // Test boolean preferences
+    // Test boolean preferences and language
     // These should match your preferences.ini values
+    try testing.expect(std.mem.eql(u8, prefs.language, "en"));
     try testing.expect(prefs.show_startup_message == true);
     try testing.expect(prefs.show_feedback_window == true);
     try testing.expect(prefs.show_plugin_ui == true);
@@ -277,11 +289,12 @@ test "preferences - save and restore" {
     // Create new preferences with different values
     var test_prefs = try Preferences.init(allocator, path);
 
-    // Modify all boolean values to their opposite
+    // Modify all boolean values to their opposite and change language
     test_prefs.show_startup_message = !original_prefs.show_startup_message;
     test_prefs.show_feedback_window = !original_prefs.show_feedback_window;
     test_prefs.show_plugin_ui = !original_prefs.show_plugin_ui;
     test_prefs.manual_routing = !original_prefs.manual_routing;
+    test_prefs.language = try allocator.dupeZ(u8, "fr");
 
     // Save modified preferences
     try test_prefs.saveToDisk(path);
@@ -290,6 +303,7 @@ test "preferences - save and restore" {
     var verify_prefs = try Preferences.init(allocator, path);
 
     // Verify that values were changed
+    try testing.expect(std.mem.eql(u8, verify_prefs.language, "fr"));
     try testing.expect(verify_prefs.show_startup_message == !original_prefs.show_startup_message);
     try testing.expect(verify_prefs.show_feedback_window == !original_prefs.show_feedback_window);
     try testing.expect(verify_prefs.show_plugin_ui == !original_prefs.show_plugin_ui);
@@ -312,6 +326,7 @@ test "preferences - save and restore" {
     // Verify restoration
     const final_verify = try Preferences.init(allocator, path);
 
+    try testing.expect(std.mem.eql(u8, final_verify.language, original_prefs.language));
     try testing.expect(final_verify.show_startup_message == original_prefs.show_startup_message);
     try testing.expect(final_verify.show_feedback_window == original_prefs.show_feedback_window);
     try testing.expect(final_verify.show_plugin_ui == original_prefs.show_plugin_ui);

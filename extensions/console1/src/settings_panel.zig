@@ -7,6 +7,7 @@ const settings_actions = @import("settings_actions.zig");
 const styles = @import("styles.zig");
 const styles_components = @import("styles_components.zig");
 const MappingsList = @import("mappings_list.zig");
+const TranslationStore = @import("translations.zig").TranslationStore;
 
 // Temporary copy for editing
 temp_settings: Preferences,
@@ -27,7 +28,14 @@ const SettingsRV = union(enum) {
     close_cancel,
     val_update: SettingsValUpdate,
 };
-pub fn draw(self: *@This(), ctx: imgui.ContextPtr, mappings_list: *MappingsList, style_manager: *styles.StyleManager) !?SettingsRV {
+
+pub fn draw(
+    self: *@This(),
+    ctx: imgui.ContextPtr,
+    mappings_list: *MappingsList,
+    style_manager: *styles.StyleManager
+    translations: *TranslationStore,
+) !?SettingsRV {
     var rv: ?SettingsRV = null;
     const scroll_pos = self.scroll_position_rel;
     const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
@@ -36,7 +44,39 @@ pub fn draw(self: *@This(), ctx: imgui.ContextPtr, mappings_list: *MappingsList,
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
-        // Edit settings...
+        // Language Selection at the top
+        {
+            const popColor = try pushColIfSelected(ctx, .language, scroll_pos);
+            defer if (popColor) |pop| pop(ctx) catch {};
+
+            try imgui.PushItemWidth(.{ ctx, 300.0 });
+            defer imgui.PopItemWidth(.{ctx}) catch {};
+
+            const current_lang = self.temp_settings.language;
+            const current_display = for (translations.getLanguages()) |lang| {
+                if (std.mem.eql(u8, lang.code, current_lang)) {
+                    break lang.display_name;
+                }
+            } else current_lang;
+
+            if (try imgui.BeginCombo(.{ ctx, "Language##lang", current_display, null })) {
+                defer imgui.EndCombo(.{ctx}) catch {};
+
+                for (translations.getLanguages()) |lang| {
+                    var is_selected = std.mem.eql(u8, lang.code, current_lang);
+                    if (try imgui.Selectable(.{ ctx, lang.display_name, &is_selected })) {
+                        self.temp_settings.language = lang.code;
+                        self.dirty = true;
+                    }
+                }
+            }
+
+            if (self.dirty and !std.mem.eql(u8, self.temp_settings.language, translations.current_language)) {
+                try imgui.TextColored(.{ ctx, 0xFFFFFF00, "Language change requires restart" });
+            }
+        }
+
+        try imgui.Separator(.{ctx});
 
         // UI Settings
         {

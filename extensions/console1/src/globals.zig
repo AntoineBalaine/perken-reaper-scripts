@@ -12,6 +12,7 @@ const fxParser = @import("fx_parser.zig");
 const fs_helpers = @import("fs_helpers.zig");
 const log = std.log.scoped(.globals);
 const imgui = @import("reaper_imgui.zig");
+const TranslationStore = @import("translations.zig").TranslationStore;
 
 pub const Globals = @This();
 pub var instance: Globals = undefined;
@@ -38,6 +39,7 @@ gpa_int: std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose
 arena_int: std.heap.ArenaAllocator = undefined,
 arena: std.mem.Allocator = undefined,
 resource_path: [:0]const u8 = undefined,
+translations: TranslationStore = undefined,
 
 // midi
 m_midi_in_dev: ?c_int = null,
@@ -60,6 +62,11 @@ pub fn init() !void {
 
     // Initialize in dependency order
     instance.preferences = try Preferences.init(instance.arena, instance.resource_path);
+    instance.translations = try TranslationStore.init(
+        instance.arena,
+        instance.resource_path,
+        instance.preferences.language, // We'll need to add this to preferences
+    );
     instance.map_store = try MapStore.init(instance.arena, instance.resource_path, &instance.preferences.default_fx);
     instance.mappings_list = MappingsList.init(instance.arena, instance.resource_path);
     instance.state = State.init(instance.arena);
