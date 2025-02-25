@@ -4,54 +4,82 @@ const fs_helpers = @import("fs_helpers.zig");
 const Mode = @import("statemachine.zig").Mode;
 const CCs = @import("c1.zig").CCs;
 
-pub const TranslationKey = enum(u16) {
-    // FX Control Panel keys - mapping directly from CCs
-    Comp_Attack,
-    Comp_DryWet,
-    Comp_Ratio,
-    Comp_Release,
-    Comp_Thresh,
-    Comp_comp,
-    Eq_HiFrq,
-    Eq_HiGain,
-    Eq_HiMidFrq,
-    Eq_HiMidGain,
-    Eq_HiMidQ,
-    Eq_LoFrq,
-    Eq_LoGain,
-    Eq_LoMidFrq,
-    Eq_LoMidGain,
-    Eq_LoMidQ,
-    Eq_eq,
-    Eq_hp_shape,
-    Eq_lp_shape,
-    Inpt_Gain,
-    Inpt_HiCut,
-    Inpt_LoCut,
-    Inpt_disp_mode,
-    Inpt_disp_on,
-    Inpt_filt_to_comp,
-    Inpt_phase_inv,
-    Inpt_preset,
-    Out_Drive,
-    Out_DriveChar,
-    Out_Pan,
-    Out_Vol,
-    Out_mute,
-    Out_solo,
-    Shp_Gate,
-    Shp_GateRelease,
-    Shp_Punch,
-    Shp_hard_gate,
-    Shp_shape,
-    Shp_sustain,
-    Tr_ext_sidechain,
-    Tr_order,
+pub const TranslationKey = enum {
 
     // Additional non-CC keys for fx_ctrl
     fx_ctrl_title,
     fx_ctrl_reset,
-
+    fx_ctrl_Comp_Attack,
+    fx_ctrl_Comp_Release,
+    fx_ctrl_Comp_DryWet,
+    fx_ctrl_Comp_Ratio,
+    fx_ctrl_Comp_Thresh,
+    fx_ctrl_Comp_comp,
+    fx_ctrl_Eq_HiFrq,
+    fx_ctrl_Eq_HiGain,
+    fx_ctrl_Eq_HiMidFrq,
+    fx_ctrl_Eq_HiMidGain,
+    fx_ctrl_Eq_HiMidQ,
+    fx_ctrl_Eq_LoFrq,
+    fx_ctrl_Eq_LoGain,
+    fx_ctrl_Eq_LoMidFrq,
+    fx_ctrl_Eq_LoMidGain,
+    fx_ctrl_Eq_LoMidQ,
+    fx_ctrl_Eq_eq,
+    fx_ctrl_Eq_hp_shape,
+    fx_ctrl_Eq_lp_shape,
+    fx_ctrl_Inpt_Gain,
+    fx_ctrl_Inpt_HiCut,
+    fx_ctrl_Inpt_LoCut,
+    fx_ctrl_Inpt_disp_mode,
+    fx_ctrl_Inpt_disp_on,
+    fx_ctrl_Inpt_filt_to_comp,
+    fx_ctrl_Inpt_phase_inv,
+    fx_ctrl_Inpt_preset,
+    fx_ctrl_Inpt_MtrLft,
+    fx_ctrl_Inpt_MtrRgt,
+    fx_ctrl_Out_MtrLft,
+    fx_ctrl_Out_MtrRgt,
+    fx_ctrl_Shp_Mtr,
+    fx_ctrl_Comp_Mtr,
+    fx_ctrl_Out_Drive,
+    fx_ctrl_Out_DriveChar,
+    fx_ctrl_Out_Pan,
+    fx_ctrl_Out_Vol,
+    fx_ctrl_Out_mute,
+    fx_ctrl_Out_solo,
+    fx_ctrl_Shp_Gate,
+    fx_ctrl_Shp_GateRelease,
+    fx_ctrl_Shp_Punch,
+    fx_ctrl_Shp_hard_gate,
+    fx_ctrl_Shp_shape,
+    fx_ctrl_Shp_sustain,
+    fx_ctrl_Tr_ext_sidechain,
+    fx_ctrl_Tr_order,
+    fx_ctrl_Tr_pg_dn,
+    fx_ctrl_Tr_pg_up,
+    fx_ctrl_Tr_tr1,
+    fx_ctrl_Tr_tr10,
+    fx_ctrl_Tr_tr11,
+    fx_ctrl_Tr_tr12,
+    fx_ctrl_Tr_tr13,
+    fx_ctrl_Tr_tr14,
+    fx_ctrl_Tr_tr15,
+    fx_ctrl_Tr_tr16,
+    fx_ctrl_Tr_tr17,
+    fx_ctrl_Tr_tr18,
+    fx_ctrl_Tr_tr19,
+    fx_ctrl_Tr_tr2,
+    fx_ctrl_Tr_tr20,
+    fx_ctrl_Tr_tr3,
+    fx_ctrl_Tr_tr4,
+    fx_ctrl_Tr_tr5,
+    fx_ctrl_Tr_tr6,
+    fx_ctrl_Tr_tr7,
+    fx_ctrl_Tr_tr8,
+    fx_ctrl_Tr_tr9,
+    fx_ctrl_Tr_tr_copy,
+    fx_ctrl_Tr_tr_grp,
     // Settings panel translations
     settings_title,
     settings_show_startup_message,
@@ -91,6 +119,14 @@ pub const TranslationKey = enum(u16) {
     fx_sel_recent,
     fx_sel_rescan,
     fx_sel_done,
+    fx_sel_Tr_tr1,
+    fx_sel_Tr_tr2,
+    fx_sel_Tr_tr3,
+    fx_sel_Tr_tr4,
+    fx_sel_Tr_tr5,
+    fx_sel_Out_Vol,
+    fx_sel_Out_solo,
+    fx_sel_Out_mute,
     // Note: module type translations (input, gate, etc.) could be shared
     // with the settings panel if we want to avoid duplication
 
@@ -105,267 +141,203 @@ pub const TranslationKey = enum(u16) {
     mapping_midi_learn_active,
     mapping_save,
     mapping_cancel,
+
+    trsprt_Inpt_disp_mode,
+    trsprt_Inpt_disp_on,
+    trsprt_Inpt_HiCut,
+    trsprt_Eq_eq,
+    trsprt_Eq_lp_shape,
+    trsprt_Eq_hp_shape,
+    trsprt_Eq_LoGain,
+    trsprt_Eq_LoMidGain,
+    trsprt_Eq_HiMidGain,
+    trsprt_Eq_HiGain,
+    trsprt_Comp_comp,
+    trsprt_Tr_tr1,
+    trsprt_Tr_tr2,
+    trsprt_Tr_tr3,
+    trsprt_Tr_tr4,
+    trsprt_Tr_tr5,
+    trsprt_Tr_tr6,
+    trsprt_Tr_tr7,
+    trsprt_Tr_tr8,
+    trsprt_Tr_tr9,
+    trsprt_Tr_tr10,
+    trsprt_Tr_tr17,
+    trsprt_Tr_tr18,
+    trsprt_Tr_tr19,
+    trsprt_Tr_tr20,
+    trsprt_Out_Vol,
+    trsprt_Out_Drive,
+    trsprt_Out_DriveChar,
+    trsprt_Out_Pan,
+    trsprt_Out_solo,
 };
 
-const TranslationsData = struct {
-    fx_ctrl: struct {
-        // Direct mappings from CCs
-        Comp_Attack: []const u8,
-        Comp_DryWet: []const u8,
-        Comp_Ratio: []const u8,
-        Comp_Release: []const u8,
-        Comp_Thresh: []const u8,
-        Comp_comp: []const u8,
-        Eq_HiFrq: []const u8,
-        Eq_HiGain: []const u8,
-        Eq_HiMidFrq: []const u8,
-        Eq_HiMidGain: []const u8,
-        Eq_HiMidQ: []const u8,
-        Eq_LoFrq: []const u8,
-        Eq_LoGain: []const u8,
-        Eq_LoMidFrq: []const u8,
-        Eq_LoMidGain: []const u8,
-        Eq_LoMidQ: []const u8,
-        Eq_eq: []const u8,
-        Eq_hp_shape: []const u8,
-        Eq_lp_shape: []const u8,
-        Inpt_Gain: []const u8,
-        Inpt_HiCut: []const u8,
-        Inpt_LoCut: []const u8,
-        Inpt_disp_mode: []const u8,
-        Inpt_disp_on: []const u8,
-        Inpt_filt_to_comp: []const u8,
-        Inpt_phase_inv: []const u8,
-        Inpt_preset: []const u8,
-        Out_Drive: []const u8,
-        Out_DriveChar: []const u8,
-        Out_Pan: []const u8,
-        Out_Vol: []const u8,
-        Out_mute: []const u8,
-        Out_solo: []const u8,
-        Shp_Gate: []const u8,
-        Shp_GateRelease: []const u8,
-        Shp_Punch: []const u8,
-        Shp_hard_gate: []const u8,
-        Shp_shape: []const u8,
-        Shp_sustain: []const u8,
-        Tr_ext_sidechain: []const u8,
-        Tr_order: []const u8,
-
-        // Additional strings
-        title: []const u8,
-        reset: []const u8,
-    },
-    settings: struct {
-        // UI Settings
-        title: []const u8, // "Settings"
-        show_startup_message: []const u8, // "Show Startup Message"
-        show_feedback_window: []const u8, // "Show Feedback Window"
-        show_plugin_ui: []const u8, // "Show Plugin UI"
-
-        // Routing Settings
-        manual_routing: []const u8, // "Manual Routing"
-
-        // Logging Settings
-        log_to_file: []const u8, // "Log to File"
-        start_suspended: []const u8, // "Start extension suspended"
-
-        // Default Channel Strip section
-        default_channel_strip: []const u8, // "Default Channel Strip"
-        none: []const u8, // "none" (used in combo boxes)
-
-        // Buttons
-        save: []const u8, // "Save"
-        cancel: []const u8, // "Cancel"
-
-        // Module names (used in combo boxes)
-        input: []const u8, // "INPUT"
-        gate: []const u8, // "GATE"
-        eq: []const u8, // "EQ"
-        comp: []const u8, // "COMP"
-        output: []const u8, // "OUTPT"
-    },
-    track_list: struct {
-        // Window title
-        title: []const u8, // "Track List"
-
-        // Page indicator
-        page: []const u8, // "Page {d}"
-
-        // Module browser labels (used when modifier is active)
-        input_load: []const u8, // "Input Load"
-        gate_load: []const u8, // "Gate Load"
-        eq_load: []const u8, // "EQ Load"
-        comp_load: []const u8, // "Comp Load"
-        output_load: []const u8, // "Output Load"
-        settings: []const u8, // "Settings"
-
-        // Track format string
-        track_format: []const u8, // "{d:>2}. {s}" - might want to make this configurable
-    },
-
-    fx_sel: struct {
-        // Window and section titles
-        title: []const u8, // "FX Browser"
-        all_plugins: []const u8, // "all plugins"
-        fx_chains: []const u8, // "fx chains"
-        track_templates: []const u8, // "track templates"
-
-        // Special items
-        container: []const u8, // "Container"
-        video_processor: []const u8, // "Video processor"
-        recent: []const u8, // "recent: "
-
-        // Buttons and controls
-        rescan: []const u8, // "Rescan plugin list"
-        done: []const u8, // "Done!"
-
-        // Module types (might overlap with settings panel)
-        input: []const u8, // "INPUT"
-        gate: []const u8, // "GATE"
-        eq: []const u8, // "EQ"
-        comp: []const u8, // "COMP"
-        output: []const u8, // "OUTPT"
-    },
-
-    mapping: struct {
-        // Window and section titles
-        title: []const u8, // "Mapping Panel"
-        fx_parameters: []const u8, // "FX Parameters"
-        console_controls: []const u8, // "Console Controls"
-
-        // Status indicators
-        mapped: []const u8, // "(Mapped)"
-        param_mapped: []const u8, // "(-> Param {d})"
-        module_prefix: []const u8, // "Module: {s}"
-
-        // MIDI learn states
-        midi_learn: []const u8, // "MIDI Learn"
-        midi_learn_active: []const u8, // "MIDI Learn (Active)"
-
-        // Buttons
-        save: []const u8, // "Save Mapping"
-        cancel: []const u8, // "Cancel"
-
-        // Module names could be shared with other panels
-        module_input: []const u8, // "INPUT"
-        module_gate: []const u8, // "GATE"
-        module_eq: []const u8, // "EQ"
-        module_comp: []const u8, // "COMP"
-        module_output: []const u8, // "OUTPT"
-    },
-};
-
-const default_translations: TranslationsData = .{
-    .mapping = .{
-        .title = "Mapping Panel",
-        .fx_parameters = "FX Parameters",
-        .console_controls = "Console Controls",
-        .mapped = "(Mapped)",
-        .param_mapped = "(-> Param {d})",
-        .module_prefix = "Module: {s}",
-        .midi_learn = "MIDI Learn",
-        .midi_learn_active = "MIDI Learn (Active)",
-        .save = "Save Mapping",
-        .cancel = "Cancel",
-        .module_input = "INPUT",
-        .module_gate = "GATE",
-        .module_eq = "EQ",
-        .module_comp = "COMP",
-        .module_output = "OUTPT",
-    },
-    .fx_sel = .{
-        .title = "FX Browser",
-        .all_plugins = "all plugins",
-        .fx_chains = "fx chains",
-        .track_templates = "track templates",
-        .container = "Container",
-        .video_processor = "Video processor",
-        .recent = "recent: ",
-        .rescan = "Rescan plugin list",
-        .done = "Done!",
-        .input = "INPUT",
-        .gate = "GATE",
-        .eq = "EQ",
-        .comp = "COMP",
-        .output = "OUTPT",
-    },
-    .track_list = .{
-        .title = "Track List",
-        .page = "Page {d}",
-        .input_load = "Input Load",
-        .gate_load = "Gate Load",
-        .eq_load = "EQ Load",
-        .comp_load = "Comp Load",
-        .output_load = "Output Load",
-        .settings = "Settings",
-        .track_format = "{d:>2}. {s}",
-    },
-    .fx_ctrl = .{
-        .Comp_Attack = "Attack",
-        .Comp_DryWet = "Dry/Wet",
-        .Comp_Ratio = "Ratio",
-        .Comp_Release = "Release",
-        .Comp_Thresh = "Threshold",
-        .Comp_comp = "Compressor",
-        .Eq_HiFrq = "High Freq",
-        .Eq_HiGain = "High Gain",
-        .Eq_HiMidFrq = "High Mid Freq",
-        .Eq_HiMidGain = "High Mid Gain",
-        .Eq_HiMidQ = "High Mid Q",
-        .Eq_LoFrq = "Low Freq",
-        .Eq_LoGain = "Low Gain",
-        .Eq_LoMidFrq = "Low Mid Freq",
-        .Eq_LoMidGain = "Low Mid Gain",
-        .Eq_LoMidQ = "Low Mid Q",
-        .Eq_eq = "EQ",
-        .Eq_hp_shape = "High Shape",
-        .Eq_lp_shape = "Low Shape",
-        .Inpt_Gain = "Gain",
-        .Inpt_HiCut = "High Cut",
-        .Inpt_LoCut = "Low Cut",
-        .Inpt_disp_mode = "Display Mode",
-        .Inpt_disp_on = "Display On",
-        .Inpt_filt_to_comp = "Filter to Comp",
-        .Inpt_phase_inv = "Phase Invert",
-        .Inpt_preset = "Preset",
-        .Out_Drive = "Drive",
-        .Out_DriveChar = "Character",
-        .Out_Pan = "Pan",
-        .Out_Vol = "Volume",
-        .Out_mute = "Mute",
-        .Out_solo = "Solo",
-        .Shp_Gate = "Gate",
-        .Shp_GateRelease = "Gate Release",
-        .Shp_Punch = "Punch",
-        .Shp_hard_gate = "Hard Gate",
-        .Shp_shape = "Shape",
-        .Shp_sustain = "Sustain",
-        .Tr_ext_sidechain = "Sidechain",
-        .Tr_order = "Order",
-
-        .title = "FX Control",
-        .reset = "Reset",
-    },
-    .settings = .{
-        .title = "Settings",
-        .show_startup_message = "Show Startup Message",
-        .show_feedback_window = "Show Feedback Window",
-        .show_plugin_ui = "Show Plugin UI",
-        .manual_routing = "Manual Routing",
-        .log_to_file = "Log to File",
-        .start_suspended = "Start extension suspended",
-        .default_channel_strip = "Default Channel Strip",
-        .none = "none",
-        .save = "Save",
-        .cancel = "Cancel",
-        .input = "INPUT",
-        .gate = "GATE",
-        .eq = "EQ",
-        .comp = "COMP",
-        .output = "OUTPT",
-    },
-};
+/// TODO: move default translations into an INI or zon file,
+/// and embed into the code base.
+const default_translations = std.ComptimeStringMap([]const u8, .{
+    .{ "mapping_title", "Mapping Panel" },
+    .{ "mapping_fx_parameters", "FX Parameters" },
+    .{ "mapping_console_controls", "Console Controls" },
+    .{ "mapping_mapped", "(Mapped)" },
+    .{ "mapping_param_mapped", "(-> Param {d})" },
+    .{ "mapping_module_prefix", "Module: {s}" },
+    .{ "mapping_midi_learn", "MIDI Learn" },
+    .{ "mapping_midi_learn_active", "MIDI Learn (Active)" },
+    .{ "mapping_save", "Save Mapping" },
+    .{ "mapping_cancel", "Cancel" },
+    .{ "mapping_module_input", "INPUT" },
+    .{ "mapping_module_gate", "GATE" },
+    .{ "mapping_module_eq", "EQ" },
+    .{ "mapping_module_comp", "COMP" },
+    .{ "mapping_module_output", "OUTPT" },
+    .{ "fx_sel_title", "FX Browser" },
+    .{ "fx_sel_all_plugins", "all plugins" },
+    .{ "fx_sel_fx_chains", "fx chains" },
+    .{ "fx_sel_track_templates", "track templates" },
+    .{ "fx_sel_container", "Container" },
+    .{ "fx_sel_video_processor", "Video processor" },
+    .{ "fx_sel_recent", "recent: " },
+    .{ "fx_sel_rescan", "Rescan plugin list" },
+    .{ "fx_sel_done", "Done!" },
+    .{ "fx_sel_Tr_tr1", "Input" },
+    .{ "fx_sel_Tr_tr2", "Gate" },
+    .{ "fx_sel_Tr_tr3", "Eq" },
+    .{ "fx_sel_Tr_tr4", "Comp" },
+    .{ "fx_sel_Tr_tr5", "Outpt" },
+    .{ "fx_sel_Out_Vol", "Scroll" },
+    .{ "fx_sel_Out_solo", "Select" },
+    .{ "fx_sel_Out_mute", "Cancel" },
+    .{ "track_list_title", "Track List" },
+    .{ "track_list_page", "Page {d}" },
+    .{ "track_list_input_load", "Input Load" },
+    .{ "track_list_gate_load", "Gate Load" },
+    .{ "track_list_eq_load", "EQ Load" },
+    .{ "track_list_comp_load", "Comp Load" },
+    .{ "track_list_output_load", "Output Load" },
+    .{ "track_list_settings", "Settings" },
+    .{ "track_list_track_format", "{d:>2}. {s}" },
+    .{ "fx_ctrl_title", "FX Control" },
+    .{ "fx_ctrl_reset", "Reset" },
+    .{ "fx_ctrl_Comp_Attack", "Attack" },
+    .{ "fx_ctrl_Comp_Release", "Release" },
+    .{ "fx_ctrl_Comp_DryWet", "DryWet" },
+    .{ "fx_ctrl_Comp_Ratio", "Ratio" },
+    .{ "fx_ctrl_Comp_Thresh", "Thresh" },
+    .{ "fx_ctrl_Comp_comp", "Compressor" },
+    .{ "fx_ctrl_Eq_HiFrq", "HiFrq" },
+    .{ "fx_ctrl_Eq_HiGain", "HiGain" },
+    .{ "fx_ctrl_Eq_HiMidFrq", "HiMidFrq" },
+    .{ "fx_ctrl_Eq_HiMidGain", "HiMidGain" },
+    .{ "fx_ctrl_Eq_HiMidQ", "HiMidQ" },
+    .{ "fx_ctrl_Eq_LoFrq", "LoFrq" },
+    .{ "fx_ctrl_Eq_LoGain", "LoGain" },
+    .{ "fx_ctrl_Eq_LoMidFrq", "LoMidFrq" },
+    .{ "fx_ctrl_Eq_LoMidGain", "LoMidGain" },
+    .{ "fx_ctrl_Eq_LoMidQ", "LoMidQ" },
+    .{ "fx_ctrl_Eq_eq", "EQ" },
+    .{ "fx_ctrl_Eq_hp_shape", "Hi Shape" },
+    .{ "fx_ctrl_Eq_lp_shape", "Lo Shape" },
+    .{ "fx_ctrl_Inpt_Gain", "Gain" },
+    .{ "fx_ctrl_Inpt_HiCut", "HiCut" },
+    .{ "fx_ctrl_Inpt_LoCut", "LoCut" },
+    .{ "fx_ctrl_Inpt_disp_mode", "Mode" },
+    .{ "fx_ctrl_Inpt_disp_on", "On" },
+    .{ "fx_ctrl_Inpt_filt_to_comp", "Filters to Comp" },
+    .{ "fx_ctrl_Inpt_phase_inv", "Phase Inv." },
+    .{ "fx_ctrl_Inpt_preset", "Preset" },
+    .{ "fx_ctrl_Inpt_MtrLft", "MtrLft" },
+    .{ "fx_ctrl_Inpt_MtrRgt", "MtrRgt" },
+    .{ "fx_ctrl_Out_MtrLft", "MtrLft" },
+    .{ "fx_ctrl_Out_MtrRgt", "MtrRgt" },
+    .{ "fx_ctrl_Shp_Mtr", "Mtr" },
+    .{ "fx_ctrl_Comp_Mtr", "Mtr" },
+    .{ "fx_ctrl_Out_Drive", "Drive" },
+    .{ "fx_ctrl_Out_DriveChar", "Character" },
+    .{ "fx_ctrl_Out_Pan", "Pan" },
+    .{ "fx_ctrl_Out_Vol", "Vol" },
+    .{ "fx_ctrl_Out_mute", "Mute" },
+    .{ "fx_ctrl_Out_solo", "Solo" },
+    .{ "fx_ctrl_Shp_Gate", "Gate" },
+    .{ "fx_ctrl_Shp_GateRelease", "Release" },
+    .{ "fx_ctrl_Shp_Punch", "Punch" },
+    .{ "fx_ctrl_Shp_hard_gate", "Hard Gate" },
+    .{ "fx_ctrl_Shp_shape", "SHAPE" },
+    .{ "fx_ctrl_Shp_sustain", "sustain" },
+    .{ "fx_ctrl_Tr_ext_sidechain", "SC" },
+    .{ "fx_ctrl_Tr_order", "Order" },
+    .{ "fx_ctrl_Tr_pg_dn", "Pg Dn" },
+    .{ "fx_ctrl_Tr_pg_up", "Pg Up" },
+    .{ "fx_ctrl_Tr_tr1", "Tr1" },
+    .{ "fx_ctrl_Tr_tr10", "Tr10" },
+    .{ "fx_ctrl_Tr_tr11", "Tr11" },
+    .{ "fx_ctrl_Tr_tr12", "Tr12" },
+    .{ "fx_ctrl_Tr_tr13", "Tr13" },
+    .{ "fx_ctrl_Tr_tr14", "Tr14" },
+    .{ "fx_ctrl_Tr_tr15", "Tr15" },
+    .{ "fx_ctrl_Tr_tr16", "Tr16" },
+    .{ "fx_ctrl_Tr_tr17", "Tr17" },
+    .{ "fx_ctrl_Tr_tr18", "Tr18" },
+    .{ "fx_ctrl_Tr_tr19", "Tr19" },
+    .{ "fx_ctrl_Tr_tr2", "Tr2" },
+    .{ "fx_ctrl_Tr_tr20", "Tr20" },
+    .{ "fx_ctrl_Tr_tr3", "Tr3" },
+    .{ "fx_ctrl_Tr_tr4", "Tr4" },
+    .{ "fx_ctrl_Tr_tr5", "Tr5" },
+    .{ "fx_ctrl_Tr_tr6", "Tr6" },
+    .{ "fx_ctrl_Tr_tr7", "Tr7" },
+    .{ "fx_ctrl_Tr_tr8", "Tr8" },
+    .{ "fx_ctrl_Tr_tr9", "Tr9" },
+    .{ "fx_ctrl_Tr_tr_copy", "Copy" },
+    .{ "fx_ctrl_Tr_tr_grp", "Grp" },
+    .{ "settings_title", "Settings" },
+    .{ "settings_show_startup_message", "Show Startup Message" },
+    .{ "settings_show_feedback_window", "Show Feedback Window" },
+    .{ "settings_show_plugin_ui", "Show Plugin UI" },
+    .{ "settings_manual_routing", "Manual Routing" },
+    .{ "settings_log_to_file", "Log to File" },
+    .{ "settings_start_suspended", "Start extension suspended" },
+    .{ "settings_default_channel_strip", "Default Channel Strip" },
+    .{ "settings_none", "none" },
+    .{ "settings_save", "Save" },
+    .{ "settings_cancel", "Cancel" },
+    .{ "settings_input", "INPUT" },
+    .{ "settings_gate", "GATE" },
+    .{ "settings_eq", "EQ" },
+    .{ "settings_comp", "COMP" },
+    .{ "settings_output", "OUTPT" },
+    .{ "trsprt_Inpt_disp_mode", "Mode" },
+    .{ "trsprt_Inpt_disp_on", "Hide" },
+    .{ "trsprt_Inpt_HiCut", "Rate" },
+    .{ "trsprt_Eq_eq", "Loop" },
+    .{ "trsprt_Eq_lp_shape", "Loop Strt" },
+    .{ "trsprt_Eq_hp_shape", "Loop End" },
+    .{ "trsprt_Eq_LoGain", "Scrub" },
+    .{ "trsprt_Eq_LoMidGain", "Jog" },
+    .{ "trsprt_Eq_HiMidGain", "Jog Mrkr" },
+    .{ "trsprt_Eq_HiGain", "Jog Itm" },
+    .{ "trsprt_Comp_comp", "Mrkr Set" },
+    .{ "trsprt_Tr_tr1", "Input" },
+    .{ "trsprt_Tr_tr2", "Gate" },
+    .{ "trsprt_Tr_tr3", "Eq" },
+    .{ "trsprt_Tr_tr4", "Comp" },
+    .{ "trsprt_Tr_tr5", "Outpt" },
+    .{ "trsprt_Tr_tr6", "Auto Trim" },
+    .{ "trsprt_Tr_tr7", "Auto Read" },
+    .{ "trsprt_Tr_tr8", "Auto Latch" },
+    .{ "trsprt_Tr_tr9", "Auto Preview" },
+    .{ "trsprt_Tr_tr10", "Auto Write" },
+    .{ "trsprt_Tr_tr17", "Play" },
+    .{ "trsprt_Tr_tr18", "Stop" },
+    .{ "trsprt_Tr_tr19", "Rec" },
+    .{ "trsprt_Tr_tr20", "Settings" },
+    .{ "trsprt_Out_Vol", "Tr slct" },
+    .{ "trsprt_Out_Drive", "Zoom H" },
+    .{ "trsprt_Out_DriveChar", "Zoom V" },
+    .{ "trsprt_Out_Pan", "Grid" },
+    .{ "trsprt_Out_solo", "Snap" },
+});
 
 pub const StringStore = struct {
     strings: std.ArrayListUnmanaged(u8),
@@ -389,16 +361,10 @@ pub const StringStore = struct {
     }
 
     fn loadDefaults(self: *StringStore, g_arena: std.mem.Allocator) !void {
-        inline for (@typeInfo(TranslationsData).Struct.fields) |field| {
-            const section = @field(default_translations, field.name);
-            inline for (@typeInfo(@TypeOf(section)).Struct.fields) |subfield| {
-                const value = @field(section, subfield.name);
-                const key = comptime if (std.mem.eql(u8, field.name, "fx_ctrl"))
-                    @field(TranslationKey, subfield.name)
-                else
-                    @field(TranslationKey, field.name ++ "_" ++ subfield.name);
-                try self.addString(g_arena, key, value);
-            }
+        // Iterate over the ComptimeStringMap
+        inline for (default_translations.kvs) |kv| {
+            const key = @field(TranslationKey, kv.key);
+            try self.addString(g_arena, key, kv.value);
         }
     }
 
@@ -430,17 +396,51 @@ pub const StringStore = struct {
                 },
                 .property => |kv| {
                     if (current_section) |section| {
-                        const key_str = if (std.mem.eql(u8, section, "fx_ctrl"))
-                            kv.key
-                        else
-                            section ++ "_" ++ kv.key;
+                        // Construct key string
+                        const key_str = try std.fmt.allocPrint(arena.allocator(), "{s}_{s}", .{ section, kv.key });
 
-                        if (std.meta.stringToEnum(TranslationKey, key_str)) |key| {
-                            try self.addString(g_arena, key, kv.value);
+                        // Try to convert to enum
+                        if (std.meta.stringToEnum(TranslationKey, key_str)) |enum_key| {
+                            try self.addString(g_arena, enum_key, kv.value);
                         }
                     }
                 },
                 .enumeration => {},
+            }
+        }
+    }
+
+    pub fn writeToFile(self: *const StringStore, writer: anytype) !void {
+        var current_section: ?[]const u8 = null;
+
+        // Pre-sort the keys to ensure consistent output
+        var keys: [std.meta.fields(TranslationKey).len]TranslationKey = undefined;
+        for (&keys, 0..) |*key, i| {
+            key.* = @enumFromInt(i);
+        }
+        std.sort.heap(TranslationKey, &keys, {}, struct {
+            fn lessThan(_: void, a: TranslationKey, b: TranslationKey) bool {
+                return std.mem.lessThan(u8, @tagName(a), @tagName(b));
+            }
+        }.lessThan);
+
+        // Write sorted keys
+        for (keys) |key| {
+            const key_name = @tagName(key);
+            if (std.mem.indexOf(u8, key_name, "_")) |underscore_pos| {
+                const section = key_name[0..underscore_pos];
+
+                // Write section header if needed
+                if (current_section == null or !std.mem.eql(u8, current_section.?, section)) {
+                    if (current_section != null) try writer.writeByte('\n');
+                    try writer.print("[{s}]\n", .{section});
+                    current_section = section;
+                }
+
+                // Write key-value pair
+                const value = self.getString(key);
+                const property = key_name[underscore_pos + 1 ..];
+                try writer.print("{s}={s}\n", .{ property, value });
             }
         }
     }
