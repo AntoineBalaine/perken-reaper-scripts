@@ -24,8 +24,8 @@
             .hash = "122026ee38b3ef9cbb44a2cf8f1735ba5dbaef29975560ad3e2f78b43437707a8b9a",
         },
         .@"reaper-sdk" = .{
-            .url = "https://github.com/justinfrankel/reaper-sdk/archive/refs/heads/main.tar.gz",
-            .hash = "1220bf1580743bb6aad5eb096a7abd189c227816620c138ab1290229505783d3e4b8",
+            .url = "https://github.com/justinfrankel/reaper-sdk/archive/6c755b2696ff02a2f5d15d685712d6f2b7e4ed6d.tar.gz",
+            .hash = "12209fb480875e353b1f8a4d0c03ffb84046340adf32f4205dffbf77f82543e2e2fa",
         },
     },
     .paths = .{
