@@ -8,7 +8,11 @@ const styles = @import("styles.zig");
 const Globals = @import("globals.zig").Globals;
 const actions = @import("actions.zig");
 
-pub fn ButtonsBar(ctx: imgui.ContextPtr, globals: *Globals) !bool {
+pub fn ButtonsBar(
+    ctx: imgui.ContextPtr,
+    globals: *Globals,
+    style_manager: *styles.StyleManager,
+) !bool {
     var rv = true;
     {
         try imgui.BeginGroup(.{ctx});
@@ -40,7 +44,7 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr, globals: *Globals) !bool {
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.arrow_right), defaults.button_size, defaults.button_size })) {
-                try styles.toggle_rack_style_win();
+                style_manager.rack_style_open.* = !style_manager.rack_style_open.*;
             }
         }
 
@@ -52,7 +56,7 @@ pub fn ButtonsBar(ctx: imgui.ContextPtr, globals: *Globals) !bool {
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.arrow_down), defaults.button_size, defaults.button_size })) {
-                try styles.toggle_main_style_win();
+                style_manager.main_style_open.* = !style_manager.main_style_open.*;
             }
         }
 

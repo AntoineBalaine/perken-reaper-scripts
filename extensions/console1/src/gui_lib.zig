@@ -26,7 +26,12 @@ pub const GuiError = error{
     // ... other specific errors
 };
 
-pub fn main(ctx: imgui.ContextPtr, globals: *Globals, win_flags: c_int) !?actions.ModeAction {
+pub fn main(
+    ctx: imgui.ContextPtr,
+    globals: *Globals,
+    win_flags: c_int,
+    style_manager: *styles.StyleManager,
+) !?actions.ModeAction {
     var open: bool = true;
     try imgui.SetConfigVar(.{ ctx, imgui.ConfigVar_WindowsMoveFromTitleBarOnly, 1.0 });
     const PopStyle = try styles.PushStyle(ctx, .rack);
@@ -37,12 +42,12 @@ pub fn main(ctx: imgui.ContextPtr, globals: *Globals, win_flags: c_int) !?action
     try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.BOTTOM });
     if (try imgui.Begin(.{ ctx, plugin_name, &open, win_flags })) {
         defer imgui.End(.{ctx}) catch {};
-        open = try ButtonsBar(ctx, globals);
+        open = try ButtonsBar(ctx, globals, style_manager);
         try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
-        if (styles.rack_style_open) {
+        if (style_manager.rack_style_open.*) {
             try styles.StyleEditor(ctx, .rack);
         }
-        if (styles.main_style_open) {
+        if (style_manager.main_style_open.*) {
             try styles.StyleEditor(ctx, .main);
         }
         switch (globals.state.current_mode) {

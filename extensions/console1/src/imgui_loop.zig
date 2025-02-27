@@ -77,7 +77,13 @@ fn onTimer() callconv(.C) void {
     if (ctx == null) {
         init() catch |err| handleGuiError(err);
     }
-    if (@import("gui_lib.zig").main(ctx, globals, win_flags)) |maybe_action| {
+    var style_manager = .{
+        .main_style_open = &styles.main_style_open,
+        .rack_style_open = &styles.rack_style_open,
+        .RackStyle = &styles.RackStyle,
+        .MainWinStyle = &styles.MainWinStyle,
+    };
+    if (@import("gui_lib.zig").main(ctx, globals, win_flags, &style_manager)) |maybe_action| {
         if (maybe_action) |action| {
             actions.dispatch(globals, action);
         }
