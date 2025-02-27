@@ -35,7 +35,7 @@ pub fn main(
 ) !?actions.ModeAction {
     var open: bool = true;
     try imgui.SetConfigVar(.{ ctx, imgui.ConfigVar_WindowsMoveFromTitleBarOnly, 1.0 });
-    const PopStyle = try styles_components.PushStyle(ctx, .rack);
+    const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
     defer PopStyle(ctx) catch {};
 
     var rv: ?actions.ModeAction = null;
@@ -46,10 +46,10 @@ pub fn main(
         open = try ButtonsBar(ctx, globals, style_manager);
         try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
         if (style_manager.rack_style_open.*) {
-            try styles_components.StyleEditor(ctx, .rack);
+            try styles_components.StyleEditor(ctx, .rack, style_manager);
         }
         if (style_manager.main_style_open.*) {
-            try styles_components.StyleEditor(ctx, .main);
+            try styles_components.StyleEditor(ctx, .main, style_manager);
         }
         switch (globals.state.current_mode) {
             .fx_ctrl => {
@@ -60,7 +60,7 @@ pub fn main(
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager)) |tr_cc| {
                         const track_id = @intFromEnum(tr_cc) - @intFromEnum(c1.CCs.Tr_tr1);
                         if (track_id < globals.state.fx_ctrl.track_list.name_count) {
                             const tr_id = globals.state.fx_ctrl.track_list.track_names[track_id].id;
@@ -71,7 +71,7 @@ pub fn main(
             },
             .settings => {
                 if (globals.settings_panel) |*panel| {
-                    if (try panel.draw(ctx, &globals.mappings_list)) |val| {
+                    if (try panel.draw(ctx, &globals.mappings_list, style_manager)) |val| {
                         switch (val) {
                             .val_update => |update| rv = .{ .midi_out = .{ .settings_changed = update } },
                             .close_save => rv = .{ .settings = .save },
@@ -82,7 +82,7 @@ pub fn main(
             },
             .default_fx_sel => {
                 if (globals.settings_panel) |*panel| {
-                    if (try panel.draw(ctx, &globals.mappings_list)) |val| {
+                    if (try panel.draw(ctx, &globals.mappings_list, style_manager)) |val| {
                         switch (val) {
                             .val_update => |update| rv = .{ .midi_out = .{ .settings_changed = update } },
                             .close_save => rv = .{ .settings = .save },
@@ -92,7 +92,15 @@ pub fn main(
                 }
                 const module = globals.state.default_fx_sel.current_category;
                 const list = globals.mappings_list.list.get(module);
-                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.default_fx_sel.scroll_position_rel, false, &globals.drwls_splitter)) |sel_action| {
+                if (try fx_sel_panel.ModulePopup(
+                    ctx,
+                    module,
+                    list,
+                    globals.state.default_fx_sel.scroll_position_rel,
+                    false,
+                    &globals.drwls_splitter,
+                    style_manager,
+                )) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }
             },
@@ -113,7 +121,7 @@ pub fn main(
                 if (globals.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
                             .Tr_tr2 => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
@@ -127,7 +135,7 @@ pub fn main(
 
                 const module = globals.state.fx_sel.current_category;
                 const list = globals.mappings_list.list.get(module);
-                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel, true, &globals.drwls_splitter)) |sel_action| {
+                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel, true, &globals.drwls_splitter, style_manager)) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }
             },
@@ -161,7 +169,7 @@ pub fn main(
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5 => |cc_| {
                                 const module: ModulesList = switch (cc_) {

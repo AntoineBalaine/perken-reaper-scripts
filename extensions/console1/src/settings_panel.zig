@@ -27,10 +27,10 @@ const SettingsRV = union(enum) {
     close_cancel,
     val_update: SettingsValUpdate,
 };
-pub fn draw(self: *@This(), ctx: imgui.ContextPtr, mappings_list: *MappingsList) !?SettingsRV {
+pub fn draw(self: *@This(), ctx: imgui.ContextPtr, mappings_list: *MappingsList, style_manager: *styles.StyleManager) !?SettingsRV {
     var rv: ?SettingsRV = null;
     const scroll_pos = self.scroll_position_rel;
-    const PopStyle = try styles_components.PushStyle(ctx, .rack);
+    const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
     defer PopStyle(ctx) catch {};
     {
         try imgui.BeginGroup(.{ctx});

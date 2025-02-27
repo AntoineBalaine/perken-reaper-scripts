@@ -4,6 +4,7 @@ const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
+const styles = @import("styles.zig");
 const PushWindowStyle = @import("styles_components.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const fx_sel_actions = @import("fx_sel_actions.zig");
@@ -164,10 +165,11 @@ pub fn ModulePopup(
     current_index: usize,
     display_menus: bool,
     g_drwls_splitter: *imgui.DrawListSplitterPtr,
+    style_manager: *styles.StyleManager,
 ) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
 
-    const PopWindowStyle = try PushWindowStyle(ctx, .main);
+    const PopWindowStyle = try PushWindowStyle(ctx, .main, style_manager);
     defer PopWindowStyle(ctx) catch {};
 
     try imgui.SetNextWindowSize(.{ ctx, 400, 300, null });

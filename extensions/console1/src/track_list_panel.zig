@@ -17,8 +17,8 @@ const TrackListPanelAction = union(enum) {
     open_settings,
 };
 
-pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool) !?TrackListPanelAction {
-    const PopStyle = try styles_components.PushStyle(ctx, .rack);
+pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool, style_manager: *styles.StyleManager) !?TrackListPanelAction {
+    const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
     defer PopStyle(ctx) catch {};
 
     try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.RIGHT });
@@ -84,9 +84,9 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
     return action;
 }
 
-pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State) !?c1.CCs {
+pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manager: *styles.StyleManager) !?c1.CCs {
     const mode = state.current_mode;
-    const PopStyle = try styles_components.PushStyle(ctx, .rack);
+    const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
     defer PopStyle(ctx) catch {};
 
     var rv: ?c1.CCs = null;

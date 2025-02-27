@@ -18,14 +18,14 @@ const StyleVarsEnum = styles.StyleVarsEnum;
 const ColorsEnum = styles.ColorsEnum;
 const XYStruct = styles.XYStruct;
 
-pub fn StyleEditor(ctx: imgui.ContextPtr, win: WinStyle) !void {
+pub fn StyleEditor(ctx: imgui.ContextPtr, win: WinStyle, style_manager: *styles.StyleManager) !void {
     var is_open = switch (win) {
-        .rack => &styles.rack_style_open,
-        .main => &styles.main_style_open,
+        .rack => style_manager.rack_style_open,
+        .main => style_manager.main_style_open,
     };
     _ = &is_open;
     std.debug.assert(is_open.*);
-    const PopStyle = try PushStyle(ctx, .main);
+    const PopStyle = try PushStyle(ctx, .main, style_manager);
     defer PopStyle(ctx) catch {};
     try imgui.SetNextWindowSizeConstraints(.{ ctx, styles.WIDTH_MIN, styles.HEIGHT_MIN, styles.WIDTH_MAX, styles.HEIGHT_MAX });
 
@@ -35,7 +35,7 @@ pub fn StyleEditor(ctx: imgui.ContextPtr, win: WinStyle) !void {
         .main => content.mainWindowLabel,
     }, is_open, flags })) {
         defer imgui.End(.{ctx}) catch {};
-        try ShowStyleEditor(ctx, win);
+        try ShowStyleEditor(ctx, win, style_manager);
     }
 }
 
@@ -65,10 +65,10 @@ fn slider(comptime variant: std.meta.FieldEnum(styles.StyleStruct), ctx: imgui.C
     }
 }
 
-fn ShowStyleEditor(ctx: imgui.ContextPtr, window: WinStyle) !void {
+fn ShowStyleEditor(ctx: imgui.ContextPtr, window: WinStyle, style_manager: *styles.StyleManager) !void {
     var style_struct = switch (window) {
-        .rack => &styles.RackStyle,
-        .main => &styles.MainWinStyle,
+        .rack => style_manager.RackStyle,
+        .main => style_manager.MainWinStyle,
     };
     _ = &style_struct;
     if (try imgui.BeginTabBar(.{ ctx, "##tabs", imgui.TabBarFlags_None })) {
@@ -154,12 +154,12 @@ fn ShowStyleEditor(ctx: imgui.ContextPtr, window: WinStyle) !void {
     }
 }
 
-pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle) !*const fn (ctx: imgui.ContextPtr) anyerror!void {
+pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle, style_manager: *styles.StyleManager) !*const fn (ctx: imgui.ContextPtr) anyerror!void {
     var style_push_count: u8 = 0;
     var color_push_count: u8 = 0;
     const style = switch (win_style) {
-        .rack => styles.RackStyle,
-        .main => styles.MainWinStyle,
+        .rack => style_manager.RackStyle.*,
+        .main => style_manager.MainWinStyle.*,
     };
     try imgui.PushFont(.{ ctx, Theme.fonts.MAIN });
     inline for (@typeInfo(StyleVarsEnum).Enum.fields) |field| {
