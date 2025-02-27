@@ -26,15 +26,7 @@ const HEIGHT_MIN: f64 = 150;
 const WIDTH_MAX: f64 = 800;
 const HEIGHT_MAX: f64 = 400;
 pub var rack_style_open: bool = false;
-
-pub fn toggle_rack_style_win() !void {
-    rack_style_open = !rack_style_open;
-}
-
 pub var main_style_open: bool = false;
-pub fn toggle_main_style_win() !void {
-    main_style_open = !main_style_open;
-}
 
 fn isColor(field: [:0]const u8) bool {
     return field.len >= 4 and std.mem.eql(u8, field[0..4], "Col_");
@@ -164,22 +156,20 @@ pub fn getStyleData(ctx: imgui.ContextPtr, stylesData: *StyleStruct) !void {
 }
 
 pub var RackStyle: StyleStruct = undefined;
-var RackStyleBkp: StyleStruct = undefined;
 pub var MainWinStyle: StyleStruct = undefined;
-var MainWinStyleBkp: StyleStruct = undefined;
-var has_been_init: bool = false;
+pub const StyleManager = struct {
+    RackStyle: *StyleStruct,
+    MainWinStyle: *StyleStruct,
+    rack_style_open: *bool,
+    main_style_open: *bool,
+};
+
 pub fn init(ctx: imgui.ContextPtr) !void {
-    if (has_been_init) {
-        return;
-    }
     RackStyle = std.mem.zeroes(StyleStruct);
     try getStyleData(ctx, &RackStyle);
     MainWinStyle = RackStyle; // copy
     try loadStyle(&RackStyle, RACK_STYLEVARS, RACK_COLORS);
     try loadStyle(&MainWinStyle, MAIN_WIN_STYLEVARS, MAIN_WIN_COLORS);
-    RackStyleBkp = RackStyle; // make a copy
-    MainWinStyleBkp = MainWinStyle; // make a copy
-    has_been_init = true;
 }
 
 pub fn StyleEditor(ctx: imgui.ContextPtr, win: WinStyle) !void {
