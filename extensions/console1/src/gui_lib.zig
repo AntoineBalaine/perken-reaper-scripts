@@ -4,6 +4,7 @@ const imgui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const styles = @import("styles.zig");
+const styles_components = @import("styles_components.zig");
 const logger = @import("logger.zig");
 const debug_panel = @import("debug_panel.zig");
 const Globals = @import("globals.zig").Globals;
@@ -34,7 +35,7 @@ pub fn main(
 ) !?actions.ModeAction {
     var open: bool = true;
     try imgui.SetConfigVar(.{ ctx, imgui.ConfigVar_WindowsMoveFromTitleBarOnly, 1.0 });
-    const PopStyle = try styles.PushStyle(ctx, .rack);
+    const PopStyle = try styles_components.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
 
     var rv: ?actions.ModeAction = null;
@@ -45,10 +46,10 @@ pub fn main(
         open = try ButtonsBar(ctx, globals, style_manager);
         try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
         if (style_manager.rack_style_open.*) {
-            try styles.StyleEditor(ctx, .rack);
+            try styles_components.StyleEditor(ctx, .rack);
         }
         if (style_manager.main_style_open.*) {
-            try styles.StyleEditor(ctx, .main);
+            try styles_components.StyleEditor(ctx, .main);
         }
         switch (globals.state.current_mode) {
             .fx_ctrl => {

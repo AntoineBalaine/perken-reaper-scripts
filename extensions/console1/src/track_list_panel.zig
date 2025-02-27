@@ -4,9 +4,10 @@ const Preferences = @import("settings.zig");
 const statemachine = @import("statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const styles = @import("styles.zig");
+const styles_components = @import("styles_components.zig");
 const State = @import("statemachine.zig").State;
 const TrackList = @import("fx_ctrl_state.zig").TrackList;
-const PushWindowStyle = styles.PushStyle;
+const PushWindowStyle = styles_components.PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const c1 = @import("c1.zig");
 
@@ -17,7 +18,7 @@ const TrackListPanelAction = union(enum) {
 };
 
 pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool) !?TrackListPanelAction {
-    const PopStyle = try styles.PushStyle(ctx, .rack);
+    const PopStyle = try styles_components.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
 
     try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.RIGHT });
@@ -85,7 +86,7 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
 
 pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State) !?c1.CCs {
     const mode = state.current_mode;
-    const PopStyle = try styles.PushStyle(ctx, .rack);
+    const PopStyle = try styles_components.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
 
     var rv: ?c1.CCs = null;

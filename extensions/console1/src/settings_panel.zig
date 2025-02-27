@@ -5,6 +5,7 @@ const Globals = @import("globals.zig").Globals;
 const ModulesList = @import("statemachine.zig").ModulesList;
 const settings_actions = @import("settings_actions.zig");
 const styles = @import("styles.zig");
+const styles_components = @import("styles_components.zig");
 const MappingsList = @import("mappings_list.zig");
 
 // Temporary copy for editing
@@ -29,7 +30,7 @@ const SettingsRV = union(enum) {
 pub fn draw(self: *@This(), ctx: imgui.ContextPtr, mappings_list: *MappingsList) !?SettingsRV {
     var rv: ?SettingsRV = null;
     const scroll_pos = self.scroll_position_rel;
-    const PopStyle = try styles.PushStyle(ctx, .rack);
+    const PopStyle = try styles_components.PushStyle(ctx, .rack);
     defer PopStyle(ctx) catch {};
     {
         try imgui.BeginGroup(.{ctx});
