@@ -69,34 +69,44 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
         .fx_chain_changed => |track| actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = track } }),
         .fx_param_changed => |prm_chg| {
             if (globals.state.current_mode == .fx_ctrl) {
-                const container_idx = reaper.TrackFX_GetByName(prm_chg.track, "C1_CHANNEL", false);
-                if (container_idx >= 0) {
-                    const container_fx_idx = @as(usize, @intCast(container_idx));
-                    if (prm_chg.fx_index >= container_fx_idx and prm_chg.fx_index < container_fx_idx + 5) {
-                        var cc: c1.CCs = undefined;
+                // Check if we have a current track and it matches the notification track
+                const tr_id = reaper.CSurf_TrackToID(prm_chg.track, false);
+                if (globals.state.current_tr_id != null and globals.state.current_tr_id.? == tr_id) {
+                    // Find the module and parameter that corresponds to this FX and parameter index
+                    var cc: ?c1.CCs = null;
 
-                        blk: inline for (comptime std.enums.values(statemachine.ModulesList)) |field| {
-                            if (globals.state.fx_ctrl.track_state.module_locations.get(field)) |mod_map| {
-                                const idx = mod_map.fx_index;
-                                if (idx == prm_chg.fx_index) {
-                                    if (mod_map.mapping) |mapping| {
-                                        const map_variant = @field(mapping, @tagName(field));
-                                        inline for (@typeInfo(@TypeOf(map_variant)).Struct.fields) |param_field| {
-                                            const param_idx = @field(map_variant, param_field.name);
-                                            if (param_idx != null and param_idx.? == prm_chg.param_index) {
-                                                cc = @field(c1.CCs, param_field.name);
-                                                break :blk;
-                                            }
+                    blk: inline for (comptime std.enums.values(statemachine.ModulesList)) |field| {
+                        if (globals.state.fx_ctrl.track_state.module_locations.get(field)) |mod_map| {
+                            const idx = mod_map.fx_index;
+                            if (idx == prm_chg.fx_index) {
+                                if (mod_map.mapping) |mapping| {
+                                    const map_variant = @field(mapping, @tagName(field));
+                                    inline for (@typeInfo(@TypeOf(map_variant)).Struct.fields) |param_field| {
+                                        const param_idx = @field(map_variant, param_field.name);
+                                        if (param_idx != null and param_idx.? == prm_chg.param_index) {
+                                            cc = @field(c1.CCs, param_field.name);
+                                            break :blk;
                                         }
                                     }
                                 }
                             }
                         }
-                        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = cc, .value = @intFromFloat(prm_chg.value * 127.0) } } });
-                        // actions.dispatch(state, .{ .midi_out = .{ .set_param = .{
-                        //     .cc = @field(state.fx_ctrl.fxMap, @tagName(module))[1].param_index,
-                        //     .value = midi_value,
-                        // } } });
+                    }
+
+                    // If we found a matching parameter, update the state and send MIDI feedback
+                    if (cc) |control_cc| {
+                        // Update the FX control state with the new parameter value
+                        if (globals.state.fx_ctrl.values.getPtr(control_cc)) |value_ptr| {
+                            // Check the active field of the union
+                            switch (value_ptr.*) {
+                                .param => |*param_value| param_value.normalized = prm_chg.value,
+                                .button => |*button_val| button_val.* = prm_chg.value > 0.5,
+                                else => {}, // Skip other types
+                            }
+                        }
+
+                        // Send MIDI feedback to update the console's knob LEDs
+                        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = control_cc, .value = @intFromFloat(prm_chg.value * 127.0) } } });
                     }
                 }
             }
