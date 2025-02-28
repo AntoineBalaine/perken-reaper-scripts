@@ -99,7 +99,115 @@ fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
         log.err("track validation failed: track {d}", .{id});
     };
 
+    // Update FX parameter values in the state
+    updateFxParamValues(globals, media_track);
+
     handleFxWindowDisplay(globals, media_track);
 
     actions.dispatch(globals, .{ .midi_out = .{ .mode_entry = .fx_ctrl } });
+}
+
+/// Updates the FX control state with parameter values from the FX map
+/// Called after track validation to ensure state reflects current FX parameters
+fn updateFxParamValues(globals: *Globals, media_track: MediaTrack) void {
+    // Iterate through all module parameters
+    inline for (comptime std.enums.values(c1.CCs)) |cc| {
+        // Skip non-parameter CCs
+        switch (cc) {
+            .Comp_Attack,
+            .Comp_DryWet,
+            .Comp_Ratio,
+            .Comp_Release,
+            .Comp_Thresh,
+            .Comp_comp,
+            .Eq_HiFrq,
+            .Eq_HiGain,
+            .Eq_HiMidFrq,
+            .Eq_HiMidGain,
+            .Eq_HiMidQ,
+            .Eq_LoFrq,
+            .Eq_LoGain,
+            .Eq_LoMidFrq,
+            .Eq_LoMidGain,
+            .Eq_LoMidQ,
+            .Eq_eq,
+            .Eq_hp_shape,
+            .Eq_lp_shape,
+            .Inpt_Gain,
+            .Inpt_HiCut,
+            .Inpt_LoCut,
+            .Out_Drive,
+            .Out_DriveChar,
+            .Out_Pan,
+            .Out_Vol,
+            .Shp_Gate,
+            .Shp_GateRelease,
+            .Shp_Punch,
+            .Shp_hard_gate,
+            .Shp_shape,
+            .Shp_sustain,
+            => {
+                // Determine module and get mapping
+                const module = comptime getModuleForCC(cc);
+                if (module) |mod| {
+                    const module_loc = globals.state.fx_ctrl.track_state.module_locations.get(mod);
+                    if (module_loc) |fxmap| {
+                        const fx_idx = fxmap.fx_index;
+                        const mapping = fxmap.mapping;
+                        if (mapping) |map| {
+                            // Get parameter index from mapping
+                            const param_idx = @field(@field(map, @tagName(mod)), @tagName(cc));
+                            if (param_idx) |param| {
+                                const val = reaper.TrackFX_GetParamNormalized(media_track, fx_idx, param);
+
+                                if (val >= 0) {
+                                    // Update the FX control state with the parameter value
+                                    if (globals.state.fx_ctrl.values.getPtr(cc)) |value_ptr| {
+                                        // Check the active field of the union
+                                        switch (value_ptr.*) {
+                                            .param => |*param_value| param_value.normalized = val,
+                                            .button => |*button_val| button_val.* = val > 0.5,
+                                            else => {}, // Skip other types
+                                        }
+                                    }
+                                } else {
+                                    var buf: [512:0]u8 = undefined;
+                                    const fx_name = if (reaper.TrackFX_GetNamedConfigParm(media_track, fx_idx, "original_name", &buf, buf.len))
+                                        std.mem.span(@as([*:0]const u8, &buf))
+                                    else
+                                        "unknown";
+
+                                    log.err("Failed to get parameter value: FX '{s}' at index {}, parameter '{s}' at index {}", .{
+                                        fx_name,
+                                        fx_idx,
+                                        @tagName(cc),
+                                        param,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+}
+
+// Helper function to determine module from CC
+// Similar to the one in midi_out.zig
+fn getModuleForCC(comptime cc: c1.CCs) ?statemachine.ModulesList {
+    const cc_name = @tagName(cc);
+    return if (std.mem.startsWith(u8, cc_name, "Comp"))
+        .COMP
+    else if (std.mem.startsWith(u8, cc_name, "Eq"))
+        .EQ
+    else if (std.mem.startsWith(u8, cc_name, "Inpt"))
+        .INPUT
+    else if (std.mem.startsWith(u8, cc_name, "Out"))
+        .OUTPT
+    else if (std.mem.startsWith(u8, cc_name, "Shp"))
+        .GATE
+    else
+        null;
 }
