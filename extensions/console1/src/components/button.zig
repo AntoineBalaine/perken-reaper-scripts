@@ -25,9 +25,14 @@ pub fn roundButton(
     const draw_list = try imgui.GetWindowDrawList(.{ctx});
     var rv: bool = false;
 
+    // Check if label is empty
+    const has_label = label.len > 0;
+
     // Calculate text size for label
-    var label_size: Size = .{ .w = undefined, .h = undefined };
-    try imgui.CalcTextSize(.{ ctx, label, &label_size.w, &label_size.h });
+    var label_size: Size = .{ .w = 0, .h = 0 };
+    if (has_label) {
+        try imgui.CalcTextSize(.{ ctx, label, &label_size.w, &label_size.h });
+    }
     const text_padding = 2.0;
 
     // Get current cursor position
@@ -36,11 +41,11 @@ pub fn roundButton(
 
     // Calculate total widget dimensions based on text position
     const button_size = radius * 2;
-    const total_width = switch (text_pos) {
+    const total_width = if (!has_label) button_size else switch (text_pos) {
         .above, .below => @max(button_size, label_size.w),
         .right => button_size + text_padding * 2 + label_size.w,
     };
-    const total_height = switch (text_pos) {
+    const total_height = if (!has_label) button_size else switch (text_pos) {
         .above, .below => button_size + label_size.h + text_padding * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
         .right => @max(button_size, label_size.h),
     };
@@ -57,43 +62,46 @@ pub fn roundButton(
         defer imgui.PopClipRect(.{ctx}) catch {};
 
         // Calculate circle position
-        const center_x = switch (text_pos) {
+        const center_x = if (!has_label) widget_rect.min_x + radius else switch (text_pos) {
             .above, .below => widget_rect.min_x + total_width / 2,
             .right => widget_rect.min_x + radius,
         };
-        const center_y = switch (text_pos) {
+        const center_y = if (!has_label) widget_rect.min_y + radius else switch (text_pos) {
             .above => widget_rect.min_y + label_size.h + text_padding * 2 + radius,
             .below => widget_rect.min_y + radius,
             .right => widget_rect.min_y + total_height / 2,
         };
 
-        // Calculate label position
-        const label_pos_x = switch (text_pos) {
-            .above, .below => widget_rect.min_x + (total_width - label_size.w) / 2,
-            .right => center_x + radius + text_padding * 2,
-        };
-        const label_pos_y = switch (text_pos) {
-            .above => widget_rect.min_y + text_padding,
-            .below => widget_rect.min_y + button_size + text_padding * 2,
-            .right => center_y - label_size.h / 2,
-        };
+        // Only draw label and add label button if we have a label
+        if (has_label) {
+            // Calculate label position
+            const label_pos_x = switch (text_pos) {
+                .above, .below => widget_rect.min_x + (total_width - label_size.w) / 2,
+                .right => center_x + radius + text_padding * 2,
+            };
+            const label_pos_y = switch (text_pos) {
+                .above => widget_rect.min_y + text_padding,
+                .below => widget_rect.min_y + button_size + text_padding * 2,
+                .right => center_y - label_size.h / 2,
+            };
 
-        // Draw label
-        try imgui.DrawList_AddText(.{
-            draw_list,
-            label_pos_x,
-            label_pos_y,
-            try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }),
-            label,
-        });
+            // Draw label
+            try imgui.DrawList_AddText(.{
+                draw_list,
+                label_pos_x,
+                label_pos_y,
+                try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }),
+                label,
+            });
 
-        // Add invisible button over label for tooltip
-        try imgui.SetCursorScreenPos(.{ ctx, label_pos_x, label_pos_y });
-        if (try imgui.InvisibleButton(.{ ctx, "##label", label_size.w, label_size.h })) {}
+            // Add invisible button over label for tooltip
+            try imgui.SetCursorScreenPos(.{ ctx, label_pos_x, label_pos_y });
+            if (try imgui.InvisibleButton(.{ ctx, "##label", label_size.w, label_size.h })) {}
 
-        if (tooltip) |tip| {
-            if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None })) {
-                try imgui.SetTooltip(.{ ctx, tip });
+            if (tooltip) |tip| {
+                if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None })) {
+                    try imgui.SetTooltip(.{ ctx, tip });
+                }
             }
         }
 

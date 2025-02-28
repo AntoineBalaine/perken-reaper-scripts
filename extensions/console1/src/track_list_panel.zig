@@ -10,6 +10,7 @@ const TrackList = @import("fx_ctrl_state.zig").TrackList;
 const PushWindowStyle = styles_components.PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const c1 = @import("c1.zig");
+const roundButton = @import("components/widgets.zig").roundButton;
 
 const TrackListPanelAction = union(enum) {
     select_track: c_int,
@@ -73,6 +74,13 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
             }
             defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
+            const button_id = safePrint(&buf, "btn_{d}", .{i});
+            if (try roundButton(.{ ctx, "", button_id })) {
+                action = .{ .select_track = tr_id };
+            }
+
+            try imgui.SameLine(.{ctx});
+
             const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
             if (try imgui.Selectable(.{ ctx, label })) {
@@ -126,6 +134,13 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
         for (first_column_ccs, 0..) |cc, i| {
             switch (mode) {
                 .fx_sel, .transport => {
+                    const button_id = safePrint(&buf, "btn_col1_{d}", .{i});
+                    if (try roundButton(.{ ctx, "", button_id })) {
+                        rv = cc;
+                    }
+
+                    try imgui.SameLine(.{ctx});
+
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc.getLabel(mode) });
 
                     if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
@@ -148,6 +163,13 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                         }
                         defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
                     }
+
+                    const button_id = safePrint(&buf, "btn_col1_fx_{d}", .{i});
+                    if (try roundButton(.{ ctx, "", button_id })) {
+                        rv = cc;
+                    }
+
+                    try imgui.SameLine(.{ctx});
 
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
@@ -176,6 +198,13 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
         for (second_column_ccs, 10..) |cc, i| {
             switch (mode) {
                 .fx_sel, .transport => {
+                    const button_id = safePrint(&buf, "btn_col2_{d}", .{i});
+                    if (try roundButton(.{ ctx, "", button_id })) {
+                        rv = cc;
+                    }
+
+                    try imgui.SameLine(.{ctx});
+
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc.getLabel(mode) });
 
                     if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
@@ -198,6 +227,13 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                         }
                         defer if (is_selected) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
                     }
+
+                    const button_id = safePrint(&buf, "btn_col2_fx_{d}", .{i});
+                    if (try roundButton(.{ ctx, "", button_id })) {
+                        rv = cc;
+                    }
+
+                    try imgui.SameLine(.{ctx});
 
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, name });
 
