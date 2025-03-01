@@ -5,6 +5,7 @@
 # BUGS
 - jog grid lines
 - meters
+- csurf’s update_param_value() is too slow, switch to `CC.toModule()`
 # ARCH
 - Error handling: file reading, allocations
 - Handle case of imgui missing on user’s system.
@@ -19,6 +20,16 @@
     Update the UI from settings menu: default fX should have a circled numbered button that shows which track btns to click to open the panel.
   * Order configuration
     should be selectable from the settings menu
+# Widgets:
+- allow passing `disabled` flag to knobs, dim their color accordingly
+- allow passing `no_val_display` flag to knobs,
+- modify roundButton and vSperator color to be cream. 
+- vSeparator: add `onHover` color 
+- vSeparator: add `isActive` color
+- fx_ctrl_panel: don’t display knob values in modes other than fx_ctr
+- fx_ctrl_panel: add tooltip for `On` and `Mode` buttons
+- track list panel: add `pg_up`, `pg_dn` buttons
+- track list panel: fix selectable width (subtract button width)
 
 # Optionnels
 - jog items: remove sws dependency
