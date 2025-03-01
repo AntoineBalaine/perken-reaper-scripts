@@ -10,8 +10,10 @@ const TrackList = @import("fx_ctrl_state.zig").TrackList;
 const PushWindowStyle = styles_components.PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const c1 = @import("c1.zig");
-const roundButton = @import("components/widgets.zig").roundButton;
-
+const widgets = @import("components/widgets.zig");
+const roundButton = widgets.roundButton;
+const vSeparator = widgets.vSeparator;
+const section_spacing = @import("styles.zig").section_spacing;
 const TrackListPanelAction = union(enum) {
     select_track: c_int,
     open_module_browser: ModulesList,
@@ -96,6 +98,13 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     const mode = state.current_mode;
     const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
     defer PopStyle(ctx) catch {};
+
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
+    // Add vertical separator after Input section
+    try vSeparator(.{ ctx, 0xFFFFFFFF });
+
+    try imgui.SameLine(.{ctx});
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
 
     var rv: ?c1.CCs = null;
     var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;

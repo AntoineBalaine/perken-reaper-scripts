@@ -2,7 +2,9 @@ const std = @import("std");
 const imgui = @import("../reaper_imgui.zig");
 const knob = @import("knob.zig");
 const button = @import("button.zig");
+const vertical_separator = @import("vertical_separator.zig");
 const roundButtonWidget = button.roundButton;
+const vSeparatorWidget = vertical_separator.vSeparator;
 
 /// ```zig
 /// ctx: imgui.ContextPtr,
@@ -18,6 +20,16 @@ pub const roundButton = function(&roundButtonWidget, 3, &.{
     ?[:0]const u8,
     ?f64,
     ?button.TextPosition,
+});
+
+/// ```zig
+/// ctx: imgui.ContextPtr,
+/// color: c_int,
+/// thickness: ?f64,
+pub const vSeparator = function(&vSeparatorWidget, 2, &.{
+    imgui.ContextPtr,
+    c_int,
+    ?f64,
 });
 
 fn funcType(comptime func: anytype) type {

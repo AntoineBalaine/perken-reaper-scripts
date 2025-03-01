@@ -6,7 +6,10 @@ const Rectangle = @import("components/knob.zig").Rectangle;
 const c1 = @import("c1.zig");
 const WidgetInput = @import("fx_ctrl_actions.zig").WidgetInput;
 const Globals = @import("globals.zig").Globals;
-const roundButton = @import("components/widgets.zig").roundButton;
+const widgets = @import("components/widgets.zig");
+const roundButton = widgets.roundButton;
+const vSeparator = widgets.vSeparator;
+const section_spacing = @import("styles.zig").section_spacing;
 
 /// Calculate the maximum width of a list of labels and calculate offsets
 /// The offsets buffer will be filled with (max_width - width) / 2 for each label
@@ -48,7 +51,6 @@ fn centerWidgetLabel(ctx: imgui.ContextPtr, label: [:0]const u8, max_width: f64)
     }
 }
 // Layout constants
-// const section_spacing = 10.0;
 const knob_size = 40.0;
 // Module-level variables to hold knob values
 // Input section
@@ -84,7 +86,6 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
     var rv: ?WidgetInput = null;
-    const section_spacing = 40.0;
     // Input Section
     {
         try imgui.BeginGroup(.{ctx});
@@ -152,6 +153,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
             if (try roundButton(.{ ctx, c1.CCs.Inpt_preset.getLabel(mode), "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right })) {}
         }
     }
+
+    try imgui.SameLine(.{ctx});
+
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
+    // Add vertical separator after Input section
+    try vSeparator(.{ ctx, 0xFFFFFFFF });
 
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
@@ -240,6 +247,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
             }
         }
     }
+
+    try imgui.SameLine(.{ctx});
+
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
+    // Add vertical separator after Shape section
+    try vSeparator(.{ ctx, 0xFFFFFFFF });
 
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
@@ -416,6 +429,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
     }
 
     try imgui.SameLine(.{ctx});
+
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
+    try vSeparator(.{ ctx, 0xFFFFFFFF });
+
+    try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
 
     // Compressor Section
@@ -503,6 +521,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
             }
         }
     }
+
+    try imgui.SameLine(.{ctx});
+
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
+    // Add vertical separator after Compressor section
+    try vSeparator(.{ ctx, 0xFFFFFFFF });
 
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });

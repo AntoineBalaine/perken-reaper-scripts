@@ -19,6 +19,7 @@ pub const WIDTH_MAX: f64 = 800;
 pub const HEIGHT_MAX: f64 = 400;
 pub var rack_style_open: bool = false;
 pub var main_style_open: bool = false;
+pub const section_spacing = 10.0;
 
 pub fn isColor(field: [:0]const u8) bool {
     return field.len >= 4 and std.mem.eql(u8, field[0..4], "Col_");
