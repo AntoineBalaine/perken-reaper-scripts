@@ -64,8 +64,49 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
             onMidiEvent_FxCtrl(input.cc, input.value, globals);
         },
         .panel_input => |input| {
-            globals.state.fx_ctrl.values.getPtr(input.cc).?.param.normalized = input.value;
+            // Get the control value pointer
+            if (globals.state.fx_ctrl.values.getPtr(input.cc)) |value_ptr| {
+                // Check which variant is active
+                switch (value_ptr.*) {
+                    .param => |*param_value| {
+                        // Handle parameter type
+                        param_value.normalized = input.value;
+                    },
+                    .button => |*button_value| {
+                        // Handle button type (convert value to boolean)
+                        button_value.* = input.value > 0.5;
+                    },
+                    .track, .meter => {
+                        // These types shouldn't be handled here
+                        log.warn("Unexpected control type for CC {s}", .{@tagName(input.cc)});
+                    },
+                }
+            }
+
+            // Send MIDI feedback regardless of the control type
             actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
+            if (globals.state.current_tr_id) |tr_id| {
+                // Update the host application via REAPER API
+                // Get the module for this CC
+                const module = input.cc.toModule();
+
+                // Get the module location from track state
+                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |module_loc| {
+                    // Check if we have a mapping for this module
+                    if (module_loc.mapping) |mapping| {
+                        // Get the parameter index from the mapping
+                        const param_idx = @import("mappings.zig").getParamForCC(input.cc, mapping);
+                        // If we have a parameter index, update the host
+                        if (param_idx) |param| {
+                            // Get the current track ID and convert to MediaTrack
+                            const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+
+                            // Set the parameter in REAPER
+                            _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, module_loc.fx_index, param, input.value });
+                        }
+                    }
+                }
+            }
         },
         .on_track_entry => |media_track| onTrackEntry(globals, media_track),
         .fx_win_disp => |media_track| handleFxWindowDisplay(globals, media_track),

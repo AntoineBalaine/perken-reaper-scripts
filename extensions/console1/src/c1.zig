@@ -1,6 +1,5 @@
 const std = @import("std");
 const Mode = @import("statemachine.zig").Mode;
-
 pub const ActionId = enum {
     disp_on,
     disp_mode,
@@ -159,6 +158,16 @@ pub const CCs = enum(u8) {
     Tr_tr20 = 0x28,
     Tr_tr_copy = 0x7b,
     Tr_tr_grp = 0x78,
+    pub fn toModule(self: CCs) @import("statemachine.zig").ModulesList {
+        return switch (self) {
+            .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_Mtr, .Comp_comp => .COMP,
+            .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
+            .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut, .Inpt_disp_mode, .Inpt_disp_on, .Inpt_filt_to_comp, .Inpt_phase_inv, .Inpt_preset, .Inpt_MtrLft, .Inpt_MtrRgt => .INPUT,
+            .Out_MtrLft, .Out_MtrRgt, .Out_Drive, .Out_DriveChar, .Out_Pan, .Out_Vol, .Out_mute, .Out_solo => .OUTPT,
+            .Shp_Mtr, .Shp_Gate, .Shp_GateRelease, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
+            else => unreachable,
+        };
+    }
     pub fn getLabel(self: CCs, mode: Mode) [:0]const u8 {
         return switch (mode) {
             .fx_ctrl => switch (self) {

@@ -2,6 +2,7 @@ const std = @import("std");
 const ini = @import("ini");
 const settings = @import("settings.zig");
 const statemachine = @import("statemachine.zig");
+const c1 = @import("c1.zig");
 const MappingState = statemachine.MappingState;
 const ModulesList = statemachine.ModulesList;
 const fs_helpers = @import("fs_helpers.zig");
@@ -537,6 +538,70 @@ test "MapStore - mapping validation" {
     } else {
         try expect(false); // Should not happen for known FX
     }
+}
+
+/// Helper function to get the parameter index for a given CC from a mapping
+pub fn getParamForCC(cc: c1.CCs, mapping: TaggedMapping) ?u8 {
+    // Get the module for this CC using the existing toModule method
+    const module = cc.toModule();
+
+    // Check if the mapping is for the correct module
+    if (@as(ModulesList, @enumFromInt(@intFromEnum(mapping))) != module) {
+        return null;
+    }
+
+    // Hard-coded correspondences for each CC
+    return switch (cc) {
+        // COMP module parameters
+        .Comp_Attack => mapping.COMP.Comp_Attack,
+        .Comp_DryWet => mapping.COMP.Comp_DryWet,
+        .Comp_Ratio => mapping.COMP.Comp_Ratio,
+        .Comp_Release => mapping.COMP.Comp_Release,
+        .Comp_Thresh => mapping.COMP.Comp_Thresh,
+        .Comp_comp => mapping.COMP.Comp_comp,
+
+        // EQ module parameters
+        .Eq_HiFrq => mapping.EQ.Eq_HiFrq,
+        .Eq_HiGain => mapping.EQ.Eq_HiGain,
+        .Eq_HiMidFrq => mapping.EQ.Eq_HiMidFrq,
+        .Eq_HiMidGain => mapping.EQ.Eq_HiMidGain,
+        .Eq_HiMidQ => mapping.EQ.Eq_HiMidQ,
+        .Eq_LoFrq => mapping.EQ.Eq_LoFrq,
+        .Eq_LoGain => mapping.EQ.Eq_LoGain,
+        .Eq_LoMidFrq => mapping.EQ.Eq_LoMidFrq,
+        .Eq_LoMidGain => mapping.EQ.Eq_LoMidGain,
+        .Eq_LoMidQ => mapping.EQ.Eq_LoMidQ,
+        .Eq_eq => mapping.EQ.Eq_eq,
+        .Eq_hp_shape => mapping.EQ.Eq_hp_shape,
+        .Eq_lp_shape => mapping.EQ.Eq_lp_shape,
+
+        // INPUT module parameters
+        .Inpt_Gain => mapping.INPUT.Inpt_Gain,
+        .Inpt_HiCut => mapping.INPUT.Inpt_HiCut,
+        .Inpt_LoCut => mapping.INPUT.Inpt_LoCut,
+        .Inpt_disp_mode => mapping.INPUT.Inpt_disp_mode,
+        .Inpt_disp_on => mapping.INPUT.Inpt_disp_on,
+        .Inpt_filt_to_comp => mapping.INPUT.Inpt_filt_to_comp,
+        .Inpt_phase_inv => mapping.INPUT.Inpt_phase_inv,
+        .Inpt_preset => mapping.INPUT.Inpt_preset,
+
+        // OUTPT module parameters
+        .Out_Drive => mapping.OUTPT.Out_Drive,
+        .Out_DriveChar => mapping.OUTPT.Out_DriveChar,
+        .Out_Pan => mapping.OUTPT.Out_Pan,
+        .Out_Vol => mapping.OUTPT.Out_Vol,
+
+        // GATE module parameters
+        .Shp_Gate => mapping.GATE.Shp_Gate,
+        .Shp_GateRelease => mapping.GATE.Shp_GateRelease,
+        .Shp_Punch => mapping.GATE.Shp_Punch,
+        .Shp_hard_gate => mapping.GATE.Shp_hard_gate,
+        .Shp_shape => mapping.GATE.Shp_shape,
+        .Shp_sustain => mapping.GATE.Shp_sustain,
+
+        // Other CCs that don't map to parameters
+        else => unreachable,
+    };
 }
 
 test "MapStore - cross-module access" {
