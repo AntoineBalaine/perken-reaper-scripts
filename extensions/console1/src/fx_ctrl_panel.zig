@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = std.mem;
 const imgui = @import("reaper_imgui.zig");
 const Knobs = @import("components/knob.zig");
 const Knob = Knobs.Knob;
@@ -110,8 +111,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
             }
 
+            const gain_no_val_display = mem.eql(u8, gain_label, "-");
             var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
-            if (try Knobs.drawWidget(ctx, &gain_prm.normalized, gain_label, .{})) {
+            if (try Knobs.drawWidget(ctx, &gain_prm.normalized, gain_label, .{ .no_val_display = gain_no_val_display })) {
                 rv = .{ .cc = .Inpt_Gain, .value = gain_prm.normalized };
             }
         }
@@ -133,8 +135,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const hicut_no_val_display = mem.eql(u8, hicut_label, "-");
                 var hicut_prm = fx_state.values.get(.Inpt_HiCut).?.param;
-                if (try Knobs.drawWidget(ctx, &hicut_prm.normalized, hicut_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &hicut_prm.normalized, hicut_label, .{ .no_val_display = hicut_no_val_display })) {
                     rv = .{ .cc = .Inpt_HiCut, .value = hicut_prm.normalized };
                 }
 
@@ -142,8 +145,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const locut_no_val_display = mem.eql(u8, locut_label, "-");
                 var locut_prm = fx_state.values.get(.Inpt_LoCut).?.param;
-                if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_label, .{ .no_val_display = locut_no_val_display })) {
                     rv = .{ .cc = .Inpt_LoCut, .value = locut_prm.normalized };
                 }
             }
@@ -191,8 +195,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
 
+                const gate_no_val_display = mem.eql(u8, gate_label, "-");
                 var gate_prm = fx_state.values.get(.Shp_Gate).?.param;
-                if (try Knobs.drawWidget(ctx, &gate_prm.normalized, gate_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &gate_prm.normalized, gate_label, .{ .no_val_display = gate_no_val_display })) {
                     rv = .{ .cc = .Shp_Gate, .value = gate_prm.normalized };
                 }
 
@@ -222,8 +227,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const release_no_val_display = mem.eql(u8, release_label, "-");
                 var release_prm = fx_state.values.get(.Shp_GateRelease).?.param;
-                if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label, .{ .no_val_display = release_no_val_display })) {
                     rv = .{ .cc = .Shp_GateRelease, .value = release_prm.normalized };
                 }
 
@@ -231,8 +237,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const sustain_no_val_display = mem.eql(u8, sustain_label, "-");
                 var sustain_prm = fx_state.values.get(.Shp_sustain).?.param;
-                if (try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_label, .{ .no_val_display = sustain_no_val_display })) {
                     rv = .{ .cc = .Shp_sustain, .value = sustain_prm.normalized };
                 }
 
@@ -240,8 +247,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[2]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const punch_no_val_display = mem.eql(u8, punch_label, "-");
                 var punch_prm = fx_state.values.get(.Shp_Punch).?.param;
-                if (try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_label, .{ .no_val_display = punch_no_val_display })) {
                     rv = .{ .cc = .Shp_Punch, .value = punch_prm.normalized };
                 }
             }
@@ -288,8 +296,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const lofreq_no_val_display = mem.eql(u8, lofreq_label, "-");
                 var lofreq_prm = fx_state.values.get(.Eq_LoFrq).?.param;
-                if (try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_label, .{ .no_val_display = lofreq_no_val_display })) {
                     rv = .{ .cc = .Eq_LoFrq, .value = lofreq_prm.normalized };
                 }
 
@@ -297,8 +306,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const logain_no_val_display = mem.eql(u8, logain_label, "-");
                 var logain_prm = fx_state.values.get(.Eq_LoGain).?.param;
-                if (try Knobs.drawWidget(ctx, &logain_prm.normalized, logain_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &logain_prm.normalized, logain_label, .{ .no_val_display = logain_no_val_display })) {
                     rv = .{ .cc = .Eq_LoGain, .value = logain_prm.normalized };
                 }
             }
@@ -321,8 +331,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const lomidq_no_val_display = mem.eql(u8, lomidq_label, "-");
                 var lomidq_prm = fx_state.values.get(.Eq_LoMidQ).?.param;
-                if (try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_label, .{ .no_val_display = lomidq_no_val_display })) {
                     rv = .{ .cc = .Eq_LoMidQ, .value = lomidq_prm.normalized };
                 }
 
@@ -330,8 +341,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const lomidfreq_no_val_display = mem.eql(u8, lomidfreq_label, "-");
                 var lomidfreq_prm = fx_state.values.get(.Eq_LoMidFrq).?.param;
-                if (try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_label, .{ .no_val_display = lomidfreq_no_val_display })) {
                     rv = .{ .cc = .Eq_LoMidFrq, .value = lomidfreq_prm.normalized };
                 }
 
@@ -339,8 +351,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[2]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const lomidgain_no_val_display = mem.eql(u8, lomidgain_label, "-");
                 var lomidgain_prm = fx_state.values.get(.Eq_LoMidGain).?.param;
-                if (try Knobs.drawWidget(ctx, &lomidgain_prm.normalized, lomidgain_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &lomidgain_prm.normalized, lomidgain_label, .{ .no_val_display = lomidgain_no_val_display })) {
                     rv = .{ .cc = .Eq_LoMidGain, .value = lomidgain_prm.normalized };
                 }
             }
@@ -363,8 +376,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const himidq_no_val_display = mem.eql(u8, himidq_label, "-");
                 var himidq_prm = fx_state.values.get(.Eq_HiMidQ).?.param;
-                if (try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_label, .{ .no_val_display = himidq_no_val_display })) {
                     rv = .{ .cc = .Eq_HiMidQ, .value = himidq_prm.normalized };
                 }
 
@@ -372,8 +386,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const himidfreq_no_val_display = mem.eql(u8, himidfreq_label, "-");
                 var himidfreq_prm = fx_state.values.get(.Eq_HiMidFrq).?.param;
-                if (try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_label, .{ .no_val_display = himidfreq_no_val_display })) {
                     rv = .{ .cc = .Eq_HiMidFrq, .value = himidfreq_prm.normalized };
                 }
 
@@ -381,8 +396,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[2]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const himidgain_no_val_display = mem.eql(u8, himidgain_label, "-");
                 var himidgain_prm = fx_state.values.get(.Eq_HiMidGain).?.param;
-                if (try Knobs.drawWidget(ctx, &himidgain_prm.normalized, himidgain_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &himidgain_prm.normalized, himidgain_label, .{ .no_val_display = himidgain_no_val_display })) {
                     rv = .{ .cc = .Eq_HiMidGain, .value = himidgain_prm.normalized };
                 }
             }
@@ -411,8 +427,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const hifreq_no_val_display = mem.eql(u8, hifreq_label, "-");
                 var hifreq_prm = fx_state.values.get(.Eq_HiFrq).?.param;
-                if (try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_label, .{ .no_val_display = hifreq_no_val_display })) {
                     rv = .{ .cc = .Eq_HiFrq, .value = hifreq_prm.normalized };
                 }
 
@@ -420,8 +437,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const higain_no_val_display = mem.eql(u8, higain_label, "-");
                 var higain_prm = fx_state.values.get(.Eq_HiGain).?.param;
-                if (try Knobs.drawWidget(ctx, &higain_prm.normalized, higain_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &higain_prm.normalized, higain_label, .{ .no_val_display = higain_no_val_display })) {
                     rv = .{ .cc = .Eq_HiGain, .value = higain_prm.normalized };
                 }
             }
@@ -462,8 +480,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const ratio_no_val_display = mem.eql(u8, ratio_label, "-");
                 var ratio_prm = fx_state.values.get(.Comp_Ratio).?.param;
-                if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_label, .{ .no_val_display = ratio_no_val_display })) {
                     rv = .{ .cc = .Comp_Ratio, .value = ratio_prm.normalized };
                 }
 
@@ -471,8 +490,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const drywet_no_val_display = mem.eql(u8, drywet_label, "-");
                 var drywet_prm = fx_state.values.get(.Comp_DryWet).?.param;
-                if (try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_label, .{ .no_val_display = drywet_no_val_display })) {
                     rv = .{ .cc = .Comp_DryWet, .value = drywet_prm.normalized };
                 }
             }
@@ -496,8 +516,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const attack_no_val_display = mem.eql(u8, attack_label, "-");
                 var attack_prm = fx_state.values.get(.Comp_Attack).?.param;
-                if (try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_label, .{ .no_val_display = attack_no_val_display })) {
                     rv = .{ .cc = .Comp_Attack, .value = attack_prm.normalized };
                 }
 
@@ -505,8 +526,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const release_no_val_display = mem.eql(u8, release_label, "-");
                 var release_prm = fx_state.values.get(.Comp_Release).?.param;
-                if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label, .{ .no_val_display = release_no_val_display })) {
                     rv = .{ .cc = .Comp_Release, .value = release_prm.normalized };
                 }
 
@@ -514,8 +536,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[2]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const thresh_no_val_display = mem.eql(u8, thresh_label, "-");
                 var thresh_prm = fx_state.values.get(.Comp_Thresh).?.param;
-                if (try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_label, .{ .no_val_display = thresh_no_val_display })) {
                     rv = .{ .cc = .Comp_Thresh, .value = thresh_prm.normalized };
                 }
             }
@@ -553,8 +576,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[0]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const drive_no_val_display = mem.eql(u8, drive_label, "-");
                 var drive_prm = fx_state.values.get(.Out_Drive).?.param;
-                if (try Knobs.drawWidget(ctx, &drive_prm.normalized, drive_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &drive_prm.normalized, drive_label, .{ .no_val_display = drive_no_val_display })) {
                     rv = .{ .cc = .Out_Drive, .value = drive_prm.normalized };
                 }
 
@@ -562,8 +586,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[1]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const char_no_val_display = mem.eql(u8, char_label, "-");
                 var char_prm = fx_state.values.get(.Out_DriveChar).?.param;
-                if (try Knobs.drawWidget(ctx, &char_prm.normalized, char_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &char_prm.normalized, char_label, .{ .no_val_display = char_no_val_display })) {
                     rv = .{ .cc = .Out_DriveChar, .value = char_prm.normalized };
                 }
 
@@ -571,8 +596,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 if (offsets[2]) |offset| {
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
+                const pan_no_val_display = mem.eql(u8, pan_label, "-");
                 var pan_prm = fx_state.values.get(.Out_Pan).?.param;
-                if (try Knobs.drawWidget(ctx, &pan_prm.normalized, pan_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &pan_prm.normalized, pan_label, .{ .no_val_display = pan_no_val_display })) {
                     rv = .{ .cc = .Out_Pan, .value = pan_prm.normalized };
                 }
             }
@@ -609,8 +635,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
                 }
 
+                const vol_no_val_display = mem.eql(u8, vol_label, "-");
                 var vol_prm = fx_state.values.get(.Out_Vol).?.param;
-                if (try Knobs.drawWidget(ctx, &vol_prm.normalized, vol_label, .{})) {
+                if (try Knobs.drawWidget(ctx, &vol_prm.normalized, vol_label, .{ .no_val_display = vol_no_val_display })) {
                     rv = .{ .cc = .Out_Vol, .value = vol_prm.normalized };
                 }
             }
