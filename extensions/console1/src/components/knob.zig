@@ -35,6 +35,11 @@ pub const TrackStart = enum(u2) { left, right, center };
 pub const ControlFlags = packed struct {
     selected: bool = false,
     trackStart: TrackStart = .left,
+    /// Indicates if the knob is disabled.
+    /// Note: Actual interaction prevention should be handled by ImGui's begin/endDisabled at the caller level.
+    disabled: bool = false,
+    /// When true, the knob will not display the value label below it.
+    no_val_display: bool = false,
 };
 pub const Rectangle = struct {
     min_x: f64,
@@ -84,14 +89,15 @@ pub fn drawWidget(
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
     const total_width = @max(radius * 2, label_size.w);
+    const val_disp: f64 = if (flags.no_val_display) 1 else 2;
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
         .min_y = cur_pos.y,
         .max_x = cur_pos.x + total_width,
-        .max_y = cur_pos.y + radius * 2 + label_size.h + text_padding * 2 + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+        .max_y = cur_pos.y + radius * val_disp + label_size.h + text_padding * val_disp + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
     };
 
-    {
+    display_value: {
         try imgui.PushClipRect(.{ ctx, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, true });
         defer imgui.PopClipRect(.{ctx}) catch {};
 
@@ -146,11 +152,20 @@ pub fn drawWidget(
             circleColor = adjustBrightness(circleColor, -30, false);
         }
 
+        // Apply additional dimming if disabled
+        if (flags.disabled) {
+            dotColor = adjustBrightness(dotColor, -70, false);
+            circleColor = adjustBrightness(circleColor, -70, false);
+        }
+
         try Circle(drwLs, circleColor, center_x, center_y, 0.6, true, 32, radius);
         try Arc(drwLs, 0.85, 0.41, wiper_start, wiper_end, dotColor, 2, center_x, center_y, radius);
         try Triangle(drwLs, angle_, dotColor, center_x, center_y, 0.2, true, 0.45, radius, false);
 
         // Draw the value label below the button
+
+        if (flags.no_val_display) break :display_value;
+
         const label_y = center_y + radius + 5.0; // Add some padding
         var buf: [24]u8 = undefined;
         const val_fmt = try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
