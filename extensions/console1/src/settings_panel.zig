@@ -24,7 +24,10 @@ pub fn init(current: *const Preferences) !SettingsPanel {
     };
 }
 
-pub const SettingsValUpdate = struct { field: []const u8, val: bool };
+pub const SettingsValUpdate = union(enum) {
+    bool_val: struct { field: []const u8, val: bool },
+    string_val: struct { field: []const u8, val: [:0]const u8 },
+};
 const SettingsRV = union(enum) {
     close_save,
     close_cancel,
@@ -69,13 +72,13 @@ pub fn draw(
                 for (translations.getLanguages()) |lang| {
                     var is_selected = std.mem.eql(u8, lang.code, current_lang);
                     if (try imgui.Selectable(.{ ctx, lang.display_name, &is_selected })) {
-                        self.temp_settings.language = lang.code;
+                        rv = .{ .val_update = .{ .string_val = .{ .field = "language", .val = lang.code } } };
                         self.dirty = true;
                     }
                 }
             }
 
-            if (self.dirty and !std.mem.eql(u8, self.temp_settings.language, translations.current_language)) {
+            if (!std.mem.eql(u8, self.temp_settings.language, translations.current_language)) {
                 try imgui.Text(.{ ctx, tr(translations, .settings_language_restart) });
             }
         }
@@ -90,7 +93,7 @@ pub fn draw(
             defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##strtp", .{tr(translations, .settings_show_startup_message)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_startup_message })) {
-                rv = .{ .val_update = .{ .field = "show_startup_message", .val = self.temp_settings.show_startup_message } };
+                rv = .{ .val_update = .{ .bool_val = .{ .field = "show_startup_message", .val = self.temp_settings.show_startup_message } } };
                 self.dirty = true;
             }
         }
@@ -99,7 +102,7 @@ pub fn draw(
             defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##fdkw", .{tr(translations, .settings_show_feedback_window)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_feedback_window })) {
-                rv = .{ .val_update = .{ .field = "show_feedback_window", .val = self.temp_settings.show_feedback_window } };
+                rv = .{ .val_update = .{ .bool_val = .{ .field = "show_feedback_window", .val = self.temp_settings.show_feedback_window } } };
                 self.dirty = true;
             }
         }
@@ -108,7 +111,7 @@ pub fn draw(
             defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##plgui", .{tr(translations, .settings_show_plugin_ui)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_plugin_ui })) {
-                rv = .{ .val_update = .{ .field = "show_plugin_ui", .val = self.temp_settings.show_plugin_ui } };
+                rv = .{ .val_update = .{ .bool_val = .{ .field = "show_plugin_ui", .val = self.temp_settings.show_plugin_ui } } };
                 self.dirty = true;
             }
         }
@@ -119,7 +122,7 @@ pub fn draw(
             defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##mnlrtng", .{tr(translations, .settings_manual_routing)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.manual_routing })) {
-                rv = .{ .val_update = .{ .field = "manual_routing", .val = self.temp_settings.manual_routing } };
+                rv = .{ .val_update = .{ .bool_val = .{ .field = "manual_routing", .val = self.temp_settings.manual_routing } } };
                 self.dirty = true;
             }
         }
@@ -130,7 +133,7 @@ pub fn draw(
             defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##lgfd", .{tr(translations, .settings_log_to_file)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.log_to_file })) {
-                rv = .{ .val_update = .{ .field = "log_to_file", .val = self.temp_settings.log_to_file } };
+                rv = .{ .val_update = .{ .bool_val = .{ .field = "log_to_file", .val = self.temp_settings.log_to_file } } };
                 self.dirty = true;
             }
         }
@@ -140,7 +143,7 @@ pub fn draw(
             defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##strt_sspndchkbx", .{tr(translations, .settings_start_suspended)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.start_suspended })) {
-                rv = .{ .val_update = .{ .field = "start_suspended", .val = self.temp_settings.start_suspended } };
+                rv = .{ .val_update = .{ .bool_val = .{ .field = "start_suspended", .val = self.temp_settings.start_suspended } } };
                 self.dirty = true;
             }
         }

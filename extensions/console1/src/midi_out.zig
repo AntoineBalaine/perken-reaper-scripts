@@ -393,21 +393,30 @@ fn prefsEntry(globals: *Globals, midi_out: reaper.midi_Output) void {
 }
 
 fn settingsChanged(update: SettingsValUpdate, midi_out: reaper.midi_Output) void {
-    if (std.mem.eql(u8, "show_startup_message", update.field)) {
-        setButtonLED(c1.CCs.Tr_tr6, update.val, midi_out);
-    } else if (std.mem.eql(u8, "show_feedback_window", update.field)) {
-        setButtonLED(c1.CCs.Tr_tr7, update.val, midi_out);
-    } else if (std.mem.eql(u8, "show_plugin_ui", update.field)) {
-        setButtonLED(c1.CCs.Tr_tr8, update.val, midi_out);
-    } else if (std.mem.eql(u8, "manual_routing", update.field)) {
-        setButtonLED(c1.CCs.Tr_tr9, update.val, midi_out);
-    } else if (std.mem.eql(u8, "log_to_file", update.field)) {
-        setButtonLED(c1.CCs.Tr_tr10, update.val, midi_out);
-    } else if (std.mem.eql(u8, "start_suspended", update.field)) {
-        setButtonLED(c1.CCs.Tr_tr11, update.val, midi_out);
-    } else if (std.mem.eql(u8, "show_track_list", update.field)) {
-        setButtonLED(c1.CCs.Tr_tr12, update.val, midi_out);
-    } else if (std.mem.eql(u8, "focus_page_tracks", update.field)) {
-        setButtonLED(c1.CCs.Tr_tr13, update.val, midi_out);
+    switch (update) {
+        .bool_val => |bool_update| {
+            if (std.mem.eql(u8, "show_startup_message", bool_update.field)) {
+                setButtonLED(c1.CCs.Tr_tr6, bool_update.val, midi_out);
+            } else if (std.mem.eql(u8, "show_feedback_window", bool_update.field)) {
+                setButtonLED(c1.CCs.Tr_tr7, bool_update.val, midi_out);
+            } else if (std.mem.eql(u8, "show_plugin_ui", bool_update.field)) {
+                setButtonLED(c1.CCs.Tr_tr8, bool_update.val, midi_out);
+            } else if (std.mem.eql(u8, "manual_routing", bool_update.field)) {
+                setButtonLED(c1.CCs.Tr_tr9, bool_update.val, midi_out);
+            } else if (std.mem.eql(u8, "log_to_file", bool_update.field)) {
+                setButtonLED(c1.CCs.Tr_tr10, bool_update.val, midi_out);
+            } else if (std.mem.eql(u8, "start_suspended", bool_update.field)) {
+                setButtonLED(c1.CCs.Tr_tr11, bool_update.val, midi_out);
+            } else if (std.mem.eql(u8, "show_track_list", bool_update.field)) {
+                setButtonLED(c1.CCs.Tr_tr12, bool_update.val, midi_out);
+            } else if (std.mem.eql(u8, "focus_page_tracks", bool_update.field)) {
+                setButtonLED(c1.CCs.Tr_tr13, bool_update.val, midi_out);
+            }
+        },
+        .string_val => |string_update| {
+            // Handle string updates (like language)
+            // No LED feedback needed for language changes
+            _ = string_update;
+        },
     }
 }
