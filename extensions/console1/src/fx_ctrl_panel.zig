@@ -131,7 +131,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
             const disp_mode_label = c1.CCs.Inpt_disp_mode.getLabel(mode);
             const disp_mode_display_label: [:0]const u8 = disp_mode_label orelse "-";
             const disp_mode_disabled = (disp_mode_label == null);
-            if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_mode_disabled })) {
+            if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_mode), null, null, null, disp_mode_disabled })) {
                 rv = .{ .cc = .Inpt_disp_mode, .value = 1.0 };
             }
             {

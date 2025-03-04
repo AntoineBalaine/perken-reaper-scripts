@@ -154,6 +154,8 @@ pub fn main(
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals)) |ctrl_input| {
                     const val: u8 = @intFromFloat(ctrl_input.value * 127.0);
                     switch (ctrl_input.cc) {
+                        .Inpt_disp_mode => rv = .{ .change_mode = .fx_ctrl },
+                        .Inpt_disp_on => rv = .set_fx_ctrl_gui,
                         .Out_Vol => rv = .{ .transport = .{ .tr_sel = val } },
                         .Out_Drive => rv = .{ .transport = .{ .zoom_horizontal = val } },
                         .Out_DriveChar => rv = .{ .transport = .{ .zoom_vertical = val } },
