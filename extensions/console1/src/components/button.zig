@@ -107,25 +107,33 @@ pub fn roundButton(
             }
         }
 
-        // Draw circle
+        // Position and create the invisible button
+        try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
+
+        if (!is_disabled) {
+            rv = try imgui.InvisibleButton(.{ ctx, id, button_size, button_size });
+        }
+
+        // Check if the button is hovered
+        const isHovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
+
+        // Define base color and adjust based on hover state
+        var buttonColor: c_int = -1; // Default white color
+        if (isHovered or is_disabled) {
+            // Brighten the color when hovered (similar to knob.zig)
+            buttonColor = knob.adjustBrightness(buttonColor, -50, false);
+        }
+
+        // Draw circle with the adjusted color
         try imgui.DrawList_AddCircleFilled(.{
             draw_list,
             center_x,
             center_y,
             radius,
-            0xFFFFFFFF,
+            buttonColor,
             0,
             2.0,
         });
-
-        // Position and create the invisible button
-        try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
-        rv = try imgui.InvisibleButton(.{ ctx, id, button_size, button_size });
-
-        // If disabled, don't allow interaction
-        if (is_disabled) {
-            rv = false;
-        }
     }
 
     // Create dummy space for entire widget
