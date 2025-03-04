@@ -20,23 +20,12 @@
     Update the UI from settings menu: default fX should have a circled numbered button that shows which track btns to click to open the panel.
   * Order configuration
     should be selectable from the settings menu
-# Widgets:
-- allow passing `disabled` flag to knobs, dim their color accordingly
-- allow passing `no_val_display` flag to knobs,
-- modify roundButton and vSperator color to be cream. 
-- vSeparator: add `onHover` color 
-- vSeparator: add `isActive` color
-- fx_ctrl_panel: don’t display knob values in modes other than fx_ctr
-- fx_ctrl_panel: add tooltip for `On` and `Mode` buttons
-- track list panel: add `pg_up`, `pg_dn` buttons
-- track list panel: fix selectable width (subtract button width)
 
 # Optionnels
 - jog items: remove sws dependency
 - Traductions
 - Manuel utilisateur
 - Skins/Themes?
-- transport mode
 - single fx mode - would allow for more flexibility.
 - utility actions:
   - insert default c1 chain on all tracks
