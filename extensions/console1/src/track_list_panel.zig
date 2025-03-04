@@ -116,7 +116,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
     // Get starting X position
     const start_x = try imgui.GetCursorPosX(.{ctx});
-    const second_column_x = start_x + max_label_width + 20; // 20px spacing
+    const second_column_x = start_x + max_label_width + 20 + 10; // 20px spacing + 10px for next column’s buttons
 
     // Get frame padding for accurate selectable width
     var frame_padding_x: f64 = undefined;
