@@ -48,16 +48,13 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
         .Comp_Mtr, .Inpt_MtrLft, .Inpt_MtrRgt, .Out_MtrLft, .Out_MtrRgt => {}, // meters unhandled
         .Inpt_disp_on => {
             if (getTrack(globals.state.current_tr_id)) |mediaTrack| {
-                globals.state.fx_ctrl.display = if (globals.state.fx_ctrl.display) |_| null else 1;
                 actions.dispatch(globals, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
             }
         },
         .Inpt_filt_to_comp => {},
         .Inpt_phase_inv => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
-                const phase = reaper.GetMediaTrackInfo_Value(tr, "B_PHASE");
-                const phase_val: f64 = if (phase == 0) 1 else 0;
-                _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "B_PHASE", phase_val });
+                actions.dispatch(globals, .{ .fx_ctrl = .{ .toggle_phase_inv = tr } });
             }
         },
         .Inpt_preset => {},

@@ -100,7 +100,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
             const disp_on_label = c1.CCs.Inpt_disp_on.getLabel(mode);
             const disp_on_display_label: [:0]const u8 = disp_on_label orelse "-";
             const disp_on_disabled = (disp_on_label == null);
-            if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_on_disabled })) {}
+            if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_on_disabled })) {
+                rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
+            }
             try imgui.Dummy(.{ ctx, 0, knob_size * 2 });
 
             // Center-align the knob
@@ -129,7 +131,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
             const disp_mode_label = c1.CCs.Inpt_disp_mode.getLabel(mode);
             const disp_mode_display_label: [:0]const u8 = disp_mode_label orelse "-";
             const disp_mode_disabled = (disp_mode_label == null);
-            if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_mode_disabled })) {}
+            if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_mode_disabled })) {
+                rv = .{ .cc = .Inpt_disp_mode, .value = 1.0 };
+            }
             {
                 // Calculate max width for this column's knobs
                 const hicut_label = c1.CCs.Inpt_HiCut.getLabel(mode);
@@ -169,7 +173,9 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
             const phase_inv_label = c1.CCs.Inpt_phase_inv.getLabel(mode);
             const phase_inv_display_label: [:0]const u8 = phase_inv_label orelse "-";
             const phase_inv_disabled = (phase_inv_label == null);
-            if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_disabled })) {}
+            if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_disabled })) {
+                rv = .{ .cc = .Inpt_phase_inv, .value = 1.0 };
+            }
             const preset_label = c1.CCs.Inpt_preset.getLabel(mode);
             const preset_display_label: [:0]const u8 = preset_label orelse "-";
             const preset_disabled = (preset_label == null);
