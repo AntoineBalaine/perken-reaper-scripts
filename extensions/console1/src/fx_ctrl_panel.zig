@@ -106,7 +106,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
             // Center-align the knob
             const gain_label = c1.CCs.Inpt_Gain.getLabel(mode);
             const gain_disabled = (gain_label == null);
-            const gain_no_val_display = gain_disabled;
+            const gain_no_val_display = gain_disabled or mode != .fx_ctrl;
             const gain_display_label: [:0]const u8 = gain_label orelse "-";
             var offsets = [_]?f64{null};
             try getMaxLabelWidth(ctx, &[_][:0]const u8{gain_display_label}, &offsets);
@@ -134,11 +134,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const hicut_label = c1.CCs.Inpt_HiCut.getLabel(mode);
                 const hicut_disabled = (hicut_label == null);
-                const hicut_no_val_display = hicut_disabled;
+                const hicut_no_val_display = hicut_disabled or mode != .fx_ctrl;
                 const hicut_display_label: [:0]const u8 = hicut_label orelse "-";
                 const locut_label = c1.CCs.Inpt_LoCut.getLabel(mode);
                 const locut_disabled = (locut_label == null);
-                const locut_no_val_display = locut_disabled;
+                const locut_no_val_display = locut_disabled or mode != .fx_ctrl;
                 const locut_display_label: [:0]const u8 = locut_label orelse "-";
                 var offsets = [_]?f64{ null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ hicut_display_label, locut_display_label }, &offsets);
@@ -210,7 +210,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Center-align the knob
                 const gate_label = c1.CCs.Shp_Gate.getLabel(mode);
                 const gate_disabled = (gate_label == null);
-                const gate_no_val_display = gate_disabled;
+                const gate_no_val_display = gate_disabled or mode != .fx_ctrl;
                 const gate_display_label: [:0]const u8 = gate_label orelse "-";
                 var offsets = [_]?f64{null};
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{gate_display_label}, &offsets);
@@ -245,15 +245,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const release_label = c1.CCs.Shp_GateRelease.getLabel(mode);
                 const release_disabled = (release_label == null);
-                const release_no_val_display = release_disabled;
+                const release_no_val_display = release_disabled or mode != .fx_ctrl;
                 const release_display_label: [:0]const u8 = release_label orelse "-";
                 const sustain_label = c1.CCs.Shp_sustain.getLabel(mode);
                 const sustain_disabled = (sustain_label == null);
-                const sustain_no_val_display = sustain_disabled;
+                const sustain_no_val_display = sustain_disabled or mode != .fx_ctrl;
                 const sustain_display_label: [:0]const u8 = sustain_label orelse "-";
                 const punch_label = c1.CCs.Shp_Punch.getLabel(mode);
                 const punch_disabled = (punch_label == null);
-                const punch_no_val_display = punch_disabled;
+                const punch_no_val_display = punch_disabled or mode != .fx_ctrl;
                 const punch_display_label: [:0]const u8 = punch_label orelse "-";
                 var offsets = [_]?f64{ null, null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ release_display_label, sustain_display_label, punch_display_label }, &offsets);
@@ -327,11 +327,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const lofreq_label = c1.CCs.Eq_LoFrq.getLabel(mode);
                 const lofreq_disabled = (lofreq_label == null);
-                const lofreq_no_val_display = lofreq_disabled;
+                const lofreq_no_val_display = lofreq_disabled or mode != .fx_ctrl;
                 const lofreq_display_label: [:0]const u8 = lofreq_label orelse "-";
                 const logain_label = c1.CCs.Eq_LoGain.getLabel(mode);
                 const logain_disabled = (logain_label == null);
-                const logain_no_val_display = logain_disabled;
+                const logain_no_val_display = logain_disabled or mode != .fx_ctrl;
                 const logain_display_label: [:0]const u8 = logain_label orelse "-";
                 var offsets = [_]?f64{ null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ lofreq_display_label, logain_display_label }, &offsets);
@@ -365,15 +365,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const lomidq_label = c1.CCs.Eq_LoMidQ.getLabel(mode);
                 const lomidq_disabled = (lomidq_label == null);
-                const lomidq_no_val_display = lomidq_disabled;
+                const lomidq_no_val_display = lomidq_disabled or mode != .fx_ctrl;
                 const lomidq_display_label: [:0]const u8 = lomidq_label orelse "-";
                 const lomidfreq_label = c1.CCs.Eq_LoMidFrq.getLabel(mode);
                 const lomidfreq_disabled = (lomidfreq_label == null);
-                const lomidfreq_no_val_display = lomidfreq_disabled;
+                const lomidfreq_no_val_display = lomidfreq_disabled or mode != .fx_ctrl;
                 const lomidfreq_display_label: [:0]const u8 = lomidfreq_label orelse "-";
                 const lomidgain_label = c1.CCs.Eq_LoMidGain.getLabel(mode);
                 const lomidgain_disabled = (lomidgain_label == null);
-                const lomidgain_no_val_display = lomidgain_disabled;
+                const lomidgain_no_val_display = lomidgain_disabled or mode != .fx_ctrl;
                 const lomidgain_display_label: [:0]const u8 = lomidgain_label orelse "-";
                 var offsets = [_]?f64{ null, null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ lomidq_display_label, lomidfreq_display_label, lomidgain_display_label }, &offsets);
@@ -416,15 +416,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const himidq_label = c1.CCs.Eq_HiMidQ.getLabel(mode);
                 const himidq_disabled = (himidq_label == null);
-                const himidq_no_val_display = himidq_disabled;
+                const himidq_no_val_display = himidq_disabled or mode != .fx_ctrl;
                 const himidq_display_label: [:0]const u8 = himidq_label orelse "-";
                 const himidfreq_label = c1.CCs.Eq_HiMidFrq.getLabel(mode);
                 const himidfreq_disabled = (himidfreq_label == null);
-                const himidfreq_no_val_display = himidfreq_disabled;
+                const himidfreq_no_val_display = himidfreq_disabled or mode != .fx_ctrl;
                 const himidfreq_display_label: [:0]const u8 = himidfreq_label orelse "-";
                 const himidgain_label = c1.CCs.Eq_HiMidGain.getLabel(mode);
                 const himidgain_disabled = (himidgain_label == null);
-                const himidgain_no_val_display = himidgain_disabled;
+                const himidgain_no_val_display = himidgain_disabled or mode != .fx_ctrl;
                 const himidgain_display_label: [:0]const u8 = himidgain_label orelse "-";
                 var offsets = [_]?f64{ null, null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ himidq_display_label, himidfreq_display_label, himidgain_display_label }, &offsets);
@@ -477,11 +477,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const hifreq_label = c1.CCs.Eq_HiFrq.getLabel(mode);
                 const hifreq_disabled = (hifreq_label == null);
-                const hifreq_no_val_display = hifreq_disabled;
+                const hifreq_no_val_display = hifreq_disabled or mode != .fx_ctrl;
                 const hifreq_display_label: [:0]const u8 = hifreq_label orelse "-";
                 const higain_label = c1.CCs.Eq_HiGain.getLabel(mode);
                 const higain_disabled = (higain_label == null);
-                const higain_no_val_display = higain_disabled;
+                const higain_no_val_display = higain_disabled or mode != .fx_ctrl;
                 const higain_display_label: [:0]const u8 = higain_label orelse "-";
                 var offsets = [_]?f64{ null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ hifreq_display_label, higain_display_label }, &offsets);
@@ -537,11 +537,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const ratio_label = c1.CCs.Comp_Ratio.getLabel(mode);
                 const ratio_disabled = (ratio_label == null);
-                const ratio_no_val_display = ratio_disabled;
+                const ratio_no_val_display = ratio_disabled or mode != .fx_ctrl;
                 const ratio_display_label: [:0]const u8 = ratio_label orelse "-";
                 const drywet_label = c1.CCs.Comp_DryWet.getLabel(mode);
                 const drywet_disabled = (drywet_label == null);
-                const drywet_no_val_display = drywet_disabled;
+                const drywet_no_val_display = drywet_disabled or mode != .fx_ctrl;
                 const drywet_display_label: [:0]const u8 = drywet_label orelse "-";
                 var offsets = [_]?f64{ null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ ratio_display_label, drywet_display_label }, &offsets);
@@ -576,15 +576,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const attack_label = c1.CCs.Comp_Attack.getLabel(mode);
                 const attack_disabled = (attack_label == null);
-                const attack_no_val_display = attack_disabled;
+                const attack_no_val_display = attack_disabled or mode != .fx_ctrl;
                 const attack_display_label: [:0]const u8 = attack_label orelse "-";
                 const release_label = c1.CCs.Comp_Release.getLabel(mode);
                 const release_disabled = (release_label == null);
-                const release_no_val_display = release_disabled;
+                const release_no_val_display = release_disabled or mode != .fx_ctrl;
                 const release_display_label: [:0]const u8 = release_label orelse "-";
                 const thresh_label = c1.CCs.Comp_Thresh.getLabel(mode);
                 const thresh_disabled = (thresh_label == null);
-                const thresh_no_val_display = thresh_disabled;
+                const thresh_no_val_display = thresh_disabled or mode != .fx_ctrl;
                 const thresh_display_label: [:0]const u8 = thresh_label orelse "-";
                 var offsets = [_]?f64{ null, null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ attack_display_label, release_display_label, thresh_display_label }, &offsets);
@@ -645,15 +645,15 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Calculate max width for this column's knobs
                 const drive_label = c1.CCs.Out_Drive.getLabel(mode);
                 const drive_disabled = (drive_label == null);
-                const drive_no_val_display = drive_disabled;
+                const drive_no_val_display = drive_disabled or mode != .fx_ctrl;
                 const drive_display_label: [:0]const u8 = drive_label orelse "-";
                 const char_label = c1.CCs.Out_DriveChar.getLabel(mode);
                 const char_disabled = (char_label == null);
-                const char_no_val_display = char_disabled;
+                const char_no_val_display = char_disabled or mode != .fx_ctrl;
                 const char_display_label: [:0]const u8 = char_label orelse "-";
                 const pan_label = c1.CCs.Out_Pan.getLabel(mode);
                 const pan_disabled = (pan_label == null);
-                const pan_no_val_display = pan_disabled;
+                const pan_no_val_display = pan_disabled or mode != .fx_ctrl;
                 const pan_display_label: [:0]const u8 = pan_label orelse "-";
                 var offsets = [_]?f64{ null, null, null };
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{ drive_display_label, char_display_label, pan_display_label }, &offsets);
@@ -720,7 +720,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
                 // Center-align the volume knob
                 const vol_label = c1.CCs.Out_Vol.getLabel(mode);
                 const vol_disabled = (vol_label == null);
-                const vol_no_val_display = vol_disabled;
+                const vol_no_val_display = vol_disabled or mode != .fx_ctrl;
                 const vol_display_label: [:0]const u8 = vol_label orelse "-";
                 var offsets = [_]?f64{null};
                 try getMaxLabelWidth(ctx, &[_][:0]const u8{vol_display_label}, &offsets);
