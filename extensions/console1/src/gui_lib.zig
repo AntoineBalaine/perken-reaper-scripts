@@ -61,10 +61,16 @@ pub fn main(
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
                     if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager)) |tr_cc| {
-                        const track_id = @intFromEnum(tr_cc) - @intFromEnum(c1.CCs.Tr_tr1);
-                        if (track_id < globals.state.fx_ctrl.track_list.name_count) {
-                            const tr_id = globals.state.fx_ctrl.track_list.track_names[track_id].id;
-                            rv = .{ .track_list = .{ .track_select = tr_id } };
+                        switch (tr_cc) {
+                            .Tr_pg_up => rv = .{ .track_list = .{ .page_change = .up } },
+                            .Tr_pg_dn => rv = .{ .track_list = .{ .page_change = .down } },
+                            else => {
+                                const track_id = @intFromEnum(tr_cc) - @intFromEnum(c1.CCs.Tr_tr1);
+                                if (track_id < globals.state.fx_ctrl.track_list.name_count) {
+                                    const tr_id = globals.state.fx_ctrl.track_list.track_names[track_id].id;
+                                    rv = .{ .track_list = .{ .track_select = tr_id } };
+                                }
+                            },
                         }
                     }
                 }

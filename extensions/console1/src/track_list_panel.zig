@@ -129,6 +129,27 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
     const page_text = safePrint(&buf, "Page {d}", .{state.fx_ctrl.current_page + 1});
     try imgui.Text(.{ ctx, page_text });
+
+    // Add page up/down buttons on the same line as the page indicator
+    try imgui.SameLine(.{ctx});
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
+
+    const pg_dn_label_val = c1.CCs.Tr_pg_dn.getLabel(mode);
+    const pg_dn_label = pg_dn_label_val orelse "-";
+    const pg_dn_id = safePrint(&buf, "btn_pg_dn", .{});
+    if (try roundButton(.{ ctx, pg_dn_label, pg_dn_id, null, 5.0, .right, pg_dn_label_val == null })) {
+        rv = .Tr_pg_dn;
+    }
+
+    try imgui.SameLine(.{ctx});
+    try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
+
+    const pg_up_label_val = c1.CCs.Tr_pg_up.getLabel(mode);
+    const pg_up_label = pg_up_label_val orelse "-";
+    const pg_up_id = safePrint(&buf, "btn_pg_up", .{});
+    if (try roundButton(.{ ctx, pg_up_label, pg_up_id, null, 5.0, .right, pg_up_label_val == null })) {
+        rv = .Tr_pg_up;
+    }
     try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
 
     // First column (tracks 1-10)
