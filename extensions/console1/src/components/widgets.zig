@@ -13,6 +13,7 @@ const vSeparatorWidget = vertical_separator.vSeparator;
 /// tooltip: ?[:0]const u8,
 /// provided_radius: ?f64,
 /// text_pos: ?TextPosition,
+/// disabled: ?bool,
 pub const roundButton = function(&roundButtonWidget, 3, &.{
     imgui.ContextPtr,
     [:0]const u8,
@@ -20,6 +21,7 @@ pub const roundButton = function(&roundButtonWidget, 3, &.{
     ?[:0]const u8,
     ?f64,
     ?button.TextPosition,
+    ?bool,
 });
 
 /// ```zig

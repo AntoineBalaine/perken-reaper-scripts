@@ -19,7 +19,9 @@ pub fn roundButton(
     tooltip: ?[:0]const u8,
     provided_radius: ?f64,
     text_position: ?TextPosition,
+    disabled: ?bool,
 ) !bool {
+    const is_disabled = disabled orelse false;
     const radius = if (provided_radius) |rad| rad else 5.0;
     const text_pos = if (text_position) |pos| pos else TextPosition.above;
     const draw_list = try imgui.GetWindowDrawList(.{ctx});
@@ -119,6 +121,11 @@ pub fn roundButton(
         // Position and create the invisible button
         try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
         rv = try imgui.InvisibleButton(.{ ctx, id, button_size, button_size });
+
+        // If disabled, don't allow interaction
+        if (is_disabled) {
+            rv = false;
+        }
     }
 
     // Create dummy space for entire widget

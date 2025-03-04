@@ -168,7 +168,7 @@ pub const CCs = enum(u8) {
             else => unreachable,
         };
     }
-    pub fn getLabel(self: CCs, mode: Mode) [:0]const u8 {
+    pub fn getLabel(self: CCs, mode: Mode) ?[:0]const u8 {
         return switch (mode) {
             .fx_ctrl => switch (self) {
                 .Comp_Attack => "Attack",
@@ -274,7 +274,7 @@ pub const CCs = enum(u8) {
                 .Out_DriveChar => "Zoom V",
                 .Out_Pan => "Grid",
                 .Out_solo => "Snap",
-                else => "-",
+                else => null,
             },
             .fx_sel => switch (self) {
                 .Tr_tr1 => "Input",
@@ -285,9 +285,9 @@ pub const CCs = enum(u8) {
                 .Out_Vol => "Scroll",
                 .Out_solo => "Select",
                 .Out_mute => "Cancel",
-                else => "-",
+                else => null,
             },
-            else => "-",
+            else => null,
         };
     }
 };

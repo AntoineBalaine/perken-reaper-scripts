@@ -150,7 +150,9 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
                     try imgui.SameLine(.{ctx});
 
-                    const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc.getLabel(mode) });
+                    const cc_label = cc.getLabel(mode);
+                    const cc_display_label: [:0]const u8 = cc_label orelse "-";
+                    const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 
                     if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
                         rv = cc;
@@ -214,7 +216,9 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
                     try imgui.SameLine(.{ctx});
 
-                    const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc.getLabel(mode) });
+                    const cc_label = cc.getLabel(mode);
+                    const cc_display_label: [:0]const u8 = cc_label orelse "-";
+                    const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 
                     if (try imgui.Selectable(.{ ctx, label, null, null, selectable_width })) {
                         rv = cc;
