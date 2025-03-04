@@ -10,6 +10,8 @@ const widgets = @import("components/widgets.zig");
 const roundButton = widgets.roundButton;
 const vSeparator = widgets.vSeparator;
 const section_spacing = @import("styles.zig").section_spacing;
+const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
 
 /// Calculate the maximum width of a list of labels and calculate offsets
 /// The offsets buffer will be filled with (max_width - width) / 2 for each label
@@ -80,7 +82,7 @@ var out_drive: f64 = 0.5; // Out_Drive
 var out_vol: f64 = 0.5; // Out_Vol
 var out_pan: f64 = 0.5; // Out_Pan
 
-pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInput {
+pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *TranslationStore) !?WidgetInput {
     const mode: @import("statemachine.zig").Mode = globals.state.current_mode;
     const fx_state = &globals.state.fx_ctrl;
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
@@ -745,7 +747,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals) !?WidgetInpu
 
     if (globals.m_midi_in == null) {
         try imgui.SameLine(.{ctx});
-        try imgui.TextColored(.{ ctx, 0xFF0000FF, "Console disconnected" });
+        try imgui.TextColored(.{ ctx, 0xFF0000FF, tr(translations, .fx_ctrl_disconnected) });
     }
     return rv;
 }

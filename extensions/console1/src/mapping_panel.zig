@@ -10,6 +10,8 @@ const mapping_actions = @import("mapping_actions.zig");
 const State = @import("statemachine.zig").State;
 const c1 = @import("c1.zig");
 const actions = @import("actions.zig");
+const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
 
 pub const FxParameter = struct {
     index: u32,
@@ -61,21 +63,21 @@ pub const MappingPanel = struct {
     }
 };
 
-pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals) !?mapping_actions.MappingAction {
+pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *TranslationStore) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    try imgui.Text(.{ ctx, "Mapping Panel" });
+    try imgui.Text(.{ ctx, tr(translations, .mapping_title) });
     // Main table for two-column layout
 
     if (try imgui.BeginTable(.{ ctx, "mapping_table", 2, imgui.TableFlags_Resizable + imgui.TableFlags_Borders + imgui.TableFlags_BordersInnerH })) {
         defer imgui.EndTable(.{ctx}) catch {};
 
         // Setup columns
-        try imgui.TableSetupColumn(.{ ctx, "FX Parameters" });
-        try imgui.TableSetupColumn(.{ ctx, "Console Controls" });
+        try imgui.TableSetupColumn(.{ ctx, tr(translations, .mapping_fx_parameters) });
+        try imgui.TableSetupColumn(.{ ctx, tr(translations, .mapping_console_controls) });
         try imgui.TableHeadersRow(.{ctx});
 
         // // Parameters column
@@ -100,7 +102,7 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals) !?mapping_acti
 
                     if (isParamMapped(&globals.state, i)) {
                         try imgui.SameLine(.{ctx});
-                        try imgui.TextDisabled(.{ ctx, "(Mapped)" });
+                        try imgui.TextDisabled(.{ ctx, tr(translations, .mapping_mapped) });
                     }
                 }
             }
@@ -110,23 +112,23 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals) !?mapping_acti
         //
         if (try imgui.TableNextColumn(.{ctx})) {
             const module_type = @tagName(globals.state.mapping.current_mappings);
-            try imgui.Text(.{ ctx, "Module: {s}", .{module_type} });
+            try imgui.Text(.{ ctx, tr(translations, .mapping_module_prefix), .{module_type} });
             try imgui.Separator(.{ctx});
             switch (globals.state.mapping.current_mappings) {
                 .INPUT => {
-                    if (try drawModuleControls(ctx, &globals.state, &input_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &input_controls, translations)) |act| rv = act;
                 },
                 .GATE => {
-                    if (try drawModuleControls(ctx, &globals.state, &gate_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &gate_controls, translations)) |act| rv = act;
                 },
                 .EQ => {
-                    if (try drawModuleControls(ctx, &globals.state, &eq_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &eq_controls, translations)) |act| rv = act;
                 },
                 .COMP => {
-                    if (try drawModuleControls(ctx, &globals.state, &compressor_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &compressor_controls, translations)) |act| rv = act;
                 },
                 .OUTPT => {
-                    if (try drawModuleControls(ctx, &globals.state, &output_controls)) |act| rv = act;
+                    if (try drawModuleControls(ctx, &globals.state, &output_controls, translations)) |act| rv = act;
                 },
             }
 
@@ -143,9 +145,9 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals) !?mapping_acti
     try imgui.Separator(.{ctx});
     {
         const midi_learn_text = if (globals.state.mapping.midi_learn_active)
-            "MIDI Learn (Active)"
+            tr(translations, .mapping_midi_learn_active)
         else
-            "MIDI Learn";
+            tr(translations, .mapping_midi_learn);
 
         if (try imgui.Button(.{ ctx, midi_learn_text })) {
             rv = .{ .toggle_midi_learn = {} };
@@ -153,13 +155,13 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals) !?mapping_acti
 
         try imgui.SameLine(.{ctx});
 
-        if (try imgui.Button(.{ ctx, "Save Mapping" })) {
+        if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {
             rv = .{ .save_mapping = {} };
         }
 
         try imgui.SameLine(.{ctx});
 
-        if (try imgui.Button(.{ ctx, "Cancel" })) {
+        if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
             rv = .{ .cancel_mapping = {} };
         }
     }
@@ -171,6 +173,7 @@ fn drawModuleControls(
     ctx: imgui.ContextPtr,
     state: *State,
     comptime controls: []const c1.CCs,
+    translations: *TranslationStore,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
     inline for (controls) |cc| {
@@ -192,7 +195,7 @@ fn drawModuleControls(
         // Show mapped parameter if any
         if (getControlMapping(state, cc)) |param_idx| {
             try imgui.SameLine(.{ctx});
-            try imgui.TextDisabled(.{ ctx, "(-> Param {d})", .{param_idx} });
+            try imgui.TextDisabled(.{ ctx, tr(translations, .mapping_param_mapped), .{param_idx} });
         }
     }
     return rv;

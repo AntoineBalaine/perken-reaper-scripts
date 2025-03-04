@@ -9,6 +9,8 @@ const PushWindowStyle = @import("styles_components.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const fx_sel_actions = @import("fx_sel_actions.zig");
 const log = std.log.scoped(.fx_sel_panel);
+const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
 const FxBrowser = @This();
 
 pub const NAME: [:0]const u8 = "Fx Browser";
@@ -67,9 +69,9 @@ fn FxList(ctx: imgui.ContextPtr, menuName: [:0]const u8, fxList: fx_parser.FxLis
     return rv;
 }
 
-fn PluginsByType(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
+fn PluginsByType(ctx: imgui.ContextPtr, translations: *TranslationStore) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
-    if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast("all plugins")), null })) {
+    if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(tr(translations, .fx_sel_all_plugins))), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
         var iterator = fx_parser.pluginsByType.iterator();
         while (iterator.next()) |entry| {
@@ -99,27 +101,27 @@ fn FxTags(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
     return rv;
 }
 
-fn Menus(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
+fn Menus(ctx: imgui.ContextPtr, translations: *TranslationStore) !?fx_sel_actions.FxSelActions {
     const filteredFxCount = null;
     if (filteredFxCount != null) return null; // don't display the component if there's some filtered fx
 
     var rv: ?fx_sel_actions.FxSelActions = null;
 
-    if (try imgui.BeginMenu(.{ ctx, "fx chains", null })) {
+    if (try imgui.BeginMenu(.{ ctx, tr(translations, .fx_sel_fx_chains), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
         if (try Directory(ctx, fx_parser.fx_chains, true)) |selection| {
             rv = selection;
         }
     }
 
-    if (try imgui.BeginMenu(.{ ctx, "track templates", null })) {
+    if (try imgui.BeginMenu(.{ ctx, tr(translations, .fx_sel_track_templates), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
         if (try Directory(ctx, fx_parser.track_templates, false)) |selection| {
             rv = selection;
         }
     }
 
-    if (try PluginsByType(ctx)) |selection| {
+    if (try PluginsByType(ctx, translations)) |selection| {
         rv = selection;
     }
 
@@ -127,7 +129,7 @@ fn Menus(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
         rv = selection;
     }
 
-    const elements = [3][:0]const u8{ "Container", "Video processor", "recent: " };
+    const elements = [3][:0]const u8{ tr(translations, .fx_sel_container), tr(translations, .fx_sel_video_processor), tr(translations, .fx_sel_recent) };
     for (elements) |element| {
         if (try imgui.Selectable(.{ ctx, element })) {
             const isLastUsed = std.mem.eql(u8, element, "recent: ");
@@ -141,8 +143,8 @@ fn Menus(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
 
 var counter: ?u8 = null;
 
-fn RescanButton(ctx: imgui.ContextPtr) !void {
-    if (try imgui.Button(.{ ctx, "Rescan plugin list" })) {
+fn RescanButton(ctx: imgui.ContextPtr, translations: *TranslationStore) !void {
+    if (try imgui.Button(.{ ctx, tr(translations, .fx_sel_rescan) })) {
         fx_parser.deinit();
         fx_parser.init();
         counter = 0;
@@ -153,7 +155,7 @@ fn RescanButton(ctx: imgui.ContextPtr) !void {
             count = null; // reset
         } else {
             count += 1;
-            try imgui.Text(.{ ctx, "Done!" });
+            try imgui.Text(.{ ctx, tr(translations, .fx_sel_done) });
         }
     }
 }
@@ -166,6 +168,7 @@ pub fn ModulePopup(
     display_menus: bool,
     g_drwls_splitter: *imgui.DrawListSplitterPtr,
     style_manager: *styles.StyleManager,
+    translations: *TranslationStore,
 ) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
 
@@ -176,7 +179,7 @@ pub fn ModulePopup(
 
     var open = true;
 
-    if (try imgui.Begin(.{ ctx, "FX Browser", &open })) {
+    if (try imgui.Begin(.{ ctx, tr(translations, .fx_sel_title), &open })) {
         defer imgui.End(.{ctx}) catch {};
 
         try imgui.Text(.{ ctx, @tagName(module) });
@@ -198,13 +201,13 @@ pub fn ModulePopup(
             // Separator between mapped and unmapped FX
             try imgui.Separator(.{ctx});
 
-            if (try Menus(ctx)) |selection| {
+            if (try Menus(ctx, translations)) |selection| {
                 rv = selection;
             }
 
             // Optional: Add rescan button at bottom
             try imgui.Separator(.{ctx});
-            // try RescanButton(ctx);
+            // try RescanButton(ctx, translations);
         }
     }
     if (!open) rv = .close_browser;

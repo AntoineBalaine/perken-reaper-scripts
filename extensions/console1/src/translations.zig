@@ -81,6 +81,7 @@ pub const TranslationKey = enum {
     fx_ctrl_Tr_tr9,
     fx_ctrl_Tr_tr_copy,
     fx_ctrl_Tr_tr_grp,
+    fx_ctrl_disconnected,
     // Settings panel translations
     settings_title,
     settings_show_startup_message,
@@ -110,7 +111,6 @@ pub const TranslationKey = enum {
     track_list_comp_load,
     track_list_output_load,
     track_list_settings,
-    track_list_track_format,
 
     // FX Selection panel translations
     fx_sel_title,
@@ -213,14 +213,13 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "fx_sel_Out_solo", "Select" },
     .{ "fx_sel_Out_mute", "Cancel" },
     .{ "track_list_title", "Track List" },
-    .{ "track_list_page", "Page {d}" },
+    .{ "track_list_page", "Page" },
     .{ "track_list_input_load", "Input Load" },
     .{ "track_list_gate_load", "Gate Load" },
     .{ "track_list_eq_load", "EQ Load" },
     .{ "track_list_comp_load", "Comp Load" },
     .{ "track_list_output_load", "Output Load" },
     .{ "track_list_settings", "Settings" },
-    .{ "track_list_track_format", "{d:>2}. {s}" },
     .{ "fx_ctrl_title", "FX Control" },
     .{ "fx_ctrl_reset", "Reset" },
     .{ "fx_ctrl_Comp_Attack", "Attack" },
@@ -294,6 +293,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "fx_ctrl_Tr_tr9", "Tr9" },
     .{ "fx_ctrl_Tr_tr_copy", "Copy" },
     .{ "fx_ctrl_Tr_tr_grp", "Grp" },
+    .{ "fx_ctrl_disconnected", "Console disconnected" },
     .{ "settings_title", "Settings" },
     .{ "settings_show_startup_message", "Show Startup Message" },
     .{ "settings_show_feedback_window", "Show Feedback Window" },
@@ -482,17 +482,15 @@ pub const TranslationStore = struct {
         var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
         const lang_file_path = fs_helpers.joinStrings(&path_buffer, &.{
             resource_path,
+            std.fs.path.sep_str,
             "langPacks",
+            std.fs.path.sep_str,
             requested_lang,
             ".ini",
         });
 
-        store.loadFromFile(g_arena, lang_file_path) catch |err| {
-            if (!std.mem.eql(u8, language, "en")) {
-                try store.loadDefaults(g_arena);
-            } else {
-                return err;
-            }
+        store.loadFromFile(g_arena, lang_file_path) catch {
+            try store.loadDefaults(g_arena);
         };
 
         return .{
@@ -573,32 +571,55 @@ fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.fs.Dir,
     return allocator.dupeZ(u8, code);
 }
 
-pub fn getAvailableLanguages(g_allocator: std.mem.Allocator, resource_path: []const u8) ![]LanguageInfo {
-    var languages = std.ArrayList(LanguageInfo).init(g_allocator);
-    errdefer languages.deinit();
+pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const u8) ![]LanguageInfo {
+    var languages = std.ArrayList(LanguageInfo).init(g_arena);
 
     var path_buffer: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const lang_dir = fs_helpers.joinStrings(&path_buffer, &.{
         resource_path,
+        std.fs.path.sep_str,
         "langPacks",
     });
 
-    var dir = try std.fs.openDirAbsolute(lang_dir, .{ .iterate = true });
+    var dir = std.fs.openDirAbsolute(lang_dir, .{ .iterate = true }) catch |err| {
+        if (err == error.FileNotFound) {
+            // Directory doesn't exist, create it
+            std.fs.makeDirAbsolute(lang_dir) catch |make_err| {
+                log.warn("Failed to create language directory: {s}, error: {s}", .{ lang_dir, @errorName(make_err) });
+            };
+            // Return empty array since no language files exist yet
+            return try languages.toOwnedSlice();
+        }
+        log.warn("Failed to open language directory: {s}, error: {s}", .{ lang_dir, @errorName(err) });
+        return try languages.toOwnedSlice();
+    };
     defer dir.close();
 
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
-        if (entry.kind != .file) continue;
-        if (!std.mem.endsWith(u8, entry.name, ".ini")) continue;
+    iter_blk: {
+        while (iter.next() catch |err| {
+            log.warn("Error during directory iteration: {s}", .{@errorName(err)});
+            break :iter_blk;
+        }) |entry| {
+            if (entry.kind != .file) continue;
+            if (!std.mem.endsWith(u8, entry.name, ".ini")) continue;
 
-        const code = try g_allocator.dupeZ(u8, entry.name[0 .. entry.name.len - 4]);
-        const display_name = try getLanguageDisplayNameFromFile(g_allocator, dir, entry.name);
+            const display_name = getLanguageDisplayNameFromFile(g_arena, dir, entry.name) catch continue;
+            const code = g_arena.dupeZ(u8, entry.name[0 .. entry.name.len - 4]) catch {
+                log.warn("Failed to allocate memory for language code: {s}", .{entry.name});
+                continue;
+            };
 
-        try languages.append(.{
-            .code = code,
-            .display_name = display_name,
-        });
+            languages.append(.{
+                .code = code,
+                .display_name = display_name,
+            }) catch |err| {
+                // Free both allocations if we can't add to the list
+                log.warn("Failed to add language to list: {s}, error: {s}", .{ code, @errorName(err) });
+                continue;
+            };
+        }
     }
 
-    return languages.toOwnedSlice();
+    return try languages.toOwnedSlice();
 }

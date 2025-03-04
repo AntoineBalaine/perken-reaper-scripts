@@ -14,13 +14,15 @@ const widgets = @import("components/widgets.zig");
 const roundButton = widgets.roundButton;
 const vSeparator = widgets.vSeparator;
 const section_spacing = @import("styles.zig").section_spacing;
+const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
 const TrackListPanelAction = union(enum) {
     select_track: c_int,
     open_module_browser: ModulesList,
     open_settings,
 };
 
-pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool, style_manager: *styles.StyleManager) !?TrackListPanelAction {
+pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool, style_manager: *styles.StyleManager, translations: *TranslationStore) !?TrackListPanelAction {
     const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
     defer PopStyle(ctx) catch {};
 
@@ -28,14 +30,14 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
 
     var action: ?TrackListPanelAction = null;
 
-    if (try imgui.Begin(.{ ctx, "Track List" })) {
+    if (try imgui.Begin(.{ ctx, tr(translations, .track_list_title) })) {
         defer imgui.End(.{ctx}) catch {};
 
         var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
 
-        for (state.fx_ctrl.track_list.track_names, 0..) |tr, i| {
-            const name = tr.name;
-            const tr_id = tr.id;
+        for (state.fx_ctrl.track_list.track_names, 0..) |track, i| {
+            const name = track.name;
+            const tr_id = track.id;
             const is_selected = state.selectedTracks.contains(@intCast(tr_id));
 
             // Special handling for modifier keys
@@ -43,12 +45,12 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
                 const label = safePrint(&buf, "{d:>2}. {s}", .{
                     i + 1,
                     switch (i) {
-                        0 => "Input Load",
-                        1 => "Gate Load",
-                        2 => "EQ Load",
-                        3 => "Comp Load",
-                        4 => "Output Load",
-                        19 => "Settings",
+                        0 => tr(translations, .track_list_input_load),
+                        1 => tr(translations, .track_list_gate_load),
+                        2 => tr(translations, .track_list_eq_load),
+                        3 => tr(translations, .track_list_comp_load),
+                        4 => tr(translations, .track_list_output_load),
+                        19 => tr(translations, .track_list_settings),
                         else => unreachable,
                     },
                 });
@@ -94,7 +96,7 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
     return action;
 }
 
-pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manager: *styles.StyleManager) !?c1.CCs {
+pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manager: *styles.StyleManager, translations: *TranslationStore) !?c1.CCs {
     const mode = state.current_mode;
     const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
     defer PopStyle(ctx) catch {};
@@ -127,7 +129,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    const page_text = safePrint(&buf, "Page {d}", .{state.fx_ctrl.current_page + 1});
+    const page_text = safePrint(&buf, "{s} {d}", .{ tr(translations, .track_list_page), state.fx_ctrl.current_page + 1 });
     try imgui.Text(.{ ctx, page_text });
 
     // Add page up/down buttons on the same line as the page indicator

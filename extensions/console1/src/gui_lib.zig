@@ -53,14 +53,14 @@ pub fn main(
         }
         switch (globals.state.current_mode) {
             .fx_ctrl => {
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals)) |ctrl_input| {
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
                     rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } };
                 }
                 if (globals.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager, &globals.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_pg_up => rv = .{ .track_list = .{ .page_change = .up } },
                             .Tr_pg_dn => rv = .{ .track_list = .{ .page_change = .down } },
@@ -106,12 +106,13 @@ pub fn main(
                     false,
                     &globals.drwls_splitter,
                     style_manager,
+                    &globals.translations,
                 )) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }
             },
             .fx_sel => {
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals)) |ctrl_input| {
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
                     switch (ctrl_input.cc) {
                         .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
                         .Out_solo => {
@@ -127,7 +128,7 @@ pub fn main(
                 if (globals.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager, &globals.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
                             .Tr_tr2 => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
@@ -141,17 +142,17 @@ pub fn main(
 
                 const module = globals.state.fx_sel.current_category;
                 const list = globals.mappings_list.list.get(module);
-                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel, true, &globals.drwls_splitter, style_manager)) |sel_action| {
+                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel, true, &globals.drwls_splitter, style_manager, &globals.translations)) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }
             },
             .mapping_panel => {
-                if (try mapping_panel.drawMappingPanel(ctx, globals)) |map_action| {
+                if (try mapping_panel.drawMappingPanel(ctx, globals, &globals.translations)) |map_action| {
                     rv = .{ .mapping = map_action };
                 }
             },
             .transport => {
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals)) |ctrl_input| {
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
                     const val: u8 = @intFromFloat(ctrl_input.value * 127.0);
                     switch (ctrl_input.cc) {
                         .Inpt_disp_mode => rv = .{ .change_mode = .fx_ctrl },
@@ -177,7 +178,7 @@ pub fn main(
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager, &globals.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5 => |cc_| {
                                 const module: ModulesList = switch (cc_) {
