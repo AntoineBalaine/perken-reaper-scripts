@@ -8,6 +8,8 @@ const styles = @import("styles.zig");
 const styles_components = @import("styles_components.zig");
 const MappingsList = @import("mappings_list.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
+const safePrint = @import("debug_panel.zig").safePrint;
 
 // Temporary copy for editing
 temp_settings: Preferences,
@@ -33,7 +35,7 @@ pub fn draw(
     self: *@This(),
     ctx: imgui.ContextPtr,
     mappings_list: *MappingsList,
-    style_manager: *styles.StyleManager
+    style_manager: *styles.StyleManager,
     translations: *TranslationStore,
 ) !?SettingsRV {
     var rv: ?SettingsRV = null;
@@ -59,7 +61,9 @@ pub fn draw(
                 }
             } else current_lang;
 
-            if (try imgui.BeginCombo(.{ ctx, "Language##lang", current_display, null })) {
+            var buf: [256:0]u8 = undefined;
+            const label = safePrint(&buf, "{s}##lang", .{tr(translations, .settings_language)});
+            if (try imgui.BeginCombo(.{ ctx, label, current_display, null })) {
                 defer imgui.EndCombo(.{ctx}) catch {};
 
                 for (translations.getLanguages()) |lang| {
@@ -72,17 +76,20 @@ pub fn draw(
             }
 
             if (self.dirty and !std.mem.eql(u8, self.temp_settings.language, translations.current_language)) {
-                try imgui.TextColored(.{ ctx, 0xFFFFFF00, "Language change requires restart" });
+                try imgui.Text(.{ ctx, tr(translations, .settings_language_restart) });
             }
         }
 
         try imgui.Separator(.{ctx});
 
+        var buf: [256:0]u8 = undefined;
+
         // UI Settings
         {
             const popColor = try pushColIfSelected(ctx, .show_startup_message, scroll_pos);
             defer if (popColor) |pop| pop(ctx) catch {};
-            if (try imgui.Checkbox(.{ ctx, "Show Startup Message##strtp", &self.temp_settings.show_startup_message })) {
+            const label = safePrint(&buf, "{s}##strtp", .{tr(translations, .settings_show_startup_message)});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_startup_message })) {
                 rv = .{ .val_update = .{ .field = "show_startup_message", .val = self.temp_settings.show_startup_message } };
                 self.dirty = true;
             }
@@ -90,7 +97,8 @@ pub fn draw(
         {
             const popColor = try pushColIfSelected(ctx, .show_feedback_window, scroll_pos);
             defer if (popColor) |pop| pop(ctx) catch {};
-            if (try imgui.Checkbox(.{ ctx, "Show Feedback Window##fdkw", &self.temp_settings.show_feedback_window })) {
+            const label = safePrint(&buf, "{s}##fdkw", .{tr(translations, .settings_show_feedback_window)});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_feedback_window })) {
                 rv = .{ .val_update = .{ .field = "show_feedback_window", .val = self.temp_settings.show_feedback_window } };
                 self.dirty = true;
             }
@@ -98,7 +106,8 @@ pub fn draw(
         {
             const popColor = try pushColIfSelected(ctx, .show_plugin_ui, scroll_pos);
             defer if (popColor) |pop| pop(ctx) catch {};
-            if (try imgui.Checkbox(.{ ctx, "Show Plugin UI##plgui", &self.temp_settings.show_plugin_ui })) {
+            const label = safePrint(&buf, "{s}##plgui", .{tr(translations, .settings_show_plugin_ui)});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_plugin_ui })) {
                 rv = .{ .val_update = .{ .field = "show_plugin_ui", .val = self.temp_settings.show_plugin_ui } };
                 self.dirty = true;
             }
@@ -108,7 +117,8 @@ pub fn draw(
         {
             const popColor = try pushColIfSelected(ctx, .manual_routing, scroll_pos);
             defer if (popColor) |pop| pop(ctx) catch {};
-            if (try imgui.Checkbox(.{ ctx, "Manual Routing ##mnlrtng", &self.temp_settings.manual_routing })) {
+            const label = safePrint(&buf, "{s}##mnlrtng", .{tr(translations, .settings_manual_routing)});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.manual_routing })) {
                 rv = .{ .val_update = .{ .field = "manual_routing", .val = self.temp_settings.manual_routing } };
                 self.dirty = true;
             }
@@ -118,7 +128,8 @@ pub fn draw(
         {
             const popColor = try pushColIfSelected(ctx, .log_to_file, scroll_pos);
             defer if (popColor) |pop| pop(ctx) catch {};
-            if (try imgui.Checkbox(.{ ctx, "Log to File##lgfd", &self.temp_settings.log_to_file })) {
+            const label = safePrint(&buf, "{s}##lgfd", .{tr(translations, .settings_log_to_file)});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.log_to_file })) {
                 rv = .{ .val_update = .{ .field = "log_to_file", .val = self.temp_settings.log_to_file } };
                 self.dirty = true;
             }
@@ -127,19 +138,20 @@ pub fn draw(
         {
             const popColor = try pushColIfSelected(ctx, .start_suspended, scroll_pos);
             defer if (popColor) |pop| pop(ctx) catch {};
-            if (try imgui.Checkbox(.{ ctx, "Start extension suspended##strt_sspndchkbx", &self.temp_settings.start_suspended })) {
+            const label = safePrint(&buf, "{s}##strt_sspndchkbx", .{tr(translations, .settings_start_suspended)});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.start_suspended })) {
                 rv = .{ .val_update = .{ .field = "start_suspended", .val = self.temp_settings.start_suspended } };
                 self.dirty = true;
             }
         }
 
-        if (try imgui.Button(.{ ctx, "Save##stngs_sv" })) {
+        if (try imgui.Button(.{ ctx, safePrint(&buf, "{s}##stngs_sv", .{tr(translations, .settings_save)}) })) {
             if (self.dirty) {
                 return .close_save;
             }
         }
         try imgui.SameLine(.{ctx});
-        if (try imgui.Button(.{ ctx, "Cancel##stngs_x" })) {
+        if (try imgui.Button(.{ ctx, safePrint(&buf, "{s}##stngs_x", .{tr(translations, .settings_cancel)}) })) {
             return .close_cancel;
         }
     }
@@ -152,12 +164,11 @@ pub fn draw(
         defer imgui.EndGroup(.{ctx}) catch {};
 
         // Default Channel Strip Settings
-        try imgui.Text(.{ ctx, "Default Channel Strip" });
+        try imgui.Text(.{ ctx, tr(translations, .settings_default_channel_strip) });
         try imgui.Spacing(.{ctx});
 
         // For each module, show a combo with available mappings
         inline for (comptime std.enums.values(ModulesList)) |module| {
-            const module_name = @tagName(module);
             const current_fx: ?[:0]const u8 = self.temp_settings.default_fx.get(module);
 
             try imgui.PushItemWidth(.{ ctx, 300.0 });
@@ -173,17 +184,25 @@ pub fn draw(
                 }, scroll_pos);
                 defer if (popColor) |pop| pop(ctx) catch {};
                 // Begin combo for this module
+                const module_label = switch (module) {
+                    .INPUT => tr(translations, .settings_input),
+                    .GATE => tr(translations, .settings_gate),
+                    .EQ => tr(translations, .settings_eq),
+                    .COMP => tr(translations, .settings_comp),
+                    .OUTPT => tr(translations, .settings_output),
+                };
+
                 if (try imgui.BeginCombo(.{
                     ctx,
-                    module_name,
-                    current_fx orelse "none",
+                    module_label,
+                    current_fx orelse tr(translations, .settings_none),
                     null,
                 })) {
                     defer imgui.EndCombo(.{ctx}) catch {};
 
                     {
                         var is_selected = current_fx == null;
-                        if (try imgui.Selectable(.{ ctx, "none", &is_selected })) {
+                        if (try imgui.Selectable(.{ ctx, tr(translations, .settings_none), &is_selected })) {
                             self.dirty = true;
                             // Update temp settings with new selection
                             self.temp_settings.default_fx.set(module, null);

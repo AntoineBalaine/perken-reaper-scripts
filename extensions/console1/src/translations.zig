@@ -98,6 +98,8 @@ pub const TranslationKey = enum {
     settings_eq,
     settings_comp,
     settings_output,
+    settings_language_restart,
+    settings_language,
 
     // Track List panel translations
     track_list_title,
@@ -177,7 +179,7 @@ pub const TranslationKey = enum {
 
 /// TODO: move default translations into an INI or zon file,
 /// and embed into the code base.
-const default_translations = std.ComptimeStringMap([]const u8, .{
+const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "mapping_title", "Mapping Panel" },
     .{ "mapping_fx_parameters", "FX Parameters" },
     .{ "mapping_console_controls", "Console Controls" },
@@ -308,6 +310,8 @@ const default_translations = std.ComptimeStringMap([]const u8, .{
     .{ "settings_eq", "EQ" },
     .{ "settings_comp", "COMP" },
     .{ "settings_output", "OUTPT" },
+    .{ "settings_language_restart", "Language change requires restart" },
+    .{ "settings_language", "Language" },
     .{ "trsprt_Inpt_disp_mode", "Mode" },
     .{ "trsprt_Inpt_disp_on", "Hide" },
     .{ "trsprt_Inpt_HiCut", "Rate" },
@@ -342,40 +346,45 @@ const default_translations = std.ComptimeStringMap([]const u8, .{
 
 pub const StringStore = struct {
     strings: std.ArrayListUnmanaged(u8),
-    entries: std.enums.DirectEnumArray(TranslationKey, Entry, 0, .{}),
+    entries: [std.enums.directEnumArrayLen(TranslationKey, 1000)]Entry,
 
     const Entry = struct {
-        offset: u32,
-        length: u16,
+        offset: u32 = 0,
+        length: u16 = 0,
     };
 
     pub fn init() StringStore {
         return .{
             .strings = .{},
-            .entries = std.enums.DirectEnumArray(TranslationKey, Entry, 0, .{}).init(.{}),
+            .entries = std.enums.directEnumArrayDefault(TranslationKey, Entry, Entry{}, 1000, .{}),
         };
     }
 
-    pub fn getString(self: *const StringStore, key: TranslationKey) []const u8 {
-        const entry = self.entries.get(key);
-        return self.strings.items[entry.offset .. entry.offset + entry.length];
+    pub fn getString(self: *const StringStore, key: TranslationKey) [:0]const u8 {
+        const index = @intFromEnum(key);
+        const entry = self.entries[index];
+        // Convert the string to a sentinel-terminated string
+        return @ptrCast(self.strings.items[entry.offset .. entry.offset + entry.length]);
     }
 
     fn loadDefaults(self: *StringStore, g_arena: std.mem.Allocator) !void {
-        // Iterate over the ComptimeStringMap
-        inline for (default_translations.kvs) |kv| {
-            const key = @field(TranslationKey, kv.key);
-            try self.addString(g_arena, key, kv.value);
+        // Iterate over all possible translation keys
+        inline for (std.meta.fields(TranslationKey)) |field| {
+            const key = @field(TranslationKey, field.name);
+            if (default_translations.get(field.name)) |value| {
+                try self.addString(g_arena, key, value);
+            }
         }
     }
 
     fn addString(self: *StringStore, g_arena: std.mem.Allocator, key: TranslationKey, value: []const u8) !void {
         const offset = self.strings.items.len;
         try self.strings.appendSlice(g_arena, value);
-        self.entries.set(key, .{
+        const index = @intFromEnum(key);
+        self.entries[index] = .{
             .offset = @intCast(offset),
             .length = @intCast(value.len),
-        });
+        };
     }
 
     fn loadFromFile(self: *StringStore, g_arena: std.mem.Allocator, path: []const u8) !void {
@@ -450,6 +459,7 @@ pub const StringStore = struct {
 pub const TranslationStore = struct {
     store: StringStore,
     current_language: []const u8,
+    available_languages: []LanguageInfo,
 
     pub fn init(g_arena: std.mem.Allocator, resource_path: []const u8, language: []const u8) !TranslationStore {
         // First get available languages
@@ -492,14 +502,34 @@ pub const TranslationStore = struct {
         };
     }
 
-    pub fn getString(self: *const TranslationStore, key: TranslationKey) []const u8 {
+    pub fn getString(self: *const TranslationStore, key: TranslationKey) [:0]const u8 {
         return self.store.getString(key);
+    }
+
+    pub fn getLanguages(self: *const TranslationStore) []const LanguageInfo {
+        return self.available_languages;
     }
 };
 
 // Helper function
-pub fn tr(store: *const TranslationStore, key: TranslationKey) []const u8 {
+pub fn tr(store: *const TranslationStore, key: TranslationKey) [:0]const u8 {
     return store.getString(key);
+}
+
+/// Utility function to export default translations to an INI file
+/// This is useful for creating new language packs
+pub fn exportDefaultTranslations(allocator: std.mem.Allocator, path: []const u8) !void {
+    var store = StringStore.init();
+    try store.loadDefaults(allocator);
+
+    const file = try std.fs.createFileAbsolute(path, .{});
+    defer file.close();
+
+    // Add metadata section
+    try file.writer().writeAll("[metadata]\nlanguage_name=Default\n\n");
+
+    // Write all translations
+    try store.writeToFile(file.writer());
 }
 
 pub const LanguageInfo = struct {
@@ -558,7 +588,7 @@ pub fn getAvailableLanguages(g_allocator: std.mem.Allocator, resource_path: []co
 
     var iter = dir.iterate();
     while (try iter.next()) |entry| {
-        if (entry.kind != .File) continue;
+        if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".ini")) continue;
 
         const code = try g_allocator.dupeZ(u8, entry.name[0 .. entry.name.len - 4]);

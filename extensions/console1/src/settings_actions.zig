@@ -57,6 +57,7 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
             if (globals.settings_panel) |*panel| {
                 if (Preferences.SettingsFields.fromIndex(panel.scroll_position_rel)) |field| {
                     switch (field) {
+                        .language,
                         .show_startup_message,
                         .show_feedback_window,
                         .show_plugin_ui,

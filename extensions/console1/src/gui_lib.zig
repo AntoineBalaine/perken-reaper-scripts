@@ -88,7 +88,7 @@ pub fn main(
             },
             .default_fx_sel => {
                 if (globals.settings_panel) |*panel| {
-                    if (try panel.draw(ctx, &globals.mappings_list, style_manager)) |val| {
+                    if (try panel.draw(ctx, &globals.mappings_list, style_manager, &globals.translations)) |val| {
                         switch (val) {
                             .val_update => |update| rv = .{ .midi_out = .{ .settings_changed = update } },
                             .close_save => rv = .{ .settings = .save },
