@@ -6,9 +6,11 @@
 - jog grid lines
 - meters
 - csurf’s update_param_value() is too slow, switch to `CC.toModule()`
+- add check for existence of imgui on user’s system
 # ARCH
 - Error handling: file reading, allocations
 - Handle case of imgui missing on user’s system.
+- use `.empty` for empty data structures by default
 # Default fx mode: Channel Strip Panel
   * Open from settings menu
     Add a default channel strip mode. Settings can transition to it, and it can only transition back to it.
@@ -23,7 +25,7 @@
 
 # Optionnels
 - jog items: remove sws dependency
-- Traductions
+- Traductions à revoir
 - Manuel utilisateur
 - Skins/Themes?
 - single fx mode - would allow for more flexibility.
