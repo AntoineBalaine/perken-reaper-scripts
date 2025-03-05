@@ -350,7 +350,6 @@ pub const StringStore = struct {
 
     const Entry = struct {
         offset: u32 = 0,
-        length: u16 = 0,
     };
 
     pub fn init() StringStore {
@@ -363,8 +362,8 @@ pub const StringStore = struct {
     pub fn getString(self: *const StringStore, key: TranslationKey) [:0]const u8 {
         const index = @intFromEnum(key);
         const entry = self.entries[index];
-        // Convert the string to a sentinel-terminated string
-        return @ptrCast(self.strings.items[entry.offset .. entry.offset + entry.length]);
+        const start_slice = self.strings.items[entry.offset..];
+        return start_slice[0..std.mem.indexOfScalar(u8, start_slice, 0).? :0];
     }
 
     fn loadDefaults(self: *StringStore, g_arena: std.mem.Allocator) !void {
@@ -377,13 +376,14 @@ pub const StringStore = struct {
         }
     }
 
-    fn addString(self: *StringStore, g_arena: std.mem.Allocator, key: TranslationKey, value: []const u8) !void {
+    fn addString(self: *StringStore, g_arena: std.mem.Allocator, key: TranslationKey, value: [:0]const u8) !void {
         const offset = self.strings.items.len;
+        // Append the string including the null terminator
         try self.strings.appendSlice(g_arena, value);
+        try self.strings.append(g_arena, '\x00');
         const index = @intFromEnum(key);
         self.entries[index] = .{
             .offset = @intCast(offset),
-            .length = @intCast(value.len),
         };
     }
 
