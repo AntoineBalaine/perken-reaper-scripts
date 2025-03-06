@@ -19,6 +19,7 @@ const mapping_panel = @import("mapping_panel.zig");
 const Theme = @import("theme/Theme.zig");
 const track_list_panel = @import("track_list_panel.zig");
 const c1 = @import("c1.zig");
+const reapack = @import("reapack.zig");
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
@@ -46,7 +47,11 @@ fn init() !void {
 }
 
 pub fn register() void {
-    _ = reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    if (isImGuiAvailable()) {
+        _ = reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    } else {
+        promptInstallImGui();
+    }
 }
 
 pub fn reset() void {
@@ -91,4 +96,36 @@ fn onTimer() callconv(.C) void {
     } else |err| {
         handleGuiError(err);
     }
+}
+
+fn promptInstallImGui() void {
+    // 0=OK,1=OKCANCEL,2=ABORTRETRYIGNORE,3=YESNOCANCEL,4=YESNO,5=RETRYCANCEL : ret
+    _ = reaper.ShowMessageBox(
+        "This extension requires ReaImGui to function fully.\nPlease install it via ReaPack.\n",
+        "Missing Dependency",
+        0,
+    );
+
+    reapack.init(reaper.plugin_getapi) catch {
+        _ = reaper.ShowMessageBox(
+            "ReaPack is not installed. Please install ReaPack first, then install ReaImGui.\n",
+            "Missing Dependencies",
+            0,
+        );
+        return;
+    };
+    reapack.ReaPack_BrowsePackages("Dear ImGui");
+}
+
+fn isImGuiAvailable() bool {
+    // Attempt to initialize ImGui and detect if it's available
+    imgui.init(reaper.plugin_getapi) catch |err| {
+        if (err == error.ImGui) {
+            log.info("ImGui is not available\n", .{});
+            return false;
+        }
+        log.err("Unexpected error checking ImGui: {s}\n", .{@errorName(err)});
+        return false;
+    };
+    return true;
 }
