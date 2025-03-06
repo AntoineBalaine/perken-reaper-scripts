@@ -388,6 +388,9 @@ pub const StringStore = struct {
     }
 
     fn loadFromFile(self: *StringStore, g_arena: std.mem.Allocator, path: []const u8) !void {
+        // Create and initialize the tracking array to mark which keys are loaded from the file
+        var loaded_keys = std.enums.EnumArray(TranslationKey, bool).initFill(false);
+
         const file = try std.fs.openFileAbsolute(path, .{});
         defer file.close();
 
@@ -398,24 +401,44 @@ pub const StringStore = struct {
         defer parser.deinit();
 
         var current_section: ?[]const u8 = null;
-
+        var section_buf: [256:0]u8 = undefined;
+        var buf: [256:0]u8 = undefined;
         while (try parser.next()) |record| {
             switch (record) {
                 .section => |section| {
-                    current_section = section;
+                    current_section = try std.fmt.bufPrintZ(&section_buf, "{s}", .{section});
                 },
                 .property => |kv| {
                     if (current_section) |section| {
                         // Construct key string
-                        const key_str = try std.fmt.allocPrint(arena.allocator(), "{s}_{s}", .{ section, kv.key });
+                        const key_str = try std.fmt.bufPrintZ(&buf, "{s}_{s}", .{ section, kv.key });
 
                         // Try to convert to enum
                         if (std.meta.stringToEnum(TranslationKey, key_str)) |enum_key| {
                             try self.addString(g_arena, enum_key, kv.value);
+                            // Mark this key as loaded
+                            loaded_keys.set(enum_key, true);
                         }
                     }
                 },
                 .enumeration => {},
+            }
+        }
+
+        // After parsing, check for missing keys and fill them from default translations
+        var it = loaded_keys.iterator();
+        while (it.next()) |entry| {
+            if (!entry.value.*) {
+                const missing_key = entry.key;
+                const key_name = @tagName(missing_key);
+
+                // Log the missing key
+                log.warn("Missing translation key: {s}", .{key_name});
+
+                // Fill in from default translations
+                if (default_translations.get(key_name)) |default_value| {
+                    try self.addString(g_arena, missing_key, default_value);
+                }
             }
         }
     }
