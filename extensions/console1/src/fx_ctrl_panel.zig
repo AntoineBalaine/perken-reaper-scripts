@@ -10,7 +10,9 @@ const widgets = @import("components/widgets.zig");
 const roundButton = widgets.roundButton;
 const vSeparator = widgets.vSeparator;
 const section_spacing = @import("styles.zig").section_spacing;
-const TranslationStore = @import("translations.zig").TranslationStore;
+const Translations = @import("translations.zig");
+const TranslationStore = Translations.TranslationStore;
+const TranslationKey = Translations.TranslationKey;
 const tr = @import("translations.zig").tr;
 
 /// Calculate the maximum width of a list of labels and calculate offsets
@@ -99,7 +101,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
 
-            const disp_on_label = c1.CCs.Inpt_disp_on.getLabel(mode);
+            const disp_on_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl => .fx_ctrl_Inpt_disp_on,
+                .transport => .trsprt_Inpt_disp_on,
+                else => null,
+            };
+            const disp_on_label = if (disp_on_key) |key| tr(translations, key) else null;
             const disp_on_display_label: [:0]const u8 = disp_on_label orelse "-";
             const disp_on_disabled = (disp_on_label == null);
             if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_on_disabled })) {
@@ -108,7 +115,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
             try imgui.Dummy(.{ ctx, 0, knob_size * 2 });
 
             // Center-align the knob
-            const gain_label = c1.CCs.Inpt_Gain.getLabel(mode);
+            const gain_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl => .fx_ctrl_Inpt_Gain,
+                else => null,
+            };
+            const gain_label = if (gain_key) |key| tr(translations, key) else null;
             const gain_disabled = (gain_label == null);
             const gain_no_val_display = gain_disabled or mode != .fx_ctrl;
             const gain_display_label: [:0]const u8 = gain_label orelse "-";
@@ -130,7 +141,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
         {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
-            const disp_mode_label = c1.CCs.Inpt_disp_mode.getLabel(mode);
+            const disp_mode_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl => .fx_ctrl_Inpt_disp_mode,
+                .transport => .trsprt_Inpt_disp_mode,
+                else => null,
+            };
+            const disp_mode_label = if (disp_mode_key) |key| tr(translations, key) else null;
             const disp_mode_display_label: [:0]const u8 = disp_mode_label orelse "-";
             const disp_mode_disabled = (disp_mode_label == null);
             if (try roundButton(.{ ctx, disp_mode_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_mode), null, null, null, disp_mode_disabled })) {
@@ -138,11 +154,21 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
             }
             {
                 // Calculate max width for this column's knobs
-                const hicut_label = c1.CCs.Inpt_HiCut.getLabel(mode);
+                const hicut_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Inpt_HiCut,
+                    .transport => .trsprt_Inpt_HiCut,
+                    else => null,
+                };
+                const hicut_label = if (hicut_key) |key| tr(translations, key) else null;
                 const hicut_disabled = (hicut_label == null);
                 const hicut_no_val_display = hicut_disabled or mode != .fx_ctrl;
                 const hicut_display_label: [:0]const u8 = hicut_label orelse "-";
-                const locut_label = c1.CCs.Inpt_LoCut.getLabel(mode);
+
+                const locut_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Inpt_LoCut,
+                    else => null,
+                };
+                const locut_label = if (locut_key) |key| tr(translations, key) else null;
                 const locut_disabled = (locut_label == null);
                 const locut_no_val_display = locut_disabled or mode != .fx_ctrl;
                 const locut_display_label: [:0]const u8 = locut_label orelse "-";
@@ -168,17 +194,31 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 }
             }
 
-            const filt_to_comp_label = c1.CCs.Inpt_filt_to_comp.getLabel(mode);
+            const filt_to_comp_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl => .fx_ctrl_Inpt_filt_to_comp,
+                else => null,
+            };
+            const filt_to_comp_label = if (filt_to_comp_key) |key| tr(translations, key) else null;
             const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
             const filt_to_comp_disabled = (filt_to_comp_label == null);
             if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_disabled })) {}
-            const phase_inv_label = c1.CCs.Inpt_phase_inv.getLabel(mode);
+
+            const phase_inv_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl => .fx_ctrl_Inpt_phase_inv,
+                else => null,
+            };
+            const phase_inv_label = if (phase_inv_key) |key| tr(translations, key) else null;
             const phase_inv_display_label: [:0]const u8 = phase_inv_label orelse "-";
             const phase_inv_disabled = (phase_inv_label == null);
             if (try roundButton(.{ ctx, phase_inv_display_label, "##" ++ @tagName(c1.CCs.Inpt_phase_inv), null, null, .right, phase_inv_disabled })) {
                 rv = .{ .cc = .Inpt_phase_inv, .value = 1.0 };
             }
-            const preset_label = c1.CCs.Inpt_preset.getLabel(mode);
+
+            const preset_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl => .fx_ctrl_Inpt_preset,
+                else => null,
+            };
+            const preset_label = if (preset_key) |key| tr(translations, key) else null;
             const preset_display_label: [:0]const u8 = preset_label orelse "-";
             const preset_disabled = (preset_label == null);
             if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_disabled })) {}
@@ -201,7 +241,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
 
         const shp_bypass = fx_state.values.get(.Shp_shape).?.button;
         const shp_bypass_val = shp_bypass;
-        const shp_shape_label = c1.CCs.Shp_shape.getLabel(mode);
+        const shp_shape_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Shp_shape,
+            else => null,
+        };
+        const shp_shape_label = if (shp_shape_key) |key| tr(translations, key) else null;
         const shp_shape_display_label: [:0]const u8 = shp_shape_label orelse "-";
         const shp_shape_disabled = (shp_shape_label == null);
         if (try roundButton(.{ ctx, shp_shape_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, shp_shape_disabled })) {
@@ -216,7 +260,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 try imgui.Dummy(.{ ctx, 0, knob_size * 0.75 });
 
                 // Center-align the knob
-                const gate_label = c1.CCs.Shp_Gate.getLabel(mode);
+                const gate_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Shp_Gate,
+                    else => null,
+                };
+                const gate_label = if (gate_key) |key| tr(translations, key) else null;
                 const gate_disabled = (gate_label == null);
                 const gate_no_val_display = gate_disabled or mode != .fx_ctrl;
                 const gate_display_label: [:0]const u8 = gate_label orelse "-";
@@ -234,7 +282,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
 
                 const hard_gate = fx_state.values.get(.Shp_hard_gate).?.button;
                 const hard_gate_val = hard_gate;
-                const hard_gate_label = c1.CCs.Shp_hard_gate.getLabel(mode);
+                const hard_gate_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Shp_hard_gate,
+                    else => null,
+                };
+                const hard_gate_label = if (hard_gate_key) |key| tr(translations, key) else null;
                 const hard_gate_display_label: [:0]const u8 = hard_gate_label orelse "-";
                 const hard_gate_disabled = (hard_gate_label == null);
                 if (try roundButton(.{ ctx, hard_gate_display_label, "##" ++ @tagName(c1.CCs.Shp_hard_gate), null, null, .below, hard_gate_disabled })) {
@@ -251,15 +303,29 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
             defer imgui.EndGroup(.{ctx}) catch {};
             {
                 // Calculate max width for this column's knobs
-                const release_label = c1.CCs.Shp_GateRelease.getLabel(mode);
+                const release_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Shp_GateRelease,
+                    else => null,
+                };
+                const release_label = if (release_key) |key| tr(translations, key) else null;
                 const release_disabled = (release_label == null);
                 const release_no_val_display = release_disabled or mode != .fx_ctrl;
                 const release_display_label: [:0]const u8 = release_label orelse "-";
-                const sustain_label = c1.CCs.Shp_sustain.getLabel(mode);
+
+                const sustain_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Shp_sustain,
+                    else => null,
+                };
+                const sustain_label = if (sustain_key) |key| tr(translations, key) else null;
                 const sustain_disabled = (sustain_label == null);
                 const sustain_no_val_display = sustain_disabled or mode != .fx_ctrl;
                 const sustain_display_label: [:0]const u8 = sustain_label orelse "-";
-                const punch_label = c1.CCs.Shp_Punch.getLabel(mode);
+
+                const punch_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Shp_Punch,
+                    else => null,
+                };
+                const punch_label = if (punch_key) |key| tr(translations, key) else null;
                 const punch_disabled = (punch_label == null);
                 const punch_no_val_display = punch_disabled or mode != .fx_ctrl;
                 const punch_display_label: [:0]const u8 = punch_label orelse "-";
@@ -311,7 +377,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
         defer imgui.EndGroup(.{ctx}) catch {};
 
         const eq_bypass = fx_state.values.get(.Eq_eq).?.button;
-        const eq_eq_label = c1.CCs.Eq_eq.getLabel(mode);
+        const eq_eq_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Eq_eq,
+            .transport => .trsprt_Eq_eq,
+            else => null,
+        };
+        const eq_eq_label = if (eq_eq_key) |key| tr(translations, key) else null;
         const eq_eq_display_label: [:0]const u8 = eq_eq_label orelse "-";
         const eq_eq_disabled = (eq_eq_label == null);
         if (try roundButton(.{ ctx, eq_eq_display_label, "##" ++ @tagName(c1.CCs.Eq_eq), null, null, .right, eq_eq_disabled })) {
@@ -325,7 +396,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
 
                 const lo_shape = fx_state.values.get(.Eq_lp_shape).?.button;
-                const lp_shape_label = c1.CCs.Eq_lp_shape.getLabel(mode);
+                const lp_shape_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_lp_shape,
+                    else => null,
+                };
+                const lp_shape_label = if (lp_shape_key) |key| tr(translations, key) else null;
                 const lp_shape_display_label: [:0]const u8 = lp_shape_label orelse "-";
                 const lp_shape_disabled = (lp_shape_label == null);
                 if (try roundButton(.{ ctx, lp_shape_display_label, "##" ++ @tagName(c1.CCs.Eq_lp_shape), null, null, .right, lp_shape_disabled })) {
@@ -333,11 +408,20 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 }
 
                 // Calculate max width for this column's knobs
-                const lofreq_label = c1.CCs.Eq_LoFrq.getLabel(mode);
+                const lofreq_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_LoFrq,
+                    else => null,
+                };
+                const lofreq_label = if (lofreq_key) |key| tr(translations, key) else null;
                 const lofreq_disabled = (lofreq_label == null);
                 const lofreq_no_val_display = lofreq_disabled or mode != .fx_ctrl;
                 const lofreq_display_label: [:0]const u8 = lofreq_label orelse "-";
-                const logain_label = c1.CCs.Eq_LoGain.getLabel(mode);
+
+                const logain_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_LoGain,
+                    else => null,
+                };
+                const logain_label = if (logain_key) |key| tr(translations, key) else null;
                 const logain_disabled = (logain_label == null);
                 const logain_no_val_display = logain_disabled or mode != .fx_ctrl;
                 const logain_display_label: [:0]const u8 = logain_label orelse "-";
@@ -371,15 +455,29 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
             defer imgui.EndGroup(.{ctx}) catch {};
             {
                 // Calculate max width for this column's knobs
-                const lomidq_label = c1.CCs.Eq_LoMidQ.getLabel(mode);
+                const lomidq_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_LoMidQ,
+                    else => null,
+                };
+                const lomidq_label = if (lomidq_key) |key| tr(translations, key) else null;
                 const lomidq_disabled = (lomidq_label == null);
                 const lomidq_no_val_display = lomidq_disabled or mode != .fx_ctrl;
                 const lomidq_display_label: [:0]const u8 = lomidq_label orelse "-";
-                const lomidfreq_label = c1.CCs.Eq_LoMidFrq.getLabel(mode);
+
+                const lomidfreq_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_LoMidFrq,
+                    else => null,
+                };
+                const lomidfreq_label = if (lomidfreq_key) |key| tr(translations, key) else null;
                 const lomidfreq_disabled = (lomidfreq_label == null);
                 const lomidfreq_no_val_display = lomidfreq_disabled or mode != .fx_ctrl;
                 const lomidfreq_display_label: [:0]const u8 = lomidfreq_label orelse "-";
-                const lomidgain_label = c1.CCs.Eq_LoMidGain.getLabel(mode);
+
+                const lomidgain_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_LoMidGain,
+                    else => null,
+                };
+                const lomidgain_label = if (lomidgain_key) |key| tr(translations, key) else null;
                 const lomidgain_disabled = (lomidgain_label == null);
                 const lomidgain_no_val_display = lomidgain_disabled or mode != .fx_ctrl;
                 const lomidgain_display_label: [:0]const u8 = lomidgain_label orelse "-";
@@ -422,15 +520,29 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
             defer imgui.EndGroup(.{ctx}) catch {};
             {
                 // Calculate max width for this column's knobs
-                const himidq_label = c1.CCs.Eq_HiMidQ.getLabel(mode);
+                const himidq_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_HiMidQ,
+                    else => null,
+                };
+                const himidq_label = if (himidq_key) |key| tr(translations, key) else null;
                 const himidq_disabled = (himidq_label == null);
                 const himidq_no_val_display = himidq_disabled or mode != .fx_ctrl;
                 const himidq_display_label: [:0]const u8 = himidq_label orelse "-";
-                const himidfreq_label = c1.CCs.Eq_HiMidFrq.getLabel(mode);
+
+                const himidfreq_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_HiMidFrq,
+                    else => null,
+                };
+                const himidfreq_label = if (himidfreq_key) |key| tr(translations, key) else null;
                 const himidfreq_disabled = (himidfreq_label == null);
                 const himidfreq_no_val_display = himidfreq_disabled or mode != .fx_ctrl;
                 const himidfreq_display_label: [:0]const u8 = himidfreq_label orelse "-";
-                const himidgain_label = c1.CCs.Eq_HiMidGain.getLabel(mode);
+
+                const himidgain_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_HiMidGain,
+                    else => null,
+                };
+                const himidgain_label = if (himidgain_key) |key| tr(translations, key) else null;
                 const himidgain_disabled = (himidgain_label == null);
                 const himidgain_no_val_display = himidgain_disabled or mode != .fx_ctrl;
                 const himidgain_display_label: [:0]const u8 = himidgain_label orelse "-";
@@ -475,7 +587,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
 
                 const hi_shape = fx_state.values.get(.Eq_hp_shape).?.button;
-                const hp_shape_label = c1.CCs.Eq_hp_shape.getLabel(mode);
+                const hp_shape_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_hp_shape,
+                    else => null,
+                };
+                const hp_shape_label = if (hp_shape_key) |key| tr(translations, key) else null;
                 const hp_shape_display_label: [:0]const u8 = hp_shape_label orelse "-";
                 const hp_shape_disabled = (hp_shape_label == null);
                 if (try roundButton(.{ ctx, hp_shape_display_label, "##" ++ @tagName(c1.CCs.Eq_hp_shape), null, null, .right, hp_shape_disabled })) {
@@ -483,11 +599,20 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 }
 
                 // Calculate max width for this column's knobs
-                const hifreq_label = c1.CCs.Eq_HiFrq.getLabel(mode);
+                const hifreq_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_HiFrq,
+                    else => null,
+                };
+                const hifreq_label = if (hifreq_key) |key| tr(translations, key) else null;
                 const hifreq_disabled = (hifreq_label == null);
                 const hifreq_no_val_display = hifreq_disabled or mode != .fx_ctrl;
                 const hifreq_display_label: [:0]const u8 = hifreq_label orelse "-";
-                const higain_label = c1.CCs.Eq_HiGain.getLabel(mode);
+
+                const higain_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Eq_HiGain,
+                    else => null,
+                };
+                const higain_label = if (higain_key) |key| tr(translations, key) else null;
                 const higain_disabled = (higain_label == null);
                 const higain_no_val_display = higain_disabled or mode != .fx_ctrl;
                 const higain_display_label: [:0]const u8 = higain_label orelse "-";
@@ -528,7 +653,12 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
         const comp_bypass = fx_state.values.get(.Comp_comp).?.button;
-        const comp_comp_label = c1.CCs.Comp_comp.getLabel(mode);
+        const comp_comp_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Comp_comp,
+            .transport => .trsprt_Comp_comp,
+            else => null,
+        };
+        const comp_comp_label = if (comp_comp_key) |key| tr(translations, key) else null;
         const comp_comp_display_label: [:0]const u8 = comp_comp_label orelse "-";
         const comp_comp_disabled = (comp_comp_label == null);
         if (try roundButton(.{ ctx, comp_comp_display_label, "##" ++ @tagName(c1.CCs.Comp_comp), null, null, .right, comp_comp_disabled })) {
@@ -543,11 +673,20 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
 
                 // Calculate max width for this column's knobs
-                const ratio_label = c1.CCs.Comp_Ratio.getLabel(mode);
+                const ratio_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Comp_Ratio,
+                    else => null,
+                };
+                const ratio_label = if (ratio_key) |key| tr(translations, key) else null;
                 const ratio_disabled = (ratio_label == null);
                 const ratio_no_val_display = ratio_disabled or mode != .fx_ctrl;
                 const ratio_display_label: [:0]const u8 = ratio_label orelse "-";
-                const drywet_label = c1.CCs.Comp_DryWet.getLabel(mode);
+
+                const drywet_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Comp_DryWet,
+                    else => null,
+                };
+                const drywet_label = if (drywet_key) |key| tr(translations, key) else null;
                 const drywet_disabled = (drywet_label == null);
                 const drywet_no_val_display = drywet_disabled or mode != .fx_ctrl;
                 const drywet_display_label: [:0]const u8 = drywet_label orelse "-";
@@ -582,15 +721,29 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
             defer imgui.EndGroup(.{ctx}) catch {};
             {
                 // Calculate max width for this column's knobs
-                const attack_label = c1.CCs.Comp_Attack.getLabel(mode);
+                const attack_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Comp_Attack,
+                    else => null,
+                };
+                const attack_label = if (attack_key) |key| tr(translations, key) else null;
                 const attack_disabled = (attack_label == null);
                 const attack_no_val_display = attack_disabled or mode != .fx_ctrl;
                 const attack_display_label: [:0]const u8 = attack_label orelse "-";
-                const release_label = c1.CCs.Comp_Release.getLabel(mode);
+
+                const release_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Comp_Release,
+                    else => null,
+                };
+                const release_label = if (release_key) |key| tr(translations, key) else null;
                 const release_disabled = (release_label == null);
                 const release_no_val_display = release_disabled or mode != .fx_ctrl;
                 const release_display_label: [:0]const u8 = release_label orelse "-";
-                const thresh_label = c1.CCs.Comp_Thresh.getLabel(mode);
+
+                const thresh_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Comp_Thresh,
+                    else => null,
+                };
+                const thresh_label = if (thresh_key) |key| tr(translations, key) else null;
                 const thresh_disabled = (thresh_label == null);
                 const thresh_no_val_display = thresh_disabled or mode != .fx_ctrl;
                 const thresh_display_label: [:0]const u8 = thresh_label orelse "-";
@@ -645,21 +798,39 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
         {
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
-            const tr_order_label = c1.CCs.Tr_order.getLabel(mode);
+            const tr_order_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl => .fx_ctrl_Tr_order,
+                else => null,
+            };
+            const tr_order_label = if (tr_order_key) |key| tr(translations, key) else null;
             const tr_order_display_label: [:0]const u8 = tr_order_label orelse "-";
             const tr_order_disabled = (tr_order_label == null);
             if (try roundButton(.{ ctx, tr_order_display_label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, tr_order_disabled })) {}
             {
                 // Calculate max width for this column's knobs
-                const drive_label = c1.CCs.Out_Drive.getLabel(mode);
+                const drive_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Out_Drive,
+                    else => null,
+                };
+                const drive_label = if (drive_key) |key| tr(translations, key) else null;
                 const drive_disabled = (drive_label == null);
                 const drive_no_val_display = drive_disabled or mode != .fx_ctrl;
                 const drive_display_label: [:0]const u8 = drive_label orelse "-";
-                const char_label = c1.CCs.Out_DriveChar.getLabel(mode);
+
+                const char_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Out_DriveChar,
+                    else => null,
+                };
+                const char_label = if (char_key) |key| tr(translations, key) else null;
                 const char_disabled = (char_label == null);
                 const char_no_val_display = char_disabled or mode != .fx_ctrl;
                 const char_display_label: [:0]const u8 = char_label orelse "-";
-                const pan_label = c1.CCs.Out_Pan.getLabel(mode);
+
+                const pan_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Out_Pan,
+                    else => null,
+                };
+                const pan_label = if (pan_key) |key| tr(translations, key) else null;
                 const pan_disabled = (pan_label == null);
                 const pan_no_val_display = pan_disabled or mode != .fx_ctrl;
                 const pan_display_label: [:0]const u8 = pan_label orelse "-";
@@ -701,14 +872,22 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
             try imgui.BeginGroup(.{ctx});
             defer imgui.EndGroup(.{ctx}) catch {};
 
-            const ext_sidechain_label = c1.CCs.Tr_ext_sidechain.getLabel(mode);
+            const ext_sidechain_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl => .fx_ctrl_Tr_ext_sidechain,
+                else => null,
+            };
+            const ext_sidechain_label = if (ext_sidechain_key) |key| tr(translations, key) else null;
             const ext_sidechain_display_label: [:0]const u8 = ext_sidechain_label orelse "-";
             const ext_sidechain_disabled = (ext_sidechain_label == null);
             if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {}
             {
                 try imgui.Dummy(.{ ctx, knob_size * 2, knob_size * 2 });
                 const solo = fx_state.values.get(.Out_solo).?.button;
-                const out_solo_label = c1.CCs.Out_solo.getLabel(mode);
+                const out_solo_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Out_solo,
+                    else => null,
+                };
+                const out_solo_label = if (out_solo_key) |key| tr(translations, key) else null;
                 const out_solo_display_label: [:0]const u8 = out_solo_label orelse "-";
                 const out_solo_disabled = (out_solo_label == null);
                 if (try roundButton(.{ ctx, out_solo_display_label, "##" ++ @tagName(c1.CCs.Out_solo), null, null, .below, out_solo_disabled })) {
@@ -718,7 +897,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 try imgui.SameLine(.{ctx});
 
                 const mute = fx_state.values.get(.Out_mute).?.button;
-                const out_mute_label = c1.CCs.Out_mute.getLabel(mode);
+                const out_mute_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Out_mute,
+                    else => null,
+                };
+                const out_mute_label = if (out_mute_key) |key| tr(translations, key) else null;
                 const out_mute_display_label: [:0]const u8 = out_mute_label orelse "-";
                 const out_mute_disabled = (out_mute_label == null);
                 if (try roundButton(.{ ctx, out_mute_display_label, "##" ++ @tagName(c1.CCs.Out_mute), null, null, .below, out_mute_disabled })) {
@@ -726,7 +909,11 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
                 }
 
                 // Center-align the volume knob
-                const vol_label = c1.CCs.Out_Vol.getLabel(mode);
+                const vol_key: ?TranslationKey = switch (mode) {
+                    .fx_ctrl => .fx_ctrl_Out_Vol,
+                    else => null,
+                };
+                const vol_label = if (vol_key) |key| tr(translations, key) else null;
                 const vol_disabled = (vol_label == null);
                 const vol_no_val_display = vol_disabled or mode != .fx_ctrl;
                 const vol_display_label: [:0]const u8 = vol_label orelse "-";

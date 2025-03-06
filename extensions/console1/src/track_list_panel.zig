@@ -14,7 +14,9 @@ const widgets = @import("components/widgets.zig");
 const roundButton = widgets.roundButton;
 const vSeparator = widgets.vSeparator;
 const section_spacing = @import("styles.zig").section_spacing;
-const TranslationStore = @import("translations.zig").TranslationStore;
+const Translations = @import("translations.zig");
+const TranslationStore = Translations.TranslationStore;
+const TranslationKey = Translations.TranslationKey;
 const tr = @import("translations.zig").tr;
 const TrackListPanelAction = union(enum) {
     select_track: c_int,
@@ -136,7 +138,11 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-    const pg_dn_label_val = c1.CCs.Tr_pg_dn.getLabel(mode);
+    const pg_dn_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl => .fx_ctrl_Tr_pg_dn,
+        else => null,
+    };
+    const pg_dn_label_val = if (pg_dn_key) |key| tr(translations, key) else null;
     const pg_dn_label = pg_dn_label_val orelse "-";
     const pg_dn_id = safePrint(&buf, "btn_pg_dn", .{});
     if (try roundButton(.{ ctx, pg_dn_label, pg_dn_id, null, 5.0, .right, pg_dn_label_val == null })) {
@@ -146,7 +152,11 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
 
-    const pg_up_label_val = c1.CCs.Tr_pg_up.getLabel(mode);
+    const pg_up_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl => .fx_ctrl_Tr_pg_up,
+        else => null,
+    };
+    const pg_up_label_val = if (pg_up_key) |key| tr(translations, key) else null;
     const pg_up_label = pg_up_label_val orelse "-";
     const pg_up_id = safePrint(&buf, "btn_pg_up", .{});
     if (try roundButton(.{ ctx, pg_up_label, pg_up_id, null, 5.0, .right, pg_up_label_val == null })) {
@@ -173,7 +183,31 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
                     try imgui.SameLine(.{ctx});
 
-                    const cc_label = cc.getLabel(mode);
+                    const cc_key: ?TranslationKey = switch (mode) {
+                        .fx_sel => switch (cc) {
+                            .Tr_tr1 => .fx_sel_Tr_tr1,
+                            .Tr_tr2 => .fx_sel_Tr_tr2,
+                            .Tr_tr3 => .fx_sel_Tr_tr3,
+                            .Tr_tr4 => .fx_sel_Tr_tr4,
+                            .Tr_tr5 => .fx_sel_Tr_tr5,
+                            else => null,
+                        },
+                        .transport => switch (cc) {
+                            .Tr_tr1 => .trsprt_Tr_tr1,
+                            .Tr_tr2 => .trsprt_Tr_tr2,
+                            .Tr_tr3 => .trsprt_Tr_tr3,
+                            .Tr_tr4 => .trsprt_Tr_tr4,
+                            .Tr_tr5 => .trsprt_Tr_tr5,
+                            .Tr_tr6 => .trsprt_Tr_tr6,
+                            .Tr_tr7 => .trsprt_Tr_tr7,
+                            .Tr_tr8 => .trsprt_Tr_tr8,
+                            .Tr_tr9 => .trsprt_Tr_tr9,
+                            .Tr_tr10 => .trsprt_Tr_tr10,
+                            else => null,
+                        },
+                        else => null,
+                    };
+                    const cc_label = if (cc_key) |key| tr(translations, key) else null;
                     const cc_display_label: [:0]const u8 = cc_label orelse "-";
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 
@@ -239,7 +273,17 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
                     try imgui.SameLine(.{ctx});
 
-                    const cc_label = cc.getLabel(mode);
+                    const cc_key: ?TranslationKey = switch (mode) {
+                        .transport => switch (cc) {
+                            .Tr_tr17 => .trsprt_Tr_tr17,
+                            .Tr_tr18 => .trsprt_Tr_tr18,
+                            .Tr_tr19 => .trsprt_Tr_tr19,
+                            .Tr_tr20 => .trsprt_Tr_tr20,
+                            else => null,
+                        },
+                        else => null,
+                    };
+                    const cc_label = if (cc_key) |key| tr(translations, key) else null;
                     const cc_display_label: [:0]const u8 = cc_label orelse "-";
                     const label = safePrint(&buf, "{d:>2}. {s}", .{ i + 1, cc_display_label });
 
