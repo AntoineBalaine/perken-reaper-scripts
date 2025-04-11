@@ -7008,12 +7008,18 @@ pub fn init(plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque) !
 
     inline for (@typeInfo(API).@"struct".fields) |field| {
         @field(api, field.name) = @alignCast(@ptrCast(getFunc.?(api_version, field.name)));
-        try checkError();
+        checkError() catch |err| {
+            std.debug.print("imgui api load failure: inline struct field: {s} \n ", .{field.name});
+            return err;
+        };
     }
 
     inline for (@typeInfo(API).@"struct".decls) |decl| {
         @field(API, decl.name) = getEnum(@alignCast(@ptrCast(getFunc.?(api_version, decl.name))));
-        try checkError();
+        checkError() catch |err| {
+            std.debug.print("imgui api load failure: inline struct decls: {s} \n", .{decl.name});
+            return err;
+        };
     }
 }
 
@@ -7054,15 +7060,15 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
                 const cast_arg_type = @typeInfo(@TypeOf(cast_args[i]));
                 call_args[i] =
                     if (cast_arg_type == .optional)
-                    if (cast_args[i]) |*arg_val|
-                        if (@typeInfo(cast_arg_type.optional.child) == .pointer)
-                            arg_val.*
+                        if (cast_args[i]) |*arg_val|
+                            if (@typeInfo(cast_arg_type.optional.child) == .pointer)
+                                arg_val.*
+                            else
+                                arg_val
                         else
-                            arg_val
+                            null
                     else
-                        null
-                else
-                    cast_args[i];
+                        cast_args[i];
             }
 
             const rv = @call(.auto, func.*, call_args);
