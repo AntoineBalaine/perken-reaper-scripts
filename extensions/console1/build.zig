@@ -112,7 +112,11 @@ pub fn build(b: *std.Build) !void {
     const ini = b.dependency("ini", .{ .target = target, .optimize = optimize });
     lib.root_module.addImport("ini", ini.module("ini"));
 
-    _ = tests.addTests(b, target, Dependencies{ .ini = ini, .wdl = wdl_dep, .reaper_sdk = reaper_sdk_dep });
+    _ = tests.addTests(b, target, Dependencies{
+        .ini = ini,
+        .wdl = wdl_dep,
+        .reaper_sdk = reaper_sdk_dep,
+    });
     // Default step for building
     const step = b.step("default", "Build reaper_c1.so");
     step.dependOn(&lib.step);

@@ -1,0 +1,23 @@
+#ifndef RAPIDCHECK_WRAPPER_H
+#define RAPIDCHECK_WRAPPER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdbool.h> // Add this line to get bool type in C
+
+typedef struct RC_TestContext RC_TestContext;
+typedef int (*rc_property_func)(void);
+
+RC_TestContext* rc_create_context();
+void rc_destroy_context(RC_TestContext* ctx);
+bool rc_check_prop(RC_TestContext* ctx, rc_property_func property);
+const char* rc_get_failure_reason(RC_TestContext* ctx);
+int rc_generate_int(RC_TestContext* ctx, int min, int max);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // RAPIDCHECK_WRAPPER_H
