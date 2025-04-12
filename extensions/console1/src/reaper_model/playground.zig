@@ -3,15 +3,7 @@
 const std = @import("std");
 const testing = std.testing;
 const reaper = @import("../reaper.zig").reaper;
-
-// Basic data structures
-const AutomationMode = enum {
-    trim_read,
-    read,
-    touch,
-    write,
-    latch,
-};
+const AutomationMode = @import("../transport_actions.zig").AutomationMode;
 
 const TrackInfo = struct {
     phase: bool = false,
@@ -20,7 +12,6 @@ const TrackInfo = struct {
     pan: f64 = 0.0,
     mute: bool = false,
     solo: i32 = 0,
-    track_number: i32 = 0,
 };
 
 const PeakInfo = struct {
@@ -74,7 +65,7 @@ const Track = struct {
 // REAPER Model
 const RprModel = struct {
     tracks: std.ArrayList(Track),
-    selected_track_indices: std.ArrayList(usize),
+    selected_tracks: std.ArrayList(usize),
     last_touched_track_index: ?usize = null,
     cursor_position: f64 = 0.0,
     global_automation_mode: AutomationMode = .read,
@@ -85,7 +76,7 @@ const RprModel = struct {
             track.deinit(allocator);
         }
         self.tracks.deinit();
-        self.selected_track_indices.deinit();
+        self.selected_tracks.deinit();
     }
 };
 
@@ -104,18 +95,12 @@ fn mockInsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
     const allocator = model.tracks.allocator;
 
     // Determine the actual index in our tracks array (accounting for master track at index 0)
-    const actual_idx = if (idx <= 0) 1 else @as(usize, @intCast(idx)) + 1;
-
-    // Create a new track
-    var track_name_buf: [32]u8 = undefined;
-    const track_name = std.fmt.bufPrintZ(&track_name_buf, "Track {d}", .{model.tracks.items.len}) catch "New Track";
+    const actual_idx = if (idx < 0) model.tracks.items.len else @as(usize, @intCast(idx)) + 1;
 
     const track = Track{
-        .name = allocator.dupeZ(u8, track_name) catch return,
+        .name = allocator.dupeZ(u8, "") catch return,
         .fx_list = std.ArrayList(FX).init(allocator),
-        .info = .{
-            .track_number = @intCast(model.tracks.items.len),
-        },
+        .info = .{},
     };
 
     if (actual_idx >= model.tracks.items.len) {
@@ -125,14 +110,11 @@ fn mockInsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
         // Insert at the specified position
         model.tracks.insert(actual_idx, track) catch return;
     }
-
-    // Update track numbers for all tracks after insertion
-    for (model.tracks.items[1..], 1..) |*t, i| {
-        t.info.track_number = @intCast(i);
-    }
 }
 
 // Mock FX manipulation functions
+// NOTE: there is the case in which we try to add an fx which
+// doesn’t exist on the user’s system, in which case reaper returns -1
 fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.C) c_int {
     _ = recFX;
     _ = instantiate;
@@ -142,6 +124,9 @@ fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX:
     const track_ptr: *const Track = @alignCast(@ptrCast(track));
     var track_idx: ?usize = null;
 
+    // NOTE: is there no way to retrieve this in constant time?
+    // what’s the rationale behind casting the pointer, and then checking?
+    // We should probably cast to an optional instead, and then check for null.
     for (model.tracks.items, 0..) |*t, i| {
         if (@as(*const Track, @ptrCast(t)) == track_ptr) {
             track_idx = i;
@@ -157,6 +142,7 @@ fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX:
     // Create a new FX
     const new_fx = FX{
         .name = allocator.dupeZ(u8, fx_name) catch return -1,
+        // FIXME: add an actual GUID here.
         .guid = allocator.dupeZ(u8, "generated-guid") catch {
             allocator.free(allocator.dupeZ(u8, fx_name) catch return -1);
             return -1;
@@ -178,6 +164,8 @@ fn mockTrackFX_GetCount(track: reaper.MediaTrack) callconv(.C) c_int {
     // Find the track in our model
     const track_ptr: *const Track = @alignCast(@ptrCast(track));
 
+    // NOTE: If we’re going to cast the track into a Track pointer,
+    // can’t we just dereference the pointer and get access in constant time?
     for (model.tracks.items) |*t| {
         if (@as(*const Track, @ptrCast(t)) == track_ptr) {
             return @intCast(t.fx_list.items.len);
@@ -217,6 +205,8 @@ fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     const track_ptr: *const Track = @alignCast(@ptrCast(tr));
     var track_idx: ?usize = null;
 
+    // NOTE: If we’re going to cast the track into a Track pointer,
+    // can’t we just dereference the pointer and get access in constant time?
     for (model.tracks.items, 0..) |*t, i| {
         if (@as(*const Track, @ptrCast(t)) == track_ptr) {
             track_idx = i;
@@ -235,18 +225,13 @@ fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     // Clean up the track's resources
     removed_track.deinit(model.tracks.allocator);
 
-    // Update track numbers for all tracks after deletion
-    for (model.tracks.items[1..], 1..) |*t, i| {
-        t.info.track_number = @intCast(i);
-    }
-
     // Update selected track indices
     var i: usize = 0;
-    while (i < model.selected_track_indices.items.len) {
-        if (model.selected_track_indices.items[i] == track_idx.?) {
-            _ = model.selected_track_indices.orderedRemove(i);
-        } else if (model.selected_track_indices.items[i] > track_idx.?) {
-            model.selected_track_indices.items[i] -= 1;
+    while (i < model.selected_tracks.items.len) {
+        if (model.selected_tracks.items[i] == track_idx.?) {
+            _ = model.selected_tracks.orderedRemove(i);
+        } else if (model.selected_tracks.items[i] > track_idx.?) {
+            model.selected_tracks.items[i] -= 1;
             i += 1;
         } else {
             i += 1;
@@ -379,16 +364,16 @@ fn SetTrackSelected(track: ?*Track, selected: bool, state: *RprModel) void {
         if (@as(*const Track, @ptrCast(t)) == track_ptr) {
             if (selected) {
                 // Check if already selected
-                for (state.selected_track_indices.items) |idx| {
+                for (state.selected_tracks.items) |idx| {
                     if (idx == i) return;
                 }
-                state.selected_track_indices.append(i) catch return;
+                state.selected_tracks.append(i) catch return;
             } else {
                 // Remove from selection if present
                 var j: usize = 0;
-                while (j < state.selected_track_indices.items.len) {
-                    if (state.selected_track_indices.items[j] == i) {
-                        _ = state.selected_track_indices.orderedRemove(j);
+                while (j < state.selected_tracks.items.len) {
+                    if (state.selected_tracks.items[j] == i) {
+                        _ = state.selected_tracks.orderedRemove(j);
                     } else {
                         j += 1;
                     }
@@ -401,9 +386,9 @@ fn SetTrackSelected(track: ?*Track, selected: bool, state: *RprModel) void {
 
 fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32, state: *RprModel) ?*Track {
     _ = project;
-    if (seltrackidx < 0 or seltrackidx >= state.selected_track_indices.items.len) return null;
+    if (seltrackidx < 0 or seltrackidx >= state.selected_tracks.items.len) return null;
 
-    const track_idx = state.selected_track_indices.items[@intCast(seltrackidx)];
+    const track_idx = state.selected_tracks.items[@intCast(seltrackidx)];
     return &state.tracks.items[track_idx];
 }
 
@@ -411,7 +396,7 @@ fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32, state: *RprModel) ?*
 fn initializeTestState(allocator: std.mem.Allocator) !RprModel {
     var state = RprModel{
         .tracks = std.ArrayList(Track).init(allocator),
-        .selected_track_indices = std.ArrayList(usize).init(allocator),
+        .selected_tracks = std.ArrayList(usize).init(allocator),
     };
 
     // Create a master track
@@ -426,7 +411,7 @@ fn initializeTestState(allocator: std.mem.Allocator) !RprModel {
         try state.tracks.append(.{
             .name = track_name,
             .fx_list = std.ArrayList(FX).init(allocator),
-            .info = .{ .track_number = @intCast(i + 1) },
+            .info = .{},
         });
     }
 
@@ -464,7 +449,6 @@ test "track creation and deletion with mock API" {
     for (1..4) |i| {
         const track = GetTrack(null, @intCast(i - 1), &model);
         try testing.expect(track != null);
-        try testing.expectEqual(@as(i32, @intCast(i)), track.?.info.track_number);
     }
 }
 
@@ -535,7 +519,7 @@ test "basic track operations" {
 
     // Test track selection
     SetTrackSelected(track1, true, &model);
-    try testing.expectEqual(@as(usize, 1), model.selected_track_indices.items.len);
+    try testing.expectEqual(@as(usize, 1), model.selected_tracks.items.len);
 
     const selected = GetSelectedTrack(null, 0, &model);
     try testing.expect(selected != null);
@@ -560,5 +544,5 @@ test "basic track operations" {
 
     // Test track deselection
     SetTrackSelected(track1, false, &model);
-    try testing.expectEqual(@as(usize, 0), model.selected_track_indices.items.len);
+    try testing.expectEqual(@as(usize, 0), model.selected_tracks.items.len);
 }

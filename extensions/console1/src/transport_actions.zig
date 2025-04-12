@@ -13,7 +13,7 @@ const track_list_actions = @import("tracklist_actions.zig");
 const RprCmds = @import("reaper_cmds.zig");
 const Globals = @import("globals.zig").Globals;
 
-const AutomationMode = enum(c_int) {
+pub const AutomationMode = enum(c_int) {
     trim,
     read,
     touch,
