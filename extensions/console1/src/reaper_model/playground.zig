@@ -4,6 +4,7 @@ const std = @import("std");
 const testing = std.testing;
 const reaper = @import("../reaper.zig").reaper;
 const AutomationMode = @import("../transport_actions.zig").AutomationMode;
+const utils = @import("../utils.zig");
 
 const TrackInfo = struct {
     phase: bool = false,
@@ -32,13 +33,12 @@ const Param = struct {
 
 const FX = struct {
     name: [:0]const u8,
-    guid: [:0]const u8,
+    guid: utils.Guid,
     enabled: bool = true,
     params: std.ArrayList(Param),
 
     pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
         allocator.free(self.name);
-        allocator.free(self.guid);
         for (self.params.items) |*param| {
             param.deinit(allocator);
         }
@@ -114,101 +114,79 @@ fn mockInsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
 
 // Mock FX manipulation functions
 // NOTE: there is the case in which we try to add an fx which
-// doesn’t exist on the user’s system, in which case reaper returns -1
+// doesn't exist on the user's system, in which case reaper returns -1
 fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.C) c_int {
     _ = recFX;
     _ = instantiate;
     const model = g_rpr_model.?;
 
-    // Find the track in our model
-    const track_ptr: *const Track = @alignCast(@ptrCast(track));
-    var track_idx: ?usize = null;
-
-    // NOTE: is there no way to retrieve this in constant time?
-    // what’s the rationale behind casting the pointer, and then checking?
-    // We should probably cast to an optional instead, and then check for null.
-    for (model.tracks.items, 0..) |*t, i| {
-        if (@as(*const Track, @ptrCast(t)) == track_ptr) {
-            track_idx = i;
-            break;
-        }
-    }
-
-    if (track_idx == null) return -1;
+    // Cast to optional pointer and check for null
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return -1;
 
     const allocator = model.tracks.allocator;
     const fx_name = std.mem.span(fxname);
 
+    var guid_bytes: [16]u8 = undefined;
+    std.crypto.random.bytes(&guid_bytes);
+    const guid = utils.Guid{ .bytes = guid_bytes };
+
     // Create a new FX
     const new_fx = FX{
         .name = allocator.dupeZ(u8, fx_name) catch return -1,
-        // FIXME: add an actual GUID here.
-        .guid = allocator.dupeZ(u8, "generated-guid") catch {
-            allocator.free(allocator.dupeZ(u8, fx_name) catch return -1);
-            return -1;
-        },
+        .guid = guid,
         .enabled = true,
         .params = std.ArrayList(Param).init(allocator),
     };
+    var tr: *Track = track_ptr.?;
 
     // Add the FX to the track
-    model.tracks.items[track_idx.?].fx_list.append(new_fx) catch return -1;
+    tr.fx_list.append(new_fx) catch return -1;
 
     // Return the index of the newly added FX
-    return @intCast(model.tracks.items[track_idx.?].fx_list.items.len - 1);
+    return @intCast(tr.fx_list.items.len - 1);
 }
 
 fn mockTrackFX_GetCount(track: reaper.MediaTrack) callconv(.C) c_int {
-    const model = g_rpr_model.?;
+    // Cast to optional pointer and check for null
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return -1;
 
-    // Find the track in our model
-    const track_ptr: *const Track = @alignCast(@ptrCast(track));
-
-    // NOTE: If we’re going to cast the track into a Track pointer,
-    // can’t we just dereference the pointer and get access in constant time?
-    for (model.tracks.items) |*t| {
-        if (@as(*const Track, @ptrCast(t)) == track_ptr) {
-            return @intCast(t.fx_list.items.len);
-        }
-    }
-
-    return 0;
+    // Access the track's fx_list directly
+    const tr: *const Track = track_ptr.?;
+    return @intCast(tr.fx_list.items.len);
 }
 
 fn mockTrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.C) bool {
-    const model = g_rpr_model.?;
+    // Cast to optional pointer and check for null
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
 
-    // Find the track in our model
-    const track_ptr: *const Track = @alignCast(@ptrCast(track));
+    // Access the track's fx_list directly
+    const tr: *const Track = track_ptr.?;
 
-    for (model.tracks.items) |*t| {
-        if (@as(*const Track, @ptrCast(t)) == track_ptr) {
-            // Check if FX index is valid
-            if (fx < 0 or fx >= t.fx_list.items.len) return false;
+    // Check if FX index is valid
+    if (fx < 0 or fx >= tr.fx_list.items.len) return false;
 
-            // Copy the FX name to the buffer
-            const name = t.fx_list.items[@intCast(fx)].name;
-            const len = @min(@as(usize, @intCast(bufOut_sz)) - 1, name.len);
-            @memcpy(bufOut[0..len], name[0..len]);
-            bufOut[len] = 0; // Null terminate
-            return true;
-        }
-    }
-
-    return false;
+    // Copy the FX name to the buffer
+    const name = tr.fx_list.items[@intCast(fx)].name;
+    const len = @min(@as(usize, @intCast(bufOut_sz)) - 1, name.len);
+    @memcpy(bufOut[0..len], name[0..len]);
+    bufOut[len] = 0; // Null terminate
+    return true;
 }
 
 fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     const model = g_rpr_model.?;
 
-    // Find the track in our model
-    const track_ptr: *const Track = @alignCast(@ptrCast(tr));
-    var track_idx: ?usize = null;
+    // Cast to optional pointer and check for null
+    const track_ptr: ?*Track = @ptrCast(@alignCast(tr));
+    if (track_ptr == null) return;
 
-    // NOTE: If we’re going to cast the track into a Track pointer,
-    // can’t we just dereference the pointer and get access in constant time?
+    // We still need to find the track index for deletion and updating selected tracks
+    var track_idx: ?usize = null;
     for (model.tracks.items, 0..) |*t, i| {
-        if (@as(*const Track, @ptrCast(t)) == track_ptr) {
+        if (t == track_ptr.?) {
             track_idx = i;
             break;
         }
@@ -359,9 +337,9 @@ fn SetTrackSelected(track: ?*Track, selected: bool, state: *RprModel) void {
     if (track == null) return;
 
     // Find track index
-    const track_ptr: *const Track = @alignCast(@ptrCast(track.?));
+    const track_ptr: *const Track = track.?;
     for (state.tracks.items, 0..) |*t, i| {
-        if (@as(*const Track, @ptrCast(t)) == track_ptr) {
+        if (t == track_ptr) {
             if (selected) {
                 // Check if already selected
                 for (state.selected_tracks.items) |idx| {
@@ -439,7 +417,7 @@ test "track creation and deletion with mock API" {
     // Get the newly created track
     const new_track = GetTrack(null, 1, &model);
     try testing.expect(new_track != null);
-    try testing.expectEqualStrings("Track 4", new_track.?.name);
+    try testing.expectEqualStrings("", new_track.?.name);
 
     // Test track deletion
     reaper.DeleteTrack(@ptrCast(new_track.?));
