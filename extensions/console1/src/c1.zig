@@ -168,6 +168,51 @@ pub const CCs = enum(u8) {
             else => unreachable,
         };
     }
+    pub fn isBtn(self: CCs) bool {
+        return switch (self) {
+            .Comp_comp,
+            .Eq_eq,
+            .Eq_hp_shape,
+            .Eq_lp_shape,
+            .Inpt_disp_mode,
+            .Inpt_disp_on,
+            .Inpt_filt_to_comp,
+            .Inpt_phase_inv,
+            .Inpt_preset,
+            .Out_mute,
+            .Out_solo,
+            .Shp_hard_gate,
+            .Shp_shape,
+            .Tr_ext_sidechain,
+            .Tr_order,
+            .Tr_pg_dn,
+            .Tr_pg_up,
+            .Tr_tr1,
+            .Tr_tr2,
+            .Tr_tr3,
+            .Tr_tr4,
+            .Tr_tr5,
+            .Tr_tr6,
+            .Tr_tr7,
+            .Tr_tr8,
+            .Tr_tr9,
+            .Tr_tr10,
+            .Tr_tr11,
+            .Tr_tr12,
+            .Tr_tr13,
+            .Tr_tr14,
+            .Tr_tr15,
+            .Tr_tr16,
+            .Tr_tr17,
+            .Tr_tr18,
+            .Tr_tr19,
+            .Tr_tr20,
+            .Tr_tr_copy,
+            .Tr_tr_grp,
+            => true,
+            else => false,
+        };
+    }
 };
 
 pub const Tracks = enum(u8) {

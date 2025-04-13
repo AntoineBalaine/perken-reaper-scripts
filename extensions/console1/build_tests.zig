@@ -60,10 +60,11 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
         "-o",
     };
 
+    // Exclude midi_wrapper.cpp since we're using our mock implementation
     const cppfiles = [_]std.Build.LazyPath{
         b.path("src/csurf/control_surface.cpp"),
         b.path("src/csurf/control_surface_wrapper.cpp"),
-        b.path("src/csurf/midi_wrapper.cpp"),
+        // b.path("src/csurf/midi_wrapper.cpp"), // Excluded to avoid duplicate symbols with our mock
         modstub,
         b.path("src/rapidcheck/rapidcheck_wrapper.cpp"),
     };
