@@ -1,10 +1,11 @@
-// reaper_model_test.zig - REAPER Model Testing Playground
-
 const std = @import("std");
 const testing = std.testing;
 const reaper = @import("../reaper.zig").reaper;
 const AutomationMode = @import("../transport_actions.zig").AutomationMode;
 const utils = @import("../utils.zig");
+const fx_model = @import("fx_model.zig");
+const Param = fx_model.Param;
+const FX = fx_model.FX;
 
 const TrackInfo = struct {
     phase: bool = false,
@@ -18,32 +19,6 @@ const TrackInfo = struct {
 const PeakInfo = struct {
     left: f64 = 0.0,
     right: f64 = 0.0,
-};
-
-const Param = struct {
-    name: [:0]const u8,
-    normalized_value: f64 = 0.0,
-    formatted_value: [:0]const u8,
-
-    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        allocator.free(self.formatted_value);
-    }
-};
-
-const FX = struct {
-    name: [:0]const u8,
-    guid: utils.Guid,
-    enabled: bool = true,
-    params: std.ArrayList(Param),
-
-    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        for (self.params.items) |*param| {
-            param.deinit(allocator);
-        }
-        self.params.deinit();
-    }
 };
 
 const Track = struct {
@@ -63,7 +38,7 @@ const Track = struct {
 };
 
 // REAPER Model
-const RprModel = struct {
+const Session = struct {
     tracks: std.ArrayList(Track),
     selected_tracks: std.ArrayList(usize),
     last_touched_track_index: ?usize = null,
@@ -81,17 +56,17 @@ const RprModel = struct {
 };
 
 // Global model state
-var g_rpr_model: ?*RprModel = null;
+var g_session: ?*Session = null;
 
 // Helper to set the current model for testing
-pub fn setCurrentModel(model: *RprModel) void {
-    g_rpr_model = model;
+pub fn setCurrentModel(model: *Session) void {
+    g_session = model;
 }
 
 // Mock REAPER API functions with the same signatures as the real API
 fn mockInsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
     _ = wantDefaults;
-    const model = g_rpr_model.?;
+    const model = g_session.?;
     const allocator = model.tracks.allocator;
 
     // Determine the actual index in our tracks array (accounting for master track at index 0)
@@ -118,13 +93,13 @@ fn mockInsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
 fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.C) c_int {
     _ = recFX;
     _ = instantiate;
-    const model = g_rpr_model.?;
+    const session = g_session.?;
 
     // Cast to optional pointer and check for null
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return -1;
 
-    const allocator = model.tracks.allocator;
+    const allocator = session.tracks.allocator;
     const fx_name = std.mem.span(fxname);
 
     var guid_bytes: [16]u8 = undefined;
@@ -132,11 +107,15 @@ fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX:
     const guid = utils.Guid{ .bytes = guid_bytes };
 
     // Create a new FX
+    const name = allocator.dupeZ(u8, fx_name) catch return -1;
     const new_fx = FX{
-        .name = allocator.dupeZ(u8, fx_name) catch return -1,
         .guid = guid,
         .enabled = true,
-        .params = std.ArrayList(Param).init(allocator),
+        .params = &[_]Param{},
+        .named_configs = .{
+            .renamed_name = name,
+            .original_name = name,
+        },
     };
     var tr: *Track = track_ptr.?;
 
@@ -169,7 +148,7 @@ fn mockTrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, b
     if (fx < 0 or fx >= tr.fx_list.items.len) return false;
 
     // Copy the FX name to the buffer
-    const name = tr.fx_list.items[@intCast(fx)].name;
+    const name = tr.fx_list.items[@intCast(fx)].named_configs.renamed_name;
     const len = @min(@as(usize, @intCast(bufOut_sz)) - 1, name.len);
     @memcpy(bufOut[0..len], name[0..len]);
     bufOut[len] = 0; // Null terminate
@@ -177,7 +156,7 @@ fn mockTrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, b
 }
 
 fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
-    const model = g_rpr_model.?;
+    const model = g_session.?;
 
     // Cast to optional pointer and check for null
     const track_ptr: ?*Track = @ptrCast(@alignCast(tr));
@@ -227,7 +206,7 @@ fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
 }
 
 // Helper functions to set up and tear down the mock API
-pub fn setupMockReaperAPI(model: *RprModel) struct {
+pub fn setupMockReaperAPI(model: *Session) struct {
     origInsertTrackAtIndex: @TypeOf(reaper.InsertTrackAtIndex),
     origDeleteTrack: @TypeOf(reaper.DeleteTrack),
     origTrackFX_AddByName: @TypeOf(reaper.TrackFX_AddByName),
@@ -260,27 +239,27 @@ pub fn restoreMockReaperAPI(origFuncs: anytype) void {
     @constCast(&reaper.TrackFX_GetCount).* = origFuncs.origTrackFX_GetCount;
     @constCast(&reaper.TrackFX_GetFXName).* = origFuncs.origTrackFX_GetFXName;
 
-    g_rpr_model = null;
+    g_session = null;
 }
 
 // Mock REAPER API functions
-fn GetNumTracks(project: ?*anyopaque, state: *RprModel) i32 {
+fn GetNumTracks(project: ?*anyopaque, state: *Session) i32 {
     _ = project;
     return @intCast(state.tracks.items.len - 1); // Don't count master track
 }
 
-fn CountTracks(project: ?*anyopaque, state: *RprModel) i32 {
+fn CountTracks(project: ?*anyopaque, state: *Session) i32 {
     _ = project;
     return @intCast(state.tracks.items.len); // Count all tracks including master
 }
 
-fn GetTrack(project: ?*anyopaque, trackidx: i32, state: *RprModel) ?*Track {
+fn GetTrack(project: ?*anyopaque, trackidx: i32, state: *Session) ?*Track {
     _ = project;
     if (trackidx < 0 or trackidx >= state.tracks.items.len - 1) return null;
     return &state.tracks.items[@as(usize, @intCast(trackidx)) + 1]; // Skip master track
 }
 
-fn GetMasterTrack(project: ?*anyopaque, state: *RprModel) ?*Track {
+fn GetMasterTrack(project: ?*anyopaque, state: *Session) ?*Track {
     _ = project;
     return &state.tracks.items[0];
 }
@@ -333,7 +312,7 @@ fn GetMediaTrackInfo_Value(track: ?*Track, parmname: [*:0]const u8) f64 {
     return 0;
 }
 
-fn SetTrackSelected(track: ?*Track, selected: bool, state: *RprModel) void {
+fn SetTrackSelected(track: ?*Track, selected: bool, state: *Session) void {
     if (track == null) return;
 
     // Find track index
@@ -362,7 +341,7 @@ fn SetTrackSelected(track: ?*Track, selected: bool, state: *RprModel) void {
     }
 }
 
-fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32, state: *RprModel) ?*Track {
+fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32, state: *Session) ?*Track {
     _ = project;
     if (seltrackidx < 0 or seltrackidx >= state.selected_tracks.items.len) return null;
 
@@ -371,8 +350,8 @@ fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32, state: *RprModel) ?*
 }
 
 // Test initialization helper
-fn initializeTestState(allocator: std.mem.Allocator) !RprModel {
-    var state = RprModel{
+fn initializeTestState(allocator: std.mem.Allocator) !Session {
+    var state = Session{
         .tracks = std.ArrayList(Track).init(allocator),
         .selected_tracks = std.ArrayList(usize).init(allocator),
     };
