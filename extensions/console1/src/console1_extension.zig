@@ -84,4 +84,5 @@ test {
     _ = @import("rapidcheck/rapidcheck_tests.zig");
     _ = @import("models/playground.zig");
     _ = @import("tests/c1_model_tests.zig");
+    _ = @import("tests/mode_switch_tests.zig");
 }

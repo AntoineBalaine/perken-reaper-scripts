@@ -1,3 +1,4 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const imgui = @import("reaper_imgui.zig");
@@ -47,6 +48,9 @@ fn init() !void {
 }
 
 pub fn register() void {
+    if (comptime builtin.is_test) {
+        return;
+    }
     if (isImGuiAvailable()) {
         _ = reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
     } else {
@@ -55,6 +59,9 @@ pub fn register() void {
 }
 
 pub fn reset() void {
+    if (comptime builtin.is_test) {
+        return;
+    }
     ctx = null;
     _ = reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
 }

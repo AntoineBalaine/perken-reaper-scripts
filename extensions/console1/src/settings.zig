@@ -7,7 +7,7 @@ const log = std.log.scoped(.preferences);
 const fs_helpers = @import("fs_helpers.zig");
 
 // Hard-coded fallback defaults as EnumMap
-const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
+pub const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{
     .INPUT = "JS: Volume/Pan Smoother v5",
     .GATE = "VST: ReaGate (Cockos)",
     .EQ = "VST: ReaEQ (Cockos)",

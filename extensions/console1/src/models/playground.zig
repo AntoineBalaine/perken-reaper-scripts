@@ -38,7 +38,7 @@ const Track = struct {
 };
 
 // REAPER Model
-const Session = struct {
+pub const Session = struct {
     tracks: std.ArrayList(Track),
     selected_tracks: std.ArrayList(usize),
     last_touched_track_index: ?usize = null,
@@ -349,8 +349,8 @@ fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32, state: *Session) ?*T
     return &state.tracks.items[track_idx];
 }
 
-// Test initialization helper
-fn initializeTestState(allocator: std.mem.Allocator) !Session {
+/// create a master track and three tracks
+pub fn initializeTestState(allocator: std.mem.Allocator) !Session {
     var state = Session{
         .tracks = std.ArrayList(Track).init(allocator),
         .selected_tracks = std.ArrayList(usize).init(allocator),

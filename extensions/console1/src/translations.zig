@@ -366,7 +366,7 @@ pub const StringStore = struct {
         return start_slice[0..std.mem.indexOfScalar(u8, start_slice, 0).? :0];
     }
 
-    fn loadDefaults(self: *StringStore, g_arena: std.mem.Allocator) !void {
+    pub fn loadDefaults(self: *StringStore, g_arena: std.mem.Allocator) !void {
         // Iterate over all possible translation keys
         inline for (std.meta.fields(TranslationKey)) |field| {
             const key = @field(TranslationKey, field.name);
