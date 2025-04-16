@@ -82,7 +82,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
 test {
     std.testing.refAllDecls(@This());
     _ = @import("rapidcheck/rapidcheck_tests.zig");
-    _ = @import("models/playground.zig");
+    _ = @import("models/models.zig");
     _ = @import("tests/c1_model_tests.zig");
     _ = @import("tests/mode_switch_tests.zig");
 }

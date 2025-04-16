@@ -1,4 +1,5 @@
 const std = @import("std");
+const models = @import("../models/models.zig");
 const extension = @import("../console1_extension.zig");
 const TestRunner = @import("../test_runner.zig");
 const reaper = @import("../reaper.zig").reaper;
@@ -7,7 +8,7 @@ const TrackState = @import("../track_state.zig");
 const RprCmds = @import("../reaper_cmds.zig");
 const DefaultFx = @import("../settings.zig").DefaultFx;
 const utils = @import("../utils.zig");
-const MapStore = @import("../mappings.zig");
+
 const log = std.log.scoped(.track_tests);
 
 pub fn runTrackStateTests() !void {
