@@ -6,54 +6,9 @@ const utils = @import("../utils.zig");
 const fx_model = @import("fx_model.zig");
 const Param = fx_model.Param;
 const FX = fx_model.FX;
-
-const TrackInfo = struct {
-    phase: bool = false,
-    num_channels: i32 = 2,
-    volume: f64 = 1.0,
-    pan: f64 = 0.0,
-    mute: bool = false,
-    solo: i32 = 0,
-};
-
-const PeakInfo = struct {
-    left: f64 = 0.0,
-    right: f64 = 0.0,
-};
-
-const Track = struct {
-    name: [:0]const u8,
-    fx_list: std.ArrayList(FX),
-    automation_mode: AutomationMode = .read,
-    info: TrackInfo = .{},
-    peak_info: ?PeakInfo = null,
-
-    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
-        allocator.free(self.name);
-        for (self.fx_list.items) |*fx| {
-            fx.deinit(allocator);
-        }
-        self.fx_list.deinit();
-    }
-};
-
-// REAPER Model
-pub const Session = struct {
-    tracks: std.ArrayList(Track),
-    selected_tracks: std.ArrayList(usize),
-    last_touched_track_index: ?usize = null,
-    cursor_position: f64 = 0.0,
-    global_automation_mode: AutomationMode = .read,
-
-    pub fn deinit(self: *@This()) void {
-        const allocator = self.tracks.allocator;
-        for (self.tracks.items) |*track| {
-            track.deinit(allocator);
-        }
-        self.tracks.deinit();
-        self.selected_tracks.deinit();
-    }
-};
+const track_model = @import("track_model.zig");
+const Track = track_model.Track;
+const Session = track_model.Session;
 
 // Global model state
 var g_session: ?*Session = null;
@@ -452,20 +407,19 @@ test "fx operations with mock API" {
     try testing.expect(!got_name3);
 }
 
-test "basic track operations" {
+test "mock reaper API track operations" {
     var allocator = testing.allocator;
     _ = &allocator;
-    var model = try initializeTestState(allocator);
+    var model = try track_model.initializeTestState(allocator);
     defer model.deinit();
 
-    // Test track count
+    // Test track count via mock API
     const num_tracks = GetNumTracks(null, &model);
-    try testing.expectEqual(@as(i32, 3), num_tracks);
-
+    try testing.expectEqual(@as(i32, 3), num_tracks); // Regular tracks only
     const total_tracks = CountTracks(null, &model);
-    try testing.expectEqual(@as(i32, 4), total_tracks); // 3 regular + master
+    try testing.expectEqual(@as(i32, 4), total_tracks); // Including master
 
-    // Test track retrieval
+    // Test track retrieval via mock API
     const track1 = GetTrack(null, 0, &model);
     try testing.expect(track1 != null);
     try testing.expectEqualStrings("Track 1", track1.?.name);
@@ -474,7 +428,7 @@ test "basic track operations" {
     try testing.expect(master != null);
     try testing.expectEqualStrings("Master", master.?.name);
 
-    // Test track selection
+    // Test track selection via mock API
     SetTrackSelected(track1, true, &model);
     try testing.expectEqual(@as(usize, 1), model.selected_tracks.items.len);
 
@@ -482,24 +436,17 @@ test "basic track operations" {
     try testing.expect(selected != null);
     try testing.expectEqualStrings("Track 1", selected.?.name);
 
-    // Test volume
-    const initial_vol = GetMediaTrackInfo_Value(track1, "D_VOL");
-    try testing.expectEqual(@as(f64, 1.0), initial_vol);
-
+    // Test track parameters via mock API
     _ = SetMediaTrackInfo_Value(track1, "D_VOL", 0.5);
-    const new_vol = GetMediaTrackInfo_Value(track1, "D_VOL");
-    try testing.expectEqual(@as(f64, 0.5), new_vol);
+    try testing.expectEqual(@as(f64, 0.5), GetMediaTrackInfo_Value(track1, "D_VOL"));
 
-    // Test mute and solo
     _ = SetMediaTrackInfo_Value(track1, "B_MUTE", 1.0);
-    const mute = GetMediaTrackInfo_Value(track1, "B_MUTE");
-    try testing.expectEqual(@as(f64, 1.0), mute);
+    try testing.expectEqual(@as(f64, 1.0), GetMediaTrackInfo_Value(track1, "B_MUTE"));
 
     _ = SetMediaTrackInfo_Value(track1, "I_SOLO", 1.0);
-    const solo = GetMediaTrackInfo_Value(track1, "I_SOLO");
-    try testing.expectEqual(@as(f64, 1.0), solo);
+    try testing.expectEqual(@as(f64, 1.0), GetMediaTrackInfo_Value(track1, "I_SOLO"));
 
-    // Test track deselection
+    // Test track deselection via mock API
     SetTrackSelected(track1, false, &model);
     try testing.expectEqual(@as(usize, 0), model.selected_tracks.items.len);
 }
