@@ -1,6 +1,6 @@
 const std = @import("std");
 const rapidcheck = @cImport({
-    @cInclude("rapidcheck_wrapper.h");
+    @cInclude("tests/rapidcheck/rapidcheck_wrapper.h");
 });
 
 // Example Zig function

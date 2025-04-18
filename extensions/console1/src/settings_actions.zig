@@ -166,3 +166,24 @@ fn countFields(comptime T: type) comptime_int {
         else => @compileError("Unsupported type: " ++ @typeName(T)),
     };
 }
+pub const RC_SettingsUpdate = extern struct {
+    field: [64]u8,
+    is_bool: bool,
+    bool_value: bool,
+    string_value: [128]u8,
+};
+
+pub const RC_SettingsAction = extern struct {
+    action_type: RC_SettingsActionType,
+    update: RC_SettingsUpdate,
+    scroll_pos: u8,
+};
+
+pub const RC_SettingsActionType = enum(c_int) {
+    Open,
+    Save,
+    Cancel,
+    Scroll,
+    Toggle,
+    Update,
+};

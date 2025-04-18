@@ -111,3 +111,5 @@ uint8_t rc_c1model_get_value(const RC_C1Model* model, RC_C1_CC cc);
 }
 #endif
 
+#endif
+

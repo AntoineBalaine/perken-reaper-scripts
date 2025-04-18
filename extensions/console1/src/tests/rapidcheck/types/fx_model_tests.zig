@@ -1,9 +1,9 @@
 const std = @import("std");
 const testing = std.testing;
 const cFxModel = @cImport({
-    @cInclude("../rapidcheck/types/fx_model.h");
+    @cInclude("tests/rapidcheck/types/fx_model.h");
 });
-const fx_model = @import("../../models/fx_model.zig");
+const fx_model = @import("../../../models/fx_model.zig");
 
 // Test creating and freeing a parameter
 test "RC_Param creation and cleanup" {

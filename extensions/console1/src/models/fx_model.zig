@@ -62,5 +62,5 @@ pub fn deinitCFX(fx: *cFxModel.RC_FX, allocator: std.mem.Allocator) void {
 const std = @import("std");
 const utils = @import("../utils.zig");
 const cFxModel = @cImport({
-    @cInclude("../rapidcheck/types/fx_model.h");
+    @cInclude("tests/rapidcheck/types/fx_model.h");
 });

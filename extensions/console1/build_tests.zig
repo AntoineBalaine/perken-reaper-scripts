@@ -66,7 +66,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
         // b.path("src/csurf/control_surface_wrapper.cpp"),
         // b.path("src/csurf/midi_wrapper.cpp"), // Excluded to avoid duplicate symbols with our mock
         modstub,
-        b.path("src/rapidcheck/rapidcheck_wrapper.cpp"),
+        b.path("src/tests/rapidcheck/rapidcheck_wrapper.cpp"),
     };
 
     inline for (cppfiles) |cppfile| {
