@@ -91,9 +91,9 @@ struct CancelSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
 
 // Scroll Settings Command
 struct ScrollSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
-    u8 position;
+    uint8_t position;
     
-    explicit ScrollSettings(u8 pos) : position(pos) {}
+    explicit ScrollSettings(uint8_t pos) : position(pos) {}
     
     void checkPreconditions(const SettingsModel& model) const override {
         RC_PRE(model.panel_open);
@@ -106,7 +106,7 @@ struct ScrollSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
     void run(const SettingsModel& model, RC_TestEnvironment* env) const override {
         RC_SettingsAction action;
         action.action_type = RC_SettingsActionType::Scroll;
-        action.scroll_pos = position;
+        action.data.scroll_pos = position;
         
         rc_dispatch_settings_action(env, &action);
         
@@ -147,10 +147,10 @@ struct UpdateSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
 
     void apply(SettingsModel& model) const override {
         std::string field(update.field);
-        if (update.is_bool) {
-            model.bool_settings[field] = update.bool_value;
-        } else {
-            model.string_settings[field] = std::string(update.string_value);
+        if (update.type == BOOL_SETTING) {
+            model.bool_settings[field] = update.value.bool_value;
+        } else if (update.type == STRING_SETTING) {
+            model.string_settings[field] = std::string(update.value.string_value);
         }
     }
 
@@ -163,13 +163,13 @@ struct UpdateSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
         
         // Verify the setting was updated
         std::string field(update.field);
-        if (update.is_bool) {
-            RC_ASSERT(rc_get_settings_bool(env, update.field) == update.bool_value);
-        } else {
+        if (update.type == BOOL_SETTING) {
+            RC_ASSERT(rc_get_settings_bool(env, update.field) == update.value.bool_value);
+        } else if (update.type == STRING_SETTING) {
             // Compare string value
             char buffer[128];
             rc_get_settings_string(env, update.field, buffer, sizeof(buffer));
-            RC_ASSERT(std::string(buffer) == std::string(update.string_value));
+            RC_ASSERT(std::string(buffer) == std::string(update.value.string_value));
         }
     }
 };
