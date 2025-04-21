@@ -102,7 +102,21 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     // Create and configure the test step
     const run_test = b.addRunArtifact(test_exe);
 
+    // Add a no-run option to build tests without running them
+    const no_run = b.option(bool, "no-run", "Build tests without running them") orelse false;
+
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&install_test.step);
-    test_step.dependOn(&run_test.step);
+
+    if (!no_run) {
+        // Only run tests if no-run is not specified
+        test_step.dependOn(&run_test.step);
+    } else {
+        // When no-run is specified, add a step to print the test executable path
+        const print_path = b.addSystemCommand(&[_][]const u8{
+            "echo",
+            b.fmt("Test executable path: {s}", .{b.getInstallPath(.bin, test_exe.name)}),
+        });
+        test_step.dependOn(&print_path.step);
+    }
 }
