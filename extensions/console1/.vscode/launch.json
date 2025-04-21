@@ -41,30 +41,6 @@
     },
 
     {
-      "type": "codelldb",
-      "request": "launch",
-      "name": "codelldb-test",
-      "program": "/Users/a266836/Documents/personnel/Experiments/reaper/zigExt/reaperZigWrap/.zig-cache/o/d24f4d9fd5315161b082fafb939e65fe/test",
-      "args": [],
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "type": "codelldb",
-      "request": "launch",
-      "name": "codellb-ReaperDebug",
-      "program": "/Applications/REAPER.app/Contents/MacOS/REAPER",
-      "args": ["new"],
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "type": "codelldb",
-      "request": "launch",
-      "name": "codelldb-buildTests",
-      "program": "${workspaceFolder}/zig-out/bin/reaper_zig_tests",
-      "args": [],
-      "cwd": "${workspaceFolder}"
-    }
-    {
       "type": "lldb",
       "request": "launch",
       "name": "TestDebug",
