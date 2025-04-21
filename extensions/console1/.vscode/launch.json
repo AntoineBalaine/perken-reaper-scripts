@@ -48,7 +48,6 @@
       "args": [],
       "cwd": "${workspaceFolder}"
     },
-
     {
       "type": "lldb",
       "request": "launch",
@@ -63,7 +62,8 @@
       "name": "ReaperDebug",
       "program": "/Applications/REAPER.app/Contents/MacOS/REAPER",
       "args": ["new"],
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+      "initCommands": ["command source ${workspaceFolder}/.lldbinit"]
     },
     {
       "type": "lldb",
@@ -71,7 +71,8 @@
       "name": "Debug Tests",
       "preLaunchTask": "build-test-debug",
       "program": "${workspaceFolder}/zig-out/bin/reaper_zig_tests",
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+      "initCommands": ["command source ${workspaceFolder}/.lldbinit"]
     }
   ]
 }

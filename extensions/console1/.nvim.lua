@@ -39,6 +39,33 @@ vim.api.nvim_create_autocmd("FileType", {
 	end,
 })
 
+-- ### Example Debug Console Commands
+-- Here are some useful LLDB commands for your scenario:
+-- 1. **Inspect the Pointer to the Array List**:
+--    ```lldb
+--    (lldb) expr state.tracks.items.ptr
+--    ```
+--
+-- 2. **Dereference the Pointer and Access an Element**:
+--    ```lldb
+--    (lldb) expr state.tracks.items.ptr[1]
+--    ```
+--
+-- 3. **Access a Field of an Element**:
+--    ```lldb
+--    (lldb) expr state.tracks.items.ptr[1].name
+--    ```
+--
+-- 4. **Read Raw Memory**:
+--    ```lldb
+--    (lldb) memory read --size 1 --format x state.tracks.items.ptr
+--    ```
+--
+-- 5. **Inspect the Entire Array List**:
+--    ```lldb
+--    (lldb) frame variable state.tracks
+--    ```
+
 -- DAP configurations for codelldb
 local dap = require("dap")
 
