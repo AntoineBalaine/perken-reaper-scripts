@@ -1,6 +1,13 @@
 // src/rapidcheck/commands/settings_commands.cpp
 #include "rapidcheck_wrapper.h"
 #include "types/settings_types.h"
+#include "settings_test.h"
+#include <string>
+#include <vector>
+#include <unordered_map>
+
+#include <rapidcheck.h>
+#include <rapidcheck/state.h>
 #include <string>
 #include <vector>
 
@@ -25,7 +32,7 @@ public:
 };
 
 // Open Settings Command
-struct OpenSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
+struct OpenSettings : rc::state::Command<SettingsModel, RC_TestEnvironment> {
     void checkPreconditions(const SettingsModel& model) const override {
         RC_PRE(!model.panel_open);
     }
@@ -34,18 +41,19 @@ struct OpenSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
         model.panel_open = true;
     }
 
-    void run(const SettingsModel& model, RC_TestEnvironment* env) const override {
+    void run(const SettingsModel& model, RC_TestEnvironment & env) const override {
         RC_SettingsAction action;
-        action.action_type = RC_SettingsActionType::Open;
+        action.action_type = OPEN;
         
-        rc_dispatch_settings_action(env, &action);
         
-        RC_ASSERT(rc_is_settings_panel_open(env));
+        rc_dispatch_settings_action(env.zig_env, action);
+        
+        RC_ASSERT(rc_is_settings_panel_open(env.zig_env));
     }
 };
 
 // Save Settings Command
-struct SaveSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
+struct SaveSettings : rc::state::Command<SettingsModel, RC_TestEnvironment> {
     void checkPreconditions(const SettingsModel& model) const override {
         RC_PRE(model.panel_open);
     }
@@ -55,13 +63,13 @@ struct SaveSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
         // When saving, temp settings become permanent
     }
 
-    void run(const SettingsModel& model, RC_TestEnvironment* env) const override {
+    void run(const SettingsModel& model, RC_TestEnvironment &env) const override {
         RC_SettingsAction action;
-        action.action_type = RC_SettingsActionType::Save;
+        action.action_type = SAVE;
         
-        rc_dispatch_settings_action(env, &action);
+        rc_dispatch_settings_action(env.zig_env, action);
         
-        RC_ASSERT(!rc_is_settings_panel_open(env));
+        RC_ASSERT(!rc_is_settings_panel_open(env.zig_env));
         
         // Verify settings were saved
         // This would need to query the actual preferences
@@ -69,7 +77,7 @@ struct SaveSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
 };
 
 // Cancel Settings Command
-struct CancelSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
+struct CancelSettings : rc::state::Command<SettingsModel, RC_TestEnvironment> {
     void checkPreconditions(const SettingsModel& model) const override {
         RC_PRE(model.panel_open);
     }
@@ -79,18 +87,18 @@ struct CancelSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
         // When canceling, temp settings are discarded
     }
 
-    void run(const SettingsModel& model, RC_TestEnvironment* env) const override {
+    void run(const SettingsModel& model, RC_TestEnvironment &env) const override {
         RC_SettingsAction action;
-        action.action_type = RC_SettingsActionType::Cancel;
+        action.action_type = CANCEL;
         
-        rc_dispatch_settings_action(env, &action);
+        rc_dispatch_settings_action(env.zig_env, action);
         
-        RC_ASSERT(!rc_is_settings_panel_open(env));
+        RC_ASSERT(!rc_is_settings_panel_open(env.zig_env));
     }
 };
 
 // Scroll Settings Command
-struct ScrollSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
+struct ScrollSettings : rc::state::Command<SettingsModel, RC_TestEnvironment> {
     uint8_t position;
     
     explicit ScrollSettings(uint8_t pos) : position(pos) {}
@@ -103,19 +111,19 @@ struct ScrollSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
         model.scroll_position = position;
     }
 
-    void run(const SettingsModel& model, RC_TestEnvironment* env) const override {
+    void run(const SettingsModel& model, RC_TestEnvironment &env) const override {
         RC_SettingsAction action;
-        action.action_type = RC_SettingsActionType::Scroll;
+        action.action_type = SCROLL;
         action.data.scroll_pos = position;
         
-        rc_dispatch_settings_action(env, &action);
+        rc_dispatch_settings_action(env.zig_env, action);
         
-        RC_ASSERT(rc_get_settings_scroll_position(env) == position);
+        RC_ASSERT(rc_get_settings_scroll_position(env.zig_env) == position);
     }
 };
 
 // Toggle Settings Command
-struct ToggleSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
+struct ToggleSettings : rc::state::Command<SettingsModel, RC_TestEnvironment> {
     void checkPreconditions(const SettingsModel& model) const override {
         RC_PRE(model.panel_open);
     }
@@ -125,18 +133,18 @@ struct ToggleSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
         // This would need knowledge of which setting is selected
     }
 
-    void run(const SettingsModel& model, RC_TestEnvironment* env) const override {
+    void run(const SettingsModel& model, RC_TestEnvironment &env) const override {
         RC_SettingsAction action;
-        action.action_type = RC_SettingsActionType::Toggle;
+        action.action_type = TOGGLE;
         
-        rc_dispatch_settings_action(env, &action);
+        rc_dispatch_settings_action(env.zig_env, action);
         
         // Verify toggle happened
     }
 };
 
 // Update Settings Command
-struct UpdateSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
+struct UpdateSettings : rc::state::Command<SettingsModel, RC_TestEnvironment> {
     RC_SettingsUpdate update;
     
     explicit UpdateSettings(const RC_SettingsUpdate& u) : update(u) {}
@@ -154,21 +162,21 @@ struct UpdateSettings : rc::state::Command<SettingsModel, RC_TestEnvironment*> {
         }
     }
 
-    void run(const SettingsModel& model, RC_TestEnvironment* env) const override {
+    void run(const SettingsModel& model, RC_TestEnvironment &env) const override {
         RC_SettingsAction action;
-        action.action_type = RC_SettingsActionType::Update;
-        action.update = update;
+        action.action_type = UPDATE;
+        action.data.update = update;
         
-        rc_dispatch_settings_action(env, &action);
+        rc_dispatch_settings_action(env.zig_env, action);
         
         // Verify the setting was updated
         std::string field(update.field);
         if (update.type == BOOL_SETTING) {
-            RC_ASSERT(rc_get_settings_bool(env, update.field) == update.value.bool_value);
+            RC_ASSERT(rc_get_settings_bool(env.zig_env, update.field) == update.value.bool_value);
         } else if (update.type == STRING_SETTING) {
             // Compare string value
             char buffer[128];
-            rc_get_settings_string(env, update.field, buffer, sizeof(buffer));
+            rc_get_settings_string(env.zig_env, update.field, buffer, sizeof(buffer));
             RC_ASSERT(std::string(buffer) == std::string(update.value.string_value));
         }
     }

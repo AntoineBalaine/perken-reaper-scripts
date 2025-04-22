@@ -18,13 +18,13 @@ void* rc_initialize_zig_environment(void);
 void rc_cleanup_zig_environment(void* env);
 
 // Dispatch a settings action to the Zig implementation
-void rc_dispatch_settings_action(RC_TestEnvironment* env, RC_SettingsAction* action);
+void rc_dispatch_settings_action(void* env, RC_SettingsAction action);
 
 // Query functions for verifying state
-bool rc_is_settings_panel_open(RC_TestEnvironment* env);
-uint8_t rc_get_settings_scroll_position(RC_TestEnvironment* env);
-bool rc_get_settings_bool(RC_TestEnvironment* env, const char* field);
-void rc_get_settings_string(RC_TestEnvironment* env, const char* field, char* buffer, size_t buffer_size);
+bool rc_is_settings_panel_open(void* env);
+uint8_t rc_get_settings_scroll_position(void* env);
+bool rc_get_settings_bool(void* env, const char* field);
+void rc_get_settings_string(void* env, const char* field, char* buffer, size_t buffer_size);
 
 // Run stateful settings tests
 bool rc_run_settings_tests();

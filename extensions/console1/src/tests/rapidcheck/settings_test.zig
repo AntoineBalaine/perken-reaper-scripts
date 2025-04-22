@@ -25,10 +25,10 @@ const StatefulTest = struct {
     }
 };
 
-export fn rc_dispatch_settings_action(env: *anyopaque, action: *rapidcheck.RC_SettingsAction) void {
+export fn rc_dispatch_settings_action(env: *anyopaque, action: rapidcheck.RC_SettingsAction) void {
     const test_env: *StatefulTest = @ptrCast(@alignCast(env));
 
-    switch (@as(rapidcheck.RC_SettingsActionType, action.action_type)) {
+    switch (action.action_type) {
         rapidcheck.OPEN => {
             actions.dispatch(&test_env.globals, .{ .settings = .open });
         },

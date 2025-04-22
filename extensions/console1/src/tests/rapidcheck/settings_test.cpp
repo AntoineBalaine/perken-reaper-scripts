@@ -1,31 +1,15 @@
 #include "rapidcheck_wrapper.h"
 #include "settings_test.h"
 #include "types/settings_types.h"
+#include "settings_commands.cpp"
 #include <rapidcheck.h>
 #include <rapidcheck/state.h>
 #include <string>
 #include <vector>
 #include <cstring>
 
-// Create and initialize the test environment
-RC_TestEnvironment* rc_create_test_environment() {
-    RC_TestEnvironment* env = new RC_TestEnvironment();
-    
-    // Initialize the Zig side using the function declared in the header
-    env->zig_env = rc_initialize_zig_environment();
-    
-    return env;
-}
 
 // Clean up the test environment
-void rc_destroy_test_environment(RC_TestEnvironment* env) {
-    if (env) {
-        // Clean up the Zig side using the function declared in the header
-        rc_cleanup_zig_environment(env->zig_env);
-        
-        delete env;
-    }
-}
 
 // Generator for RC_SettingsUpdate
 namespace rc {
@@ -70,53 +54,51 @@ namespace rc {
     };
 }
 
-// extern "C" bool rc_run_settings_tests() {
-//     // Create the test environment
-//     RC_TestEnvironment* env = rc_create_test_environment();
-//     if (!env || !env->zig_env) {
-//         return false;
-//     }
-//
-//     try {
-//         // Run the state machine test
-//         bool result = rc::check([env](void) {
-//             // Model of settings state
-//             SettingsModel model;
-//
-//             // Generate a random sequence of commands
-//             auto cmds = *rc::state::gen::execOneOfWithArgs<
-//                 OpenSettings,
-//                 SaveSettings,
-//                 CancelSettings,
-//                 ScrollSettings,
-//                 ToggleSettings,
-//                 UpdateSettings
-//             >(
-//                 rc::state::gen::withSize(10)  // Limit to 10 commands per test
-//             );
-//
-//             // Apply the commands to both the model and the system
-//             rc::state::check(model, env->zig_env, cmds);
-//
-//             return true;
-//         });
-//
-//         // Clean up
-//         rc_destroy_test_environment(env);
-//
-//         return result;
-//     } catch (const std::exception& e) {
-//         // Handle exceptions
-//         if (env) {
-//             rc_destroy_test_environment(env);
-//         }
-//         return false;
-//     }
-// }
+extern "C" bool rc_run_settings_tests() {
+    // Create the test environment
+    RC_TestEnvironment env;
+    env.zig_env = rc_initialize_zig_environment();
+
+    if (!env.zig_env) {
+        return false;
+    }
+
+    try {
+        // Run the state machine test
+
+        bool result = rc::check([&env](void) {  // Use reference to env
+            // Model of settings state
+            SettingsModel model;
+
+            rc::state::check(model, 
+                             env, 
+                             rc::state::gen::execOneOfWithArgs<
+                                OpenSettings,
+                                SaveSettings,
+                                CancelSettings,
+                                ToggleSettings
+                                // ScrollSettings,
+                                // UpdateSettings
+                             >());
+
+            return true;
+        });
+
+        rc_cleanup_zig_environment(env.zig_env);
+
+        return result;
+    } catch (const std::exception& e) {
+        // Handle exceptions
+        if (env.zig_env != nullptr) {
+            rc_cleanup_zig_environment(env.zig_env);
+        }
+        return false;
+    }
+}
 
 // FIXME: implement the full RapidCheck state machine test for settings
 // Run the settings tests
-extern "C" bool rc_run_settings_tests() {
-    // Minimal implementation that just returns true
-    return true;
-}
+// extern "C" bool rc_run_settings_tests() {
+//     // Minimal implementation that just returns true
+//     return true;
+// }
