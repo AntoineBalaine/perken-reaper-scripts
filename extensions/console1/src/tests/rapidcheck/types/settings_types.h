@@ -14,13 +14,11 @@ typedef enum {
 } RC_SettingType;
 
 typedef struct {
-    char field[64];
+    char* field;  // Pointer to null-terminated string
     RC_SettingType type;
     union {
         bool bool_value;
-        char *string_value;
-        // Could add: int int_value;
-        // Could add: float float_value;
+        char* string_value;  // Pointer to null-terminated string
     } value;
 } RC_SettingsUpdate;
 
@@ -43,4 +41,4 @@ typedef struct {
 
 #ifdef __cplusplus
 }
-#endif 
+#endif

@@ -25,8 +25,8 @@ pub fn init(current: *const Preferences) !SettingsPanel {
 }
 
 pub const SettingsValUpdate = union(enum) {
-    bool_val: struct { field: []const u8, val: bool },
-    string_val: struct { field: []const u8, val: [:0]const u8 },
+    bool_val: struct { field: [:0]const u8, val: bool },
+    string_val: struct { field: [:0]const u8, val: [:0]const u8 },
 };
 const SettingsRV = union(enum) {
     close_save,

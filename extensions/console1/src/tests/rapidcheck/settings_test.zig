@@ -1,10 +1,11 @@
 const std = @import("std");
-const Globals = @import("../globals.zig").Globals;
-const SettingsPanel = @import("../settings_panel.zig");
-const actions = @import("../actions.zig");
-const settings_actions = @import("../settings_actions.zig");
+const Globals = @import("../../globals.zig").Globals;
+const SettingsPanel = @import("../../settings_panel.zig");
+const actions = @import("../../actions.zig");
+const settings_actions = @import("../../settings_actions.zig");
 const rapidcheck = @cImport({
-    @cInclude("settings_test.h");
+    @cInclude("tests/rapidcheck/rapidcheck_wrapper.h");
+    @cInclude("tests/rapidcheck/settings_test.h");
 });
 
 const StatefulTest = struct {
@@ -13,7 +14,7 @@ const StatefulTest = struct {
 
     pub fn init(allocator: std.mem.Allocator) !StatefulTest {
         const test_env = StatefulTest{
-            .globals = try @import("../models/globals_model.zig").initMinimalGlobals(),
+            .globals = try @import("../../models/globals_model.zig").initMinimalGlobals(),
             .allocator = allocator,
         };
         return test_env;
@@ -25,41 +26,48 @@ const StatefulTest = struct {
 };
 
 export fn rc_dispatch_settings_action(env: *anyopaque, action: *rapidcheck.RC_SettingsAction) void {
-    const test_env: StatefulTest = @ptrCast(@alignCast(env));
+    const test_env: *StatefulTest = @ptrCast(@alignCast(env));
 
-    switch (action.action_type) {
-        .Open => {
+    switch (@as(rapidcheck.RC_SettingsActionType, action.action_type)) {
+        rapidcheck.OPEN => {
             actions.dispatch(&test_env.globals, .{ .settings = .open });
         },
-        .Save => {
+        rapidcheck.SAVE => {
             actions.dispatch(&test_env.globals, .{ .settings = .save });
         },
-        .Cancel => {
+        rapidcheck.CANCEL => {
             actions.dispatch(&test_env.globals, .{ .settings = .cancel });
         },
-        .Scroll => {
-            actions.dispatch(&test_env.globals, .{ .settings = .{ .scroll = action.scroll_pos } });
+        rapidcheck.SCROLL => {
+            actions.dispatch(&test_env.globals, .{ .settings = .{ .scroll = action.data.scroll_pos } });
         },
-        .Toggle => {
+        rapidcheck.TOGGLE => {
             actions.dispatch(&test_env.globals, .{ .settings = .toggle });
         },
-        .Update => {
-            const field = std.mem.sliceTo(&action.update.field, 0);
+        rapidcheck.UPDATE => {
+            const field = std.mem.span(action.data.update.field);
 
-            if (action.update.is_bool) {
-                const bool_update = .{
-                    .field = field,
-                    .val = action.update.bool_value,
+            if (action.data.update.type == rapidcheck.BOOL_SETTING) {
+                // Create a proper Zig struct with the correct types
+                const bool_val = SettingsPanel.SettingsValUpdate{
+                    .bool_val = .{
+                        .field = field,
+                        .val = action.data.update.value.bool_value,
+                    },
                 };
-                actions.dispatch(&test_env.globals, .{ .settings = .{ .update_val = .{ .bool_val = bool_update } } });
+                actions.dispatch(&test_env.globals, .{ .settings = .{ .update_val = bool_val } });
             } else {
-                const string_update = .{
-                    .field = field,
-                    .val = std.mem.sliceTo(&action.update.string_value, 0),
+                // Create a proper Zig struct with the correct types
+                const string_val = SettingsPanel.SettingsValUpdate{
+                    .string_val = .{
+                        .field = field,
+                        .val = std.mem.span(action.data.update.value.string_value),
+                    },
                 };
-                actions.dispatch(&test_env.globals, .{ .settings = .{ .update_val = .{ .string_val = string_update } } });
+                actions.dispatch(&test_env.globals, .{ .settings = .{ .update_val = string_val } });
             }
         },
+        else => unreachable,
     }
 }
 
@@ -134,22 +142,30 @@ export fn rc_get_settings_string(env: *anyopaque, field: [*:0]const u8, buffer: 
     }
 
     const copy_size = @min(value.len, buffer_size - 1);
-    std.mem.copy(u8, buffer[0..copy_size], value[0..copy_size]);
+    std.mem.copyForwards(u8, buffer[0..copy_size], value[0..copy_size]);
     buffer[copy_size] = 0; // Null terminate
 }
 
-// Run a single test
-fn runSettingsTest() callconv(.C) c_int {
+// Export functions for C++ to create and manage the Zig test environment
+export fn rc_initialize_zig_environment() ?*anyopaque {
     const allocator = std.heap.c_allocator;
 
-    var test_env = StatefulTest.init(allocator) catch {
-        return 0; // Failure
+    var test_env = allocator.create(StatefulTest) catch return null;
+    _ = &test_env;
+    test_env.* = StatefulTest.init(allocator) catch {
+        allocator.destroy(test_env);
+        return null;
     };
-    defer test_env.deinit();
 
-    // ... test logic here ...
+    return @ptrCast(test_env);
+}
 
-    return 1; // Success
+export fn rc_cleanup_zig_environment(env: *anyopaque) void {
+    const test_env: *StatefulTest = @ptrCast(@alignCast(env));
+    const allocator = std.heap.c_allocator;
+
+    test_env.deinit();
+    allocator.destroy(test_env);
 }
 
 test "settings panel with RapidCheck" {

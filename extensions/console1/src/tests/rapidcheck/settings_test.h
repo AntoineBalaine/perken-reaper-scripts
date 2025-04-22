@@ -8,6 +8,15 @@
 extern "C" {
 #endif
 
+// Define the test environment structure
+typedef struct RC_TestEnvironment {
+    void* zig_env;  // Opaque pointer to the Zig environment
+} RC_TestEnvironment;
+
+// Functions for creating and managing the Zig test environment
+void* rc_initialize_zig_environment(void);
+void rc_cleanup_zig_environment(void* env);
+
 // Dispatch a settings action to the Zig implementation
 void rc_dispatch_settings_action(RC_TestEnvironment* env, RC_SettingsAction* action);
 
