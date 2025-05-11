@@ -37,7 +37,7 @@ pub fn build(b: *std.Build) !void {
     var client_install: *std.Build.Step.InstallArtifact = undefined;
     lib.linkLibC();
 
-    if (target.result.isDarwinLibC()) {
+    if (target.result.os.tag == .macos) {
         lib.root_module.linkFramework("AppKit", .{});
         lib.linkLibCpp();
         client_install = b.addInstallArtifact(lib, .{
@@ -69,7 +69,7 @@ pub fn build(b: *std.Build) !void {
     php_cmd.addFileArg(resource_rc); // Convert LazyPath to string
     lib.step.dependOn(&php_cmd.step);
 
-    const modstub = if (target.result.isDarwinLibC())
+    const modstub = if (target.result.os.tag == .macos)
         wdl_dep.path("WDL/swell/swell-modstub.mm")
     else
         wdl_dep.path("WDL/swell/swell-modstub-generic.cpp");
