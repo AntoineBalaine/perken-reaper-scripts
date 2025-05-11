@@ -76,7 +76,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
             "{s}.o",
             .{std.fs.path.basename(cppfile.getPath(b))},
         ) catch unreachable;
-        const cxx = b.addSystemCommand(&cpp_flags_with);
+        const cxx = b.addSystemCommand(&cpp_flags);
         test_exe.addObjectFile(cxx.addOutputFileArg(filearg));
         cxx.addFileArg(cppfile);
         cxx.step.dependOn(&php_cmd.step);
@@ -90,6 +90,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
 
     // Add dependencies
     test_exe.root_module.addImport("ini", dependencies.ini.module("ini"));
+    test_exe.root_module.addImport("zlowcheck", dependencies.zlowcheck.module("zlowcheck"));
 
     // Link required libraries
     test_exe.linkLibC();

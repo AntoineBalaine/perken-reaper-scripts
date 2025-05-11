@@ -32,6 +32,10 @@
             .url = "https://github.com/emil-e/rapidcheck/archive/ff6af6fc683159deb51c543b065eba14dfcf329b.tar.gz",
             .hash = "12205477ec265b680335438c7c74e940f1af32f6c631eada58c7aeede2af9bed75e7",
         },
+        .zlowcheck = .{
+            .url = "https://github.com/AntoineBalaine/zlowcheck/archive/e619742ab0a651353a4b71b575ea3ae5bb7f74df.tar.gz",
+            .hash = "zlowcheck-0.0.0-upaXyUeuAwCQpwQ3oGYa_KCtFhH7X_4dAdoT6AdF5AsJ",
+        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

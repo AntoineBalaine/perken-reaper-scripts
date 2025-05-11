@@ -15,7 +15,7 @@ pub fn compileRapidcheck(
 ) !void {
     // Define standard compiler flags
     const std_flags = [_][]const u8{
-        if (options.target.result.isDarwin()) "clang" else "gcc",
+        if (options.target.result.os.tag == .macos) "clang" else "gcc",
         "-c",
         "-fPIC",
         "-std=c++14",
@@ -23,7 +23,7 @@ pub fn compileRapidcheck(
         "-Wall",
         "-Wno-missing-braces",
         "-Wno-unused-command-line-argument",
-        if (options.target.result.isDarwin()) "-stdlib=libc++" else "",
+        if (options.target.result.os.tag == .macos) "-stdlib=libc++" else "",
         if (!options.enable_rtti) "-DRC_DONT_USE_RTTI" else "",
         if (options.target.result.isMinGW()) "-DRC_SEED_SYSTEM_TIME" else "",
         "-O2",
@@ -32,7 +32,7 @@ pub fn compileRapidcheck(
 
     // Define high-optimization flags for Random.cpp
     const opt_flags = [_][]const u8{
-        if (options.target.result.isDarwin()) "clang" else "gcc",
+        if (options.target.result.os.tag == .macos) "clang" else "gcc",
         "-c",
         "-fPIC",
         "-std=c++14",
@@ -40,7 +40,7 @@ pub fn compileRapidcheck(
         "-Wall",
         "-Wno-missing-braces",
         "-Wno-unused-command-line-argument",
-        if (options.target.result.isDarwin()) "-stdlib=libc++" else "",
+        if (options.target.result.os.tag == .macos) "-stdlib=libc++" else "",
         if (!options.enable_rtti) "-DRC_DONT_USE_RTTI" else "",
         if (options.target.result.isMinGW()) "-DRC_SEED_SYSTEM_TIME" else "",
         "-O3", // Higher optimization for Random.cpp
