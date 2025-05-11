@@ -6980,7 +6980,7 @@ pub const SetScrollX = function(&api.SetScrollX, 2, &.{ ContextPtr, f64 });
 ///-- @param scroll_y number
 pub const SetScrollY = function(&api.SetScrollY, 2, &.{ ContextPtr, f64 });
 
-var getError: ?*fn () callconv(.C) ?[*:0]const u8 = undefined;
+pub var getError: ?*fn () callconv(.C) ?[*:0]const u8 = undefined;
 
 inline fn checkError() Error!void {
     @setRuntimeSafety(false);
@@ -6997,7 +6997,7 @@ pub fn init(plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque) !
     @setEvalBranchQuota(0x1000);
     @setRuntimeSafety(false);
 
-    const getFunc: ?*fn (v: [*:0]const u8, n: [*:0]const u8) *anyopaque =
+    const getFunc: ?*fn (v: [*:0]const u8, n: [*:0]const u8) callconv(.C) *anyopaque =
         @alignCast(@ptrCast(plugin_getapi("ImGui__getapi")));
     getError = @alignCast(@ptrCast(plugin_getapi("ImGui__geterr")));
 
@@ -7009,7 +7009,10 @@ pub fn init(plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque) !
     inline for (@typeInfo(API).@"struct".fields) |field| {
         @field(api, field.name) = @alignCast(@ptrCast(getFunc.?(api_version, field.name)));
         checkError() catch |err| {
-            std.debug.print("imgui api load failure: inline struct field: {s} \n ", .{field.name});
+            if (getError.?()) |err_msg| {
+                std.debug.print("Imgui function {s} load failed: \n{s}\n ", .{ field.name, std.mem.span(err_msg) });
+            }
+
             return err;
         };
     }
