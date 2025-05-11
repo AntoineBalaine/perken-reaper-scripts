@@ -119,12 +119,11 @@ fn promptInstallImGui() void {
 
 fn isImGuiAvailable() bool {
     // Attempt to initialize ImGui and detect if it's available
-    imgui.init(reaper.plugin_getapi) catch |err| {
-        if (err == error.ImGui) {
-            log.info("ImGui is not available\n", .{});
+    imgui.init(reaper.plugin_getapi) catch {
+        if (imgui.getError.?()) |err_msg| {
+            std.debug.print("imgui err: {s}\n ", .{std.mem.span(err_msg)});
             return false;
         }
-        log.err("Unexpected error checking ImGui: {s}\n", .{@errorName(err)});
         return false;
     };
     return true;
