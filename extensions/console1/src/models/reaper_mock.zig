@@ -1,50 +1,73 @@
-const std = @import("std");
-const testing = std.testing;
-const reaper = @import("../reaper.zig").reaper;
-const AutomationMode = @import("../transport_actions.zig").AutomationMode;
-const utils = @import("../utils.zig");
-const fx_model = @import("fx_model.zig");
-const Param = fx_model.Param;
-const FX = fx_model.FX;
-const track_model = @import("track_model.zig");
-const Track = track_model.Track;
-const Session = track_model.Session;
-
-// Global model state
-var g_session: ?*Session = null;
+/// Global model state
+pub var g_session: ?*Session = null;
 
 // Helper to set the current model for testing
 pub fn setCurrentModel(model: *Session) void {
     g_session = model;
+}
+const Mocks = struct {
+    origInsertTrackAtIndex: @TypeOf(reaper.InsertTrackAtIndex),
+    origDeleteTrack: @TypeOf(reaper.DeleteTrack),
+    origTrackFX_AddByName: @TypeOf(reaper.TrackFX_AddByName),
+    origTrackFX_GetCount: @TypeOf(reaper.TrackFX_GetCount),
+    origTrackFX_GetFXName: @TypeOf(reaper.TrackFX_GetFXName),
+};
+
+// Helper functions to set up and tear down the mock API
+pub fn setupMockReaperAPI(model: *Session) Mocks {
+    setCurrentModel(model);
+
+    const origFuncs: Mocks = .{
+        .origInsertTrackAtIndex = reaper.InsertTrackAtIndex,
+        .origDeleteTrack = reaper.DeleteTrack,
+        .origTrackFX_AddByName = reaper.TrackFX_AddByName,
+        .origTrackFX_GetCount = reaper.TrackFX_GetCount,
+        .origTrackFX_GetFXName = reaper.TrackFX_GetFXName,
+    };
+
+    @constCast(&reaper.InsertTrackAtIndex).* = @constCast(&mockInsertTrackAtIndex);
+    @constCast(&reaper.DeleteTrack).* = @constCast(&mockDeleteTrack);
+    @constCast(&reaper.TrackFX_AddByName).* = @constCast(&mockTrackFX_AddByName);
+    @constCast(&reaper.TrackFX_GetCount).* = @constCast(&mockTrackFX_GetCount);
+    @constCast(&reaper.TrackFX_GetFXName).* = @constCast(&mockTrackFX_GetFXName);
+
+    return origFuncs;
+}
+
+pub fn restoreMockReaperAPI(origFuncs: anytype) void {
+    @constCast(&reaper.InsertTrackAtIndex).* = origFuncs.origInsertTrackAtIndex;
+    @constCast(&reaper.DeleteTrack).* = origFuncs.origDeleteTrack;
+    @constCast(&reaper.TrackFX_AddByName).* = origFuncs.origTrackFX_AddByName;
+    @constCast(&reaper.TrackFX_GetCount).* = origFuncs.origTrackFX_GetCount;
+    @constCast(&reaper.TrackFX_GetFXName).* = origFuncs.origTrackFX_GetFXName;
+
+    g_session = null;
 }
 
 // Mock REAPER API functions with the same signatures as the real API
 fn mockInsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
     _ = wantDefaults;
     const model = g_session.?;
-    const allocator = model.tracks.allocator;
+    const gpa = model.gpa;
 
     // Determine the actual index in our tracks array (accounting for master track at index 0)
     const actual_idx = if (idx < 0) model.tracks.items.len else @as(usize, @intCast(idx)) + 1;
 
-    const track = Track{
-        .name = allocator.dupeZ(u8, "") catch return,
-        .fx_list = std.ArrayList(FX).init(allocator),
-        .info = .{},
-    };
+    const track: Track = .default;
 
     if (actual_idx >= model.tracks.items.len) {
         // Append to the end
-        model.tracks.append(track) catch return;
+        model.tracks.append(gpa, track) catch return;
     } else {
         // Insert at the specified position
-        model.tracks.insert(actual_idx, track) catch return;
+        model.tracks.insert(gpa, actual_idx, track) catch return;
     }
 }
 
 // Mock FX manipulation functions
 // NOTE: there is the case in which we try to add an fx which
 // doesn't exist on the user's system, in which case reaper returns -1
+// TODO: implement model fx library
 fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.C) c_int {
     _ = recFX;
     _ = instantiate;
@@ -54,15 +77,14 @@ fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX:
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return -1;
 
-    const allocator = session.tracks.allocator;
+    const gpa = session.gpa;
     const fx_name = std.mem.span(fxname);
 
-    var guid_bytes: [16]u8 = undefined;
-    std.crypto.random.bytes(&guid_bytes);
-    const guid = utils.Guid{ .bytes = guid_bytes };
+    var guid: Guid = .{ .bytes = undefined };
+    std.crypto.random.bytes(&guid.bytes);
 
     // Create a new FX
-    const name = allocator.dupeZ(u8, fx_name) catch return -1;
+    const name = gpa.dupeZ(u8, fx_name) catch return -1;
     const new_fx = FX{
         .guid = guid,
         .enabled = true,
@@ -75,7 +97,7 @@ fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX:
     var tr: *Track = track_ptr.?;
 
     // Add the FX to the track
-    tr.fx_list.append(new_fx) catch return -1;
+    tr.fx_list.append(gpa, new_fx) catch return -1;
 
     // Return the index of the newly added FX
     return @intCast(tr.fx_list.items.len - 1);
@@ -135,7 +157,7 @@ fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     var removed_track = model.tracks.orderedRemove(track_idx.?);
 
     // Clean up the track's resources
-    removed_track.deinit(model.tracks.allocator);
+    removed_track.deinit(model.gpa);
 
     // Update selected track indices
     var i: usize = 0;
@@ -160,69 +182,32 @@ fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     }
 }
 
-// Helper functions to set up and tear down the mock API
-pub fn setupMockReaperAPI(model: *Session) struct {
-    origInsertTrackAtIndex: @TypeOf(reaper.InsertTrackAtIndex),
-    origDeleteTrack: @TypeOf(reaper.DeleteTrack),
-    origTrackFX_AddByName: @TypeOf(reaper.TrackFX_AddByName),
-    origTrackFX_GetCount: @TypeOf(reaper.TrackFX_GetCount),
-    origTrackFX_GetFXName: @TypeOf(reaper.TrackFX_GetFXName),
-} {
-    setCurrentModel(model);
-
-    const origFuncs = .{
-        .origInsertTrackAtIndex = reaper.InsertTrackAtIndex,
-        .origDeleteTrack = reaper.DeleteTrack,
-        .origTrackFX_AddByName = reaper.TrackFX_AddByName,
-        .origTrackFX_GetCount = reaper.TrackFX_GetCount,
-        .origTrackFX_GetFXName = reaper.TrackFX_GetFXName,
-    };
-
-    @constCast(&reaper.InsertTrackAtIndex).* = @constCast(&mockInsertTrackAtIndex);
-    @constCast(&reaper.DeleteTrack).* = @constCast(&mockDeleteTrack);
-    @constCast(&reaper.TrackFX_AddByName).* = @constCast(&mockTrackFX_AddByName);
-    @constCast(&reaper.TrackFX_GetCount).* = @constCast(&mockTrackFX_GetCount);
-    @constCast(&reaper.TrackFX_GetFXName).* = @constCast(&mockTrackFX_GetFXName);
-
-    return origFuncs;
-}
-
-pub fn restoreMockReaperAPI(origFuncs: anytype) void {
-    @constCast(&reaper.InsertTrackAtIndex).* = origFuncs.origInsertTrackAtIndex;
-    @constCast(&reaper.DeleteTrack).* = origFuncs.origDeleteTrack;
-    @constCast(&reaper.TrackFX_AddByName).* = origFuncs.origTrackFX_AddByName;
-    @constCast(&reaper.TrackFX_GetCount).* = origFuncs.origTrackFX_GetCount;
-    @constCast(&reaper.TrackFX_GetFXName).* = origFuncs.origTrackFX_GetFXName;
-
-    g_session = null;
-}
-
 // Mock REAPER API functions
-fn GetNumTracks(project: ?*anyopaque, state: *Session) i32 {
+fn GetNumTracks(project: ?*anyopaque) i32 {
     _ = project;
-    return @intCast(state.tracks.items.len - 1); // Don't count master track
+    return @intCast(g_session.?.tracks.items.len - 1); // Don't count master track
 }
 
-fn CountTracks(project: ?*anyopaque, state: *Session) i32 {
+fn CountTracks(project: ?*anyopaque) i32 {
     _ = project;
-    return @intCast(state.tracks.items.len); // Count all tracks including master
+    return @intCast(g_session.?.tracks.items.len); // Count all tracks including master
 }
 
-fn GetTrack(project: ?*anyopaque, trackidx: i32, state: *Session) ?*Track {
+fn GetTrack(project: ?*anyopaque, trackidx: i32) ?*Track {
     _ = project;
-    if (trackidx < 0 or trackidx >= state.tracks.items.len - 1) return null;
-    return &state.tracks.items[@as(usize, @intCast(trackidx)) + 1]; // Skip master track
+    if (trackidx < 0 or trackidx >= g_session.?.tracks.items.len - 1) return null;
+    return &g_session.?.tracks.items[@as(usize, @intCast(trackidx)) + 1]; // Skip master track
 }
 
-fn GetMasterTrack(project: ?*anyopaque, state: *Session) ?*Track {
+fn GetMasterTrack(project: ?*anyopaque) ?*Track {
     _ = project;
-    return &state.tracks.items[0];
+    return &g_session.?.tracks.items[0];
 }
 
 fn GetTrackName(track: ?*Track, buf: ?[*]u8, bufsz: i32) bool {
     if (track == null or buf == null or bufsz <= 0) return false;
+    const name = g_session.?.getTrackName(track.?.*);
 
-    const name = track.?.name;
     const len = @min(@as(usize, @intCast(bufsz)) - 1, name.len);
     @memcpy(buf.?[0..len], name[0..len]);
     buf.?[len] = 0; // Null terminate
@@ -267,25 +252,25 @@ fn GetMediaTrackInfo_Value(track: ?*Track, parmname: [*:0]const u8) f64 {
     return 0;
 }
 
-fn SetTrackSelected(track: ?*Track, selected: bool, state: *Session) void {
+fn SetTrackSelected(track: ?*Track, selected: bool) void {
     if (track == null) return;
 
     // Find track index
     const track_ptr: *const Track = track.?;
-    for (state.tracks.items, 0..) |*t, i| {
+    for (g_session.?.tracks.items, 0..) |*t, i| {
         if (t == track_ptr) {
             if (selected) {
                 // Check if already selected
-                for (state.selected_tracks.items) |idx| {
+                for (g_session.?.selected_tracks.items) |idx| {
                     if (idx == i) return;
                 }
-                state.selected_tracks.append(i) catch return;
+                g_session.?.selected_tracks.append(g_session.?.gpa, @intCast(i)) catch return;
             } else {
                 // Remove from selection if present
                 var j: usize = 0;
-                while (j < state.selected_tracks.items.len) {
-                    if (state.selected_tracks.items[j] == i) {
-                        _ = state.selected_tracks.orderedRemove(j);
+                while (j < g_session.?.selected_tracks.items.len) {
+                    if (g_session.?.selected_tracks.items[j] == i) {
+                        _ = g_session.?.selected_tracks.orderedRemove(j);
                     } else {
                         j += 1;
                     }
@@ -296,45 +281,18 @@ fn SetTrackSelected(track: ?*Track, selected: bool, state: *Session) void {
     }
 }
 
-fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32, state: *Session) ?*Track {
+fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32) ?*Track {
     _ = project;
-    if (seltrackidx < 0 or seltrackidx >= state.selected_tracks.items.len) return null;
+    if (seltrackidx < 0 or seltrackidx >= g_session.?.selected_tracks.items.len) return null;
 
-    const track_idx = state.selected_tracks.items[@intCast(seltrackidx)];
-    return &state.tracks.items[track_idx];
+    const track_idx = g_session.?.selected_tracks.items[@intCast(seltrackidx)];
+    return &g_session.?.tracks.items[track_idx];
 }
 
-/// create a master track and three tracks
-pub fn initializeTestState(allocator: std.mem.Allocator) !Session {
-    var state = Session{
-        .tracks = std.ArrayList(Track).init(allocator),
-        .selected_tracks = std.ArrayList(usize).init(allocator),
-    };
-
-    // Create a master track
-    try state.tracks.append(.{
-        .name = try allocator.dupeZ(u8, "Master"),
-        .fx_list = std.ArrayList(FX).init(allocator),
-    });
-
-    // Create a few regular tracks
-    for (0..3) |i| {
-        const track_name = try std.fmt.allocPrintZ(allocator, "Track {d}", .{i + 1});
-        try state.tracks.append(.{
-            .name = track_name,
-            .fx_list = std.ArrayList(FX).init(allocator),
-            .info = .{},
-        });
-    }
-
-    return state;
-}
-
-// Tests
 test "track creation and deletion with mock API" {
     var allocator = testing.allocator;
     _ = &allocator;
-    var model = try initializeTestState(allocator);
+    var model: Session = try .init(allocator, 3, 6);
     defer model.deinit();
 
     // Set up the mock API
@@ -342,24 +300,23 @@ test "track creation and deletion with mock API" {
     defer restoreMockReaperAPI(origFuncs);
 
     // Initial track count
-    try testing.expectEqual(@as(i32, 4), CountTracks(null, &model)); // 3 regular + master
+    try testing.expectEqual(@as(i32, 4), CountTracks(null)); // 3 regular + master
 
     // Test track creation
     reaper.InsertTrackAtIndex(1, true);
-    try testing.expectEqual(@as(i32, 5), CountTracks(null, &model)); // 4 regular + master
+    try testing.expectEqual(@as(i32, 5), CountTracks(null)); // 4 regular + master
 
     // Get the newly created track
-    const new_track = GetTrack(null, 1, &model);
-    try testing.expect(new_track != null);
-    try testing.expectEqualStrings("", new_track.?.name);
+    const new_track = GetTrack(null, 1);
+    try testing.expect(new_track.?.name == null);
 
     // Test track deletion
     reaper.DeleteTrack(@ptrCast(new_track.?));
-    try testing.expectEqual(@as(i32, 4), CountTracks(null, &model)); // Back to 3 regular + master
+    try testing.expectEqual(@as(i32, 4), CountTracks(null)); // Back to 3 regular + master
 
     // Verify track numbering was updated
-    for (1..4) |i| {
-        const track = GetTrack(null, @intCast(i - 1), &model);
+    for (0..3) |i| {
+        const track = GetTrack(null, @intCast(i));
         try testing.expect(track != null);
     }
 }
@@ -367,7 +324,8 @@ test "track creation and deletion with mock API" {
 test "fx operations with mock API" {
     var allocator = testing.allocator;
     _ = &allocator;
-    var model = try initializeTestState(allocator);
+
+    var model: Session = try .init(allocator, 3, 4);
     defer model.deinit();
 
     // Set up the mock API
@@ -375,7 +333,7 @@ test "fx operations with mock API" {
     defer restoreMockReaperAPI(origFuncs);
 
     // Get a track to work with
-    const track = GetTrack(null, 0, &model);
+    const track = GetTrack(null, 0);
     try testing.expect(track != null);
 
     // Initially no FX
@@ -410,31 +368,31 @@ test "fx operations with mock API" {
 test "mock reaper API track operations" {
     var allocator = testing.allocator;
     _ = &allocator;
-    var model = try track_model.initializeTestState(allocator);
+    var model: Session = try .init(allocator, 3, 4);
     defer model.deinit();
 
     // Test track count via mock API
-    const num_tracks = GetNumTracks(null, &model);
+    const num_tracks = GetNumTracks(null);
     try testing.expectEqual(@as(i32, 3), num_tracks); // Regular tracks only
-    const total_tracks = CountTracks(null, &model);
+    const total_tracks = CountTracks(null);
     try testing.expectEqual(@as(i32, 4), total_tracks); // Including master
 
     // Test track retrieval via mock API
-    const track1 = GetTrack(null, 0, &model);
+    const track1 = GetTrack(null, 0);
     try testing.expect(track1 != null);
-    try testing.expectEqualStrings("Track 1", track1.?.name);
+    try testing.expectEqualStrings("Track 1", model.string_pool.getString(track1.?.name.?));
 
-    const master = GetMasterTrack(null, &model);
+    const master = GetMasterTrack(null);
     try testing.expect(master != null);
-    try testing.expectEqualStrings("Master", master.?.name);
+    try testing.expectEqualStrings("Master", model.string_pool.getString(master.?.name.?));
 
     // Test track selection via mock API
-    SetTrackSelected(track1, true, &model);
+    SetTrackSelected(track1, true);
     try testing.expectEqual(@as(usize, 1), model.selected_tracks.items.len);
 
-    const selected = GetSelectedTrack(null, 0, &model);
+    const selected = GetSelectedTrack(null, 0);
     try testing.expect(selected != null);
-    try testing.expectEqualStrings("Track 1", selected.?.name);
+    try testing.expectEqualStrings("Track 1", model.string_pool.getString(selected.?.name.?));
 
     // Test track parameters via mock API
     _ = SetMediaTrackInfo_Value(track1, "D_VOL", 0.5);
@@ -447,6 +405,17 @@ test "mock reaper API track operations" {
     try testing.expectEqual(@as(f64, 1.0), GetMediaTrackInfo_Value(track1, "I_SOLO"));
 
     // Test track deselection via mock API
-    SetTrackSelected(track1, false, &model);
+    SetTrackSelected(track1, false);
     try testing.expectEqual(@as(usize, 0), model.selected_tracks.items.len);
 }
+
+const std = @import("std");
+const testing = std.testing;
+const reaper = @import("../reaper.zig").reaper;
+const Guid = @import("../utils.zig").Guid;
+const fx_model = @import("fx_model.zig");
+const Param = fx_model.Param;
+const FX = fx_model.FX;
+const track_model = @import("track_model.zig");
+const Track = track_model.Track;
+const Session = @import("session.zig");
