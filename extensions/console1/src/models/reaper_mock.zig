@@ -8,19 +8,20 @@ pub fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc
     fn teardown(self: @This()) void {
         restoreMockReaperAPI(self.orig_funcs);
         self.model_ptr.deinit();
+        self.model_ptr.gpa.destroy(self.model_ptr);
     }
 } {
-    var model: Session = Session.init(
+    const model = allocator.create(Session) catch @panic("Failed to initialize model");
+    model.* = Session.init(
         allocator,
         if (trck_count) |count| count else 0,
         if (prealloc_tracks) |prealloc| prealloc else 4,
     ) catch @panic("Failed to initialize model");
-
-    const origFuncs = setupMockReaperAPI(&model);
+    const origFuncs = setupMockReaperAPI(model);
 
     return .{
         .orig_funcs = origFuncs,
-        .model_ptr = &model,
+        .model_ptr = model,
     };
 }
 
