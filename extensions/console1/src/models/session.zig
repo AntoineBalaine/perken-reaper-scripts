@@ -46,7 +46,7 @@ pub fn init(gpa: std.mem.Allocator, track_count: usize, max_tracks: usize) !@Thi
     return self;
 }
 
-pub fn getTrackName(self: @This(), track: Track) ?[:0]const u8 {
+pub fn getTrackName(self: @This(), track: Track.Track) ?[:0]const u8 {
     if (track.name) |name| {
         return self.string_pool.getString(name);
     }

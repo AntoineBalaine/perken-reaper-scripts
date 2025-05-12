@@ -51,7 +51,7 @@ pub const reaper = struct { // @import("reaper");
     pub const MSG = *opaque {};
     pub const MediaItem = *opaque {};
     pub const MediaItem_Take = *opaque {};
-    pub const MediaTrack = *opaque {};
+    pub const MediaTrack = ?*opaque {};
     pub const PCM_sink = *opaque {};
     pub const PCM_source = *opaque {};
     pub const PCM_source_peaktransfer_t = *opaque {};
@@ -1006,7 +1006,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetLastTouchedFX: *fn (tracknumberOut: *c_int, fxnumberOut: *c_int, paramnumberOut: *c_int) callconv(.C) bool = undefined;
 
     /// GetLastTouchedTrack
-    pub var GetLastTouchedTrack: *fn () callconv(.C) *MediaTrack = undefined;
+    pub var GetLastTouchedTrack: *fn () callconv(.C) MediaTrack = undefined;
 
     /// GetMainHwnd
     pub var GetMainHwnd: *fn () callconv(.C) HWND = undefined;
@@ -1016,7 +1016,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetMasterMuteSoloFlags: *fn () callconv(.C) c_int = undefined;
 
     /// GetMasterTrack
-    pub var GetMasterTrack: *fn (proj: *ReaProject) callconv(.C) *MediaTrack = undefined;
+    pub var GetMasterTrack: *fn (proj: ReaProject) callconv(.C) MediaTrack = undefined;
 
     /// GetMasterTrackVisibility
     /// returns &1 if the master track is visible in the TCP, &2 if NOT visible in the mixer. See SetMasterTrackVisibility.
@@ -1389,7 +1389,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSelectedTrack
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based). This function ignores the master track, see GetSelectedTrack2.
-    pub var GetSelectedTrack: *fn (proj: ReaProject, seltrackidx: c_int) callconv(.C) ?MediaTrack = undefined;
+    pub var GetSelectedTrack: *fn (proj: ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack = undefined;
 
     /// GetSelectedTrack2
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based).
@@ -1967,7 +1967,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrackName
     /// Returns "MASTER" for master track, "Track N" if track has no name.
-    pub var GetTrackName: *fn (track: MediaTrack, bufOut: [*:0]const u8, bufOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var GetTrackName: *fn (track: MediaTrack, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// GetTrackNumMediaItems
     pub var GetTrackNumMediaItems: *fn (tr: *MediaTrack) callconv(.C) c_int = undefined;

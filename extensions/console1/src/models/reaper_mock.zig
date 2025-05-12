@@ -1,45 +1,77 @@
 /// Global model state
 pub var g_session: ?*Session = null;
 
+pub fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc_tracks: ?usize) struct {
+    orig_funcs: Mocks,
+    model_ptr: *Session,
+
+    fn teardown(self: @This()) void {
+        restoreMockReaperAPI(self.orig_funcs);
+        self.model_ptr.deinit();
+    }
+} {
+    var model: Session = Session.init(
+        allocator,
+        if (trck_count) |count| count else 0,
+        if (prealloc_tracks) |prealloc| prealloc else 4,
+    ) catch @panic("Failed to initialize model");
+
+    const origFuncs = setupMockReaperAPI(&model);
+
+    return .{
+        .orig_funcs = origFuncs,
+        .model_ptr = &model,
+    };
+}
+
 // Helper to set the current model for testing
 pub fn setCurrentModel(model: *Session) void {
     g_session = model;
 }
 const Mocks = struct {
-    origInsertTrackAtIndex: @TypeOf(reaper.InsertTrackAtIndex),
-    origDeleteTrack: @TypeOf(reaper.DeleteTrack),
-    origTrackFX_AddByName: @TypeOf(reaper.TrackFX_AddByName),
-    origTrackFX_GetCount: @TypeOf(reaper.TrackFX_GetCount),
-    origTrackFX_GetFXName: @TypeOf(reaper.TrackFX_GetFXName),
+    InsertTrackAtIndex: @TypeOf(reaper.InsertTrackAtIndex),
+    DeleteTrack: @TypeOf(reaper.DeleteTrack),
+    TrackFX_AddByName: @TypeOf(reaper.TrackFX_AddByName),
+    TrackFX_GetCount: @TypeOf(reaper.TrackFX_GetCount),
+    TrackFX_GetFXName: @TypeOf(reaper.TrackFX_GetFXName),
+    GetNumTracks: @TypeOf(reaper.GetNumTracks),
+    CountTracks: @TypeOf(reaper.CountTracks),
+    GetTrack: @TypeOf(reaper.GetTrack),
+    GetMasterTrack: @TypeOf(reaper.GetMasterTrack),
+    GetTrackName: @TypeOf(reaper.GetTrackName),
+    SetMediaTrackInfo_Value: @TypeOf(reaper.SetMediaTrackInfo_Value),
+    GetMediaTrackInfo_Value: @TypeOf(reaper.GetMediaTrackInfo_Value),
+    SetTrackSelected: @TypeOf(reaper.SetTrackSelected),
+    GetSelectedTrack: @TypeOf(reaper.GetSelectedTrack),
 };
 
 // Helper functions to set up and tear down the mock API
 pub fn setupMockReaperAPI(model: *Session) Mocks {
     setCurrentModel(model);
 
-    const origFuncs: Mocks = .{
-        .origInsertTrackAtIndex = reaper.InsertTrackAtIndex,
-        .origDeleteTrack = reaper.DeleteTrack,
-        .origTrackFX_AddByName = reaper.TrackFX_AddByName,
-        .origTrackFX_GetCount = reaper.TrackFX_GetCount,
-        .origTrackFX_GetFXName = reaper.TrackFX_GetFXName,
-    };
+    // Create a Mocks struct to store original functions
+    var origFuncs: Mocks = undefined;
 
-    @constCast(&reaper.InsertTrackAtIndex).* = @constCast(&InsertTrackAtIndex);
-    @constCast(&reaper.DeleteTrack).* = @constCast(&DeleteTrack);
-    @constCast(&reaper.TrackFX_AddByName).* = @constCast(&TrackFX_AddByName);
-    @constCast(&reaper.TrackFX_GetCount).* = @constCast(&TrackFX_GetCount);
-    @constCast(&reaper.TrackFX_GetFXName).* = @constCast(&TrackFX_GetFXName);
+    inline for (std.meta.fields(Mocks)) |field| {
+        const name = field.name;
+        // Store the original function
+        @field(origFuncs, name) = @field(reaper, name);
+
+        if (@hasDecl(@This(), name)) {
+            @constCast(&@field(reaper, name)).* = @constCast(&@field(@This(), name));
+        } else {
+            @compileError("No mock implementation found for " ++ name);
+        }
+    }
 
     return origFuncs;
 }
 
 pub fn restoreMockReaperAPI(origFuncs: anytype) void {
-    @constCast(&reaper.InsertTrackAtIndex).* = origFuncs.origInsertTrackAtIndex;
-    @constCast(&reaper.DeleteTrack).* = origFuncs.origDeleteTrack;
-    @constCast(&reaper.TrackFX_AddByName).* = origFuncs.origTrackFX_AddByName;
-    @constCast(&reaper.TrackFX_GetCount).* = origFuncs.origTrackFX_GetCount;
-    @constCast(&reaper.TrackFX_GetFXName).* = origFuncs.origTrackFX_GetFXName;
+    inline for (std.meta.fields(Mocks)) |field| {
+        const name = field.name;
+        @constCast(&@field(reaper, name)).* = @constCast(&@field(origFuncs, name)).*;
+    }
 
     g_session = null;
 }
@@ -192,26 +224,28 @@ fn CountTracks(project: ReaProject) callconv(.C) c_int {
     return @intCast(g_session.?.tracks.items.len); // Count all tracks including master
 }
 
-fn GetTrack(project: ReaProject, trackidx: c_int) callconv(.C) ?*Track {
+fn GetTrack(project: ReaProject, trackidx: c_int) callconv(.C) MediaTrack {
     _ = project;
     if (trackidx < 0 or trackidx >= g_session.?.tracks.items.len - 1) return null;
-    return &g_session.?.tracks.items[@as(usize, @intCast(trackidx)) + 1]; // Skip master track
+    const track = &g_session.?.tracks.items[@as(usize, @intCast(trackidx)) + 1];
+    return @ptrCast(track);
 }
 
-fn GetMasterTrack(project: ReaProject) callconv(.C) ?*Track {
+fn GetMasterTrack(project: ReaProject) callconv(.C) MediaTrack {
     _ = project;
-    return &g_session.?.tracks.items[0];
+    const track = &g_session.?.tracks.items[0];
+    return @ptrCast(track);
 }
 
-fn GetTrackName(tr: MediaTrack, buf: [*:0]const u8, bufsz: c_int) callconv(.C) bool {
+fn GetTrackName(tr: MediaTrack, buf: [*:0]u8, bufsz: c_int) callconv(.C) bool {
     var track: ?*Track = @alignCast(@ptrCast(tr));
     _ = &track;
-    if (track == null or buf == null or bufsz <= 0) return false;
+    if (track == null or bufsz <= 0) return false;
     const name = g_session.?.getTrackName(track.?.*);
-
-    const len = @min(@as(usize, @intCast(bufsz)) - 1, name.len);
-    @memcpy(buf.?[0..len], name[0..len]);
-    buf.?[len] = 0; // Null terminate
+    if (name == null) return false;
+    const len = @min(@as(usize, @intCast(bufsz)) - 1, name.?.len);
+    @memcpy(buf[0..len], name.?[0..len]);
+    buf[len] = 0; // Null terminate
     return true;
 }
 
@@ -288,35 +322,13 @@ fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.C) void {
     }
 }
 
-fn GetSelectedTrack(proj: ReaProject, seltrackidx: c_int) callconv(.C) ?*Track {
+fn GetSelectedTrack(proj: ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack {
     _ = proj;
     if (seltrackidx < 0 or seltrackidx >= g_session.?.selected_tracks.items.len) return null;
 
     const track_idx = g_session.?.selected_tracks.items[@intCast(seltrackidx)];
-    return &g_session.?.tracks.items[track_idx];
-}
-
-fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc_tracks: ?usize) struct {
-    orig_funcs: Mocks,
-    model_ptr: *Session,
-
-    fn teardown(self: @This()) void {
-        restoreMockReaperAPI(self.orig_funcs);
-        self.model_ptr.deinit();
-    }
-} {
-    var model: Session = Session.init(
-        allocator,
-        if (trck_count) |count| count else 0,
-        if (prealloc_tracks) |prealloc| prealloc else 4,
-    ) catch @panic("Failed to initialize model");
-
-    const origFuncs = setupMockReaperAPI(&model);
-
-    return .{
-        .orig_funcs = origFuncs,
-        .model_ptr = &model,
-    };
+    const track = &g_session.?.tracks.items[track_idx];
+    return @ptrCast(track);
 }
 
 test "track creation and deletion with mock API" {
@@ -324,23 +336,23 @@ test "track creation and deletion with mock API" {
     defer test_ctx.teardown();
 
     // Initial track count
-    try testing.expectEqual(@as(c_int, 4), CountTracks(0)); // 3 regular + master
+    try testing.expectEqual(@as(c_int, 4), reaper.CountTracks(0)); // 3 regular + master
 
     // Test track creation
     reaper.InsertTrackAtIndex(1, true);
-    try testing.expectEqual(@as(c_int, 5), CountTracks(0)); // 4 regular + master
+    try testing.expectEqual(@as(c_int, 5), reaper.CountTracks(0)); // 4 regular + master
 
     // Get the newly created track
-    const new_track = @as(?*Track, @ptrCast(@alignCast(GetTrack(0, 1))));
+    const new_track = @as(?*Track, @ptrCast(@alignCast(reaper.GetTrack(0, 1))));
     try testing.expect(new_track.?.name == null);
 
     // Test track deletion
     reaper.DeleteTrack(@ptrCast(new_track.?));
-    try testing.expectEqual(@as(c_int, 4), CountTracks(0)); // Back to 3 regular + master
+    try testing.expectEqual(@as(c_int, 4), reaper.CountTracks(0)); // Back to 3 regular + master
 
     // Verify track numbering was updated
     for (0..3) |i| {
-        const track = GetTrack(0, @intCast(i));
+        const track = @as(?*Track, @ptrCast(@alignCast(reaper.GetTrack(0, @intCast(i)))));
         try testing.expect(track != null);
     }
 }
