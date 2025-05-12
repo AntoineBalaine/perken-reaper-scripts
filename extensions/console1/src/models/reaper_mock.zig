@@ -289,15 +289,32 @@ fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32) ?*Track {
     return &g_session.?.tracks.items[track_idx];
 }
 
-test "track creation and deletion with mock API" {
-    var allocator = testing.allocator;
-    _ = &allocator;
-    var model: Session = try .init(allocator, 3, 6);
-    defer model.deinit();
+fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc_tracks: ?usize) struct {
+    orig_funcs: Mocks,
+    model_ptr: *Session,
 
-    // Set up the mock API
+    fn teardown(self: @This()) void {
+        restoreMockReaperAPI(self.orig_funcs);
+        self.model_ptr.deinit();
+    }
+} {
+    var model: Session = Session.init(
+        allocator,
+        if (trck_count) |count| count else 0,
+        if (prealloc_tracks) |prealloc| prealloc else 4,
+    ) catch @panic("Failed to initialize model");
+
     const origFuncs = setupMockReaperAPI(&model);
-    defer restoreMockReaperAPI(origFuncs);
+
+    return .{
+        .orig_funcs = origFuncs,
+        .model_ptr = &model,
+    };
+}
+
+test "track creation and deletion with mock API" {
+    var test_ctx = setupTestModel(testing.allocator, 3, 4);
+    defer test_ctx.teardown();
 
     // Initial track count
     try testing.expectEqual(@as(i32, 4), CountTracks(null)); // 3 regular + master
@@ -322,15 +339,8 @@ test "track creation and deletion with mock API" {
 }
 
 test "fx operations with mock API" {
-    var allocator = testing.allocator;
-    _ = &allocator;
-
-    var model: Session = try .init(allocator, 3, 4);
-    defer model.deinit();
-
-    // Set up the mock API
-    const origFuncs = setupMockReaperAPI(&model);
-    defer restoreMockReaperAPI(origFuncs);
+    var test_ctx = setupTestModel(testing.allocator, 3, 4);
+    defer test_ctx.teardown();
 
     // Get a track to work with
     const track = GetTrack(null, 0);
@@ -366,10 +376,10 @@ test "fx operations with mock API" {
 }
 
 test "mock reaper API track operations" {
-    var allocator = testing.allocator;
-    _ = &allocator;
-    var model: Session = try .init(allocator, 3, 4);
-    defer model.deinit();
+    var test_ctx = setupTestModel(testing.allocator, 3, 4);
+    defer test_ctx.teardown();
+
+    const model = g_session.?;
 
     // Test track count via mock API
     const num_tracks = GetNumTracks(null);
