@@ -28,7 +28,7 @@ pub var dummy_event = MIDI_event_t{
 // Get or create the C1Model instance
 pub fn getModelInstance() *C1Model {
     if (C1Model.instance == null) {
-        C1Model.instance = C1Model.init();
+        C1Model.instance = .default;
     }
     return &C1Model.instance.?;
 }

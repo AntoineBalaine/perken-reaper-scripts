@@ -6,7 +6,7 @@ const midi_wrapper_mock = @import("../models/midi_wrapper_mock.zig");
 
 // Test basic C1Model functionality
 test "C1Model basic operations" {
-    var model = C1Model.init();
+    var model: C1Model = .default;
 
     // Test initial state
     try testing.expectEqual(@as(u8, 0), model.getValue(c1.CCs.Out_Vol));

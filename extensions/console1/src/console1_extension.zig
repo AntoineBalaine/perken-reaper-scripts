@@ -88,5 +88,5 @@ test {
     // _ = @import("tests/rapidcheck/types/fx_model_tests.zig");
     // _ = @import("tests/rapidcheck/settings_test.zig");
     _ = @import("tests/zlowcheck.zig");
-    _ = @import("models/reaper_mock.zig");
+    _ = @import("models/models.zig");
 }

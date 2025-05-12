@@ -3,16 +3,13 @@ const c1 = @import("../c1.zig");
 const C1Model = @This();
 
 // Use a fixed-size array indexed by CC values
-values: [256]u8 = [_]u8{0} ** 256,
+values: [256]u8,
 
 // Singleton instance for tests
-pub var instance: ?C1Model = null;
+pub var instance: ?@This() = null;
+pub const default: @This() = .{ .values = [_]u8{0} ** 256 };
 
 /// Initialize a new C1Model with all values set to 0
-pub fn init() C1Model {
-    return C1Model{};
-}
-
 /// Reset the model to its initial state
 pub fn reset(self: *C1Model) void {
     // Reset all values to 0
