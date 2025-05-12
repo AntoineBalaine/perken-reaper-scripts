@@ -25,11 +25,11 @@ pub fn setupMockReaperAPI(model: *Session) Mocks {
         .origTrackFX_GetFXName = reaper.TrackFX_GetFXName,
     };
 
-    @constCast(&reaper.InsertTrackAtIndex).* = @constCast(&mockInsertTrackAtIndex);
-    @constCast(&reaper.DeleteTrack).* = @constCast(&mockDeleteTrack);
-    @constCast(&reaper.TrackFX_AddByName).* = @constCast(&mockTrackFX_AddByName);
-    @constCast(&reaper.TrackFX_GetCount).* = @constCast(&mockTrackFX_GetCount);
-    @constCast(&reaper.TrackFX_GetFXName).* = @constCast(&mockTrackFX_GetFXName);
+    @constCast(&reaper.InsertTrackAtIndex).* = @constCast(&InsertTrackAtIndex);
+    @constCast(&reaper.DeleteTrack).* = @constCast(&DeleteTrack);
+    @constCast(&reaper.TrackFX_AddByName).* = @constCast(&TrackFX_AddByName);
+    @constCast(&reaper.TrackFX_GetCount).* = @constCast(&TrackFX_GetCount);
+    @constCast(&reaper.TrackFX_GetFXName).* = @constCast(&TrackFX_GetFXName);
 
     return origFuncs;
 }
@@ -45,7 +45,7 @@ pub fn restoreMockReaperAPI(origFuncs: anytype) void {
 }
 
 // Mock REAPER API functions with the same signatures as the real API
-fn mockInsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
+fn InsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
     _ = wantDefaults;
     const model = g_session.?;
     const gpa = model.gpa;
@@ -68,7 +68,7 @@ fn mockInsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
 // NOTE: there is the case in which we try to add an fx which
 // doesn't exist on the user's system, in which case reaper returns -1
 // TODO: implement model fx library
-fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.C) c_int {
+fn TrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.C) c_int {
     _ = recFX;
     _ = instantiate;
     const session = g_session.?;
@@ -103,7 +103,7 @@ fn mockTrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX:
     return @intCast(tr.fx_list.items.len - 1);
 }
 
-fn mockTrackFX_GetCount(track: reaper.MediaTrack) callconv(.C) c_int {
+fn TrackFX_GetCount(track: reaper.MediaTrack) callconv(.C) c_int {
     // Cast to optional pointer and check for null
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return -1;
@@ -113,7 +113,7 @@ fn mockTrackFX_GetCount(track: reaper.MediaTrack) callconv(.C) c_int {
     return @intCast(tr.fx_list.items.len);
 }
 
-fn mockTrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.C) bool {
+fn TrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.C) bool {
     // Cast to optional pointer and check for null
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
@@ -132,7 +132,7 @@ fn mockTrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, b
     return true;
 }
 
-fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
+fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     const model = g_session.?;
 
     // Cast to optional pointer and check for null
@@ -183,28 +183,29 @@ fn mockDeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
 }
 
 // Mock REAPER API functions
-fn GetNumTracks(project: ?*anyopaque) i32 {
-    _ = project;
+fn GetNumTracks() callconv(.C) c_int {
     return @intCast(g_session.?.tracks.items.len - 1); // Don't count master track
 }
 
-fn CountTracks(project: ?*anyopaque) i32 {
+fn CountTracks(project: ReaProject) callconv(.C) c_int {
     _ = project;
     return @intCast(g_session.?.tracks.items.len); // Count all tracks including master
 }
 
-fn GetTrack(project: ?*anyopaque, trackidx: i32) ?*Track {
+fn GetTrack(project: ReaProject, trackidx: c_int) callconv(.C) ?*Track {
     _ = project;
     if (trackidx < 0 or trackidx >= g_session.?.tracks.items.len - 1) return null;
     return &g_session.?.tracks.items[@as(usize, @intCast(trackidx)) + 1]; // Skip master track
 }
 
-fn GetMasterTrack(project: ?*anyopaque) ?*Track {
+fn GetMasterTrack(project: ReaProject) callconv(.C) ?*Track {
     _ = project;
     return &g_session.?.tracks.items[0];
 }
 
-fn GetTrackName(track: ?*Track, buf: ?[*]u8, bufsz: i32) bool {
+fn GetTrackName(tr: MediaTrack, buf: [*:0]const u8, bufsz: c_int) callconv(.C) bool {
+    var track: ?*Track = @alignCast(@ptrCast(tr));
+    _ = &track;
     if (track == null or buf == null or bufsz <= 0) return false;
     const name = g_session.?.getTrackName(track.?.*);
 
@@ -214,7 +215,9 @@ fn GetTrackName(track: ?*Track, buf: ?[*]u8, bufsz: i32) bool {
     return true;
 }
 
-fn SetMediaTrackInfo_Value(track: ?*Track, parmname: [*:0]const u8, newvalue: f64) bool {
+fn SetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8, newvalue: f64) callconv(.C) bool {
+    var track: ?*Track = @alignCast(@ptrCast(tr));
+    _ = &track;
     if (track == null) return false;
 
     const param = std.mem.span(parmname);
@@ -235,7 +238,9 @@ fn SetMediaTrackInfo_Value(track: ?*Track, parmname: [*:0]const u8, newvalue: f6
     return false;
 }
 
-fn GetMediaTrackInfo_Value(track: ?*Track, parmname: [*:0]const u8) f64 {
+fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv(.C) f64 {
+    var track: ?*Track = @alignCast(@ptrCast(tr));
+    _ = &track;
     if (track == null) return 0;
 
     const param = std.mem.span(parmname);
@@ -252,7 +257,9 @@ fn GetMediaTrackInfo_Value(track: ?*Track, parmname: [*:0]const u8) f64 {
     return 0;
 }
 
-fn SetTrackSelected(track: ?*Track, selected: bool) void {
+fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.C) void {
+    var track: ?*Track = @alignCast(@ptrCast(tr));
+    _ = &track;
     if (track == null) return;
 
     // Find track index
@@ -281,8 +288,8 @@ fn SetTrackSelected(track: ?*Track, selected: bool) void {
     }
 }
 
-fn GetSelectedTrack(project: ?*anyopaque, seltrackidx: i32) ?*Track {
-    _ = project;
+fn GetSelectedTrack(proj: ReaProject, seltrackidx: c_int) callconv(.C) ?*Track {
+    _ = proj;
     if (seltrackidx < 0 or seltrackidx >= g_session.?.selected_tracks.items.len) return null;
 
     const track_idx = g_session.?.selected_tracks.items[@intCast(seltrackidx)];
@@ -317,23 +324,23 @@ test "track creation and deletion with mock API" {
     defer test_ctx.teardown();
 
     // Initial track count
-    try testing.expectEqual(@as(i32, 4), CountTracks(null)); // 3 regular + master
+    try testing.expectEqual(@as(c_int, 4), CountTracks(0)); // 3 regular + master
 
     // Test track creation
     reaper.InsertTrackAtIndex(1, true);
-    try testing.expectEqual(@as(i32, 5), CountTracks(null)); // 4 regular + master
+    try testing.expectEqual(@as(c_int, 5), CountTracks(0)); // 4 regular + master
 
     // Get the newly created track
-    const new_track = GetTrack(null, 1);
+    const new_track = @as(?*Track, @ptrCast(@alignCast(GetTrack(0, 1))));
     try testing.expect(new_track.?.name == null);
 
     // Test track deletion
     reaper.DeleteTrack(@ptrCast(new_track.?));
-    try testing.expectEqual(@as(i32, 4), CountTracks(null)); // Back to 3 regular + master
+    try testing.expectEqual(@as(c_int, 4), CountTracks(0)); // Back to 3 regular + master
 
     // Verify track numbering was updated
     for (0..3) |i| {
-        const track = GetTrack(null, @intCast(i));
+        const track = GetTrack(0, @intCast(i));
         try testing.expect(track != null);
     }
 }
@@ -343,7 +350,7 @@ test "fx operations with mock API" {
     defer test_ctx.teardown();
 
     // Get a track to work with
-    const track = GetTrack(null, 0);
+    const track = @as(?*Track, @ptrCast(@alignCast(GetTrack(0, 0))));
     try testing.expect(track != null);
 
     // Initially no FX
@@ -382,40 +389,40 @@ test "mock reaper API track operations" {
     const model = g_session.?;
 
     // Test track count via mock API
-    const num_tracks = GetNumTracks(null);
-    try testing.expectEqual(@as(i32, 3), num_tracks); // Regular tracks only
-    const total_tracks = CountTracks(null);
-    try testing.expectEqual(@as(i32, 4), total_tracks); // Including master
+    const num_tracks = GetNumTracks();
+    try testing.expectEqual(@as(c_int, 3), num_tracks); // Regular tracks only
+    const total_tracks = CountTracks(0);
+    try testing.expectEqual(@as(c_int, 4), total_tracks); // Including master
 
     // Test track retrieval via mock API
-    const track1 = GetTrack(null, 0);
+    const track1 = @as(?*Track, @ptrCast(@alignCast(GetTrack(0, 0))));
     try testing.expect(track1 != null);
     try testing.expectEqualStrings("Track 1", model.string_pool.getString(track1.?.name.?));
 
-    const master = GetMasterTrack(null);
+    const master = @as(?*Track, @ptrCast(@alignCast(GetMasterTrack(0))));
     try testing.expect(master != null);
     try testing.expectEqualStrings("Master", model.string_pool.getString(master.?.name.?));
 
     // Test track selection via mock API
-    SetTrackSelected(track1, true);
+    SetTrackSelected(@ptrCast(track1), true);
     try testing.expectEqual(@as(usize, 1), model.selected_tracks.items.len);
 
-    const selected = GetSelectedTrack(null, 0);
+    const selected = @as(?*Track, @ptrCast(@alignCast(GetSelectedTrack(0, 0))));
     try testing.expect(selected != null);
     try testing.expectEqualStrings("Track 1", model.string_pool.getString(selected.?.name.?));
 
     // Test track parameters via mock API
-    _ = SetMediaTrackInfo_Value(track1, "D_VOL", 0.5);
-    try testing.expectEqual(@as(f64, 0.5), GetMediaTrackInfo_Value(track1, "D_VOL"));
+    _ = SetMediaTrackInfo_Value(@ptrCast(track1), "D_VOL", 0.5);
+    try testing.expectEqual(@as(f64, 0.5), GetMediaTrackInfo_Value(@ptrCast(track1), "D_VOL"));
 
-    _ = SetMediaTrackInfo_Value(track1, "B_MUTE", 1.0);
-    try testing.expectEqual(@as(f64, 1.0), GetMediaTrackInfo_Value(track1, "B_MUTE"));
+    _ = SetMediaTrackInfo_Value(@ptrCast(track1), "B_MUTE", 1.0);
+    try testing.expectEqual(@as(f64, 1.0), GetMediaTrackInfo_Value(@ptrCast(track1), "B_MUTE"));
 
-    _ = SetMediaTrackInfo_Value(track1, "I_SOLO", 1.0);
-    try testing.expectEqual(@as(f64, 1.0), GetMediaTrackInfo_Value(track1, "I_SOLO"));
+    _ = SetMediaTrackInfo_Value(@ptrCast(track1), "I_SOLO", 1.0);
+    try testing.expectEqual(@as(f64, 1.0), GetMediaTrackInfo_Value(@ptrCast(track1), "I_SOLO"));
 
     // Test track deselection via mock API
-    SetTrackSelected(track1, false);
+    SetTrackSelected(@ptrCast(track1), false);
     try testing.expectEqual(@as(usize, 0), model.selected_tracks.items.len);
 }
 
@@ -429,3 +436,5 @@ const FX = fx_model.FX;
 const track_model = @import("track_model.zig");
 const Track = track_model.Track;
 const Session = @import("session.zig");
+const ReaProject = reaper.ReaProject;
+const MediaTrack = reaper.MediaTrack;
