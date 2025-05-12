@@ -47,7 +47,7 @@ const Mocks = struct {
 };
 
 // Helper functions to set up and tear down the mock API
-pub fn setupMockReaperAPI(model: *Session) Mocks {
+fn setupMockReaperAPI(model: *Session) Mocks {
     setCurrentModel(model);
 
     // Create a Mocks struct to store original functions
@@ -68,7 +68,7 @@ pub fn setupMockReaperAPI(model: *Session) Mocks {
     return origFuncs;
 }
 
-pub fn restoreMockReaperAPI(origFuncs: anytype) void {
+fn restoreMockReaperAPI(origFuncs: anytype) void {
     inline for (std.meta.fields(Mocks)) |field| {
         const name = field.name;
         @constCast(&@field(reaper, name)).* = @constCast(&@field(origFuncs, name)).*;

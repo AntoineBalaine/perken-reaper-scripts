@@ -11,10 +11,10 @@ test "control surface init switches from suspended to fx_ctrl" {
     defer session_model.deinit();
 
     // Set up the mock API
-    const reaperOrigFns = models.mock.reaper.setupMockReaperAPI(&session_model);
-    defer models.mock.reaper.restoreMockReaperAPI(reaperOrigFns);
-    _ = models.mock.midi.setupMidiMocks(reaper);
-    const midi_out_inst = models.mock.midi.getModelInstance();
+    const reaperOrigFns = models.reaper.setupMockReaperAPI(&session_model);
+    defer models.reaper.restoreMockReaperAPI(reaperOrigFns);
+    _ = models.midi.setupMidiMocks(reaper);
+    const midi_out_inst = models.midi.getModelInstance();
     for (std.enums.values(c1.CCs)) |cc| {
         midi_out_inst.updateValue(cc, 0x7f); // set all values to max
     }

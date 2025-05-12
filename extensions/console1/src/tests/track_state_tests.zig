@@ -1,13 +1,4 @@
-const std = @import("std");
-const models = @import("../models/models.zig");
-const extension = @import("../console1_extension.zig");
-const TestRunner = @import("../test_runner.zig");
-const reaper = @import("../reaper.zig").reaper;
-const pReaper = @import("../pReaper.zig");
-const TrackState = @import("../track_state.zig");
-const RprCmds = @import("../reaper_cmds.zig");
-const DefaultFx = @import("../settings.zig").DefaultFx;
-const utils = @import("../utils.zig");
+//! called from hooks
 
 const log = std.log.scoped(.track_tests);
 
@@ -217,3 +208,13 @@ pub fn testAddMissingModules() !void {
     try std.testing.expectEqual(@as(i32, 3), coverage.COMP.?.index);
     try std.testing.expectEqual(@as(i32, 4), coverage.OUTPT.?.index);
 }
+
+const std = @import("std");
+const extension = @import("../console1_extension.zig");
+const TestRunner = @import("../test_runner.zig");
+const reaper = @import("../reaper.zig").reaper;
+const pReaper = @import("../pReaper.zig");
+const TrackState = @import("../track_state.zig");
+const RprCmds = @import("../reaper_cmds.zig");
+const DefaultFx = @import("../settings.zig").DefaultFx;
+const utils = @import("../utils.zig");
