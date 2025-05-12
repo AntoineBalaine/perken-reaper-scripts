@@ -43,11 +43,37 @@ pub export fn MidiOut_Send(midi_out: midi_Output_w, status: u8, d1: u8, d2: u8, 
         // Try to convert the d1 value to a CCs enum
         for (std.enums.values(c1.CCs)) |cc| {
             if (@intFromEnum(cc) == d1) {
-                getModelInstance().updateValue(cc, d2);
+                getModelInstance().updateValue(cc, @truncate(d2));
                 break;
             }
         }
     }
+}
+
+test MidiOut_Send {
+    // Reset the singleton instance
+    if (C1Model.instance != null) {
+        C1Model.instance.?.reset();
+    } else {
+        C1Model.instance = .default;
+    }
+
+    const midi_out: midi_Output_w = @alignCast(@ptrCast(&dummy_midi_output));
+
+    // CC message
+    MidiOut_Send(midi_out, 0xB0, @intFromEnum(c1.CCs.Out_Vol), 100, -1);
+    try std.testing.expectEqual(@as(u8, 100), C1Model.instance.?.getValue(c1.CCs.Out_Vol));
+
+    // Button message
+    MidiOut_Send(midi_out, 0xB0, @intFromEnum(c1.CCs.Out_mute), 127, -1);
+    try std.testing.expectEqual(@as(u8, 127), C1Model.instance.?.getValue(c1.CCs.Out_mute));
+
+    // Test sending a non-CC message (should not update the model)
+    C1Model.instance.?.reset();
+    MidiOut_Send(midi_out, 0x90, @intFromEnum(c1.CCs.Out_Vol), 100, -1);
+
+    // Verify the model was not updated
+    try std.testing.expectEqual(@as(u8, 0), C1Model.instance.?.getValue(c1.CCs.Out_Vol));
 }
 
 /// Mock implementation of CreateMIDIInput
@@ -71,6 +97,17 @@ pub export fn CreateMIDIOutput(dev: c_int, dontOpen: bool, nameOut: ?*anyopaque)
 pub export fn CreateThreadedMIDIOutput(output: midi_Output_w) midi_Output_w {
     _ = output;
     return @ptrCast(@alignCast(&dummy_midi_output));
+}
+
+test CreateThreadedMIDIOutput {
+    // Create a dummy MIDI output
+    const midi_out: midi_Output_w = @alignCast(@ptrCast(&dummy_midi_output));
+
+    // Test CreateThreadedMIDIOutput
+    const threaded_output = CreateThreadedMIDIOutput(midi_out);
+
+    // Verify it returns a non-null pointer
+    try std.testing.expect(threaded_output != null);
 }
 
 /// Mock implementation of ControlSurface_Create
@@ -204,3 +241,5 @@ pub fn setupMidiMocks(reaper_api: anytype) struct {
 
     return origFuncs;
 }
+
+// TODO: add input tests
