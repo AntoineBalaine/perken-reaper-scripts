@@ -98,16 +98,21 @@ GATE: std.StringArrayHashMapUnmanaged(Shp),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
 
-pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *settings.DefaultFx) !MapStore {
-    var self: MapStore = .{
+pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This() {
+    const self: MapStore = .{
         .INPUT = std.StringArrayHashMapUnmanaged(Inpt){},
         .GATE = std.StringArrayHashMapUnmanaged(Shp){},
         .EQ = std.StringArrayHashMapUnmanaged(Eq){},
         .COMP = std.StringArrayHashMapUnmanaged(Comp){},
         .OUTPT = std.StringArrayHashMapUnmanaged(Outpt){},
-        .controller_dir = try allocator.dupeZ(u8, std.mem.span(controller_dir)),
+        .controller_dir = controller_dir,
         .allocator = allocator,
     };
+    return self;
+}
+
+pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *settings.DefaultFx) !MapStore {
+    var self: MapStore = .empty(allocator, controller_dir);
     // find the mappings for the defaults
     var iterator = defaults.iterator();
     while (iterator.next()) |defaultsEntry| {
@@ -126,7 +131,6 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, default
 
 pub fn deinit(self: *MapStore) void {
     log.debug("Cleaning up MapStore", .{});
-    self.allocator.free(std.mem.span(self.controller_dir)); // Free our copy
     self.COMP.deinit(self.allocator);
     self.EQ.deinit(self.allocator);
     self.INPUT.deinit(self.allocator);

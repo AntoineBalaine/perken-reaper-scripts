@@ -484,6 +484,19 @@ pub const TranslationStore = struct {
     current_language: []const u8,
     available_languages: []LanguageInfo,
 
+    /// used in testing
+    pub const empty: @This() = .{
+        .store = .init(),
+        .current_language = "en",
+        .available_languages = &[_]LanguageInfo{},
+    };
+
+    pub fn defaults(arena: std.mem.Allocator) !@This() {
+        var self: @This() = .empty;
+        try self.store.loadDefaults(arena);
+        return self;
+    }
+
     pub fn init(g_arena: std.mem.Allocator, resource_path: []const u8, language: []const u8) !TranslationStore {
         // First get available languages
         const languages = try getAvailableLanguages(g_arena, resource_path);

@@ -16,6 +16,7 @@ test "control surface init switches from suspended to fx_ctrl" {
     }
 
     Globals.instance = try models.initMinimalGlobals();
+    // defer Globals.instance.deinit();
     Globals.instance.state.current_mode = .suspended;
 
     // Call control_surface.init with valid device IDs (0 and 0)

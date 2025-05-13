@@ -26,57 +26,18 @@ pub fn initMinimalGlobals() !Globals {
     // globals.tmp_dir = tmp;
     // globals.resource_path = try globals.arena.dupeZ(u8, tmp.dir.path);
 
-    // Initialize default preferences with fallback values
-    globals.preferences = Preferences{
-        .default_fx = DefaultFx.initFill(null),
-    };
+    globals.preferences = try .defaults(globals.arena);
 
-    // Copy fallback defaults for preferences
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        const fallback = Preferences.fallback_defaults.get(module).?;
-        const owned_copy = try globals.arena.dupeZ(u8, fallback);
-        globals.preferences.default_fx.set(module, owned_copy);
-    }
-
-    // Initialize event log (needed by called functions)
-    globals.event_log = EventLog.init();
+    globals.event_log = .init();
     logger.event_log = &globals.event_log;
+    globals.map_store = .empty(globals.arena, globals.resource_path);
 
-    // Initialize empty map_store
-    globals.map_store = MapStore{
-        .COMP = std.StringArrayHashMapUnmanaged(MapStore.Comp){},
-        .EQ = std.StringArrayHashMapUnmanaged(MapStore.Eq){},
-        .INPUT = std.StringArrayHashMapUnmanaged(MapStore.Inpt){},
-        .OUTPT = std.StringArrayHashMapUnmanaged(MapStore.Outpt){},
-        .GATE = std.StringArrayHashMapUnmanaged(MapStore.Shp){},
-        .controller_dir = try globals.arena.dupeZ(u8, ""),
-        .allocator = globals.arena,
-    };
+    globals.mappings_list = .empty(globals.arena);
 
-    // Initialize empty mappings_list
-    globals.mappings_list = .{
-        .list = std.EnumArray(ModulesList, std.StringArrayHashMap(void)).init(.{
-            .INPUT = std.StringArrayHashMap(void).init(globals.arena),
-            .GATE = std.StringArrayHashMap(void).init(globals.arena),
-            .EQ = std.StringArrayHashMap(void).init(globals.arena),
-            .COMP = std.StringArrayHashMap(void).init(globals.arena),
-            .OUTPT = std.StringArrayHashMap(void).init(globals.arena),
-        }),
-        .arena = globals.arena,
-    };
+    globals.translations = try .defaults(globals.arena);
 
-    // Initialize translations with default values
-    globals.translations = .{
-        .store = Translations.StringStore.init(),
-        .current_language = "en",
-        .available_languages = &[_]Translations.LanguageInfo{},
-    };
-    try globals.translations.store.loadDefaults(globals.arena);
+    globals.state = .init(globals.arena);
 
-    // Initialize state machine
-    globals.state = statemachine.State.init(globals.arena);
-
-    // Set suspended mode initially
     globals.state.current_mode = .suspended;
 
     return globals;

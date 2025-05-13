@@ -5,16 +5,30 @@ const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
 
 // Store just file names, not actual mappings
-list: std.EnumArray(ModulesList, std.StringArrayHashMap(void)),
+list: std.EnumArray(ModulesList, std.StringArrayHashMapUnmanaged(void)),
 arena: std.mem.Allocator,
-pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
-    var maps = std.EnumArray(ModulesList, std.StringArrayHashMap(void)).initUndefined();
 
+pub fn empty(arena: std.mem.Allocator) @This() {
+    return .{
+        .list = std.EnumArray(ModulesList, std.StringArrayHashMapUnmanaged(void)).init(.{
+            .INPUT = .empty,
+            .GATE = .empty,
+            .EQ = .empty,
+            .COMP = .empty,
+            .OUTPT = .empty,
+        }),
+        .arena = arena,
+    };
+}
+
+pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
+    var list = std.EnumArray(ModulesList, std.StringArrayHashMapUnmanaged(void)).initUndefined();
+
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     inline for (comptime std.enums.values(ModulesList)) |module| {
         inline_blk: {
-            maps.set(module, std.StringArrayHashMap(void).init(arena));
+            list.set(module, .empty);
 
-            var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const module_path = fs_helpers.joinStrings(&path_buffer, &.{
                 resource_path,
                 std.fs.path.sep_str,
@@ -47,7 +61,7 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
                     defer file.close();
 
                     if (parseFxName(arena, file) catch continue) |actual_name| {
-                        maps.getPtr(module).put(actual_name, {}) catch {
+                        list.getPtr(module).put(arena, actual_name, {}) catch {
                             log.warn("Mappings list: Failed to store fx name {s}", .{actual_name});
                             continue;
                         };
@@ -60,7 +74,7 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
     }
 
     return .{
-        .list = maps,
+        .list = list,
         .arena = arena,
     };
 }

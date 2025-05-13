@@ -40,21 +40,44 @@ pub const SettingsFields = enum {
 };
 
 // Data
-language: [:0]const u8 = "en",
-show_startup_message: bool = false,
-show_feedback_window: bool = false,
-show_plugin_ui: bool = false,
-manual_routing: bool = false,
+language: [:0]const u8,
+show_startup_message: bool,
+show_feedback_window: bool,
+show_plugin_ui: bool,
+manual_routing: bool,
 default_fx: DefaultFx,
-log_to_file: bool = false,
-start_suspended: bool = false,
-show_track_list: bool = true,
-focus_page_tracks: bool = false,
+log_to_file: bool,
+start_suspended: bool,
+show_track_list: bool,
+focus_page_tracks: bool,
+
+pub const empty: @This() = .{
+    .language = "en",
+    .show_startup_message = false,
+    .show_feedback_window = false,
+    .show_plugin_ui = false,
+    .manual_routing = false,
+    .default_fx = .initFill(null),
+    .log_to_file = false,
+    .start_suspended = false,
+    .show_track_list = true,
+    .focus_page_tracks = false,
+};
+
+/// defaults-only prefs
+pub fn defaults(arena: std.mem.Allocator) !@This() {
+    var self: @This() = .empty;
+    // Copy fallback defaults for preferences
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        const owned_copy = try arena.dupeZ(u8, fallback_defaults.get(module).?);
+        self.default_fx.set(module, owned_copy);
+    }
+    return self;
+}
 
 pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences {
-    var self = Preferences{
-        .default_fx = DefaultFx.initUndefined(),
-    };
+    var self: @This() = .empty;
+    self.default_fx = DefaultFx.initUndefined();
 
     // Always start by copying fallback defaults
     inline for (comptime std.enums.values(ModulesList)) |module| {

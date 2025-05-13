@@ -163,7 +163,7 @@ fn RescanButton(ctx: imgui.ContextPtr, translations: *TranslationStore) !void {
 pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
-    mappings: std.StringArrayHashMap(void),
+    mappings: std.StringArrayHashMapUnmanaged(void),
     current_index: usize,
     display_menus: bool,
     g_drwls_splitter: *imgui.DrawListSplitterPtr,
