@@ -5,14 +5,10 @@ const Globals = @import("../globals.zig");
 const reaper = @import("../reaper.zig").reaper;
 
 test "control surface init switches from suspended to fx_ctrl" {
-    var allocator = std.testing.allocator;
-    _ = &allocator;
-    var session_model = try models.initializeTestState(allocator);
-    defer session_model.deinit();
+    const teardown = models.reaper.setupTestModel(std.testing.allocator, null, null);
+    defer teardown.teardown();
 
     // Set up the mock API
-    const reaperOrigFns = models.reaper.setupMockReaperAPI(&session_model);
-    defer models.reaper.restoreMockReaperAPI(reaperOrigFns);
     _ = models.midi.setupMidiMocks(reaper);
     const midi_out_inst = models.midi.getModelInstance();
     for (std.enums.values(c1.CCs)) |cc| {

@@ -223,14 +223,15 @@ pub export fn MIDI_event_message(evt: ?*MIDI_event_t) ?[*]u8 {
     if (evt == null) return null;
     return &evt.?.midi_message;
 }
+const MidiFuncs = struct {
+    origCreateMIDIInput: @TypeOf(reaper.CreateMIDIInput),
+    origCreateMIDIOutput: @TypeOf(reaper.CreateMIDIOutput),
+};
 
 /// Setup function to ensure MIDI wrapper mocks are active
-pub fn setupMidiMocks(reaper_api: anytype) struct {
-    origCreateMIDIInput: @TypeOf(reaper_api.CreateMIDIInput),
-    origCreateMIDIOutput: @TypeOf(reaper_api.CreateMIDIOutput),
-} {
+pub fn setupMidiMocks(reaper_api: anytype) MidiFuncs {
     // Save original functions
-    const origFuncs = .{
+    const origFuncs: MidiFuncs = .{
         .origCreateMIDIInput = reaper_api.CreateMIDIInput,
         .origCreateMIDIOutput = reaper_api.CreateMIDIOutput,
     };

@@ -5,7 +5,7 @@ pub fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc
     orig_funcs: Mocks,
     model_ptr: *Session,
 
-    fn teardown(self: @This()) void {
+    pub fn teardown(self: @This()) void {
         restoreMockReaperAPI(self.orig_funcs);
         self.model_ptr.deinit();
         self.model_ptr.gpa.destroy(self.model_ptr);

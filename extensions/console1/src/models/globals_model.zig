@@ -20,8 +20,11 @@ pub fn initMinimalGlobals() !Globals {
     globals.arena_int = std.heap.ArenaAllocator.init(globals.gpa_int.allocator());
     globals.arena = globals.arena_int.allocator();
 
-    // Set empty resource path
     globals.resource_path = "";
+    // other option for storing to disk
+    // const tmp = std.testing.tmpDir(.{});
+    // globals.tmp_dir = tmp;
+    // globals.resource_path = try globals.arena.dupeZ(u8, tmp.dir.path);
 
     // Initialize default preferences with fallback values
     globals.preferences = Preferences{
