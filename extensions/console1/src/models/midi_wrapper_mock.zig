@@ -224,23 +224,35 @@ pub export fn MIDI_event_message(evt: ?*MIDI_event_t) ?[*]u8 {
     return &evt.?.midi_message;
 }
 const MidiFuncs = struct {
-    origCreateMIDIInput: @TypeOf(reaper.CreateMIDIInput),
-    origCreateMIDIOutput: @TypeOf(reaper.CreateMIDIOutput),
+    CreateMIDIInput: @TypeOf(reaper.CreateMIDIInput),
+    CreateMIDIOutput: @TypeOf(reaper.CreateMIDIOutput),
 };
 
 /// Setup function to ensure MIDI wrapper mocks are active
-pub fn setupMidiMocks(reaper_api: anytype) MidiFuncs {
-    // Save original functions
-    const origFuncs: MidiFuncs = .{
-        .origCreateMIDIInput = reaper_api.CreateMIDIInput,
-        .origCreateMIDIOutput = reaper_api.CreateMIDIOutput,
+pub fn setupMidiMocks(reaper_api: anytype) struct {
+    orig_fns: MidiFuncs,
+
+    pub fn teardown(self: @This()) void {
+        restoreReaperMidiFns(self.orig_fns);
+    }
+} {
+    const orig_fns: MidiFuncs = .{
+        .CreateMIDIInput = reaper_api.CreateMIDIInput,
+        .CreateMIDIOutput = reaper_api.CreateMIDIOutput,
     };
 
     // Replace with our mock implementations
     @constCast(&reaper_api.CreateMIDIInput).* = @ptrCast(@constCast(&CreateMIDIInput));
     @constCast(&reaper_api.CreateMIDIOutput).* = @ptrCast(@constCast(&CreateMIDIOutput));
 
-    return origFuncs;
+    return .{ .orig_fns = orig_fns };
+}
+
+fn restoreReaperMidiFns(origFuncs: anytype) void {
+    inline for (std.meta.fields(MidiFuncs)) |field| {
+        const name = field.name;
+        @constCast(&@field(reaper, name)).* = @constCast(&@field(origFuncs, name)).*;
+    }
 }
 
 // TODO: add input tests

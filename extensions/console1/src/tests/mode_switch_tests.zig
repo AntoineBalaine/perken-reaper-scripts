@@ -4,19 +4,38 @@ const c1 = @import("../c1.zig");
 const Globals = @import("../globals.zig");
 const reaper = @import("../reaper.zig").reaper;
 
-test "control surface init switches from suspended to fx_ctrl" {
-    const teardown = models.reaper.setupTestModel(std.testing.allocator, null, null);
-    defer teardown.teardown();
+/// convenience function that lumps together the setup/teardown
+/// utilities of the reaper mocks, midi mocks, and minimal globals.
+fn test_setup(allocator: std.mem.Allocator) !struct {
+    reaper_teardown: @typeInfo(@TypeOf(models.reaper.setupTestModel)).@"fn".return_type.?,
+    midi_teardown: @typeInfo(@TypeOf(models.midi.setupMidiMocks)).@"fn".return_type.?,
+    globals: *Globals,
+    pub fn teardown(self: @This()) void {
+        self.reaper_teardown.teardown();
+        self.midi_teardown.teardown();
+        self.globals.deinit();
+    }
+} {
+    const reaper_teardown = models.reaper.setupTestModel(std.testing.allocator, null, null);
+    const midi_teardown = models.midi.setupMidiMocks(reaper);
+    Globals.instance = try .defaults(allocator);
 
-    // Set up the mock API
-    _ = models.midi.setupMidiMocks(reaper);
+    return .{
+        .reaper_teardown = reaper_teardown,
+        .midi_teardown = midi_teardown,
+        .globals = &Globals.instance,
+    };
+}
+
+test "control surface init switches from suspended to fx_ctrl" {
+    const g_teardown = try test_setup(std.testing.allocator);
+    defer g_teardown.teardown();
+
     const midi_out_inst = models.midi.getModelInstance();
     for (std.enums.values(c1.CCs)) |cc| {
         midi_out_inst.updateValue(cc, 0x7f); // set all values to max
     }
 
-    Globals.instance = try .defaults(std.testing.allocator);
-    defer Globals.instance.deinit();
     Globals.instance.state.current_mode = .suspended;
 
     // Call control_surface.init with valid device IDs (0 and 0)
