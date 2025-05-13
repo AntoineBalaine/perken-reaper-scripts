@@ -15,8 +15,8 @@ test "control surface init switches from suspended to fx_ctrl" {
         midi_out_inst.updateValue(cc, 0x7f); // set all values to max
     }
 
-    Globals.instance = try models.initMinimalGlobals();
-    // defer Globals.instance.deinit();
+    Globals.instance = try .defaults(std.testing.allocator);
+    defer Globals.instance.deinit();
     Globals.instance.state.current_mode = .suspended;
 
     // Call control_surface.init with valid device IDs (0 and 0)

@@ -50,36 +50,58 @@ m_midi_out: ?reaper.midi_Output = null,
 playState: bool = false,
 pauseState: bool = false,
 
+pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
+    // Create a basic instance
+    var globals = Globals{};
+
+    globals.arena_int = std.heap.ArenaAllocator.init(debug_allocator);
+    globals.arena = globals.arena_int.allocator();
+    globals.resource_path = "";
+    globals.preferences = try .defaults(globals.arena);
+    globals.event_log = .init();
+    logger.event_log = &globals.event_log;
+    globals.map_store = .empty(globals.arena, globals.resource_path);
+    globals.mappings_list = .empty(globals.arena);
+    globals.translations = try .defaults(globals.arena);
+    globals.state = .init(globals.arena);
+    globals.state.current_mode = .suspended;
+
+    return globals;
+}
+
 pub fn init() !void {
     instance = .{};
-    const gpa = std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }){};
-    instance.gpa_int = gpa;
-    instance.arena_int = std.heap.ArenaAllocator.init(instance.gpa_int.allocator());
+    instance.gpa_int = .{};
+    instance.arena_int = .init(instance.gpa_int.allocator());
     instance.arena = instance.arena_int.allocator();
 
     fs_helpers.ensureConfigPath() catch {};
     instance.resource_path = std.mem.span(try fs_helpers.getControllerPath(instance.arena));
 
     // Initialize in dependency order
-    instance.preferences = try Preferences.init(instance.arena, instance.resource_path);
-    instance.translations = try TranslationStore.init(
+    instance.preferences = try .init(instance.arena, instance.resource_path);
+    instance.translations = try .init(
         instance.arena,
         instance.resource_path,
         instance.preferences.language, // We'll need to add this to preferences
     );
-    instance.map_store = try MapStore.init(instance.arena, instance.resource_path, &instance.preferences.default_fx);
-    instance.mappings_list = MappingsList.init(instance.arena, instance.resource_path);
-    instance.state = State.init(instance.arena);
-    instance.settings_panel = try SettingsPanel.init(&instance.preferences);
+    instance.map_store = try .init(
+        instance.arena,
+        instance.resource_path,
+        &instance.preferences.default_fx,
+    );
+    instance.mappings_list = .init(instance.arena, instance.resource_path);
+    instance.state = .init(instance.arena);
+    instance.settings_panel = try .init(&instance.preferences);
+
     if (instance.preferences.start_suspended) {
         instance.state.current_mode = .suspended;
     }
 
-    try fxParser.init(instance.gpa_int.allocator());
+    try fxParser.init(instance.arena);
 }
 
 pub fn deinit(self: *Globals) void {
-    fxParser.deinit(self.gpa_int.allocator());
     self.arena_int.deinit();
 
     const deinit_status = self.gpa_int.deinit();

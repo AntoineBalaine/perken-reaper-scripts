@@ -182,8 +182,13 @@ fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) 
 }
 
 fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
-    const path = try std.fs.path.resolve(allocator, &.{ std.mem.span(reaper.GetResourcePath()), "./reaper-fxtags.ini" });
-    defer allocator.free(path);
+    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const path = @import("fs_helpers.zig").joinStrings(&path_buffer, &.{
+        std.mem.span(reaper.GetResourcePath()),
+        std.fs.path.sep_str,
+        "reaper-fxtags.ini",
+    });
+
     const file = try std.fs.openFileAbsolute(path, .{});
     defer file.close();
 
@@ -234,7 +239,7 @@ fn deinitFXTags(self: *FxTags, allocator: std.mem.Allocator) void {
 /// get installedFX from reaper, put them into a list.
 /// sort them by name.
 fn initPluginList(allocator: std.mem.Allocator) !PluginsList {
-    var plugin_list = PluginsList{};
+    var plugin_list: PluginsList = .empty;
     errdefer {
         plugin_list.deinit(allocator);
     }
