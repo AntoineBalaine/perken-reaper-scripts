@@ -26,13 +26,14 @@ pub const SettingsFields = enum {
     manual_routing,
     log_to_file,
     start_suspended,
-    // Module combos start at 7
+    show_track_list,
+    focus_page_tracks,
+
     default_INPUT,
     default_GATE,
     default_COMP,
     default_EQ,
     default_OUTPT,
-    // ... other fields
 
     pub fn fromIndex(index: u8) ?SettingsFields {
         return std.meta.intToEnum(SettingsFields, index) catch null;
