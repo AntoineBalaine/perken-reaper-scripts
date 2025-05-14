@@ -87,4 +87,5 @@ test {
     _ = @import("tests/zlowcheck.zig");
     _ = @import("models/models.zig");
     _ = @import("tests/mode_switch_tests.zig");
+    _ = @import("tests/rapidcheck/settings_zlocheck.zig");
 }

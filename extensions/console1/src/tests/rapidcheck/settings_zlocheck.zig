@@ -13,6 +13,17 @@ const PrefsModel = struct {
     show_plugin_ui: bool = true,
     show_startup_message: bool = true,
     start_suspended: bool = false,
+    pub fn reset(self: *@This()) void {
+        self.language = "en";
+        self.log_to_file = false;
+        self.manual_routing = false;
+        self.panel_open = false;
+        self.scroll_position = 0;
+        self.show_feedback_window = true;
+        self.show_plugin_ui = true;
+        self.show_startup_message = true;
+        self.start_suspended = false;
+    }
 };
 pub const SettingsToggles = enum {
     log_to_file,
@@ -39,7 +50,7 @@ const OpenCmd = struct {
         _ = self;
 
         model.panel_open = true;
-        actions.dispatch(.{ .settings = .open });
+        actions.dispatch(sut, .{ .settings = .open });
 
         const cond =
             sut.settings_panel != null and
@@ -64,7 +75,7 @@ const SaveCmd = struct {
         _ = self;
 
         model.panel_open = false;
-        actions.dispatch(.{ .settings = .save });
+        actions.dispatch(sut, .{ .settings = .save });
 
         const cond =
             sut.settings_panel == null and
@@ -88,7 +99,7 @@ const CancelCmd = struct {
         _ = self;
 
         model.panel_open = false;
-        actions.dispatch(.{ .settings = .close });
+        actions.dispatch(sut, .{ .settings = .cancel });
 
         const cond =
             sut.settings_panel == null and
@@ -106,14 +117,14 @@ const ScrollCmd = struct {
         return model.panel_open;
     }
     pub fn onModelOnly(self: *@This(), model: *PrefsModel) void {
-        const new_pos = try self.random.int(u7);
+        const new_pos = self.random.int(u7) catch unreachable;
         model.scroll_position = new_pos;
     }
     pub fn onPair(self: *@This(), model: *PrefsModel, sut: *Globals) !bool {
         const new_pos = try self.random.int(u7);
         model.scroll_position = new_pos;
         actions.dispatch(sut, .{ .settings = .{ .scroll = new_pos } });
-        sut.settings_panel.?.scroll_position_abs == model.scroll_position;
+        return sut.settings_panel.?.scroll_position_abs == model.scroll_position;
     }
 };
 
@@ -123,12 +134,14 @@ const ToggleCmd = struct {
     pub fn checkPrecondition(self: *@This(), model: *PrefsModel) bool {
         _ = self;
         // scroll pos must be pointing to one fo the togglable options from the model
-        return model.panel_open and std.meta.intToEnum(SettingsToggles, model.scroll_position) != null;
+        return model.panel_open and std.meta.intToEnum(SettingsToggles, model.scroll_position) catch null != null;
     }
     pub fn onModelOnly(self: *@This(), model: *PrefsModel) void {
         _ = self;
-        const variant = std.meta.intToEnum(SettingsToggles, model.scroll_position) catch unreachable;
-        @field(model, @tagName(variant)) = !@field(model, @tagName(variant));
+        const @"enum" = std.meta.intToEnum(SettingsToggles, model.scroll_position) catch unreachable;
+        switch (@"enum") {
+            inline else => |variant| @field(model, @tagName(variant)) = !@field(model, @tagName(variant)),
+        }
     }
     pub fn onPair(self: *@This(), model: *PrefsModel, sut: *Globals) !bool {
         _ = self;
@@ -153,7 +166,7 @@ const UpdateCmd = struct {
         // for now, always use a bool_val
         // const str_val = try self.random.chance(.{ .denominator = 9, .numerator = 1 });
 
-        const toggle_idx = try self.random.intRangeLessThan(u8, 0, @intCast(std.enums.values(SettingsToggles).len));
+        const toggle_idx = self.random.intRangeLessThan(u8, 0, @intCast(std.enums.values(SettingsToggles).len)) catch unreachable;
         const toggle: SettingsToggles = @enumFromInt(toggle_idx);
         switch (toggle) {
             inline else => |variant| @field(model, @tagName(variant)) = !@field(model, @tagName(variant)),
@@ -167,15 +180,58 @@ const UpdateCmd = struct {
                 @field(model, @tagName(variant)) = !@field(model, @tagName(variant));
 
                 const act: @import("../../settings_panel.zig").SettingsValUpdate = .{
-                    .string_val = .{
+                    .bool_val = .{
                         .field = @field(@import("../../settings.zig").SettingsFields, @tagName(variant)),
                         .val = !@field(sut.settings_panel.?.temp_settings, @tagName(variant)),
                     },
                 };
 
-                actions.dispatch(sut, .{ .settings = .{ .toggle = act } });
+                actions.dispatch(sut, .{ .settings = .{ .update_val = act } });
                 return @field(sut.settings_panel.?.temp_settings, @tagName(variant)) == @field(model, @tagName(variant));
             },
         }
     }
 };
+
+test PrefsCmd {
+    var random_bytes = [_]u8{};
+    var prng = zlowcheck.FinitePrng.init(&random_bytes);
+    var random = prng.random();
+
+    var openCmd: OpenCmd = .{};
+    var saveCmd: SaveCmd = .{};
+    var cancelCmd: CancelCmd = .{};
+    var scrollCmd: ScrollCmd = .{ .random = &random };
+    var toggleCmd: ToggleCmd = .{};
+    var updateCmd: UpdateCmd = .{ .random = &random };
+
+    const commands = [_]PrefsCmd{
+        PrefsCmd.init(&openCmd),
+        PrefsCmd.init(&saveCmd),
+        PrefsCmd.init(&cancelCmd),
+        PrefsCmd.init(&scrollCmd),
+        PrefsCmd.init(&toggleCmd),
+        PrefsCmd.init(&updateCmd),
+    };
+    var cmd_seq = try zlowcheck.CommandList(PrefsModel, Globals).init(
+        &commands,
+        &random,
+        50,
+        std.testing.allocator,
+    );
+    defer cmd_seq.deinit(std.testing.allocator);
+
+    // Initialize model and system
+    var model = PrefsModel{};
+    var sut = Globals{};
+
+    const rv = try zlowcheck.assertStateful(
+        PrefsModel,
+        Globals,
+        &cmd_seq,
+        &model,
+        &sut,
+        .{ .verbose = false },
+    );
+    try std.testing.expect(rv == null);
+}
