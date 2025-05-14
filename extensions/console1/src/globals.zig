@@ -69,6 +69,10 @@ pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
     return globals;
 }
 
+pub fn reset(self: *Globals) void {
+    @import("actions.zig").dispatch(self, .{ .change_mode = if (self.m_midi_in != null) .fx_ctrl else .suspended });
+}
+
 pub fn init() !void {
     instance = .{};
     instance.gpa_int = .{};

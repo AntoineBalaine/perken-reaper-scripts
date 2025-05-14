@@ -1,7 +1,7 @@
 const std = @import("std");
 const zlowcheck = @import("zlowcheck");
-const Globals = @import("../../globals.zig");
-const actions = @import("../../actions.zig");
+const Globals = @import("../globals.zig");
+const actions = @import("../actions.zig");
 
 const PrefsModel = struct {
     language: []const u8 = "en",
@@ -179,9 +179,9 @@ const UpdateCmd = struct {
             inline else => |variant| {
                 @field(model, @tagName(variant)) = !@field(model, @tagName(variant));
 
-                const act: @import("../../settings_panel.zig").SettingsValUpdate = .{
+                const act: @import("../settings_panel.zig").SettingsValUpdate = .{
                     .bool_val = .{
-                        .field = @field(@import("../../settings.zig").SettingsFields, @tagName(variant)),
+                        .field = @field(@import("../settings.zig").SettingsFields, @tagName(variant)),
                         .val = !@field(sut.settings_panel.?.temp_settings, @tagName(variant)),
                     },
                 };
@@ -193,9 +193,14 @@ const UpdateCmd = struct {
     }
 };
 
-test PrefsCmd {
-    var random_bytes = [_]u8{};
-    var prng = zlowcheck.FinitePrng.init(&random_bytes);
+fn prefsStatefulTest(_: void, input: []const u8) !void {
+    const g_teardown = try @import("mode_switch_tests.zig").test_setup(std.testing.allocator);
+    defer g_teardown.teardown();
+
+    const fuzz_data = std.testing.allocator.alloc(u8, input.len) catch return error.SkipZigTest;
+    defer std.testing.allocator.free(fuzz_data);
+    @memcpy(fuzz_data, input);
+    var prng: zlowcheck.FinitePrng = .init(fuzz_data);
     var random = prng.random();
 
     var openCmd: OpenCmd = .{};
@@ -222,16 +227,25 @@ test PrefsCmd {
     defer cmd_seq.deinit(std.testing.allocator);
 
     // Initialize model and system
-    var model = PrefsModel{};
-    var sut = Globals{};
+    var model: PrefsModel = .{};
+    var sut = Globals.instance;
 
-    const rv = try zlowcheck.assertStateful(
+    const rv = zlowcheck.assertStateful(
         PrefsModel,
         Globals,
         &cmd_seq,
         &model,
         &sut,
         .{ .verbose = false },
-    );
+    ) catch |err| {
+        // We expect some errors due to OutOfEntropy, which is fine
+        if (err == zlowcheck.FinitePrng.FinitePrngErr.OutOfEntropy) return;
+        return err;
+    };
+
     try std.testing.expect(rv == null);
+}
+
+test prefsStatefulTest {
+    try std.testing.fuzz({}, prefsStatefulTest, .{});
 }

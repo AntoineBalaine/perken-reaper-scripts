@@ -6,7 +6,7 @@ const reaper = @import("../reaper.zig").reaper;
 
 /// convenience function that lumps together the setup/teardown
 /// utilities of the reaper mocks, midi mocks, and minimal globals.
-fn test_setup(allocator: std.mem.Allocator) !struct {
+pub fn test_setup(allocator: std.mem.Allocator) !struct {
     reaper_teardown: @typeInfo(@TypeOf(models.reaper.setupTestModel)).@"fn".return_type.?,
     midi_teardown: @typeInfo(@TypeOf(models.midi.setupMidiMocks)).@"fn".return_type.?,
     globals: *Globals,
