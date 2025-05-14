@@ -1,6 +1,6 @@
 const std = @import("std");
 const Dependencies = @import("build.zig").Dependencies;
-const rapidcheck_build = @import("build_rapidcheck.zig");
+// const rapidcheck_build = @import("build_rapidcheck.zig");
 
 pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: Dependencies) void {
     const entry_point_path = b.path("./src/console1_extension.zig");
@@ -28,7 +28,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     test_exe.addIncludePath(b.path("./src/rapidcheck/"));
     test_exe.addIncludePath(dependencies.wdl.path("")); // Root of WDL
     test_exe.addIncludePath(dependencies.reaper_sdk.path("")); // Root of reaper-sdk
-    rapidcheck_build.addRapidcheckInclude(test_exe, rapidcheck_dep);
+    // rapidcheck_build.addRapidcheckInclude(test_exe, rapidcheck_dep);
 
     // Add the config options module
     const options = b.addOptions();
@@ -82,12 +82,12 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
         cxx.step.dependOn(&php_cmd.step);
     }
 
-    const rc_build_options = rapidcheck_build.RapidcheckBuildOptions{
-        .target = target,
-        .optimize = .Debug,
-    };
-    rapidcheck_build.compileRapidcheck(b, test_exe, rapidcheck_dep, rc_build_options) catch @panic("Failed to compile RapidCheck");
-
+    // const rc_build_options = rapidcheck_build.RapidcheckBuildOptions{
+    //     .target = target,
+    //     .optimize = .Debug,
+    // };
+    // rapidcheck_build.compileRapidcheck(b, test_exe, rapidcheck_dep, rc_build_options) catch @panic("Failed to compile RapidCheck");
+    //
     // Add dependencies
     test_exe.root_module.addImport("ini", dependencies.ini.module("ini"));
     test_exe.root_module.addImport("zlowcheck", dependencies.zlowcheck.module("zlowcheck"));

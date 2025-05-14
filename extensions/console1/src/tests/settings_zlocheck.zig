@@ -196,6 +196,7 @@ const UpdateCmd = struct {
 fn prefsStatefulTest(_: void, input: []const u8) !void {
     const g_teardown = try @import("mode_switch_tests.zig").test_setup(std.testing.allocator);
     defer g_teardown.teardown();
+    _ = @import("../csurf/control_surface.zig").init(0, 0, null);
 
     const fuzz_data = std.testing.allocator.alloc(u8, input.len) catch return error.SkipZigTest;
     defer std.testing.allocator.free(fuzz_data);
@@ -236,14 +237,27 @@ fn prefsStatefulTest(_: void, input: []const u8) !void {
         &cmd_seq,
         &model,
         &sut,
-        .{ .verbose = false },
+        .{ .verbose = true },
     ) catch |err| {
         // We expect some errors due to OutOfEntropy, which is fine
         if (err == zlowcheck.FinitePrng.FinitePrngErr.OutOfEntropy) return;
         return err;
     };
-
+    if (rv) |_| {
+        std.debug.print("FAILURE with bytes:\n{s}\n", .{fuzz_data});
+    }
     try std.testing.expect(rv == null);
+}
+
+test "bytes" {
+    const random_bytes = [_]u8{
+        0x8B, 0xBE, 0x02, 0x2C, 0x87, 0x0A, 0xF6, 0x54, 0x4A, 0x59, 0x73, 0xA8, 0x12, 0xF7, 0x2B, 0x85,
+        //
+        0xAD, 0x95, 0x90, 0x8A, 0x21, 0xF1, 0xAC, 0x64, 0x42, 0x32, 0xA5, 0x0D, 0x10, 0x1F, 0xBA, 0xE7,
+        //
+        0x0F, 0xEE, 0xF9, 0x62, 0x62, 0x62, 0x62, 0x62, 0x62, 0x62, 0x62,
+    };
+    try prefsStatefulTest({}, &random_bytes);
 }
 
 test prefsStatefulTest {
