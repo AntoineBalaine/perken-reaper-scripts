@@ -1,8 +1,7 @@
 vim.api.nvim_create_autocmd("FileType", {
 	pattern = "zig",
 	callback = function()
-		local zig_14 =
-			"/Users/a266836/Documents/personnel/Experiments/zig/zig-macos-aarch64-0.14.0-dev.3204+c2a3d8cbb/zig"
+		local zig_14 = "zig"
 		vim.opt.makeprg = zig_14 .. " build"
 		vim.keymap.set("n", "<leader>zb", function()
 			require("zig-comp-diag").runWithCmd({ zig_14, "build", "-Dtest=true" })
