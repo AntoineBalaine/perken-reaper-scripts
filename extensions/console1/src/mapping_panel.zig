@@ -63,7 +63,42 @@ pub const MappingPanel = struct {
     }
 };
 
-pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *TranslationStore) !?mapping_actions.MappingAction {
+// Function to handle the parameters column
+fn params(
+    ctx: imgui.ContextPtr,
+    globals: *Globals,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingAction {
+    var rv: ?mapping_actions.MappingAction = null;
+
+    if (globals.mapping_panel) |panel| {
+        for (panel.fx_params.items, 0..) |param, i| {
+            var is_selected = if (globals.state.mapping.selected_parameter) |sel|
+                sel == i
+            else
+                false;
+
+            if (try imgui.Selectable(.{
+                ctx,
+                param.name,
+                &is_selected,
+                null,
+                0.0, // full width
+            })) {
+                rv = .{ .select_parameter = @intCast(i) };
+            }
+
+            if (isParamMapped(&globals.state, i)) {
+                try imgui.SameLine(.{ctx});
+                try imgui.TextDisabled(.{ ctx, tr(translations, .mapping_mapped) });
+            }
+        }
+    }
+
+    return rv;
+}
+
+pub fn mappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *TranslationStore) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
 
     try imgui.BeginGroup(.{ctx});
@@ -80,103 +115,71 @@ pub fn drawMappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: 
         try imgui.TableSetupColumn(.{ ctx, tr(translations, .mapping_console_controls) });
         try imgui.TableHeadersRow(.{ctx});
 
-        // // Parameters column
+        // Parameters column
         try imgui.TableNextRow(.{ctx});
         if (try imgui.TableNextColumn(.{ctx})) {
-            if (globals.mapping_panel) |panel| {
-                for (panel.fx_params.items, 0..) |param, i| {
-                    var is_selected = if (globals.state.mapping.selected_parameter) |sel|
-                        sel == i
-                    else
-                        false;
-
-                    if (try imgui.Selectable(.{
-                        ctx,
-                        param.name,
-                        &is_selected,
-                        null,
-                        0.0, // full width
-                    })) {
-                        rv = .{ .select_parameter = @intCast(i) };
-                    }
-
-                    if (isParamMapped(&globals.state, i)) {
-                        try imgui.SameLine(.{ctx});
-                        try imgui.TextDisabled(.{ ctx, tr(translations, .mapping_mapped) });
-                    }
-                }
+            if (try params(ctx, globals, translations)) |action| {
+                rv = action;
             }
         }
-        //
-        // // Controls column
-        //
-        if (try imgui.TableNextColumn(.{ctx})) {
-            const module_type = @tagName(globals.state.mapping.current_mappings);
-            try imgui.Text(.{ ctx, tr(translations, .mapping_module_prefix), .{module_type} });
-            try imgui.Separator(.{ctx});
-            switch (globals.state.mapping.current_mappings) {
-                .INPUT => {
-                    if (try drawModuleControls(ctx, &globals.state, &input_controls, translations)) |act| rv = act;
-                },
-                .GATE => {
-                    if (try drawModuleControls(ctx, &globals.state, &gate_controls, translations)) |act| rv = act;
-                },
-                .EQ => {
-                    if (try drawModuleControls(ctx, &globals.state, &eq_controls, translations)) |act| rv = act;
-                },
-                .COMP => {
-                    if (try drawModuleControls(ctx, &globals.state, &compressor_controls, translations)) |act| rv = act;
-                },
-                .OUTPT => {
-                    if (try drawModuleControls(ctx, &globals.state, &output_controls, translations)) |act| rv = act;
-                },
-            }
 
-            // if (try drawModuleControls(ctx, state, switch (state.mapping.current_mappings) {
-            //     .INPUT => &input_controls,
-            //     .GATE => &gate_controls,
-            //     .EQ => &eq_controls,
-            //     .COMP => &compressor_controls,
-            //     .OUTPT => &output_controls,
-            // })) |map_action| rv = map_action;
+        // Controls column
+        if (try imgui.TableNextColumn(.{ctx})) {
+            if (try controls(ctx, globals, translations)) |action| {
+                rv = action;
+            }
         }
     }
     // Bottom panel with buttons
     try imgui.Separator(.{ctx});
-    {
-        const midi_learn_text = if (globals.state.mapping.midi_learn_active)
-            tr(translations, .mapping_midi_learn_active)
-        else
-            tr(translations, .mapping_midi_learn);
-
-        if (try imgui.Button(.{ ctx, midi_learn_text })) {
-            rv = .{ .toggle_midi_learn = {} };
-        }
-
-        try imgui.SameLine(.{ctx});
-
-        if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {
-            rv = .{ .save_mapping = {} };
-        }
-
-        try imgui.SameLine(.{ctx});
-
-        if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
-            rv = .{ .cancel_mapping = {} };
-        }
+    if (try formControls(ctx, globals, translations)) |action| {
+        rv = action;
     }
     return rv;
 }
 
-// Helper function to draw module-specific controls
-fn drawModuleControls(
+// Function to handle the controls column
+fn controls(
     ctx: imgui.ContextPtr,
-    state: *State,
-    comptime controls: []const c1.CCs,
+    globals: *Globals,
     translations: *TranslationStore,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
-    inline for (controls) |cc| {
+
+    const module_type = @tagName(globals.state.mapping.current_mappings);
+    try imgui.Text(.{ ctx, tr(translations, .mapping_module_prefix), .{module_type} });
+    try imgui.Separator(.{ctx});
+
+    switch (globals.state.mapping.current_mappings) {
+        .INPUT => {
+            if (try moduleCCs(ctx, &globals.state, &input_controls, translations)) |act| rv = act;
+        },
+        .GATE => {
+            if (try moduleCCs(ctx, &globals.state, &gate_controls, translations)) |act| rv = act;
+        },
+        .EQ => {
+            if (try moduleCCs(ctx, &globals.state, &eq_controls, translations)) |act| rv = act;
+        },
+        .COMP => {
+            if (try moduleCCs(ctx, &globals.state, &compressor_controls, translations)) |act| rv = act;
+        },
+        .OUTPT => {
+            if (try moduleCCs(ctx, &globals.state, &output_controls, translations)) |act| rv = act;
+        },
+    }
+
+    return rv;
+}
+
+// Helper function to draw module-specific controls
+fn moduleCCs(
+    ctx: imgui.ContextPtr,
+    state: *State,
+    comptime ccs: []const c1.CCs,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingAction {
+    var rv: ?mapping_actions.MappingAction = null;
+    inline for (ccs) |cc| {
         var is_selected = if (state.mapping.selected_control) |sel|
             sel == cc
         else
@@ -282,3 +285,35 @@ const gate_controls = [_]c1.CCs{
     .Shp_shape,
     .Shp_sustain,
 };
+
+// Function to handle the bottom panel with buttons
+fn formControls(
+    ctx: imgui.ContextPtr,
+    globals: *Globals,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingAction {
+    var rv: ?mapping_actions.MappingAction = null;
+
+    const midi_learn_text = if (globals.state.mapping.midi_learn_active)
+        tr(translations, .mapping_midi_learn_active)
+    else
+        tr(translations, .mapping_midi_learn);
+
+    if (try imgui.Button(.{ ctx, midi_learn_text })) {
+        rv = .{ .toggle_midi_learn = {} };
+    }
+
+    try imgui.SameLine(.{ctx});
+
+    if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {
+        rv = .{ .save_mapping = {} };
+    }
+
+    try imgui.SameLine(.{ctx});
+
+    if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
+        rv = .{ .cancel_mapping = {} };
+    }
+
+    return rv;
+}
