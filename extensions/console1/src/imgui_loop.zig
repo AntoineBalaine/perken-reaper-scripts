@@ -5,7 +5,6 @@ const imgui = @import("reaper_imgui.zig");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const styles = @import("styles.zig");
-const styles_components = @import("styles_components.zig");
 const logger = @import("logger.zig");
 const debug_panel = @import("debug_panel.zig");
 const Globals = @import("globals.zig").Globals;

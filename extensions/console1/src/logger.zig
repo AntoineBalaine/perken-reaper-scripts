@@ -7,7 +7,6 @@ const reentrancy = @import("reentrancy.zig");
 pub const debug_window_active = @import("builtin").mode == .Debug;
 
 // pub var debug_window_active = debugconfig.@"test";
-pub var event_log: ?*EventLog = null; // Pointer to state's event log
 pub var log_file: ?*std.fs.File = null; // Just need the file handle
 
 // Circular buffer for debug overlay
@@ -66,7 +65,6 @@ pub const Event = union(EventType) {
         }
     }
 };
-pub const EventLog = @import("logger_evt.zig");
 
 const Color = struct {
     const reset = "\x1b[0m";
@@ -81,100 +79,6 @@ test {
     std.testing.refAllDecls(@This());
 }
 
-test "eventlog" {
-    const testing = std.testing;
-    var e_log = EventLog.init();
-    event_log = &e_log;
-    // log some events
-    event_log.?.log(.{
-        .parameter_update = .{
-            .module = .COMP,
-            .param = 1,
-            .value = 0.5,
-        },
-    });
-
-    // test recent events
-    const recent_events = event_log.?.recent(10);
-    try testing.expect(recent_events.len == 1);
-
-    // test finding last event
-    const last_param = event_log.?.findLastEvent(.parameter_update);
-    try testing.expect(last_param != null);
-    if (last_param) |event| {
-        try testing.expect(event.parameter_update.value == 0.5);
-    }
-}
-
-test "log function" {
-    const testing = std.testing;
-    init(); // Initialize logging allocator
-    var e_log = EventLog.init();
-    event_log = &e_log;
-
-    // Test basic logging (will print to stderr during test)
-    std.log.scoped(.midi_input).info("Test message with value: {d}", .{42});
-
-    // Test event logging
-    const event = Event{
-        .parameter_update = .{
-            .module = .COMP,
-            .param = 1,
-            .value = 0.5,
-        },
-    };
-    std.log.scoped(.parameters).debug("Parameter changed: {}", .{event});
-
-    // Verify event was logged
-    const last_param_event = event_log.?.findLastEvent(.parameter_update);
-    // try testing.expect(last_param_event != null);
-    if (last_param_event) |evt| {
-        try testing.expect(evt.parameter_update.value == 0.5);
-        try testing.expect(evt.parameter_update.module == .COMP);
-        try testing.expect(evt.parameter_update.param == 1);
-    }
-
-    deinit(); // Clean up logging allocator
-}
-
-test "midi events circular buffer" {
-    const testing = std.testing;
-    var e_log = EventLog.init();
-
-    // Insert 100 MIDI events with different CC values
-    var i: u8 = 0;
-    while (i < 100) : (i += 1) {
-        e_log.log(.{
-            .midi_input = .{
-                .cc = c1.CCs.Comp_Attack, // Using CC1 for example
-                .value = i, // Each event has a different value
-            },
-        });
-    }
-
-    // Get last 50 events
-    const recent_events = e_log.recent(50);
-
-    // Verify we got exactly 50 events
-    try testing.expectEqual(50, recent_events.len);
-
-    // Verify the values are correct (should be the most recent ones: 50-99)
-    for (recent_events, 0..) |event, index| {
-        switch (event) {
-            .midi_input => |midi| {
-                // The values should start from 50 and go up to 99
-                const expected_value = 100 - (@as(u8, @intCast(index)) + 1);
-                try testing.expectEqual(expected_value, midi.value);
-            },
-            else => unreachable,
-        }
-    }
-
-    // Optional: Test getting fewer events
-    const fewer = e_log.recent(10);
-    try testing.expectEqual(@as(usize, 10), fewer.len);
-}
-
 // FIXME: set as main app log level
 pub fn logFn(
     comptime level: std.log.Level,
@@ -183,19 +87,6 @@ pub fn logFn(
     args: anytype,
 ) void {
     // Check if any argument is an Event
-    {
-        const Args = @TypeOf(args);
-        const args_type_info = @typeInfo(Args);
-        if (args_type_info == .@"struct") {
-            inline for (args_type_info.@"struct".fields) |field| {
-                if (field.type == Event) {
-                    if (event_log) |evt_log| {
-                        evt_log.log(@field(args, field.name));
-                    }
-                }
-            }
-        }
-    }
     {
         if (scope == .reentrancy) {
             const Args = @TypeOf(args);

@@ -17,7 +17,7 @@ pub fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) [:0]const
     };
 }
 
-pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.EventLog) !void {
+pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State) !void {
     if (try imgui.Begin(.{ ctx, "Debug Panel" })) {
         defer imgui.End(.{ctx}) catch {};
 
@@ -40,24 +40,6 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
                 try imgui.TableHeadersRow(.{ctx});
 
                 // Get recent events (last 10 for example)
-                for (event_log.getEventsByType(.state_change, 10)) |event| {
-                    try imgui.TableNextRow(.{ctx});
-
-                    if (try imgui.TableNextColumn(.{ctx})) {
-                        const event_type = safePrint(&buf, "{s}", .{@tagName(event)});
-                        try imgui.Text(.{ ctx, event_type });
-                    }
-
-                    if (try imgui.TableNextColumn(.{ctx})) {
-                        switch (event) {
-                            .state_change => |change| {
-                                const state_text = safePrint(&buf, "{s} -> {s}", .{ @tagName(change.old_mode), @tagName(change.new_mode) });
-                                try imgui.Text(.{ ctx, state_text });
-                            },
-                            else => {},
-                        }
-                    }
-                }
             }
         }
 
@@ -76,19 +58,6 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State, event_log: *logger.E
             if (state.fx_ctrl.track_state.module_locations.get(.COMP)) |comp| {
                 const comp_text = safePrint(&buf, "Comp FX: {d}", .{comp.fx_index});
                 try imgui.Text(.{ ctx, comp_text });
-            }
-        }
-
-        if (try imgui.CollapsingHeader(.{ ctx, "MIDI Monitor" })) {
-            // Show recent MIDI activity
-            // Could add meters visualization here
-
-            var it = event_log.ring_buffer.reverse_iterator();
-            while (it.next()) |event| {
-                if (@as(logger.EventType, event) == .midi_input) {
-                    const midi_text = safePrint(&buf, "CC: {s} Val: {d}", .{ @tagName(event.midi_input.cc), event.midi_input.value });
-                    try imgui.Text(.{ ctx, midi_text });
-                }
             }
         }
     }

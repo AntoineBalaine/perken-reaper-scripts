@@ -3,7 +3,6 @@ const State = @import("statemachine.zig").State;
 const Preferences = @import("settings.zig").Preferences;
 const MapStore = @import("mappings.zig").MapStore;
 const logger = @import("logger.zig");
-const EventLog = logger.EventLog;
 const SettingsPanel = @import("settings_panel.zig");
 const MappingsList = @import("mappings_list.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
@@ -31,7 +30,6 @@ mapping_panel: ?MappingPanel = null,
 drwls_splitter: imgui.DrawListSplitterPtr = null,
 
 // Logging
-event_log: EventLog = undefined,
 log_file: ?std.fs.File = null,
 
 // Resource management
@@ -58,8 +56,6 @@ pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
     globals.arena = globals.arena_int.allocator();
     globals.resource_path = "";
     globals.preferences = try .defaults(globals.arena);
-    globals.event_log = .init();
-    logger.event_log = &globals.event_log;
     globals.map_store = .empty(globals.arena, globals.resource_path);
     globals.mappings_list = .empty(globals.arena);
     globals.translations = try .defaults(globals.arena);
@@ -115,9 +111,6 @@ pub fn deinit(self: *Globals) void {
 }
 
 pub fn initLoggerState(self: *Globals) !void {
-    self.event_log = EventLog.init();
-    logger.event_log = &self.event_log;
-
     if (self.preferences.log_to_file) {
         var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
         const path = fs_helpers.joinStrings(&path_buffer, &.{

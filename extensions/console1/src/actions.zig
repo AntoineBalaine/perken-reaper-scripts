@@ -11,7 +11,6 @@ const State = statemachine.State;
 const Globals = @import("globals.zig").Globals;
 const SettingsPanel = @import("settings_panel.zig");
 const mappings = @import("mappings.zig");
-const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const ModulesList = statemachine.ModulesList;
 const constants = @import("constants.zig");
 const onMidiEvent_FxCtrl = @import("csurf/midi_events_fxctrl.zig").onMidiEvent_FxCtrl;
