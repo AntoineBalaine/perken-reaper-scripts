@@ -147,7 +147,7 @@ pub fn main(
                 }
             },
             .mapping_panel => {
-                if (try mapping_panel.drawMappingPanel(ctx, globals, &globals.translations)) |map_action| {
+                if (try mapping_panel.mappingPanel(ctx, globals, &globals.translations)) |map_action| {
                     rv = .{ .mapping = map_action };
                 }
             },
@@ -210,7 +210,7 @@ pub fn main(
     }
     // Add debug panel
     if (logger.debug_window_active) {
-        try debug_panel.drawDebugPanel(ctx, &globals.state, &globals.event_log);
+        try debug_panel.drawDebugPanel(ctx, &globals.state);
     }
 
     if (!open)

@@ -12,6 +12,7 @@ const c1 = @import("c1.zig");
 const actions = @import("actions.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
+const ModulesList = @import("statemachine.zig").ModulesList;
 
 pub const FxParameter = struct {
     index: u32,
@@ -107,28 +108,8 @@ pub fn mappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *Tra
     try imgui.Text(.{ ctx, tr(translations, .mapping_title) });
     // Main table for two-column layout
 
-    if (try imgui.BeginTable(.{ ctx, "mapping_table", 2, imgui.TableFlags_Resizable + imgui.TableFlags_Borders + imgui.TableFlags_BordersInnerH })) {
-        defer imgui.EndTable(.{ctx}) catch {};
-
-        // Setup columns
-        try imgui.TableSetupColumn(.{ ctx, tr(translations, .mapping_fx_parameters) });
-        try imgui.TableSetupColumn(.{ ctx, tr(translations, .mapping_console_controls) });
-        try imgui.TableHeadersRow(.{ctx});
-
-        // Parameters column
-        try imgui.TableNextRow(.{ctx});
-        if (try imgui.TableNextColumn(.{ctx})) {
-            if (try params(ctx, globals, translations)) |action| {
-                rv = action;
-            }
-        }
-
-        // Controls column
-        if (try imgui.TableNextColumn(.{ctx})) {
-            if (try controls(ctx, globals, translations)) |action| {
-                rv = action;
-            }
-        }
+    if (try controls(ctx, globals, translations)) |action| {
+        rv = action;
     }
     // Bottom panel with buttons
     try imgui.Separator(.{ctx});
@@ -146,25 +127,32 @@ fn controls(
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
 
-    const module_type = @tagName(globals.state.mapping.current_mappings);
-    try imgui.Text(.{ ctx, tr(translations, .mapping_module_prefix), .{module_type} });
-    try imgui.Separator(.{ctx});
+    const cur_mapping = @tagName(globals.state.mapping.current_mappings);
+    if (try imgui.BeginCombo(.{ ctx, "##module_selection", cur_mapping, null })) {
+        defer imgui.EndCombo(.{ctx}) catch {};
+
+        inline for (comptime std.enums.values(ModulesList)) |module| {
+            if (try imgui.Selectable(.{ ctx, @tagName(module) })) {
+                rv = .{ .change_module = module };
+            }
+        }
+    }
 
     switch (globals.state.mapping.current_mappings) {
         .INPUT => {
-            if (try moduleCCs(ctx, &globals.state, &input_controls, translations)) |act| rv = act;
+            if (try moduleCCs(ctx, globals, &input_controls, translations)) |act| rv = act;
         },
         .GATE => {
-            if (try moduleCCs(ctx, &globals.state, &gate_controls, translations)) |act| rv = act;
+            if (try moduleCCs(ctx, globals, &gate_controls, translations)) |act| rv = act;
         },
         .EQ => {
-            if (try moduleCCs(ctx, &globals.state, &eq_controls, translations)) |act| rv = act;
+            if (try moduleCCs(ctx, globals, &eq_controls, translations)) |act| rv = act;
         },
         .COMP => {
-            if (try moduleCCs(ctx, &globals.state, &compressor_controls, translations)) |act| rv = act;
+            if (try moduleCCs(ctx, globals, &compressor_controls, translations)) |act| rv = act;
         },
         .OUTPT => {
-            if (try moduleCCs(ctx, &globals.state, &output_controls, translations)) |act| rv = act;
+            if (try moduleCCs(ctx, globals, &output_controls, translations)) |act| rv = act;
         },
     }
 
@@ -174,31 +162,37 @@ fn controls(
 // Helper function to draw module-specific controls
 fn moduleCCs(
     ctx: imgui.ContextPtr,
-    state: *State,
+    globals: *Globals,
     comptime ccs: []const c1.CCs,
     translations: *TranslationStore,
 ) !?mapping_actions.MappingAction {
+    _ = translations; // autofix
     var rv: ?mapping_actions.MappingAction = null;
-    inline for (ccs) |cc| {
-        var is_selected = if (state.mapping.selected_control) |sel|
+    inline for (ccs, 0..) |cc, i| {
+        var is_selected = if (globals.state.mapping.selected_control) |sel|
             sel == cc
         else
             false;
+        _ = &is_selected; // autofix
 
-        if (try imgui.Selectable(.{
-            ctx,
-            @tagName(cc),
-            &is_selected,
-            null,
-            -1.0,
-        })) {
+        if (try imgui.Button(.{ ctx, @tagName(cc) })) {
             rv = .{ .select_control = cc };
         }
 
-        // Show mapped parameter if any
-        if (getControlMapping(state, cc)) |param_idx| {
-            try imgui.SameLine(.{ctx});
-            try imgui.TextDisabled(.{ ctx, tr(translations, .mapping_param_mapped), .{param_idx} });
+        try imgui.SameLine(.{ctx});
+
+        const cc_assignment = getControlMapping(&globals.state, cc);
+        const assignment_label: [:0]const u8 = if (cc_assignment) |assgnmnt| globals.mapping_panel.?.fx_params.items[@intCast(assgnmnt)].name else "none";
+
+        const label = std.fmt.comptimePrint("##entry_sel_{d}", .{i});
+        if (try imgui.BeginCombo(.{ ctx, label, assignment_label, null })) {
+            defer imgui.EndCombo(.{ctx}) catch {};
+
+            for (globals.mapping_panel.?.fx_params.items) |fx_param| {
+                if (try imgui.Selectable(.{ ctx, fx_param.name })) {
+                    // rv = .{ .gloubi = module };
+                }
+            }
         }
     }
     return rv;

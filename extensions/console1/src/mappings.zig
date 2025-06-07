@@ -84,6 +84,15 @@ pub const TaggedMapping = union(ModulesList) {
     EQ: Eq,
     COMP: Comp,
     OUTPT: Outpt,
+    pub fn empty(mode: ModulesList) TaggedMapping {
+        switch (mode) {
+            .INPUT => Inpt{},
+            .GATE => Shp{},
+            .EQ => Eq{},
+            .COMP => Comp{},
+            .OUTPT => Outpt{},
+        }
+    }
 };
 
 /// MapStore manages FX parameter mappings with lazy loading.
