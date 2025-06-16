@@ -20,7 +20,8 @@ const FxCtrlState = @import("fx_ctrl_state.zig").FxControlState;
 /// Calculate the maximum width of a list of labels and calculate offsets
 /// The offsets buffer will be filled with (max_width - width) / 2 for each label
 /// or null if the label width equals the max width
-fn getMaxLabelWidth(ctx: imgui.ContextPtr, labels: []const [:0]const u8, offsets: []?f64) !void {
+/// FIXME: this shouldn’t be getting called at every frame
+pub fn getMaxLabelWidth(ctx: imgui.ContextPtr, labels: []const [:0]const u8, offsets: []?f64) !void {
     var max_width: f64 = 0;
     var width: f64 = undefined;
     var height: f64 = undefined;

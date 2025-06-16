@@ -48,26 +48,26 @@ pub const Rectangle = struct {
     max_y: f64,
 };
 
-inline fn angle_min() f64 {
+pub inline fn angle_min() f64 {
     return std.math.pi * 0.75;
 }
-inline fn angle_max() f64 {
+pub inline fn angle_max() f64 {
     return std.math.pi * 2.25;
 }
 
-inline fn t(val: f64, min: f64, max: f64) f64 {
+pub inline fn t(val: f64, min: f64, max: f64) f64 {
     return (val - min) / (max - min);
 }
 
-inline fn angle(value: f64, min: f64, max: f64) f64 {
+pub inline fn angle(value: f64, min: f64, max: f64) f64 {
     return angle_min() + (angle_max() - angle_min()) * t(value, min, max);
 }
 
-inline fn angle_default() f64 {
+pub inline fn angle_default() f64 {
     return (angle_max() + angle_min()) / 2;
 }
 
-inline fn center(drawCursor: f64, radius: f64) f64 {
+pub inline fn center(drawCursor: f64, radius: f64) f64 {
     return drawCursor + radius;
 }
 pub fn drawWidget(
@@ -247,7 +247,7 @@ fn calculateNewValue(current_value: f64, delta_y: f64, min_val: f64, max_val: f6
     return @min(@max(new_value, min_val), max_val);
 }
 
-fn Circle(drwLs: imgui.DrawListPtr, color: c_int, center_x: f64, center_y: f64, size: f64, filled: bool, segments: c_int, radius: f64) !void {
+pub fn Circle(drwLs: imgui.DrawListPtr, color: c_int, center_x: f64, center_y: f64, size: f64, filled: bool, segments: c_int, radius: f64) !void {
     const circleRadius = size * radius;
     if (filled) {
         try imgui.DrawList_AddCircleFilled(.{ drwLs, center_x, center_y, circleRadius, color, segments });
@@ -256,7 +256,7 @@ fn Circle(drwLs: imgui.DrawListPtr, color: c_int, center_x: f64, center_y: f64, 
     }
 }
 
-fn Arc(drwLs: imgui.DrawListPtr, radius_ratio: f64, size: f64, startAngle: f64, endAngle: f64, color: c_int, trackSize: ?f64, center_x: f64, center_y: f64, radius: f64) !void {
+pub fn Arc(drwLs: imgui.DrawListPtr, radius_ratio: f64, size: f64, startAngle: f64, endAngle: f64, color: c_int, trackSize: ?f64, center_x: f64, center_y: f64, radius: f64) !void {
     const trSize = if (trackSize) |tr| tr else size * (radius_ratio + 0.1) * 0.5 + 0.0001;
     const trackRadius = radius_ratio * radius;
     try imgui.DrawList_PathArcTo(.{ drwLs, center_x, center_y, trackRadius * 0.95, startAngle, endAngle });
@@ -264,7 +264,7 @@ fn Arc(drwLs: imgui.DrawListPtr, radius_ratio: f64, size: f64, startAngle: f64, 
     try imgui.DrawList_PathClear(.{drwLs});
 }
 
-fn Triangle(drwLs: imgui.DrawListPtr, angle_: f64, color: c_int, center_x: f64, center_y: f64, radiusRatio: f64, filled: bool, offsetRatio: f64, radius: f64, outward: bool) !void {
+pub fn Triangle(drwLs: imgui.DrawListPtr, angle_: f64, color: c_int, center_x: f64, center_y: f64, radiusRatio: f64, filled: bool, offsetRatio: f64, radius: f64, outward: bool) !void {
     const dot_radius = radiusRatio * radius;
     const dot_offset = offsetRatio * radius;
     const x = center_x + @cos(angle_) * dot_offset;

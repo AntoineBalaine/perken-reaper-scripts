@@ -10,9 +10,14 @@ const mapping_actions = @import("mapping_actions.zig");
 const State = @import("statemachine.zig").State;
 const c1 = @import("c1.zig");
 const actions = @import("actions.zig");
-const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
 const ModulesList = @import("statemachine.zig").ModulesList;
+const Translations = @import("translations.zig");
+const TranslationStore = Translations.TranslationStore;
+const TranslationKey = Translations.TranslationKey;
+const getMaxLabelWidth = @import("fx_ctrl_panel.zig").getMaxLabelWidth;
+
+const knob_size = 40.0;
 
 pub const FxParameter = struct {
     index: u32,
@@ -144,7 +149,7 @@ fn controls(
     }
     switch (globals.state.mapping.current_mappings) {
         .INPUT => {
-            if (try moduleCCs(ctx, globals, &input_controls, translations)) |act| rv = act;
+            if (try inputModuleMapping(ctx, globals, translations)) |act| rv = act;
         },
         .GATE => {
             if (try moduleCCs(ctx, globals, &gate_controls, translations)) |act| rv = act;
@@ -316,6 +321,103 @@ fn formControls(
 
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
         rv = .{ .cancel_mapping = {} };
+    }
+
+    return rv;
+}
+
+fn mappingKnob(
+    ctx: imgui.ContextPtr,
+    globals: *Globals,
+    comptime cc: c1.CCs,
+    label: [:0]const u8,
+) !?mapping_actions.MappingAction {
+    var rv: ?mapping_actions.MappingAction = null;
+
+    // Create a button with the control name
+    const mKnob = @import("components/mappingKnob.zig").drawWidget;
+
+    // Get current mapping
+    const assignment = getControlMapping(&globals.state, cc);
+    const assignment_label: [:0]const u8 = if (assignment) |assgnmnt|
+        globals.mapping_panel.?.fx_params.items[@intCast(assgnmnt)].name
+    else
+        "none";
+
+    if (try mKnob(ctx, 0.5, label, .{}, cc, assignment_label, globals.mapping_panel.?.fx_params.items)) |val| {
+        switch (val) {
+            .click => rv = .{ .select_control = cc },
+            .param_idx => |i| rv = .{ .add_mapping = .{ .param = @intCast(i), .control = cc } },
+            .remove_mapping => rv = .{ .remove_mapping = cc },
+        }
+    }
+
+    return rv;
+}
+
+fn inputModuleMapping(
+    ctx: imgui.ContextPtr,
+    globals: *Globals,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingAction {
+    var rv: ?mapping_actions.MappingAction = null;
+    const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
+
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
+
+    // First column
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+
+        try imgui.Dummy(.{ ctx, 0, knob_size * 2 });
+
+        // Gain knob
+        const gain_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Inpt_Gain,
+            else => null,
+        };
+        const gain_label = if (gain_key) |key| tr(translations, key) else "-";
+
+        if (try mappingKnob(ctx, globals, .Inpt_Gain, gain_label)) |act| {
+            rv = act;
+            globals.state.mapping.selected_control = .Inpt_Gain;
+        }
+    }
+
+    try imgui.SameLine(.{ctx});
+
+    // Second column
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+
+        // Calculate max width for this column's knobs
+        const hicut_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Inpt_HiCut,
+            .transport => .trsprt_Inpt_HiCut,
+            else => null,
+        };
+        const hicut_label = if (hicut_key) |key| tr(translations, key) else "-";
+
+        const locut_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Inpt_LoCut,
+            else => null,
+        };
+        const locut_label = if (locut_key) |key| tr(translations, key) else "-";
+
+        // HiCut knob
+        if (try mappingKnob(ctx, globals, .Inpt_HiCut, hicut_label)) |act| {
+            rv = act;
+            globals.state.mapping.selected_control = .Inpt_HiCut;
+        }
+
+        // LoCut knob
+        if (try mappingKnob(ctx, globals, .Inpt_LoCut, locut_label)) |act| {
+            rv = act;
+            globals.state.mapping.selected_control = .Inpt_LoCut;
+        }
     }
 
     return rv;
