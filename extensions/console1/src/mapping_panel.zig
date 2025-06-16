@@ -128,16 +128,20 @@ fn controls(
     var rv: ?mapping_actions.MappingAction = null;
 
     const cur_mapping = @tagName(globals.state.mapping.current_mappings);
-    if (try imgui.BeginCombo(.{ ctx, "##module_selection", cur_mapping, null })) {
-        defer imgui.EndCombo(.{ctx}) catch {};
 
-        inline for (comptime std.enums.values(ModulesList)) |module| {
-            if (try imgui.Selectable(.{ ctx, @tagName(module) })) {
-                rv = .{ .change_module = module };
+    {
+        try imgui.PushItemWidth(.{ ctx, 400.0 });
+        defer imgui.PopItemWidth(.{ctx}) catch {};
+        if (try imgui.BeginCombo(.{ ctx, "##module_selection", cur_mapping, null })) {
+            defer imgui.EndCombo(.{ctx}) catch {};
+
+            inline for (comptime std.enums.values(ModulesList)) |module| {
+                if (try imgui.Selectable(.{ ctx, @tagName(module) })) {
+                    rv = .{ .change_module = module };
+                }
             }
         }
     }
-
     switch (globals.state.mapping.current_mappings) {
         .INPUT => {
             if (try moduleCCs(ctx, globals, &input_controls, translations)) |act| rv = act;
@@ -175,7 +179,7 @@ fn moduleCCs(
             false;
         _ = &is_selected; // autofix
 
-        if (try imgui.Button(.{ ctx, @tagName(cc) })) {
+        if (try imgui.Button(.{ ctx, @tagName(cc), 140.0 })) {
             rv = .{ .select_control = cc };
         }
 
@@ -185,12 +189,17 @@ fn moduleCCs(
         const assignment_label: [:0]const u8 = if (cc_assignment) |assgnmnt| globals.mapping_panel.?.fx_params.items[@intCast(assgnmnt)].name else "none";
 
         const label = std.fmt.comptimePrint("##entry_sel_{d}", .{i});
-        if (try imgui.BeginCombo(.{ ctx, label, assignment_label, null })) {
-            defer imgui.EndCombo(.{ctx}) catch {};
+        try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10.0 });
+        {
+            try imgui.PushItemWidth(.{ ctx, 160.0 });
+            defer imgui.PopItemWidth(.{ctx}) catch {};
+            if (try imgui.BeginCombo(.{ ctx, label, assignment_label, null })) {
+                defer imgui.EndCombo(.{ctx}) catch {};
 
-            for (globals.mapping_panel.?.fx_params.items) |fx_param| {
-                if (try imgui.Selectable(.{ ctx, fx_param.name })) {
-                    // rv = .{ .gloubi = module };
+                for (globals.mapping_panel.?.fx_params.items) |fx_param| {
+                    if (try imgui.Selectable(.{ ctx, fx_param.name })) {
+                        // rv = .{ .gloubi = module };
+                    }
                 }
             }
         }
