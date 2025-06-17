@@ -125,7 +125,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
     return rv;
 }
 
-fn sectional(ctx: imgui.ContextPtr) !void {
+pub fn sectional(ctx: imgui.ContextPtr) !void {
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
     try vSeparator(.{ ctx, 0xFFFFFFFF });
@@ -298,11 +298,11 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             const gate_no_val_display = gate_disabled or mode != .fx_ctrl;
             const gate_display_label: [:0]const u8 = gate_label orelse "-";
             var offsets = [_]?f64{null};
-            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{gate_display_label}, &offsets);
+            _ = try getMaxLabelWidth(ctx, &[_][:0]const u8{gate_display_label}, &offsets);
 
             // Apply offset if needed
             var gate_prm = fx_state.values.get(.Shp_Gate).?.param;
-            if (try Knobs.drawWidget(ctx, &gate_prm.normalized, gate_display_label, .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &gate_prm.normalized, gate_display_label, .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled }, null)) {
                 rv = .{ .cc = .Shp_Gate, .value = gate_prm.normalized };
             }
 

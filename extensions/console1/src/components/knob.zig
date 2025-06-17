@@ -90,7 +90,7 @@ pub fn drawWidget(
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
     var total_width = @max(radius * 2, label_size.w);
-    total_width = if (max_width) |max_w| @max(max_w, total_width);
+    if (max_width) |max_w| total_width = @max(max_w, total_width);
 
     const val_disp: f64 = if (flags.no_val_display) 1 else 2;
     const widget_rect = Rectangle{
