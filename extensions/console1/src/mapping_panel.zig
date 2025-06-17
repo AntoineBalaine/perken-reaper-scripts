@@ -151,7 +151,7 @@ fn controls(
             if (try inputMappingPanel(ctx, globals, translations)) |act| rv = act;
         },
         .GATE => {
-            if (try moduleCCs(ctx, globals, &gate_controls, translations)) |act| rv = act;
+            if (try gateMappingPanel(ctx, globals, translations)) |act| rv = act;
         },
         .EQ => {
             if (try moduleCCs(ctx, globals, &eq_controls, translations)) |act| rv = act;
@@ -174,7 +174,7 @@ fn moduleCCs(
     comptime ccs: []const c1.CCs,
     translations: *TranslationStore,
 ) !?mapping_actions.MappingAction {
-    _ = translations; // autofix
+    _ = translations;
     var rv: ?mapping_actions.MappingAction = null;
     inline for (ccs, 0..) |cc, i| {
         var is_selected = if (globals.state.mapping.selected_control) |sel|
@@ -325,16 +325,16 @@ fn formControls(
     return rv;
 }
 
-fn mappingKnob(
+fn mappingWidget(
     ctx: imgui.ContextPtr,
     globals: *Globals,
     comptime cc: c1.CCs,
     label: [:0]const u8,
+    variant: enum { button, knob },
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
 
     // Create a button with the control name
-    const mKnob = @import("components/mappingKnob.zig").drawWidget;
 
     // Get current mapping
     const assignment = getControlMapping(&globals.state, cc);
@@ -343,7 +343,23 @@ fn mappingKnob(
     else
         "none";
 
-    if (try mKnob(ctx, 0.5, label, .{}, cc, assignment_label, globals.mapping_panel.?.fx_params.items)) |val| {
+    const mVal = switch (variant) {
+        .button => try @import("components/mappingButton.zig").mappingButton(
+            ctx,
+            label,
+            "##" ++ @tagName(cc),
+            null,
+            null,
+            .right,
+            false,
+            cc,
+            assignment_label,
+            globals.mapping_panel.?.fx_params.items,
+        ),
+        .knob => try @import("components/mappingKnob.zig").drawWidget(ctx, 0.5, label, .{}, cc, assignment_label, globals.mapping_panel.?.fx_params.items),
+    };
+
+    if (mVal) |val| {
         switch (val) {
             .click => rv = .{ .select_control = cc },
             .param_idx => |i| rv = .{ .add_mapping = .{ .param = @intCast(i), .control = cc } },
@@ -379,7 +395,7 @@ fn inputMappingPanel(
         };
         const gain_label = if (gain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingKnob(ctx, globals, .Inpt_Gain, gain_label)) |act| {
+        if (try mappingWidget(ctx, globals, .Inpt_Gain, gain_label, .knob)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Inpt_Gain;
         }
@@ -407,15 +423,117 @@ fn inputMappingPanel(
         const locut_label = if (locut_key) |key| tr(translations, key) else "-";
 
         // HiCut knob
-        if (try mappingKnob(ctx, globals, .Inpt_HiCut, hicut_label)) |act| {
+        if (try mappingWidget(ctx, globals, .Inpt_HiCut, hicut_label, .knob)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Inpt_HiCut;
         }
 
         // LoCut knob
-        if (try mappingKnob(ctx, globals, .Inpt_LoCut, locut_label)) |act| {
+        if (try mappingWidget(ctx, globals, .Inpt_LoCut, locut_label, .knob)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Inpt_LoCut;
+        }
+    }
+
+    return rv;
+}
+
+fn gateMappingPanel(
+    ctx: imgui.ContextPtr,
+    globals: *Globals,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingAction {
+    var rv: ?mapping_actions.MappingAction = null;
+    const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
+
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
+
+    // Shape button at the top
+    const shp_shape_key: ?TranslationKey = switch (mode) {
+        .fx_ctrl => .fx_ctrl_Shp_shape,
+        else => null,
+    };
+    const shp_shape_label = if (shp_shape_key) |key| tr(translations, key) else "-";
+
+    if (try mappingWidget(ctx, globals, .Shp_shape, shp_shape_label, .button)) |act| {
+        rv = act;
+        globals.state.mapping.selected_control = .Shp_shape;
+    }
+
+    // First column
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+
+        try imgui.Dummy(.{ ctx, 0, constants.knob_size * 0.75 });
+
+        // Gate knob
+        const gate_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Shp_Gate,
+            else => null,
+        };
+        const gate_label = if (gate_key) |key| tr(translations, key) else "-";
+
+        if (try mappingWidget(ctx, globals, .Shp_Gate, gate_label, .knob)) |act| {
+            rv = act;
+            globals.state.mapping.selected_control = .Shp_Gate;
+        }
+
+        // Hard gate button
+        const hard_gate_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Shp_hard_gate,
+            else => null,
+        };
+        const hard_gate_label = if (hard_gate_key) |key| tr(translations, key) else "-";
+
+        if (try mappingWidget(ctx, globals, .Shp_hard_gate, hard_gate_label, .button)) |act| {
+            rv = act;
+            globals.state.mapping.selected_control = .Shp_hard_gate;
+        }
+    }
+
+    try imgui.SameLine(.{ctx});
+
+    // Second column
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+
+        // Release knob
+        const release_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Shp_GateRelease,
+            else => null,
+        };
+        const release_label = if (release_key) |key| tr(translations, key) else "-";
+
+        if (try mappingWidget(ctx, globals, .Shp_GateRelease, release_label, .knob)) |act| {
+            rv = act;
+            globals.state.mapping.selected_control = .Shp_GateRelease;
+        }
+
+        // Sustain knob
+        const sustain_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Shp_sustain,
+            else => null,
+        };
+        const sustain_label = if (sustain_key) |key| tr(translations, key) else "-";
+
+        if (try mappingWidget(ctx, globals, .Shp_sustain, sustain_label, .knob)) |act| {
+            rv = act;
+            globals.state.mapping.selected_control = .Shp_sustain;
+        }
+
+        // Punch knob
+        const punch_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Shp_Punch,
+            else => null,
+        };
+        const punch_label = if (punch_key) |key| tr(translations, key) else "-";
+
+        if (try mappingWidget(ctx, globals, .Shp_Punch, punch_label, .knob)) |act| {
+            rv = act;
+            globals.state.mapping.selected_control = .Shp_Punch;
         }
     }
 

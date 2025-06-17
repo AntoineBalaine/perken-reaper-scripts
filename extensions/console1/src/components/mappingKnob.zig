@@ -18,7 +18,7 @@ const mapping_panel = @import("../mapping_panel.zig");
 const CCs = @import("../c1.zig").CCs;
 const constants = @import("../constants.zig");
 
-const Res = union(enum) { click, param_idx: u32, remove_mapping };
+pub const Res = union(enum) { click, param_idx: u32, remove_mapping };
 
 pub fn drawWidget(
     ctx: imgui.ContextPtr,
@@ -28,7 +28,7 @@ pub fn drawWidget(
     comptime cc: CCs,
     assignment_label: [:0]const u8,
     fx_params: []mapping_panel.FxParameter,
-) !?Res {
+) anyerror!?Res {
     const drwls = try imgui.GetWindowDrawList(.{ctx});
     const radius = constants.knob_size / 2;
     var clicked = false;
@@ -155,7 +155,7 @@ pub fn paramsCombo(
     fx_params: []mapping_panel.FxParameter,
 ) !?Res {
     var rv: ?Res = null;
-    try imgui.PushItemWidth(.{ ctx, constants.knob_size });
+    try imgui.PushItemWidth(.{ ctx, constants.knob_size * 2 });
     defer imgui.PopItemWidth(.{ctx}) catch {};
     const combo_id = std.fmt.comptimePrint("##combo_{s}", .{@tagName(cc)});
     if (try imgui.BeginCombo(.{ ctx, combo_id, assignment_label, null })) {
