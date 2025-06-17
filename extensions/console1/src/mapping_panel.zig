@@ -15,7 +15,8 @@ const ModulesList = @import("statemachine.zig").ModulesList;
 const Translations = @import("translations.zig");
 const TranslationStore = Translations.TranslationStore;
 const TranslationKey = Translations.TranslationKey;
-const getMaxLabelWidth = @import("fx_ctrl_panel.zig").getMaxLabelWidth;
+const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
+const getMaxLabelWidth = fx_ctrl_panel.getMaxLabelWidth;
 const constants = @import("constants.zig");
 
 pub const FxParameter = struct {
@@ -146,22 +147,38 @@ fn controls(
             }
         }
     }
-    switch (globals.state.mapping.current_mappings) {
-        .INPUT => {
-            if (try inputMappingPanel(ctx, globals, translations)) |act| rv = act;
-        },
-        .GATE => {
-            if (try gateMappingPanel(ctx, globals, translations)) |act| rv = act;
-        },
-        .EQ => {
-            if (try eqMappingPanel(ctx, globals, translations)) |act| rv = act;
-        },
-        .COMP => {
-            if (try compMappingPanel(ctx, globals, translations)) |act| rv = act;
-        },
-        .OUTPT => {
-            if (try outputMappingPanel(ctx, globals, translations)) |act| rv = act;
-        },
+
+    // Define an array of panel functions and their corresponding modules
+    const panels = [_]struct { module: ModulesList, panel_fn: @TypeOf(inputMappingPanel) }{
+        .{ .module = .INPUT, .panel_fn = inputMappingPanel },
+        .{ .module = .GATE, .panel_fn = gateMappingPanel },
+        .{ .module = .EQ, .panel_fn = eqMappingPanel },
+        .{ .module = .COMP, .panel_fn = compMappingPanel },
+        .{ .module = .OUTPT, .panel_fn = outputMappingPanel },
+    };
+
+    // Call each panel function, but only process actions from the active one
+    inline for (panels) |panel_info| {
+        const is_active = globals.state.mapping.current_mappings == panel_info.module;
+
+        if (!is_active) {
+            try imgui.BeginDisabled(.{ctx});
+        }
+
+        if (try panel_info.panel_fn(ctx, globals, translations, !is_active)) |act| {
+            if (is_active) {
+                rv = act;
+            }
+        }
+
+        if (!is_active) {
+            try imgui.EndDisabled(.{ctx});
+        }
+
+        // Add sectional divider between panels (except after the last one)
+        if (panel_info.module != .OUTPT) {
+            try fx_ctrl_panel.sectional(ctx);
+        }
     }
 
     return rv;
@@ -287,6 +304,7 @@ fn mappingWidget(
     comptime cc: c1.CCs,
     label: [:0]const u8,
     variant: enum { button, knob },
+    disabled: bool,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
 
@@ -312,7 +330,7 @@ fn mappingWidget(
             assignment_label,
             globals.mapping_panel.?.fx_params.items,
         ),
-        .knob => try @import("components/mappingKnob.zig").drawWidget(ctx, 0.5, label, .{}, cc, assignment_label, globals.mapping_panel.?.fx_params.items),
+        .knob => try @import("components/mappingKnob.zig").drawWidget(ctx, 0.5, label, .{ .disabled = disabled }, cc, assignment_label, globals.mapping_panel.?.fx_params.items),
     };
 
     if (mVal) |val| {
@@ -330,6 +348,7 @@ fn inputMappingPanel(
     ctx: imgui.ContextPtr,
     globals: *Globals,
     translations: *TranslationStore,
+    disabled: bool,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -351,7 +370,7 @@ fn inputMappingPanel(
         };
         const gain_label = if (gain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Inpt_Gain, gain_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Inpt_Gain, gain_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Inpt_Gain;
         }
@@ -379,13 +398,13 @@ fn inputMappingPanel(
         const locut_label = if (locut_key) |key| tr(translations, key) else "-";
 
         // HiCut knob
-        if (try mappingWidget(ctx, globals, .Inpt_HiCut, hicut_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Inpt_HiCut, hicut_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Inpt_HiCut;
         }
 
         // LoCut knob
-        if (try mappingWidget(ctx, globals, .Inpt_LoCut, locut_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Inpt_LoCut, locut_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Inpt_LoCut;
         }
@@ -398,6 +417,7 @@ fn gateMappingPanel(
     ctx: imgui.ContextPtr,
     globals: *Globals,
     translations: *TranslationStore,
+    disabled: bool,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -412,7 +432,7 @@ fn gateMappingPanel(
     };
     const shp_shape_label = if (shp_shape_key) |key| tr(translations, key) else "-";
 
-    if (try mappingWidget(ctx, globals, .Shp_shape, shp_shape_label, .button)) |act| {
+    if (try mappingWidget(ctx, globals, .Shp_shape, shp_shape_label, .button, disabled)) |act| {
         rv = act;
         globals.state.mapping.selected_control = .Shp_shape;
     }
@@ -431,7 +451,7 @@ fn gateMappingPanel(
         };
         const gate_label = if (gate_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Shp_Gate, gate_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Shp_Gate, gate_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Shp_Gate;
         }
@@ -443,7 +463,7 @@ fn gateMappingPanel(
         };
         const hard_gate_label = if (hard_gate_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Shp_hard_gate, hard_gate_label, .button)) |act| {
+        if (try mappingWidget(ctx, globals, .Shp_hard_gate, hard_gate_label, .button, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Shp_hard_gate;
         }
@@ -463,7 +483,7 @@ fn gateMappingPanel(
         };
         const release_label = if (release_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Shp_GateRelease, release_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Shp_GateRelease, release_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Shp_GateRelease;
         }
@@ -475,7 +495,7 @@ fn gateMappingPanel(
         };
         const sustain_label = if (sustain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Shp_sustain, sustain_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Shp_sustain, sustain_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Shp_sustain;
         }
@@ -487,7 +507,7 @@ fn gateMappingPanel(
         };
         const punch_label = if (punch_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Shp_Punch, punch_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Shp_Punch, punch_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Shp_Punch;
         }
@@ -500,6 +520,7 @@ fn eqMappingPanel(
     ctx: imgui.ContextPtr,
     globals: *Globals,
     translations: *TranslationStore,
+    disabled: bool,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -514,7 +535,7 @@ fn eqMappingPanel(
     };
     const eq_eq_label = if (eq_eq_key) |key| tr(translations, key) else "-";
 
-    if (try mappingWidget(ctx, globals, .Eq_eq, eq_eq_label, .button)) |act| {
+    if (try mappingWidget(ctx, globals, .Eq_eq, eq_eq_label, .button, disabled)) |act| {
         rv = act;
         globals.state.mapping.selected_control = .Eq_eq;
     }
@@ -533,7 +554,7 @@ fn eqMappingPanel(
         };
         const lp_shape_label = if (lp_shape_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_lp_shape, lp_shape_label, .button)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_lp_shape, lp_shape_label, .button, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_lp_shape;
         }
@@ -545,7 +566,7 @@ fn eqMappingPanel(
         };
         const lofreq_label = if (lofreq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_LoFrq, lofreq_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_LoFrq, lofreq_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_LoFrq;
         }
@@ -557,7 +578,7 @@ fn eqMappingPanel(
         };
         const logain_label = if (logain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_LoGain, logain_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_LoGain, logain_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_LoGain;
         }
@@ -577,7 +598,7 @@ fn eqMappingPanel(
         };
         const lomidq_label = if (lomidq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_LoMidQ, lomidq_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_LoMidQ, lomidq_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_LoMidQ;
         }
@@ -589,7 +610,7 @@ fn eqMappingPanel(
         };
         const lomidfreq_label = if (lomidfreq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_LoMidFrq, lomidfreq_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_LoMidFrq, lomidfreq_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_LoMidFrq;
         }
@@ -601,7 +622,7 @@ fn eqMappingPanel(
         };
         const lomidgain_label = if (lomidgain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_LoMidGain, lomidgain_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_LoMidGain, lomidgain_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_LoMidGain;
         }
@@ -621,7 +642,7 @@ fn eqMappingPanel(
         };
         const himidq_label = if (himidq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_HiMidQ, himidq_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_HiMidQ, himidq_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_HiMidQ;
         }
@@ -633,7 +654,7 @@ fn eqMappingPanel(
         };
         const himidfreq_label = if (himidfreq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_HiMidFrq, himidfreq_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_HiMidFrq, himidfreq_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_HiMidFrq;
         }
@@ -645,7 +666,7 @@ fn eqMappingPanel(
         };
         const himidgain_label = if (himidgain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_HiMidGain, himidgain_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_HiMidGain, himidgain_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_HiMidGain;
         }
@@ -667,7 +688,7 @@ fn eqMappingPanel(
         };
         const hp_shape_label = if (hp_shape_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_hp_shape, hp_shape_label, .button)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_hp_shape, hp_shape_label, .button, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_hp_shape;
         }
@@ -679,7 +700,7 @@ fn eqMappingPanel(
         };
         const hifreq_label = if (hifreq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_HiFrq, hifreq_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_HiFrq, hifreq_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_HiFrq;
         }
@@ -691,7 +712,7 @@ fn eqMappingPanel(
         };
         const higain_label = if (higain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Eq_HiGain, higain_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Eq_HiGain, higain_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Eq_HiGain;
         }
@@ -704,6 +725,7 @@ fn compMappingPanel(
     ctx: imgui.ContextPtr,
     globals: *Globals,
     translations: *TranslationStore,
+    disabled: bool,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -718,7 +740,7 @@ fn compMappingPanel(
     };
     const comp_comp_label = if (comp_comp_key) |key| tr(translations, key) else "-";
 
-    if (try mappingWidget(ctx, globals, .Comp_comp, comp_comp_label, .button)) |act| {
+    if (try mappingWidget(ctx, globals, .Comp_comp, comp_comp_label, .button, disabled)) |act| {
         rv = act;
         globals.state.mapping.selected_control = .Comp_comp;
     }
@@ -737,7 +759,7 @@ fn compMappingPanel(
         };
         const ratio_label = if (ratio_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Comp_Ratio, ratio_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Comp_Ratio, ratio_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Comp_Ratio;
         }
@@ -749,7 +771,7 @@ fn compMappingPanel(
         };
         const drywet_label = if (drywet_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Comp_DryWet, drywet_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Comp_DryWet, drywet_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Comp_DryWet;
         }
@@ -769,7 +791,7 @@ fn compMappingPanel(
         };
         const attack_label = if (attack_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Comp_Attack, attack_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Comp_Attack, attack_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Comp_Attack;
         }
@@ -781,7 +803,7 @@ fn compMappingPanel(
         };
         const release_label = if (release_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Comp_Release, release_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Comp_Release, release_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Comp_Release;
         }
@@ -793,7 +815,7 @@ fn compMappingPanel(
         };
         const thresh_label = if (thresh_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Comp_Thresh, thresh_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Comp_Thresh, thresh_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Comp_Thresh;
         }
@@ -806,6 +828,7 @@ fn outputMappingPanel(
     ctx: imgui.ContextPtr,
     globals: *Globals,
     translations: *TranslationStore,
+    disabled: bool,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -825,7 +848,7 @@ fn outputMappingPanel(
         };
         const drive_label = if (drive_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Out_Drive, drive_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Out_Drive, drive_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Out_Drive;
         }
@@ -837,7 +860,7 @@ fn outputMappingPanel(
         };
         const char_label = if (char_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Out_DriveChar, char_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Out_DriveChar, char_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Out_DriveChar;
         }
@@ -849,7 +872,7 @@ fn outputMappingPanel(
         };
         const pan_label = if (pan_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Out_Pan, pan_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Out_Pan, pan_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Out_Pan;
         }
@@ -871,7 +894,7 @@ fn outputMappingPanel(
         };
         const out_solo_label = if (out_solo_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Out_solo, out_solo_label, .button)) |act| {
+        if (try mappingWidget(ctx, globals, .Out_solo, out_solo_label, .button, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Out_solo;
         }
@@ -885,7 +908,7 @@ fn outputMappingPanel(
         };
         const out_mute_label = if (out_mute_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Out_mute, out_mute_label, .button)) |act| {
+        if (try mappingWidget(ctx, globals, .Out_mute, out_mute_label, .button, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Out_mute;
         }
@@ -897,7 +920,7 @@ fn outputMappingPanel(
         };
         const vol_label = if (vol_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, globals, .Out_Vol, vol_label, .knob)) |act| {
+        if (try mappingWidget(ctx, globals, .Out_Vol, vol_label, .knob, disabled)) |act| {
             rv = act;
             globals.state.mapping.selected_control = .Out_Vol;
         }
