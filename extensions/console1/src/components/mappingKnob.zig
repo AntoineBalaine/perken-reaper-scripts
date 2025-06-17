@@ -16,8 +16,7 @@ const angle_max = knob.angle_max;
 const angle_default = knob.angle_default;
 const mapping_panel = @import("../mapping_panel.zig");
 const CCs = @import("../c1.zig").CCs;
-
-pub const knob_size = 80.0;
+const constants = @import("../constants.zig");
 
 const Res = union(enum) { click, param_idx: u32, remove_mapping };
 
@@ -31,7 +30,7 @@ pub fn drawWidget(
     fx_params: []mapping_panel.FxParameter,
 ) !?Res {
     const drwls = try imgui.GetWindowDrawList(.{ctx});
-    const radius = knob_size / 2;
+    const radius = constants.knob_size / 2;
     var clicked = false;
     var rv: ?Res = null;
 
@@ -156,7 +155,7 @@ pub fn paramsCombo(
     fx_params: []mapping_panel.FxParameter,
 ) !?Res {
     var rv: ?Res = null;
-    try imgui.PushItemWidth(.{ ctx, knob_size });
+    try imgui.PushItemWidth(.{ ctx, constants.knob_size });
     defer imgui.PopItemWidth(.{ctx}) catch {};
     const combo_id = std.fmt.comptimePrint("##combo_{s}", .{@tagName(cc)});
     if (try imgui.BeginCombo(.{ ctx, combo_id, assignment_label, null })) {

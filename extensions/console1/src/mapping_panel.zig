@@ -16,8 +16,7 @@ const Translations = @import("translations.zig");
 const TranslationStore = Translations.TranslationStore;
 const TranslationKey = Translations.TranslationKey;
 const getMaxLabelWidth = @import("fx_ctrl_panel.zig").getMaxLabelWidth;
-
-const knob_size = 40.0;
+const constants = @import("constants.zig");
 
 pub const FxParameter = struct {
     index: u32,
@@ -149,7 +148,7 @@ fn controls(
     }
     switch (globals.state.mapping.current_mappings) {
         .INPUT => {
-            if (try inputModuleMapping(ctx, globals, translations)) |act| rv = act;
+            if (try inputMappingPanel(ctx, globals, translations)) |act| rv = act;
         },
         .GATE => {
             if (try moduleCCs(ctx, globals, &gate_controls, translations)) |act| rv = act;
@@ -355,7 +354,7 @@ fn mappingKnob(
     return rv;
 }
 
-fn inputModuleMapping(
+fn inputMappingPanel(
     ctx: imgui.ContextPtr,
     globals: *Globals,
     translations: *TranslationStore,
@@ -371,7 +370,7 @@ fn inputModuleMapping(
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
-        try imgui.Dummy(.{ ctx, 0, knob_size * 2 });
+        try imgui.Dummy(.{ ctx, 0, constants.knob_size * 2 });
 
         // Gain knob
         const gain_key: ?TranslationKey = switch (mode) {
