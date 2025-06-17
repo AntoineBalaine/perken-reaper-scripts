@@ -75,6 +75,7 @@ pub fn drawWidget(
     value: *f64,
     id: [:0]const u8,
     flags: ControlFlags,
+    max_width: ?f64,
 ) !bool {
     const drwls = try imgui.GetWindowDrawList(.{ctx});
     const radius = knob_size / 2;
@@ -88,7 +89,9 @@ pub fn drawWidget(
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
-    const total_width = @max(radius * 2, label_size.w);
+    var total_width = @max(radius * 2, label_size.w);
+    total_width = if (max_width) |max_w| @max(max_w, total_width);
+
     const val_disp: f64 = if (flags.no_val_display) 1 else 2;
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,

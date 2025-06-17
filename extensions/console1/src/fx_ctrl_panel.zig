@@ -21,7 +21,7 @@ const FxCtrlState = @import("fx_ctrl_state.zig").FxControlState;
 /// The offsets buffer will be filled with (max_width - width) / 2 for each label
 /// or null if the label width equals the max width
 /// FIXME: this shouldn’t be getting called at every frame
-pub fn getMaxLabelWidth(ctx: imgui.ContextPtr, labels: []const [:0]const u8, offsets: []?f64) !void {
+pub fn getMaxLabelWidth(ctx: imgui.ContextPtr, labels: []const [:0]const u8, offsets: []?f64) !f64 {
     var max_width: f64 = 0;
     var width: f64 = undefined;
     var height: f64 = undefined;
@@ -42,6 +42,7 @@ pub fn getMaxLabelWidth(ctx: imgui.ContextPtr, labels: []const [:0]const u8, off
             offsets[i] = (max_width - width_val) / 2; // Calculate offset
         }
     }
+    return max_width;
 }
 
 /// Center a widget based on its label width and the maximum width in its column
@@ -167,14 +168,11 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transla
         const gain_no_val_display = gain_disabled or mode != .fx_ctrl;
         const gain_display_label: [:0]const u8 = gain_label orelse "-";
         var offsets = [_]?f64{null};
-        try getMaxLabelWidth(ctx, &[_][:0]const u8{gain_display_label}, &offsets);
+        const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{gain_display_label}, &offsets);
 
         // Apply offset if needed
-        if (offsets[0]) |offset| {
-            try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-        }
         var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
-        if (try Knobs.drawWidget(ctx, &gain_prm.normalized, gain_display_label, .{ .no_val_display = gain_no_val_display, .disabled = gain_disabled })) {
+        if (try Knobs.drawWidget(ctx, &gain_prm.normalized, gain_display_label, .{ .no_val_display = gain_no_val_display, .disabled = gain_disabled }, max_width)) {
             rv = .{ .cc = .Inpt_Gain, .value = gain_prm.normalized };
         }
     }
@@ -216,23 +214,17 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transla
             const locut_no_val_display = locut_disabled or mode != .fx_ctrl;
             const locut_display_label: [:0]const u8 = locut_label orelse "-";
             var offsets = [_]?f64{ null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ hicut_display_label, locut_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hicut_display_label, locut_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var hicut_prm = fx_state.values.get(.Inpt_HiCut).?.param;
-            if (try Knobs.drawWidget(ctx, &hicut_prm.normalized, hicut_display_label, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled })) {
+            if (try Knobs.drawWidget(ctx, &hicut_prm.normalized, hicut_display_label, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled }, max_width)) {
                 rv = .{ .cc = .Inpt_HiCut, .value = hicut_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var locut_prm = fx_state.values.get(.Inpt_LoCut).?.param;
-            if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_display_label, .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled })) {
+            if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_display_label, .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled }, max_width)) {
                 rv = .{ .cc = .Inpt_LoCut, .value = locut_prm.normalized };
             }
         }
@@ -306,14 +298,11 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             const gate_no_val_display = gate_disabled or mode != .fx_ctrl;
             const gate_display_label: [:0]const u8 = gate_label orelse "-";
             var offsets = [_]?f64{null};
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{gate_display_label}, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{gate_display_label}, &offsets);
 
             // Apply offset if needed
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var gate_prm = fx_state.values.get(.Shp_Gate).?.param;
-            if (try Knobs.drawWidget(ctx, &gate_prm.normalized, gate_display_label, .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled })) {
+            if (try Knobs.drawWidget(ctx, &gate_prm.normalized, gate_display_label, .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled }, max_width)) {
                 rv = .{ .cc = .Shp_Gate, .value = gate_prm.normalized };
             }
 
@@ -367,32 +356,23 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             const punch_no_val_display = punch_disabled or mode != .fx_ctrl;
             const punch_display_label: [:0]const u8 = punch_label orelse "-";
             var offsets = [_]?f64{ null, null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ release_display_label, sustain_display_label, punch_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ release_display_label, sustain_display_label, punch_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var release_prm = fx_state.values.get(.Shp_GateRelease).?.param;
-            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_display_label, .{ .no_val_display = release_no_val_display, .disabled = release_disabled })) {
+            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_display_label, .{ .no_val_display = release_no_val_display, .disabled = release_disabled }, max_width)) {
                 rv = .{ .cc = .Shp_GateRelease, .value = release_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var sustain_prm = fx_state.values.get(.Shp_sustain).?.param;
-            if (try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_display_label, .{ .no_val_display = sustain_no_val_display, .disabled = sustain_disabled })) {
+            if (try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_display_label, .{ .no_val_display = sustain_no_val_display, .disabled = sustain_disabled }, max_width)) {
                 rv = .{ .cc = .Shp_sustain, .value = sustain_prm.normalized };
             }
 
             // Third knob
-            if (offsets[2]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var punch_prm = fx_state.values.get(.Shp_Punch).?.param;
-            if (try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_display_label, .{ .no_val_display = punch_no_val_display, .disabled = punch_disabled })) {
+            if (try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_display_label, .{ .no_val_display = punch_no_val_display, .disabled = punch_disabled }, max_width)) {
                 rv = .{ .cc = .Shp_Punch, .value = punch_prm.normalized };
             }
         }
@@ -457,23 +437,17 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             const logain_no_val_display = logain_disabled or mode != .fx_ctrl;
             const logain_display_label: [:0]const u8 = logain_label orelse "-";
             var offsets = [_]?f64{ null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ lofreq_display_label, logain_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ lofreq_display_label, logain_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var lofreq_prm = fx_state.values.get(.Eq_LoFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_display_label, .{ .no_val_display = lofreq_no_val_display, .disabled = lofreq_disabled })) {
+            if (try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_display_label, .{ .no_val_display = lofreq_no_val_display, .disabled = lofreq_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_LoFrq, .value = lofreq_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var logain_prm = fx_state.values.get(.Eq_LoGain).?.param;
-            if (try Knobs.drawWidget(ctx, &logain_prm.normalized, logain_display_label, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled })) {
+            if (try Knobs.drawWidget(ctx, &logain_prm.normalized, logain_display_label, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_LoGain, .value = logain_prm.normalized };
             }
         }
@@ -513,32 +487,23 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             const lomidgain_no_val_display = lomidgain_disabled or mode != .fx_ctrl;
             const lomidgain_display_label: [:0]const u8 = lomidgain_label orelse "-";
             var offsets = [_]?f64{ null, null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ lomidq_display_label, lomidfreq_display_label, lomidgain_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ lomidq_display_label, lomidfreq_display_label, lomidgain_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var lomidq_prm = fx_state.values.get(.Eq_LoMidQ).?.param;
-            if (try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_display_label, .{ .no_val_display = lomidq_no_val_display, .disabled = lomidq_disabled })) {
+            if (try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_display_label, .{ .no_val_display = lomidq_no_val_display, .disabled = lomidq_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidQ, .value = lomidq_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var lomidfreq_prm = fx_state.values.get(.Eq_LoMidFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_display_label, .{ .no_val_display = lomidfreq_no_val_display, .disabled = lomidfreq_disabled })) {
+            if (try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_display_label, .{ .no_val_display = lomidfreq_no_val_display, .disabled = lomidfreq_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidFrq, .value = lomidfreq_prm.normalized };
             }
 
             // Third knob
-            if (offsets[2]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var lomidgain_prm = fx_state.values.get(.Eq_LoMidGain).?.param;
-            if (try Knobs.drawWidget(ctx, &lomidgain_prm.normalized, lomidgain_display_label, .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled })) {
+            if (try Knobs.drawWidget(ctx, &lomidgain_prm.normalized, lomidgain_display_label, .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidGain, .value = lomidgain_prm.normalized };
             }
         }
@@ -578,32 +543,23 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             const himidgain_no_val_display = himidgain_disabled or mode != .fx_ctrl;
             const himidgain_display_label: [:0]const u8 = himidgain_label orelse "-";
             var offsets = [_]?f64{ null, null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ himidq_display_label, himidfreq_display_label, himidgain_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ himidq_display_label, himidfreq_display_label, himidgain_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var himidq_prm = fx_state.values.get(.Eq_HiMidQ).?.param;
-            if (try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_display_label, .{ .no_val_display = himidq_no_val_display, .disabled = himidq_disabled })) {
+            if (try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_display_label, .{ .no_val_display = himidq_no_val_display, .disabled = himidq_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidQ, .value = himidq_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var himidfreq_prm = fx_state.values.get(.Eq_HiMidFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_display_label, .{ .no_val_display = himidfreq_no_val_display, .disabled = himidfreq_disabled })) {
+            if (try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_display_label, .{ .no_val_display = himidfreq_no_val_display, .disabled = himidfreq_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidFrq, .value = himidfreq_prm.normalized };
             }
 
             // Third knob
-            if (offsets[2]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var himidgain_prm = fx_state.values.get(.Eq_HiMidGain).?.param;
-            if (try Knobs.drawWidget(ctx, &himidgain_prm.normalized, himidgain_display_label, .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled })) {
+            if (try Knobs.drawWidget(ctx, &himidgain_prm.normalized, himidgain_display_label, .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidGain, .value = himidgain_prm.normalized };
             }
         }
@@ -648,23 +604,17 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             const higain_no_val_display = higain_disabled or mode != .fx_ctrl;
             const higain_display_label: [:0]const u8 = higain_label orelse "-";
             var offsets = [_]?f64{ null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ hifreq_display_label, higain_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hifreq_display_label, higain_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var hifreq_prm = fx_state.values.get(.Eq_HiFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_display_label, .{ .no_val_display = hifreq_no_val_display, .disabled = hifreq_disabled })) {
+            if (try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_display_label, .{ .no_val_display = hifreq_no_val_display, .disabled = hifreq_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_HiFrq, .value = hifreq_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var higain_prm = fx_state.values.get(.Eq_HiGain).?.param;
-            if (try Knobs.drawWidget(ctx, &higain_prm.normalized, higain_display_label, .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled })) {
+            if (try Knobs.drawWidget(ctx, &higain_prm.normalized, higain_display_label, .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled }, max_width)) {
                 rv = .{ .cc = .Eq_HiGain, .value = higain_prm.normalized };
             }
         }
@@ -718,23 +668,17 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             const drywet_no_val_display = drywet_disabled or mode != .fx_ctrl;
             const drywet_display_label: [:0]const u8 = drywet_label orelse "-";
             var offsets = [_]?f64{ null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ ratio_display_label, drywet_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ ratio_display_label, drywet_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var ratio_prm = fx_state.values.get(.Comp_Ratio).?.param;
-            if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_display_label, .{ .no_val_display = ratio_no_val_display, .disabled = ratio_disabled })) {
+            if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_display_label, .{ .no_val_display = ratio_no_val_display, .disabled = ratio_disabled }, max_width)) {
                 rv = .{ .cc = .Comp_Ratio, .value = ratio_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var drywet_prm = fx_state.values.get(.Comp_DryWet).?.param;
-            if (try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_display_label, .{ .no_val_display = drywet_no_val_display, .disabled = drywet_disabled })) {
+            if (try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_display_label, .{ .no_val_display = drywet_no_val_display, .disabled = drywet_disabled }, max_width)) {
                 rv = .{ .cc = .Comp_DryWet, .value = drywet_prm.normalized };
             }
         }
@@ -775,32 +719,23 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
             const thresh_no_val_display = thresh_disabled or mode != .fx_ctrl;
             const thresh_display_label: [:0]const u8 = thresh_label orelse "-";
             var offsets = [_]?f64{ null, null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ attack_display_label, release_display_label, thresh_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ attack_display_label, release_display_label, thresh_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var attack_prm = fx_state.values.get(.Comp_Attack).?.param;
-            if (try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_display_label, .{ .no_val_display = attack_no_val_display, .disabled = attack_disabled })) {
+            if (try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_display_label, .{ .no_val_display = attack_no_val_display, .disabled = attack_disabled }, max_width)) {
                 rv = .{ .cc = .Comp_Attack, .value = attack_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var release_prm = fx_state.values.get(.Comp_Release).?.param;
-            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_display_label, .{ .no_val_display = release_no_val_display, .disabled = release_disabled })) {
+            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_display_label, .{ .no_val_display = release_no_val_display, .disabled = release_disabled }, max_width)) {
                 rv = .{ .cc = .Comp_Release, .value = release_prm.normalized };
             }
 
             // Third knob
-            if (offsets[2]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var thresh_prm = fx_state.values.get(.Comp_Thresh).?.param;
-            if (try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_display_label, .{ .no_val_display = thresh_no_val_display, .disabled = thresh_disabled })) {
+            if (try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_display_label, .{ .no_val_display = thresh_no_val_display, .disabled = thresh_disabled }, max_width)) {
                 rv = .{ .cc = .Comp_Thresh, .value = thresh_prm.normalized };
             }
         }
@@ -856,32 +791,23 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
             const pan_no_val_display = pan_disabled or mode != .fx_ctrl;
             const pan_display_label: [:0]const u8 = pan_label orelse "-";
             var offsets = [_]?f64{ null, null, null };
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{ drive_display_label, char_display_label, pan_display_label }, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ drive_display_label, char_display_label, pan_display_label }, &offsets);
 
             // First knob
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var drive_prm = fx_state.values.get(.Out_Drive).?.param;
-            if (try Knobs.drawWidget(ctx, &drive_prm.normalized, drive_display_label, .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled })) {
+            if (try Knobs.drawWidget(ctx, &drive_prm.normalized, drive_display_label, .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled }, max_width)) {
                 rv = .{ .cc = .Out_Drive, .value = drive_prm.normalized };
             }
 
             // Second knob
-            if (offsets[1]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var char_prm = fx_state.values.get(.Out_DriveChar).?.param;
-            if (try Knobs.drawWidget(ctx, &char_prm.normalized, char_display_label, .{ .no_val_display = char_no_val_display, .disabled = char_disabled })) {
+            if (try Knobs.drawWidget(ctx, &char_prm.normalized, char_display_label, .{ .no_val_display = char_no_val_display, .disabled = char_disabled }, max_width)) {
                 rv = .{ .cc = .Out_DriveChar, .value = char_prm.normalized };
             }
 
             // Third knob
-            if (offsets[2]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var pan_prm = fx_state.values.get(.Out_Pan).?.param;
-            if (try Knobs.drawWidget(ctx, &pan_prm.normalized, pan_display_label, .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled })) {
+            if (try Knobs.drawWidget(ctx, &pan_prm.normalized, pan_display_label, .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled }, max_width)) {
                 rv = .{ .cc = .Out_Pan, .value = pan_prm.normalized };
             }
         }
@@ -939,14 +865,11 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
             const vol_no_val_display = vol_disabled or mode != .fx_ctrl;
             const vol_display_label: [:0]const u8 = vol_label orelse "-";
             var offsets = [_]?f64{null};
-            try getMaxLabelWidth(ctx, &[_][:0]const u8{vol_display_label}, &offsets);
+            const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{vol_display_label}, &offsets);
 
             // Apply offset if needed
-            if (offsets[0]) |offset| {
-                try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + offset });
-            }
             var vol_prm = fx_state.values.get(.Out_Vol).?.param;
-            if (try Knobs.drawWidget(ctx, &vol_prm.normalized, vol_display_label, .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled })) {
+            if (try Knobs.drawWidget(ctx, &vol_prm.normalized, vol_display_label, .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled }, max_width)) {
                 rv = .{ .cc = .Out_Vol, .value = vol_prm.normalized };
             }
         }
