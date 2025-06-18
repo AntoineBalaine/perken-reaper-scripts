@@ -110,14 +110,14 @@ pub fn mappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *Tra
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    try imgui.Text(.{ ctx, tr(translations, .mapping_title) });
+    // try imgui.Text(.{ ctx, tr(translations, .mapping_title) });
     // Main table for two-column layout
 
     if (try controls(ctx, globals, translations)) |action| {
         rv = action;
     }
+    try imgui.SameLine(.{ctx});
     // Bottom panel with buttons
-    try imgui.Separator(.{ctx});
     if (try formControls(ctx, globals, translations)) |action| {
         rv = action;
     }
@@ -131,22 +131,6 @@ fn controls(
     translations: *TranslationStore,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
-
-    const cur_mapping = @tagName(globals.state.mapping.current_mappings);
-
-    {
-        try imgui.PushItemWidth(.{ ctx, 400.0 });
-        defer imgui.PopItemWidth(.{ctx}) catch {};
-        if (try imgui.BeginCombo(.{ ctx, "##module_selection", cur_mapping, null })) {
-            defer imgui.EndCombo(.{ctx}) catch {};
-
-            inline for (comptime std.enums.values(ModulesList)) |module| {
-                if (try imgui.Selectable(.{ ctx, @tagName(module) })) {
-                    rv = .{ .change_module = module };
-                }
-            }
-        }
-    }
 
     // Define an array of panel functions and their corresponding modules
     const panels = [_]struct { module: ModulesList, panel_fn: @TypeOf(inputMappingPanel) }{
@@ -176,9 +160,7 @@ fn controls(
         }
 
         // Add sectional divider between panels (except after the last one)
-        if (panel_info.module != .OUTPT) {
-            try fx_ctrl_panel.sectional(ctx);
-        }
+        try fx_ctrl_panel.sectional(ctx);
     }
 
     return rv;
@@ -214,58 +196,6 @@ fn getControlMapping(state: *State, cc: c1.CCs) ?u32 {
     }
 }
 
-const compressor_controls = [_]c1.CCs{
-    .Comp_Attack,
-    .Comp_Release,
-    .Comp_Thresh,
-    .Comp_Ratio,
-    .Comp_DryWet,
-    .Comp_comp,
-};
-
-const eq_controls = [_]c1.CCs{
-    .Eq_HiFrq,
-    .Eq_HiGain,
-    .Eq_HiMidFrq,
-    .Eq_HiMidGain,
-    .Eq_HiMidQ,
-    .Eq_LoFrq,
-    .Eq_LoGain,
-    .Eq_LoMidFrq,
-    .Eq_LoMidGain,
-    .Eq_LoMidQ,
-    .Eq_eq,
-    .Eq_hp_shape,
-    .Eq_lp_shape,
-};
-
-const input_controls = [_]c1.CCs{
-    .Inpt_Gain,
-    .Inpt_HiCut,
-    .Inpt_LoCut,
-    .Inpt_disp_mode,
-    .Inpt_disp_on,
-    .Inpt_filt_to_comp,
-    .Inpt_phase_inv,
-    .Inpt_preset,
-};
-
-const output_controls = [_]c1.CCs{
-    .Out_Drive,
-    .Out_DriveChar,
-    .Out_Pan,
-    .Out_Vol,
-};
-
-const gate_controls = [_]c1.CCs{
-    .Shp_Gate,
-    .Shp_GateRelease,
-    .Shp_Punch,
-    .Shp_hard_gate,
-    .Shp_shape,
-    .Shp_sustain,
-};
-
 // Function to handle the bottom panel with buttons
 fn formControls(
     ctx: imgui.ContextPtr,
@@ -273,6 +203,22 @@ fn formControls(
     translations: *TranslationStore,
 ) !?mapping_actions.MappingAction {
     var rv: ?mapping_actions.MappingAction = null;
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
+    {
+        try imgui.PushItemWidth(.{ ctx, 100.0 });
+        defer imgui.PopItemWidth(.{ctx}) catch {};
+
+        if (try imgui.BeginCombo(.{ ctx, "##module_selection", @tagName(globals.state.mapping.current_mappings), null })) {
+            defer imgui.EndCombo(.{ctx}) catch {};
+
+            inline for (comptime std.enums.values(ModulesList)) |module| {
+                if (try imgui.Selectable(.{ ctx, @tagName(module) })) {
+                    rv = .{ .change_module = module };
+                }
+            }
+        }
+    }
 
     const midi_learn_text = if (globals.state.mapping.midi_learn_active)
         tr(translations, .mapping_midi_learn_active)
@@ -283,13 +229,9 @@ fn formControls(
         rv = .{ .toggle_midi_learn = {} };
     }
 
-    try imgui.SameLine(.{ctx});
-
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {
         rv = .{ .save_mapping = {} };
     }
-
-    try imgui.SameLine(.{ctx});
 
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
         rv = .{ .cancel_mapping = {} };
