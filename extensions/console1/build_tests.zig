@@ -1,15 +1,8 @@
 const std = @import("std");
 const Dependencies = @import("build.zig").Dependencies;
-// const rapidcheck_build = @import("build_rapidcheck.zig");
 
 pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: Dependencies) void {
     const entry_point_path = b.path("./src/console1_extension.zig");
-
-    // Add RapidCheck dependency - only needed in test builds
-    const rapidcheck_dep = b.dependency("rapid-check", .{
-        .target = target,
-        .optimize = .Debug,
-    });
 
     const test_filters: []const []const u8 = b.option(
         []const []const u8,
@@ -25,10 +18,8 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     });
 
     test_exe.addIncludePath(b.path("./src/"));
-    test_exe.addIncludePath(b.path("./src/rapidcheck/"));
     test_exe.addIncludePath(dependencies.wdl.path("")); // Root of WDL
     test_exe.addIncludePath(dependencies.reaper_sdk.path("")); // Root of reaper-sdk
-    // rapidcheck_build.addRapidcheckInclude(test_exe, rapidcheck_dep);
 
     // Add the config options module
     const options = b.addOptions();
@@ -55,7 +46,6 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
         "-O2",
         "-std=c++14",
         b.fmt("-I{s}", .{dependencies.wdl.path("").getPath(b)}),
-        b.fmt("-I{s}", .{rapidcheck_dep.path("include").getPath(b)}),
         "-DSWELL_PROVIDED_BY_APP",
         "-o",
     };
@@ -66,8 +56,6 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
         // b.path("src/csurf/control_surface_wrapper.cpp"),
         // b.path("src/csurf/midi_wrapper.cpp"), // Excluded to avoid duplicate symbols with our mock
         modstub,
-        // b.path("src/tests/rapidcheck/rapidcheck_wrapper.cpp"),
-        // b.path("src/tests/rapidcheck/settings_test.cpp"), // Add this line to include settings_test.cpp
     };
 
     inline for (cppfiles) |cppfile| {
@@ -82,12 +70,6 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
         cxx.step.dependOn(&php_cmd.step);
     }
 
-    // const rc_build_options = rapidcheck_build.RapidcheckBuildOptions{
-    //     .target = target,
-    //     .optimize = .Debug,
-    // };
-    // rapidcheck_build.compileRapidcheck(b, test_exe, rapidcheck_dep, rc_build_options) catch @panic("Failed to compile RapidCheck");
-    //
     // Add dependencies
     test_exe.root_module.addImport("ini", dependencies.ini.module("ini"));
     test_exe.root_module.addImport("zlowcheck", dependencies.zlowcheck.module("zlowcheck"));

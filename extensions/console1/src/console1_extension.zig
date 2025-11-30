@@ -64,10 +64,10 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     };
 
     // _ = reaper.plugin_register("csurf_inst", myCsurf.?);
-    _ = reaper.plugin_register("csurf", @constCast(@ptrCast(&control_surface.c1_reg)));
+    _ = reaper.plugin_register("csurf", @ptrCast(@constCast(&control_surface.c1_reg)));
 
     // Register toggle actions
-    _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&hooks.onCommand)));
+    _ = reaper.plugin_register("hookcommand2", @ptrCast(@constCast(&hooks.onCommand)));
 
     hooks.registerCommands();
 
@@ -79,10 +79,6 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
 }
 
 test {
-    // std.testing.refAllDecls(@This());
-    // _ = @import("tests/rapidcheck/rapidcheck_tests.zig");
-    // _ = @import("tests/rapidcheck/types/fx_model_tests.zig");
-    // _ = @import("tests/rapidcheck/settings_test.zig");
     _ = @import("tests/zlowcheck.zig");
     _ = @import("models/models.zig");
     _ = @import("tests/mode_switch_tests.zig");

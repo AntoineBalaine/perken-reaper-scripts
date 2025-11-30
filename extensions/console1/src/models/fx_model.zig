@@ -35,32 +35,5 @@ pub const FX = struct {
     }
 };
 
-pub fn deinitCParam(param: *cFxModel.RC_Param, allocator: std.mem.Allocator) void {
-    allocator.free(std.mem.span(param.name));
-    allocator.free(std.mem.span(param.formatted_value));
-}
-
-pub fn deinitCFX(fx: *cFxModel.RC_FX, allocator: std.mem.Allocator) void {
-    // Free the original and renamed names
-    allocator.free(std.mem.span(fx.named_configs.original_name));
-
-    // Only free renamed_name if it's different from original_name
-    if (@intFromPtr(fx.named_configs.original_name) != @intFromPtr(fx.named_configs.renamed_name)) {
-        allocator.free(std.mem.span(fx.named_configs.renamed_name));
-    }
-
-    // Free each parameter and the parameters array if they exist
-    if (fx.params_count > 0) {
-        for (0..fx.params_count) |i| {
-            var prm = fx.params[i];
-            deinitCParam(&prm, allocator);
-        }
-        allocator.free(fx.params[0..fx.params_count]);
-    }
-}
-
 const std = @import("std");
 const utils = @import("../utils.zig");
-const cFxModel = @cImport({
-    @cInclude("tests/rapidcheck/types/fx_model.h");
-});
