@@ -1,3 +1,6 @@
+
+@sessions/CLAUDE.sessions.md
+
 When discussing approaches and giving examples, prefer using pseudo-code unless instructed otherwise.
 
 You can write pseudo-code like this:
