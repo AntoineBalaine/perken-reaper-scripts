@@ -35,6 +35,10 @@ const Mocks = struct {
     TrackFX_AddByName: @TypeOf(reaper.TrackFX_AddByName),
     TrackFX_GetCount: @TypeOf(reaper.TrackFX_GetCount),
     TrackFX_GetFXName: @TypeOf(reaper.TrackFX_GetFXName),
+    TrackFX_GetNamedConfigParm: @TypeOf(reaper.TrackFX_GetNamedConfigParm),
+    TrackFX_SetNamedConfigParm: @TypeOf(reaper.TrackFX_SetNamedConfigParm),
+    TrackFX_GetFXGUID: @TypeOf(reaper.TrackFX_GetFXGUID),
+    TrackFX_CopyToTrack: @TypeOf(reaper.TrackFX_CopyToTrack),
     GetNumTracks: @TypeOf(reaper.GetNumTracks),
     CountTracks: @TypeOf(reaper.CountTracks),
     GetTrack: @TypeOf(reaper.GetTrack),
@@ -165,6 +169,111 @@ fn TrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, bufOu
     return true;
 }
 
+fn TrackFX_GetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:0]const u8, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.C) bool {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *const Track = track_ptr.?;
+
+    if (fx < 0 or fx >= tr.fx_list.items.len) return false;
+
+    const param_name = std.mem.span(parmname);
+    const fx_item = tr.fx_list.items[@intCast(fx)];
+
+    const name = if (std.mem.eql(u8, param_name, "renamed_name"))
+        fx_item.named_configs.renamed_name
+    else if (std.mem.eql(u8, param_name, "original_name"))
+        fx_item.named_configs.original_name
+    else
+        return false;
+
+    const len = @min(@as(usize, @intCast(bufOut_sz)) - 1, name.len);
+    @memcpy(bufOut[0..len], name[0..len]);
+    bufOut[len] = 0;
+    return true;
+}
+
+fn TrackFX_SetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:0]const u8, value: [*:0]const u8) callconv(.C) bool {
+    const session = g_session.?;
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *Track = track_ptr.?;
+
+    if (fx < 0 or fx >= tr.fx_list.items.len) return false;
+
+    const param_name = std.mem.span(parmname);
+    const new_value = std.mem.span(value);
+    const fx_item = &tr.fx_list.items[@intCast(fx)];
+
+    const gpa = session.gpa;
+
+    if (std.mem.eql(u8, param_name, "renamed_name")) {
+        // Free old renamed_name if it's different from original_name
+        if (@intFromPtr(fx_item.named_configs.renamed_name.ptr) != @intFromPtr(fx_item.named_configs.original_name.ptr)) {
+            gpa.free(fx_item.named_configs.renamed_name);
+        }
+        fx_item.named_configs.renamed_name = gpa.dupeZ(u8, new_value) catch return false;
+        return true;
+    } else if (std.mem.eql(u8, param_name, "original_name")) {
+        // Free old original_name
+        const old_original = fx_item.named_configs.original_name;
+        fx_item.named_configs.original_name = gpa.dupeZ(u8, new_value) catch return false;
+
+        // If renamed_name was pointing to old original_name, update it too
+        if (@intFromPtr(fx_item.named_configs.renamed_name.ptr) == @intFromPtr(old_original.ptr)) {
+            fx_item.named_configs.renamed_name = fx_item.named_configs.original_name;
+        }
+
+        gpa.free(old_original);
+        return true;
+    }
+
+    return false;
+}
+
+fn TrackFX_GetFXGUID(track: reaper.MediaTrack, fx: c_int) callconv(.C) *reaper.GUID {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) @panic("Invalid track pointer");
+
+    const tr: *Track = track_ptr.?;
+
+    if (fx < 0 or fx >= tr.fx_list.items.len) @panic("Invalid FX index");
+
+    const fx_item = &tr.fx_list.items[@intCast(fx)];
+    return @ptrCast(@alignCast(&fx_item.guid.bytes));
+}
+
+fn TrackFX_CopyToTrack(source_track: reaper.MediaTrack, source_fx: c_int, dest_track: reaper.MediaTrack, dest_fx: c_int, is_move: bool) callconv(.C) void {
+    const session = g_session.?;
+    const src_ptr: ?*Track = @ptrCast(@alignCast(source_track));
+    const dst_ptr: ?*Track = @ptrCast(@alignCast(dest_track));
+
+    if (src_ptr == null or dst_ptr == null) return;
+    if (source_fx < 0 or source_fx >= src_ptr.?.fx_list.items.len) return;
+
+    const gpa = session.gpa;
+    const src = src_ptr.?;
+    const dst = dst_ptr.?;
+
+    // Calculate adjusted destination index for same-track moves
+    const actual_dest_fx = if (src == dst and source_fx < dest_fx)
+        dest_fx - 1
+    else
+        dest_fx;
+
+    if (is_move) {
+        // Move: remove from source and insert at destination
+        const removed_fx = src.fx_list.orderedRemove(@intCast(source_fx));
+        dst.fx_list.insert(gpa, @intCast(actual_dest_fx), removed_fx) catch return;
+    } else {
+        // Copy: clone the FX and insert at destination
+        // Note: This requires deep copying all strings and params
+        // For now, we'll implement move only since that's what track validation uses
+        unreachable;
+    }
+}
+
 fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     const model = g_session.?;
 
@@ -239,7 +348,7 @@ fn GetMasterTrack(project: ReaProject) callconv(.C) MediaTrack {
 }
 
 fn GetTrackName(tr: MediaTrack, buf: [*:0]u8, bufsz: c_int) callconv(.C) bool {
-    var track: ?*Track = @alignCast(@ptrCast(tr));
+    var track: ?*Track = @ptrCast(@alignCast(tr));
     _ = &track;
     if (track == null or bufsz <= 0) return false;
     const name = g_session.?.getTrackName(track.?.*);
@@ -251,7 +360,7 @@ fn GetTrackName(tr: MediaTrack, buf: [*:0]u8, bufsz: c_int) callconv(.C) bool {
 }
 
 fn SetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8, newvalue: f64) callconv(.C) bool {
-    var track: ?*Track = @alignCast(@ptrCast(tr));
+    var track: ?*Track = @ptrCast(@alignCast(tr));
     _ = &track;
     if (track == null) return false;
 
@@ -274,7 +383,7 @@ fn SetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8, newvalue: f6
 }
 
 fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv(.C) f64 {
-    var track: ?*Track = @alignCast(@ptrCast(tr));
+    var track: ?*Track = @ptrCast(@alignCast(tr));
     _ = &track;
     if (track == null) return 0;
 
@@ -293,7 +402,7 @@ fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv(.C)
 }
 
 fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.C) void {
-    var track: ?*Track = @alignCast(@ptrCast(tr));
+    var track: ?*Track = @ptrCast(@alignCast(tr));
     _ = &track;
     if (track == null) return;
 
