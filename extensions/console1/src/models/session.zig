@@ -7,15 +7,6 @@ cursor_position: f64 = 0.0,
 global_automation_mode: AutomationMode = .read,
 gpa: std.mem.Allocator = undefined,
 
-pub fn deinit(self: *@This()) void {
-    for (self.tracks.items) |*track| {
-        track.deinit(self.gpa);
-    }
-    self.tracks.deinit(self.gpa);
-    self.selected_tracks.deinit(self.gpa);
-    self.string_pool.deinit(self.gpa);
-}
-
 pub fn ensureTotalCapacity(self: *@This(), gpa: std.mem.Allocator, new_capacity: usize) !void {
     try self.tracks.ensureTotalCapacity(gpa, new_capacity + 1);
     try self.selected_tracks.ensureTotalCapacity(gpa, new_capacity + 1);

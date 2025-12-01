@@ -3,17 +3,20 @@ pub var g_session: ?*Session = null;
 
 pub fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc_tracks: ?usize) struct {
     orig_funcs: Mocks,
+    arena: std.heap.ArenaAllocator,
     model_ptr: *Session,
 
-    pub fn teardown(self: @This()) void {
+    pub fn teardown(self: *@This()) void {
         restoreMockReaperAPI(self.orig_funcs);
-        self.model_ptr.deinit();
-        self.model_ptr.gpa.destroy(self.model_ptr);
+        self.arena.deinit();
     }
 } {
-    const model = allocator.create(Session) catch @panic("Failed to initialize model");
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    const arena_allocator = arena.allocator();
+
+    const model = arena_allocator.create(Session) catch @panic("Failed to initialize model");
     model.* = Session.init(
-        allocator,
+        arena_allocator,
         if (trck_count) |count| count else 0,
         if (prealloc_tracks) |prealloc| prealloc else 4,
     ) catch @panic("Failed to initialize model");
@@ -21,6 +24,7 @@ pub fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc
 
     return .{
         .orig_funcs = origFuncs,
+        .arena = arena,
         .model_ptr = model,
     };
 }
@@ -209,14 +213,9 @@ fn TrackFX_SetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:
     const gpa = session.gpa;
 
     if (std.mem.eql(u8, param_name, "renamed_name")) {
-        // Free old renamed_name if it's different from original_name
-        if (@intFromPtr(fx_item.named_configs.renamed_name.ptr) != @intFromPtr(fx_item.named_configs.original_name.ptr)) {
-            gpa.free(fx_item.named_configs.renamed_name);
-        }
         fx_item.named_configs.renamed_name = gpa.dupeZ(u8, new_value) catch return false;
         return true;
     } else if (std.mem.eql(u8, param_name, "original_name")) {
-        // Free old original_name
         const old_original = fx_item.named_configs.original_name;
         fx_item.named_configs.original_name = gpa.dupeZ(u8, new_value) catch return false;
 
@@ -225,7 +224,6 @@ fn TrackFX_SetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:
             fx_item.named_configs.renamed_name = fx_item.named_configs.original_name;
         }
 
-        gpa.free(old_original);
         return true;
     }
 
@@ -296,10 +294,7 @@ fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     if (track_idx.? == 0) return;
 
     // Remove the track
-    var removed_track = model.tracks.orderedRemove(track_idx.?);
-
-    // Clean up the track's resources
-    removed_track.deinit(model.gpa);
+    _ = model.tracks.orderedRemove(track_idx.?);
 
     // Update selected track indices
     var i: usize = 0;

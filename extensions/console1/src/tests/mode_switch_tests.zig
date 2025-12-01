@@ -10,7 +10,7 @@ pub fn test_setup(allocator: std.mem.Allocator) !struct {
     reaper_teardown: @typeInfo(@TypeOf(models.reaper.setupTestModel)).@"fn".return_type.?,
     midi_teardown: @typeInfo(@TypeOf(models.midi.setupMidiMocks)).@"fn".return_type.?,
     globals: *Globals,
-    pub fn teardown(self: @This()) void {
+    pub fn teardown(self: *@This()) void {
         self.reaper_teardown.teardown();
         self.midi_teardown.teardown();
         self.globals.deinit();
@@ -28,7 +28,7 @@ pub fn test_setup(allocator: std.mem.Allocator) !struct {
 }
 
 test "control surface init switches from suspended to fx_ctrl" {
-    const g_teardown = try test_setup(std.testing.allocator);
+    var g_teardown = try test_setup(std.testing.allocator);
     defer g_teardown.teardown();
 
     const midi_out_inst = models.midi.getModelInstance();

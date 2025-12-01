@@ -198,7 +198,7 @@ const UpdateCmd = struct {
 };
 
 fn prefsStatefulTest(_: void, input: []const u8) !void {
-    const g_teardown = try @import("mode_switch_tests.zig").test_setup(std.testing.allocator);
+    var g_teardown = try @import("mode_switch_tests.zig").test_setup(std.testing.allocator);
     defer g_teardown.teardown();
     _ = @import("../csurf/control_surface.zig").init(0, 0, null);
 

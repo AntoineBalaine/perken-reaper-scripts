@@ -34,11 +34,4 @@ pub const Track = struct {
         .info = .{},
         .peak_info = null,
     };
-
-    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
-        for (self.fx_list.items) |*fx| {
-            fx.deinit(allocator);
-        }
-        self.fx_list.deinit(allocator);
-    }
 };
