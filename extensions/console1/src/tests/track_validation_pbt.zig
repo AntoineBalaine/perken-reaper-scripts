@@ -304,7 +304,9 @@ const ValidateTrackCmd = struct {
 };
 
 test "track validation - empty track gets all modules" {
-    const reaper_teardown = models.reaper.setupTestModel(testing.allocator, 1, 4);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
     defer reaper_teardown.teardown();
 
     const track = &reaper_teardown.model_ptr.tracks.items[1];
@@ -345,7 +347,9 @@ test "track validation - empty track gets all modules" {
 }
 
 test "track validation - duplicate module suffixes removed" {
-    const reaper_teardown = models.reaper.setupTestModel(testing.allocator, 1, 4);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
     defer reaper_teardown.teardown();
 
     const track = &reaper_teardown.model_ptr.tracks.items[1];
@@ -384,7 +388,9 @@ test "track validation - duplicate module suffixes removed" {
 }
 
 test "track validation - missing modules inserted in correct positions" {
-    const reaper_teardown = models.reaper.setupTestModel(testing.allocator, 1, 4);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
     defer reaper_teardown.teardown();
 
     const track = &reaper_teardown.model_ptr.tracks.items[1];
@@ -429,7 +435,9 @@ test "track validation - missing modules inserted in correct positions" {
 }
 
 test "track validation property-based test" {
-    const reaper_teardown = models.reaper.setupTestModel(testing.allocator, 1, 4);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
     defer reaper_teardown.teardown();
 
     var model = try Model.init(testing.allocator);

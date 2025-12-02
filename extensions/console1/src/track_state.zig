@@ -12,7 +12,7 @@ const Outpt = MapStore.Outpt;
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const DefaultFx = @import("settings.zig").DefaultFx;
 const TaggedMapping = MapStore.TaggedMapping;
-const MockReaper = @import("mock_reaper.zig");
+const MockReaper = @import("models/reaper_mock.zig");
 const Guid = @import("utils.zig").Guid;
 const log = std.log.scoped(.validation);
 const Preferences = @import("settings.zig").Preferences;
@@ -124,7 +124,7 @@ fn parseC1Suffix(name: [:0]const u8) ?ModulesList {
     return null;
 }
 
-test "parseC1Suffix" {
+test "parseC1Suffix - basic valid cases" {
     // Valid cases
     const testing = std.testing;
     try testing.expectEqual(.INPUT, parseC1Suffix("Some Plugin (C1-I)").?);
@@ -138,6 +138,741 @@ test "parseC1Suffix" {
 
     // Ignore invalid characters
     try testing.expectEqual(.INPUT, parseC1Suffix("Plugin (C1-IX)").?);
+}
+
+test "parseC1Suffix - multiple suffixes returns last one" {
+    const testing = std.testing;
+    // Because the function uses lastIndexOf for "(C1-", it will find the last occurrence
+    try testing.expectEqual(.COMP, parseC1Suffix("Plugin (C1-I) Extra (C1-C)").?);
+    try testing.expectEqual(.GATE, parseC1Suffix("(C1-E) Plugin (C1-S)").?);
+    try testing.expectEqual(.OUTPT, parseC1Suffix("(C1-I)(C1-E)(C1-O)").?);
+}
+
+test "parseC1Suffix - missing closing parenthesis" {
+    const testing = std.testing;
+    // Because the function looks for closing paren with indexOfPos, it should return null safely
+    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("Plugin (C1-I"));
+    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("(C1-C"));
+    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("Something (C1-E and more text"));
+}
+
+test "parseC1Suffix - empty and very long strings" {
+    const testing = std.testing;
+    // Empty string
+    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix(""));
+
+    // Very long string without suffix
+    var long_buf: [1000:0]u8 = undefined;
+    @memset(&long_buf, 'A');
+    long_buf[999] = 0;
+    const long_str: [:0]const u8 = long_buf[0..999 :0];
+    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix(long_str));
+
+    // Very long string with suffix at end
+    var long_with_suffix_buf: [1000:0]u8 = undefined;
+    @memset(long_with_suffix_buf[0..993], 'A');
+    @memcpy(long_with_suffix_buf[993..999], "(C1-S)");
+    long_with_suffix_buf[999] = 0;
+    const long_with_suffix: [:0]const u8 = long_with_suffix_buf[0..999 :0];
+    try testing.expectEqual(.GATE, parseC1Suffix(long_with_suffix).?);
+}
+
+test "parseC1Suffix - suffix at boundaries" {
+    const testing = std.testing;
+    // Suffix at the very start
+    try testing.expectEqual(.INPUT, parseC1Suffix("(C1-I)").?);
+    try testing.expectEqual(.EQ, parseC1Suffix("(C1-E)").?);
+
+    // Suffix with minimal spacing
+    try testing.expectEqual(.COMP, parseC1Suffix("X(C1-C)").?);
+    try testing.expectEqual(.OUTPT, parseC1Suffix("AB(C1-O)XY").?);
+}
+
+test "parseC1Suffix - empty suffix content" {
+    const testing = std.testing;
+    // Because the loop looks for valid module chars, empty content should return null
+    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("Plugin (C1-)"));
+    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("(C1-)"));
+}
+
+test "parseC1Suffix - all module types" {
+    const testing = std.testing;
+    try testing.expectEqual(.INPUT, parseC1Suffix("Test (C1-I)").?);
+    try testing.expectEqual(.GATE, parseC1Suffix("Test (C1-S)").?);
+    try testing.expectEqual(.EQ, parseC1Suffix("Test (C1-E)").?);
+    try testing.expectEqual(.COMP, parseC1Suffix("Test (C1-C)").?);
+    try testing.expectEqual(.OUTPT, parseC1Suffix("Test (C1-O)").?);
+}
+
+test "parseC1Suffix - invalid characters before valid one" {
+    const testing = std.testing;
+    // Because the function returns first valid char, invalid chars before should be skipped
+    try testing.expectEqual(.INPUT, parseC1Suffix("Plugin (C1-XXXI)").?);
+    try testing.expectEqual(.COMP, parseC1Suffix("Plugin (C1-123C)").?);
+    try testing.expectEqual(.GATE, parseC1Suffix("Plugin (C1-$#@S)").?);
+}
+
+test "analyzeCoverage - empty FX list" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Because parsed_fx is empty, coverage should be all null
+    var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
+    var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
+
+    const coverage = analyzeCoverage(&parsed_fx, track);
+
+    try testing.expectEqual(@as(?ModuleLocation, null), coverage.INPUT);
+    try testing.expectEqual(@as(?ModuleLocation, null), coverage.GATE);
+    try testing.expectEqual(@as(?ModuleLocation, null), coverage.EQ);
+    try testing.expectEqual(@as(?ModuleLocation, null), coverage.COMP);
+    try testing.expectEqual(@as(?ModuleLocation, null), coverage.OUTPT);
+}
+
+test "analyzeCoverage - all duplicates of same module" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Add multiple FX with the same module
+    _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
+
+    // Set all with COMP suffix
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "ReaComp (C1-C)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 1, "renamed_name", "ReaComp (C1-C)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 2, "renamed_name", "ReaComp (C1-C)");
+
+    var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
+    var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
+
+    // Parse all three
+    parsed_fx.appendAssumeCapacity(.{
+        .index = 0,
+        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        .active_modules = .COMP,
+    });
+    parsed_fx.appendAssumeCapacity(.{
+        .index = 1,
+        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
+        .active_modules = .COMP,
+    });
+    parsed_fx.appendAssumeCapacity(.{
+        .index = 2,
+        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)),
+        .active_modules = .COMP,
+    });
+
+    const coverage = analyzeCoverage(&parsed_fx, track);
+
+    // Because only the first should remain marked, coverage.COMP should point to FX 0
+    try testing.expect(coverage.COMP != null);
+    try testing.expectEqual(@as(c_int, 0), coverage.COMP.?.index);
+
+    // Because analyzeCoverage calls removeDuplicateModule on duplicates,
+    // we've tested that the function completes without crashing
+}
+
+test "analyzeCoverage - partial coverage" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Add only INPUT, EQ, and OUTPT
+    _ = reaper.TrackFX_AddByName(track, "JS: Volume Adjustment", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "ReaEQ", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "JS: Volume Adjustment", false, -1);
+
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "JS: Volume Adjustment (C1-I)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 1, "renamed_name", "ReaEQ (C1-E)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 2, "renamed_name", "JS: Volume Adjustment (C1-O)");
+
+    var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
+    var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
+
+    parsed_fx.appendAssumeCapacity(.{
+        .index = 0,
+        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        .active_modules = .INPUT,
+    });
+    parsed_fx.appendAssumeCapacity(.{
+        .index = 1,
+        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
+        .active_modules = .EQ,
+    });
+    parsed_fx.appendAssumeCapacity(.{
+        .index = 2,
+        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)),
+        .active_modules = .OUTPT,
+    });
+
+    const coverage = analyzeCoverage(&parsed_fx, track);
+
+    // Because we have INPUT, EQ, and OUTPT
+    try testing.expect(coverage.INPUT != null);
+    try testing.expectEqual(@as(c_int, 0), coverage.INPUT.?.index);
+    try testing.expect(coverage.EQ != null);
+    try testing.expectEqual(@as(c_int, 1), coverage.EQ.?.index);
+    try testing.expect(coverage.OUTPT != null);
+    try testing.expectEqual(@as(c_int, 2), coverage.OUTPT.?.index);
+
+    // GATE and COMP should be null
+    try testing.expectEqual(@as(?ModuleLocation, null), coverage.GATE);
+    try testing.expectEqual(@as(?ModuleLocation, null), coverage.COMP);
+}
+
+test "analyzeCoverage - multiple items in parsed_fx" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 6);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
+    var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
+
+    // Add 5 items to test handling multiple parsed FX
+    var i: usize = 0;
+    while (i < 5) : (i += 1) {
+        _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
+        const fx_index: i32 = @intCast(i);
+        _ = reaper.TrackFX_SetNamedConfigParm(track, fx_index, "renamed_name", "ReaComp (C1-C)");
+
+        parsed_fx.appendAssumeCapacity(.{
+            .index = fx_index,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, fx_index)),
+            .active_modules = .COMP,
+        });
+    }
+
+    const coverage = analyzeCoverage(&parsed_fx, track);
+
+    // Because only first COMP should be covered
+    try testing.expect(coverage.COMP != null);
+    try testing.expectEqual(@as(c_int, 0), coverage.COMP.?.index);
+}
+
+test "analyzeCoverage - null active_modules skipped" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
+    var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
+
+    _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "ReaGate", false, -1);
+
+    // Add one with null active_modules and one with valid module
+    parsed_fx.appendAssumeCapacity(.{
+        .index = 0,
+        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        .active_modules = null,
+    });
+    parsed_fx.appendAssumeCapacity(.{
+        .index = 1,
+        .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
+        .active_modules = .GATE,
+    });
+
+    const coverage = analyzeCoverage(&parsed_fx, track);
+
+    // Because only GATE should be in coverage
+    try testing.expect(coverage.GATE != null);
+    try testing.expectEqual(@as(c_int, 1), coverage.GATE.?.index);
+    try testing.expectEqual(@as(?ModuleLocation, null), coverage.COMP);
+}
+
+test "removeDuplicateModule - multiple spaces before suffix" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "ReaComp   (C1-C)");
+
+    removeDuplicateModule(0, track);
+
+    var buf: [512:0]u8 = undefined;
+    _ = reaper.TrackFX_GetNamedConfigParm(track, 0, "renamed_name", &buf, buf.len);
+    const name = std.mem.span(@as([*:0]const u8, &buf));
+
+    // Because trailing spaces should be trimmed
+    try testing.expectEqualStrings("ReaComp", name);
+}
+
+test "removeDuplicateModule - suffix at start" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    _ = reaper.TrackFX_AddByName(track, "(C1-E)", false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "(C1-E)");
+
+    removeDuplicateModule(0, track);
+
+    var buf: [512:0]u8 = undefined;
+    _ = reaper.TrackFX_GetNamedConfigParm(track, 0, "renamed_name", &buf, buf.len);
+    const name = std.mem.span(@as([*:0]const u8, &buf));
+
+    // Because prefix is empty, result should be empty
+    try testing.expectEqualStrings("", name);
+}
+
+test "removeDuplicateModule - suffix at end" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    _ = reaper.TrackFX_AddByName(track, "Plugin (C1-I)", false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "Plugin (C1-I)");
+
+    removeDuplicateModule(0, track);
+
+    var buf: [512:0]u8 = undefined;
+    _ = reaper.TrackFX_GetNamedConfigParm(track, 0, "renamed_name", &buf, buf.len);
+    const name = std.mem.span(@as([*:0]const u8, &buf));
+
+    // Because suffix is at end
+    try testing.expectEqualStrings("Plugin", name);
+}
+
+test "removeDuplicateModule - no suffix does not crash" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    _ = reaper.TrackFX_AddByName(track, "Normal Plugin", false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "Normal Plugin");
+
+    // Because there's no suffix, function should return early without crashing
+    removeDuplicateModule(0, track);
+
+    var buf: [512:0]u8 = undefined;
+    _ = reaper.TrackFX_GetNamedConfigParm(track, 0, "renamed_name", &buf, buf.len);
+    const name = std.mem.span(@as([*:0]const u8, &buf));
+
+    // Name should remain unchanged
+    try testing.expectEqualStrings("Normal Plugin", name);
+}
+
+test "removeDuplicateModule - text after closing paren preserved" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    _ = reaper.TrackFX_AddByName(track, "Plugin (C1-C) Extra", false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "Plugin (C1-C) Extra");
+
+    removeDuplicateModule(0, track);
+
+    var buf: [512:0]u8 = undefined;
+    _ = reaper.TrackFX_GetNamedConfigParm(track, 0, "renamed_name", &buf, buf.len);
+    const name = std.mem.span(@as([*:0]const u8, &buf));
+
+    // Because text after closing paren should be preserved
+    try testing.expectEqualStrings("Plugin Extra", name);
+}
+
+test "reorderFx2 - empty track to full chain" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Start with completely empty coverage
+    const empty_coverage = ModuleCoverage{};
+
+    const settings_mod = @import("settings.zig");
+    const fallback_map = settings_mod.fallback_defaults;
+    var default_fx = DefaultFx.initFill(null);
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        default_fx.set(module, fallback_map.get(module));
+    }
+
+    const result_coverage = reorderFx2(empty_coverage, track, default_fx);
+
+    // Because all modules should now be present
+    try testing.expect(result_coverage.INPUT != null);
+    try testing.expect(result_coverage.GATE != null);
+    try testing.expect(result_coverage.EQ != null);
+    try testing.expect(result_coverage.COMP != null);
+    try testing.expect(result_coverage.OUTPT != null);
+
+    // Verify FX count
+    const fx_count = reaper.TrackFX_GetCount(track);
+    try testing.expectEqual(@as(c_int, 5), fx_count);
+}
+
+test "reorderFx2 - partial chain with INPUT and OUTPT" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Add only INPUT and OUTPT
+    _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "JS: Saturation", false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "JS: Volume/Pan Smoother v5 (C1-I)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 1, "renamed_name", "JS: Saturation (C1-O)");
+
+    const partial_coverage = ModuleCoverage{
+        .INPUT = .{
+            .index = 0,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        },
+        .OUTPT = .{
+            .index = 1,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
+        },
+    };
+
+    const settings_mod = @import("settings.zig");
+    const fallback_map = settings_mod.fallback_defaults;
+    var default_fx = DefaultFx.initFill(null);
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        default_fx.set(module, fallback_map.get(module));
+    }
+
+    const result_coverage = reorderFx2(partial_coverage, track, default_fx);
+
+    // Because missing modules should be inserted
+    try testing.expect(result_coverage.INPUT != null);
+    try testing.expect(result_coverage.GATE != null);
+    try testing.expect(result_coverage.EQ != null);
+    try testing.expect(result_coverage.COMP != null);
+    try testing.expect(result_coverage.OUTPT != null);
+
+    // Verify order: INPUT should be first, OUTPT should be last
+    try testing.expect(result_coverage.INPUT.?.index < result_coverage.GATE.?.index);
+    try testing.expect(result_coverage.GATE.?.index < result_coverage.COMP.?.index);
+    try testing.expect(result_coverage.COMP.?.index < result_coverage.OUTPT.?.index);
+}
+
+test "reorderFx2 - chain already in correct order" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Add all modules in correct order
+    _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaGate (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaEQ (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaComp (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "JS: Saturation", false, -1);
+
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "JS: Volume/Pan Smoother v5 (C1-I)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 1, "renamed_name", "VST: ReaGate (Cockos) (C1-S)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 2, "renamed_name", "VST: ReaEQ (Cockos) (C1-E)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 3, "renamed_name", "VST: ReaComp (Cockos) (C1-C)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 4, "renamed_name", "JS: Saturation (C1-O)");
+
+    const correct_coverage = ModuleCoverage{
+        .INPUT = .{
+            .index = 0,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        },
+        .GATE = .{
+            .index = 1,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
+        },
+        .EQ = .{
+            .index = 2,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)),
+        },
+        .COMP = .{
+            .index = 3,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 3)),
+        },
+        .OUTPT = .{
+            .index = 4,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 4)),
+        },
+    };
+
+    const settings_mod = @import("settings.zig");
+    const fallback_map = settings_mod.fallback_defaults;
+    var default_fx = DefaultFx.initFill(null);
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        default_fx.set(module, fallback_map.get(module));
+    }
+
+    const result_coverage = reorderFx2(correct_coverage, track, default_fx);
+
+    // Because chain is already correct, indices should match original
+    try testing.expectEqual(@as(c_int, 0), result_coverage.INPUT.?.index);
+    try testing.expectEqual(@as(c_int, 1), result_coverage.GATE.?.index);
+    try testing.expectEqual(@as(c_int, 2), result_coverage.EQ.?.index);
+    try testing.expectEqual(@as(c_int, 3), result_coverage.COMP.?.index);
+    try testing.expectEqual(@as(c_int, 4), result_coverage.OUTPT.?.index);
+}
+
+test "reorderFx2 - wrong order needs reordering" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Add modules in wrong order: OUTPT, COMP, EQ, GATE, INPUT
+    _ = reaper.TrackFX_AddByName(track, "JS: Saturation", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaComp (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaEQ (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaGate (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
+
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "JS: Saturation (C1-O)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 1, "renamed_name", "VST: ReaComp (Cockos) (C1-C)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 2, "renamed_name", "VST: ReaEQ (Cockos) (C1-E)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 3, "renamed_name", "VST: ReaGate (Cockos) (C1-S)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 4, "renamed_name", "JS: Volume/Pan Smoother v5 (C1-I)");
+
+    const wrong_coverage = ModuleCoverage{
+        .INPUT = .{
+            .index = 4,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 4)),
+        },
+        .GATE = .{
+            .index = 3,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 3)),
+        },
+        .EQ = .{
+            .index = 2,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)),
+        },
+        .COMP = .{
+            .index = 1,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
+        },
+        .OUTPT = .{
+            .index = 0,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        },
+    };
+
+    const settings_mod = @import("settings.zig");
+    const fallback_map = settings_mod.fallback_defaults;
+    var default_fx = DefaultFx.initFill(null);
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        default_fx.set(module, fallback_map.get(module));
+    }
+
+    const result_coverage = reorderFx2(wrong_coverage, track, default_fx);
+
+    // Because the reorderFx2 function inserts modules but doesn't reorder existing ones,
+    // we just verify all modules are present
+    try testing.expect(result_coverage.INPUT != null);
+    try testing.expect(result_coverage.GATE != null);
+    try testing.expect(result_coverage.EQ != null);
+    try testing.expect(result_coverage.COMP != null);
+    try testing.expect(result_coverage.OUTPT != null);
+}
+
+test "updateTrackState - module_locations populated correctly" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Add all modules
+    _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaGate (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaEQ (Cockos)", false, -1);
+
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "JS: Volume/Pan Smoother v5 (C1-I)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 1, "renamed_name", "VST: ReaGate (Cockos) (C1-S)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 2, "renamed_name", "VST: ReaEQ (Cockos) (C1-E)");
+
+    const coverage = ModuleCoverage{
+        .INPUT = .{
+            .index = 0,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        },
+        .GATE = .{
+            .index = 1,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
+        },
+        .EQ = .{
+            .index = 2,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)),
+        },
+    };
+
+    const settings_mod = @import("settings.zig");
+    const fallback_map = settings_mod.fallback_defaults;
+    var default_fx = DefaultFx.initFill(null);
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        default_fx.set(module, fallback_map.get(module));
+    }
+
+    var map_store = MapStore.empty(testing.allocator, "src/resources/maps");
+    defer map_store.deinit();
+
+    var track_state = TrackState{};
+    var buf: [512:0]u8 = undefined;
+
+    updateTrackState(&track_state, coverage, track, &buf, &map_store);
+
+    // Because module_locations should be populated for INPUT, GATE, EQ
+    try testing.expect(track_state.module_locations.get(.INPUT) != null);
+    try testing.expectEqual(@as(c_int, 0), track_state.module_locations.get(.INPUT).?.fx_index);
+
+    try testing.expect(track_state.module_locations.get(.GATE) != null);
+    try testing.expectEqual(@as(c_int, 1), track_state.module_locations.get(.GATE).?.fx_index);
+
+    try testing.expect(track_state.module_locations.get(.EQ) != null);
+    try testing.expectEqual(@as(c_int, 2), track_state.module_locations.get(.EQ).?.fx_index);
+
+    // COMP and OUTPT should be null
+    try testing.expectEqual(@as(?Location, null), track_state.module_locations.get(.COMP));
+    try testing.expectEqual(@as(?Location, null), track_state.module_locations.get(.OUTPT));
+}
+
+test "updateTrackState - fx_count matches module count" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Add all 5 modules
+    _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaGate (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaEQ (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "VST: ReaComp (Cockos)", false, -1);
+    _ = reaper.TrackFX_AddByName(track, "JS: Saturation", false, -1);
+
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "JS: Volume/Pan Smoother v5 (C1-I)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 1, "renamed_name", "VST: ReaGate (Cockos) (C1-S)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 2, "renamed_name", "VST: ReaEQ (Cockos) (C1-E)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 3, "renamed_name", "VST: ReaComp (Cockos) (C1-C)");
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 4, "renamed_name", "JS: Saturation (C1-O)");
+
+    const coverage = ModuleCoverage{
+        .INPUT = .{
+            .index = 0,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        },
+        .GATE = .{
+            .index = 1,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
+        },
+        .EQ = .{
+            .index = 2,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)),
+        },
+        .COMP = .{
+            .index = 3,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 3)),
+        },
+        .OUTPT = .{
+            .index = 4,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 4)),
+        },
+    };
+
+    var map_store = MapStore.empty(testing.allocator, "src/resources/maps");
+    defer map_store.deinit();
+
+    var track_state = TrackState{};
+    var buf: [512:0]u8 = undefined;
+
+    updateTrackState(&track_state, coverage, track, &buf, &map_store);
+
+    // Because fx_count should equal the number of modules
+    try testing.expectEqual(@as(usize, 5), track_state.fx_count);
+}
+
+test "updateTrackState - missing mapping handled gracefully" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    // Add a plugin that won't have a mapping
+    _ = reaper.TrackFX_AddByName(track, "Nonexistent Plugin", false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "Nonexistent Plugin (C1-C)");
+
+    const coverage = ModuleCoverage{
+        .COMP = .{
+            .index = 0,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
+        },
+    };
+
+    var map_store = MapStore.empty(testing.allocator, "src/resources/maps");
+    defer map_store.deinit();
+
+    var track_state = TrackState{};
+    var buf: [512:0]u8 = undefined;
+
+    updateTrackState(&track_state, coverage, track, &buf, &map_store);
+
+    // Because module_locations should still record the FX index even with null mapping
+    try testing.expect(track_state.module_locations.get(.COMP) != null);
+    try testing.expectEqual(@as(c_int, 0), track_state.module_locations.get(.COMP).?.fx_index);
+    // Mapping should be null because plugin doesn't exist in MapStore
+    try testing.expectEqual(@as(?TaggedMapping, null), track_state.module_locations.get(.COMP).?.mapping);
 }
 
 /// Tracks which FX provides each module

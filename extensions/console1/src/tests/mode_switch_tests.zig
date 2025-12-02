@@ -16,7 +16,9 @@ pub fn test_setup(allocator: std.mem.Allocator) !struct {
         self.globals.deinit();
     }
 } {
-    const reaper_teardown = models.reaper.setupTestModel(std.testing.allocator, null, null);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), null, null);
     const midi_teardown = models.midi.setupMidiMocks(reaper);
     Globals.instance = try .defaults(allocator);
 

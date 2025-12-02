@@ -3,20 +3,15 @@ pub var g_session: ?*Session = null;
 
 pub fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc_tracks: ?usize) struct {
     orig_funcs: Mocks,
-    arena: std.heap.ArenaAllocator,
     model_ptr: *Session,
 
     pub fn teardown(self: *@This()) void {
         restoreMockReaperAPI(self.orig_funcs);
-        self.arena.deinit();
     }
 } {
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    const arena_allocator = arena.allocator();
-
-    const model = arena_allocator.create(Session) catch @panic("Failed to initialize model");
+    const model = allocator.create(Session) catch @panic("Failed to initialize model");
     model.* = Session.init(
-        arena_allocator,
+        allocator,
         if (trck_count) |count| count else 0,
         if (prealloc_tracks) |prealloc| prealloc else 4,
     ) catch @panic("Failed to initialize model");
@@ -24,7 +19,6 @@ pub fn setupTestModel(allocator: std.mem.Allocator, trck_count: ?usize, prealloc
 
     return .{
         .orig_funcs = origFuncs,
-        .arena = arena,
         .model_ptr = model,
     };
 }
@@ -437,7 +431,9 @@ fn GetSelectedTrack(proj: ReaProject, seltrackidx: c_int) callconv(.C) MediaTrac
 }
 
 test "track creation and deletion with mock API" {
-    var test_ctx = setupTestModel(testing.allocator, 3, 4);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var test_ctx = setupTestModel(arena.allocator(), 3, 4);
     defer test_ctx.teardown();
 
     // Initial track count
@@ -463,7 +459,9 @@ test "track creation and deletion with mock API" {
 }
 
 test "fx operations with mock API" {
-    var test_ctx = setupTestModel(testing.allocator, 3, 4);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var test_ctx = setupTestModel(arena.allocator(), 3, 4);
     defer test_ctx.teardown();
 
     // Get a track to work with
@@ -500,7 +498,9 @@ test "fx operations with mock API" {
 }
 
 test "mock reaper API track operations" {
-    var test_ctx = setupTestModel(testing.allocator, 3, 4);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var test_ctx = setupTestModel(arena.allocator(), 3, 4);
     defer test_ctx.teardown();
 
     const model = g_session.?;
