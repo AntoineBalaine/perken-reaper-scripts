@@ -83,7 +83,7 @@ fn restoreMockReaperAPI(origFuncs: anytype) void {
 fn InsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
     _ = wantDefaults;
     const model = g_session.?;
-    const gpa = model.gpa;
+    const gpa = model.arena_alloc;
 
     // Determine the actual index in our tracks array (accounting for master track at index 0)
     const actual_idx = if (idx < 0) model.tracks.items.len else @as(usize, @intCast(idx)) + 1;
@@ -112,14 +112,14 @@ fn TrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: boo
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return -1;
 
-    const gpa = session.gpa;
+    const arena_alloc = session.arena_alloc;
     const fx_name = std.mem.span(fxname);
 
     var guid: Guid = .{ .bytes = undefined };
     std.crypto.random.bytes(&guid.bytes);
 
     // Create a new FX
-    const name = gpa.dupeZ(u8, fx_name) catch return -1;
+    const name = arena_alloc.dupeZ(u8, fx_name) catch return -1;
     const new_fx = FX{
         .guid = guid,
         .enabled = true,
@@ -132,7 +132,7 @@ fn TrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: boo
     var tr: *Track = track_ptr.?;
 
     // Add the FX to the track
-    tr.fx_list.append(gpa, new_fx) catch return -1;
+    tr.fx_list.append(arena_alloc, new_fx) catch return -1;
 
     // Return the index of the newly added FX
     return @intCast(tr.fx_list.items.len - 1);
@@ -204,7 +204,7 @@ fn TrackFX_SetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:
     const new_value = std.mem.span(value);
     const fx_item = &tr.fx_list.items[@intCast(fx)];
 
-    const gpa = session.gpa;
+    const gpa = session.arena_alloc;
 
     if (std.mem.eql(u8, param_name, "renamed_name")) {
         fx_item.named_configs.renamed_name = gpa.dupeZ(u8, new_value) catch return false;
@@ -244,7 +244,7 @@ fn TrackFX_CopyToTrack(source_track: reaper.MediaTrack, source_fx: c_int, dest_t
     if (src_ptr == null or dst_ptr == null) return;
     if (source_fx < 0 or source_fx >= src_ptr.?.fx_list.items.len) return;
 
-    const gpa = session.gpa;
+    const gpa = session.arena_alloc;
     const src = src_ptr.?;
     const dst = dst_ptr.?;
 
@@ -404,7 +404,7 @@ fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.C) void {
                 for (g_session.?.selected_tracks.items) |idx| {
                     if (idx == i) return;
                 }
-                g_session.?.selected_tracks.append(g_session.?.gpa, @intCast(i)) catch return;
+                g_session.?.selected_tracks.append(g_session.?.arena_alloc, @intCast(i)) catch return;
             } else {
                 // Remove from selection if present
                 var j: usize = 0;

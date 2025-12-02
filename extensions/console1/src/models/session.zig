@@ -5,7 +5,7 @@ selected_tracks: std.ArrayListUnmanaged(u32) = .empty,
 last_touched_track_index: ?usize = null,
 cursor_position: f64 = 0.0,
 global_automation_mode: AutomationMode = .read,
-gpa: std.mem.Allocator = undefined,
+arena_alloc: std.mem.Allocator = undefined,
 
 pub fn ensureTotalCapacity(self: *@This(), gpa: std.mem.Allocator, new_capacity: usize) !void {
     try self.tracks.ensureTotalCapacity(gpa, new_capacity + 1);
@@ -17,7 +17,7 @@ pub fn ensureTotalCapacity(self: *@This(), gpa: std.mem.Allocator, new_capacity:
 pub fn init(gpa: std.mem.Allocator, track_count: usize, max_tracks: usize) !@This() {
     std.debug.assert(track_count <= max_tracks);
     var self: @This() = .{};
-    self.gpa = gpa;
+    self.arena_alloc = gpa;
     try self.ensureTotalCapacity(gpa, max_tracks);
     // Create a master track
 
@@ -46,7 +46,7 @@ pub fn getTrackName(self: @This(), track: Track.Track) ?[:0]const u8 {
 
 pub fn setTrackName(self: *@This(), track_index: usize, name: []const u8) !void {
     if (track_index >= self.tracks.items.len) return error.InvalidTrackIndex;
-    const interned_name = try self.string_pool.add(self.gpa, name);
+    const interned_name = try self.string_pool.add(self.arena_alloc, name);
     self.tracks.items[track_index].name = interned_name;
 }
 
