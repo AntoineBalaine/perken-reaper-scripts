@@ -760,7 +760,13 @@ test "updateTrackState - module_locations populated correctly" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    var map_store = MapStore.empty(testing.allocator, "src/resources/maps");
+    // proper absolute path for MapStore
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
+    const config_path_z = try arena.allocator().dupeZ(u8, config_path);
+
+    var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
     var track_state = TrackState{};
@@ -828,7 +834,13 @@ test "updateTrackState - fx_count matches module count" {
         },
     };
 
-    var map_store = MapStore.empty(testing.allocator, "src/resources/maps");
+    // Setup proper absolute path for MapStore
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
+    const config_path_z = try arena.allocator().dupeZ(u8, config_path);
+
+    var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
     var track_state = TrackState{};
@@ -860,7 +872,13 @@ test "updateTrackState - missing mapping handled gracefully" {
         },
     };
 
-    var map_store = MapStore.empty(testing.allocator, "src/resources/maps");
+    // Setup proper absolute path for MapStore
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
+    const config_path_z = try arena.allocator().dupeZ(u8, config_path);
+
+    var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
     var track_state = TrackState{};
