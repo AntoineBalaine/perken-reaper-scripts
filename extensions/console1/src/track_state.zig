@@ -1184,7 +1184,34 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
     }
 
     // Handle OUTPUT last
-    if (coverage.OUTPT == null) {
+
+    // Ensure OUTPT is last if it exists
+    if (coverage.OUTPT) |outpt| {
+        // Find the highest index among other modules
+        var max_other_index: i32 = -1;
+        inline for (std.meta.fields(ModuleCoverage)) |field| {
+            if (!std.mem.eql(u8, field.name, "OUTPT")) {
+                if (@field(coverage, field.name)) |loc| {
+                    max_other_index = @max(max_other_index, loc.index);
+                }
+            }
+        }
+
+        // If OUTPT is not after all other modules, move it
+        if (max_other_index >= 0 and outpt.index <= max_other_index) {
+            const target_pos = max_other_index + 1;
+            pReaper.TrackFX_CopyToTrack(.{
+                mediaTrack,
+                outpt.index,
+                mediaTrack,
+                target_pos,
+                true, // move (not copy)
+            });
+
+            // Update all positions after the move
+            updateCoveragePositions(&coverage, mediaTrack);
+        }
+    } else {
         const insert_pos = blk: {
             var high_pos: i32 = -1;
             inline for (std.meta.fields(ModuleCoverage)) |field| {
