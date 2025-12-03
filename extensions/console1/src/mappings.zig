@@ -165,7 +165,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             if (self.COMP.get(fxName)) |v| {
                 return TaggedMapping{ .COMP = v };
             } else {
-                log.warn("mapping {s} unfound", .{fxName});
+                log.debug("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             }
         },
@@ -173,7 +173,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             if (self.EQ.get(fxName)) |v| {
                 return TaggedMapping{ .EQ = v };
             } else {
-                log.warn("mapping {s} unfound", .{fxName});
+                log.debug("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             }
         },
@@ -181,7 +181,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             return if (self.INPUT.get(fxName)) |v| {
                 return TaggedMapping{ .INPUT = v };
             } else {
-                log.warn("mapping {s} unfound", .{fxName});
+                log.debug("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             };
         },
@@ -189,7 +189,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             if (self.OUTPT.get(fxName)) |v| {
                 return TaggedMapping{ .OUTPT = v };
             } else {
-                log.warn("mapping {s} unfound", .{fxName});
+                log.debug("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             }
         },
@@ -197,7 +197,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
             if (self.GATE.get(fxName)) |v| {
                 return TaggedMapping{ .GATE = v };
             } else {
-                log.warn("mapping {s} unfound", .{fxName});
+                log.debug("mapping {s} unfound", .{fxName});
                 return self.getMap(fxName, module) catch null;
             }
         },
@@ -230,7 +230,12 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
     log.debug("Loading mapping from {s}", .{filePath});
 
     if (!std.fs.path.isAbsolute(filePath)) {
-        log.err("Mapping path is not absolute: {s}", .{filePath});
+        const config = @import("config");
+        if (@hasDecl(config, "test") and @field(config, "test")) {
+            log.debug("Mapping path is not absolute: {s}", .{filePath});
+        } else {
+            log.err("Mapping path is not absolute: {s}", .{filePath});
+        }
         return error.InvalidPath;
     }
 
