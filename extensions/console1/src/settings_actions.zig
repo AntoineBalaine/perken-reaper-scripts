@@ -65,6 +65,10 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                         .start_suspended,
                         // .show_track_list,
                         // .focus_page_tracks,
+                        .auto_insert_modules,
+                        .auto_insert_bypassed,
+                        .auto_reorder_modules,
+                        .preferred_module_order,
                         => _ = panel.temp_settings.toggleField(field),
                         .default_INPUT,
                         .default_GATE,
@@ -100,6 +104,9 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                             .start_suspended => panel.temp_settings.start_suspended = bool_update.val,
                             // .show_track_list => panel.temp_settings.show_track_list = bool_update.val,
                             // .focus_page_tracks => panel.temp_settings.focus_page_tracks = bool_update.val,
+                            .auto_insert_modules => panel.temp_settings.auto_insert_modules = bool_update.val,
+                            .auto_insert_bypassed => panel.temp_settings.auto_insert_bypassed = bool_update.val,
+                            .auto_reorder_modules => panel.temp_settings.auto_reorder_modules = bool_update.val,
                             else => unreachable,
                         }
                     },
@@ -107,6 +114,13 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                         // Handle string settings
                         switch (string_update.field) {
                             .language => panel.temp_settings.language = string_update.val,
+                            else => unreachable,
+                        }
+                    },
+                    .enum_val => |enum_update| {
+                        // Handle enum settings
+                        switch (enum_update.field) {
+                            .preferred_module_order => panel.temp_settings.preferred_module_order = enum_update.val,
                             else => unreachable,
                         }
                     },

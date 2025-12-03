@@ -3,6 +3,7 @@ const ini = @import("ini");
 const mappings_mod = @import("mappings.zig");
 const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
+const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const log = std.log.scoped(.preferences);
 const fs_helpers = @import("fs_helpers.zig");
 
@@ -28,6 +29,10 @@ pub const SettingsFields = enum {
     start_suspended,
     // show_track_list,
     // focus_page_tracks,
+    auto_insert_modules,
+    auto_insert_bypassed,
+    auto_reorder_modules,
+    preferred_module_order,
 
     default_INPUT,
     default_GATE,
@@ -51,6 +56,10 @@ log_to_file: bool,
 start_suspended: bool,
 show_track_list: bool,
 focus_page_tracks: bool,
+auto_insert_modules: bool = true,
+auto_insert_bypassed: bool = false,
+auto_reorder_modules: bool = true,
+preferred_module_order: ModulesOrder = .@"S-C-EQ",
 
 pub const empty: @This() = .{
     .language = "en",
@@ -63,6 +72,10 @@ pub const empty: @This() = .{
     .start_suspended = false,
     .show_track_list = true,
     .focus_page_tracks = false,
+    .auto_insert_modules = true,
+    .auto_insert_bypassed = false,
+    .auto_reorder_modules = true,
+    .preferred_module_order = .@"S-C-EQ",
 };
 
 /// defaults-only prefs
@@ -149,6 +162,15 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
                     );
                 }
             },
+            ModulesOrder => {
+                try writer.print(
+                    "{s} = {s}\n",
+                    .{
+                        field.name,
+                        @tagName(@field(self, field.name)),
+                    },
+                );
+            },
             else => {},
         }
     }
@@ -192,6 +214,12 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Al
                                     if (std.mem.eql(u8, field.name, "language")) {
                                         @field(self, field.name) = try g_arena.dupeZ(u8, prop.value);
                                     }
+                                },
+                                ModulesOrder => {
+                                    @field(self, field.name) = std.meta.stringToEnum(ModulesOrder, prop.value) orelse blk: {
+                                        log.warn("Invalid value '{s}' for {s}, using default S-C-EQ", .{ prop.value, field.name });
+                                        break :blk .@"S-C-EQ";
+                                    };
                                 },
                                 // Add other types as needed
                                 else => {},

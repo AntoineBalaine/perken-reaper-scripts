@@ -3,6 +3,7 @@ const imgui = @import("reaper_imgui.zig");
 const Preferences = @import("settings.zig");
 const Globals = @import("globals.zig").Globals;
 const ModulesList = @import("statemachine.zig").ModulesList;
+const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const settings_actions = @import("settings_actions.zig");
 const styles = @import("styles.zig");
 const styles_components = @import("styles_components.zig");
@@ -27,6 +28,7 @@ pub fn init(current: *const Preferences) !SettingsPanel {
 pub const SettingsValUpdate = union(enum) {
     bool_val: struct { field: Preferences.SettingsFields, val: bool },
     string_val: struct { field: Preferences.SettingsFields, val: [:0]const u8 },
+    enum_val: struct { field: Preferences.SettingsFields, val: ModulesOrder },
 };
 const SettingsRV = union(enum) {
     close_save,
@@ -145,6 +147,87 @@ pub fn draw(
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.start_suspended })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .start_suspended, .val = self.temp_settings.start_suspended } } };
                 self.dirty = true;
+            }
+        }
+
+        try imgui.Separator(.{ctx});
+
+        // Track Validation Settings
+        {
+            const popColor = try pushColIfSelected(ctx, .auto_insert_modules, scroll_pos);
+            defer if (popColor) |pop| pop(ctx) catch {};
+            // TODO: integrate translation for «Auto-insert missing modules»
+            const label = safePrint(&buf, "Auto-insert missing modules##autoins", .{});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.auto_insert_modules })) {
+                rv = .{ .val_update = .{ .bool_val = .{ .field = .auto_insert_modules, .val = self.temp_settings.auto_insert_modules } } };
+                self.dirty = true;
+            }
+        }
+
+        // Indented sub-option: Insert as bypassed
+        {
+            try imgui.Indent(.{ctx});
+            defer imgui.Unindent(.{ctx}) catch {};
+
+            if (!self.temp_settings.auto_insert_modules) {
+                try imgui.BeginDisabled(.{ctx});
+            }
+            defer if (!self.temp_settings.auto_insert_modules) {
+                imgui.EndDisabled(.{ctx}) catch {};
+            };
+
+            const popColor = try pushColIfSelected(ctx, .auto_insert_bypassed, scroll_pos);
+            defer if (popColor) |pop| pop(ctx) catch {};
+            // TODO: translation
+            const label = safePrint(&buf, "Insert new modules as bypassed##autobps", .{});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.auto_insert_bypassed })) {
+                rv = .{ .val_update = .{ .bool_val = .{ .field = .auto_insert_bypassed, .val = self.temp_settings.auto_insert_bypassed } } };
+                self.dirty = true;
+            }
+        }
+
+        {
+            const popColor = try pushColIfSelected(ctx, .auto_reorder_modules, scroll_pos);
+            defer if (popColor) |pop| pop(ctx) catch {};
+            const label = safePrint(&buf, "Auto-reorder modules to canonical order##autoreord", .{});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.auto_reorder_modules })) {
+                rv = .{ .val_update = .{ .bool_val = .{ .field = .auto_reorder_modules, .val = self.temp_settings.auto_reorder_modules } } };
+                self.dirty = true;
+            }
+        }
+
+        // Indented sub-option: Preferred module order
+        {
+            try imgui.Indent(.{ctx});
+            defer imgui.Unindent(.{ctx}) catch {};
+
+            if (!self.temp_settings.auto_reorder_modules) {
+                try imgui.BeginDisabled(.{ctx});
+            }
+            defer if (!self.temp_settings.auto_reorder_modules) {
+                imgui.EndDisabled(.{ctx}) catch {};
+            };
+
+            const popColor = try pushColIfSelected(ctx, .preferred_module_order, scroll_pos);
+            defer if (popColor) |pop| pop(ctx) catch {};
+
+            try imgui.PushItemWidth(.{ ctx, 150.0 });
+            defer imgui.PopItemWidth(.{ctx}) catch {};
+
+            const current_order = self.temp_settings.preferred_module_order;
+            const current_display = @tagName(current_order);
+            const label = safePrint(&buf, "Preferred module order##preforder", .{});
+            if (try imgui.BeginCombo(.{ ctx, label, current_display, null })) {
+                defer imgui.EndCombo(.{ctx}) catch {};
+
+                inline for (comptime std.enums.values(ModulesOrder)) |order| {
+                    var is_selected = current_order == order;
+                    if (try imgui.Selectable(.{ ctx, @tagName(order), &is_selected })) {
+                        rv = .{ .val_update = .{ .enum_val = .{ .field = .preferred_module_order, .val = order } } };
+                        self.temp_settings.preferred_module_order = order;
+                        self.dirty = true;
+                    }
+                }
             }
         }
 

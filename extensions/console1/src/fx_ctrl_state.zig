@@ -10,6 +10,7 @@ const Globals = @import("globals.zig").Globals;
 const constants = @import("constants.zig");
 pub const TrackState = @import("track_state.zig");
 const DefaultFx = @import("settings.zig").DefaultFx;
+const Preferences = @import("settings.zig").Preferences;
 
 // Mode-specific state structures
 pub const FxControlState = @This();
@@ -158,8 +159,9 @@ pub fn validateTrack(
     manual_routing: bool,
     default_fx: DefaultFx,
     map_store: *MapStore,
+    preferences: *const Preferences,
 ) !void {
-    const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store);
+    const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store, preferences.*);
 
     if (!manual_routing) {
         self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);

@@ -60,7 +60,7 @@ pub const ParsedFx = struct {
     active_modules: ?ModulesList = null,
 };
 
-pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, default_fx: DefaultFx, map_store: *MapStore) ModuleCoverage {
+pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, default_fx: DefaultFx, map_store: *MapStore, preferences: Preferences) ModuleCoverage {
     // Initialize track state
     track_state.* = .{ .fx_states = undefined, .fx_count = 0, .module_locations = ModuleLocations.initFill(null) };
 
@@ -94,7 +94,7 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, de
     }
 
     var coverage = analyzeCoverage(&parsed_fx, mediaTrack);
-    coverage = reorderFx2(coverage, mediaTrack, default_fx);
+    coverage = reorderFx2(coverage, mediaTrack, default_fx, preferences);
     updateTrackState(track_state, coverage, mediaTrack, &buf, map_store);
     return coverage;
 }
@@ -122,6 +122,26 @@ fn parseC1Suffix(name: [:0]const u8) ?ModulesList {
     }
 
     return null;
+}
+
+// Test helper function to create default preferences
+fn defaultTestPreferences() Preferences {
+    return Preferences{
+        .language = "en",
+        .show_startup_message = false,
+        .show_feedback_window = false,
+        .show_plugin_ui = false,
+        .manual_routing = false,
+        .default_fx = .initFill(null),
+        .log_to_file = false,
+        .start_suspended = false,
+        .show_track_list = true,
+        .focus_page_tracks = false,
+        .auto_insert_modules = true,
+        .auto_insert_bypassed = false,
+        .auto_reorder_modules = true,
+        .preferred_module_order = .@"S-C-EQ",
+    };
 }
 
 test "parseC1Suffix - basic valid cases" {
@@ -533,7 +553,7 @@ test "reorderFx2 - empty track to full chain" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    const result_coverage = reorderFx2(empty_coverage, track, default_fx);
+    const result_coverage = reorderFx2(empty_coverage, track, default_fx, defaultTestPreferences());
 
     // Because all modules should now be present
     try testing.expect(result_coverage.INPUT != null);
@@ -580,7 +600,7 @@ test "reorderFx2 - partial chain with INPUT and OUTPT" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    const result_coverage = reorderFx2(partial_coverage, track, default_fx);
+    const result_coverage = reorderFx2(partial_coverage, track, default_fx, defaultTestPreferences());
 
     // Because missing modules should be inserted
     try testing.expect(result_coverage.INPUT != null);
@@ -647,7 +667,7 @@ test "reorderFx2 - chain already in correct order" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    const result_coverage = reorderFx2(correct_coverage, track, default_fx);
+    const result_coverage = reorderFx2(correct_coverage, track, default_fx, defaultTestPreferences());
 
     // Because chain is already correct, indices should match original
     try testing.expectEqual(@as(c_int, 0), result_coverage.INPUT.?.index);
@@ -709,7 +729,7 @@ test "reorderFx2 - wrong order needs reordering" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    const result_coverage = reorderFx2(wrong_coverage, track, default_fx);
+    const result_coverage = reorderFx2(wrong_coverage, track, default_fx, defaultTestPreferences());
 
     // Because the reorderFx2 function inserts modules but doesn't reorder existing ones,
     // we just verify all modules are present
@@ -1042,6 +1062,7 @@ fn insertModuleLinkedFx(
     module: ModulesList,
     insert_pos: i32,
     default_fx: DefaultFx,
+    bypass: bool,
 ) ?struct { index: i32, guid: Guid } {
     const fx_name = default_fx.get(module) orelse return null;
 
@@ -1064,6 +1085,10 @@ fn insertModuleLinkedFx(
             "renamed_name",
             new_name,
         });
+
+        if (bypass) {
+            _ = pReaper.TrackFX_SetEnabled(.{ mediaTrack, add_result, false });
+        }
 
         // Get GUID of newly inserted FX
         const guid_ptr = reaper.TrackFX_GetFXGUID(mediaTrack, add_result);
@@ -1139,102 +1164,124 @@ fn updateCoveragePositions(coverage: *ModuleCoverage, mediaTrack: MediaTrack) vo
     }
 }
 
-pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx) ModuleCoverage {
+pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: DefaultFx, preferences: Preferences) ModuleCoverage {
     var coverage = cvrg;
 
-    // Handle INPUT first
-    if (coverage.INPUT == null) {
-        // Find lowest position among module-linked FX
-        const insert_pos = blk: {
-            var min_pos: i32 = std.math.maxInt(i32);
-            var found_any = false;
-            inline for (std.meta.fields(ModuleCoverage)) |field| {
-                if (@field(coverage, field.name)) |pos| {
-                    min_pos = @min(min_pos, pos.index);
-                    found_any = true;
+    // Insert missing modules if auto_insert_modules is enabled
+    if (preferences.auto_insert_modules) {
+        // Handle INPUT first
+        if (coverage.INPUT == null) {
+            // Find lowest position among module-linked FX
+            const insert_pos = blk: {
+                var min_pos: i32 = std.math.maxInt(i32);
+                var found_any = false;
+                inline for (std.meta.fields(ModuleCoverage)) |field| {
+                    if (@field(coverage, field.name)) |pos| {
+                        min_pos = @min(min_pos, pos.index);
+                        found_any = true;
+                    }
                 }
+                break :blk if (found_any) min_pos else -1;
+            };
+
+            if (insertModuleLinkedFx(mediaTrack, .INPUT, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+                applyInsert(&coverage, result.index);
+                coverage.INPUT = .{ .index = result.index, .guid = result.guid };
+            } else {
+                log.err("Failed to add INPUT FX", .{});
             }
-            break :blk if (found_any) min_pos else -1;
+        }
+
+        // Because we need to insert modules in the user's preferred order,
+        // we determine the insertion sequence based on preferences.preferred_module_order
+        // and insert modules in that sequence to ensure they end up in the correct positions
+        const insertion_order = switch (preferences.preferred_module_order) {
+            .@"S-C-EQ" => [_]ModulesList{ .GATE, .COMP, .EQ },
+            .@"S-EQ-C" => [_]ModulesList{ .GATE, .EQ, .COMP },
+            .@"EQ-S-C" => [_]ModulesList{ .EQ, .GATE, .COMP },
         };
 
-        if (insertModuleLinkedFx(mediaTrack, .INPUT, insert_pos, default_fx)) |result| {
-            applyInsert(&coverage, result.index);
-            coverage.INPUT = .{ .index = result.index, .guid = result.guid };
-        } else {
-            log.err("Failed to add INPUT FX", .{});
-        }
-    }
-
-    // Handle missing GATE
-    if (coverage.GATE == null) {
-        if (coverage.COMP) |comp_pos| {
-            const insert_pos = comp_pos.index;
-            // Add GATE before COMP
-            if (insertModuleLinkedFx(mediaTrack, .GATE, insert_pos, default_fx)) |result| {
-                applyInsert(&coverage, result.index);
-                coverage.GATE = .{ .index = result.index, .guid = result.guid };
-            } else {
-                log.err("Failed to add GATE FX before COMP", .{});
+        for (insertion_order) |module| {
+            // Because we need to check if each module is missing and insert it,
+            // we handle each module type individually
+            switch (module) {
+                .GATE => {
+                    if (coverage.GATE == null) {
+                        const insert_pos = blk: {
+                            var max_pos: i32 = -1;
+                            if (coverage.INPUT) |input| max_pos = @max(max_pos, input.index);
+                            if (coverage.COMP) |comp| max_pos = @max(max_pos, comp.index);
+                            if (coverage.EQ) |eq| max_pos = @max(max_pos, eq.index);
+                            break :blk if (max_pos >= 0) max_pos + 1 else -1;
+                        };
+                        if (insertModuleLinkedFx(mediaTrack, .GATE, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+                            applyInsert(&coverage, result.index);
+                            coverage.GATE = .{ .index = result.index, .guid = result.guid };
+                        } else {
+                            log.err("Failed to add GATE FX", .{});
+                        }
+                    }
+                },
+                .COMP => {
+                    if (coverage.COMP == null) {
+                        const insert_pos = blk: {
+                            var max_pos: i32 = -1;
+                            if (coverage.INPUT) |input| max_pos = @max(max_pos, input.index);
+                            if (coverage.GATE) |gate| max_pos = @max(max_pos, gate.index);
+                            if (coverage.EQ) |eq| max_pos = @max(max_pos, eq.index);
+                            break :blk if (max_pos >= 0) max_pos + 1 else -1;
+                        };
+                        if (insertModuleLinkedFx(mediaTrack, .COMP, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+                            applyInsert(&coverage, result.index);
+                            coverage.COMP = .{ .index = result.index, .guid = result.guid };
+                        } else {
+                            log.err("Failed to add COMP FX", .{});
+                        }
+                    }
+                },
+                .EQ => {
+                    if (coverage.EQ == null) {
+                        const insert_pos = blk: {
+                            var max_pos: i32 = -1;
+                            if (coverage.INPUT) |input| max_pos = @max(max_pos, input.index);
+                            if (coverage.GATE) |gate| max_pos = @max(max_pos, gate.index);
+                            if (coverage.COMP) |comp| max_pos = @max(max_pos, comp.index);
+                            break :blk if (max_pos >= 0) max_pos + 1 else -1;
+                        };
+                        if (insertModuleLinkedFx(mediaTrack, .EQ, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
+                            applyInsert(&coverage, result.index);
+                            coverage.EQ = .{ .index = result.index, .guid = result.guid };
+                        } else {
+                            log.err("Failed to add EQ FX", .{});
+                        }
+                    }
+                },
+                else => unreachable,
             }
-        } else {
-            // Neither exists, check EQ position or add after INPUT
-            const insert_pos = if (coverage.EQ) |eq_pos|
-                eq_pos.index + 1
-            else if (coverage.INPUT) |input_pos|
-                input_pos.index + 1
-            else
-                -1;
+        }
 
-            // Add GATE first
-            if (insertModuleLinkedFx(mediaTrack, .GATE, insert_pos, default_fx)) |result| {
+        if (coverage.OUTPT == null) {
+            const insert_pos = blk: {
+                var high_pos: i32 = -1;
+                inline for (std.meta.fields(ModuleCoverage)) |field| {
+                    if (@field(coverage, field.name)) |pos| {
+                        high_pos = @max(high_pos, pos.index);
+                    }
+                }
+                break :blk if (high_pos == -1) high_pos else high_pos + 1;
+            };
+
+            if (insertModuleLinkedFx(mediaTrack, .OUTPT, insert_pos, default_fx, preferences.auto_insert_bypassed)) |result| {
                 applyInsert(&coverage, result.index);
-                coverage.GATE = .{ .index = result.index, .guid = result.guid };
+                coverage.OUTPT = .{ .index = result.index, .guid = result.guid };
             } else {
-                log.err("Failed to add GATE FX", .{});
+                log.err("Failed to add OUTPUT FX", .{});
             }
         }
     }
 
-    // Handle missing COMP
-    if (coverage.COMP == null) {
-        const insert_pos = if (coverage.GATE) |gate|
-            gate.index + 1
-        else if (coverage.EQ) |eq|
-            eq.index + 1
-        else if (coverage.INPUT) |input|
-            input.index + 1
-        else
-            -1;
-
-        if (insertModuleLinkedFx(mediaTrack, .COMP, insert_pos, default_fx)) |result| {
-            applyInsert(&coverage, result.index);
-            coverage.COMP = .{ .index = result.index, .guid = result.guid };
-        } else {
-            log.err("Failed to add COMP FX", .{});
-        }
-    }
-
-    // Handle EQ
-    if (coverage.EQ == null) {
-        const insert_pos = if (coverage.GATE) |gate_pos|
-            gate_pos.index + 1
-        else if (coverage.INPUT) |input_pos|
-            input_pos.index + 1
-        else
-            -1;
-
-        if (insertModuleLinkedFx(mediaTrack, .EQ, insert_pos, default_fx)) |result| {
-            applyInsert(&coverage, result.index);
-            coverage.EQ = .{ .index = result.index, .guid = result.guid };
-        } else {
-            log.err("Failed to add EQ FX", .{});
-        }
-    }
-
-    // Reorder existing modules to canonical order: INPUT < GATE < COMP < EQ
-    // We use sequential positioning: place each module at its target position in order
-    // After each move, we track index shifts so subsequent operations use correct positions
-    {
+    // Reorder existing modules to canonical order if auto_reorder_modules is enabled
+    if (preferences.auto_reorder_modules) {
         const CanonicalModule = struct {
             name: []const u8,
             module_type: ModulesList,
@@ -1274,52 +1321,35 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                 }
             }
         }
-    }
 
-    // Ensure OUTPT is last if it exists
-    if (coverage.OUTPT) |outpt| {
-        // Find the highest index among other modules
-        var max_other_index: i32 = -1;
-        inline for (std.meta.fields(ModuleCoverage)) |field| {
-            if (!std.mem.eql(u8, field.name, "OUTPT")) {
-                if (@field(coverage, field.name)) |loc| {
-                    max_other_index = @max(max_other_index, loc.index);
-                }
-            }
-        }
-
-        // If OUTPT is not after all other modules, move it
-        if (max_other_index >= 0 and outpt.index <= max_other_index) {
-            const target_pos = max_other_index + 1;
-            const from_index = outpt.index;
-            pReaper.TrackFX_CopyToTrack(.{
-                mediaTrack,
-                from_index,
-                mediaTrack,
-                target_pos,
-                true, // move
-            });
-
-            applyMove(&coverage, from_index, target_pos);
-            const actual_target = if (from_index < target_pos) target_pos - 1 else target_pos;
-            coverage.OUTPT.?.index = actual_target;
-        }
-    } else {
-        const insert_pos = blk: {
-            var high_pos: i32 = -1;
+        // Ensure OUTPT is last if it exists
+        if (coverage.OUTPT) |outpt| {
+            // Find the highest index among other modules
+            var max_other_index: i32 = -1;
             inline for (std.meta.fields(ModuleCoverage)) |field| {
-                if (@field(coverage, field.name)) |pos| {
-                    high_pos = @max(high_pos, pos.index);
+                if (!std.mem.eql(u8, field.name, "OUTPT")) {
+                    if (@field(coverage, field.name)) |loc| {
+                        max_other_index = @max(max_other_index, loc.index);
+                    }
                 }
             }
-            break :blk if (high_pos == -1) high_pos else high_pos + 1;
-        };
 
-        if (insertModuleLinkedFx(mediaTrack, .OUTPT, insert_pos, default_fx)) |result| {
-            applyInsert(&coverage, result.index);
-            coverage.OUTPT = .{ .index = result.index, .guid = result.guid };
-        } else {
-            log.err("Failed to add OUTPUT FX", .{});
+            // If OUTPT is not after all other modules, move it
+            if (max_other_index >= 0 and outpt.index <= max_other_index) {
+                const target_pos = max_other_index + 1;
+                const from_index = outpt.index;
+                pReaper.TrackFX_CopyToTrack(.{
+                    mediaTrack,
+                    from_index,
+                    mediaTrack,
+                    target_pos,
+                    true, // move
+                });
+
+                applyMove(&coverage, from_index, target_pos);
+                const actual_target = if (from_index < target_pos) target_pos - 1 else target_pos;
+                coverage.OUTPT.?.index = actual_target;
+            }
         }
     }
 
@@ -1526,7 +1556,7 @@ test "reorderFx2 - property-based ordering validation" {
 
         // Call reorderFx2
         const default_fx = createDefaultFx();
-        const result = reorderFx2(coverage, track, default_fx);
+        const result = reorderFx2(coverage, track, default_fx, defaultTestPreferences());
 
         // Assert ordering rules
         // Rule 1: INPUT is always first
@@ -1541,4 +1571,84 @@ test "reorderFx2 - property-based ordering validation" {
         // Rule 3: GATE is always before COMP
         try testing.expect(result.GATE.?.index < result.COMP.?.index);
     }
+}
+
+test "reorderFx2 - auto_insert_modules disabled" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    const empty_coverage = ModuleCoverage{};
+
+    const settings_mod = @import("settings.zig");
+    const fallback_map = settings_mod.fallback_defaults;
+    var default_fx = DefaultFx.initFill(null);
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        default_fx.set(module, fallback_map.get(module));
+    }
+
+    var prefs = defaultTestPreferences();
+    prefs.auto_insert_modules = false;
+
+    const result_coverage = reorderFx2(empty_coverage, track, default_fx, prefs);
+
+    // Because auto_insert_modules is false, no modules should be inserted
+    try testing.expect(result_coverage.INPUT == null);
+    try testing.expect(result_coverage.GATE == null);
+    try testing.expect(result_coverage.EQ == null);
+    try testing.expect(result_coverage.COMP == null);
+    try testing.expect(result_coverage.OUTPT == null);
+}
+
+test "reorderFx2 - auto_reorder_modules disabled" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 6);
+    defer ctx.teardown();
+
+    const track = reaper.GetTrack(0, 0);
+
+    const settings_mod = @import("settings.zig");
+    const fallback_map = settings_mod.fallback_defaults;
+    var default_fx = DefaultFx.initFill(null);
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        default_fx.set(module, fallback_map.get(module));
+    }
+
+    // Add FX in wrong order
+    _ = reaper.TrackFX_AddByName(track, fallback_map.get(.OUTPT).?, false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "JS: Saturation (C1-O)");
+    _ = reaper.TrackFX_AddByName(track, fallback_map.get(.COMP).?, false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 1, "renamed_name", "VST: ReaComp (C1-C)");
+    _ = reaper.TrackFX_AddByName(track, fallback_map.get(.EQ).?, false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 2, "renamed_name", "VST: ReaEQ (C1-E)");
+    _ = reaper.TrackFX_AddByName(track, fallback_map.get(.GATE).?, false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 3, "renamed_name", "VST: ReaGate (C1-S)");
+    _ = reaper.TrackFX_AddByName(track, fallback_map.get(.INPUT).?, false, -1);
+    _ = reaper.TrackFX_SetNamedConfigParm(track, 4, "renamed_name", "JS: Volume/Pan (C1-I)");
+
+    const wrong_coverage = ModuleCoverage{
+        .INPUT = .{ .index = 4, .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 4)) },
+        .GATE = .{ .index = 3, .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 3)) },
+        .EQ = .{ .index = 2, .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)) },
+        .COMP = .{ .index = 1, .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)) },
+        .OUTPT = .{ .index = 0, .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)) },
+    };
+
+    var prefs = defaultTestPreferences();
+    prefs.auto_reorder_modules = false;
+
+    const result_coverage = reorderFx2(wrong_coverage, track, default_fx, prefs);
+
+    // Because auto_reorder_modules is false, modules should stay in wrong positions
+    try testing.expectEqual(@as(c_int, 4), result_coverage.INPUT.?.index);
+    try testing.expectEqual(@as(c_int, 3), result_coverage.GATE.?.index);
+    try testing.expectEqual(@as(c_int, 2), result_coverage.EQ.?.index);
+    try testing.expectEqual(@as(c_int, 1), result_coverage.COMP.?.index);
+    try testing.expectEqual(@as(c_int, 0), result_coverage.OUTPT.?.index);
 }

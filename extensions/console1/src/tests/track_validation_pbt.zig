@@ -6,15 +6,26 @@ const CommandList = zlowcheck.CommandList;
 const StatefulConfig = zlowcheck.StatefulConfig;
 const FinitePrng = zlowcheck.FinitePrng;
 const assertStateful = zlowcheck.assertStateful;
+const pReaper = @import("../pReaper.zig");
 
 const models = @import("../models/models.zig");
 const test_helpers = @import("mode_switch_tests.zig");
 const TrackState = @import("../track_state.zig");
 const reaper = @import("../reaper.zig").reaper;
 const DefaultFx = @import("../settings.zig").DefaultFx;
+const Preferences = @import("../settings.zig").Preferences;
 const ModulesList = @import("../statemachine.zig").ModulesList;
+const ModulesOrder = @import("../fx_ctrl_state.zig").ModulesOrder;
 const MapStore = @import("../mappings.zig");
 const Guid = @import("../utils.zig").Guid;
+
+/// used in tests
+fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
+    var path_mem: [std.fs.max_path_bytes]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &path_mem);
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
+    return try allocator.dupeZ(u8, config_path);
+}
 
 // Model tracks the expected state of FX chain
 const Model = struct {
@@ -63,29 +74,22 @@ const Model = struct {
 // System wraps the mock REAPER session
 const System = struct {
     session: *models.Session,
-    track: *models.Track.Track,
+    track: *models.Track,
     map_store: MapStore,
 
     pub fn init(session: *models.Session) !@This() {
         // Get first track (index 1, since 0 is master)
         const track = &session.tracks.items[1];
 
-        // Initialize map_store
-        var map_store = MapStore{};
-        map_store.init(testing.allocator, "test_resources/mappings");
-
         return .{
             .session = session,
             .track = track,
-            .map_store = map_store,
+            .map_store = .empty(testing.allocator, "test_resources/mappings"),
         };
     }
 
     pub fn reset(self: *@This()) void {
         // Clear all FX from the track
-        for (self.track.fx_list.items) |*fx| {
-            fx.deinit(self.session.gpa);
-        }
         self.track.fx_list.clearRetainingCapacity();
     }
 
@@ -291,8 +295,8 @@ const ValidateTrackCmd = struct {
         _ = self;
         const media_track: reaper.MediaTrack = @ptrCast(sut.track);
 
-        var track_state: TrackState = undefined;
-        _ = track_state.validateTrack(media_track, model.default_fx, &sut.map_store);
+        var track_state: TrackState = .{};
+        _ = track_state.validateTrack(media_track, model.default_fx, &sut.map_store, .empty);
 
         // Verify all 5 modules exist after validation
         const fx_count = reaper.TrackFX_GetCount(media_track);
@@ -306,14 +310,14 @@ const ValidateTrackCmd = struct {
 test "track validation - empty track gets all modules" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
-    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+    var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
     defer reaper_teardown.teardown();
 
     const track = &reaper_teardown.model_ptr.tracks.items[1];
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
-    var map_store = MapStore{};
-    map_store.init(testing.allocator, "test_resources/mappings");
+    const config_path = try getTestConfigPath(arena.allocator());
+    var map_store: MapStore = .empty(testing.allocator, config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -324,8 +328,8 @@ test "track validation - empty track gets all modules" {
         .OUTPT = "JS: Volume Adjustment",
     });
 
-    var track_state: TrackState = undefined;
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store);
+    var track_state: TrackState = .{};
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty);
 
     // Verify all modules were added
     try testing.expect(coverage.INPUT != null);
@@ -349,7 +353,7 @@ test "track validation - empty track gets all modules" {
 test "track validation - duplicate module suffixes removed" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
-    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+    var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
     defer reaper_teardown.teardown();
 
     const track = &reaper_teardown.model_ptr.tracks.items[1];
@@ -362,8 +366,8 @@ test "track validation - duplicate module suffixes removed" {
     _ = reaper.TrackFX_AddByName(media_track, "VST: ReaEQ (Cockos)", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(media_track, 1, "renamed_name", "VST: ReaEQ (Cockos) (C1-I)");
 
-    var map_store = MapStore{};
-    map_store.init(testing.allocator, "test_resources/mappings");
+    const config_path = try getTestConfigPath(arena.allocator());
+    var map_store: MapStore = .empty(testing.allocator, config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -374,8 +378,8 @@ test "track validation - duplicate module suffixes removed" {
         .OUTPT = "JS: Volume Adjustment",
     });
 
-    var track_state: TrackState = undefined;
-    _ = track_state.validateTrack(media_track, default_fx, &map_store);
+    var track_state: TrackState = .{};
+    _ = track_state.validateTrack(media_track, default_fx, &map_store, .empty);
 
     // Verify second FX had its suffix removed
     var buf: [512:0]u8 = undefined;
@@ -390,7 +394,7 @@ test "track validation - duplicate module suffixes removed" {
 test "track validation - missing modules inserted in correct positions" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
-    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+    var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
     defer reaper_teardown.teardown();
 
     const track = &reaper_teardown.model_ptr.tracks.items[1];
@@ -403,8 +407,8 @@ test "track validation - missing modules inserted in correct positions" {
     _ = reaper.TrackFX_AddByName(media_track, "JS: Volume Adjustment", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(media_track, 1, "renamed_name", "JS: Volume Adjustment (C1-O)");
 
-    var map_store = MapStore{};
-    map_store.init(testing.allocator, "test_resources/mappings");
+    const config_path = try getTestConfigPath(arena.allocator());
+    var map_store: MapStore = .empty(testing.allocator, config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -415,8 +419,8 @@ test "track validation - missing modules inserted in correct positions" {
         .OUTPT = "JS: Volume Adjustment",
     });
 
-    var track_state: TrackState = undefined;
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store);
+    var track_state: TrackState = .{};
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty);
 
     // Verify all modules exist and are in correct order
     try testing.expectEqual(@as(i32, 0), coverage.INPUT.?.index);
@@ -437,7 +441,7 @@ test "track validation - missing modules inserted in correct positions" {
 test "track validation property-based test" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
-    const reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+    var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
     defer reaper_teardown.teardown();
 
     var model = try Model.init(testing.allocator);
@@ -480,4 +484,178 @@ test "track validation property-based test" {
     // Run the test
     const rv = try assertStateful(Model, System, &cmd_seq, &model, &sut, config);
     try testing.expect(rv != null);
+}
+
+test "auto_insert_modules disabled prevents module insertion" {
+    // Because auto_insert_modules is disabled, validateTrack should not insert missing modules
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+    defer reaper_teardown.teardown();
+
+    const track = &reaper_teardown.model_ptr.tracks.items[1];
+    const media_track: reaper.MediaTrack = @ptrCast(track);
+
+    const config_path = try getTestConfigPath(arena.allocator());
+    var map_store: MapStore = .empty(testing.allocator, config_path);
+    defer map_store.deinit();
+
+    const default_fx: DefaultFx = .initFill(null);
+
+    var prefs = Preferences.empty;
+    prefs.auto_insert_modules = false;
+
+    var track_state: TrackState = .{};
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
+
+    // Because no modules were present initially and insertion is disabled, all modules should be null
+    try testing.expect(coverage.INPUT == null);
+    try testing.expect(coverage.GATE == null);
+    try testing.expect(coverage.COMP == null);
+    try testing.expect(coverage.EQ == null);
+    try testing.expect(coverage.OUTPT == null);
+}
+
+test "auto_insert_bypassed causes new modules to be bypassed" {
+    // Because auto_insert_bypassed is enabled, newly inserted modules should have bypass state set
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+    defer reaper_teardown.teardown();
+
+    const track = &reaper_teardown.model_ptr.tracks.items[1];
+    const media_track: reaper.MediaTrack = @ptrCast(track);
+
+    const config_path = try getTestConfigPath(arena.allocator());
+    var map_store: MapStore = .empty(testing.allocator, config_path);
+    defer map_store.deinit();
+
+    // Because we need default FX names for insertion, set them up
+    var default_fx: DefaultFx = .initFill(null);
+    default_fx.set(.INPUT, "ReaComp");
+    default_fx.set(.GATE, "ReaGate");
+    default_fx.set(.COMP, "ReaComp");
+    default_fx.set(.EQ, "ReaEQ");
+    default_fx.set(.OUTPT, "ReaComp");
+
+    var prefs = Preferences.empty;
+    prefs.auto_insert_bypassed = true;
+
+    var track_state: TrackState = .{};
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
+
+    // Because modules were inserted with bypass enabled, verify they exist and are bypassed
+    try testing.expect(coverage.INPUT != null);
+    try testing.expect(coverage.GATE != null);
+    try testing.expect(coverage.COMP != null);
+    try testing.expect(coverage.EQ != null);
+    try testing.expect(coverage.OUTPT != null);
+
+    // Because the modules should be bypassed, check their enabled state (enabled=false means bypassed=true)
+    // FIXME: TrackFX_GetEnabled needs to be implemented in the mock/reaper model
+    const input_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.INPUT.?.index });
+    const gate_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.GATE.?.index });
+    const comp_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.COMP.?.index });
+    const eq_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.EQ.?.index });
+    const outpt_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.OUTPT.?.index });
+
+    try testing.expect(input_enabled == false);
+    try testing.expect(gate_enabled == false);
+    try testing.expect(comp_enabled == false);
+    try testing.expect(eq_enabled == false);
+    try testing.expect(outpt_enabled == false);
+}
+
+test "auto_reorder_modules disabled preserves existing module positions" {
+    // Because auto_reorder_modules is disabled, existing modules should not be moved
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+    defer reaper_teardown.teardown();
+
+    const track = &reaper_teardown.model_ptr.tracks.items[1];
+    const media_track: reaper.MediaTrack = @ptrCast(track);
+
+    const config_path = try getTestConfigPath(arena.allocator());
+    var map_store: MapStore = .empty(testing.allocator, config_path);
+    defer map_store.deinit();
+
+    // Because we need to test reordering behavior, first add modules in non-canonical order
+    var default_fx: DefaultFx = .initFill(null);
+    default_fx.set(.INPUT, "ReaComp");
+    default_fx.set(.GATE, "ReaGate");
+    default_fx.set(.COMP, "ReaComp");
+    default_fx.set(.EQ, "ReaEQ");
+    default_fx.set(.OUTPT, "ReaComp");
+
+    // Add modules in reverse order: OUTPT, EQ, COMP, GATE, INPUT
+    _ = pReaper.TrackFX_AddByName(.{ media_track, "ReaComp", false, -1 });
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, 0, "renamed_name", "ReaComp (C1-O)" });
+
+    _ = pReaper.TrackFX_AddByName(.{ media_track, "ReaEQ", false, -1 });
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, 1, "renamed_name", "ReaEQ (C1-E)" });
+
+    _ = pReaper.TrackFX_AddByName(.{ media_track, "ReaComp", false, -1 });
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, 2, "renamed_name", "ReaComp (C1-C)" });
+
+    _ = pReaper.TrackFX_AddByName(.{ media_track, "ReaGate", false, -1 });
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, 3, "renamed_name", "ReaGate (C1-S)" });
+
+    _ = pReaper.TrackFX_AddByName(.{ media_track, "ReaComp", false, -1 });
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, 4, "renamed_name", "ReaComp (C1-I)" });
+
+    var prefs = Preferences.empty;
+    prefs.auto_insert_modules = false; // Don't insert any new modules
+    prefs.auto_reorder_modules = false; // Don't reorder existing modules
+
+    var track_state: TrackState = .{};
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
+
+    // Because reordering is disabled, modules should remain in their original positions
+    try testing.expect(coverage.OUTPT.?.index == 0);
+    try testing.expect(coverage.EQ.?.index == 1);
+    try testing.expect(coverage.COMP.?.index == 2);
+    try testing.expect(coverage.GATE.?.index == 3);
+    try testing.expect(coverage.INPUT.?.index == 4);
+}
+
+test "preferred_module_order affects insertion positions" {
+    // Because preferred_module_order is set to EQ-S-C, modules should be inserted in that order
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
+    defer reaper_teardown.teardown();
+
+    const track = &reaper_teardown.model_ptr.tracks.items[1];
+    const media_track: reaper.MediaTrack = @ptrCast(track);
+
+    const config_path = try getTestConfigPath(arena.allocator());
+    var map_store: MapStore = .empty(testing.allocator, config_path);
+    defer map_store.deinit();
+
+    var default_fx: DefaultFx = .initFill(null);
+    default_fx.set(.INPUT, "ReaComp");
+    default_fx.set(.GATE, "ReaGate");
+    default_fx.set(.COMP, "ReaComp");
+    default_fx.set(.EQ, "ReaEQ");
+    default_fx.set(.OUTPT, "ReaComp");
+
+    var prefs = Preferences.empty;
+    prefs.preferred_module_order = .@"EQ-S-C";
+
+    var track_state: TrackState = .{};
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
+
+    // Because modules are inserted in EQ-S-C order, verify the final order is INPUT, EQ, GATE, COMP, OUTPT
+    try testing.expect(coverage.INPUT != null);
+    try testing.expect(coverage.EQ != null);
+    try testing.expect(coverage.GATE != null);
+    try testing.expect(coverage.COMP != null);
+    try testing.expect(coverage.OUTPT != null);
+
+    try testing.expect(coverage.INPUT.?.index == 0);
+    try testing.expect(coverage.EQ.?.index == 1);
+    try testing.expect(coverage.GATE.?.index == 2);
+    try testing.expect(coverage.COMP.?.index == 3);
+    try testing.expect(coverage.OUTPT.?.index == 4);
 }
