@@ -381,14 +381,26 @@ test "track validation - duplicate module suffixes removed" {
     var track_state: TrackState = .{};
     _ = track_state.validateTrack(media_track, default_fx, &map_store, .empty);
 
-    // Verify second FX had its suffix removed
-    var buf: [512:0]u8 = undefined;
-    _ = reaper.TrackFX_GetNamedConfigParm(media_track, 1, "renamed_name", &buf, buf.len);
-    try testing.expectEqualStrings("VST: ReaEQ (Cockos)", std.mem.span(@as([*:0]const u8, &buf)));
-
-    // Both FX should still exist
     const fx_count = reaper.TrackFX_GetCount(media_track);
-    try testing.expect(fx_count >= 5); // At least 5 after validation adds missing
+
+    // validation adds 4 missing modules (GATE, EQ, COMP, OUTPT) to the existing 2 FX,
+    // so we should have 6 total
+    try testing.expectEqual(@as(c_int, 6), fx_count);
+
+    // reordering moves Console1 modules but may interleave non-module FX,
+    // so let's verify the non-module ReaEQ exists somewhere in the chain without its suffix
+    var found_non_module_eq = false;
+    var i: c_int = 0;
+    while (i < fx_count) : (i += 1) {
+        var buf: [512:0]u8 = undefined;
+        _ = reaper.TrackFX_GetNamedConfigParm(media_track, i, "renamed_name", &buf, buf.len);
+        const name = std.mem.span(@as([*:0]const u8, &buf));
+        if (std.mem.eql(u8, name, "VST: ReaEQ (Cockos)")) {
+            found_non_module_eq = true;
+            break;
+        }
+    }
+    try testing.expect(found_non_module_eq);
 }
 
 test "track validation - missing modules inserted in correct positions" {

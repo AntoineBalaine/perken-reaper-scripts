@@ -721,8 +721,8 @@ test "reorderFx2 - wrong order needs reordering" {
 
     try testing.expect(result_coverage.INPUT.?.index == 0);
     try testing.expect(result_coverage.GATE.?.index == 1);
-    try testing.expect(result_coverage.EQ.?.index == 3);
-    try testing.expect(result_coverage.COMP.?.index == 2);
+    try testing.expect(result_coverage.EQ.?.index == 2);
+    try testing.expect(result_coverage.COMP.?.index == 3);
     try testing.expect(result_coverage.OUTPT.?.index == 4);
 }
 
@@ -1262,28 +1262,46 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
 
     // Reorder existing modules to canonical order if auto_reorder_modules is enabled
     if (preferences.auto_reorder_modules) {
-        const CanonicalModule = struct {
-            name: []const u8,
-            module_type: ModulesList,
+        const middle_modules_order = switch (preferences.preferred_module_order) {
+            .@"S-C-EQ" => [_]ModulesList{ .GATE, .COMP, .EQ },
+            .@"S-EQ-C" => [_]ModulesList{ .GATE, .EQ, .COMP },
+            .@"EQ-S-C" => [_]ModulesList{ .EQ, .GATE, .COMP },
         };
 
-        // Only enforce INPUT first and GATE before COMP
-        // EQ position relative to COMP is flexible (supports S-C-EQ and S-EQ-C orders)
-        const canonical_order = [_]CanonicalModule{
-            .{ .name = "INPUT", .module_type = .INPUT },
-            .{ .name = "GATE", .module_type = .GATE },
-        };
+        if (coverage.INPUT) |*module_loc| {
+            const current_index = module_loc.index;
+            const target_index: i32 = 0;
 
-        inline for (canonical_order, 0..) |canonical_module, target_pos| {
-            const target_index: i32 = @intCast(target_pos);
+            if (current_index != target_index) {
+                pReaper.TrackFX_CopyToTrack(.{
+                    mediaTrack,
+                    current_index,
+                    mediaTrack,
+                    target_index,
+                    true, // move
+                });
 
-            // Get the current position of this module
-            const field_ptr = &@field(coverage, canonical_module.name);
-            if (field_ptr.*) |*module_loc| {
+                applyMove(&coverage, current_index, target_index);
+                const actual_target = if (current_index < target_index) target_index - 1 else target_index;
+                module_loc.index = actual_target;
+            }
+        }
+
+        // Then, reorder middle modules according to preferred order
+        for (middle_modules_order, 0..) |module_type, order_index| {
+            const target_index: i32 = @intCast(order_index + 1); // +1 because INPUT is at 0
+
+            const module_loc_ptr = switch (module_type) {
+                .GATE => &coverage.GATE,
+                .EQ => &coverage.EQ,
+                .COMP => &coverage.COMP,
+                else => unreachable,
+            };
+
+            if (module_loc_ptr.*) |*module_loc| {
                 const current_index = module_loc.index;
 
                 if (current_index != target_index) {
-                    // Execute the move
                     pReaper.TrackFX_CopyToTrack(.{
                         mediaTrack,
                         current_index,
@@ -1292,10 +1310,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                         true, // move
                     });
 
-                    // Update all module positions to reflect the shift
                     applyMove(&coverage, current_index, target_index);
-
-                    // Update the moved module's position (with same-track adjustment)
                     const actual_target = if (current_index < target_index) target_index - 1 else target_index;
                     module_loc.index = actual_target;
                 }
