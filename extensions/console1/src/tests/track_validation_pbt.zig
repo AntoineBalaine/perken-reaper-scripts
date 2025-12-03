@@ -480,12 +480,10 @@ test "track validation property-based test" {
     // Create configuration
     const config: StatefulConfig = .{ .verbose = false };
 
-    // Create random source
-    var random_bytes = [_]u8{
-        0x8B, 0xBE, 0x02, 0x2C, 0x87, 0x0A, 0xF6, 0x54, 0x4A, 0x59, 0x73, 0xA8, 0x12, 0xF7, 0x2B, 0x85,
-        0xAD, 0x95, 0x90, 0x8A, 0x21, 0xF1, 0xAC, 0x64, 0x42, 0x32, 0xA5, 0x0D, 0x10, 0x1F, 0xBA, 0xE7,
-        0x0F, 0xEE, 0xF9, 0x62, 0x62, 0x62, 0x62, 0x62, 0x62, 0x62, 0x62,
-    };
+    var seed_prng = std.Random.DefaultPrng.init(0x8BBE022C870AF654);
+    var random_bytes: [256]u8 = undefined;
+    seed_prng.random().bytes(&random_bytes);
+
     var prng = FinitePrng.init(&random_bytes);
     var random = prng.random();
 
@@ -556,15 +554,12 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
     var track_state: TrackState = .{};
     const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
 
-    // Because modules were inserted with bypass enabled, verify they exist and are bypassed
     try testing.expect(coverage.INPUT != null);
     try testing.expect(coverage.GATE != null);
     try testing.expect(coverage.COMP != null);
     try testing.expect(coverage.EQ != null);
     try testing.expect(coverage.OUTPT != null);
 
-    // Because the modules should be bypassed, check their enabled state (enabled=false means bypassed=true)
-    // FIXME: TrackFX_GetEnabled needs to be implemented in the mock/reaper model
     const input_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.INPUT.?.index });
     const gate_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.GATE.?.index });
     const comp_enabled = pReaper.TrackFX_GetEnabled(.{ media_track, coverage.COMP.?.index });

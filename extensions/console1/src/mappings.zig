@@ -229,6 +229,11 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
 
     log.debug("Loading mapping from {s}", .{filePath});
 
+    if (!std.fs.path.isAbsolute(filePath)) {
+        log.err("Mapping path is not absolute: {s}", .{filePath});
+        return error.InvalidPath;
+    }
+
     const file = try std.fs.openFileAbsolute(filePath, .{});
     defer file.close();
 
