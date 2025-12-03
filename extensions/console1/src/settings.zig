@@ -59,7 +59,7 @@ focus_page_tracks: bool,
 auto_insert_modules: bool = true,
 auto_insert_bypassed: bool = false,
 auto_reorder_modules: bool = true,
-preferred_module_order: ModulesOrder = .@"S-C-EQ",
+preferred_module_order: ModulesOrder = .@"S-EQ-C",
 
 pub const empty: @This() = .{
     .language = "en",
@@ -75,7 +75,7 @@ pub const empty: @This() = .{
     .auto_insert_modules = true,
     .auto_insert_bypassed = false,
     .auto_reorder_modules = true,
-    .preferred_module_order = .@"S-C-EQ",
+    .preferred_module_order = .@"S-EQ-C",
 };
 
 /// defaults-only prefs

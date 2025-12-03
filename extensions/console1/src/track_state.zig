@@ -124,26 +124,6 @@ fn parseC1Suffix(name: [:0]const u8) ?ModulesList {
     return null;
 }
 
-// Test helper function to create default preferences
-fn defaultTestPreferences() Preferences {
-    return Preferences{
-        .language = "en",
-        .show_startup_message = false,
-        .show_feedback_window = false,
-        .show_plugin_ui = false,
-        .manual_routing = false,
-        .default_fx = .initFill(null),
-        .log_to_file = false,
-        .start_suspended = false,
-        .show_track_list = true,
-        .focus_page_tracks = false,
-        .auto_insert_modules = true,
-        .auto_insert_bypassed = false,
-        .auto_reorder_modules = true,
-        .preferred_module_order = .@"S-C-EQ",
-    };
-}
-
 test "parseC1Suffix - basic valid cases" {
     // Valid cases
     const testing = std.testing;
@@ -553,7 +533,7 @@ test "reorderFx2 - empty track to full chain" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    const result_coverage = reorderFx2(empty_coverage, track, default_fx, defaultTestPreferences());
+    const result_coverage = reorderFx2(empty_coverage, track, default_fx, .empty);
 
     // Because all modules should now be present
     try testing.expect(result_coverage.INPUT != null);
@@ -600,7 +580,7 @@ test "reorderFx2 - partial chain with INPUT and OUTPT" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    const result_coverage = reorderFx2(partial_coverage, track, default_fx, defaultTestPreferences());
+    const result_coverage = reorderFx2(partial_coverage, track, default_fx, .empty);
 
     // Because missing modules should be inserted
     try testing.expect(result_coverage.INPUT != null);
@@ -667,7 +647,7 @@ test "reorderFx2 - chain already in correct order" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    const result_coverage = reorderFx2(correct_coverage, track, default_fx, defaultTestPreferences());
+    const result_coverage = reorderFx2(correct_coverage, track, default_fx, .empty);
 
     // Because chain is already correct, indices should match original
     try testing.expectEqual(@as(c_int, 0), result_coverage.INPUT.?.index);
@@ -729,7 +709,7 @@ test "reorderFx2 - wrong order needs reordering" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    const result_coverage = reorderFx2(wrong_coverage, track, default_fx, defaultTestPreferences());
+    const result_coverage = reorderFx2(wrong_coverage, track, default_fx, .empty);
 
     // Because the reorderFx2 function inserts modules but doesn't reorder existing ones,
     // we just verify all modules are present
@@ -1556,7 +1536,7 @@ test "reorderFx2 - property-based ordering validation" {
 
         // Call reorderFx2
         const default_fx = createDefaultFx();
-        const result = reorderFx2(coverage, track, default_fx, defaultTestPreferences());
+        const result = reorderFx2(coverage, track, default_fx, .empty);
 
         // Assert ordering rules
         // Rule 1: INPUT is always first
@@ -1591,7 +1571,7 @@ test "reorderFx2 - auto_insert_modules disabled" {
         default_fx.set(module, fallback_map.get(module));
     }
 
-    var prefs = defaultTestPreferences();
+    var prefs: Preferences = .empty;
     prefs.auto_insert_modules = false;
 
     const result_coverage = reorderFx2(empty_coverage, track, default_fx, prefs);
@@ -1640,7 +1620,7 @@ test "reorderFx2 - auto_reorder_modules disabled" {
         .OUTPT = .{ .index = 0, .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)) },
     };
 
-    var prefs = defaultTestPreferences();
+    var prefs: Preferences = .empty;
     prefs.auto_reorder_modules = false;
 
     const result_coverage = reorderFx2(wrong_coverage, track, default_fx, prefs);

@@ -37,6 +37,8 @@ const Mocks = struct {
     TrackFX_SetNamedConfigParm: @TypeOf(reaper.TrackFX_SetNamedConfigParm),
     TrackFX_GetFXGUID: @TypeOf(reaper.TrackFX_GetFXGUID),
     TrackFX_CopyToTrack: @TypeOf(reaper.TrackFX_CopyToTrack),
+    TrackFX_GetEnabled: @TypeOf(reaper.TrackFX_GetEnabled),
+    TrackFX_SetEnabled: @TypeOf(reaper.TrackFX_SetEnabled),
     GetNumTracks: @TypeOf(reaper.GetNumTracks),
     CountTracks: @TypeOf(reaper.CountTracks),
     GetTrack: @TypeOf(reaper.GetTrack),
@@ -264,6 +266,29 @@ fn TrackFX_CopyToTrack(source_track: reaper.MediaTrack, source_fx: c_int, dest_t
         // For now, we'll implement move only since that's what track validation uses
         unreachable;
     }
+}
+
+fn TrackFX_GetEnabled(track: reaper.MediaTrack, fx: c_int) callconv(.C) bool {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *const Track = track_ptr.?;
+
+    if (fx < 0 or fx >= tr.fx_list.items.len) return false;
+
+    const fx_item = tr.fx_list.items[@intCast(fx)];
+    return fx_item.enabled;
+}
+
+fn TrackFX_SetEnabled(track: reaper.MediaTrack, fx: c_int, enabled: bool) callconv(.C) void {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return;
+
+    const tr: *Track = track_ptr.?;
+
+    if (fx < 0 or fx >= tr.fx_list.items.len) return;
+
+    tr.fx_list.items[@intCast(fx)].enabled = enabled;
 }
 
 fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {

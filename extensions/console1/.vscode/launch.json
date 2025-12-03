@@ -44,7 +44,7 @@
       "type": "lldb",
       "request": "launch",
       "name": "TestDebug",
-      "program": "/Users/a266836/Documents/personnel/Experiments/reaper/zigExt/reaperZigWrap/.zig-cache/o/d24f4d9fd5315161b082fafb939e65fe/test",
+      "program": "/Users/antoine/Documents/personnel/experiments/zigwrap/.zig-cache/o/d6ea737d1d670ad1640777ea2600b70d/reaper_zig_tests",
       "args": [],
       "cwd": "${workspaceFolder}"
     },
