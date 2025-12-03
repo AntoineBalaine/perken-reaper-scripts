@@ -83,5 +83,6 @@ test {
     _ = @import("models/models.zig");
     _ = @import("tests/mode_switch_tests.zig");
     _ = @import("tests/settings_zlocheck.zig");
+    _ = @import("tests/settings_pbt.zig");
     _ = @import("tests/track_validation_pbt.zig");
 }
