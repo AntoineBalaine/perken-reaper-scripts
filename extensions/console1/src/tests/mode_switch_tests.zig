@@ -11,6 +11,7 @@ pub fn test_setup(allocator: std.mem.Allocator) !struct {
     midi_teardown: @typeInfo(@TypeOf(models.midi.setupMidiMocks)).@"fn".return_type.?,
     globals: *Globals,
     pub fn teardown(self: *@This()) void {
+        models.midi.clearEventQueue();
         self.reaper_teardown.teardown();
         self.midi_teardown.teardown();
         self.globals.deinit();

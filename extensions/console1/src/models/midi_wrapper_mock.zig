@@ -25,12 +25,55 @@ pub var dummy_event = MIDI_event_t{
     .midi_message = [3]u8{ 0, 0, 0 },
 };
 
+// Event queue for simulating MIDI input
+pub var event_queue: [64]MIDI_event_t = undefined;
+pub var event_queue_size: usize = 0;
+
 // Get or create the C1Model instance
 pub fn getModelInstance() *C1Model {
     if (C1Model.instance == null) {
         C1Model.instance = .default;
     }
     return &C1Model.instance.?;
+}
+
+// Clear the event queue
+pub fn clearEventQueue() void {
+    event_queue_size = 0;
+}
+
+// Helper function to queue a MIDI event
+fn queueEvent(cc: c1.CCs, value: u8) void {
+    if (event_queue_size >= event_queue.len) {
+        return;
+    }
+    event_queue[event_queue_size] = .{
+        .frame_offset = 0,
+        .size = 3,
+        .midi_message = [3]u8{ 0xb0, @intFromEnum(cc), value },
+    };
+    event_queue_size += 1;
+}
+
+// Queue a button press (value 127)
+pub fn queueButtonDown(cc: c1.CCs) void {
+    queueEvent(cc, 127);
+}
+
+// Queue a button release (value 0)
+pub fn queueButtonUp(cc: c1.CCs) void {
+    queueEvent(cc, 0);
+}
+
+// Queue a full button press and release sequence
+pub fn queueButtonPress(cc: c1.CCs) void {
+    queueButtonDown(cc);
+    queueButtonUp(cc);
+}
+
+// Queue a knob turn with specified value
+pub fn queueKnobTurn(cc: c1.CCs, value: u7) void {
+    queueEvent(cc, value);
 }
 
 /// Mock implementation of MidiOut_Send - exported with the exact same name as the C function
@@ -162,13 +205,12 @@ pub export fn MidiIn_stop(midi_in: midi_Input_w) void {
 pub export fn MidiIn_SwapBufs(midi_in: midi_Input_w, timestamp: c_uint) void {
     _ = midi_in;
     _ = timestamp;
-    // No implementation needed for tests
+    // No-op in mock: event queue is cleared in test teardown
 }
 
 pub export fn MidiIn_GetReadBuf(midi_in: midi_Input_w) MIDI_eventlist_w {
     _ = midi_in;
-    // Return a dummy event list
-    return @ptrCast(@alignCast(&dummy_eventlist));
+    return @ptrCast(@alignCast(&event_queue));
 }
 
 pub export fn MidiIn_SwapBufsPrecise(midi_in: midi_Input_w, coarsetimestamp: c_uint, precisetimestamp: f64) void {
@@ -192,10 +234,27 @@ pub export fn MDEvtLs_AddItem(mdEvtLs: MIDI_eventlist_w, evt: ?*MIDI_event_t) vo
 
 pub export fn MDEvtLs_EnumItems(mdEvtLs: MIDI_eventlist_w, bpos: ?*c_int) ?*MIDI_event_t {
     _ = mdEvtLs;
-    if (bpos != null) {
-        bpos.?.* = -1; // Indicate no more events
+
+    if (bpos == null) {
+        return null;
     }
-    return null; // Return null to indicate no events
+
+    // Start from position 0 if bpos is -1
+    if (bpos.?.* < 0) {
+        bpos.?.* = 0;
+    }
+
+    // Check if we have more events
+    const pos: usize = @intCast(bpos.?.*);
+    if (pos >= event_queue_size) {
+        bpos.?.* = -1; // Indicate no more events
+        return null;
+    }
+
+    // Return the event at current position and increment
+    const event_ptr = &event_queue[pos];
+    bpos.?.* += 1;
+    return event_ptr;
 }
 
 pub export fn MDEvtLs_DeleteItem(mdEvtLs: MIDI_eventlist_w, bpos: c_int) void {
@@ -206,7 +265,7 @@ pub export fn MDEvtLs_DeleteItem(mdEvtLs: MIDI_eventlist_w, bpos: c_int) void {
 
 pub export fn MDEvtLs_GetSize(mdEvtLs: MIDI_eventlist_w) c_int {
     _ = mdEvtLs;
-    return 0; // Return 0 to indicate empty list
+    return @intCast(event_queue_size);
 }
 
 pub export fn MDEvtLs_Empty(mdEvtLs: MIDI_eventlist_w) void {
