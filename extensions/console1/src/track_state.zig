@@ -1057,14 +1057,23 @@ fn insertModuleLinkedFx(
     if (add_result >= 0) {
         // Set module suffix
         var name_buf: [512:0]u8 = undefined;
-        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ fx_name, module.toModulePrefix() }) catch return null;
+        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ fx_name, module.toModulePrefix() }) catch {
+            _ = reaper.TrackFX_Delete(mediaTrack, add_result);
+            return null;
+        };
 
-        _ = pReaper.TrackFX_SetNamedConfigParm(.{
+        const rename_success = pReaper.TrackFX_SetNamedConfigParm(.{
             mediaTrack,
             add_result,
             "renamed_name",
             new_name,
         });
+
+        if (!rename_success) {
+            log.warn("FX '{s}' for module {s} is read-only (missing from disk), removing", .{ fx_name, @tagName(module) });
+            _ = reaper.TrackFX_Delete(mediaTrack, add_result);
+            return null;
+        }
 
         if (bypass) {
             _ = pReaper.TrackFX_SetEnabled(.{ mediaTrack, add_result, false });
