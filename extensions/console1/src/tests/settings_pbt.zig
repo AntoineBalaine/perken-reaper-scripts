@@ -15,6 +15,8 @@ const Globals = @import("../globals.zig").Globals;
 const Mode = @import("../statemachine.zig").Mode;
 const ModulesList = @import("../statemachine.zig").ModulesList;
 const ModulesOrder = @import("../fx_ctrl_state.zig").ModulesOrder;
+const test_setup = @import("mode_switch_tests.zig").test_setup;
+const reaper = @import("../reaper.zig").reaper;
 
 fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
     var path_mem: [std.fs.max_path_bytes]u8 = undefined;
@@ -375,8 +377,13 @@ const CancelCmd = struct {
 };
 
 test "settings - open and close with save" {
-    var globals = try Globals.defaults(testing.allocator);
-    defer globals.arena_int.deinit();
+    var g_teardown = try test_setup(testing.allocator);
+    defer g_teardown.teardown();
+
+    const globals = g_teardown.globals;
+
+    // Initialize MIDI output for the test
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
 
     // Because Globals.defaults sets mode to suspended, we need to change to fx_ctrl
     globals.state.current_mode = .fx_ctrl;
@@ -385,25 +392,30 @@ test "settings - open and close with save" {
     try testing.expect(globals.settings_panel == null);
 
     // Open settings
-    settingsActions(&globals, .open);
+    settingsActions(globals, .open);
     try testing.expect(globals.settings_panel != null);
     try testing.expect(globals.state.current_mode == .settings);
 
     // Make a change
-    settingsActions(&globals, .{ .update_val = .{ .bool_val = .{ .field = .show_startup_message, .val = true } } });
+    settingsActions(globals, .{ .update_val = .{ .bool_val = .{ .field = .show_startup_message, .val = true } } });
     try testing.expect(globals.settings_panel.?.dirty);
     try testing.expect(globals.settings_panel.?.temp_settings.show_startup_message == true);
 
     // Save
-    settingsActions(&globals, .save);
+    settingsActions(globals, .save);
     try testing.expect(globals.settings_panel == null);
     try testing.expect(globals.state.current_mode == .fx_ctrl);
     try testing.expect(globals.preferences.show_startup_message == true);
 }
 
 test "settings - open and close with cancel" {
-    var globals = try Globals.defaults(testing.allocator);
-    defer globals.arena_int.deinit();
+    var g_teardown = try test_setup(testing.allocator);
+    defer g_teardown.teardown();
+
+    const globals = g_teardown.globals;
+
+    // Initialize MIDI output for the test
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
 
     // Because Globals.defaults sets mode to suspended, we need to change to fx_ctrl
     globals.state.current_mode = .fx_ctrl;
@@ -411,52 +423,62 @@ test "settings - open and close with cancel" {
     const initial_value = globals.preferences.show_startup_message;
 
     // Open settings
-    settingsActions(&globals, .open);
+    settingsActions(globals, .open);
     try testing.expect(globals.settings_panel != null);
 
     // Make a change
-    settingsActions(&globals, .{ .update_val = .{ .bool_val = .{ .field = .show_startup_message, .val = !initial_value } } });
+    settingsActions(globals, .{ .update_val = .{ .bool_val = .{ .field = .show_startup_message, .val = !initial_value } } });
     try testing.expect(globals.settings_panel.?.temp_settings.show_startup_message == !initial_value);
 
     // Cancel
-    settingsActions(&globals, .cancel);
+    settingsActions(globals, .cancel);
     try testing.expect(globals.settings_panel == null);
     try testing.expect(globals.state.current_mode == .fx_ctrl);
     try testing.expect(globals.preferences.show_startup_message == initial_value);
 }
 
 test "settings - scroll through fields" {
-    var globals = try Globals.defaults(testing.allocator);
-    defer globals.arena_int.deinit();
+    var g_teardown = try test_setup(testing.allocator);
+    defer g_teardown.teardown();
+
+    const globals = g_teardown.globals;
+
+    // Initialize MIDI output for the test
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
 
     // Because Globals.defaults sets mode to suspended, we need to change to fx_ctrl
     globals.state.current_mode = .fx_ctrl;
 
     // Open settings
-    settingsActions(&globals, .open);
+    settingsActions(globals, .open);
     try testing.expect(globals.settings_panel != null);
 
     const panel = &globals.settings_panel.?;
     try testing.expect(panel.scroll_position_rel == 0);
 
     // Scroll forward
-    settingsActions(&globals, .{ .scroll = 10 });
+    settingsActions(globals, .{ .scroll = 10 });
     try testing.expect(panel.scroll_position_abs == 10);
 
     // Scroll backward
-    settingsActions(&globals, .{ .scroll = 5 });
+    settingsActions(globals, .{ .scroll = 5 });
     try testing.expect(panel.scroll_position_abs == 5);
 }
 
 test "settings - toggle boolean fields" {
-    var globals = try Globals.defaults(testing.allocator);
-    defer globals.arena_int.deinit();
+    var g_teardown = try test_setup(testing.allocator);
+    defer g_teardown.teardown();
+
+    const globals = g_teardown.globals;
+
+    // Initialize MIDI output for the test
+    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
 
     // Because Globals.defaults sets mode to suspended, we need to change to fx_ctrl
     globals.state.current_mode = .fx_ctrl;
 
     // Open settings
-    settingsActions(&globals, .open);
+    settingsActions(globals, .open);
     const panel = &globals.settings_panel.?;
 
     // Position on show_startup_message (index 1)
@@ -464,7 +486,7 @@ test "settings - toggle boolean fields" {
     const initial_value = panel.temp_settings.show_startup_message;
 
     // Toggle
-    settingsActions(&globals, .toggle);
+    settingsActions(globals, .toggle);
     try testing.expect(panel.temp_settings.show_startup_message == !initial_value);
 }
 
