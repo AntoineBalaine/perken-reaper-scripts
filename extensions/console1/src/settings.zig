@@ -250,7 +250,8 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Al
     }
 }
 
-pub fn toggleField(self: *@This(), field: SettingsFields) void {
+pub fn toggleField(self: *@This(), field: SettingsFields) bool {
+    var rv = true;
     switch (field) {
         .show_startup_message => self.show_startup_message = !self.show_startup_message,
         .show_feedback_window => self.show_feedback_window = !self.show_feedback_window,
@@ -259,8 +260,11 @@ pub fn toggleField(self: *@This(), field: SettingsFields) void {
         .log_to_file => self.log_to_file = !self.log_to_file,
         .start_suspended => self.start_suspended = !self.start_suspended,
         // Handle combo boxes differently
-        else => {},
+        else => {
+            rv = false;
+        },
     }
+    return rv;
 }
 
 test {

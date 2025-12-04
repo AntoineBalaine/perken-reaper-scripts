@@ -27,29 +27,32 @@ fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
 
 // Model tracks the expected state of settings
 const Model = struct {
+    default_prefs: Preferences,
     preferences: Preferences,
     temp_settings: Preferences,
     panel_open: bool,
     panel_dirty: bool,
     scroll_position_rel: u8,
     scroll_position_abs: u8,
-    allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator) !@This() {
+    pub fn init(globals: *Globals) !@This() {
+        // Copy the defaults from globals (which has fallback_defaults already populated)
+        const defaults = globals.preferences;
         return .{
-            .preferences = Preferences.empty,
-            .temp_settings = Preferences.empty,
+            .default_prefs = defaults,
+            .preferences = defaults,
+            .temp_settings = defaults,
             .panel_open = false,
             .panel_dirty = false,
             .scroll_position_rel = 0,
             .scroll_position_abs = 0,
-            .allocator = allocator,
         };
     }
 
     pub fn reset(self: *@This()) void {
-        self.preferences = Preferences.empty;
-        self.temp_settings = Preferences.empty;
+        // Reset to default state - just struct copy
+        self.preferences = self.default_prefs;
+        self.temp_settings = self.default_prefs;
         self.panel_open = false;
         self.panel_dirty = false;
         self.scroll_position_rel = 0;
@@ -65,18 +68,20 @@ const Model = struct {
 const System = struct {
     globals: *Globals,
     resource_path: [:0]const u8,
+    default_prefs: Preferences,
 
     pub fn init(globals: *Globals, resource_path: [:0]const u8) !@This() {
+        const defaults = globals.preferences;
         return .{
             .globals = globals,
             .resource_path = resource_path,
+            .default_prefs = defaults,
         };
     }
 
     pub fn reset(self: *@This()) void {
-        // Reset to clean state
         self.globals.settings_panel = null;
-        self.globals.preferences = Preferences.empty;
+        self.globals.preferences = self.default_prefs;
         self.globals.state.current_mode = .fx_ctrl;
     }
 
@@ -167,21 +172,47 @@ const ToggleCmd = struct {
         // Toggle the field at current scroll position in temp_settings
         if (Preferences.SettingsFields.fromIndex(model.scroll_position_rel)) |field| {
             switch (field) {
-                .show_startup_message => model.temp_settings.show_startup_message = !model.temp_settings.show_startup_message,
-                .show_feedback_window => model.temp_settings.show_feedback_window = !model.temp_settings.show_feedback_window,
-                .show_plugin_ui => model.temp_settings.show_plugin_ui = !model.temp_settings.show_plugin_ui,
-                .manual_routing => model.temp_settings.manual_routing = !model.temp_settings.manual_routing,
-                .log_to_file => model.temp_settings.log_to_file = !model.temp_settings.log_to_file,
-                .start_suspended => model.temp_settings.start_suspended = !model.temp_settings.start_suspended,
-                .auto_insert_modules => model.temp_settings.auto_insert_modules = !model.temp_settings.auto_insert_modules,
-                .auto_insert_bypassed => model.temp_settings.auto_insert_bypassed = !model.temp_settings.auto_insert_bypassed,
-                .auto_reorder_modules => model.temp_settings.auto_reorder_modules = !model.temp_settings.auto_reorder_modules,
+                .show_startup_message => {
+                    model.temp_settings.show_startup_message = !model.temp_settings.show_startup_message;
+                    model.panel_dirty = true;
+                },
+                .show_feedback_window => {
+                    model.temp_settings.show_feedback_window = !model.temp_settings.show_feedback_window;
+                    model.panel_dirty = true;
+                },
+                .show_plugin_ui => {
+                    model.temp_settings.show_plugin_ui = !model.temp_settings.show_plugin_ui;
+                    model.panel_dirty = true;
+                },
+                .manual_routing => {
+                    model.temp_settings.manual_routing = !model.temp_settings.manual_routing;
+                    model.panel_dirty = true;
+                },
+                .log_to_file => {
+                    model.temp_settings.log_to_file = !model.temp_settings.log_to_file;
+                    model.panel_dirty = true;
+                },
+                .start_suspended => {
+                    model.temp_settings.start_suspended = !model.temp_settings.start_suspended;
+                    model.panel_dirty = true;
+                },
+                .auto_insert_modules => {
+                    model.temp_settings.auto_insert_modules = !model.temp_settings.auto_insert_modules;
+                    model.panel_dirty = true;
+                },
+                .auto_insert_bypassed => {
+                    model.temp_settings.auto_insert_bypassed = !model.temp_settings.auto_insert_bypassed;
+                    model.panel_dirty = true;
+                },
+                .auto_reorder_modules => {
+                    model.temp_settings.auto_reorder_modules = !model.temp_settings.auto_reorder_modules;
+                    model.panel_dirty = true;
+                },
                 // default_XXX fields trigger mode change, don't toggle in model
                 .default_INPUT, .default_GATE, .default_COMP, .default_EQ, .default_OUTPT => {},
                 // language and preferred_module_order are not toggleable
                 else => {},
             }
-            // Note: toggle does not set dirty flag, only update_val does
         }
     }
 
@@ -204,9 +235,28 @@ const ToggleCmd = struct {
                     // Update model
                     self.onModelOnly(model);
 
-                    // Verify panel is still in settings mode
-                    // Note: toggle does not set dirty flag, only update_val does
-                    return sut.globals.state.current_mode == initial_mode;
+                    // Verify panel is still open and state is correct
+                    if (sut.globals.settings_panel) |panel| {
+                        // Check that the specific field was toggled correctly
+                        const field_matches = switch (field) {
+                            .show_startup_message => panel.temp_settings.show_startup_message == model.temp_settings.show_startup_message,
+                            .show_feedback_window => panel.temp_settings.show_feedback_window == model.temp_settings.show_feedback_window,
+                            .show_plugin_ui => panel.temp_settings.show_plugin_ui == model.temp_settings.show_plugin_ui,
+                            .manual_routing => panel.temp_settings.manual_routing == model.temp_settings.manual_routing,
+                            .log_to_file => panel.temp_settings.log_to_file == model.temp_settings.log_to_file,
+                            .start_suspended => panel.temp_settings.start_suspended == model.temp_settings.start_suspended,
+                            .auto_insert_modules => panel.temp_settings.auto_insert_modules == model.temp_settings.auto_insert_modules,
+                            .auto_insert_bypassed => panel.temp_settings.auto_insert_bypassed == model.temp_settings.auto_insert_bypassed,
+                            .auto_reorder_modules => panel.temp_settings.auto_reorder_modules == model.temp_settings.auto_reorder_modules,
+                            // Non-toggleable fields (language, preferred_module_order)
+                            else => true,
+                        };
+
+                        return sut.globals.state.current_mode == initial_mode and
+                            panel.dirty == model.panel_dirty and
+                            field_matches;
+                    }
+                    return false;
                 },
             }
         }
@@ -336,9 +386,13 @@ const SaveCmd = struct {
         // Update model
         self.onModelOnly(model);
 
-        // Verify panel is closed and mode returned to fx_ctrl
-        return sut.globals.settings_panel == null and
-            sut.globals.state.current_mode == .fx_ctrl;
+        // Verify panel is closed, mode returned to fx_ctrl, and preferences were saved
+        if (sut.globals.settings_panel != null) return false;
+        if (sut.globals.state.current_mode != .fx_ctrl) return false;
+
+        // Verify that preferences match what we expect from the model
+        const rv = std.meta.eql(sut.globals.preferences, model.preferences);
+        return rv;
     }
 };
 
@@ -376,7 +430,7 @@ const CancelCmd = struct {
     }
 };
 
-test "settings - open and close with save" {
+fn settingsStatefulTest(_: void, input: []const u8) !void {
     var g_teardown = try test_setup(testing.allocator);
     defer g_teardown.teardown();
 
@@ -385,111 +439,93 @@ test "settings - open and close with save" {
     // Initialize MIDI output for the test
     globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
 
-    // Because Globals.defaults sets mode to suspended, we need to change to fx_ctrl
+    // Initialize control surface
+    _ = @import("../csurf/control_surface.zig").init(0, 0, null);
+
+    // Set initial mode to fx_ctrl
     globals.state.current_mode = .fx_ctrl;
 
-    // Initially no settings panel
-    try testing.expect(globals.settings_panel == null);
+    // Get resource path for system initialization
+    // const resource_path = try getTestConfigPath(testing.allocator);
+    // defer testing.allocator.free(resource_path);
 
-    // Open settings
-    settingsActions(globals, .open);
-    try testing.expect(globals.settings_panel != null);
-    try testing.expect(globals.state.current_mode == .settings);
+    // Allocate and copy fuzz data
+    const fuzz_data = testing.allocator.alloc(u8, input.len) catch return error.SkipZigTest;
+    defer testing.allocator.free(fuzz_data);
+    @memcpy(fuzz_data, input);
 
-    // Make a change
-    settingsActions(globals, .{ .update_val = .{ .bool_val = .{ .field = .show_startup_message, .val = true } } });
-    try testing.expect(globals.settings_panel.?.dirty);
-    try testing.expect(globals.settings_panel.?.temp_settings.show_startup_message == true);
+    // Initialize PRNG with fuzz data
+    var prng = FinitePrng.init(fuzz_data);
+    var random = prng.random();
 
-    // Save
-    settingsActions(globals, .save);
-    try testing.expect(globals.settings_panel == null);
-    try testing.expect(globals.state.current_mode == .fx_ctrl);
-    try testing.expect(globals.preferences.show_startup_message == true);
+    // Create command instances
+    var openCmd = OpenCmd{};
+    var saveCmd = SaveCmd{};
+    var cancelCmd = CancelCmd{};
+    var toggleCmd = ToggleCmd{};
+
+    // Create commands array
+    const commands = [_]Command(Model, System){
+        Command(Model, System).init(&openCmd),
+        Command(Model, System).init(&saveCmd),
+        Command(Model, System).init(&cancelCmd),
+        Command(Model, System).init(&toggleCmd),
+    };
+
+    // Create command sequence
+    var cmd_seq = CommandList(Model, System).init(
+        &commands,
+        &random,
+        50,
+        testing.allocator,
+    ) catch |err| {
+        if (err == FinitePrng.FinitePrngErr.OutOfEntropy) {
+            std.debug.print("OutOfEntropy during CommandList.init\n", .{});
+            return;
+        }
+        return err;
+    };
+    defer cmd_seq.deinit(testing.allocator);
+
+    // Initialize model and system
+    var model = try Model.init(globals);
+    defer model.deinit();
+
+    var system = try System.init(globals, "");
+
+    // Run stateful test
+    const rv = assertStateful(
+        Model,
+        System,
+        &cmd_seq,
+        &model,
+        &system,
+        .{ .verbose = true },
+    ) catch |err| {
+        if (err == FinitePrng.FinitePrngErr.OutOfEntropy) {
+            // Note: We can't access the internal command count directly from CommandList
+            // The verbose flag in assertStateful will print details during execution
+            return;
+        }
+        return err;
+    };
+
+    if (rv) |failure| {
+        std.debug.print("\nFailure details: {any}\n", .{failure});
+        return error.TestFailed;
+    }
+
+    try testing.expect(rv == null);
 }
 
-test "settings - open and close with cancel" {
-    var g_teardown = try test_setup(testing.allocator);
-    defer g_teardown.teardown();
+test "settings stateful - with random bytes" {
+    var seed_prng = std.Random.DefaultPrng.init(0x8BBE022C870AF654);
+    var random_bytes: [4096]u8 = undefined;
+    seed_prng.random().bytes(&random_bytes);
 
-    const globals = g_teardown.globals;
-
-    // Initialize MIDI output for the test
-    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
-
-    // Because Globals.defaults sets mode to suspended, we need to change to fx_ctrl
-    globals.state.current_mode = .fx_ctrl;
-
-    const initial_value = globals.preferences.show_startup_message;
-
-    // Open settings
-    settingsActions(globals, .open);
-    try testing.expect(globals.settings_panel != null);
-
-    // Make a change
-    settingsActions(globals, .{ .update_val = .{ .bool_val = .{ .field = .show_startup_message, .val = !initial_value } } });
-    try testing.expect(globals.settings_panel.?.temp_settings.show_startup_message == !initial_value);
-
-    // Cancel
-    settingsActions(globals, .cancel);
-    try testing.expect(globals.settings_panel == null);
-    try testing.expect(globals.state.current_mode == .fx_ctrl);
-    try testing.expect(globals.preferences.show_startup_message == initial_value);
+    try settingsStatefulTest({}, &random_bytes);
 }
 
-test "settings - scroll through fields" {
-    var g_teardown = try test_setup(testing.allocator);
-    defer g_teardown.teardown();
-
-    const globals = g_teardown.globals;
-
-    // Initialize MIDI output for the test
-    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
-
-    // Because Globals.defaults sets mode to suspended, we need to change to fx_ctrl
-    globals.state.current_mode = .fx_ctrl;
-
-    // Open settings
-    settingsActions(globals, .open);
-    try testing.expect(globals.settings_panel != null);
-
-    const panel = &globals.settings_panel.?;
-    try testing.expect(panel.scroll_position_rel == 0);
-
-    // Scroll forward
-    settingsActions(globals, .{ .scroll = 10 });
-    try testing.expect(panel.scroll_position_abs == 10);
-
-    // Scroll backward
-    settingsActions(globals, .{ .scroll = 5 });
-    try testing.expect(panel.scroll_position_abs == 5);
+test settingsStatefulTest {
+    try std.testing.fuzz({}, settingsStatefulTest, .{});
 }
-
-test "settings - toggle boolean fields" {
-    var g_teardown = try test_setup(testing.allocator);
-    defer g_teardown.teardown();
-
-    const globals = g_teardown.globals;
-
-    // Initialize MIDI output for the test
-    globals.m_midi_out = reaper.CreateMIDIOutput(0, false, null);
-
-    // Because Globals.defaults sets mode to suspended, we need to change to fx_ctrl
-    globals.state.current_mode = .fx_ctrl;
-
-    // Open settings
-    settingsActions(globals, .open);
-    const panel = &globals.settings_panel.?;
-
-    // Position on show_startup_message (index 1)
-    panel.scroll_position_rel = 1;
-    const initial_value = panel.temp_settings.show_startup_message;
-
-    // Toggle
-    settingsActions(globals, .toggle);
-    try testing.expect(panel.temp_settings.show_startup_message == !initial_value);
-}
-
-// TODO: Property-based fuzzing test needs debugging
-// assertStateful returns null - requires further investigation of zlowcheck usage
-// The unit tests above provide comprehensive coverage of settings mode functionality

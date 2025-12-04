@@ -69,7 +69,10 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                         .auto_insert_bypassed,
                         .auto_reorder_modules,
                         .preferred_module_order,
-                        => _ = panel.temp_settings.toggleField(field),
+                        => {
+                            const toggled = panel.temp_settings.toggleField(field);
+                            if (toggled) panel.dirty = true;
+                        },
                         .default_INPUT,
                         .default_GATE,
                         .default_COMP,
