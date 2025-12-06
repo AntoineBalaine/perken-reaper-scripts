@@ -420,3 +420,274 @@ Tasks must be completed in order because:
 - Task 5 is independent but related
 - Task 6 depends on Task 3 (needs to know new path structure)
 - Task 7 depends on all previous tasks (validates everything works)
+
+---
+
+## Phase 2 Implementation Tasks - Preset UI (Load/Save)
+
+### Task Breakdown (In Order)
+
+#### 1. Implement Preset Browser UI
+
+**Files to modify**: New file `src/preset_browser.zig`, possibly `src/fx_sel_panel.zig` or similar for reference
+
+- Study existing FX browser implementation to understand the pattern
+- Create preset browser data structure to track:
+  - Current navigation state (which FX is selected, list of mappings)
+  - Selected mapping
+  - Module filter (which module we're browsing)
+- Implement directory listing function that reads `maps/<MODULE>/<fx_name>/` to get available mappings
+- Create ImGui UI that displays:
+  - Module selection (COMP, EQ, INPUT, OUTPT, GATE)
+  - FX list for selected module
+  - Mapping list for selected FX
+  - Navigation breadcrumbs (Module > FX > Mapping)
+- Implement encoder + MIDI button controls:
+  - Encoder: scroll through current list
+  - Track buttons: quick selection
+  - Module buttons: filter by module type
+  - Mode button: navigate up/back
+  - Preset button: confirm selection
+
+#### 2. Add Preset Selection Logic
+
+**Files to modify**: `src/preset_browser.zig`, `src/statemachine.zig`, integration with actions
+
+- Implement `applyPreset()` function that:
+  - Takes selected FX name, module, and mapping filepath
+  - Checks if selected FX matches current track FX for that module
+  - If match: replace mapping in console state, keep host FX chain untouched
+  - If no match: assign new FX to module and load mapping
+- Add action for preset selection to dispatch system
+- Update state machine to handle preset selection events
+- Integrate with REAPER API for FX assignment when needed
+
+#### 3. Console1 Button Mapping
+
+**Files to modify**: `src/midi_input.zig` or MIDI handling files, `src/actions.zig`
+
+- Map Preset button to open preset browser (load mode)
+- Map Mode+Preset button combination to open save preset dialog
+- Add MIDI input handling for new button combinations
+- Create actions for:
+  - `OpenPresetBrowser` - opens browser in load mode
+  - `OpenSavePresetDialog` - opens save dialog
+- Wire actions through dispatch system
+
+#### 4. Implement Save Preset UI
+
+**Files to modify**: New file `src/save_preset_dialog.zig` or add to `src/preset_browser.zig`
+
+- Create save dialog UI that shows:
+  - List of existing mappings for current FX (read from `maps/<MODULE>/<fx_name>/`)
+  - Text input field for mapping name (focused, pre-filled with "default")
+  - Save button
+  - Cancel button
+- No directory navigation - only show current FX mappings
+- Implement text input handling with ImGui
+- Connect to MapStore `saveToFile()` with user-provided name
+
+#### 5. Add Overwrite Protection
+
+**Files to modify**: `src/save_preset_dialog.zig`
+
+- Before saving, check if mapping file already exists at path
+- If exists, show confirmation popup:
+  - Message: "Mapping '<name>' already exists. Overwrite?"
+  - Yes/No buttons
+- If user confirms, proceed with save
+- If user cancels, return to save dialog with text input still focused
+
+#### 6. Integration and Testing
+
+**Files to modify**: Various integration points
+
+- Integrate preset browser with main UI loop
+- Ensure preset browser opens on Preset button press
+- Ensure save dialog opens on Mode+Preset press
+- Test encoder and button navigation
+- Test mapping selection and application
+- Test save workflow with overwrite protection
+- Add tests for preset browser logic
+- Add tests for preset selection logic
+
+### Dependencies
+
+Tasks must be completed in order because:
+- Task 2 depends on Task 1 (selection logic needs browser UI structure)
+- Task 3 can be done in parallel with Tasks 1-2 (independent button mapping)
+- Task 4 depends on Task 1 (reuses browser pattern and data structures)
+- Task 5 depends on Task 4 (overwrite protection is part of save workflow)
+- Task 6 depends on all previous tasks (integration validates everything)
+
+---
+
+## Phase 3 Implementation Tasks - Mapping Panel UI Improvements
+
+### Task Breakdown (In Order)
+
+#### 1. Remove Auto-Open Behavior
+
+**Files to modify**: Search codebase for mapping panel triggers
+
+- Use Grep to find where mapping panel is automatically opened
+- Remove or comment out auto-open logic
+- Ensure mapping panel only opens on explicit user action
+
+#### 2. Make Mapping Panel a Floating Window
+
+**Files to modify**: `src/statemachine.zig`, `src/mapping_panel.zig` or equivalent
+
+- Add `mapping_panel_state` to Globals:
+  ```zig
+  mapping_panel_state: ?struct {
+      visible: bool,
+      // ... other window-specific state
+  } = null,
+  ```
+- Update mapping panel rendering code to use floating ImGui window (not docked)
+- Check `mapping_panel_state` existence to determine if window should be displayed
+- Add close button to window that sets `mapping_panel_state` to null
+
+#### 3. Add Mapping Name Selection to Panel
+
+**Files to modify**: `src/mapping_panel.zig`
+
+- Add dropdown or list widget to select active mapping for current FX
+- Call `MapStore.getMappingNames()` to populate list
+- Display current active mapping (from `MappingState.target_mapping_filepath`)
+- When user selects different mapping:
+  - Update `MappingState.target_mapping_filepath`
+  - Load selected mapping into panel for editing
+
+#### 4. Add Manual Trigger for Mapping Panel
+
+**Files to modify**: `src/fx_ctrl_panel.zig` or `src/settings_panel.zig`, `src/actions.zig`
+
+- Add button in FX Control panel or Settings panel to open mapping panel
+- Create action `OpenMappingPanel` that:
+  - Creates `mapping_panel_state` in Globals if it does not exist
+  - Sets `visible` to true
+- Wire action through dispatch system
+- Optionally add keyboard shortcut or MIDI button mapping
+
+#### 5. Testing and Integration
+
+**Files to modify**: Various
+
+- Verify mapping panel no longer auto-opens
+- Test opening mapping panel via new manual trigger
+- Test floating window behavior (movable, closable)
+- Test mapping selection dropdown
+- Test switching between mappings in panel
+- Verify state persistence while window is open
+
+### Dependencies
+
+Tasks can be completed in order or partially in parallel:
+- Task 1 is independent (just removal)
+- Task 2 is mostly independent but should be done before Task 3
+- Task 3 depends on Task 2 (needs floating window structure)
+- Task 4 can be done in parallel with Tasks 2-3
+- Task 5 depends on all previous tasks
+
+---
+
+## Phase 4 Implementation Tasks - Polish and Error Handling
+
+### Task Breakdown (In Order)
+
+#### 1. Fix + Button Crash
+
+**Files to modify**: `src/ButtonsBar.zig:71`
+
+- Read the code at the crash location
+- Identify the cause of the crash
+- Implement proper bounds checking or null handling
+- Test the fix thoroughly
+
+#### 2. Implement MIDI Learn
+
+**Files to modify**: `src/mapping_panel.zig`, MIDI input handling
+
+Note: This is already tracked in existing TODO. Reference existing MIDI learn design if available.
+
+- Add MIDI learn mode toggle in mapping panel
+- When enabled, capture incoming MIDI CC messages
+- Map captured CC to selected parameter in mapping
+- Update mapping data structure with new assignment
+- Provide visual feedback during MIDI learn
+
+#### 3. Missing Files UI
+
+**Files to modify**: `src/mapping_panel.zig` or main UI
+
+- When MapStore returns null for a mapping (file not found), display error message
+- Show which mappings are missing:
+  - Module name
+  - FX name
+  - Mapping name
+- Provide options:
+  - Create new mapping
+  - Choose different mapping
+  - Dismiss error
+- Consider adding error list to UI if multiple mappings are missing
+
+#### 4. Preset Browser Improvements
+
+**Files to modify**: `src/preset_browser.zig`
+
+- Add delete functionality:
+  - Right-click or dedicated button to delete mapping
+  - Show confirmation dialog before deletion
+  - Remove file from disk
+  - Update browser display
+- Display enhancements:
+  - Show mapping metadata (date modified, version, etc.)
+  - Add search/filter functionality
+  - Improve visual hierarchy
+  - Add icons or indicators for different mapping types
+
+#### 5. Testing and Polish
+
+**Files to modify**: Various
+
+- Test all error handling paths
+- Verify missing file UI appears correctly
+- Test delete functionality in preset browser
+- Polish visual appearance of all UIs
+- Add tooltips where helpful
+- Ensure consistent styling across all new UI elements
+
+### Dependencies
+
+Tasks have some flexibility in order:
+- Task 1 is independent (specific bug fix)
+- Task 2 is independent (MIDI learn feature)
+- Task 3 should be done after Phase 1 (needs optional Comp handling)
+- Task 4 should be done after Phase 2 (needs preset browser)
+- Task 5 depends on all previous tasks (final polish)
+
+---
+
+## Implementation Summary
+
+### Phase Overview
+
+1. **Phase 1 (Foundation)**: 7 tasks - MapStore refactor with nested unmanaged hashmaps, file versioning, directory structure
+2. **Phase 2 (Preset UI)**: 6 tasks - Preset browser, save dialog, button mapping, overwrite protection
+3. **Phase 3 (Panel Improvements)**: 5 tasks - Remove auto-open, floating window, mapping selection, manual trigger
+4. **Phase 4 (Polish)**: 5 tasks - Bug fixes, MIDI learn, error handling, browser enhancements
+
+### Total Estimated Tasks: 23
+
+### Critical Milestones
+
+- **Milestone 1**: Phase 1 complete - Multiple mappings per FX working, all tests passing
+- **Milestone 2**: Phase 2 complete - Users can browse and save presets via Console1
+- **Milestone 3**: Phase 3 complete - Mapping panel is fully functional floating window
+- **Milestone 4**: Phase 4 complete - All polish and error handling complete
+
+### Note on Phase 5 (Channel Strips)
+
+Phase 5 (Channel Strip Presets) is LOW PRIORITY and not detailed here. Because channel strips build on the preset system from Phases 1-2, they should only be implemented after those phases are stable and well-tested.
