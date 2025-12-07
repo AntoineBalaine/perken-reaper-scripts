@@ -3,6 +3,7 @@
 - single fx mode - would allow for more flexibility.
 - save preset?
 - display extended controls in GUI (user’s in the blind about features)
+- implement backwards compat’ for mapping versions
 # BUGS
 - jog grid lines
 - meters

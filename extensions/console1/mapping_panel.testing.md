@@ -6,46 +6,21 @@
 
 #### File Format Versioning
 
-- Test reading mapping files with version field
-- Test writing mapping files with version field
-- Test rejecting files with unsupported version numbers
-- Test handling missing version field (backward compatibility consideration)
-
-#### MapStore Data Structure
-
-- Test `FxMaps` initialization with allocator
-- Test `FxMaps.deinit()` properly frees nested hashmap
-- Test MapStore initialization creates empty FxMaps for each module
-- Test MapStore.deinit() properly cleans up all nested structures
-- Test memory leak detection (no leaks after deinit)
-
-#### File Path Handling
-
-- Test `getMap()` constructs correct directory-based paths
-- Test `saveToFile()` creates directory structure if it does not exist
-- Test `saveToFile()` writes to correct directory-based path
 - Test `sanitizeFxName()` handles special characters in FX names
-- Test path construction with various FX name formats
+- Test handling FX names with special characters (slashes, colons, etc.)
 
 #### New MapStore Methods
 
 - Test `getMappingNames()` returns empty list for FX with no mappings
 - Test `getMappingNames()` returns correct list of mapping files
-- Test `setPreferredMapping()` updates preferred_mapping field
-- Test `getPreferredMapping()` returns correct filepath
 - Test `get()` returns preferred mapping when no filepath specified
 - Test `get()` returns specific mapping when filepath provided
 - Test `get()` returns null for missing files (optional Comp handling)
-- Test lazy loading still works with new structure
 - Test caching works correctly with multiple mappings per FX
 
 #### Edge Cases
 
 - Test handling FX with zero mappings
-- Test handling FX with many mappings (10+)
-- Test handling very long FX names
-- Test handling FX names with special characters (slashes, colons, etc.)
-- Test concurrent access (if applicable)
 - Test disk full scenarios (save failures)
 - Test corrupted mapping files (parse errors)
 
@@ -54,17 +29,8 @@
 #### Full Workflow Tests
 
 - Test loading default mapping for new FX
-- Test saving mapping creates correct file structure
 - Test loading saved mapping reads correct data
-- Test switching between multiple mappings for same FX
 - Test preferred mapping is used when loading FX
-- Test MapStore survives across init/deinit cycles
-
-#### fs_helpers Integration
-
-- Test embedded defaults are copied to correct directory structure
-- Test `ensureConfigPath()` creates all necessary directories
-- Test resource embedding works with new subdirectory structure
 
 ---
 
@@ -258,8 +224,6 @@ Because the codebase uses zlowcheck for property-based testing, we should add pr
 - Property: Any mapping saved can be loaded back with identical data
 - Property: Preferred mapping is always in the mappings list
 - Property: `getMappingNames()` always returns valid filepaths
-- Property: Deinit after init leaves no memory leaks
-- Property: File system operations are idempotent (save twice = save once)
 
 #### State Machine Properties
 

@@ -79,4 +79,6 @@ test {
     _ = @import("tests/mode_switch_tests.zig");
     _ = @import("tests/settings_pbt.zig");
     _ = @import("tests/track_validation_pbt.zig");
+    _ = @import("mappings.zig");
+    _ = @import("mapping_browser.zig");
 }

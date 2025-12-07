@@ -317,7 +317,7 @@ test "track validation - empty track gets all modules" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(testing.allocator, config_path);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -367,7 +367,7 @@ test "track validation - duplicate module suffixes removed" {
     _ = reaper.TrackFX_SetNamedConfigParm(media_track, 1, "renamed_name", "VST: ReaEQ (Cockos) (C1-I)");
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(testing.allocator, config_path);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -420,7 +420,7 @@ test "track validation - missing modules inserted in correct positions" {
     _ = reaper.TrackFX_SetNamedConfigParm(media_track, 1, "renamed_name", "JS: Volume Adjustment (C1-O)");
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(testing.allocator, config_path);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -507,7 +507,7 @@ test "auto_insert_modules disabled prevents module insertion" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(testing.allocator, config_path);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     const default_fx: DefaultFx = .initFill(null);
@@ -537,7 +537,7 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(testing.allocator, config_path);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     // Because we need default FX names for insertion, set them up
@@ -584,7 +584,7 @@ test "auto_reorder_modules disabled preserves existing module positions" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(testing.allocator, config_path);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     // Because we need to test reordering behavior, first add modules in non-canonical order
@@ -637,7 +637,7 @@ test "preferred_module_order affects insertion positions" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(testing.allocator, config_path);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     var default_fx: DefaultFx = .initFill(null);

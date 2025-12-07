@@ -220,3 +220,32 @@ fn ensureFile(path: []const u8, contents: []const u8) !void {
     defer file.close();
     try file.writeAll(contents);
 }
+
+pub fn sanitizeFxName(buf: *[512:0]u8, fx_name: []const u8) ![:0]const u8 {
+    const base_name = try std.fmt.bufPrintZ(buf, "{s}", .{fx_name});
+    _ = std.mem.replace(u8, base_name, "/", "_", buf);
+    return base_name;
+}
+
+test "sanitizeFxName" {
+    const testing = std.testing;
+
+    const TestCase = struct {
+        input: []const u8,
+        expected: []const u8,
+    };
+
+    const test_cases = [_]TestCase{
+        .{ .input = "VST: My/Plugin", .expected = "VST: My_Plugin" },
+        .{ .input = "VST: Plugin/With/Many/Slashes", .expected = "VST: Plugin_With_Many_Slashes" },
+        .{ .input = "VST: Some:Plugin/Name", .expected = "VST: Some:Plugin_Name" },
+        .{ .input = "", .expected = "" },
+    };
+
+    var buf: [512:0]u8 = undefined;
+
+    for (test_cases) |case| {
+        const result = try sanitizeFxName(&buf, case.input);
+        try testing.expectEqualStrings(case.expected, result);
+    }
+}

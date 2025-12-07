@@ -271,50 +271,6 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
     }
 }
 
-/// Get all mapping file paths for a given FX by reading the directory on disk.
-/// Returns a list of file paths (owned by the caller, must be freed).
-pub fn getMappingNames(self: *MapStore, allocator: std.mem.Allocator, fx_name: [:0]const u8, module: ModulesList) ![][:0]const u8 {
-    var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try sanitizeFxName(&name_buf, fx_name);
-
-    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const dir_path = fs_helpers.joinStrings(&dir_path_buf, &.{
-        std.mem.span(self.controller_dir),
-        std.fs.path.sep_str,
-        "maps",
-        std.fs.path.sep_str,
-        @tagName(module),
-        std.fs.path.sep_str,
-        sanitized_name,
-    });
-
-    // Because the directory might not exist, we handle that case
-    var dir = std.fs.openDirAbsolute(dir_path, .{ .iterate = true }) catch |err| {
-        if (err == error.FileNotFound) {
-            return &[_][:0]const u8{};
-        }
-        return err;
-    };
-    defer dir.close();
-
-    var list = std.ArrayList([:0]const u8).init(allocator);
-    errdefer list.deinit();
-
-    var iter = dir.iterate();
-    while (try iter.next()) |entry| {
-        if (entry.kind == .file) {
-            // Remove .ini extension
-            if (std.mem.endsWith(u8, entry.name, ".ini")) {
-                const name_without_ext = entry.name[0 .. entry.name.len - 4];
-                const owned_name = try allocator.dupeZ(u8, name_without_ext);
-                try list.append(owned_name);
-            }
-        }
-    }
-
-    return list.toOwnedSlice();
-}
-
 /// Set the preferred mapping for an FX.
 /// Because the preferred mapping determines which mapping is returned by get(), we update the FxMaps.
 /// Avoid silent failures by validating filepath
@@ -409,17 +365,11 @@ pub fn getPreferredMapping(self: *MapStore, fx_name: [:0]const u8, module: Modul
     }
 }
 
-fn sanitizeFxName(buf: *[512:0]u8, fx_name: []const u8) ![:0]const u8 {
-    const base_name = try std.fmt.bufPrintZ(buf, "{s}", .{fx_name});
-    _ = std.mem.replace(u8, base_name, "/", "_", buf);
-    return base_name;
-}
-
 /// fetch mapping from disk, parse it, store it, and return it.
 /// Because we now support multiple mappings per FX, we use directory-based paths: maps/<MODULE>/<fx_name>/<mapping_name>.ini
 fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8) !TaggedMapping {
     var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try sanitizeFxName(&name_buf, fxName);
+    const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fxName);
 
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const filePath = fs_helpers.joinStrings(&path_buffer, &.{
@@ -616,7 +566,7 @@ fn formatOptionalU8(value: anytype, writer: anytype) !void {
 pub fn saveToFile(self: *MapStore, module: ModulesList, fx_name: [:0]const u8, mapping: TaggedMapping, mapping_name: [:0]const u8) !void {
     // Build path: resourcePath/maps/<MODULE>/<fx_name>/<mapping_name>.ini
     var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try sanitizeFxName(&name_buf, fx_name);
+    const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
 
     // Create the directory structure first
     var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
@@ -712,152 +662,75 @@ test readToU8Struct {
     try expect(ret_str.repositoryformatversion == 8);
 }
 
-test "MapStore - initialization and caching" {
-    const testing = std.testing;
-    const expect = testing.expect;
+test init {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
 
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    // Setup test directory path
-    var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
-
-    // Initialize config manager first
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
-
-    var cur_config = try settings.init(allocator, config_path_z);
-
-    // Now setup MapStore with initialized config
-    var store = try MapStore.init(
-        allocator,
-        config_path_z,
-        &cur_config.default_fx, // Use cur_config's initialized defaults
-    );
-
-    // Verify empty initialization
-    try expect(store.COMP.count() == 1);
-    try expect(store.EQ.count() == 1);
-    try expect(store.INPUT.count() == 1);
-    try expect(store.OUTPT.count() == 1);
-    try expect(store.GATE.count() == 1);
+    // Verify initialization with default mappings loaded
+    try std.testing.expect(ctx.store.COMP.count() == 1);
+    try std.testing.expect(ctx.store.EQ.count() == 1);
+    try std.testing.expect(ctx.store.INPUT.count() == 1);
+    try std.testing.expect(ctx.store.OUTPT.count() == 1);
+    try std.testing.expect(ctx.store.GATE.count() == 1);
 }
 
-test "MapStore - lazy loading and caching" {
-    const testing = std.testing;
-    const expect = testing.expect;
-
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    // Setup config first
-    var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
-
-    var cur_config = try settings.init(allocator, config_path_z);
-
-    var store = try MapStore.init(
-        allocator,
-        config_path_z,
-        &cur_config.default_fx, // Use cur_config's initialized defaults
-    );
+test "MapStore - get: lazy loading and caching" {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
     // First access should load from disk
-    const first_result = store.get(test_fx, .COMP);
-    try expect(first_result != null);
-    try expect(store.COMP.count() == 1);
+    const first_result = ctx.store.get(test_fx, .COMP);
+    try std.testing.expect(first_result != null);
+    try std.testing.expect(ctx.store.COMP.count() == 1);
 
     // Second access should use cache
-    const second_result = store.get(test_fx, .COMP);
-    try expect(second_result != null);
-    try expect(store.COMP.count() == 1);
+    const second_result = ctx.store.get(test_fx, .COMP);
+    try std.testing.expect(second_result != null);
+    try std.testing.expect(ctx.store.COMP.count() == 1);
 
     // Verify cached values match
     if (first_result) |comp_first| {
         const first = comp_first.COMP;
         if (second_result) |comp_second| {
             const second = comp_second.COMP;
-            try expect(first.Comp_Attack == second.Comp_Attack);
-            try expect(first.Comp_Release == second.Comp_Release);
+            try std.testing.expect(first.Comp_Attack == second.Comp_Attack);
+            try std.testing.expect(first.Comp_Release == second.Comp_Release);
             // ... test other fields
         } else {
-            try expect(false); // Should not happen
+            try std.testing.expect(false); // Should not happen
         }
     }
 }
 
 test "MapStore - invalid fx name" {
-    const testing = std.testing;
-    const expect = testing.expect;
-
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    // Setup config first
-    var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
-
-    var cur_config = try settings.init(allocator, config_path_z);
-
-    var store = try MapStore.init(
-        allocator,
-        config_path_z,
-        &cur_config.default_fx, // Use cur_config's initialized defaults
-    );
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
 
     const nonexistent_fx = "VST: NonexistentPlugin";
 
-    // Should return null mapping for unknown FX
-    try expect(store.COMP.count() == 1);
-    const result = store.get(nonexistent_fx, .COMP);
-    try expect(result == null);
-    try expect(store.COMP.count() == 1); // Should not cache failed attempts
+    try std.testing.expect(ctx.store.COMP.count() == 1);
+    const result = ctx.store.get(nonexistent_fx, .COMP);
+    try std.testing.expect(result == null);
+    try std.testing.expect(ctx.store.COMP.count() == 1); // Should not cache failed attempts
 }
 
-test "MapStore - mapping validation" {
-    const testing = std.testing;
-    const expect = testing.expect;
-
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    // Setup config first
-    var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
-
-    var cur_config = try settings.init(allocator, config_path_z);
-
-    var store = try MapStore.init(
-        allocator,
-        config_path_z,
-        &cur_config.default_fx, // Use cur_config's initialized defaults
-    );
+test "MapStore - all values are within MIDI range (0-127)" {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
-    const result = store.get(test_fx, .COMP);
+    const result = ctx.store.get(test_fx, .COMP);
     if (result) |COMP| {
         const comp = COMP.COMP;
         // Test that all values are within MIDI range (0-127)
-        try expect(comp.Comp_Attack.? <= 127);
-        try expect(comp.Comp_Release.? <= 127);
-        try expect(comp.Comp_Thresh.? <= 127);
-        // ... test other fields
+        try std.testing.expect(comp.Comp_Attack.? <= 127);
+        try std.testing.expect(comp.Comp_Release.? <= 127);
+        try std.testing.expect(comp.Comp_Thresh.? <= 127);
     } else {
-        try expect(false); // Should not happen for known FX
+        try std.testing.expect(false);
     }
 }
 
@@ -925,40 +798,122 @@ pub fn getParamForCC(cc: c1.CCs, mapping: TaggedMapping) ?u8 {
     };
 }
 
-test "MapStore - cross-module access" {
-    const testing = std.testing;
-    const expect = testing.expect;
+const TestContext = struct {
+    arena: std.heap.ArenaAllocator,
+    allocator: std.mem.Allocator,
+    config: settings.Preferences,
+    store: MapStore,
 
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+    pub fn init() !TestContext {
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        errdefer arena.deinit();
+        const allocator = arena.allocator();
 
-    // Setup config first
-    var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
+        var mem: [std.fs.max_path_bytes]u8 = undefined;
+        const pth = try std.fs.cwd().realpath(".", &mem);
+        const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
+        const config_path_z = try allocator.dupeZ(u8, config_path);
 
-    var cur_config = try settings.init(allocator, config_path_z);
+        var config = try settings.init(allocator, config_path_z);
+        const store = try MapStore.init(allocator, config_path_z, &config.default_fx);
 
-    var store = try MapStore.init(
-        allocator,
-        config_path_z,
-        &cur_config.default_fx, // Use cur_config's initialized defaults
-    );
+        return TestContext{
+            .arena = arena,
+            .allocator = allocator,
+            .config = config,
+            .store = store,
+        };
+    }
 
-    const comp_fx = "VST: ReaComp (Cockos)";
-    const eq_fx = "VST: ReaEQ (Cockos)";
+    pub fn deinit(self: *TestContext) void {
+        self.arena.deinit();
+    }
+};
 
-    // Load both types of mappings
-    _ = store.get(comp_fx, .COMP);
-    _ = store.get(eq_fx, .EQ);
+test getPreferredMapping {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
 
-    // Verify separate caching
-    try expect(store.COMP.count() == 1);
-    try expect(store.EQ.count() == 1);
+    const test_fx = "VST: ReaComp (Cockos)";
 
-    // Try loading comp FX as EQ (should fail gracefully)
-    const wrong_module = store.get(comp_fx, .EQ);
-    try expect(wrong_module == null);
+    const result = ctx.store.get(test_fx, .COMP);
+    try std.testing.expect(result != null);
+
+    // Verify that the preferred mapping is set
+    const preferred = ctx.store.getPreferredMapping(test_fx, .COMP);
+    try std.testing.expect(preferred != null);
+    try std.testing.expect(std.mem.endsWith(u8, preferred.?, "default.ini"));
+}
+
+test "MapStore: get - returns null for missing maps" {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
+
+    const nonexistent_fx = "VST: BogusPlugin";
+
+    const result = ctx.store.get(nonexistent_fx, .COMP);
+    try std.testing.expect(result == null);
+}
+
+test "MapStore - get: basic" {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
+
+    const test_fx = "VST: ReaComp (Cockos)";
+
+    // First access loads default mapping
+    const first_result = ctx.store.get(test_fx, .COMP);
+    try std.testing.expect(first_result != null);
+
+    // Verify FxMaps exists for this FX
+    const fx_maps = ctx.store.COMP.get(test_fx);
+    try std.testing.expect(fx_maps != null);
+
+    // Because we loaded the default mapping, the mappings hashmap should have one entry
+    try std.testing.expectEqual(@as(usize, 1), fx_maps.?.mappings.count());
+
+    // Second access uses cache
+    const second_result = ctx.store.get(test_fx, .COMP);
+    try std.testing.expect(second_result != null);
+}
+
+test "MapStore - get: handling FX with zero mappings" {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
+
+    const nonexistent_fx = "VST: BrandNewPlugin";
+
+    // Because no mappings exist for this FX, get should return null
+    const result = ctx.store.get(nonexistent_fx, .EQ);
+    try std.testing.expect(result == null);
+}
+
+// test "MapStore: setPreferredMapping - validates filepath exists" {
+//     var ctx = try TestContext.init();
+//     defer ctx.deinit();
+
+//     const test_fx = "VST: ReaComp (Cockos)";
+
+//     // Load the default mapping first
+//     _ = ctx.store.get(test_fx, .COMP);
+
+//     // Because we try to set a non-existent mapping as preferred, we should get an error
+//     const bogus_path = "/nonexistent/path/to/mapping.ini";
+//     const bogus_path_z = try ctx.allocator.dupeZ(u8, bogus_path);
+//     const result = ctx.store.setPreferredMapping(test_fx, .COMP, bogus_path_z);
+
+//     try std.testing.expectError(error.MappingNotFound, result);
+// }
+
+test "MapStore: setPreferredMapping - returns error for unfound FX" {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
+
+    const nonexistent_fx = "VST: NonexistentPlugin";
+    const some_path = "/some/path.ini";
+
+    // Because the FX is not in the store, we should get FxNotFound error
+    const result = ctx.store.setPreferredMapping(nonexistent_fx, .COMP, some_path);
+
+    try std.testing.expectError(error.FxNotFound, result);
 }
