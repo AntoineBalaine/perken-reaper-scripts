@@ -1,4 +1,3 @@
-const std = @import("std");
 
 pub const reaper = struct { // @import("reaper");
     pub const ACCEL = *opaque {};

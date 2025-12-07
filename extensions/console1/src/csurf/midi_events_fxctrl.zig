@@ -2,29 +2,14 @@ const std = @import("std");
 const reaper = @import("../reaper.zig").reaper;
 const pReaper = @import("../pReaper.zig");
 const MediaTrack = reaper.MediaTrack;
-const c_void = anyopaque;
 const c1 = @import("../c1.zig");
-const c = @cImport({
-    @cDefine("SWELL_PROVIDED_BY_APP", "");
-    @cInclude("csurf/control_surface_wrapper.h");
-    @cInclude("WDL/swell/swell-types.h");
-    @cInclude("WDL/swell/swell-functions.h");
-    @cInclude("WDL/win32_utf8.h");
-    @cInclude("WDL/wdltypes.h");
-    @cInclude("resource.h");
-    @cInclude("csurf/midi_wrapper.h");
-});
 const ModulesList = @import("../statemachine.zig").ModulesList;
 const Globals = @import("../globals.zig").Globals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
-const CONTROLLER_NAME = constants.CONTROLLER_NAME;
 const csurf = @import("control_surface.zig");
 const reaeq = @import("../reaeq.zig");
 const log = std.log.scoped(.csurf);
-const track_list = @import("../tracklist_actions.zig");
-const TrackListAction = track_list.TrackListAction;
-const PgDirection = track_list.PgDirection;
 const TrackList = @import("../fx_ctrl_state.zig").TrackList;
 const utils = @import("../utils.zig");
 const FxCtrlState = @import("../fx_ctrl_state.zig").FxControlState;
@@ -162,8 +147,6 @@ fn u8ToVol(val: u8) f64 {
     pos = reaper.SLIDER2DB(pos); // convert 0-1000 slider position to DB
     return utils.DB2VAL(pos);
 }
-
-const PgChgDirection = enum { Up, Down };
 
 /// set the fx_ctrl UI values
 fn setUIVal(cc: c1.CCs, norm_val: f64, fx_ctrl: *FxCtrlState) void {

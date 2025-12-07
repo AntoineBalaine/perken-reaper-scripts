@@ -1,7 +1,6 @@
 const std = @import("std");
 const reaper = @import("reaper.zig").reaper;
 const MediaTrack = reaper.MediaTrack;
-const MockReaper = @This();
 
 const FxInfo = struct {
     original_name: [:0]const u8,

@@ -1,5 +1,3 @@
-const std = @import("std");
-const Mode = @import("statemachine.zig").Mode;
 pub const ActionId = enum {
     disp_on,
     disp_mode,

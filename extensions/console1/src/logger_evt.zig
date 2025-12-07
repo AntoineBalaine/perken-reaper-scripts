@@ -3,8 +3,6 @@
 const std = @import("std");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
-const ModulesList = statemachine.ModulesList;
-const c1 = @import("c1.zig");
 // const debugconfig = @import("config");
 const logger = @import("logger.zig");
 const Event = logger.Event;

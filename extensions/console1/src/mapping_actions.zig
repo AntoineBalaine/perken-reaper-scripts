@@ -1,8 +1,6 @@
 const std = @import("std");
 const c1 = @import("c1.zig");
 const statemachine = @import("statemachine.zig");
-const Mode = statemachine.Mode;
-const State = statemachine.State;
 const ModulesList = statemachine.ModulesList;
 const Globals = @import("globals.zig").Globals;
 const mappings = @import("mappings.zig");
@@ -189,7 +187,6 @@ pub fn mappingActions(globals: *Globals, map_action: MappingAction) void {
             const mapping_name = if (globals.state.mapping.target_mapping_filepath) |_| blk: {
                 // Extract the mapping name from the filepath (last component without .ini)
                 // For now, just use "default"
-                // CODEREVIEW this needs fixing
                 break :blk "default";
             } else "default";
 

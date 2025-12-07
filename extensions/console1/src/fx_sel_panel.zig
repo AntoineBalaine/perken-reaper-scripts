@@ -1,17 +1,13 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
-const Reaper = @import("reaper.zig");
-const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
 const styles = @import("styles.zig");
 const PushWindowStyle = @import("styles_components.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
 const fx_sel_actions = @import("fx_sel_actions.zig");
-const log = std.log.scoped(.fx_sel_panel);
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
-const FxBrowser = @This();
 
 pub const NAME: [:0]const u8 = "Fx Browser";
 /// last used fx name

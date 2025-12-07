@@ -8,7 +8,6 @@ const c = @cImport({
     @cInclude("csurf/control_surface_wrapper.h");
 });
 const ImGuiLoop = @import("imgui_loop.zig");
-const debugconfig = @import("config");
 const Globals = @import("globals.zig");
 
 pub fn getGlobals() *Globals {
@@ -17,9 +16,7 @@ pub fn getGlobals() *Globals {
 
 const logger = @import("logger.zig");
 const hooks = @import("hooks.zig");
-const log = std.log.scoped(.extension);
 
-const plugin_name = "Perken C1";
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
         .Debug => .debug,
@@ -32,8 +29,6 @@ pub const std_options = std.Options{
 
 // var action_id: c_int = undefined;
 var myCsurf: c.C_ControlSurface = undefined;
-
-var queries_id: c_int = undefined;
 
 /// retrieve user settings
 /// retrieve the controller config

@@ -15,23 +15,15 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
-const ModulesList = @import("../statemachine.zig").ModulesList;
-const Globals = @import("../globals.zig").Globals;
 const getGlobals = @import("../console1_extension.zig").getGlobals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const midi_events = @import("midi_events.zig");
 const log = std.log.scoped(.csurf);
-const fx_ctrl_state = @import("../fx_ctrl_state.zig");
-const TrackList = fx_ctrl_state.TrackList;
-const track_list_actions = @import("../tracklist_actions.zig");
-
-const MIDI_eventlist = @import("../reaper.zig").reaper.MIDI_eventlist;
 
 pub var ignore_notifications = false;
 
 pub var my_csurf: c.C_ControlSurface = undefined;
-var m_buttonstate_lastrun: c.DWORD = 0;
 
 pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     var globals = getGlobals();
@@ -362,8 +354,6 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
 fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, lparam: c.LPARAM) c.LRESULT {
     return c.SendMessage.?(c.GetDlgItem.?(hwnd, idx), msg, wparam, lparam);
 }
-
-const WDL_UTF8_OLDPROCPROP = "WDLUTF8OldProc";
 
 fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.C) c.WDL_DLGRET {
     switch (uMsg) {

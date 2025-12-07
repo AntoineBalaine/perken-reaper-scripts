@@ -52,6 +52,5 @@ pub fn setTrackName(self: *@This(), track_index: usize, name: []const u8) !void 
 
 const std = @import("std");
 const AutomationMode = @import("../transport_actions.zig").AutomationMode;
-const fx_model = @import("fx_model.zig");
 const Track = @import("track_model.zig");
 const StringPool = @import("../utils.zig").StringPool;

@@ -1,8 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const Knobs = @import("components/knob.zig");
-const Knob = Knobs.Knob;
-const Rectangle = @import("components/knob.zig").Rectangle;
 const c1 = @import("c1.zig");
 const WidgetInput = @import("fx_ctrl_actions.zig").WidgetInput;
 const Globals = @import("globals.zig").Globals;
@@ -59,34 +57,7 @@ fn centerWidgetLabel(ctx: imgui.ContextPtr, label: [:0]const u8, max_width: f64)
     }
 }
 // Layout constants
-const knob_size = 40.0;
-// Module-level variables to hold knob values
-// Input section
-var input_gain: f64 = 0.5; // Inpt_Gain
-var input_hicut: f64 = 0.5; // Inpt_HiCut
-var input_locut: f64 = 0.5; // Inpt_LoCut
-
-// Shape section
-var shape_gate: f64 = 0.5; // Shp_Gate
-var shape_release: f64 = 0.5; // Shp_GateRelease
-var shape_hardgate: f64 = 0.5; // Shp_hard_gate
-
-// EQ section
-var eq_lofreq: f64 = 0.5; // Eq_LoFrq
-var eq_logain: f64 = 0.5; // Eq_LoGain
-var eq_lomidfreq: f64 = 0.5; // Eq_LoMidFrq
-var eq_lomidgain: f64 = 0.5; // Eq_LoMidGain
-
-// Compressor section
-var comp_thresh: f64 = 0.5; // Comp_Thresh
-var comp_ratio: f64 = 0.5; // Comp_Ratio
-var comp_attack: f64 = 0.5; // Comp_Attack
-var comp_release: f64 = 0.5; // Comp_Release
-
-// Output section
-var out_drive: f64 = 0.5; // Out_Drive
-var out_vol: f64 = 0.5; // Out_Vol
-var out_pan: f64 = 0.5; // Out_Pan
+const KNOB_SIZE = 40.0;
 
 pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *TranslationStore) !?WidgetInput {
     const mode: Mode = globals.state.current_mode;
@@ -156,7 +127,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transla
         if (try roundButton(.{ ctx, disp_on_display_label, "##" ++ @tagName(c1.CCs.Inpt_disp_on), null, null, null, disp_on_disabled })) {
             rv = .{ .cc = .Inpt_disp_on, .value = 1.0 };
         }
-        try imgui.Dummy(.{ ctx, 0, knob_size * 2 });
+        try imgui.Dummy(.{ ctx, 0, KNOB_SIZE * 2 });
 
         // Center-align the knob
         const gain_key: ?TranslationKey = switch (mode) {
@@ -286,7 +257,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
         {
-            try imgui.Dummy(.{ ctx, 0, knob_size * 0.75 });
+            try imgui.Dummy(.{ ctx, 0, KNOB_SIZE * 0.75 });
 
             // Center-align the knob
             const gate_key: ?TranslationKey = switch (mode) {
@@ -404,7 +375,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
         {
-            try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
+            try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
             const lo_shape = fx_state.values.get(.Eq_lp_shape).?.button;
             const lp_shape_key: ?TranslationKey = switch (mode) {
@@ -571,7 +542,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
         {
-            try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
+            try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
             const hi_shape = fx_state.values.get(.Eq_hp_shape).?.button;
             const hp_shape_key: ?TranslationKey = switch (mode) {
@@ -647,7 +618,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
         {
-            try imgui.Dummy(.{ ctx, knob_size / 2, knob_size / 2 });
+            try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
             // Calculate max width for this column's knobs
             const ratio_key: ?TranslationKey = switch (mode) {
@@ -828,7 +799,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
         const ext_sidechain_disabled = (ext_sidechain_label == null);
         if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {}
         {
-            try imgui.Dummy(.{ ctx, knob_size * 2, knob_size * 2 });
+            try imgui.Dummy(.{ ctx, KNOB_SIZE * 2, KNOB_SIZE * 2 });
             const solo = fx_state.values.get(.Out_solo).?.button;
             const out_solo_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl => .fx_ctrl_Out_solo,

@@ -1,9 +1,3 @@
-const std = @import("std");
-const imgui = @import("reaper_imgui.zig");
-const reaper = @import("reaper.zig").reaper;
-const Theme = @import("theme/Theme.zig");
-const fxParser = @import("fx_parser.zig");
-const styles = @import("styles.zig");
 
 pub const CONTROLLER_NAME = "PRKN_C1";
 pub const window_height: c_int = 240;

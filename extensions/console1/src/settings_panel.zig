@@ -4,7 +4,6 @@ const Preferences = @import("settings.zig");
 const Globals = @import("globals.zig").Globals;
 const ModulesList = @import("statemachine.zig").ModulesList;
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
-const settings_actions = @import("settings_actions.zig");
 const styles = @import("styles.zig");
 const styles_components = @import("styles_components.zig");
 const FxMaps = @import("mappings_list.zig");

@@ -9,9 +9,6 @@ pub const debug_window_active = @import("builtin").mode == .Debug;
 // pub var debug_window_active = debugconfig.@"test";
 pub var log_file: ?*std.fs.File = null; // Just need the file handle
 
-// Circular buffer for debug overlay
-const DebugBufferSize = 1024;
-
 pub const EventType = enum {
     state_change,
     midi_input,

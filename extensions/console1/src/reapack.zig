@@ -47,6 +47,3 @@ pub const ReaPackError = error{
     InvalidFunction,
 };
 
-const std = @import("std");
-const Reaper = @import("reaper.zig");
-const reaper = Reaper.reaper;

@@ -1,7 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const State = @import("statemachine.zig").State;
-const logger = @import("logger.zig");
 
 const DEBUG_BUF_SIZE = 512;
 

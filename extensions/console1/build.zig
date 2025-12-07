@@ -5,7 +5,6 @@
 //! or on MacOS:
 //! zig build -Dtest=true --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
 const std = @import("std");
-const builtin = @import("builtin");
 const tests = @import("build_tests.zig");
 pub const Dependencies = struct {
     ini: *std.Build.Dependency,

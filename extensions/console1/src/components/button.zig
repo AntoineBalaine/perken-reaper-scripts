@@ -1,4 +1,3 @@
-const std = @import("std");
 const imgui = @import("../reaper_imgui.zig");
 const knob = @import("knob.zig");
 const Size = knob.Size;

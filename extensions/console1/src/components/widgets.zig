@@ -1,6 +1,5 @@
 const std = @import("std");
 const imgui = @import("../reaper_imgui.zig");
-const knob = @import("knob.zig");
 const button = @import("button.zig");
 const vertical_separator = @import("vertical_separator.zig");
 const roundButtonWidget = button.roundButton;

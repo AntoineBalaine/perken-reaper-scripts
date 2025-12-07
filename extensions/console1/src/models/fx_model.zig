@@ -5,7 +5,6 @@ pub const Param = struct {
 };
 
 // Input/output pin routing data
-const PinMappings = struct {};
 const NamedConfigs = struct {
     original_name: [:0]const u8,
     renamed_name: [:0]const u8,
@@ -19,5 +18,4 @@ pub const FX = struct {
     named_configs: NamedConfigs,
 };
 
-const std = @import("std");
 const utils = @import("../utils.zig");

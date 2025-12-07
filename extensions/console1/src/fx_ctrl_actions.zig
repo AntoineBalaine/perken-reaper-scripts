@@ -1,35 +1,18 @@
 const std = @import("std");
 const c1 = @import("c1.zig");
 const constants = @import("constants.zig");
-const utils = @import("utils.zig");
 const reaper = @import("reaper.zig").reaper;
 const MediaTrack = reaper.MediaTrack;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
-const CONTROLLER_NAME = constants.CONTROLLER_NAME;
 const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const SCRouting = fx_ctrl_state.SCRouting;
 const statemachine = @import("statemachine.zig");
 const logger = @import("logger.zig");
 const Globals = @import("globals.zig").Globals;
 const onMidiEvent_FxCtrl = @import("csurf/midi_events_fxctrl.zig").onMidiEvent_FxCtrl;
-const fx_sel_actions = @import("fx_sel_actions.zig");
-const FxSelActions = fx_sel_actions.FxSelActions;
-const Mode = statemachine.Mode;
-const State = statemachine.State;
-const ModulesList = statemachine.ModulesList;
 const actions = @import("actions.zig");
 const pReaper = @import("pReaper.zig");
 
-const c = @cImport({
-    @cDefine("SWELL_PROVIDED_BY_APP", "");
-    @cInclude("csurf/control_surface_wrapper.h");
-    @cInclude("WDL/swell/swell-types.h");
-    @cInclude("WDL/swell/swell-functions.h");
-    @cInclude("WDL/win32_utf8.h");
-    @cInclude("WDL/wdltypes.h");
-    @cInclude("resource.h");
-    @cInclude("csurf/midi_wrapper.h");
-});
 const log = std.log.scoped(.midi_input);
 
 pub const MidiInput = struct {

@@ -4,9 +4,6 @@ const MapStore = @import("mappings.zig");
 const reaper = @import("reaper.zig").reaper;
 const pReaper = @import("pReaper.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
-const fx_ctrl_state = @import("fx_ctrl_state.zig");
-const Globals = @import("globals.zig").Globals;
-const constants = @import("constants.zig");
 pub const TrackState = @import("track_state.zig");
 const DefaultFx = @import("settings.zig").DefaultFx;
 const Preferences = @import("settings.zig").Preferences;
@@ -124,9 +121,7 @@ pub fn deinit(self: *@This()) void {
 
 // Tuple contains: isLoaded, idxInContainer
 pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
-const TrckErr = error{ fxAddFail, fxRenameFail, moduleFindFail, fxFindNameFail, fxHasNoName, enumConvertFail };
 // TODO: this is in top scope because I couldn't figure out how to pass the buffer as a fn param. the constness of fn params doesn't let me use the buffer
-var buf: [255:0]u8 = undefined;
 
 pub const Track = @This();
 
@@ -140,13 +135,6 @@ pub fn getSubContainerIdx(self: *@This(), subidx: u8, container_idx: c_int, medi
 }
 
 /// if container_idx is provided, then load the chain into it.
-const ModuleCounter = struct {
-    INPUT: u8 = 0,
-    EQ: u8 = 0,
-    GATE: u8 = 0,
-    COMP: u8 = 0,
-    OUTPT: u8 = 0,
-};
 
 /// validate track
 /// NOTE: track validation is meant to fail silently.

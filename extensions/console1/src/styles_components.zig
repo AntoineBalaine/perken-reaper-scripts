@@ -1,5 +1,4 @@
 const std = @import("std");
-const reaper = @import("reaper.zig").reaper;
 const imgui = @import("reaper_imgui.zig");
 const Theme = @import("theme/Theme.zig");
 const Palette = @import("components/Palette.zig").Palette;
@@ -16,7 +15,6 @@ const content = Content{};
 const WinStyle = styles.WinStyle;
 const StyleVarsEnum = styles.StyleVarsEnum;
 const ColorsEnum = styles.ColorsEnum;
-const XYStruct = styles.XYStruct;
 
 pub fn StyleEditor(ctx: imgui.ContextPtr, win: WinStyle, style_manager: *styles.StyleManager) !void {
     var is_open = switch (win) {

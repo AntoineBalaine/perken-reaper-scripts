@@ -4,11 +4,6 @@ const pReaper = @import("pReaper.zig");
 const MediaTrack = reaper.MediaTrack;
 const ModulesList = @import("statemachine.zig").ModulesList;
 const MapStore = @import("mappings.zig");
-const Inpt = MapStore.Inpt;
-const Shp = MapStore.Shp;
-const Eq = MapStore.Eq;
-const Comp = MapStore.Comp;
-const Outpt = MapStore.Outpt;
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const DefaultFx = @import("settings.zig").DefaultFx;
 const TaggedMapping = MapStore.TaggedMapping;
@@ -1359,11 +1354,6 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
 
     return coverage;
 }
-
-const ConsolidationResult = struct {
-    did_consolidate: bool,
-    position: ?i32,
-};
 
 fn toOrderedSuffix(current_modules: ActiveModules, new_module: ModulesList, buf: *[5:0]u8) [:0]const u8 {
     var active_modules = current_modules;

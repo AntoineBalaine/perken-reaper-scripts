@@ -1,7 +1,4 @@
-const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
-const Reaper = @import("reaper.zig");
-const reaper = Reaper.reaper;
 const Theme = @import("theme/Theme.zig");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");

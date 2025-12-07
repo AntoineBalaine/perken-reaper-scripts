@@ -1,7 +1,6 @@
 const std = @import("std");
 const reaper = @import("reaper.zig").reaper;
 const actions = @import("actions.zig");
-const gui = @import("imgui_loop.zig");
 const Mode = @import("statemachine.zig").Mode;
 const debugconfig = @import("config");
 const reentrancy = @import("reentrancy.zig");

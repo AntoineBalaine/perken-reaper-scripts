@@ -7,7 +7,6 @@ const Globals = @import("globals.zig").Globals;
 const constants = @import("constants.zig");
 const log = std.log.scoped(.midi_output);
 const utils = @import("utils.zig");
-const Preferences = @import("settings.zig");
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
     @cInclude("csurf/control_surface_wrapper.h");
@@ -19,7 +18,6 @@ const c = @cImport({
     @cInclude("csurf/midi_wrapper.h");
 });
 const SettingsValUpdate = @import("settings_panel.zig").SettingsValUpdate;
-const TrackList = @import("fx_ctrl_state.zig").TrackList;
 
 pub const MidiOutAction = union(enum) {
     /// Set initial feedback for mode
@@ -366,12 +364,6 @@ fn queryMeters(globals: *Globals, midiOut: reaper.midi_Output) void {
         }
     }
 }
-
-// Define the preference button mappings at module level
-const PreferenceButton = struct {
-    preference: []const u8,
-    button: c1.CCs,
-};
 
 // Then the function could be written as:
 fn prefsEntry(globals: *Globals, midi_out: reaper.midi_Output) void {

@@ -2,7 +2,6 @@ const std = @import("std");
 const AutomationMode = @import("../transport_actions.zig").AutomationMode;
 const utils = @import("../utils.zig");
 const fx_model = @import("fx_model.zig");
-const Param = fx_model.Param;
 const FX = fx_model.FX;
 pub const TrackInfo = struct {
     phase: bool = false,

@@ -1,6 +1,5 @@
 const std = @import("std");
 const assert = std.debug.assert;
-const math = std.math;
 const mem = std.mem;
 
 pub const CopyPrecision = enum { exact, inexact };

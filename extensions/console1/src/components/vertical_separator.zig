@@ -1,7 +1,5 @@
-const std = @import("std");
 const imgui = @import("../reaper_imgui.zig");
 const knob = @import("knob.zig");
-const Rectangle = knob.Rectangle;
 const Position = knob.Position;
 
 /// VerticalSeparator draws a vertical line from the current cursor position

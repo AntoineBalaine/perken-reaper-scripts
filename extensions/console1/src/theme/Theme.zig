@@ -19,10 +19,6 @@ pub var clrs: std.EnumArray(RColorsEnum, ThemeTypes.ThemeColor) = undefined;
 
 pub var fonts = Fonts{};
 
-const ThemeErr = error{
-    ThemePathFail,
-};
-
 /// Attach the fonts to the ImGui context
 pub fn attachFonts(ctx: ImGui.ContextPtr) !void {
     const mainFontResource: ImGui.ResourcePtr = @ptrCast(fonts.MAIN);
