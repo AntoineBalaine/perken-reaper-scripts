@@ -1,5 +1,6 @@
 # FEATURES
 - mapping panel
+- single fx mode - would allow for more flexibility.
 - save preset?
 - display extended controls in GUI (user’s in the blind about features)
 # BUGS
@@ -8,9 +9,9 @@
 - csurf’s update_param_value() is too slow, switch to `CC.toModule()`
 - add check for existence of imgui on user’s system
 # ARCH
-- Error handling: file reading, allocations
+- [x] Error handling: file reading, allocations
 - Handle case of imgui missing on user’s system.
-- use `.empty` for empty data structures by default
+- [x] use `.empty` for empty data structures by default
 # Default fx mode: Channel Strip Panel
   * Open from settings menu
     Add a default channel strip mode. Settings can transition to it, and it can only transition back to it.
@@ -28,7 +29,6 @@
 - Traductions à revoir
 - Manuel utilisateur
 - Skins/Themes?
-- single fx mode - would allow for more flexibility.
 - utility actions:
   - insert default c1 chain on all tracks
   - swap INPT/SHP/EQ/CMP/OUTPT module on all tracks

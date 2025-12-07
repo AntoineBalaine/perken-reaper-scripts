@@ -1,5 +1,4 @@
 
-@sessions/CLAUDE.sessions.md
 
 When discussing approaches and giving examples, prefer using pseudo-code unless instructed otherwise.
 
