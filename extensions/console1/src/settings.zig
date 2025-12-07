@@ -1,7 +1,6 @@
 const std = @import("std");
 const ini = @import("ini");
 const mappings_mod = @import("mappings.zig");
-const FxMap = mappings_mod.FxMap;
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const log = std.log.scoped(.preferences);

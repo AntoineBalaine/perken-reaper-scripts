@@ -124,19 +124,26 @@ pub const MappingState = struct {
         COMP: MapStore.Comp,
         OUTPT: MapStore.Outpt,
     },
+    target_mapping_filepath: ?[:0]const u8 = null,
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
     midi_learn_active: bool = false,
 
     pub fn init(gpa: std.mem.Allocator, fx_name: [:0]const u8, module_type: ModulesList, map_store: *MapStore.MapStore) !MappingState {
+        const maybe_mapping = map_store.get(fx_name, module_type);
+        if (maybe_mapping == null) {
+            return error.MappingNotFound;
+        }
+        const mapping = maybe_mapping.?;
+
         return .{
             .target_fx = try gpa.dupeZ(u8, fx_name),
             .current_mappings = switch (module_type) {
-                .INPUT => map_store.INPUT.get(fx_name).?,
-                .GATE => map_store.GATE.get(fx_name).?,
-                .EQ => map_store.EQ.get(fx_name).?,
-                .COMP => map_store.COMP.get(fx_name).?,
-                .OUTPT => map_store.OUTPT.get(fx_name).?,
+                .INPUT => .{ .INPUT = mapping.INPUT },
+                .GATE => .{ .GATE = mapping.GATE },
+                .EQ => .{ .EQ = mapping.EQ },
+                .COMP => .{ .COMP = mapping.COMP },
+                .OUTPT => .{ .OUTPT = mapping.OUTPT },
             },
             .selected_parameter = null,
             .selected_control = null,

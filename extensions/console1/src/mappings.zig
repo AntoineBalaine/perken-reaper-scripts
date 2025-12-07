@@ -3,12 +3,14 @@ const ini = @import("ini");
 const settings = @import("settings.zig");
 const statemachine = @import("statemachine.zig");
 const c1 = @import("c1.zig");
-const MappingState = statemachine.MappingState;
 const ModulesList = statemachine.ModulesList;
 const fs_helpers = @import("fs_helpers.zig");
 const log = std.log.scoped(.mappings);
 
+pub const MAPPING_FORMAT_VERSION = 1;
+
 pub const Comp = struct {
+    version: u8 = MAPPING_FORMAT_VERSION,
     Comp_Attack: ?u8 = null,
     Comp_DryWet: ?u8 = null,
     Comp_Ratio: ?u8 = null,
@@ -19,6 +21,7 @@ pub const Comp = struct {
 };
 
 pub const Eq = struct {
+    version: u8 = MAPPING_FORMAT_VERSION,
     Eq_HiFrq: ?u8 = null,
     Eq_HiGain: ?u8 = null,
     Eq_HiMidFrq: ?u8 = null,
@@ -35,6 +38,7 @@ pub const Eq = struct {
 };
 
 pub const Inpt = struct {
+    version: u8 = MAPPING_FORMAT_VERSION,
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
     Inpt_Gain: ?u8 = null,
@@ -48,6 +52,7 @@ pub const Inpt = struct {
 };
 
 pub const Outpt = struct {
+    version: u8 = MAPPING_FORMAT_VERSION,
     Out_Drive: ?u8 = null,
     Out_DriveChar: ?u8 = null,
     // Out_MtrLft : u8 = null,
@@ -59,21 +64,13 @@ pub const Outpt = struct {
 };
 
 pub const Shp = struct {
+    version: u8 = MAPPING_FORMAT_VERSION,
     Shp_Gate: ?u8 = null,
     Shp_GateRelease: ?u8 = null,
     Shp_Punch: ?u8 = null,
     Shp_hard_gate: ?u8 = null,
     Shp_shape: ?u8 = null,
     Shp_sustain: ?u8 = null,
-};
-
-/// FxMap associates an Fx index with a module map
-pub const FxMap = struct {
-    COMP: ?std.meta.Tuple(&.{ u8, ?Comp }) = null,
-    EQ: ?std.meta.Tuple(&.{ u8, ?Eq }) = null,
-    INPUT: ?std.meta.Tuple(&.{ u8, ?Inpt }) = null,
-    OUTPT: ?std.meta.Tuple(&.{ u8, ?Outpt }) = null,
-    GATE: ?std.meta.Tuple(&.{ u8, ?Shp }) = null,
 };
 
 /// Tagged union representing a loaded mapping for any module type.
@@ -95,25 +92,42 @@ pub const TaggedMapping = union(ModulesList) {
     }
 };
 
+/// FxMaps stores multiple mappings for a single FX.
+/// Because we need to support multiple mappings per FX, we key on file paths instead of just FX names.
+pub fn FxMaps(comptime T: type) type {
+    return struct {
+        mappings: std.StringArrayHashMapUnmanaged(?T),
+        preferred_mapping: [:0]const u8,
+
+        pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+            // Because MapStore uses an arena allocator in both production and tests,
+            // we don't need to free individual keys - they'll be freed when the arena is deinitialized.
+            // The keys are file path strings allocated with allocator.dupeZ.
+            // preferred_mapping points to one of the keys in the hashmap.
+            self.mappings.deinit(allocator);
+        }
+    };
+}
+
 /// MapStore manages FX parameter mappings with lazy loading.
 /// Mappings are loaded from disk only when requested and cached for future use.
 pub const MapStore = @This();
 
-COMP: std.StringArrayHashMapUnmanaged(Comp),
-EQ: std.StringArrayHashMapUnmanaged(Eq),
-INPUT: std.StringArrayHashMapUnmanaged(Inpt),
-OUTPT: std.StringArrayHashMapUnmanaged(Outpt),
-GATE: std.StringArrayHashMapUnmanaged(Shp),
+COMP: std.StringArrayHashMapUnmanaged(FxMaps(Comp)),
+EQ: std.StringArrayHashMapUnmanaged(FxMaps(Eq)),
+INPUT: std.StringArrayHashMapUnmanaged(FxMaps(Inpt)),
+OUTPT: std.StringArrayHashMapUnmanaged(FxMaps(Outpt)),
+GATE: std.StringArrayHashMapUnmanaged(FxMaps(Shp)),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
 
 pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This() {
     const self: MapStore = .{
-        .INPUT = std.StringArrayHashMapUnmanaged(Inpt){},
-        .GATE = std.StringArrayHashMapUnmanaged(Shp){},
-        .EQ = std.StringArrayHashMapUnmanaged(Eq){},
-        .COMP = std.StringArrayHashMapUnmanaged(Comp){},
-        .OUTPT = std.StringArrayHashMapUnmanaged(Outpt){},
+        .INPUT = std.StringArrayHashMapUnmanaged(FxMaps(Inpt)){},
+        .GATE = std.StringArrayHashMapUnmanaged(FxMaps(Shp)){},
+        .EQ = std.StringArrayHashMapUnmanaged(FxMaps(Eq)){},
+        .COMP = std.StringArrayHashMapUnmanaged(FxMaps(Comp)){},
+        .OUTPT = std.StringArrayHashMapUnmanaged(FxMaps(Outpt)){},
         .controller_dir = controller_dir,
         .allocator = allocator,
     };
@@ -130,7 +144,7 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, default
         if (fxName) |fx_name| {
             // use self.getMap() only for its side-effect: storing into the map.
             // Its return value is only meant to be used by self.get()
-            _ = self.getMap(fx_name, defaultsEntry.key) catch {
+            _ = self.getMap(fx_name, defaultsEntry.key, "default") catch {
                 continue;
             };
         }
@@ -140,10 +154,36 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, default
 
 pub fn deinit(self: *MapStore) void {
     log.debug("Cleaning up MapStore", .{});
+
+    // Clean up nested FxMaps structures
+    var comp_iter = self.COMP.iterator();
+    while (comp_iter.next()) |entry| {
+        entry.value_ptr.deinit(self.allocator);
+    }
     self.COMP.deinit(self.allocator);
+
+    var eq_iter = self.EQ.iterator();
+    while (eq_iter.next()) |entry| {
+        entry.value_ptr.deinit(self.allocator);
+    }
     self.EQ.deinit(self.allocator);
+
+    var input_iter = self.INPUT.iterator();
+    while (input_iter.next()) |entry| {
+        entry.value_ptr.deinit(self.allocator);
+    }
     self.INPUT.deinit(self.allocator);
+
+    var outpt_iter = self.OUTPT.iterator();
+    while (outpt_iter.next()) |entry| {
+        entry.value_ptr.deinit(self.allocator);
+    }
     self.OUTPT.deinit(self.allocator);
+
+    var gate_iter = self.GATE.iterator();
+    while (gate_iter.next()) |entry| {
+        entry.value_ptr.deinit(self.allocator);
+    }
     self.GATE.deinit(self.allocator);
 }
 
@@ -159,47 +199,212 @@ pub fn getModuleByName(self: *MapStore, fx_name: [:0]const u8) ?ModulesList {
 }
 
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
+/// Because we now store multiple mappings per FX, we return the preferred mapping.
 pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMapping {
     switch (module) {
         .COMP => {
-            if (self.COMP.get(fxName)) |v| {
-                return TaggedMapping{ .COMP = v };
+            if (self.COMP.get(fxName)) |mappings_list| {
+                // Get the preferred mapping from the list
+                if (mappings_list.mappings.get(mappings_list.preferred_mapping)) |maybe_comp| {
+                    if (maybe_comp) |comp| {
+                        return TaggedMapping{ .COMP = comp };
+                    }
+                }
+                return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch null;
+                return self.getMap(fxName, module, "default") catch null;
             }
         },
         .EQ => {
-            if (self.EQ.get(fxName)) |v| {
-                return TaggedMapping{ .EQ = v };
+            if (self.EQ.get(fxName)) |mappings_list| {
+                if (mappings_list.mappings.get(mappings_list.preferred_mapping)) |maybe_eq| {
+                    if (maybe_eq) |eq| {
+                        return TaggedMapping{ .EQ = eq };
+                    }
+                }
+                return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch null;
+                return self.getMap(fxName, module, "default") catch null;
             }
         },
         .INPUT => {
-            return if (self.INPUT.get(fxName)) |v| {
-                return TaggedMapping{ .INPUT = v };
+            if (self.INPUT.get(fxName)) |mappings_list| {
+                if (mappings_list.mappings.get(mappings_list.preferred_mapping)) |maybe_inpt| {
+                    if (maybe_inpt) |inpt| {
+                        return TaggedMapping{ .INPUT = inpt };
+                    }
+                }
+                return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch null;
-            };
+                return self.getMap(fxName, module, "default") catch null;
+            }
         },
         .OUTPT => {
-            if (self.OUTPT.get(fxName)) |v| {
-                return TaggedMapping{ .OUTPT = v };
+            if (self.OUTPT.get(fxName)) |mappings_list| {
+                if (mappings_list.mappings.get(mappings_list.preferred_mapping)) |maybe_outpt| {
+                    if (maybe_outpt) |outpt| {
+                        return TaggedMapping{ .OUTPT = outpt };
+                    }
+                }
+                return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch null;
+                return self.getMap(fxName, module, "default") catch null;
             }
         },
         .GATE => {
-            if (self.GATE.get(fxName)) |v| {
-                return TaggedMapping{ .GATE = v };
+            if (self.GATE.get(fxName)) |mappings_list| {
+                if (mappings_list.mappings.get(mappings_list.preferred_mapping)) |maybe_shp| {
+                    if (maybe_shp) |shp| {
+                        return TaggedMapping{ .GATE = shp };
+                    }
+                }
+                return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module) catch null;
+                return self.getMap(fxName, module, "default") catch null;
             }
+        },
+    }
+}
+
+/// Get all mapping file paths for a given FX by reading the directory on disk.
+/// Returns a list of file paths (owned by the caller, must be freed).
+pub fn getMappingNames(self: *MapStore, allocator: std.mem.Allocator, fx_name: [:0]const u8, module: ModulesList) ![][:0]const u8 {
+    var name_buf: [512:0]u8 = undefined;
+    const sanitized_name = try sanitizeFxName(&name_buf, fx_name);
+
+    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir_path = fs_helpers.joinStrings(&dir_path_buf, &.{
+        std.mem.span(self.controller_dir),
+        std.fs.path.sep_str,
+        "maps",
+        std.fs.path.sep_str,
+        @tagName(module),
+        std.fs.path.sep_str,
+        sanitized_name,
+    });
+
+    // Because the directory might not exist, we handle that case
+    var dir = std.fs.openDirAbsolute(dir_path, .{ .iterate = true }) catch |err| {
+        if (err == error.FileNotFound) {
+            return &[_][:0]const u8{};
+        }
+        return err;
+    };
+    defer dir.close();
+
+    var list = std.ArrayList([:0]const u8).init(allocator);
+    errdefer list.deinit();
+
+    var iter = dir.iterate();
+    while (try iter.next()) |entry| {
+        if (entry.kind == .file) {
+            // Remove .ini extension
+            if (std.mem.endsWith(u8, entry.name, ".ini")) {
+                const name_without_ext = entry.name[0 .. entry.name.len - 4];
+                const owned_name = try allocator.dupeZ(u8, name_without_ext);
+                try list.append(owned_name);
+            }
+        }
+    }
+
+    return list.toOwnedSlice();
+}
+
+/// Set the preferred mapping for an FX.
+/// Because the preferred mapping determines which mapping is returned by get(), we update the FxMaps.
+/// Avoid silent failures by validating filepath
+pub fn setPreferredMapping(self: *MapStore, fx_name: [:0]const u8, module: ModulesList, filepath: [:0]const u8) !void {
+    switch (module) {
+        .COMP => {
+            if (self.COMP.getPtr(fx_name)) |mappings_list| {
+                if (!mappings_list.mappings.contains(filepath)) {
+                    return error.MappingNotFound;
+                }
+                mappings_list.preferred_mapping = filepath;
+            } else {
+                return error.FxNotFound;
+            }
+        },
+        .EQ => {
+            if (self.EQ.getPtr(fx_name)) |mappings_list| {
+                if (!mappings_list.mappings.contains(filepath)) {
+                    return error.MappingNotFound;
+                }
+                mappings_list.preferred_mapping = filepath;
+            } else {
+                return error.FxNotFound;
+            }
+        },
+        .INPUT => {
+            if (self.INPUT.getPtr(fx_name)) |mappings_list| {
+                if (!mappings_list.mappings.contains(filepath)) {
+                    return error.MappingNotFound;
+                }
+                mappings_list.preferred_mapping = filepath;
+            } else {
+                return error.FxNotFound;
+            }
+        },
+        .OUTPT => {
+            if (self.OUTPT.getPtr(fx_name)) |mappings_list| {
+                if (!mappings_list.mappings.contains(filepath)) {
+                    return error.MappingNotFound;
+                }
+                mappings_list.preferred_mapping = filepath;
+            } else {
+                return error.FxNotFound;
+            }
+        },
+        .GATE => {
+            if (self.GATE.getPtr(fx_name)) |mappings_list| {
+                if (!mappings_list.mappings.contains(filepath)) {
+                    return error.MappingNotFound;
+                }
+                mappings_list.preferred_mapping = filepath;
+            } else {
+                return error.FxNotFound;
+            }
+        },
+    }
+}
+
+/// Get the preferred mapping filepath for an FX.
+pub fn getPreferredMapping(self: *MapStore, fx_name: [:0]const u8, module: ModulesList) ?[:0]const u8 {
+    switch (module) {
+        .COMP => {
+            if (self.COMP.get(fx_name)) |mappings_list| {
+                return mappings_list.preferred_mapping;
+            }
+            return null;
+        },
+        .EQ => {
+            if (self.EQ.get(fx_name)) |mappings_list| {
+                return mappings_list.preferred_mapping;
+            }
+            return null;
+        },
+        .INPUT => {
+            if (self.INPUT.get(fx_name)) |mappings_list| {
+                return mappings_list.preferred_mapping;
+            }
+            return null;
+        },
+        .OUTPT => {
+            if (self.OUTPT.get(fx_name)) |mappings_list| {
+                return mappings_list.preferred_mapping;
+            }
+            return null;
+        },
+        .GATE => {
+            if (self.GATE.get(fx_name)) |mappings_list| {
+                return mappings_list.preferred_mapping;
+            }
+            return null;
         },
     }
 }
@@ -211,7 +416,8 @@ fn sanitizeFxName(buf: *[512:0]u8, fx_name: []const u8) ![:0]const u8 {
 }
 
 /// fetch mapping from disk, parse it, store it, and return it.
-fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMapping {
+/// Because we now support multiple mappings per FX, we use directory-based paths: maps/<MODULE>/<fx_name>/<mapping_name>.ini
+fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8) !TaggedMapping {
     var name_buf: [512:0]u8 = undefined;
     const sanitized_name = try sanitizeFxName(&name_buf, fxName);
 
@@ -224,6 +430,8 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
         @tagName(module),
         std.fs.path.sep_str,
         sanitized_name,
+        std.fs.path.sep_str,
+        mapping_name,
         ".ini",
     });
 
@@ -247,47 +455,88 @@ fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList) !TaggedMap
     var parser = ini.parse(temp_arena.allocator(), file.reader());
     defer parser.deinit(); // doesn’t actually do anything because of arena
 
+    // Because filePath is []const u8, we need to duplicate it with a sentinel for storage
+    const filePath_z = try self.allocator.dupeZ(u8, filePath);
+
     const mapping: TaggedMapping = switch (module) {
         .COMP => {
             var comp = Comp{};
             _ = try readToU8Struct(&comp, &parser);
-            // side-effect: store in hashmap
-            self.COMP.put(self.allocator, fxName, comp) catch |err| blk: {
-                log.err("Failed to store mapping: {s}", .{@errorName(err)});
-                break :blk;
-            };
+
+            var gop = try self.COMP.getOrPut(self.allocator, fxName);
+            if (!gop.found_existing) {
+                gop.value_ptr.* = FxMaps(Comp){
+                    .mappings = std.StringArrayHashMapUnmanaged(?Comp){},
+                    .preferred_mapping = filePath_z,
+                };
+            }
+
+            try gop.value_ptr.mappings.put(self.allocator, filePath_z, comp);
+
             return TaggedMapping{ .COMP = comp };
         },
         .EQ => {
             var eq = Eq{};
             _ = try readToU8Struct(&eq, &parser);
-            self.EQ.put(self.allocator, fxName, eq) catch |err| {
-                log.err("Failed to store mapping: {s}", .{@errorName(err)});
-            }; // side-effect: store in hashmap
+
+            var gop = try self.EQ.getOrPut(self.allocator, fxName);
+            if (!gop.found_existing) {
+                gop.value_ptr.* = FxMaps(Eq){
+                    .mappings = std.StringArrayHashMapUnmanaged(?Eq){},
+                    .preferred_mapping = filePath_z,
+                };
+            }
+
+            try gop.value_ptr.mappings.put(self.allocator, filePath_z, eq);
+
             return TaggedMapping{ .EQ = eq };
         },
         .INPUT => {
             var inpt: Inpt = Inpt{};
             _ = try readToU8Struct(&inpt, &parser);
-            self.INPUT.put(self.allocator, fxName, inpt) catch |err| {
-                log.err("Failed to store mapping: {s}", .{@errorName(err)});
-            }; // side-effect: store in hashmap
+
+            var gop = try self.INPUT.getOrPut(self.allocator, fxName);
+            if (!gop.found_existing) {
+                gop.value_ptr.* = FxMaps(Inpt){
+                    .mappings = std.StringArrayHashMapUnmanaged(?Inpt){},
+                    .preferred_mapping = filePath_z,
+                };
+            }
+
+            try gop.value_ptr.mappings.put(self.allocator, filePath_z, inpt);
+
             return TaggedMapping{ .INPUT = inpt };
         },
         .OUTPT => {
             var outpt: Outpt = Outpt{};
             _ = try readToU8Struct(&outpt, &parser);
-            self.OUTPT.put(self.allocator, fxName, outpt) catch |err| {
-                log.err("Failed to store mapping: {s}", .{@errorName(err)});
-            }; // side-effect: store in hashmap
+
+            var gop = try self.OUTPT.getOrPut(self.allocator, fxName);
+            if (!gop.found_existing) {
+                gop.value_ptr.* = FxMaps(Outpt){
+                    .mappings = std.StringArrayHashMapUnmanaged(?Outpt){},
+                    .preferred_mapping = filePath_z,
+                };
+            }
+
+            try gop.value_ptr.mappings.put(self.allocator, filePath_z, outpt);
+
             return TaggedMapping{ .OUTPT = outpt };
         },
         .GATE => {
             var shp: Shp = Shp{};
             _ = try readToU8Struct(&shp, &parser);
-            self.GATE.put(self.allocator, fxName, shp) catch |err| {
-                log.err("Failed to store mapping: {s}", .{@errorName(err)});
-            }; // side-effect: store in hashmap
+
+            var gop = try self.GATE.getOrPut(self.allocator, fxName);
+            if (!gop.found_existing) {
+                gop.value_ptr.* = FxMaps(Shp){
+                    .mappings = std.StringArrayHashMapUnmanaged(?Shp){},
+                    .preferred_mapping = filePath_z,
+                };
+            }
+
+            try gop.value_ptr.mappings.put(self.allocator, filePath_z, shp);
+
             return TaggedMapping{ .GATE = shp };
         },
     };
@@ -300,6 +549,8 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
     const T = @TypeOf(ret_struct.*);
     std.debug.assert(@typeInfo(T) == .@"struct");
 
+    var version_found = false;
+
     while (try parser.*.next()) |record| {
         switch (record) {
             .property => |kv| {
@@ -310,6 +561,12 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
                             const parsed = std.fmt.parseInt(u8, kv.value, 10) catch null;
                             if (parsed) |val| {
                                 @field(ret_struct, ns_info.name) = val;
+                                if (std.mem.eql(u8, ns_info.name, "version")) {
+                                    version_found = true;
+                                    if (val != MAPPING_FORMAT_VERSION) {
+                                        log.warn("Mapping file has version {d}, expected {d}", .{ val, MAPPING_FORMAT_VERSION });
+                                    }
+                                }
                             }
                         }
                     }
@@ -319,6 +576,11 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
             .enumeration => {},
         }
     }
+
+    if (!version_found) {
+        log.warn("Mapping file missing version field, assuming version 0 (old format)", .{});
+    }
+
     return ret_struct;
 }
 
@@ -326,32 +588,68 @@ fn formatOptionalU8(value: anytype, writer: anytype) !void {
     const T = @TypeOf(value);
     const info = @typeInfo(T);
     comptime {
-        if (info != .optional) @compileError("Expected optional type, got " ++ @typeName(T));
-        if (@typeInfo(info.optional.child) != .int and @typeInfo(info.optional.child) != .Float) @compileError("Expected optional number type, got optional " ++ @typeName(info.optional.child));
+        if (info == .optional) {
+            if (@typeInfo(info.optional.child) != .int and @typeInfo(info.optional.child) != .Float) {
+                @compileError("Expected optional number type, got optional " ++ @typeName(info.optional.child));
+            }
+        } else if (info == .int or info == .Float) {
+            // Allow non-optional numeric types as well
+        } else {
+            @compileError("Expected optional or non-optional number type, got " ++ @typeName(T));
+        }
     }
-    if (value) |v| {
-        try writer.print("{d}", .{v});
+
+    if (info == .optional) {
+        if (value) |v| {
+            try writer.print("{d}", .{v});
+        } else {
+            // Print nothing for null
+            try writer.writeAll("");
+        }
     } else {
-        // Print nothing for null
-        try writer.writeAll("");
+        // Non-optional value, just print it
+        try writer.print("{d}", .{value});
     }
 }
 
-pub fn saveToFile(self: *MapStore, mapping_state: MappingState) !void {
-    // Build path: resourcePath/maps/<MODULE>/<target_fx>.ini
+/// Because this function now takes pure parameters, it is more testable and has clearer dependencies.
+pub fn saveToFile(self: *MapStore, module: ModulesList, fx_name: [:0]const u8, mapping: TaggedMapping, mapping_name: [:0]const u8) !void {
+    // Build path: resourcePath/maps/<MODULE>/<fx_name>/<mapping_name>.ini
     var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try sanitizeFxName(&name_buf, mapping_state.target_fx);
+    const sanitized_name = try sanitizeFxName(&name_buf, fx_name);
+
+    // Create the directory structure first
+    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir_path = fs_helpers.joinStrings(&dir_path_buf, &.{
+        std.mem.span(self.controller_dir),
+        std.fs.path.sep_str,
+        "maps",
+        std.fs.path.sep_str,
+        @tagName(module),
+        std.fs.path.sep_str,
+        sanitized_name,
+    });
+
+    // Because we need to create the directory before saving the file, we make it recursively
+    std.fs.makeDirAbsolute(dir_path) catch |err| {
+        if (err != error.PathAlreadyExists) {
+            log.err("Failed to create directory: {s}", .{@errorName(err)});
+            return err;
+        }
+    };
+
     // Create path buffers and join components
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-
     const path = fs_helpers.joinStrings(&path_buf, &.{
         std.mem.span(self.controller_dir),
         std.fs.path.sep_str,
         "maps",
         std.fs.path.sep_str,
-        @tagName(mapping_state.current_mappings),
+        @tagName(module),
         std.fs.path.sep_str,
         sanitized_name,
+        std.fs.path.sep_str,
+        mapping_name,
         ".ini",
     });
 
@@ -366,7 +664,7 @@ pub fn saveToFile(self: *MapStore, mapping_state: MappingState) !void {
     var writer = file.writer();
 
     // Write different fields based on module type
-    switch (mapping_state.current_mappings) {
+    switch (mapping) {
         .COMP => |comp| inline for (std.meta.fields(@TypeOf(comp))) |field| {
             try writer.print("{s} = ", .{field.name});
             try formatOptionalU8(@field(comp, field.name), writer);

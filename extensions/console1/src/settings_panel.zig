@@ -7,7 +7,7 @@ const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const settings_actions = @import("settings_actions.zig");
 const styles = @import("styles.zig");
 const styles_components = @import("styles_components.zig");
-const MappingsList = @import("mappings_list.zig");
+const FxMaps = @import("mappings_list.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
 const safePrint = @import("debug_panel.zig").safePrint;
@@ -39,7 +39,7 @@ const SettingsRV = union(enum) {
 pub fn draw(
     self: *@This(),
     ctx: imgui.ContextPtr,
-    mappings_list: *MappingsList,
+    mappings_list: *FxMaps,
     style_manager: *styles.StyleManager,
     translations: *TranslationStore,
 ) !?SettingsRV {

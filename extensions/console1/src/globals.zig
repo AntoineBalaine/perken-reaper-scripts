@@ -4,7 +4,7 @@ const Preferences = @import("settings.zig").Preferences;
 const MapStore = @import("mappings.zig").MapStore;
 const logger = @import("logger.zig");
 const SettingsPanel = @import("settings_panel.zig");
-const MappingsList = @import("mappings_list.zig");
+const FxMaps = @import("mappings_list.zig");
 const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
@@ -22,7 +22,7 @@ state: State = undefined,
 // Configuration
 preferences: Preferences = undefined,
 map_store: MapStore = undefined,
-mappings_list: MappingsList = undefined,
+mappings_list: FxMaps = undefined,
 
 // UI
 settings_panel: ?SettingsPanel = null,

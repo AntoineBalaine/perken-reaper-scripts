@@ -171,6 +171,9 @@ fn isParamMapped(state: *State, param_idx: usize) bool {
     switch (state.mapping.current_mappings) {
         inline else => |mapping| {
             inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+                // Skip the version field because it is not optional
+                if (comptime std.mem.eql(u8, field.name, "version")) continue;
+
                 if (@field(mapping, field.name)) |mapped_param| {
                     if (mapped_param == param) return true;
                 }
@@ -185,6 +188,9 @@ fn getControlMapping(state: *State, cc: c1.CCs) ?u32 {
     switch (state.mapping.current_mappings) {
         inline else => |mapping| {
             inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+                // Skip the version field because it is not optional
+                if (comptime std.mem.eql(u8, field.name, "version")) continue;
+
                 if (std.mem.eql(u8, field.name, cc_name)) {
                     if (@field(mapping, field.name)) |param| {
                         return @intCast(param);

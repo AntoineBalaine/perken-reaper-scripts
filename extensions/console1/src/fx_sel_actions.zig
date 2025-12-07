@@ -70,14 +70,6 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
 
             const needs_mapping = (globals.map_store.get(plugin.name, current_module) == null);
 
-            // Create empty mapping if needed
-            if (needs_mapping) {
-                createEmptyMapping(globals, plugin.name) catch {
-                    dispatch(globals, .{ .change_mode = .fx_ctrl });
-                    return;
-                };
-            }
-
             // Add new FX
             const new_fx_index = pReaper.TrackFX_AddByName(.{ track, plugin.name, false, insert_idx });
             if (new_fx_index < 0) {
@@ -163,17 +155,6 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             }
         },
         else => {},
-    }
-}
-
-/// Create empty mapping in MapStore
-fn createEmptyMapping(globals: *Globals, fx_name: [:0]const u8) !void {
-    switch (globals.state.fx_sel.current_category) {
-        .INPUT => try globals.map_store.INPUT.put(globals.arena, fx_name, mappings.Inpt{}),
-        .GATE => try globals.map_store.GATE.put(globals.arena, fx_name, mappings.Shp{}),
-        .EQ => try globals.map_store.EQ.put(globals.arena, fx_name, mappings.Eq{}),
-        .COMP => try globals.map_store.COMP.put(globals.arena, fx_name, mappings.Comp{}),
-        .OUTPT => try globals.map_store.OUTPT.put(globals.arena, fx_name, mappings.Outpt{}),
     }
 }
 

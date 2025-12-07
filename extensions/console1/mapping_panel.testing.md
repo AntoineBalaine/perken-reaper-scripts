@@ -13,9 +13,9 @@
 
 #### MapStore Data Structure
 
-- Test `MappingsList` initialization with allocator
-- Test `MappingsList.deinit()` properly frees nested hashmap
-- Test MapStore initialization creates empty MappingsList for each module
+- Test `FxMaps` initialization with allocator
+- Test `FxMaps.deinit()` properly frees nested hashmap
+- Test MapStore initialization creates empty FxMaps for each module
 - Test MapStore.deinit() properly cleans up all nested structures
 - Test memory leak detection (no leaks after deinit)
 

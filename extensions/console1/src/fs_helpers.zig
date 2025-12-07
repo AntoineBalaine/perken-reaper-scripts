@@ -59,17 +59,17 @@ test "joinStrings" {
 
 const default_preferences = @embedFile("resources/preferences.ini");
 const default_mappings = struct {
-    const comp_recomp = @embedFile("resources/maps/COMP/VST: ReaComp (Cockos).ini");
-    const eq_reaeq = @embedFile("resources/maps/EQ/VST: ReaEQ (Cockos).ini");
-    const gate_reagate = @embedFile("resources/maps/GATE/VST: ReaGate (Cockos).ini");
+    const comp_recomp = @embedFile("resources/maps/COMP/VST: ReaComp (Cockos)/default.ini");
+    const eq_reaeq = @embedFile("resources/maps/EQ/VST: ReaEQ (Cockos)/default.ini");
+    const gate_reagate = @embedFile("resources/maps/GATE/VST: ReaGate (Cockos)/default.ini");
     const input = struct {
-        const rbj = @embedFile("resources/maps/INPUT/JS: RBJ Highpass_Lowpass Filters.ini");
-        const vol_adj = @embedFile("resources/maps/INPUT/JS: Volume Adjustment.ini");
-        const vol_pan = @embedFile("resources/maps/INPUT/JS: Volume_Pan Smoother v5.ini");
+        const rbj = @embedFile("resources/maps/INPUT/JS: RBJ Highpass_Lowpass Filters/default.ini");
+        const vol_adj = @embedFile("resources/maps/INPUT/JS: Volume Adjustment/default.ini");
+        const vol_pan = @embedFile("resources/maps/INPUT/JS: Volume_Pan Smoother v5/default.ini");
     };
     const output = struct {
-        const analog = @embedFile("resources/maps/OUTPT/JS: ReaAnalog.ini");
-        const saturation = @embedFile("resources/maps/OUTPT/JS: Saturation.ini");
+        const analog = @embedFile("resources/maps/OUTPT/JS: ReaAnalog/default.ini");
+        const saturation = @embedFile("resources/maps/OUTPT/JS: Saturation/default.ini");
     };
 };
 
@@ -129,20 +129,22 @@ pub fn ensureConfigPath() !void {
     try ensureDir(maps_path);
 
     // Define directory structure and default files
+    // Because we now use directory-based structure, we need module/fx_name/mapping_name
     const structure = .{
-        .{ "COMP", "VST: ReaComp (Cockos).ini", default_mappings.comp_recomp },
-        .{ "EQ", "VST: ReaEQ (Cockos).ini", default_mappings.eq_reaeq },
-        .{ "GATE", "VST: ReaGate (Cockos).ini", default_mappings.gate_reagate },
-        .{ "INPUT", "JS: RBJ Highpass_Lowpass Filters.ini", default_mappings.input.rbj },
-        .{ "INPUT", "JS: Volume Adjustment.ini", default_mappings.input.vol_adj },
-        .{ "INPUT", "JS: Volume_Pan Smoother v5.ini", default_mappings.input.vol_pan },
-        .{ "OUTPT", "JS: ReaAnalog.ini", default_mappings.output.analog },
-        .{ "OUTPT", "JS: Saturation.ini", default_mappings.output.saturation },
+        .{ "COMP", "VST: ReaComp (Cockos)", "default.ini", default_mappings.comp_recomp },
+        .{ "EQ", "VST: ReaEQ (Cockos)", "default.ini", default_mappings.eq_reaeq },
+        .{ "GATE", "VST: ReaGate (Cockos)", "default.ini", default_mappings.gate_reagate },
+        .{ "INPUT", "JS: RBJ Highpass_Lowpass Filters", "default.ini", default_mappings.input.rbj },
+        .{ "INPUT", "JS: Volume Adjustment", "default.ini", default_mappings.input.vol_adj },
+        .{ "INPUT", "JS: Volume_Pan Smoother v5", "default.ini", default_mappings.input.vol_pan },
+        .{ "OUTPT", "JS: ReaAnalog", "default.ini", default_mappings.output.analog },
+        .{ "OUTPT", "JS: Saturation", "default.ini", default_mappings.output.saturation },
     };
 
     // Create directories and files
     inline for (structure) |item| {
-        const dir_path = joinStrings(&path_buffer, &.{
+        // First create the module directory (e.g., maps/COMP)
+        const module_dir_path = joinStrings(&path_buffer, &.{
             std.mem.sliceTo(reaper_path, 0),
             std.fs.path.sep_str,
             "Data",
@@ -155,9 +157,10 @@ pub fn ensureConfigPath() !void {
             std.fs.path.sep_str,
             item[0],
         });
-        try ensureDir(dir_path);
+        try ensureDir(module_dir_path);
 
-        const file_path = joinStrings(&path_buffer, &.{
+        // Then create the FX directory (e.g., maps/COMP/VST: ReaComp)
+        const fx_dir_path = joinStrings(&path_buffer, &.{
             std.mem.sliceTo(reaper_path, 0),
             std.fs.path.sep_str,
             "Data",
@@ -172,7 +175,27 @@ pub fn ensureConfigPath() !void {
             std.fs.path.sep_str,
             item[1],
         });
-        try ensureFile(file_path, item[2]);
+        try ensureDir(fx_dir_path);
+
+        // Finally create the mapping file (e.g., maps/COMP/VST: ReaComp/default.ini)
+        const file_path = joinStrings(&path_buffer, &.{
+            std.mem.sliceTo(reaper_path, 0),
+            std.fs.path.sep_str,
+            "Data",
+            std.fs.path.sep_str,
+            "Perken",
+            std.fs.path.sep_str,
+            "Console1",
+            std.fs.path.sep_str,
+            "maps",
+            std.fs.path.sep_str,
+            item[0],
+            std.fs.path.sep_str,
+            item[1],
+            std.fs.path.sep_str,
+            item[2],
+        });
+        try ensureFile(file_path, item[3]);
     }
 }
 

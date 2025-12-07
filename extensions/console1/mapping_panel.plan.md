@@ -38,18 +38,18 @@ COMP: StringArrayHashMapUnmanaged(Comp)  // fx_name -> Comp
 Because we need to support multiple mappings per FX, we key on file paths instead of just FX names. All hashmaps are unmanaged to maintain explicit allocation control.
 
 ```zig
-pub const MappingsList = struct {
+pub const FxMaps = struct {
     mappings: StringArrayHashMapUnmanaged(?Comp),  // filepath -> ?Comp (null = file not found)
     preferred_mapping: [:0]const u8,  // filepath of preferred mapping
 
     allocator: std.mem.Allocator,  // stored for deinit
 
-    fn deinit(self: *MappingsList) void {
+    fn deinit(self: *FxMaps) void {
         self.mappings.deinit(self.allocator);
     }
 };
 
-COMP: StringArrayHashMapUnmanaged(MappingsList),  // fx_name -> MappingsList
+COMP: StringArrayHashMapUnmanaged(FxMaps),  // fx_name -> FxMaps
 ```
 
 Note: The in-use mapping is stored in the track state. The preferred mapping is stored here as a default when a track FX is first encountered.
@@ -128,7 +128,7 @@ Because we may be creating a new mapping from scratch, this field is optional. I
 Instead of tracking missing files separately, we can make the mapping storage optional in MapStore:
 
 ```zig
-// In MappingsList:
+// In FxMaps:
 mappings: StringArrayHashMapUnmanaged(?Comp)  // null = file not found on disk
 ```
 
@@ -161,7 +161,7 @@ PRIORITY: HIGH - Required for everything else
 #### Tasks
 
 1. Add file format versioning - add magic number/version field to mapping file format for future compatibility
-2. Update MapStore data structure - define MappingsList with filepath keys, change hashmap types, update init/deinit (all unmanaged)
+2. Update MapStore data structure - define FxMaps with filepath keys, change hashmap types, update init/deinit (all unmanaged)
 3. Update file path handling - modify `getMap()` and `saveToFile()` for directory-based paths
 4. Add new MapStore methods - `getMappingNames()`, `setPreferredMapping()`, handle optional Comp values for missing files
 5. Update MappingState - add `target_mapping_filepath: ?[:0]const u8` field
@@ -358,12 +358,12 @@ Ready to begin Phase 1 implementation: Multiple Mappings Per FX (Foundation).
 
 **Files to modify**: `src/mappings.zig`
 
-- Define `MappingsList` struct with nested unmanaged hashmap and allocator field
-- Add `deinit()` method to `MappingsList`
-- Change module fields from `StringArrayHashMapUnmanaged(Comp)` to `StringArrayHashMapUnmanaged(MappingsList)`
+- Define `FxMaps` struct with nested unmanaged hashmap and allocator field
+- Add `deinit()` method to `FxMaps`
+- Change module fields from `StringArrayHashMapUnmanaged(Comp)` to `StringArrayHashMapUnmanaged(FxMaps)`
 - Update `empty()` function to initialize new structure
-- Update `init()` function to create `MappingsList` instances
-- Update `deinit()` to properly clean up nested structures (iterate and call `MappingsList.deinit()`)
+- Update `init()` function to create `FxMaps` instances
+- Update `deinit()` to properly clean up nested structures (iterate and call `FxMaps.deinit()`)
 
 #### 3. Update File Path Handling
 
@@ -379,7 +379,7 @@ Ready to begin Phase 1 implementation: Multiple Mappings Per FX (Foundation).
 **Files to modify**: `src/mappings.zig`
 
 - `getMappingNames(fx_name: [:0]const u8, module: ModulesList) []const [:0]const u8` - list all mapping files for an FX by reading directory
-- `setPreferredMapping(fx_name: [:0]const u8, module: ModulesList, filepath: [:0]const u8)` - update preferred_mapping field in MappingsList
+- `setPreferredMapping(fx_name: [:0]const u8, module: ModulesList, filepath: [:0]const u8)` - update preferred_mapping field in FxMaps
 - `getPreferredMapping(fx_name: [:0]const u8, module: ModulesList) ?[:0]const u8` - return preferred mapping filepath
 - Update `get()` to return preferred mapping when no filepath is specified, or specific mapping when filepath is provided
 - Handle optional Comp values (null = file not found on disk)
@@ -691,3 +691,29 @@ Tasks have some flexibility in order:
 ### Note on Phase 5 (Channel Strips)
 
 Phase 5 (Channel Strip Presets) is LOW PRIORITY and not detailed here. Because channel strips build on the preset system from Phases 1-2, they should only be implemented after those phases are stable and well-tested.
+
+---
+
+## Future Refactoring Tickets (Low Priority)
+
+### Merge MappingPanel UI state with MappingState
+
+**Priority**: Low
+**Estimated complexity**: Medium
+
+Because MappingState is only used when the mapping panel is active, it would be reasonable to merge the MappingPanel struct (which holds UI data) with MappingState (which holds the logical state).
+
+**Benefits**:
+- Reduces duplication between UI state and logical state
+- Simplifies state management when mapping panel is active
+- Makes relationship between panel and state more explicit
+
+**Files affected**:
+- src/statemachine.zig (MappingState)
+- src/mapping_panel.zig (MappingPanel)
+- src/mapping_actions.zig (actions that access both structs)
+
+**Considerations**:
+- Need to ensure separation of concerns between UI rendering and state logic
+- May need to keep some fields separate for layout/rendering purposes
+- Should evaluate whether this actually simplifies the code before implementing

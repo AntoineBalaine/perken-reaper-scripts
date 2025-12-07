@@ -5,7 +5,6 @@ const reaper = @import("reaper.zig").reaper;
 const pReaper = @import("pReaper.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
-const FxMap = @import("mappings.zig").FxMap;
 const Globals = @import("globals.zig").Globals;
 const constants = @import("constants.zig");
 pub const TrackState = @import("track_state.zig");

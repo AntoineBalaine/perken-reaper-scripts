@@ -82,6 +82,8 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
                                 if (mod_map.mapping) |mapping| {
                                     const map_variant = @field(mapping, @tagName(field));
                                     inline for (@typeInfo(@TypeOf(map_variant)).@"struct".fields) |param_field| {
+                                        if (comptime std.mem.eql(u8, param_field.name, "version")) continue;
+
                                         const param_idx = @field(map_variant, param_field.name);
                                         if (param_idx != null and param_idx.? == prm_chg.param_index) {
                                             cc = @field(c1.CCs, param_field.name);

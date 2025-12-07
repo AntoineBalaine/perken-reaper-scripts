@@ -3,6 +3,7 @@ const c1 = @import("c1.zig");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
 const State = statemachine.State;
+const ModulesList = statemachine.ModulesList;
 const Globals = @import("globals.zig").Globals;
 const mappings = @import("mappings.zig");
 const dispatch = @import("actions.zig").dispatch;
@@ -183,18 +184,41 @@ pub fn mappingActions(globals: *Globals, map_action: MappingAction) void {
         },
         .save_mapping => {
             log.debug("Saved mappings for FX: {s}", .{globals.state.mapping.target_fx});
-            // Save to MapStore
-            switch (globals.state.mapping.current_mappings) {
-                .INPUT => |input| globals.map_store.INPUT.put(globals.arena, globals.state.mapping.target_fx, input) catch {},
-                .GATE => |gate| globals.map_store.GATE.put(globals.arena, globals.state.mapping.target_fx, gate) catch {},
-                .EQ => |eq| globals.map_store.EQ.put(globals.arena, globals.state.mapping.target_fx, eq) catch {},
-                .COMP => |comp| globals.map_store.COMP.put(globals.arena, globals.state.mapping.target_fx, comp) catch {},
-                .OUTPT => |outpt| globals.map_store.OUTPT.put(globals.arena, globals.state.mapping.target_fx, outpt) catch {},
-            }
 
-            globals.map_store.saveToFile(globals.state.mapping) catch {
-                log.warn("Failed to save mapping {s} to file", .{globals.state.mapping.target_fx});
+            // Because saveToFile now requires a mapping_name, we use "default" if target_mapping_filepath is null
+            const mapping_name = if (globals.state.mapping.target_mapping_filepath) |_| blk: {
+                // Extract the mapping name from the filepath (last component without .ini)
+                // For now, just use "default"
+                // CODEREVIEW this needs fixing
+                break :blk "default";
+            } else "default";
+
+            // Extract module from the union and convert to TaggedMapping
+            const module = @as(ModulesList, @enumFromInt(@intFromEnum(globals.state.mapping.current_mappings)));
+            const tagged_mapping: TaggedMapping = switch (globals.state.mapping.current_mappings) {
+                .INPUT => |m| .{ .INPUT = m },
+                .GATE => |m| .{ .GATE = m },
+                .EQ => |m| .{ .EQ = m },
+                .COMP => |m| .{ .COMP = m },
+                .OUTPT => |m| .{ .OUTPT = m },
             };
+
+            globals.map_store.saveToFile(
+                module,
+                globals.state.mapping.target_fx,
+                tagged_mapping,
+                mapping_name,
+            ) catch {
+                log.warn("Failed to save mapping {s} to file", .{globals.state.mapping.target_fx});
+                // Continue with cleanup even if save failed
+            };
+
+            // Because saveToFile only writes to disk, we need to reload the mapping into cache
+            // to ensure the in-memory MapStore is up to date
+            // CODEREVIEW I’m not sure I understand this: instead of doing this, shouldn’t we run a put directly into the mapstore?
+            // why do we need an extra read from disk when we already have the map in memory, albeit in a different location?
+            const module_type = @as(@import("statemachine.zig").ModulesList, globals.state.mapping.current_mappings);
+            _ = globals.map_store.get(globals.state.mapping.target_fx, module_type);
 
             // Clean up mapping panel
             if (globals.mapping_panel) |*panel| {
