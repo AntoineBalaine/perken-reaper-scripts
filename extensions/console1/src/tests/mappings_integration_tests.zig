@@ -46,7 +46,7 @@ test "Integration - loading default mapping for new FX" {
     }
 }
 
-test "Integration - loading saved mapping reads correct data" {
+test "Integration - loading a saved mapping reads the correct data" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -114,7 +114,7 @@ test "Integration - loading saved mapping reads correct data" {
     std.fs.deleteDirAbsolute(dir_path) catch {};
 }
 
-test "Integration - preferred mapping is used when loading FX" {
+test "Integration - the preferred mapping is used when loading an FX" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
