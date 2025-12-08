@@ -17,13 +17,7 @@ const ModulesList = @import("../statemachine.zig").ModulesList;
 const ModulesOrder = @import("../fx_ctrl_state.zig").ModulesOrder;
 const test_setup = @import("mode_switch_tests.zig").test_setup;
 const reaper = @import("../reaper.zig").reaper;
-
-fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
-    var path_mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &path_mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    return try allocator.dupeZ(u8, config_path);
-}
+const getTestConfigPath = @import("track_validation_pbt.zig").getTestConfigPath;
 
 // Model tracks the expected state of settings
 const Model = struct {

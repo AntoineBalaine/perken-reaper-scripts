@@ -51,6 +51,8 @@ pub const Mode = enum {
     settings,
     /// Default Fx selection - in settings
     default_fx_sel,
+    /// Preset browser for loading/saving individual mappings
+    preset_browser,
     /// Specific mode for MIDI learning (if implemented separately)
     midi_learn,
     /// if the user toggles the extension
@@ -59,10 +61,11 @@ pub const Mode = enum {
 
 // Helper for valid transitions
 pub const valid_transitions = std.EnumMap(Mode, []const Mode).init(.{
-    .fx_ctrl = &.{ .settings, .fx_sel, .mapping_panel, .suspended, .transport },
+    .fx_ctrl = &.{ .settings, .fx_sel, .mapping_panel, .preset_browser, .suspended, .transport },
     .fx_sel = &.{ .fx_ctrl, .mapping_panel, .settings, .fx_sel, .suspended },
     .default_fx_sel = &.{ .settings, .default_fx_sel, .suspended },
     .mapping_panel = &.{ .fx_sel, .fx_ctrl, .suspended },
+    .preset_browser = &.{ .fx_ctrl, .suspended },
     .midi_learn = &.{ .mapping_panel, .suspended },
     .settings = &.{ .fx_ctrl, .transport, .suspended, .default_fx_sel },
     .suspended = &.{.fx_ctrl},
@@ -76,6 +79,7 @@ pub const State = struct {
     fx_ctrl: FxControlState,
     fx_sel: FxSelectionState = .{},
     default_fx_sel: FxSelectionState = .{},
+    preset_browser: PresetBrowserState = .{},
     transport: TransportState = .{},
     mapping: MappingState,
 
@@ -106,6 +110,14 @@ pub const State = struct {
 
 pub const FxSelectionState = struct {
     current_category: ModulesList = .COMP,
+    scroll_position_abs: u8 = 0,
+    scroll_position_rel: usize = 0,
+};
+
+pub const PresetBrowserState = struct {
+    target_fx: [:0]const u8 = "",
+    target_module: ModulesList = .COMP,
+    available_presets: [][:0]const u8 = &.{},
     scroll_position_abs: u8 = 0,
     scroll_position_rel: usize = 0,
 };

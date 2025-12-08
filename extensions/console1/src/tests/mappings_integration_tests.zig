@@ -5,13 +5,7 @@ const settings = @import("../settings.zig");
 const TaggedMapping = MapStore.TaggedMapping;
 const ModulesList = @import("../statemachine.zig").ModulesList;
 const mapping_browser = @import("../mapping_browser.zig");
-
-fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
-    var path_mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &path_mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    return try allocator.dupeZ(u8, config_path);
-}
+const getTestConfigPath = @import("track_validation_pbt.zig").getTestConfigPath;
 
 test "Integration - loading default mapping for new FX" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);

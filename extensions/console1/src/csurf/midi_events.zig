@@ -40,7 +40,13 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
     if (cc_enum) |cc| {
         switch (globals.state.current_mode) {
             .fx_ctrl => {
-                actions.dispatch(globals, .{ .fx_ctrl = .{ .midi_input = .{ .cc = cc, .value = val } } });
+                // Because the Inpt_preset button should open the preset browser for the current FX,
+                // we handle it specially here before dispatching to fx_ctrl.
+                if (cc == .Inpt_preset) {
+                    actions.dispatch(globals, .{ .preset_browser = .open_for_current_fx });
+                } else {
+                    actions.dispatch(globals, .{ .fx_ctrl = .{ .midi_input = .{ .cc = cc, .value = val } } });
+                }
             },
             .fx_sel => {
                 switch (cc) {
@@ -86,6 +92,20 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                     .Out_mute => actions.dispatch(globals, .{ .settings = .cancel }),
                     .Out_solo => actions.dispatch(globals, .{ .settings = .toggle }),
                     .Out_Vol => actions.dispatch(globals, .{ .settings = .{ .scroll = val } }),
+                    else => {},
+                }
+            },
+            .preset_browser => {
+                switch (cc) {
+                    .Out_Vol => actions.dispatch(globals, .{ .preset_browser = .{ .scroll = val } }),
+                    .Out_solo => {
+                        const browser_state = globals.state.preset_browser;
+                        if (browser_state.available_presets.len > 0) {
+                            const preset_name = browser_state.available_presets[browser_state.scroll_position_rel];
+                            actions.dispatch(globals, .{ .preset_browser = .{ .select_preset = .{ .mapping_name = preset_name } } });
+                        }
+                    },
+                    .Out_mute => actions.dispatch(globals, .{ .preset_browser = .close }),
                     else => {},
                 }
             },

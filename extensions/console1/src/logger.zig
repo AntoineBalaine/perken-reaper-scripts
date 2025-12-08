@@ -129,6 +129,7 @@ pub fn logFn(
         .transport,
         .default_fx_sel_actions,
         .fx_sel_panel,
+        .preset_browser_actions,
         .tests,
         => @tagName(scope),
         .default => @tagName(scope),

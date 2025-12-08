@@ -211,7 +211,7 @@ pub fn ModulePopup(
     return rv;
 }
 
-fn drawInvertedSlctblColors(ctx: imgui.ContextPtr, fx_name: [:0]const u8, g_drwls_splitter: *imgui.DrawListSplitterPtr) !void {
+pub fn drawInvertedSlctblColors(ctx: imgui.ContextPtr, fx_name: [:0]const u8, g_drwls_splitter: *imgui.DrawListSplitterPtr) !void {
     var splitter = g_drwls_splitter.*;
     const drw_ls = try imgui.GetWindowDrawList(.{ctx});
     if (splitter == null or !try imgui.ValidatePtr(.{ @as(*anyopaque, @ptrCast(splitter.?)), "ImGui_DrawListSplitter*" })) {

@@ -367,7 +367,7 @@ pub fn getPreferredMapping(self: *MapStore, fx_name: [:0]const u8, module: Modul
 
 /// fetch mapping from disk, parse it, store it, and return it.
 /// Because we now support multiple mappings per FX, we use directory-based paths: maps/<MODULE>/<fx_name>/<mapping_name>.ini
-fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8) !TaggedMapping {
+pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8) !TaggedMapping {
     var name_buf: [512:0]u8 = undefined;
     const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fxName);
 

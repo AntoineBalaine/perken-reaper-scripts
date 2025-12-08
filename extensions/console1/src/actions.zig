@@ -28,6 +28,9 @@ const transport_actions = @import("transport_actions.zig");
 const TransportAction = transport_actions.TransportAction;
 const transportAction = transport_actions.transportAction;
 const default_fx_sel_actions = @import("default_fx_sel_actions.zig");
+const preset_browser_actions = @import("preset_browser_actions.zig");
+const PresetBrowserAction = preset_browser_actions.PresetBrowserAction;
+const presetBrowserActions = preset_browser_actions.presetBrowserActions;
 
 const valid_transitions = statemachine.valid_transitions;
 // Mode-specific actions
@@ -40,6 +43,9 @@ pub const ModeAction = union(enum) {
     transport: TransportAction,
     // Mapping Mode
     mapping: MappingAction,
+
+    // Preset Browser Mode
+    preset_browser: PresetBrowserAction,
 
     // Settings Mode
     settings: SettingsActions,
@@ -113,6 +119,7 @@ pub fn dispatch(app: *Globals, action: ModeAction) void {
                 .fx_ctrl => |fx_action| fxCtrlActions(app, fx_action),
                 .fx_sel => |sel_action| fx_sel_actions.fxSelActions(app, sel_action),
                 .mapping => |map_action| mappingActions(app, map_action),
+                .preset_browser => |browser_action| presetBrowserActions(app, browser_action),
                 .settings => |set_action| settings_actions.settingsActions(app, set_action),
                 .default_fx_sel => |sel_action| default_fx_sel_actions.defaultFxSelActions(app, sel_action),
                 .Csurf => |set_action| csurfActions(app, set_action),

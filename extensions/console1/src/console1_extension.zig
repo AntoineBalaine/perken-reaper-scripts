@@ -81,4 +81,6 @@ test {
     _ = @import("tests/track_validation_pbt.zig");
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");
+    _ = @import("preset_browser_actions.zig");
+    _ = @import("tests/preset_browser_tests.zig");
 }
