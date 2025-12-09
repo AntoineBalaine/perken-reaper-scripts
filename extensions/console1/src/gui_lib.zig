@@ -9,7 +9,7 @@ const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fx_sel_panel = @import("fx_sel_panel.zig");
 const actions = @import("actions.zig");
-const mapping_panel = @import("mapping_panel.zig");
+const mapping_panel_window = @import("mapping_panel_window.zig");
 const track_list_panel = @import("track_list_panel.zig");
 const c1 = @import("c1.zig");
 
@@ -140,13 +140,7 @@ pub fn main(
                 }
             },
             .mapping_panel => {
-                // Because drawMappingPanel is only for ASSIGN mode, we extract assign_state
-                const assign_state = switch (globals.state.mapping_panel.mode) {
-                    .assign => |*s| s,
-                    else => return null,
-                };
-
-                if (try mapping_panel.drawMappingPanel(ctx, &globals.state, assign_state, &globals.translations)) |map_action| {
+                if (try mapping_panel_window.drawMappingPanelWindow(ctx, globals, &globals.drwls_splitter, style_manager, &globals.translations)) |map_action| {
                     rv = .{ .mapping_panel = map_action };
                 }
             },

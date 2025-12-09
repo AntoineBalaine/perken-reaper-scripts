@@ -2609,3 +2609,195 @@ The critical issue identified (missing default name initialization) was correctl
 **Action Items:**
 
 None - Step 6 is complete and correct
+
+### Review 7 - 2025-12-09
+
+# Code Review: Step 7 - Implement Window Consolidation
+
+## Summary
+
+The window consolidation implementation creates the required `mapping_panel_window.zig` file and implements routing logic based on sub-mode, but has several critical issues that prevent it from working as specified. The main problems are: (1) `gui_lib.zig` was never updated to call `drawMappingPanelWindow`, so the consolidation layer is not integrated, (2) `module_selection_panel.zig` manages its own window, creating double-window nesting when called from the consolidation layer, and (3) the consolidation layer creates windows for ASSIGN and SAVE modes but those panels expect to render content without window management. The implementation pattern is inconsistent with the specification.
+
+## Critical Issues (3)
+
+### 1. Window Consolidation Layer Not Integrated
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/gui_lib.zig:142-152
+
+**Issue**: Because `gui_lib.zig` still calls `mapping_panel.drawMappingPanel` directly (line 149) instead of calling `mapping_panel_window.drawMappingPanelWindow`, the window consolidation layer is completely bypassed. The new consolidation function exists but is never executed.
+
+**Impact**: The BROWSE and SAVE sub-modes are inaccessible. The application will fail when trying to enter BROWSE or SAVE modes because gui_lib.zig only handles ASSIGN mode (lines 144-147 extract assign_state and return null for other modes). Users cannot access the preset workflow at all.
+
+**Root Cause**: Step 7 created the consolidation layer but forgot to update the call site in gui_lib.zig. The old pattern from Step 5 review (line 143-151 of gui_lib.zig) was never replaced.
+
+**Fix Required**:
+```zig
+// In gui_lib.zig around line 142-152, replace the mapping_panel case:
+.mapping_panel => {
+    if (try mapping_panel_window.drawMappingPanelWindow(
+        ctx,
+        globals,
+        &globals.drwls_splitter,
+        style_manager,
+        &globals.translations,
+    )) |map_action| {
+        rv = .{ .mapping_panel = map_action };
+    }
+},
+```
+
+Also need to add import at top of gui_lib.zig:
+```zig
+const mapping_panel_window = @import("mapping_panel_window.zig");
+```
+
+### 2. Double Window Nesting in BROWSE Mode
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/mapping_panel_window.zig:27-36 and /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:29-38
+
+**Issue**: Because `module_selection_panel.drawModuleSelectionPanel` creates its own window with `Begin`/`End` calls (module_selection_panel.zig:36-38), and the window consolidation layer doesn't create a window for BROWSE mode (it directly calls the panel function on line 28-36 of mapping_panel_window.zig), there's inconsistency with the specification which says "single window for all sub-modes" (line 458 of plan).
+
+However, the actual implementation is CORRECT for module_selection_panel because it manages its own window, which means the consolidation layer should NOT create a window for it. The issue is with the specification/implementation mismatch.
+
+**Impact**: The BROWSE mode will work correctly (module_selection_panel creates its own styled window), but the pattern is inconsistent. BROWSE has its own window, while ASSIGN and SAVE are wrapped by the consolidation layer. This violates the "single window" principle.
+
+**Root Cause**: Review 4 (Step 4) did not catch that module_selection_panel manages its own window, so the consolidation strategy was designed incorrectly. The spec assumed all three sub-panels would be "content-only" functions, but module_selection_panel is a "window-managing" function.
+
+**Fix Required**: Either:
+1. Refactor module_selection_panel to NOT manage its own window (remove Begin/End, styling), OR
+2. Refactor mapping_panel and save_preset_dialog to manage their own windows (consistent with module_selection_panel pattern), OR
+3. Keep current implementation but update documentation to reflect that each sub-panel manages its own window
+
+Option 3 is easiest but violates spec. Option 1 requires changes to module_selection_panel. Option 2 requires changes to mapping_panel_window to not create windows for ASSIGN/SAVE.
+
+I recommend Option 1: refactor module_selection_panel to be content-only like the other panels, then the consolidation layer can create a single window with consistent styling for all three modes.
+
+### 3. Translation Key mapping_title Missing from Language Packs
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/resources/langPacks/en.ini and fr.ini
+
+**Issue**: Because `mapping_panel_window.zig` uses `tr(translations, .mapping_title)` for the ASSIGN window title (line 45), but the translation key `mapping_title` is defined in translations.zig (line 135), I need to verify it exists in the language pack INI files. From the grep output, I can see:
+- en.ini line 131: `title=Mapping Panel`
+- fr.ini line 131: `title=Panneau de Mapping`
+
+These are under the `[mapping]` section, which means the actual key is `mapping.title` in the INI format, but TranslationKey enum uses `mapping_title` (with underscore). This should work IF the translation loading correctly maps section.key to enum_key format.
+
+**Impact**: If the translation loading doesn't correctly handle the section.key to enum mapping, the window title will be blank or show a missing translation error.
+
+**Verification Needed**: Check how translations.zig loads INI files and maps them to TranslationKey enum. The pattern should be: `[mapping]` section + `title` key = `mapping_title` enum variant.
+
+**Status**: This is likely NOT a bug because the pattern is used consistently throughout the codebase (fx_ctrl_title, fx_sel_title, etc.), so the translation system probably handles it correctly. However, I cannot verify without reading the translation loading code.
+
+## Warnings (2)
+
+### 1. Inconsistent Window Sizing
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/mapping_panel_window.zig:42, 67
+
+**Issue**: Because the ASSIGN and SAVE windows are both set to 400x400 (lines 42 and 67), but module_selection_panel uses 500x300 (module_selection_panel.zig:32), the windows will have different sizes when switching between sub-modes.
+
+**Impact**: Visual inconsistency when transitioning between BROWSE and ASSIGN/SAVE modes. The window will resize, which may be jarring for users.
+
+**Note**: The specification says "Window size set appropriately (400x400)" (line 467 of plan), but this was written before module_selection_panel was implemented with 500x300. Consider standardizing all three to the same size, or document why BROWSE needs different dimensions.
+
+### 2. Duplicate Window Styling Logic
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/mapping_panel_window.zig:39-40, 64-65
+
+**Issue**: Because the PushStyle pattern is duplicated for ASSIGN (lines 39-40) and SAVE (lines 64-65) modes, there's code duplication. The same styling is applied twice in nearly identical blocks.
+
+**Impact**: Maintenance burden - if window styling needs to change, it must be updated in two places. However, this is minor since the blocks are simple.
+
+**Fix**: Consider extracting the window creation logic into a helper function:
+```zig
+fn createSubWindow(ctx: imgui.ContextPtr, title: [:0]const u8, style_manager: *styles.StyleManager) !bool {
+    const PopStyle = try styles.PushStyle(ctx, .main, style_manager);
+    defer PopStyle(ctx) catch {};
+    try imgui.SetNextWindowSize(.{ ctx, 400, 400, null });
+    var open = true;
+    return try imgui.Begin(.{ ctx, title, &open, imgui.WindowFlags_None });
+}
+```
+
+Then both ASSIGN and SAVE blocks can call this helper.
+
+## Suggestions (2)
+
+### 1. Add Routing Documentation
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/mapping_panel_window.zig:13-16
+
+**Note**: Because the comment on lines 13-16 says "Each sub-panel manages its own window presentation", but that's not true (ASSIGN and SAVE don't manage windows, only BROWSE does), the documentation is misleading. Update the comment to reflect the actual pattern: "Because we need a single window for all sub-modes, we route to the appropriate panel based on the current sub-mode state. The BROWSE panel manages its own window, while ASSIGN and SAVE panels are wrapped by this consolidation layer."
+
+### 2. Consider Extracting Window Titles to Constants
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/mapping_panel_window.zig:45, 70
+
+**Note**: Because window titles are translation keys, and the pattern varies (ASSIGN uses .mapping_title, SAVE uses .preset_manager_title), consider documenting why different titles are used or consolidate to a single title if appropriate. The spec mentions "translation keys defined (preset_manager_title, mapping_title)" (line 472 of plan), so this is intentional, but the rationale isn't clear.
+
+## Patterns Followed
+
+**Window Consolidation Structure:**
+- ✓ Single function `drawMappingPanelWindow` exists (line 17)
+- ✓ Function signature includes required parameters (ctx, globals, drwls_splitter, style_manager, translations)
+- ✓ Returns `!?MappingPanelAction`
+- ✓ Switch statement on `globals.state.mapping_panel.mode` (line 27)
+- ✓ Routes to three sub-panels: BROWSE, ASSIGN, SAVE
+
+**Sub-Panel Integration:**
+- ✓ BROWSE calls `drawModuleSelectionPanel` (line 28-36)
+- ✓ ASSIGN calls `drawMappingPanel` (line 52-57)
+- ✓ SAVE calls `drawSavePresetDialog` (line 77-82)
+- ✓ Correct parameters passed to each panel
+- ✓ Actions properly returned from each sub-panel
+
+**Window Management:**
+- ✓ ASSIGN mode creates window with Begin/End (lines 42-50)
+- ✓ SAVE mode creates window with Begin/End (lines 67-75)
+- ✗ BROWSE mode does NOT create window (delegates to module_selection_panel which creates its own)
+- ✓ X button close returns `exit_to_fx_ctrl` (lines 47, 59, 72, 84)
+- ✓ defer pattern used for End (lines 50, 75)
+- ✓ Styling push/pop managed with defer (lines 40, 65)
+
+**Translation Support:**
+- ✓ Translation keys defined in translations.zig (mapping_title: line 135, preset_manager_title: line 145)
+- ✓ English translations added (en.ini lines 131, 146)
+- ✓ French translations added (fr.ini lines 131, 146)
+- ✓ tr() function used for window titles (lines 45, 70)
+
+**State Structure:**
+- ✓ Uses `MapSubMode` tagged union approach (verified in statemachine.zig:164-168)
+- ✓ Switch on `mode` extracts payload with `|*state|` pattern (lines 28, 37, 62)
+- ✓ State access patterns correct for tagged union
+
+**Code Quality:**
+- ✓ Formatted with `zig fmt` (verified via zig fmt command)
+- ✓ Compiles successfully (verified via zig build)
+- ✓ Comments explain rationale with proper English
+- ✓ No compilation errors
+
+## Overall Assessment
+
+The window consolidation layer is structurally correct and implements the routing pattern as specified. The code compiles, is properly formatted, and correctly switches between sub-modes based on the state. However, there are three critical issues that prevent this from working:
+
+1. **Not Integrated**: `gui_lib.zig` never calls the consolidation function, so it's completely bypassed
+2. **Inconsistent Pattern**: module_selection_panel manages its own window while the consolidation layer creates windows for the other two modes, violating the "single window" principle
+3. **Possible Translation Issue**: Need to verify translation key mapping works correctly
+
+Additionally, the window sizing is inconsistent (500x300 for BROWSE vs 400x400 for ASSIGN/SAVE), and there's minor code duplication in the ASSIGN/SAVE window creation logic.
+
+**Status: Needs Critical Fixes - Cannot Proceed to Step 8**
+
+Because the consolidation layer is not integrated into gui_lib.zig, the entire preset workflow is broken. Users cannot access BROWSE or SAVE modes at all. This must be fixed before proceeding.
+
+Additionally, the double-window nesting issue needs to be resolved by refactoring module_selection_panel to be content-only (no window management), matching the pattern of mapping_panel and save_preset_dialog.
+
+**Action Items:**
+
+- [ ] CRITICAL: Update gui_lib.zig to call `mapping_panel_window.drawMappingPanelWindow` instead of `mapping_panel.drawMappingPanel` (add import and replace switch case)
+- [ ] CRITICAL: Refactor module_selection_panel to remove window management (remove Begin/End, styling) to match content-only pattern of other sub-panels
+- [ ] CRITICAL: Update mapping_panel_window BROWSE case to create window and style for module_selection_panel content
+- [ ] WARNING: Standardize window sizes across all three sub-modes (either all 400x400 or all 500x300)
+- [ ] WARNING: Extract window creation logic into helper function to reduce duplication
+- [ ] SUGGESTION: Update comments in mapping_panel_window.zig to accurately describe window management pattern
+- [ ] SUGGESTION: Document rationale for different window titles (mapping_title vs preset_manager_title)

@@ -27,8 +27,10 @@ pub fn drawSavePresetDialog(
     // Because we want to show existing presets for reference, we list them
     if (save_state.existing_presets.items.len > 0) {
         try imgui.Text(.{ ctx, "Existing presets:" });
+        var preset_buf: [512:0]u8 = undefined;
         for (save_state.existing_presets.items) |preset_name| {
-            try imgui.Text(.{ ctx, preset_name.ptr });
+            const formatted = std.fmt.bufPrintZ(&preset_buf, "  {s}", .{preset_name}) catch continue;
+            try imgui.Text(.{ ctx, formatted });
         }
         try imgui.Separator(.{ctx});
     }

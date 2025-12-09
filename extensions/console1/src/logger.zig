@@ -119,6 +119,7 @@ pub fn logFn(
         .midi_input,
         .parameters,
         .preferences,
+        .save_preset_dialog,
         .settings,
         .track_list,
         .midi_output,
