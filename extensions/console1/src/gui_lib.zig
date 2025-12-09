@@ -8,7 +8,6 @@ const Globals = @import("globals.zig").Globals;
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fx_sel_panel = @import("fx_sel_panel.zig");
-const preset_browser_panel = @import("preset_browser_panel.zig");
 const actions = @import("actions.zig");
 const mapping_panel = @import("mapping_panel.zig");
 const track_list_panel = @import("track_list_panel.zig");
@@ -138,35 +137,6 @@ pub fn main(
                 const list = globals.mappings_list.list.get(module);
                 if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel, true, &globals.drwls_splitter, style_manager, &globals.translations)) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
-                }
-            },
-            .preset_browser => {
-                // Because we want to show the fx_ctrl panel in the background while browsing presets,
-                // we render it first (similar to fx_sel mode).
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
-                    switch (ctrl_input.cc) {
-                        .Out_Vol => rv = .{ .preset_browser = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
-                        .Out_solo => {
-                            const browser_state = globals.state.preset_browser;
-                            if (browser_state.available_presets.len > 0) {
-                                const preset_name = browser_state.available_presets[browser_state.scroll_position_rel];
-                                rv = .{ .preset_browser = .{ .select_preset = .{ .mapping_name = preset_name } } };
-                            }
-                        },
-                        .Out_mute => rv = .{ .preset_browser = .close },
-                        else => {},
-                    }
-                }
-
-                // Show the preset browser popup on top
-                if (try preset_browser_panel.PresetBrowserPopup(
-                    ctx,
-                    globals,
-                    &globals.drwls_splitter,
-                    style_manager,
-                    &globals.translations,
-                )) |browser_action| {
-                    rv = .{ .preset_browser = browser_action };
                 }
             },
             .mapping_panel => {
