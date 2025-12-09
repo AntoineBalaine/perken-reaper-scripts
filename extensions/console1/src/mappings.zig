@@ -528,7 +528,11 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
     }
 
     if (!version_found) {
-        log.warn("Mapping file missing version field, assuming version 0 (old format)", .{});
+        const config = @import("config");
+        const is_test = @hasDecl(config, "test") and @field(config, "test");
+        if (!is_test) {
+            log.warn("Mapping file missing version field, assuming version 0 (old format)", .{});
+        }
     }
 
     return ret_struct;

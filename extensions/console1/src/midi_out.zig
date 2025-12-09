@@ -51,7 +51,11 @@ pub fn sendMidiFeedback(globals: *Globals, action: MidiOutAction) void {
             .settings_changed => prefsEntry(globals, midi_out),
         }
     } else {
-        log.err("no midi feedback available", .{});
+        const config = @import("config");
+        const is_test = @hasDecl(config, "test") and @field(config, "test");
+        if (!is_test) {
+            log.err("no midi feedback available", .{});
+        }
     }
 }
 

@@ -17,14 +17,19 @@ pub fn getGlobals() *Globals {
 const logger = @import("logger.zig");
 const hooks = @import("hooks.zig");
 
-pub const std_options = std.Options{
-    .log_level = switch (@import("builtin").mode) {
-        .Debug => .debug,
-        .ReleaseSafe => .info,
-        .ReleaseFast => .warn,
-        .ReleaseSmall => .err,
-    },
-    .logFn = logger.logFn,
+pub const std_options = blk: {
+    const config = @import("config");
+    const is_test = @hasDecl(config, "test") and @field(config, "test");
+
+    break :blk std.Options{
+        .log_level = if (is_test) .err else switch (@import("builtin").mode) {
+            .Debug => .debug,
+            .ReleaseSafe => .info,
+            .ReleaseFast => .warn,
+            .ReleaseSmall => .err,
+        },
+        .logFn = logger.logFn,
+    };
 };
 
 // var action_id: c_int = undefined;
