@@ -117,8 +117,7 @@ pub const BrowseState = struct {
     selected_module: ModulesList = .INPUT,
     scroll_position_abs: u8 = 0,
     scroll_position_rel: usize = 0,
-    // Cache info about current FX on each module (to be populated from TrackState)
-    available_modules: [5]?[]const u8 = [_]?[]const u8{null} ** 5,
+    available_modules: [5]?[:0]const u8 = [_]?[:0]const u8{null} ** 5,
 };
 
 pub const ModuleMappings = union(ModulesList) {
@@ -130,7 +129,7 @@ pub const ModuleMappings = union(ModulesList) {
 };
 
 pub const AssignState = struct {
-    target_fx: []const u8 = "",
+    target_fx: [:0]const u8 = "",
     current_mappings: ModuleMappings,
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
@@ -141,9 +140,9 @@ pub const SaveState = struct {
     name_buffer: [512]u8 = [_]u8{0} ** 512,
     existing_presets: std.ArrayListUnmanaged([:0]const u8) = .{},
     show_overwrite_confirm: bool = false,
-    pending_name: []const u8 = "",
+    pending_name: [:0]const u8 = "",
     // Because we need access to assign data when saving, we preserve it here
-    target_fx: []const u8 = "",
+    target_fx: [:0]const u8 = "",
     current_mappings: ModuleMappings,
 
     pub fn init(allocator: std.mem.Allocator) SaveState {

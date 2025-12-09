@@ -46,15 +46,25 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         .enter_browse => {
             var browse_state = statemachine.BrowseState{};
 
-            // Because we need to populate available_modules from track_state.module_locations,
-            // we iterate through the ModuleLocations and build the available_modules array
             inline for (std.meta.fields(ModulesList), 0..) |field, i| {
                 const module = @field(ModulesList, field.name);
-                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |_| {
-                    // Because we have a location for this module, we get the FX name
-                    // For now, we use a simple placeholder - the actual implementation
-                    // would need to query REAPER for the FX name at the FX index
-                    browse_state.available_modules[i] = @tagName(module);
+                const module_name = @tagName(module);
+
+                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |location| {
+                    if (globals.state.current_tr_id) |track_id| {
+                        const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
+                        var fx_name_buf: [512:0]u8 = undefined;
+                        const success = reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len);
+                        if (!success) {
+                            browse_state.available_modules[i] = null;
+                        } else {
+                            const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
+                            const formatted = std.fmt.allocPrintZ(globals.arena, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
+                            browse_state.available_modules[i] = formatted;
+                        }
+                    } else {
+                        browse_state.available_modules[i] = null;
+                    }
                 } else {
                     browse_state.available_modules[i] = null;
                 }
@@ -80,8 +90,12 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 // Query FX name from REAPER
                 const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id orelse return, constants.g_csurf_mcpmode);
                 var fx_name_buf: [256:0]u8 = undefined;
-                _ = reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len);
-                const fx_name_z = std.mem.sliceTo(&fx_name_buf, 0);
+                const success = reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len);
+                if (!success) {
+                    log.warn("Failed to get FX name for module {s}, fx_index: {d}", .{ @tagName(module), location.fx_index });
+                    return;
+                }
+                const fx_name_z = std.mem.span(@as([*:0]const u8, &fx_name_buf));
                 const fx_name = globals.arena.dupeZ(u8, fx_name_z) catch return;
                 assign_state.target_fx = fx_name;
                 // Load the mapping if it exists
@@ -103,18 +117,23 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             // Because we need assign_state data to initialize save mode, we get it from the current mode
             const assign_state = globals.state.mapping_panel.mode.assign;
 
-            var save_state = statemachine.SaveState.init(globals.arena);
-
-            // Because we need to preserve assign_state data for save_confirm, we copy it
-            save_state.target_fx = assign_state.target_fx;
-            save_state.current_mappings = assign_state.current_mappings;
-
             // Because we need to load existing preset names, we use mapping_browser.getMappingNames
             const module = std.meta.activeTag(assign_state.current_mappings);
-            const fx_name = assign_state.target_fx;
+            const fx_name = assign_state.target_fx; // Still a pointer, but we'll use it immediately
+            const current_mappings = assign_state.current_mappings;
 
-            // Because getMappingNames requires a null-terminated string, we need to convert fx_name
-            const fx_name_z = globals.arena.dupeZ(u8, fx_name) catch |err| {
+            // Create new save state with new arena
+            var save_state = statemachine.SaveState.init(globals.state.mapping_panel.gpa_int.allocator(), current_mappings);
+            const save_allocator = save_state.arena.allocator();
+
+            // Copy string data WHILE assign_state is still valid
+            save_state.target_fx = save_allocator.dupeZ(u8, fx_name) catch return;
+
+            // Initialize name_buffer
+            _ = std.fmt.bufPrintZ(&save_state.name_buffer, "default", .{}) catch return;
+
+            // Get preset names (using the copied fx_name would be safer, but we do it before deinit)
+            const fx_name_z = save_allocator.dupeZ(u8, fx_name) catch |err| {
                 log.warn("Failed to allocate null-terminated FX name: {}", .{err});
                 return;
             };
@@ -330,11 +349,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
         // SAVE sub-mode actions
         .save_update_name => |name| {
-            // Because we need to update the name buffer, we copy the name
-            const copy_len = @min(name.len, globals.state.mapping_panel.mode.save.name_buffer.len - 1);
-            @memcpy(globals.state.mapping_panel.mode.save.name_buffer[0..copy_len], name[0..copy_len]);
-            globals.state.mapping_panel.mode.save.name_buffer[copy_len] = 0;
-            globals.state.mapping_panel.mode.save.name_len = copy_len;
+            _ = std.fmt.bufPrintZ(&globals.state.mapping_panel.mode.save.name_buffer, "{s}", .{name}) catch return;
         },
 
         .save_confirm => |mapping_name| {

@@ -32,9 +32,6 @@ const Model = struct {
     // Edit state (ASSIGN sub-mode)
     current_mappings: ?TaggedMapping = null,
 
-    // Save state (SAVE sub-mode)
-    preset_name_len: usize = 0,
-
     pub fn init() Model {
         var model = Model{};
         // Initialize some modules with FX
@@ -49,7 +46,6 @@ const Model = struct {
         self.sub_mode = null;
         self.selected_module = .INPUT;
         self.current_mappings = null;
-        self.preset_name_len = 0;
     }
 };
 
@@ -170,7 +166,6 @@ const EnterSave = struct {
     pub fn onModelOnly(self: *@This(), model: *Model) void {
         _ = self;
         model.sub_mode = .SAVE;
-        model.preset_name_len = 0;
     }
 
     pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
@@ -569,7 +564,6 @@ const RequestSave = struct {
     pub fn onModelOnly(self: *@This(), model: *Model) void {
         _ = self;
         model.sub_mode = .SAVE;
-        model.preset_name_len = 0;
     }
 
     pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {

@@ -5,6 +5,7 @@ const PushWindowStyle = @import("styles_components.zig").PushStyle;
 const Globals = @import("globals.zig").Globals;
 const mapping_browser = @import("mapping_browser.zig");
 const log = std.log.scoped(.save_preset_dialog);
+const SaveState = @import("statemachine.zig").SaveState;
 
 pub const SavePresetAction = union(enum) {
     save: [:0]const u8,
@@ -49,11 +50,7 @@ pub const SavePresetDialog = struct {
     }
 
     /// Render the save preset dialog and return an action if user confirms or cancels.
-    pub fn draw(
-        self: *SavePresetDialog,
-        ctx: imgui.ContextPtr,
-        style_manager: *styles.StyleManager,
-    ) !?SavePresetAction {
+    pub fn draw(self: *SavePresetDialog, ctx: imgui.ContextPtr, style_manager: *styles.StyleManager, save_state: *const SaveState) !?SavePresetAction {
         var rv: ?SavePresetAction = null;
 
         const PopWindowStyle = try PushWindowStyle(ctx, .main, style_manager);
@@ -77,33 +74,37 @@ pub const SavePresetDialog = struct {
 
             try imgui.Text(.{ ctx, "Preset name:" });
 
-            // TODO: Implement text input when ImGui binding is available
-            // For now, we show the current buffer content as text
-            const current_name = std.mem.span(@as([*:0]const u8, &self.name_buffer));
-            try imgui.Text(.{ ctx, current_name });
-            try imgui.Text(.{ ctx, "(Text input not yet implemented)" });
+            // Because we need to allow user to input text, we use InputText
+            // The InputText function modifies the buffer in place and returns true if changed
+            _ = try imgui.InputText(.{
+                ctx,
+                "##preset_name",
+                @as([*]u8, @ptrCast(&save_state.name_buffer)),
+                save_state.name_buffer.len,
+                null, // flags
+                null, // callback
+            });
 
             try imgui.Separator(.{ctx});
 
             // Save and Cancel buttons
             if (try imgui.Button(.{ ctx, "Save" })) {
                 // Because we cannot save a preset with an empty name, we validate first
-                if (self.name_len == 0) {
+                const name_to_save = std.mem.span(@as([*:0]const u8, @ptrCast(&save_state.name_buffer)));
+                if (name_to_save.len == 0) {
                     log.warn("Cannot save preset with empty name", .{});
                 } else {
-                    const name_to_save = self.name_buffer[0..self.name_len :0];
-
                     // Because we need to check if the name already exists, we search the list
-                    const name_exists = for (self.existing_presets) |existing| {
+                    const name_exists = for (save_state.existing_presets.items) |existing| {
                         if (std.mem.eql(u8, existing, name_to_save)) break true;
                     } else false;
 
-                    if (name_exists and !self.show_overwrite_confirm) {
+                    if (name_exists and !save_state.show_overwrite_confirm) {
                         // Show confirmation popup
-                        self.show_overwrite_confirm = true;
-                        self.pending_name = name_to_save;
+                        save_state.show_overwrite_confirm = true;
+                        save_state.pending_name = name_to_save;
                     } else {
-                        rv = .{ .save = name_to_save };
+                        rv = .{ .save_confirm = name_to_save };
                     }
                 }
             }
@@ -131,8 +132,9 @@ pub const SavePresetDialog = struct {
                 try imgui.Text(.{ ctx, msg });
 
                 if (try imgui.Button(.{ ctx, "Yes" })) {
-                    rv = .{ .save = self.pending_name };
-                    self.show_overwrite_confirm = false;
+                    const name_z = std.mem.span(@as([*:0]const u8, @ptrCast(&save_state.name_buffer)));
+                    rv = .{ .save_confirm = name_z };
+                    save_state.show_overwrite_confirm = false;
                 }
 
                 try imgui.SameLine(.{ctx});

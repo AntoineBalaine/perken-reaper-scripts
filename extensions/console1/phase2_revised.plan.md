@@ -1881,3 +1881,338 @@ Because the critical issues are either (1) already being fixed in Review 3 or (2
 - [ ] CRITICAL: Fix System.init to populate track_state.module_locations with test FX data
 - [ ] SUGGESTION: Add comments explaining recursive dispatch pattern in command onPair methods
 - [ ] SUGGESTION: Consider parameterizing SavePreset with preset name to test overwrite protection
+
+### Review 5 - 2025-12-09
+
+# Code Review: Step 4 - Create Module Selection Panel
+
+## Summary
+
+The module selection panel implementation follows the pure function pattern correctly and displays all required UI elements. The code compiles successfully and is properly formatted. However, there are several critical issues that prevent the implementation from working as specified: the function uses translation parameter but never actually uses translation strings, the hover interaction doesn't update browse_state.selected_module correctly, and there's duplicate code for the drawInvertedSlctblColors helper that should be shared with fx_sel_panel.zig.
+
+## Critical Issues (3)
+
+### 1. Hover Selection Logic Broken
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:67-71
+
+**Issue**: Because the hover logic returns browse_select_module action but the onPair handler in mapping_actions.zig expects the browse_state to be updated before any UI rendering, the hover interaction creates a race condition. The handler updates browse_state.selected_module (line 159 in mapping_actions.zig), but then the UI re-renders in the same frame, checking if is_selected matches the OLD browse_state value (line 42), so the highlight appears one frame late.
+
+**Impact**: The hover highlight lags behind mouse movement by one frame, creating a janky user experience. Users will see the highlight update after they've already moved to the next item.
+
+**Root Cause**: The UI checks browse_state.selected_module at the start of rendering (line 42), but the action that updates browse_state is only dispatched at the end of the frame. By the next frame, the mouse may have already moved.
+
+**Fix Required**: The hover logic should work differently - either:
+1. Check IsItemHovered() and draw highlight immediately without going through the action system (for immediate visual feedback), OR
+2. The action handler needs to request a re-render after updating browse_state
+
+This is a fundamental issue with how stateful hover interactions work in immediate mode GUIs when state updates happen through an action system.
+
+### 2. Translation String Not Defined
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:36
+
+**Issue**: Because the window title uses a hardcoded string "Select Module to Edit" instead of calling tr(translations, .module_sel_title), the implementation doesn't follow the translation pattern used in fx_sel_panel.zig (line 178). The translation key module_sel_title would need to be added to translations.zig, but this wasn't done.
+
+**Impact**: The window title will not be translatable, breaking consistency with other panels. Users with non-English language settings will see mixed languages.
+
+**Fix Required**:
+1. Add module_sel_title to TranslationKeys enum in translations.zig
+2. Add translation entries to en.ini and fr.ini
+3. Update line 36 to: `if (try imgui.Begin(.{ ctx, tr(translations, .module_sel_title), &open }))`
+
+### 3. Duplicate Helper Function
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:88-130
+
+**Issue**: Because the drawInvertedSlctblColors function is duplicated between module_selection_panel.zig and fx_sel_panel.zig with identical implementations (214-257 in fx_sel_panel.zig), this violates the DRY principle and creates a maintenance burden.
+
+**Impact**: Bug fixes or improvements to the highlight rendering logic will need to be applied in two places. This has already happened - both implementations are identical copies, which indicates code duplication rather than intentional divergence.
+
+**Fix Required**: Extract drawInvertedSlctblColors into a shared module (e.g., ui_helpers.zig or styles_components.zig) and import it from both files.
+
+## Warnings (4)
+
+### 1. FX Name Formatting Issues
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:45-57
+
+**Issue**: Because the FX name display logic reuses the same fx_name_buf buffer for both reading the FX name from REAPER (line 50) and formatting the display text (line 52), there's a potential buffer overflow risk if the FX name is very long.
+
+**Impact**: If an FX name approaches 256 characters, the formatted string with module name prefix could overflow the buffer, causing truncation or undefined behavior.
+
+**Example**: Module name "INPUT" (5 chars) + "    [" (5 chars) + FX name (240 chars) + "]" (1 char) = 251 chars, which fits. But longer module names or FX names could cause issues.
+
+**Fix**: Use two separate buffers - one for the raw FX name, one for the formatted display text. Or calculate the required size first and ensure the format won't overflow.
+
+### 2. No Encoder/Keyboard Navigation
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:41-72
+
+**Issue**: Because the specification states "Encoder scrolls through 5 modules" (line 389 of plan) and "SOLO button (or click) confirms selection" (line 391), the implementation should support encoder navigation, but it only implements mouse clicks (Selectable and IsItemHovered).
+
+**Impact**: Users with hardware controllers (the C1 surface) won't be able to navigate the module list using the encoder. The browse_scroll action exists in mapping_actions.zig but is never used by this UI.
+
+**Note**: The encoder input would need to come from the MIDI event handler (src/csurf/midi_events.zig), which would dispatch browse_scroll actions. The UI would then read browse_state.scroll_position_rel to determine which module to highlight. This is an integration issue, not just a UI issue.
+
+### 3. Browse State Not Actually Used for Scrolling
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:41-72
+
+**Issue**: Because the UI iterates through all modules using comptime iteration (line 41) but never reads browse_state.scroll_position_abs or scroll_position_rel, the browse_scroll action handler (mapping_actions.zig:159-163) has no effect on the UI.
+
+**Impact**: When encoder scrolling is implemented, it will update the scroll positions but the UI won't respond because it's not checking those values.
+
+**Fix**: The UI should:
+1. Read browse_state.scroll_position_rel to determine which module index to highlight
+2. Only render a window of visible modules (or at least ensure the highlighted one is scrolled into view)
+3. For a list of only 5 items, scrolling may not be necessary (all fit on screen), but if the spec requires it, implement it.
+
+### 4. Window Size Hardcoded
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:32
+
+**Issue**: Because the window size is hardcoded to 500x300 (line 32) instead of being derived from theme or style settings, it may not adapt well to different screen sizes or theme configurations.
+
+**Impact**: On smaller displays or with different UI scaling, the window may be too large or too small. This is a minor UX issue.
+
+**Note**: The fx_sel_panel.ModulePopup also uses hardcoded size 400x300 (line 174), so this is consistent with existing patterns. Consider extracting window sizes to a constants or theme configuration.
+
+## Suggestions (3)
+
+### 1. Add Error Handling for REAPER Queries
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:49-50
+
+**Note**: Because TrackFX_GetFXName can fail if the track is invalid or the FX index doesn't exist, the current code assumes success. Consider checking the return value or handling the error case more gracefully. The current fallback to "[No FX]" (line 56) only handles the case where module_locations doesn't have an entry, not the case where REAPER query fails.
+
+### 2. Extract Module Name Display Logic
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:44-57
+
+**Note**: Because the module display text formatting logic is contained in a labeled block (blk:), it's somewhat complex and could be extracted into a helper function for clarity. Consider creating a function like `formatModuleDisplay(module: ModulesList, track_state: *const TrackState, current_track_id: ?c_int) [:0]const u8`.
+
+### 3. Consider Using BeginChild for Scrollable List
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/module_selection_panel.zig:36-72
+
+**Note**: Because the window content is a list of selectable items, using imgui.BeginChild for the list area would enable proper scrolling behavior if the list grows beyond 5 items in the future. This is standard ImGui pattern for scrollable lists.
+
+## Patterns Followed
+
+- Pure function signature (no struct, state comes from parameters) ✓
+- Returns ?MappingPanelAction ✓
+- Window styling applied with PushWindowStyle/PopWindowStyle ✓
+- Window size set with SetNextWindowSize ✓
+- All 5 modules displayed via comptime iteration over ModulesList enum ✓
+- FX names queried from REAPER using TrackFX_GetFXName ✓
+- Selected module highlighted using DrawListSplitter pattern ✓
+- Selectable widgets respond to clicks and return browse_confirm ✓
+- Cancel button returns browse_cancel ✓
+- Window close (X button) returns browse_cancel ✓
+- Formatted with zig fmt ✓
+- Compiles successfully ✓
+- Proper error handling (uses try for allocations) ✓
+- Function signature matches window consolidation layer requirements ✓
+
+## Detailed Review
+
+### Function Signature
+
+**drawModuleSelectionPanel** (lines 18-26):
+Because the specification required a pure function with specific parameters, I verified:
+- ctx: imgui.ContextPtr - ✓ correct
+- browse_state: *const BrowseState - ✓ read-only access to browse state
+- track_state: *const TrackState - ✓ read-only access to track state
+- current_track_id: ?c_int - ✓ needed for REAPER queries
+- drwls_splitter: *imgui.DrawListSplitterPtr - ✓ needed for highlight rendering
+- style_manager: *styles.StyleManager - ✓ needed for window styling
+- translations: *TranslationStore - ✓ needed for translations (but NOT USED - Critical Issue 2)
+- Returns !?MappingPanelAction - ✓ correct return type with error union
+
+### Window Styling
+
+**PushWindowStyle/PopWindowStyle** (lines 29-30):
+Because window styling should match other panels, I verified:
+- Uses PushWindowStyle with .main style (line 29)
+- Defers PopStyle for cleanup (line 30)
+- Matches pattern from fx_sel_panel.ModulePopup (lines 171-172)
+- try/catch pattern correct (PopStyle catches errors)
+
+**SetNextWindowSize** (line 32):
+Because the window needs a fixed size, I verified:
+- Size set to 500x300
+- Uses null for condition (always apply)
+- Larger than fx_sel_panel.ModulePopup (400x300) - reasonable for wider text
+- WARNING: Hardcoded size (see Warning 4)
+
+### Module Display
+
+**Module iteration** (line 39-41):
+Because all 5 modules need to be displayed, I verified:
+- Uses comptime std.enums.values(ModulesList) to get all enum values
+- Inline for loop ensures compile-time expansion
+- Correctly iterates INPUT, GATE, EQ, COMP, OUTPT
+
+**FX name querying** (lines 45-57):
+Because the display should show current FX assignments, I verified:
+- Queries module_locations map for each module (line 47)
+- Gets track using CSurf_TrackFromID with current_track_id (line 49)
+- Calls TrackFX_GetFXName to get FX name (line 50)
+- Formats display text as "MODULE_NAME    [FX Name]" (line 52)
+- Falls back to "[No FX]" if no location exists (line 56)
+- Uses labeled block for complex formatting logic (line 46-57)
+- WARNING: Single buffer used for both reading and formatting (see Warning 1)
+- SUGGESTION: Formatting logic could be extracted (see Suggestion 2)
+
+### Selection and Highlighting
+
+**Selectable widget** (lines 59-61):
+Because clicking should confirm selection, I verified:
+- Uses imgui.Selectable with display_text
+- Returns .browse_confirm when clicked (line 60)
+- Follows specification "SOLO button (or click) confirms selection" (line 391 of plan)
+
+**Highlight rendering** (lines 63-65):
+Because selected module should be highlighted, I verified:
+- Checks if is_selected matches browse_state.selected_module (line 42)
+- Calls drawInvertedSlctblColors to render highlight (line 64)
+- Uses DrawListSplitter pattern (matches fx_sel_panel.zig pattern)
+- CRITICAL BUG: Duplicate function (see Critical Issue 3)
+
+**Hover interaction** (lines 67-71):
+Because hovering should update selection, I verified:
+- Checks imgui.IsItemHovered (line 67)
+- Only returns action if not already selected (line 68)
+- Returns .browse_select_module action with module value (line 69)
+- CRITICAL BUG: Hover highlighting lags by one frame (see Critical Issue 1)
+
+### Cancel Actions
+
+**Cancel button** (lines 76-78):
+Because user should be able to cancel, I verified:
+- Separator added before button for visual separation (line 74)
+- Button labeled "Cancel" (line 76)
+- Returns .browse_cancel when clicked (line 77)
+- Follows specification "MUTE button (or Cancel button) cancels" (line 392 of plan)
+
+**Window close** (lines 81-83):
+Because closing the window should cancel, I verified:
+- Checks !open after Begin block (line 81)
+- Returns .browse_cancel if window closed (line 82)
+- Follows standard ImGui pattern for close detection
+
+### Helper Function
+
+**drawInvertedSlctblColors** (lines 88-130):
+Because highlighted items need inverted colors, I verified:
+- Takes ctx, display_text, and g_drwls_splitter parameters
+- Validates and creates DrawListSplitter if needed (lines 89-94)
+- Splits into 2 channels (line 96)
+- Defers merge (line 97)
+- Channel 0: Draws filled rectangle with genlist_fg color (lines 98-116)
+- Channel 1: Draws text with genlist_bg color (lines 118-129)
+- Gets item rect using GetItemRectMin/Max (lines 100-106)
+- Applies frame_padding to text position (lines 120-122)
+- Matches fx_sel_panel.zig implementation exactly (lines 214-257)
+- CRITICAL ISSUE: Duplicate code (see Critical Issue 3)
+
+### Integration Readiness
+
+**Action returns** (verified against mapping_actions.zig):
+Because the UI must return correct actions, I verified:
+- browse_confirm: void - ✓ used on line 60
+- browse_cancel: void - ✓ used on lines 77, 82
+- browse_select_module: ModulesList - ✓ used on line 69
+- All action types match MappingPanelAction union (lines 20-23 of mapping_actions.zig)
+
+**State access** (verified against statemachine.zig):
+Because the UI must read correct state fields, I verified:
+- browse_state.selected_module: ModulesList - ✓ read on line 42
+- track_state.module_locations: HashMap - ✓ queried on line 47
+- Both fields exist in state structure
+
+**Type compatibility**:
+Because types must match across modules, I verified:
+- BrowseState imported from statemachine.zig (line 9)
+- TrackState imported from track_state.zig (line 10)
+- MappingPanelAction imported from mapping_actions.zig (line 12)
+- ModulesList imported from statemachine.zig (line 8)
+- All types correctly imported and used
+
+### Code Quality
+
+**Zig fmt compliance** (verified via zig fmt command):
+Because all code should be formatted, I verified:
+- Indentation consistent (4 spaces)
+- Spacing follows Zig conventions
+- Struct initialization syntax correct
+- No formatting errors
+
+**Build status** (verified via zig build command):
+Because the code must compile, I verified:
+- Build succeeds with exit code 0
+- No compilation errors in module_selection_panel.zig
+- No type mismatches
+- All imports resolve correctly
+
+**Writing style**:
+Because the codebase requires proper English with articles, I verified:
+- No comments present (code is self-documenting)
+- No telegraphic-style writing in code
+- Function and variable names clear and descriptive
+
+**Error handling**:
+Because Zig requires explicit error handling, I verified:
+- All imgui calls use try (lines 29, 32, 36, 37, 59, 64, 67, 74, 76)
+- Return type includes ! for error union
+- defer used for cleanup (line 30, 37)
+- No uncaught errors
+
+### Match to Specification
+
+**Display layout** (verified against plan lines 376-386):
+Because the UI must match the specification, I verified:
+- ✓ Window title present (though hardcoded - see Critical Issue 2)
+- ✓ All 5 modules listed (INPUT, GATE, EQ, COMP, OUTPT)
+- ✓ Module names with FX names in brackets format "MODULE    [FX Name]"
+- ✓ Highlighted selection using DrawListSplitter pattern
+- ✓ Cancel button present
+- ✗ Encoder scrolling not implemented (see Warning 2)
+
+**Behavior** (verified against plan lines 388-393):
+Because the UI must implement specified behavior, I verified:
+- ✗ Encoder scrolls through 5 modules - NOT IMPLEMENTED (see Warning 2)
+- ✓ Current selection highlighted with inverted colors
+- ✓ Click confirms selection (returns browse_confirm)
+- ✓ Cancel button cancels (returns browse_cancel)
+- ✓ Window close cancels (returns browse_cancel)
+- ~ Hover updates selection (returns browse_select_module but lags by one frame - see Critical Issue 1)
+
+## Overall Assessment
+
+The module selection panel implementation successfully establishes the pure function pattern and displays all required UI elements. The code compiles, is properly formatted, and follows the structural requirements from the specification. The function signature is correct for integration with the window consolidation layer, and the basic interaction flow (click to select, cancel button, window close) works as specified.
+
+However, there are three critical issues that must be addressed before this implementation can be considered complete:
+
+1. The hover interaction creates a one-frame lag in highlight updates due to the action dispatch pattern
+2. Translation support is incomplete (uses hardcoded English string)
+3. Code duplication of the drawInvertedSlctblColors helper function
+
+Additionally, there are four warnings about missing functionality (encoder navigation, scroll state not used, FX name formatting buffer issues, hardcoded window size) that should be addressed for production readiness.
+
+**Status: Needs fixes before proceeding to Step 5**
+
+Because the critical issues affect core functionality (hover interaction UX, internationalization support, code maintainability), they should be fixed before moving to Step 5. The warnings can be addressed in later iterations, but the critical issues will cause problems if left unfixed.
+
+**Action Items:**
+
+- [ ] CRITICAL: Fix hover interaction lag by either (a) drawing highlight immediately without action dispatch, or (b) implementing frame-based re-render trigger
+- [ ] CRITICAL: Add module_sel_title translation key to translations.zig and language packs, update window title to use tr()
+- [ ] CRITICAL: Extract drawInvertedSlctblColors to shared module (ui_helpers.zig) and import from both module_selection_panel.zig and fx_sel_panel.zig
+- [ ] WARNING: Fix FX name formatting to use separate buffers for read and format operations
+- [ ] WARNING: Implement encoder navigation support (requires integration with MIDI event handler)
+- [ ] WARNING: Make UI read browse_state scroll positions and respond to browse_scroll actions
+- [ ] SUGGESTION: Add error handling for REAPER TrackFX_GetFXName failures
+- [ ] SUGGESTION: Extract module display formatting logic into helper function
+- [ ] SUGGESTION: Consider using BeginChild for scrollable list area

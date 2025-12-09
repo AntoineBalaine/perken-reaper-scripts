@@ -141,6 +141,7 @@ pub const TranslationKey = enum {
     mapping_midi_learn_active,
     mapping_save,
     mapping_cancel,
+    module_sel_title,
 
     trsprt_Inpt_disp_mode,
     trsprt_Inpt_disp_on,
@@ -186,6 +187,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "mapping_midi_learn_active", "MIDI Learn (Active)" },
     .{ "mapping_save", "Save Mapping" },
     .{ "mapping_cancel", "Cancel" },
+    .{ "module_sel_title", "Select Module to Edit" },
     .{ "mapping_module_input", "INPUT" },
     .{ "mapping_module_gate", "GATE" },
     .{ "mapping_module_eq", "EQ" },
