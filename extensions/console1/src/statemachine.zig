@@ -97,6 +97,7 @@ pub const State = struct {
 
     pub fn deinit(self: *State, allocator: std.mem.Allocator) void {
         self.fx_ctrl.deinit();
+        self.mapping_panel.deinit();
         self.selectedTracks.deinit(allocator);
         // Any other cleanup needed...
     }
@@ -118,6 +119,17 @@ pub const BrowseState = struct {
     scroll_position_abs: u8 = 0,
     scroll_position_rel: usize = 0,
     available_modules: [5]?[:0]const u8 = [_]?[:0]const u8{null} ** 5,
+    arena: std.heap.ArenaAllocator,
+
+    pub fn init(gpa: std.mem.Allocator) BrowseState {
+        return BrowseState{
+            .arena = std.heap.ArenaAllocator.init(gpa),
+        };
+    }
+
+    pub fn deinit(self: *BrowseState) void {
+        self.arena.deinit();
+    }
 };
 
 pub const ModuleMappings = union(ModulesList) {
@@ -134,6 +146,24 @@ pub const AssignState = struct {
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
     midi_learn_active: bool = false,
+    fx_params: std.ArrayListUnmanaged(FxParameter) = .{},
+    arena: std.heap.ArenaAllocator,
+
+    pub const FxParameter = struct {
+        index: u32,
+        name: [:0]const u8,
+    };
+
+    pub fn init(gpa: std.mem.Allocator, mappings: ModuleMappings) AssignState {
+        return AssignState{
+            .current_mappings = mappings,
+            .arena = std.heap.ArenaAllocator.init(gpa),
+        };
+    }
+
+    pub fn deinit(self: *AssignState) void {
+        self.arena.deinit();
+    }
 };
 
 pub const SaveState = struct {
@@ -144,12 +174,17 @@ pub const SaveState = struct {
     // Because we need access to assign data when saving, we preserve it here
     target_fx: [:0]const u8 = "",
     current_mappings: ModuleMappings,
+    arena: std.heap.ArenaAllocator,
 
-    pub fn init(allocator: std.mem.Allocator) SaveState {
+    pub fn init(gpa: std.mem.Allocator, mappings: ModuleMappings) SaveState {
         return SaveState{
-            .existing_presets = std.ArrayList([]const u8).init(allocator),
-            .current_mappings = .{ .INPUT = MapStore.Inpt{} },
+            .current_mappings = mappings,
+            .arena = std.heap.ArenaAllocator.init(gpa),
         };
+    }
+
+    pub fn deinit(self: *SaveState) void {
+        self.arena.deinit();
     }
 };
 
@@ -161,12 +196,33 @@ pub const MapSubMode = union(enum) {
 
 pub const MappingPanelState = struct {
     mode: MapSubMode,
+    gpa_int: std.heap.GeneralPurposeAllocator(.{}),
 
     pub fn init() MappingPanelState {
-        return MappingPanelState{
-            .mode = .{
-                .browse = BrowseState{},
-            },
+        var self = MappingPanelState{
+            .gpa_int = .{},
+            .mode = undefined,
         };
+        self.mode = .{
+            .browse = BrowseState.init(self.gpa_int.allocator()),
+        };
+        return self;
+    }
+
+    pub fn deinitCurrentSubMode(self: *MappingPanelState) void {
+        switch (self.mode) {
+            .browse => |*browse| browse.deinit(),
+            .assign => |*assign| assign.deinit(),
+            .save => |*save| save.deinit(),
+        }
+    }
+
+    pub fn deinit(self: *MappingPanelState) void {
+        self.deinitCurrentSubMode();
+
+        const deinit_status = self.gpa_int.deinit();
+        if (deinit_status == .leak) {
+            std.log.err("Memory leak detected in mapping panel sub-states", .{});
+        }
     }
 };

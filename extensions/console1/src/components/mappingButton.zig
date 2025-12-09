@@ -17,7 +17,7 @@ pub fn mappingButton(
     disabled: ?bool,
     comptime cc: @import("../c1.zig").CCs,
     assignment_label: [:0]const u8,
-    fx_params: []@import("../mapping_panel.zig").FxParameter,
+    fx_params: []@import("../statemachine.zig").AssignState.FxParameter,
 ) anyerror!?mappingKnob.Res {
     const is_disabled = disabled orelse false;
     const radius = if (provided_radius) |rad| rad else 5.0;

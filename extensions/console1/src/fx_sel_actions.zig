@@ -3,7 +3,6 @@ const reaper = @import("reaper.zig").reaper;
 const pReaper = @import("pReaper.zig");
 const statemachine = @import("statemachine.zig");
 const State = statemachine.State;
-const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const ModulesList = statemachine.ModulesList;
 const constants = @import("constants.zig");
 const dispatch = @import("actions.zig").dispatch;
@@ -92,18 +91,12 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 }
             }
 
-            // // Update track state
+            // Because validateTrack needs to be called after adding the FX, we call it here
             _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences);
 
-            // state.current_mode = .mapping_panel;
-            // Enter mapping mode if needed, otherwise return to fx_ctrl
+            // Because FX parameter loading now happens in enter_assign action,
+            // we enter mapping mode if needed, otherwise return to fx_ctrl
             if (needs_mapping) {
-                enterMappingMode(globals, globals.state.current_tr_id.?, new_fx_index) catch {
-                    log.err("failed to enter load data for mapping mode", .{});
-                    dispatch(globals, .{ .change_mode = .fx_ctrl });
-                    return;
-                };
-
                 dispatch(globals, .{ .change_mode = .mapping_panel });
             } else {
                 dispatch(globals, .{ .change_mode = .fx_ctrl });
@@ -145,15 +138,6 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         },
         else => {},
     }
-}
-
-pub fn enterMappingMode(globals: *Globals, track_id: c_int, fx_number: i32) !void {
-    const media_track =
-        reaper.CSurf_TrackFromID(track_id, false);
-    if (globals.mapping_panel == null) {
-        globals.mapping_panel = MappingPanel.init(globals.arena);
-    }
-    try globals.mapping_panel.?.loadParameters(media_track, fx_number);
 }
 
 fn countModuleLocations(track_state: *const TrackState) usize {

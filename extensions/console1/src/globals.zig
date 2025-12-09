@@ -5,7 +5,6 @@ const MapStore = @import("mappings.zig").MapStore;
 const logger = @import("logger.zig");
 const SettingsPanel = @import("settings_panel.zig");
 const FxMaps = @import("mappings_list.zig");
-const MappingPanel = @import("mapping_panel.zig").MappingPanel;
 const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
 const fs_helpers = @import("fs_helpers.zig");
@@ -26,7 +25,6 @@ mappings_list: FxMaps = undefined,
 
 // UI
 settings_panel: ?SettingsPanel = null,
-mapping_panel: ?MappingPanel = null,
 drwls_splitter: imgui.DrawListSplitterPtr = null,
 
 // Logging

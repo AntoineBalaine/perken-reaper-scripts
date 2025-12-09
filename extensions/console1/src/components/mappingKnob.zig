@@ -14,7 +14,7 @@ const angle = knob.angle;
 const angle_min = knob.angle_min;
 const angle_max = knob.angle_max;
 const angle_default = knob.angle_default;
-const mapping_panel = @import("../mapping_panel.zig");
+const statemachine = @import("../statemachine.zig");
 const CCs = @import("../c1.zig").CCs;
 const constants = @import("../constants.zig");
 
@@ -27,7 +27,7 @@ pub fn drawWidget(
     flags: ControlFlags,
     comptime cc: CCs,
     assignment_label: [:0]const u8,
-    fx_params: []mapping_panel.FxParameter,
+    fx_params: []statemachine.AssignState.FxParameter,
 ) anyerror!?Res {
     const drwls = try imgui.GetWindowDrawList(.{ctx});
     const radius = constants.knob_size / 2;
@@ -152,7 +152,7 @@ pub fn paramsCombo(
     ctx: imgui.ContextPtr,
     comptime cc: CCs,
     assignment_label: [:0]const u8,
-    fx_params: []mapping_panel.FxParameter,
+    fx_params: []statemachine.AssignState.FxParameter,
 ) !?Res {
     var rv: ?Res = null;
     try imgui.PushItemWidth(.{ ctx, constants.knob_size * 2 });

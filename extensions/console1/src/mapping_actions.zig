@@ -44,7 +44,11 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
     switch (action) {
         // Sub-mode transitions
         .enter_browse => {
-            var browse_state = statemachine.BrowseState{};
+            // Because we need to deinitialize the previous sub-state before entering browse,
+            globals.state.mapping_panel.deinitCurrentSubMode();
+
+            var browse_state = statemachine.BrowseState.init(globals.state.mapping_panel.gpa_int.allocator());
+            const browse_allocator = browse_state.arena.allocator();
 
             inline for (std.meta.fields(ModulesList), 0..) |field, i| {
                 const module = @field(ModulesList, field.name);
@@ -59,7 +63,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                             browse_state.available_modules[i] = null;
                         } else {
                             const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                            const formatted = std.fmt.allocPrintZ(globals.arena, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
+                            const formatted = std.fmt.allocPrintZ(browse_allocator, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
                             browse_state.available_modules[i] = formatted;
                         }
                     } else {
@@ -74,15 +78,19 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         },
 
         .enter_assign => |module| {
-            var assign_state = statemachine.AssignState{
-                .current_mappings = switch (module) {
-                    .INPUT => .{ .INPUT = mappings.Inpt{} },
-                    .GATE => .{ .GATE = mappings.Shp{} },
-                    .EQ => .{ .EQ = mappings.Eq{} },
-                    .COMP => .{ .COMP = mappings.Comp{} },
-                    .OUTPT => .{ .OUTPT = mappings.Outpt{} },
-                },
+            // Because we need to deinitialize the previous sub-state before entering assign,
+            globals.state.mapping_panel.deinitCurrentSubMode();
+
+            const initial_mappings = switch (module) {
+                .INPUT => statemachine.ModuleMappings{ .INPUT = mappings.Inpt{} },
+                .GATE => statemachine.ModuleMappings{ .GATE = mappings.Shp{} },
+                .EQ => statemachine.ModuleMappings{ .EQ = mappings.Eq{} },
+                .COMP => statemachine.ModuleMappings{ .COMP = mappings.Comp{} },
+                .OUTPT => statemachine.ModuleMappings{ .OUTPT = mappings.Outpt{} },
             };
+
+            var assign_state = statemachine.AssignState.init(globals.state.mapping_panel.gpa_int.allocator(), initial_mappings);
+            const assign_allocator = assign_state.arena.allocator();
 
             // Because we need to load FX parameters and initialize assign_state with current mappings,
             // we get the FX from the track_state module_locations
@@ -96,8 +104,25 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     return;
                 }
                 const fx_name_z = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                const fx_name = globals.arena.dupeZ(u8, fx_name_z) catch return;
+                const fx_name = assign_allocator.dupeZ(u8, fx_name_z) catch return;
                 assign_state.target_fx = fx_name;
+
+                // Because we need to load FX parameters for the panel, we query them from REAPER
+                const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, location.fx_index));
+                assign_state.fx_params.ensureTotalCapacity(assign_allocator, params_length) catch return;
+
+                var prm_name_buf: [256:0]u8 = undefined;
+                for (0..params_length) |i| {
+                    const prm_idx: i32 = @intCast(i);
+                    if (reaper.TrackFX_GetParamName(track, location.fx_index, prm_idx, &prm_name_buf, prm_name_buf.len)) {
+                        const param_name = assign_allocator.dupeZ(u8, std.mem.span(@as([*:0]const u8, &prm_name_buf))) catch return;
+                        assign_state.fx_params.appendAssumeCapacity(.{
+                            .index = @intCast(i),
+                            .name = param_name,
+                        });
+                    }
+                }
+
                 // Load the mapping if it exists
                 if (location.mapping) |tagged_mapping| {
                     assign_state.current_mappings = switch (tagged_mapping) {
@@ -114,10 +139,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         },
 
         .enter_save => {
-            // Because we need assign_state data to initialize save mode, we get it from the current mode
             const assign_state = globals.state.mapping_panel.mode.assign;
-
-            // Because we need to load existing preset names, we use mapping_browser.getMappingNames
             const module = std.meta.activeTag(assign_state.current_mappings);
             const fx_name = assign_state.target_fx; // Still a pointer, but we'll use it immediately
             const current_mappings = assign_state.current_mappings;
@@ -139,7 +161,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             };
 
             const preset_names = mapping_browser.getMappingNames(
-                globals.arena,
+                save_allocator,
                 globals.resource_path,
                 fx_name_z,
                 module,
@@ -148,22 +170,18 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 return;
             };
 
-            // Because getMappingNames returns owned strings, we add them to the list
             for (preset_names) |name| {
-                save_state.existing_presets.append(name) catch |err| {
+                save_state.existing_presets.append(save_allocator, name) catch |err| {
                     log.warn("Failed to append preset name: {}", .{err});
                 };
             }
+
+            globals.state.mapping_panel.deinitCurrentSubMode();
 
             globals.state.mapping_panel.mode = .{ .save = save_state };
         },
 
         .exit_to_fx_ctrl => {
-            // Clean up mapping panel
-            if (globals.mapping_panel) |*panel| {
-                panel.deinit();
-                globals.mapping_panel = null;
-            }
             dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
 
@@ -353,18 +371,20 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         },
 
         .save_confirm => |mapping_name| {
-            const fx_name = globals.state.mapping_panel.mode.save.target_fx;
+            const save_state = &globals.state.mapping_panel.mode.save;
+            const fx_name = save_state.target_fx;
             log.debug("Saved mappings for FX: {s}", .{fx_name});
 
             // Because saveToFile requires null-terminated strings, we need to convert fx_name
-            const fx_name_z = globals.arena.dupeZ(u8, fx_name) catch |err| {
+            const save_allocator = save_state.arena.allocator();
+            const fx_name_z = save_allocator.dupeZ(u8, fx_name) catch |err| {
                 log.warn("Failed to allocate null-terminated FX name: {}", .{err});
                 return;
             };
 
             // Because we need to save the mapping to disk, we extract the module and convert to TaggedMapping
-            const module = std.meta.activeTag(globals.state.mapping_panel.mode.save.current_mappings);
-            const tagged_mapping: TaggedMapping = switch (globals.state.mapping_panel.mode.save.current_mappings) {
+            const module = std.meta.activeTag(save_state.current_mappings);
+            const tagged_mapping: TaggedMapping = switch (save_state.current_mappings) {
                 .INPUT => |m| .{ .INPUT = m },
                 .GATE => |m| .{ .GATE = m },
                 .EQ => |m| .{ .EQ = m },

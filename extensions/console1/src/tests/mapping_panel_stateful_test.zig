@@ -72,11 +72,12 @@ const System = struct {
     pub fn reset(self: *System) void {
         // Because we need to reset the system to initial state, we reset to fx_ctrl mode
         self.globals.state.current_mode = .fx_ctrl;
-        self.globals.state.mapping_panel.mode = .{ .browse = statemachine.BrowseState{} };
+        self.globals.state.mapping_panel.deinitCurrentSubMode();
+        self.globals.state.mapping_panel.mode = .{ .browse = statemachine.BrowseState.init(self.globals.state.mapping_panel.gpa_int.allocator()) };
     }
 
     pub fn deinit(self: *System) void {
-        // Because Globals uses an arena allocator, we need to deinit it
+        self.globals.state.mapping_panel.deinit();
         _ = self.globals.arena_int.reset(.free_all);
     }
 };

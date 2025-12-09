@@ -140,7 +140,13 @@ pub fn main(
                 }
             },
             .mapping_panel => {
-                if (try mapping_panel.mappingPanel(ctx, globals, &globals.translations)) |map_action| {
+                // Because drawMappingPanel is only for ASSIGN mode, we extract assign_state
+                const assign_state = switch (globals.state.mapping_panel.mode) {
+                    .assign => |*s| s,
+                    else => return null,
+                };
+
+                if (try mapping_panel.drawMappingPanel(ctx, &globals.state, assign_state, &globals.translations)) |map_action| {
                     rv = .{ .mapping_panel = map_action };
                 }
             },

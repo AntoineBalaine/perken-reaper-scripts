@@ -2216,3 +2216,107 @@ Because the critical issues affect core functionality (hover interaction UX, int
 - [ ] SUGGESTION: Add error handling for REAPER TrackFX_GetFXName failures
 - [ ] SUGGESTION: Extract module display formatting logic into helper function
 - [ ] SUGGESTION: Consider using BeginChild for scrollable list area
+
+### Review 3 - 2025-12-09
+
+# Code Review: Step 5 - Refactor Mapping Panel
+
+## Summary
+
+The mapping panel refactoring successfully implements the pure function pattern as specified. The code correctly removes the MappingPanel struct, converts drawMappingPanel to a pure function that receives all state through parameters, loads fx_params in the enter_assign action handler, and updates all action names to use the assign_ prefix. The implementation compiles cleanly and follows the established patterns. No critical issues found.
+
+## Critical Issues (0)
+
+None found.
+
+## Warnings (0)
+
+None found.
+
+## Suggestions (2)
+
+### 1. Unused params Function
+
+**File**: src/mapping_panel.zig:19-50
+**Note**: Because the params function is defined but never called in drawMappingPanel, it appears to be dead code. The function iterates through fx_params and displays them as selectables, which seems like it should be part of the UI, but it's not integrated into the current panel layout. Consider either integrating this into the controls/formControls functions or removing it if it's obsolete.
+
+### 2. Helper Functions Could Accept Fewer Parameters
+
+**File**: src/mapping_panel.zig (various functions)
+**Note**: Because helper functions like inputMappingPanel, gateMappingPanel, etc. receive both the full State and assign_state parameters, but only use State for the helper functions isParamMapped and getControlMapping, consider refactoring those helpers to accept assign_state directly instead of State. This would make the pure function pattern more explicit and reduce coupling to the global state structure.
+
+Example:
+```
+// Current:
+fn isParamMapped(state: *const State, param_idx: usize) bool {
+    const current_mappings = switch (state.mapping_panel.mode) {
+        .assign => |s| s.current_mappings,
+        else => return false,
+    };
+    // ... rest of implementation
+}
+
+// Suggested:
+fn isParamMapped(current_mappings: ModuleMappings, param_idx: usize) bool {
+    // ... implementation using current_mappings directly
+}
+```
+
+## Patterns Followed
+
+**Pure Function Pattern:**
+- MappingPanel struct removed completely
+- drawMappingPanel is a pure function that receives state through parameters
+- No internal state stored in the module
+- All state comes from AssignState parameter
+- Helper functions (controls, formControls, mappingWidget, etc.) follow the same pattern
+
+**State Management:**
+- fx_params ArrayList added to AssignState in statemachine.zig
+- Parameters loaded in enter_assign action handler (mapping_actions.zig:75-103)
+- Parameters NOT loaded in draw function (correct separation of concerns)
+- FxParameter struct properly defined in AssignState with index and name fields
+
+**Action Names:**
+- All actions use assign_ prefix consistently
+- Returns MappingPanelAction instead of MappingAction
+- Save button returns assign_request_save
+- Cancel button returns assign_cancel
+- All action types properly namespaced (assign_select_parameter, assign_select_control, assign_toggle_midi_learn, assign_add_mapping, assign_remove_mapping, assign_change_module)
+
+**Auto-Open Removal:**
+- No window management code in drawMappingPanel (no Begin/End Window calls)
+- Only uses BeginGroup/EndGroup for layout grouping
+- Just renders content as expected
+
+**Integration:**
+- Call site in gui_lib.zig updated (line 143-151)
+- Correctly extracts assign_state from mapping_panel.mode union
+- Component types updated (mappingButton.zig, mappingKnob.zig use AssignState.FxParameter)
+- No references to old MappingPanel struct in globals.zig
+
+**Code Quality:**
+- Code compiles successfully with zig build
+- All files properly formatted with zig fmt
+- Helper functions properly updated to accept assign_state
+- Proper const correctness (State and AssignState parameters are *const)
+- Action dispatching works correctly through gui_lib.zig
+
+## Overall Assessment
+
+Excellent implementation. The refactoring correctly follows the pure function pattern specified in the requirements. All structural changes are complete:
+
+1. MappingPanel struct removed
+2. drawMappingPanel converted to pure function receiving state through parameters
+3. fx_params moved to AssignState and loaded in action handler
+4. Action names properly prefixed with assign_
+5. Window management removed from draw function
+6. All integration points updated
+
+The code is production-ready for Step 5. The two suggestions are minor code quality improvements that don't affect correctness or functionality.
+
+**Status: PASS - Ready to proceed to Step 6**
+
+**Action Items:**
+
+None (suggestions are optional improvements)
