@@ -38,9 +38,15 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
     const val = if (status == 0xb0) msg[2] else msg[1];
 
     if (cc_enum) |cc| {
-        switch (globals.state.current_mode) {
+        mode_switch: switch (globals.state.current_mode) {
             .fx_ctrl => {
-                actions.dispatch(globals, .{ .fx_ctrl = .{ .midi_input = .{ .cc = cc, .value = val } } });
+                switch (cc) {
+                    .Inpt_preset => {
+                        actions.dispatch(globals, .{ .change_mode = .mapping_panel });
+                        actions.dispatch(globals, .{ .mapping_panel = .enter_browse });
+                    },
+                    else => actions.dispatch(globals, .{ .fx_ctrl = .{ .midi_input = .{ .cc = cc, .value = val } } }),
+                }
             },
             .fx_sel => {
                 switch (cc) {
@@ -133,6 +139,37 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                     .Out_Pan => actions.dispatch(globals, .{ .transport = .{ .grid = val } }),
                     .Out_solo => actions.dispatch(globals, .{ .transport = .snap_tgl }),
                     else => {},
+                }
+            },
+            .mapping_panel => {
+                switch (globals.state.mapping_panel.mode) {
+                    .browse => {
+                        switch (cc) {
+                            .Out_Vol => actions.dispatch(globals, .{ .mapping_panel = .{ .browse_scroll = val } }),
+                            .Out_solo => actions.dispatch(globals, .{ .mapping_panel = .browse_confirm }),
+                            .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .browse_cancel }),
+                            else => {},
+                        }
+                    },
+                    .assign => {
+                        switch (cc) {
+                            .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .assign_cancel }),
+                            .Out_Vol, .Out_solo => {},
+                            else => continue :mode_switch .fx_ctrl, // Forward all other CCs to fx_ctrl
+                        }
+                    },
+                    .save => {
+                        switch (cc) {
+                            .Out_solo => {
+                                // Because we need to pass the current name for save confirmation, we extract it from the buffer
+                                const save_state = globals.state.mapping_panel.mode.save;
+                                const name = std.mem.span(@as([*:0]const u8, @ptrCast(&save_state.name_buffer)));
+                                actions.dispatch(globals, .{ .mapping_panel = .{ .save_confirm = name } });
+                            },
+                            .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .save_cancel }),
+                            else => {},
+                        }
+                    },
                 }
             },
             else => {},
