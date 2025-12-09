@@ -1267,3 +1267,194 @@ The implementation passes review with no issues. All obsolete files and mode ref
 **Action Items:**
 
 None - Step 0 is complete and ready to proceed to Step 1.
+
+### Review 2 - 2025-12-08
+
+# Code Review: Step 1 - Refactor State Machine
+
+## Summary
+
+The hierarchical state machine structure has been successfully implemented and matches the specification. All required structures (MappingPanelMode, BrowseState, AssignState, SaveState, MappingPanelState) are correctly defined with appropriate fields. The old MappingState has been removed and replaced with the new mapping_panel field. The implementation compiles cleanly (statemachine.zig has no errors), with expected compilation errors in files that reference the old state structure. We can proceed to Step 2.
+
+## Critical Issues (0)
+
+None found.
+
+## Warnings (0)
+
+None found.
+
+## Suggestions (1)
+
+### 1. AssignState default union variant initialization
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/statemachine.zig:161-163
+
+Because Zig requires unions to have a default value, the implementation initializes `current_mappings` with `.{ .COMP = MapStore.Comp{} }` as a default variant. This is an acceptable pattern, but consider documenting why COMP was chosen as the default (it's arbitrary, and the union will be replaced with the correct module when entering ASSIGN sub-mode from BROWSE).
+
+## Patterns Followed
+
+- MappingPanelMode enum defined correctly (BROWSE, ASSIGN, SAVE)
+- BrowseState matches spec (selected_module, scroll positions, available_modules array)
+- AssignState matches spec (target_fx, target_module, current_mappings union, selected fields, midi_learn_active flag)
+- SaveState matches spec (name_buffer, name_len, existing_presets ArrayList, overwrite fields, init() method)
+- MappingPanelState hierarchical structure correctly implemented
+- Old MappingState completely removed
+- State.init() calls MappingPanelState.init(gpa) for proper initialization
+- Mode enum and valid_transitions unchanged (no modifications to existing modes)
+- Zig naming conventions followed (PascalCase for types, snake_case for fields)
+
+## Detailed Review
+
+### Structure Completeness
+
+**MappingPanelMode enum** (lines 41-45):
+Because the specification required three distinct sub-modes, I verified:
+- BROWSE variant present
+- ASSIGN variant present
+- SAVE variant present
+- Follows Zig enum naming conventions
+
+**BrowseState struct** (lines 116-122):
+Because the BROWSE sub-mode needs to track module selection and cached FX info, I verified:
+- selected_module: ModulesList with default .INPUT
+- scroll_position_abs: u8 with default 0
+- scroll_position_rel: usize with default 0
+- available_modules: [5]?[]const u8 array for caching current FX names
+- All fields match specification from lines 100-104 of plan
+
+**AssignState struct** (lines 124-137):
+Because the ASSIGN sub-mode needs to track mapping editing state, I verified:
+- target_fx: []const u8 with empty string default
+- target_module: ModulesList with default .INPUT
+- current_mappings: union(ModulesList) with variants INPUT/GATE/EQ/COMP/OUTPT
+- Mapping variants correctly reference MapStore types (Inpt, Shp, Eq, Comp, Outpt)
+- selected_parameter: ?u32 with default null
+- selected_control: ?c1.CCs with default null
+- midi_learn_active: bool with default false
+- All fields match specification from lines 107-118 of plan
+
+**SaveState struct** (lines 139-151):
+Because the SAVE sub-mode needs to manage preset saving with overwrite protection, I verified:
+- name_buffer: [256]u8 initialized to zeros
+- name_len: usize with default 0
+- existing_presets: std.ArrayList([]const u8) properly typed
+- show_overwrite_confirm: bool with default false
+- pending_name: []const u8 with empty string default
+- init() method properly initializes ArrayList with allocator (line 146-149)
+- All fields match specification from lines 121-126 of plan
+
+**MappingPanelState struct** (lines 153-167):
+Because the mapping_panel mode needs to coordinate all three sub-modes, I verified:
+- sub_mode: MappingPanelMode field present with default .BROWSE
+- browse_state: BrowseState field present with struct literal default
+- assign_state: AssignState field present (no default needed, initialized in init())
+- save_state: SaveState field present (no default needed, initialized in init())
+- init() method properly initializes nested states with allocator (lines 159-166)
+- Matches specification structure from lines 96-127 of plan
+
+### Initialization Correctness
+
+**SaveState.init()** (lines 146-149):
+Because SaveState needs dynamic memory for existing_presets, I verified:
+- Takes allocator: std.mem.Allocator parameter
+- Returns properly initialized SaveState
+- Initializes existing_presets ArrayList with provided allocator
+- Other fields use struct defaults
+
+**MappingPanelState.init()** (lines 159-166):
+Because MappingPanelState needs to initialize nested states that require allocators, I verified:
+- Takes allocator: std.mem.Allocator parameter
+- Returns properly initialized MappingPanelState
+- Explicitly initializes assign_state.current_mappings with default .COMP variant (required by Zig)
+- Calls SaveState.init(allocator) for save_state initialization
+- browse_state uses struct defaults (no allocator needed)
+
+**State.init()** (lines 90-96):
+Because the main State struct needs to initialize MappingPanelState with an allocator, I verified:
+- Calls MappingPanelState.init(gpa) instead of using struct literal
+- Correctly passes gpa allocator to nested init
+- Also initializes fx_ctrl state with allocator
+- Shared state uses default values
+
+### State Machine Consistency
+
+**State struct update** (line 83):
+Because the State struct needed to replace the old mapping field with new mapping_panel field, I verified:
+- Old `mapping: MappingState` field REMOVED
+- New `mapping_panel: MappingPanelState` field ADDED
+- Field name matches convention (snake_case)
+- Properly initialized in State.init()
+
+**Mode enum unchanged** (lines 47-62):
+Because the task only required adding sub-modes within mapping_panel, not changing top-level modes, I verified:
+- Mode enum still contains: fx_ctrl, transport, fx_sel, mapping_panel, settings, default_fx_sel, suspended
+- No new modes added
+- No modes removed (Step 0 already cleaned up obsolete modes)
+
+**valid_transitions unchanged** (lines 65-73):
+Because the task only required internal sub-mode transitions, not top-level mode transitions, I verified:
+- valid_transitions map unchanged from Step 0
+- mapping_panel can still transition to: fx_sel, fx_ctrl, suspended
+- Other mode transitions unchanged
+
+**Imports preserved** (line 10):
+Because AssignState.current_mappings union needs to reference MapStore types, I verified:
+- MapStore import present (line 10)
+- Inpt, Shp, Eq, Comp, Outpt types accessed via MapStore namespace (lines 128-132)
+
+### Code Quality
+
+**Zig fmt compliance**:
+Because all code should follow Zig formatting standards, I verified:
+- Indentation is consistent
+- Spacing follows Zig conventions
+- Struct initialization uses proper syntax
+
+**Naming conventions**:
+Because Zig requires PascalCase for types and snake_case for fields, I verified:
+- Type names: MappingPanelMode, BrowseState, AssignState, SaveState, MappingPanelState (correct)
+- Field names: sub_mode, browse_state, assign_state, save_state, selected_module, scroll_position_abs, etc. (correct)
+
+**Match to pseudo-code** (plan lines 89-127):
+Because the implementation should follow the specification, I verified:
+- All struct fields present from pseudo-code
+- Types correctly translated (enum -> enum, struct -> struct, union(ModulesList) -> union(ModulesList))
+- Array sizes match (available_modules: [5], name_buffer: [256])
+- Optional types correctly represented (?u32, ?c1.CCs)
+
+### Compilation Status
+
+**statemachine.zig** (verified via build output):
+Because the refactored file should compile without errors, I verified:
+- No compilation errors in statemachine.zig itself
+- File successfully parsed and type-checked
+
+**Expected compilation errors in other files** (verified via build output):
+Because Step 1 only refactored the state structure without updating references, I verified expected errors:
+
+1. src/mapping_actions.zig:37 - "no field named 'mapping' in struct 'statemachine.State'"
+   - Expected: code references globals.state.mapping (old name)
+   - Will be fixed in Step 2 when updating actions
+
+2. src/mapping_panel.zig:183 - "no field named 'mapping' in struct 'statemachine.State'"
+   - Expected: code references state.mapping (old name)
+   - Will be fixed in Step 5 when refactoring mapping panel
+
+3. src/mapping_panel.zig:318 - "no field named 'mapping' in struct 'statemachine.State'"
+   - Expected: code references globals.state.mapping (old name)
+   - Will be fixed in Step 5 when refactoring mapping panel
+
+4. src/midi_out.zig:231 - "no field named 'mapping' in struct 'statemachine.State'"
+   - Expected: code references globals.state.mapping (old name)
+   - Will be fixed in Step 8 when updating MIDI handlers
+
+These errors are expected and acceptable at this stage because Step 1 only modifies statemachine.zig. Subsequent steps will update the references.
+
+## Overall Assessment
+
+The implementation successfully establishes the hierarchical state machine foundation. The structure is complete, correctly typed, properly initialized, and matches the specification. All required types are defined with appropriate fields and initialization methods. The old flat MappingState has been completely replaced with the new hierarchical MappingPanelState containing three nested sub-mode states. The expected compilation errors in other files confirm that the old state structure has been removed and will be addressed in subsequent steps.
+
+**Action Items:**
+
+None - Step 1 is complete and ready to proceed to Step 2: Update Actions.

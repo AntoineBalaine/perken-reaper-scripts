@@ -38,6 +38,12 @@ pub const ModulesList = enum {
     }
 };
 
+pub const MappingPanelMode = enum {
+    BROWSE,
+    ASSIGN,
+    SAVE,
+};
+
 pub const Mode = enum {
     /// Main operation mode - controlling FX parameters
     fx_ctrl,
@@ -74,7 +80,7 @@ pub const State = struct {
     fx_sel: FxSelectionState = .{},
     default_fx_sel: FxSelectionState = .{},
     transport: TransportState = .{},
-    mapping: MappingState,
+    mapping_panel: MappingPanelState,
 
     // Shared state
     current_tr_id: ?c_int = null,
@@ -84,12 +90,7 @@ pub const State = struct {
     pub fn init(gpa: std.mem.Allocator) State {
         return .{
             .fx_ctrl = FxControlState.init(gpa),
-            .mapping = .{
-                .target_fx = "",
-                .current_mappings = undefined, // Will be set when mapping starts
-                .midi_learn_active = false,
-                .selected_parameter = null,
-            },
+            .mapping_panel = MappingPanelState.init(gpa),
             // Shared state uses default values
         };
     }
@@ -112,8 +113,17 @@ pub const SettingsSelectionState = struct {
     scroll_position_rel: usize = 0,
 };
 
-pub const MappingState = struct {
-    target_fx: [:0]const u8,
+pub const BrowseState = struct {
+    selected_module: ModulesList = .INPUT,
+    scroll_position_abs: u8 = 0,
+    scroll_position_rel: usize = 0,
+    // Cache info about current FX on each module (to be populated from TrackState)
+    available_modules: [5]?[]const u8 = [_]?[]const u8{null} ** 5,
+};
+
+pub const AssignState = struct {
+    target_fx: []const u8 = "",
+    target_module: ModulesList = .INPUT,
     current_mappings: union(ModulesList) {
         INPUT: MapStore.Inpt,
         GATE: MapStore.Shp,
@@ -121,34 +131,36 @@ pub const MappingState = struct {
         COMP: MapStore.Comp,
         OUTPT: MapStore.Outpt,
     },
-    target_mapping_filepath: ?[:0]const u8 = null,
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
     midi_learn_active: bool = false,
+};
 
-    pub fn init(gpa: std.mem.Allocator, fx_name: [:0]const u8, module_type: ModulesList, map_store: *MapStore.MapStore) !MappingState {
-        const maybe_mapping = map_store.get(fx_name, module_type);
-        if (maybe_mapping == null) {
-            return error.MappingNotFound;
-        }
-        const mapping = maybe_mapping.?;
+pub const SaveState = struct {
+    name_buffer: [512]u8 = [_]u8{0} ** 512,
+    existing_presets: std.ArrayListUnmanaged([:0]const u8) = .{},
+    show_overwrite_confirm: bool = false,
+    pending_name: []const u8 = "",
 
-        return .{
-            .target_fx = try gpa.dupeZ(u8, fx_name),
-            .current_mappings = switch (module_type) {
-                .INPUT => .{ .INPUT = mapping.INPUT },
-                .GATE => .{ .GATE = mapping.GATE },
-                .EQ => .{ .EQ = mapping.EQ },
-                .COMP => .{ .COMP = mapping.COMP },
-                .OUTPT => .{ .OUTPT = mapping.OUTPT },
-            },
-            .selected_parameter = null,
-            .selected_control = null,
-            .midi_learn_active = false,
+    pub fn init(allocator: std.mem.Allocator) SaveState {
+        return SaveState{
+            .existing_presets = std.ArrayList([]const u8).init(allocator),
         };
     }
+};
 
-    pub fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
-        allocator.free(self.target_fx);
+pub const MappingPanelState = struct {
+    sub_mode: MappingPanelMode = .BROWSE,
+    browse_state: BrowseState = .{},
+    assign_state: AssignState,
+    save_state: SaveState,
+
+    pub fn init(allocator: std.mem.Allocator) MappingPanelState {
+        return MappingPanelState{
+            .assign_state = AssignState{
+                .current_mappings = .{ .COMP = MapStore.Comp{} },
+            },
+            .save_state = SaveState.init(allocator),
+        };
     }
 };
