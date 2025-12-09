@@ -90,7 +90,7 @@ pub const State = struct {
     pub fn init(gpa: std.mem.Allocator) State {
         return .{
             .fx_ctrl = FxControlState.init(gpa),
-            .mapping_panel = MappingPanelState.init(gpa),
+            .mapping_panel = MappingPanelState.init(),
             // Shared state uses default values
         };
     }
@@ -121,16 +121,17 @@ pub const BrowseState = struct {
     available_modules: [5]?[]const u8 = [_]?[]const u8{null} ** 5,
 };
 
+pub const ModuleMappings = union(ModulesList) {
+    INPUT: MapStore.Inpt,
+    GATE: MapStore.Shp,
+    EQ: MapStore.Eq,
+    COMP: MapStore.Comp,
+    OUTPT: MapStore.Outpt,
+};
+
 pub const AssignState = struct {
     target_fx: []const u8 = "",
-    target_module: ModulesList = .INPUT,
-    current_mappings: union(ModulesList) {
-        INPUT: MapStore.Inpt,
-        GATE: MapStore.Shp,
-        EQ: MapStore.Eq,
-        COMP: MapStore.Comp,
-        OUTPT: MapStore.Outpt,
-    },
+    current_mappings: ModuleMappings,
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
     midi_learn_active: bool = false,
@@ -141,26 +142,32 @@ pub const SaveState = struct {
     existing_presets: std.ArrayListUnmanaged([:0]const u8) = .{},
     show_overwrite_confirm: bool = false,
     pending_name: []const u8 = "",
+    // Because we need access to assign data when saving, we preserve it here
+    target_fx: []const u8 = "",
+    current_mappings: ModuleMappings,
 
     pub fn init(allocator: std.mem.Allocator) SaveState {
         return SaveState{
             .existing_presets = std.ArrayList([]const u8).init(allocator),
+            .current_mappings = .{ .INPUT = MapStore.Inpt{} },
         };
     }
 };
 
-pub const MappingPanelState = struct {
-    sub_mode: MappingPanelMode = .BROWSE,
-    browse_state: BrowseState = .{},
-    assign_state: AssignState,
-    save_state: SaveState,
+pub const MapSubMode = union(enum) {
+    browse: BrowseState,
+    assign: AssignState,
+    save: SaveState,
+};
 
-    pub fn init(allocator: std.mem.Allocator) MappingPanelState {
+pub const MappingPanelState = struct {
+    mode: MapSubMode,
+
+    pub fn init() MappingPanelState {
         return MappingPanelState{
-            .assign_state = AssignState{
-                .current_mappings = .{ .COMP = MapStore.Comp{} },
+            .mode = .{
+                .browse = BrowseState{},
             },
-            .save_state = SaveState.init(allocator),
         };
     }
 };

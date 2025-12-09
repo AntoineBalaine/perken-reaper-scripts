@@ -5,8 +5,8 @@ const logger = @import("logger.zig");
 const Mode = statemachine.Mode;
 const Globals = @import("globals.zig").Globals;
 const ModulesList = statemachine.ModulesList;
-const MappingAction = @import("mapping_actions.zig").MappingAction;
-const mappingActions = @import("mapping_actions.zig").mappingActions;
+const MappingPanelAction = @import("mapping_actions.zig").MappingPanelAction;
+const mappingPanelActions = @import("mapping_actions.zig").mappingPanelActions;
 const settings_actions = @import("settings_actions.zig");
 const SettingsActions = settings_actions.SettingsActions;
 const fx_sel_actions = @import("fx_sel_actions.zig");
@@ -38,8 +38,8 @@ pub const ModeAction = union(enum) {
     // FX Selection Mode
     fx_sel: FxSelActions,
     transport: TransportAction,
-    // Mapping Mode
-    mapping: MappingAction,
+    // Mapping Panel Mode
+    mapping_panel: MappingPanelAction,
 
     // Settings Mode
     settings: SettingsActions,
@@ -112,7 +112,7 @@ pub fn dispatch(app: *Globals, action: ModeAction) void {
             switch (mode_action) {
                 .fx_ctrl => |fx_action| fxCtrlActions(app, fx_action),
                 .fx_sel => |sel_action| fx_sel_actions.fxSelActions(app, sel_action),
-                .mapping => |map_action| mappingActions(app, map_action),
+                .mapping_panel => |mp_action| mappingPanelActions(app, mp_action),
                 .settings => |set_action| settings_actions.settingsActions(app, set_action),
                 .default_fx_sel => |sel_action| default_fx_sel_actions.defaultFxSelActions(app, sel_action),
                 .Csurf => |set_action| csurfActions(app, set_action),

@@ -1458,3 +1458,288 @@ The implementation successfully establishes the hierarchical state machine found
 **Action Items:**
 
 None - Step 1 is complete and ready to proceed to Step 2: Update Actions.
+
+### Review 3 - 2025-12-08
+
+# Code Review: Step 2 - Update Actions
+
+## Summary
+
+The action system has been successfully refactored to implement the hierarchical dispatch pattern. The MappingPanelAction union is complete with all required sub-mode actions, the dispatcher correctly handles transitions and updates sub_mode, and all state references have been updated from globals.state.mapping to globals.state.mapping_panel.assign_state. The code compiles cleanly and follows the specification. However, there is one critical bug that will cause runtime failures in the save flow.
+
+## Critical Issues (1)
+
+### 1. Missing target_fx Population in enter_assign
+
+**File**: src/mapping_actions.zig:66-107
+**Issue**: Because the enter_assign handler loads the mapping and sets target_module but never populates target_fx, the field remains an empty string. This causes both enter_save (line 118) and save_confirm (line 348) to use an empty FX name, resulting in incorrect file paths and cache lookups.
+**Impact**: The save flow will fail because the FX name is empty when constructing file paths and querying the MapStore.
+**Root Cause**: The Location struct in track_state.zig only contains fx_index and mapping, not the FX name. The FX name must be queried from REAPER using reaper.TrackFX_GetFXName() with the fx_index.
+**Fix Required**: In enter_assign, after getting the location from module_locations, query REAPER for the FX name and assign it to globals.state.mapping_panel.assign_state.target_fx.
+
+Example fix:
+```zig
+if (globals.state.fx_ctrl.track_state.module_locations.get(data.module)) |location| {
+    // Query FX name from REAPER
+    const track = ...; // get current track
+    var fx_name_buf: [256]u8 = undefined;
+    _ = reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len);
+    const fx_name_z = std.mem.sliceTo(&fx_name_buf, 0);
+    globals.state.mapping_panel.assign_state.target_fx = try globals.arena.dupe(u8, fx_name_z);
+
+    // Load the mapping if it exists...
+}
+```
+
+## Warnings (2)
+
+### 1. Placeholder FX Name in enter_browse
+
+**File**: src/mapping_actions.zig:44-59
+**Issue**: Because enter_browse populates available_modules with @tagName(module) instead of querying the actual FX name from REAPER, the browse state will show module names (INPUT, GATE, EQ, COMP, OUTPT) instead of FX names (VST: ReaComp (C1-C), etc.).
+**Impact**: The module selection window will not display the actual FX names loaded on each module, making it harder for users to identify which FX they want to edit.
+**Note**: The comment on line 53-54 acknowledges this is a placeholder and needs to query REAPER. This should be fixed before Step 4 (Create Module Selection Panel) to ensure the UI has correct data.
+
+### 2. Inefficient Module Extraction in save_confirm
+
+**File**: src/mapping_actions.zig:358 and 378
+**Issue**: Because the code extracts the module from the union tag twice using different methods (@enumFromInt(@intFromEnum(...)) on line 358 and direct tag coercion on line 378), there's both redundancy and a potential type safety issue.
+**Impact**: Minor performance overhead and code clarity issue. Line 378 uses an incorrect pattern that may not compile or may produce wrong results.
+**Fix**: Use std.meta.activeTag() consistently:
+```zig
+const module = std.meta.activeTag(globals.state.mapping_panel.assign_state.current_mappings);
+```
+
+## Suggestions (3)
+
+### 1. Recursive Dispatch Pattern Could Use Documentation
+
+**File**: src/mapping_actions.zig:171, 175, 331, 335, 382, 388
+**Note**: The code correctly uses recursive dispatch for transitions (browse_confirm calls enter_assign, save_cancel calls enter_assign, etc.), which matches the specification. Consider adding a comment explaining why this pattern is used instead of directly updating state, as it ensures proper initialization logic runs.
+
+### 2. Scroll Position Calculation Oversimplified
+
+**File**: src/mapping_actions.zig:159-163
+**Issue**: Because browse_scroll sets both scroll_position_abs and scroll_position_rel to the same encoder_val, the relative position doesn't track actual list position (which should be clamped to 0-4 for the 5 modules).
+**Note**: This is acceptable for now as the actual scrolling logic will be implemented in the UI panel (Step 4), but consider adding a TODO comment.
+
+### 3. Consider Extracting Mapping Update Logic
+
+**File**: src/mapping_actions.zig:197-254 and 260-317
+**Note**: Because assign_add_mapping and assign_remove_mapping both have large switch statements with identical structure (one sets fields, one clears them), consider extracting this into a helper function to reduce duplication. However, this is a code quality issue, not a correctness issue.
+
+## Patterns Followed
+
+- MappingPanelAction union includes all required actions (transitions, BROWSE, ASSIGN, SAVE)
+- Action structs have correct field types (module: ModulesList, param: u8, control: c1.CCs, etc.)
+- Sub-mode transitions update globals.state.mapping_panel.sub_mode correctly
+- enter_browse initializes browse_state (though with placeholder data)
+- enter_assign initializes assign_state with mappings from track_state
+- enter_save loads existing preset names using mapping_browser.getMappingNames
+- save_confirm saves to disk using MapStore.saveToFile and updates cache
+- Recursive dispatch used for transitions (browse_confirm -> enter_assign, etc.)
+- All state references updated to globals.state.mapping_panel.assign_state
+- actions.zig ModeAction union updated to use mapping_panel: MappingPanelAction
+- gui_lib.zig action dispatch updated to .mapping_panel
+- Code formatted with zig fmt
+- Build succeeds with no compilation errors
+
+## Detailed Review
+
+### Action Completeness
+
+**MappingPanelAction union** (lines 12-39):
+Because the specification required actions for all sub-modes and transitions, I verified:
+- Sub-mode transitions: enter_browse, enter_assign, enter_save, exit_to_fx_ctrl (lines 14-17)
+- BROWSE actions: browse_scroll, browse_select_module, browse_confirm, browse_cancel (lines 20-23)
+- ASSIGN actions: all original MappingAction operations preserved (lines 26-33)
+- SAVE actions: save_update_name, save_confirm, save_cancel (lines 36-38)
+- Field types correct: module as ModulesList, param as u8, control as c1.CCs, name as [:0]const u8
+
+### Dispatch Flow Correctness
+
+**enter_browse handler** (lines 44-64):
+Because this transition needs to populate browse state with available modules, I verified:
+- Updates sub_mode to .BROWSE (line 45)
+- Iterates through ModulesList enum (line 49)
+- Checks module_locations for each module (line 51)
+- Populates available_modules array (line 55) - USES PLACEHOLDER
+- Resets scroll positions (lines 62-63)
+- WARNING: Uses @tagName(module) instead of querying REAPER for FX name
+
+**enter_assign handler** (lines 66-107):
+Because this transition needs to load mappings and initialize editing state, I verified:
+- Updates sub_mode to .ASSIGN (line 67)
+- Sets target_module from action data (line 68)
+- Queries module_locations for the module (line 72)
+- Loads existing mapping if found (lines 74-81)
+- Initializes empty mapping if not found (lines 83-90, 94-100)
+- Clears selections (lines 104-106)
+- CRITICAL BUG: Does not populate target_fx field (needed for save operations)
+
+**enter_save handler** (lines 109-147):
+Because this transition needs to load existing preset names for overwrite protection, I verified:
+- Updates sub_mode to .SAVE (line 110)
+- Clears existing_presets list (line 114)
+- Gets module and fx_name from assign_state (lines 117-118)
+- Converts fx_name to null-terminated string (lines 121-124)
+- Calls mapping_browser.getMappingNames (lines 126-134)
+- Appends preset names to save_state list (lines 137-141)
+- Resets name buffer and overwrite flag (lines 144-146)
+- DEPENDS ON: target_fx being populated (but enter_assign doesn't do this - CRITICAL BUG)
+
+**exit_to_fx_ctrl handler** (lines 149-156):
+Because exiting needs to clean up resources, I verified:
+- Cleans up mapping_panel if it exists (lines 151-154)
+- Dispatches mode change to fx_ctrl (line 155)
+- Matches specification pattern (lines 237-239 of plan)
+
+**browse_confirm handler** (lines 169-172):
+Because confirming selection should transition to ASSIGN mode, I verified:
+- Gets selected_module from browse_state (line 170)
+- Recursively dispatches enter_assign with selected module (line 171)
+- Follows recursive dispatch pattern from spec (lines 246-247 of plan)
+
+**browse_cancel handler** (lines 174-176):
+Because canceling should exit the workflow, I verified:
+- Recursively dispatches exit_to_fx_ctrl (line 175)
+- Follows recursive dispatch pattern from spec (lines 249-250 of plan)
+
+**assign_request_save handler** (lines 330-332):
+Because requesting save should transition to SAVE mode, I verified:
+- Recursively dispatches enter_save (line 331)
+- Follows recursive dispatch pattern from spec (lines 259-260 of plan)
+
+**assign_cancel handler** (lines 334-336):
+Because canceling should exit the workflow, I verified:
+- Recursively dispatches exit_to_fx_ctrl (line 335)
+- Follows recursive dispatch pattern from spec (lines 262-263 of plan)
+
+**save_confirm handler** (lines 347-383):
+Because confirming save should write to disk and update MapStore, I verified:
+- Gets fx_name from assign_state (line 348) - WILL FAIL: target_fx is empty
+- Converts to null-terminated string (lines 352-355)
+- Extracts module from union tag (line 358) - WARNING: inefficient pattern
+- Creates TaggedMapping from current_mappings (lines 359-365)
+- Calls MapStore.saveToFile with module, fx_name, mapping, and name (lines 367-375)
+- Reloads mapping into cache with get() (lines 378-379) - WARNING: incorrect tag extraction
+- Recursively dispatches exit_to_fx_ctrl (line 382)
+- Follows recursive dispatch pattern from spec (lines 266-268 of plan)
+- CRITICAL BUG: fx_name will be empty, causing incorrect file paths
+
+**save_cancel handler** (lines 385-389):
+Because canceling save should return to ASSIGN mode, I verified:
+- Gets current_module from assign_state (line 387)
+- Recursively dispatches enter_assign with current module (line 388)
+- Follows recursive dispatch pattern from spec (lines 270-271 of plan)
+
+### ASSIGN Action Preservation
+
+**assign_select_parameter** (lines 179-182):
+Because parameter selection needs to update state, I verified:
+- Updates selected_parameter in assign_state (line 181)
+- Logs selection (line 180)
+- Preserves existing mapping logic
+
+**assign_select_control** (lines 184-187):
+Because control selection needs to update state, I verified:
+- Updates selected_control in assign_state (line 186)
+- Logs selection (line 185)
+- Preserves existing mapping logic
+
+**assign_toggle_midi_learn** (lines 189-195):
+Because MIDI learn toggle needs to update flag and clear control, I verified:
+- Toggles midi_learn_active flag (line 191)
+- Clears selected_control when disabling (line 193)
+- Logs state change (line 190)
+- Preserves existing mapping logic
+
+**assign_add_mapping** (lines 197-258):
+Because adding mapping needs to update the appropriate union variant, I verified:
+- Switches on current_mappings union (line 201)
+- Handles all module types: COMP, EQ, INPUT, OUTPT, GATE (lines 202-253)
+- Switches on control CC to set appropriate field (e.g., Comp_Attack sets comp.Comp_Attack)
+- Clears selections after mapping (lines 256-257)
+- Logs mapping addition (line 198)
+- Preserves existing mapping logic
+
+**assign_remove_mapping** (lines 260-318):
+Because removing mapping needs to clear the appropriate union variant field, I verified:
+- Switches on current_mappings union (line 264)
+- Handles all module types: COMP, EQ, INPUT, OUTPT, GATE (lines 265-316)
+- Switches on control CC to set field to null (e.g., Comp_Attack => comp.Comp_Attack = null)
+- Logs mapping removal (line 261)
+- Preserves existing mapping logic
+
+**assign_change_module** (lines 320-328):
+Because changing module needs to initialize a new empty mapping, I verified:
+- Switches on new_module to create appropriate mapping type (lines 321-327)
+- Initializes with default (empty) mapping struct
+- Preserves existing mapping logic
+
+### State Reference Updates
+
+**mapping_panel.zig references** (verified via grep and Read):
+Because all references to globals.state.mapping need to be updated, I verified:
+- Line 183: state.mapping_panel.assign_state.current_mappings (in getControlMapping)
+- Line 318: globals.state.mapping_panel.assign_state.selected_control (in mappingWidget)
+- No remaining references to globals.state.mapping or state.mapping
+
+**midi_out.zig references** (verified via grep and Read):
+Because MIDI feedback needs to access current mappings, I verified:
+- Line 231: globals.state.mapping_panel.assign_state.current_mappings (in MappingsEntry)
+- No remaining references to globals.state.mapping
+
+**actions.zig ModeAction** (verified via Read):
+Because the top-level action union needs to use the new action type, I verified:
+- Line 8: imports MappingPanelAction from mapping_actions.zig
+- Line 9: imports mappingPanelActions dispatcher
+- Line 42: mapping_panel: MappingPanelAction variant in union
+- Line 115: .mapping_panel => |mp_action| mappingPanelActions(app, mp_action) in dispatch
+- No mapping or preset_browser variants remain
+
+**gui_lib.zig dispatch** (verified via Read):
+Because the GUI needs to return the new action type, I verified:
+- Line 143: calls mapping_panel.mappingPanel (unchanged, returns MappingPanelAction)
+- Line 144: rv = .{ .mapping_panel = map_action } (uses .mapping_panel tag)
+- Correct integration with new action system
+
+### Code Quality
+
+**Zig fmt compliance** (verified via zig fmt --check):
+Because all code should be formatted, I verified:
+- All files pass zig fmt --check with no output
+- Indentation and spacing consistent
+
+**Build status** (verified via zig build):
+Because the code must compile, I verified:
+- Build succeeds with exit code 0
+- No compilation errors
+- All type checks pass
+
+**Writing style compliance**:
+Because comments should explain cause before consequence, I verified:
+- Line 47: "Because we need to populate available_modules from track_state.module_locations..."
+- Line 70: "Because we need to load FX parameters and initialize assign_state with current mappings..."
+- Line 112: "Because we need to load existing preset names, we use mapping_browser.getMappingNames"
+- Line 120: "Because getMappingNames requires a null-terminated string, we need to convert fx_name"
+- All comments follow proper English with articles and antecedents first
+
+**Dispatch pattern match** (verified against plan lines 219-272):
+Because the implementation should follow the specification, I verified:
+- Sub-mode transitions update globals.state.mapping_panel.sub_mode correctly
+- Recursive dispatch used for multi-step transitions
+- State initialization happens in transition handlers
+- Follows the exact flow from pseudo-code
+
+## Overall Assessment
+
+The action system implementation is mostly correct and successfully consolidates all mapping panel operations into a hierarchical dispatcher. The code compiles, follows the specification's dispatch pattern, preserves all existing mapping logic, and correctly updates all state references. However, the critical bug where target_fx is never populated will cause the save flow to fail with empty FX names. This must be fixed before proceeding to UI implementation.
+
+The warnings about placeholder FX names and inefficient tag extraction should be addressed but are not blockers. The suggestions about documentation and code refactoring can be deferred to later cleanup.
+
+**Action Items:**
+
+- [X] CRITICAL: Fix enter_assign to populate target_fx by querying REAPER (src/mapping_actions.zig:66-107)
+- [ ] WARNING: Update enter_browse to query actual FX names from REAPER instead of using placeholders (src/mapping_actions.zig:44-59)
+- [ ] WARNING: Fix module extraction pattern in save_confirm to use std.meta.activeTag (src/mapping_actions.zig:358, 378)

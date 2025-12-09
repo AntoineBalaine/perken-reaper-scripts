@@ -141,7 +141,7 @@ pub fn main(
             },
             .mapping_panel => {
                 if (try mapping_panel.mappingPanel(ctx, globals, &globals.translations)) |map_action| {
-                    rv = .{ .mapping = map_action };
+                    rv = .{ .mapping_panel = map_action };
                 }
             },
             .transport => {

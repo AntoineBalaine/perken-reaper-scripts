@@ -68,13 +68,14 @@ pub const MappingPanel = struct {
 fn params(
     ctx: imgui.ContextPtr,
     globals: *Globals,
+    assign_state: *const @import("statemachine.zig").AssignState,
     translations: *TranslationStore,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
 
     if (globals.mapping_panel) |panel| {
         for (panel.fx_params.items, 0..) |param, i| {
-            var is_selected = if (globals.state.mapping.selected_parameter) |sel|
+            var is_selected = if (assign_state.selected_parameter) |sel|
                 sel == i
             else
                 false;
@@ -86,7 +87,7 @@ fn params(
                 null,
                 0.0, // full width
             })) {
-                rv = .{ .select_parameter = @intCast(i) };
+                rv = .{ .assign_select_parameter = @intCast(i) };
             }
 
             if (isParamMapped(&globals.state, i)) {
@@ -99,8 +100,14 @@ fn params(
     return rv;
 }
 
-pub fn mappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *TranslationStore) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+pub fn mappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *TranslationStore) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
+
+    // Because mappingPanel UI is only for ASSIGN mode, we extract assign_state once here
+    const assign_state = switch (globals.state.mapping_panel.mode) {
+        .assign => |*s| s,
+        else => return null,
+    };
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
@@ -108,12 +115,12 @@ pub fn mappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *Tra
     // try imgui.Text(.{ ctx, tr(translations, .mapping_title) });
     // Main table for two-column layout
 
-    if (try controls(ctx, globals, translations)) |action| {
+    if (try controls(ctx, globals, assign_state, translations)) |action| {
         rv = action;
     }
     try imgui.SameLine(.{ctx});
     // Bottom panel with buttons
-    if (try formControls(ctx, globals, translations)) |action| {
+    if (try formControls(ctx, assign_state, translations)) |action| {
         rv = action;
     }
     return rv;
@@ -123,9 +130,10 @@ pub fn mappingPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *Tra
 fn controls(
     ctx: imgui.ContextPtr,
     globals: *Globals,
+    assign_state: *const @import("statemachine.zig").AssignState,
     translations: *TranslationStore,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
 
     // Define an array of panel functions and their corresponding modules
     const panels = [_]struct { module: ModulesList, panel_fn: @TypeOf(inputMappingPanel) }{
@@ -138,7 +146,7 @@ fn controls(
 
     // Call each panel function, but only process actions from the active one
     inline for (panels) |panel_info| {
-        const is_active = globals.state.mapping.current_mappings == panel_info.module;
+        const is_active = assign_state.current_mappings == panel_info.module;
 
         if (!is_active) {
             try imgui.BeginDisabled(.{ctx});
@@ -163,7 +171,11 @@ fn controls(
 
 fn isParamMapped(state: *State, param_idx: usize) bool {
     const param: u8 = @intCast(param_idx);
-    switch (state.mapping.current_mappings) {
+    const current_mappings = switch (state.mapping_panel.mode) {
+        .assign => |s| s.current_mappings,
+        else => return false,
+    };
+    switch (current_mappings) {
         inline else => |mapping| {
             inline for (std.meta.fields(@TypeOf(mapping))) |field| {
                 // Skip the version field because it is not optional
@@ -180,7 +192,11 @@ fn isParamMapped(state: *State, param_idx: usize) bool {
 
 fn getControlMapping(state: *State, cc: c1.CCs) ?u32 {
     const cc_name = @tagName(cc);
-    switch (state.mapping.current_mappings) {
+    const current_mappings = switch (state.mapping_panel.mode) {
+        .assign => |s| s.current_mappings,
+        else => return null,
+    };
+    switch (current_mappings) {
         inline else => |mapping| {
             inline for (std.meta.fields(@TypeOf(mapping))) |field| {
                 // Skip the version field because it is not optional
@@ -200,42 +216,43 @@ fn getControlMapping(state: *State, cc: c1.CCs) ?u32 {
 // Function to handle the bottom panel with buttons
 fn formControls(
     ctx: imgui.ContextPtr,
-    globals: *Globals,
+    assign_state: *const @import("statemachine.zig").AssignState,
     translations: *TranslationStore,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
+
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
     {
         try imgui.PushItemWidth(.{ ctx, 100.0 });
         defer imgui.PopItemWidth(.{ctx}) catch {};
 
-        if (try imgui.BeginCombo(.{ ctx, "##module_selection", @tagName(globals.state.mapping.current_mappings), null })) {
+        if (try imgui.BeginCombo(.{ ctx, "##module_selection", @tagName(assign_state.current_mappings), null })) {
             defer imgui.EndCombo(.{ctx}) catch {};
 
             inline for (comptime std.enums.values(ModulesList)) |module| {
                 if (try imgui.Selectable(.{ ctx, @tagName(module) })) {
-                    rv = .{ .change_module = module };
+                    rv = .{ .assign_change_module = module };
                 }
             }
         }
     }
 
-    const midi_learn_text = if (globals.state.mapping.midi_learn_active)
+    const midi_learn_text = if (assign_state.midi_learn_active)
         tr(translations, .mapping_midi_learn_active)
     else
         tr(translations, .mapping_midi_learn);
 
     if (try imgui.Button(.{ ctx, midi_learn_text })) {
-        rv = .{ .toggle_midi_learn = {} };
+        rv = .{ .assign_toggle_midi_learn = {} };
     }
 
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {
-        rv = .{ .save_mapping = {} };
+        rv = .{ .assign_request_save = {} };
     }
 
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
-        rv = .{ .cancel_mapping = {} };
+        rv = .{ .assign_cancel = {} };
     }
 
     return rv;
@@ -248,8 +265,8 @@ fn mappingWidget(
     label: [:0]const u8,
     variant: enum { button, knob },
     disabled: bool,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
 
     // Create a button with the control name
 
@@ -278,9 +295,9 @@ fn mappingWidget(
 
     if (mVal) |val| {
         switch (val) {
-            .click => rv = .{ .select_control = cc },
-            .param_idx => |i| rv = .{ .add_mapping = .{ .param = @intCast(i), .control = cc } },
-            .remove_mapping => rv = .{ .remove_mapping = cc },
+            .click => rv = .{ .assign_select_control = cc },
+            .param_idx => |i| rv = .{ .assign_add_mapping = .{ .param = @intCast(i), .control = cc } },
+            .remove_mapping => rv = .{ .assign_remove_mapping = cc },
         }
     }
 
@@ -292,8 +309,8 @@ fn inputMappingPanel(
     globals: *Globals,
     translations: *TranslationStore,
     disabled: bool,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
 
     try imgui.BeginGroup(.{ctx});
@@ -315,7 +332,6 @@ fn inputMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Inpt_Gain, gain_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Inpt_Gain;
         }
     }
 
@@ -343,13 +359,11 @@ fn inputMappingPanel(
         // HiCut knob
         if (try mappingWidget(ctx, globals, .Inpt_HiCut, hicut_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Inpt_HiCut;
         }
 
         // LoCut knob
         if (try mappingWidget(ctx, globals, .Inpt_LoCut, locut_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Inpt_LoCut;
         }
     }
 
@@ -361,8 +375,8 @@ fn gateMappingPanel(
     globals: *Globals,
     translations: *TranslationStore,
     disabled: bool,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
 
     try imgui.BeginGroup(.{ctx});
@@ -377,7 +391,6 @@ fn gateMappingPanel(
 
     if (try mappingWidget(ctx, globals, .Shp_shape, shp_shape_label, .button, disabled)) |act| {
         rv = act;
-        globals.state.mapping.selected_control = .Shp_shape;
     }
 
     // First column
@@ -396,7 +409,6 @@ fn gateMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Shp_Gate, gate_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Shp_Gate;
         }
 
         // Hard gate button
@@ -408,7 +420,6 @@ fn gateMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Shp_hard_gate, hard_gate_label, .button, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Shp_hard_gate;
         }
     }
 
@@ -428,7 +439,6 @@ fn gateMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Shp_GateRelease, release_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Shp_GateRelease;
         }
 
         // Sustain knob
@@ -440,7 +450,6 @@ fn gateMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Shp_sustain, sustain_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Shp_sustain;
         }
 
         // Punch knob
@@ -452,7 +461,6 @@ fn gateMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Shp_Punch, punch_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Shp_Punch;
         }
     }
 
@@ -464,8 +472,8 @@ fn eqMappingPanel(
     globals: *Globals,
     translations: *TranslationStore,
     disabled: bool,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
 
     try imgui.BeginGroup(.{ctx});
@@ -480,7 +488,6 @@ fn eqMappingPanel(
 
     if (try mappingWidget(ctx, globals, .Eq_eq, eq_eq_label, .button, disabled)) |act| {
         rv = act;
-        globals.state.mapping.selected_control = .Eq_eq;
     }
 
     // First column
@@ -499,7 +506,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_lp_shape, lp_shape_label, .button, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_lp_shape;
         }
 
         // LoFreq knob
@@ -511,7 +517,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_LoFrq, lofreq_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_LoFrq;
         }
 
         // LoGain knob
@@ -523,7 +528,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_LoGain, logain_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_LoGain;
         }
     }
 
@@ -543,7 +547,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_LoMidQ, lomidq_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_LoMidQ;
         }
 
         // LoMidFreq knob
@@ -555,7 +558,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_LoMidFrq, lomidfreq_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_LoMidFrq;
         }
 
         // LoMidGain knob
@@ -567,7 +569,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_LoMidGain, lomidgain_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_LoMidGain;
         }
     }
 
@@ -587,7 +588,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_HiMidQ, himidq_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_HiMidQ;
         }
 
         // HiMidFreq knob
@@ -599,7 +599,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_HiMidFrq, himidfreq_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_HiMidFrq;
         }
 
         // HiMidGain knob
@@ -611,7 +610,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_HiMidGain, himidgain_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_HiMidGain;
         }
     }
 
@@ -633,7 +631,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_hp_shape, hp_shape_label, .button, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_hp_shape;
         }
 
         // HiFreq knob
@@ -645,7 +642,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_HiFrq, hifreq_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_HiFrq;
         }
 
         // HiGain knob
@@ -657,7 +653,6 @@ fn eqMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Eq_HiGain, higain_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Eq_HiGain;
         }
     }
 
@@ -669,8 +664,8 @@ fn compMappingPanel(
     globals: *Globals,
     translations: *TranslationStore,
     disabled: bool,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
 
     try imgui.BeginGroup(.{ctx});
@@ -685,7 +680,6 @@ fn compMappingPanel(
 
     if (try mappingWidget(ctx, globals, .Comp_comp, comp_comp_label, .button, disabled)) |act| {
         rv = act;
-        globals.state.mapping.selected_control = .Comp_comp;
     }
 
     // First column
@@ -704,7 +698,6 @@ fn compMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Comp_Ratio, ratio_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Comp_Ratio;
         }
 
         // DryWet knob
@@ -716,7 +709,6 @@ fn compMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Comp_DryWet, drywet_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Comp_DryWet;
         }
     }
 
@@ -736,7 +728,6 @@ fn compMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Comp_Attack, attack_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Comp_Attack;
         }
 
         // Release knob
@@ -748,7 +739,6 @@ fn compMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Comp_Release, release_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Comp_Release;
         }
 
         // Thresh knob
@@ -760,7 +750,6 @@ fn compMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Comp_Thresh, thresh_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Comp_Thresh;
         }
     }
 
@@ -772,8 +761,8 @@ fn outputMappingPanel(
     globals: *Globals,
     translations: *TranslationStore,
     disabled: bool,
-) !?mapping_actions.MappingAction {
-    var rv: ?mapping_actions.MappingAction = null;
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
 
     try imgui.BeginGroup(.{ctx});
@@ -793,7 +782,6 @@ fn outputMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Out_Drive, drive_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Out_Drive;
         }
 
         // DriveChar knob
@@ -805,7 +793,6 @@ fn outputMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Out_DriveChar, char_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Out_DriveChar;
         }
 
         // Pan knob
@@ -817,7 +804,6 @@ fn outputMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Out_Pan, pan_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Out_Pan;
         }
     }
 
@@ -839,7 +825,6 @@ fn outputMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Out_solo, out_solo_label, .button, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Out_solo;
         }
 
         try imgui.SameLine(.{ctx});
@@ -853,7 +838,6 @@ fn outputMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Out_mute, out_mute_label, .button, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Out_mute;
         }
 
         // Volume knob
@@ -865,7 +849,6 @@ fn outputMappingPanel(
 
         if (try mappingWidget(ctx, globals, .Out_Vol, vol_label, .knob, disabled)) |act| {
             rv = act;
-            globals.state.mapping.selected_control = .Out_Vol;
         }
     }
 

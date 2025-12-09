@@ -228,7 +228,11 @@ fn MappingsEntry(globals: *Globals, midi_out: reaper.midi_Output) void {
     clearAllLEDs(midi_out);
 
     // Light up module selection button
-    const module_btn = switch (globals.state.mapping.current_mappings) {
+    const current_mappings = switch (globals.state.mapping_panel.mode) {
+        .assign => |state| state.current_mappings,
+        else => return,
+    };
+    const module_btn = switch (current_mappings) {
         .INPUT => c1.CCs.Tr_tr1,
         .GATE => c1.CCs.Tr_tr2,
         .EQ => c1.CCs.Tr_tr3,

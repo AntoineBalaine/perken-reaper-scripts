@@ -7,64 +7,191 @@ const mappings = @import("mappings.zig");
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.mapping_actions);
 const TaggedMapping = mappings.TaggedMapping;
+const mapping_browser = @import("mapping_browser.zig");
+const reaper = @import("reaper.zig").reaper;
+const constants = @import("constants.zig");
 
-pub const MappingAction = union(enum) {
-    // Parameter selection
-    select_parameter: ?u32, // null to deselect
+pub const MappingPanelAction = union(enum) {
+    // Sub-mode transitions
+    enter_browse: void,
+    enter_assign: ModulesList,
+    enter_save: void,
+    exit_to_fx_ctrl: void,
 
-    // Control selection
-    select_control: ?c1.CCs, // null to deselect
+    // BROWSE sub-mode actions
+    browse_scroll: u8,
+    browse_select_module: ModulesList,
+    browse_confirm: void,
+    browse_cancel: void,
 
-    // MIDI learn
-    toggle_midi_learn: void,
+    // ASSIGN sub-mode actions
+    assign_select_parameter: ?u32,
+    assign_select_control: ?c1.CCs,
+    assign_toggle_midi_learn: void,
+    assign_add_mapping: struct { param: u8, control: c1.CCs },
+    assign_remove_mapping: c1.CCs,
+    assign_change_module: ModulesList,
+    assign_request_save: void,
+    assign_cancel: void,
 
-    // Mapping operations
-    add_mapping: struct {
-        param: u8,
-        control: c1.CCs,
-    },
-    remove_mapping: c1.CCs, // Remove mapping for this control
-
-    // Panel operations
-    save_mapping: void, // Save current mappings to MapStore
-    cancel_mapping: void, // Discard changes and exit mapping mode
-    change_module: @import("statemachine.zig").ModulesList,
+    // SAVE sub-mode actions
+    save_update_name: []const u8,
+    save_confirm: [:0]const u8,
+    save_cancel: void,
 };
 
-pub fn mappingActions(globals: *Globals, map_action: MappingAction) void {
-    switch (map_action) {
-        .change_module => |new_module| {
-            globals.state.mapping.current_mappings = switch (new_module) {
-                .INPUT => .{ .INPUT = mappings.Inpt{} },
-                .GATE => .{ .GATE = mappings.Shp{} },
-                .EQ => .{ .EQ = mappings.Eq{} },
-                .COMP => .{ .COMP = mappings.Comp{} },
-                .OUTPT => .{ .OUTPT = mappings.Outpt{} },
+pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
+    switch (action) {
+        // Sub-mode transitions
+        .enter_browse => {
+            var browse_state = statemachine.BrowseState{};
+
+            // Because we need to populate available_modules from track_state.module_locations,
+            // we iterate through the ModuleLocations and build the available_modules array
+            inline for (std.meta.fields(ModulesList), 0..) |field, i| {
+                const module = @field(ModulesList, field.name);
+                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |_| {
+                    // Because we have a location for this module, we get the FX name
+                    // For now, we use a simple placeholder - the actual implementation
+                    // would need to query REAPER for the FX name at the FX index
+                    browse_state.available_modules[i] = @tagName(module);
+                } else {
+                    browse_state.available_modules[i] = null;
+                }
+            }
+
+            globals.state.mapping_panel.mode = .{ .browse = browse_state };
+        },
+
+        .enter_assign => |module| {
+            var assign_state = statemachine.AssignState{
+                .current_mappings = switch (module) {
+                    .INPUT => .{ .INPUT = mappings.Inpt{} },
+                    .GATE => .{ .GATE = mappings.Shp{} },
+                    .EQ => .{ .EQ = mappings.Eq{} },
+                    .COMP => .{ .COMP = mappings.Comp{} },
+                    .OUTPT => .{ .OUTPT = mappings.Outpt{} },
+                },
             };
+
+            // Because we need to load FX parameters and initialize assign_state with current mappings,
+            // we get the FX from the track_state module_locations
+            if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |location| {
+                // Query FX name from REAPER
+                const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id orelse return, constants.g_csurf_mcpmode);
+                var fx_name_buf: [256:0]u8 = undefined;
+                _ = reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len);
+                const fx_name_z = std.mem.sliceTo(&fx_name_buf, 0);
+                const fx_name = globals.arena.dupeZ(u8, fx_name_z) catch return;
+                assign_state.target_fx = fx_name;
+                // Load the mapping if it exists
+                if (location.mapping) |tagged_mapping| {
+                    assign_state.current_mappings = switch (tagged_mapping) {
+                        .INPUT => |m| .{ .INPUT = m },
+                        .GATE => |m| .{ .GATE = m },
+                        .EQ => |m| .{ .EQ = m },
+                        .COMP => |m| .{ .COMP = m },
+                        .OUTPT => |m| .{ .OUTPT = m },
+                    };
+                }
+            }
+
+            globals.state.mapping_panel.mode = .{ .assign = assign_state };
         },
-        .select_parameter => |maybe_param| {
+
+        .enter_save => {
+            // Because we need assign_state data to initialize save mode, we get it from the current mode
+            const assign_state = globals.state.mapping_panel.mode.assign;
+
+            var save_state = statemachine.SaveState.init(globals.arena);
+
+            // Because we need to preserve assign_state data for save_confirm, we copy it
+            save_state.target_fx = assign_state.target_fx;
+            save_state.current_mappings = assign_state.current_mappings;
+
+            // Because we need to load existing preset names, we use mapping_browser.getMappingNames
+            const module = std.meta.activeTag(assign_state.current_mappings);
+            const fx_name = assign_state.target_fx;
+
+            // Because getMappingNames requires a null-terminated string, we need to convert fx_name
+            const fx_name_z = globals.arena.dupeZ(u8, fx_name) catch |err| {
+                log.warn("Failed to allocate null-terminated FX name: {}", .{err});
+                return;
+            };
+
+            const preset_names = mapping_browser.getMappingNames(
+                globals.arena,
+                globals.resource_path,
+                fx_name_z,
+                module,
+            ) catch |err| {
+                log.warn("Failed to load existing preset names: {}", .{err});
+                return;
+            };
+
+            // Because getMappingNames returns owned strings, we add them to the list
+            for (preset_names) |name| {
+                save_state.existing_presets.append(name) catch |err| {
+                    log.warn("Failed to append preset name: {}", .{err});
+                };
+            }
+
+            globals.state.mapping_panel.mode = .{ .save = save_state };
+        },
+
+        .exit_to_fx_ctrl => {
+            // Clean up mapping panel
+            if (globals.mapping_panel) |*panel| {
+                panel.deinit();
+                globals.mapping_panel = null;
+            }
+            dispatch(globals, .{ .change_mode = .fx_ctrl });
+        },
+
+        // BROWSE sub-mode actions
+        .browse_scroll => |encoder_val| {
+            globals.state.mapping_panel.mode.browse.scroll_position_abs = encoder_val;
+            // Update relative position (simplified, actual implementation may vary)
+            globals.state.mapping_panel.mode.browse.scroll_position_rel = encoder_val;
+        },
+
+        .browse_select_module => |module| {
+            globals.state.mapping_panel.mode.browse.selected_module = module;
+        },
+
+        .browse_confirm => {
+            const selected = globals.state.mapping_panel.mode.browse.selected_module;
+            mappingPanelActions(globals, .{ .enter_assign = selected });
+        },
+
+        .browse_cancel => {
+            mappingPanelActions(globals, .exit_to_fx_ctrl);
+        },
+
+        // ASSIGN sub-mode actions
+        .assign_select_parameter => |maybe_param| {
             log.debug("Selected parameter: {?}", .{maybe_param});
-            globals.state.mapping.selected_parameter = maybe_param;
-            // If we're in MIDI learn mode and a parameter is selected,
-            // we're ready to receive MIDI input
+            globals.state.mapping_panel.mode.assign.selected_parameter = maybe_param;
         },
-        .select_control => |maybe_control| {
+
+        .assign_select_control => |maybe_control| {
             log.debug("Selected control: {s}", .{if (maybe_control) |cc| @tagName(cc) else "none"});
-            globals.state.mapping.selected_control = maybe_control;
-            // If both parameter and control are selected, could auto-add mapping
+            globals.state.mapping_panel.mode.assign.selected_control = maybe_control;
         },
-        .toggle_midi_learn => {
-            log.debug("MIDI learn {s}", .{if (globals.state.mapping.midi_learn_active) "disabled" else "enabled"});
-            globals.state.mapping.midi_learn_active = !globals.state.mapping.midi_learn_active;
-            if (!globals.state.mapping.midi_learn_active) {
-                // Clear selection when exiting MIDI learn mode?
-                globals.state.mapping.selected_control = null;
+
+        .assign_toggle_midi_learn => {
+            log.debug("MIDI learn {s}", .{if (globals.state.mapping_panel.mode.assign.midi_learn_active) "disabled" else "enabled"});
+            globals.state.mapping_panel.mode.assign.midi_learn_active = !globals.state.mapping_panel.mode.assign.midi_learn_active;
+            if (!globals.state.mapping_panel.mode.assign.midi_learn_active) {
+                globals.state.mapping_panel.mode.assign.selected_control = null;
             }
         },
-        .add_mapping => |mapping| {
+
+        .assign_add_mapping => |mapping| {
             log.debug("Added mapping: {s} -> param {d}", .{ @tagName(mapping.control), mapping.param });
-            // Add to current_mappings based on module type
-            switch (globals.state.mapping.current_mappings) {
+            // Because we need to add the mapping to current_mappings based on module type,
+            // we switch on the current_mappings union
+            switch (globals.state.mapping_panel.mode.assign.current_mappings) {
                 .COMP => |*comp| switch (mapping.control) {
                     .Comp_Attack => comp.Comp_Attack = mapping.param,
                     .Comp_DryWet => comp.Comp_DryWet = mapping.param,
@@ -119,13 +246,15 @@ pub fn mappingActions(globals: *Globals, map_action: MappingAction) void {
                 },
             }
             // Clear selections after mapping
-            globals.state.mapping.selected_parameter = null;
-            globals.state.mapping.selected_control = null;
+            globals.state.mapping_panel.mode.assign.selected_parameter = null;
+            globals.state.mapping_panel.mode.assign.selected_control = null;
         },
-        .remove_mapping => |control| {
+
+        .assign_remove_mapping => |control| {
             log.debug("Removed mapping for control: {s}", .{@tagName(control)});
-            // Remove from current_mappings based on module type
-            switch (globals.state.mapping.current_mappings) {
+            // Because we need to remove the mapping from current_mappings,
+            // we switch on the union type
+            switch (globals.state.mapping_panel.mode.assign.current_mappings) {
                 .COMP => |*comp| switch (control) {
                     .Comp_Attack => comp.Comp_Attack = null,
                     .Comp_DryWet => comp.Comp_DryWet = null,
@@ -180,19 +309,47 @@ pub fn mappingActions(globals: *Globals, map_action: MappingAction) void {
                 },
             }
         },
-        .save_mapping => {
-            log.debug("Saved mappings for FX: {s}", .{globals.state.mapping.target_fx});
 
-            // Because saveToFile now requires a mapping_name, we use "default" if target_mapping_filepath is null
-            const mapping_name = if (globals.state.mapping.target_mapping_filepath) |_| blk: {
-                // Extract the mapping name from the filepath (last component without .ini)
-                // For now, just use "default"
-                break :blk "default";
-            } else "default";
+        .assign_change_module => |new_module| {
+            globals.state.mapping_panel.mode.assign.current_mappings = switch (new_module) {
+                .INPUT => .{ .INPUT = mappings.Inpt{} },
+                .GATE => .{ .GATE = mappings.Shp{} },
+                .EQ => .{ .EQ = mappings.Eq{} },
+                .COMP => .{ .COMP = mappings.Comp{} },
+                .OUTPT => .{ .OUTPT = mappings.Outpt{} },
+            };
+        },
 
-            // Extract module from the union and convert to TaggedMapping
-            const module = @as(ModulesList, @enumFromInt(@intFromEnum(globals.state.mapping.current_mappings)));
-            const tagged_mapping: TaggedMapping = switch (globals.state.mapping.current_mappings) {
+        .assign_request_save => {
+            mappingPanelActions(globals, .enter_save);
+        },
+
+        .assign_cancel => {
+            mappingPanelActions(globals, .exit_to_fx_ctrl);
+        },
+
+        // SAVE sub-mode actions
+        .save_update_name => |name| {
+            // Because we need to update the name buffer, we copy the name
+            const copy_len = @min(name.len, globals.state.mapping_panel.mode.save.name_buffer.len - 1);
+            @memcpy(globals.state.mapping_panel.mode.save.name_buffer[0..copy_len], name[0..copy_len]);
+            globals.state.mapping_panel.mode.save.name_buffer[copy_len] = 0;
+            globals.state.mapping_panel.mode.save.name_len = copy_len;
+        },
+
+        .save_confirm => |mapping_name| {
+            const fx_name = globals.state.mapping_panel.mode.save.target_fx;
+            log.debug("Saved mappings for FX: {s}", .{fx_name});
+
+            // Because saveToFile requires null-terminated strings, we need to convert fx_name
+            const fx_name_z = globals.arena.dupeZ(u8, fx_name) catch |err| {
+                log.warn("Failed to allocate null-terminated FX name: {}", .{err});
+                return;
+            };
+
+            // Because we need to save the mapping to disk, we extract the module and convert to TaggedMapping
+            const module = std.meta.activeTag(globals.state.mapping_panel.mode.save.current_mappings);
+            const tagged_mapping: TaggedMapping = switch (globals.state.mapping_panel.mode.save.current_mappings) {
                 .INPUT => |m| .{ .INPUT = m },
                 .GATE => |m| .{ .GATE = m },
                 .EQ => |m| .{ .EQ = m },
@@ -202,46 +359,28 @@ pub fn mappingActions(globals: *Globals, map_action: MappingAction) void {
 
             globals.map_store.saveToFile(
                 module,
-                globals.state.mapping.target_fx,
+                fx_name_z,
                 tagged_mapping,
                 mapping_name,
             ) catch {
-                log.warn("Failed to save mapping {s} to file", .{globals.state.mapping.target_fx});
+                log.warn("Failed to save mapping {s} to file", .{fx_name});
                 // Continue with cleanup even if save failed
             };
 
-            // Because saveToFile only writes to disk, we need to reload the mapping into cache
-            // to ensure the in-memory MapStore is up to date
-            // CODEREVIEW I’m not sure I understand this: instead of doing this, shouldn’t we run a put directly into the mapstore?
-            // why do we need an extra read from disk when we already have the map in memory, albeit in a different location?
-            const module_type = @as(@import("statemachine.zig").ModulesList, globals.state.mapping.current_mappings);
-            _ = globals.map_store.get(globals.state.mapping.target_fx, module_type);
+            // Because saveToFile only writes to disk, we need to add the mapping to cache manually
+            // We use getMap to load it from disk which will also update the cache
+            _ = globals.map_store.getMap(fx_name_z, module, mapping_name) catch |err| {
+                log.warn("Failed to load saved mapping into cache: {}", .{err});
+            };
 
-            // Clean up mapping panel
-            if (globals.mapping_panel) |*panel| {
-                panel.deinit();
-                globals.mapping_panel = null;
-            }
-            dispatch(globals, .{ .change_mode = .fx_ctrl });
+            // Exit to FX control mode
+            mappingPanelActions(globals, .exit_to_fx_ctrl);
         },
-        .cancel_mapping => {
-            log.debug("Cancelled mapping for FX: {s}", .{globals.state.mapping.target_fx});
-            // Clean up mapping state
-            globals.state.mapping.selected_parameter = null;
-            globals.state.mapping.selected_control = null;
-            globals.state.mapping.midi_learn_active = false;
 
-            // Free allocated memory
-            // state.mapping.deinit(app.allocator);
-
-            // Clean up mapping panel
-            if (globals.mapping_panel) |_| {
-                // panel.deinit();
-                globals.mapping_panel = null;
-            }
-
-            // Switch back to previous mode
-            dispatch(globals, .{ .change_mode = .fx_ctrl });
+        .save_cancel => {
+            // Because we want to return to assign mode, we get the current module from save_state
+            const current_module = std.meta.activeTag(globals.state.mapping_panel.mode.save.current_mappings);
+            mappingPanelActions(globals, .{ .enter_assign = current_module });
         },
     }
 }
