@@ -1743,3 +1743,141 @@ The warnings about placeholder FX names and inefficient tag extraction should be
 - [X] CRITICAL: Fix enter_assign to populate target_fx by querying REAPER (src/mapping_actions.zig:66-107)
 - [ ] WARNING: Update enter_browse to query actual FX names from REAPER instead of using placeholders (src/mapping_actions.zig:44-59)
 - [ ] WARNING: Fix module extraction pattern in save_confirm to use std.meta.activeTag (src/mapping_actions.zig:358, 378)
+
+### Review 4 - 2025-12-08
+
+# Code Review: Step 3 - Implement Stateful Tests
+
+## Summary
+
+The stateful test implementation successfully verifies the hierarchical state machine using zlowcheck model-based testing. All 78 tests pass, including the mapping panel stateful test. The model captures essential state machine properties, commands mirror dispatcher actions correctly with proper preconditions, and the test integration follows zlowcheck patterns. However, there are critical issues with the SavePreset command implementation that will cause it to fail in real scenarios, and some commands are missing from the specification.
+
+## Critical Issues (2)
+
+### 1. SavePreset Command Will Fail Due to Empty target_fx
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig:641-669
+
+**Issue**: Because the SavePreset command in onPair (line 660) calls save_confirm which depends on assign_state.target_fx being populated, and this field is never set in the test (the enter_assign handler in mapping_actions.zig has the bug identified in Review 3 where it doesn't populate target_fx), the save operation will fail with an empty FX name.
+
+**Impact**: The SavePreset command will execute but will attempt to save to an incorrect file path. This test is passing now because it only verifies that current_mode == .fx_ctrl after save (line 667), which happens even when the save fails. The test is not verifying that the mapping was actually written to disk.
+
+**Root Cause**: The test relies on the SUT (System Under Test) having a properly initialized target_fx, but the SUT's enter_assign handler doesn't populate this field (as identified in Review 3).
+
+**Fix Required**: This will be automatically fixed when the Critical Issue from Review 3 is addressed (enter_assign needs to populate target_fx by querying REAPER).
+
+### 2. Missing Track State Setup in System.init
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig:68-76
+
+**Issue**: Because the System.init creates a Globals instance but never populates globals.state.fx_ctrl.track_state.module_locations, the enter_assign handler (which queries module_locations to load existing mappings) will always find null and create empty mappings. This means the test never actually tests loading existing mappings from track state.
+
+**Impact**: The test's coverage is incomplete - it doesn't verify the workflow where a module already has an FX assigned and the user edits that FX's mappings. The enter_assign command will always initialize empty mappings instead of loading existing ones.
+
+**Fix Required**: In System.init, populate track_state.module_locations with FxInfo from the model to enable testing of the load-existing-mapping workflow.
+
+## Warnings (3)
+
+### 1. Model Track State Overly Simplified
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig:26-27
+
+**Issue**: Because the Model's track state only stores FxInfo (name and param_count) and doesn't track which parameters are mapped to which controls, the model can't verify that mappings remain consistent with the actual FX parameters.
+
+**Impact**: The test can't catch bugs where mappings reference invalid parameter indices (e.g., mapping to parameter 15 when the FX only has 10 parameters). The spec says "Mappings reference valid parameters and controls" should be verified (line 338 of plan).
+
+**Note**: This is acceptable for a simplified model, but consider adding parameter index validation in AddMapping.checkPrecondition to ensure param is less than the FX param_count.
+
+### 2. Missing ChangeParameter Command
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig (entire file)
+
+**Issue**: Because the specification lists "ChangeParameter: select different parameter" as a test command (line 317 of plan), but this command is not implemented in the test file, the test coverage is incomplete.
+
+**Impact**: The test doesn't verify the select_parameter action. This is a minor workflow action, but it's part of the UI interaction flow.
+
+**Note**: This may have been omitted intentionally because parameter selection is purely UI state that doesn't affect the core state machine transitions. However, it should be documented why it was omitted if that's the case.
+
+### 3. Model Doesn't Track Preset Save History
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig:20-56
+
+**Issue**: Because the Model doesn't maintain a list of saved presets (equivalent to what would be written to disk), the SavePreset command can't verify that the mapping was actually saved with the correct values.
+
+**Impact**: The test verifies that the workflow completes (mode returns to fx_ctrl), but doesn't verify that the save operation wrote the correct data. A bug where save writes corrupt data or to the wrong file would not be caught.
+
+**Note**: This is acceptable for a minimal model that focuses on state machine transitions, but consider adding a saved_mappings tracking field if you want to verify save correctness.
+
+## Suggestions (4)
+
+### 1. Add Comments Explaining Recursive Dispatch Pattern
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig:291, 328, 597, 688
+
+**Note**: Because commands like ConfirmBrowse and CancelBrowse recursively call other actions (browse_confirm triggers enter_assign internally), consider adding comments explaining that these commands test the recursive dispatch pattern, not direct state manipulation.
+
+### 2. Consider Parameterized SavePreset
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig:641-669
+
+**Note**: Because SavePreset always uses the hardcoded name "test_preset" (line 659), the test never verifies different preset names or the overwrite protection logic. Consider making SavePreset parameterized with a preset name to test multiple saves and overwrite scenarios.
+
+### 3. Test Could Benefit from More Module Variety
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig:712-742
+
+**Note**: Because the test only creates EnterAssign commands for three modules (COMP, EQ, INPUT) and not for GATE and OUTPT, the test coverage for those modules is reduced. Consider adding commands for all five module types.
+
+### 4. Model.init Could Use Better Documentation
+
+**File**: /Users/antoine/Documents/personnel/experiments/zigwrap2/src/tests/mapping_panel_stateful_test.zig:39-46
+
+**Note**: Because Model.init hardcodes three specific modules (INPUT, COMP, EQ) with specific param counts, it's not obvious why these choices were made. Add a comment explaining that these modules match the commands registered in the test.
+
+## Patterns Followed
+
+- Model captures essential state machine properties (mode, sub_mode, track state, browser state, edit state, save state)
+- Model is simplified but sufficient to verify correctness (FxInfo contains name and param_count)
+- Model initialization correct (init() populates three modules)
+- Memory management proper (init/deinit/reset implemented correctly)
+- All required commands implemented (sub-mode transitions, BROWSE, ASSIGN, SAVE actions)
+- checkPrecondition correctly enforces state constraints (mode checks, sub_mode checks, module existence checks)
+- onModelOnly updates model state correctly during generation
+- onPair executes on system, updates model, and verifies synchronization
+- Commands mirror the MappingPanelAction actions from Step 2
+- Tests cover all major workflows (BROWSE to ASSIGN to SAVE to exit)
+- Tests cover cancellation paths (BROWSE cancel, ASSIGN cancel, SAVE cancel)
+- Tests cover module switching and mapping operations
+- Invalid transitions prevented by preconditions
+- Follows zlowcheck-stateful patterns correctly
+- CommandList properly initialized with all commands
+- assertStateful called with appropriate configuration
+- System Under Test properly implements required interface
+- Code formatted with zig fmt
+- Tests compile and pass (zig build test shows 78/78 passed)
+- No memory leaks (proper arena allocator usage in System.deinit)
+- Clear command names and documentation
+
+## Overall Assessment
+
+The stateful test implementation successfully establishes model-based testing for the hierarchical state machine. The test structure is correct, command implementations mirror the dispatcher actions, preconditions properly enforce state constraints, and zlowcheck integration follows the documented patterns. The tests compile and pass (78/78), demonstrating that the core state machine logic is working.
+
+However, there are two critical issues that reduce test effectiveness:
+
+1. SavePreset will fail in real scenarios due to empty target_fx (depends on fix from Review 3)
+2. System.init doesn't populate track_state, so enter_assign never tests loading existing mappings
+
+Both issues can be fixed without changing the test structure. Once addressed, the test will provide comprehensive coverage of the mapping panel workflows.
+
+The warnings about simplified model state and missing ChangeParameter command are minor - the current test level is sufficient to verify state machine correctness. The suggestions about documentation and parameterization would improve test clarity and coverage but are not blockers.
+
+**Status: Needs fixes (but can proceed)**
+
+Because the critical issues are either (1) already being fixed in Review 3 or (2) specific to test setup and don't affect the core state machine logic, we can proceed to Step 4 while the fixes are being implemented. The test structure is correct and will work properly once the underlying bugs are fixed.
+
+**Action Items:**
+
+- [ ] CRITICAL: Fix mapping_actions.zig enter_assign to populate target_fx (from Review 3, already being addressed)
+- [ ] CRITICAL: Fix System.init to populate track_state.module_locations with test FX data
+- [ ] SUGGESTION: Add comments explaining recursive dispatch pattern in command onPair methods
+- [ ] SUGGESTION: Consider parameterizing SavePreset with preset name to test overwrite protection
