@@ -393,6 +393,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             };
 
             globals.map_store.saveToFile(
+                globals.fs_ops,
                 module,
                 fx_name_z,
                 tagged_mapping,

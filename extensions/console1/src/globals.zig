@@ -35,6 +35,7 @@ gpa_int: std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose
 arena_int: std.heap.ArenaAllocator = undefined,
 arena: std.mem.Allocator = undefined,
 resource_path: [:0]const u8 = undefined,
+fs_ops: fs_helpers.FileSystemOps = undefined,
 translations: TranslationStore = undefined,
 
 // midi
@@ -52,6 +53,7 @@ pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
 
     globals.arena_int = std.heap.ArenaAllocator.init(debug_allocator);
     globals.arena = globals.arena_int.allocator();
+    globals.fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
     globals.resource_path = "";
     globals.preferences = try .defaults(globals.arena);
     globals.map_store = .empty(globals.arena, globals.resource_path);
@@ -72,8 +74,9 @@ pub fn init() !void {
     instance.gpa_int = .{};
     instance.arena_int = .init(instance.gpa_int.allocator());
     instance.arena = instance.arena_int.allocator();
+    instance.fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
 
-    fs_helpers.ensureConfigPath() catch {};
+    fs_helpers.ensureConfigPath(instance.fs_ops) catch {};
     instance.resource_path = std.mem.span(try fs_helpers.getControllerPath(instance.arena));
 
     // Initialize in dependency order

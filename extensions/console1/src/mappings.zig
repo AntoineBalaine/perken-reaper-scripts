@@ -567,7 +567,14 @@ fn formatOptionalU8(value: anytype, writer: anytype) !void {
 }
 
 /// Because this function now takes pure parameters, it is more testable and has clearer dependencies.
-pub fn saveToFile(self: *MapStore, module: ModulesList, fx_name: [:0]const u8, mapping: TaggedMapping, mapping_name: [:0]const u8) !void {
+pub fn saveToFile(
+    self: *MapStore,
+    fs_ops: fs_helpers.FileSystemOps,
+    module: ModulesList,
+    fx_name: [:0]const u8,
+    mapping: TaggedMapping,
+    mapping_name: [:0]const u8,
+) !void {
     // Build path: resourcePath/maps/<MODULE>/<fx_name>/<mapping_name>.ini
     var name_buf: [512:0]u8 = undefined;
     const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
@@ -585,7 +592,7 @@ pub fn saveToFile(self: *MapStore, module: ModulesList, fx_name: [:0]const u8, m
     });
 
     // Because we need to create the directory before saving the file, we make it recursively
-    std.fs.makeDirAbsolute(dir_path) catch |err| {
+    fs_ops.makeDirAbsolute(dir_path) catch |err| {
         if (err != error.PathAlreadyExists) {
             log.err("Failed to create directory: {s}", .{@errorName(err)});
             return err;
@@ -608,7 +615,7 @@ pub fn saveToFile(self: *MapStore, module: ModulesList, fx_name: [:0]const u8, m
     });
 
     // Create or truncate file
-    const file = try std.fs.createFileAbsolute(path, .{
+    const file = try fs_ops.createFileAbsolute(path, .{
         .read = true,
         .truncate = true,
     });

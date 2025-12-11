@@ -16,6 +16,9 @@ const MappingPanelAction = mapping_actions.MappingPanelAction;
 const mappings = @import("../mappings.zig");
 const TaggedMapping = mappings.TaggedMapping;
 const c1 = @import("../c1.zig");
+const fs_helpers = @import("../fs_helpers.zig");
+
+const MockFileSystem = fs_helpers.MockFileSystem;
 
 // Simplified Model representing the hierarchical state machine
 const Model = struct {
@@ -58,14 +61,39 @@ const FxInfo = struct {
 const System = struct {
     globals: Globals,
     allocator: std.mem.Allocator,
+    mock_fs: *MockFileSystem,
+    resource_path: [:0]const u8,
 
     pub fn init(allocator: std.mem.Allocator) !System {
+        const mock_fs = try allocator.create(MockFileSystem);
+        mock_fs.* = try MockFileSystem.init(allocator);
+
+        // Get temp directory absolute path
+        var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+        const temp_path = try mock_fs.temp_dir.dir.realpath(".", &path_buffer);
+        const temp_path_owned = try allocator.dupeZ(u8, temp_path);
+        defer allocator.free(temp_path_owned);
+
+        // Use real filesystem to copy embedded files to temp dir
+        const real_fs = fs_helpers.RealFileSystem.fileSystemOps();
+        try fs_helpers.copyEmbeddedFilesToDir(real_fs, temp_path_owned);
+
+        // Build resource_path pointing to temp Console1 directory
+        const resource_path = try std.fs.path.joinZ(allocator, &.{
+            temp_path_owned, "Data", "Perken", "Console1",
+        });
+
+        // Create test Globals
         var g = try Globals.defaults(allocator);
-        // Initialize in fx_ctrl mode
+        g.resource_path = resource_path;
+        g.fs_ops = mock_fs.fileSystemOps();
         g.state.current_mode = .fx_ctrl;
+
         return System{
             .globals = g,
             .allocator = allocator,
+            .mock_fs = mock_fs,
+            .resource_path = resource_path,
         };
     }
 
@@ -77,6 +105,10 @@ const System = struct {
     }
 
     pub fn deinit(self: *System) void {
+        self.allocator.free(self.resource_path);
+        self.mock_fs.deinit();
+        self.allocator.destroy(self.mock_fs);
+
         self.globals.state.mapping_panel.deinit();
         _ = self.globals.arena_int.reset(.free_all);
     }
@@ -734,16 +766,14 @@ test "mapping panel hierarchical state machine" {
         Command(Model, System).init(&cancel_save_cmd),
     };
 
-    // Create entropy for command generation
-    var bytes: [4096]u8 = undefined;
+    var bytes: [128 * 1024]u8 = undefined;
     const seed: u64 = @intCast(std.time.milliTimestamp());
     var prng = std.Random.DefaultPrng.init(seed);
     prng.random().bytes(&bytes);
     var finite_prng = FinitePrng.init(&bytes);
     var random = finite_prng.random();
 
-    // Generate command sequence
-    var cmd_seq = try CommandList(Model, System).init(&commands, &random, 50, allocator);
+    var cmd_seq = try CommandList(Model, System).init(&commands, &random, 500, allocator);
     defer cmd_seq.deinit(allocator);
 
     // Run stateful test
