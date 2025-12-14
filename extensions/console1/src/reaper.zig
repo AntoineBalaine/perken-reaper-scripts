@@ -1,4 +1,3 @@
-
 pub const reaper = struct { // @import("reaper");
     pub const ACCEL = *opaque {};
     pub const AudioAccessor = *opaque {};

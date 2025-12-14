@@ -233,7 +233,13 @@ fn mappingWidget(
             assignment_label,
             assign_state.fx_params.items,
         ),
-        .knob => try @import("components/mappingKnob.zig").drawWidget(ctx, 0.5, label, .{ .disabled = disabled }, cc, assignment_label, assign_state.fx_params.items),
+        .knob => blk: {
+            const label_id = @import("components/knob.zig").LabelId{
+                .label = label,
+                .id = @tagName(cc),
+            };
+            break :blk try @import("components/mappingKnob.zig").drawWidget(ctx, 0.5, label_id, .{ .disabled = disabled }, cc, assignment_label, assign_state.fx_params.items);
+        },
     };
 
     if (mVal) |val| {

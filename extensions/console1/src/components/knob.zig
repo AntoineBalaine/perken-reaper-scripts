@@ -48,6 +48,11 @@ pub const Rectangle = struct {
     max_y: f64,
 };
 
+pub const LabelId = struct {
+    label: [:0]const u8,
+    id: [:0]const u8,
+};
+
 pub inline fn angle_min() f64 {
     return std.math.pi * 0.75;
 }
@@ -73,7 +78,7 @@ pub inline fn center(drawCursor: f64, radius: f64) f64 {
 pub fn drawWidget(
     ctx: imgui.ContextPtr,
     value: *f64,
-    id: [:0]const u8,
+    label_id: LabelId,
     flags: ControlFlags,
     max_width: ?f64,
 ) !bool {
@@ -83,7 +88,7 @@ pub fn drawWidget(
 
     // Calculate text size for label
     var label_size: Size = .{ .w = undefined, .h = undefined };
-    try imgui.CalcTextSize(.{ ctx, id, &label_size.w, &label_size.h });
+    try imgui.CalcTextSize(.{ ctx, label_id.label, &label_size.w, &label_size.h });
     const text_padding = 2.0;
 
     var cur_pos = Position{ .x = undefined, .y = undefined };
@@ -108,7 +113,13 @@ pub fn drawWidget(
         try imgui.DrawList_AddRectFilled(.{ drwls, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, 0xFFFFFF22 });
 
         // Draw label at top
-        try imgui.DrawList_AddText(.{ drwls, widget_rect.min_x + (total_width - label_size.w) / 2, widget_rect.min_y + text_padding, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), id });
+        try imgui.DrawList_AddText(.{
+            drwls,
+            widget_rect.min_x + (total_width - label_size.w) / 2,
+            widget_rect.min_y + text_padding,
+            try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }),
+            label_id.label,
+        });
 
         // Draw "Empty" button in the center of the adjusted ClipRect
         const center_x = widget_rect.min_x + total_width / 2; // centered based on total width
@@ -116,7 +127,7 @@ pub fn drawWidget(
 
         try imgui.SetCursorScreenPos(.{ ctx, center_x - radius, center_y - radius });
 
-        const rv = try YControl(ctx, id, value, radius * 2, radius * 2, MINVAL, MAXVAL, .{
+        const rv = try YControl(ctx, label_id.id, value, radius * 2, radius * 2, MINVAL, MAXVAL, .{
             .invisible = true,
             .increment = false,
             .scale = .logarithmic,

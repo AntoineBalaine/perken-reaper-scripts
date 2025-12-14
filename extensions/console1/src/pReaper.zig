@@ -6535,7 +6535,7 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
                     cast_arg_type = @typeInfo(cast_arg_type.optional.child);
                 cast_args[i] = if (cast_arg_type == .int and
                     ((arg_type == .comptime_int and args[i] > std.math.maxInt(c_int)) or
-                    (arg_type == .int and arg_type.int.signedness == .unsigned)))
+                        (arg_type == .int and arg_type.int.signedness == .unsigned)))
                     @bitCast(@as(c_uint, args[i]))
                 else
                     args[i];
@@ -6546,15 +6546,15 @@ fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: 
                 const cast_arg_type = @typeInfo(@TypeOf(cast_args[i]));
                 call_args[i] =
                     if (cast_arg_type == .optional)
-                    if (cast_args[i]) |*arg_val|
-                        if (@typeInfo(cast_arg_type.optional.child) == .pointer)
-                            arg_val.*
+                        if (cast_args[i]) |*arg_val|
+                            if (@typeInfo(cast_arg_type.optional.child) == .pointer)
+                                arg_val.*
+                            else
+                                arg_val
                         else
-                            arg_val
+                            null
                     else
-                        null
-                else
-                    cast_args[i];
+                        cast_args[i];
             }
 
             const rv = @call(.auto, func.*, call_args);

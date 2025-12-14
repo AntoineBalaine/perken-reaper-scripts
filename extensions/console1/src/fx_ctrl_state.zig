@@ -135,7 +135,6 @@ pub fn getSubContainerIdx(self: *@This(), subidx: u8, container_idx: c_int, medi
 }
 
 /// if container_idx is provided, then load the chain into it.
-
 /// validate track
 /// NOTE: track validation is meant to fail silently.
 pub fn validateTrack(
