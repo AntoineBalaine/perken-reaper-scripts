@@ -13,6 +13,20 @@ pub fn normalizedToVol(norm: f64) f64 {
     return DB2VAL(db);
 }
 
+pub fn volToNormalized(vol: f64) f64 {
+    const db = VAL2DB(vol);
+    const slider_pos = reaper.DB2SLIDER(db);
+    return slider_pos / 1000.0;
+}
+
+pub fn panToNormalized(pan: f64) f64 {
+    return (pan + 1.0) / 2.0;
+}
+
+pub fn normalizedToPan(norm: f64) f64 {
+    return norm * 2.0 - 1.0;
+}
+
 pub inline fn DB2VAL(x: f64) f64 {
     return std.math.exp((x) * LN10_OVER_TWENTY);
 }

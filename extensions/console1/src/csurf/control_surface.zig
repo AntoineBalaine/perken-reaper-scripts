@@ -139,7 +139,7 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
     if (globals.state.fx_ctrl.vol_lastpos != volint) {
         globals.state.fx_ctrl.vol_lastpos = volint;
 
-        const norm_val = @as(f64, @floatFromInt(volint)) / 127.0;
+        const norm_val = utils.volToNormalized(volume);
         actions.dispatch(globals, .{ .fx_ctrl = .{ .set_volume = norm_val } });
 
         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = volint } } });

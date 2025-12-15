@@ -71,31 +71,27 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         reaper.CSurf_SetSurfaceSolo(media_track, reaper.CSurf_OnSoloChange(media_track, -1), @ptrCast(csurf.my_csurf));
-                        // Send MIDI feedback
                         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     }
                 },
                 .Out_Vol => {
+                    MidiEvts.setUIVal(.Out_Vol, input.value, &globals.state.fx_ctrl);
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-
-                        MidiEvts.setUIVal(.Out_Vol, input.value, &globals.state.fx_ctrl);
 
                         const vol_value = utils.normalizedToVol(input.value);
 
                         pReaper.CSurf_SetSurfaceVolume(.{ media_track, pReaper.CSurf_OnVolumeChange(.{ media_track, vol_value, false }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
-                        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     }
                 },
                 .Out_Pan => {
+                    MidiEvts.setUIVal(.Out_Pan, input.value, &globals.state.fx_ctrl);
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(input.value * 127.0) } } });
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-
-                        MidiEvts.setUIVal(.Out_Pan, input.value, &globals.state.fx_ctrl);
-
-                        pReaper.CSurf_SetSurfacePan(.{ media_track, pReaper.CSurf_OnPanChange(.{ media_track, input.value, false }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
-
-                        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat((input.value + 1.0) / 2.0 * 127.0) } } });
+                        const pan_value = utils.normalizedToPan(input.value);
+                        pReaper.CSurf_SetSurfacePan(.{ media_track, pReaper.CSurf_OnPanChange(.{ media_track, pan_value, false }), @as(reaper.IReaperControlSurface, @ptrCast(csurf.my_csurf)) });
                     }
                 },
                 .Inpt_disp_on => {
@@ -168,7 +164,8 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
             MidiEvts.setUIVal(.Out_Vol, norm_val, &globals.state.fx_ctrl);
         },
         .set_pan => |pan_val| {
-            MidiEvts.setUIVal(.Out_Pan, pan_val, &globals.state.fx_ctrl);
+            const norm_val = utils.panToNormalized(pan_val);
+            MidiEvts.setUIVal(.Out_Pan, norm_val, &globals.state.fx_ctrl);
         },
         else => {},
         // ... other fx_ctrl actions

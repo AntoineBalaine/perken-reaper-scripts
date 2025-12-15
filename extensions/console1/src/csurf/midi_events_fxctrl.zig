@@ -44,14 +44,15 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
         },
         .Inpt_preset => {},
         .Out_Pan => {
+            const norm_val = @as(f64, @floatFromInt(val)) / 127.0;
+            setUIVal(cc, norm_val, &globals.state.fx_ctrl);
             if (getTrack(globals.state.current_tr_id)) |tr| {
-                setUIVal(cc, u8ToPan(val), &globals.state.fx_ctrl);
                 reaper.CSurf_SetSurfacePan(tr, reaper.CSurf_OnPanChange(tr, u8ToPan(val), false), @ptrCast(csurf.my_csurf));
             }
         },
         .Out_Vol => {
+            setUIVal(cc, @as(f64, @floatFromInt(val)) / 127, &globals.state.fx_ctrl);
             if (getTrack(globals.state.current_tr_id)) |tr| {
-                setUIVal(cc, @as(f64, @floatFromInt(val)) / 127, &globals.state.fx_ctrl);
                 reaper.CSurf_SetSurfaceVolume(tr, reaper.CSurf_OnVolumeChange(tr, u8ToVol(val), false), @ptrCast(csurf.my_csurf));
             }
         },
