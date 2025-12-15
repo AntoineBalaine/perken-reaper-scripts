@@ -12,6 +12,7 @@ const Globals = @import("globals.zig").Globals;
 const onMidiEvent_FxCtrl = @import("csurf/midi_events_fxctrl.zig").onMidiEvent_FxCtrl;
 const actions = @import("actions.zig");
 const pReaper = @import("pReaper.zig");
+const csurf = @import("csurf/control_surface.zig");
 
 const log = std.log.scoped(.midi_input);
 
@@ -54,6 +55,22 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         actions.dispatch(globals, .{ .fx_ctrl = .{ .toggle_phase_inv = media_track } });
+                    }
+                },
+                .Out_mute => {
+                    if (globals.state.current_tr_id) |tr_id| {
+                        const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+                        reaper.CSurf_SetSurfaceMute(media_track, reaper.CSurf_OnMuteChange(media_track, -1), @ptrCast(csurf.my_csurf));
+                        // Send MIDI feedback
+                        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
+                    }
+                },
+                .Out_solo => {
+                    if (globals.state.current_tr_id) |tr_id| {
+                        const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+                        reaper.CSurf_SetSurfaceSolo(media_track, reaper.CSurf_OnSoloChange(media_track, -1), @ptrCast(csurf.my_csurf));
+                        // Send MIDI feedback
+                        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     }
                 },
                 .Inpt_disp_on => {
