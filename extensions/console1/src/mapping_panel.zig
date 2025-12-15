@@ -95,15 +95,14 @@ fn controls(
         if (!is_active) {
             try imgui.BeginDisabled(.{ctx});
         }
+        defer if (!is_active) {
+            imgui.EndDisabled(.{ctx}) catch {};
+        };
 
         if (try panel_info.panel_fn(ctx, state, assign_state, translations, !is_active)) |act| {
             if (is_active) {
                 rv = act;
             }
-        }
-
-        if (!is_active) {
-            try imgui.EndDisabled(.{ctx});
         }
 
         // Add sectional divider between panels (except after the last one)
