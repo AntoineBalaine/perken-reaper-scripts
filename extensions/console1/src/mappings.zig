@@ -47,7 +47,7 @@ pub const Inpt = struct {
     Inpt_disp_mode: ?u8 = null,
     Inpt_disp_on: ?u8 = null,
     Inpt_filt_to_comp: ?u8 = null,
-    Inpt_phase_inv: ?u8 = null,
+    // Inpt_phase_inv: ?u8 = null,  // Track parameter only, not mappable to FX
     Inpt_preset: ?u8 = null,
 };
 
@@ -787,7 +787,7 @@ pub fn getParamForCC(cc: c1.CCs, mapping: TaggedMapping) ?u8 {
         .Inpt_disp_mode => mapping.INPUT.Inpt_disp_mode,
         .Inpt_disp_on => mapping.INPUT.Inpt_disp_on,
         .Inpt_filt_to_comp => mapping.INPUT.Inpt_filt_to_comp,
-        .Inpt_phase_inv => mapping.INPUT.Inpt_phase_inv,
+        // .Inpt_phase_inv => mapping.INPUT.Inpt_phase_inv,
         .Inpt_preset => mapping.INPUT.Inpt_preset,
 
         // OUTPT module parameters
