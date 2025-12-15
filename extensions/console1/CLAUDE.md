@@ -9,7 +9,7 @@ for items
   if condition
     item.property = <something>
 ```
-Write as concicely as possible. Do not use telegraphic-style writing, do not omit articles in sentences: for instance, do not write «Doing x because Z», write «we are doing X because of Z».
+Write as concisely as possible. Do not use telegraphic-style writing, do not omit articles in sentences: for instance, do not write «Doing x because Z», write «we are doing X because of Z».
 
 When giving explanations, prefer indicating the cause of the need in the sentence first and the consequence after. For instance «because this and that are doing something that would break, we need to first change this and then update this.»
 
@@ -20,7 +20,10 @@ When a refactor requires moving or creating files, start by moving/creating all 
 
 
 ## trying out changes
-- Make sure that your changes can be compiled using `zig build` unless instructed otherwise. If the build yields errors, use the compiler warnings and errs into account for your fixes.
-- Make sure to format your changes using `zig fmt` after doing edits.
-
+- Make sure to format your changes using `zig fmt <file_name>` after doing edits.
+- Make sure that your changes can be compiled using `zig build -Dtest=true` unless instructed otherwise. If the build yields errors, use the compiler warnings and errs into account for your fixes.
 - whenever you're making assumptions when writing code, use assertions rather than comments to make them explicit.
+
+## test files 
+new test files need to be integrated in the project’s entry point: `~/Documents/personnel/Experiments/reaper/zigExt/reaperZigWrap-mapping_panel_ui_stack/src/console1_extension.zig` in the test block at the end of the sheet.
+
