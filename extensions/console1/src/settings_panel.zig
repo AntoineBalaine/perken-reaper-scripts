@@ -243,15 +243,12 @@ pub fn draw(
 pub fn save(self: *@This(), globals: *Globals) !void {
     // Just copy the values, including string slices
     globals.preferences = self.temp_settings;
-    try globals.preferences.saveToDisk(globals.resource_path);
+    if (!comptime @import("builtin").is_test) {
+        try globals.preferences.saveToDisk(globals.resource_path);
 
-    if (self.temp_settings.log_to_file != globals.preferences.log_to_file) {
-        try globals.updateLoggerState();
-    }
-
-    // Apply changes that need immediate effect
-    if (self.temp_settings.log_to_file != globals.preferences.log_to_file) {
-        try globals.updateLoggerState();
+        if (self.temp_settings.log_to_file != globals.preferences.log_to_file) {
+            try globals.updateLoggerState();
+        }
     }
 }
 

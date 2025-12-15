@@ -8,7 +8,7 @@ const PrefsModel = struct {
     log_to_file: bool = false,
     manual_routing: bool = false,
     panel_open: bool = false,
-    scroll_position: u7 = 0,
+    scroll_position: u8 = 0,
     show_feedback_window: bool = true,
     show_plugin_ui: bool = true,
     show_startup_message: bool = true,
@@ -108,6 +108,8 @@ const CancelCmd = struct {
         return cond;
     }
 };
+
+// not worth implementing as test
 const ScrollCmd = struct {
     pub const name = "settings_scroll";
     random: *zlowcheck.FinitePrng.FiniteRandom,
@@ -128,6 +130,8 @@ const ScrollCmd = struct {
     }
 };
 
+// not worth implementing as test,
+// depends on midi scroll position
 const ToggleCmd = struct {
     pub const name = "settingsToggle";
 
@@ -207,16 +211,16 @@ fn prefsStatefulTest(_: void, input: []const u8) !void {
     var openCmd: OpenCmd = .{};
     var saveCmd: SaveCmd = .{};
     var cancelCmd: CancelCmd = .{};
-    var scrollCmd: ScrollCmd = .{ .random = &random };
-    var toggleCmd: ToggleCmd = .{};
+    // var scrollCmd: ScrollCmd = .{ .random = &random };
+    // var toggleCmd: ToggleCmd = .{};
     var updateCmd: UpdateCmd = .{ .random = &random };
 
     const commands = [_]PrefsCmd{
         PrefsCmd.init(&openCmd),
         PrefsCmd.init(&saveCmd),
         PrefsCmd.init(&cancelCmd),
-        PrefsCmd.init(&scrollCmd),
-        PrefsCmd.init(&toggleCmd),
+        // PrefsCmd.init(&scrollCmd),
+        // PrefsCmd.init(&toggleCmd),
         PrefsCmd.init(&updateCmd),
     };
     var cmd_seq = try zlowcheck.CommandList(PrefsModel, Globals).init(

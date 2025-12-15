@@ -37,10 +37,8 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
         .save => {
             if (globals.settings_panel) |*panel| {
                 panel.save(globals) catch {
+                    // disk write failed, but settings are still in memory
                     log.err("save settings failed: {s}", .{@tagName(set_action)});
-                    return;
-                    // settings: implement error handling
-                    // Show user notification
                 };
                 globals.settings_panel = null;
             }
@@ -65,8 +63,8 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                         .manual_routing,
                         .log_to_file,
                         .start_suspended,
-                        .show_track_list,
-                        .focus_page_tracks,
+                        // .show_track_list,
+                        // .focus_page_tracks,
                         => _ = panel.temp_settings.toggleField(field),
                         .default_INPUT,
                         .default_GATE,
@@ -100,8 +98,8 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                             .manual_routing => panel.temp_settings.manual_routing = bool_update.val,
                             .log_to_file => panel.temp_settings.log_to_file = bool_update.val,
                             .start_suspended => panel.temp_settings.start_suspended = bool_update.val,
-                            .show_track_list => panel.temp_settings.show_track_list = bool_update.val,
-                            .focus_page_tracks => panel.temp_settings.focus_page_tracks = bool_update.val,
+                            // .show_track_list => panel.temp_settings.show_track_list = bool_update.val,
+                            // .focus_page_tracks => panel.temp_settings.focus_page_tracks = bool_update.val,
                             else => unreachable,
                         }
                     },

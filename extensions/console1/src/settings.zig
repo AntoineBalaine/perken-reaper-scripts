@@ -26,8 +26,8 @@ pub const SettingsFields = enum {
     manual_routing,
     log_to_file,
     start_suspended,
-    show_track_list,
-    focus_page_tracks,
+    // show_track_list,
+    // focus_page_tracks,
 
     default_INPUT,
     default_GATE,
