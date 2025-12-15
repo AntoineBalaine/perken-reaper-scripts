@@ -49,6 +49,14 @@ pub fn reset() void {
     if (comptime builtin.is_test) {
         return;
     }
+    if (ctx) |context| {
+        const mainFontResource: imgui.ResourcePtr = @ptrCast(Theme.fonts.MAIN);
+        imgui.Detach(.{ context, mainFontResource }) catch {};
+
+        const fontelloResource: imgui.ResourcePtr = @ptrCast(Theme.fonts.ICON_FONT_SMALL);
+        imgui.Detach(.{ context, fontelloResource }) catch {};
+    }
+
     ctx = null;
     _ = reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
 }

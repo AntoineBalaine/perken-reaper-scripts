@@ -99,7 +99,12 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                 switch (cc) {
                     .Inpt_HiCut => actions.dispatch(globals, .{ .transport = .{ .rate = val } }),
                     .Inpt_disp_mode => actions.dispatch(globals, .{ .change_mode = .fx_ctrl }),
-                    .Inpt_disp_on => actions.dispatch(globals, .set_fx_ctrl_gui),
+                    .Inpt_disp_on => {
+                        if (globals.state.current_mode == .suspended) {
+                            actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+                        }
+                        actions.dispatch(globals, .set_fx_ctrl_gui);
+                    },
                     .Tr_tr1,
                     .Tr_tr2,
                     .Tr_tr3,

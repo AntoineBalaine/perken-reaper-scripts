@@ -51,7 +51,11 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
         actions.dispatch(globals, .{ .change_mode = new_mode });
         return 1;
     } else if (command == toggle_gui_cmd_id) {
-        actions.dispatch(getGlobals(), .set_fx_ctrl_gui);
+        const globals = getGlobals();
+        if (globals.state.current_mode == .suspended) {
+            actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+        }
+        actions.dispatch(globals, .set_fx_ctrl_gui);
         return 1;
     } else if (debugconfig.@"test" and command == reentrancy_test_cmd_id) {
         reentrancy.runAllTests() catch |err| {
