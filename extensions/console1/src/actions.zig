@@ -129,9 +129,6 @@ pub fn dispatch(state: *State, action: ModeAction) void {
 }
 
 fn validateTransition(from: Mode, to: Mode) bool {
-    if (imgui_loop.ctx == null) {
-        return to == .fx_ctrl or to == .suspended;
-    }
     const valid = valid_transitions.get(from) orelse return false;
     return for (valid) |valid_to| {
         if (valid_to == to) break true;
