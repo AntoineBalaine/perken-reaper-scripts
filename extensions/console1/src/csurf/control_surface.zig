@@ -138,6 +138,10 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
     const volint = utils.volToU8(volume);
     if (globals.state.fx_ctrl.vol_lastpos != volint) {
         globals.state.fx_ctrl.vol_lastpos = volint;
+
+        const norm_val = @as(f64, @floatFromInt(volint)) / 127.0;
+        actions.dispatch(globals, .{ .fx_ctrl = .{ .set_volume = norm_val } });
+
         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Vol, .value = volint } } });
     }
 }
@@ -145,9 +149,10 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
 // pan is btw -1.0 and 1.0
 export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
     if (ignore_notifications) return;
-    var globals = getGlobals();
-    _ = &globals;
+    const globals = getGlobals();
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
+
+    actions.dispatch(globals, .{ .fx_ctrl = .{ .set_pan = pan } });
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = @intFromFloat((pan + 1) / 2 * 127) } } });
 }
 export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {

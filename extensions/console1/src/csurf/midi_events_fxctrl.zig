@@ -142,14 +142,14 @@ fn u8ToPan(val: u8) f64 {
     return (@as(f64, @floatFromInt(val)) / (127 / 2)) - 1.0;
 }
 
-fn u8ToVol(val: u8) f64 {
+pub fn u8ToVol(val: u8) f64 {
     var pos = (@as(f64, @floatFromInt(val)) * 1000.0) / 127.0; // scale to 1000
     pos = reaper.SLIDER2DB(pos); // convert 0-1000 slider position to DB
     return utils.DB2VAL(pos);
 }
 
 /// set the fx_ctrl UI values
-fn setUIVal(cc: c1.CCs, norm_val: f64, fx_ctrl: *FxCtrlState) void {
+pub fn setUIVal(cc: c1.CCs, norm_val: f64, fx_ctrl: *FxCtrlState) void {
     var val_ptr = fx_ctrl.values.getPtr(cc) orelse unreachable;
     switch (val_ptr.*) {
         .param => val_ptr.param.normalized = norm_val,

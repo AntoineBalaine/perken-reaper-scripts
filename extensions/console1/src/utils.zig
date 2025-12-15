@@ -7,6 +7,12 @@ pub fn volToU8(vol: f64) u8 {
     return t;
 }
 
+pub fn normalizedToVol(norm: f64) f64 {
+    const slider_pos = norm * 1000.0; // 0-1 → 0-1000
+    const db = reaper.SLIDER2DB(slider_pos);
+    return DB2VAL(db);
+}
+
 pub inline fn DB2VAL(x: f64) f64 {
     return std.math.exp((x) * LN10_OVER_TWENTY);
 }
