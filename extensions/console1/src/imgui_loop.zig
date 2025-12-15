@@ -71,7 +71,14 @@ fn handleGuiError(err: anyerror) void {
     actions.dispatch(extension.getGlobals(), .{ .change_mode = .fx_ctrl });
 }
 
+/// Allow loading all other extensions prior to starting the gui
+var ready = false;
+
 fn onTimer() callconv(.C) void {
+    if (!ready) {
+        ready = true;
+        return;
+    }
     var globals = extension.getGlobals();
     _ = &globals;
     if (ctx == null) {
