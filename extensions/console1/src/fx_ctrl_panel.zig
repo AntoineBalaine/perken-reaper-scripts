@@ -239,7 +239,9 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transla
         const preset_label = if (preset_key) |key| tr(translations, key) else null;
         const preset_display_label: [:0]const u8 = preset_label orelse "-";
         const preset_disabled = (preset_label == null);
-        if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_disabled })) {}
+        if (try roundButton(.{ ctx, preset_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, preset_disabled })) {
+            rv = .{ .cc = .Inpt_preset, .value = 1.0 };
+        }
     }
 
     return rv;

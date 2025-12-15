@@ -53,6 +53,10 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
         .panel_input => |input| {
             // Special handling for our three controls
             switch (input.cc) {
+                .Inpt_preset => {
+                    actions.dispatch(globals, .{ .change_mode = .mapping_panel });
+                    actions.dispatch(globals, .{ .mapping_panel = .enter_browse });
+                },
                 .Inpt_phase_inv => {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
