@@ -24,7 +24,8 @@ fn params(
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
 
-    for (assign_state.fx_params.items, 0..) |param, i| {
+    for (0..assign_state.param_store.len()) |i| {
+        const param_name = assign_state.param_store.getName(i);
         var is_selected = if (assign_state.selected_parameter) |sel|
             sel == i
         else
@@ -32,7 +33,7 @@ fn params(
 
         if (try imgui.Selectable(.{
             ctx,
-            param.name,
+            param_name,
             &is_selected,
             null,
             0.0, // full width
