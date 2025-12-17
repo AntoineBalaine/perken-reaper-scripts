@@ -27,7 +27,7 @@ pub fn drawWidget(
     flags: ControlFlags,
     comptime cc: CCs,
     assignment_label: [:0]const u8,
-    fx_params: []statemachine.AssignState.FxParameter,
+    param_store: *const statemachine.ParamStore,
 ) anyerror!?Res {
     const drwls = try imgui.GetWindowDrawList(.{ctx});
     const radius = constants.knob_size / 2;
@@ -120,7 +120,7 @@ pub fn drawWidget(
         try Arc(drwLs, 0.85, 0.41, wiper_start, wiper_end, dotColor, 2, center_x, center_y, radius);
         try Triangle(drwLs, angle_, dotColor, center_x, center_y, 0.2, true, 0.45, radius, false);
 
-        if (try paramsCombo(ctx, cc, assignment_label, fx_params)) |v| {
+        if (try paramsCombo(ctx, cc, assignment_label, param_store)) |v| {
             rv = v;
         }
     }
@@ -152,7 +152,7 @@ pub fn paramsCombo(
     ctx: imgui.ContextPtr,
     comptime cc: CCs,
     assignment_label: [:0]const u8,
-    fx_params: []statemachine.AssignState.FxParameter,
+    param_store: *const statemachine.ParamStore,
 ) !?Res {
     var rv: ?Res = null;
     try imgui.PushItemWidth(.{ ctx, constants.knob_size * 2 });
@@ -167,8 +167,9 @@ pub fn paramsCombo(
         }
 
         // List all available parameters
-        for (fx_params, 0..) |fx_param, i| {
-            if (try imgui.Selectable(.{ ctx, fx_param.name })) {
+        for (0..param_store.len()) |i| {
+            const param_name = param_store.getName(i);
+            if (try imgui.Selectable(.{ ctx, param_name })) {
                 rv = .{ .param_idx = @intCast(i) };
             }
         }
