@@ -39,6 +39,8 @@ const Mocks = struct {
     TrackFX_CopyToTrack: @TypeOf(reaper.TrackFX_CopyToTrack),
     TrackFX_GetEnabled: @TypeOf(reaper.TrackFX_GetEnabled),
     TrackFX_SetEnabled: @TypeOf(reaper.TrackFX_SetEnabled),
+    TrackFX_GetNumParams: @TypeOf(reaper.TrackFX_GetNumParams),
+    TrackFX_GetParamName: @TypeOf(reaper.TrackFX_GetParamName),
     GetNumTracks: @TypeOf(reaper.GetNumTracks),
     CountTracks: @TypeOf(reaper.CountTracks),
     GetTrack: @TypeOf(reaper.GetTrack),
@@ -289,6 +291,36 @@ fn TrackFX_SetEnabled(track: reaper.MediaTrack, fx: c_int, enabled: bool) callco
     if (fx < 0 or fx >= tr.fx_list.items.len) return;
 
     tr.fx_list.items[@intCast(fx)].enabled = enabled;
+}
+
+fn TrackFX_GetNumParams(track: reaper.MediaTrack, fx_idx: c_int) callconv(.C) c_int {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return 0;
+
+    const tr: *const Track = track_ptr.?;
+
+    if (fx_idx < 0 or fx_idx >= tr.fx_list.items.len) return 0;
+
+    const fx = tr.fx_list.items[@intCast(fx_idx)];
+    return @intCast(fx.params.len);
+}
+
+fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, buf: [*:0]u8, buf_size: c_int) callconv(.C) bool {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *const Track = track_ptr.?;
+
+    if (fx_idx < 0 or fx_idx >= tr.fx_list.items.len) return false;
+    const fx = tr.fx_list.items[@intCast(fx_idx)];
+
+    if (param_idx < 0 or param_idx >= fx.params.len) return false;
+    const param = fx.params[@intCast(param_idx)];
+
+    const name_len = @min(param.name.len, @as(usize, @intCast(buf_size)) - 1);
+    @memcpy(buf[0..name_len], param.name[0..name_len]);
+    buf[name_len] = 0;
+    return true;
 }
 
 fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
