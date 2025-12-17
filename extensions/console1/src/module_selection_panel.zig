@@ -32,7 +32,7 @@ pub fn drawModuleSelectionPanel(
             std.fmt.bufPrintZ(&fx_name_buf, "{s}    [No FX]", .{module_name}) catch module_name;
 
         if (try imgui.Selectable(.{ ctx, display_text })) {
-            rv = .browse_confirm;
+            rv = .{ .enter_assign = module };
         }
 
         if (is_selected) {
