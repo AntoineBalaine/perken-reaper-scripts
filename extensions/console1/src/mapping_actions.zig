@@ -347,13 +347,35 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         },
 
         .assign_change_module => |new_module| {
-            globals.state.mapping_panel.mode.assign.current_mappings = switch (new_module) {
+            var assign_state = &globals.state.mapping_panel.mode.assign;
+            assign_state.current_mappings = switch (new_module) {
                 .INPUT => .{ .INPUT = mappings.Inpt{} },
                 .GATE => .{ .GATE = mappings.Shp{} },
                 .EQ => .{ .EQ = mappings.Eq{} },
                 .COMP => .{ .COMP = mappings.Comp{} },
                 .OUTPT => .{ .OUTPT = mappings.Outpt{} },
             };
+
+            // Reload parameters for the new module
+            if (globals.state.fx_ctrl.track_state.module_locations.get(new_module)) |location| {
+                if (globals.state.current_tr_id) |track_id| {
+                    const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
+                    const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, location.fx_index));
+
+                    assign_state.param_store.clear(); // clear previous module's params
+                    const param_allocator = assign_state.param_store.strings.arena.allocator();
+                    assign_state.param_store.params.ensureTotalCapacity(param_allocator, params_length) catch return;
+
+                    var prm_name_buf: [256:0]u8 = undefined;
+                    for (0..params_length) |i| {
+                        const prm_idx: i32 = @intCast(i);
+                        if (reaper.TrackFX_GetParamName(track, location.fx_index, prm_idx, &prm_name_buf, prm_name_buf.len)) {
+                            const param_name = std.mem.span(@as([*:0]const u8, &prm_name_buf));
+                            assign_state.param_store.addParam(prm_idx, param_name) catch return;
+                        }
+                    }
+                }
+            }
         },
 
         .assign_request_save => {
