@@ -195,7 +195,7 @@ pub const AssignState = struct {
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
     midi_learn_active: bool = false,
-    fx_params: std.ArrayListUnmanaged(FxParameter) = .{},
+    param_store: ParamStore,
     arena: std.heap.ArenaAllocator,
 
     pub const FxParameter = struct {
@@ -206,11 +206,13 @@ pub const AssignState = struct {
     pub fn init(gpa: std.mem.Allocator, mappings: ModuleMappings) AssignState {
         return AssignState{
             .current_mappings = mappings,
+            .param_store = ParamStore.init(gpa),
             .arena = std.heap.ArenaAllocator.init(gpa),
         };
     }
 
     pub fn deinit(self: *AssignState) void {
+        self.param_store.deinit();
         self.arena.deinit();
     }
 };
