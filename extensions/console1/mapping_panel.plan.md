@@ -717,3 +717,51 @@ Because MappingState is only used when the mapping panel is active, it would be 
 - Need to ensure separation of concerns between UI rendering and state logic
 - May need to keep some fields separate for layout/rendering purposes
 - Should evaluate whether this actually simplifies the code before implementing
+
+
+---
+
+
+FIxes needed to the mapping panel:
+
+The window is not wide enough. 
+when you switch from the actual browser into the assignment panel, the problem is that the module that the user selected in the browser panel is not being carried over into the assignment panel, so the user has to redo the same selection.
+
+Besides that, the effects control window isn't actually hooked up . This is a limitation of the current setup: the FX control window doesn't get drawn correctly in mapping panel mode, it only gets drawn correctly fx control mode.
+
+---
+
+Inside of the modules that are being represented in the assignment panel, at the top of each of the module sections, we need to have the title of the effects that is being represented. This means that, for instance, if the input module has been selected, and there is an input effect that is being selected, we need to indicate the name of that input effect so that we know which effect is being assigned for this mapping
+
+Similarly, in the assignment panel in the drop-down that lists all of the modules, we want to make sure that we're indicating which of those modules have an effects that is available for assignment. Similarly to the modules list that is inside of the preset browser panel we want to make sure to indicate that a module might not have any effects by writing «no fx» next to the module name.
+
+---
+
+
+- We need to gather a list of parameters for the effects that has been currently mapped to in the assignments panel. The list must be stored in the assignment panel state and in the order of the parameters of the effects.
+
+I have Local project that can serve as example of running and storing the data of these types of queries: /Users/a266836/Documents/personnel/Experiments/reaper/ZigRack/
+
+src/internals/param.zig
+src/csurf/control_surface.zig|225 col 32| const rv = reaper.TrackFX_GetFormattedParamValue(track, fxidx, prmidx, @as([*:0]u8, &buf), buf.len);
+src/internals/paramDetails.zig|28 col 18| self.value = reaper.TrackFX_GetParamNormalized(track, fxId, self.index);
+
+
+Your task is to look at the code inside of the zig rack project and determine how we should be designing the list of parameters. We want to be designing the index of the parameters and its name. Since there are going to be many names and they're probably gonna be switching back-and-forth pretty often,we might want to adopt an interning strategy so that we are storing the names efficiently.
+When it comes to the interning strategy, we have a pretty good implementation on how to do interning in the translations module.
+
+---
+I need the effects control mode to remain active while the mapping panel is running. This is problematic because mapping panel has its own mode on the state machine, which means that the fx control mode is out of reach when we are creating a new mapping. So we need a way to address the multiple sources of input and keep coordinating them as per the normal fx control mode while the mapping panel mode is active.
+
+This is most likely a large change. So we are going to start only buy planning the process. We need to breakdown the design of the plan by module. 
+1. So we want to figure out what happens when the controller receives input while in the mapping panel mode. 
+2. We also want to be thinking about what the control surface (host input) should be doing when it receives input from the host while in the mapping panel mode. 
+3. Samely, we want to be thinking about what the GUI should be doing when receiving input in the FX ctrl panel when in mapping mode.
+
+1. What happens when the controller receives input while end of mapping panel mode?
+The inputs on the controller should be passed on to the effect control state through the dispatch normally. This means that in the control surface actions or in the sections of the code that dispatch the code we want to make sure that the CC inputs for the mapping mode are being redirected to the fx control mode. DUI should still be updated. The host should still be notified. Everything should be behaving normally as if we were in flex control mode.
+2. When we receive input from the host while in mapping panel mode, we should be behaving specifically depending on the title input. For instance, if we are receiving, if ex parameter input changes, those should be passed on to the effects control mode normally. However, if we received inputs that affect the order of the effects or their presence on the truck, for instance, if an effect is being removed from the track while we are trying to assign to it in the mapping panel mode, then we shoulclose the mapping panel and we should be exiting mapping panel mode back to the effects control mode. Then the track validation should be happening normally in effect control mode.
+3. Also, in mapping mode, the GUI should be passing the inputs made to the effect controls normally to the rest of the system. Meaning the controller should receive the media feedback normally and the host should be received the program updates normally. So in mapping panel mode, we want to make sure that the controls are receiving updates from the FX control panel normally.
+
+
+Let's start discussing the details. The way that we are going to structure this conversation, is going to be that we are going to discuss each of the above mentioned points one by one. Let's start by discussing point1. You may ask me some clarifications if needed and we will discuss the plan for this implementation until we are ready to move on to discussing the next point. I will let you know when I am ready to start discussing the next point. Do not discuss the next point before I tell you to.

@@ -25,7 +25,7 @@ pub fn drawMappingPanelWindow(
     const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
     defer PopStyle(ctx) catch {};
 
-    try imgui.SetNextWindowSize(.{ ctx, 400, 400, null });
+    try imgui.SetNextWindowSize(.{ ctx, 1500, 500, null });
 
     var rv: ?mapping_actions.MappingPanelAction = null;
 
