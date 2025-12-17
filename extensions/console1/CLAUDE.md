@@ -27,3 +27,9 @@ When a refactor requires moving or creating files, start by moving/creating all 
 ## test files 
 new test files need to be integrated in the project’s entry point: `~/Documents/personnel/Experiments/reaper/zigExt/reaperZigWrap-mapping_panel_ui_stack/src/console1_extension.zig` in the test block at the end of the sheet.
 
+# planning tasks
+- make sure to include a «to do» list in the plan files, so that it’s easy to understand what steps are going to be taken in the implementation. 
+- If the plan requires to be adding a new parameter to a function, you want to make sure that the data type of the parameter is indicated, as well as where the data type is created so that we know from where it needs to be imported.
+- make sure to be as thorough as possible in the plan: which functions need to be updated, and where. Must any imports be updated as well?
+
+
