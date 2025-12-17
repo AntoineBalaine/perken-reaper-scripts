@@ -153,7 +153,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                             .Out_Vol => actions.dispatch(globals, .{ .mapping_panel = .{ .browse_scroll = val } }),
                             .Out_solo => actions.dispatch(globals, .{ .mapping_panel = .browse_confirm }),
                             .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .browse_cancel }),
-                            else => {},
+                            else => continue :mode_switch .fx_ctrl,
                         }
                     },
                     .assign => {
@@ -172,7 +172,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                                 actions.dispatch(globals, .{ .mapping_panel = .{ .save_confirm = name } });
                             },
                             .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .save_cancel }),
-                            else => {},
+                            else => continue :mode_switch .fx_ctrl,
                         }
                     },
                 }

@@ -145,16 +145,7 @@ pub fn main(
                 }
 
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
-                    switch (ctrl_input.cc) {
-                        .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
-                        .Out_solo => {
-                            const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
-                            const fx_name = mappings.keys()[globals.state.fx_sel.scroll_position_rel];
-                            rv = .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } };
-                        },
-                        .Out_mute => rv = .{ .fx_sel = .close_browser },
-                        else => {},
-                    }
+                    rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } };
                 }
             },
             .transport => {
