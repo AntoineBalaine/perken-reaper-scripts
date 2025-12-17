@@ -233,7 +233,7 @@ fn mappingWidget(
     // Get current mapping
     const assignment = getControlMapping(state, cc);
     const assignment_label: [:0]const u8 = if (assignment) |assgnmnt|
-        assign_state.fx_params.items[@intCast(assgnmnt)].name
+        assign_state.param_store.getName(@intCast(assgnmnt))
     else
         "none";
 
