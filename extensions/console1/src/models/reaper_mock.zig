@@ -305,7 +305,7 @@ fn TrackFX_GetNumParams(track: reaper.MediaTrack, fx_idx: c_int) callconv(.C) c_
     return @intCast(fx.params.len);
 }
 
-fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, buf: [*:0]u8, buf_size: c_int) callconv(.C) bool {
+fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, buf_out: [*:0]const u8, buf_size: c_int) callconv(.C) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -317,6 +317,8 @@ fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_in
     if (param_idx < 0 or param_idx >= fx.params.len) return false;
     const param = fx.params[@intCast(param_idx)];
 
+    // Cast away const since we need to write to the buffer
+    const buf: [*:0]u8 = @constCast(buf_out);
     const name_len = @min(param.name.len, @as(usize, @intCast(buf_size)) - 1);
     @memcpy(buf[0..name_len], param.name[0..name_len]);
     buf[name_len] = 0;

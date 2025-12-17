@@ -31,5 +31,6 @@ new test files need to be integrated in the project’s entry point: `~/Document
 - make sure to include a «to do» list in the plan files, so that it’s easy to understand what steps are going to be taken in the implementation. 
 - If the plan requires to be adding a new parameter to a function, you want to make sure that the data type of the parameter is indicated, as well as where the data type is created so that we know from where it needs to be imported.
 - make sure to be as thorough as possible in the plan: which functions need to be updated, and where. Must any imports be updated as well?
+- the goal of the plan is for the plan to be readable and implementable by somebody else, not by you.
 
 
