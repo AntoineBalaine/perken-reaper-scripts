@@ -10,6 +10,7 @@ const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
 const TransportState = @import("transport_actions.zig").TransportState;
+const StringPool = @import("string_pool.zig").StringPool;
 
 pub const ModulesList = enum {
     INPUT,
@@ -138,6 +139,54 @@ pub const ModuleMappings = union(ModulesList) {
     EQ: MapStore.Eq,
     COMP: MapStore.Comp,
     OUTPT: MapStore.Outpt,
+};
+
+pub const ParamStore = struct {
+    strings: StringPool,
+    params: std.ArrayListUnmanaged(ParamEntry),
+
+    pub const ParamEntry = struct {
+        index: i32,
+        name_offset: u32,
+    };
+
+    pub fn init(gpa: std.mem.Allocator) ParamStore {
+        return .{
+            .strings = StringPool.init(gpa),
+            .params = .{},
+        };
+    }
+
+    pub fn deinit(self: *ParamStore) void {
+        self.strings.deinit();
+    }
+
+    pub fn clear(self: *ParamStore) void {
+        self.strings.clear();
+        self.params.clearRetainingCapacity();
+    }
+
+    pub fn addParam(self: *ParamStore, index: i32, name: [:0]const u8) !void {
+        const name_offset = try self.strings.intern(name);
+        const allocator = self.strings.arena.allocator();
+        try self.params.append(allocator, .{
+            .index = index,
+            .name_offset = name_offset,
+        });
+    }
+
+    pub fn len(self: *const ParamStore) usize {
+        return self.params.items.len;
+    }
+
+    pub fn getName(self: *const ParamStore, param_idx: usize) [:0]const u8 {
+        const entry = self.params.items[param_idx];
+        return self.strings.get(entry.name_offset);
+    }
+
+    pub fn getIndex(self: *const ParamStore, param_idx: usize) i32 {
+        return self.params.items[param_idx].index;
+    }
 };
 
 pub const AssignState = struct {
