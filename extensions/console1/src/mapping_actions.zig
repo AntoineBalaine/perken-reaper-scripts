@@ -109,17 +109,16 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
                 // Because we need to load FX parameters for the panel, we query them from REAPER
                 const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, location.fx_index));
-                assign_state.fx_params.ensureTotalCapacity(assign_allocator, params_length) catch return;
+                assign_state.param_store.clear(); // reuse capacity from previous load
+                const param_allocator = assign_state.param_store.strings.arena.allocator();
+                assign_state.param_store.params.ensureTotalCapacity(param_allocator, params_length) catch return;
 
                 var prm_name_buf: [256:0]u8 = undefined;
                 for (0..params_length) |i| {
                     const prm_idx: i32 = @intCast(i);
                     if (reaper.TrackFX_GetParamName(track, location.fx_index, prm_idx, &prm_name_buf, prm_name_buf.len)) {
-                        const param_name = assign_allocator.dupeZ(u8, std.mem.span(@as([*:0]const u8, &prm_name_buf))) catch return;
-                        assign_state.fx_params.appendAssumeCapacity(.{
-                            .index = @intCast(i),
-                            .name = param_name,
-                        });
+                        const param_name = std.mem.span(@as([*:0]const u8, &prm_name_buf));
+                        assign_state.param_store.addParam(prm_idx, param_name) catch return;
                     }
                 }
 
