@@ -87,6 +87,7 @@ test {
     _ = @import("tests/mapping_panel_stateful_test.zig");
     _ = @import("tests/param_store_test.zig");
     _ = @import("tests/param_store_integration_test.zig");
+    _ = @import("tests/mapping_panel_fx_ctrl_forward_test.zig");
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");
 }
