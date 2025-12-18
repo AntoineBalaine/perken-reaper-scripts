@@ -64,9 +64,14 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
                 actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = track } });
             }
         },
-        .fx_chain_changed => |track| actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = track } }),
+        .fx_chain_changed => |track| {
+            actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = track } });
+        },
         .fx_param_changed => |prm_chg| {
-            if (globals.state.current_mode == .fx_ctrl or globals.state.current_mode == .mapping_panel) {
+            if (globals.state.current_mode == .fx_ctrl or
+                globals.state.current_mode == .mapping_panel or
+                globals.state.current_mode == .fx_sel)
+            {
                 // Check if we have a current track and it matches the notification track
                 const tr_id = reaper.CSurf_TrackToID(prm_chg.track, false);
                 if (globals.state.current_tr_id != null and globals.state.current_tr_id.? == tr_id) {

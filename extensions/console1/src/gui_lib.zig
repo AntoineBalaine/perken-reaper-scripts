@@ -114,7 +114,7 @@ pub fn main(
                             rv = .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } };
                         },
                         .Out_mute => rv = .{ .fx_sel = .close_browser },
-                        else => {},
+                        else => rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } },
                     }
                 }
 

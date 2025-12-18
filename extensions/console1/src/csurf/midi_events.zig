@@ -64,7 +64,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                     .Tr_tr4 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .COMP } }),
                     .Tr_tr5 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } }),
                     .Tr_tr20 => actions.dispatch(globals, .{ .settings = .open }),
-                    else => {},
+                    else => continue :mode_switch .fx_ctrl,
                 }
             },
             .default_fx_sel => {
