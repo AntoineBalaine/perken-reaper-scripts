@@ -33,4 +33,7 @@ new test files need to be integrated in the project’s entry point: `~/Document
 - make sure to be as thorough as possible in the plan: which functions need to be updated, and where. Must any imports be updated as well?
 - the goal of the plan is for the plan to be readable and implementable by somebody else, not by you.
 
+## committing
+Every commit must be prefixed with a word followed by a colon (i.e. `chore: <restofmessage>`) and the word describes to what the changes are being applied. For instance, if it's anything that is relatively administrative or non-code related, it should be a `chore`. Anything that is a small bug fix that required very few lines of code to fix should be a `fix:`. Otherwise, for any code that is either implementation feature or something more serious of a change, should be prefixed with the name of the module or the name of the feature that is being modified or implemented.
 
+Every new commit must have a successful build and successfully-running tests. If the build fails or the tests are not passing, it meant that the code is not ready to be committed.

@@ -751,6 +751,13 @@ Your task is to look at the code inside of the zig rack project and determine ho
 When it comes to the interning strategy, we have a pretty good implementation on how to do interning in the translations module.
 
 ---
+# FX SEL FWD
+
+In fx_sel mode, we need to do be forwarding UI and midi messages to the fx_ctrl panel, the way it’s been implemented in commit a14ac98ec9f9, which was implementing the forwarding from mapping mode.  The testing commit for this feature was 19cd129ee9d2.
+
+Here’s the excerpt from the previous conversation that detailed the requirements:
+
+```
 I need the effects control mode to remain active while the mapping panel is running. This is problematic because mapping panel has its own mode on the state machine, which means that the fx control mode is out of reach when we are creating a new mapping. So we need a way to address the multiple sources of input and keep coordinating them as per the normal fx control mode while the mapping panel mode is active.
 
 This is most likely a large change. So we are going to start only buy planning the process. We need to breakdown the design of the plan by module. 
@@ -762,6 +769,46 @@ This is most likely a large change. So we are going to start only buy planning t
 The inputs on the controller should be passed on to the effect control state through the dispatch normally. This means that in the control surface actions or in the sections of the code that dispatch the code we want to make sure that the CC inputs for the mapping mode are being redirected to the fx control mode. DUI should still be updated. The host should still be notified. Everything should be behaving normally as if we were in flex control mode.
 2. When we receive input from the host while in mapping panel mode, we should be behaving specifically depending on the title input. For instance, if we are receiving, if ex parameter input changes, those should be passed on to the effects control mode normally. However, if we received inputs that affect the order of the effects or their presence on the truck, for instance, if an effect is being removed from the track while we are trying to assign to it in the mapping panel mode, then we shoulclose the mapping panel and we should be exiting mapping panel mode back to the effects control mode. Then the track validation should be happening normally in effect control mode.
 3. Also, in mapping mode, the GUI should be passing the inputs made to the effect controls normally to the rest of the system. Meaning the controller should receive the media feedback normally and the host should be received the program updates normally. So in mapping panel mode, we want to make sure that the controls are receiving updates from the FX control panel normally.
+```
 
 
-Let's start discussing the details. The way that we are going to structure this conversation, is going to be that we are going to discuss each of the above mentioned points one by one. Let's start by discussing point1. You may ask me some clarifications if needed and we will discuss the plan for this implementation until we are ready to move on to discussing the next point. I will let you know when I am ready to start discussing the next point. Do not discuss the next point before I tell you to.
+---
+# EDIT MAP
+
+- need to display the list of saved presets
+- need to have an `edit` functionality
+- The existing presets list must be clickable so that when the user clicks a preset name, that name is copied into the buffer of the name input.
+- for the `drawSavePresetDialog`, we should just re-use the same window as for the other sub-modes.
+- In the mappings browser panel, instead of doing one simple selection per module that leads into the assignment panel (edit mode), we should be using selectables so that the user can go through the lists of available mappings for each of the FX loaded in their corresponding modules, and either choose to load a mapping or edit mapping. 
+I’m fuzzy on how I want to be doing the setup, here.
+
+I think we should be debating the features here. The mapping browser panel should be for selecting a mapping to be loaded.
+On the other hand, the assignment panel should be used for a mapping to be edited. We should be able to load pre-existing mappings so that the user can reuse them as templates directly from the assignment panel. So below the name of the effects that is currently loaded in the assignment panel, should be a drop-down that displays the list of pre-existing mappings for the current FX.
+
+Then once we have this division done between the edit panel and load or selection panel, we want to make sure that the load panel or selection panel is entirely navigable using the volume knob and the select and cancel buttons.
+
+The edit panel is not going to be navigable from the selection knobs.
+Similarly, inside of the edit panel, we want to have the option for the user to select from a drop-down a different effects that he might want to be using for each of the modules.
+So we can be reusing the effect selection browser’s logic in this context.
+Also, I really don't know what the «midi learn» button is going to be doing in this context. We might want to be removing it from the edit panel altogether.
+
+In the «overwrite?» popup, the «no» button doesn’t do anything.
+
+---
+
+# FX SELECTION
+
+The fx selection panel (not the same as the mapping selection panel) needs to be updated, so that an fx name that is in the top list (list of fx that have a mapping file associated) of the effects browser (has mapping) actually is turned into a selectable that displays the names of each of the mapping files that are available for selection for this effect.
+We already have the existing logic for this in the mapping actions module: the enter_save action loads up the list of available mapping files for a given effect, and stores it. We need to modify the logic of initialization of the effects browser so that we can reproduce similar logic: integrate those files in the data that is being read by the effects selection panel. This might have to be implemented in the fx_sel_actions.zig or in the fx_parser.zig.
+
+fx selection panel uses `const list = globals.mappings_list.list.get(module);` mappings list state to display list of available mappings.  we might need to update that data structure to represent the module>fx>mapping hierarchy. 
+
+Let’s discuss the data structure, how this should be done, and the requirements we need to have. 
+
+Some requirements:
+- in fx selection panel, the list of mappings must be hierarchized, using fxnames as selectables that open into the list of mappings for each fx name.
+- this should be implemented in a worktree in a new branch.
+
+---
+
+
