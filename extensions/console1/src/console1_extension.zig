@@ -5,6 +5,8 @@ const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
 const c = @cImport({
+    // ARM64 has unsigned char by default, skip WDL's signedness assertion
+    @cDefine("WDL_ALLOW_UNSIGNED_DEFAULT_CHAR", "1");
     @cInclude("csurf/control_surface_wrapper.h");
 });
 const ImGuiLoop = @import("imgui_loop.zig");

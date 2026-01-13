@@ -1,6 +1,8 @@
 const std = @import("std");
 const c = @cImport({
     @cDefine("SWELL_PROVIDED_BY_APP", "");
+    // ARM64 has unsigned char by default, skip WDL's signedness assertion
+    @cDefine("WDL_ALLOW_UNSIGNED_DEFAULT_CHAR", "1");
     @cInclude("csurf/control_surface_wrapper.h");
     @cInclude("WDL/swell/swell-types.h");
     @cInclude("WDL/swell/swell-functions.h");

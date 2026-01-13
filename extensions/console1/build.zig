@@ -83,6 +83,7 @@ pub fn build(b: *std.Build) !void {
         "-std=c++14",
         b.fmt("-I{s}", .{wdl_dep.path("").getPath(b)}),
         "-DSWELL_PROVIDED_BY_APP",
+        "-fsigned-char",
         "-o",
     };
     // Define cpp files using dependency paths
