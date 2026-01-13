@@ -1,5 +1,39 @@
 # Mapping Panel Implementation Plan
 
+## Table of Contents
+
+- [Folder Structure](#folder-structure-question-2-answer)
+- [Data Structure Changes Needed](#data-structure-changes-needed)
+- [Implementation Epics and Tasks](#implementation-epics-and-tasks)
+- [Implementation Order (4 Phases)](#implementation-order-4-phases)
+- [Critical Path](#critical-path)
+- [Open Questions](#open-questions)
+- [Summary of Decisions](#summary-of-decisions)
+- ~~[Phase 1 Implementation Tasks](#next-steps---phase-1-implementation-tasks)~~
+- [Phase 2 Implementation Tasks](#phase-2-implementation-tasks---preset-ui-loadsave) (IN-PROGRESS)
+- [Phase 3 Implementation Tasks](#phase-3-implementation-tasks---mapping-panel-ui-improvements)
+- [Phase 4 Implementation Tasks](#phase-4-implementation-tasks---polish-and-error-handling)
+- [Implementation Summary](#implementation-summary)
+- [Future Refactoring Tickets](#future-refactoring-tickets-low-priority)
+- [Additional Requirements](#additional-requirements)
+  - [Fixes needed to mapping panel](#fixes-needed-to-the-mapping-panel)
+  - ~~[Parameter Store Implementation](#parameter-store-implementation)~~
+  - ~~[FX Control Forwarding](#fx-control-forwarding)~~
+  - [Edit Map Features](#edit-map)
+  - ~~[Hierarchical FX Selection](#fx-selection)~~
+
+## Implementation Status
+
+Last updated: 2026-01-13
+
+- Phase 1 (Foundation): COMPLETE
+- Phase 2 (Preset UI): IN-PROGRESS (hierarchical state machine implemented, refinements ongoing)
+- Phase 3 (UI Improvements): PENDING
+- Phase 4 (Polish): PENDING
+- Phase 5 (Channel Strips): LOW PRIORITY
+
+---
+
 ## Folder Structure (Question #2 Answer)
 
 ### File Path
@@ -219,7 +253,9 @@ PRIORITY: LOW - Implement last
 
 ## Implementation Order (4 Phases)
 
-### Phase 1: Foundation (Required for everything)
+### ~~Phase 1: Foundation (Required for everything)~~
+
+Implemented in commits through December 2025.
 
 #### Epic 1: Multiple Mappings Per FX
 
@@ -737,6 +773,11 @@ Similarly, in the assignment panel in the drop-down that lists all of the module
 
 ---
 
+# ~~Parameter Store Implementation~~
+
+Implemented in commits 0126e0c through 293facc.
+
+Because we need to efficiently store and retrieve parameter names for FX loaded in the assignment panel, we implemented a ParamStore wrapping a StringPool for string interning.
 
 - We need to gather a list of parameters for the effects that has been currently mapped to in the assignments panel. The list must be stored in the assignment panel state and in the order of the parameters of the effects.
 
@@ -751,9 +792,11 @@ Your task is to look at the code inside of the zig rack project and determine ho
 When it comes to the interning strategy, we have a pretty good implementation on how to do interning in the translations module.
 
 ---
-# FX SEL FWD
+# ~~FX Control Forwarding~~
 
-In fx_sel mode, we need to do be forwarding UI and midi messages to the fx_ctrl panel, the way it’s been implemented in commit a14ac98ec9f9, which was implementing the forwarding from mapping mode.  The testing commit for this feature was 19cd129ee9d2.
+Implemented in commits a14ac98 and 19cd129.
+
+In fx_sel mode, we need to do be forwarding UI and midi messages to the fx_ctrl panel, the way it's been implemented in commit a14ac98ec9f9, which was implementing the forwarding from mapping mode.  The testing commit for this feature was 19cd129ee9d2.
 
 Here’s the excerpt from the previous conversation that detailed the requirements:
 
@@ -796,7 +839,9 @@ In the «overwrite?» popup, the «no» button doesn’t do anything.
 
 ---
 
-# FX SELECTION
+# ~~Hierarchical FX Selection~~
+
+Implemented in commits 1d70a62, 9aa896f, and e7714fe.
 
 The fx selection panel (not the same as the mapping selection panel) needs to be updated, so that an fx name that is in the top list (list of fx that have a mapping file associated) of the effects browser (has mapping) actually is turned into a selectable that displays the names of each of the mapping files that are available for selection for this effect.
 We already have the existing logic for this in the mapping actions module: the enter_save action loads up the list of available mapping files for a given effect, and stores it. We need to modify the logic of initialization of the effects browser so that we can reproduce similar logic: integrate those files in the data that is being read by the effects selection panel. This might have to be implemented in the fx_sel_actions.zig or in the fx_parser.zig.

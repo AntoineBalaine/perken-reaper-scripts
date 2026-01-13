@@ -22,6 +22,7 @@ pub const FxSelActions = union(enum) {
     },
     plugin: struct {
         name: [:0]const u8,
+        mapping_name: ?[:0]const u8, // null = use default
     },
     close_browser: void,
 };
@@ -56,7 +57,18 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             // Use existing determineInsertionIndex function
             const insert_idx = determineInsertionIndex(&globals.state, track, current_module);
 
-            const needs_mapping = (globals.map_store.get(plugin.name, current_module) == null);
+            // Check if we need to load a specific mapping or determine if mapping exists
+            var needs_mapping = false;
+            if (plugin.mapping_name) |map_name| {
+                // Load specific mapping (don't change preferred setting)
+                _ = globals.map_store.getMap(plugin.name, current_module, map_name) catch |err| {
+                    log.err("Failed to load mapping {s} for {s}: {}", .{ map_name, plugin.name, err });
+                    needs_mapping = true;
+                };
+            } else {
+                // Check if any mapping exists for this FX
+                needs_mapping = (globals.map_store.get(plugin.name, current_module) == null);
+            }
 
             // Add new FX
             const new_fx_index = pReaper.TrackFX_AddByName(.{ track, plugin.name, false, insert_idx });

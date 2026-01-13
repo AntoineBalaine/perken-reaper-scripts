@@ -9,6 +9,7 @@ const fx_sel_actions = @import("fx_sel_actions.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
 const ui_helpers = @import("ui_helpers.zig");
+const globals = @import("globals.zig");
 
 pub const NAME: [:0]const u8 = "Fx Browser";
 /// last used fx name
@@ -59,7 +60,7 @@ fn FxList(ctx: imgui.ContextPtr, menuName: [:0]const u8, fxList: fx_parser.FxLis
                 continue;
             }
             if (try imgui.Selectable(.{ ctx, cast })) {
-                rv = .{ .plugin = .{ .name = cast } };
+                rv = .{ .plugin = .{ .name = cast, .mapping_name = null } };
             }
         }
     }
@@ -131,7 +132,7 @@ fn Menus(ctx: imgui.ContextPtr, translations: *TranslationStore) !?fx_sel_action
         if (try imgui.Selectable(.{ ctx, element })) {
             const isLastUsed = std.mem.eql(u8, element, "recent: ");
             const lastUsed = if (isLastUsed) if (last_used_fx) |lastUsed| lastUsed else element else element;
-            rv = .{ .plugin = .{ .name = lastUsed } };
+            rv = .{ .plugin = .{ .name = lastUsed, .mapping_name = null } };
         }
     }
 
@@ -160,7 +161,8 @@ fn RescanButton(ctx: imgui.ContextPtr, translations: *TranslationStore) !void {
 pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
-    mappings: std.StringArrayHashMapUnmanaged(void),
+    mappings: std.ArrayHashMapUnmanaged(u32, []u32, std.array_hash_map.AutoContext(u32), false),
+    strings: *const @import("string_pool.zig").StringPool,
     current_index: usize,
     display_menus: bool,
     g_drwls_splitter: *imgui.DrawListSplitterPtr,
@@ -183,14 +185,29 @@ pub fn ModulePopup(
         var iterator = mappings.iterator();
         var i: usize = 0;
         while (iterator.next()) |entry| : (i += 1) {
+            const fx_offset = entry.key_ptr.*;
+            const mapping_offsets = entry.value_ptr.*;
+
+            // Get FX name from StringPool using offset
+            const fx_name = strings.get(fx_offset);
             const is_selected = (i == current_index);
 
-            const fx_name: [:0]const u8 = @ptrCast(entry.key_ptr.*);
-            if (try imgui.Selectable(.{ ctx, fx_name })) {
-                rv = .{ .plugin = .{ .name = fx_name } };
-            }
-            if (is_selected) {
-                try ui_helpers.drawInvertedSlctblColors(ctx, fx_name, g_drwls_splitter);
+            if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(fx_name)), null })) {
+                defer imgui.EndMenu(.{ctx}) catch {};
+
+                if (is_selected) {
+                    try ui_helpers.drawInvertedSlctblColors(ctx, fx_name, g_drwls_splitter);
+                }
+
+                for (mapping_offsets) |mapping_offset| {
+                    const mapping_name = strings.get(mapping_offset);
+                    if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(mapping_name)) })) {
+                        rv = .{ .plugin = .{
+                            .name = fx_name,
+                            .mapping_name = mapping_name,
+                        } };
+                    }
+                }
             }
         }
 

@@ -296,19 +296,20 @@ pub fn draw(
                     } // Get available mappings for this module
                     const mappings = mappings_list.list.get(module);
 
-                    // Show each available mapping as a selectable
+                    // Show each available FX as a selectable
                     var it = mappings.iterator();
                     while (it.next()) |entry| {
-                        const fx_name = entry.key_ptr.*;
+                        const fx_offset = entry.key_ptr.*; // u32 offset into StringPool
+                        const fx_name = mappings_list.strings.get(fx_offset);
                         var is_selected = false;
                         if (current_fx) |cur_fx| {
                             is_selected = std.mem.eql(u8, fx_name, cur_fx);
                         }
 
-                        if (try imgui.Selectable(.{ ctx, @as([:0]const u8, @ptrCast(fx_name)), &is_selected })) {
+                        if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(fx_name)), &is_selected })) {
                             self.dirty = true;
                             // Update temp settings with new selection
-                            self.temp_settings.default_fx.set(module, @ptrCast(fx_name));
+                            self.temp_settings.default_fx.set(module, fx_name);
                             self.dirty = true;
                         }
                     }

@@ -56,8 +56,9 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                     .Out_solo => {
                         // Solo button for selection
                         const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
-                        const fx_name = mappings.keys()[globals.state.fx_sel.scroll_position_rel];
-                        actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } });
+                        const fx_offset = mappings.keys()[globals.state.fx_sel.scroll_position_rel];
+                        const fx_name = globals.mappings_list.strings.get(fx_offset);
+                        actions.dispatch(globals, .{ .fx_sel = .{ .plugin = .{ .name = fx_name, .mapping_name = null } } });
                     },
                     .Out_mute => actions.dispatch(globals, .{ .fx_sel = .close_browser }),
                     .Tr_tr1 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } }),
@@ -76,8 +77,9 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                         // Solo button for selection
                         const def_fx_sel_state = globals.state.default_fx_sel;
                         const mappings = globals.mappings_list.list.get(def_fx_sel_state.current_category);
-                        const fx_name = mappings.keys()[def_fx_sel_state.scroll_position_rel];
-                        actions.dispatch(globals, .{ .default_fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } });
+                        const fx_offset = mappings.keys()[def_fx_sel_state.scroll_position_rel];
+                        const fx_name = globals.mappings_list.strings.get(fx_offset);
+                        actions.dispatch(globals, .{ .default_fx_sel = .{ .plugin = .{ .name = fx_name, .mapping_name = null } } });
                     },
                     .Out_mute => actions.dispatch(globals, .{ .default_fx_sel = .close_browser }),
                     .Tr_tr1 => actions.dispatch(globals, .{ .default_fx_sel = .{ .toggle_module_browser = .INPUT } }),

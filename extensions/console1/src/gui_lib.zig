@@ -95,6 +95,7 @@ pub fn main(
                     ctx,
                     module,
                     list,
+                    &globals.mappings_list.strings,
                     globals.state.default_fx_sel.scroll_position_rel,
                     false,
                     &globals.drwls_splitter,
@@ -110,8 +111,9 @@ pub fn main(
                         .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
                         .Out_solo => {
                             const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
-                            const fx_name = mappings.keys()[globals.state.fx_sel.scroll_position_rel];
-                            rv = .{ .fx_sel = .{ .plugin = .{ .name = @ptrCast(fx_name) } } };
+                            const fx_offset = mappings.keys()[globals.state.fx_sel.scroll_position_rel];
+                            const fx_name = globals.mappings_list.strings.get(fx_offset);
+                            rv = .{ .fx_sel = .{ .plugin = .{ .name = fx_name, .mapping_name = null } } };
                         },
                         .Out_mute => rv = .{ .fx_sel = .close_browser },
                         else => rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } },
@@ -135,7 +137,17 @@ pub fn main(
 
                 const module = globals.state.fx_sel.current_category;
                 const list = globals.mappings_list.list.get(module);
-                if (try fx_sel_panel.ModulePopup(ctx, module, list, globals.state.fx_sel.scroll_position_rel, true, &globals.drwls_splitter, style_manager, &globals.translations)) |sel_action| {
+                if (try fx_sel_panel.ModulePopup(
+                    ctx,
+                    module,
+                    list,
+                    &globals.mappings_list.strings,
+                    globals.state.fx_sel.scroll_position_rel,
+                    true,
+                    &globals.drwls_splitter,
+                    style_manager,
+                    &globals.translations,
+                )) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }
             },
