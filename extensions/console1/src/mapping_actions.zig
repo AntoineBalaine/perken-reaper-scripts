@@ -430,6 +430,14 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 log.warn("Failed to load saved mapping into cache: {}", .{err});
             };
 
+            // Update module_locations so FX control mode uses the new mapping immediately
+            if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |existing_loc| {
+                globals.state.fx_ctrl.track_state.module_locations.set(module, .{
+                    .fx_index = existing_loc.fx_index,
+                    .mapping = tagged_mapping,
+                });
+            }
+
             // Exit to FX control mode
             mappingPanelActions(globals, .exit_to_fx_ctrl);
         },

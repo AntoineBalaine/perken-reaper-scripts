@@ -88,6 +88,8 @@ const System = struct {
         g.resource_path = resource_path;
         g.fs_ops = mock_fs.fileSystemOps();
         g.state.current_mode = .fx_ctrl;
+        // Initialize module_locations with null values since TrackState doesn't initialize it by default
+        g.state.fx_ctrl.track_state.module_locations = @TypeOf(g.state.fx_ctrl.track_state.module_locations).initFill(null);
 
         return System{
             .globals = g,
@@ -111,6 +113,15 @@ const System = struct {
 
         self.globals.state.mapping_panel.deinit();
         _ = self.globals.arena_int.reset(.free_all);
+    }
+
+    /// Sets up a module location entry for testing. This simulates the state where
+    /// a track has an FX assigned to a module slot but no custom mapping exists yet.
+    pub fn setupModuleLocation(self: *System, module: ModulesList, fx_index: c_int) void {
+        self.globals.state.fx_ctrl.track_state.module_locations.set(module, .{
+            .fx_index = fx_index,
+            .mapping = null,
+        });
     }
 };
 
@@ -658,14 +669,21 @@ const SavePreset = struct {
     }
 
     pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
-        // Execute action on SUT - using a test preset name
+        // Set target_fx to a test value since REAPER isn't available in tests
+        sut.globals.state.mapping_panel.mode.save.target_fx = "VST: Test Plugin";
+
+        // Execute action on SUT
         const preset_name = "test_preset";
         mapping_actions.mappingPanelActions(&sut.globals, .{ .save_confirm = preset_name });
 
         // Update model
         self.onModelOnly(model);
 
-        // Verify synchronization
+        // Verify: mode transitioned to fx_ctrl
+        // Note: We don't verify module_locations here because in the stateful test,
+        // module_locations is not populated (no REAPER track). The save_confirm
+        // update only happens when there's an existing module_location entry.
+        // The dedicated unit test verifies this behavior.
         return sut.globals.state.current_mode == .fx_ctrl;
     }
 };
@@ -785,4 +803,53 @@ test "mapping panel hierarchical state machine" {
         std.debug.print("\nTest failed at command index: {}\n", .{failure_info});
         return error.StatefulTestFailed;
     }
+}
+
+test "save_confirm updates module_locations for immediate FX control use" {
+    const allocator = std.testing.allocator;
+    var sut = try System.init(allocator);
+    defer sut.deinit();
+
+    // Step 1: Enter mapping panel in browse mode
+    sut.globals.state.current_mode = .mapping_panel;
+    mapping_actions.mappingPanelActions(&sut.globals, .enter_browse);
+
+    // Step 2: Select COMP module and enter assign mode
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .browse_select_module = .COMP });
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .enter_assign = .COMP });
+
+    // Step 3: Manually set target_fx
+    // In production, this is queried from REAPER via TrackFX_GetFXName when module_locations has an entry.
+    // In tests, module_locations is empty so that path is skipped and target_fx remains "".
+    // We set it manually so save operations have an FX name to use.
+    sut.globals.state.mapping_panel.mode.assign.target_fx = "VST: Test Compressor";
+
+    // Step 4: Add a NEW mapping - this is the value we'll verify later
+    mapping_actions.mappingPanelActions(&sut.globals, .{
+        .assign_add_mapping = .{ .param = 5, .control = .Comp_Attack },
+    });
+
+    // Step 5: Enter save mode
+    mapping_actions.mappingPanelActions(&sut.globals, .enter_save);
+
+    // Step 6: Setup module_location so save_confirm has an entry to update
+    sut.setupModuleLocation(.COMP, 0);
+
+    // Step 7: Execute save_confirm
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .save_confirm = "test_mapping" });
+
+    // Verification 1: Mode returned to fx_ctrl
+    try std.testing.expectEqual(Mode.fx_ctrl, sut.globals.state.current_mode);
+
+    // Verification 2: module_locations[COMP] exists and has a mapping
+    const loc = sut.globals.state.fx_ctrl.track_state.module_locations.get(.COMP);
+    try std.testing.expect(loc != null);
+    try std.testing.expect(loc.?.mapping != null);
+
+    // Verification 3: Mapping is for COMP module
+    const mapping = loc.?.mapping.?;
+    try std.testing.expectEqual(ModulesList.COMP, std.meta.activeTag(mapping));
+
+    // Verification 4: The specific parameter value we set is present
+    try std.testing.expectEqual(@as(?u8, 5), mapping.COMP.Comp_Attack);
 }
