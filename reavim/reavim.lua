@@ -22,36 +22,36 @@
 local info = debug.getinfo(1, "S")
 
 local Os_separator = package.config:sub(1, 1)
-local source = table.concat({ info.source:match(".*reavim"..Os_separator), "internal", Os_separator, })
+local source = table.concat({ info.source:match(".*reavim" .. Os_separator), "internal", Os_separator })
 local internal_root_path = source:sub(2)
 package.path = package.path .. ";" .. internal_root_path .. "?.lua"
 
 local windows_files = internal_root_path:match("\\$")
 if windows_files then
-    package.path = package.path .. ";" .. internal_root_path .. "..\\definitions\\?.lua"
-    package.path = package.path .. ";" .. internal_root_path .. "?\\?.lua"
-    package.path = package.path .. ";" .. internal_root_path .. "vendor\\share\\lua\\5.3\\?.lua"
-    package.path = package.path .. ";" .. internal_root_path .. "vendor\\share\\lua\\5.3\\?\\init.lua"
-    package.path = package.path .. ";" .. internal_root_path .. "vendor\\scythe\\?.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "..\\definitions\\?.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "?\\?.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "vendor\\share\\lua\\5.3\\?.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "vendor\\share\\lua\\5.3\\?\\init.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "vendor\\scythe\\?.lua"
 else
-    package.path = package.path .. ";" .. internal_root_path .. "../definitions/?.lua"
-    package.path = package.path .. ";" .. internal_root_path .. "?/?.lua"
-    package.path = package.path .. ";" .. internal_root_path .. "vendor/share/lua/5.3/?.lua"
-    package.path = package.path .. ";" .. internal_root_path .. "vendor/share/lua/5.3/?/init.lua"
-    package.path = package.path .. ";" .. internal_root_path .. "vendor/scythe/?.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "../definitions/?.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "?/?.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "vendor/share/lua/5.3/?.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "vendor/share/lua/5.3/?/init.lua"
+	package.path = package.path .. ";" .. internal_root_path .. "vendor/scythe/?.lua"
 end
 
 local input = require("state_machine")
 local log = require("utils.log")
 
 function errorHandler(err)
-    log.error(err)
-    log.error(debug.traceback())
+	log.error(err)
+	log.error(debug.traceback())
 end
 
 ---@param key_press KeyPress
 function doInput(key_press)
-    xpcall(input, errorHandler, key_press)
+	xpcall(input, errorHandler, key_press)
 end
 
 return doInput

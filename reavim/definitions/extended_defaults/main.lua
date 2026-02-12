@@ -119,6 +119,8 @@ return {
 		["<CS-up>"] = "PitchItemUpOct",
 	},
 	command = {
+    ["M"] = "NextMarker",
+    ["<M-M>"] = "PrevMarker",
 		["<M-D>"] = "DeleteEnvelopePoints",
 		["<C-a>"] = "devAction",
 		["<C-B>"] = "FadeItemInFromMouse",

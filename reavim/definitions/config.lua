@@ -4,9 +4,9 @@
 
 return {
 	use_extended_defaults = true,
-	show_start_up_message = true,
+	show_start_up_message = false,
 	-- should the auto-complete menu display?
-	show_feedback_window = true,
+	show_feedback_window = false,
 	-- should operators in visual modes reset the selection or have it persist?
 	persist_visual_timeline_selection = true,
 	persist_visual_track_selection = false,
