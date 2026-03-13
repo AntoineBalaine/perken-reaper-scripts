@@ -54,6 +54,40 @@ const Mocks = struct {
     TrackFX_SetParamNormalized: @TypeOf(reaper.TrackFX_SetParamNormalized),
     CSurf_TrackFromID: @TypeOf(reaper.CSurf_TrackFromID),
     CSurf_TrackToID: @TypeOf(reaper.CSurf_TrackToID),
+    // Transport-related mocks
+    Main_OnCommand: @TypeOf(reaper.Main_OnCommand),
+    CSurf_OnPlay: @TypeOf(reaper.CSurf_OnPlay),
+    CSurf_OnRecord: @TypeOf(reaper.CSurf_OnRecord),
+    CSurf_OnStop: @TypeOf(reaper.CSurf_OnStop),
+    CSurf_OnRewFwd: @TypeOf(reaper.CSurf_OnRewFwd),
+    CSurf_OnZoom: @TypeOf(reaper.CSurf_OnZoom),
+    CSurf_OnPlayRateChange: @TypeOf(reaper.CSurf_OnPlayRateChange),
+    CSurf_OnRecArmChange: @TypeOf(reaper.CSurf_OnRecArmChange),
+    GetToggleCommandState: @TypeOf(reaper.GetToggleCommandState),
+    SetAutomationMode: @TypeOf(reaper.SetAutomationMode),
+    PreventUIRefresh: @TypeOf(reaper.PreventUIRefresh),
+    GetCursorPosition: @TypeOf(reaper.GetCursorPosition),
+    SetEditCurPos: @TypeOf(reaper.SetEditCurPos),
+    GetSetProjectGrid: @TypeOf(reaper.GetSetProjectGrid),
+    CountTempoTimeSigMarkers: @TypeOf(reaper.CountTempoTimeSigMarkers),
+    FindTempoTimeSigMarker: @TypeOf(reaper.FindTempoTimeSigMarker),
+    GetTempoTimeSigMarker: @TypeOf(reaper.GetTempoTimeSigMarker),
+    Master_GetTempo: @TypeOf(reaper.Master_GetTempo),
+    Master_GetPlayRate: @TypeOf(reaper.Master_GetPlayRate),
+    Master_NormalizePlayRate: @TypeOf(reaper.Master_NormalizePlayRate),
+    SnapToGrid: @TypeOf(reaper.SnapToGrid),
+    NamedCommandLookup: @TypeOf(reaper.NamedCommandLookup),
+    TimeMap_curFrameRate: @TypeOf(reaper.TimeMap_curFrameRate),
+    TrackFX_Show: @TypeOf(reaper.TrackFX_Show),
+    // FX control panel_input special CC mocks
+    CSurf_OnMuteChange: @TypeOf(reaper.CSurf_OnMuteChange),
+    CSurf_OnSoloChange: @TypeOf(reaper.CSurf_OnSoloChange),
+    CSurf_OnVolumeChange: @TypeOf(reaper.CSurf_OnVolumeChange),
+    CSurf_OnPanChange: @TypeOf(reaper.CSurf_OnPanChange),
+    CSurf_SetSurfaceMute: @TypeOf(reaper.CSurf_SetSurfaceMute),
+    CSurf_SetSurfaceSolo: @TypeOf(reaper.CSurf_SetSurfaceSolo),
+    CSurf_SetSurfaceVolume: @TypeOf(reaper.CSurf_SetSurfaceVolume),
+    CSurf_SetSurfacePan: @TypeOf(reaper.CSurf_SetSurfacePan),
 };
 
 // Helper functions to set up and tear down the mock API
@@ -361,6 +395,150 @@ fn CSurf_TrackFromID(idx: c_int, mcpView: bool) callconv(.C) MediaTrack {
     const session = g_session.?;
     if (idx < 0 or idx >= session.tracks.items.len) return null;
     return @ptrCast(&session.tracks.items[@intCast(idx)]);
+}
+
+// Transport and control surface no-op/default mocks.
+// These exist so that transport_actions and fx_ctrl panel_input special CCs
+// can execute without crashing. They do not simulate REAPER behavior.
+fn Main_OnCommand(command: c_int, flag: c_int) callconv(.C) void {
+    _ = command;
+    _ = flag;
+}
+fn CSurf_OnPlay() callconv(.C) void {}
+fn CSurf_OnRecord() callconv(.C) void {}
+fn CSurf_OnStop() callconv(.C) void {}
+fn CSurf_OnRewFwd(seekplay: c_int, dir: c_int) callconv(.C) void {
+    _ = seekplay;
+    _ = dir;
+}
+fn CSurf_OnZoom(xdir: c_int, ydir: c_int) callconv(.C) void {
+    _ = xdir;
+    _ = ydir;
+}
+fn CSurf_OnPlayRateChange(playrate: f64) callconv(.C) void {
+    _ = playrate;
+}
+fn CSurf_OnRecArmChange(trackid: MediaTrack, recarm: c_int) callconv(.C) bool {
+    _ = trackid;
+    _ = recarm;
+    return true;
+}
+fn GetToggleCommandState(command_id: c_int) callconv(.C) c_int {
+    _ = command_id;
+    return 0;
+}
+fn SetAutomationMode(mode: c_int, onlySel: bool) callconv(.C) void {
+    _ = mode;
+    _ = onlySel;
+}
+fn PreventUIRefresh(prevent_count: c_int) callconv(.C) void {
+    _ = prevent_count;
+}
+fn GetCursorPosition() callconv(.C) f64 {
+    return g_session.?.cursor_position;
+}
+fn SetEditCurPos(time: f64, moveview: bool, seekplay: bool) callconv(.C) void {
+    _ = moveview;
+    _ = seekplay;
+    g_session.?.cursor_position = time;
+}
+fn GetSetProjectGrid(project: ReaProject, set: bool, divisionInOutOptional: ?*f64, swingmodeInOutOptional: ?*c_int, swingamtInOutOptional: ?*f64) callconv(.C) c_int {
+    _ = project;
+    _ = set;
+    if (divisionInOutOptional) |d| d.* = 0.25; // quarter note
+    if (swingmodeInOutOptional) |s| s.* = 0;
+    if (swingamtInOutOptional) |s| s.* = 0.0;
+    return 0;
+}
+fn CountTempoTimeSigMarkers(proj: ReaProject) callconv(.C) c_int {
+    _ = proj;
+    return 0;
+}
+fn FindTempoTimeSigMarker(project: ReaProject, time: f64) callconv(.C) c_int {
+    _ = project;
+    _ = time;
+    return 0;
+}
+fn GetTempoTimeSigMarker(proj: ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.C) bool {
+    _ = proj;
+    _ = ptidx;
+    timeposOut.* = 0.0;
+    measureposOut.* = 0;
+    beatposOut.* = 0.0;
+    bpmOut.* = 120.0;
+    timesig_numOut.* = 4;
+    timesig_denomOut.* = 4;
+    lineartempoOut.* = false;
+    return true;
+}
+fn Master_GetTempo() callconv(.C) f64 {
+    return 120.0;
+}
+fn Master_GetPlayRate(project: ReaProject) callconv(.C) f64 {
+    _ = project;
+    return 1.0;
+}
+fn Master_NormalizePlayRate(playrate: f64, isnormalized: bool) callconv(.C) f64 {
+    _ = isnormalized;
+    return playrate;
+}
+fn SnapToGrid(project: ReaProject, time_pos: f64) callconv(.C) f64 {
+    _ = project;
+    return time_pos;
+}
+fn NamedCommandLookup(command_name: [*:0]const u8) callconv(.C) c_int {
+    _ = command_name;
+    return 0;
+}
+fn TimeMap_curFrameRate(proj: ReaProject, dropFrameOut: *bool) callconv(.C) f64 {
+    _ = proj;
+    dropFrameOut.* = false;
+    return 30.0;
+}
+fn TrackFX_Show(track: MediaTrack, index: c_int, showFlag: c_int) callconv(.C) void {
+    _ = track;
+    _ = index;
+    _ = showFlag;
+}
+fn CSurf_OnMuteChange(trackid: MediaTrack, mute: c_int) callconv(.C) bool {
+    _ = trackid;
+    _ = mute;
+    return true;
+}
+fn CSurf_OnSoloChange(trackid: MediaTrack, solo: c_int) callconv(.C) bool {
+    _ = trackid;
+    _ = solo;
+    return true;
+}
+fn CSurf_OnVolumeChange(trackid: MediaTrack, volume: f64, relative: bool) callconv(.C) f64 {
+    _ = trackid;
+    _ = relative;
+    return volume;
+}
+fn CSurf_OnPanChange(trackid: MediaTrack, pan: f64, relative: bool) callconv(.C) f64 {
+    _ = trackid;
+    _ = relative;
+    return pan;
+}
+fn CSurf_SetSurfaceMute(trackid: MediaTrack, mute: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.C) void {
+    _ = trackid;
+    _ = mute;
+    _ = ignoresurf;
+}
+fn CSurf_SetSurfaceSolo(trackid: MediaTrack, solo: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.C) void {
+    _ = trackid;
+    _ = solo;
+    _ = ignoresurf;
+}
+fn CSurf_SetSurfaceVolume(trackid: MediaTrack, volume: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.C) void {
+    _ = trackid;
+    _ = volume;
+    _ = ignoresurf;
+}
+fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.C) void {
+    _ = trackid;
+    _ = pan;
+    _ = ignoresurf;
 }
 
 fn CSurf_TrackToID(track: MediaTrack, mcpView: bool) callconv(.C) c_int {
