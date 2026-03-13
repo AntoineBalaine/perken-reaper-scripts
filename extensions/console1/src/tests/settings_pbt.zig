@@ -130,9 +130,9 @@ const ScrollCmd = struct {
     }
 
     pub fn onModelOnly(self: *@This(), model: *Model) void {
-        // Scroll doesn't affect persistent state, just UI state
-        // Because calculateNewScrollPosition has complex encoder wrapping logic with max_increment,
-        // we don't track scroll positions in the model
+        // Because calculateNewScrollPosition has complex encoder wrapping logic, we do not
+        // replicate it in the model. Instead, onPair synchronizes the model from the system
+        // after the scroll executes.
         _ = self;
         _ = model;
     }
@@ -141,12 +141,17 @@ const ScrollCmd = struct {
         // Execute scroll action
         settingsActions(sut.globals, .{ .scroll = self.new_pos });
 
-        // Update model (no-op)
-        self.onModelOnly(model);
-
-        // Verify scroll absolute position was updated
+        // Verify the panel is still open and the absolute position was updated
         if (sut.globals.settings_panel) |panel| {
-            return panel.scroll_position_abs == self.new_pos;
+            if (panel.scroll_position_abs != self.new_pos) {
+                return false;
+            }
+            // Because we cannot replicate the scroll wrapping logic in the model, we
+            // synchronize the model's scroll positions from the system after verification.
+            // This way, subsequent commands (like Toggle) use the correct field index.
+            model.scroll_position_abs = panel.scroll_position_abs;
+            model.scroll_position_rel = panel.scroll_position_rel;
+            return true;
         }
         return false;
     }
@@ -157,13 +162,26 @@ const ToggleCmd = struct {
 
     pub fn checkPrecondition(self: *@This(), model: *Model) bool {
         _ = self;
-        // Can only toggle if panel is open
-        return model.panel_open;
+        // We can only toggle if the panel is open and the current field is not a default_XXX
+        // field, because toggling a default_XXX field triggers a mode change to default_fx_sel
+        // which we cannot model in this test (we have no "return from default_fx_sel" command).
+        if (!model.panel_open) return false;
+        if (Preferences.SettingsFields.fromIndex(model.scroll_position_rel)) |field| {
+            return switch (field) {
+                .default_INPUT, .default_GATE, .default_COMP, .default_EQ, .default_OUTPT => false,
+                else => true,
+            };
+        }
+        return false;
     }
 
     pub fn onModelOnly(self: *@This(), model: *Model) void {
         _ = self;
-        // Toggle the field at current scroll position in temp_settings
+        // Toggle the field at current scroll position in temp_settings.
+        // Only the 6 boolean fields handled by Preferences.toggleField() are actually
+        // toggleable. The remaining fields (auto_insert_*, auto_reorder_*, language,
+        // preferred_module_order) are routed through toggleField() but it returns false
+        // for them, so the system does not toggle them and does not set dirty.
         if (Preferences.SettingsFields.fromIndex(model.scroll_position_rel)) |field| {
             switch (field) {
                 .show_startup_message => {
@@ -190,21 +208,6 @@ const ToggleCmd = struct {
                     model.temp_settings.start_suspended = !model.temp_settings.start_suspended;
                     model.panel_dirty = true;
                 },
-                .auto_insert_modules => {
-                    model.temp_settings.auto_insert_modules = !model.temp_settings.auto_insert_modules;
-                    model.panel_dirty = true;
-                },
-                .auto_insert_bypassed => {
-                    model.temp_settings.auto_insert_bypassed = !model.temp_settings.auto_insert_bypassed;
-                    model.panel_dirty = true;
-                },
-                .auto_reorder_modules => {
-                    model.temp_settings.auto_reorder_modules = !model.temp_settings.auto_reorder_modules;
-                    model.panel_dirty = true;
-                },
-                // default_XXX fields trigger mode change, don't toggle in model
-                .default_INPUT, .default_GATE, .default_COMP, .default_EQ, .default_OUTPT => {},
-                // language and preferred_module_order are not toggleable
                 else => {},
             }
         }
@@ -217,42 +220,31 @@ const ToggleCmd = struct {
         // Execute toggle action
         settingsActions(sut.globals, .toggle);
 
-        // Check if we're toggling a default FX field
-        if (Preferences.SettingsFields.fromIndex(model.scroll_position_rel)) |field| {
-            switch (field) {
-                .default_INPUT, .default_GATE, .default_COMP, .default_EQ, .default_OUTPT => {
-                    // Because default FX toggle changes mode to default_fx_sel, verify mode changed
-                    // but don't update model (mode change is tested separately)
-                    return sut.globals.state.current_mode == .default_fx_sel;
-                },
-                else => {
-                    // Update model
-                    self.onModelOnly(model);
+        // Update model
+        self.onModelOnly(model);
 
-                    // Verify panel is still open and state is correct
-                    if (sut.globals.settings_panel) |panel| {
-                        // Check that the specific field was toggled correctly
-                        const field_matches = switch (field) {
-                            .show_startup_message => panel.temp_settings.show_startup_message == model.temp_settings.show_startup_message,
-                            .show_feedback_window => panel.temp_settings.show_feedback_window == model.temp_settings.show_feedback_window,
-                            .show_plugin_ui => panel.temp_settings.show_plugin_ui == model.temp_settings.show_plugin_ui,
-                            .manual_routing => panel.temp_settings.manual_routing == model.temp_settings.manual_routing,
-                            .log_to_file => panel.temp_settings.log_to_file == model.temp_settings.log_to_file,
-                            .start_suspended => panel.temp_settings.start_suspended == model.temp_settings.start_suspended,
-                            .auto_insert_modules => panel.temp_settings.auto_insert_modules == model.temp_settings.auto_insert_modules,
-                            .auto_insert_bypassed => panel.temp_settings.auto_insert_bypassed == model.temp_settings.auto_insert_bypassed,
-                            .auto_reorder_modules => panel.temp_settings.auto_reorder_modules == model.temp_settings.auto_reorder_modules,
-                            // Non-toggleable fields (language, preferred_module_order)
-                            else => true,
-                        };
+        // Verify panel is still open and state is correct
+        if (sut.globals.settings_panel) |panel| {
+            if (Preferences.SettingsFields.fromIndex(model.scroll_position_rel)) |field| {
+                const field_matches = switch (field) {
+                    .show_startup_message => panel.temp_settings.show_startup_message == model.temp_settings.show_startup_message,
+                    .show_feedback_window => panel.temp_settings.show_feedback_window == model.temp_settings.show_feedback_window,
+                    .show_plugin_ui => panel.temp_settings.show_plugin_ui == model.temp_settings.show_plugin_ui,
+                    .manual_routing => panel.temp_settings.manual_routing == model.temp_settings.manual_routing,
+                    .log_to_file => panel.temp_settings.log_to_file == model.temp_settings.log_to_file,
+                    .start_suspended => panel.temp_settings.start_suspended == model.temp_settings.start_suspended,
+                    .auto_insert_modules => panel.temp_settings.auto_insert_modules == model.temp_settings.auto_insert_modules,
+                    .auto_insert_bypassed => panel.temp_settings.auto_insert_bypassed == model.temp_settings.auto_insert_bypassed,
+                    .auto_reorder_modules => panel.temp_settings.auto_reorder_modules == model.temp_settings.auto_reorder_modules,
+                    // Non-toggleable fields (language, preferred_module_order)
+                    else => true,
+                };
 
-                        return sut.globals.state.current_mode == initial_mode and
-                            panel.dirty == model.panel_dirty and
-                            field_matches;
-                    }
-                    return false;
-                },
+                return sut.globals.state.current_mode == initial_mode and
+                    panel.dirty == model.panel_dirty and
+                    field_matches;
             }
+            return false;
         }
         return false;
     }
@@ -458,19 +450,53 @@ fn settingsStatefulTest(_: void, input: []const u8) !void {
     var cancelCmd = CancelCmd{};
     var toggleCmd = ToggleCmd{};
 
+    // ScrollCmd instances with different encoder positions
+    var scroll_low = ScrollCmd{ .new_pos = 10 };
+    var scroll_mid = ScrollCmd{ .new_pos = 64 };
+    var scroll_high = ScrollCmd{ .new_pos = 120 };
+
+    // UpdateValCmd instances for boolean fields (true and false variants for coverage)
+    var update_show_startup_t = UpdateValCmd{ .field = .show_startup_message, .value = .{ .bool_val = true } };
+    var update_show_startup_f = UpdateValCmd{ .field = .show_startup_message, .value = .{ .bool_val = false } };
+    var update_show_feedback_t = UpdateValCmd{ .field = .show_feedback_window, .value = .{ .bool_val = true } };
+    var update_show_plugin_t = UpdateValCmd{ .field = .show_plugin_ui, .value = .{ .bool_val = true } };
+    var update_manual_routing_t = UpdateValCmd{ .field = .manual_routing, .value = .{ .bool_val = true } };
+    var update_log_to_file_f = UpdateValCmd{ .field = .log_to_file, .value = .{ .bool_val = false } };
+    var update_start_suspended_t = UpdateValCmd{ .field = .start_suspended, .value = .{ .bool_val = true } };
+    var update_auto_insert_t = UpdateValCmd{ .field = .auto_insert_modules, .value = .{ .bool_val = true } };
+    var update_auto_insert_bp_f = UpdateValCmd{ .field = .auto_insert_bypassed, .value = .{ .bool_val = false } };
+    var update_auto_reorder_t = UpdateValCmd{ .field = .auto_reorder_modules, .value = .{ .bool_val = true } };
+
+    // UpdateValCmd instance for enum field
+    var update_module_order = UpdateValCmd{ .field = .preferred_module_order, .value = .{ .enum_val = .@"S-C-EQ" } };
+
     // Create commands array
     const commands = [_]Command(Model, System){
         Command(Model, System).init(&openCmd),
         Command(Model, System).init(&saveCmd),
         Command(Model, System).init(&cancelCmd),
         Command(Model, System).init(&toggleCmd),
+        Command(Model, System).init(&scroll_low),
+        Command(Model, System).init(&scroll_mid),
+        Command(Model, System).init(&scroll_high),
+        Command(Model, System).init(&update_show_startup_t),
+        Command(Model, System).init(&update_show_startup_f),
+        Command(Model, System).init(&update_show_feedback_t),
+        Command(Model, System).init(&update_show_plugin_t),
+        Command(Model, System).init(&update_manual_routing_t),
+        Command(Model, System).init(&update_log_to_file_f),
+        Command(Model, System).init(&update_start_suspended_t),
+        Command(Model, System).init(&update_auto_insert_t),
+        Command(Model, System).init(&update_auto_insert_bp_f),
+        Command(Model, System).init(&update_auto_reorder_t),
+        Command(Model, System).init(&update_module_order),
     };
 
     // Create command sequence
     var cmd_seq = CommandList(Model, System).init(
         &commands,
         &random,
-        50,
+        500,
         testing.allocator,
     ) catch |err| {
         if (err == FinitePrng.FinitePrngErr.OutOfEntropy) {
@@ -513,11 +539,15 @@ fn settingsStatefulTest(_: void, input: []const u8) !void {
 }
 
 test "settings stateful - with random bytes" {
-    var seed_prng = std.Random.DefaultPrng.init(0x8BBE022C870AF654);
-    var random_bytes: [4096]u8 = undefined;
-    seed_prng.random().bytes(&random_bytes);
-
-    try settingsStatefulTest({}, &random_bytes);
+    // We use multiple seeds to increase coverage. Because the command set is larger now
+    // (17 commands vs the original 4), a single seed may not exercise all interactions.
+    const seeds = [_]u64{ 0xDEADBEEF12345678, 0xCAFE0000BABE0001, 0x1234567890ABCDEF };
+    for (seeds) |seed| {
+        var seed_prng = std.Random.DefaultPrng.init(seed);
+        var random_bytes: [4096]u8 = undefined;
+        seed_prng.random().bytes(&random_bytes);
+        try settingsStatefulTest({}, &random_bytes);
+    }
 }
 
 test settingsStatefulTest {
