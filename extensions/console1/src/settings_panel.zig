@@ -155,8 +155,7 @@ pub fn draw(
         {
             const popColor = try pushColIfSelected(ctx, .auto_insert_modules, scroll_pos);
             defer if (popColor) |pop| pop(ctx) catch {};
-            // TODO: integrate translation for «Auto-insert missing modules»
-            const label = safePrint(&buf, "Auto-insert missing modules##autoins", .{});
+            const label = safePrint(&buf, "{s}##autoins", .{tr(translations, .settings_auto_insert_modules)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.auto_insert_modules })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .auto_insert_modules, .val = self.temp_settings.auto_insert_modules } } };
                 self.dirty = true;
@@ -177,8 +176,7 @@ pub fn draw(
 
             const popColor = try pushColIfSelected(ctx, .auto_insert_bypassed, scroll_pos);
             defer if (popColor) |pop| pop(ctx) catch {};
-            // TODO: translation
-            const label = safePrint(&buf, "Insert new modules as bypassed##autobps", .{});
+            const label = safePrint(&buf, "{s}##autobps", .{tr(translations, .settings_auto_insert_bypassed)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.auto_insert_bypassed })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .auto_insert_bypassed, .val = self.temp_settings.auto_insert_bypassed } } };
                 self.dirty = true;

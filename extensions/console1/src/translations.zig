@@ -99,6 +99,8 @@ pub const TranslationKey = enum {
     settings_output,
     settings_language_restart,
     settings_language,
+    settings_auto_insert_modules,
+    settings_auto_insert_bypassed,
 
     // Track List panel translations
     track_list_title,
@@ -312,6 +314,8 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "settings_output", "OUTPT" },
     .{ "settings_language_restart", "Language change requires restart" },
     .{ "settings_language", "Language" },
+    .{ "settings_auto_insert_modules", "Auto-insert missing modules" },
+    .{ "settings_auto_insert_bypassed", "Insert new modules as bypassed" },
     .{ "trsprt_Inpt_disp_mode", "Mode" },
     .{ "trsprt_Inpt_disp_on", "Hide" },
     .{ "trsprt_Inpt_HiCut", "Rate" },
