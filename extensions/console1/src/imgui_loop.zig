@@ -8,11 +8,13 @@ const extension = @import("console1_extension.zig");
 const actions = @import("actions.zig");
 const Theme = @import("theme/Theme.zig");
 const reapack = @import("reapack.zig");
+const HotReloader = @import("hotreload.zig").HotReloader;
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
 pub var ctx: imgui.ContextPtr = null;
 var win_flags: c_int = undefined;
+var hot_reloader: ?HotReloader = null;
 
 fn init() !void {
     // try imgui.init(reaper.plugin_getapi);
@@ -32,6 +34,14 @@ fn init() !void {
         imgui.WindowFlags_NoTitleBar +
         imgui.WindowFlags_NoNav + imgui.WindowFlags_NoFocusOnAppearing;
     try styles.init(ctx);
+
+    if (!builtin.is_test) {
+        const ui_lib_path: [:0]const u8 = if (comptime @import("builtin").os.tag == .macos)
+            "reaper_c1_ui.dylib"
+        else
+            "reaper_c1_ui.so";
+        hot_reloader = HotReloader.init(ui_lib_path, @ptrCast(reaper.plugin_getapi));
+    }
 }
 
 pub fn register() void {
@@ -56,6 +66,11 @@ pub fn reset() void {
         const fontelloResource: imgui.ResourcePtr = @ptrCast(Theme.fonts.ICON_FONT_SMALL);
         imgui.Detach(.{ context, fontelloResource }) catch {};
     }
+
+    if (hot_reloader) |*reloader| {
+        reloader.deinit();
+    }
+    hot_reloader = null;
 
     ctx = null;
     _ = reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
@@ -92,18 +107,11 @@ fn onTimer() callconv(.C) void {
     if (ctx == null) {
         init() catch |err| handleGuiError(err);
     }
-    var style_manager: styles.StyleManager = .{
-        .main_style_open = &styles.main_style_open,
-        .rack_style_open = &styles.rack_style_open,
-        .RackStyle = &styles.RackStyle,
-        .MainWinStyle = &styles.MainWinStyle,
-    };
-    if (@import("gui_lib.zig").main(ctx, globals, win_flags, &style_manager)) |maybe_action| {
-        if (maybe_action) |action| {
-            actions.dispatch(globals, action);
+    // Hot-reload POC: call the dynamically loaded UI lib instead of gui_lib.
+    if (hot_reloader) |*reloader| {
+        if (!reloader.render(ctx, win_flags)) {
+            handleGuiError(error.WindowClosed);
         }
-    } else |err| {
-        handleGuiError(err);
     }
 }
 

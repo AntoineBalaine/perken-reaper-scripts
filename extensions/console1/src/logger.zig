@@ -135,6 +135,7 @@ pub fn logFn(
         .default => @tagName(scope),
         .reentrancy => "",
         .translations => @tagName(scope),
+        .hotreload => @tagName(scope),
         else => @compileError("Unknown scope type: " ++ @tagName(scope)),
     } ++ "): ";
 

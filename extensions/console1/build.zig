@@ -126,4 +126,27 @@ pub fn build(b: *std.Build) !void {
     // Default step for building
     const step = b.step("default", "Build reaper_c1.so");
     step.dependOn(&lib.step);
+
+    // UI lib target: built as a shared library for hot-reloading.
+    // Build with: zig build ui
+    const ui_lib = b.addSharedLibrary(.{
+        .name = "reaper_c1_ui",
+        .root_source_file = b.path("src/ui_lib.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    ui_lib.linkLibC();
+
+    const ui_dest = if (target.result.os.tag == .macos)
+        "reaper_c1_ui.dylib"
+    else
+        "reaper_c1_ui.so";
+
+    const ui_install = b.addInstallArtifact(ui_lib, .{
+        .dest_sub_path = ui_dest,
+        .dest_dir = .{ .override = .{ .custom = "" } },
+    });
+
+    const ui_step = b.step("ui", "Build hot-reloadable UI library");
+    ui_step.dependOn(&ui_install.step);
 }
