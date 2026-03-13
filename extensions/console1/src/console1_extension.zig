@@ -92,6 +92,7 @@ test {
     _ = @import("tests/mapping_panel_fx_ctrl_forward_test.zig");
     _ = @import("tests/fx_sel_fx_ctrl_forward_test.zig");
     _ = @import("tests/fx_ctrl_pbt.zig");
+    _ = @import("tests/transport_pbt.zig");
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");
 }
