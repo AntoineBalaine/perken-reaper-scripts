@@ -14,8 +14,8 @@ export fn ui_render(ctx: imgui.ContextPtr, win_flags: c_int) callconv(.C) bool {
     _ = imgui.Begin(.{ ctx, "Hot-Reload POC", null, win_flags }) catch return false;
     defer imgui.End(.{ctx}) catch {};
 
-    imgui.Text(.{ ctx, "This UI is rendered from a hot-reloaded dylib." }) catch {};
-    imgui.Text(.{ ctx, "Edit ui_lib.zig, rebuild with 'zig build ui', and it updates live." }) catch {};
+    imgui.Text(.{ ctx, "RELOAD v2 -- if you see this, hot reload is working" }) catch {};
+    imgui.Text(.{ ctx, "The dylib was reloaded without restarting REAPER." }) catch {};
 
     return true;
 }

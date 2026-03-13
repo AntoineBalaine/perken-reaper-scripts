@@ -36,12 +36,23 @@ fn init() !void {
     try styles.init(ctx);
 
     if (!builtin.is_test) {
-        const ui_lib_path: [:0]const u8 = if (comptime @import("builtin").os.tag == .macos)
-            "reaper_c1_ui.dylib"
-        else
-            "reaper_c1_ui.so";
-        hot_reloader = HotReloader.init(ui_lib_path, @ptrCast(reaper.plugin_getapi));
+        buildUiLibPath();
+        const path: [:0]const u8 = std.mem.sliceTo(&ui_lib_path_buf, 0);
+        hot_reloader = HotReloader.init(path, @ptrCast(reaper.plugin_getapi));
     }
+}
+
+const ui_lib_name = if (@import("builtin").os.tag == .macos) "/reaper_c1_ui.dylib" else "/reaper_c1_ui.so";
+var ui_lib_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+
+fn buildUiLibPath() void {
+    const resource_path = std.mem.span(reaper.GetResourcePath());
+    const result = std.fmt.bufPrint(&ui_lib_path_buf, "{s}/UserPlugins{s}", .{
+        resource_path,
+        ui_lib_name,
+    }) catch return;
+    ui_lib_path_buf[result.len] = 0;
+    log.info("UI lib path: {s}", .{ui_lib_path_buf[0..result.len]});
 }
 
 pub fn register() void {

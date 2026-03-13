@@ -14,6 +14,11 @@ pub const HotReloader = struct {
     lib_path: [:0]const u8,
     plugin_getapi: *anyopaque,
     frame_counter: u32 = 0,
+    // Because macOS caches dlopen'd libraries even after dlclose, we need to
+    // copy the dylib to a unique temp path before each load so the OS treats
+    // it as a new library.
+    temp_path_buf: [std.fs.max_path_bytes:0]u8 = undefined,
+    reload_counter: u32 = 0,
 
     pub fn init(
         lib_path: [:0]const u8,
@@ -28,12 +33,7 @@ pub const HotReloader = struct {
     }
 
     pub fn deinit(self: *HotReloader) void {
-        if (self.lib) |*lib| {
-            lib.close();
-        }
-        self.lib = null;
-        self.ui_init = null;
-        self.ui_render = null;
+        self.unload();
     }
 
     /// Called each frame. Checks for file changes every 60 frames (~1 second)
@@ -67,7 +67,15 @@ pub const HotReloader = struct {
             return;
         };
 
-        var lib = std.DynLib.open(self.lib_path) catch |err| {
+        // Because macOS caches shared libraries by path, we copy to a temp
+        // file with a unique name so dlopen loads the fresh binary.
+        self.reload_counter += 1;
+        const temp_path = self.copyToTemp() orelse {
+            log.err("Failed to copy UI lib to temp path", .{});
+            return;
+        };
+
+        var lib = std.DynLib.open(temp_path) catch |err| {
             log.err("Failed to open UI lib: {s}", .{@errorName(err)});
             return;
         };
@@ -95,7 +103,41 @@ pub const HotReloader = struct {
         self.lib = lib;
         self.ui_init = init_fn;
         self.ui_render = render_fn;
-        log.info("UI lib loaded successfully", .{});
+        log.info("UI lib loaded successfully (reload #{d})", .{self.reload_counter});
+    }
+
+    fn copyToTemp(self: *HotReloader) ?[:0]const u8 {
+        const result = std.fmt.bufPrint(&self.temp_path_buf, "/tmp/reaper_ui_reload_{d}.dylib", .{
+            self.reload_counter,
+        }) catch return null;
+        self.temp_path_buf[result.len] = 0;
+        const dest: [:0]const u8 = self.temp_path_buf[0..result.len :0];
+
+        // Delete previous temp file if it exists.
+        if (self.reload_counter > 1) {
+            var prev_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const prev = std.fmt.bufPrint(&prev_buf, "/tmp/reaper_ui_reload_{d}.dylib", .{
+                self.reload_counter - 1,
+            }) catch null;
+            if (prev) |prev_path| {
+                std.fs.deleteFileAbsolute(prev_path) catch {};
+            }
+        }
+
+        const src = std.fs.openFileAbsoluteZ(self.lib_path, .{}) catch return null;
+        defer src.close();
+        const dst = std.fs.createFileAbsoluteZ(dest, .{}) catch return null;
+        defer dst.close();
+
+        // Copy contents.
+        var buf: [8192]u8 = undefined;
+        while (true) {
+            const n = src.read(&buf) catch return null;
+            if (n == 0) break;
+            dst.writeAll(buf[0..n]) catch return null;
+        }
+
+        return dest;
     }
 
     fn unload(self: *HotReloader) void {
