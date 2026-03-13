@@ -50,6 +50,8 @@ const Mocks = struct {
     GetMediaTrackInfo_Value: @TypeOf(reaper.GetMediaTrackInfo_Value),
     SetTrackSelected: @TypeOf(reaper.SetTrackSelected),
     GetSelectedTrack: @TypeOf(reaper.GetSelectedTrack),
+    TrackFX_GetParamNormalized: @TypeOf(reaper.TrackFX_GetParamNormalized),
+    TrackFX_SetParamNormalized: @TypeOf(reaper.TrackFX_SetParamNormalized),
 };
 
 // Helper functions to set up and tear down the mock API
@@ -325,6 +327,33 @@ fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_in
     return true;
 }
 
+fn TrackFX_GetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int) callconv(.C) f64 {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return -1.0;
+
+    const tr: *const Track = track_ptr.?;
+
+    if (fx < 0 or fx >= tr.fx_list.items.len) return -1.0;
+    const fx_item = tr.fx_list.items[@intCast(fx)];
+
+    if (param < 0 or param >= fx_item.params.len) return -1.0;
+    return fx_item.params[@intCast(param)].normalized_value;
+}
+
+fn TrackFX_SetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int, value: f64) callconv(.C) bool {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *Track = track_ptr.?;
+
+    if (fx < 0 or fx >= tr.fx_list.items.len) return false;
+    var fx_item = &tr.fx_list.items[@intCast(fx)];
+
+    if (param < 0 or param >= fx_item.params.len) return false;
+    fx_item.params[@intCast(param)].normalized_value = value;
+    return true;
+}
+
 fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
     const model = g_session.?;
 
@@ -425,6 +454,9 @@ fn SetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8, newvalue: f6
     } else if (std.mem.eql(u8, param, "I_SOLO")) {
         track.?.info.solo = @intFromFloat(newvalue);
         return true;
+    } else if (std.mem.eql(u8, param, "B_PHASE")) {
+        track.?.info.phase = newvalue > 0.5;
+        return true;
     }
 
     return false;
@@ -444,6 +476,8 @@ fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv(.C)
         return if (track.?.info.mute) 1.0 else 0.0;
     } else if (std.mem.eql(u8, param, "I_SOLO")) {
         return @floatFromInt(track.?.info.solo);
+    } else if (std.mem.eql(u8, param, "B_PHASE")) {
+        return if (track.?.info.phase) 1.0 else 0.0;
     }
 
     return 0;
