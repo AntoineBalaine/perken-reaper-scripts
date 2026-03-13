@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const ActionId = enum {
     disp_on,
     disp_mode,
@@ -166,6 +168,22 @@ pub const CCs = enum(u8) {
             else => unreachable,
         };
     }
+    // Because the mapping structs (Comp, Eq, Inpt, Outpt, Shp) define
+    // exactly which CCs are assignable via their field names, we derive
+    // assignability at comptime by checking whether the CC's tag name
+    // matches any field in any of those structs.
+    pub fn isFxAssignable(self: CCs) bool {
+        const mappings = @import("mappings.zig");
+        const cc_name = @tagName(self);
+        inline for (.{ mappings.Comp, mappings.Eq, mappings.Inpt, mappings.Outpt, mappings.Shp }) |MappingStruct| {
+            inline for (std.meta.fields(MappingStruct)) |field| {
+                if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                if (std.mem.eql(u8, cc_name, field.name)) return true;
+            }
+        }
+        return false;
+    }
+
     pub fn isBtn(self: CCs) bool {
         return switch (self) {
             .Comp_comp,

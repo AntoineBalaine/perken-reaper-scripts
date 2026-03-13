@@ -114,7 +114,7 @@ fn controls(
 }
 
 fn isParamMapped(state: *const State, param_idx: usize) bool {
-    const param: u8 = @intCast(param_idx);
+    const param: u16 = @intCast(param_idx);
     const current_mappings = switch (state.mapping_panel.mode) {
         .assign => |s| s.current_mappings,
         else => return false,
@@ -199,13 +199,34 @@ fn formControls(
         }
     }
 
-    const midi_learn_text = if (assign_state.midi_learn_active)
-        tr(translations, .mapping_midi_learn_active)
-    else
-        tr(translations, .mapping_midi_learn);
+    // Because the button label should reflect whether a learn operation is
+    // in progress (either phase), we check both listening states.
+    const midi_learn_text = switch (assign_state.midi_learn) {
+        .listening_cc, .listening_param => tr(translations, .mapping_midi_learn_listening),
+        .idle => tr(translations, .mapping_midi_learn),
+    };
 
     if (try imgui.Button(.{ ctx, midi_learn_text })) {
         rv = .{ .assign_toggle_midi_learn = {} };
+    }
+
+    // Because the user needs to know the current state of the MIDI learn flow,
+    // we display a status message below the button.
+    switch (assign_state.midi_learn) {
+        .listening_cc => {
+            try imgui.Text(.{ ctx, tr(translations, .mapping_midi_learn_move_control) });
+        },
+        .listening_param => {
+            if (assign_state.selected_control) |control| {
+                var status_buf: [128:0]u8 = undefined;
+                _ = std.fmt.bufPrint(&status_buf, "{s} -- {s}", .{
+                    @tagName(control),
+                    tr(translations, .mapping_midi_learn_touch_param),
+                }) catch {};
+                try imgui.Text(.{ ctx, @as([*:0]const u8, &status_buf) });
+            }
+        },
+        .idle => {},
     }
 
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {

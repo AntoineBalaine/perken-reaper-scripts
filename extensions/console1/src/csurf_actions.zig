@@ -68,6 +68,20 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
             actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = track } });
         },
         .fx_param_changed => |prm_chg| {
+            // Because MIDI learn needs to capture FX parameter changes from the VST UI,
+            // we check for it before the normal parameter update logic.
+            if (globals.state.current_mode == .mapping_panel and
+                std.meta.activeTag(globals.state.mapping_panel.mode) == .assign and
+                globals.state.mapping_panel.mode.assign.midi_learn == .listening_param)
+            {
+                const module = std.meta.activeTag(globals.state.mapping_panel.mode.assign.current_mappings);
+                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |mod_loc| {
+                    if (mod_loc.fx_index == prm_chg.fx_index) {
+                        actions.dispatch(globals, .{ .mapping_panel = .{ .assign_midi_learned_param = @intCast(prm_chg.param_index) } });
+                    }
+                }
+            }
+
             if (globals.state.current_mode == .fx_ctrl or
                 globals.state.current_mode == .mapping_panel or
                 globals.state.current_mode == .fx_sel)

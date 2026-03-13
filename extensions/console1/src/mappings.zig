@@ -11,66 +11,66 @@ pub const MAPPING_FORMAT_VERSION = 1;
 
 pub const Comp = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    Comp_Attack: ?u8 = null,
-    Comp_DryWet: ?u8 = null,
-    Comp_Ratio: ?u8 = null,
-    Comp_Release: ?u8 = null,
-    Comp_Thresh: ?u8 = null,
-    Comp_comp: ?u8 = null,
+    Comp_Attack: ?u16 = null,
+    Comp_DryWet: ?u16 = null,
+    Comp_Ratio: ?u16 = null,
+    Comp_Release: ?u16 = null,
+    Comp_Thresh: ?u16 = null,
+    Comp_comp: ?u16 = null,
     // Comp_Mtr : u8,
 };
 
 pub const Eq = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    Eq_HiFrq: ?u8 = null,
-    Eq_HiGain: ?u8 = null,
-    Eq_HiMidFrq: ?u8 = null,
-    Eq_HiMidGain: ?u8 = null,
-    Eq_HiMidQ: ?u8 = null,
-    Eq_LoFrq: ?u8 = null,
-    Eq_LoGain: ?u8 = null,
-    Eq_LoMidFrq: ?u8 = null,
-    Eq_LoMidGain: ?u8 = null,
-    Eq_LoMidQ: ?u8 = null,
-    Eq_eq: ?u8 = null,
-    Eq_hp_shape: ?u8 = null,
-    Eq_lp_shape: ?u8 = null,
+    Eq_HiFrq: ?u16 = null,
+    Eq_HiGain: ?u16 = null,
+    Eq_HiMidFrq: ?u16 = null,
+    Eq_HiMidGain: ?u16 = null,
+    Eq_HiMidQ: ?u16 = null,
+    Eq_LoFrq: ?u16 = null,
+    Eq_LoGain: ?u16 = null,
+    Eq_LoMidFrq: ?u16 = null,
+    Eq_LoMidGain: ?u16 = null,
+    Eq_LoMidQ: ?u16 = null,
+    Eq_eq: ?u16 = null,
+    Eq_hp_shape: ?u16 = null,
+    Eq_lp_shape: ?u16 = null,
 };
 
 pub const Inpt = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
-    Inpt_Gain: ?u8 = null,
-    Inpt_HiCut: ?u8 = null,
-    Inpt_LoCut: ?u8 = null,
-    Inpt_disp_mode: ?u8 = null,
-    Inpt_disp_on: ?u8 = null,
-    Inpt_filt_to_comp: ?u8 = null,
-    // Inpt_phase_inv: ?u8 = null,  // Track parameter only, not mappable to FX
-    Inpt_preset: ?u8 = null,
+    Inpt_Gain: ?u16 = null,
+    Inpt_HiCut: ?u16 = null,
+    Inpt_LoCut: ?u16 = null,
+    Inpt_disp_mode: ?u16 = null,
+    Inpt_disp_on: ?u16 = null,
+    Inpt_filt_to_comp: ?u16 = null,
+    // Inpt_phase_inv: ?u16 = null,  // Track parameter only, not mappable to FX
+    Inpt_preset: ?u16 = null,
 };
 
 pub const Outpt = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    Out_Drive: ?u8 = null,
-    Out_DriveChar: ?u8 = null,
+    Out_Drive: ?u16 = null,
+    Out_DriveChar: ?u16 = null,
     // Out_MtrLft : u8 = null,
     // Out_MtrRgt : u8 = null,
-    Out_Pan: ?u8 = null,
-    Out_Vol: ?u8 = null,
+    Out_Pan: ?u16 = null,
+    Out_Vol: ?u16 = null,
     // Out_mute : u8 = null,
     // Out_solo : u8 = null,
 };
 
 pub const Shp = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    Shp_Gate: ?u8 = null,
-    Shp_GateRelease: ?u8 = null,
-    Shp_Punch: ?u8 = null,
-    Shp_hard_gate: ?u8 = null,
-    Shp_shape: ?u8 = null,
-    Shp_sustain: ?u8 = null,
+    Shp_Gate: ?u16 = null,
+    Shp_GateRelease: ?u16 = null,
+    Shp_Punch: ?u16 = null,
+    Shp_hard_gate: ?u16 = null,
+    Shp_shape: ?u16 = null,
+    Shp_sustain: ?u16 = null,
 };
 
 /// Tagged union representing a loaded mapping for any module type.
@@ -507,8 +507,9 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
                 inline for (std.meta.fields(T)) |ns_info| {
                     if (std.mem.eql(u8, ns_info.name, kv.key)) {
                         const field_type = @TypeOf(@field(ret_struct, ns_info.name));
-                        if (field_type == ?u8 or field_type == u8) {
-                            const parsed = std.fmt.parseInt(u8, kv.value, 10) catch null;
+                        if (field_type == ?u16 or field_type == u16 or field_type == ?u8 or field_type == u8) {
+                            const ParsedInt = if (field_type == ?u16 or field_type == u16) u16 else u8;
+                            const parsed = std.fmt.parseInt(ParsedInt, kv.value, 10) catch null;
                             if (parsed) |val| {
                                 @field(ret_struct, ns_info.name) = val;
                                 if (std.mem.eql(u8, ns_info.name, "version")) {
@@ -746,7 +747,7 @@ test "MapStore - all values are within MIDI range (0-127)" {
 }
 
 /// Helper function to get the parameter index for a given CC from a mapping
-pub fn getParamForCC(cc: c1.CCs, mapping: TaggedMapping) ?u8 {
+pub fn getParamForCC(cc: c1.CCs, mapping: TaggedMapping) ?u16 {
     // Get the module for this CC using the existing toModule method
     const module = cc.toModule();
 

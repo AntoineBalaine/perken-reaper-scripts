@@ -161,10 +161,38 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                         }
                     },
                     .assign => {
-                        switch (cc) {
-                            .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .assign_cancel }),
-                            .Out_Vol, .Out_solo => {},
-                            else => continue :mode_switch .fx_ctrl, // Forward all other CCs to fx_ctrl
+                        // Because MIDI learn should only capture CCs that belong
+                        // to the module currently being assigned, we check both
+                        // assignability and module membership before intercepting.
+                        // All other CCs pass through to fx_ctrl.
+                        const assign = &globals.state.mapping_panel.mode.assign;
+                        const current_module = std.meta.activeTag(assign.current_mappings);
+                        switch (assign.midi_learn) {
+                            .listening_cc => {
+                                // we only want to capture CCs belonging to the module being assigned
+                                if (cc.isFxAssignable() and cc.toModule() == current_module) {
+                                    actions.dispatch(globals, .{ .mapping_panel = .{ .assign_select_control = cc } });
+                                } else {
+                                    continue :mode_switch .fx_ctrl;
+                                }
+                            },
+                            .listening_param => {
+                                // When waiting for the user to touch a param,
+                                // block CCs from the current module to prevent feedback
+                                // CCs from other modules pass through normally.
+                                if (cc.isFxAssignable() and cc.toModule() == current_module) {
+                                    // Swallow: do not forward to fx_ctrl
+                                } else {
+                                    continue :mode_switch .fx_ctrl;
+                                }
+                            },
+                            .idle => {
+                                switch (cc) {
+                                    .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .assign_cancel }),
+                                    .Out_Vol, .Out_solo => {},
+                                    else => continue :mode_switch .fx_ctrl,
+                                }
+                            },
                         }
                     },
                     .save => {

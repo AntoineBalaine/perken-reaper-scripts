@@ -28,7 +28,8 @@ pub const MappingPanelAction = union(enum) {
     assign_select_parameter: ?u32,
     assign_select_control: ?c1.CCs,
     assign_toggle_midi_learn: void,
-    assign_add_mapping: struct { param: u8, control: c1.CCs },
+    assign_add_mapping: struct { param: u16, control: c1.CCs },
+    assign_midi_learned_param: u32,
     assign_remove_mapping: c1.CCs,
     assign_change_module: ModulesList,
     assign_request_save: void,
@@ -212,14 +213,47 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
         .assign_select_control => |maybe_control| {
             log.debug("Selected control: {s}", .{if (maybe_control) |cc| @tagName(cc) else "none"});
-            globals.state.mapping_panel.mode.assign.selected_control = maybe_control;
+            var assign = &globals.state.mapping_panel.mode.assign;
+            assign.selected_control = maybe_control;
+            // Because the CC was captured from hardware during MIDI learn,
+            // we transition from listening-for-CC to listening-for-param.
+            if (assign.midi_learn == .listening_cc) {
+                assign.midi_learn = .listening_param;
+            }
         },
 
         .assign_toggle_midi_learn => {
-            log.debug("MIDI learn {s}", .{if (globals.state.mapping_panel.mode.assign.midi_learn_active) "disabled" else "enabled"});
-            globals.state.mapping_panel.mode.assign.midi_learn_active = !globals.state.mapping_panel.mode.assign.midi_learn_active;
-            if (!globals.state.mapping_panel.mode.assign.midi_learn_active) {
-                globals.state.mapping_panel.mode.assign.selected_control = null;
+            var assign = &globals.state.mapping_panel.mode.assign;
+            log.debug("MIDI learn {s}", .{if (assign.midi_learn == .listening_cc) "disabled" else "enabled"});
+            switch (assign.midi_learn) {
+                .idle, .listening_param => {
+                    // Because we're either starting fresh or restarting after
+                    // a CC capture, we enter listening-for-CC mode.
+                    assign.midi_learn = .listening_cc;
+                    assign.selected_control = null;
+                },
+                .listening_cc => {
+                    // Because the user toggled off while listening, we cancel.
+                    assign.midi_learn = .idle;
+                    assign.selected_control = null;
+                },
+            }
+        },
+
+        .assign_midi_learned_param => |param_index| {
+            var assign = &globals.state.mapping_panel.mode.assign;
+            // Because this action should only fire during the listening-for-param
+            // phase, we guard on both the phase and having a captured CC.
+            if (assign.midi_learn == .listening_param) {
+                if (assign.selected_control) |control| {
+                    log.debug("MIDI learn complete: {s} -> param {d}", .{ @tagName(control), param_index });
+                    mappingPanelActions(globals, .{ .assign_add_mapping = .{
+                        .param = @intCast(param_index),
+                        .control = control,
+                    } });
+                    assign.selected_control = null;
+                    assign.midi_learn = .idle;
+                }
             }
         },
 
@@ -348,6 +382,10 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
         .assign_change_module => |new_module| {
             var assign_state = &globals.state.mapping_panel.mode.assign;
+            // Because changing module invalidates the current learn context,
+            // we reset the MIDI learn state.
+            assign_state.midi_learn = .idle;
+            assign_state.selected_control = null;
             assign_state.current_mappings = switch (new_module) {
                 .INPUT => .{ .INPUT = mappings.Inpt{} },
                 .GATE => .{ .GATE = mappings.Shp{} },

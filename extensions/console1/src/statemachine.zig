@@ -189,12 +189,18 @@ pub const ParamStore = struct {
     }
 };
 
+pub const MidiLearnPhase = enum {
+    idle,
+    listening_cc,
+    listening_param,
+};
+
 pub const AssignState = struct {
     target_fx: [:0]const u8 = "",
     current_mappings: ModuleMappings,
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
-    midi_learn_active: bool = false,
+    midi_learn: MidiLearnPhase = .idle,
     param_store: ParamStore,
     arena: std.heap.ArenaAllocator,
 

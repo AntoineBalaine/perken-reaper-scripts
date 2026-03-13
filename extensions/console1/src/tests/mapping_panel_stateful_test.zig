@@ -54,7 +54,7 @@ const Model = struct {
 
 const FxInfo = struct {
     name: []const u8,
-    param_count: u8,
+    param_count: u16,
 };
 
 // System Under Test - wraps real Globals
@@ -356,7 +356,7 @@ const CancelBrowse = struct {
 
 const AddMapping = struct {
     control: c1.CCs,
-    param: u8,
+    param: u16,
     pub const name = "add_mapping";
 
     pub fn checkPrecondition(self: *@This(), model: *const Model) bool {
@@ -851,5 +851,5 @@ test "save_confirm updates module_locations for immediate FX control use" {
     try std.testing.expectEqual(ModulesList.COMP, std.meta.activeTag(mapping));
 
     // Verification 4: The specific parameter value we set is present
-    try std.testing.expectEqual(@as(?u8, 5), mapping.COMP.Comp_Attack);
+    try std.testing.expectEqual(@as(?u16, 5), mapping.COMP.Comp_Attack);
 }
