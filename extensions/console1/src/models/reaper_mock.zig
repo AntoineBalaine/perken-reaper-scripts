@@ -52,6 +52,8 @@ const Mocks = struct {
     GetSelectedTrack: @TypeOf(reaper.GetSelectedTrack),
     TrackFX_GetParamNormalized: @TypeOf(reaper.TrackFX_GetParamNormalized),
     TrackFX_SetParamNormalized: @TypeOf(reaper.TrackFX_SetParamNormalized),
+    CSurf_TrackFromID: @TypeOf(reaper.CSurf_TrackFromID),
+    CSurf_TrackToID: @TypeOf(reaper.CSurf_TrackToID),
 };
 
 // Helper functions to set up and tear down the mock API
@@ -352,6 +354,25 @@ fn TrackFX_SetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int,
     if (param < 0 or param >= fx_item.params.len) return false;
     fx_item.params[@intCast(param)].normalized_value = value;
     return true;
+}
+
+fn CSurf_TrackFromID(idx: c_int, mcpView: bool) callconv(.C) MediaTrack {
+    _ = mcpView;
+    const session = g_session.?;
+    if (idx < 0 or idx >= session.tracks.items.len) return null;
+    return @ptrCast(&session.tracks.items[@intCast(idx)]);
+}
+
+fn CSurf_TrackToID(track: MediaTrack, mcpView: bool) callconv(.C) c_int {
+    _ = mcpView;
+    const session = g_session.?;
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return -1;
+
+    for (session.tracks.items, 0..) |*t, i| {
+        if (t == track_ptr.?) return @intCast(i);
+    }
+    return -1;
 }
 
 fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
