@@ -2,15 +2,18 @@ const imgui = @import("reaper_imgui.zig");
 const Theme = @import("theme/Theme.zig");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");
-const Globals = @import("globals.zig").Globals;
 const actions = @import("actions.zig");
+
+pub const Result = struct {
+    open: bool,
+    action: ?actions.ModeAction,
+};
 
 pub fn ButtonsBar(
     ctx: imgui.ContextPtr,
-    globals: *Globals,
     style_manager: *styles.StyleManager,
-) !bool {
-    var rv = true;
+) !Result {
+    var rv = Result{ .open = true, .action = null };
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
@@ -19,7 +22,7 @@ pub fn ButtonsBar(
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, @as([*:0]const u8, Theme.Icons.get(.close)), defaults.button_size, defaults.button_size })) {
-                rv = false;
+                rv.open = false;
             }
         }
         if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_DelayNormal })) {
@@ -30,7 +33,7 @@ pub fn ButtonsBar(
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.pin), defaults.button_size, defaults.button_size })) {
-                actions.dispatch(globals, .{ .settings = .open });
+                rv.action = .{ .settings = .open };
             }
         }
         if (try imgui.IsItemHovered(.{ctx})) {
@@ -61,15 +64,15 @@ pub fn ButtonsBar(
             try imgui.SetTooltip(.{ ctx, "settings window styles config" });
         }
 
-        { // fx_sel comp win
+        { // mapping panel shortcut
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.plus), defaults.button_size, defaults.button_size })) {
-                actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .INPUT } });
+                rv.action = .{ .change_mode = .mapping_panel };
             }
         }
         if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, "fx_sel comp" });
+            try imgui.SetTooltip(.{ ctx, "Mapping Panel" });
         }
     }
 

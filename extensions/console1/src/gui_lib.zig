@@ -36,7 +36,11 @@ pub fn main(
     try imgui.SetNextWindowDockID(.{ ctx, styles.Docker.BOTTOM });
     if (try imgui.Begin(.{ ctx, plugin_name, &open, win_flags })) {
         defer imgui.End(.{ctx}) catch {};
-        open = try ButtonsBar(ctx, globals, style_manager);
+        const bar_result = try ButtonsBar(ctx, style_manager);
+        open = bar_result.open;
+        if (bar_result.action) |action| {
+            rv = action;
+        }
         try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 10 });
         if (style_manager.rack_style_open.*) {
             try styles_components.StyleEditor(ctx, .rack, style_manager);
