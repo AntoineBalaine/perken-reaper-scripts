@@ -93,24 +93,22 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             var assign_state = statemachine.AssignState.init(globals.state.mapping_panel.gpa_int.allocator(), initial_mappings);
             const assign_allocator = assign_state.arena.allocator();
 
+            // Because the UI needs FX names for all modules (for the dropdown
+            // and module headings), we cache them in assign_state so that the
+            // rendering code doesn't need to call REAPER APIs.
+            if (globals.state.current_tr_id) |track_id| {
+                const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
+                populateModuleFxNames(&assign_state, track, &globals.state.fx_ctrl.track_state, assign_allocator);
+            }
+
             // Because we need to load FX parameters and initialize assign_state with current mappings,
             // we get the FX from the track_state module_locations
             if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |location| {
-                // Query FX name from REAPER
                 const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id orelse return, constants.g_csurf_mcpmode);
-                var fx_name_buf: [256:0]u8 = undefined;
-                const success = reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len);
-                if (!success) {
-                    log.warn("Failed to get FX name for module {s}, fx_index: {d}", .{ @tagName(module), location.fx_index });
-                    return;
-                }
-                const fx_name_z = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                const fx_name = assign_allocator.dupeZ(u8, fx_name_z) catch return;
-                assign_state.target_fx = fx_name;
 
                 // Because we need to load FX parameters for the panel, we query them from REAPER
                 const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, location.fx_index));
-                assign_state.param_store.clear(); // reuse capacity from previous load
+                assign_state.param_store.clear();
                 const param_allocator = assign_state.param_store.strings.arena.allocator();
                 assign_state.param_store.params.ensureTotalCapacity(param_allocator, params_length) catch return;
 
@@ -133,6 +131,11 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                         .OUTPT => |m| .{ .OUTPT = m },
                     };
                 }
+            }
+
+            // Set target_fx from the cached name for the selected module.
+            if (assign_state.module_fx_names.get(module)) |name| {
+                assign_state.target_fx = assign_allocator.dupeZ(u8, name) catch return;
             }
 
             globals.state.mapping_panel.mode = .{ .assign = assign_state };
@@ -394,13 +397,21 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 .OUTPT => .{ .OUTPT = mappings.Outpt{} },
             };
 
+            // Update target_fx from the cached module names.
+            if (assign_state.module_fx_names.get(new_module)) |name| {
+                const alloc = assign_state.arena.allocator();
+                assign_state.target_fx = alloc.dupeZ(u8, name) catch return;
+            } else {
+                assign_state.target_fx = "";
+            }
+
             // Reload parameters for the new module
             if (globals.state.fx_ctrl.track_state.module_locations.get(new_module)) |location| {
                 if (globals.state.current_tr_id) |track_id| {
                     const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
                     const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, location.fx_index));
 
-                    assign_state.param_store.clear(); // clear previous module's params
+                    assign_state.param_store.clear();
                     const param_allocator = assign_state.param_store.strings.arena.allocator();
                     assign_state.param_store.params.ensureTotalCapacity(param_allocator, params_length) catch return;
 
@@ -485,5 +496,30 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             const current_module = std.meta.activeTag(globals.state.mapping_panel.mode.save.current_mappings);
             mappingPanelActions(globals, .{ .enter_assign = current_module });
         },
+    }
+}
+
+// Because the UI rendering code needs FX names for all modules (for the
+// module dropdown and panel headings), we fetch them once when entering
+// assign mode and store them in AssignState. The strings are allocated on
+// the assign arena and freed when leaving the submode.
+fn populateModuleFxNames(
+    assign_state: *statemachine.AssignState,
+    track: reaper.MediaTrack,
+    track_state: *const @import("track_state.zig"),
+    allocator: std.mem.Allocator,
+) void {
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        if (track_state.module_locations.get(module)) |location| {
+            var fx_name_buf: [256:0]u8 = undefined;
+            if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
+                const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
+                assign_state.module_fx_names.set(module, allocator.dupeZ(u8, fx_name) catch null);
+            } else {
+                assign_state.module_fx_names.set(module, null);
+            }
+        } else {
+            assign_state.module_fx_names.set(module, null);
+        }
     }
 }

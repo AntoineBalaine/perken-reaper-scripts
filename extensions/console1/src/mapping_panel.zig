@@ -1,7 +1,5 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
-const Reaper = @import("reaper.zig");
-const reaper = Reaper.reaper;
 const mapping_actions = @import("mapping_actions.zig");
 const statemachine = @import("statemachine.zig");
 const State = statemachine.State;
@@ -65,7 +63,7 @@ pub fn drawMappingPanel(
         rv = action;
     }
     try imgui.SameLine(.{ctx});
-    if (try formControls(ctx, state, assign_state, translations)) |action| {
+    if (try formControls(ctx, assign_state, translations)) |action| {
         rv = action;
     }
     return rv;
@@ -160,7 +158,6 @@ fn getControlMapping(state: *const State, cc: c1.CCs) ?u32 {
 // Function to handle the bottom panel with buttons
 fn formControls(
     ctx: imgui.ContextPtr,
-    state: *const State,
     assign_state: *const AssignState,
     translations: *TranslationStore,
 ) !?mapping_actions.MappingPanelAction {
@@ -179,15 +176,8 @@ fn formControls(
             inline for (comptime std.enums.values(ModulesList)) |module| {
                 const module_name = @tagName(module);
                 const display_text: [:0]const u8 = blk: {
-                    if (state.fx_ctrl.track_state.module_locations.get(module)) |location| {
-                        if (state.current_tr_id) |track_id| {
-                            const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
-                            var fx_name_buf: [256:0]u8 = undefined;
-                            if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
-                                const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                                break :blk std.fmt.bufPrintZ(&dropdown_buf, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
-                            }
-                        }
+                    if (assign_state.module_fx_names.get(module)) |fx_name| {
+                        break :blk std.fmt.bufPrintZ(&dropdown_buf, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
                     }
                     break :blk std.fmt.bufPrintZ(&dropdown_buf, "{s}    [No FX]", .{module_name}) catch module_name;
                 };
@@ -304,16 +294,8 @@ fn inputMappingPanel(
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    // Display FX name for INPUT module
-    if (state.fx_ctrl.track_state.module_locations.get(.INPUT)) |location| {
-        if (state.current_tr_id) |track_id| {
-            const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
-            var fx_name_buf: [256:0]u8 = undefined;
-            if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
-                const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                try imgui.TextDisabled(.{ ctx, fx_name });
-            }
-        }
+    if (assign_state.module_fx_names.get(.INPUT)) |fx_name| {
+        try imgui.TextDisabled(.{ ctx, fx_name });
     }
 
     // First column
@@ -383,16 +365,8 @@ fn gateMappingPanel(
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    // Display FX name for GATE module
-    if (state.fx_ctrl.track_state.module_locations.get(.GATE)) |location| {
-        if (state.current_tr_id) |track_id| {
-            const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
-            var fx_name_buf: [256:0]u8 = undefined;
-            if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
-                const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                try imgui.TextDisabled(.{ ctx, fx_name });
-            }
-        }
+    if (assign_state.module_fx_names.get(.GATE)) |fx_name| {
+        try imgui.TextDisabled(.{ ctx, fx_name });
     }
 
     // Shape button at the top
@@ -493,16 +467,8 @@ fn eqMappingPanel(
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    // Display FX name for EQ module
-    if (state.fx_ctrl.track_state.module_locations.get(.EQ)) |location| {
-        if (state.current_tr_id) |track_id| {
-            const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
-            var fx_name_buf: [256:0]u8 = undefined;
-            if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
-                const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                try imgui.TextDisabled(.{ ctx, fx_name });
-            }
-        }
+    if (assign_state.module_fx_names.get(.EQ)) |fx_name| {
+        try imgui.TextDisabled(.{ ctx, fx_name });
     }
 
     // EQ button at the top
@@ -698,16 +664,8 @@ fn compMappingPanel(
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    // Display FX name for COMP module
-    if (state.fx_ctrl.track_state.module_locations.get(.COMP)) |location| {
-        if (state.current_tr_id) |track_id| {
-            const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
-            var fx_name_buf: [256:0]u8 = undefined;
-            if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
-                const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                try imgui.TextDisabled(.{ ctx, fx_name });
-            }
-        }
+    if (assign_state.module_fx_names.get(.COMP)) |fx_name| {
+        try imgui.TextDisabled(.{ ctx, fx_name });
     }
 
     // Comp button at the top
@@ -808,16 +766,8 @@ fn outputMappingPanel(
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    // Display FX name for OUTPT module
-    if (state.fx_ctrl.track_state.module_locations.get(.OUTPT)) |location| {
-        if (state.current_tr_id) |track_id| {
-            const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
-            var fx_name_buf: [256:0]u8 = undefined;
-            if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
-                const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                try imgui.TextDisabled(.{ ctx, fx_name });
-            }
-        }
+    if (assign_state.module_fx_names.get(.OUTPT)) |fx_name| {
+        try imgui.TextDisabled(.{ ctx, fx_name });
     }
 
     // First column
