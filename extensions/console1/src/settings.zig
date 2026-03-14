@@ -98,13 +98,18 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences 
         self.default_fx.set(module, owned_copy);
     }
 
-    // Try to load preferences from disk
+    // Try to load preferences from disk. If the file is missing, we silently
+    // create it with the fallback defaults so the user does not have to deal
+    // with missing-file errors.
     self.load(resource_path, arena) catch |err| {
         const config = @import("config");
         if (@hasDecl(config, "test") and @field(config, "test")) {
             log.debug("Mapping path is not absolute: {s}", .{resource_path});
         } else {
-            log.warn("Failed to load preferences: {s} at {s}, using copied defaults", .{ @errorName(err), resource_path });
+            log.warn("Failed to load preferences: {s} at {s}, creating default file", .{ @errorName(err), resource_path });
+            self.saveToDisk(resource_path) catch |save_err| {
+                log.warn("Failed to create default preferences file: {}", .{save_err});
+            };
         }
     };
 
