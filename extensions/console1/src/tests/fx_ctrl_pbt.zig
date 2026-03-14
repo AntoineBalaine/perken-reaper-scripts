@@ -405,9 +405,9 @@ fn fxCtrlStatefulTest(_: void, input: []const u8) !void {
     // gets freed before we can add to it.
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
-    const gpa = arena.allocator();
+    const alloc = arena.allocator();
 
-    var reaper_teardown = models.reaper.setupTestModel(gpa, 1, 4);
+    var reaper_teardown = models.reaper.setupTestModel(alloc, 1, 4);
     defer reaper_teardown.teardown();
     const midi_teardown = models.midi.setupMidiMocks(reaper);
     defer midi_teardown.teardown();
@@ -425,11 +425,11 @@ fn fxCtrlStatefulTest(_: void, input: []const u8) !void {
     // Add 5 FX (one per module) to track 1 (index 1, since index 0 is master).
     const track_ptr = &session.tracks.items[1];
     for (0..5) |_| {
-        const params = try gpa.alloc(models.Param, 6);
+        const params = try alloc.alloc(models.Param, 6);
         for (params) |*p| {
             p.* = .{ .name = "param", .normalized_value = 0.5, .formatted_value = "0.5" };
         }
-        try track_ptr.fx_list.append(gpa, .{
+        try track_ptr.fx_list.append(alloc, .{
             .guid = std.mem.zeroes(@import("../utils.zig").Guid),
             .enabled = true,
             .params = params,
