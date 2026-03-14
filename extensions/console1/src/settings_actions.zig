@@ -5,14 +5,7 @@ const Preferences = @import("settings.zig");
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.settings);
 
-pub const SettingsActions = union(enum) {
-    open, // Request to open settings
-    save, // Save and close
-    cancel, // Cancel and close
-    scroll: u8,
-    toggle,
-    update_val: SettingsPanel.SettingsValUpdate, // Update a setting value
-};
+pub const SettingsActions = @import("action_types.zig").SettingsActions;
 
 pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
     switch (set_action) {

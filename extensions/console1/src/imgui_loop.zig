@@ -118,10 +118,18 @@ fn onTimer() callconv(.C) void {
     if (ctx == null) {
         init() catch |err| handleGuiError(err);
     }
-    // Hot-reload POC: call the dynamically loaded UI lib instead of gui_lib.
+    var style_manager: styles.StyleManager = .{
+        .main_style_open = &styles.main_style_open,
+        .rack_style_open = &styles.rack_style_open,
+        .RackStyle = &styles.RackStyle,
+        .MainWinStyle = &styles.MainWinStyle,
+    };
     if (hot_reloader) |*reloader| {
-        if (!reloader.render(ctx, win_flags)) {
-            handleGuiError(error.WindowClosed);
+        const result = reloader.render(ctx, win_flags, globals, &style_manager);
+        switch (result) {
+            .action => |action| actions.dispatch(globals, action),
+            .render_error => handleGuiError(error.WindowClosed),
+            .no_action => {},
         }
     }
 }

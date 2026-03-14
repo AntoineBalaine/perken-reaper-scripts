@@ -19,24 +19,8 @@ const c = @cImport({
     @cInclude("resource.h");
     @cInclude("csurf/midi_wrapper.h");
 });
-const SettingsValUpdate = @import("settings_panel.zig").SettingsValUpdate;
-
-pub const MidiOutAction = union(enum) {
-    /// Set initial feedback for mode
-    /// also used when validating tracks
-    mode_entry: Mode,
-    clear_all, // Zero all feedback
-    // fx_ctrl actions
-    track_select: reaper.MediaTrack, // Update track selection feedback
-    page_change,
-    set_param: struct { cc: c1.CCs, value: u8 },
-    blink,
-    reset_meters,
-    queryMeters,
-    // settings
-    settings_changed: SettingsValUpdate, // preference field name
-
-};
+const SettingsValUpdate = @import("action_types.zig").SettingsValUpdate;
+pub const MidiOutAction = @import("action_types.zig").MidiOutAction;
 
 pub fn sendMidiFeedback(globals: *Globals, action: MidiOutAction) void {
     log.debug("send midi feedback: {s}", .{@tagName(action)});

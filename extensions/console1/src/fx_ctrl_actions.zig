@@ -18,28 +18,9 @@ const utils = @import("utils.zig");
 
 const log = std.log.scoped(.midi_input);
 
-pub const MidiInput = struct {
-    cc: c1.CCs,
-    value: u8,
-};
-pub const WidgetInput = struct {
-    cc: c1.CCs,
-    value: f64,
-};
-
-pub const FxCtrlAction = union(enum) {
-    midi_input: MidiInput,
-    panel_input: WidgetInput,
-    set_volume: f64,
-    set_pan: f64,
-    toggle_mute,
-    toggle_solo,
-    set_routing_order: ModulesOrder,
-    set_sidechain: SCRouting,
-    on_track_entry: MediaTrack,
-    fx_win_disp: MediaTrack,
-    toggle_phase_inv: MediaTrack,
-};
+pub const MidiInput = @import("action_types.zig").MidiInput;
+pub const WidgetInput = @import("action_types.zig").WidgetInput;
+pub const FxCtrlAction = @import("action_types.zig").FxCtrlAction;
 
 pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
     switch (fx_action) {

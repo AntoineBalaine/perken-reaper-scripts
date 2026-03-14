@@ -10,22 +10,7 @@ const log = std.log.scoped(.fx_sel_actions);
 const TrackState = @import("track_state.zig").TrackState;
 const Globals = @import("globals.zig").Globals;
 
-pub const FxSelActions = union(enum) {
-    select_fx: [:0]const u8,
-    scroll: u8,
-    toggle_module_browser: ModulesList, // Which module's browser to show
-    fx_chain: struct {
-        path: []const u8,
-    },
-    track_template: struct {
-        path: [:0]const u8,
-    },
-    plugin: struct {
-        name: [:0]const u8,
-        mapping_name: ?[:0]const u8, // null = use default
-    },
-    close_browser: void,
-};
+pub const FxSelActions = @import("action_types.zig").FxSelActions;
 
 pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
     switch (sel_action) {

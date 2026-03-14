@@ -11,35 +11,7 @@ const mapping_browser = @import("mapping_browser.zig");
 const reaper = @import("reaper.zig").reaper;
 const constants = @import("constants.zig");
 
-pub const MappingPanelAction = union(enum) {
-    // Sub-mode transitions
-    enter_browse: void,
-    enter_assign: ModulesList,
-    enter_save: void,
-    exit_to_fx_ctrl: void,
-
-    // BROWSE sub-mode actions
-    browse_scroll: u8,
-    browse_select_module: ModulesList,
-    browse_confirm: void,
-    browse_cancel: void,
-
-    // ASSIGN sub-mode actions
-    assign_select_parameter: ?u32,
-    assign_select_control: ?c1.CCs,
-    assign_toggle_midi_learn: void,
-    assign_add_mapping: struct { param: u16, control: c1.CCs },
-    assign_midi_learned_param: u32,
-    assign_remove_mapping: c1.CCs,
-    assign_change_module: ModulesList,
-    assign_request_save: void,
-    assign_cancel: void,
-
-    // SAVE sub-mode actions
-    save_update_name: []const u8,
-    save_confirm: [:0]const u8,
-    save_cancel: void,
-};
+pub const MappingPanelAction = @import("action_types.zig").MappingPanelAction;
 
 pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
     switch (action) {

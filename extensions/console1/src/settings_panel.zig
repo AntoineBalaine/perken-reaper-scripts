@@ -24,11 +24,7 @@ pub fn init(current: *const Preferences) !SettingsPanel {
     };
 }
 
-pub const SettingsValUpdate = union(enum) {
-    bool_val: struct { field: Preferences.SettingsFields, val: bool },
-    string_val: struct { field: Preferences.SettingsFields, val: [:0]const u8 },
-    enum_val: struct { field: Preferences.SettingsFields, val: ModulesOrder },
-};
+pub const SettingsValUpdate = @import("action_types.zig").SettingsValUpdate;
 const SettingsRV = union(enum) {
     close_save,
     close_cancel,

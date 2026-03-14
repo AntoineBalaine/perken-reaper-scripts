@@ -4,30 +4,10 @@ const reaper = @import("reaper.zig").reaper;
 const statemachine = @import("statemachine.zig");
 const Globals = @import("globals.zig").Globals;
 const actions = @import("actions.zig");
-pub const WinChg = struct {
-    track: reaper.MediaTrack,
-    fx_index: i32,
-    is_open: bool,
-};
-
-pub const ParamChg = struct {
-    track: reaper.MediaTrack,
-    fx_index: usize,
-    param_index: usize,
-    value: f64,
-};
-
-pub const CsurfAction = union(enum) {
-    track_selected: struct { tr: reaper.MediaTrack, selected: bool },
-    last_touched_track: reaper.MediaTrack,
-    play_state_changed: struct {
-        playing: bool,
-        paused: bool,
-    },
-    fx_chain_changed: reaper.MediaTrack,
-    fx_param_changed: ParamChg,
-    fx_window_state: WinChg,
-};
+const action_types = @import("action_types.zig");
+pub const WinChg = action_types.WinChg;
+pub const ParamChg = action_types.ParamChg;
+pub const CsurfAction = action_types.CsurfAction;
 
 pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
     switch (set_action) {

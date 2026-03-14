@@ -23,16 +23,8 @@ const actions = @import("actions.zig");
 const pReaper = @import("pReaper.zig");
 const Globals = @import("globals.zig").Globals;
 
-pub const TrackListAction = union(enum) {
-    page_change: PgDirection,
-    /// API Setter: tell reaper to unselect all tracks other than the csurf_id passed.
-    track_select: c_int,
-    blink_leds: struct {
-        blink_state: bool,
-        midi_out: reaper.midi_Output,
-    },
-    refresh,
-};
+pub const TrackListAction = @import("action_types.zig").TrackListAction;
+pub const PgDirection = @import("action_types.zig").PgDirection;
 
 pub fn trackListAction(globals: *Globals, action: TrackListAction) void {
     switch (action) {
@@ -106,8 +98,6 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
         }
     }
 }
-
-const PgDirection = enum { up, down };
 
 fn handlePageChange(globals: *Globals, direction: PgDirection) void {
     const track_count = reaper.GetNumTracks() + 1;

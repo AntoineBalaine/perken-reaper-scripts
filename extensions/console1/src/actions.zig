@@ -5,52 +5,23 @@ const logger = @import("logger.zig");
 const Mode = statemachine.Mode;
 const Globals = @import("globals.zig").Globals;
 const ModulesList = statemachine.ModulesList;
-const MappingPanelAction = @import("mapping_actions.zig").MappingPanelAction;
 const mappingPanelActions = @import("mapping_actions.zig").mappingPanelActions;
 const settings_actions = @import("settings_actions.zig");
-const SettingsActions = settings_actions.SettingsActions;
 const fx_sel_actions = @import("fx_sel_actions.zig");
-const FxSelActions = fx_sel_actions.FxSelActions;
-const fx_ctrl_actions = @import("fx_ctrl_actions.zig");
-const FxCtrlAction = fx_ctrl_actions.FxCtrlAction;
-const fxCtrlActions = fx_ctrl_actions.fxCtrlActions;
-const csurf_actions = @import("csurf_actions.zig");
-const CsurfAction = csurf_actions.CsurfAction;
-const csurfActions = csurf_actions.csurfActions;
+const fxCtrlActions = @import("fx_ctrl_actions.zig").fxCtrlActions;
+const csurfActions = @import("csurf_actions.zig").csurfActions;
 const imgui_loop = @import("imgui_loop.zig");
 const log = std.log.scoped(.dispatch);
-const tr_ls_act = @import("tracklist_actions.zig");
-const TrackListAction = tr_ls_act.TrackListAction;
-const trackListAction = tr_ls_act.trackListAction;
+const trackListAction = @import("tracklist_actions.zig").trackListAction;
 const midi_out = @import("midi_out.zig");
-const MidiOutAction = midi_out.MidiOutAction;
-const transport_actions = @import("transport_actions.zig");
-const TransportAction = transport_actions.TransportAction;
-const transportAction = transport_actions.transportAction;
+const transportAction = @import("transport_actions.zig").transportAction;
 const default_fx_sel_actions = @import("default_fx_sel_actions.zig");
 
 const valid_transitions = statemachine.valid_transitions;
-// Mode-specific actions
-pub const ModeAction = union(enum) {
-    // FX Control Mode
-    fx_ctrl: FxCtrlAction,
 
-    // FX Selection Mode
-    fx_sel: FxSelActions,
-    transport: TransportAction,
-    // Mapping Panel Mode
-    mapping_panel: MappingPanelAction,
-
-    // Settings Mode
-    settings: SettingsActions,
-    default_fx_sel: FxSelActions,
-    Csurf: CsurfAction,
-    // Mode transitions
-    change_mode: Mode,
-    set_fx_ctrl_gui,
-    track_list: TrackListAction,
-    midi_out: MidiOutAction,
-};
+// Re-export ModeAction from the shared types file so that existing code
+// that does @import("actions.zig").ModeAction continues to work.
+pub const ModeAction = @import("action_types.zig").ModeAction;
 
 // Top-level update function
 pub fn dispatch(app: *Globals, action: ModeAction) void {

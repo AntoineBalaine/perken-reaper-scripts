@@ -1,15 +1,26 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
+const Globals = @import("globals.zig").Globals;
+const styles = @import("styles.zig");
+const action_types = @import("action_types.zig");
 
 const log = std.log.scoped(.hotreload);
 
 const UiInitFn = *const fn (*anyopaque) callconv(.C) bool;
-const UiRenderFn = *const fn (imgui.ContextPtr, c_int) callconv(.C) bool;
+const UiRenderFn = *const fn (imgui.ContextPtr, c_int, *Globals, *styles.StyleManager) callconv(.C) c_int;
+const UiGetLastActionFn = *const fn () callconv(.C) *const action_types.ModeAction;
+
+pub const RenderResult = union(enum) {
+    no_action,
+    action: action_types.ModeAction,
+    render_error,
+};
 
 pub const HotReloader = struct {
     lib: ?std.DynLib = null,
     ui_init: ?UiInitFn = null,
     ui_render: ?UiRenderFn = null,
+    ui_get_last_action: ?UiGetLastActionFn = null,
     last_mtime: i128 = 0,
     lib_path: [:0]const u8,
     plugin_getapi: *anyopaque,
@@ -38,7 +49,13 @@ pub const HotReloader = struct {
 
     /// Called each frame. Checks for file changes every 60 frames (~1 second)
     /// and reloads if needed. Then calls the UI render function.
-    pub fn render(self: *HotReloader, ctx: imgui.ContextPtr, win_flags: c_int) bool {
+    pub fn render(
+        self: *HotReloader,
+        ctx: imgui.ContextPtr,
+        win_flags: c_int,
+        globals: *Globals,
+        style_manager: *styles.StyleManager,
+    ) RenderResult {
         self.frame_counter += 1;
         if (self.frame_counter >= 60) {
             self.frame_counter = 0;
@@ -46,10 +63,21 @@ pub const HotReloader = struct {
         }
 
         if (self.ui_render) |render_fn| {
-            return render_fn(ctx, win_flags);
+            const result = render_fn(ctx, win_flags, globals, style_manager);
+            return switch (result) {
+                0 => .render_error,
+                1 => .no_action,
+                2 => {
+                    if (self.ui_get_last_action) |get_action| {
+                        return .{ .action = get_action().* };
+                    }
+                    return .no_action;
+                },
+                else => .no_action,
+            };
         }
 
-        return true;
+        return .no_action;
     }
 
     fn checkAndReload(self: *HotReloader) void {
@@ -92,6 +120,12 @@ pub const HotReloader = struct {
             return;
         };
 
+        const get_action_fn = lib.lookup(UiGetLastActionFn, "ui_get_last_action") orelse {
+            log.err("UI lib missing ui_get_last_action symbol", .{});
+            lib.close();
+            return;
+        };
+
         // Because the UI lib needs to resolve ImGui function pointers after
         // each load, we call ui_init with the plugin_getapi function.
         if (!init_fn(self.plugin_getapi)) {
@@ -103,6 +137,7 @@ pub const HotReloader = struct {
         self.lib = lib;
         self.ui_init = init_fn;
         self.ui_render = render_fn;
+        self.ui_get_last_action = get_action_fn;
         log.info("UI lib loaded successfully (reload #{d})", .{self.reload_counter});
     }
 
@@ -147,6 +182,7 @@ pub const HotReloader = struct {
         self.lib = null;
         self.ui_init = null;
         self.ui_render = null;
+        self.ui_get_last_action = null;
     }
 
     fn getFileMtime(path: [:0]const u8) ?i128 {

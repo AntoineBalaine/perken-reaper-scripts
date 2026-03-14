@@ -1,21 +1,40 @@
 const imgui = @import("reaper_imgui.zig");
+const gui_lib = @import("gui_lib.zig");
+const Globals = @import("globals.zig").Globals;
+const styles = @import("styles.zig");
+const action_types = @import("action_types.zig");
 
-/// Called by the host after loading/reloading the dylib so that the UI lib
-/// can resolve all ImGui function pointers.
+// Because we return a ModeAction pointer across the C ABI boundary, we
+// need a static location to store the value between frames.
+var last_action: action_types.ModeAction = undefined;
+
 export fn ui_init(plugin_getapi_opaque: *anyopaque) callconv(.C) bool {
     const plugin_getapi: *fn ([*:0]const u8) callconv(.C) ?*anyopaque = @ptrCast(@alignCast(plugin_getapi_opaque));
     imgui.init(plugin_getapi) catch return false;
     return true;
 }
 
-/// Called by the host each frame. Renders a dummy UI to prove the mechanism.
-/// Returns true if the window is still open, false if the user closed it.
-export fn ui_render(ctx: imgui.ContextPtr, win_flags: c_int) callconv(.C) bool {
-    _ = imgui.Begin(.{ ctx, "Hot-Reload POC", null, win_flags }) catch return false;
-    defer imgui.End(.{ctx}) catch {};
+// Return codes:
+// 0 = render error (window closed or ImGui error)
+// 1 = rendered, no action
+// 2 = rendered, action available in last_action
+export fn ui_render(
+    ctx: imgui.ContextPtr,
+    win_flags: c_int,
+    globals: *Globals,
+    style_manager: *styles.StyleManager,
+) callconv(.C) c_int {
+    if (gui_lib.main(ctx, globals, win_flags, style_manager)) |maybe_action| {
+        if (maybe_action) |action| {
+            last_action = action;
+            return 2;
+        }
+        return 1;
+    } else |_| {
+        return 0;
+    }
+}
 
-    imgui.Text(.{ ctx, "RELOAD v2 -- if you see this, hot reload is working" }) catch {};
-    imgui.Text(.{ ctx, "The dylib was reloaded without restarting REAPER." }) catch {};
-
-    return true;
+export fn ui_get_last_action() callconv(.C) *const action_types.ModeAction {
+    return &last_action;
 }

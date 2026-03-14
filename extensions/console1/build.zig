@@ -1,9 +1,9 @@
 //! Run with
 //! zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_c1.so hello_world.zig -lc
 //! or use
-//! zig build -Dtest=true --prefix "$HOME/.config/REAPER/UserPlugins" && reaper new
+//! zig build -Dtest=true --prefix "$HOME/.config/REAPER/UserPlugins" && zig build ui --prefix "$HOME/.config/REAPER/UserPlugins"
 //! or on MacOS:
-//! zig build -Dtest=true --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
+//! zig build -Dtest=true --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && zig build ui --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
 const std = @import("std");
 const tests = @import("build_tests.zig");
 pub const Dependencies = struct {
@@ -136,6 +136,14 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     ui_lib.linkLibC();
+    ui_lib.root_module.addImport("ini", ini.module("ini"));
+    ui_lib.root_module.addOptions("config", options);
+    // Because the transitive import graph pulls in files that use @cImport
+    // for REAPER/WDL C headers, we need the include paths even though the
+    // UI lib never calls those C functions.
+    ui_lib.addIncludePath(b.path("./src/"));
+    ui_lib.addIncludePath(wdl_dep.path(""));
+    ui_lib.addIncludePath(reaper_sdk_dep.path(""));
 
     const ui_dest = if (target.result.os.tag == .macos)
         "reaper_c1_ui.dylib"

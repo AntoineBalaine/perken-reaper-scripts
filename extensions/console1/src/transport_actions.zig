@@ -9,14 +9,8 @@ const track_list_actions = @import("tracklist_actions.zig");
 const RprCmds = @import("reaper_cmds.zig");
 const Globals = @import("globals.zig").Globals;
 
-pub const AutomationMode = enum(c_int) {
-    trim,
-    read,
-    touch,
-    latch,
-    preview,
-    write,
-};
+pub const AutomationMode = @import("action_types.zig").AutomationMode;
+pub const TransportAction = @import("action_types.zig").TransportAction;
 
 pub const TransportState = struct {
     jog: u8 = 64,
@@ -27,28 +21,6 @@ pub const TransportState = struct {
     rate: u8 = 64,
     tr_sel: u8 = 0,
     grid: u8 = 0,
-};
-
-pub const TransportAction = union(enum) {
-    automation_mode: AutomationMode,
-    grid: u8,
-    snap_tgl,
-    jog: u8,
-    jog_item: u8,
-    jog_marker: u8,
-    loop_end,
-    loop_start,
-    loop_toggle,
-    marker_set,
-    play,
-    rate: u8,
-    rec,
-    rec_arm,
-    scrub: u8,
-    stop,
-    tr_sel: u8,
-    zoom_horizontal: u8,
-    zoom_vertical: u8,
 };
 
 pub fn transportAction(globals: *Globals, action: TransportAction) void {
