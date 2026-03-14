@@ -450,25 +450,27 @@ fn settingsStatefulTest(_: void, input: []const u8) !void {
     var cancelCmd = CancelCmd{};
     var toggleCmd = ToggleCmd{};
 
-    // ScrollCmd instances with different encoder positions
-    var scroll_low = ScrollCmd{ .new_pos = 10 };
-    var scroll_mid = ScrollCmd{ .new_pos = 64 };
-    var scroll_high = ScrollCmd{ .new_pos = 120 };
+    // ScrollCmd instances with randomized encoder positions. Because FinitePrng
+    // can run out of entropy (e.g., when called via std.testing.fuzz with empty input),
+    // we return early if we cannot generate the command parameters.
+    var scroll_a = ScrollCmd{ .new_pos = random.int(u8) catch return };
+    var scroll_b = ScrollCmd{ .new_pos = random.int(u8) catch return };
+    var scroll_c = ScrollCmd{ .new_pos = random.int(u8) catch return };
 
-    // UpdateValCmd instances for boolean fields (true and false variants for coverage)
-    var update_show_startup_t = UpdateValCmd{ .field = .show_startup_message, .value = .{ .bool_val = true } };
-    var update_show_startup_f = UpdateValCmd{ .field = .show_startup_message, .value = .{ .bool_val = false } };
-    var update_show_feedback_t = UpdateValCmd{ .field = .show_feedback_window, .value = .{ .bool_val = true } };
-    var update_show_plugin_t = UpdateValCmd{ .field = .show_plugin_ui, .value = .{ .bool_val = true } };
-    var update_manual_routing_t = UpdateValCmd{ .field = .manual_routing, .value = .{ .bool_val = true } };
-    var update_log_to_file_f = UpdateValCmd{ .field = .log_to_file, .value = .{ .bool_val = false } };
-    var update_start_suspended_t = UpdateValCmd{ .field = .start_suspended, .value = .{ .bool_val = true } };
-    var update_auto_insert_t = UpdateValCmd{ .field = .auto_insert_modules, .value = .{ .bool_val = true } };
-    var update_auto_insert_bp_f = UpdateValCmd{ .field = .auto_insert_bypassed, .value = .{ .bool_val = false } };
-    var update_auto_reorder_t = UpdateValCmd{ .field = .auto_reorder_modules, .value = .{ .bool_val = true } };
+    // UpdateValCmd instances for boolean fields with randomized values
+    var update_show_startup = UpdateValCmd{ .field = .show_startup_message, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_show_startup_2 = UpdateValCmd{ .field = .show_startup_message, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_show_feedback = UpdateValCmd{ .field = .show_feedback_window, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_show_plugin = UpdateValCmd{ .field = .show_plugin_ui, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_manual_routing = UpdateValCmd{ .field = .manual_routing, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_log_to_file = UpdateValCmd{ .field = .log_to_file, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_start_suspended = UpdateValCmd{ .field = .start_suspended, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_auto_insert = UpdateValCmd{ .field = .auto_insert_modules, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_auto_insert_bp = UpdateValCmd{ .field = .auto_insert_bypassed, .value = .{ .bool_val = random.boolean() catch return } };
+    var update_auto_reorder = UpdateValCmd{ .field = .auto_reorder_modules, .value = .{ .bool_val = random.boolean() catch return } };
 
-    // UpdateValCmd instance for enum field
-    var update_module_order = UpdateValCmd{ .field = .preferred_module_order, .value = .{ .enum_val = .@"S-C-EQ" } };
+    // UpdateValCmd instance for enum field with randomized value
+    var update_module_order = UpdateValCmd{ .field = .preferred_module_order, .value = .{ .enum_val = random.enumValue(ModulesOrder) catch return } };
 
     // Create commands array
     const commands = [_]Command(Model, System){
@@ -476,19 +478,19 @@ fn settingsStatefulTest(_: void, input: []const u8) !void {
         Command(Model, System).init(&saveCmd),
         Command(Model, System).init(&cancelCmd),
         Command(Model, System).init(&toggleCmd),
-        Command(Model, System).init(&scroll_low),
-        Command(Model, System).init(&scroll_mid),
-        Command(Model, System).init(&scroll_high),
-        Command(Model, System).init(&update_show_startup_t),
-        Command(Model, System).init(&update_show_startup_f),
-        Command(Model, System).init(&update_show_feedback_t),
-        Command(Model, System).init(&update_show_plugin_t),
-        Command(Model, System).init(&update_manual_routing_t),
-        Command(Model, System).init(&update_log_to_file_f),
-        Command(Model, System).init(&update_start_suspended_t),
-        Command(Model, System).init(&update_auto_insert_t),
-        Command(Model, System).init(&update_auto_insert_bp_f),
-        Command(Model, System).init(&update_auto_reorder_t),
+        Command(Model, System).init(&scroll_a),
+        Command(Model, System).init(&scroll_b),
+        Command(Model, System).init(&scroll_c),
+        Command(Model, System).init(&update_show_startup),
+        Command(Model, System).init(&update_show_startup_2),
+        Command(Model, System).init(&update_show_feedback),
+        Command(Model, System).init(&update_show_plugin),
+        Command(Model, System).init(&update_manual_routing),
+        Command(Model, System).init(&update_log_to_file),
+        Command(Model, System).init(&update_start_suspended),
+        Command(Model, System).init(&update_auto_insert),
+        Command(Model, System).init(&update_auto_insert_bp),
+        Command(Model, System).init(&update_auto_reorder),
         Command(Model, System).init(&update_module_order),
     };
 
