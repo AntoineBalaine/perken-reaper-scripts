@@ -93,6 +93,65 @@ pub fn calculateNewScrollPosition(
     return delta;
 }
 
+/// Converts a CC value (0-127) to a normalized play rate (0.0-1.0), where
+/// CC=64 maps to normalized=0.2 (1.0x playback rate). The lower half of
+/// the knob (0-64) covers rates 0.25x-1.0x, and the upper half (64-127)
+/// covers rates 1.0x-4.0x.
+pub fn ccToNormalizedRate(cc: u8) f64 {
+    const cc_f: f64 = @floatFromInt(cc);
+    if (cc <= 64) {
+        return (cc_f / 64.0) * 0.2;
+    } else {
+        return 0.2 + ((cc_f - 64.0) / 63.0) * 0.8;
+    }
+}
+
+/// Converts a normalized play rate (0.0-1.0) back to a CC value (0-127),
+/// the inverse of ccToNormalizedRate.
+pub fn normalizedRateToCC(normalized: f64) u8 {
+    const clamped = if (normalized < 0.0) 0.0 else if (normalized > 1.0) 1.0 else normalized;
+    if (clamped <= 0.2) {
+        const val = clamped / 0.2 * 64.0;
+        return @intFromFloat(@round(val));
+    } else {
+        const val = 64.0 + (clamped - 0.2) / 0.8 * 63.0;
+        return @intFromFloat(@round(val));
+    }
+}
+
+test "ccToNormalizedRate" {
+    const testing = std.testing;
+    const tolerance = 0.001;
+    try testing.expectApproxEqAbs(@as(f64, 0.0), ccToNormalizedRate(0), tolerance);
+    try testing.expectApproxEqAbs(@as(f64, 0.1), ccToNormalizedRate(32), tolerance);
+    try testing.expectApproxEqAbs(@as(f64, 0.2), ccToNormalizedRate(64), tolerance);
+    try testing.expectApproxEqAbs(@as(f64, 0.606), ccToNormalizedRate(96), 0.01);
+    try testing.expectApproxEqAbs(@as(f64, 1.0), ccToNormalizedRate(127), tolerance);
+}
+
+test "normalizedRateToCC" {
+    const testing = std.testing;
+    try testing.expectEqual(@as(u8, 0), normalizedRateToCC(0.0));
+    try testing.expectEqual(@as(u8, 32), normalizedRateToCC(0.1));
+    try testing.expectEqual(@as(u8, 64), normalizedRateToCC(0.2));
+    try testing.expectEqual(@as(u8, 127), normalizedRateToCC(1.0));
+    // Clamping: values outside 0-1 are clamped
+    try testing.expectEqual(@as(u8, 0), normalizedRateToCC(-0.5));
+    try testing.expectEqual(@as(u8, 127), normalizedRateToCC(1.5));
+}
+
+test "ccToNormalizedRate round-trip" {
+    // For every CC value, converting to normalized and back should return
+    // the original CC value.
+    for (0..128) |i| {
+        const cc: u8 = @intCast(i);
+        const normalized = ccToNormalizedRate(cc);
+        std.debug.assert(normalized >= 0.0 and normalized <= 1.0);
+        const roundtrip = normalizedRateToCC(normalized);
+        try std.testing.expectEqual(cc, roundtrip);
+    }
+}
+
 pub const Guid = struct {
     bytes: [16]u8,
 

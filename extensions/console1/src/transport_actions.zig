@@ -201,24 +201,12 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
         .marker_set => pReaper.Main_OnCommand(.{ RprCmds.ID_INSERT_MARKER, 0 }),
         .play => pReaper.CSurf_OnPlay(.{}),
         .rate => |new_pos| {
-            var pos_rel: u8 = globals.state.transport.rate;
-            if (utils.calculateNewScrollPosition(i16, &globals.state.transport.rate, &pos_rel, new_pos, 127, null)) |delta| {
-                globals.state.transport.rate = pos_rel;
-                const norm_rate: f64 = reaper.Master_NormalizePlayRate(reaper.Master_GetPlayRate(0), false);
-
-                const ROTARY_STEP: f64 = 1.0 / 1024.0;
-                const new_norm = norm_rate + (ROTARY_STEP * 2.0 * @as(f64, @floatFromInt(delta)));
-
-                const new_rate = reaper.Master_NormalizePlayRate(new_norm, true);
-                pReaper.CSurf_OnPlayRateChange(.{new_rate});
-
-                // Send MIDI feedback if wrapped
-                if (new_pos != globals.state.transport.rate) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Drive, .value = globals.state.transport.rate } } });
-                }
-
-                log.debug("Transport rate: abs={d} delta={d} rate={d}", .{ globals.state.transport.rate, delta, new_rate });
-            }
+            globals.state.transport.rate = new_pos;
+            const normalized = utils.ccToNormalizedRate(new_pos);
+            const new_rate = reaper.Master_NormalizePlayRate(normalized, true);
+            pReaper.CSurf_OnPlayRateChange(.{new_rate});
+            actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_HiCut, .value = new_pos } } });
+            log.debug("Transport rate: cc={d} norm={d} rate={d}", .{ new_pos, normalized, new_rate });
         },
         .rec => pReaper.CSurf_OnRecord(.{}),
         .rec_arm => {
