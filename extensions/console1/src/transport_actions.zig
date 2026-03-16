@@ -40,7 +40,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
 
                 // Send MIDI feedback if wrapped
                 if (new_pos != globals.state.transport.grid) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Comp_Release, .value = globals.state.transport.grid } } });
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = globals.state.transport.grid } } });
                 }
 
                 log.debug("Transport grid: abs={d} delta={d}", .{ globals.state.transport.grid, delta });
@@ -180,7 +180,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                 globals.state.transport.zoom_horizontal = pos_rel;
                 pReaper.CSurf_OnZoom(.{ delta, 0 }); // horizontal zoom
                 if (new_pos != globals.state.transport.zoom_horizontal) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_LoCut, .value = globals.state.transport.zoom_horizontal } } });
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Drive, .value = globals.state.transport.zoom_horizontal } } });
                 }
             }
         },
@@ -191,7 +191,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                 globals.state.transport.zoom_vertical = pos_rel;
                 pReaper.CSurf_OnZoom(.{ 0, delta }); // vertical zoom
                 if (new_pos != globals.state.transport.zoom_vertical) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Inpt_HiCut, .value = globals.state.transport.zoom_vertical } } });
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_DriveChar, .value = globals.state.transport.zoom_vertical } } });
                 }
             }
         },
