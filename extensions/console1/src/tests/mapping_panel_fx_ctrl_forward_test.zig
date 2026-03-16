@@ -3,13 +3,7 @@ const testing = std.testing;
 
 const Globals = @import("../globals.zig");
 const statemachine = @import("../statemachine.zig");
-const Mode = statemachine.Mode;
 const ModuleMappings = statemachine.ModuleMappings;
-const actions = @import("../actions.zig");
-const midi_events = @import("../csurf/midi_events.zig");
-const csurf_actions = @import("../csurf_actions.zig");
-const c1 = @import("../c1.zig");
-const pReaper = @import("../pReaper.zig");
 const mappings = @import("../mappings.zig");
 
 // Test helper to set up a minimal Globals instance

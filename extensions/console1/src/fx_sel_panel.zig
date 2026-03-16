@@ -1,6 +1,5 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
-const Theme = @import("theme/Theme.zig");
 const fx_parser = @import("fx_parser.zig");
 const styles = @import("styles.zig");
 const PushWindowStyle = @import("styles_components.zig").PushStyle;
@@ -9,7 +8,6 @@ const fx_sel_actions = @import("fx_sel_actions.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
 const ui_helpers = @import("ui_helpers.zig");
-const globals = @import("globals.zig");
 
 pub const NAME: [:0]const u8 = "Fx Browser";
 /// last used fx name

@@ -9,7 +9,6 @@ const mapping_actions = @import("mapping_actions.zig");
 const module_selection_panel = @import("module_selection_panel.zig");
 const mapping_panel = @import("mapping_panel.zig");
 const save_preset_dialog = @import("save_preset_dialog.zig");
-const statemachine = @import("statemachine.zig");
 
 /// Draws the wrapper mapping panel window that consolidates all three sub-mode panels.
 /// Because we need a single window for all sub-modes, we route to the appropriate panel

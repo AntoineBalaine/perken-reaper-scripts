@@ -3,9 +3,7 @@ const testing = std.testing;
 
 const Globals = @import("../globals.zig");
 const statemachine = @import("../statemachine.zig");
-const Mode = statemachine.Mode;
 const actions = @import("../actions.zig");
-const csurf_actions = @import("../csurf_actions.zig");
 
 fn setupGlobals(allocator: std.mem.Allocator) !Globals {
     var g = try Globals.defaults(allocator);

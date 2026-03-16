@@ -3,7 +3,6 @@ const testing = std.testing;
 const MapStore = @import("../mappings.zig");
 const settings = @import("../settings.zig");
 const TaggedMapping = MapStore.TaggedMapping;
-const ModulesList = @import("../statemachine.zig").ModulesList;
 const mapping_browser = @import("../mapping_browser.zig");
 const getTestConfigPath = @import("track_validation_pbt.zig").getTestConfigPath;
 
