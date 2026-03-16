@@ -1042,11 +1042,12 @@ fn insertModuleLinkedFx(
     const fx_name = default_fx.get(module) orelse return null;
 
     // Insert FX at position
+    const instantiate_arg = if (insert_pos >= 0) -1000 - insert_pos else insert_pos;
     const add_result = pReaper.TrackFX_AddByName(.{
         mediaTrack,
         fx_name,
         false,
-        if (insert_pos >= 0) -1000 - insert_pos else insert_pos,
+        instantiate_arg,
     });
 
     if (add_result >= 0) {

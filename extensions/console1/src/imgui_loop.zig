@@ -58,7 +58,8 @@ fn buildUiLibPath() void {
 }
 
 pub fn register() void {
-    if (comptime builtin.is_test) {
+    const debugconfig = @import("config");
+    if (comptime builtin.is_test or debugconfig.@"test") {
         return;
     }
     if (isImGuiAvailable()) {
@@ -69,7 +70,8 @@ pub fn register() void {
 }
 
 pub fn reset() void {
-    if (comptime builtin.is_test) {
+    const debugconfig = @import("config");
+    if (comptime builtin.is_test or debugconfig.@"test") {
         return;
     }
     if (ctx) |context| {

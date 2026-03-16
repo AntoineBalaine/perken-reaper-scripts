@@ -50,9 +50,17 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         log.err("couldn’t create midi out", .{});
     }
 
-    // If MIDI devices are successfully created, switch to fx_ctrl mode
+    // If MIDI devices are successfully created, switch to fx_ctrl mode.
+    // In headless/test builds, we allow entering fx_ctrl without MIDI
+    // so that track validation and FX insertion codepaths can be exercised.
+    const debugconfig = @import("config");
     if (globals.m_midi_in != null and globals.m_midi_out != null) {
         log.debug("MIDI devices connected", .{});
+        if (globals.state.current_mode == .suspended) {
+            actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
+        }
+    } else if (debugconfig.@"test") {
+        log.warn("MIDI not available, entering fx_ctrl anyway (test mode)", .{});
         if (globals.state.current_mode == .suspended) {
             actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
         }

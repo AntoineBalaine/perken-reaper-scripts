@@ -65,8 +65,15 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         return 0;
     };
 
-    // _ = reaper.plugin_register("csurf_inst", myCsurf.?);
-    _ = reaper.plugin_register("csurf", @ptrCast(@constCast(&control_surface.c1_reg)));
+    // In test mode, register a control surface instance directly so that
+    // csurf callbacks fire without needing a valid reaper.ini csurf config.
+    const debugconfig = @import("config");
+    if (debugconfig.@"test") {
+        const csurf_inst = control_surface.init(-1, -1, null);
+        _ = reaper.plugin_register("csurf_inst", @ptrCast(csurf_inst));
+    } else {
+        _ = reaper.plugin_register("csurf", @ptrCast(@constCast(&control_surface.c1_reg)));
+    }
 
     // Register toggle actions
     _ = reaper.plugin_register("hookcommand2", @ptrCast(@constCast(&hooks.onCommand)));
