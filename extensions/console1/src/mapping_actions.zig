@@ -221,11 +221,15 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             // phase, we guard on both the phase and having a captured CC.
             if (assign.midi_learn == .listening_param) {
                 if (assign.selected_control) |control| {
-                    log.debug("MIDI learn complete: {s} -> param {d}", .{ @tagName(control), param_index });
-                    mappingPanelActions(globals, .{ .assign_add_mapping = .{
-                        .param = @intCast(param_index),
-                        .control = control,
-                    } });
+                    if (param_index > std.math.maxInt(u16)) {
+                        log.warn("Parameter index {d} exceeds u16 range, skipping assignment", .{param_index});
+                    } else {
+                        log.debug("MIDI learn complete: {s} -> param {d}", .{ @tagName(control), param_index });
+                        mappingPanelActions(globals, .{ .assign_add_mapping = .{
+                            .param = @intCast(param_index),
+                            .control = control,
+                        } });
+                    }
                     assign.selected_control = null;
                     assign.midi_learn = .idle;
                 }
