@@ -11,6 +11,7 @@ const statemachine = @import("../statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const Mode = statemachine.Mode;
 const fx_sel_actions = @import("../fx_sel_actions.zig");
+const FxSelActions = fx_sel_actions.FxSelActions;
 const reaper = @import("../reaper.zig").reaper;
 const test_setup = @import("mode_switch_tests.zig").test_setup;
 

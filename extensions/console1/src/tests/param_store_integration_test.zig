@@ -5,6 +5,7 @@ const ParamStore = @import("../statemachine.zig").ParamStore;
 const FX = @import("../models/models.zig").FX;
 const Param = @import("../models/models.zig").Param;
 const reaper = @import("../reaper.zig").reaper;
+const utils = @import("../utils.zig");
 
 fn createTestFX(allocator: std.mem.Allocator, param_names: []const [:0]const u8) !FX {
     var params = try allocator.alloc(Param, param_names.len);

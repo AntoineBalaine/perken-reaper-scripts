@@ -3,16 +3,21 @@ const testing = std.testing;
 const zlowcheck = @import("zlowcheck");
 const Command = zlowcheck.Command;
 const CommandList = zlowcheck.CommandList;
+const StatefulConfig = zlowcheck.StatefulConfig;
 const FinitePrng = zlowcheck.FinitePrng;
 const assertStateful = zlowcheck.assertStateful;
 
 const Preferences = @import("../settings.zig");
 const SettingsPanel = @import("../settings_panel.zig");
+const SettingsActions = @import("../settings_actions.zig").SettingsActions;
 const settingsActions = @import("../settings_actions.zig").settingsActions;
 const Globals = @import("../globals.zig").Globals;
+const Mode = @import("../statemachine.zig").Mode;
+const ModulesList = @import("../statemachine.zig").ModulesList;
 const ModulesOrder = @import("../fx_ctrl_state.zig").ModulesOrder;
 const test_setup = @import("mode_switch_tests.zig").test_setup;
 const reaper = @import("../reaper.zig").reaper;
+const getTestConfigPath = @import("track_validation_pbt.zig").getTestConfigPath;
 
 // Model tracks the expected state of settings
 const Model = struct {

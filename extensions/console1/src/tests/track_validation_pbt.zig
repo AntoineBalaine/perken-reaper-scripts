@@ -9,12 +9,15 @@ const assertStateful = zlowcheck.assertStateful;
 const pReaper = @import("../pReaper.zig");
 
 const models = @import("../models/models.zig");
+const test_helpers = @import("mode_switch_tests.zig");
 const TrackState = @import("../track_state.zig");
 const reaper = @import("../reaper.zig").reaper;
 const DefaultFx = @import("../settings.zig").DefaultFx;
 const Preferences = @import("../settings.zig").Preferences;
 const ModulesList = @import("../statemachine.zig").ModulesList;
+const ModulesOrder = @import("../fx_ctrl_state.zig").ModulesOrder;
 const MapStore = @import("../mappings.zig");
+const Guid = @import("../utils.zig").Guid;
 
 /// used in tests
 fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
@@ -161,6 +164,113 @@ const AddFxCmd = struct {
             .COMP => "C",
             .OUTPT => "O",
         };
+    }
+};
+
+const RemoveFxCmd = struct {
+    fx_index: usize,
+
+    pub const name = "RemoveFx";
+
+    pub fn checkPrecondition(self: *@This(), model: *Model) bool {
+        return self.fx_index < model.fx_chain.items.len;
+    }
+
+    pub fn onModelOnly(self: *@This(), model: *Model) void {
+        if (self.fx_index >= model.fx_chain.items.len) return;
+
+        const entry = model.fx_chain.orderedRemove(self.fx_index);
+        model.allocator.free(entry.original_name);
+        if (entry.original_name.ptr != entry.renamed_name.ptr) {
+            model.allocator.free(entry.renamed_name);
+        }
+    }
+
+    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
+        const media_track: reaper.MediaTrack = @ptrCast(sut.track);
+
+        // Remove from system by removing from fx_list
+        // Note: There's no TrackFX_Delete in mock yet, so we manipulate directly
+        if (self.fx_index >= sut.track.fx_list.items.len) return false;
+
+        var removed_fx = sut.track.fx_list.orderedRemove(self.fx_index);
+        removed_fx.deinit(sut.session.gpa);
+
+        // Update model
+        self.onModelOnly(model);
+
+        // Verify counts match
+        const system_fx_count = reaper.TrackFX_GetCount(media_track);
+        return system_fx_count == model.fx_chain.items.len;
+    }
+};
+
+const RenameFxCmd = struct {
+    fx_index: usize,
+    new_name: []const u8,
+
+    pub const name = "RenameFx";
+
+    pub fn checkPrecondition(self: *@This(), model: *Model) bool {
+        return self.fx_index < model.fx_chain.items.len;
+    }
+
+    pub fn onModelOnly(self: *@This(), model: *Model) void {
+        if (self.fx_index >= model.fx_chain.items.len) return;
+
+        const entry = &model.fx_chain.items[self.fx_index];
+
+        // Free old renamed_name if different from original
+        if (entry.original_name.ptr != entry.renamed_name.ptr) {
+            model.allocator.free(entry.renamed_name);
+        }
+
+        entry.renamed_name = model.allocator.dupe(u8, self.new_name) catch return;
+    }
+
+    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
+        const media_track: reaper.MediaTrack = @ptrCast(sut.track);
+
+        // Rename in system
+        const new_name_z = testing.allocator.dupeZ(u8, self.new_name) catch return false;
+        defer testing.allocator.free(new_name_z);
+
+        _ = reaper.TrackFX_SetNamedConfigParm(media_track, @intCast(self.fx_index), "renamed_name", new_name_z.ptr);
+
+        // Update model
+        self.onModelOnly(model);
+
+        // Verify rename worked
+        var buf: [512:0]u8 = undefined;
+        _ = reaper.TrackFX_GetNamedConfigParm(media_track, @intCast(self.fx_index), "renamed_name", &buf, buf.len);
+
+        return std.mem.eql(u8, self.new_name, std.mem.span(@as([*:0]const u8, &buf)));
+    }
+};
+
+const SetDefaultFxCmd = struct {
+    module: ModulesList,
+    fx_name: []const u8,
+
+    pub const name = "SetDefaultFx";
+
+    pub fn checkPrecondition(self: *@This(), model: *Model) bool {
+        _ = self;
+        _ = model;
+        // Can always change default FX
+        return true;
+    }
+
+    pub fn onModelOnly(self: *@This(), model: *Model) void {
+        model.default_fx.set(self.module, self.fx_name);
+    }
+
+    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
+        _ = sut;
+        // Update model
+        self.onModelOnly(model);
+        // Always succeeds
+        return true;
     }
 };
 

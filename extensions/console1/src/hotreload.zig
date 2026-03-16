@@ -1,13 +1,13 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
-const Globals = @import("globals.zig").Globals;
+const UiState = @import("ui_state.zig").UiState;
 const styles = @import("styles.zig");
 const action_types = @import("action_types.zig");
 
 const log = std.log.scoped(.hotreload);
 
 const UiInitFn = *const fn (*anyopaque) callconv(.C) bool;
-const UiRenderFn = *const fn (imgui.ContextPtr, c_int, *Globals, *styles.StyleManager) callconv(.C) c_int;
+const UiRenderFn = *const fn (imgui.ContextPtr, c_int, *UiState, *styles.StyleManager) callconv(.C) c_int;
 const UiGetLastActionFn = *const fn () callconv(.C) *const action_types.ModeAction;
 
 pub const RenderResult = union(enum) {
@@ -53,7 +53,7 @@ pub const HotReloader = struct {
         self: *HotReloader,
         ctx: imgui.ContextPtr,
         win_flags: c_int,
-        globals: *Globals,
+        globals: *UiState,
         style_manager: *styles.StyleManager,
     ) RenderResult {
         self.frame_counter += 1;

@@ -1,21 +1,17 @@
 const std = @import("std");
 const reaper = @import("reaper.zig").reaper;
 const ini = @import("ini");
-const FxType = enum {
-    VST,
-    VSTi,
-    VST3,
-    VST3i,
-    JS,
-    AU,
-    AUi,
-    CLAP,
-    CLAPi,
-    LV2,
-    LV2i,
-    Container,
-    VideoProcessor,
-};
+const types = @import("fx_parser_types.zig");
+
+pub const FxType = types.FxType;
+pub const FxList = types.FxList;
+pub const FxByType = types.FxByType;
+pub const FxTags = types.FxTags;
+pub const Directory = types.Directory;
+pub const DirectoryList = types.DirectoryList;
+const TagList = types.TagList;
+
+const PluginsList = std.StringArrayHashMapUnmanaged(FxType);
 
 /// Use this context to sort a string array hashmap
 const StrArrHshMpCtx = struct {
@@ -36,33 +32,11 @@ const SubdirsCtx = struct {
     }
 };
 
-/// FxBrowser-facing, sorted FX list
-const PluginsList = std.StringArrayHashMapUnmanaged(FxType);
-pub const FxList = std.StringArrayHashMapUnmanaged(void);
-/// List of categories that each contain a list of plugins
-const TagList = std.StringArrayHashMapUnmanaged(FxList);
-/// FxBrowser-facing, sorted plugin list, by type
-const FxByType = std.EnumArray(FxType, FxList);
-const FxTags = struct {
-    category: TagList,
-    developer: TagList,
-};
-
 pub var pluginList: PluginsList = undefined;
 pub var fx_tags: FxTags = undefined;
 pub var fx_chains: Directory = undefined;
 pub var track_templates: Directory = undefined;
 pub var pluginsByType: FxByType = undefined;
-
-/// used to parse fxChains and trackTemplates
-const DirectoryList = std.AutoArrayHashMapUnmanaged(c_int, Directory);
-/// used to parse fxChains and trackTemplates
-pub const Directory = struct {
-    path: [:0]const u8,
-    name: [:0]const u8,
-    subdirs: ?DirectoryList,
-    files: ?std.StringArrayHashMapUnmanaged(void),
-};
 ///sort plugins by type, such as {VST = {plugin1, plugin2}, JS = {plugin3}}
 fn toPluginsByType(allocator: std.mem.Allocator, plugin_list: PluginsList) !FxByType {
     var pluginsbytype: FxByType = FxByType.init(.{

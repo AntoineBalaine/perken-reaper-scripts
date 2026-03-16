@@ -7,6 +7,7 @@ const mapping_actions = @import("mapping_actions.zig");
 const MappingPanelAction = mapping_actions.MappingPanelAction;
 const TranslationStore = @import("translations.zig").TranslationStore;
 const log = std.log.scoped(.save_preset_dialog);
+const SaveState = @import("statemachine.zig").SaveState;
 
 /// Render the save preset dialog content.
 /// Because this is a pure function, it does not manage window opening/closing.

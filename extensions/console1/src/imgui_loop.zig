@@ -9,6 +9,8 @@ const actions = @import("actions.zig");
 const Theme = @import("theme/Theme.zig");
 const reapack = @import("reapack.zig");
 const HotReloader = @import("hotreload.zig").HotReloader;
+const UiState = @import("ui_state.zig").UiState;
+const fx_parser = @import("fx_parser.zig");
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";
@@ -124,8 +126,25 @@ fn onTimer() callconv(.C) void {
         .RackStyle = &styles.RackStyle,
         .MainWinStyle = &styles.MainWinStyle,
     };
+
+    var ui_state = UiState{
+        .state = &globals.state,
+        .translations = &globals.translations,
+        .drwls_splitter = &globals.drwls_splitter,
+        .mappings_list = &globals.mappings_list,
+        .settings_panel = if (globals.settings_panel) |*panel| panel else null,
+        .preferences = &globals.preferences,
+        .midi_connected = globals.m_midi_in != null,
+        .main_font = Theme.fonts.MAIN,
+        .icon_font = Theme.fonts.ICON_FONT_SMALL,
+        .fx_plugins_by_type = &fx_parser.pluginsByType,
+        .fx_chains = &fx_parser.fx_chains,
+        .track_templates = &fx_parser.track_templates,
+        .fx_tags = &fx_parser.fx_tags,
+    };
+
     if (hot_reloader) |*reloader| {
-        const result = reloader.render(ctx, win_flags, globals, &style_manager);
+        const result = reloader.render(ctx, win_flags, &ui_state, &style_manager);
         switch (result) {
             .action => |action| actions.dispatch(globals, action),
             .render_error => handleGuiError(error.WindowClosed),

@@ -1,4 +1,5 @@
 const std = @import("std");
+const c1 = @import("c1.zig");
 const statemachine = @import("statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const Globals = @import("globals.zig").Globals;

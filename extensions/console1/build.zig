@@ -137,13 +137,6 @@ pub fn build(b: *std.Build) !void {
     });
     ui_lib.linkLibC();
     ui_lib.root_module.addImport("ini", ini.module("ini"));
-    ui_lib.root_module.addOptions("config", options);
-    // Because the transitive import graph pulls in files that use @cImport
-    // for REAPER/WDL C headers, we need the include paths even though the
-    // UI lib never calls those C functions.
-    ui_lib.addIncludePath(b.path("./src/"));
-    ui_lib.addIncludePath(wdl_dep.path(""));
-    ui_lib.addIncludePath(reaper_sdk_dep.path(""));
 
     const ui_dest = if (target.result.os.tag == .macos)
         "reaper_c1_ui.dylib"

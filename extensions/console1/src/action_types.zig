@@ -54,6 +54,7 @@ pub const FxSelActions = union(enum) {
     track_template: struct { path: [:0]const u8 },
     plugin: struct { name: [:0]const u8, mapping_name: ?[:0]const u8 },
     close_browser: void,
+    rescan: void,
 };
 
 // Mapping Panel

@@ -12,6 +12,7 @@ const ModulesList = statemachine.ModulesList;
 const MappingPanelMode = statemachine.MappingPanelMode;
 const Mode = statemachine.Mode;
 const mapping_actions = @import("../mapping_actions.zig");
+const MappingPanelAction = mapping_actions.MappingPanelAction;
 const mappings = @import("../mappings.zig");
 const TaggedMapping = mappings.TaggedMapping;
 const c1 = @import("../c1.zig");

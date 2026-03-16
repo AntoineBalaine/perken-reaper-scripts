@@ -2,8 +2,8 @@ const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const Knobs = @import("components/knob.zig");
 const c1 = @import("c1.zig");
-const WidgetInput = @import("fx_ctrl_actions.zig").WidgetInput;
-const Globals = @import("globals.zig").Globals;
+const WidgetInput = @import("action_types.zig").WidgetInput;
+const UiState = @import("ui_state.zig").UiState;
 const widgets = @import("components/widgets.zig");
 const roundButton = widgets.roundButton;
 const vSeparator = widgets.vSeparator;
@@ -59,9 +59,9 @@ fn centerWidgetLabel(ctx: imgui.ContextPtr, label: [:0]const u8, max_width: f64)
 // Layout constants
 const KNOB_SIZE = 40.0;
 
-pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations: *TranslationStore) !?WidgetInput {
-    const mode: Mode = globals.state.current_mode;
-    const fx_state = &globals.state.fx_ctrl;
+pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !?WidgetInput {
+    const mode: Mode = ui.state.current_mode;
+    const fx_state = &ui.state.fx_ctrl;
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
     var label_buf: [128:0]u8 = undefined;
@@ -91,7 +91,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, globals: *Globals, translations
         rv = output_rv;
     }
 
-    if (globals.m_midi_in == null) {
+    if (!ui.midi_connected) {
         try imgui.SameLine(.{ctx});
         try imgui.TextColored(.{ ctx, 0xFF0000FF, tr(translations, .fx_ctrl_disconnected) });
     }

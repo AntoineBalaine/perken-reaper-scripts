@@ -108,6 +108,11 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         .close_browser => {
             dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
+        .rescan => {
+            const fxp = @import("fx_parser.zig");
+            fxp.deinit(globals.arena);
+            fxp.init(globals.arena) catch {};
+        },
         .toggle_module_browser => |module| {
             if (globals.state.current_mode == .fx_sel and module == globals.state.fx_sel.current_category) {
                 dispatch(globals, .{ .change_mode = .fx_ctrl });

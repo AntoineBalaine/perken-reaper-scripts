@@ -4,7 +4,7 @@ const styles = @import("styles.zig");
 const styles_components = @import("styles_components.zig");
 const logger = @import("logger.zig");
 const debug_panel = @import("debug_panel.zig");
-const Globals = @import("globals.zig").Globals;
+const UiState = @import("ui_state.zig").UiState;
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fx_sel_panel = @import("fx_sel_panel.zig");
@@ -14,15 +14,14 @@ const track_list_panel = @import("track_list_panel.zig");
 const c1 = @import("c1.zig");
 
 const plugin_name = "CONSOLE1";
-// In gui_lib.zig
+
 pub const GuiError = error{
     WindowClosed,
-    // ... other specific errors
 };
 
 pub fn main(
     ctx: imgui.ContextPtr,
-    globals: *Globals,
+    ui: *UiState,
     win_flags: c_int,
     style_manager: *styles.StyleManager,
 ) !?actions.ModeAction {
@@ -48,23 +47,23 @@ pub fn main(
         if (style_manager.main_style_open.*) {
             try styles_components.StyleEditor(ctx, .main, style_manager);
         }
-        switch (globals.state.current_mode) {
+        switch (ui.state.current_mode) {
             .fx_ctrl => {
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
                     rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } };
                 }
-                if (globals.preferences.show_track_list) {
+                if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager, &globals.translations)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_pg_up => rv = .{ .track_list = .{ .page_change = .up } },
                             .Tr_pg_dn => rv = .{ .track_list = .{ .page_change = .down } },
                             else => {
                                 const track_id = @intFromEnum(tr_cc) - @intFromEnum(c1.CCs.Tr_tr1);
-                                if (track_id < globals.state.fx_ctrl.track_list.name_count) {
-                                    const tr_id = globals.state.fx_ctrl.track_list.track_names[track_id].id;
+                                if (track_id < ui.state.fx_ctrl.track_list.name_count) {
+                                    const tr_id = ui.state.fx_ctrl.track_list.track_names[track_id].id;
                                     rv = .{ .track_list = .{ .track_select = tr_id } };
                                 }
                             },
@@ -73,8 +72,8 @@ pub fn main(
                 }
             },
             .settings => {
-                if (globals.settings_panel) |*panel| {
-                    if (try panel.draw(ctx, &globals.mappings_list, style_manager, &globals.translations)) |val| {
+                if (ui.settings_panel) |panel| {
+                    if (try panel.draw(ctx, ui.mappings_list, style_manager, ui.translations)) |val| {
                         switch (val) {
                             .val_update => |update| rv = .{ .settings = .{ .update_val = update } },
                             .close_save => rv = .{ .settings = .save },
@@ -84,8 +83,8 @@ pub fn main(
                 }
             },
             .default_fx_sel => {
-                if (globals.settings_panel) |*panel| {
-                    if (try panel.draw(ctx, &globals.mappings_list, style_manager, &globals.translations)) |val| {
+                if (ui.settings_panel) |panel| {
+                    if (try panel.draw(ctx, ui.mappings_list, style_manager, ui.translations)) |val| {
                         switch (val) {
                             .val_update => |update| rv = .{ .settings = .{ .update_val = update } },
                             .close_save => rv = .{ .settings = .save },
@@ -93,30 +92,31 @@ pub fn main(
                         }
                     }
                 }
-                const module = globals.state.default_fx_sel.current_category;
-                const list = globals.mappings_list.list.get(module);
+                const module = ui.state.default_fx_sel.current_category;
+                const list = ui.mappings_list.list.get(module);
                 if (try fx_sel_panel.ModulePopup(
                     ctx,
                     module,
                     list,
-                    &globals.mappings_list.strings,
-                    globals.state.default_fx_sel.scroll_position_rel,
+                    &ui.mappings_list.strings,
+                    ui.state.default_fx_sel.scroll_position_rel,
                     false,
-                    &globals.drwls_splitter,
+                    ui.drwls_splitter,
                     style_manager,
-                    &globals.translations,
+                    ui.translations,
+                    ui,
                 )) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }
             },
             .fx_sel => {
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
                     switch (ctrl_input.cc) {
                         .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
                         .Out_solo => {
-                            const mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
-                            const fx_offset = mappings.keys()[globals.state.fx_sel.scroll_position_rel];
-                            const fx_name = globals.mappings_list.strings.get(fx_offset);
+                            const mappings = ui.mappings_list.list.get(ui.state.fx_sel.current_category);
+                            const fx_offset = mappings.keys()[ui.state.fx_sel.scroll_position_rel];
+                            const fx_name = ui.mappings_list.strings.get(fx_offset);
                             rv = .{ .fx_sel = .{ .plugin = .{ .name = fx_name, .mapping_name = null } } };
                         },
                         .Out_mute => rv = .{ .fx_sel = .close_browser },
@@ -124,10 +124,10 @@ pub fn main(
                     }
                 }
 
-                if (globals.preferences.show_track_list) {
+                if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager, &globals.translations)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
                             .Tr_tr2 => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
@@ -139,33 +139,34 @@ pub fn main(
                     }
                 }
 
-                const module = globals.state.fx_sel.current_category;
-                const list = globals.mappings_list.list.get(module);
+                const module = ui.state.fx_sel.current_category;
+                const list = ui.mappings_list.list.get(module);
                 if (try fx_sel_panel.ModulePopup(
                     ctx,
                     module,
                     list,
-                    &globals.mappings_list.strings,
-                    globals.state.fx_sel.scroll_position_rel,
+                    &ui.mappings_list.strings,
+                    ui.state.fx_sel.scroll_position_rel,
                     true,
-                    &globals.drwls_splitter,
+                    ui.drwls_splitter,
                     style_manager,
-                    &globals.translations,
+                    ui.translations,
+                    ui,
                 )) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }
             },
             .mapping_panel => {
-                if (try mapping_panel_window.drawMappingPanelWindow(ctx, globals, &globals.drwls_splitter, style_manager, &globals.translations)) |map_action| {
+                if (try mapping_panel_window.drawMappingPanelWindow(ctx, ui, style_manager)) |map_action| {
                     rv = .{ .mapping_panel = map_action };
                 }
 
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
                     rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } };
                 }
             },
             .transport => {
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, globals, &globals.translations)) |ctrl_input| {
+                if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
                     const val: u8 = @intFromFloat(ctrl_input.value * 127.0);
                     switch (ctrl_input.cc) {
                         .Inpt_disp_mode => rv = .{ .change_mode = .fx_ctrl },
@@ -187,11 +188,11 @@ pub fn main(
                         else => {},
                     }
                 }
-                if (globals.preferences.show_track_list) {
+                if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, &globals.state, style_manager, &globals.translations)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5 => |cc_| {
                                 const module: ModulesList = switch (cc_) {
@@ -223,7 +224,7 @@ pub fn main(
     }
     // Add debug panel
     if (logger.debug_window_active) {
-        try debug_panel.drawDebugPanel(ctx, &globals.state);
+        try debug_panel.drawDebugPanel(ctx, ui.state);
     }
 
     if (!open)

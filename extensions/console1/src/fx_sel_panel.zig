@@ -1,21 +1,21 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
-const fx_parser = @import("fx_parser.zig");
+const Theme = @import("theme/Theme.zig");
+const fx_types = @import("fx_parser_types.zig");
 const styles = @import("styles.zig");
 const PushWindowStyle = @import("styles_components.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
-const fx_sel_actions = @import("fx_sel_actions.zig");
+const fx_sel_actions = @import("action_types.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
 const ui_helpers = @import("ui_helpers.zig");
+const UiState = @import("ui_state.zig").UiState;
 
 pub const NAME: [:0]const u8 = "Fx Browser";
 /// last used fx name
 var last_used_fx: ?[:0]const u8 = null;
 
-///Recursively draw the fx chains or track templates
-///pass the `isFxChain` boolean to distinguish between the two
-fn Directory(ctx: imgui.ContextPtr, directory: fx_parser.Directory, isFxChain: bool) !?fx_sel_actions.FxSelActions {
+fn Directory(ctx: imgui.ContextPtr, directory: fx_types.Directory, isFxChain: bool) !?fx_sel_actions.FxSelActions {
     var buf: [std.fs.max_path_bytes:0]u8 = undefined;
 
     var rv: ?fx_sel_actions.FxSelActions = null;
@@ -47,7 +47,7 @@ fn Directory(ctx: imgui.ContextPtr, directory: fx_parser.Directory, isFxChain: b
     return rv;
 }
 
-fn FxList(ctx: imgui.ContextPtr, menuName: [:0]const u8, fxList: fx_parser.FxList) !?fx_sel_actions.FxSelActions {
+fn FxList(ctx: imgui.ContextPtr, menuName: [:0]const u8, fxList: fx_types.FxList) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
     if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(menuName)), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
@@ -65,11 +65,11 @@ fn FxList(ctx: imgui.ContextPtr, menuName: [:0]const u8, fxList: fx_parser.FxLis
     return rv;
 }
 
-fn PluginsByType(ctx: imgui.ContextPtr, translations: *TranslationStore) !?fx_sel_actions.FxSelActions {
+fn PluginsByType(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
     if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(tr(translations, .fx_sel_all_plugins))), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
-        var iterator = fx_parser.pluginsByType.iterator();
+        var iterator = ui.fx_plugins_by_type.iterator();
         while (iterator.next()) |entry| {
             if (try FxList(ctx, @tagName(entry.key), entry.value.*)) |selection| {
                 rv = selection;
@@ -79,10 +79,10 @@ fn PluginsByType(ctx: imgui.ContextPtr, translations: *TranslationStore) !?fx_se
     return rv;
 }
 
-fn FxTags(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
+fn FxTags(ctx: imgui.ContextPtr, ui: *UiState) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
-    inline for (@typeInfo(@TypeOf(fx_parser.fx_tags)).@"struct".fields) |field| {
-        var tagList = @field(fx_parser.fx_tags, field.name);
+    inline for (@typeInfo(fx_types.FxTags).@"struct".fields) |field| {
+        var tagList = @field(ui.fx_tags.*, field.name);
         if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(field.name)), null })) {
             defer imgui.EndMenu(.{ctx}) catch {};
             var iterator = tagList.iterator();
@@ -97,31 +97,31 @@ fn FxTags(ctx: imgui.ContextPtr) !?fx_sel_actions.FxSelActions {
     return rv;
 }
 
-fn Menus(ctx: imgui.ContextPtr, translations: *TranslationStore) !?fx_sel_actions.FxSelActions {
+fn Menus(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !?fx_sel_actions.FxSelActions {
     const filteredFxCount = null;
-    if (filteredFxCount != null) return null; // don't display the component if there's some filtered fx
+    if (filteredFxCount != null) return null;
 
     var rv: ?fx_sel_actions.FxSelActions = null;
 
     if (try imgui.BeginMenu(.{ ctx, tr(translations, .fx_sel_fx_chains), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
-        if (try Directory(ctx, fx_parser.fx_chains, true)) |selection| {
+        if (try Directory(ctx, ui.fx_chains.*, true)) |selection| {
             rv = selection;
         }
     }
 
     if (try imgui.BeginMenu(.{ ctx, tr(translations, .fx_sel_track_templates), null })) {
         defer imgui.EndMenu(.{ctx}) catch {};
-        if (try Directory(ctx, fx_parser.track_templates, false)) |selection| {
+        if (try Directory(ctx, ui.track_templates.*, false)) |selection| {
             rv = selection;
         }
     }
 
-    if (try PluginsByType(ctx, translations)) |selection| {
+    if (try PluginsByType(ctx, ui, translations)) |selection| {
         rv = selection;
     }
 
-    if (try FxTags(ctx)) |selection| {
+    if (try FxTags(ctx, ui)) |selection| {
         rv = selection;
     }
 
@@ -137,25 +137,6 @@ fn Menus(ctx: imgui.ContextPtr, translations: *TranslationStore) !?fx_sel_action
     return rv;
 }
 
-var counter: ?u8 = null;
-
-fn RescanButton(ctx: imgui.ContextPtr, translations: *TranslationStore) !void {
-    if (try imgui.Button(.{ ctx, tr(translations, .fx_sel_rescan) })) {
-        fx_parser.deinit();
-        fx_parser.init();
-        counter = 0;
-    }
-
-    if (counter) |count| { // display «done» for 1 second
-        if (count == 60) {
-            count = null; // reset
-        } else {
-            count += 1;
-            try imgui.Text(.{ ctx, tr(translations, .fx_sel_done) });
-        }
-    }
-}
-
 pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
@@ -166,6 +147,7 @@ pub fn ModulePopup(
     g_drwls_splitter: *imgui.DrawListSplitterPtr,
     style_manager: *styles.StyleManager,
     translations: *TranslationStore,
+    ui: *UiState,
 ) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
 
@@ -186,7 +168,6 @@ pub fn ModulePopup(
             const fx_offset = entry.key_ptr.*;
             const mapping_offsets = entry.value_ptr.*;
 
-            // Get FX name from StringPool using offset
             const fx_name = strings.get(fx_offset);
             const is_selected = (i == current_index);
 
@@ -210,16 +191,13 @@ pub fn ModulePopup(
         }
 
         if (display_menus) {
-            // Separator between mapped and unmapped FX
             try imgui.Separator(.{ctx});
 
-            if (try Menus(ctx, translations)) |selection| {
+            if (try Menus(ctx, ui, translations)) |selection| {
                 rv = selection;
             }
 
-            // Optional: Add rescan button at bottom
             try imgui.Separator(.{ctx});
-            // try RescanButton(ctx, translations);
         }
     }
     if (!open) rv = .close_browser;

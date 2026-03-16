@@ -11,6 +11,7 @@ pub const Docker = struct {
 
 pub const WinStyle = enum { rack, main };
 
+const MAXCHAN: f64 = 128;
 pub const WIDTH_MIN: f64 = 150;
 pub const HEIGHT_MIN: f64 = 150;
 pub const WIDTH_MAX: f64 = 800;

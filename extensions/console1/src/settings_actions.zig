@@ -24,10 +24,15 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
         },
         .save => {
             if (globals.settings_panel) |*panel| {
-                panel.save(globals) catch {
-                    // disk write failed, but settings are still in memory
-                    log.err("save settings failed: {s}", .{@tagName(set_action)});
-                };
+                globals.preferences = panel.temp_settings;
+                if (!comptime @import("builtin").is_test) {
+                    globals.preferences.saveToDisk(globals.resource_path) catch {
+                        log.err("save settings to disk failed", .{});
+                    };
+                    if (panel.temp_settings.log_to_file != globals.preferences.log_to_file) {
+                        globals.updateLoggerState() catch {};
+                    }
+                }
                 globals.settings_panel = null;
             }
             dispatch(globals, .{ .change_mode = .fx_ctrl });

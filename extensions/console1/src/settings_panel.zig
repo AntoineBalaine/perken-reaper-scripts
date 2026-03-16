@@ -1,7 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui.zig");
 const Preferences = @import("settings.zig");
-const Globals = @import("globals.zig").Globals;
 const ModulesList = @import("statemachine.zig").ModulesList;
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const styles = @import("styles.zig");
@@ -312,21 +311,6 @@ pub fn draw(
         }
     }
     return rv;
-}
-
-/// Copy temp_settings to `globals.preferences`.
-///
-/// If the copy fails, just return without committing the changes.
-pub fn save(self: *@This(), globals: *Globals) !void {
-    // Just copy the values, including string slices
-    globals.preferences = self.temp_settings;
-    if (!comptime @import("builtin").is_test) {
-        try globals.preferences.saveToDisk(globals.resource_path);
-
-        if (self.temp_settings.log_to_file != globals.preferences.log_to_file) {
-            try globals.updateLoggerState();
-        }
-    }
 }
 
 test {

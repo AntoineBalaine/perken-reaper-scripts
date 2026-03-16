@@ -8,8 +8,11 @@ const assertStateful = zlowcheck.assertStateful;
 
 const Globals = @import("../globals.zig");
 const statemachine = @import("../statemachine.zig");
+const ModulesList = statemachine.ModulesList;
 const MidiLearnPhase = statemachine.MidiLearnPhase;
+const Mode = statemachine.Mode;
 const mapping_actions = @import("../mapping_actions.zig");
+const MappingPanelAction = mapping_actions.MappingPanelAction;
 const mappings = @import("../mappings.zig");
 const c1 = @import("../c1.zig");
 const CCs = c1.CCs;

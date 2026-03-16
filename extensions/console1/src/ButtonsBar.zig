@@ -2,7 +2,7 @@ const imgui = @import("reaper_imgui.zig");
 const Theme = @import("theme/Theme.zig");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");
-const actions = @import("actions.zig");
+const actions = @import("action_types.zig");
 
 pub const Result = struct {
     open: bool,
