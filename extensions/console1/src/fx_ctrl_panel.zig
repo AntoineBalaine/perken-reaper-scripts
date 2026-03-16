@@ -14,6 +14,7 @@ const TranslationKey = Translations.TranslationKey;
 const tr = @import("translations.zig").tr;
 const Mode = @import("statemachine.zig").Mode;
 const FxCtrlState = @import("fx_ctrl_state.zig").FxControlState;
+const TransportState = @import("action_types.zig").TransportState;
 
 /// Calculate the maximum width of a list of labels and calculate offsets
 /// The offsets buffer will be filled with (max_width - width) / 2 for each label
@@ -62,32 +63,33 @@ const KNOB_SIZE = 40.0;
 pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !?WidgetInput {
     const mode: Mode = ui.state.current_mode;
     const fx_state = &ui.state.fx_ctrl;
+    const transport = &ui.state.transport;
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
     var label_buf: [128:0]u8 = undefined;
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
-    if (try inputPanel(ctx, mode, fx_state, translations, &label_buf, &id_buf)) |input_rv| {
+    if (try inputPanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |input_rv| {
         rv = input_rv;
     }
     try sectional(ctx);
     // Gate Module
-    if (try gatePanel(ctx, mode, fx_state, translations, &label_buf, &id_buf)) |gate_rv| {
+    if (try gatePanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |gate_rv| {
         rv = gate_rv;
     }
     try sectional(ctx);
     // EQ Module
-    if (try eqPanel(ctx, mode, fx_state, translations, &label_buf, &id_buf)) |eq_rv| {
+    if (try eqPanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |eq_rv| {
         rv = eq_rv;
     }
     try sectional(ctx);
     // Compressor Module
-    if (try compPanel(ctx, mode, fx_state, translations, &label_buf, &id_buf)) |comp_rv| {
+    if (try compPanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |comp_rv| {
         rv = comp_rv;
     }
     try sectional(ctx);
     // Output Module
-    if (try outputPanel(ctx, mode, fx_state, translations, &label_buf, &id_buf)) |output_rv| {
+    if (try outputPanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |output_rv| {
         rv = output_rv;
     }
 
@@ -106,7 +108,7 @@ pub fn sectional(ctx: imgui.ContextPtr) !void {
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
 }
 
-fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -201,9 +203,12 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transla
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hicut_label_id.label, locut_label_id.label }, &offsets);
 
             // First knob
-            var hicut_prm = fx_state.values.get(.Inpt_HiCut).?.param;
-            if (try Knobs.drawWidget(ctx, &hicut_prm.normalized, hicut_label_id, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled }, max_width)) {
-                rv = .{ .cc = .Inpt_HiCut, .value = hicut_prm.normalized };
+            var hicut_val: f64 = if (mode == .transport)
+                @as(f64, @floatFromInt(transport.rate)) / 127.0
+            else
+                fx_state.values.get(.Inpt_HiCut).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &hicut_val, hicut_label_id, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled }, max_width)) {
+                rv = .{ .cc = .Inpt_HiCut, .value = hicut_val };
             }
 
             // Second knob
@@ -248,7 +253,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transla
     return rv;
 }
 
-fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -382,7 +387,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
     return rv;
 }
 
-fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -411,6 +416,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             const lo_shape = fx_state.values.get(.Eq_lp_shape).?.button;
             const lp_shape_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_lp_shape,
+                .transport => .trsprt_Eq_lp_shape,
                 else => null,
             };
             const lp_shape_label = if (lp_shape_key) |key| tr(translations, key) else null;
@@ -435,6 +441,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
 
             const logain_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_LoGain,
+                .transport => .trsprt_Eq_LoGain,
                 else => null,
             };
             const logain_label = if (logain_key) |key| tr(translations, key) else null;
@@ -455,9 +462,12 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             }
 
             // Second knob
-            var logain_prm = fx_state.values.get(.Eq_LoGain).?.param;
-            if (try Knobs.drawWidget(ctx, &logain_prm.normalized, logain_label_id, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled }, max_width)) {
-                rv = .{ .cc = .Eq_LoGain, .value = logain_prm.normalized };
+            var logain_val: f64 = if (mode == .transport)
+                0.5
+            else
+                fx_state.values.get(.Eq_LoGain).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &logain_val, logain_label_id, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled }, max_width)) {
+                rv = .{ .cc = .Eq_LoGain, .value = logain_val };
             }
         }
     }
@@ -496,6 +506,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
 
             const lomidgain_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_LoMidGain,
+                .transport => .trsprt_Eq_LoMidGain,
                 else => null,
             };
             const lomidgain_label = if (lomidgain_key) |key| tr(translations, key) else null;
@@ -522,9 +533,12 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             }
 
             // Third knob
-            var lomidgain_prm = fx_state.values.get(.Eq_LoMidGain).?.param;
-            if (try Knobs.drawWidget(ctx, &lomidgain_prm.normalized, lomidgain_label_id, .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled }, max_width)) {
-                rv = .{ .cc = .Eq_LoMidGain, .value = lomidgain_prm.normalized };
+            var lomidgain_val: f64 = if (mode == .transport)
+                @as(f64, @floatFromInt(transport.jog)) / 127.0
+            else
+                fx_state.values.get(.Eq_LoMidGain).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &lomidgain_val, lomidgain_label_id, .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled }, max_width)) {
+                rv = .{ .cc = .Eq_LoMidGain, .value = lomidgain_val };
             }
         }
     }
@@ -563,6 +577,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
 
             const himidgain_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_HiMidGain,
+                .transport => .trsprt_Eq_HiMidGain,
                 else => null,
             };
             const himidgain_label = if (himidgain_key) |key| tr(translations, key) else null;
@@ -589,9 +604,12 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             }
 
             // Third knob
-            var himidgain_prm = fx_state.values.get(.Eq_HiMidGain).?.param;
-            if (try Knobs.drawWidget(ctx, &himidgain_prm.normalized, himidgain_label_id, .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled }, max_width)) {
-                rv = .{ .cc = .Eq_HiMidGain, .value = himidgain_prm.normalized };
+            var himidgain_val: f64 = if (mode == .transport)
+                @as(f64, @floatFromInt(transport.jog_marker)) / 127.0
+            else
+                fx_state.values.get(.Eq_HiMidGain).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &himidgain_val, himidgain_label_id, .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled }, max_width)) {
+                rv = .{ .cc = .Eq_HiMidGain, .value = himidgain_val };
             }
         }
     }
@@ -607,6 +625,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             const hi_shape = fx_state.values.get(.Eq_hp_shape).?.button;
             const hp_shape_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_hp_shape,
+                .transport => .trsprt_Eq_hp_shape,
                 else => null,
             };
             const hp_shape_label = if (hp_shape_key) |key| tr(translations, key) else null;
@@ -631,6 +650,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
 
             const higain_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_HiGain,
+                .transport => .trsprt_Eq_HiGain,
                 else => null,
             };
             const higain_label = if (higain_key) |key| tr(translations, key) else null;
@@ -651,9 +671,12 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
             }
 
             // Second knob
-            var higain_prm = fx_state.values.get(.Eq_HiGain).?.param;
-            if (try Knobs.drawWidget(ctx, &higain_prm.normalized, higain_label_id, .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled }, max_width)) {
-                rv = .{ .cc = .Eq_HiGain, .value = higain_prm.normalized };
+            var higain_val: f64 = if (mode == .transport)
+                @as(f64, @floatFromInt(transport.jog_item)) / 127.0
+            else
+                fx_state.values.get(.Eq_HiGain).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &higain_val, higain_label_id, .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled }, max_width)) {
+                rv = .{ .cc = .Eq_HiGain, .value = higain_val };
             }
         }
     }
@@ -661,7 +684,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translatio
     return rv;
 }
 
-fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -801,7 +824,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translat
     return rv;
 }
 
-fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -824,6 +847,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
             // Calculate max width for this column's knobs
             const drive_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_Drive,
+                .transport => .trsprt_Out_Drive,
                 else => null,
             };
             const drive_label = if (drive_key) |key| tr(translations, key) else null;
@@ -836,6 +860,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
 
             const char_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_DriveChar,
+                .transport => .trsprt_Out_DriveChar,
                 else => null,
             };
             const char_label = if (char_key) |key| tr(translations, key) else null;
@@ -849,6 +874,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
 
             const pan_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_Pan,
+                .transport => .trsprt_Out_Pan,
                 else => null,
             };
             const pan_label = if (pan_key) |key| tr(translations, key) else null;
@@ -863,21 +889,30 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ drive_label_id.label, char_label_id.label, pan_label_id.label }, &offsets);
 
             // First knob
-            var drive_prm = fx_state.values.get(.Out_Drive).?.param;
-            if (try Knobs.drawWidget(ctx, &drive_prm.normalized, drive_label_id, .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled }, max_width)) {
-                rv = .{ .cc = .Out_Drive, .value = drive_prm.normalized };
+            var drive_val: f64 = if (mode == .transport)
+                @as(f64, @floatFromInt(transport.zoom_horizontal)) / 127.0
+            else
+                fx_state.values.get(.Out_Drive).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &drive_val, drive_label_id, .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled }, max_width)) {
+                rv = .{ .cc = .Out_Drive, .value = drive_val };
             }
 
             // Second knob
-            var char_prm = fx_state.values.get(.Out_DriveChar).?.param;
-            if (try Knobs.drawWidget(ctx, &char_prm.normalized, char_label_id, .{ .no_val_display = char_no_val_display, .disabled = char_disabled }, max_width)) {
-                rv = .{ .cc = .Out_DriveChar, .value = char_prm.normalized };
+            var char_val: f64 = if (mode == .transport)
+                @as(f64, @floatFromInt(transport.zoom_vertical)) / 127.0
+            else
+                fx_state.values.get(.Out_DriveChar).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &char_val, char_label_id, .{ .no_val_display = char_no_val_display, .disabled = char_disabled }, max_width)) {
+                rv = .{ .cc = .Out_DriveChar, .value = char_val };
             }
 
             // Third knob
-            var pan_prm = fx_state.values.get(.Out_Pan).?.param;
-            if (try Knobs.drawWidget(ctx, &pan_prm.normalized, pan_label_id, .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled }, max_width)) {
-                rv = .{ .cc = .Out_Pan, .value = pan_prm.normalized };
+            var pan_val: f64 = if (mode == .transport)
+                @as(f64, @floatFromInt(transport.grid)) / 127.0
+            else
+                fx_state.values.get(.Out_Pan).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &pan_val, pan_label_id, .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled }, max_width)) {
+                rv = .{ .cc = .Out_Pan, .value = pan_val };
             }
         }
     }
@@ -901,6 +936,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
             const solo = fx_state.values.get(.Out_solo).?.button;
             const out_solo_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_solo,
+                .transport => .trsprt_Out_solo,
                 else => null,
             };
             const out_solo_label = if (out_solo_key) |key| tr(translations, key) else null;
@@ -927,6 +963,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
             // Center-align the volume knob
             const vol_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_Vol,
+                .transport => .trsprt_Out_Vol,
                 else => null,
             };
             const vol_label = if (vol_key) |key| tr(translations, key) else null;
@@ -940,9 +977,12 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transl
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{label_id.label}, &offsets);
 
             // Apply offset if needed
-            var vol_prm = fx_state.values.get(.Out_Vol).?.param;
-            if (try Knobs.drawWidget(ctx, &vol_prm.normalized, label_id, .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled }, max_width)) {
-                rv = .{ .cc = .Out_Vol, .value = vol_prm.normalized };
+            var vol_val: f64 = if (mode == .transport)
+                @as(f64, @floatFromInt(transport.tr_sel)) / 127.0
+            else
+                fx_state.values.get(.Out_Vol).?.param.normalized;
+            if (try Knobs.drawWidget(ctx, &vol_val, label_id, .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled }, max_width)) {
+                rv = .{ .cc = .Out_Vol, .value = vol_val };
             }
         }
     }
