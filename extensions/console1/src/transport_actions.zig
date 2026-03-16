@@ -28,21 +28,16 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
         .automation_mode => |mode| reaper.SetAutomationMode(@intFromEnum(mode), false),
         .grid => |new_pos| {
             var pos_rel: u8 = globals.state.transport.grid;
-            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.grid, &pos_rel, new_pos, 127, null)) |delta| {
+            if (utils.calculateClampedDelta(c_int, &globals.state.transport.grid, &pos_rel, new_pos, 127, null)) |delta| {
                 globals.state.transport.grid = pos_rel;
 
-                // Adjust grid size based on delta
                 if (delta > 0) {
-                    pReaper.Main_OnCommand(.{ RprCmds.ID_GRID_BY2, 0 }); // Grid: Adjust by 2x
+                    pReaper.Main_OnCommand(.{ RprCmds.ID_GRID_BY2, 0 });
                 } else if (delta < 0) {
-                    pReaper.Main_OnCommand(.{ RprCmds.ID_GRID_BY1_5, 0 }); // Grid: Adjust by 1/2
+                    pReaper.Main_OnCommand(.{ RprCmds.ID_GRID_BY1_5, 0 });
                 }
 
-                // Send MIDI feedback if wrapped
-                if (new_pos != globals.state.transport.grid) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = globals.state.transport.grid } } });
-                }
-
+                actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = globals.state.transport.grid } } });
                 log.debug("Transport grid: abs={d} delta={d}", .{ globals.state.transport.grid, delta });
             }
         },
@@ -176,23 +171,19 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
 
         .zoom_horizontal => |new_pos| {
             var pos_rel: u8 = globals.state.transport.zoom_horizontal;
-            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.zoom_horizontal, &pos_rel, new_pos, 127, null)) |delta| {
+            if (utils.calculateClampedDelta(c_int, &globals.state.transport.zoom_horizontal, &pos_rel, new_pos, 127, null)) |delta| {
                 globals.state.transport.zoom_horizontal = pos_rel;
-                pReaper.CSurf_OnZoom(.{ delta, 0 }); // horizontal zoom
-                if (new_pos != globals.state.transport.zoom_horizontal) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Drive, .value = globals.state.transport.zoom_horizontal } } });
-                }
+                pReaper.CSurf_OnZoom(.{ delta, 0 });
+                actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Drive, .value = globals.state.transport.zoom_horizontal } } });
             }
         },
 
         .zoom_vertical => |new_pos| {
             var pos_rel: u8 = globals.state.transport.zoom_vertical;
-            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.zoom_vertical, &pos_rel, new_pos, 127, null)) |delta| {
+            if (utils.calculateClampedDelta(c_int, &globals.state.transport.zoom_vertical, &pos_rel, new_pos, 127, null)) |delta| {
                 globals.state.transport.zoom_vertical = pos_rel;
-                pReaper.CSurf_OnZoom(.{ 0, delta }); // vertical zoom
-                if (new_pos != globals.state.transport.zoom_vertical) {
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_DriveChar, .value = globals.state.transport.zoom_vertical } } });
-                }
+                pReaper.CSurf_OnZoom(.{ 0, delta });
+                actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_DriveChar, .value = globals.state.transport.zoom_vertical } } });
             }
         },
         .loop_end => pReaper.Main_OnCommand(.{ RprCmds.ID_LOOP_SETEND, 0 }),

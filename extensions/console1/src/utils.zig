@@ -93,6 +93,117 @@ pub fn calculateNewScrollPosition(
     return delta;
 }
 
+/// Computes a delta from absolute CC values and clamps the resulting position
+/// to [0, max-1] instead of wrapping. Returns the effective delta (which may
+/// be reduced if clamping occurred), or null if the position did not change.
+pub fn calculateClampedDelta(
+    comptime T: type,
+    pos_abs: *u8,
+    pos_rel: *u8,
+    new_pos: u8,
+    max: T,
+    max_increment: ?T,
+) ?T {
+    if (max <= 0) return null;
+
+    const old_pos_abs = pos_abs.*;
+    pos_abs.* = new_pos;
+
+    var delta = calculateDelta(T, old_pos_abs, new_pos);
+
+    if (max_increment) |max_inc| {
+        if (@abs(delta) > max_inc) {
+            delta = if (delta > 0) max_inc else -max_inc;
+        }
+    }
+
+    const current: T = @intCast(pos_rel.*);
+    const new_pos_rel = current + delta;
+
+    if (new_pos_rel >= max) {
+        const old = pos_rel.*;
+        pos_rel.* = @intCast(max - 1);
+        if (pos_rel.* == old) return null;
+        return @as(T, @intCast(pos_rel.*)) - current;
+    } else if (new_pos_rel < 0) {
+        const old = pos_rel.*;
+        pos_rel.* = 0;
+        if (pos_rel.* == old) return null;
+        return -current;
+    } else {
+        pos_rel.* = @intCast(new_pos_rel);
+        return delta;
+    }
+}
+
+test "calculateClampedDelta" {
+    const testing = std.testing;
+
+    // Normal case: delta fits within range
+    {
+        var pos_abs: u8 = 64;
+        var pos_rel: u8 = 64;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 65, 127, null);
+        try testing.expectEqual(@as(?c_int, 1), result);
+        try testing.expectEqual(@as(u8, 65), pos_rel);
+    }
+
+    // Upper clamp: pos_rel hits max-1
+    {
+        var pos_abs: u8 = 126;
+        var pos_rel: u8 = 126;
+        _ = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 127, 127, null);
+        try testing.expectEqual(@as(u8, 126), pos_rel);
+    }
+
+    // At upper clamp, repeated: returns null because position cannot change
+    {
+        var pos_abs: u8 = 127;
+        var pos_rel: u8 = 126;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 127, 127, null);
+        try testing.expectEqual(@as(?c_int, null), result);
+        try testing.expectEqual(@as(u8, 126), pos_rel);
+    }
+
+    // Lower clamp: pos_rel hits 0
+    {
+        var pos_abs: u8 = 1;
+        var pos_rel: u8 = 0;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 0, 127, null);
+        try testing.expectEqual(@as(?c_int, null), result);
+        try testing.expectEqual(@as(u8, 0), pos_rel);
+    }
+
+    // At lower clamp, repeated: returns null
+    {
+        var pos_abs: u8 = 0;
+        var pos_rel: u8 = 0;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 0, 127, null);
+        try testing.expectEqual(@as(?c_int, null), result);
+        try testing.expectEqual(@as(u8, 0), pos_rel);
+    }
+
+    // Large delta clamped by max_increment
+    {
+        var pos_abs: u8 = 50;
+        var pos_rel: u8 = 50;
+        const result = calculateClampedDelta(c_int, &pos_abs, &pos_rel, 60, 127, 5);
+        try testing.expectEqual(@as(?c_int, 5), result);
+        try testing.expectEqual(@as(u8, 55), pos_rel);
+    }
+
+    // Property: pos_rel always stays within [0, max-1]
+    {
+        var pos_abs: u8 = 64;
+        var pos_rel: u8 = 64;
+        const inputs = [_]u8{ 0, 127, 0, 127, 50, 100, 0, 0, 127, 127 };
+        for (inputs) |input| {
+            _ = calculateClampedDelta(c_int, &pos_abs, &pos_rel, input, 127, null);
+            try testing.expect(pos_rel < 127);
+        }
+    }
+}
+
 /// Converts a CC value (0-127) to a normalized play rate (0.0-1.0), where
 /// CC=64 maps to normalized=0.2 (1.0x playback rate). The lower half of
 /// the knob (0-64) covers rates 0.25x-1.0x, and the upper half (64-127)
