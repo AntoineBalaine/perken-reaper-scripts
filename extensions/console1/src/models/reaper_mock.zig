@@ -31,6 +31,7 @@ const Mocks = struct {
     InsertTrackAtIndex: @TypeOf(reaper.InsertTrackAtIndex),
     DeleteTrack: @TypeOf(reaper.DeleteTrack),
     TrackFX_AddByName: @TypeOf(reaper.TrackFX_AddByName),
+    TrackFX_Delete: @TypeOf(reaper.TrackFX_Delete),
     TrackFX_GetCount: @TypeOf(reaper.TrackFX_GetCount),
     TrackFX_GetFXName: @TypeOf(reaper.TrackFX_GetFXName),
     TrackFX_GetNamedConfigParm: @TypeOf(reaper.TrackFX_GetNamedConfigParm),
@@ -147,7 +148,6 @@ fn InsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
 // TODO: implement model fx library
 fn TrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.C) c_int {
     _ = recFX;
-    _ = instantiate;
     const session = g_session.?;
 
     // Cast to optional pointer and check for null
@@ -173,11 +173,30 @@ fn TrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: boo
     };
     var tr: *Track = track_ptr.?;
 
-    // Add the FX to the track
-    tr.fx_list.append(arena_alloc, new_fx) catch return -1;
+    // Determine insertion position from the instantiate parameter.
+    // REAPER convention: -1 = always add at end, < -999 = insert at position -(instantiate + 1000)
+    const insert_pos: usize = if (instantiate == -1)
+        tr.fx_list.items.len
+    else if (instantiate < -999)
+        @intCast(-(instantiate + 1000))
+    else
+        tr.fx_list.items.len;
 
-    // Return the index of the newly added FX
-    return @intCast(tr.fx_list.items.len - 1);
+    tr.fx_list.insert(arena_alloc, insert_pos, new_fx) catch return -1;
+
+    return @intCast(insert_pos);
+}
+
+fn TrackFX_Delete(track: reaper.MediaTrack, fx: c_int) callconv(.C) bool {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *Track = track_ptr.?;
+    const idx: usize = @intCast(fx);
+    if (idx >= tr.fx_list.items.len) return false;
+
+    _ = tr.fx_list.orderedRemove(idx);
+    return true;
 }
 
 fn TrackFX_GetCount(track: reaper.MediaTrack) callconv(.C) c_int {

@@ -76,11 +76,17 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
             }
 
-            // If replacing existing module FX, remove it
+            // If replacing existing module FX, remove it.
+            // Because the new FX may have been inserted before or after the old one,
+            // we need to check whether the old FX's index shifted due to the insertion.
             if (track_state.module_locations.get(current_module)) |old_loc| {
-                if (!pReaper.TrackFX_Delete(.{ track, old_loc.fx_index + 1 })) {
+                const delete_idx = if (new_fx_index <= old_loc.fx_index)
+                    old_loc.fx_index + 1
+                else
+                    old_loc.fx_index;
+                if (!pReaper.TrackFX_Delete(.{ track, delete_idx })) {
                     var buf: [512:0]u8 = undefined;
-                    const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, old_loc.fx_index + 1, "original_name", &buf, buf.len))
+                    const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, delete_idx, "original_name", &buf, buf.len))
                         std.mem.span(@as([*:0]const u8, &buf))
                     else
                         "unknown";

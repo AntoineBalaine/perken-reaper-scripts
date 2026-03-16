@@ -94,6 +94,7 @@ test {
     _ = @import("tests/fx_ctrl_pbt.zig");
     _ = @import("tests/transport_pbt.zig");
     _ = @import("tests/fx_sel_pbt.zig");
+    _ = @import("tests/fx_sel_swap_test.zig");
     _ = @import("tests/midi_learn_test.zig");
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");
