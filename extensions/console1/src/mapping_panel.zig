@@ -7,6 +7,7 @@ const AssignState = statemachine.AssignState;
 const c1 = @import("c1.zig");
 const tr = @import("translations.zig").tr;
 const ModulesList = statemachine.ModulesList;
+const PhysicalModule = statemachine.PhysicalModule;
 const Translations = @import("translations.zig");
 const TranslationStore = Translations.TranslationStore;
 const TranslationKey = Translations.TranslationKey;
@@ -178,8 +179,11 @@ fn formControls(
             inline for (comptime std.enums.values(ModulesList)) |module| {
                 const module_name = @tagName(module);
                 const display_text: [:0]const u8 = blk: {
-                    if (assign_state.module_fx_names.get(module)) |fx_name| {
-                        break :blk std.fmt.bufPrintZ(&dropdown_buf, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
+                    if (module != .STRIP) {
+                        const phys: PhysicalModule = @enumFromInt(@intFromEnum(module));
+                        if (assign_state.module_fx_names.get(phys)) |fx_name| {
+                            break :blk std.fmt.bufPrintZ(&dropdown_buf, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
+                        }
                     }
                     break :blk std.fmt.bufPrintZ(&dropdown_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }) catch module_name;
                 };
@@ -264,6 +268,7 @@ fn assignmentList(
         inline else => |mapping| {
             inline for (std.meta.fields(@TypeOf(mapping))) |field| {
                 if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                if (comptime !@hasField(c1.CCs, field.name)) continue;
 
                 if (@field(mapping, field.name)) |param_idx| {
                     const param_name = if (param_idx < assign_state.param_store.len())

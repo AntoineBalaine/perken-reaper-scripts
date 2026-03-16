@@ -7,6 +7,7 @@ const FinitePrng = zlowcheck.FinitePrng;
 const assertStateful = zlowcheck.assertStateful;
 
 const Globals = @import("../globals.zig");
+const TrackState = @import("../track_state.zig");
 const statemachine = @import("../statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const Mode = statemachine.Mode;
@@ -70,9 +71,10 @@ const System = struct {
         g.resource_path = resource_path;
         g.fs_ops = mock_fs.fileSystemOps();
         g.state.current_mode = .mapping_panel;
-        g.state.fx_ctrl.track_state.module_locations = @TypeOf(g.state.fx_ctrl.track_state.module_locations).initFill(null);
+        g.state.fx_ctrl.track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
 
-        g.state.fx_ctrl.track_state.module_locations.set(.COMP, .{
+        // Set up a module location so SETFXPARAM scoping works.
+        g.state.fx_ctrl.track_state.mode.multi_fx.set(.COMP, .{
             .fx_index = 0,
             .mapping = null,
         });

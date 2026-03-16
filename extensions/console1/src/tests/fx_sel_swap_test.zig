@@ -37,6 +37,8 @@ fn setupFullChain(globals: *Globals) reaper.MediaTrack {
         globals.preferences.default_fx,
         &globals.map_store,
         globals.preferences,
+        testing.allocator,
+        &globals.mappings_list,
     );
 
     return track;
@@ -73,7 +75,7 @@ test "swapping GATE FX removes old gate and preserves other modules" {
     try testing.expectEqual(@as(c_int, 5), reaper.TrackFX_GetCount(track));
 
     // Verify GATE is at index 1
-    const gate_loc = globals.state.fx_ctrl.track_state.module_locations.get(.GATE);
+    const gate_loc = globals.state.fx_ctrl.track_state.mode.multi_fx.get(.GATE);
     try testing.expect(gate_loc != null);
     try testing.expectEqual(@as(c_int, 1), gate_loc.?.fx_index);
 
@@ -139,7 +141,7 @@ test "swapping INPUT FX removes old input and preserves other modules" {
     try testing.expectEqual(@as(c_int, 5), reaper.TrackFX_GetCount(track));
 
     // Verify INPUT is at index 0
-    const input_loc = globals.state.fx_ctrl.track_state.module_locations.get(.INPUT);
+    const input_loc = globals.state.fx_ctrl.track_state.mode.multi_fx.get(.INPUT);
     try testing.expect(input_loc != null);
     try testing.expectEqual(@as(c_int, 0), input_loc.?.fx_index);
 

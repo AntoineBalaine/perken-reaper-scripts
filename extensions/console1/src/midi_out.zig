@@ -227,6 +227,7 @@ fn MappingsEntry(globals: *Globals, midi_out: reaper.midi_Output) void {
         .EQ => c1.CCs.Tr_tr3,
         .COMP => c1.CCs.Tr_tr4,
         .OUTPT => c1.CCs.Tr_tr5,
+        .STRIP => c1.CCs.Tr_tr6,
     };
     setButtonLED(module_btn, true, midi_out);
 }
@@ -271,39 +272,42 @@ fn updateAllModuleParams(globals: *Globals, midi_out: reaper.midi_Output, track:
             .Shp_shape,
             .Shp_sustain,
             => {
-                // Determine module and get mapping
-                const module = comptime getModuleForCC(cc);
-                if (module) |mod| {
-                    const module_loc = globals.state.fx_ctrl.track_state.module_locations.get(mod);
-                    if (module_loc) |fxmap| {
-                        const fx_idx = fxmap.fx_index;
-                        const mapping = fxmap.mapping;
-                        if (mapping) |map| {
-                            // Get parameter index from mpng
-                            const param_idx = @field(@field(map, @tagName(mod)), @tagName(cc));
-                            if (param_idx) |param| {
-                                const val = reaper.TrackFX_GetParamNormalized(track, fx_idx, param);
-
-                                if (val < 0) {
-                                    var buf: [512:0]u8 = undefined;
-                                    const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, fx_idx, "original_name", &buf, buf.len))
-                                        std.mem.span(@as([*:0]const u8, &buf))
-                                    else
-                                        "unknown";
-
-                                    log.err("Failed to get parameter value: FX '{s}' at index {}, parameter '{s}' at index {}", .{
-                                        fx_name,
-                                        fx_idx,
-                                        @tagName(cc),
-                                        param,
-                                    });
-                                } else {
-                                    const conv: u8 = @intFromFloat(val * 127);
-                                    setParamLED(cc, conv, midi_out);
+                switch (globals.state.fx_ctrl.track_state.mode) {
+                    .multi_fx => |locs| {
+                        const module = comptime cc.toModule();
+                        if (module) |mod| {
+                            if (locs.get(mod)) |fxmap| {
+                                if (fxmap.mapping) |map| {
+                                    const param_idx = @field(@field(map, @tagName(mod)), @tagName(cc));
+                                    if (param_idx) |param| {
+                                        const val = reaper.TrackFX_GetParamNormalized(track, fxmap.fx_index, param);
+                                        if (val < 0) {
+                                            var buf: [512:0]u8 = undefined;
+                                            const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, fxmap.fx_index, "original_name", &buf, buf.len))
+                                                std.mem.span(@as([*:0]const u8, &buf))
+                                            else
+                                                "unknown";
+                                            log.err("Failed to get parameter value: FX '{s}' at index {}, parameter '{s}' at index {}", .{
+                                                fx_name, fxmap.fx_index, @tagName(cc), param,
+                                            });
+                                        } else {
+                                            const conv: u8 = @intFromFloat(val * 127);
+                                            setParamLED(cc, conv, midi_out);
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
+                    },
+                    .channel_strip => {
+                        if (globals.state.fx_ctrl.track_state.forward_map.get(cc)) |fxp| {
+                            const val = reaper.TrackFX_GetParamNormalized(track, fxp.fx_index, fxp.param_index);
+                            if (val >= 0) {
+                                const conv: u8 = @intFromFloat(val * 127);
+                                setParamLED(cc, conv, midi_out);
+                            }
+                        }
+                    },
                 }
             },
             else => {},
@@ -313,21 +317,6 @@ fn updateAllModuleParams(globals: *Globals, midi_out: reaper.midi_Output, track:
 
 // Helper function to determine module from CC
 // TODO: we should probably hard code these.
-fn getModuleForCC(comptime cc: c1.CCs) ?statemachine.ModulesList {
-    const cc_name = @tagName(cc);
-    return if (std.mem.startsWith(u8, cc_name, "Comp"))
-        .COMP
-    else if (std.mem.startsWith(u8, cc_name, "Eq"))
-        .EQ
-    else if (std.mem.startsWith(u8, cc_name, "Inpt"))
-        .INPUT
-    else if (std.mem.startsWith(u8, cc_name, "Out"))
-        .OUTPT
-    else if (std.mem.startsWith(u8, cc_name, "Shp"))
-        .GATE
-    else
-        null;
-}
 
 fn queryMeters(globals: *Globals, midiOut: reaper.midi_Output) void {
     if (globals.state.current_tr_id == null) return;
@@ -339,8 +328,12 @@ fn queryMeters(globals: *Globals, midiOut: reaper.midi_Output) void {
     const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
     c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
     c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
-    if (globals.state.fx_ctrl.track_state.module_locations.get(.COMP)) |comp| {
-        const success = reaper.TrackFX_GetNamedConfigParm(mediaTrack, comp.fx_index, "GainReduction_dB", tmp[0..], tmp.len);
+    const meter_fx_index: ?c_int = switch (globals.state.fx_ctrl.track_state.mode) {
+        .multi_fx => |locs| if (locs.get(.COMP)) |comp| comp.fx_index else null,
+        .channel_strip => |strip| strip.fx_index,
+    };
+    if (meter_fx_index) |fx_idx| {
+        const success = reaper.TrackFX_GetNamedConfigParm(mediaTrack, fx_idx, "GainReduction_dB", tmp[0..], tmp.len);
         if (!success) {
             log.err("failed to get gain reduction", .{});
         } else {

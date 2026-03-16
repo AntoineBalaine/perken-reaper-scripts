@@ -7,6 +7,7 @@ const FinitePrng = zlowcheck.FinitePrng;
 const assertStateful = zlowcheck.assertStateful;
 
 const Globals = @import("../globals.zig");
+const TrackState = @import("../track_state.zig");
 const statemachine = @import("../statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const MappingPanelMode = statemachine.MappingPanelMode;
@@ -89,8 +90,8 @@ const System = struct {
         g.resource_path = resource_path;
         g.fs_ops = mock_fs.fileSystemOps();
         g.state.current_mode = .fx_ctrl;
-        // Initialize module_locations with null values since TrackState doesn't initialize it by default
-        g.state.fx_ctrl.track_state.module_locations = @TypeOf(g.state.fx_ctrl.track_state.module_locations).initFill(null);
+        // Initialize mode with null values since TrackState doesn't initialize it by default
+        g.state.fx_ctrl.track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
 
         return System{
             .globals = g,
@@ -106,7 +107,7 @@ const System = struct {
     // System is at its final memory location to reinitialize those pointers.
     pub fn fixupAfterMove(self: *System) void {
         self.globals.mappings_list = MappingsList.init(self.globals.arena, self.globals.resource_path);
-        self.globals.map_store = .empty(self.globals.arena, self.globals.resource_path, &self.globals.mappings_list);
+        self.globals.map_store = .empty(self.globals.arena, self.globals.resource_path);
     }
 
     pub fn reset(self: *System) void {
@@ -128,7 +129,7 @@ const System = struct {
     /// Sets up a module location entry for testing. This simulates the state where
     /// a track has an FX assigned to a module slot but no custom mapping exists yet.
     pub fn setupModuleLocation(self: *System, module: ModulesList, fx_index: c_int) void {
-        self.globals.state.fx_ctrl.track_state.module_locations.set(module, .{
+        self.globals.state.fx_ctrl.track_state.mode.multi_fx.set(module, .{
             .fx_index = fx_index,
             .mapping = null,
         });
@@ -190,6 +191,7 @@ const EnterAssign = struct {
             .EQ => .{ .EQ = mappings.Eq{} },
             .COMP => .{ .COMP = mappings.Comp{} },
             .OUTPT => .{ .OUTPT = mappings.Outpt{} },
+            .STRIP => .{ .STRIP = mappings.ChannelStripMapping{} },
         };
     }
 
@@ -289,6 +291,7 @@ const ConfirmBrowse = struct {
             .EQ => .{ .EQ = mappings.Eq{} },
             .COMP => .{ .COMP = mappings.Comp{} },
             .OUTPT => .{ .OUTPT = mappings.Outpt{} },
+            .STRIP => .{ .STRIP = mappings.ChannelStripMapping{} },
         };
     }
 
@@ -407,6 +410,15 @@ const AddMapping = struct {
                     .Shp_sustain => gate.Shp_sustain = self.param,
                     else => {},
                 },
+                .STRIP => |*strip| {
+                    const cc_name = @tagName(self.control);
+                    inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
+                        if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                        if (std.mem.eql(u8, cc_name, field.name)) {
+                            @field(strip, field.name) = self.param;
+                        }
+                    }
+                },
             }
         }
     }
@@ -455,6 +467,16 @@ const AddMapping = struct {
                 .Shp_Gate => gate.Shp_Gate == self.param,
                 .Shp_shape => gate.Shp_shape == self.param,
                 else => true,
+            },
+            .STRIP => |strip| blk: {
+                const cc_name = @tagName(self.control);
+                inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
+                    if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                    if (std.mem.eql(u8, cc_name, field.name)) {
+                        break :blk @field(strip, field.name) == self.param;
+                    }
+                }
+                break :blk true;
             },
         } and std.meta.activeTag(model_mappings) == std.meta.activeTag(sut_mappings);
     }
@@ -528,6 +550,15 @@ const RemoveMapping = struct {
                     .Shp_sustain => gate.Shp_sustain = null,
                     else => {},
                 },
+                .STRIP => |*strip| {
+                    const cc_name = @tagName(self.control);
+                    inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
+                        if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                        if (std.mem.eql(u8, cc_name, field.name)) {
+                            @field(strip, field.name) = null;
+                        }
+                    }
+                },
             }
         }
     }
@@ -575,6 +606,16 @@ const RemoveMapping = struct {
                 .Shp_Gate => gate.Shp_Gate == null,
                 .Shp_shape => gate.Shp_shape == null,
                 else => true,
+            },
+            .STRIP => |strip| blk: {
+                const cc_name = @tagName(self.control);
+                inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
+                    if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                    if (std.mem.eql(u8, cc_name, field.name)) {
+                        break :blk @field(strip, field.name) == null;
+                    }
+                }
+                break :blk true;
             },
         };
     }

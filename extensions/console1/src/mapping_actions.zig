@@ -2,6 +2,7 @@ const std = @import("std");
 const c1 = @import("c1.zig");
 const statemachine = @import("statemachine.zig");
 const ModulesList = statemachine.ModulesList;
+const PhysicalModule = statemachine.PhysicalModule;
 const Globals = @import("globals.zig").Globals;
 const mappings = @import("mappings.zig");
 const dispatch = @import("actions.zig").dispatch;
@@ -29,9 +30,15 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
             inline for (std.meta.fields(ModulesList), 0..) |field, i| {
                 const module = @field(ModulesList, field.name);
+                if (module == .STRIP) continue;
                 const module_name = @tagName(module);
+                const phys: PhysicalModule = @enumFromInt(@intFromEnum(module));
 
-                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |location| {
+                const loc_opt = switch (globals.state.fx_ctrl.track_state.mode) {
+                    .multi_fx => |locs| locs.get(phys),
+                    .channel_strip => null,
+                };
+                if (loc_opt) |location| {
                     if (globals.state.current_tr_id) |track_id| {
                         const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
                         var fx_name_buf: [512:0]u8 = undefined;
@@ -58,13 +65,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             // Because we need to deinitialize the previous sub-state before entering assign,
             globals.state.mapping_panel.deinitCurrentSubMode();
 
-            const initial_mappings = switch (module) {
-                .INPUT => statemachine.ModuleMappings{ .INPUT = mappings.Inpt{} },
-                .GATE => statemachine.ModuleMappings{ .GATE = mappings.Shp{} },
-                .EQ => statemachine.ModuleMappings{ .EQ = mappings.Eq{} },
-                .COMP => statemachine.ModuleMappings{ .COMP = mappings.Comp{} },
-                .OUTPT => statemachine.ModuleMappings{ .OUTPT = mappings.Outpt{} },
-            };
+            const initial_mappings = TaggedMapping.empty(module);
 
             var assign_state = statemachine.AssignState.init(globals.state.mapping_panel.gpa_int.allocator(), initial_mappings);
             const assign_allocator = assign_state.arena.allocator();
@@ -78,12 +79,22 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             }
 
             // Because we need to load FX parameters and initialize assign_state with current mappings,
-            // we get the FX from the track_state module_locations
-            if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |location| {
+            // we get the FX from the track_state mode
+            // Resolve the FX index for loading parameters
+            const fx_index: ?c_int = switch (module) {
+                .STRIP => switch (globals.state.fx_ctrl.track_state.mode) {
+                    .channel_strip => |strip| strip.fx_index,
+                    .multi_fx => null,
+                },
+                inline else => |phys| switch (globals.state.fx_ctrl.track_state.mode) {
+                    .multi_fx => |locs| if (locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys))))) |loc| loc.fx_index else null,
+                    .channel_strip => null,
+                },
+            };
+            if (fx_index) |fxi| {
                 const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id orelse return, constants.g_csurf_mcpmode);
 
-                // Because we need to load FX parameters for the panel, we query them from REAPER
-                const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, location.fx_index));
+                const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, fxi));
                 assign_state.param_store.clear();
                 const param_allocator = assign_state.param_store.strings.arena.allocator();
                 assign_state.param_store.params.ensureTotalCapacity(param_allocator, params_length) catch return;
@@ -91,21 +102,39 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 var prm_name_buf: [256:0]u8 = undefined;
                 for (0..params_length) |i| {
                     const prm_idx: i32 = @intCast(i);
-                    if (reaper.TrackFX_GetParamName(track, location.fx_index, prm_idx, &prm_name_buf, prm_name_buf.len)) {
+                    if (reaper.TrackFX_GetParamName(track, fxi, prm_idx, &prm_name_buf, prm_name_buf.len)) {
                         const param_name = std.mem.span(@as([*:0]const u8, &prm_name_buf));
                         assign_state.param_store.addParam(prm_idx, param_name) catch return;
                     }
                 }
 
-                // Load the mapping if it exists
-                if (location.mapping) |tagged_mapping| {
-                    assign_state.current_mappings = switch (tagged_mapping) {
-                        .INPUT => |m| .{ .INPUT = m },
-                        .GATE => |m| .{ .GATE = m },
-                        .EQ => |m| .{ .EQ = m },
-                        .COMP => |m| .{ .COMP = m },
-                        .OUTPT => |m| .{ .OUTPT = m },
-                    };
+                // Load the FX name for target_fx from REAPER
+                if (module == .STRIP) {
+                    var fx_name_buf: [512:0]u8 = undefined;
+                    if (reaper.TrackFX_GetFXName(track, fxi, &fx_name_buf, fx_name_buf.len)) {
+                        const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
+                        assign_state.target_fx = assign_allocator.dupeZ(u8, fx_name) catch return;
+                    }
+                }
+
+                // Load existing mapping from the module location
+                switch (module) {
+                    .STRIP => switch (globals.state.fx_ctrl.track_state.mode) {
+                        .channel_strip => |strip| {
+                            assign_state.current_mappings = .{ .STRIP = strip.mapping };
+                        },
+                        .multi_fx => {},
+                    },
+                    inline else => |phys| switch (globals.state.fx_ctrl.track_state.mode) {
+                        .multi_fx => |locs| {
+                            if (locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys))))) |loc| {
+                                if (loc.mapping) |tagged_mapping| {
+                                    assign_state.current_mappings = tagged_mapping;
+                                }
+                            }
+                        },
+                        .channel_strip => {},
+                    },
                 }
             }
 
@@ -117,8 +146,11 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             }
 
             // Set target_fx from the cached name for the selected module.
-            if (assign_state.module_fx_names.get(module)) |name| {
-                assign_state.target_fx = assign_allocator.dupeZ(u8, name) catch return;
+            if (module != .STRIP) {
+                const phys: PhysicalModule = @enumFromInt(@intFromEnum(module));
+                if (assign_state.module_fx_names.get(phys)) |name| {
+                    assign_state.target_fx = assign_allocator.dupeZ(u8, name) catch return;
+                }
             }
 
             globals.state.mapping_panel.mode = .{ .assign = assign_state };
@@ -256,6 +288,15 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     .Shp_sustain => gate.Shp_sustain = mapping.param,
                     else => {},
                 },
+                .STRIP => |*strip| {
+                    const cc_name = @tagName(mapping.control);
+                    inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
+                        if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                        if (std.mem.eql(u8, cc_name, field.name)) {
+                            @field(strip, field.name) = mapping.param;
+                        }
+                    }
+                },
             }
             globals.state.mapping_panel.mode.assign.selected_parameter = null;
         },
@@ -319,6 +360,15 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     .Shp_sustain => gate.Shp_sustain = null,
                     else => {},
                 },
+                .STRIP => |*strip| {
+                    const cc_name = @tagName(control);
+                    inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
+                        if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                        if (std.mem.eql(u8, cc_name, field.name)) {
+                            @field(strip, field.name) = null;
+                        }
+                    }
+                },
             }
         },
 
@@ -329,16 +379,12 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             // if it was on, so the user can keep learning on the new module).
             assign_state.selected_control = null;
             assign_state.learned_param = null;
-            assign_state.current_mappings = switch (new_module) {
-                .INPUT => .{ .INPUT = mappings.Inpt{} },
-                .GATE => .{ .GATE = mappings.Shp{} },
-                .EQ => .{ .EQ = mappings.Eq{} },
-                .COMP => .{ .COMP = mappings.Comp{} },
-                .OUTPT => .{ .OUTPT = mappings.Outpt{} },
-            };
+            assign_state.current_mappings = TaggedMapping.empty(new_module);
 
             // Update target_fx from the cached module names.
-            if (assign_state.module_fx_names.get(new_module)) |name| {
+            if (new_module == .STRIP) {
+                assign_state.target_fx = "";
+            } else if (assign_state.module_fx_names.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(new_module))))) |name| {
                 const alloc = assign_state.arena.allocator();
                 assign_state.target_fx = alloc.dupeZ(u8, name) catch return;
             } else {
@@ -346,7 +392,14 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             }
 
             // Reload parameters for the new module
-            if (globals.state.fx_ctrl.track_state.module_locations.get(new_module)) |location| {
+            const switch_loc = switch (new_module) {
+                .STRIP => null,
+                inline else => |phys| switch (globals.state.fx_ctrl.track_state.mode) {
+                    .multi_fx => |locs| locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys)))),
+                    .channel_strip => null,
+                },
+            };
+            if (switch_loc) |location| {
                 if (globals.state.current_tr_id) |track_id| {
                     const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
                     const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, location.fx_index));
@@ -389,13 +442,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 // Perform the save directly from assign state
                 const fx_name = assign_state.target_fx;
                 const module = std.meta.activeTag(assign_state.current_mappings);
-                const tagged_mapping: TaggedMapping = switch (assign_state.current_mappings) {
-                    .INPUT => |m| .{ .INPUT = m },
-                    .GATE => |m| .{ .GATE = m },
-                    .EQ => |m| .{ .EQ = m },
-                    .COMP => |m| .{ .COMP = m },
-                    .OUTPT => |m| .{ .OUTPT = m },
-                };
+                const tagged_mapping = assign_state.current_mappings;
 
                 var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
                 const save_path: [:0]const u8 = std.fmt.bufPrintZ(&save_path_buf, "{s}", .{path}) catch return;
@@ -413,15 +460,30 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 globals.mappings_list.registerPath(module, fx_name_z, mapping_name, save_path) catch |err| {
                     log.warn("Failed to register saved mapping path: {}", .{err});
                 };
-                _ = globals.map_store.getMap(fx_name_z, module, mapping_name) catch |err| {
+                _ = globals.map_store.getMap(fx_name_z, module, mapping_name, &globals.mappings_list) catch |err| {
                     log.warn("Failed to load saved mapping into cache: {}", .{err});
                 };
 
-                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |existing_loc| {
-                    globals.state.fx_ctrl.track_state.module_locations.set(module, .{
-                        .fx_index = existing_loc.fx_index,
-                        .mapping = tagged_mapping,
-                    });
+                switch (module) {
+                    .STRIP => {
+                        switch (globals.state.fx_ctrl.track_state.mode) {
+                            .channel_strip => |*strip| {
+                                strip.mapping = tagged_mapping.STRIP;
+                            },
+                            .multi_fx => {},
+                        }
+                    },
+                    inline else => |mod| {
+                        const phys_module: PhysicalModule = @enumFromInt(@intFromEnum(mod));
+                        if (globals.state.fx_ctrl.track_state.getModuleLocations()) |locs| {
+                            if (locs.get(phys_module)) |existing_loc| {
+                                locs.set(phys_module, .{
+                                    .fx_index = existing_loc.fx_index,
+                                    .mapping = tagged_mapping,
+                                });
+                            }
+                        }
+                    },
                 }
 
                 mappingPanelActions(globals, .exit_to_fx_ctrl);
@@ -444,8 +506,12 @@ fn populateModuleFxNames(
     track_state: *const @import("track_state.zig"),
     allocator: std.mem.Allocator,
 ) void {
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        if (track_state.module_locations.get(module)) |location| {
+    const locs = switch (track_state.mode) {
+        .multi_fx => |l| l,
+        .channel_strip => return,
+    };
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        if (locs.get(module)) |location| {
             var fx_name_buf: [256:0]u8 = undefined;
             if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
                 const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
@@ -481,10 +547,11 @@ fn tryCompleteLearnAssignment(globals: *Globals) void {
 fn populateKnobValues(
     assign_state: *statemachine.AssignState,
     track: reaper.MediaTrack,
-    track_state: *const TrackState,
+    track_state: *TrackState,
 ) void {
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        if (track_state.module_locations.get(module)) |location| {
+    const locs = track_state.getModuleLocations() orelse return;
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        if (locs.get(module)) |location| {
             if (location.mapping) |tagged_mapping| {
                 const mapping = @field(tagged_mapping, @tagName(module));
                 inline for (std.meta.fields(@TypeOf(mapping))) |field| {

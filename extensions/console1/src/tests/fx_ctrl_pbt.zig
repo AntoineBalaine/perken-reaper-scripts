@@ -7,8 +7,10 @@ const FinitePrng = zlowcheck.FinitePrng;
 const assertStateful = zlowcheck.assertStateful;
 
 const Globals = @import("../globals.zig").Globals;
+const TrackState = @import("../track_state.zig");
 const statemachine = @import("../statemachine.zig");
 const ModulesList = statemachine.ModulesList;
+const PhysicalModule = statemachine.PhysicalModule;
 const fx_ctrl_actions = @import("../fx_ctrl_actions.zig");
 const c1 = @import("../c1.zig");
 const reaper = @import("../reaper.zig").reaper;
@@ -60,10 +62,12 @@ const System = struct {
     pub fn reset(self: *System) void {
         self.globals.state.current_mode = .fx_ctrl;
         self.globals.state.current_tr_id = null;
+        self.globals.state.fx_ctrl.track_state.reverse_map.clearRetainingCapacity();
+        self.globals.state.fx_ctrl.track_state.forward_map.clearRetainingCapacity();
     }
 
     pub fn deinit(self: *System) void {
-        _ = self;
+        self.globals.state.fx_ctrl.track_state.deinitMaps(std.testing.allocator);
     }
 };
 
@@ -104,12 +108,13 @@ const SetTrackCmd = struct {
         sut.globals.state.current_tr_id = self.track_id;
         sut.globals.state.current_mode = .fx_ctrl;
 
-        // Set up module_locations for all modules.
+        // Set up module locations for all modules.
         // Each module gets fx_index = module ordinal, and a mapping where each CC
         // maps to param index 0 (all params share index 0 for simplicity).
-        inline for (comptime std.enums.values(ModulesList)) |module| {
+        sut.globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
+        inline for (comptime std.enums.values(PhysicalModule)) |module| {
             const module_idx: c_int = @intCast(@intFromEnum(module));
-            sut.globals.state.fx_ctrl.track_state.module_locations.set(module, .{
+            sut.globals.state.fx_ctrl.track_state.mode.multi_fx.set(module, .{
                 .fx_index = module_idx,
                 .mapping = switch (module) {
                     .INPUT => .{ .INPUT = .{ .Inpt_Gain = 0, .Inpt_HiCut = 1, .Inpt_LoCut = 2 } },
@@ -119,6 +124,22 @@ const SetTrackCmd = struct {
                     .OUTPT => .{ .OUTPT = .{ .Out_Drive = 0, .Out_DriveChar = 1 } },
                 },
             });
+        }
+
+        // Populate the forward/reverse maps from the module locations we just set up.
+
+        inline for (comptime std.enums.values(PhysicalModule)) |module| {
+            if (sut.globals.state.fx_ctrl.track_state.mode.multi_fx.get(module)) |loc| {
+                if (loc.mapping) |mapping| {
+                    TrackState.populateMapsFromMapping(
+                        &sut.globals.state.fx_ctrl.track_state.reverse_map,
+                        &sut.globals.state.fx_ctrl.track_state.forward_map,
+                        std.testing.allocator,
+                        mapping,
+                        loc.fx_index,
+                    );
+                }
+            }
         }
 
         // Set initial parameter values in the REAPER mock (all 0.5 for param CCs, 0.0 for buttons).
@@ -362,7 +383,7 @@ const testable_button_ccs = [_]c1.CCs{
 // Returns the fx_index for a given CC based on its module.
 // Must match the module -> fx_index mapping set up in SetTrackCmd.
 fn getFxIdx(cc: c1.CCs) ?c_int {
-    const module = cc.toModule();
+    const module = cc.toModule() orelse return null;
     return @intCast(@intFromEnum(module));
 }
 
@@ -506,6 +527,7 @@ fn fxCtrlStatefulTest(_: void, input: []const u8) !void {
     var model = Model.init(testing.allocator);
     defer model.deinit();
     var system = System.init(globals);
+    defer system.deinit();
 
     const rv = assertStateful(
         Model,

@@ -4,6 +4,7 @@ const pReaper = @import("../pReaper.zig");
 const MediaTrack = reaper.MediaTrack;
 const c1 = @import("../c1.zig");
 const ModulesList = @import("../statemachine.zig").ModulesList;
+const PhysicalModule = @import("../statemachine.zig").PhysicalModule;
 const Globals = @import("../globals.zig").Globals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
@@ -77,7 +78,17 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
         .Tr_ext_sidechain => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
-                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(null, tr, @enumFromInt(val), globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store, &globals.preferences) catch {},
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(
+                        null,
+                        tr,
+                        @enumFromInt(val),
+                        globals.preferences.manual_routing,
+                        globals.preferences.default_fx,
+                        &globals.map_store,
+                        &globals.preferences,
+                        globals.arena,
+                        &globals.mappings_list,
+                    ) catch {},
                     else => {},
                 }
             }
@@ -85,7 +96,17 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
         .Tr_order => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
-                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(@enumFromInt(val), tr, null, globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store, &globals.preferences) catch {},
+                    0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(
+                        @enumFromInt(val),
+                        tr,
+                        null,
+                        globals.preferences.manual_routing,
+                        globals.preferences.default_fx,
+                        &globals.map_store,
+                        &globals.preferences,
+                        globals.arena,
+                        &globals.mappings_list,
+                    ) catch {},
                     else => {},
                 }
             }
@@ -179,33 +200,45 @@ pub fn setUIVal(cc: c1.CCs, norm_val: f64, fx_ctrl: *FxCtrlState) void {
     }
 }
 
-pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.MediaTrack, val: u8, fx_ctrl: *FxCtrlState) void {
+pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reaper.MediaTrack, val: u8, fx_ctrl: *FxCtrlState) void {
     const norm_val = @as(f64, @floatFromInt(val)) / 127;
     setUIVal(cc, norm_val, fx_ctrl);
     const structPrm = @tagName(cc);
-    const fxMap = fx_ctrl.track_state.module_locations.get(section);
-    if (fxMap == null) return;
-    const fxIdx = fxMap.?.fx_index;
-    if (fx_ctrl.display != null) { // show touched fx
-        pReaper.TrackFX_Show(.{ tr, fxIdx, 1 });
-    }
-    // if setting filter types on reaeq
-    if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
-        const hasName = reaper.TrackFX_GetFXName(tr, fxIdx, &tmp, tmp.len);
-        if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)"))
-            reaeq.setReaEqFilterType(tr, fxIdx, cc, val);
-        return;
-    }
+    switch (fx_ctrl.track_state.mode) {
+        .multi_fx => |locs| {
+            const fxMap = locs.get(section);
+            if (fxMap == null) return;
+            const fxIdx = fxMap.?.fx_index;
+            if (fx_ctrl.display != null) { // show touched fx
+                pReaper.TrackFX_Show(.{ tr, fxIdx, 1 });
+            }
+            // if setting filter types on reaeq
+            if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
+                const hasName = reaper.TrackFX_GetFXName(tr, fxIdx, &tmp, tmp.len);
+                if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)"))
+                    reaeq.setReaEqFilterType(tr, fxIdx, cc, val);
+                return;
+            }
 
-    const mapping = fxMap.?.mapping;
-    if (mapping) |map| { // handle mapping
-        const fxPrm = @field(@field(map, @tagName(section)), structPrm);
+            const mapping = fxMap.?.mapping;
+            if (mapping) |map| { // handle mapping
+                const fxPrm = @field(@field(map, @tagName(section)), structPrm);
 
-        // at fxIdx, at fxPrm, set the value
-        if (fxPrm) |param| {
-            log.info("set param\n", .{});
-            _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
-        }
+                // at fxIdx, at fxPrm, set the value
+                if (fxPrm) |param| {
+                    log.info("set param\n", .{});
+                    _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
+                }
+            }
+        },
+        .channel_strip => |strip| {
+            if (fx_ctrl.display != null) {
+                pReaper.TrackFX_Show(.{ tr, strip.fx_index, 1 });
+            }
+            if (fx_ctrl.track_state.forward_map.get(cc)) |fxp| {
+                _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, norm_val });
+            }
+        },
     }
 }
 
@@ -215,8 +248,9 @@ pub fn syncFilterKnobs(globals: *Globals) void {
     var lo: f64 = 0.0;
     var hi: f64 = 0.0;
 
+    const filter_locs = fx_ctrl.track_state.getModuleLocations() orelse return;
     if (fx_ctrl.filter_to_comp) {
-        if (fx_ctrl.track_state.module_locations.get(.COMP)) |comp_loc| {
+        if (filter_locs.get(.COMP)) |comp_loc| {
             if (comp_loc.mapping) |mapping| {
                 if (mapping.COMP.Comp_HiCut) |param|
                     hi = reaper.TrackFX_GetParamNormalized(tr, comp_loc.fx_index, param);
@@ -225,7 +259,7 @@ pub fn syncFilterKnobs(globals: *Globals) void {
             }
         }
     } else {
-        if (fx_ctrl.track_state.module_locations.get(.INPUT)) |input_loc| {
+        if (filter_locs.get(.INPUT)) |input_loc| {
             if (input_loc.mapping) |mapping| {
                 if (mapping.INPUT.Inpt_HiCut) |param|
                     hi = reaper.TrackFX_GetParamNormalized(tr, input_loc.fx_index, param);

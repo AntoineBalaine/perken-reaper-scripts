@@ -4,6 +4,7 @@ const settings = @import("settings.zig");
 const statemachine = @import("statemachine.zig");
 const c1 = @import("c1.zig");
 const ModulesList = statemachine.ModulesList;
+const PhysicalModule = statemachine.PhysicalModule;
 const fs_helpers = @import("fs_helpers.zig");
 const log = std.log.scoped(.mappings);
 
@@ -75,6 +76,64 @@ pub const Shp = struct {
     Shp_sustain: ?u16 = null,
 };
 
+/// A flattened mapping for channel strip FX that contain all Console1 sections
+/// in a single plugin. Each field is an optional parameter index within the FX.
+/// Because channel strip mode repurposes SC_routing and Tr_order as freely
+/// assignable parameters, they are included here.
+pub const ChannelStripMapping = struct {
+    version: u8 = MAPPING_FORMAT_VERSION,
+
+    // Input section
+    Inpt_Gain: ?u16 = null,
+    Inpt_HiCut: ?u16 = null,
+    Inpt_LoCut: ?u16 = null,
+    Inpt_disp_mode: ?u16 = null,
+    Inpt_disp_on: ?u16 = null,
+    Inpt_filt_to_comp: ?u16 = null,
+    Inpt_preset: ?u16 = null,
+
+    // Gate/Shape section
+    Shp_Gate: ?u16 = null,
+    Shp_GateRelease: ?u16 = null,
+    Shp_Punch: ?u16 = null,
+    Shp_hard_gate: ?u16 = null,
+    Shp_shape: ?u16 = null,
+    Shp_sustain: ?u16 = null,
+
+    // EQ section
+    Eq_HiFrq: ?u16 = null,
+    Eq_HiGain: ?u16 = null,
+    Eq_HiMidFrq: ?u16 = null,
+    Eq_HiMidGain: ?u16 = null,
+    Eq_HiMidQ: ?u16 = null,
+    Eq_LoFrq: ?u16 = null,
+    Eq_LoGain: ?u16 = null,
+    Eq_LoMidFrq: ?u16 = null,
+    Eq_LoMidGain: ?u16 = null,
+    Eq_LoMidQ: ?u16 = null,
+    Eq_eq: ?u16 = null,
+    Eq_hp_shape: ?u16 = null,
+    Eq_lp_shape: ?u16 = null,
+
+    // Compressor section
+    Comp_Attack: ?u16 = null,
+    Comp_DryWet: ?u16 = null,
+    Comp_Ratio: ?u16 = null,
+    Comp_Release: ?u16 = null,
+    Comp_Thresh: ?u16 = null,
+    Comp_comp: ?u16 = null,
+
+    // Output section
+    Out_Drive: ?u16 = null,
+    Out_DriveChar: ?u16 = null,
+    Out_Pan: ?u16 = null,
+    Out_Vol: ?u16 = null,
+
+    // Reassignable controls (no fixed meaning in channel strip mode)
+    SC_routing: ?u16 = null,
+    Tr_order: ?u16 = null,
+};
+
 /// Tagged union representing a loaded mapping for any module type.
 /// null indicates no mapping was found or loading failed - or was never set.
 pub const TaggedMapping = union(ModulesList) {
@@ -83,14 +142,16 @@ pub const TaggedMapping = union(ModulesList) {
     EQ: Eq,
     COMP: Comp,
     OUTPT: Outpt,
+    STRIP: ChannelStripMapping,
     pub fn empty(mode: ModulesList) TaggedMapping {
-        switch (mode) {
-            .INPUT => Inpt{},
-            .GATE => Shp{},
-            .EQ => Eq{},
-            .COMP => Comp{},
-            .OUTPT => Outpt{},
-        }
+        return switch (mode) {
+            .INPUT => .{ .INPUT = Inpt{} },
+            .GATE => .{ .GATE = Shp{} },
+            .EQ => .{ .EQ = Eq{} },
+            .COMP => .{ .COMP = Comp{} },
+            .OUTPT => .{ .OUTPT = Outpt{} },
+            .STRIP => .{ .STRIP = ChannelStripMapping{} },
+        };
     }
 };
 
@@ -120,26 +181,25 @@ EQ: std.StringArrayHashMapUnmanaged(FxMaps(Eq)),
 INPUT: std.StringArrayHashMapUnmanaged(FxMaps(Inpt)),
 OUTPT: std.StringArrayHashMapUnmanaged(FxMaps(Outpt)),
 GATE: std.StringArrayHashMapUnmanaged(FxMaps(Shp)),
+STRIP: std.StringArrayHashMapUnmanaged(FxMaps(ChannelStripMapping)),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
-mappings_list: *@import("mappings_list.zig"),
-
-pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *@import("mappings_list.zig")) @This() {
+pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This() {
     const self: MapStore = .{
         .INPUT = std.StringArrayHashMapUnmanaged(FxMaps(Inpt)){},
         .GATE = std.StringArrayHashMapUnmanaged(FxMaps(Shp)){},
         .EQ = std.StringArrayHashMapUnmanaged(FxMaps(Eq)){},
         .COMP = std.StringArrayHashMapUnmanaged(FxMaps(Comp)){},
         .OUTPT = std.StringArrayHashMapUnmanaged(FxMaps(Outpt)){},
+        .STRIP = std.StringArrayHashMapUnmanaged(FxMaps(ChannelStripMapping)){},
         .controller_dir = controller_dir,
         .allocator = allocator,
-        .mappings_list = ml,
     };
     return self;
 }
 
-pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *@import("mappings_list.zig"), defaults: *settings.DefaultFx) !MapStore {
-    var self: MapStore = .empty(allocator, controller_dir, ml);
+pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *MappingsList, defaults: *settings.DefaultFx) !MapStore {
+    var self: MapStore = .empty(allocator, controller_dir);
     // find the mappings for the defaults
     var iterator = defaults.iterator();
     while (iterator.next()) |defaultsEntry| {
@@ -148,7 +208,7 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *@i
         if (fxName) |fx_name| {
             // use self.getMap() only for its side-effect: storing into the map.
             // Its return value is only meant to be used by self.get()
-            _ = self.getMap(fx_name, defaultsEntry.key, "default") catch {
+            _ = self.getMap(fx_name, defaultsEntry.key, "default", ml) catch {
                 continue;
             };
         }
@@ -189,6 +249,12 @@ pub fn deinit(self: *MapStore) void {
         entry.value_ptr.deinit(self.allocator);
     }
     self.GATE.deinit(self.allocator);
+
+    var strip_iter = self.STRIP.iterator();
+    while (strip_iter.next()) |entry| {
+        entry.value_ptr.deinit(self.allocator);
+    }
+    self.STRIP.deinit(self.allocator);
 }
 
 pub fn getModuleByName(self: *MapStore, fx_name: [:0]const u8) ?ModulesList {
@@ -202,9 +268,68 @@ pub fn getModuleByName(self: *MapStore, fx_name: [:0]const u8) ?ModulesList {
     return null;
 }
 
+/// Retrieves a channel strip mapping for the given FX name.
+/// If the mapping is not in the cache, we attempt to load it from disk.
+/// Saves a channel strip mapping to disk at `maps/STRIP/<fx_name>/<mapping_name>.ini`
+pub fn saveStripToFile(
+    self: *MapStore,
+    fs_ops: fs_helpers.FileSystemOps,
+    fx_name: [:0]const u8,
+    mapping: ChannelStripMapping,
+    mapping_name: [:0]const u8,
+) !void {
+    var name_buf: [512:0]u8 = undefined;
+    const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
+
+    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir_path = fs_helpers.joinStrings(&dir_path_buf, &.{
+        std.mem.span(self.controller_dir),
+        std.fs.path.sep_str,
+        "maps",
+        std.fs.path.sep_str,
+        "STRIP",
+        std.fs.path.sep_str,
+        sanitized_name,
+    });
+
+    fs_ops.makeDirAbsolute(dir_path) catch |err| {
+        if (err != error.PathAlreadyExists) {
+            log.err("Failed to create strip directory: {s}", .{@errorName(err)});
+            return err;
+        }
+    };
+
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = fs_helpers.joinStrings(&path_buf, &.{
+        std.mem.span(self.controller_dir),
+        std.fs.path.sep_str,
+        "maps",
+        std.fs.path.sep_str,
+        "STRIP",
+        std.fs.path.sep_str,
+        sanitized_name,
+        std.fs.path.sep_str,
+        mapping_name,
+        ".ini",
+    });
+
+    const file = try fs_ops.createFileAbsolute(path, .{
+        .read = true,
+        .truncate = true,
+    });
+    defer file.close();
+
+    var writer = file.writer();
+    inline for (std.meta.fields(ChannelStripMapping)) |field| {
+        try writer.print("{s} = ", .{field.name});
+        try formatOptionalU8(@field(mapping, field.name), writer);
+        try writer.writeByte('\n');
+    }
+}
+
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
 /// Because we now store multiple mappings per FX, we return the preferred mapping.
-pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMapping {
+pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList, ml: *MappingsList) ?TaggedMapping {
     switch (module) {
         .COMP => {
             if (self.COMP.get(fxName)) |mappings_list| {
@@ -217,7 +342,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default") catch null;
+                return self.getMap(fxName, module, "default", ml) catch null;
             }
         },
         .EQ => {
@@ -230,7 +355,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default") catch null;
+                return self.getMap(fxName, module, "default", ml) catch null;
             }
         },
         .INPUT => {
@@ -243,7 +368,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default") catch null;
+                return self.getMap(fxName, module, "default", ml) catch null;
             }
         },
         .OUTPT => {
@@ -256,7 +381,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default") catch null;
+                return self.getMap(fxName, module, "default", ml) catch null;
             }
         },
         .GATE => {
@@ -269,7 +394,20 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?TaggedMa
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default") catch null;
+                return self.getMap(fxName, module, "default", ml) catch null;
+            }
+        },
+        .STRIP => {
+            if (self.STRIP.get(fxName)) |mappings_list| {
+                if (mappings_list.mappings.get(mappings_list.preferred_mapping)) |maybe_strip| {
+                    if (maybe_strip) |strip| {
+                        return TaggedMapping{ .STRIP = strip };
+                    }
+                }
+                return null;
+            } else {
+                log.debug("mapping {s} unfound", .{fxName});
+                return self.getMap(fxName, module, "default", ml) catch null;
             }
         },
     }
@@ -330,6 +468,16 @@ pub fn setPreferredMapping(self: *MapStore, fx_name: [:0]const u8, module: Modul
                 return error.FxNotFound;
             }
         },
+        .STRIP => {
+            if (self.STRIP.getPtr(fx_name)) |mappings_list| {
+                if (!mappings_list.mappings.contains(filepath)) {
+                    return error.MappingNotFound;
+                }
+                mappings_list.preferred_mapping = filepath;
+            } else {
+                return error.FxNotFound;
+            }
+        },
     }
 }
 
@@ -366,14 +514,20 @@ pub fn getPreferredMapping(self: *MapStore, fx_name: [:0]const u8, module: Modul
             }
             return null;
         },
+        .STRIP => {
+            if (self.STRIP.get(fx_name)) |mappings_list| {
+                return mappings_list.preferred_mapping;
+            }
+            return null;
+        },
     }
 }
 
 /// fetch mapping from disk, parse it, store it, and return it.
 /// Because the mappings_list index knows the absolute path for each mapping,
 /// we look up the path there instead of constructing it ourselves.
-pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8) !TaggedMapping {
-    const filePath_z = self.mappings_list.lookupPath(module, fxName, mapping_name) orelse return error.FileNotFound;
+pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8, ml: *MappingsList) !TaggedMapping {
+    const filePath_z = ml.lookupPath(module, fxName, mapping_name) orelse return error.FileNotFound;
     const filePath: []const u8 = filePath_z;
 
     log.debug("Loading mapping from {s}", .{filePath});
@@ -498,6 +652,26 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
             try gop.value_ptr.mappings.put(self.allocator, filePath_z, shp);
 
             return TaggedMapping{ .GATE = shp };
+        },
+        .STRIP => {
+            var strip = ChannelStripMapping{};
+            _ = try readToU8Struct(&strip, &parser, &found_module);
+
+            if (found_module) |m| {
+                if (m != module) return error.ModuleMismatch;
+            }
+
+            var gop = try self.STRIP.getOrPut(self.allocator, fxName);
+            if (!gop.found_existing) {
+                gop.value_ptr.* = FxMaps(ChannelStripMapping){
+                    .mappings = std.StringArrayHashMapUnmanaged(?ChannelStripMapping){},
+                    .preferred_mapping = filePath_z,
+                };
+            }
+
+            try gop.value_ptr.mappings.put(self.allocator, filePath_z, strip);
+
+            return TaggedMapping{ .STRIP = strip };
         },
     };
 
@@ -651,6 +825,11 @@ pub fn saveToFile(
             try formatOptionalU8(@field(gate, field.name), writer);
             try writer.writeByte('\n');
         },
+        .STRIP => |strip| inline for (std.meta.fields(@TypeOf(strip))) |field| {
+            try writer.print("{s} = ", .{field.name});
+            try formatOptionalU8(@field(strip, field.name), writer);
+            try writer.writeByte('\n');
+        },
     }
 }
 
@@ -717,12 +896,12 @@ test "MapStore - get: lazy loading and caching" {
     const test_fx = "VST: ReaComp (Cockos)";
 
     // First access should load from disk
-    const first_result = ctx.store.get(test_fx, .COMP);
+    const first_result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(first_result != null);
     try std.testing.expect(ctx.store.COMP.count() == 1);
 
     // Second access should use cache
-    const second_result = ctx.store.get(test_fx, .COMP);
+    const second_result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(second_result != null);
     try std.testing.expect(ctx.store.COMP.count() == 1);
 
@@ -747,7 +926,7 @@ test "MapStore - invalid fx name" {
     const nonexistent_fx = "VST: NonexistentPlugin";
 
     try std.testing.expect(ctx.store.COMP.count() == 1);
-    const result = ctx.store.get(nonexistent_fx, .COMP);
+    const result = ctx.store.get(nonexistent_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(result == null);
     try std.testing.expect(ctx.store.COMP.count() == 1); // Should not cache failed attempts
 }
@@ -758,7 +937,7 @@ test "MapStore - all values are within MIDI range (0-127)" {
 
     const test_fx = "VST: ReaComp (Cockos)";
 
-    const result = ctx.store.get(test_fx, .COMP);
+    const result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
     if (result) |COMP| {
         const comp = COMP.COMP;
         // Test that all values are within MIDI range (0-127)
@@ -768,72 +947,6 @@ test "MapStore - all values are within MIDI range (0-127)" {
     } else {
         try std.testing.expect(false);
     }
-}
-
-/// Helper function to get the parameter index for a given CC from a mapping
-pub fn getParamForCC(cc: c1.CCs, mapping: TaggedMapping) ?u16 {
-    // Get the module for this CC using the existing toModule method
-    const module = cc.toModule();
-
-    // Check if the mapping is for the correct module
-    if (@as(ModulesList, @enumFromInt(@intFromEnum(mapping))) != module) {
-        return null;
-    }
-
-    // Hard-coded correspondences for each CC
-    return switch (cc) {
-        // COMP module parameters
-        .Comp_Attack => mapping.COMP.Comp_Attack,
-        .Comp_DryWet => mapping.COMP.Comp_DryWet,
-        .Comp_Ratio => mapping.COMP.Comp_Ratio,
-        .Comp_Release => mapping.COMP.Comp_Release,
-        .Comp_Thresh => mapping.COMP.Comp_Thresh,
-        .Comp_comp => mapping.COMP.Comp_comp,
-        .Comp_HiCut => mapping.COMP.Comp_HiCut,
-        .Comp_LoCut => mapping.COMP.Comp_LoCut,
-
-        // EQ module parameters
-        .Eq_HiFrq => mapping.EQ.Eq_HiFrq,
-        .Eq_HiGain => mapping.EQ.Eq_HiGain,
-        .Eq_HiMidFrq => mapping.EQ.Eq_HiMidFrq,
-        .Eq_HiMidGain => mapping.EQ.Eq_HiMidGain,
-        .Eq_HiMidQ => mapping.EQ.Eq_HiMidQ,
-        .Eq_LoFrq => mapping.EQ.Eq_LoFrq,
-        .Eq_LoGain => mapping.EQ.Eq_LoGain,
-        .Eq_LoMidFrq => mapping.EQ.Eq_LoMidFrq,
-        .Eq_LoMidGain => mapping.EQ.Eq_LoMidGain,
-        .Eq_LoMidQ => mapping.EQ.Eq_LoMidQ,
-        .Eq_eq => mapping.EQ.Eq_eq,
-        .Eq_hp_shape => mapping.EQ.Eq_hp_shape,
-        .Eq_lp_shape => mapping.EQ.Eq_lp_shape,
-
-        // INPUT module parameters
-        .Inpt_Gain => mapping.INPUT.Inpt_Gain,
-        .Inpt_HiCut => mapping.INPUT.Inpt_HiCut,
-        .Inpt_LoCut => mapping.INPUT.Inpt_LoCut,
-        .Inpt_disp_mode => mapping.INPUT.Inpt_disp_mode,
-        .Inpt_disp_on => mapping.INPUT.Inpt_disp_on,
-        .Inpt_filt_to_comp => mapping.INPUT.Inpt_filt_to_comp,
-        // .Inpt_phase_inv => mapping.INPUT.Inpt_phase_inv,
-        .Inpt_preset => mapping.INPUT.Inpt_preset,
-
-        // OUTPT module parameters
-        .Out_Drive => mapping.OUTPT.Out_Drive,
-        .Out_DriveChar => mapping.OUTPT.Out_DriveChar,
-        .Out_Pan => mapping.OUTPT.Out_Pan,
-        .Out_Vol => mapping.OUTPT.Out_Vol,
-
-        // GATE module parameters
-        .Shp_Gate => mapping.GATE.Shp_Gate,
-        .Shp_GateRelease => mapping.GATE.Shp_GateRelease,
-        .Shp_Punch => mapping.GATE.Shp_Punch,
-        .Shp_hard_gate => mapping.GATE.Shp_hard_gate,
-        .Shp_shape => mapping.GATE.Shp_shape,
-        .Shp_sustain => mapping.GATE.Shp_sustain,
-
-        // Other CCs that don't map to parameters
-        else => unreachable,
-    };
 }
 
 const MappingsList = @import("mappings_list.zig");
@@ -886,7 +999,7 @@ test getPreferredMapping {
 
     const test_fx = "VST: ReaComp (Cockos)";
 
-    const result = ctx.store.get(test_fx, .COMP);
+    const result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(result != null);
 
     // Verify that the preferred mapping is set
@@ -901,7 +1014,7 @@ test "MapStore: get - returns null for missing maps" {
 
     const nonexistent_fx = "VST: BogusPlugin";
 
-    const result = ctx.store.get(nonexistent_fx, .COMP);
+    const result = ctx.store.get(nonexistent_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(result == null);
 }
 
@@ -912,7 +1025,7 @@ test "MapStore - get: basic" {
     const test_fx = "VST: ReaComp (Cockos)";
 
     // First access loads default mapping
-    const first_result = ctx.store.get(test_fx, .COMP);
+    const first_result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(first_result != null);
 
     // Verify FxMaps exists for this FX
@@ -923,7 +1036,7 @@ test "MapStore - get: basic" {
     try std.testing.expectEqual(@as(usize, 1), fx_maps.?.mappings.count());
 
     // Second access uses cache
-    const second_result = ctx.store.get(test_fx, .COMP);
+    const second_result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(second_result != null);
 }
 
@@ -934,7 +1047,7 @@ test "MapStore - get: handling FX with zero mappings" {
     const nonexistent_fx = "VST: BrandNewPlugin";
 
     // Because no mappings exist for this FX, get should return null
-    const result = ctx.store.get(nonexistent_fx, .EQ);
+    const result = ctx.store.get(nonexistent_fx, .EQ, ctx.mappings_list);
     try std.testing.expect(result == null);
 }
 
@@ -945,7 +1058,7 @@ test "MapStore - get: handling FX with zero mappings" {
 //     const test_fx = "VST: ReaComp (Cockos)";
 
 //     // Load the default mapping first
-//     _ = ctx.store.get(test_fx, .COMP);
+//     _ = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
 
 //     // Because we try to set a non-existent mapping as preferred, we should get an error
 //     const bogus_path = "/nonexistent/path/to/mapping.ini";

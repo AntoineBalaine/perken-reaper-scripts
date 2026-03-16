@@ -2,6 +2,8 @@ const std = @import("std");
 const c1 = @import("c1.zig");
 const reaper = @import("reaper.zig").reaper;
 const statemachine = @import("statemachine.zig");
+const PhysicalModule = statemachine.PhysicalModule;
+const TrackState = @import("track_state.zig");
 const Globals = @import("globals.zig").Globals;
 const actions = @import("actions.zig");
 const action_types = @import("action_types.zig");
@@ -54,11 +56,12 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
                 std.meta.activeTag(globals.state.mapping_panel.mode) == .assign and
                 globals.state.mapping_panel.mode.assign.midi_learn_active)
             {
-                const module = std.meta.activeTag(globals.state.mapping_panel.mode.assign.current_mappings);
-                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |mod_loc| {
-                    if (mod_loc.fx_index == prm_chg.fx_index) {
-                        actions.dispatch(globals, .{ .mapping_panel = .{ .assign_midi_learned_param = @intCast(prm_chg.param_index) } });
-                    }
+                const key: u32 = @bitCast(TrackState.ParamKey{
+                    .fx_index = @intCast(prm_chg.fx_index),
+                    .param_index = @intCast(prm_chg.param_index),
+                });
+                if (globals.state.fx_ctrl.track_state.reverse_map.get(key) != null) {
+                    actions.dispatch(globals, .{ .mapping_panel = .{ .assign_midi_learned_param = @intCast(prm_chg.param_index) } });
                 }
             }
 
@@ -69,28 +72,11 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
                 // Check if we have a current track and it matches the notification track
                 const tr_id = reaper.CSurf_TrackToID(prm_chg.track, false);
                 if (globals.state.current_tr_id != null and globals.state.current_tr_id.? == tr_id) {
-                    // Find the module and parameter that corresponds to this FX and parameter index
-                    var cc: ?c1.CCs = null;
-
-                    blk: inline for (comptime std.enums.values(statemachine.ModulesList)) |field| {
-                        if (globals.state.fx_ctrl.track_state.module_locations.get(field)) |mod_map| {
-                            const idx = mod_map.fx_index;
-                            if (idx == prm_chg.fx_index) {
-                                if (mod_map.mapping) |mapping| {
-                                    const map_variant = @field(mapping, @tagName(field));
-                                    inline for (@typeInfo(@TypeOf(map_variant)).@"struct".fields) |param_field| {
-                                        if (comptime std.mem.eql(u8, param_field.name, "version")) continue;
-
-                                        const param_idx = @field(map_variant, param_field.name);
-                                        if (param_idx != null and param_idx.? == prm_chg.param_index) {
-                                            cc = @field(c1.CCs, param_field.name);
-                                            break :blk;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    const key: u32 = @bitCast(TrackState.ParamKey{
+                        .fx_index = @intCast(prm_chg.fx_index),
+                        .param_index = @intCast(prm_chg.param_index),
+                    });
+                    const cc = globals.state.fx_ctrl.track_state.reverse_map.get(key);
 
                     // If we found a matching parameter, update the state and send MIDI feedback
                     if (cc) |control_cc| {

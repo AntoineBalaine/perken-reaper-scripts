@@ -92,14 +92,34 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         const routing: SCRouting = @enumFromInt(@as(u8, @intFromFloat(input.value)));
-                        globals.state.fx_ctrl.validateTrack(null, media_track, routing, globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store, &globals.preferences) catch {};
+                        globals.state.fx_ctrl.validateTrack(
+                            null,
+                            media_track,
+                            routing,
+                            globals.preferences.manual_routing,
+                            globals.preferences.default_fx,
+                            &globals.map_store,
+                            &globals.preferences,
+                            globals.arena,
+                            &globals.mappings_list,
+                        ) catch {};
                     }
                 },
                 .Tr_order => {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         const order: ModulesOrder = @enumFromInt(@as(u8, @intFromFloat(input.value)));
-                        globals.state.fx_ctrl.validateTrack(order, media_track, null, globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store, &globals.preferences) catch {};
+                        globals.state.fx_ctrl.validateTrack(
+                            order,
+                            media_track,
+                            null,
+                            globals.preferences.manual_routing,
+                            globals.preferences.default_fx,
+                            &globals.map_store,
+                            &globals.preferences,
+                            globals.arena,
+                            &globals.mappings_list,
+                        ) catch {};
                     }
                 },
                 .Inpt_filt_to_comp => {
@@ -125,11 +145,8 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        const input_loc = globals.state.fx_ctrl.track_state.module_locations.get(.INPUT) orelse return;
-                        const mapping = input_loc.mapping orelse return;
-                        const param_idx = @import("mappings.zig").getParamForCC(input.cc, mapping);
-                        if (param_idx) |param| {
-                            _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, input_loc.fx_index, param, input.value });
+                        if (globals.state.fx_ctrl.track_state.forward_map.get(input.cc)) |fxp| {
+                            _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
                         }
                     }
                 },
@@ -156,25 +173,9 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     // Send MIDI feedback regardless of the control type
                     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
                     if (globals.state.current_tr_id) |tr_id| {
-                        // Update the host application via REAPER API
-                        // Get the module for this CC
-                        const module = input.cc.toModule();
-
-                        // Get the module location from track state
-                        if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |module_loc| {
-                            // Check if we have a mapping for this module
-                            if (module_loc.mapping) |mapping| {
-                                // Get the parameter index from the mapping
-                                const param_idx = @import("mappings.zig").getParamForCC(input.cc, mapping);
-                                // If we have a parameter index, update the host
-                                if (param_idx) |param| {
-                                    // Get the current track ID and convert to MediaTrack
-                                    const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-
-                                    // Set the parameter in REAPER
-                                    _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, module_loc.fx_index, param, input.value });
-                                }
-                            }
+                        const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+                        if (globals.state.fx_ctrl.track_state.forward_map.get(input.cc)) |fxp| {
+                            _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
                         }
                     }
                 },
@@ -223,7 +224,17 @@ fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
     log.debug("track entry", .{});
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
 
-    globals.state.fx_ctrl.validateTrack(null, media_track, null, globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store, &globals.preferences) catch {
+    globals.state.fx_ctrl.validateTrack(
+        null,
+        media_track,
+        null,
+        globals.preferences.manual_routing,
+        globals.preferences.default_fx,
+        &globals.map_store,
+        &globals.preferences,
+        globals.arena,
+        &globals.mappings_list,
+    ) catch {
         log.err("track validation failed: track {d}", .{id});
     };
 
@@ -275,46 +286,53 @@ fn updateFxParamValues(globals: *Globals, media_track: MediaTrack) void {
             .Shp_shape,
             .Shp_sustain,
             => {
-                // Determine module and get mapping
-                const module = comptime getModuleForCC(cc);
-                if (module) |mod| {
-                    const module_loc = globals.state.fx_ctrl.track_state.module_locations.get(mod);
-                    if (module_loc) |fxmap| {
-                        const fx_idx = fxmap.fx_index;
-                        const mapping = fxmap.mapping;
-                        if (mapping) |map| {
-                            // Get parameter index from mapping
-                            const param_idx = @field(@field(map, @tagName(mod)), @tagName(cc));
-                            if (param_idx) |param| {
-                                const val = reaper.TrackFX_GetParamNormalized(media_track, fx_idx, param);
-
-                                if (val >= 0) {
-                                    // Update the FX control state with the parameter value
-                                    if (globals.state.fx_ctrl.values.getPtr(cc)) |value_ptr| {
-                                        // Check the active field of the union
-                                        switch (value_ptr.*) {
-                                            .param => |*param_value| param_value.normalized = val,
-                                            .button => |*button_val| button_val.* = val > 0.5,
-                                            else => {}, // Skip other types
+                switch (globals.state.fx_ctrl.track_state.mode) {
+                    .multi_fx => |locs| {
+                        const module = comptime cc.toModule();
+                        if (module) |mod| {
+                            if (locs.get(mod)) |fxmap| {
+                                const fx_idx = fxmap.fx_index;
+                                if (fxmap.mapping) |map| {
+                                    const param_idx = @field(@field(map, @tagName(mod)), @tagName(cc));
+                                    if (param_idx) |param| {
+                                        const val = reaper.TrackFX_GetParamNormalized(media_track, fx_idx, param);
+                                        if (val >= 0) {
+                                            if (globals.state.fx_ctrl.values.getPtr(cc)) |value_ptr| {
+                                                switch (value_ptr.*) {
+                                                    .param => |*param_value| param_value.normalized = val,
+                                                    .button => |*button_val| button_val.* = val > 0.5,
+                                                    else => {},
+                                                }
+                                            }
+                                        } else {
+                                            var buf: [512:0]u8 = undefined;
+                                            const fx_name = if (reaper.TrackFX_GetNamedConfigParm(media_track, fx_idx, "original_name", &buf, buf.len))
+                                                std.mem.span(@as([*:0]const u8, &buf))
+                                            else
+                                                "unknown";
+                                            log.err("Failed to get parameter value: FX '{s}' at index {}, parameter '{s}' at index {}", .{
+                                                fx_name, fx_idx, @tagName(cc), param,
+                                            });
                                         }
                                     }
-                                } else {
-                                    var buf: [512:0]u8 = undefined;
-                                    const fx_name = if (reaper.TrackFX_GetNamedConfigParm(media_track, fx_idx, "original_name", &buf, buf.len))
-                                        std.mem.span(@as([*:0]const u8, &buf))
-                                    else
-                                        "unknown";
-
-                                    log.err("Failed to get parameter value: FX '{s}' at index {}, parameter '{s}' at index {}", .{
-                                        fx_name,
-                                        fx_idx,
-                                        @tagName(cc),
-                                        param,
-                                    });
                                 }
                             }
                         }
-                    }
+                    },
+                    .channel_strip => {
+                        if (globals.state.fx_ctrl.track_state.forward_map.get(cc)) |fxp| {
+                            const val = reaper.TrackFX_GetParamNormalized(media_track, fxp.fx_index, fxp.param_index);
+                            if (val >= 0) {
+                                if (globals.state.fx_ctrl.values.getPtr(cc)) |value_ptr| {
+                                    switch (value_ptr.*) {
+                                        .param => |*param_value| param_value.normalized = val,
+                                        .button => |*button_val| button_val.* = val > 0.5,
+                                        else => {},
+                                    }
+                                }
+                            }
+                        }
+                    },
                 }
             },
             else => {},
@@ -324,18 +342,3 @@ fn updateFxParamValues(globals: *Globals, media_track: MediaTrack) void {
 
 // Helper function to determine module from CC
 // Similar to the one in midi_out.zig
-fn getModuleForCC(comptime cc: c1.CCs) ?statemachine.ModulesList {
-    const cc_name = @tagName(cc);
-    return if (std.mem.startsWith(u8, cc_name, "Comp"))
-        .COMP
-    else if (std.mem.startsWith(u8, cc_name, "Eq"))
-        .EQ
-    else if (std.mem.startsWith(u8, cc_name, "Inpt"))
-        .INPUT
-    else if (std.mem.startsWith(u8, cc_name, "Out"))
-        .OUTPT
-    else if (std.mem.startsWith(u8, cc_name, "Shp"))
-        .GATE
-    else
-        null;
-}

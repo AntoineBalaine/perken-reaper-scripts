@@ -20,7 +20,7 @@ const MapStore = @import("../mappings.zig");
 const Guid = @import("../utils.zig").Guid;
 
 /// used in tests
-fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
+pub fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
     var path_mem: [std.fs.max_path_bytes]u8 = undefined;
     const pth = try std.fs.cwd().realpath(".", &path_mem);
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
@@ -50,6 +50,7 @@ const Model = struct {
                 .EQ = "VST: ReaEQ (Cockos)",
                 .COMP = "VST: ReaComp (Cockos)",
                 .OUTPT = "JS: Volume Adjustment",
+                .STRIP = null,
             }),
             .allocator = allocator,
         };
@@ -92,7 +93,7 @@ const System = struct {
             .session = session,
             .track = track,
             .ml = ml,
-            .map_store = .empty(testing.allocator, "test_resources/mappings", ml),
+            .map_store = .empty(testing.allocator, "test_resources/mappings"),
         };
     }
 
@@ -172,6 +173,7 @@ const AddFxCmd = struct {
             .EQ => "E",
             .COMP => "C",
             .OUTPT => "O",
+            .STRIP => "X",
         };
     }
 };
@@ -305,7 +307,8 @@ const ValidateTrackCmd = struct {
         const media_track: reaper.MediaTrack = @ptrCast(sut.track);
 
         var track_state: TrackState = .{};
-        _ = track_state.validateTrack(media_track, model.default_fx, &sut.map_store, .empty);
+        defer track_state.deinitMaps(std.testing.allocator);
+        _ = track_state.validateTrack(media_track, model.default_fx, &sut.map_store, .empty, std.testing.allocator, sut.ml);
 
         // Verify all 5 modules exist after validation
         const fx_count = reaper.TrackFX_GetCount(media_track);
@@ -327,7 +330,7 @@ test "track validation - empty track gets all modules" {
 
     const config_path = try getTestConfigPath(arena.allocator());
     var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
-    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -336,10 +339,12 @@ test "track validation - empty track gets all modules" {
         .EQ = "VST: ReaEQ (Cockos)",
         .COMP = "VST: ReaComp (Cockos)",
         .OUTPT = "JS: Volume Adjustment",
+        .STRIP = null,
     });
 
     var track_state: TrackState = .{};
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty);
+    defer track_state.deinitMaps(std.testing.allocator);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, &ml);
 
     // Verify all modules were added
     try testing.expect(coverage.INPUT != null);
@@ -378,7 +383,7 @@ test "track validation - duplicate module suffixes removed" {
 
     const config_path = try getTestConfigPath(arena.allocator());
     var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
-    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -387,10 +392,12 @@ test "track validation - duplicate module suffixes removed" {
         .EQ = "VST: ReaEQ (Cockos)",
         .COMP = "VST: ReaComp (Cockos)",
         .OUTPT = "JS: Volume Adjustment",
+        .STRIP = null,
     });
 
     var track_state: TrackState = .{};
-    _ = track_state.validateTrack(media_track, default_fx, &map_store, .empty);
+    defer track_state.deinitMaps(std.testing.allocator);
+    _ = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, &ml);
 
     const fx_count = reaper.TrackFX_GetCount(media_track);
 
@@ -432,7 +439,7 @@ test "track validation - missing modules inserted in correct positions" {
 
     const config_path = try getTestConfigPath(arena.allocator());
     var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
-    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -441,10 +448,12 @@ test "track validation - missing modules inserted in correct positions" {
         .EQ = "VST: ReaEQ (Cockos)",
         .COMP = "VST: ReaComp (Cockos)",
         .OUTPT = "JS: Volume Adjustment",
+        .STRIP = null,
     });
 
     var track_state: TrackState = .{};
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty);
+    defer track_state.deinitMaps(std.testing.allocator);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, &ml);
 
     // Verify all modules exist and are in correct order
     try testing.expectEqual(@as(i32, 0), coverage.INPUT.?.index);
@@ -520,7 +529,7 @@ test "auto_insert_modules disabled prevents module insertion" {
 
     const config_path = try getTestConfigPath(arena.allocator());
     var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
-    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     const default_fx: DefaultFx = .initFill(null);
@@ -529,7 +538,8 @@ test "auto_insert_modules disabled prevents module insertion" {
     prefs.auto_insert_modules = false;
 
     var track_state: TrackState = .{};
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
+    defer track_state.deinitMaps(std.testing.allocator);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, &ml);
 
     // Because no modules were present initially and insertion is disabled, all modules should be null
     try testing.expect(coverage.INPUT == null);
@@ -551,7 +561,7 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
 
     const config_path = try getTestConfigPath(arena.allocator());
     var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
-    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     // Because we need default FX names for insertion, set them up
@@ -566,7 +576,8 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
     prefs.auto_insert_bypassed = true;
 
     var track_state: TrackState = .{};
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
+    defer track_state.deinitMaps(std.testing.allocator);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, &ml);
 
     try testing.expect(coverage.INPUT != null);
     try testing.expect(coverage.GATE != null);
@@ -599,7 +610,7 @@ test "auto_reorder_modules disabled preserves existing module positions" {
 
     const config_path = try getTestConfigPath(arena.allocator());
     var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
-    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     // Because we need to test reordering behavior, first add modules in non-canonical order
@@ -631,7 +642,8 @@ test "auto_reorder_modules disabled preserves existing module positions" {
     prefs.auto_reorder_modules = false; // Don't reorder existing modules
 
     var track_state: TrackState = .{};
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
+    defer track_state.deinitMaps(std.testing.allocator);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, &ml);
 
     // Because reordering is disabled, modules should remain in their original positions
     try testing.expect(coverage.OUTPT.?.index == 0);
@@ -653,7 +665,7 @@ test "preferred_module_order affects insertion positions" {
 
     const config_path = try getTestConfigPath(arena.allocator());
     var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
-    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
+    var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
     var default_fx: DefaultFx = .initFill(null);
@@ -667,7 +679,8 @@ test "preferred_module_order affects insertion positions" {
     prefs.preferred_module_order = .@"EQ-S-C";
 
     var track_state: TrackState = .{};
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs);
+    defer track_state.deinitMaps(std.testing.allocator);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, &ml);
 
     // Because modules are inserted in EQ-S-C order, verify the final order is INPUT, EQ, GATE, COMP, OUTPT
     try testing.expect(coverage.INPUT != null);

@@ -4,7 +4,7 @@ const testing = std.testing;
 const Globals = @import("../globals.zig");
 const statemachine = @import("../statemachine.zig");
 const Mode = statemachine.Mode;
-const ModuleMappings = statemachine.ModuleMappings;
+const TaggedMapping = mappings.TaggedMapping;
 const actions = @import("../actions.zig");
 const midi_events = @import("../csurf/midi_events.zig");
 const csurf_actions = @import("../csurf_actions.zig");
@@ -47,7 +47,7 @@ test "assign mode forwards non reserved midi to fx ctrl" {
     defer teardownGlobals(&g);
 
     // Set up assign sub-mode with dummy mappings
-    const dummy_mappings = ModuleMappings{ .INPUT = mappings.Inpt{} };
+    const dummy_mappings = TaggedMapping{ .INPUT = mappings.Inpt{} };
     g.state.mapping_panel.mode = .{ .assign = statemachine.AssignState.init(allocator, dummy_mappings) };
     defer g.state.mapping_panel.mode.assign.deinit();
 
@@ -88,7 +88,7 @@ test "all mapping panel sub modes exist" {
 
     // Assign mode
     g.state.mapping_panel.deinitCurrentSubMode();
-    const dummy_mappings1 = ModuleMappings{ .INPUT = mappings.Inpt{} };
+    const dummy_mappings1 = TaggedMapping{ .INPUT = mappings.Inpt{} };
     g.state.mapping_panel.mode = .{ .assign = statemachine.AssignState.init(allocator, dummy_mappings1) };
     try testing.expect(g.state.mapping_panel.mode == .assign);
 }

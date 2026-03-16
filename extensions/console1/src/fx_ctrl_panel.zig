@@ -181,7 +181,8 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
             // When filter_to_comp is active, check whether the COMP mapping
             // has the filter params defined; if not, disable the knobs.
             const comp_filter_unmapped = if (ftc) blk: {
-                const comp_loc = fx_state.track_state.module_locations.get(.COMP) orelse break :blk true;
+                const panel_locs = fx_state.track_state.getModuleLocations() orelse break :blk true;
+                const comp_loc = panel_locs.get(.COMP) orelse break :blk true;
                 const mapping = comp_loc.mapping orelse break :blk true;
                 break :blk (mapping.COMP.Comp_HiCut == null and mapping.COMP.Comp_LoCut == null);
             } else false;

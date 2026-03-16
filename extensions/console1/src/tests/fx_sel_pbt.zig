@@ -147,6 +147,44 @@ const ScrollFxCmd = struct {
     }
 };
 
+// ToggleStripBrowserCmd: toggles the strip browser.
+// If already in fx_sel with STRIP category, it returns to fx_ctrl.
+// Otherwise it enters fx_sel with STRIP and resets scroll positions.
+const ToggleStripBrowserCmd = struct {
+    pub const name = "ToggleStripBrowser";
+
+    pub fn checkPrecondition(self: *@This(), model: *const Model) bool {
+        _ = self;
+        return model.current_mode == .fx_ctrl or model.current_mode == .fx_sel;
+    }
+
+    pub fn onModelOnly(self: *@This(), model: *Model) void {
+        _ = self;
+        if (model.current_mode == .fx_sel and model.current_category == .STRIP) {
+            model.current_mode = .fx_ctrl;
+        } else {
+            model.current_mode = .fx_sel;
+            model.current_category = .STRIP;
+            model.scroll_position_abs = 0;
+            model.scroll_position_rel = 0;
+        }
+    }
+
+    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
+        fx_sel_actions.fxSelActions(sut.globals, .{ .toggle_module_browser = .STRIP });
+        self.onModelOnly(model);
+
+        if (model.current_mode == .fx_sel) {
+            return sut.globals.state.current_mode == .fx_sel and
+                sut.globals.state.fx_sel.current_category == .STRIP and
+                sut.globals.state.fx_sel.scroll_position_abs == 0 and
+                sut.globals.state.fx_sel.scroll_position_rel == 0;
+        } else {
+            return sut.globals.state.current_mode == .fx_ctrl;
+        }
+    }
+};
+
 // ============================================================================
 // Test Entry Points
 // ============================================================================
@@ -174,6 +212,9 @@ fn fxSelStatefulTest(_: void, input: []const u8) !void {
     var browse_comp = ToggleModuleBrowserCmd{ .module = .COMP };
     var browse_outpt = ToggleModuleBrowserCmd{ .module = .OUTPT };
 
+    // Strip browser toggle
+    var browse_strip = ToggleStripBrowserCmd{};
+
     // Close browser
     var close_cmd = CloseBrowserCmd{};
 
@@ -187,6 +228,7 @@ fn fxSelStatefulTest(_: void, input: []const u8) !void {
         Command(Model, System).init(&browse_eq),
         Command(Model, System).init(&browse_comp),
         Command(Model, System).init(&browse_outpt),
+        Command(Model, System).init(&browse_strip),
         Command(Model, System).init(&close_cmd),
         Command(Model, System).init(&scroll_up),
         Command(Model, System).init(&scroll_down),

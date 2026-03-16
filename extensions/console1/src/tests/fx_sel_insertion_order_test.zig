@@ -31,6 +31,7 @@ const module_fx = std.EnumArray(ModulesList, FxDef).init(.{
     .EQ = .{ .name = "VST: ReaEQ (Cockos)", .suffix = "(C1-E)" },
     .COMP = .{ .name = "VST: ReaComp (Cockos)", .suffix = "(C1-C)" },
     .OUTPT = .{ .name = "JS: Saturation", .suffix = "(C1-O)" },
+    .STRIP = .{ .name = "JS: Evolution Channel Strip (chmaha)", .suffix = "(C1-X)" },
 });
 
 fn getFullModuleOrder(order: ModulesOrder) [5]ModulesList {
@@ -65,6 +66,8 @@ fn setupChainInOrder(globals: *Globals, order: []const ModulesList) reaper.Media
         globals.preferences.default_fx,
         &globals.map_store,
         globals.preferences,
+        testing.allocator,
+        &globals.mappings_list,
     );
 
     return track;

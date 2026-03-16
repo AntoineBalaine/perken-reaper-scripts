@@ -259,6 +259,7 @@ pub fn draw(
                     .EQ => .default_EQ,
                     .COMP => .default_COMP,
                     .OUTPT => .default_OUTPT,
+                    .STRIP => .default_OUTPT,
                 }, scroll_pos);
                 defer if (popColor) |pop| pop(ctx) catch {};
                 // Begin combo for this module
@@ -268,6 +269,7 @@ pub fn draw(
                     .EQ => tr(translations, .settings_eq),
                     .COMP => tr(translations, .settings_comp),
                     .OUTPT => tr(translations, .settings_output),
+                    .STRIP => tr(translations, .settings_default_channel_strip),
                 };
 
                 if (try imgui.BeginCombo(.{
@@ -309,6 +311,12 @@ pub fn draw(
                 }
             }
         }
+
+        // Channel strip mode settings
+        try imgui.Spacing(.{ctx});
+        try imgui.Separator(.{ctx});
+        try imgui.Spacing(.{ctx});
+        try imgui.Text(.{ ctx, "Channel Strip Mode" });
     }
     return rv;
 }

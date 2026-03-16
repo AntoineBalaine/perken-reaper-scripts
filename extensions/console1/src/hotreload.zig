@@ -103,6 +103,23 @@ pub const HotReloader = struct {
             return;
         };
 
+        // Because macOS kills processes that dlopen unsigned binaries,
+        // we ad-hoc sign the temp copy before loading it.
+        if (comptime @import("builtin").os.tag == .macos and @import("builtin").mode == .Debug) {
+            var codesign = std.process.Child.init(
+                &.{ "codesign", "-s", "-", temp_path },
+                std.heap.page_allocator,
+            );
+            const term = codesign.spawnAndWait() catch |err| {
+                log.err("Failed to codesign temp UI lib: {s}", .{@errorName(err)});
+                return;
+            };
+            if (term.Exited != 0) {
+                log.err("codesign exited with code {d}", .{term.Exited});
+                return;
+            }
+        }
+
         var lib = std.DynLib.open(temp_path) catch |err| {
             log.err("Failed to open UI lib: {s}", .{@errorName(err)});
             return;
@@ -165,11 +182,11 @@ pub const HotReloader = struct {
         defer dst.close();
 
         // Copy contents.
-        var buf: [8192]u8 = undefined;
+        var copy_buf: [8192]u8 = undefined;
         while (true) {
-            const n = src.read(&buf) catch return null;
+            const n = src.read(&copy_buf) catch return null;
             if (n == 0) break;
-            dst.writeAll(buf[0..n]) catch return null;
+            dst.writeAll(copy_buf[0..n]) catch return null;
         }
 
         return dest;

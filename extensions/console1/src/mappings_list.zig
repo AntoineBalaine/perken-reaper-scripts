@@ -31,6 +31,7 @@ pub fn empty(arena: std.mem.Allocator) @This() {
             .EQ = .empty,
             .COMP = .empty,
             .OUTPT = .empty,
+            .STRIP = .empty,
         }),
         .strings = StringPool.init(arena),
     };

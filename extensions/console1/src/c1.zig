@@ -162,14 +162,14 @@ pub const CCs = enum(u8) {
     Comp_HiCut = 0x7c,
     /// Virtual CC for comp filter mappings (no physical hardware control)
     Comp_LoCut = 0x7d,
-    pub fn toModule(self: CCs) @import("statemachine.zig").ModulesList {
+    pub fn toModule(self: CCs) ?@import("statemachine.zig").PhysicalModule {
         return switch (self) {
             .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_Mtr, .Comp_comp, .Comp_HiCut, .Comp_LoCut => .COMP,
             .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
             .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut, .Inpt_disp_mode, .Inpt_disp_on, .Inpt_filt_to_comp, .Inpt_phase_inv, .Inpt_preset, .Inpt_MtrLft, .Inpt_MtrRgt => .INPUT,
             .Out_MtrLft, .Out_MtrRgt, .Out_Drive, .Out_DriveChar, .Out_Pan, .Out_Vol, .Out_mute, .Out_solo => .OUTPT,
             .Shp_Mtr, .Shp_Gate, .Shp_GateRelease, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
-            else => unreachable,
+            else => null,
         };
     }
     // Because the mapping structs (Comp, Eq, Inpt, Outpt, Shp) define

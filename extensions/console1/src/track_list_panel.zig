@@ -18,6 +18,7 @@ const tr = @import("translations.zig").tr;
 const TrackListPanelAction = union(enum) {
     select_track: c_int,
     open_module_browser: ModulesList,
+    open_strip_browser,
     open_settings,
 };
 
@@ -40,7 +41,7 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
             const is_selected = state.selectedTracks.contains(@intCast(tr_id));
 
             // Special handling for modifier keys
-            if (modifier_active and (i < 5 or i == 19)) {
+            if (modifier_active and (i < 6 or i == 19)) {
                 const label = safePrint(&buf, "{d:>2}. {s}", .{
                     i + 1,
                     switch (i) {
@@ -49,23 +50,23 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
                         2 => tr(translations, .track_list_eq_load),
                         3 => tr(translations, .track_list_comp_load),
                         4 => tr(translations, .track_list_output_load),
+                        5 => "channel strip",
                         19 => tr(translations, .track_list_settings),
                         else => unreachable,
                     },
                 });
 
                 if (try imgui.Selectable(.{ ctx, label })) {
-                    action = if (i == 19)
-                        .{ .open_settings = {} }
-                    else
-                        .{ .open_module_browser = switch (i) {
-                            0 => .INPUT,
-                            1 => .GATE,
-                            2 => .EQ,
-                            3 => .COMP,
-                            4 => .OUTPT,
-                            else => unreachable,
-                        } };
+                    action = switch (i) {
+                        19 => .{ .open_settings = {} },
+                        5 => .{ .open_strip_browser = {} },
+                        0 => .{ .open_module_browser = .INPUT },
+                        1 => .{ .open_module_browser = .GATE },
+                        2 => .{ .open_module_browser = .EQ },
+                        3 => .{ .open_module_browser = .COMP },
+                        4 => .{ .open_module_browser = .OUTPT },
+                        else => unreachable,
+                    };
                 }
                 continue;
             }
@@ -187,6 +188,7 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                             .Tr_tr3 => .fx_sel_Tr_tr3,
                             .Tr_tr4 => .fx_sel_Tr_tr4,
                             .Tr_tr5 => .fx_sel_Tr_tr5,
+                            .Tr_tr6 => .fx_sel_Tr_tr6,
                             else => null,
                         },
                         .transport => switch (cc) {
@@ -196,10 +198,6 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
                             .Tr_tr4 => .trsprt_Tr_tr4,
                             .Tr_tr5 => .trsprt_Tr_tr5,
                             .Tr_tr6 => .trsprt_Tr_tr6,
-                            .Tr_tr7 => .trsprt_Tr_tr7,
-                            .Tr_tr8 => .trsprt_Tr_tr8,
-                            .Tr_tr9 => .trsprt_Tr_tr9,
-                            .Tr_tr10 => .trsprt_Tr_tr10,
                             else => null,
                         },
                         else => null,
@@ -272,6 +270,11 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
 
                     const cc_key: ?TranslationKey = switch (mode) {
                         .transport => switch (cc) {
+                            .Tr_tr11 => .trsprt_Tr_tr11,
+                            .Tr_tr12 => .trsprt_Tr_tr12,
+                            .Tr_tr13 => .trsprt_Tr_tr13,
+                            .Tr_tr14 => .trsprt_Tr_tr14,
+                            .Tr_tr15 => .trsprt_Tr_tr15,
                             .Tr_tr17 => .trsprt_Tr_tr17,
                             .Tr_tr18 => .trsprt_Tr_tr18,
                             .Tr_tr19 => .trsprt_Tr_tr19,

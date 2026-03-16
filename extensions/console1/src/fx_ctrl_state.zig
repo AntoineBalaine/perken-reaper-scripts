@@ -4,9 +4,11 @@ const MapStore = @import("mappings.zig");
 const reaper = @import("reaper.zig").reaper;
 const pReaper = @import("pReaper.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
+const PhysicalModule = @import("statemachine.zig").PhysicalModule;
 pub const TrackState = @import("track_state.zig");
 const DefaultFx = @import("settings.zig").DefaultFx;
 const Preferences = @import("settings.zig").Preferences;
+const MappingsList = @import("mappings_list.zig");
 
 // Mode-specific state structures
 pub const FxControlState = @This();
@@ -121,7 +123,7 @@ pub fn deinit(self: *@This()) void {
 }
 
 // Tuple contains: isLoaded, idxInContainer
-pub const ModuleCheck = std.EnumArray(ModulesList, std.meta.Tuple(&.{ bool, u8 }));
+pub const ModuleCheck = std.EnumArray(PhysicalModule, std.meta.Tuple(&.{ bool, u8 }));
 // TODO: this is in top scope because I couldn't figure out how to pass the buffer as a fn param. the constness of fn params doesn't let me use the buffer
 
 pub const Track = @This();
@@ -147,8 +149,10 @@ pub fn validateTrack(
     default_fx: DefaultFx,
     map_store: *MapStore,
     preferences: *const Preferences,
+    allocator: std.mem.Allocator,
+    mappings_list: *MappingsList,
 ) !void {
-    const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store, preferences.*);
+    const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store, preferences.*, allocator, mappings_list);
 
     if (!manual_routing) {
         self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);
@@ -164,8 +168,13 @@ fn getSetSideChainRouting(
     mediaTrack: reaper.MediaTrack,
     new_routing: ?SCRouting,
 ) SCRouting {
-    const gate_loc = self.track_state.module_locations.get(.GATE);
-    const comp_loc = self.track_state.module_locations.get(.COMP);
+    const locs = switch (self.track_state.mode) {
+        .multi_fx => |l| l,
+        // Side-chain routing is skipped in channel strip mode
+        .channel_strip => return .off,
+    };
+    const gate_loc = locs.get(.GATE);
+    const comp_loc = locs.get(.COMP);
 
     // Early return if modules aren't found
     if (gate_loc == null or comp_loc == null) return .off;

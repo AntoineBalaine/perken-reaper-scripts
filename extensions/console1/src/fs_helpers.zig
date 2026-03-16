@@ -201,6 +201,22 @@ pub fn ensureConfigPath(fs_ops: FileSystemOps) !void {
     });
     try ensureDir(fs_ops, defaults_path);
 
+    // Create STRIP directory for channel strip mappings
+    const strip_path = joinStrings(&path_buffer, &.{
+        std.mem.sliceTo(reaper_path, 0),
+        std.fs.path.sep_str,
+        "Data",
+        std.fs.path.sep_str,
+        "Perken",
+        std.fs.path.sep_str,
+        "Console1",
+        std.fs.path.sep_str,
+        "maps",
+        std.fs.path.sep_str,
+        "STRIP",
+    });
+    try ensureDir(fs_ops, strip_path);
+
     // Write default mapping files into maps/defaults/{name}/default.ini
     // Because each mapping needs a unique filename (the filename becomes the
     // mapping name), and all defaults use "default" as the mapping name, we

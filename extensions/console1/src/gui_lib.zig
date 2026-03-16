@@ -139,6 +139,7 @@ pub fn main(
                             .Tr_tr3 => rv = .{ .fx_sel = .{ .toggle_module_browser = .EQ } },
                             .Tr_tr4 => rv = .{ .fx_sel = .{ .toggle_module_browser = .COMP } },
                             .Tr_tr5 => rv = .{ .fx_sel = .{ .toggle_module_browser = .OUTPT } },
+                            .Tr_tr6 => rv = .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
                             else => {},
                         }
                     }
@@ -233,11 +234,12 @@ pub fn main(
                                 };
                                 rv = .{ .fx_sel = .{ .toggle_module_browser = module } };
                             },
-                            .Tr_tr6 => rv = .{ .transport = .{ .automation_mode = .trim } },
-                            .Tr_tr7 => rv = .{ .transport = .{ .automation_mode = .read } },
-                            .Tr_tr8 => rv = .{ .transport = .{ .automation_mode = .latch } },
-                            .Tr_tr9 => rv = .{ .transport = .{ .automation_mode = .preview } },
-                            .Tr_tr10 => rv = .{ .transport = .{ .automation_mode = .write } },
+                            .Tr_tr6 => rv = .{ .fx_sel = .{ .toggle_module_browser = .STRIP } },
+                            .Tr_tr11 => rv = .{ .transport = .{ .automation_mode = .trim } },
+                            .Tr_tr12 => rv = .{ .transport = .{ .automation_mode = .read } },
+                            .Tr_tr13 => rv = .{ .transport = .{ .automation_mode = .latch } },
+                            .Tr_tr14 => rv = .{ .transport = .{ .automation_mode = .preview } },
+                            .Tr_tr15 => rv = .{ .transport = .{ .automation_mode = .write } },
                             .Tr_tr17 => rv = .{ .transport = .play },
                             .Tr_tr18 => rv = .{ .transport = .stop },
                             .Tr_tr19 => rv = .{ .transport = .rec },

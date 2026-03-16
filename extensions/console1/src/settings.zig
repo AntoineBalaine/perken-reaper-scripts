@@ -81,8 +81,12 @@ pub fn defaults(arena: std.mem.Allocator) !@This() {
     var self: @This() = .empty;
     // Copy fallback defaults for preferences
     inline for (comptime std.enums.values(ModulesList)) |module| {
-        const owned_copy = try arena.dupeZ(u8, fallback_defaults.get(module).?);
-        self.default_fx.set(module, owned_copy);
+        if (fallback_defaults.get(module)) |fallback| {
+            const owned_copy = try arena.dupeZ(u8, fallback);
+            self.default_fx.set(module, owned_copy);
+        } else {
+            self.default_fx.set(module, null);
+        }
     }
     return self;
 }
@@ -93,9 +97,12 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences 
 
     // Always start by copying fallback defaults
     inline for (comptime std.enums.values(ModulesList)) |module| {
-        const fallback = fallback_defaults.get(module).?;
-        const owned_copy = try arena.dupeZ(u8, fallback);
-        self.default_fx.set(module, owned_copy);
+        if (fallback_defaults.get(module)) |fallback| {
+            const owned_copy = try arena.dupeZ(u8, fallback);
+            self.default_fx.set(module, owned_copy);
+        } else {
+            self.default_fx.set(module, null);
+        }
     }
 
     // Try to load preferences from disk. If the file is missing, we silently
@@ -195,20 +202,25 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
 }
 
 pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Allocator) !void {
-    var cur_section: ?ModulesList = null;
+    const SectionKind = enum { none, module };
+    var cur_section_kind: SectionKind = .none;
+    var cur_module: ?ModulesList = null;
 
     while (try parser.*.next()) |record| {
         switch (record) {
             .section => |heading| {
-                // Handle module sections (INPUT, GATE, etc.)
-                cur_section = std.meta.stringToEnum(ModulesList, heading) orelse {
+                if (std.meta.stringToEnum(ModulesList, heading)) |module| {
+                    cur_section_kind = .module;
+                    cur_module = module;
+                } else {
                     log.warn("Invalid section in preferences: {s}", .{heading});
-                    continue;
-                };
+                    cur_section_kind = .none;
+                    cur_module = null;
+                }
             },
             .property => |prop| {
-                // Handle top-level properties when not in a module section
-                if (cur_section == null) {
+                // Handle top-level properties when not in a section
+                if (cur_section_kind == .none) {
 
                     // Set the preference value based on its type
                     inline for (std.meta.fields(Preferences)) |field| {
@@ -237,16 +249,19 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Al
                 }
             },
             .enumeration => |value| {
-                // Handle FX assignments in module sections
-                if (cur_section) |module| {
-                    // Allocate and store new value
-                    if (std.mem.eql(u8, value, "")) {
-                        self.default_fx.set(module, null);
-                        // log.warn("Empty value in preferences for {s}", .{@tagName(module)});
-                    } else {
-                        const value_copy = try g_arena.dupeZ(u8, value);
-                        self.default_fx.set(module, value_copy);
-                    }
+                switch (cur_section_kind) {
+                    .module => {
+                        // Handle FX assignments in module sections
+                        if (cur_module) |module| {
+                            if (std.mem.eql(u8, value, "")) {
+                                self.default_fx.set(module, null);
+                            } else {
+                                const value_copy = try g_arena.dupeZ(u8, value);
+                                self.default_fx.set(module, value_copy);
+                            }
+                        }
+                    },
+                    .none => {},
                 }
             },
         }

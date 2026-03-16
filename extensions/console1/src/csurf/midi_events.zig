@@ -131,11 +131,12 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                         };
                         actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = module } });
                     },
-                    .Tr_tr6 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .trim } }),
-                    .Tr_tr7 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .read } }),
-                    .Tr_tr8 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .latch } }),
-                    .Tr_tr9 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .preview } }),
-                    .Tr_tr10 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .write } }),
+                    .Tr_tr6 => actions.dispatch(globals, .{ .fx_sel = .{ .toggle_module_browser = .STRIP } }),
+                    .Tr_tr11 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .trim } }),
+                    .Tr_tr12 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .read } }),
+                    .Tr_tr13 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .latch } }),
+                    .Tr_tr14 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .preview } }),
+                    .Tr_tr15 => actions.dispatch(globals, .{ .transport = .{ .automation_mode = .write } }),
                     .Tr_tr17 => actions.dispatch(globals, .{ .transport = .play }),
                     .Tr_tr18 => actions.dispatch(globals, .{ .transport = .stop }),
                     .Tr_tr19 => actions.dispatch(globals, .{ .transport = .rec }),
@@ -176,7 +177,13 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
 
                         if (assign.midi_learn_active) {
                             const current_module = std.meta.activeTag(assign.current_mappings);
-                            if (cc.isFxAssignable() and cc.toModule() == current_module) {
+                            const module_matches = if (current_module == .STRIP)
+                                cc.isFxAssignable() or cc == .Tr_order
+                            else if (cc.toModule()) |mod|
+                                @intFromEnum(mod) == @intFromEnum(current_module)
+                            else
+                                false;
+                            if (module_matches) {
                                 actions.dispatch(globals, .{ .mapping_panel = .{ .assign_select_control = cc } });
                             }
                         } else {

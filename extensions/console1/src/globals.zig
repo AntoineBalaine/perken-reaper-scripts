@@ -8,6 +8,7 @@ const FxMaps = @import("mappings_list.zig");
 const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
 const fs_helpers = @import("fs_helpers.zig");
+const actions = @import("actions.zig");
 const log = std.log.scoped(.globals);
 const imgui = @import("reaper_imgui");
 const TranslationStore = @import("translations.zig").TranslationStore;
@@ -57,7 +58,7 @@ pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
     globals.resource_path = "";
     globals.preferences = try .defaults(globals.arena);
     globals.mappings_list = .empty(globals.arena);
-    globals.map_store = .empty(globals.arena, globals.resource_path, &globals.mappings_list);
+    globals.map_store = .empty(globals.arena, globals.resource_path);
     globals.translations = try .defaults(globals.arena);
     globals.state = .init(globals.arena);
     globals.state.current_mode = .suspended;
@@ -66,7 +67,7 @@ pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
 }
 
 pub fn reset(self: *Globals) void {
-    @import("actions.zig").dispatch(self, .{ .change_mode = if (self.m_midi_in != null) .fx_ctrl else .suspended });
+    actions.dispatch(self, .{ .change_mode = if (self.m_midi_in != null) .fx_ctrl else .suspended });
 }
 
 pub fn init() !void {
@@ -104,6 +105,7 @@ pub fn init() !void {
 }
 
 pub fn deinit(self: *Globals) void {
+    self.state.fx_ctrl.track_state.deinitMaps(self.arena);
     self.arena_int.deinit();
 
     const deinit_status = self.gpa_int.deinit();

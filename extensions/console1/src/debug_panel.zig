@@ -54,9 +54,19 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State) !void {
                 try imgui.Text(.{ ctx, tr_text });
             }
 
-            if (state.fx_ctrl.track_state.module_locations.get(.COMP)) |comp| {
-                const comp_text = safePrint(&buf, "Comp FX: {d}", .{comp.fx_index});
-                try imgui.Text(.{ ctx, comp_text });
+            switch (state.fx_ctrl.track_state.mode) {
+                .multi_fx => |locs| {
+                    inline for (comptime std.enums.values(@import("statemachine.zig").PhysicalModule)) |module| {
+                        if (locs.get(module)) |loc| {
+                            const loc_text = safePrint(&buf, "{s} FX: {d}", .{ @tagName(module), loc.fx_index });
+                            try imgui.Text(.{ ctx, loc_text });
+                        }
+                    }
+                },
+                .channel_strip => |strip| {
+                    const strip_text = safePrint(&buf, "Strip FX: {d}", .{strip.fx_index});
+                    try imgui.Text(.{ ctx, strip_text });
+                },
             }
         }
     }

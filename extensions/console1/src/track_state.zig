@@ -1,45 +1,30 @@
 const std = @import("std");
 const reaper = @import("reaper.zig").reaper;
 const pReaper = @import("pReaper.zig");
+const c1 = @import("c1.zig");
+const ChannelStripMapping = MapStore.ChannelStripMapping;
 const MediaTrack = reaper.MediaTrack;
 const ModulesList = @import("statemachine.zig").ModulesList;
+const PhysicalModule = @import("statemachine.zig").PhysicalModule;
 const MapStore = @import("mappings.zig");
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const DefaultFx = @import("settings.zig").DefaultFx;
 const TaggedMapping = MapStore.TaggedMapping;
 const MockReaper = @import("models/reaper_mock.zig");
 const Guid = @import("utils.zig").Guid;
+const MappingsList = @import("mappings_list.zig");
 const log = std.log.scoped(.validation);
 const Preferences = @import("settings.zig").Preferences;
 
 pub const MAX_FX = 5;
-pub const MAX_PARSED_FX = MAX_FX * 2; // Allow for reasonable number of duplicates
+const MAX_PARSED_FX = MAX_FX * 2;
 
 const Location = struct {
     fx_index: c_int,
     mapping: ?TaggedMapping,
 };
 
-const ModuleLocations = std.EnumArray(ModulesList, ?Location);
-
-pub const TrackState = @This();
-// FX tracking for validation
-fx_states: [MAX_FX]struct {
-    fx_index: i32,
-    // Use bit mask for quick module presence check
-    modules: ActiveModules = .{},
-} = undefined,
-fx_count: usize = 0,
-
-// Quick module -> FX lookup for parameter setting
-module_locations: ModuleLocations = undefined,
-// const array = std.enums.directEnumArrayDefault(
-//     ModulesList,
-//     ?Location,
-//     @as(?Location, null),
-//     0,
-//     .{ .INPUT = null, .GATE = null, .EQ = null, .COMP = null, .OUTPT = null },
-// );
+pub const ModuleLocations = std.EnumArray(PhysicalModule, ?Location);
 
 const ActiveModules = packed struct {
     INPUT: bool = false,
@@ -49,15 +34,72 @@ const ActiveModules = packed struct {
     OUTPT: bool = false,
 };
 
+pub const FxParam = struct {
+    fx_index: c_int,
+    param_index: u16,
+};
+
+pub const ParamKey = packed struct {
+    fx_index: u16,
+    param_index: u16,
+};
+
+pub const ChannelStripState = struct {
+    fx_index: c_int,
+    mapping: ChannelStripMapping,
+    guid: Guid,
+};
+
+/// Multi-fx mode assigns one FX per module; channel strip mode routes all
+/// CCs to a single FX.
+pub const TrackMode = union(enum) {
+    multi_fx: ModuleLocations,
+    channel_strip: ChannelStripState,
+};
+
 pub const ParsedFx = struct {
     index: i32,
     guid: Guid,
-    active_modules: ?ModulesList = null,
+    suffix: ?C1Suffix = null,
 };
 
-pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, default_fx: DefaultFx, map_store: *MapStore, preferences: Preferences) ModuleCoverage {
-    // Initialize track state
-    track_state.* = .{ .fx_states = undefined, .fx_count = 0, .module_locations = ModuleLocations.initFill(null) };
+pub const TrackState = @This();
+
+fx_states: [MAX_FX]struct {
+    fx_index: i32,
+    modules: ActiveModules = .{},
+} = undefined,
+fx_count: usize = 0,
+mode: TrackMode = .{ .multi_fx = ModuleLocations.initFill(null) },
+reverse_map: std.AutoArrayHashMapUnmanaged(u32, c1.CCs) = .empty,
+forward_map: std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam) = .empty,
+
+pub fn deinitMaps(self: *TrackState, allocator: std.mem.Allocator) void {
+    self.reverse_map.deinit(allocator);
+    self.forward_map.deinit(allocator);
+}
+
+pub fn getModuleLocations(self: *TrackState) ?*ModuleLocations {
+    return switch (self.mode) {
+        .multi_fx => |*locs| locs,
+        .channel_strip => null,
+    };
+}
+
+pub fn validateTrack(
+    track_state: *TrackState,
+    mediaTrack: reaper.MediaTrack,
+    default_fx: DefaultFx,
+    map_store: *MapStore,
+    preferences: Preferences,
+    allocator: std.mem.Allocator,
+    mappings_list: *MappingsList,
+) ModuleCoverage {
+    track_state.fx_states = undefined;
+    track_state.fx_count = 0;
+    track_state.mode = .{ .multi_fx = ModuleLocations.initFill(null) };
+    track_state.reverse_map.clearRetainingCapacity();
+    track_state.forward_map.clearRetainingCapacity();
 
     var buf: [512:0]u8 = undefined;
 
@@ -75,12 +117,12 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, de
             const renamed_name = std.mem.span(@as([*:0]const u8, &buf));
             if (renamed_name.len == 0) continue; // Skip if no rename
 
-            if (parseC1Suffix(renamed_name)) |active_modules| {
+            if (parseC1Suffix(renamed_name)) |suffix| {
                 if (parsed_fx.items.len < MAX_PARSED_FX) {
                     parsed_fx.appendAssumeCapacity(.{
                         .index = i,
                         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(mediaTrack, i)),
-                        .active_modules = active_modules,
+                        .suffix = suffix,
                     });
                 }
                 // Silently ignore if we've reached capacity
@@ -88,80 +130,192 @@ pub fn validateTrack(track_state: *TrackState, mediaTrack: reaper.MediaTrack, de
         }
     }
 
+    if (parsed_fx.items.len == 0) {
+        if (tryInsertDefaultStrip(track_state, mediaTrack, preferences, map_store, allocator, mappings_list)) {
+            return ModuleCoverage{};
+        }
+    }
+
+    // Check for channel strip FX before proceeding with multi-fx path.
+    // Because channel strip and multi-fx are mutually exclusive, the first
+    // channel strip FX found causes an early return.
+    for (parsed_fx.items) |fx| {
+        if (fx.suffix) |suffix| {
+            switch (suffix) {
+                .channel_strip => {
+                    // Get original FX name for mapping lookup
+                    if (reaper.TrackFX_GetNamedConfigParm(mediaTrack, fx.index, "original_name", &buf, buf.len)) {
+                        const fx_name = std.mem.span(@as([*:0]const u8, &buf));
+                        const fx_name_z: [:0]const u8 = @ptrCast(fx_name);
+                        const mapping = if (map_store.get(fx_name_z, .STRIP, mappings_list)) |tagged|
+                            tagged.STRIP
+                        else
+                            MapStore.ChannelStripMapping{};
+
+                        track_state.mode = .{
+                            .channel_strip = .{
+                                .fx_index = fx.index,
+                                .mapping = mapping,
+                                .guid = fx.guid,
+                            },
+                        };
+                        populateMapsFromMapping(&track_state.reverse_map, &track_state.forward_map, allocator, .{ .STRIP = mapping }, fx.index);
+                    }
+                    return ModuleCoverage{};
+                },
+                .module => {},
+            }
+        }
+    }
+
     var coverage = analyzeCoverage(&parsed_fx, mediaTrack);
     coverage = reorderFx2(coverage, mediaTrack, default_fx, preferences);
-    updateTrackState(track_state, coverage, mediaTrack, &buf, map_store);
+    updateTrackState(track_state, coverage, mediaTrack, &buf, map_store, allocator, mappings_list);
     return coverage;
 }
 
-fn parseC1Suffix(name: [:0]const u8) ?ModulesList {
-    // Look for last "(C1-" occurrence
+pub const C1Suffix = union(enum) {
+    module: PhysicalModule,
+    channel_strip: void,
+};
+
+pub fn parseC1Suffix(name: [:0]const u8) ?C1Suffix {
     const suffix_start = if (std.mem.lastIndexOf(u8, name, "(C1-")) |start| start else return null;
-
-    // Find closing parenthesis
     const suffix_end = if (std.mem.indexOfPos(u8, name, suffix_start, ")")) |end| end else return null;
-
-    // Extract module identifiers
     const modules = name[suffix_start + 4 .. suffix_end];
 
-    // Return first found valid module
     for (modules) |c| {
-        return switch (c) {
-            'I' => .INPUT,
-            'S' => .GATE,
-            'E' => .EQ,
-            'C' => .COMP,
-            'O' => .OUTPT,
-            else => continue,
+        const m: ?C1Suffix = switch (c) {
+            'I' => .{ .module = .INPUT },
+            'S' => .{ .module = .GATE },
+            'E' => .{ .module = .EQ },
+            'C' => .{ .module = .COMP },
+            'O' => .{ .module = .OUTPT },
+            'X' => .{ .channel_strip = {} },
+            else => null,
         };
+        if (m) |suffix| return suffix;
     }
 
     return null;
 }
 
+fn tryInsertDefaultStrip(
+    track_state: *TrackState,
+    mediaTrack: reaper.MediaTrack,
+    preferences: Preferences,
+    map_store: *MapStore,
+    allocator: std.mem.Allocator,
+    mappings_list: *MappingsList,
+) bool {
+    const strip_fx_name = preferences.default_fx.get(.STRIP) orelse return false;
+    if (!preferences.auto_insert_modules) return false;
+
+    const new_idx = pReaper.TrackFX_AddByName(.{ mediaTrack, strip_fx_name, false, -1 });
+    if (new_idx < 0) return false;
+
+    var name_buf: [512:0]u8 = undefined;
+    const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-X)", .{strip_fx_name}) catch return false;
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, new_idx, "renamed_name", new_name });
+
+    const strip_name_z: [:0]const u8 = strip_fx_name;
+    const mapping = if (map_store.get(strip_name_z, .STRIP, mappings_list)) |tagged|
+        tagged.STRIP
+    else
+        MapStore.ChannelStripMapping{};
+
+    track_state.mode = .{
+        .channel_strip = .{
+            .fx_index = new_idx,
+            .mapping = mapping,
+            .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(mediaTrack, new_idx)),
+        },
+    };
+    populateMapsFromMapping(
+        &track_state.reverse_map,
+        &track_state.forward_map,
+        allocator,
+        .{ .STRIP = mapping },
+        new_idx,
+    );
+    return true;
+}
+
+pub fn populateMapsFromMapping(
+    reverse_map: *std.AutoArrayHashMapUnmanaged(u32, c1.CCs),
+    forward_map: *std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam),
+    allocator: std.mem.Allocator,
+    tagged_mapping: TaggedMapping,
+    fx_index: c_int,
+) void {
+    switch (tagged_mapping) {
+        inline else => |mapping| {
+            inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+                if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                if (comptime !@hasField(c1.CCs, field.name)) continue;
+                if (@field(mapping, field.name)) |param_idx| {
+                    const key: u32 = @bitCast(ParamKey{
+                        .fx_index = @intCast(fx_index),
+                        .param_index = param_idx,
+                    });
+                    const cc = @field(c1.CCs, field.name);
+                    reverse_map.put(allocator, key, cc) catch {};
+                    forward_map.put(allocator, cc, .{
+                        .fx_index = fx_index,
+                        .param_index = param_idx,
+                    }) catch {};
+                }
+            }
+        },
+    }
+}
+
 test "parseC1Suffix - basic valid cases" {
     // Valid cases
     const testing = std.testing;
-    try testing.expectEqual(.INPUT, parseC1Suffix("Some Plugin (C1-I)").?);
+    try testing.expectEqual(C1Suffix{ .module = .INPUT }, parseC1Suffix("Some Plugin (C1-I)").?);
 
-    try testing.expectEqual(.COMP, parseC1Suffix("ReaComp (C1-C)").?);
+    try testing.expectEqual(C1Suffix{ .module = .COMP }, parseC1Suffix("ReaComp (C1-C)").?);
 
     // Invalid cases
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("No Suffix Plugin"));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix("No Suffix Plugin"));
 
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("Invalid (C1"));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix("Invalid (C1"));
 
     // Ignore invalid characters
-    try testing.expectEqual(.INPUT, parseC1Suffix("Plugin (C1-IX)").?);
+    try testing.expectEqual(C1Suffix{ .module = .INPUT }, parseC1Suffix("Plugin (C1-IX)").?);
+
+    // Channel strip suffix
+    try testing.expectEqual(C1Suffix{ .channel_strip = {} }, parseC1Suffix("SSL Channel Strip (C1-X)").?);
 }
 
 test "parseC1Suffix - multiple suffixes returns last one" {
     const testing = std.testing;
     // Because the function uses lastIndexOf for "(C1-", it will find the last occurrence
-    try testing.expectEqual(.COMP, parseC1Suffix("Plugin (C1-I) Extra (C1-C)").?);
-    try testing.expectEqual(.GATE, parseC1Suffix("(C1-E) Plugin (C1-S)").?);
-    try testing.expectEqual(.OUTPT, parseC1Suffix("(C1-I)(C1-E)(C1-O)").?);
+    try testing.expectEqual(C1Suffix{ .module = .COMP }, parseC1Suffix("Plugin (C1-I) Extra (C1-C)").?);
+    try testing.expectEqual(C1Suffix{ .module = .GATE }, parseC1Suffix("(C1-E) Plugin (C1-S)").?);
+    try testing.expectEqual(C1Suffix{ .module = .OUTPT }, parseC1Suffix("(C1-I)(C1-E)(C1-O)").?);
 }
 
 test "parseC1Suffix - missing closing parenthesis" {
     const testing = std.testing;
     // Because the function looks for closing paren with indexOfPos, it should return null safely
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("Plugin (C1-I"));
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("(C1-C"));
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("Something (C1-E and more text"));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix("Plugin (C1-I"));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix("(C1-C"));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix("Something (C1-E and more text"));
 }
 
 test "parseC1Suffix - empty and very long strings" {
     const testing = std.testing;
     // Empty string
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix(""));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix(""));
 
     // Very long string without suffix
     var long_buf: [1000:0]u8 = undefined;
     @memset(&long_buf, 'A');
     long_buf[999] = 0;
     const long_str: [:0]const u8 = long_buf[0..999 :0];
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix(long_str));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix(long_str));
 
     // Very long string with suffix at end
     var long_with_suffix_buf: [1000:0]u8 = undefined;
@@ -169,42 +323,43 @@ test "parseC1Suffix - empty and very long strings" {
     @memcpy(long_with_suffix_buf[993..999], "(C1-S)");
     long_with_suffix_buf[999] = 0;
     const long_with_suffix: [:0]const u8 = long_with_suffix_buf[0..999 :0];
-    try testing.expectEqual(.GATE, parseC1Suffix(long_with_suffix).?);
+    try testing.expectEqual(C1Suffix{ .module = .GATE }, parseC1Suffix(long_with_suffix).?);
 }
 
 test "parseC1Suffix - suffix at boundaries" {
     const testing = std.testing;
     // Suffix at the very start
-    try testing.expectEqual(.INPUT, parseC1Suffix("(C1-I)").?);
-    try testing.expectEqual(.EQ, parseC1Suffix("(C1-E)").?);
+    try testing.expectEqual(C1Suffix{ .module = .INPUT }, parseC1Suffix("(C1-I)").?);
+    try testing.expectEqual(C1Suffix{ .module = .EQ }, parseC1Suffix("(C1-E)").?);
 
     // Suffix with minimal spacing
-    try testing.expectEqual(.COMP, parseC1Suffix("X(C1-C)").?);
-    try testing.expectEqual(.OUTPT, parseC1Suffix("AB(C1-O)XY").?);
+    try testing.expectEqual(C1Suffix{ .module = .COMP }, parseC1Suffix("X(C1-C)").?);
+    try testing.expectEqual(C1Suffix{ .module = .OUTPT }, parseC1Suffix("AB(C1-O)XY").?);
 }
 
 test "parseC1Suffix - empty suffix content" {
     const testing = std.testing;
     // Because the loop looks for valid module chars, empty content should return null
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("Plugin (C1-)"));
-    try testing.expectEqual(@as(?ModulesList, null), parseC1Suffix("(C1-)"));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix("Plugin (C1-)"));
+    try testing.expectEqual(@as(?C1Suffix, null), parseC1Suffix("(C1-)"));
 }
 
 test "parseC1Suffix - all module types" {
     const testing = std.testing;
-    try testing.expectEqual(.INPUT, parseC1Suffix("Test (C1-I)").?);
-    try testing.expectEqual(.GATE, parseC1Suffix("Test (C1-S)").?);
-    try testing.expectEqual(.EQ, parseC1Suffix("Test (C1-E)").?);
-    try testing.expectEqual(.COMP, parseC1Suffix("Test (C1-C)").?);
-    try testing.expectEqual(.OUTPT, parseC1Suffix("Test (C1-O)").?);
+    try testing.expectEqual(C1Suffix{ .module = .INPUT }, parseC1Suffix("Test (C1-I)").?);
+    try testing.expectEqual(C1Suffix{ .module = .GATE }, parseC1Suffix("Test (C1-S)").?);
+    try testing.expectEqual(C1Suffix{ .module = .EQ }, parseC1Suffix("Test (C1-E)").?);
+    try testing.expectEqual(C1Suffix{ .module = .COMP }, parseC1Suffix("Test (C1-C)").?);
+    try testing.expectEqual(C1Suffix{ .module = .OUTPT }, parseC1Suffix("Test (C1-O)").?);
 }
 
 test "parseC1Suffix - invalid characters before valid one" {
     const testing = std.testing;
     // Because the function returns first valid char, invalid chars before should be skipped
-    try testing.expectEqual(.INPUT, parseC1Suffix("Plugin (C1-XXXI)").?);
-    try testing.expectEqual(.COMP, parseC1Suffix("Plugin (C1-123C)").?);
-    try testing.expectEqual(.GATE, parseC1Suffix("Plugin (C1-$#@S)").?);
+    try testing.expectEqual(C1Suffix{ .channel_strip = {} }, parseC1Suffix("Plugin (C1-XXXI)").?);
+    try testing.expectEqual(C1Suffix{ .module = .INPUT }, parseC1Suffix("Plugin (C1-###I)").?);
+    try testing.expectEqual(C1Suffix{ .module = .COMP }, parseC1Suffix("Plugin (C1-123C)").?);
+    try testing.expectEqual(C1Suffix{ .module = .GATE }, parseC1Suffix("Plugin (C1-$#@S)").?);
 }
 
 test "analyzeCoverage - empty FX list" {
@@ -255,17 +410,17 @@ test "analyzeCoverage - all duplicates of same module" {
     parsed_fx.appendAssumeCapacity(.{
         .index = 0,
         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
-        .active_modules = .COMP,
+        .suffix = .{ .module = .COMP },
     });
     parsed_fx.appendAssumeCapacity(.{
         .index = 1,
         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
-        .active_modules = .COMP,
+        .suffix = .{ .module = .COMP },
     });
     parsed_fx.appendAssumeCapacity(.{
         .index = 2,
         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)),
-        .active_modules = .COMP,
+        .suffix = .{ .module = .COMP },
     });
 
     const coverage = analyzeCoverage(&parsed_fx, track);
@@ -302,17 +457,17 @@ test "analyzeCoverage - partial coverage" {
     parsed_fx.appendAssumeCapacity(.{
         .index = 0,
         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
-        .active_modules = .INPUT,
+        .suffix = .{ .module = .INPUT },
     });
     parsed_fx.appendAssumeCapacity(.{
         .index = 1,
         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
-        .active_modules = .EQ,
+        .suffix = .{ .module = .EQ },
     });
     parsed_fx.appendAssumeCapacity(.{
         .index = 2,
         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 2)),
-        .active_modules = .OUTPT,
+        .suffix = .{ .module = .OUTPT },
     });
 
     const coverage = analyzeCoverage(&parsed_fx, track);
@@ -352,7 +507,7 @@ test "analyzeCoverage - multiple items in parsed_fx" {
         parsed_fx.appendAssumeCapacity(.{
             .index = fx_index,
             .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, fx_index)),
-            .active_modules = .COMP,
+            .suffix = .{ .module = .COMP },
         });
     }
 
@@ -363,7 +518,7 @@ test "analyzeCoverage - multiple items in parsed_fx" {
     try testing.expectEqual(@as(c_int, 0), coverage.COMP.?.index);
 }
 
-test "analyzeCoverage - null active_modules skipped" {
+test "analyzeCoverage - null suffix skipped" {
     const testing = std.testing;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -378,16 +533,16 @@ test "analyzeCoverage - null active_modules skipped" {
     _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
     _ = reaper.TrackFX_AddByName(track, "ReaGate", false, -1);
 
-    // Add one with null active_modules and one with valid module
+    // Add one with null suffix and one with valid module
     parsed_fx.appendAssumeCapacity(.{
         .index = 0,
         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 0)),
-        .active_modules = null,
+        .suffix = null,
     });
     parsed_fx.appendAssumeCapacity(.{
         .index = 1,
         .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, 1)),
-        .active_modules = .GATE,
+        .suffix = .{ .module = .GATE },
     });
 
     const coverage = analyzeCoverage(&parsed_fx, track);
@@ -524,8 +679,8 @@ test "reorderFx2 - empty track to full chain" {
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        default_fx.set(module, fallback_map.get(module));
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
     }
 
     const result_coverage = reorderFx2(empty_coverage, track, default_fx, .empty);
@@ -571,8 +726,8 @@ test "reorderFx2 - partial chain with INPUT and OUTPT" {
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        default_fx.set(module, fallback_map.get(module));
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
     }
 
     const result_coverage = reorderFx2(partial_coverage, track, default_fx, .empty);
@@ -638,8 +793,8 @@ test "reorderFx2 - chain already in correct order" {
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        default_fx.set(module, fallback_map.get(module));
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
     }
 
     const result_coverage = reorderFx2(correct_coverage, track, default_fx, .empty);
@@ -700,8 +855,8 @@ test "reorderFx2 - wrong order needs reordering" {
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        default_fx.set(module, fallback_map.get(module));
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
     }
 
     const result_coverage = reorderFx2(wrong_coverage, track, default_fx, .empty);
@@ -757,8 +912,8 @@ test "updateTrackState - module_locations populated correctly" {
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        default_fx.set(module, fallback_map.get(module));
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
     }
 
     // proper absolute path for MapStore
@@ -767,28 +922,29 @@ test "updateTrackState - module_locations populated correctly" {
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
     const config_path_z = try arena.allocator().dupeZ(u8, config_path);
 
-    var ml = @import("mappings_list.zig").init(arena.allocator(), config_path_z);
-    var map_store = MapStore.empty(arena.allocator(), config_path_z, &ml);
+    var ml = MappingsList.init(arena.allocator(), config_path_z);
+    var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
     var track_state = TrackState{};
+    defer track_state.deinitMaps(std.testing.allocator);
     var buf: [512:0]u8 = undefined;
 
-    updateTrackState(&track_state, coverage, track, &buf, &map_store);
+    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, &ml);
 
     // Because module_locations should be populated for INPUT, GATE, EQ
-    try testing.expect(track_state.module_locations.get(.INPUT) != null);
-    try testing.expectEqual(@as(c_int, 0), track_state.module_locations.get(.INPUT).?.fx_index);
+    try testing.expect(track_state.mode.multi_fx.get(.INPUT) != null);
+    try testing.expectEqual(@as(c_int, 0), track_state.mode.multi_fx.get(.INPUT).?.fx_index);
 
-    try testing.expect(track_state.module_locations.get(.GATE) != null);
-    try testing.expectEqual(@as(c_int, 1), track_state.module_locations.get(.GATE).?.fx_index);
+    try testing.expect(track_state.mode.multi_fx.get(.GATE) != null);
+    try testing.expectEqual(@as(c_int, 1), track_state.mode.multi_fx.get(.GATE).?.fx_index);
 
-    try testing.expect(track_state.module_locations.get(.EQ) != null);
-    try testing.expectEqual(@as(c_int, 2), track_state.module_locations.get(.EQ).?.fx_index);
+    try testing.expect(track_state.mode.multi_fx.get(.EQ) != null);
+    try testing.expectEqual(@as(c_int, 2), track_state.mode.multi_fx.get(.EQ).?.fx_index);
 
     // COMP and OUTPT should be null
-    try testing.expectEqual(@as(?Location, null), track_state.module_locations.get(.COMP));
-    try testing.expectEqual(@as(?Location, null), track_state.module_locations.get(.OUTPT));
+    try testing.expectEqual(@as(?Location, null), track_state.mode.multi_fx.get(.COMP));
+    try testing.expectEqual(@as(?Location, null), track_state.mode.multi_fx.get(.OUTPT));
 }
 
 test "updateTrackState - fx_count matches module count" {
@@ -842,14 +998,15 @@ test "updateTrackState - fx_count matches module count" {
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
     const config_path_z = try arena.allocator().dupeZ(u8, config_path);
 
-    var ml = @import("mappings_list.zig").init(arena.allocator(), config_path_z);
-    var map_store = MapStore.empty(arena.allocator(), config_path_z, &ml);
+    var ml = MappingsList.init(arena.allocator(), config_path_z);
+    var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
     var track_state = TrackState{};
+    defer track_state.deinitMaps(std.testing.allocator);
     var buf: [512:0]u8 = undefined;
 
-    updateTrackState(&track_state, coverage, track, &buf, &map_store);
+    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, &ml);
 
     // Because fx_count should equal the number of modules
     try testing.expectEqual(@as(usize, 5), track_state.fx_count);
@@ -881,20 +1038,21 @@ test "updateTrackState - missing mapping handled gracefully" {
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
     const config_path_z = try arena.allocator().dupeZ(u8, config_path);
 
-    var ml = @import("mappings_list.zig").init(arena.allocator(), config_path_z);
-    var map_store = MapStore.empty(arena.allocator(), config_path_z, &ml);
+    var ml = MappingsList.init(arena.allocator(), config_path_z);
+    var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
     var track_state = TrackState{};
+    defer track_state.deinitMaps(std.testing.allocator);
     var buf: [512:0]u8 = undefined;
 
-    updateTrackState(&track_state, coverage, track, &buf, &map_store);
+    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, &ml);
 
     // Because module_locations should still record the FX index even with null mapping
-    try testing.expect(track_state.module_locations.get(.COMP) != null);
-    try testing.expectEqual(@as(c_int, 0), track_state.module_locations.get(.COMP).?.fx_index);
+    try testing.expect(track_state.mode.multi_fx.get(.COMP) != null);
+    try testing.expectEqual(@as(c_int, 0), track_state.mode.multi_fx.get(.COMP).?.fx_index);
     // Mapping should be null because plugin doesn't exist in MapStore
-    try testing.expectEqual(@as(?TaggedMapping, null), track_state.module_locations.get(.COMP).?.mapping);
+    try testing.expectEqual(@as(?TaggedMapping, null), track_state.mode.multi_fx.get(.COMP).?.mapping);
 }
 
 /// Tracks which FX provides each module
@@ -920,21 +1078,27 @@ pub fn analyzeCoverage(
     var i: usize = 0;
     while (i < parsed_fx.items.len) : (i += 1) {
         const fx = &parsed_fx.items[i];
-        if (fx.active_modules) |module| {
-            // Check if module already covered
-            switch (module) {
-                inline else => |impl| {
-                    if (@field(coverage, @tagName(impl)) != null) {
-                        // Found duplicate, remove suffix only
-                        removeDuplicateModule(fx.index, media_track);
-                    } else {
-                        // Mark as covered and record provider
-                        @field(coverage, @tagName(impl)) = .{
-                            .index = fx.index,
-                            .guid = fx.guid,
-                        };
+        if (fx.suffix) |suffix| {
+            switch (suffix) {
+                .module => |module| {
+                    // Check if module already covered
+                    switch (module) {
+                        inline else => |impl| {
+                            if (@field(coverage, @tagName(impl)) != null) {
+                                // Found duplicate, remove suffix only
+                                removeDuplicateModule(fx.index, media_track);
+                            } else {
+                                // Mark as covered and record provider
+                                @field(coverage, @tagName(impl)) = .{
+                                    .index = fx.index,
+                                    .guid = fx.guid,
+                                };
+                            }
+                        },
                     }
                 },
+                // Channel strip FX are not processed through the coverage system.
+                .channel_strip => {},
             }
         }
     }
@@ -996,17 +1160,14 @@ pub fn updateTrackState(
     mediaTrack: MediaTrack,
     buf: *[512:0]u8,
     map_store: *MapStore,
+    allocator: std.mem.Allocator,
+    mappings_list: *MappingsList,
 ) void {
-    // Reset current state
     track_state.fx_count = 0;
-    inline for (std.meta.fields(ModulesList)) |field| {
-        track_state.module_locations.set(@field(ModulesList, field.name), null);
-    }
+    var locs = ModuleLocations.initFill(null);
 
-    // Iterate through coverage to update module locations
     inline for (std.meta.fields(ModuleCoverage)) |field| {
         if (@field(coverage, field.name)) |location| {
-            // Get original FX name for mapping lookup
             _ = reaper.TrackFX_GetNamedConfigParm(
                 mediaTrack,
                 location.index,
@@ -1015,17 +1176,21 @@ pub fn updateTrackState(
                 buf.len,
             );
 
+            const phys_module = @field(PhysicalModule, field.name);
             const module = @field(ModulesList, field.name);
-            track_state.module_locations.set(module, .{
+            const tagged_mapping = map_store.get(std.mem.span(@as([*:0]const u8, buf)), module, mappings_list);
+            locs.set(phys_module, .{
                 .fx_index = location.index,
-                .mapping = map_store.get(std.mem.span(@as([*:0]const u8, buf)), module),
+                .mapping = tagged_mapping,
             });
 
-            // Create ActiveModules with single module
+            if (tagged_mapping) |mapping| {
+                populateMapsFromMapping(&track_state.reverse_map, &track_state.forward_map, allocator, mapping, location.index);
+            }
+
             var modules = ActiveModules{};
             @field(modules, field.name) = true;
 
-            // Update fx_states
             track_state.fx_states[track_state.fx_count] = .{
                 .fx_index = location.index,
                 .modules = modules,
@@ -1033,6 +1198,7 @@ pub fn updateTrackState(
             track_state.fx_count += 1;
         }
     }
+    track_state.mode = .{ .multi_fx = locs };
 }
 
 fn insertModuleLinkedFx(
@@ -1380,17 +1546,20 @@ fn toOrderedSuffix(current_modules: ActiveModules, new_module: ModulesList, buf:
     return buf[0..len :0];
 }
 
+/// Module reordering only applies in multi_fx mode
 pub fn setModulesOrder(
     self: *TrackState,
     order: ModulesOrder,
     mediaTrack: MediaTrack,
     ref_coverage: ModuleCoverage,
 ) void {
+    const locs = self.getModuleLocations() orelse return;
+
     var coverage = ref_coverage;
     // Early return if we don't have all three modules
-    const eq_loc = self.module_locations.get(.EQ);
-    const gate_loc = self.module_locations.get(.GATE);
-    const comp_loc = self.module_locations.get(.COMP);
+    const eq_loc = locs.get(.EQ);
+    const gate_loc = locs.get(.GATE);
+    const comp_loc = locs.get(.COMP);
 
     if (eq_loc == null or gate_loc == null or comp_loc == null) return;
     const eq = eq_loc.?.fx_index;
@@ -1414,14 +1583,14 @@ pub fn setModulesOrder(
     const actual_target = if (from_index < eq_target_pos) eq_target_pos - 1 else eq_target_pos;
     coverage.EQ.?.index = actual_target;
 
-    // Update module_locations with new positions
-    inline for (comptime std.enums.values(ModulesList)) |module| {
+    // Update mode with new positions
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
         const pos = switch (module) {
             inline else => |impl| @field(coverage, @tagName(impl)),
         };
         if (pos) |module_coverage| {
-            if (self.module_locations.get(module)) |loc| {
-                self.module_locations.set(module, .{
+            if (locs.get(module)) |loc| {
+                locs.set(module, .{
                     .fx_index = module_coverage.index,
                     .mapping = loc.mapping,
                 });
@@ -1431,10 +1600,14 @@ pub fn setModulesOrder(
 }
 
 pub fn getModulesOrder(self: TrackState) ModulesOrder {
+    const locs = switch (self.mode) {
+        .multi_fx => |l| l,
+        .channel_strip => return .@"S-EQ-C",
+    };
     // Gate before Comp is guaranteed by reorderFx
-    const eq_loc = self.module_locations.get(.EQ);
-    const gate_loc = self.module_locations.get(.GATE);
-    const comp_loc = self.module_locations.get(.COMP);
+    const eq_loc = locs.get(.EQ);
+    const gate_loc = locs.get(.GATE);
+    const comp_loc = locs.get(.COMP);
 
     if (eq_loc) |eq| {
         if (gate_loc) |gate| {
@@ -1452,9 +1625,10 @@ pub fn getModulesOrder(self: TrackState) ModulesOrder {
 }
 
 pub fn getFirstModuleIndex(self: *const TrackState) ?i32 {
+    const locs = self.getModuleLocations() orelse return null;
     var first_idx: ?i32 = null;
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        if (self.module_locations.get(module)) |location| {
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        if (locs.get(module)) |location| {
             if (first_idx == null or location.fx_index < first_idx.?) {
                 first_idx = location.fx_index;
             }
@@ -1463,10 +1637,11 @@ pub fn getFirstModuleIndex(self: *const TrackState) ?i32 {
     return first_idx;
 }
 
-pub fn getLastModuleIndex(self: *const TrackState) ?i32 {
+pub fn getLastModuleIndex(self: *TrackState) ?i32 {
+    const locs = self.getModuleLocations() orelse return null;
     var last_idx: ?i32 = null;
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        if (self.module_locations.get(module)) |location| {
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        if (locs.get(module)) |location| {
             if (last_idx == null or location.fx_index > last_idx.?) {
                 last_idx = location.fx_index;
             }
@@ -1480,8 +1655,11 @@ fn createDefaultFx() DefaultFx {
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        default_fx.set(module, fallback_map.get(module));
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        default_fx.set(
+            @as(ModulesList, @enumFromInt(@intFromEnum(module))),
+            fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))),
+        );
     }
     return default_fx;
 }
@@ -1518,6 +1696,7 @@ test "reorderFx2 - property-based ordering validation" {
                 .EQ => "VST: ReaEQ (Cockos)",
                 .COMP => "VST: ReaComp (Cockos)",
                 .OUTPT => "JS: Saturation",
+                .STRIP => continue,
             };
             _ = reaper.TrackFX_AddByName(track, fx_name, false, -1);
             const idx = reaper.TrackFX_GetCount(track) - 1;
@@ -1541,11 +1720,11 @@ test "reorderFx2 - property-based ordering validation" {
             _ = reaper.TrackFX_GetNamedConfigParm(track, idx, "renamed_name", &name_buf, name_buf.len);
             const name = std.mem.span(@as([*:0]const u8, &name_buf));
 
-            if (parseC1Suffix(name)) |module| {
+            if (parseC1Suffix(name)) |suffix| {
                 parsed_fx.appendAssumeCapacity(.{
                     .index = idx,
                     .guid = Guid.fromReaperGUID(reaper.TrackFX_GetFXGUID(track, idx)),
-                    .active_modules = module,
+                    .suffix = suffix,
                 });
             }
         }
@@ -1585,8 +1764,11 @@ test "reorderFx2 - auto_insert_modules disabled" {
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        default_fx.set(module, fallback_map.get(module));
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        default_fx.set(
+            @as(ModulesList, @enumFromInt(@intFromEnum(module))),
+            fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))),
+        );
     }
 
     var prefs: Preferences = .empty;
@@ -1614,8 +1796,11 @@ test "reorderFx2 - auto_reorder_modules disabled" {
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        default_fx.set(module, fallback_map.get(module));
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        default_fx.set(
+            @as(ModulesList, @enumFromInt(@intFromEnum(module))),
+            fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))),
+        );
     }
 
     // Add FX in wrong order

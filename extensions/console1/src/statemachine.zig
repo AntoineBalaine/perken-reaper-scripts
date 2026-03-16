@@ -13,12 +13,21 @@ const TransportState = @import("action_types.zig").TransportState;
 const StringPool = @import("string_pool.zig").StringPool;
 const TranslationKey = @import("translations.zig").TranslationKey;
 
+pub const PhysicalModule = enum {
+    INPUT,
+    GATE,
+    EQ,
+    COMP,
+    OUTPT,
+};
+
 pub const ModulesList = enum {
     INPUT,
     GATE,
     EQ,
     COMP,
     OUTPT,
+    STRIP,
 
     pub fn toModulePrefixChar(self: ModulesList) u8 {
         return switch (self) {
@@ -27,6 +36,7 @@ pub const ModulesList = enum {
             .EQ => 'E',
             .COMP => 'C',
             .OUTPT => 'O',
+            .STRIP => 'X',
         };
     }
     pub fn toModulePrefix(self: ModulesList) [:0]const u8 {
@@ -36,6 +46,7 @@ pub const ModulesList = enum {
             .EQ => "E",
             .COMP => "C",
             .OUTPT => "O",
+            .STRIP => "X",
         };
     }
 };
@@ -135,7 +146,7 @@ pub const BrowseState = struct {
     selected_module: ModulesList = .INPUT,
     scroll_position_abs: u8 = 0,
     scroll_position_rel: usize = 0,
-    available_modules: [5]?[:0]const u8 = [_]?[:0]const u8{null} ** 5,
+    available_modules: [std.enums.values(ModulesList).len]?[:0]const u8 = [_]?[:0]const u8{null} ** std.enums.values(ModulesList).len,
     arena: std.heap.ArenaAllocator,
 
     pub fn init(gpa: std.mem.Allocator) BrowseState {
@@ -147,14 +158,6 @@ pub const BrowseState = struct {
     pub fn deinit(self: *BrowseState) void {
         self.arena.deinit();
     }
-};
-
-pub const ModuleMappings = union(ModulesList) {
-    INPUT: MapStore.Inpt,
-    GATE: MapStore.Shp,
-    EQ: MapStore.Eq,
-    COMP: MapStore.Comp,
-    OUTPT: MapStore.Outpt,
 };
 
 pub const ParamStore = struct {
@@ -207,7 +210,7 @@ pub const ParamStore = struct {
 
 pub const AssignState = struct {
     target_fx: [:0]const u8 = "",
-    current_mappings: ModuleMappings,
+    current_mappings: MapStore.TaggedMapping,
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
     learned_param: ?u32 = null,
@@ -217,7 +220,7 @@ pub const AssignState = struct {
     knob_values: [128]f32 = [_]f32{0.5} ** 128,
     /// Because the UI needs to display FX names per module without calling
     /// REAPER APIs, we cache them here when entering assign mode.
-    module_fx_names: std.EnumArray(ModulesList, ?[:0]const u8) = std.EnumArray(ModulesList, ?[:0]const u8).initFill(null),
+    module_fx_names: std.EnumArray(PhysicalModule, ?[:0]const u8) = std.EnumArray(PhysicalModule, ?[:0]const u8).initFill(null),
     /// translation key for the save mapping’s error message
     save_error: ?TranslationKey = null,
 
@@ -226,7 +229,7 @@ pub const AssignState = struct {
         name: [:0]const u8,
     };
 
-    pub fn init(gpa: std.mem.Allocator, mappings: ModuleMappings) AssignState {
+    pub fn init(gpa: std.mem.Allocator, mappings: MapStore.TaggedMapping) AssignState {
         return AssignState{
             .current_mappings = mappings,
             .param_store = ParamStore.init(gpa),

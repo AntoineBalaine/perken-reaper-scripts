@@ -4,10 +4,12 @@ const pReaper = @import("pReaper.zig");
 const statemachine = @import("statemachine.zig");
 const State = statemachine.State;
 const ModulesList = statemachine.ModulesList;
+const PhysicalModule = statemachine.PhysicalModule;
 const constants = @import("constants.zig");
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.fx_sel_actions);
-const TrackState = @import("track_state.zig").TrackState;
+const track_state_mod = @import("track_state.zig");
+const TrackState = track_state_mod.TrackState;
 const Globals = @import("globals.zig").Globals;
 const utils = @import("utils.zig");
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
@@ -37,24 +39,42 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 dispatch(globals, .{ .change_mode = .fx_ctrl });
                 return;
             }
-            const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
             const current_module = globals.state.fx_sel.current_category;
+
+            if (current_module == .STRIP) {
+                handleStripPlugin(globals, plugin.name, plugin.mapping_name);
+                return;
+            }
+
+            const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
             const track_state = &globals.state.fx_ctrl.track_state;
 
-            const insert_idx = determineInsertionIndex(&globals.state, track, current_module, globals.preferences.preferred_module_order);
-            const old_fx_index: ?c_int = if (track_state.module_locations.get(current_module)) |loc| loc.fx_index else null;
+            // If the track is in channel strip mode, we revert to multi-fx by
+            // removing the channel strip FX first. Auto-insertion will fill
+            // the missing modules after validateTrack runs.
+            switch (track_state.mode) {
+                .channel_strip => |strip| {
+                    _ = pReaper.TrackFX_Delete(.{ track, strip.fx_index });
+                    // Reset to multi_fx so determineInsertionIndex works correctly
+                    track_state.mode = .{ .multi_fx = track_state_mod.ModuleLocations.initFill(null) };
+                },
+                .multi_fx => {},
+            }
+
+            const phys_module: PhysicalModule = @enumFromInt(@intFromEnum(current_module));
+            const insert_idx = determineInsertionIndex(&globals.state, track, phys_module, globals.preferences.preferred_module_order);
 
             // Check if we need to load a specific mapping or determine if mapping exists
             var needs_mapping = false;
             if (plugin.mapping_name) |map_name| {
                 // Load specific mapping (don't change preferred setting)
-                _ = globals.map_store.getMap(plugin.name, current_module, map_name) catch |err| {
+                _ = globals.map_store.getMap(plugin.name, current_module, map_name, &globals.mappings_list) catch |err| {
                     log.err("Failed to load mapping {s} for {s}: {}", .{ map_name, plugin.name, err });
                     needs_mapping = true;
                 };
             } else {
                 // Check if any mapping exists for this FX
-                needs_mapping = (globals.map_store.get(plugin.name, current_module) == null);
+                needs_mapping = (globals.map_store.get(plugin.name, current_module, &globals.mappings_list) == null);
             }
 
             // Add new FX
@@ -79,11 +99,20 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             }
 
             // If replacing existing module FX, remove it.
-            if (old_fx_index) |old_idx| {
-                const delete_idx = if (new_fx_index <= old_idx)
-                    old_idx + 1
+            // Because the new FX may have been inserted before or after the old one,
+            // we need to check whether the old FX's index shifted due to the insertion.
+            const old_loc_opt = switch (current_module) {
+                .STRIP => null,
+                inline else => |phys| switch (track_state.mode) {
+                    .multi_fx => |locs| locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys)))),
+                    .channel_strip => null,
+                },
+            };
+            if (old_loc_opt) |old_loc| {
+                const delete_idx = if (new_fx_index <= old_loc.fx_index)
+                    old_loc.fx_index + 1
                 else
-                    old_idx;
+                    old_loc.fx_index;
                 if (!pReaper.TrackFX_Delete(.{ track, delete_idx })) {
                     var buf: [512:0]u8 = undefined;
                     const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, delete_idx, "original_name", &buf, buf.len))
@@ -95,7 +124,14 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             }
 
             // Because validateTrack needs to be called after adding the FX, we call it here
-            _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences);
+            _ = track_state.validateTrack(
+                track,
+                globals.preferences.default_fx,
+                &globals.map_store,
+                globals.preferences,
+                globals.arena,
+                &globals.mappings_list,
+            );
 
             // Because FX parameter loading now happens in enter_assign action,
             // we enter mapping mode if needed, otherwise return to fx_ctrl
@@ -158,24 +194,20 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         },
         .scroll => |new_pos| {
             globals.state.fx_sel.scroll_changed = true;
+            const scroll_mappings = globals.mappings_list.list.get(globals.state.fx_sel.current_category);
             switch (globals.state.fx_sel.sub_mode) {
                 .browse_fx => {
-                    const fx_count: i32 = @intCast(switch (globals.state.fx_sel.current_category) {
-                        inline else => |impl| globals.mappings_list.list.get(impl).count(),
-                    });
                     _ = utils.calculateNewScrollPosition(
                         i32,
                         &globals.state.fx_sel.scroll_position_abs,
                         &globals.state.fx_sel.scroll_position_rel,
                         new_pos,
-                        @intCast(fx_count),
+                        @intCast(scroll_mappings.count()),
                         1,
                     );
                 },
                 .select_mapping => |*sel| {
-                    const mapping_offsets = globals.mappings_list.list.get(
-                        globals.state.fx_sel.current_category,
-                    ).get(sel.fx_string_pool_offset) orelse return;
+                    const mapping_offsets = scroll_mappings.get(sel.fx_string_pool_offset) orelse return;
                     _ = utils.calculateNewScrollPosition(
                         i32,
                         &sel.scroll_position_abs,
@@ -187,14 +219,53 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 },
             }
         },
-        else => {},
+        .select_fx => {},
+    }
+}
+
+fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]const u8) void {
+    const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
+    const track_state = &globals.state.fx_ctrl.track_state;
+
+    const new_fx_index = pReaper.TrackFX_AddByName(.{ track, name, false, -1000 - reaper.TrackFX_GetCount(track) });
+    if (new_fx_index < 0) {
+        log.err("Failed to add channel strip FX: {s}", .{name});
+        dispatch(globals, .{ .change_mode = .fx_ctrl });
+        return;
+    }
+
+    {
+        var name_buf: [512:0]u8 = undefined;
+        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-X)", .{name}) catch {
+            _ = pReaper.TrackFX_Delete(.{ track, new_fx_index });
+            dispatch(globals, .{ .change_mode = .fx_ctrl });
+            return;
+        };
+        _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
+    }
+
+    _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences, globals.arena, &globals.mappings_list);
+
+    if (mapping_name) |map_name| {
+        _ = globals.map_store.getMap(name, .STRIP, map_name, &globals.mappings_list) catch {};
+    }
+
+    const needs_mapping = (globals.map_store.get(name, .STRIP, &globals.mappings_list) == null);
+    if (needs_mapping) {
+        dispatch(globals, .{ .change_mode = .mapping_panel });
+    } else {
+        dispatch(globals, .{ .change_mode = .fx_ctrl });
     }
 }
 
 fn countModuleLocations(track_state: *const TrackState) usize {
+    const locs = switch (track_state.mode) {
+        .multi_fx => |l| l,
+        .channel_strip => return 0,
+    };
     var count: usize = 0;
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        if (track_state.module_locations.get(module) != null) {
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        if (locs.get(module) != null) {
             count += 1;
         }
     }
@@ -206,7 +277,7 @@ fn countModuleLocations(track_state: *const TrackState) usize {
 // module that comes after the target in that sequence. We insert before
 // that successor. If no successor exists, we insert after the last
 // existing module (or at the end of the FX chain if nothing exists).
-fn determineInsertionIndex(state: *State, track: reaper.MediaTrack, module: ModulesList, order: ModulesOrder) i32 {
+fn determineInsertionIndex(state: *State, track: reaper.MediaTrack, module: PhysicalModule, order: ModulesOrder) i32 {
     const track_state = &state.fx_ctrl.track_state;
 
     if (countModuleLocations(track_state) == 0) {
@@ -214,6 +285,8 @@ fn determineInsertionIndex(state: *State, track: reaper.MediaTrack, module: Modu
     }
 
     const full_order = getFullModuleOrder(order);
+
+    const locs = track_state.getModuleLocations() orelse return -1000 - reaper.TrackFX_GetCount(track);
 
     // Find the target module's position in the canonical sequence
     var target_pos: usize = 0;
@@ -228,7 +301,7 @@ fn determineInsertionIndex(state: *State, track: reaper.MediaTrack, module: Modu
     // first existing module that comes after the target in the sequence
     // and insert before it.
     for (full_order[target_pos + 1 ..]) |successor| {
-        if (track_state.module_locations.get(successor)) |loc| {
+        if (locs.get(successor)) |loc| {
             return -1000 - loc.fx_index;
         }
     }
@@ -242,7 +315,7 @@ fn determineInsertionIndex(state: *State, track: reaper.MediaTrack, module: Modu
     return -1000 - reaper.TrackFX_GetCount(track);
 }
 
-fn getFullModuleOrder(order: ModulesOrder) [5]ModulesList {
+fn getFullModuleOrder(order: ModulesOrder) [5]PhysicalModule {
     return switch (order) {
         .@"S-EQ-C" => .{ .INPUT, .GATE, .EQ, .COMP, .OUTPT },
         .@"S-C-EQ" => .{ .INPUT, .GATE, .COMP, .EQ, .OUTPT },

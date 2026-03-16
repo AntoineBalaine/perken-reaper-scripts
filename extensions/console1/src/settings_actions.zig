@@ -168,6 +168,7 @@ fn countFields(comptime T: type) comptime_int {
         .@"enum" => type_info.@"enum".fields.len,
         // Scalar types count as 1
         .bool, .int, .float, .pointer => 1,
+        .optional => 1,
         else => @compileError("Unsupported type: " ++ @typeName(T)),
     };
 }
