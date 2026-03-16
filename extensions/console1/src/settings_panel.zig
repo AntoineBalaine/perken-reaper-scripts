@@ -1,5 +1,5 @@
 const std = @import("std");
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const Preferences = @import("settings.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;

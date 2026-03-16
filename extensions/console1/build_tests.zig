@@ -73,6 +73,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     // Add dependencies
     test_exe.root_module.addImport("ini", dependencies.ini.module("ini"));
     test_exe.root_module.addImport("zlowcheck", dependencies.zlowcheck.module("zlowcheck"));
+    test_exe.root_module.addImport("reaper_imgui", dependencies.imgui_mod);
 
     // Link required libraries
     test_exe.linkLibC();

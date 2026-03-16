@@ -1,5 +1,5 @@
 const std = @import("std");
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const State = @import("statemachine.zig").State;
 
 const DEBUG_BUF_SIZE = 512;

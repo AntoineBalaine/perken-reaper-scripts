@@ -1,5 +1,5 @@
 const std = @import("std");
-const imgui = @import("../reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 
 const knob_size = 40.0;
 const MAXVAL = 1.0;

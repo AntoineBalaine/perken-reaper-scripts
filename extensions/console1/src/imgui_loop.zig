@@ -1,6 +1,6 @@
 const builtin = @import("builtin");
 const std = @import("std");
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const Reaper = @import("reaper.zig");
 const reaper = Reaper.reaper;
 const styles = @import("styles.zig");

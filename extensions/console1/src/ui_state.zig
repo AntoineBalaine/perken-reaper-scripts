@@ -6,7 +6,7 @@
 // This file intentionally avoids importing globals.zig, which is the root
 // of the heavy transitive import graph (reaper.zig, fs_helpers.zig, etc.).
 
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const statemachine = @import("statemachine.zig");
 const styles = @import("styles.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;

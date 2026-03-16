@@ -1,5 +1,5 @@
 const std = @import("std");
-const imgui = @import("../reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const knob = @import("knob.zig");
 const adjustBrightness = knob.adjustBrightness;
 const Circle = knob.Circle;

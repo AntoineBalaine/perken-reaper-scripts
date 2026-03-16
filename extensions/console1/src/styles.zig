@@ -1,5 +1,5 @@
 const std = @import("std");
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const Theme = @import("theme/Theme.zig");
 
 pub const Docker = struct {

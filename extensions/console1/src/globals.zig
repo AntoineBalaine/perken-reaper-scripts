@@ -9,7 +9,7 @@ const reaper = @import("reaper.zig").reaper;
 const fxParser = @import("fx_parser.zig");
 const fs_helpers = @import("fs_helpers.zig");
 const log = std.log.scoped(.globals);
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const TranslationStore = @import("translations.zig").TranslationStore;
 
 pub const Globals = @This();

@@ -1,5 +1,5 @@
 const std = @import("std");
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const Knobs = @import("components/knob.zig");
 const c1 = @import("c1.zig");
 const WidgetInput = @import("action_types.zig").WidgetInput;

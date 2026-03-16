@@ -1,4 +1,4 @@
-const imgui = @import("../reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const knob = @import("knob.zig");
 const Position = knob.Position;
 

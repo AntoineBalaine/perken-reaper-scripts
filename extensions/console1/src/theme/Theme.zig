@@ -1,5 +1,5 @@
 const std = @import("std");
-const ImGui = @import("../reaper_imgui.zig");
+const ImGui = @import("reaper_imgui");
 const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
 pub const ThemeTypes = @import("themeTypes.zig");

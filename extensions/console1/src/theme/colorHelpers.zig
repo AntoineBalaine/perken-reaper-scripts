@@ -1,5 +1,5 @@
 const std = @import("std");
-const imgui = @import("../reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 pub fn desaturate(rgba: c_int) !c_int {
     var r: f64 = undefined;
     var g: f64 = undefined;

@@ -1,4 +1,4 @@
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const statemachine = @import("statemachine.zig");
 const ModulesList = statemachine.ModulesList;
 const styles = @import("styles.zig");

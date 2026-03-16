@@ -11,6 +11,7 @@ pub const Dependencies = struct {
     wdl: *std.Build.Dependency,
     reaper_sdk: *std.Build.Dependency,
     zlowcheck: *std.Build.Dependency,
+    imgui_mod: *std.Build.Module,
 };
 
 pub fn build(b: *std.Build) !void {
@@ -109,6 +110,13 @@ pub fn build(b: *std.Build) !void {
 
     b.getInstallStep().dependOn(&client_install.step);
 
+    // Because reaper_imgui.zig is 7000+ lines and dominates compile time,
+    // we expose it as a module so Zig can cache its compilation separately.
+    const imgui_mod = b.addModule("reaper_imgui", .{
+        .root_source_file = b.path("src/reaper_imgui.zig"),
+    });
+    lib.root_module.addImport("reaper_imgui", imgui_mod);
+
     // add dependencies: ini parser, etc.
     const ini = b.dependency("ini", .{ .target = target, .optimize = optimize });
     lib.root_module.addImport("ini", ini.module("ini"));
@@ -121,6 +129,7 @@ pub fn build(b: *std.Build) !void {
         .wdl = wdl_dep,
         .reaper_sdk = reaper_sdk_dep,
         .zlowcheck = zlowcheck,
+        .imgui_mod = imgui_mod,
     });
 
     // Default step for building
@@ -137,6 +146,7 @@ pub fn build(b: *std.Build) !void {
     });
     ui_lib.linkLibC();
     ui_lib.root_module.addImport("ini", ini.module("ini"));
+    ui_lib.root_module.addImport("reaper_imgui", imgui_mod);
 
     const ui_dest = if (target.result.os.tag == .macos)
         "reaper_c1_ui.dylib"

@@ -1,4 +1,4 @@
-const imgui = @import("reaper_imgui.zig");
+const imgui = @import("reaper_imgui");
 const gui_lib = @import("gui_lib.zig");
 const UiState = @import("ui_state.zig").UiState;
 const styles = @import("styles.zig");
