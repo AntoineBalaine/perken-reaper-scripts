@@ -101,6 +101,17 @@ pub const SettingsActions = union(enum) {
 
 // Transport
 
+pub const TransportState = struct {
+    jog: u8 = 64,
+    jog_item: u8 = 64,
+    jog_marker: u8 = 64,
+    zoom_horizontal: u8 = 64,
+    zoom_vertical: u8 = 64,
+    rate: u8 = 64,
+    tr_sel: u8 = 0,
+    grid: u8 = 0,
+};
+
 pub const AutomationMode = enum(c_int) {
     trim,
     read,

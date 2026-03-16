@@ -9,7 +9,7 @@ const std = @import("std");
 const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
-const TransportState = @import("transport_actions.zig").TransportState;
+const TransportState = @import("action_types.zig").TransportState;
 const StringPool = @import("string_pool.zig").StringPool;
 
 pub const ModulesList = enum {

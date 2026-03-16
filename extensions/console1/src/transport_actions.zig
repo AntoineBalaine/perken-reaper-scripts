@@ -11,17 +11,7 @@ const Globals = @import("globals.zig").Globals;
 
 pub const AutomationMode = @import("action_types.zig").AutomationMode;
 pub const TransportAction = @import("action_types.zig").TransportAction;
-
-pub const TransportState = struct {
-    jog: u8 = 64,
-    jog_item: u8 = 64,
-    jog_marker: u8 = 64,
-    zoom_horizontal: u8 = 64,
-    zoom_vertical: u8 = 64,
-    rate: u8 = 64,
-    tr_sel: u8 = 0,
-    grid: u8 = 0,
-};
+pub const TransportState = @import("action_types.zig").TransportState;
 
 pub fn transportAction(globals: *Globals, action: TransportAction) void {
     switch (action) {
