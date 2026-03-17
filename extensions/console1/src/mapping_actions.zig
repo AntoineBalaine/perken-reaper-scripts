@@ -7,8 +7,6 @@ const mappings = @import("mappings.zig");
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.mapping_actions);
 const TaggedMapping = mappings.TaggedMapping;
-const mapping_browser = @import("mapping_browser.zig");
-const fs_helpers = @import("fs_helpers.zig");
 const reaper = @import("reaper.zig").reaper;
 const constants = @import("constants.zig");
 const utils = @import("utils.zig");
@@ -126,45 +124,33 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
         .enter_save => {
             const assign_state = globals.state.mapping_panel.mode.assign;
-            const module = std.meta.activeTag(assign_state.current_mappings);
-            const fx_name = assign_state.target_fx; // Still a pointer, but we'll use it immediately
+            // Because we need to preserve the FX name and mappings before deiniting the assign state,
+            // we copy them to a stack buffer first.
+            var fx_name_buf: [512]u8 = undefined;
+            const fx_name_len = @min(assign_state.target_fx.len, fx_name_buf.len);
+            @memcpy(fx_name_buf[0..fx_name_len], assign_state.target_fx[0..fx_name_len]);
+            const fx_name_saved = fx_name_buf[0..fx_name_len];
             const current_mappings = assign_state.current_mappings;
 
-            // Create new save state with new arena
-            var save_state = statemachine.SaveState.init(globals.state.mapping_panel.gpa_int.allocator(), current_mappings);
-            const save_allocator = save_state.arena.allocator();
+            var maps_root_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const maps_root = std.fmt.bufPrint(&maps_root_buf, "{s}{s}maps", .{
+                @as([]const u8, globals.resource_path),
+                std.fs.path.sep_str,
+            }) catch return;
 
-            // Copy string data WHILE assign_state is still valid
-            save_state.target_fx = save_allocator.dupeZ(u8, fx_name) catch return;
-
-            // Initialize name_buffer
-            _ = std.fmt.bufPrintZ(&save_state.name_buffer, "default", .{}) catch return;
-
-            // Get preset names (using the copied fx_name would be safer, but we do it before deinit)
-            const fx_name_z = save_allocator.dupeZ(u8, fx_name) catch |err| {
-                log.warn("Failed to allocate null-terminated FX name: {}", .{err});
-                return;
-            };
-
-            const preset_names = mapping_browser.getMappingNames(
-                save_allocator,
-                &globals.mappings_list,
-                fx_name_z,
-                module,
-            ) catch |err| {
-                log.warn("Failed to load existing preset names: {}", .{err});
-                return;
-            };
-
-            for (preset_names) |name| {
-                save_state.existing_presets.append(save_allocator, name) catch |err| {
-                    log.warn("Failed to append preset name: {}", .{err});
-                };
-            }
-
+            // Because deinitCurrentSubMode frees the assign arena (which owns target_fx),
+            // we must deinit before creating the new save state so that the GPA allocator
+            // inside gpa_int is accessed only at its final memory location.
             globals.state.mapping_panel.deinitCurrentSubMode();
 
-            globals.state.mapping_panel.mode = .{ .save = save_state };
+            const gpa = globals.state.mapping_panel.gpa_int.allocator();
+            globals.state.mapping_panel.mode = .{ .save = statemachine.SaveState.init(gpa, current_mappings, maps_root) };
+
+            // Because the save state is now stored at its final location, we can safely
+            // populate the directory listing and allocate target_fx from the file browser's arena.
+            globals.state.mapping_panel.mode.save.file_browser.refresh();
+            const fb_alloc = globals.state.mapping_panel.mode.save.file_browser.arena.allocator();
+            globals.state.mapping_panel.mode.save.target_fx = fb_alloc.dupeZ(u8, fx_name_saved) catch return;
         },
 
         .exit_to_fx_ctrl => {
@@ -415,18 +401,13 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         },
 
         // SAVE sub-mode actions
-        .save_update_name => |name| {
-            _ = std.fmt.bufPrintZ(&globals.state.mapping_panel.mode.save.name_buffer, "{s}", .{name}) catch return;
-        },
-
-        .save_confirm => |mapping_name| {
+        .save_confirm => |file_path| {
             const save_state = &globals.state.mapping_panel.mode.save;
             const fx_name = save_state.target_fx;
             log.debug("Saved mappings for FX: {s}", .{fx_name});
 
-            // Because saveToFile requires null-terminated strings, we need to convert fx_name
-            const save_allocator = save_state.arena.allocator();
-            const fx_name_z = save_allocator.dupeZ(u8, fx_name) catch |err| {
+            const fb_alloc = save_state.file_browser.arena.allocator();
+            const fx_name_z = fb_alloc.dupeZ(u8, fx_name) catch |err| {
                 log.warn("Failed to allocate null-terminated FX name: {}", .{err});
                 return;
             };
@@ -441,30 +422,13 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 .OUTPT => |m| .{ .OUTPT = m },
             };
 
-            // Determine the save path: if we are overwriting an existing map,
-            // use its original path; otherwise construct a default path.
+            // The file browser returns the full path directly
             var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-            const save_path: [:0]const u8 = blk: {
-                // Check if an existing mapping path matches this mapping name
-                if (globals.mappings_list.lookupPath(module, fx_name_z, mapping_name)) |existing_path| {
-                    break :blk existing_path;
-                }
-                // New map: construct default path maps/{sanitized_fx_name}/{mapping_name}.ini
-                var name_buf: [512:0]u8 = undefined;
-                const sanitized = fs_helpers.sanitizeFxName(&name_buf, fx_name_z) catch {
-                    log.warn("Failed to sanitize FX name: {s}", .{fx_name});
-                    return;
-                };
-                const res_path: []const u8 = globals.resource_path;
-                break :blk std.fmt.bufPrintZ(&save_path_buf, "{s}{s}maps{s}{s}{s}{s}.ini", .{
-                    res_path,
-                    std.fs.path.sep_str,
-                    std.fs.path.sep_str,
-                    sanitized,
-                    std.fs.path.sep_str,
-                    mapping_name,
-                }) catch return;
-            };
+            const save_path: [:0]const u8 = std.fmt.bufPrintZ(&save_path_buf, "{s}", .{file_path}) catch return;
+
+            // Extract the mapping name from the filename (strip directory and .ini extension)
+            const basename = std.fs.path.basename(file_path);
+            const mapping_name: [:0]const u8 = fb_alloc.dupeZ(u8, std.fs.path.stem(basename)) catch return;
 
             globals.map_store.saveToFile(
                 globals.fs_ops,

@@ -239,24 +239,24 @@ pub const AssignState = struct {
 };
 
 pub const SaveState = struct {
-    name_buffer: [512]u8 = [_]u8{0} ** 512,
-    existing_presets: std.ArrayListUnmanaged([:0]const u8) = .{},
-    show_overwrite_confirm: bool = false,
-    pending_name: [:0]const u8 = "",
-    // Because we need access to assign data when saving, we preserve it here
+    file_browser: @import("file_browser.zig").FileBrowserState,
     target_fx: [:0]const u8 = "",
     current_mappings: ModuleMappings,
-    arena: std.heap.ArenaAllocator,
 
-    pub fn init(gpa: std.mem.Allocator, mappings: ModuleMappings) SaveState {
+    pub fn init(gpa: std.mem.Allocator, mappings: ModuleMappings, maps_root: []const u8) SaveState {
         return SaveState{
             .current_mappings = mappings,
-            .arena = std.heap.ArenaAllocator.init(gpa),
+            .file_browser = @import("file_browser.zig").FileBrowserState.init(
+                gpa,
+                maps_root,
+                .save,
+                &.{".ini"},
+            ),
         };
     }
 
     pub fn deinit(self: *SaveState) void {
-        self.arena.deinit();
+        self.file_browser.deinit();
     }
 };
 

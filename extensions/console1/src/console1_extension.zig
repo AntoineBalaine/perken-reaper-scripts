@@ -108,4 +108,5 @@ test {
     _ = @import("tests/midi_learn_test.zig");
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");
+    _ = @import("file_browser.zig");
 }

@@ -17,6 +17,7 @@ const mappings = @import("../mappings.zig");
 const TaggedMapping = mappings.TaggedMapping;
 const c1 = @import("../c1.zig");
 const fs_helpers = @import("../fs_helpers.zig");
+const MappingsList = @import("../mappings_list.zig");
 
 const MockFileSystem = fs_helpers.MockFileSystem;
 
@@ -97,6 +98,15 @@ const System = struct {
             .mock_fs = mock_fs,
             .resource_path = resource_path,
         };
+    }
+
+    // Because System.init returns by value, the Globals struct is moved after
+    // init completes. Internal pointers that captured the address of arena_int
+    // (via .allocator()) are now dangling. This method must be called once the
+    // System is at its final memory location to reinitialize those pointers.
+    pub fn fixupAfterMove(self: *System) void {
+        self.globals.mappings_list = MappingsList.init(self.globals.arena, self.globals.resource_path);
+        self.globals.map_store = .empty(self.globals.arena, self.globals.resource_path, &self.globals.mappings_list);
     }
 
     pub fn reset(self: *System) void {
@@ -672,9 +682,13 @@ const SavePreset = struct {
         // Set target_fx to a test value since REAPER isn't available in tests
         sut.globals.state.mapping_panel.mode.save.target_fx = "VST: Test Plugin";
 
-        // Execute action on SUT
-        const preset_name = "test_preset";
-        mapping_actions.mappingPanelActions(&sut.globals, .{ .save_confirm = preset_name });
+        // Execute action on SUT: because save_confirm now takes a full file path,
+        // we construct one using the resource_path.
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        const save_path = std.fmt.bufPrint(&path_buf, "{s}/maps/test_preset.ini", .{
+            @as([]const u8, sut.resource_path),
+        }) catch return false;
+        mapping_actions.mappingPanelActions(&sut.globals, .{ .save_confirm = save_path });
 
         // Update model
         self.onModelOnly(model);
@@ -724,6 +738,7 @@ test "mapping panel hierarchical state machine" {
     // Initialize model and system
     var model = Model.init();
     var sut = try System.init(allocator);
+    sut.fixupAfterMove();
     defer sut.deinit();
 
     // Create command instances
@@ -808,6 +823,7 @@ test "mapping panel hierarchical state machine" {
 test "save_confirm updates module_locations for immediate FX control use" {
     const allocator = std.testing.allocator;
     var sut = try System.init(allocator);
+    sut.fixupAfterMove();
     defer sut.deinit();
 
     // Step 1: Enter mapping panel in browse mode
@@ -835,8 +851,12 @@ test "save_confirm updates module_locations for immediate FX control use" {
     // Step 6: Setup module_location so save_confirm has an entry to update
     sut.setupModuleLocation(.COMP, 0);
 
-    // Step 7: Execute save_confirm
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .save_confirm = "test_mapping" });
+    // Step 7: Execute save_confirm with a full file path
+    var save_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const save_path = std.fmt.bufPrint(&save_path_buf, "{s}/maps/test_mapping.ini", .{
+        @as([]const u8, sut.resource_path),
+    }) catch unreachable;
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .save_confirm = save_path });
 
     // Verification 1: Mode returned to fx_ctrl
     try std.testing.expectEqual(Mode.fx_ctrl, sut.globals.state.current_mode);

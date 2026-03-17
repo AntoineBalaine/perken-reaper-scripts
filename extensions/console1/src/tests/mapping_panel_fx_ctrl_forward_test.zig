@@ -49,8 +49,9 @@ test "save mode forwards non reserved midi to fx ctrl" {
 
     // Set up save sub-mode with dummy mappings
     const dummy_mappings = ModuleMappings{ .INPUT = mappings.Inpt{} };
-    g.state.mapping_panel.mode = .{ .save = statemachine.SaveState.init(allocator, dummy_mappings) };
-    defer g.state.mapping_panel.mode.save.deinit();
+    g.state.mapping_panel.mode = .{ .save = statemachine.SaveState.init(allocator, dummy_mappings, "/tmp/maps") };
+    g.state.mapping_panel.mode.save.file_browser.refresh();
+    // No explicit defer here because teardownGlobals already calls deinit on the mapping panel.
 
     // Verify mode setup
     try testing.expect(g.state.current_mode == .mapping_panel);
@@ -112,6 +113,7 @@ test "all mapping panel sub modes exist" {
     // Save mode
     g.state.mapping_panel.deinitCurrentSubMode();
     const dummy_mappings2 = ModuleMappings{ .INPUT = mappings.Inpt{} };
-    g.state.mapping_panel.mode = .{ .save = statemachine.SaveState.init(allocator, dummy_mappings2) };
+    g.state.mapping_panel.mode = .{ .save = statemachine.SaveState.init(allocator, dummy_mappings2, "/tmp/maps") };
+    g.state.mapping_panel.mode.save.file_browser.refresh();
     try testing.expect(g.state.mapping_panel.mode == .save);
 }

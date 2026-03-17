@@ -190,10 +190,21 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                     .save => {
                         switch (cc) {
                             .Out_solo => {
-                                // Because we need to pass the current name for save confirmation, we extract it from the buffer
-                                const save_state = globals.state.mapping_panel.mode.save;
-                                const name = std.mem.span(@as([*:0]const u8, @ptrCast(&save_state.name_buffer)));
-                                actions.dispatch(globals, .{ .mapping_panel = .{ .save_confirm = name } });
+                                // Because the file browser's name_buffer contains the user-typed filename,
+                                // we build the full path by joining the current directory with the name and extension.
+                                const save_state = &globals.state.mapping_panel.mode.save;
+                                const fb = &save_state.file_browser;
+                                const name_span = std.mem.span(@as([*:0]const u8, @ptrCast(&fb.name_buffer)));
+                                if (name_span.len == 0) continue :mode_switch .fx_ctrl;
+
+                                var full_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+                                const has_ext = std.mem.endsWith(u8, name_span, ".ini");
+                                const full_path = if (has_ext)
+                                    std.fmt.bufPrint(&full_path_buf, "{s}/{s}", .{ fb.current_path, name_span }) catch continue :mode_switch .fx_ctrl
+                                else
+                                    std.fmt.bufPrint(&full_path_buf, "{s}/{s}.ini", .{ fb.current_path, name_span }) catch continue :mode_switch .fx_ctrl;
+
+                                actions.dispatch(globals, .{ .mapping_panel = .{ .save_confirm = full_path } });
                             },
                             .Out_mute => actions.dispatch(globals, .{ .mapping_panel = .save_cancel }),
                             else => continue :mode_switch .fx_ctrl,

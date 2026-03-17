@@ -80,8 +80,7 @@ pub const MappingPanelAction = union(enum) {
     assign_change_module: ModulesList,
     assign_request_save: void,
     assign_cancel: void,
-    save_update_name: []const u8,
-    save_confirm: [:0]const u8,
+    save_confirm: []const u8,
     save_cancel: void,
 };
 
