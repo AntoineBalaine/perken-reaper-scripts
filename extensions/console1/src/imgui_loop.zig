@@ -174,6 +174,23 @@ fn promptInstallImGui() void {
     reapack.ReaPack_BrowsePackages("Dear ImGui");
 }
 
+/// Because the standard register() function skips registration in test mode,
+/// we provide this entry point for the test API to explicitly enable the UI
+/// render loop when needed for headless end-to-end testing.
+///
+/// Because the standard register() function skips everything in test mode,
+/// we provide this entry point that only registers the timer. The actual
+/// ImGui context and hot reloader initialization happens lazily in onTimer
+/// when it detects ctx == null.
+pub fn registerForTest() void {
+    if (!isImGuiAvailable()) {
+        log.err("ReaImGui not available, cannot enable UI", .{});
+        return;
+    }
+    _ = reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    log.info("UI render loop enabled via test API", .{});
+}
+
 fn isImGuiAvailable() bool {
     // Attempt to initialize ImGui and detect if it's available
     imgui.init(reaper.plugin_getapi) catch {

@@ -49,6 +49,8 @@ pub const FxCtrlAction = union(enum) {
 pub const FxSelActions = union(enum) {
     select_fx: [:0]const u8,
     scroll: u8,
+    confirm: void,
+    back: void,
     toggle_module_browser: ModulesList,
     fx_chain: struct { path: []const u8 },
     track_template: struct { path: [:0]const u8 },

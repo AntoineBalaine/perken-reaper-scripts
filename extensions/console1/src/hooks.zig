@@ -4,6 +4,7 @@ const actions = @import("actions.zig");
 const Mode = @import("statemachine.zig").Mode;
 const debugconfig = @import("config");
 const reentrancy = @import("reentrancy.zig");
+const test_api = @import("test_api.zig");
 const log = std.log.scoped(.hooks);
 const getGlobals = @import("console1_extension.zig").getGlobals;
 
@@ -121,6 +122,10 @@ pub fn registerCommands() void {
         reentrancy_test_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&reentrancy_test_action)));
     }
     _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
+
+    if (debugconfig.@"test") {
+        test_api.registerTestApis();
+    }
 }
 
 // Returns:

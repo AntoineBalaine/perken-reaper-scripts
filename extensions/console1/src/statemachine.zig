@@ -104,10 +104,26 @@ pub const State = struct {
     }
 };
 
+pub const FxSelSubMode = union(enum) {
+    browse_fx,
+    select_mapping: struct {
+        /// The display name of the FX whose mappings we are browsing.
+        fx_name: [:0]const u8,
+        /// The StringPool offset for this FX. We use this to look up the
+        /// mapping list in mappings_list, because the StringPool stores
+        /// both FX names and mapping names by offset.
+        fx_string_pool_offset: u32,
+        scroll_position_abs: u8 = 0,
+        scroll_position_rel: usize = 0,
+    },
+};
+
 pub const FxSelectionState = struct {
     current_category: ModulesList = .COMP,
     scroll_position_abs: u8 = 0,
     scroll_position_rel: usize = 0,
+    sub_mode: FxSelSubMode = .browse_fx,
+    scroll_changed: bool = false,
 };
 
 pub const SettingsSelectionState = struct {

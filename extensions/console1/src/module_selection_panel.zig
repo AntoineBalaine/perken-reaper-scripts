@@ -39,7 +39,7 @@ pub fn drawModuleSelectionPanel(
         }
 
         if (is_selected) {
-            try ui_helpers.drawInvertedSlctblColors(ctx, display_text, drwls_splitter);
+            try ui_helpers.drawInvertedSlctblColors(ctx, display_text, drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
         }
     }
 

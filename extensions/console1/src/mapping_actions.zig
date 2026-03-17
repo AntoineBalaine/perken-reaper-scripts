@@ -10,6 +10,7 @@ const TaggedMapping = mappings.TaggedMapping;
 const mapping_browser = @import("mapping_browser.zig");
 const reaper = @import("reaper.zig").reaper;
 const constants = @import("constants.zig");
+const utils = @import("utils.zig");
 
 pub const MappingPanelAction = @import("action_types.zig").MappingPanelAction;
 
@@ -161,10 +162,21 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         },
 
         // BROWSE sub-mode actions
-        .browse_scroll => |encoder_val| {
-            globals.state.mapping_panel.mode.browse.scroll_position_abs = encoder_val;
-            // Update relative position (simplified, actual implementation may vary)
-            globals.state.mapping_panel.mode.browse.scroll_position_rel = encoder_val;
+        .browse_scroll => |new_pos| {
+            const module_count: i32 = @intCast(comptime std.enums.values(ModulesList).len);
+            var browse = &globals.state.mapping_panel.mode.browse;
+
+            if (utils.calculateNewScrollPosition(
+                i32,
+                &browse.scroll_position_abs,
+                &browse.scroll_position_rel,
+                new_pos,
+                module_count,
+                1,
+            )) |_| {
+                const module_values = comptime std.enums.values(ModulesList);
+                browse.selected_module = module_values[browse.scroll_position_rel];
+            }
         },
 
         .browse_select_module => |module| {

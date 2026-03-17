@@ -10,6 +10,8 @@ const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
 const ui_helpers = @import("ui_helpers.zig");
 const UiState = @import("ui_state.zig").UiState;
+const FxSelSubMode = @import("statemachine.zig").FxSelSubMode;
+const FxSelectionState = @import("statemachine.zig").FxSelectionState;
 
 pub const NAME: [:0]const u8 = "Fx Browser";
 /// last used fx name
@@ -143,6 +145,8 @@ pub fn ModulePopup(
     mappings: std.ArrayHashMapUnmanaged(u32, []u32, std.array_hash_map.AutoContext(u32), false),
     strings: *const @import("string_pool.zig").StringPool,
     current_index: usize,
+    sub_mode: FxSelSubMode,
+    scroll_changed: *bool,
     display_menus: bool,
     g_drwls_splitter: *imgui.DrawListSplitterPtr,
     style_manager: *styles.StyleManager,
@@ -154,7 +158,7 @@ pub fn ModulePopup(
     const PopWindowStyle = try PushWindowStyle(ctx, .main, style_manager);
     defer PopWindowStyle(ctx) catch {};
 
-    try imgui.SetNextWindowSize(.{ ctx, 400, 300, null });
+    try imgui.SetNextWindowSize(.{ ctx, 400, 300, imgui.Cond_FirstUseEver });
 
     var open = true;
 
@@ -162,42 +166,57 @@ pub fn ModulePopup(
         defer imgui.End(.{ctx}) catch {};
 
         try imgui.Text(.{ ctx, @tagName(module) });
-        var iterator = mappings.iterator();
-        var i: usize = 0;
-        while (iterator.next()) |entry| : (i += 1) {
-            const fx_offset = entry.key_ptr.*;
-            const mapping_offsets = entry.value_ptr.*;
 
-            const fx_name = strings.get(fx_offset);
-            const is_selected = (i == current_index);
+        switch (sub_mode) {
+            .browse_fx => {
+                var iterator = mappings.iterator();
+                var i: usize = 0;
+                while (iterator.next()) |entry| : (i += 1) {
+                    const fx_offset = entry.key_ptr.*;
+                    const fx_name = strings.get(fx_offset);
+                    const is_selected = (i == current_index);
 
-            if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(fx_name)), null })) {
-                defer imgui.EndMenu(.{ctx}) catch {};
-
-                if (is_selected) {
-                    try ui_helpers.drawInvertedSlctblColors(ctx, fx_name, g_drwls_splitter);
-                }
-
-                for (mapping_offsets) |mapping_offset| {
-                    const mapping_name = strings.get(mapping_offset);
-                    if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(mapping_name)) })) {
-                        rv = .{ .plugin = .{
-                            .name = fx_name,
-                            .mapping_name = mapping_name,
-                        } };
+                    if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(fx_name)) })) {
+                        rv = .confirm;
+                    }
+                    if (is_selected) {
+                        try ui_helpers.drawInvertedSlctblColors(ctx, fx_name, g_drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
+                        if (scroll_changed.*) {
+                            try imgui.SetScrollHereY(.{ ctx, 0.5 });
+                            scroll_changed.* = false;
+                        }
                     }
                 }
-            }
-        }
 
-        if (display_menus) {
-            try imgui.Separator(.{ctx});
+                if (display_menus) {
+                    try imgui.Separator(.{ctx});
+                    if (try Menus(ctx, ui, translations)) |selection| {
+                        rv = selection;
+                    }
+                    try imgui.Separator(.{ctx});
+                }
+            },
+            .select_mapping => |sel| {
+                try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(sel.fx_name)) });
+                try imgui.Separator(.{ctx});
 
-            if (try Menus(ctx, ui, translations)) |selection| {
-                rv = selection;
-            }
+                const mapping_offsets = mappings.get(sel.fx_string_pool_offset) orelse &.{};
+                for (mapping_offsets, 0..) |mapping_offset, i| {
+                    const mapping_name = strings.get(mapping_offset);
+                    const is_selected = (i == current_index);
 
-            try imgui.Separator(.{ctx});
+                    if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(mapping_name)) })) {
+                        rv = .confirm;
+                    }
+                    if (is_selected) {
+                        try ui_helpers.drawInvertedSlctblColors(ctx, mapping_name, g_drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
+                        if (scroll_changed.*) {
+                            try imgui.SetScrollHereY(.{ ctx, 0.5 });
+                            scroll_changed.* = false;
+                        }
+                    }
+                }
+            },
         }
     }
     if (!open) rv = .close_browser;

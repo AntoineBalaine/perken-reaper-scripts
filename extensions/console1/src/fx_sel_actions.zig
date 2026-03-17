@@ -9,6 +9,7 @@ const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.fx_sel_actions);
 const TrackState = @import("track_state.zig").TrackState;
 const Globals = @import("globals.zig").Globals;
+const utils = @import("utils.zig");
 
 pub const FxSelActions = @import("action_types.zig").FxSelActions;
 
@@ -119,29 +120,72 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             } else {
                 globals.state.fx_sel.scroll_position_abs = 0;
                 globals.state.fx_sel.scroll_position_rel = 0;
+                globals.state.fx_sel.sub_mode = .browse_fx;
                 globals.state.fx_sel.current_category = module;
                 dispatch(globals, .{ .change_mode = .fx_sel });
             }
         },
-        .scroll => |new_pos| {
-            const fx_count: i32 = @intCast(switch (globals.state.fx_sel.current_category) {
-                inline else => |impl| globals.mappings_list.list.get(impl).count(),
-            });
+        .confirm => {
+            const category = globals.state.fx_sel.current_category;
+            const mappings = globals.mappings_list.list.get(category);
 
-            if (@import("utils.zig").calculateNewScrollPosition(
-                i32,
-                &globals.state.fx_sel.scroll_position_abs,
-                &globals.state.fx_sel.scroll_position_rel,
-                new_pos,
-                @intCast(fx_count),
-                1,
-            )) |delta| {
-                log.debug("FxSel scroll: abs={d} delta={d} rel={d}/{d}", .{
-                    globals.state.fx_sel.scroll_position_abs,
-                    delta,
-                    globals.state.fx_sel.scroll_position_rel,
-                    fx_count,
-                });
+            switch (globals.state.fx_sel.sub_mode) {
+                .browse_fx => {
+                    if (mappings.count() == 0) return;
+                    const fx_offset = mappings.keys()[globals.state.fx_sel.scroll_position_rel];
+                    const mapping_offsets = mappings.get(fx_offset) orelse return;
+                    const fx_name = globals.mappings_list.strings.get(fx_offset);
+
+                    if (mapping_offsets.len == 1) {
+                        const mapping_name = globals.mappings_list.strings.get(mapping_offsets[0]);
+                        fxSelActions(globals, .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } });
+                    } else {
+                        globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
+                            .fx_name = fx_name,
+                            .fx_string_pool_offset = fx_offset,
+                        } };
+                    }
+                },
+                .select_mapping => |sel| {
+                    const mapping_offsets = mappings.get(sel.fx_string_pool_offset) orelse return;
+                    if (sel.scroll_position_rel >= mapping_offsets.len) return;
+                    const mapping_name = globals.mappings_list.strings.get(mapping_offsets[sel.scroll_position_rel]);
+                    fxSelActions(globals, .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } });
+                },
+            }
+        },
+        .back => {
+            globals.state.fx_sel.sub_mode = .browse_fx;
+        },
+        .scroll => |new_pos| {
+            globals.state.fx_sel.scroll_changed = true;
+            switch (globals.state.fx_sel.sub_mode) {
+                .browse_fx => {
+                    const fx_count: i32 = @intCast(switch (globals.state.fx_sel.current_category) {
+                        inline else => |impl| globals.mappings_list.list.get(impl).count(),
+                    });
+                    _ = utils.calculateNewScrollPosition(
+                        i32,
+                        &globals.state.fx_sel.scroll_position_abs,
+                        &globals.state.fx_sel.scroll_position_rel,
+                        new_pos,
+                        @intCast(fx_count),
+                        1,
+                    );
+                },
+                .select_mapping => |*sel| {
+                    const mapping_offsets = globals.mappings_list.list.get(
+                        globals.state.fx_sel.current_category,
+                    ).get(sel.fx_string_pool_offset) orelse return;
+                    _ = utils.calculateNewScrollPosition(
+                        i32,
+                        &sel.scroll_position_abs,
+                        &sel.scroll_position_rel,
+                        new_pos,
+                        @intCast(mapping_offsets.len),
+                        1,
+                    );
+                },
             }
         },
         else => {},

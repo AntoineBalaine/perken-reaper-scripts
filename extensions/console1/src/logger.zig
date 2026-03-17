@@ -131,6 +131,7 @@ pub fn logFn(
         .default_fx_sel_actions,
         .fx_sel_panel,
         .tests,
+        .test_api,
         => @tagName(scope),
         .default => @tagName(scope),
         .reentrancy => "",

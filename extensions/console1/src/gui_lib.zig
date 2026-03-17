@@ -94,12 +94,18 @@ pub fn main(
                 }
                 const module = ui.state.default_fx_sel.current_category;
                 const list = ui.mappings_list.list.get(module);
+                const current_index = switch (ui.state.default_fx_sel.sub_mode) {
+                    .browse_fx => ui.state.default_fx_sel.scroll_position_rel,
+                    .select_mapping => |sel| sel.scroll_position_rel,
+                };
                 if (try fx_sel_panel.ModulePopup(
                     ctx,
                     module,
                     list,
                     &ui.mappings_list.strings,
-                    ui.state.default_fx_sel.scroll_position_rel,
+                    current_index,
+                    ui.state.default_fx_sel.sub_mode,
+                    &ui.state.default_fx_sel.scroll_changed,
                     false,
                     ui.drwls_splitter,
                     style_manager,
@@ -113,13 +119,11 @@ pub fn main(
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
                     switch (ctrl_input.cc) {
                         .Out_Vol => rv = .{ .fx_sel = .{ .scroll = @intFromFloat(ctrl_input.value * 127.0) } },
-                        .Out_solo => {
-                            const mappings = ui.mappings_list.list.get(ui.state.fx_sel.current_category);
-                            const fx_offset = mappings.keys()[ui.state.fx_sel.scroll_position_rel];
-                            const fx_name = ui.mappings_list.strings.get(fx_offset);
-                            rv = .{ .fx_sel = .{ .plugin = .{ .name = fx_name, .mapping_name = null } } };
+                        .Out_solo => rv = .{ .fx_sel = .confirm },
+                        .Out_mute => rv = switch (ui.state.fx_sel.sub_mode) {
+                            .browse_fx => .{ .fx_sel = .close_browser },
+                            .select_mapping => .{ .fx_sel = .back },
                         },
-                        .Out_mute => rv = .{ .fx_sel = .close_browser },
                         else => rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } },
                     }
                 }
@@ -141,12 +145,18 @@ pub fn main(
 
                 const module = ui.state.fx_sel.current_category;
                 const list = ui.mappings_list.list.get(module);
+                const current_index = switch (ui.state.fx_sel.sub_mode) {
+                    .browse_fx => ui.state.fx_sel.scroll_position_rel,
+                    .select_mapping => |sel| sel.scroll_position_rel,
+                };
                 if (try fx_sel_panel.ModulePopup(
                     ctx,
                     module,
                     list,
                     &ui.mappings_list.strings,
-                    ui.state.fx_sel.scroll_position_rel,
+                    current_index,
+                    ui.state.fx_sel.sub_mode,
+                    &ui.state.fx_sel.scroll_changed,
                     true,
                     ui.drwls_splitter,
                     style_manager,
