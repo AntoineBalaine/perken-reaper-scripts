@@ -213,7 +213,16 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                 }
             }
         },
-        // .scrub => {},
-        else => {},
+        .scrub => |new_pos| {
+            var pos_rel: u8 = globals.state.transport.scrub;
+            if (utils.calculateNewScrollPosition(c_int, &globals.state.transport.scrub, &pos_rel, new_pos, 127, null)) |delta| {
+                globals.state.transport.scrub = pos_rel;
+                const SCRUB_STEP: f64 = 1.0 / 128.0;
+                const amt = SCRUB_STEP * @as(f64, @floatFromInt(delta));
+                pReaper.CSurf_ScrubAmt(.{amt});
+                actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Eq_LoGain, .value = globals.state.transport.scrub } } });
+                log.debug("Transport scrub: abs={d} delta={d}", .{ globals.state.transport.scrub, delta });
+            }
+        },
     }
 }

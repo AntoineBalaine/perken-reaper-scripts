@@ -463,7 +463,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // Second knob
             var logain_val: f64 = if (mode == .transport)
-                0.5
+                @as(f64, @floatFromInt(transport.scrub)) / 127.0
             else
                 fx_state.values.get(.Eq_LoGain).?.param.normalized;
             if (try Knobs.drawWidget(ctx, &logain_val, logain_label_id, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled }, max_width)) {

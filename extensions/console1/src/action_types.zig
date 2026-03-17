@@ -108,6 +108,7 @@ pub const TransportState = struct {
     zoom_horizontal: u8 = 64,
     zoom_vertical: u8 = 64,
     rate: u8 = 64,
+    scrub: u8 = 64,
     tr_sel: u8 = 0,
     grid: u8 = 0,
 };
