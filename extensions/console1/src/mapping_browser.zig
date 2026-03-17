@@ -1,55 +1,37 @@
 const std = @import("std");
-const fs_helpers = @import("fs_helpers.zig");
+const MappingsList = @import("mappings_list.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const testing = std.testing;
 
-/// Get all mapping file paths for a given FX by reading the directory on disk.
+/// Get all mapping names for a given FX by querying the MappingsList index.
 /// Returns a list of mapping names (without .ini extension) owned by the caller.
 pub fn getMappingNames(
     allocator: std.mem.Allocator,
-    controller_dir: [*:0]const u8,
+    mappings_list: *MappingsList,
     fx_name: [:0]const u8,
     module: ModulesList,
 ) ![][:0]const u8 {
-    var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
+    const mod_map = mappings_list.list.getPtr(module);
 
-    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const dir_path = fs_helpers.joinStrings(&dir_path_buf, &.{
-        std.mem.span(controller_dir),
-        std.fs.path.sep_str,
-        "maps",
-        std.fs.path.sep_str,
-        @tagName(module),
-        std.fs.path.sep_str,
-        sanitized_name,
-    });
+    // Because StringPool does not deduplicate, we search by string value
+    var iter = mod_map.iterator();
+    while (iter.next()) |map_entry| {
+        const stored_fx_name = mappings_list.strings.get(map_entry.key_ptr.*);
+        if (std.mem.eql(u8, stored_fx_name, fx_name)) {
+            var list = std.ArrayList([:0]const u8).init(allocator);
+            errdefer list.deinit();
 
-    // Because the directory might not exist, we handle that case
-    var dir = std.fs.openDirAbsolute(dir_path, .{ .iterate = true }) catch |err| {
-        if (err == error.FileNotFound) {
-            return &[_][:0]const u8{};
-        }
-        return err;
-    };
-    defer dir.close();
-
-    var list = std.ArrayList([:0]const u8).init(allocator);
-    errdefer list.deinit();
-
-    var iter = dir.iterate();
-    while (try iter.next()) |entry| {
-        if (entry.kind == .file) {
-            // Remove .ini extension
-            if (std.mem.endsWith(u8, entry.name, ".ini")) {
-                const name_without_ext = entry.name[0 .. entry.name.len - 4];
-                const owned_name = try allocator.dupeZ(u8, name_without_ext);
+            for (map_entry.value_ptr.items) |entry| {
+                const name = mappings_list.strings.get(entry.name_offset);
+                const owned_name = try allocator.dupeZ(u8, name);
                 try list.append(owned_name);
             }
+
+            return list.toOwnedSlice();
         }
     }
 
-    return list.toOwnedSlice();
+    return &[_][:0]const u8{};
 }
 
 test "getMappingNames - returns empty list for FX with no mappings" {
@@ -62,8 +44,11 @@ test "getMappingNames - returns empty list for FX with no mappings" {
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
 
+    var ml = MappingsList.init(allocator, config_path_z);
+    _ = &ml;
+
     const nonexistent_fx = "VST: NonexistentPlugin";
-    const names = try getMappingNames(allocator, config_path_z, nonexistent_fx, .COMP);
+    const names = try getMappingNames(allocator, &ml, nonexistent_fx, .COMP);
     defer allocator.free(names);
 
     try testing.expectEqual(@as(usize, 0), names.len);
@@ -79,9 +64,12 @@ test "getMappingNames - returns correct list of mapping files" {
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
     const config_path_z = try allocator.dupeZ(u8, config_path);
 
+    var ml = MappingsList.init(allocator, config_path_z);
+    _ = &ml;
+
     const test_fx = "VST: ReaComp (Cockos)";
 
-    const names = try getMappingNames(allocator, config_path_z, test_fx, .COMP);
+    const names = try getMappingNames(allocator, &ml, test_fx, .COMP);
     defer {
         for (names) |name| {
             allocator.free(name);

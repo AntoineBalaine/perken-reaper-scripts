@@ -8,6 +8,7 @@ const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.mapping_actions);
 const TaggedMapping = mappings.TaggedMapping;
 const mapping_browser = @import("mapping_browser.zig");
+const fs_helpers = @import("fs_helpers.zig");
 const reaper = @import("reaper.zig").reaper;
 const constants = @import("constants.zig");
 const utils = @import("utils.zig");
@@ -147,7 +148,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
             const preset_names = mapping_browser.getMappingNames(
                 save_allocator,
-                globals.resource_path,
+                &globals.mappings_list,
                 fx_name_z,
                 module,
             ) catch |err| {
@@ -440,19 +441,48 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 .OUTPT => |m| .{ .OUTPT = m },
             };
 
+            // Determine the save path: if we are overwriting an existing map,
+            // use its original path; otherwise construct a default path.
+            var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+            const save_path: [:0]const u8 = blk: {
+                // Check if an existing mapping path matches this mapping name
+                if (globals.mappings_list.lookupPath(module, fx_name_z, mapping_name)) |existing_path| {
+                    break :blk existing_path;
+                }
+                // New map: construct default path maps/{sanitized_fx_name}/{mapping_name}.ini
+                var name_buf: [512:0]u8 = undefined;
+                const sanitized = fs_helpers.sanitizeFxName(&name_buf, fx_name_z) catch {
+                    log.warn("Failed to sanitize FX name: {s}", .{fx_name});
+                    return;
+                };
+                const res_path: []const u8 = globals.resource_path;
+                break :blk std.fmt.bufPrintZ(&save_path_buf, "{s}{s}maps{s}{s}{s}{s}.ini", .{
+                    res_path,
+                    std.fs.path.sep_str,
+                    std.fs.path.sep_str,
+                    sanitized,
+                    std.fs.path.sep_str,
+                    mapping_name,
+                }) catch return;
+            };
+
             globals.map_store.saveToFile(
                 globals.fs_ops,
                 module,
                 fx_name_z,
                 tagged_mapping,
-                mapping_name,
+                save_path,
             ) catch {
                 log.warn("Failed to save mapping {s} to file", .{fx_name});
-                // Continue with cleanup even if save failed
+                return;
             };
 
-            // Because saveToFile only writes to disk, we need to add the mapping to cache manually
-            // We use getMap to load it from disk which will also update the cache
+            // Register the saved path in the index so subsequent lookups find it
+            globals.mappings_list.registerPath(module, fx_name_z, mapping_name, save_path) catch |err| {
+                log.warn("Failed to register saved mapping path: {}", .{err});
+            };
+
+            // Reload from disk into cache
             _ = globals.map_store.getMap(fx_name_z, module, mapping_name) catch |err| {
                 log.warn("Failed to load saved mapping into cache: {}", .{err});
             };

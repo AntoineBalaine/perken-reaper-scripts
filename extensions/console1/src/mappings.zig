@@ -120,8 +120,9 @@ OUTPT: std.StringArrayHashMapUnmanaged(FxMaps(Outpt)),
 GATE: std.StringArrayHashMapUnmanaged(FxMaps(Shp)),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
+mappings_list: *@import("mappings_list.zig"),
 
-pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This() {
+pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *@import("mappings_list.zig")) @This() {
     const self: MapStore = .{
         .INPUT = std.StringArrayHashMapUnmanaged(FxMaps(Inpt)){},
         .GATE = std.StringArrayHashMapUnmanaged(FxMaps(Shp)){},
@@ -130,12 +131,13 @@ pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This(
         .OUTPT = std.StringArrayHashMapUnmanaged(FxMaps(Outpt)){},
         .controller_dir = controller_dir,
         .allocator = allocator,
+        .mappings_list = ml,
     };
     return self;
 }
 
-pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, defaults: *settings.DefaultFx) !MapStore {
-    var self: MapStore = .empty(allocator, controller_dir);
+pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *@import("mappings_list.zig"), defaults: *settings.DefaultFx) !MapStore {
+    var self: MapStore = .empty(allocator, controller_dir, ml);
     // find the mappings for the defaults
     var iterator = defaults.iterator();
     while (iterator.next()) |defaultsEntry| {
@@ -366,24 +368,11 @@ pub fn getPreferredMapping(self: *MapStore, fx_name: [:0]const u8, module: Modul
 }
 
 /// fetch mapping from disk, parse it, store it, and return it.
-/// Because we now support multiple mappings per FX, we use directory-based paths: maps/<MODULE>/<fx_name>/<mapping_name>.ini
+/// Because the mappings_list index knows the absolute path for each mapping,
+/// we look up the path there instead of constructing it ourselves.
 pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8) !TaggedMapping {
-    var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fxName);
-
-    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const filePath = fs_helpers.joinStrings(&path_buffer, &.{
-        std.mem.span(self.controller_dir),
-        std.fs.path.sep_str,
-        "maps",
-        std.fs.path.sep_str,
-        @tagName(module),
-        std.fs.path.sep_str,
-        sanitized_name,
-        std.fs.path.sep_str,
-        mapping_name,
-        ".ini",
-    });
+    const filePath_z = self.mappings_list.lookupPath(module, fxName, mapping_name) orelse return error.FileNotFound;
+    const filePath: []const u8 = filePath_z;
 
     log.debug("Loading mapping from {s}", .{filePath});
 
@@ -405,13 +394,16 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
     var parser = ini.parse(temp_arena.allocator(), file.reader());
     defer parser.deinit(); // doesn’t actually do anything because of arena
 
-    // Because filePath is []const u8, we need to duplicate it with a sentinel for storage
-    const filePath_z = try self.allocator.dupeZ(u8, filePath);
+    var found_module: ?ModulesList = null;
 
     const mapping: TaggedMapping = switch (module) {
         .COMP => {
             var comp = Comp{};
-            _ = try readToU8Struct(&comp, &parser);
+            _ = try readToU8Struct(&comp, &parser, &found_module);
+
+            if (found_module) |m| {
+                if (m != module) return error.ModuleMismatch;
+            }
 
             var gop = try self.COMP.getOrPut(self.allocator, fxName);
             if (!gop.found_existing) {
@@ -427,7 +419,11 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .EQ => {
             var eq = Eq{};
-            _ = try readToU8Struct(&eq, &parser);
+            _ = try readToU8Struct(&eq, &parser, &found_module);
+
+            if (found_module) |m| {
+                if (m != module) return error.ModuleMismatch;
+            }
 
             var gop = try self.EQ.getOrPut(self.allocator, fxName);
             if (!gop.found_existing) {
@@ -443,7 +439,11 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .INPUT => {
             var inpt: Inpt = Inpt{};
-            _ = try readToU8Struct(&inpt, &parser);
+            _ = try readToU8Struct(&inpt, &parser, &found_module);
+
+            if (found_module) |m| {
+                if (m != module) return error.ModuleMismatch;
+            }
 
             var gop = try self.INPUT.getOrPut(self.allocator, fxName);
             if (!gop.found_existing) {
@@ -459,7 +459,11 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .OUTPT => {
             var outpt: Outpt = Outpt{};
-            _ = try readToU8Struct(&outpt, &parser);
+            _ = try readToU8Struct(&outpt, &parser, &found_module);
+
+            if (found_module) |m| {
+                if (m != module) return error.ModuleMismatch;
+            }
 
             var gop = try self.OUTPT.getOrPut(self.allocator, fxName);
             if (!gop.found_existing) {
@@ -475,7 +479,11 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .GATE => {
             var shp: Shp = Shp{};
-            _ = try readToU8Struct(&shp, &parser);
+            _ = try readToU8Struct(&shp, &parser, &found_module);
+
+            if (found_module) |m| {
+                if (m != module) return error.ModuleMismatch;
+            }
 
             var gop = try self.GATE.getOrPut(self.allocator, fxName);
             if (!gop.found_existing) {
@@ -494,8 +502,8 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
     return mapping;
 }
 
-/// parse comp/eq/gate/input/output structs
-fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
+/// parse comp/eq/gate/input/output structs, and extract the module field if present
+fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesList) !@TypeOf(ret_struct) {
     const T = @TypeOf(ret_struct.*);
     std.debug.assert(@typeInfo(T) == .@"struct");
 
@@ -504,6 +512,16 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype) !@TypeOf(ret_struct) {
     while (try parser.*.next()) |record| {
         switch (record) {
             .property => |kv| {
+                // Because the module field is not part of the mapping structs,
+                // we check for it separately before the struct field matching
+                if (std.mem.eql(u8, kv.key, "module")) {
+                    inline for (comptime std.enums.values(ModulesList)) |module_val| {
+                        if (std.mem.eql(u8, kv.value, @tagName(module_val))) {
+                            found_module.* = module_val;
+                        }
+                    }
+                }
+
                 inline for (std.meta.fields(T)) |ns_info| {
                     if (std.mem.eql(u8, ns_info.name, kv.key)) {
                         const field_type = @TypeOf(@field(ret_struct, ns_info.name));
@@ -567,56 +585,31 @@ fn formatOptionalU8(value: anytype, writer: anytype) !void {
     }
 }
 
-/// Because this function now takes pure parameters, it is more testable and has clearer dependencies.
+/// Save a mapping to disk at the given absolute file path.
+/// The caller is responsible for determining the path (existing map location
+/// for overwrites, or a default location for new maps).
 pub fn saveToFile(
     self: *MapStore,
     fs_ops: fs_helpers.FileSystemOps,
     module: ModulesList,
     fx_name: [:0]const u8,
     mapping: TaggedMapping,
-    mapping_name: [:0]const u8,
+    file_path: [:0]const u8,
 ) !void {
-    // Build path: resourcePath/maps/<MODULE>/<fx_name>/<mapping_name>.ini
-    var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
+    _ = self;
 
-    // Create the directory structure first
-    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const dir_path = fs_helpers.joinStrings(&dir_path_buf, &.{
-        std.mem.span(self.controller_dir),
-        std.fs.path.sep_str,
-        "maps",
-        std.fs.path.sep_str,
-        @tagName(module),
-        std.fs.path.sep_str,
-        sanitized_name,
-    });
-
-    // Because we need to create the directory before saving the file, we make it recursively
-    fs_ops.makeDirAbsolute(dir_path) catch |err| {
-        if (err != error.PathAlreadyExists) {
-            log.err("Failed to create directory: {s}", .{@errorName(err)});
-            return err;
-        }
-    };
-
-    // Create path buffers and join components
-    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const path = fs_helpers.joinStrings(&path_buf, &.{
-        std.mem.span(self.controller_dir),
-        std.fs.path.sep_str,
-        "maps",
-        std.fs.path.sep_str,
-        @tagName(module),
-        std.fs.path.sep_str,
-        sanitized_name,
-        std.fs.path.sep_str,
-        mapping_name,
-        ".ini",
-    });
+    // Create the parent directory if it does not exist
+    if (std.fs.path.dirname(file_path)) |dir_path| {
+        fs_ops.makeDirAbsolute(dir_path) catch |err| {
+            if (err != error.PathAlreadyExists) {
+                log.err("Failed to create directory: {s}", .{@errorName(err)});
+                return err;
+            }
+        };
+    }
 
     // Create or truncate file
-    const file = try fs_ops.createFileAbsolute(path, .{
+    const file = try fs_ops.createFileAbsolute(file_path, .{
         .read = true,
         .truncate = true,
     });
@@ -624,6 +617,10 @@ pub fn saveToFile(
 
     // Write mappings
     var writer = file.writer();
+
+    // Write header fields that are not part of the mapping structs
+    try writer.print("module={s}\n", .{@tagName(module)});
+    try writer.print("fx_name={s}\n", .{fx_name});
 
     // Write different fields based on module type
     switch (mapping) {
@@ -667,11 +664,36 @@ test readToU8Struct {
     var parser = ini.parse(std.testing.allocator, fbs.reader());
     defer parser.deinit();
 
+    var found_module: ?ModulesList = null;
     var ret_str: ExampleStruct = .{
         .repositoryformatversion = 0,
     };
-    _ = try readToU8Struct(&ret_str, &parser);
+    _ = try readToU8Struct(&ret_str, &parser, &found_module);
     try expect(ret_str.repositoryformatversion == 8);
+    // Because the example INI has no module field, found_module should remain null
+    try expect(found_module == null);
+}
+
+test "readToU8Struct: module field is parsed correctly" {
+    const testing = std.testing;
+    const example =
+        \\ version=1
+        \\ module=COMP
+        \\ Comp_Thresh=0
+        \\ Comp_Ratio=1
+    ;
+    var fbs = std.io.fixedBufferStream(example);
+    var parser = ini.parse(testing.allocator, fbs.reader());
+    defer parser.deinit();
+
+    var found_module: ?ModulesList = null;
+    var comp = Comp{};
+    _ = try readToU8Struct(&comp, &parser, &found_module);
+
+    try testing.expect(found_module != null);
+    try testing.expectEqual(ModulesList.COMP, found_module.?);
+    try testing.expectEqual(@as(?u16, 0), comp.Comp_Thresh);
+    try testing.expectEqual(@as(?u16, 1), comp.Comp_Ratio);
 }
 
 test init {
@@ -810,10 +832,13 @@ pub fn getParamForCC(cc: c1.CCs, mapping: TaggedMapping) ?u16 {
     };
 }
 
+const MappingsList = @import("mappings_list.zig");
+
 const TestContext = struct {
     arena: std.heap.ArenaAllocator,
     allocator: std.mem.Allocator,
     config: settings.Preferences,
+    mappings_list: *MappingsList,
     store: MapStore,
 
     pub fn init() !TestContext {
@@ -827,12 +852,21 @@ const TestContext = struct {
         const config_path_z = try allocator.dupeZ(u8, config_path);
 
         var config = try settings.init(allocator, config_path_z);
-        const store = try MapStore.init(allocator, config_path_z, &config.default_fx);
+
+        // Because the MapStore stores a pointer to the MappingsList, we need to
+        // heap-allocate it so that the pointer remains stable when TestContext is
+        // returned by value (returning by value moves the struct, which would
+        // invalidate any internal pointer).
+        const ml = try allocator.create(MappingsList);
+        ml.* = MappingsList.init(allocator, config_path_z);
+
+        const store = try MapStore.init(allocator, config_path_z, ml, &config.default_fx);
 
         return TestContext{
             .arena = arena,
             .allocator = allocator,
             .config = config,
+            .mappings_list = ml,
             .store = store,
         };
     }

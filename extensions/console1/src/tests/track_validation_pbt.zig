@@ -75,16 +75,24 @@ const Model = struct {
 const System = struct {
     session: *models.Session,
     track: *models.Track,
+    ml: *@import("../mappings_list.zig"),
     map_store: MapStore,
 
     pub fn init(session: *models.Session) !@This() {
+        const MappingsList = @import("../mappings_list.zig");
         // Get first track (index 1, since 0 is master)
         const track = &session.tracks.items[1];
+
+        // Because MapStore stores a pointer to the MappingsList, we heap-allocate it
+        // to avoid invalidation when System is returned by value.
+        const ml = try testing.allocator.create(MappingsList);
+        ml.* = .empty(testing.allocator);
 
         return .{
             .session = session,
             .track = track,
-            .map_store = .empty(testing.allocator, "test_resources/mappings"),
+            .ml = ml,
+            .map_store = .empty(testing.allocator, "test_resources/mappings", ml),
         };
     }
 
@@ -95,6 +103,7 @@ const System = struct {
 
     pub fn deinit(self: *@This()) void {
         self.map_store.deinit();
+        testing.allocator.destroy(self.ml);
     }
 };
 
@@ -317,7 +326,8 @@ test "track validation - empty track gets all modules" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(arena.allocator(), config_path);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -367,7 +377,8 @@ test "track validation - duplicate module suffixes removed" {
     _ = reaper.TrackFX_SetNamedConfigParm(media_track, 1, "renamed_name", "VST: ReaEQ (Cockos) (C1-I)");
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(arena.allocator(), config_path);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -420,7 +431,8 @@ test "track validation - missing modules inserted in correct positions" {
     _ = reaper.TrackFX_SetNamedConfigParm(media_track, 1, "renamed_name", "JS: Volume Adjustment (C1-O)");
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(arena.allocator(), config_path);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
     defer map_store.deinit();
 
     const default_fx = DefaultFx.init(.{
@@ -507,7 +519,8 @@ test "auto_insert_modules disabled prevents module insertion" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(arena.allocator(), config_path);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
     defer map_store.deinit();
 
     const default_fx: DefaultFx = .initFill(null);
@@ -537,7 +550,8 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(arena.allocator(), config_path);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
     defer map_store.deinit();
 
     // Because we need default FX names for insertion, set them up
@@ -584,7 +598,8 @@ test "auto_reorder_modules disabled preserves existing module positions" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(arena.allocator(), config_path);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
     defer map_store.deinit();
 
     // Because we need to test reordering behavior, first add modules in non-canonical order
@@ -637,7 +652,8 @@ test "preferred_module_order affects insertion positions" {
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
     const config_path = try getTestConfigPath(arena.allocator());
-    var map_store: MapStore = .empty(arena.allocator(), config_path);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    var map_store: MapStore = .empty(arena.allocator(), config_path, &ml);
     defer map_store.deinit();
 
     var default_fx: DefaultFx = .initFill(null);

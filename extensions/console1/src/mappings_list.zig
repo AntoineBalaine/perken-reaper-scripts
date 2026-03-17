@@ -5,15 +5,27 @@ const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
 const StringPool = @import("string_pool.zig").StringPool;
 
-// Store hierarchical FX names with their mapping names using StringPool offsets
-// Keys are FX name offsets (u32), values are arrays of mapping name offsets ([]u32)
-// Using ArrayHashMap to maintain insertion order for scrolling/indexing
-list: std.EnumArray(ModulesList, std.ArrayHashMapUnmanaged(u32, []u32, std.array_hash_map.AutoContext(u32), false)),
+pub const MapEntry = struct {
+    name_offset: u32, // mapping name (filename without .ini) in StringPool
+    path_offset: u32, // absolute file path in StringPool
+};
+
+pub const ModuleMap = std.ArrayHashMapUnmanaged(u32, std.ArrayList(MapEntry), std.array_hash_map.AutoContext(u32), false);
+
+pub const IniHeader = struct {
+    module: ModulesList,
+    fx_name: [:0]const u8,
+};
+
+// Store hierarchical FX names with their mapping entries using StringPool offsets.
+// Keys are FX name offsets (u32), values are ArrayLists of MapEntry.
+// Using ArrayHashMap to maintain insertion order for scrolling/indexing.
+list: std.EnumArray(ModulesList, ModuleMap),
 strings: StringPool,
 
 pub fn empty(arena: std.mem.Allocator) @This() {
     return .{
-        .list = std.EnumArray(ModulesList, std.ArrayHashMapUnmanaged(u32, []u32, std.array_hash_map.AutoContext(u32), false)).init(.{
+        .list = std.EnumArray(ModulesList, ModuleMap).init(.{
             .INPUT = .empty,
             .GATE = .empty,
             .EQ = .empty,
@@ -26,107 +38,37 @@ pub fn empty(arena: std.mem.Allocator) @This() {
 
 pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
     var strings = StringPool.init(arena);
-    var list = std.EnumArray(ModulesList, std.ArrayHashMapUnmanaged(u32, []u32, std.array_hash_map.AutoContext(u32), false)).initUndefined();
+    var list = std.EnumArray(ModulesList, ModuleMap).initUndefined();
+
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        list.set(module, .empty);
+    }
 
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    var fx_dir_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    inline for (comptime std.enums.values(ModulesList)) |module| {
-        inline_blk: {
-            list.set(module, .empty);
+    const maps_path = fs_helpers.joinStrings(&path_buffer, &.{
+        resource_path,
+        std.fs.path.sep_str,
+        "maps",
+    });
 
-            const module_path = fs_helpers.joinStrings(&path_buffer, &.{
-                resource_path,
-                std.fs.path.sep_str,
-                "maps",
-                std.fs.path.sep_str,
-                @tagName(module),
-            });
+    var maps_dir = std.fs.openDirAbsolute(maps_path, .{ .iterate = true }) catch {
+        return .{
+            .list = list,
+            .strings = strings,
+        };
+    };
+    defer maps_dir.close();
 
-            var module_dir = std.fs.openDirAbsolute(module_path, .{ .iterate = true }) catch {
-                break :inline_blk;
-            };
-            defer module_dir.close();
+    var walk_ctx = WalkContext{
+        .strings = &strings,
+        .list = &list,
+        .arena = arena,
+        .base_path_buf = undefined,
+        .base_path_len = maps_path.len,
+    };
+    @memcpy(walk_ctx.base_path_buf[0..maps_path.len], maps_path);
 
-            var module_iter = module_dir.iterate();
-            while (module_iter.next() catch break :inline_blk) |fx_entry| {
-                // Each subdirectory is an FX name
-                if (fx_entry.kind != .directory) continue;
-
-                // Open FX subdirectory to scan for mapping files
-                // Use separate buffer to avoid aliasing with module_path
-                const fx_dir_path = fs_helpers.joinStrings(&fx_dir_buffer, &.{
-                    module_path,
-                    std.fs.path.sep_str,
-                    fx_entry.name,
-                });
-
-                var fx_dir = std.fs.openDirAbsolute(fx_dir_path, .{ .iterate = true }) catch continue;
-                defer fx_dir.close();
-
-                // Read the actual FX name from the first .ini file we find
-                // This ensures we use the REAPER FX name, not the directory name
-                var actual_fx_name_z: ?[:0]const u8 = null;
-
-                // Collect mapping offsets temporarily
-                var mapping_offsets = std.ArrayList(u32).init(arena);
-                defer mapping_offsets.deinit();
-
-                var fx_iter = fx_dir.iterate();
-                while (fx_iter.next() catch break) |mapping_entry| {
-                    if (mapping_entry.kind == .file and std.mem.endsWith(u8, mapping_entry.name, ".ini")) {
-                        // Extract mapping name without .ini extension
-                        const mapping_name_slice = mapping_entry.name[0 .. mapping_entry.name.len - 4];
-
-                        // Create null-terminated string and intern it
-                        var name_buf: [256:0]u8 = undefined;
-                        const mapping_name = std.fmt.bufPrintZ(&name_buf, "{s}", .{mapping_name_slice}) catch continue;
-
-                        // Intern mapping name and store offset
-                        const mapping_offset = strings.intern(mapping_name) catch continue;
-                        mapping_offsets.append(mapping_offset) catch continue;
-
-                        // If we haven't read the FX name yet, read it from this .ini file
-                        if (actual_fx_name_z == null) {
-                            const ini_path = fs_helpers.joinStrings(&path_buffer, &.{
-                                fx_dir_path,
-                                std.fs.path.sep_str,
-                                mapping_entry.name,
-                            });
-
-                            const ini_file = std.fs.openFileAbsolute(ini_path, .{}) catch continue;
-                            defer ini_file.close();
-
-                            // Parse the INI file to get fx_name
-                            var parser = ini.parse(arena, ini_file.reader());
-                            defer parser.deinit();
-
-                            while (parser.next() catch null) |record| {
-                                if (record == .property and std.mem.eql(u8, record.property.key, "fx_name")) {
-                                    actual_fx_name_z = arena.dupeZ(u8, record.property.value) catch continue;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // If we couldn't read fx_name from ini files, skip this FX directory
-                const fx_name_z = actual_fx_name_z orelse continue;
-
-                // Intern the actual FX name from the ini file
-                const fx_offset = strings.intern(fx_name_z) catch continue;
-
-                // Build slice of mapping offsets and store in arena
-                const mapping_offsets_slice = arena.dupe(u32, mapping_offsets.items) catch continue;
-
-                // Insert into hashmap with offsets
-                list.getPtr(module).put(arena, fx_offset, mapping_offsets_slice) catch {
-                    log.warn("Mappings list: Failed to store fx {s} with {} mappings", .{ fx_name_z, mapping_offsets_slice.len });
-                    continue;
-                };
-            }
-        }
-    }
+    walkDir(&walk_ctx, maps_dir);
 
     return .{
         .list = list,
@@ -135,10 +77,216 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
 }
 
 pub fn deinit(self: *@This()) void {
-    self.strings.deinit();
     inline for (comptime std.enums.values(ModulesList)) |module| {
-        self.list.getPtr(module).deinit(self.strings.arena.allocator());
+        var mod_map = self.list.getPtr(module);
+        var iter = mod_map.iterator();
+        while (iter.next()) |entry| {
+            entry.value_ptr.deinit();
+        }
+        mod_map.deinit(self.strings.arena.allocator());
     }
+    self.strings.deinit();
+}
+
+pub fn lookupPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, mapping_name: [:0]const u8) ?[:0]const u8 {
+    const mod_map = self.list.getPtr(module);
+
+    // Because StringPool does not deduplicate, the same string can have multiple
+    // offsets. We compare by string value rather than by offset to avoid mismatches
+    // when the same fx_name was interned more than once (e.g. from files in
+    // different directories).
+    var iter = mod_map.iterator();
+    while (iter.next()) |map_entry| {
+        const stored_fx_name = self.strings.get(map_entry.key_ptr.*);
+        if (std.mem.eql(u8, stored_fx_name, fx_name)) {
+            for (map_entry.value_ptr.items) |entry| {
+                const stored_mapping_name = self.strings.get(entry.name_offset);
+                if (std.mem.eql(u8, stored_mapping_name, mapping_name)) {
+                    return self.strings.get(entry.path_offset);
+                }
+            }
+        }
+    }
+    return null;
+}
+
+pub fn registerPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, mapping_name: [:0]const u8, file_path: [:0]const u8) !void {
+    const arena = self.strings.arena.allocator();
+    const name_offset = try self.strings.intern(mapping_name);
+    const path_offset = try self.strings.intern(file_path);
+
+    const mod_map = self.list.getPtr(module);
+
+    // Because StringPool does not deduplicate, we search by string value to find
+    // an existing entry for this fx_name rather than relying on offset equality.
+    var existing_key: ?u32 = null;
+    var iter = mod_map.iterator();
+    while (iter.next()) |map_entry| {
+        const stored_fx_name = self.strings.get(map_entry.key_ptr.*);
+        if (std.mem.eql(u8, stored_fx_name, fx_name)) {
+            existing_key = map_entry.key_ptr.*;
+            break;
+        }
+    }
+
+    if (existing_key) |key| {
+        const entries = mod_map.getPtr(key).?;
+
+        // Check if an entry with the same mapping name already exists
+        for (entries.items) |*entry| {
+            const stored_name = self.strings.get(entry.name_offset);
+            if (std.mem.eql(u8, stored_name, mapping_name)) {
+                entry.path_offset = path_offset;
+                return;
+            }
+        }
+
+        try entries.append(.{
+            .name_offset = name_offset,
+            .path_offset = path_offset,
+        });
+    } else {
+        const fx_offset = try self.strings.intern(fx_name);
+        var entries = std.ArrayList(MapEntry).init(arena);
+        try entries.append(.{
+            .name_offset = name_offset,
+            .path_offset = path_offset,
+        });
+        try mod_map.put(arena, fx_offset, entries);
+    }
+}
+
+const WalkContext = struct {
+    strings: *StringPool,
+    list: *std.EnumArray(ModulesList, ModuleMap),
+    arena: std.mem.Allocator,
+    base_path_buf: [std.fs.max_path_bytes]u8,
+    base_path_len: usize,
+};
+
+fn walkDir(ctx: *WalkContext, dir: std.fs.Dir) void {
+    var iter = dir.iterate();
+    while (iter.next() catch null) |entry| {
+        if (entry.kind == .directory) {
+            var sub_dir = dir.openDir(entry.name, .{ .iterate = true }) catch continue;
+            defer sub_dir.close();
+
+            // Extend path: current_path / entry.name
+            const old_len = ctx.base_path_len;
+            const sep = std.fs.path.sep_str;
+            if (old_len + 1 + entry.name.len > std.fs.max_path_bytes) continue;
+            @memcpy(ctx.base_path_buf[old_len .. old_len + sep.len], sep);
+            @memcpy(ctx.base_path_buf[old_len + sep.len .. old_len + sep.len + entry.name.len], entry.name);
+            ctx.base_path_len = old_len + sep.len + entry.name.len;
+
+            walkDir(ctx, sub_dir);
+
+            // Restore path length
+            ctx.base_path_len = old_len;
+        } else if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".ini")) {
+            processIniFile(ctx, dir, entry.name);
+        }
+    }
+}
+
+fn processIniFile(ctx: *WalkContext, dir: std.fs.Dir, file_name: []const u8) void {
+    const header = readIniHeader(ctx.arena, dir, file_name) orelse return;
+
+    // Extract mapping name (filename without .ini extension)
+    const mapping_name_slice = file_name[0 .. file_name.len - 4];
+    var name_buf: [256:0]u8 = undefined;
+    const mapping_name = std.fmt.bufPrintZ(&name_buf, "{s}", .{mapping_name_slice}) catch return;
+
+    // Build absolute file path
+    const sep = std.fs.path.sep_str;
+    const path_len = ctx.base_path_len;
+    if (path_len + sep.len + file_name.len > std.fs.max_path_bytes) return;
+
+    var abs_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    @memcpy(abs_path_buf[0..path_len], ctx.base_path_buf[0..path_len]);
+    @memcpy(abs_path_buf[path_len .. path_len + sep.len], sep);
+    @memcpy(abs_path_buf[path_len + sep.len .. path_len + sep.len + file_name.len], file_name);
+    abs_path_buf[path_len + sep.len + file_name.len] = 0;
+    const abs_path: [:0]const u8 = abs_path_buf[0 .. path_len + sep.len + file_name.len :0];
+
+    // Intern strings
+    const fx_offset = ctx.strings.intern(header.fx_name) catch return;
+    const name_offset = ctx.strings.intern(mapping_name) catch return;
+    const path_offset = ctx.strings.intern(abs_path) catch return;
+
+    // Insert into the appropriate module map
+    const mod_map = ctx.list.getPtr(header.module);
+    const gop = mod_map.getOrPut(ctx.arena, fx_offset) catch return;
+    if (!gop.found_existing) {
+        gop.value_ptr.* = std.ArrayList(MapEntry).init(ctx.arena);
+    }
+
+    gop.value_ptr.append(.{
+        .name_offset = name_offset,
+        .path_offset = path_offset,
+    }) catch return;
+}
+
+fn readIniHeader(arena: std.mem.Allocator, dir: std.fs.Dir, file_name: []const u8) ?IniHeader {
+    const file = dir.openFile(file_name, .{}) catch return null;
+    defer file.close();
+
+    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer temp_arena.deinit();
+
+    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    defer parser.deinit();
+
+    var module: ?ModulesList = null;
+    var fx_name: ?[:0]const u8 = null;
+
+    while (parser.next() catch null) |record| {
+        if (record == .property) {
+            if (std.mem.eql(u8, record.property.key, "module")) {
+                inline for (comptime std.enums.values(ModulesList)) |mod_val| {
+                    if (std.mem.eql(u8, record.property.value, @tagName(mod_val))) {
+                        module = mod_val;
+                    }
+                }
+            } else if (std.mem.eql(u8, record.property.key, "fx_name")) {
+                fx_name = arena.dupeZ(u8, record.property.value) catch return null;
+            }
+        }
+        if (module != null and fx_name != null) break;
+    }
+
+    if (module != null and fx_name != null) {
+        return IniHeader{
+            .module = module.?,
+            .fx_name = fx_name.?,
+        };
+    }
+    return null;
+}
+
+test "init scans resources/maps/defaults and finds default mappings" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
+    const config_path_z = try allocator.dupeZ(u8, config_path);
+
+    var ml = init(allocator, config_path_z);
+    _ = &ml;
+
+    try testing.expect(ml.list.getPtr(.COMP).count() >= 1);
+    try testing.expect(ml.list.getPtr(.EQ).count() >= 1);
+    try testing.expect(ml.list.getPtr(.GATE).count() >= 1);
+    try testing.expect(ml.list.getPtr(.INPUT).count() >= 1);
+    try testing.expect(ml.list.getPtr(.OUTPT).count() >= 1);
+
+    // Verify lookupPath works for a known default
+    const path = ml.lookupPath(.COMP, "VST: ReaComp (Cockos)", "default");
+    try testing.expect(path != null);
 }
 
 test "StringPool offsets remain valid after buffer reallocation" {
@@ -183,8 +331,14 @@ test "mappings_list stores FX names with slashes correctly" {
     var strings = StringPool.init(allocator);
     defer strings.deinit();
 
-    var list = std.ArrayHashMapUnmanaged(u32, []u32, std.array_hash_map.AutoContext(u32), false){};
-    defer list.deinit(allocator);
+    var list = ModuleMap{};
+    defer {
+        var iter = list.iterator();
+        while (iter.next()) |entry| {
+            entry.value_ptr.deinit();
+        }
+        list.deinit(allocator);
+    }
 
     // Test that FX names with slashes are stored correctly
     const fx_names = [_][:0]const u8{
@@ -199,12 +353,17 @@ test "mappings_list stores FX names with slashes correctly" {
         const fx_offset = try strings.intern(fx_name);
         try stored_offsets.append(fx_offset);
 
-        // Create dummy mapping offsets
-        const mapping_offset = try strings.intern("default");
-        const mapping_offsets = try allocator.alloc(u32, 1);
-        mapping_offsets[0] = mapping_offset;
+        // Create a MapEntry with a dummy mapping
+        const mapping_name_offset = try strings.intern("default");
+        const path_offset = try strings.intern("/some/path/default.ini");
 
-        try list.put(allocator, fx_offset, mapping_offsets);
+        var entries = std.ArrayList(MapEntry).init(allocator);
+        try entries.append(.{
+            .name_offset = mapping_name_offset,
+            .path_offset = path_offset,
+        });
+
+        try list.put(allocator, fx_offset, entries);
     }
 
     // Verify we can retrieve FX names correctly
@@ -217,11 +376,5 @@ test "mappings_list stores FX names with slashes correctly" {
 
         // Verify it's in the map
         try testing.expect(list.contains(fx_offset));
-    }
-
-    // Clean up mapping arrays
-    var it = list.iterator();
-    while (it.next()) |entry| {
-        allocator.free(entry.value_ptr.*);
     }
 }

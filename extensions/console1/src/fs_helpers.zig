@@ -120,18 +120,14 @@ test "joinStrings" {
 
 const default_preferences = @embedFile("resources/preferences.ini");
 const default_mappings = struct {
-    const comp_recomp = @embedFile("resources/maps/COMP/VST: ReaComp (Cockos)/default.ini");
-    const eq_reaeq = @embedFile("resources/maps/EQ/VST: ReaEQ (Cockos)/default.ini");
-    const gate_reagate = @embedFile("resources/maps/GATE/VST: ReaGate (Cockos)/default.ini");
-    const input = struct {
-        const rbj = @embedFile("resources/maps/INPUT/JS: RBJ Highpass_Lowpass Filters/default.ini");
-        const vol_adj = @embedFile("resources/maps/INPUT/JS: Volume Adjustment/default.ini");
-        const vol_pan = @embedFile("resources/maps/INPUT/JS: Volume_Pan Smoother v5/default.ini");
-    };
-    const output = struct {
-        const analog = @embedFile("resources/maps/OUTPT/JS: ReaAnalog/default.ini");
-        const saturation = @embedFile("resources/maps/OUTPT/JS: Saturation/default.ini");
-    };
+    const comp_reacomp = @embedFile("resources/maps/defaults/reacomp/default.ini");
+    const eq_reaeq = @embedFile("resources/maps/defaults/reaeq/default.ini");
+    const gate_reagate = @embedFile("resources/maps/defaults/reagate/default.ini");
+    const rbj_filters = @embedFile("resources/maps/defaults/rbj_filters/default.ini");
+    const vol_adj = @embedFile("resources/maps/defaults/vol_adj/default.ini");
+    const vol_pan = @embedFile("resources/maps/defaults/vol_pan/default.ini");
+    const reaanalog = @embedFile("resources/maps/defaults/reaanalog/default.ini");
+    const saturation = @embedFile("resources/maps/defaults/saturation/default.ini");
 };
 
 /// check for existence of config files, create them if necessary
@@ -189,23 +185,40 @@ pub fn ensureConfigPath(fs_ops: FileSystemOps) !void {
     });
     try ensureDir(fs_ops, maps_path);
 
-    // Define directory structure and default files
-    // Because we now use directory-based structure, we need module/fx_name/mapping_name
+    // Create defaults directory inside maps
+    const defaults_path = joinStrings(&path_buffer, &.{
+        std.mem.sliceTo(reaper_path, 0),
+        std.fs.path.sep_str,
+        "Data",
+        std.fs.path.sep_str,
+        "Perken",
+        std.fs.path.sep_str,
+        "Console1",
+        std.fs.path.sep_str,
+        "maps",
+        std.fs.path.sep_str,
+        "defaults",
+    });
+    try ensureDir(fs_ops, defaults_path);
+
+    // Write default mapping files into maps/defaults/{name}/default.ini
+    // Because each mapping needs a unique filename (the filename becomes the
+    // mapping name), and all defaults use "default" as the mapping name, we
+    // put each in its own subdirectory.
     const structure = .{
-        .{ "COMP", "VST: ReaComp (Cockos)", "default.ini", default_mappings.comp_recomp },
-        .{ "EQ", "VST: ReaEQ (Cockos)", "default.ini", default_mappings.eq_reaeq },
-        .{ "GATE", "VST: ReaGate (Cockos)", "default.ini", default_mappings.gate_reagate },
-        .{ "INPUT", "JS: RBJ Highpass_Lowpass Filters", "default.ini", default_mappings.input.rbj },
-        .{ "INPUT", "JS: Volume Adjustment", "default.ini", default_mappings.input.vol_adj },
-        .{ "INPUT", "JS: Volume_Pan Smoother v5", "default.ini", default_mappings.input.vol_pan },
-        .{ "OUTPT", "JS: ReaAnalog", "default.ini", default_mappings.output.analog },
-        .{ "OUTPT", "JS: Saturation", "default.ini", default_mappings.output.saturation },
+        .{ "reacomp", default_mappings.comp_reacomp },
+        .{ "reaeq", default_mappings.eq_reaeq },
+        .{ "reagate", default_mappings.gate_reagate },
+        .{ "rbj_filters", default_mappings.rbj_filters },
+        .{ "vol_adj", default_mappings.vol_adj },
+        .{ "vol_pan", default_mappings.vol_pan },
+        .{ "reaanalog", default_mappings.reaanalog },
+        .{ "saturation", default_mappings.saturation },
     };
 
-    // Create directories and files
+    var buf2: [std.fs.max_path_bytes]u8 = undefined;
     inline for (structure) |item| {
-        // First create the module directory (e.g., maps/COMP)
-        const module_dir_path = joinStrings(&path_buffer, &.{
+        const sub_dir = joinStrings(&path_buffer, &.{
             std.mem.sliceTo(reaper_path, 0),
             std.fs.path.sep_str,
             "Data",
@@ -216,47 +229,18 @@ pub fn ensureConfigPath(fs_ops: FileSystemOps) !void {
             std.fs.path.sep_str,
             "maps",
             std.fs.path.sep_str,
+            "defaults",
+            std.fs.path.sep_str,
             item[0],
         });
-        try ensureDir(fs_ops, module_dir_path);
+        try ensureDir(fs_ops, sub_dir);
 
-        // Then create the FX directory (e.g., maps/COMP/VST: ReaComp)
-        const fx_dir_path = joinStrings(&path_buffer, &.{
-            std.mem.sliceTo(reaper_path, 0),
+        const file_path = joinStrings(&buf2, &.{
+            sub_dir,
             std.fs.path.sep_str,
-            "Data",
-            std.fs.path.sep_str,
-            "Perken",
-            std.fs.path.sep_str,
-            "Console1",
-            std.fs.path.sep_str,
-            "maps",
-            std.fs.path.sep_str,
-            item[0],
-            std.fs.path.sep_str,
-            item[1],
+            "default.ini",
         });
-        try ensureDir(fs_ops, fx_dir_path);
-
-        // Finally create the mapping file (e.g., maps/COMP/VST: ReaComp/default.ini)
-        const file_path = joinStrings(&path_buffer, &.{
-            std.mem.sliceTo(reaper_path, 0),
-            std.fs.path.sep_str,
-            "Data",
-            std.fs.path.sep_str,
-            "Perken",
-            std.fs.path.sep_str,
-            "Console1",
-            std.fs.path.sep_str,
-            "maps",
-            std.fs.path.sep_str,
-            item[0],
-            std.fs.path.sep_str,
-            item[1],
-            std.fs.path.sep_str,
-            item[2],
-        });
-        try ensureFile(fs_ops, file_path, item[3]);
+        try ensureFile(fs_ops, file_path, item[1]);
     }
 }
 
@@ -288,8 +272,6 @@ pub fn copyEmbeddedFilesToDir(fs_ops: FileSystemOps, target_path: []const u8) !v
     var buf1: [std.fs.max_path_bytes]u8 = undefined;
     var buf2: [std.fs.max_path_bytes]u8 = undefined;
     var buf3: [std.fs.max_path_bytes]u8 = undefined;
-    var buf4: [std.fs.max_path_bytes]u8 = undefined;
-
     const console1_path = joinStrings(&buf1, &.{
         target_path, std.fs.path.sep_str, "Data",     std.fs.path.sep_str,
         "Perken",    std.fs.path.sep_str, "Console1",
@@ -311,26 +293,27 @@ pub fn copyEmbeddedFilesToDir(fs_ops: FileSystemOps, target_path: []const u8) !v
     const maps_path = joinStrings(&buf2, &.{ console1_path, std.fs.path.sep_str, "maps" });
     try ensureDir(fs_ops, maps_path);
 
+    // Create defaults directory
+    const defaults_path = joinStrings(&buf3, &.{ maps_path, std.fs.path.sep_str, "defaults" });
+    try ensureDir(fs_ops, defaults_path);
+
     const structure = .{
-        .{ "COMP", "VST: ReaComp (Cockos)", "default.ini", default_mappings.comp_recomp },
-        .{ "EQ", "VST: ReaEQ (Cockos)", "default.ini", default_mappings.eq_reaeq },
-        .{ "GATE", "VST: ReaGate (Cockos)", "default.ini", default_mappings.gate_reagate },
-        .{ "INPUT", "JS: RBJ Highpass_Lowpass Filters", "default.ini", default_mappings.input.rbj },
-        .{ "INPUT", "JS: Volume Adjustment", "default.ini", default_mappings.input.vol_adj },
-        .{ "INPUT", "JS: Volume_Pan Smoother v5", "default.ini", default_mappings.input.vol_pan },
-        .{ "OUTPT", "JS: ReaAnalog", "default.ini", default_mappings.output.analog },
-        .{ "OUTPT", "JS: Saturation", "default.ini", default_mappings.output.saturation },
+        .{ "reacomp", default_mappings.comp_reacomp },
+        .{ "reaeq", default_mappings.eq_reaeq },
+        .{ "reagate", default_mappings.gate_reagate },
+        .{ "rbj_filters", default_mappings.rbj_filters },
+        .{ "vol_adj", default_mappings.vol_adj },
+        .{ "vol_pan", default_mappings.vol_pan },
+        .{ "reaanalog", default_mappings.reaanalog },
+        .{ "saturation", default_mappings.saturation },
     };
 
+    var buf4: [std.fs.max_path_bytes]u8 = undefined;
     inline for (structure) |item| {
-        const module_dir = joinStrings(&buf3, &.{ maps_path, std.fs.path.sep_str, item[0] });
-        try ensureDir(fs_ops, module_dir);
-
-        const fx_dir = joinStrings(&buf4, &.{ module_dir, std.fs.path.sep_str, item[1] });
-        try ensureDir(fs_ops, fx_dir);
-
-        const file_path = joinStrings(&buf2, &.{ fx_dir, std.fs.path.sep_str, item[2] });
-        try ensureFile(fs_ops, file_path, item[3]);
+        const sub_dir = joinStrings(&buf2, &.{ defaults_path, std.fs.path.sep_str, item[0] });
+        try ensureDir(fs_ops, sub_dir);
+        const file_path = joinStrings(&buf4, &.{ sub_dir, std.fs.path.sep_str, "default.ini" });
+        try ensureFile(fs_ops, file_path, item[1]);
     }
 }
 

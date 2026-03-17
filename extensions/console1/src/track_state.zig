@@ -767,7 +767,8 @@ test "updateTrackState - module_locations populated correctly" {
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
     const config_path_z = try arena.allocator().dupeZ(u8, config_path);
 
-    var map_store = MapStore.empty(arena.allocator(), config_path_z);
+    var ml = @import("mappings_list.zig").init(arena.allocator(), config_path_z);
+    var map_store = MapStore.empty(arena.allocator(), config_path_z, &ml);
     defer map_store.deinit();
 
     var track_state = TrackState{};
@@ -841,7 +842,8 @@ test "updateTrackState - fx_count matches module count" {
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
     const config_path_z = try arena.allocator().dupeZ(u8, config_path);
 
-    var map_store = MapStore.empty(arena.allocator(), config_path_z);
+    var ml = @import("mappings_list.zig").init(arena.allocator(), config_path_z);
+    var map_store = MapStore.empty(arena.allocator(), config_path_z, &ml);
     defer map_store.deinit();
 
     var track_state = TrackState{};
@@ -879,7 +881,8 @@ test "updateTrackState - missing mapping handled gracefully" {
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
     const config_path_z = try arena.allocator().dupeZ(u8, config_path);
 
-    var map_store = MapStore.empty(arena.allocator(), config_path_z);
+    var ml = @import("mappings_list.zig").init(arena.allocator(), config_path_z);
+    var map_store = MapStore.empty(arena.allocator(), config_path_z, &ml);
     defer map_store.deinit();
 
     var track_state = TrackState{};

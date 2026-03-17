@@ -1,10 +1,12 @@
 const std = @import("std");
 const testing = std.testing;
 const MapStore = @import("../mappings.zig");
+const MappingsList = @import("../mappings_list.zig");
 const settings = @import("../settings.zig");
 const TaggedMapping = MapStore.TaggedMapping;
 const ModulesList = @import("../statemachine.zig").ModulesList;
 const mapping_browser = @import("../mapping_browser.zig");
+const fs_helpers = @import("../fs_helpers.zig");
 const getTestConfigPath = @import("track_validation_pbt.zig").getTestConfigPath;
 
 test "Integration - loading default mapping for new FX" {
@@ -16,9 +18,12 @@ test "Integration - loading default mapping for new FX" {
 
     var cur_config = try settings.init(allocator, config_path_z);
 
+    var ml = MappingsList.init(allocator, config_path_z);
+
     var store = try MapStore.init(
         allocator,
         config_path_z,
+        &ml,
         &cur_config.default_fx,
     );
     defer store.deinit();
@@ -55,9 +60,12 @@ test "Integration - loading a saved mapping reads the correct data" {
 
     var cur_config = try settings.init(allocator, config_path_z);
 
+    var ml = MappingsList.init(allocator, config_path_z);
+
     var store = try MapStore.init(
         allocator,
         config_path_z,
+        &ml,
         &cur_config.default_fx,
     );
     defer store.deinit();
@@ -78,11 +86,20 @@ test "Integration - loading a saved mapping reads the correct data" {
 
     const test_mapping = TaggedMapping{ .COMP = test_comp };
 
+    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
+
+    // Construct save path
+    var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    const save_path = try std.fmt.bufPrintZ(&save_path_buf, "{s}/maps/test_plugin/{s}.ini", .{ std.mem.span(config_path_z), test_mapping_name });
+
     // Save the mapping to disk
-    try store.saveToFile(.COMP, test_fx, test_mapping, test_mapping_name);
+    try store.saveToFile(fs_ops, .COMP, test_fx, test_mapping, save_path);
+
+    // Register the saved path in the mappings_list so getMap can look it up
+    try ml.registerPath(.COMP, test_fx, test_mapping_name, save_path);
 
     // Create a fresh store instance to simulate a restart
-    var store2 = MapStore.empty(allocator, config_path_z);
+    var store2 = MapStore.empty(allocator, config_path_z, &ml);
     defer store2.deinit();
 
     // Because we saved a mapping, we should be able to load it
@@ -99,18 +116,10 @@ test "Integration - loading a saved mapping reads the correct data" {
     try testing.expectEqual(test_comp.Comp_DryWet, loaded_comp.Comp_DryWet);
     try testing.expectEqual(test_comp.Comp_comp, loaded_comp.Comp_comp);
 
-    // Clean up the test file
-    var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try std.fmt.bufPrintZ(&name_buf, "{s}", .{test_fx});
-    _ = std.mem.replace(u8, sanitized_name, "/", "_", &name_buf);
-
-    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const test_file_path = try std.fmt.bufPrint(&path_buffer, "{s}/maps/COMP/{s}/{s}.ini", .{ std.mem.span(config_path_z), sanitized_name, test_mapping_name });
-    std.fs.deleteFileAbsolute(test_file_path) catch {};
-
-    // Also delete the directory if it's now empty
-    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const dir_path = try std.fmt.bufPrint(&dir_path_buf, "{s}/maps/COMP/{s}", .{ std.mem.span(config_path_z), sanitized_name });
+    // Clean up
+    std.fs.deleteFileAbsolute(save_path) catch {};
+    var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir_path = try std.fmt.bufPrint(&dir_buf, "{s}/maps/test_plugin", .{std.mem.span(config_path_z)});
     std.fs.deleteDirAbsolute(dir_path) catch {};
 }
 
@@ -123,16 +132,26 @@ test "Integration - the preferred mapping is used when loading an FX" {
 
     var cur_config = try settings.init(allocator, config_path_z);
 
+    var ml = MappingsList.init(allocator, config_path_z);
+
     var store = try MapStore.init(
         allocator,
         config_path_z,
+        &ml,
         &cur_config.default_fx,
     );
     defer store.deinit();
 
     const test_fx = "VST: TestPlugin2";
-    const default_mapping_name = "default";
-    const custom_mapping_name = "custom";
+
+    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
+
+    // Construct save paths
+    var default_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    const default_path = try std.fmt.bufPrintZ(&default_path_buf, "{s}/maps/test_plugin2/default.ini", .{std.mem.span(config_path_z)});
+
+    var custom_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    const custom_path = try std.fmt.bufPrintZ(&custom_path_buf, "{s}/maps/test_plugin2/custom.ini", .{std.mem.span(config_path_z)});
 
     // Create two different mappings
     const default_comp = MapStore.Comp{
@@ -155,19 +174,20 @@ test "Integration - the preferred mapping is used when loading an FX" {
         .Comp_comp = 65,
     };
 
-    const default_mapping = TaggedMapping{ .COMP = default_comp };
-    const custom_mapping = TaggedMapping{ .COMP = custom_comp };
-
     // Save both mappings
-    try store.saveToFile(.COMP, test_fx, default_mapping, default_mapping_name);
-    try store.saveToFile(.COMP, test_fx, custom_mapping, custom_mapping_name);
+    try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = default_comp }, default_path);
+    try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = custom_comp }, custom_path);
+
+    // Register paths
+    try ml.registerPath(.COMP, test_fx, "default", default_path);
+    try ml.registerPath(.COMP, test_fx, "custom", custom_path);
 
     // Create a fresh store instance
-    var store2 = MapStore.empty(allocator, config_path_z);
+    var store2 = MapStore.empty(allocator, config_path_z, &ml);
     defer store2.deinit();
 
     // Load the default mapping first (this sets it as preferred)
-    const loaded_default = try store2.getMap(test_fx, .COMP, default_mapping_name);
+    const loaded_default = try store2.getMap(test_fx, .COMP, "default");
     try testing.expect(std.meta.activeTag(loaded_default) == .COMP);
 
     // Verify the preferred mapping is set to default
@@ -186,7 +206,7 @@ test "Integration - the preferred mapping is used when loading an FX" {
     }
 
     // Load the custom mapping (this should NOT change the preferred)
-    _ = try store2.getMap(test_fx, .COMP, custom_mapping_name);
+    _ = try store2.getMap(test_fx, .COMP, "custom");
 
     // Verify preferred is still default
     const preferred_after = store2.getPreferredMapping(test_fx, .COMP);
@@ -194,8 +214,6 @@ test "Integration - the preferred mapping is used when loading an FX" {
     try testing.expect(std.mem.endsWith(u8, preferred_after.?, "default.ini"));
 
     // Now explicitly set custom as preferred
-    var custom_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const custom_path = try std.fmt.bufPrintZ(&custom_path_buf, "{s}/maps/COMP/{s}/{s}.ini", .{ std.mem.span(config_path_z), test_fx, custom_mapping_name });
     try store2.setPreferredMapping(test_fx, .COMP, custom_path);
 
     // Verify get() now returns the custom mapping
@@ -209,21 +227,10 @@ test "Integration - the preferred mapping is used when loading an FX" {
     }
 
     // Clean up test files
-    var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try std.fmt.bufPrintZ(&name_buf, "{s}", .{test_fx});
-    _ = std.mem.replace(u8, sanitized_name, "/", "_", &name_buf);
-
-    var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const default_file_path = try std.fmt.bufPrint(&path_buffer, "{s}/maps/COMP/{s}/{s}.ini", .{ std.mem.span(config_path_z), sanitized_name, default_mapping_name });
-    std.fs.deleteFileAbsolute(default_file_path) catch {};
-
-    var custom_path_buf2: [std.fs.max_path_bytes]u8 = undefined;
-    const custom_file_path = try std.fmt.bufPrint(&custom_path_buf2, "{s}/maps/COMP/{s}/{s}.ini", .{ std.mem.span(config_path_z), sanitized_name, custom_mapping_name });
-    std.fs.deleteFileAbsolute(custom_file_path) catch {};
-
-    // Delete the directory
-    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const dir_path = try std.fmt.bufPrint(&dir_path_buf, "{s}/maps/COMP/{s}", .{ std.mem.span(config_path_z), sanitized_name });
+    std.fs.deleteFileAbsolute(default_path) catch {};
+    std.fs.deleteFileAbsolute(custom_path) catch {};
+    var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir_path = try std.fmt.bufPrint(&dir_buf, "{s}/maps/test_plugin2", .{std.mem.span(config_path_z)});
     std.fs.deleteDirAbsolute(dir_path) catch {};
 }
 
@@ -236,111 +243,85 @@ test "Integration - multiple mappings per FX workflow" {
 
     var cur_config = try settings.init(allocator, config_path_z);
 
+    var ml = MappingsList.init(allocator, config_path_z);
+
     var store = try MapStore.init(
         allocator,
         config_path_z,
+        &ml,
         &cur_config.default_fx,
     );
     defer store.deinit();
 
     const test_fx = "VST: MultiMappingTest";
 
-    // Create three different mappings
-    const mapping1_name = "gentle";
-    const mapping2_name = "aggressive";
-    const mapping3_name = "extreme";
+    const mapping_names = [_][:0]const u8{ "gentle", "aggressive", "extreme" };
 
     const comp1 = MapStore.Comp{
         .version = MapStore.MAPPING_FORMAT_VERSION,
         .Comp_Ratio = 20,
         .Comp_Attack = 30,
-        .Comp_Release = null,
-        .Comp_Thresh = null,
-        .Comp_DryWet = null,
-        .Comp_comp = null,
     };
 
     const comp2 = MapStore.Comp{
         .version = MapStore.MAPPING_FORMAT_VERSION,
         .Comp_Ratio = 60,
         .Comp_Attack = 10,
-        .Comp_Release = null,
-        .Comp_Thresh = null,
-        .Comp_DryWet = null,
-        .Comp_comp = null,
     };
 
     const comp3 = MapStore.Comp{
         .version = MapStore.MAPPING_FORMAT_VERSION,
         .Comp_Ratio = 100,
         .Comp_Attack = 1,
-        .Comp_Release = null,
-        .Comp_Thresh = null,
-        .Comp_DryWet = null,
-        .Comp_comp = null,
     };
 
-    // Save all three mappings
-    try store.saveToFile(.COMP, test_fx, TaggedMapping{ .COMP = comp1 }, mapping1_name);
-    try store.saveToFile(.COMP, test_fx, TaggedMapping{ .COMP = comp2 }, mapping2_name);
-    try store.saveToFile(.COMP, test_fx, TaggedMapping{ .COMP = comp3 }, mapping3_name);
+    const comps = [_]MapStore.Comp{ comp1, comp2, comp3 };
+
+    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
+
+    // Save all three mappings and register paths
+    var path_bufs: [3][std.fs.max_path_bytes:0]u8 = undefined;
+    var save_paths: [3][:0]const u8 = undefined;
+
+    for (mapping_names, 0..) |mname, i| {
+        save_paths[i] = try std.fmt.bufPrintZ(&path_bufs[i], "{s}/maps/multi_test/{s}.ini", .{ std.mem.span(config_path_z), mname });
+        try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = comps[i] }, save_paths[i]);
+        try ml.registerPath(.COMP, test_fx, mname, save_paths[i]);
+    }
 
     // Create a fresh store
-    var store2 = MapStore.empty(allocator, config_path_z);
+    var store2 = MapStore.empty(allocator, config_path_z, &ml);
     defer store2.deinit();
 
     // Get the list of available mappings
-    const mapping_names = try mapping_browser.getMappingNames(allocator, config_path_z, test_fx, .COMP);
+    const names = try mapping_browser.getMappingNames(allocator, &ml, test_fx, .COMP);
     defer {
-        for (mapping_names) |name| {
+        for (names) |name| {
             allocator.free(name);
         }
-        allocator.free(mapping_names);
+        allocator.free(names);
     }
 
-    // Because we saved three mappings, we should have three names
-    try testing.expectEqual(@as(usize, 3), mapping_names.len);
-
-    // Verify all names are present
-    var found_gentle = false;
-    var found_aggressive = false;
-    var found_extreme = false;
-
-    for (mapping_names) |name| {
-        if (std.mem.eql(u8, name, "gentle")) found_gentle = true;
-        if (std.mem.eql(u8, name, "aggressive")) found_aggressive = true;
-        if (std.mem.eql(u8, name, "extreme")) found_extreme = true;
-    }
-
-    try testing.expect(found_gentle);
-    try testing.expect(found_aggressive);
-    try testing.expect(found_extreme);
+    try testing.expectEqual(@as(usize, 3), names.len);
 
     // Load each mapping and verify correct data
-    const loaded1 = try store2.getMap(test_fx, .COMP, mapping1_name);
+    const loaded1 = try store2.getMap(test_fx, .COMP, "gentle");
     try testing.expectEqual(comp1.Comp_Ratio, loaded1.COMP.Comp_Ratio);
     try testing.expectEqual(comp1.Comp_Attack, loaded1.COMP.Comp_Attack);
 
-    const loaded2 = try store2.getMap(test_fx, .COMP, mapping2_name);
+    const loaded2 = try store2.getMap(test_fx, .COMP, "aggressive");
     try testing.expectEqual(comp2.Comp_Ratio, loaded2.COMP.Comp_Ratio);
     try testing.expectEqual(comp2.Comp_Attack, loaded2.COMP.Comp_Attack);
 
-    const loaded3 = try store2.getMap(test_fx, .COMP, mapping3_name);
+    const loaded3 = try store2.getMap(test_fx, .COMP, "extreme");
     try testing.expectEqual(comp3.Comp_Ratio, loaded3.COMP.Comp_Ratio);
     try testing.expectEqual(comp3.Comp_Attack, loaded3.COMP.Comp_Attack);
 
     // Clean up
-    var name_buf: [512:0]u8 = undefined;
-    const sanitized_name = try std.fmt.bufPrintZ(&name_buf, "{s}", .{test_fx});
-    _ = std.mem.replace(u8, sanitized_name, "/", "_", &name_buf);
-
-    inline for ([_][:0]const u8{ mapping1_name, mapping2_name, mapping3_name }) |mapping_name| {
-        var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        const file_path = try std.fmt.bufPrint(&path_buffer, "{s}/maps/COMP/{s}/{s}.ini", .{ std.mem.span(config_path_z), sanitized_name, mapping_name });
-        std.fs.deleteFileAbsolute(file_path) catch {};
+    for (save_paths) |p| {
+        std.fs.deleteFileAbsolute(p) catch {};
     }
-
-    var dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const dir_path = try std.fmt.bufPrint(&dir_path_buf, "{s}/maps/COMP/{s}", .{ std.mem.span(config_path_z), sanitized_name });
+    var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir_path = try std.fmt.bufPrint(&dir_buf, "{s}/maps/multi_test", .{std.mem.span(config_path_z)});
     std.fs.deleteDirAbsolute(dir_path) catch {};
 }

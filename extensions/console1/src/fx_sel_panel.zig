@@ -142,7 +142,7 @@ fn Menus(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !
 pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
-    mappings: std.ArrayHashMapUnmanaged(u32, []u32, std.array_hash_map.AutoContext(u32), false),
+    mappings: @import("mappings_list.zig").ModuleMap,
     strings: *const @import("string_pool.zig").StringPool,
     current_index: usize,
     sub_mode: FxSelSubMode,
@@ -200,9 +200,11 @@ pub fn ModulePopup(
                 try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(sel.fx_name)) });
                 try imgui.Separator(.{ctx});
 
-                const mapping_offsets = mappings.get(sel.fx_string_pool_offset) orelse &.{};
-                for (mapping_offsets, 0..) |mapping_offset, i| {
-                    const mapping_name = strings.get(mapping_offset);
+                // Because the mappings use MapEntry (with name_offset and path_offset),
+                // we look up by the fx's StringPool offset and iterate the entries.
+                const entries = mappings.get(sel.fx_string_pool_offset) orelse return null;
+                for (entries.items, 0..) |map_entry, i| {
+                    const mapping_name = strings.get(map_entry.name_offset);
                     const is_selected = (i == current_index);
 
                     if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(mapping_name)) })) {

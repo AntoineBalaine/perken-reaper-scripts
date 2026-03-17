@@ -135,8 +135,8 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                     const mapping_offsets = mappings.get(fx_offset) orelse return;
                     const fx_name = globals.mappings_list.strings.get(fx_offset);
 
-                    if (mapping_offsets.len == 1) {
-                        const mapping_name = globals.mappings_list.strings.get(mapping_offsets[0]);
+                    if (mapping_offsets.items.len == 1) {
+                        const mapping_name = globals.mappings_list.strings.get(mapping_offsets.items[0].name_offset);
                         fxSelActions(globals, .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } });
                     } else {
                         globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
@@ -147,8 +147,8 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 },
                 .select_mapping => |sel| {
                     const mapping_offsets = mappings.get(sel.fx_string_pool_offset) orelse return;
-                    if (sel.scroll_position_rel >= mapping_offsets.len) return;
-                    const mapping_name = globals.mappings_list.strings.get(mapping_offsets[sel.scroll_position_rel]);
+                    if (sel.scroll_position_rel >= mapping_offsets.items.len) return;
+                    const mapping_name = globals.mappings_list.strings.get(mapping_offsets.items[sel.scroll_position_rel].name_offset);
                     fxSelActions(globals, .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } });
                 },
             }
@@ -181,7 +181,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                         &sel.scroll_position_abs,
                         &sel.scroll_position_rel,
                         new_pos,
-                        @intCast(mapping_offsets.len),
+                        @intCast(mapping_offsets.items.len),
                         1,
                     );
                 },

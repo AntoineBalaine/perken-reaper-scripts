@@ -56,8 +56,8 @@ pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
     globals.fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
     globals.resource_path = "";
     globals.preferences = try .defaults(globals.arena);
-    globals.map_store = .empty(globals.arena, globals.resource_path);
     globals.mappings_list = .empty(globals.arena);
+    globals.map_store = .empty(globals.arena, globals.resource_path, &globals.mappings_list);
     globals.translations = try .defaults(globals.arena);
     globals.state = .init(globals.arena);
     globals.state.current_mode = .suspended;
@@ -86,12 +86,13 @@ pub fn init() !void {
         instance.resource_path,
         instance.preferences.language, // We'll need to add this to preferences
     );
+    instance.mappings_list = .init(instance.arena, instance.resource_path);
     instance.map_store = try .init(
         instance.arena,
         instance.resource_path,
+        &instance.mappings_list,
         &instance.preferences.default_fx,
     );
-    instance.mappings_list = .init(instance.arena, instance.resource_path);
     instance.state = .init(instance.arena);
     instance.settings_panel = try .init(&instance.preferences);
 
