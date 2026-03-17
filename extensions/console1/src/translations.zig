@@ -146,7 +146,29 @@ pub const TranslationKey = enum {
     mapping_save,
     mapping_cancel,
     module_sel_title,
+    module_sel_cancel,
     preset_manager_title,
+
+    // Buttons bar translations
+    buttons_close,
+    buttons_settings,
+    buttons_main_styles,
+    buttons_settings_styles,
+    buttons_mapping_panel,
+
+    // Preset dialog translations
+    preset_existing,
+    preset_name_label,
+    preset_save,
+    preset_cancel,
+    preset_overwrite_title,
+    preset_overwrite_confirm,
+    preset_yes,
+    preset_no,
+
+    // Mapping shared translations
+    mapping_none,
+    mapping_no_fx,
 
     trsprt_Inpt_disp_mode,
     trsprt_Inpt_disp_on,
@@ -195,7 +217,23 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "mapping_save", "Save Mapping" },
     .{ "mapping_cancel", "Cancel" },
     .{ "module_sel_title", "Select Module to Edit" },
+    .{ "module_sel_cancel", "Cancel" },
     .{ "preset_manager_title", "Preset Manager" },
+    .{ "buttons_close", "Close" },
+    .{ "buttons_settings", "Settings" },
+    .{ "buttons_main_styles", "Main window styles config" },
+    .{ "buttons_settings_styles", "Settings window styles config" },
+    .{ "buttons_mapping_panel", "Mapping Panel" },
+    .{ "preset_existing", "Existing presets:" },
+    .{ "preset_name_label", "Preset name:" },
+    .{ "preset_save", "Save" },
+    .{ "preset_cancel", "Cancel" },
+    .{ "preset_overwrite_title", "Overwrite?" },
+    .{ "preset_overwrite_confirm", "Preset '{s}' already exists. Overwrite?" },
+    .{ "preset_yes", "Yes" },
+    .{ "preset_no", "No" },
+    .{ "mapping_none", "none" },
+    .{ "mapping_no_fx", "[No FX]" },
     .{ "mapping_module_input", "INPUT" },
     .{ "mapping_module_gate", "GATE" },
     .{ "mapping_module_eq", "EQ" },
@@ -556,6 +594,23 @@ pub const TranslationStore = struct {
 // Helper function
 pub fn tr(store: *const TranslationStore, key: TranslationKey) [:0]const u8 {
     return store.getString(key);
+}
+
+/// Because Zig's std.fmt requires comptime format strings, this function provides
+/// runtime substitution of the first `{s}` placeholder in a translated template string.
+/// If `{s}` is not found or the result would overflow the buffer, the template is returned unchanged.
+pub fn substituteFirst(buf: [:0]u8, template: [:0]const u8, replacement: []const u8) [:0]const u8 {
+    const placeholder = "{s}";
+    const idx = std.mem.indexOf(u8, template, placeholder) orelse return template;
+    const before = template[0..idx];
+    const after = template[idx + placeholder.len ..];
+    const total = before.len + replacement.len + after.len;
+    if (total >= buf.len) return template;
+    @memcpy(buf[0..before.len], before);
+    @memcpy(buf[before.len .. before.len + replacement.len], replacement);
+    @memcpy(buf[before.len + replacement.len .. total], after);
+    buf[total] = 0;
+    return buf[0..total :0];
 }
 
 /// Utility function to export default translations to an INI file

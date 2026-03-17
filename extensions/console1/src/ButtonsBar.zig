@@ -3,6 +3,8 @@ const Theme = @import("theme/Theme.zig");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");
 const actions = @import("action_types.zig");
+const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
 
 pub const Result = struct {
     open: bool,
@@ -12,6 +14,7 @@ pub const Result = struct {
 pub fn ButtonsBar(
     ctx: imgui.ContextPtr,
     style_manager: *styles.StyleManager,
+    translations: *const TranslationStore,
 ) !Result {
     var rv = Result{ .open = true, .action = null };
     {
@@ -26,7 +29,7 @@ pub fn ButtonsBar(
             }
         }
         if (try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_DelayNormal })) {
-            try imgui.SetTooltip(.{ ctx, "close" });
+            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_close) });
         }
 
         { // settings win
@@ -37,7 +40,7 @@ pub fn ButtonsBar(
             }
         }
         if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, "Settings" });
+            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_settings) });
         }
 
         { // main win style config
@@ -49,7 +52,7 @@ pub fn ButtonsBar(
         }
 
         if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, "main window styles config" });
+            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_main_styles) });
         }
 
         { // Helper Win style config
@@ -61,7 +64,7 @@ pub fn ButtonsBar(
         }
 
         if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, "settings window styles config" });
+            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_settings_styles) });
         }
 
         { // mapping panel shortcut
@@ -72,7 +75,7 @@ pub fn ButtonsBar(
             }
         }
         if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, "Mapping Panel" });
+            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_mapping_panel) });
         }
     }
 

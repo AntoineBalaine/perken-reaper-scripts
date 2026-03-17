@@ -6,6 +6,8 @@ const statemachine = @import("statemachine.zig");
 const mapping_actions = @import("mapping_actions.zig");
 const MappingPanelAction = mapping_actions.MappingPanelAction;
 const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
+const substituteFirst = @import("translations.zig").substituteFirst;
 const log = std.log.scoped(.save_preset_dialog);
 const SaveState = @import("statemachine.zig").SaveState;
 
@@ -18,7 +20,6 @@ pub fn drawSavePresetDialog(
     style_manager: *styles.StyleManager,
     translations: *TranslationStore,
 ) !?MappingPanelAction {
-    _ = translations; // Not yet used, but reserved for future i18n
     var rv: ?MappingPanelAction = null;
 
     const PopWindowStyle = try PushWindowStyle(ctx, .main, style_manager);
@@ -26,7 +27,7 @@ pub fn drawSavePresetDialog(
 
     // Because we want to show existing presets for reference, we list them
     if (save_state.existing_presets.items.len > 0) {
-        try imgui.Text(.{ ctx, "Existing presets:" });
+        try imgui.Text(.{ ctx, tr(translations, .preset_existing) });
         var preset_buf: [512:0]u8 = undefined;
         for (save_state.existing_presets.items) |preset_name| {
             const formatted = std.fmt.bufPrintZ(&preset_buf, "  {s}", .{preset_name}) catch continue;
@@ -35,7 +36,7 @@ pub fn drawSavePresetDialog(
         try imgui.Separator(.{ctx});
     }
 
-    try imgui.Text(.{ ctx, "Preset name:" });
+    try imgui.Text(.{ ctx, tr(translations, .preset_name_label) });
 
     _ = try imgui.InputText(.{
         ctx,
@@ -48,7 +49,7 @@ pub fn drawSavePresetDialog(
 
     try imgui.Separator(.{ctx});
 
-    if (try imgui.Button(.{ ctx, "Save" })) {
+    if (try imgui.Button(.{ ctx, tr(translations, .preset_save) })) {
         // Because we cannot save a preset with an empty name, we validate first
         const name_to_save = std.mem.span(@as([*:0]const u8, @ptrCast(&save_state.name_buffer)));
         if (name_to_save.len == 0) {
@@ -71,27 +72,23 @@ pub fn drawSavePresetDialog(
 
     try imgui.SameLine(.{ctx});
 
-    if (try imgui.Button(.{ ctx, "Cancel" })) {
+    if (try imgui.Button(.{ ctx, tr(translations, .preset_cancel) })) {
         rv = .save_cancel;
     }
 
     // Overwrite confirmation popup
     if (save_state.show_overwrite_confirm) {
-        try imgui.OpenPopup(.{ ctx, "Overwrite?" });
+        try imgui.OpenPopup(.{ ctx, tr(translations, .preset_overwrite_title) });
     }
 
-    if (try imgui.BeginPopup(.{ ctx, "Overwrite?" })) {
+    if (try imgui.BeginPopup(.{ ctx, tr(translations, .preset_overwrite_title) })) {
         defer imgui.EndPopup(.{ctx}) catch {};
 
         var msg_buf: [256:0]u8 = undefined;
-        const msg = try std.fmt.bufPrintZ(
-            &msg_buf,
-            "Preset '{s}' already exists. Overwrite?",
-            .{save_state.pending_name},
-        );
+        const msg = substituteFirst(&msg_buf, tr(translations, .preset_overwrite_confirm), save_state.pending_name);
         try imgui.Text(.{ ctx, msg });
 
-        if (try imgui.Button(.{ ctx, "Yes" })) {
+        if (try imgui.Button(.{ ctx, tr(translations, .preset_yes) })) {
             const name_z = std.mem.span(@as([*:0]const u8, @ptrCast(&save_state.name_buffer)));
             rv = .{ .save_confirm = name_z };
             save_state.show_overwrite_confirm = false;
@@ -99,7 +96,7 @@ pub fn drawSavePresetDialog(
 
         try imgui.SameLine(.{ctx});
 
-        if (try imgui.Button(.{ ctx, "No" })) {
+        if (try imgui.Button(.{ ctx, tr(translations, .preset_no) })) {
             save_state.show_overwrite_confirm = false;
         }
     }

@@ -6,6 +6,7 @@ const Rectangle = knob.Rectangle;
 const roundButton = @import("button.zig");
 const TextPosition = roundButton.TextPosition;
 const mappingKnob = @import("mappingKnob.zig");
+const TranslationStore = @import("../translations.zig").TranslationStore;
 
 pub fn mappingButton(
     ctx: imgui.ContextPtr,
@@ -18,6 +19,7 @@ pub fn mappingButton(
     comptime cc: @import("../c1.zig").CCs,
     assignment_label: [:0]const u8,
     param_store: *const @import("../statemachine.zig").ParamStore,
+    translations: *const TranslationStore,
 ) anyerror!?mappingKnob.Res {
     const is_disabled = disabled orelse false;
     const radius = if (provided_radius) |rad| rad else 5.0;
@@ -146,7 +148,7 @@ pub fn mappingButton(
         const available_width = widget_rect.max_x - widget_rect.min_x;
         // Use a slightly smaller width to ensure it stays within bounds
         try imgui.SetNextItemWidth(.{ ctx, available_width - 10.0 }); // Subtract some padding
-        if (try mappingKnob.paramsCombo(ctx, cc, assignment_label, param_store)) |v| {
+        if (try mappingKnob.paramsCombo(ctx, cc, assignment_label, param_store, translations)) |v| {
             rv = v;
         }
     }

@@ -10,11 +10,14 @@ const BrowseState = statemachine.BrowseState;
 const mapping_actions = @import("mapping_actions.zig");
 const MappingPanelAction = mapping_actions.MappingPanelAction;
 const ui_helpers = @import("ui_helpers.zig");
+const TranslationStore = @import("translations.zig").TranslationStore;
+const tr = @import("translations.zig").tr;
 
 pub fn drawModuleSelectionPanel(
     ctx: imgui.ContextPtr,
     browse_state: *const BrowseState,
     drwls_splitter: *imgui.DrawListSplitterPtr,
+    translations: *const TranslationStore,
 ) !?MappingPanelAction {
     var rv: ?MappingPanelAction = null;
 
@@ -29,7 +32,7 @@ pub fn drawModuleSelectionPanel(
         const display_text = if (browse_state.available_modules[i]) |cached|
             cached
         else
-            std.fmt.bufPrintZ(&fx_name_buf, "{s}    [No FX]", .{module_name}) catch module_name;
+            std.fmt.bufPrintZ(&fx_name_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }) catch module_name;
 
         if (try imgui.Selectable(.{ ctx, display_text })) {
             rv = .{ .enter_assign = module };
@@ -42,7 +45,7 @@ pub fn drawModuleSelectionPanel(
 
     try imgui.Separator(.{ctx});
 
-    if (try imgui.Button(.{ ctx, "Cancel" })) {
+    if (try imgui.Button(.{ ctx, tr(translations, .module_sel_cancel) })) {
         rv = .browse_cancel;
     }
 

@@ -17,6 +17,8 @@ const angle_default = knob.angle_default;
 const statemachine = @import("../statemachine.zig");
 const CCs = @import("../c1.zig").CCs;
 const constants = @import("../constants.zig");
+const TranslationStore = @import("../translations.zig").TranslationStore;
+const tr = @import("../translations.zig").tr;
 
 pub const Res = union(enum) { click, param_idx: u32, remove_mapping };
 
@@ -28,6 +30,7 @@ pub fn drawWidget(
     comptime cc: CCs,
     assignment_label: [:0]const u8,
     param_store: *const statemachine.ParamStore,
+    translations: *const TranslationStore,
 ) anyerror!?Res {
     const drwls = try imgui.GetWindowDrawList(.{ctx});
     const radius = constants.knob_size / 2;
@@ -120,7 +123,7 @@ pub fn drawWidget(
         try Arc(drwLs, 0.85, 0.41, wiper_start, wiper_end, dotColor, 2, center_x, center_y, radius);
         try Triangle(drwLs, angle_, dotColor, center_x, center_y, 0.2, true, 0.45, radius, false);
 
-        if (try paramsCombo(ctx, cc, assignment_label, param_store)) |v| {
+        if (try paramsCombo(ctx, cc, assignment_label, param_store, translations)) |v| {
             rv = v;
         }
     }
@@ -153,6 +156,7 @@ pub fn paramsCombo(
     comptime cc: CCs,
     assignment_label: [:0]const u8,
     param_store: *const statemachine.ParamStore,
+    translations: *const TranslationStore,
 ) !?Res {
     var rv: ?Res = null;
     try imgui.PushItemWidth(.{ ctx, constants.knob_size * 2 });
@@ -162,7 +166,7 @@ pub fn paramsCombo(
         defer imgui.EndCombo(.{ctx}) catch {};
 
         // Add "none" option to clear mapping
-        if (try imgui.Selectable(.{ ctx, "none" })) {
+        if (try imgui.Selectable(.{ ctx, tr(translations, .mapping_none) })) {
             rv = .remove_mapping;
         }
 

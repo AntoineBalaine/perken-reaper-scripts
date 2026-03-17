@@ -44,6 +44,7 @@ pub fn drawMappingPanelWindow(
                 ctx,
                 browse_state,
                 ui.drwls_splitter,
+                ui.translations,
             ),
             .assign => |*assign_state| try mapping_panel.drawMappingPanel(
                 ctx,
