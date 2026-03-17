@@ -38,11 +38,22 @@ pub fn build(b: *std.Build) !void {
     var client_install: *std.Build.Step.InstallArtifact = undefined;
     lib.linkLibC();
 
-    if (target.result.os.tag == .macos) {
+    const is_windows = target.result.os.tag == .windows;
+    const is_macos = target.result.os.tag == .macos;
+
+    if (is_macos) {
         lib.root_module.linkFramework("AppKit", .{});
         lib.linkLibCpp();
         client_install = b.addInstallArtifact(lib, .{
             .dest_sub_path = "reaper_c1.dylib",
+            .dest_dir = .{ .override = .{
+                .custom = "",
+            } },
+        });
+    } else if (is_windows) {
+        lib.linkLibCpp();
+        client_install = b.addInstallArtifact(lib, .{
+            .dest_sub_path = "reaper_c1.dll",
             .dest_dir = .{ .override = .{
                 .custom = "",
             } },
@@ -61,51 +72,77 @@ pub fn build(b: *std.Build) !void {
     options.addOption(bool, "test", b.option(bool, "test", "Create actions to test inside reaper") orelse false);
     lib.root_module.addOptions("config", options);
 
-    const php_script = wdl_dep.path("WDL/swell/swell_resgen.php");
-    const resource_rc = b.path("src/csurf/resource.rc");
+    // On macOS/Linux, SWELL requires PHP to generate dialog/menu resources from .rc files.
+    // On Windows, resources are compiled natively by the resource compiler, so PHP is not needed.
+    if (!is_windows) {
+        const php_script = wdl_dep.path("WDL/swell/swell_resgen.php");
+        const resource_rc = b.path("src/csurf/resource.rc");
 
-    // Add system command to run PHP script
-    const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
-    php_cmd.addFileArg(php_script); // Convert LazyPath to string
-    php_cmd.addFileArg(resource_rc); // Convert LazyPath to string
-    lib.step.dependOn(&php_cmd.step);
+        const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
+        php_cmd.addFileArg(php_script);
+        php_cmd.addFileArg(resource_rc);
+        lib.step.dependOn(&php_cmd.step);
+    }
 
-    const modstub = if (target.result.os.tag == .macos)
-        wdl_dep.path("WDL/swell/swell-modstub.mm")
+    // On Windows, the SWELL modstub is not needed because REAPER uses native Win32 directly.
+    const cppfiles: []const std.Build.LazyPath = if (is_windows)
+        &.{
+            b.path("src/csurf/control_surface.cpp"),
+            b.path("src/csurf/control_surface_wrapper.cpp"),
+            b.path("src/csurf/midi_wrapper.cpp"),
+        }
     else
-        wdl_dep.path("WDL/swell/swell-modstub-generic.cpp");
+        &.{
+            b.path("src/csurf/control_surface.cpp"),
+            b.path("src/csurf/control_surface_wrapper.cpp"),
+            b.path("src/csurf/midi_wrapper.cpp"),
+            if (is_macos)
+                wdl_dep.path("WDL/swell/swell-modstub.mm")
+            else
+                wdl_dep.path("WDL/swell/swell-modstub-generic.cpp"),
+        };
 
-    // Define compiler flags similar to flatbufferz
-    const cpp_flags = [_][]const u8{
-        if (target.result.isDarwinLibC()) "clang" else "gcc",
-        "-c",
-        "-fPIC",
-        "-O2",
-        "-std=c++14",
-        b.fmt("-I{s}", .{wdl_dep.path("").getPath(b)}),
-        "-DSWELL_PROVIDED_BY_APP",
-        "-fsigned-char",
-        "-o",
-    };
-    // Define cpp files using dependency paths
-    const cppfiles = [_]std.Build.LazyPath{
-        b.path("src/csurf/control_surface.cpp"),
-        b.path("src/csurf/control_surface_wrapper.cpp"),
-        b.path("src/csurf/midi_wrapper.cpp"),
-        modstub,
-    };
+    const cpp_flags: []const []const u8 = if (is_windows)
+        &.{
+            "cl",
+            "/c",
+            "/O2",
+            "/std:c++14",
+            b.fmt("/I{s}", .{wdl_dep.path("").getPath(b)}),
+            "/DNOMINMAX",
+            "/D_CRT_SECURE_NO_WARNINGS",
+            "/D_CRT_NONSTDC_NO_DEPRECATE",
+            "/Fo",
+        }
+    else
+        &.{
+            if (is_macos) "clang" else "gcc",
+            "-c",
+            "-fPIC",
+            "-O2",
+            "-std=c++14",
+            b.fmt("-I{s}", .{wdl_dep.path("").getPath(b)}),
+            "-DSWELL_PROVIDED_BY_APP",
+            "-fsigned-char",
+            "-o",
+        };
 
-    // Add the C++ source files to the library
-    inline for (cppfiles) |cppfile| {
+    for (cppfiles) |cppfile| {
         const filearg = try std.fmt.allocPrint(
             b.allocator,
             "{s}.o",
             .{std.fs.path.basename(cppfile.getPath(b))},
         );
-        const cxx = b.addSystemCommand(&cpp_flags);
+        const cxx = b.addSystemCommand(cpp_flags);
         lib.addObjectFile(cxx.addOutputFileArg(filearg));
         cxx.addFileArg(cppfile);
-        cxx.step.dependOn(&php_cmd.step);
+    }
+
+    // On Windows, compile the .rc resource file with the native resource compiler.
+    if (is_windows) {
+        const rc_cmd = b.addSystemCommand(&.{ "rc", "/fo" });
+        lib.addObjectFile(rc_cmd.addOutputFileArg("resource.res"));
+        rc_cmd.addFileArg(b.path("src/csurf/resource.rc"));
     }
 
     b.getInstallStep().dependOn(&client_install.step);
@@ -148,8 +185,10 @@ pub fn build(b: *std.Build) !void {
     ui_lib.root_module.addImport("ini", ini.module("ini"));
     ui_lib.root_module.addImport("reaper_imgui", imgui_mod);
 
-    const ui_dest = if (target.result.os.tag == .macos)
+    const ui_dest = if (is_macos)
         "reaper_c1_ui.dylib"
+    else if (is_windows)
+        "reaper_c1_ui.dll"
     else
         "reaper_c1_ui.so";
 

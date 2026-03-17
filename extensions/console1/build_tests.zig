@@ -26,48 +26,69 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     options.addOption(bool, "test", true);
     test_exe.root_module.addOptions("config", options);
 
-    const php_script = dependencies.wdl.path("WDL/swell/swell_resgen.php");
-    const resource_rc = b.path("src/csurf/resource.rc");
+    const is_windows = target.result.os.tag == .windows;
+    const is_macos = target.result.isDarwinLibC();
 
-    const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
-    php_cmd.addFileArg(php_script);
-    php_cmd.addFileArg(resource_rc);
-    test_exe.step.dependOn(&php_cmd.step);
+    // On macOS/Linux, SWELL requires PHP to generate dialog/menu resources from .rc files.
+    // On Windows, resources are compiled natively, so PHP is not needed.
+    if (!is_windows) {
+        const php_script = dependencies.wdl.path("WDL/swell/swell_resgen.php");
+        const resource_rc = b.path("src/csurf/resource.rc");
 
-    const modstub = if (target.result.isDarwinLibC())
-        dependencies.wdl.path("WDL/swell/swell-modstub.mm")
+        const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
+        php_cmd.addFileArg(php_script);
+        php_cmd.addFileArg(resource_rc);
+        test_exe.step.dependOn(&php_cmd.step);
+    }
+
+    // Exclude midi_wrapper.cpp since we are using our mock implementation.
+    // On Windows, the SWELL modstub is not needed.
+    const cppfiles: []const std.Build.LazyPath = if (is_windows)
+        &.{
+            b.path("src/csurf/control_surface.cpp"),
+        }
     else
-        dependencies.wdl.path("WDL/swell/swell-modstub-generic.cpp");
+        &.{
+            b.path("src/csurf/control_surface.cpp"),
+            if (is_macos)
+                dependencies.wdl.path("WDL/swell/swell-modstub.mm")
+            else
+                dependencies.wdl.path("WDL/swell/swell-modstub-generic.cpp"),
+        };
 
-    const cpp_flags = [_][]const u8{
-        if (target.result.isDarwinLibC()) "clang" else "gcc",
-        "-c",
-        "-fPIC",
-        "-O2",
-        "-std=c++14",
-        b.fmt("-I{s}", .{dependencies.wdl.path("").getPath(b)}),
-        "-DSWELL_PROVIDED_BY_APP",
-        "-o",
-    };
+    const cpp_flags: []const []const u8 = if (is_windows)
+        &.{
+            "cl",
+            "/c",
+            "/O2",
+            "/std:c++14",
+            b.fmt("/I{s}", .{dependencies.wdl.path("").getPath(b)}),
+            "/DNOMINMAX",
+            "/D_CRT_SECURE_NO_WARNINGS",
+            "/D_CRT_NONSTDC_NO_DEPRECATE",
+            "/Fo",
+        }
+    else
+        &.{
+            if (is_macos) "clang" else "gcc",
+            "-c",
+            "-fPIC",
+            "-O2",
+            "-std=c++14",
+            b.fmt("-I{s}", .{dependencies.wdl.path("").getPath(b)}),
+            "-DSWELL_PROVIDED_BY_APP",
+            "-o",
+        };
 
-    // Exclude midi_wrapper.cpp since we're using our mock implementation
-    const cppfiles = [_]std.Build.LazyPath{
-        b.path("src/csurf/control_surface.cpp"),
-        // b.path("src/csurf/control_surface_wrapper.cpp"),
-        // b.path("src/csurf/midi_wrapper.cpp"), // Excluded to avoid duplicate symbols with our mock
-        modstub,
-    };
-
-    inline for (cppfiles) |cppfile| {
+    for (cppfiles) |cppfile| {
         const filearg = std.fmt.allocPrint(
             b.allocator,
             "{s}.o",
             .{std.fs.path.basename(cppfile.getPath(b))},
         ) catch unreachable;
-        const cxx = b.addSystemCommand(&cpp_flags);
+        const cxx = b.addSystemCommand(cpp_flags);
         test_exe.addObjectFile(cxx.addOutputFileArg(filearg));
         cxx.addFileArg(cppfile);
-        cxx.step.dependOn(&php_cmd.step);
     }
 
     // Add dependencies

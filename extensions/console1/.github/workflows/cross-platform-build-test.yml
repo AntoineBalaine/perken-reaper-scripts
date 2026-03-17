@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+          - os: ubuntu-24.04-arm
+            name: linux-aarch64
+          - os: macos-13
+            name: macos-x86_64
+          - os: macos-latest
+            name: macos-aarch64
+          - os: windows-latest
+            name: windows-x86_64
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      - name: Install PHP (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli
+
+      - name: Install PHP (macOS)
+        if: runner.os == 'macOS'
+        run: brew install php
+
+      - name: Run tests
+        run: zig build test -Dtest=true
+
+      - name: Build host extension
+        run: zig build -Dtest=true
+
+      - name: Build UI library
+        run: zig build ui
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: reaper-c1-${{ matrix.name }}
+          path: zig-out/

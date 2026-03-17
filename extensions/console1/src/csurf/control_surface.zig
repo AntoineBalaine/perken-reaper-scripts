@@ -5,13 +5,19 @@ const utils = @import("../utils.zig");
 const MediaTrack = Reaper.reaper.MediaTrack;
 const c_void = anyopaque;
 const c1 = @import("../c1.zig");
+const builtin = @import("builtin");
 const c = @cImport({
-    @cDefine("SWELL_PROVIDED_BY_APP", "");
-    // ARM64 has unsigned char by default, skip WDL's signedness assertion
     @cDefine("WDL_ALLOW_UNSIGNED_DEFAULT_CHAR", "1");
+    if (builtin.os.tag != .windows) {
+        @cDefine("SWELL_PROVIDED_BY_APP", "");
+    }
     @cInclude("csurf/control_surface_wrapper.h");
-    @cInclude("WDL/swell/swell-types.h");
-    @cInclude("WDL/swell/swell-functions.h");
+    if (builtin.os.tag == .windows) {
+        @cInclude("windows.h");
+    } else {
+        @cInclude("WDL/swell/swell-types.h");
+        @cInclude("WDL/swell/swell-functions.h");
+    }
     @cInclude("WDL/win32_utf8.h");
     @cInclude("WDL/wdltypes.h");
     @cInclude("resource.h");

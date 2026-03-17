@@ -17,7 +17,8 @@
     // internet connectivity.
     .dependencies = .{
         .ini = .{
-            .path = "../ini",
+            .url = "https://github.com/AntoineBalaine/ini/archive/95d1a6c.tar.gz",
+            .hash = "N-V-__8AAL-XAACsuikiYqj7rp49fTAMqw-3kydJGAJfxlj_",
         },
         .WDL = .{
             .url = "https://github.com/justinfrankel/WDL/archive/dda0d7519ee9d50d59a39fc1b1a82001416a3dff.tar.gz",
@@ -28,7 +29,8 @@
             .hash = "12209fb480875e353b1f8a4d0c03ffb84046340adf32f4205dffbf77f82543e2e2fa",
         },
         .zlowcheck = .{
-            .path = "../zlowcheck",
+            .url = "https://github.com/AntoineBalaine/zlowcheck/archive/44d1a1726ee1dabe22c9e75b7948993cef3409be.tar.gz",
+            .hash = "zlowcheck-0.0.0-upaXybSvAwBYDrxmhs05Jba16Hrgjvtg0GSU5Y2zF_sk",
         },
     },
     .paths = .{
