@@ -88,6 +88,13 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                 .Inpt_disp_mode => {
                     actions.dispatch(globals, .{ .change_mode = .transport });
                 },
+                .Tr_ext_sidechain => {
+                    if (globals.state.current_tr_id) |tr_id| {
+                        const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+                        const routing: SCRouting = @enumFromInt(@as(u8, @intFromFloat(input.value)));
+                        globals.state.fx_ctrl.validateTrack(null, media_track, routing, globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store, &globals.preferences) catch {};
+                    }
+                },
                 else => {
                     // Get the control value pointer
                     if (globals.state.fx_ctrl.values.getPtr(input.cc)) |value_ptr| {

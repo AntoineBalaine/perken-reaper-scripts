@@ -13,7 +13,9 @@ const TranslationStore = Translations.TranslationStore;
 const TranslationKey = Translations.TranslationKey;
 const tr = @import("translations.zig").tr;
 const Mode = @import("statemachine.zig").Mode;
-const FxCtrlState = @import("fx_ctrl_state.zig").FxControlState;
+const fx_ctrl_state = @import("fx_ctrl_state.zig");
+const FxCtrlState = fx_ctrl_state.FxControlState;
+const SCRouting = fx_ctrl_state.SCRouting;
 const TransportState = @import("action_types.zig").TransportState;
 
 /// Calculate the maximum width of a list of labels and calculate offsets
@@ -924,13 +926,24 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
         defer imgui.EndGroup(.{ctx}) catch {};
 
         const ext_sidechain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Tr_ext_sidechain,
+            .fx_ctrl, .mapping_panel, .fx_sel => switch (fx_state.scRouting) {
+                .off => .fx_ctrl_Tr_ext_sidechain,
+                .toShape => .fx_ctrl_Tr_ext_sidechain_shape,
+                .toComp => .fx_ctrl_Tr_ext_sidechain_comp,
+            },
             else => null,
         };
         const ext_sidechain_label = if (ext_sidechain_key) |key| tr(translations, key) else null;
         const ext_sidechain_display_label: [:0]const u8 = ext_sidechain_label orelse "-";
         const ext_sidechain_disabled = (ext_sidechain_label == null);
-        if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {}
+        if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {
+            const next_routing: SCRouting = switch (fx_state.scRouting) {
+                .off => .toShape,
+                .toShape => .toComp,
+                .toComp => .off,
+            };
+            rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@intFromEnum(next_routing))) };
+        }
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE * 2, KNOB_SIZE * 2 });
             const solo = fx_state.values.get(.Out_solo).?.button;
