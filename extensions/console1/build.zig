@@ -70,6 +70,7 @@ pub fn build(b: *std.Build) !void {
     // allow passing testing flags
     const options = b.addOptions();
     options.addOption(bool, "test", b.option(bool, "test", "Create actions to test inside reaper") orelse false);
+    options.addOption(bool, "headless", b.option(bool, "headless", "Headless mode: register csurf directly without REAPER preferences") orelse false);
     lib.root_module.addOptions("config", options);
 
     // On macOS/Linux, SWELL requires PHP to generate dialog/menu resources from .rc files.

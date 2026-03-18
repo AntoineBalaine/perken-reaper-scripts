@@ -65,10 +65,12 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
         return 0;
     };
 
-    // In test mode, register a control surface instance directly so that
-    // csurf callbacks fire without needing a valid reaper.ini csurf config.
+    // In headless mode, we register a control surface instance directly so
+    // that csurf callbacks fire without needing a valid reaper.ini csurf
+    // config. In normal mode (including test mode with real hardware), we
+    // register via csurf so REAPER uses the configured MIDI devices.
     const debugconfig = @import("config");
-    if (debugconfig.@"test") {
+    if (debugconfig.headless) {
         const csurf_inst = control_surface.init(-1, -1, null);
         _ = reaper.plugin_register("csurf_inst", @ptrCast(csurf_inst));
     } else {

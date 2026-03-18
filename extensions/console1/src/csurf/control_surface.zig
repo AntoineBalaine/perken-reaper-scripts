@@ -65,8 +65,8 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
         if (globals.state.current_mode == .suspended) {
             actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
         }
-    } else if (debugconfig.@"test") {
-        log.warn("MIDI not available, entering fx_ctrl anyway (test mode)", .{});
+    } else if (debugconfig.headless) {
+        log.warn("MIDI not available, entering fx_ctrl anyway (headless mode)", .{});
         if (globals.state.current_mode == .suspended) {
             actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
         }

@@ -15,7 +15,7 @@ case "$(uname)" in
     ;;
 esac
 
-zig build --prefix "$REAPER_PLUGINS"
+zig build -Dtest=true --prefix "$REAPER_PLUGINS"
 zig build ui --prefix "$REAPER_PLUGINS"
 
 "$REAPER_BIN" new
