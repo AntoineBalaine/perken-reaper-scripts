@@ -9,7 +9,9 @@ const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const ButtonsBar = @import("ButtonsBar.zig").ButtonsBar;
 const fx_sel_panel = @import("fx_sel_panel.zig");
 const actions = @import("action_types.zig");
-const mapping_panel_window = @import("mapping_panel_window.zig");
+const mapping_panel = @import("mapping_panel.zig");
+const module_selection_panel = @import("module_selection_panel.zig");
+const save_preset_dialog = @import("save_preset_dialog.zig");
 const track_list_panel = @import("track_list_panel.zig");
 const c1 = @import("c1.zig");
 
@@ -167,13 +169,36 @@ pub fn main(
                 }
             },
             .mapping_panel => {
-                if (try mapping_panel_window.drawMappingPanelWindow(ctx, ui, style_manager)) |map_action| {
-                    rv = .{ .mapping_panel = map_action };
+                // Because the mapping panel widgets use PushClipRect and
+                // custom draw list operations that crash when scrolled
+                // off-screen in the main window, we render the mapping
+                // panel in its own child region with independent scrolling.
+                if (try imgui.BeginChild(.{ ctx, "##mapping_panel_content", 0, 0, null, imgui.WindowFlags_None })) {
+                    const map_action: ?actions.MappingPanelAction = switch (ui.state.mapping_panel.mode) {
+                        .browse => |*browse_state| try module_selection_panel.drawModuleSelectionPanel(
+                            ctx,
+                            browse_state,
+                            ui.drwls_splitter,
+                            ui.translations,
+                        ),
+                        .assign => |*assign_state| try mapping_panel.drawMappingPanel(
+                            ctx,
+                            ui.state,
+                            assign_state,
+                            ui.translations,
+                        ),
+                        .save => |*save_state| try save_preset_dialog.drawSavePresetDialog(
+                            ctx,
+                            save_state,
+                            style_manager,
+                            ui.translations,
+                        ),
+                    };
+                    if (map_action) |action| {
+                        rv = .{ .mapping_panel = action };
+                    }
                 }
-
-                if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {
-                    rv = .{ .fx_ctrl = .{ .panel_input = ctrl_input } };
-                }
+                imgui.EndChild(.{ctx}) catch {};
             },
             .transport => {
                 if (try fx_ctrl_panel.drawFxControlPanel(ctx, ui, ui.translations)) |ctrl_input| {

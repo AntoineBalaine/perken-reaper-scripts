@@ -162,6 +162,7 @@ fn formControls(
     translations: *TranslationStore,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
+    var text_buf: [256:0]u8 = undefined;
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
@@ -189,35 +190,50 @@ fn formControls(
         }
     }
 
-    // Because the button label should reflect whether a learn operation is
-    // in progress (either phase), we check both listening states.
-    const midi_learn_text = switch (assign_state.midi_learn) {
-        .listening_cc, .listening_param => tr(translations, .mapping_midi_learn_listening),
-        .idle => tr(translations, .mapping_midi_learn),
-    };
+    const midi_learn_text = if (assign_state.midi_learn_active)
+        tr(translations, .mapping_midi_learn_listening)
+    else
+        tr(translations, .mapping_midi_learn);
 
     if (try imgui.Button(.{ ctx, midi_learn_text })) {
         rv = .{ .assign_toggle_midi_learn = {} };
     }
 
-    // Because the user needs to know the current state of the MIDI learn flow,
-    // we display a status message below the button.
-    switch (assign_state.midi_learn) {
-        .listening_cc => {
-            try imgui.Text(.{ ctx, tr(translations, .mapping_midi_learn_move_control) });
-        },
-        .listening_param => {
-            if (assign_state.selected_control) |control| {
-                var status_buf: [128:0]u8 = undefined;
-                _ = std.fmt.bufPrint(&status_buf, "{s} -- {s}", .{
-                    @tagName(control),
-                    tr(translations, .mapping_midi_learn_touch_param),
-                }) catch {};
-                try imgui.Text(.{ ctx, @as([*:0]const u8, &status_buf) });
-            }
-        },
-        .idle => {},
+    if (assign_state.midi_learn_active) {
+        const has_cc = assign_state.selected_control != null;
+        const has_param = assign_state.learned_param != null;
+
+        if (has_cc and !has_param) {
+            const text = std.fmt.bufPrintZ(&text_buf, "CC: {s} -- {s}", .{
+                @tagName(assign_state.selected_control.?),
+                tr(translations, .mapping_midi_learn_touch_param),
+            }) catch "";
+            try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(text.ptr)) });
+        } else if (has_param and !has_cc) {
+            const param_name = if (assign_state.learned_param.? < assign_state.param_store.len())
+                assign_state.param_store.getName(@intCast(assign_state.learned_param.?))
+            else
+                "?";
+            const text = std.fmt.bufPrintZ(&text_buf, "Param: {s} (#{d}) -- {s}", .{
+                param_name,
+                assign_state.learned_param.?,
+                tr(translations, .mapping_midi_learn_move_control),
+            }) catch "";
+            try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(text.ptr)) });
+        } else {
+            try imgui.Text(.{ ctx, tr(translations, .mapping_midi_learn_waiting) });
+        }
     }
+
+    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
+    try imgui.Separator(.{ctx});
+    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
+    if (try assignmentList(ctx, assign_state, translations, &text_buf)) |action| {
+        rv = action;
+    }
+    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
+    try imgui.Separator(.{ctx});
+    try imgui.SetCursorPosY(.{ ctx, try imgui.GetCursorPosY(.{ctx}) + 10 });
 
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {
         rv = .{ .assign_request_save = {} };
@@ -225,6 +241,52 @@ fn formControls(
 
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
         rv = .{ .assign_cancel = {} };
+    }
+
+    return rv;
+}
+
+fn assignmentList(
+    ctx: imgui.ContextPtr,
+    assign_state: *const AssignState,
+    translations: *TranslationStore,
+    buf: *[256:0]u8,
+) !?mapping_actions.MappingPanelAction {
+    _ = translations;
+    const Theme = @import("theme/Theme.zig");
+    var rv: ?mapping_actions.MappingPanelAction = null;
+
+    switch (assign_state.current_mappings) {
+        inline else => |mapping| {
+            inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+                if (comptime std.mem.eql(u8, field.name, "version")) continue;
+
+                if (@field(mapping, field.name)) |param_idx| {
+                    const param_name = if (param_idx < assign_state.param_store.len())
+                        assign_state.param_store.getName(@intCast(param_idx))
+                    else
+                        "?";
+                    const label = std.fmt.bufPrintZ(buf, "{s} -> {s} (#{d})", .{
+                        field.name,
+                        param_name,
+                        param_idx,
+                    }) catch "";
+                    try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(label.ptr)) });
+
+                    try imgui.SameLine(.{ctx});
+                    {
+                        try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
+                        defer imgui.PopFont(.{ctx}) catch {};
+                        const btn_label = std.fmt.bufPrintZ(buf, "{s}##rm_{s}", .{
+                            Theme.Icons.get(.close), field.name,
+                        }) catch "x";
+                        if (try imgui.SmallButton(.{ ctx, @as([*:0]const u8, @ptrCast(btn_label.ptr)) })) {
+                            rv = .{ .assign_remove_mapping = @field(c1.CCs, field.name) };
+                        }
+                    }
+                }
+            }
+        },
     }
 
     return rv;
@@ -268,7 +330,8 @@ fn mappingWidget(
                 .label = label,
                 .id = @tagName(cc),
             };
-            break :blk try @import("components/mappingKnob.zig").drawWidget(ctx, 0.5, label_id, .{ .disabled = disabled }, cc, assignment_label, &assign_state.param_store, translations);
+            const knob_value = assign_state.knob_values[@intFromEnum(cc)];
+            break :blk try @import("components/mappingKnob.zig").drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled }, cc, assignment_label, &assign_state.param_store, translations);
         },
     };
 
@@ -277,6 +340,7 @@ fn mappingWidget(
             .click => rv = .{ .assign_select_control = cc },
             .param_idx => |i| rv = .{ .assign_add_mapping = .{ .param = @intCast(i), .control = cc } },
             .remove_mapping => rv = .{ .assign_remove_mapping = cc },
+            .value_changed => |new_val| rv = .{ .assign_update_knob = .{ .cc = cc, .value = new_val } },
         }
     }
 

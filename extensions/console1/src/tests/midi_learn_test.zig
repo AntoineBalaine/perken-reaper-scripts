@@ -9,7 +9,6 @@ const assertStateful = zlowcheck.assertStateful;
 const Globals = @import("../globals.zig");
 const statemachine = @import("../statemachine.zig");
 const ModulesList = statemachine.ModulesList;
-const MidiLearnPhase = statemachine.MidiLearnPhase;
 const Mode = statemachine.Mode;
 const mapping_actions = @import("../mapping_actions.zig");
 const MappingPanelAction = mapping_actions.MappingPanelAction;
@@ -24,15 +23,17 @@ const MockFileSystem = fs_helpers.MockFileSystem;
 // ============================================================================
 
 const Model = struct {
-    phase: MidiLearnPhase = .idle,
+    active: bool = false,
     selected_control: ?CCs = null,
+    learned_param: ?u32 = null,
     comp_attack: ?u16 = null,
     comp_ratio: ?u16 = null,
     comp_thresh: ?u16 = null,
 
     pub fn reset(self: *Model) void {
-        self.phase = .idle;
+        self.active = false;
         self.selected_control = null;
+        self.learned_param = null;
         self.comp_attack = null;
         self.comp_ratio = null;
         self.comp_thresh = null;
@@ -71,14 +72,11 @@ const System = struct {
         g.state.current_mode = .mapping_panel;
         g.state.fx_ctrl.track_state.module_locations = @TypeOf(g.state.fx_ctrl.track_state.module_locations).initFill(null);
 
-        // Set up a module location so SETFXPARAM scoping works.
         g.state.fx_ctrl.track_state.module_locations.set(.COMP, .{
             .fx_index = 0,
             .mapping = null,
         });
 
-        // Because we need to be in assign submode for MIDI learn to work,
-        // we initialize the mapping panel in assign mode for COMP.
         g.state.mapping_panel.deinitCurrentSubMode();
         g.state.mapping_panel.mode = .{
             .assign = statemachine.AssignState.init(
@@ -119,15 +117,12 @@ const System = struct {
     }
 };
 
-// ============================================================================
-// Helper: verify model and system are synchronized
-// ============================================================================
-
 fn verifySynced(model: *const Model, sut: *System) bool {
     const assign = sut.getAssign();
 
-    if (assign.midi_learn != model.phase) return false;
+    if (assign.midi_learn_active != model.active) return false;
     if (assign.selected_control != model.selected_control) return false;
+    if (assign.learned_param != model.learned_param) return false;
 
     const comp = assign.current_mappings.COMP;
     if (comp.Comp_Attack != model.comp_attack) return false;
@@ -135,6 +130,24 @@ fn verifySynced(model: *const Model, sut: *System) bool {
     if (comp.Comp_Thresh != model.comp_thresh) return false;
 
     return true;
+}
+
+// Because CC and param can arrive in any order, this helper mirrors
+// the production tryCompleteLearnAssignment logic for the model.
+fn modelTryComplete(model: *Model) void {
+    if (model.selected_control) |cc| {
+        if (model.learned_param) |param_index| {
+            const param: u16 = @intCast(param_index);
+            switch (cc) {
+                .Comp_Attack => model.comp_attack = param,
+                .Comp_Ratio => model.comp_ratio = param,
+                .Comp_Thresh => model.comp_thresh = param,
+                else => {},
+            }
+            model.selected_control = null;
+            model.learned_param = null;
+        }
+    }
 }
 
 // ============================================================================
@@ -149,16 +162,9 @@ const ToggleMidiLearn = struct {
     }
 
     pub fn onModelOnly(_: *@This(), model: *Model) void {
-        switch (model.phase) {
-            .idle, .listening_param => {
-                model.phase = .listening_cc;
-                model.selected_control = null;
-            },
-            .listening_cc => {
-                model.phase = .idle;
-                model.selected_control = null;
-            },
-        }
+        model.active = !model.active;
+        model.selected_control = null;
+        model.learned_param = null;
     }
 
     pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
@@ -168,18 +174,18 @@ const ToggleMidiLearn = struct {
     }
 };
 
-const LearnCC = struct {
+const SelectCC = struct {
     cc: CCs,
-    pub const name = "learn_cc";
+    pub const name = "select_cc";
 
     pub fn checkPrecondition(_: *@This(), model: *const Model) bool {
-        return model.phase == .listening_cc;
+        return model.active;
     }
 
     pub fn onModelOnly(self: *@This(), model: *Model) void {
         std.debug.assert(self.cc.isFxAssignable());
-        model.phase = .listening_param;
         model.selected_control = self.cc;
+        modelTryComplete(model);
     }
 
     pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
@@ -194,21 +200,12 @@ const LearnParam = struct {
     pub const name = "learn_param";
 
     pub fn checkPrecondition(_: *@This(), model: *const Model) bool {
-        return model.phase == .listening_param and model.selected_control != null;
+        return model.active;
     }
 
     pub fn onModelOnly(self: *@This(), model: *Model) void {
-        if (model.selected_control) |cc| {
-            const param: u16 = @intCast(self.param_index);
-            switch (cc) {
-                .Comp_Attack => model.comp_attack = param,
-                .Comp_Ratio => model.comp_ratio = param,
-                .Comp_Thresh => model.comp_thresh = param,
-                else => {},
-            }
-        }
-        model.phase = .idle;
-        model.selected_control = null;
+        model.learned_param = self.param_index;
+        modelTryComplete(model);
     }
 
     pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
@@ -229,18 +226,18 @@ test "midi_learn - stateful property test" {
     defer sut.deinit();
 
     var toggle_cmd = ToggleMidiLearn{};
-    var learn_attack = LearnCC{ .cc = .Comp_Attack };
-    var learn_ratio = LearnCC{ .cc = .Comp_Ratio };
-    var learn_thresh = LearnCC{ .cc = .Comp_Thresh };
+    var select_attack = SelectCC{ .cc = .Comp_Attack };
+    var select_ratio = SelectCC{ .cc = .Comp_Ratio };
+    var select_thresh = SelectCC{ .cc = .Comp_Thresh };
     var param_0 = LearnParam{ .param_index = 0 };
     var param_1 = LearnParam{ .param_index = 1 };
     var param_5 = LearnParam{ .param_index = 5 };
 
     const commands = [_]Command(Model, System){
         Command(Model, System).init(&toggle_cmd),
-        Command(Model, System).init(&learn_attack),
-        Command(Model, System).init(&learn_ratio),
-        Command(Model, System).init(&learn_thresh),
+        Command(Model, System).init(&select_attack),
+        Command(Model, System).init(&select_ratio),
+        Command(Model, System).init(&select_thresh),
         Command(Model, System).init(&param_0),
         Command(Model, System).init(&param_1),
         Command(Model, System).init(&param_5),
@@ -269,32 +266,28 @@ test "midi_learn - stateful property test" {
 // Example-Based Tests
 // ============================================================================
 
-test "midi_learn - full learn cycle creates assignment" {
+test "midi_learn - CC first then param creates assignment" {
     const allocator = std.testing.allocator;
     var sut = try System.init(allocator);
     defer sut.deinit();
 
     const assign = sut.getAssign();
 
-    // 1. Toggle learn on
     mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
-    try std.testing.expect(assign.midi_learn == .listening_cc);
+    try std.testing.expect(assign.midi_learn_active);
 
-    // 2. Capture CC from Console1
     mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
-    try std.testing.expect(assign.midi_learn == .listening_param);
     try std.testing.expect(assign.selected_control.? == .Comp_Attack);
+    try std.testing.expect(assign.learned_param == null);
 
-    // 3. Capture parameter from VST
     mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 5 });
-    try std.testing.expect(assign.midi_learn == .idle);
     try std.testing.expect(assign.selected_control == null);
-
-    // 4. Verify the assignment was created
+    try std.testing.expect(assign.learned_param == null);
+    try std.testing.expect(assign.midi_learn_active);
     try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 5);
 }
 
-test "midi_learn - cancel during CC listen clears state" {
+test "midi_learn - param first then CC creates assignment" {
     const allocator = std.testing.allocator;
     var sut = try System.init(allocator);
     defer sut.deinit();
@@ -302,14 +295,18 @@ test "midi_learn - cancel during CC listen clears state" {
     const assign = sut.getAssign();
 
     mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
-    try std.testing.expect(assign.midi_learn == .listening_cc);
 
-    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
-    try std.testing.expect(assign.midi_learn == .idle);
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 5 });
+    try std.testing.expect(assign.learned_param.? == 5);
     try std.testing.expect(assign.selected_control == null);
+
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
+    try std.testing.expect(assign.selected_control == null);
+    try std.testing.expect(assign.learned_param == null);
+    try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 5);
 }
 
-test "midi_learn - restart during param listen goes back to CC listen" {
+test "midi_learn - toggle off clears both CC and param" {
     const allocator = std.testing.allocator;
     var sut = try System.init(allocator);
     defer sut.deinit();
@@ -317,14 +314,76 @@ test "midi_learn - restart during param listen goes back to CC listen" {
     const assign = sut.getAssign();
 
     mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Ratio });
-    try std.testing.expect(assign.midi_learn == .listening_param);
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
 
-    // Because toggling from listening_param restarts the flow,
-    // we expect to go back to listening_cc.
     mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
-    try std.testing.expect(assign.midi_learn == .listening_cc);
+    try std.testing.expect(!assign.midi_learn_active);
     try std.testing.expect(assign.selected_control == null);
+    try std.testing.expect(assign.learned_param == null);
+}
+
+test "midi_learn - module change clears both CC and param" {
+    const allocator = std.testing.allocator;
+    var sut = try System.init(allocator);
+    defer sut.deinit();
+
+    const assign = sut.getAssign();
+
+    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
+
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_change_module = .EQ });
+    try std.testing.expect(assign.selected_control == null);
+    try std.testing.expect(assign.learned_param == null);
+    try std.testing.expect(assign.midi_learn_active);
+}
+
+test "midi_learn - multiple assignments in sequence" {
+    const allocator = std.testing.allocator;
+    var sut = try System.init(allocator);
+    defer sut.deinit();
+
+    const assign = sut.getAssign();
+
+    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
+
+    // First: CC then param
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 3 });
+    try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 3);
+
+    // Second: param then CC
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 7 });
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Ratio });
+    try std.testing.expect(assign.current_mappings.COMP.Comp_Ratio.? == 7);
+
+    // First assignment should persist
+    try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 3);
+}
+
+test "midi_learn - param ignored when learn inactive" {
+    const allocator = std.testing.allocator;
+    var sut = try System.init(allocator);
+    defer sut.deinit();
+
+    const assign = sut.getAssign();
+
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 42 });
+    try std.testing.expect(!assign.midi_learn_active);
+    try std.testing.expect(assign.learned_param == null);
+}
+
+test "midi_learn - param index above 255 is accepted with u16 storage" {
+    const allocator = std.testing.allocator;
+    var sut = try System.init(allocator);
+    defer sut.deinit();
+
+    const assign = sut.getAssign();
+
+    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
+    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 300 });
+    try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 300);
 }
 
 test "midi_learn - isFxAssignable correctness" {
@@ -349,58 +408,4 @@ test "midi_learn - isFxAssignable correctness" {
     for (non_assignable) |cc| {
         try std.testing.expect(!cc.isFxAssignable());
     }
-}
-
-test "midi_learn - multiple consecutive learn cycles" {
-    const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
-    defer sut.deinit();
-
-    const assign = sut.getAssign();
-
-    // First cycle: Comp_Attack -> param 3
-    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 3 });
-    try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 3);
-
-    // Second cycle: Comp_Ratio -> param 7
-    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Ratio });
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 7 });
-    try std.testing.expect(assign.current_mappings.COMP.Comp_Ratio.? == 7);
-
-    // Both assignments should persist
-    try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 3);
-}
-
-test "midi_learn - learned_param ignored when not in listening_param phase" {
-    const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
-    defer sut.deinit();
-
-    const assign = sut.getAssign();
-
-    // Because we're in idle phase, a stray param event should be ignored.
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 42 });
-    try std.testing.expect(assign.midi_learn == .idle);
-    try std.testing.expect(assign.current_mappings.COMP.Comp_Attack == null);
-}
-
-test "midi_learn - param index above 255 is accepted with u16 storage" {
-    const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
-    defer sut.deinit();
-
-    const assign = sut.getAssign();
-
-    // Because we use u16 for param indices, values above 255 are valid.
-    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
-    try std.testing.expect(assign.midi_learn == .listening_param);
-
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 300 });
-    try std.testing.expect(assign.midi_learn == .idle);
-    try std.testing.expect(assign.selected_control == null);
-    try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 300);
 }

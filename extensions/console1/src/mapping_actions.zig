@@ -11,6 +11,8 @@ const mapping_browser = @import("mapping_browser.zig");
 const reaper = @import("reaper.zig").reaper;
 const constants = @import("constants.zig");
 const utils = @import("utils.zig");
+const pReaper = @import("pReaper.zig");
+const TrackState = @import("track_state.zig");
 
 pub const MappingPanelAction = @import("action_types.zig").MappingPanelAction;
 
@@ -104,6 +106,13 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                         .OUTPT => |m| .{ .OUTPT = m },
                     };
                 }
+            }
+
+            // The assignment panel’s knobs should start at the current
+            // FX parameter positions, so we populate knob_values from REAPER.
+            if (globals.state.current_tr_id) |track_id| {
+                const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
+                populateKnobValues(&assign_state, track, &globals.state.fx_ctrl.track_state);
             }
 
             // Set target_fx from the cached name for the selected module.
@@ -202,50 +211,32 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             log.debug("Selected control: {s}", .{if (maybe_control) |cc| @tagName(cc) else "none"});
             var assign = &globals.state.mapping_panel.mode.assign;
             assign.selected_control = maybe_control;
-            // Because the CC was captured from hardware during MIDI learn,
-            // we transition from listening-for-CC to listening-for-param.
-            if (assign.midi_learn == .listening_cc) {
-                assign.midi_learn = .listening_param;
+            // Because CC and param can arrive in any order, we check
+            // whether both inputs are present and create the assignment.
+            if (assign.midi_learn_active) {
+                tryCompleteLearnAssignment(globals);
             }
         },
 
         .assign_toggle_midi_learn => {
             var assign = &globals.state.mapping_panel.mode.assign;
-            log.debug("MIDI learn {s}", .{if (assign.midi_learn == .listening_cc) "disabled" else "enabled"});
-            switch (assign.midi_learn) {
-                .idle, .listening_param => {
-                    // Because we're either starting fresh or restarting after
-                    // a CC capture, we enter listening-for-CC mode.
-                    assign.midi_learn = .listening_cc;
-                    assign.selected_control = null;
-                },
-                .listening_cc => {
-                    // Because the user toggled off while listening, we cancel.
-                    assign.midi_learn = .idle;
-                    assign.selected_control = null;
-                },
-            }
+            assign.midi_learn_active = !assign.midi_learn_active;
+            log.debug("MIDI learn {s}", .{if (assign.midi_learn_active) "enabled" else "disabled"});
+            assign.selected_control = null;
+            assign.learned_param = null;
         },
 
         .assign_midi_learned_param => |param_index| {
             var assign = &globals.state.mapping_panel.mode.assign;
-            // Because this action should only fire during the listening-for-param
-            // phase, we guard on both the phase and having a captured CC.
-            if (assign.midi_learn == .listening_param) {
-                if (assign.selected_control) |control| {
-                    if (param_index > std.math.maxInt(u16)) {
-                        log.warn("Parameter index {d} exceeds u16 range, skipping assignment", .{param_index});
-                    } else {
-                        log.debug("MIDI learn complete: {s} -> param {d}", .{ @tagName(control), param_index });
-                        mappingPanelActions(globals, .{ .assign_add_mapping = .{
-                            .param = @intCast(param_index),
-                            .control = control,
-                        } });
-                    }
-                    assign.selected_control = null;
-                    assign.midi_learn = .idle;
-                }
+            if (assign.midi_learn_active) {
+                assign.learned_param = param_index;
+                log.debug("MIDI learn: param {d} captured", .{param_index});
+                tryCompleteLearnAssignment(globals);
             }
+        },
+
+        .assign_update_knob => |knob| {
+            globals.state.mapping_panel.mode.assign.knob_values[@intFromEnum(knob.cc)] = knob.value;
         },
 
         .assign_add_mapping => |mapping| {
@@ -306,9 +297,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     else => {},
                 },
             }
-            // Clear selections after mapping
             globals.state.mapping_panel.mode.assign.selected_parameter = null;
-            globals.state.mapping_panel.mode.assign.selected_control = null;
         },
 
         .assign_remove_mapping => |control| {
@@ -374,9 +363,10 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         .assign_change_module => |new_module| {
             var assign_state = &globals.state.mapping_panel.mode.assign;
             // Because changing module invalidates the current learn context,
-            // we reset the MIDI learn state.
-            assign_state.midi_learn = .idle;
+            // we reset the selected control (but leave learn mode active
+            // if it was on, so the user can keep learning on the new module).
             assign_state.selected_control = null;
+            assign_state.learned_param = null;
             assign_state.current_mappings = switch (new_module) {
                 .INPUT => .{ .INPUT = mappings.Inpt{} },
                 .GATE => .{ .GATE = mappings.Shp{} },
@@ -508,6 +498,49 @@ fn populateModuleFxNames(
             }
         } else {
             assign_state.module_fx_names.set(module, null);
+        }
+    }
+}
+
+/// Because CC and param can arrive in any order during MIDI learn, this
+/// helper checks whether both inputs are present and creates the assignment.
+///
+/// if so, then clears both inputs.
+fn tryCompleteLearnAssignment(globals: *Globals) void {
+    var assign = &globals.state.mapping_panel.mode.assign;
+    if (assign.selected_control) |control| {
+        if (assign.learned_param) |param_index| {
+            log.debug("MIDI learn complete: {s} -> param {d}", .{ @tagName(control), param_index });
+            mappingPanelActions(globals, .{ .assign_add_mapping = .{
+                .param = @intCast(param_index),
+                .control = control,
+            } });
+            assign.selected_control = null;
+            assign.learned_param = null;
+        }
+    }
+}
+
+fn populateKnobValues(
+    assign_state: *statemachine.AssignState,
+    track: reaper.MediaTrack,
+    track_state: *const TrackState,
+) void {
+    inline for (comptime std.enums.values(ModulesList)) |module| {
+        if (track_state.module_locations.get(module)) |location| {
+            if (location.mapping) |tagged_mapping| {
+                const mapping = @field(tagged_mapping, @tagName(module));
+                inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+                    if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                    if (@field(mapping, field.name)) |param_idx| {
+                        const cc = @field(c1.CCs, field.name);
+                        const val = pReaper.TrackFX_GetParamNormalized(.{ track, location.fx_index, param_idx });
+                        if (val >= 0) {
+                            assign_state.knob_values[@intFromEnum(cc)] = @floatCast(val);
+                        }
+                    }
+                }
+            }
         }
     }
 }

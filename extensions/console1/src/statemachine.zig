@@ -205,20 +205,16 @@ pub const ParamStore = struct {
     }
 };
 
-pub const MidiLearnPhase = enum {
-    idle,
-    listening_cc,
-    listening_param,
-};
-
 pub const AssignState = struct {
     target_fx: [:0]const u8 = "",
     current_mappings: ModuleMappings,
     selected_parameter: ?u32 = null,
     selected_control: ?c1.CCs = null,
-    midi_learn: MidiLearnPhase = .idle,
+    learned_param: ?u32 = null,
+    midi_learn_active: bool = false,
     param_store: ParamStore,
     arena: std.heap.ArenaAllocator,
+    knob_values: [128]f32 = [_]f32{0.5} ** 128,
     // Because the UI needs to display FX names per module without calling
     // REAPER APIs, we cache them here when entering assign mode.
     module_fx_names: std.EnumArray(ModulesList, ?[:0]const u8) = std.EnumArray(ModulesList, ?[:0]const u8).initFill(null),

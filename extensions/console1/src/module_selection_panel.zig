@@ -25,23 +25,27 @@ pub fn drawModuleSelectionPanel(
 
     var fx_name_buf: [512:0]u8 = undefined;
 
-    inline for (module_values, 0..) |module, i| {
-        const is_selected = (browse_state.selected_module == module);
-        const module_name = @tagName(module);
+    try imgui.BeginGroup(.{ctx});
+    {
+        inline for (module_values, 0..) |module, i| {
+            const is_selected = (browse_state.selected_module == module);
+            const module_name = @tagName(module);
 
-        const display_text = if (browse_state.available_modules[i]) |cached|
-            cached
-        else
-            std.fmt.bufPrintZ(&fx_name_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }) catch module_name;
+            const display_text = if (browse_state.available_modules[i]) |cached|
+                cached
+            else
+                std.fmt.bufPrintZ(&fx_name_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }) catch module_name;
 
-        if (try imgui.Selectable(.{ ctx, display_text })) {
-            rv = .{ .enter_assign = module };
-        }
+            if (try imgui.Selectable(.{ ctx, display_text })) {
+                rv = .{ .enter_assign = module };
+            }
 
-        if (is_selected) {
-            try ui_helpers.drawInvertedSlctblColors(ctx, display_text, drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
+            if (is_selected) {
+                try ui_helpers.drawInvertedSlctblColors(ctx, display_text, drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
+            }
         }
     }
+    imgui.EndGroup(.{ctx}) catch {};
 
     try imgui.Separator(.{ctx});
 

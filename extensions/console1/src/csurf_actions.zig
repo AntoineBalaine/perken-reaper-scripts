@@ -52,7 +52,7 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
             // we check for it before the normal parameter update logic.
             if (globals.state.current_mode == .mapping_panel and
                 std.meta.activeTag(globals.state.mapping_panel.mode) == .assign and
-                globals.state.mapping_panel.mode.assign.midi_learn == .listening_param)
+                globals.state.mapping_panel.mode.assign.midi_learn_active)
             {
                 const module = std.meta.activeTag(globals.state.mapping_panel.mode.assign.current_mappings);
                 if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |mod_loc| {

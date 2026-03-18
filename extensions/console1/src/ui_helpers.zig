@@ -25,7 +25,7 @@ pub fn drawInvertedSlctblColors(
     try imgui.GetItemRectMax(.{ ctx, &prev_max_x, &prev_max_y });
 
     const bg_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_Text });
-    const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_ChildBg });
+    const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_WindowBg });
 
     try imgui.DrawList_AddRectFilled(.{
         drw_ls,

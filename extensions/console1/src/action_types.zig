@@ -75,6 +75,7 @@ pub const MappingPanelAction = union(enum) {
     assign_toggle_midi_learn: void,
     assign_add_mapping: struct { param: u16, control: CCs },
     assign_midi_learned_param: u32,
+    assign_update_knob: struct { cc: CCs, value: f32 },
     assign_remove_mapping: CCs,
     assign_change_module: ModulesList,
     assign_request_save: void,

@@ -6,6 +6,7 @@ const Rectangle = knob.Rectangle;
 const roundButton = @import("button.zig");
 const TextPosition = roundButton.TextPosition;
 const mappingKnob = @import("mappingKnob.zig");
+const constants = @import("../constants.zig");
 const TranslationStore = @import("../translations.zig").TranslationStore;
 
 pub fn mappingButton(
@@ -41,11 +42,11 @@ pub fn mappingButton(
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
-    // Calculate total widget dimensions based on text position
     const button_size = radius * 2;
-    const total_width = if (!has_label) button_size else switch (text_pos) {
-        .above, .below => @max(button_size, label_size.w),
-        .right => button_size + text_padding * 2 + label_size.w,
+    const combo_width = constants.knob_size * 2;
+    const total_width = if (!has_label) @max(button_size, combo_width) else switch (text_pos) {
+        .above, .below => @max(@max(button_size, label_size.w), combo_width),
+        .right => @max(button_size + text_padding * 2 + label_size.w, combo_width),
     };
 
     var frm_pdg: f64 = undefined;
@@ -141,16 +142,12 @@ pub fn mappingButton(
             0,
             2.0,
         });
+    }
 
-        // try imgui.PushItemWidth(.{ ctx, constants.knob_size });
-        // defer imgui.PopItemWidth(.{ctx}) catch {};
-
-        const available_width = widget_rect.max_x - widget_rect.min_x;
-        // Use a slightly smaller width to ensure it stays within bounds
-        try imgui.SetNextItemWidth(.{ ctx, available_width - 10.0 }); // Subtract some padding
-        if (try mappingKnob.paramsCombo(ctx, cc, assignment_label, param_store, translations)) |v| {
-            rv = v;
-        }
+    const available_width = widget_rect.max_x - widget_rect.min_x;
+    try imgui.SetNextItemWidth(.{ ctx, available_width - 10.0 });
+    if (try mappingKnob.paramsCombo(ctx, cc, assignment_label, param_store, translations)) |v| {
+        rv = v;
     }
 
     // Create dummy space for entire widget

@@ -20,7 +20,7 @@ const constants = @import("../constants.zig");
 const TranslationStore = @import("../translations.zig").TranslationStore;
 const tr = @import("../translations.zig").tr;
 
-pub const Res = union(enum) { click, param_idx: u32, remove_mapping };
+pub const Res = union(enum) { click, param_idx: u32, remove_mapping, value_changed: f32 };
 
 pub fn drawWidget(
     ctx: imgui.ContextPtr,
@@ -45,7 +45,8 @@ pub fn drawWidget(
     var cur_pos = Position{ .x = undefined, .y = undefined };
     try imgui.GetCursorScreenPos(.{ ctx, &cur_pos.x, &cur_pos.y });
 
-    const total_width = @max(radius * 2, label_size.w);
+    const combo_width = constants.knob_size * 2;
+    const total_width = @max(@max(radius * 2, label_size.w), combo_width);
     const val_disp: f64 = if (flags.no_val_display) 1 else 2;
 
     var frm_pdg: f64 = undefined;
@@ -79,7 +80,20 @@ pub fn drawWidget(
         const hovered = yctrl_rv[0];
         clicked = yctrl_rv[1];
 
-        if (clicked) {
+        if (try imgui.IsItemActive(.{ctx})) {
+            var delta_x: f64 = undefined;
+            var delta_y: f64 = undefined;
+            try imgui.GetMouseDragDelta(.{ ctx, &delta_x, &delta_y, null, null });
+            if (delta_y != 0) {
+                var speed: f64 = 200.0;
+                if (try imgui.IsKeyDown(.{ ctx, imgui.Mod_Shift }) or try imgui.IsKeyDown(.{ ctx, imgui.Mod_Alt })) {
+                    speed = 2000.0;
+                }
+                const new_val = std.math.clamp(value - delta_y / speed, 0.0, 1.0);
+                rv = .{ .value_changed = @floatCast(new_val) };
+                try imgui.ResetMouseDragDelta(.{ ctx, imgui.MouseButton_Left });
+            }
+        } else if (clicked) {
             rv = .click;
         }
 
@@ -122,10 +136,10 @@ pub fn drawWidget(
         try Circle(drwLs, circleColor, center_x, center_y, 0.6, true, 32, radius);
         try Arc(drwLs, 0.85, 0.41, wiper_start, wiper_end, dotColor, 2, center_x, center_y, radius);
         try Triangle(drwLs, angle_, dotColor, center_x, center_y, 0.2, true, 0.45, radius, false);
+    }
 
-        if (try paramsCombo(ctx, cc, assignment_label, param_store, translations)) |v| {
-            rv = v;
-        }
+    if (try paramsCombo(ctx, cc, assignment_label, param_store, translations)) |v| {
+        rv = v;
     }
 
     try imgui.SetCursorScreenPos(.{ ctx, widget_rect.min_x, widget_rect.min_y });
