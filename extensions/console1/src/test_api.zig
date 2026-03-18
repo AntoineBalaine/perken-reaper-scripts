@@ -120,6 +120,37 @@ fn varargGetUIStatus(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*any
 
 const apidef_GetUIStatus: [*:0]const u8 = "const char*\x00\x00\x00Console1: Returns the UI status: 'running' or 'stopped'.\x00";
 
+// -- C1_FxSelSwap: triggers an FX swap for the given module and plugin name --
+
+fn apiFxSelSwap(module_name: [*:0]const u8, plugin_name: [*:0]const u8) callconv(.C) bool {
+    const mod_str = std.mem.span(module_name);
+    const ModulesList = statemachine.ModulesList;
+    const module = std.meta.stringToEnum(ModulesList, mod_str) orelse {
+        log.err("C1_FxSelSwap: unknown module '{s}'", .{mod_str});
+        return false;
+    };
+    const globals = getGlobals();
+    globals.state.fx_sel.current_category = module;
+    globals.state.current_mode = .fx_sel;
+    const fx_sel_actions = @import("fx_sel_actions.zig");
+    fx_sel_actions.fxSelActions(globals, .{ .plugin = .{
+        .name = std.mem.span(plugin_name),
+        .mapping_name = null,
+    } });
+    return true;
+}
+
+fn varargFxSelSwap(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyopaque {
+    _ = numparms;
+    const args: [*]?*anyopaque = @ptrCast(arglist orelse return null);
+    const module_name: [*:0]const u8 = @ptrCast(args[0] orelse return null);
+    const plugin_name: [*:0]const u8 = @ptrCast(args[1] orelse return null);
+    const result = apiFxSelSwap(module_name, plugin_name);
+    return if (result) @ptrFromInt(1) else @ptrFromInt(0);
+}
+
+const apidef_FxSelSwap: [*:0]const u8 = "bool\x00const char*,const char*\x00module_name,plugin_name\x00Console1: Triggers an FX swap for the given module (INPUT/GATE/EQ/COMP/OUTPT) with the named plugin.\x00";
+
 // -- Registration --
 
 fn reg(
@@ -142,4 +173,5 @@ pub fn registerTestApis() void {
     reg("API_C1_FxSelScroll", @ptrCast(@constCast(&apiFxSelScroll)), "APIvararg_C1_FxSelScroll", @ptrCast(@constCast(&varargFxSelScroll)), "APIdef_C1_FxSelScroll", @ptrCast(@constCast(apidef_FxSelScroll)));
     reg("API_C1_EnableUI", @ptrCast(@constCast(&apiEnableUI)), "APIvararg_C1_EnableUI", @ptrCast(@constCast(&varargEnableUI)), "APIdef_C1_EnableUI", @ptrCast(@constCast(apidef_EnableUI)));
     reg("API_C1_GetUIStatus", @ptrCast(@constCast(&apiGetUIStatus)), "APIvararg_C1_GetUIStatus", @ptrCast(@constCast(&varargGetUIStatus)), "APIdef_C1_GetUIStatus", @ptrCast(@constCast(apidef_GetUIStatus)));
+    reg("API_C1_FxSelSwap", @ptrCast(@constCast(&apiFxSelSwap)), "APIvararg_C1_FxSelSwap", @ptrCast(@constCast(&varargFxSelSwap)), "APIdef_C1_FxSelSwap", @ptrCast(@constCast(apidef_FxSelSwap)));
 }

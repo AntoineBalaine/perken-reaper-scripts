@@ -10,6 +10,7 @@ const log = std.log.scoped(.fx_sel_actions);
 const TrackState = @import("track_state.zig").TrackState;
 const Globals = @import("globals.zig").Globals;
 const utils = @import("utils.zig");
+const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 
 pub const FxSelActions = @import("action_types.zig").FxSelActions;
 
@@ -40,8 +41,8 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             const current_module = globals.state.fx_sel.current_category;
             const track_state = &globals.state.fx_ctrl.track_state;
 
-            // Use existing determineInsertionIndex function
-            const insert_idx = determineInsertionIndex(&globals.state, track, current_module);
+            const insert_idx = determineInsertionIndex(&globals.state, track, current_module, globals.preferences.preferred_module_order);
+            const old_fx_index: ?c_int = if (track_state.module_locations.get(current_module)) |loc| loc.fx_index else null;
 
             // Check if we need to load a specific mapping or determine if mapping exists
             var needs_mapping = false;
@@ -78,13 +79,11 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             }
 
             // If replacing existing module FX, remove it.
-            // Because the new FX may have been inserted before or after the old one,
-            // we need to check whether the old FX's index shifted due to the insertion.
-            if (track_state.module_locations.get(current_module)) |old_loc| {
-                const delete_idx = if (new_fx_index <= old_loc.fx_index)
-                    old_loc.fx_index + 1
+            if (old_fx_index) |old_idx| {
+                const delete_idx = if (new_fx_index <= old_idx)
+                    old_idx + 1
                 else
-                    old_loc.fx_index;
+                    old_idx;
                 if (!pReaper.TrackFX_Delete(.{ track, delete_idx })) {
                     var buf: [512:0]u8 = undefined;
                     const fx_name = if (reaper.TrackFX_GetNamedConfigParm(track, delete_idx, "original_name", &buf, buf.len))
@@ -202,47 +201,51 @@ fn countModuleLocations(track_state: *const TrackState) usize {
     return count;
 }
 
-fn determineInsertionIndex(state: *State, track: reaper.MediaTrack, module: ModulesList) i32 {
+// Because the insertion position depends on the user's preferred module
+// order, we build the full 5-module sequence and find the first existing
+// module that comes after the target in that sequence. We insert before
+// that successor. If no successor exists, we insert after the last
+// existing module (or at the end of the FX chain if nothing exists).
+fn determineInsertionIndex(state: *State, track: reaper.MediaTrack, module: ModulesList, order: ModulesOrder) i32 {
     const track_state = &state.fx_ctrl.track_state;
 
-    // If no modules exist, add at end
     if (countModuleLocations(track_state) == 0) {
         return -1000 - reaper.TrackFX_GetCount(track);
     }
 
-    // For each module type, determine correct position based on other modules
-    return switch (module) {
-        .INPUT => if (track_state.getFirstModuleIndex()) |first_idx|
-            -1000 - first_idx
-        else
-            -1000 - reaper.TrackFX_GetCount(track),
+    const full_order = getFullModuleOrder(order);
 
-        .GATE => if (track_state.module_locations.get(.COMP)) |comp_loc|
-            -1000 - comp_loc.fx_index
-        else if (track_state.getLastModuleIndex()) |last_idx|
-            -1000 - last_idx
-        else
-            -1000 - reaper.TrackFX_GetCount(track),
+    // Find the target module's position in the canonical sequence
+    var target_pos: usize = 0;
+    for (full_order, 0..) |m, i| {
+        if (m == module) {
+            target_pos = i;
+            break;
+        }
+    }
 
-        .EQ => if (track_state.module_locations.get(.INPUT)) |input_loc|
-            -1000 - (input_loc.fx_index + 1)
-        else if (track_state.getFirstModuleIndex()) |first_idx|
-            -1000 - first_idx
-        else
-            -1000 - reaper.TrackFX_GetCount(track),
+    // Because we want to maintain the preferred order, we look for the
+    // first existing module that comes after the target in the sequence
+    // and insert before it.
+    for (full_order[target_pos + 1 ..]) |successor| {
+        if (track_state.module_locations.get(successor)) |loc| {
+            return -1000 - loc.fx_index;
+        }
+    }
 
-        .COMP => if (track_state.module_locations.get(.GATE)) |gate_loc|
-            -1000 - (gate_loc.fx_index + 1)
-        else if (track_state.module_locations.get(.EQ)) |eq_loc|
-            -1000 - (eq_loc.fx_index + 1)
-        else if (track_state.getLastModuleIndex()) |last_idx|
-            -1000 - last_idx
-        else
-            -1000 - reaper.TrackFX_GetCount(track),
+    // Because no successor module exists, we insert after the last
+    // existing module in the chain.
+    if (track_state.getLastModuleIndex()) |last_idx| {
+        return -1000 - (last_idx + 1);
+    }
 
-        .OUTPT => if (track_state.getLastModuleIndex()) |last_idx|
-            -1000 - (last_idx + 1)
-        else
-            -1000 - reaper.TrackFX_GetCount(track),
+    return -1000 - reaper.TrackFX_GetCount(track);
+}
+
+fn getFullModuleOrder(order: ModulesOrder) [5]ModulesList {
+    return switch (order) {
+        .@"S-EQ-C" => .{ .INPUT, .GATE, .EQ, .COMP, .OUTPT },
+        .@"S-C-EQ" => .{ .INPUT, .GATE, .COMP, .EQ, .OUTPT },
+        .@"EQ-S-C" => .{ .INPUT, .EQ, .GATE, .COMP, .OUTPT },
     };
 }
