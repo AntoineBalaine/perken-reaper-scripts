@@ -16,6 +16,7 @@ const Mode = @import("statemachine.zig").Mode;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const FxCtrlState = fx_ctrl_state.FxControlState;
 const SCRouting = fx_ctrl_state.SCRouting;
+const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const TransportState = @import("action_types.zig").TransportState;
 
 /// Calculate the maximum width of a list of labels and calculate offsets
@@ -838,13 +839,24 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
         const tr_order_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Tr_order,
+            .fx_ctrl, .mapping_panel, .fx_sel => switch (fx_state.track_state.getModulesOrder()) {
+                .@"EQ-S-C" => .fx_ctrl_Tr_order_eq_s_c,
+                .@"S-C-EQ" => .fx_ctrl_Tr_order_s_c_eq,
+                .@"S-EQ-C" => .fx_ctrl_Tr_order_s_eq_c,
+            },
             else => null,
         };
         const tr_order_label = if (tr_order_key) |key| tr(translations, key) else null;
         const tr_order_display_label: [:0]const u8 = tr_order_label orelse "-";
         const tr_order_disabled = (tr_order_label == null);
-        if (try roundButton(.{ ctx, tr_order_display_label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, tr_order_disabled })) {}
+        if (try roundButton(.{ ctx, tr_order_display_label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, tr_order_disabled })) {
+            const next_order: ModulesOrder = switch (fx_state.track_state.getModulesOrder()) {
+                .@"EQ-S-C" => .@"S-C-EQ",
+                .@"S-C-EQ" => .@"S-EQ-C",
+                .@"S-EQ-C" => .@"EQ-S-C",
+            };
+            rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@intFromEnum(next_order))) };
+        }
         {
             // Calculate max width for this column's knobs
             const drive_key: ?TranslationKey = switch (mode) {
