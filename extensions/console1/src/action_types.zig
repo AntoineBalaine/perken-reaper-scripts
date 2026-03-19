@@ -64,7 +64,6 @@ pub const FxSelActions = union(enum) {
 pub const MappingPanelAction = union(enum) {
     enter_browse: void,
     enter_assign: ModulesList,
-    enter_save: void,
     exit_to_fx_ctrl: void,
     browse_scroll: u8,
     browse_select_module: ModulesList,
@@ -80,8 +79,6 @@ pub const MappingPanelAction = union(enum) {
     assign_change_module: ModulesList,
     assign_request_save: void,
     assign_cancel: void,
-    save_confirm: []const u8,
-    save_cancel: void,
 };
 
 // Settings

@@ -12,6 +12,7 @@ const TranslationStore = Translations.TranslationStore;
 const TranslationKey = Translations.TranslationKey;
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 const constants = @import("constants.zig");
+const Theme = @import("theme/Theme.zig");
 
 // Function to handle the parameters column
 fn params(
@@ -238,9 +239,13 @@ fn formControls(
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_save) })) {
         rv = .{ .assign_request_save = {} };
     }
-
+    try imgui.SameLine(.{ctx});
     if (try imgui.Button(.{ ctx, tr(translations, .mapping_cancel) })) {
         rv = .{ .assign_cancel = {} };
+    }
+
+    if (assign_state.save_error) |err_key| {
+        try imgui.TextColored(.{ ctx, @as(c_int, @bitCast(@as(c_uint, 0xFF0000FF))), tr(translations, err_key) });
     }
 
     return rv;
@@ -253,7 +258,6 @@ fn assignmentList(
     buf: *[256:0]u8,
 ) !?mapping_actions.MappingPanelAction {
     _ = translations;
-    const Theme = @import("theme/Theme.zig");
     var rv: ?mapping_actions.MappingPanelAction = null;
 
     switch (assign_state.current_mappings) {

@@ -11,6 +11,7 @@ const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
 const TransportState = @import("action_types.zig").TransportState;
 const StringPool = @import("string_pool.zig").StringPool;
+const TranslationKey = @import("translations.zig").TranslationKey;
 
 pub const ModulesList = enum {
     INPUT,
@@ -42,7 +43,6 @@ pub const ModulesList = enum {
 pub const MappingPanelMode = enum {
     BROWSE,
     ASSIGN,
-    SAVE,
 };
 
 pub const Mode = enum {
@@ -215,9 +215,11 @@ pub const AssignState = struct {
     param_store: ParamStore,
     arena: std.heap.ArenaAllocator,
     knob_values: [128]f32 = [_]f32{0.5} ** 128,
-    // Because the UI needs to display FX names per module without calling
-    // REAPER APIs, we cache them here when entering assign mode.
+    /// Because the UI needs to display FX names per module without calling
+    /// REAPER APIs, we cache them here when entering assign mode.
     module_fx_names: std.EnumArray(ModulesList, ?[:0]const u8) = std.EnumArray(ModulesList, ?[:0]const u8).initFill(null),
+    /// translation key for the save mapping’s error message
+    save_error: ?TranslationKey = null,
 
     pub const FxParameter = struct {
         index: u32,
@@ -238,32 +240,9 @@ pub const AssignState = struct {
     }
 };
 
-pub const SaveState = struct {
-    file_browser: @import("file_browser.zig").FileBrowserState,
-    target_fx: [:0]const u8 = "",
-    current_mappings: ModuleMappings,
-
-    pub fn init(gpa: std.mem.Allocator, mappings: ModuleMappings, maps_root: []const u8) SaveState {
-        return SaveState{
-            .current_mappings = mappings,
-            .file_browser = @import("file_browser.zig").FileBrowserState.init(
-                gpa,
-                maps_root,
-                .save,
-                &.{".ini"},
-            ),
-        };
-    }
-
-    pub fn deinit(self: *SaveState) void {
-        self.file_browser.deinit();
-    }
-};
-
 pub const MapSubMode = union(enum) {
     browse: BrowseState,
     assign: AssignState,
-    save: SaveState,
 };
 
 pub const MappingPanelState = struct {
@@ -285,7 +264,6 @@ pub const MappingPanelState = struct {
         switch (self.mode) {
             .browse => |*browse| browse.deinit(),
             .assign => |*assign| assign.deinit(),
-            .save => |*save| save.deinit(),
         }
     }
 

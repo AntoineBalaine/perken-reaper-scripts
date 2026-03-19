@@ -12,6 +12,8 @@ const constants = @import("constants.zig");
 const utils = @import("utils.zig");
 const pReaper = @import("pReaper.zig");
 const TrackState = @import("track_state.zig");
+const swell = @import("swell.zig");
+const tr = @import("translations.zig").tr;
 
 pub const MappingPanelAction = @import("action_types.zig").MappingPanelAction;
 
@@ -120,37 +122,6 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             }
 
             globals.state.mapping_panel.mode = .{ .assign = assign_state };
-        },
-
-        .enter_save => {
-            const assign_state = globals.state.mapping_panel.mode.assign;
-            // Because we need to preserve the FX name and mappings before deiniting the assign state,
-            // we copy them to a stack buffer first.
-            var fx_name_buf: [512]u8 = undefined;
-            const fx_name_len = @min(assign_state.target_fx.len, fx_name_buf.len);
-            @memcpy(fx_name_buf[0..fx_name_len], assign_state.target_fx[0..fx_name_len]);
-            const fx_name_saved = fx_name_buf[0..fx_name_len];
-            const current_mappings = assign_state.current_mappings;
-
-            var maps_root_buf: [std.fs.max_path_bytes]u8 = undefined;
-            const maps_root = std.fmt.bufPrint(&maps_root_buf, "{s}{s}maps", .{
-                @as([]const u8, globals.resource_path),
-                std.fs.path.sep_str,
-            }) catch return;
-
-            // Because deinitCurrentSubMode frees the assign arena (which owns target_fx),
-            // we must deinit before creating the new save state so that the GPA allocator
-            // inside gpa_int is accessed only at its final memory location.
-            globals.state.mapping_panel.deinitCurrentSubMode();
-
-            const gpa = globals.state.mapping_panel.gpa_int.allocator();
-            globals.state.mapping_panel.mode = .{ .save = statemachine.SaveState.init(gpa, current_mappings, maps_root) };
-
-            // Because the save state is now stored at its final location, we can safely
-            // populate the directory listing and allocate target_fx from the file browser's arena.
-            globals.state.mapping_panel.mode.save.file_browser.refresh();
-            const fb_alloc = globals.state.mapping_panel.mode.save.file_browser.arena.allocator();
-            globals.state.mapping_panel.mode.save.target_fx = fb_alloc.dupeZ(u8, fx_name_saved) catch return;
         },
 
         .exit_to_fx_ctrl => {
@@ -397,80 +368,68 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         },
 
         .assign_request_save => {
-            mappingPanelActions(globals, .enter_save);
+            const assign_state = &globals.state.mapping_panel.mode.assign;
+            assign_state.save_error = null;
+
+            // Build the maps root path for the initial directory
+            var maps_root_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+            const maps_root = std.fmt.bufPrintZ(&maps_root_buf, "{s}{s}maps", .{
+                @as([]const u8, globals.resource_path),
+                std.fs.path.sep_str,
+            }) catch return;
+
+            var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const dialog_title = tr(&globals.translations, .save_dialog_title);
+            if (swell.browseForSaveFile(dialog_title, maps_root, "default.ini", "INI files\x00*.ini\x00", &path_buf)) |path| {
+                if (!isInsideMapsDir(path, maps_root)) {
+                    assign_state.save_error = .save_error_outside_maps;
+                    return;
+                }
+
+                // Perform the save directly from assign state
+                const fx_name = assign_state.target_fx;
+                const module = std.meta.activeTag(assign_state.current_mappings);
+                const tagged_mapping: TaggedMapping = switch (assign_state.current_mappings) {
+                    .INPUT => |m| .{ .INPUT = m },
+                    .GATE => |m| .{ .GATE = m },
+                    .EQ => |m| .{ .EQ = m },
+                    .COMP => |m| .{ .COMP = m },
+                    .OUTPT => |m| .{ .OUTPT = m },
+                };
+
+                var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+                const save_path: [:0]const u8 = std.fmt.bufPrintZ(&save_path_buf, "{s}", .{path}) catch return;
+
+                const basename = std.fs.path.basename(path);
+                const alloc = assign_state.arena.allocator();
+                const mapping_name: [:0]const u8 = alloc.dupeZ(u8, std.fs.path.stem(basename)) catch return;
+                const fx_name_z: [:0]const u8 = alloc.dupeZ(u8, fx_name) catch return;
+
+                globals.map_store.saveToFile(globals.fs_ops, module, fx_name_z, tagged_mapping, save_path) catch {
+                    assign_state.save_error = .save_error_write_failed;
+                    return;
+                };
+
+                globals.mappings_list.registerPath(module, fx_name_z, mapping_name, save_path) catch |err| {
+                    log.warn("Failed to register saved mapping path: {}", .{err});
+                };
+                _ = globals.map_store.getMap(fx_name_z, module, mapping_name) catch |err| {
+                    log.warn("Failed to load saved mapping into cache: {}", .{err});
+                };
+
+                if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |existing_loc| {
+                    globals.state.fx_ctrl.track_state.module_locations.set(module, .{
+                        .fx_index = existing_loc.fx_index,
+                        .mapping = tagged_mapping,
+                    });
+                }
+
+                mappingPanelActions(globals, .exit_to_fx_ctrl);
+            }
         },
 
         .assign_cancel => {
             mappingPanelActions(globals, .exit_to_fx_ctrl);
-        },
-
-        // SAVE sub-mode actions
-        .save_confirm => |file_path| {
-            const save_state = &globals.state.mapping_panel.mode.save;
-            const fx_name = save_state.target_fx;
-            log.debug("Saved mappings for FX: {s}", .{fx_name});
-
-            const fb_alloc = save_state.file_browser.arena.allocator();
-            const fx_name_z = fb_alloc.dupeZ(u8, fx_name) catch |err| {
-                log.warn("Failed to allocate null-terminated FX name: {}", .{err});
-                return;
-            };
-
-            // Because we need to save the mapping to disk, we extract the module and convert to TaggedMapping
-            const module = std.meta.activeTag(save_state.current_mappings);
-            const tagged_mapping: TaggedMapping = switch (save_state.current_mappings) {
-                .INPUT => |m| .{ .INPUT = m },
-                .GATE => |m| .{ .GATE = m },
-                .EQ => |m| .{ .EQ = m },
-                .COMP => |m| .{ .COMP = m },
-                .OUTPT => |m| .{ .OUTPT = m },
-            };
-
-            // The file browser returns the full path directly
-            var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-            const save_path: [:0]const u8 = std.fmt.bufPrintZ(&save_path_buf, "{s}", .{file_path}) catch return;
-
-            // Extract the mapping name from the filename (strip directory and .ini extension)
-            const basename = std.fs.path.basename(file_path);
-            const mapping_name: [:0]const u8 = fb_alloc.dupeZ(u8, std.fs.path.stem(basename)) catch return;
-
-            globals.map_store.saveToFile(
-                globals.fs_ops,
-                module,
-                fx_name_z,
-                tagged_mapping,
-                save_path,
-            ) catch {
-                log.warn("Failed to save mapping {s} to file", .{fx_name});
-                return;
-            };
-
-            // Register the saved path in the index so subsequent lookups find it
-            globals.mappings_list.registerPath(module, fx_name_z, mapping_name, save_path) catch |err| {
-                log.warn("Failed to register saved mapping path: {}", .{err});
-            };
-
-            // Reload from disk into cache
-            _ = globals.map_store.getMap(fx_name_z, module, mapping_name) catch |err| {
-                log.warn("Failed to load saved mapping into cache: {}", .{err});
-            };
-
-            // Update module_locations so FX control mode uses the new mapping immediately
-            if (globals.state.fx_ctrl.track_state.module_locations.get(module)) |existing_loc| {
-                globals.state.fx_ctrl.track_state.module_locations.set(module, .{
-                    .fx_index = existing_loc.fx_index,
-                    .mapping = tagged_mapping,
-                });
-            }
-
-            // Exit to FX control mode
-            mappingPanelActions(globals, .exit_to_fx_ctrl);
-        },
-
-        .save_cancel => {
-            // Because we want to return to assign mode, we get the current module from save_state
-            const current_module = std.meta.activeTag(globals.state.mapping_panel.mode.save.current_mappings);
-            mappingPanelActions(globals, .{ .enter_assign = current_module });
         },
     }
 }
@@ -541,4 +500,31 @@ fn populateKnobValues(
             }
         }
     }
+}
+
+// Because the native save dialog can return any path on the filesystem, we
+// validate that the result is inside the maps directory. A bare startsWith
+// check would incorrectly accept paths like "/path/to/maps_backup/file.ini",
+// so we also verify that the character after the prefix is a path separator
+// (or that the path equals the root exactly).
+fn isInsideMapsDir(path: []const u8, maps_root: []const u8) bool {
+    std.debug.assert(maps_root.len > 0 and maps_root[maps_root.len - 1] != std.fs.path.sep);
+    if (!std.mem.startsWith(u8, path, maps_root)) return false;
+    return path.len == maps_root.len or path[maps_root.len] == std.fs.path.sep;
+}
+
+test "isInsideMapsDir: path inside maps root is accepted" {
+    try std.testing.expect(isInsideMapsDir("/path/to/maps/factory/comp/default.ini", "/path/to/maps"));
+}
+
+test "isInsideMapsDir: path outside maps root is rejected" {
+    try std.testing.expect(!isInsideMapsDir("/Users/desktop/file.ini", "/path/to/maps"));
+}
+
+test "isInsideMapsDir: prefix-but-not-child is rejected" {
+    try std.testing.expect(!isInsideMapsDir("/path/to/maps_backup/file.ini", "/path/to/maps"));
+}
+
+test "isInsideMapsDir: exact root path is accepted" {
+    try std.testing.expect(isInsideMapsDir("/path/to/maps", "/path/to/maps"));
 }

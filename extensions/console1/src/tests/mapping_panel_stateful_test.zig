@@ -208,32 +208,6 @@ const EnterAssign = struct {
     }
 };
 
-const EnterSave = struct {
-    pub const name = "enter_save";
-
-    pub fn checkPrecondition(self: *@This(), model: *const Model) bool {
-        _ = self;
-        // Because we can only enter SAVE from ASSIGN sub-mode, we verify the precondition
-        return model.current_mode == .mapping_panel and model.sub_mode == .ASSIGN;
-    }
-
-    pub fn onModelOnly(self: *@This(), model: *Model) void {
-        _ = self;
-        model.sub_mode = .SAVE;
-    }
-
-    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
-        // Execute action on SUT
-        mapping_actions.mappingPanelActions(&sut.globals, .enter_save);
-
-        // Update model
-        self.onModelOnly(model);
-
-        // Verify synchronization
-        return sut.globals.state.mapping_panel.mode == .save;
-    }
-};
-
 const ExitToFxCtrl = struct {
     pub const name = "exit_to_fx_ctrl";
 
@@ -606,32 +580,6 @@ const RemoveMapping = struct {
     }
 };
 
-const RequestSave = struct {
-    pub const name = "request_save";
-
-    pub fn checkPrecondition(self: *@This(), model: *const Model) bool {
-        _ = self;
-        // Because RequestSave transitions to SAVE sub-mode, we verify we're in ASSIGN sub-mode
-        return model.current_mode == .mapping_panel and model.sub_mode == .ASSIGN;
-    }
-
-    pub fn onModelOnly(self: *@This(), model: *Model) void {
-        _ = self;
-        model.sub_mode = .SAVE;
-    }
-
-    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
-        // Execute action on SUT
-        mapping_actions.mappingPanelActions(&sut.globals, .assign_request_save);
-
-        // Update model
-        self.onModelOnly(model);
-
-        // Verify synchronization
-        return sut.globals.state.mapping_panel.mode == .save;
-    }
-};
-
 const CancelAssign = struct {
     pub const name = "cancel_assign";
 
@@ -659,79 +607,6 @@ const CancelAssign = struct {
     }
 };
 
-// ============================================================================
-// SAVE Sub-mode Commands
-// ============================================================================
-
-const SavePreset = struct {
-    pub const name = "save_preset";
-
-    pub fn checkPrecondition(self: *@This(), model: *const Model) bool {
-        _ = self;
-        // Because SavePreset completes the workflow and exits to fx_ctrl, we verify we're in SAVE sub-mode
-        return model.current_mode == .mapping_panel and model.sub_mode == .SAVE;
-    }
-
-    pub fn onModelOnly(self: *@This(), model: *Model) void {
-        _ = self;
-        model.current_mode = .fx_ctrl;
-        model.sub_mode = null;
-    }
-
-    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
-        // Set target_fx to a test value since REAPER isn't available in tests
-        sut.globals.state.mapping_panel.mode.save.target_fx = "VST: Test Plugin";
-
-        // Execute action on SUT: because save_confirm now takes a full file path,
-        // we construct one using the resource_path.
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const save_path = std.fmt.bufPrint(&path_buf, "{s}/maps/test_preset.ini", .{
-            @as([]const u8, sut.resource_path),
-        }) catch return false;
-        mapping_actions.mappingPanelActions(&sut.globals, .{ .save_confirm = save_path });
-
-        // Update model
-        self.onModelOnly(model);
-
-        // Verify: mode transitioned to fx_ctrl
-        // Note: We don't verify module_locations here because in the stateful test,
-        // module_locations is not populated (no REAPER track). The save_confirm
-        // update only happens when there's an existing module_location entry.
-        // The dedicated unit test verifies this behavior.
-        return sut.globals.state.current_mode == .fx_ctrl;
-    }
-};
-
-const CancelSave = struct {
-    pub const name = "cancel_save";
-
-    pub fn checkPrecondition(self: *@This(), model: *const Model) bool {
-        _ = self;
-        // Because CancelSave returns to ASSIGN sub-mode, we verify we're in SAVE sub-mode
-        return model.current_mode == .mapping_panel and model.sub_mode == .SAVE;
-    }
-
-    pub fn onModelOnly(self: *@This(), model: *Model) void {
-        _ = self;
-        model.sub_mode = .ASSIGN;
-    }
-
-    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
-        // Execute action on SUT
-        mapping_actions.mappingPanelActions(&sut.globals, .save_cancel);
-
-        // Update model
-        self.onModelOnly(model);
-
-        // Verify synchronization
-        return sut.globals.state.mapping_panel.mode == .assign;
-    }
-};
-
-// ============================================================================
-// Test Entry Point
-// ============================================================================
-
 test "mapping panel hierarchical state machine" {
     const allocator = std.testing.allocator;
 
@@ -746,7 +621,6 @@ test "mapping panel hierarchical state machine" {
     var enter_assign_comp = EnterAssign{ .module = .COMP };
     var enter_assign_eq = EnterAssign{ .module = .EQ };
     var enter_assign_input = EnterAssign{ .module = .INPUT };
-    var enter_save_cmd = EnterSave{};
     var exit_cmd = ExitToFxCtrl{};
 
     var scroll_comp = ScrollBrowse{ .target_module = .COMP };
@@ -761,11 +635,7 @@ test "mapping panel hierarchical state machine" {
     var add_input_gain = AddMapping{ .control = .Inpt_Gain, .param = 3 };
     var remove_comp_attack = RemoveMapping{ .control = .Comp_Attack };
     var remove_eq_higain = RemoveMapping{ .control = .Eq_HiGain };
-    var request_save_cmd = RequestSave{};
     var cancel_assign_cmd = CancelAssign{};
-
-    var save_preset_cmd = SavePreset{};
-    var cancel_save_cmd = CancelSave{};
 
     // Register commands
     const commands = [_]Command(Model, System){
@@ -774,7 +644,6 @@ test "mapping panel hierarchical state machine" {
         Command(Model, System).init(&enter_assign_comp),
         Command(Model, System).init(&enter_assign_eq),
         Command(Model, System).init(&enter_assign_input),
-        Command(Model, System).init(&enter_save_cmd),
         Command(Model, System).init(&exit_cmd),
 
         // BROWSE actions
@@ -791,12 +660,7 @@ test "mapping panel hierarchical state machine" {
         Command(Model, System).init(&add_input_gain),
         Command(Model, System).init(&remove_comp_attack),
         Command(Model, System).init(&remove_eq_higain),
-        Command(Model, System).init(&request_save_cmd),
         Command(Model, System).init(&cancel_assign_cmd),
-
-        // SAVE actions
-        Command(Model, System).init(&save_preset_cmd),
-        Command(Model, System).init(&cancel_save_cmd),
     };
 
     var bytes: [128 * 1024]u8 = undefined;
@@ -818,58 +682,4 @@ test "mapping panel hierarchical state machine" {
         std.debug.print("\nTest failed at command index: {}\n", .{failure_info});
         return error.StatefulTestFailed;
     }
-}
-
-test "save_confirm updates module_locations for immediate FX control use" {
-    const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
-    sut.fixupAfterMove();
-    defer sut.deinit();
-
-    // Step 1: Enter mapping panel in browse mode
-    sut.globals.state.current_mode = .mapping_panel;
-    mapping_actions.mappingPanelActions(&sut.globals, .enter_browse);
-
-    // Step 2: Select COMP module and enter assign mode
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .browse_select_module = .COMP });
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .enter_assign = .COMP });
-
-    // Step 3: Manually set target_fx
-    // In production, this is queried from REAPER via TrackFX_GetFXName when module_locations has an entry.
-    // In tests, module_locations is empty so that path is skipped and target_fx remains "".
-    // We set it manually so save operations have an FX name to use.
-    sut.globals.state.mapping_panel.mode.assign.target_fx = "VST: Test Compressor";
-
-    // Step 4: Add a NEW mapping - this is the value we'll verify later
-    mapping_actions.mappingPanelActions(&sut.globals, .{
-        .assign_add_mapping = .{ .param = 5, .control = .Comp_Attack },
-    });
-
-    // Step 5: Enter save mode
-    mapping_actions.mappingPanelActions(&sut.globals, .enter_save);
-
-    // Step 6: Setup module_location so save_confirm has an entry to update
-    sut.setupModuleLocation(.COMP, 0);
-
-    // Step 7: Execute save_confirm with a full file path
-    var save_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const save_path = std.fmt.bufPrint(&save_path_buf, "{s}/maps/test_mapping.ini", .{
-        @as([]const u8, sut.resource_path),
-    }) catch unreachable;
-    mapping_actions.mappingPanelActions(&sut.globals, .{ .save_confirm = save_path });
-
-    // Verification 1: Mode returned to fx_ctrl
-    try std.testing.expectEqual(Mode.fx_ctrl, sut.globals.state.current_mode);
-
-    // Verification 2: module_locations[COMP] exists and has a mapping
-    const loc = sut.globals.state.fx_ctrl.track_state.module_locations.get(.COMP);
-    try std.testing.expect(loc != null);
-    try std.testing.expect(loc.?.mapping != null);
-
-    // Verification 3: Mapping is for COMP module
-    const mapping = loc.?.mapping.?;
-    try std.testing.expectEqual(ModulesList.COMP, std.meta.activeTag(mapping));
-
-    // Verification 4: The specific parameter value we set is present
-    try std.testing.expectEqual(@as(?u16, 5), mapping.COMP.Comp_Attack);
 }

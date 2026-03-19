@@ -173,6 +173,11 @@ pub const TranslationKey = enum {
     preset_yes,
     preset_no,
 
+    // Save dialog translations
+    save_dialog_title,
+    save_error_outside_maps,
+    save_error_write_failed,
+
     // Mapping shared translations
     mapping_none,
     mapping_no_fx,
@@ -240,6 +245,9 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "preset_overwrite_confirm", "Preset '{s}' already exists. Overwrite?" },
     .{ "preset_yes", "Yes" },
     .{ "preset_no", "No" },
+    .{ "save_dialog_title", "Save mapping" },
+    .{ "save_error_outside_maps", "The file must be saved inside the maps directory." },
+    .{ "save_error_write_failed", "Failed to save the mapping file." },
     .{ "mapping_none", "none" },
     .{ "mapping_no_fx", "[No FX]" },
     .{ "mapping_module_input", "INPUT" },

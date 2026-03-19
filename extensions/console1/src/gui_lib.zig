@@ -11,7 +11,6 @@ const fx_sel_panel = @import("fx_sel_panel.zig");
 const actions = @import("action_types.zig");
 const mapping_panel = @import("mapping_panel.zig");
 const module_selection_panel = @import("module_selection_panel.zig");
-const file_browser = @import("file_browser.zig");
 const track_list_panel = @import("track_list_panel.zig");
 const c1 = @import("c1.zig");
 
@@ -187,13 +186,6 @@ pub fn main(
                             assign_state,
                             ui.translations,
                         ),
-                        .save => |*save_state| blk: {
-                            const result = try file_browser.drawFileBrowser(ctx, &save_state.file_browser, style_manager);
-                            break :blk if (result) |r| switch (r) {
-                                .selected => |path| @as(?actions.MappingPanelAction, .{ .save_confirm = path }),
-                                .cancelled => @as(?actions.MappingPanelAction, .save_cancel),
-                            } else null;
-                        },
                     };
                     if (map_action) |action| {
                         rv = .{ .mapping_panel = action };

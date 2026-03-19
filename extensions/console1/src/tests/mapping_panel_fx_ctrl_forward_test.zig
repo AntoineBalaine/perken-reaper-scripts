@@ -41,24 +41,6 @@ test "mapping browse mode forwards non reserved midi to fx ctrl" {
     try testing.expect(g.state.current_mode == .mapping_panel);
 }
 
-// Test 2: MIDI controller inputs in save sub-mode forward non-reserved CCs to fx_ctrl
-test "save mode forwards non reserved midi to fx ctrl" {
-    const allocator = testing.allocator;
-    var g = try setupGlobals(allocator);
-    defer teardownGlobals(&g);
-
-    // Set up save sub-mode with dummy mappings
-    const dummy_mappings = ModuleMappings{ .INPUT = mappings.Inpt{} };
-    g.state.mapping_panel.mode = .{ .save = statemachine.SaveState.init(allocator, dummy_mappings, "/tmp/maps") };
-    g.state.mapping_panel.mode.save.file_browser.refresh();
-    // No explicit defer here because teardownGlobals already calls deinit on the mapping panel.
-
-    // Verify mode setup
-    try testing.expect(g.state.current_mode == .mapping_panel);
-    try testing.expect(g.state.mapping_panel.mode == .save);
-}
-
-// Test 3: MIDI controller inputs in assign sub-mode forward non-reserved CCs to fx_ctrl
 test "assign mode forwards non reserved midi to fx ctrl" {
     const allocator = testing.allocator;
     var g = try setupGlobals(allocator);
@@ -109,11 +91,4 @@ test "all mapping panel sub modes exist" {
     const dummy_mappings1 = ModuleMappings{ .INPUT = mappings.Inpt{} };
     g.state.mapping_panel.mode = .{ .assign = statemachine.AssignState.init(allocator, dummy_mappings1) };
     try testing.expect(g.state.mapping_panel.mode == .assign);
-
-    // Save mode
-    g.state.mapping_panel.deinitCurrentSubMode();
-    const dummy_mappings2 = ModuleMappings{ .INPUT = mappings.Inpt{} };
-    g.state.mapping_panel.mode = .{ .save = statemachine.SaveState.init(allocator, dummy_mappings2, "/tmp/maps") };
-    g.state.mapping_panel.mode.save.file_browser.refresh();
-    try testing.expect(g.state.mapping_panel.mode == .save);
 }
