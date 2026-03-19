@@ -72,6 +72,7 @@ track_state: TrackState = .{},
 /// because of the eval branch quota limitations on large enums.
 values: std.AutoArrayHashMap(c1.CCs, ControlValue),
 scRouting: SCRouting = .off,
+filter_to_comp: bool = false,
 
 /// Display settings
 display: ?u8 = null,

@@ -19,6 +19,7 @@ pub fn roundButton(
     provided_radius: ?f64,
     text_position: ?TextPosition,
     disabled: ?bool,
+    color: ?c_int,
 ) !bool {
     const is_disabled = disabled orelse false;
     const radius = if (provided_radius) |rad| rad else 5.0;
@@ -116,10 +117,8 @@ pub fn roundButton(
         // Check if the button is hovered
         const isHovered = try imgui.IsItemHovered(.{ ctx, imgui.HoveredFlags_None });
 
-        // Define base color and adjust based on hover state
-        var buttonColor: c_int = -1; // Default white color
+        var buttonColor: c_int = color orelse -1;
         if (isHovered or is_disabled) {
-            // Brighten the color when hovered (similar to knob.zig)
             buttonColor = knob.adjustBrightness(buttonColor, -50, false);
         }
 

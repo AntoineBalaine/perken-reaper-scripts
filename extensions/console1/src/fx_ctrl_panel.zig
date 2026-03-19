@@ -176,14 +176,23 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
             rv = .{ .cc = .Inpt_disp_mode, .value = 1.0 };
         }
         {
-            // Calculate max width for this column's knobs
+            const ftc = fx_state.filter_to_comp;
+
+            // When filter_to_comp is active, check whether the COMP mapping
+            // has the filter params defined; if not, disable the knobs.
+            const comp_filter_unmapped = if (ftc) blk: {
+                const comp_loc = fx_state.track_state.module_locations.get(.COMP) orelse break :blk true;
+                const mapping = comp_loc.mapping orelse break :blk true;
+                break :blk (mapping.COMP.Comp_HiCut == null and mapping.COMP.Comp_LoCut == null);
+            } else false;
+
             const hicut_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_HiCut,
+                .fx_ctrl, .mapping_panel, .fx_sel => if (ftc) .fx_ctrl_Comp_HiCut else .fx_ctrl_Inpt_HiCut,
                 .transport => .trsprt_Inpt_HiCut,
                 else => null,
             };
             const hicut_label = if (hicut_key) |key| tr(translations, key) else null;
-            const hicut_disabled = (hicut_label == null);
+            const hicut_disabled = (hicut_label == null) or comp_filter_unmapped;
             const hicut_no_val_display = hicut_disabled or value_display_disabled;
             const hicut_label_id = Knobs.LabelId{
                 .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{hicut_label orelse "-"}),
@@ -191,11 +200,11 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
             };
 
             const locut_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_LoCut,
+                .fx_ctrl, .mapping_panel, .fx_sel => if (ftc) .fx_ctrl_Comp_LoCut else .fx_ctrl_Inpt_LoCut,
                 else => null,
             };
             const locut_label = if (locut_key) |key| tr(translations, key) else null;
-            const locut_disabled = (locut_label == null);
+            const locut_disabled = (locut_label == null) or comp_filter_unmapped;
             const locut_no_val_display = locut_disabled or value_display_disabled;
             var label_buf2: [128:0]u8 = undefined;
             const locut_label_id = Knobs.LabelId{
@@ -205,17 +214,19 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
             var offsets = [_]?f64{ null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hicut_label_id.label, locut_label_id.label }, &offsets);
 
-            // First knob
+            // First knob - read from the virtual CC when filter_to_comp is active
+            const hicut_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
             var hicut_val: f64 = if (mode == .transport)
                 @as(f64, @floatFromInt(transport.rate)) / 127.0
             else
-                fx_state.values.get(.Inpt_HiCut).?.param.normalized;
+                fx_state.values.get(hicut_cc).?.param.normalized;
             if (try Knobs.drawWidget(ctx, &hicut_val, hicut_label_id, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled }, max_width)) {
                 rv = .{ .cc = .Inpt_HiCut, .value = hicut_val };
             }
 
             // Second knob
-            var locut_prm = fx_state.values.get(.Inpt_LoCut).?.param;
+            const locut_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
+            var locut_prm = fx_state.values.get(locut_cc).?.param;
             if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_label_id, .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled }, max_width)) {
                 rv = .{ .cc = .Inpt_LoCut, .value = locut_prm.normalized };
             }
@@ -228,7 +239,11 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         const filt_to_comp_label = if (filt_to_comp_key) |key| tr(translations, key) else null;
         const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
         const filt_to_comp_disabled = (filt_to_comp_label == null);
-        if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_disabled })) {}
+        // Orange color (ABGR) when the toggle is active
+        const ftc_color: ?c_int = if (fx_state.filter_to_comp) @as(c_int, @bitCast(@as(u32, 0xFF00A5FF))) else null;
+        if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_disabled, ftc_color })) {
+            rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
+        }
 
         const phase_inv_key: ?TranslationKey = switch (mode) {
             .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_phase_inv,

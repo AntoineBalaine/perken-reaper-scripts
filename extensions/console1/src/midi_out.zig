@@ -179,24 +179,17 @@ test {
 }
 
 fn fxCtrlEntry(globals: *Globals, midi_out: reaper.midi_Output) void {
-    // First clear everything
     clearAllLEDs(midi_out);
-
-    // 1. Set track selection LEDs
-    // handleTrackSelectFeedback(midi_out);
     updateTrackListLEDs(globals, midi_out);
 
     if (globals.state.current_tr_id) |tr_id| {
         const track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-        // 2. Set track controls (vol, pan, mute, solo, phase inv.)
         sendTrkCtrlFdb(midi_out, track);
-
-        // 3. Set module order LED
         setParamLED(c1.CCs.Tr_order, @intFromEnum(globals.state.fx_ctrl.track_state.getModulesOrder()), midi_out);
-
-        // 4. Set all module parameters based on mappings
         updateAllModuleParams(globals, midi_out, track);
     }
+
+    setParamLED(c1.CCs.Inpt_filt_to_comp, if (globals.state.fx_ctrl.filter_to_comp) 0x7f else 0x00, midi_out);
 }
 /// Set track controls' LEDs (vol, pan, mute, solo, phase inv.)
 /// Queries reaper ap

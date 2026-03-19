@@ -238,6 +238,8 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     .Comp_Release => comp.Comp_Release = mapping.param,
                     .Comp_Thresh => comp.Comp_Thresh = mapping.param,
                     .Comp_comp => comp.Comp_comp = mapping.param,
+                    .Comp_HiCut => comp.Comp_HiCut = mapping.param,
+                    .Comp_LoCut => comp.Comp_LoCut = mapping.param,
                     else => {},
                 },
                 .EQ => |*eq| switch (mapping.control) {
@@ -299,6 +301,8 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     .Comp_Release => comp.Comp_Release = null,
                     .Comp_Thresh => comp.Comp_Thresh = null,
                     .Comp_comp => comp.Comp_comp = null,
+                    .Comp_HiCut => comp.Comp_HiCut = null,
+                    .Comp_LoCut => comp.Comp_LoCut = null,
                     else => {},
                 },
                 .EQ => |*eq| switch (control) {

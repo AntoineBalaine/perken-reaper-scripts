@@ -106,6 +106,15 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
 
                         // Send MIDI feedback to update the console's knob LEDs
                         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = control_cc, .value = @intFromFloat(prm_chg.value * 127.0) } } });
+
+                        // When filter_to_comp is active, comp filter updates also
+                        // need to reach the physical Inpt_HiCut/LoCut LEDs.
+                        if (globals.state.fx_ctrl.filter_to_comp) {
+                            const physical_cc: ?c1.CCs = if (control_cc == .Comp_HiCut) .Inpt_HiCut else if (control_cc == .Comp_LoCut) .Inpt_LoCut else null;
+                            if (physical_cc) |pcc| {
+                                actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = pcc, .value = @intFromFloat(prm_chg.value * 127.0) } } });
+                            }
+                        }
                     }
                 }
             }

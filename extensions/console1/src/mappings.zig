@@ -17,6 +17,8 @@ pub const Comp = struct {
     Comp_Release: ?u16 = null,
     Comp_Thresh: ?u16 = null,
     Comp_comp: ?u16 = null,
+    Comp_HiCut: ?u16 = null,
+    Comp_LoCut: ?u16 = null,
     // Comp_Mtr : u8,
 };
 
@@ -787,6 +789,8 @@ pub fn getParamForCC(cc: c1.CCs, mapping: TaggedMapping) ?u16 {
         .Comp_Release => mapping.COMP.Comp_Release,
         .Comp_Thresh => mapping.COMP.Comp_Thresh,
         .Comp_comp => mapping.COMP.Comp_comp,
+        .Comp_HiCut => mapping.COMP.Comp_HiCut,
+        .Comp_LoCut => mapping.COMP.Comp_LoCut,
 
         // EQ module parameters
         .Eq_HiFrq => mapping.EQ.Eq_HiFrq,

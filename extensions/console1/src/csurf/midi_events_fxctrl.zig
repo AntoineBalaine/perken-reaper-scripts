@@ -36,7 +36,14 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
                 actions.dispatch(globals, .{ .fx_ctrl = .{ .fx_win_disp = mediaTrack } });
             }
         },
-        .Inpt_filt_to_comp => {},
+        .Inpt_filt_to_comp => {
+            globals.state.fx_ctrl.filter_to_comp = !globals.state.fx_ctrl.filter_to_comp;
+            actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{
+                .cc = .Inpt_filt_to_comp,
+                .value = if (globals.state.fx_ctrl.filter_to_comp) 0x7f else 0x00,
+            } } });
+            syncFilterKnobs(globals);
+        },
         .Inpt_phase_inv => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 actions.dispatch(globals, .{ .fx_ctrl = .{ .toggle_phase_inv = tr } });
@@ -122,12 +129,25 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
             const track_idx = getTrackIndex(.Tr_tr20, globals.state.fx_ctrl.current_page);
             actions.dispatch(globals, .{ .track_list = .{ .track_select = @intCast(track_idx) } });
         },
+        .Inpt_HiCut, .Inpt_LoCut => {
+            if (globals.state.fx_ctrl.filter_to_comp) {
+                onMidiEvent_FxCtrl(if (cc == .Inpt_HiCut) .Comp_HiCut else .Comp_LoCut, val, globals);
+            } else {
+                if (getTrack(globals.state.current_tr_id)) |tr| {
+                    if (cc == .Inpt_HiCut) {
+                        setPrmVal(.Inpt_HiCut, .INPUT, tr, val, &globals.state.fx_ctrl);
+                    } else {
+                        setPrmVal(.Inpt_LoCut, .INPUT, tr, val, &globals.state.fx_ctrl);
+                    }
+                }
+            }
+        },
         inline else => |cc_| {
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 setPrmVal(cc_, switch (cc_) {
-                    .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp => .COMP,
+                    .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp, .Comp_HiCut, .Comp_LoCut => .COMP,
                     .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
-                    .Inpt_Gain, .Inpt_HiCut, .Inpt_LoCut => .INPUT,
+                    .Inpt_Gain => .INPUT,
                     .Out_Drive, .Out_DriveChar => .OUTPT,
                     .Shp_GateRelease, .Shp_Gate, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
                     else => unreachable,
@@ -187,6 +207,45 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: ModulesList, tr: reaper.
             _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
         }
     }
+}
+
+pub fn syncFilterKnobs(globals: *Globals) void {
+    const tr = getTrack(globals.state.current_tr_id) orelse return;
+    const fx_ctrl = &globals.state.fx_ctrl;
+    var lo: f64 = 0.0;
+    var hi: f64 = 0.0;
+
+    if (fx_ctrl.filter_to_comp) {
+        if (fx_ctrl.track_state.module_locations.get(.COMP)) |comp_loc| {
+            if (comp_loc.mapping) |mapping| {
+                if (mapping.COMP.Comp_HiCut) |param|
+                    hi = reaper.TrackFX_GetParamNormalized(tr, comp_loc.fx_index, param);
+                if (mapping.COMP.Comp_LoCut) |param|
+                    lo = reaper.TrackFX_GetParamNormalized(tr, comp_loc.fx_index, param);
+            }
+        }
+    } else {
+        if (fx_ctrl.track_state.module_locations.get(.INPUT)) |input_loc| {
+            if (input_loc.mapping) |mapping| {
+                if (mapping.INPUT.Inpt_HiCut) |param|
+                    hi = reaper.TrackFX_GetParamNormalized(tr, input_loc.fx_index, param);
+                if (mapping.INPUT.Inpt_LoCut) |param|
+                    lo = reaper.TrackFX_GetParamNormalized(tr, input_loc.fx_index, param);
+            }
+        }
+    }
+    const hicut_cc: c1.CCs = if (fx_ctrl.filter_to_comp) .Comp_HiCut else .Inpt_HiCut;
+    const locut_cc: c1.CCs = if (fx_ctrl.filter_to_comp) .Comp_LoCut else .Inpt_LoCut;
+    setUIVal(hicut_cc, hi, fx_ctrl);
+    setUIVal(locut_cc, lo, fx_ctrl);
+    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{
+        .cc = .Inpt_HiCut,
+        .value = @intFromFloat(@min(hi, 1.0) * 127),
+    } } });
+    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{
+        .cc = .Inpt_LoCut,
+        .value = @intFromFloat(@min(lo, 1.0) * 127),
+    } } });
 }
 
 inline fn getTrackIndex(cc: c1.CCs, page_offset: u8) usize {

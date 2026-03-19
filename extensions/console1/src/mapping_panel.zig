@@ -814,6 +814,28 @@ fn compMappingPanel(
         if (try mappingWidget(ctx, state, assign_state, .Comp_Thresh, thresh_label, .knob, disabled, translations)) |act| {
             rv = act;
         }
+
+        // Comp HiCut knob
+        const comp_hicut_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Comp_HiCut,
+            else => null,
+        };
+        const comp_hicut_label = if (comp_hicut_key) |key| tr(translations, key) else "-";
+
+        if (try mappingWidget(ctx, state, assign_state, .Comp_HiCut, comp_hicut_label, .knob, disabled, translations)) |act| {
+            rv = act;
+        }
+
+        // Comp LoCut knob
+        const comp_locut_key: ?TranslationKey = switch (mode) {
+            .fx_ctrl => .fx_ctrl_Comp_LoCut,
+            else => null,
+        };
+        const comp_locut_label = if (comp_locut_key) |key| tr(translations, key) else "-";
+
+        if (try mappingWidget(ctx, state, assign_state, .Comp_LoCut, comp_locut_label, .knob, disabled, translations)) |act| {
+            rv = act;
+        }
     }
 
     return rv;

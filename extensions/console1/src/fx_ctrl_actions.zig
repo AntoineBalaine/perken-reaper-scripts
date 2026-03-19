@@ -102,6 +102,37 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                         globals.state.fx_ctrl.validateTrack(order, media_track, null, globals.preferences.manual_routing, globals.preferences.default_fx, &globals.map_store, &globals.preferences) catch {};
                     }
                 },
+                .Inpt_filt_to_comp => {
+                    globals.state.fx_ctrl.filter_to_comp = !globals.state.fx_ctrl.filter_to_comp;
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{
+                        .cc = .Inpt_filt_to_comp,
+                        .value = if (globals.state.fx_ctrl.filter_to_comp) 0x7f else 0x00,
+                    } } });
+                    MidiEvts.syncFilterKnobs(globals);
+                },
+                .Inpt_HiCut, .Inpt_LoCut => {
+                    if (globals.state.fx_ctrl.filter_to_comp) {
+                        const remapped: c1.CCs = if (input.cc == .Inpt_HiCut) .Comp_HiCut else .Comp_LoCut;
+                        fxCtrlActions(globals, .{ .panel_input = .{ .cc = remapped, .value = input.value } });
+                        // MIDI feedback to the physical CC for hardware LED sync
+                        actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
+                        return;
+                    }
+                    // Fall through to the generic handler for the INPUT path
+                    if (globals.state.fx_ctrl.values.getPtr(input.cc)) |value_ptr| {
+                        value_ptr.param.normalized = input.value;
+                    }
+                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
+                    if (globals.state.current_tr_id) |tr_id| {
+                        const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+                        const input_loc = globals.state.fx_ctrl.track_state.module_locations.get(.INPUT) orelse return;
+                        const mapping = input_loc.mapping orelse return;
+                        const param_idx = @import("mappings.zig").getParamForCC(input.cc, mapping);
+                        if (param_idx) |param| {
+                            _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, input_loc.fx_index, param, input.value });
+                        }
+                    }
+                },
                 else => {
                     // Get the control value pointer
                     if (globals.state.fx_ctrl.values.getPtr(input.cc)) |value_ptr| {
