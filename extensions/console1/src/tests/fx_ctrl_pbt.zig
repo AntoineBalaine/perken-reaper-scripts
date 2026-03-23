@@ -66,10 +66,9 @@ const System = struct {
         self.globals.state.fx_ctrl.track_state.forward_map.clearRetainingCapacity();
     }
 
-    pub fn deinit(self: *System) void {
-        self.globals.state.fx_ctrl.track_state.deinitMaps(std.testing.allocator);
-        self.globals.state.fx_ctrl.track_state.reverse_map = .empty;
-        self.globals.state.fx_ctrl.track_state.forward_map = .empty;
+    pub fn deinit(_: *System) void {
+        // Globals.deinit handles deinitMaps with globals.arena,
+        // which is the same allocator used in populateMapsFromMapping.
     }
 };
 
@@ -136,7 +135,7 @@ const SetTrackCmd = struct {
                     TrackState.populateMapsFromMapping(
                         &sut.globals.state.fx_ctrl.track_state.reverse_map,
                         &sut.globals.state.fx_ctrl.track_state.forward_map,
-                        std.testing.allocator,
+                        sut.globals.arena,
                         mapping,
                         loc.fx_index,
                     );
@@ -563,4 +562,3 @@ test "fx_ctrl stateful - with random bytes" {
         try fxCtrlStatefulTest({}, &random_bytes);
     }
 }
-
