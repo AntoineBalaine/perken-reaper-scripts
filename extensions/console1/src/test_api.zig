@@ -16,6 +16,7 @@ const reaper = @import("reaper.zig").reaper;
 const actions = @import("actions.zig");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;
+const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const imgui_loop = @import("imgui_loop.zig");
 const getGlobals = @import("console1_extension.zig").getGlobals;
 const log = std.log.scoped(.test_api);
@@ -151,6 +152,80 @@ fn varargFxSelSwap(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyop
 
 const apidef_FxSelSwap: [*:0]const u8 = "bool\x00const char*,const char*\x00module_name,plugin_name\x00Console1: Triggers an FX swap for the given module (INPUT/GATE/EQ/COMP/OUTPT) with the named plugin.\x00";
 
+// -- C1_GetModuleOrder: returns the current module order label --
+
+fn apiGetModuleOrder() callconv(.C) [*:0]const u8 {
+    const globals = getGlobals();
+    return @tagName(globals.state.fx_ctrl.track_state.getModulesOrder());
+}
+
+fn varargGetModuleOrder(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyopaque {
+    _ = .{ arglist, numparms };
+    return @ptrCast(@constCast(apiGetModuleOrder()));
+}
+
+const apidef_GetModuleOrder: [*:0]const u8 = "const char*\x00\x00\x00Console1: Returns current module order (EQ-S-C, S-C-EQ, or S-EQ-C).\x00";
+
+// -- C1_GetModuleLocations: returns fx_index for each module --
+
+fn apiGetModuleLocations() callconv(.C) [*:0]const u8 {
+    const globals = getGlobals();
+    const locs = globals.state.fx_ctrl.track_state.getModuleLocations() orelse return "no locations";
+    const PhysicalModule = statemachine.PhysicalModule;
+
+    const buf = struct {
+        var data: [256]u8 = undefined;
+    };
+
+    var pos: usize = 0;
+    inline for (comptime std.enums.values(PhysicalModule)) |module| {
+        const name = @tagName(module);
+        if (locs.get(module)) |loc| {
+            const written = std.fmt.bufPrint(buf.data[pos..], "{s}={d} ", .{ name, loc.fx_index }) catch break;
+            pos += written.len;
+        } else {
+            const written = std.fmt.bufPrint(buf.data[pos..], "{s}=null ", .{name}) catch break;
+            pos += written.len;
+        }
+    }
+    if (pos > 0) pos -= 1; // trim trailing space
+    buf.data[pos] = 0;
+    return @ptrCast(&buf.data);
+}
+
+fn varargGetModuleLocations(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyopaque {
+    _ = .{ arglist, numparms };
+    return @ptrCast(@constCast(apiGetModuleLocations()));
+}
+
+const apidef_GetModuleLocations: [*:0]const u8 = "const char*\x00\x00\x00Console1: Returns fx_index for each module (INPUT=0 GATE=1 etc).\x00";
+
+// -- C1_SetModuleOrder: triggers a module reorder --
+
+fn apiSetModuleOrder(order_name: [*:0]const u8) callconv(.C) bool {
+    const name = std.mem.span(order_name);
+    const order = std.meta.stringToEnum(ModulesOrder, name) orelse {
+        log.err("C1_SetModuleOrder: unknown order '{s}'", .{name});
+        return false;
+    };
+    const globals = getGlobals();
+    actions.dispatch(globals, .{ .fx_ctrl = .{ .panel_input = .{
+        .cc = .Tr_order,
+        .value = @as(f64, @floatFromInt(@intFromEnum(order))),
+    } } });
+    return true;
+}
+
+fn varargSetModuleOrder(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyopaque {
+    _ = numparms;
+    const args = arglist orelse return null;
+    const order_name: [*:0]const u8 = @ptrCast(args.* orelse return null);
+    const result = apiSetModuleOrder(order_name);
+    return if (result) @ptrFromInt(1) else @ptrFromInt(0);
+}
+
+const apidef_SetModuleOrder: [*:0]const u8 = "bool\x00const char*\x00order_name\x00Console1: Triggers a module reorder. Valid orders: EQ-S-C, S-C-EQ, S-EQ-C.\x00";
+
 // -- Registration --
 
 fn reg(
@@ -174,4 +249,7 @@ pub fn registerTestApis() void {
     reg("API_C1_EnableUI", @ptrCast(@constCast(&apiEnableUI)), "APIvararg_C1_EnableUI", @ptrCast(@constCast(&varargEnableUI)), "APIdef_C1_EnableUI", @ptrCast(@constCast(apidef_EnableUI)));
     reg("API_C1_GetUIStatus", @ptrCast(@constCast(&apiGetUIStatus)), "APIvararg_C1_GetUIStatus", @ptrCast(@constCast(&varargGetUIStatus)), "APIdef_C1_GetUIStatus", @ptrCast(@constCast(apidef_GetUIStatus)));
     reg("API_C1_FxSelSwap", @ptrCast(@constCast(&apiFxSelSwap)), "APIvararg_C1_FxSelSwap", @ptrCast(@constCast(&varargFxSelSwap)), "APIdef_C1_FxSelSwap", @ptrCast(@constCast(apidef_FxSelSwap)));
+    reg("API_C1_GetModuleOrder", @ptrCast(@constCast(&apiGetModuleOrder)), "APIvararg_C1_GetModuleOrder", @ptrCast(@constCast(&varargGetModuleOrder)), "APIdef_C1_GetModuleOrder", @ptrCast(@constCast(apidef_GetModuleOrder)));
+    reg("API_C1_GetModuleLocations", @ptrCast(@constCast(&apiGetModuleLocations)), "APIvararg_C1_GetModuleLocations", @ptrCast(@constCast(&varargGetModuleLocations)), "APIdef_C1_GetModuleLocations", @ptrCast(@constCast(apidef_GetModuleLocations)));
+    reg("API_C1_SetModuleOrder", @ptrCast(@constCast(&apiSetModuleOrder)), "APIvararg_C1_SetModuleOrder", @ptrCast(@constCast(&varargSetModuleOrder)), "APIdef_C1_SetModuleOrder", @ptrCast(@constCast(apidef_SetModuleOrder)));
 }

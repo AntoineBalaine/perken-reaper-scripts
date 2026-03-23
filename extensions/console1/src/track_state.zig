@@ -1257,23 +1257,20 @@ fn insertModuleLinkedFx(
 /// Applies index shifts to coverage after moving an FX from one position to another.
 /// Because moving an FX removes it from the source position and inserts at the target,
 /// this affects indices of FX between the source and target positions.
-/// Note: This accounts for the same-track adjustment done by TrackFX_CopyToTrack where
-/// the actual destination is (to_index - 1) when from_index < to_index.
+/// REAPER's TrackFX_CopyToTrack destination index is the final position after the move,
+/// not pre-removal. So moving from 0 to 2 places the FX at index 2.
 fn applyMove(coverage: *ModuleCoverage, from_index: i32, to_index: i32) void {
-    // Apply the same adjustment as TrackFX_CopyToTrack for same-track moves
-    const actual_to_index = if (from_index < to_index) to_index - 1 else to_index;
-
     inline for (std.meta.fields(ModuleCoverage)) |field| {
         const field_ptr = &@field(coverage, field.name);
         if (field_ptr.*) |*loc| {
-            if (from_index < actual_to_index) {
-                // Moving right: items in (from_index, actual_to_index] shift left by 1
-                if (loc.index > from_index and loc.index <= actual_to_index) {
+            if (from_index < to_index) {
+                // Moving right: items in (from_index, to_index] shift left by 1
+                if (loc.index > from_index and loc.index <= to_index) {
                     loc.index -= 1;
                 }
-            } else if (from_index > actual_to_index) {
-                // Moving left: items in [actual_to_index, from_index) shift right by 1
-                if (loc.index >= actual_to_index and loc.index < from_index) {
+            } else if (from_index > to_index) {
+                // Moving left: items in [to_index, from_index) shift right by 1
+                if (loc.index >= to_index and loc.index < from_index) {
                     loc.index += 1;
                 }
             }
@@ -1456,8 +1453,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                 });
 
                 applyMove(&coverage, current_index, target_index);
-                const actual_target = if (current_index < target_index) target_index - 1 else target_index;
-                module_loc.index = actual_target;
+                module_loc.index = target_index;
             }
         }
 
@@ -1485,8 +1481,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                     });
 
                     applyMove(&coverage, current_index, target_index);
-                    const actual_target = if (current_index < target_index) target_index - 1 else target_index;
-                    module_loc.index = actual_target;
+                    module_loc.index = target_index;
                 }
             }
         }
@@ -1516,8 +1511,7 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
                 });
 
                 applyMove(&coverage, from_index, target_pos);
-                const actual_target = if (from_index < target_pos) target_pos - 1 else target_pos;
-                coverage.OUTPT.?.index = actual_target;
+                coverage.OUTPT.?.index = target_pos;
             }
         }
     }
@@ -1580,8 +1574,7 @@ pub fn setModulesOrder(
 
     // Update coverage positions with manual tracking
     applyMove(&coverage, from_index, eq_target_pos);
-    const actual_target = if (from_index < eq_target_pos) eq_target_pos - 1 else eq_target_pos;
-    coverage.EQ.?.index = actual_target;
+    coverage.EQ.?.index = eq_target_pos;
 
     // Update mode with new positions
     inline for (comptime std.enums.values(PhysicalModule)) |module| {

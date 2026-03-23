@@ -309,16 +309,11 @@ fn TrackFX_CopyToTrack(source_track: reaper.MediaTrack, source_fx: c_int, dest_t
     const src = src_ptr.?;
     const dst = dst_ptr.?;
 
-    // Calculate adjusted destination index for same-track moves
-    const actual_dest_fx = if (src == dst and source_fx < dest_fx)
-        dest_fx - 1
-    else
-        dest_fx;
-
     if (is_move) {
-        // Move: remove from source and insert at destination
+        // REAPER's TrackFX_CopyToTrack destination is the final position after
+        // the move. We remove first, then insert at dest_fx.
         const removed_fx = src.fx_list.orderedRemove(@intCast(source_fx));
-        dst.fx_list.insert(gpa, @intCast(actual_dest_fx), removed_fx) catch return;
+        dst.fx_list.insert(gpa, @intCast(dest_fx), removed_fx) catch return;
     } else {
         // Copy: clone the FX and insert at destination
         // Note: This requires deep copying all strings and params
