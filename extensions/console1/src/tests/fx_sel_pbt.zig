@@ -279,6 +279,3 @@ test "fx_sel stateful - with random bytes" {
     }
 }
 
-test fxSelStatefulTest {
-    try std.testing.fuzz({}, fxSelStatefulTest, .{});
-}

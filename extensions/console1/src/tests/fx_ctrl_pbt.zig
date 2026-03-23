@@ -68,6 +68,8 @@ const System = struct {
 
     pub fn deinit(self: *System) void {
         self.globals.state.fx_ctrl.track_state.deinitMaps(std.testing.allocator);
+        self.globals.state.fx_ctrl.track_state.reverse_map = .empty;
+        self.globals.state.fx_ctrl.track_state.forward_map = .empty;
     }
 };
 
@@ -562,6 +564,3 @@ test "fx_ctrl stateful - with random bytes" {
     }
 }
 
-test fxCtrlStatefulTest {
-    try std.testing.fuzz({}, fxCtrlStatefulTest, .{});
-}

@@ -457,6 +457,3 @@ test "transport stateful - with random bytes" {
     }
 }
 
-test transportStatefulTest {
-    try std.testing.fuzz({}, transportStatefulTest, .{});
-}

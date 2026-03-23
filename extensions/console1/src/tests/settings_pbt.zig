@@ -552,6 +552,3 @@ test "settings stateful - with random bytes" {
     }
 }
 
-test settingsStatefulTest {
-    try std.testing.fuzz({}, settingsStatefulTest, .{});
-}
