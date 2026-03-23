@@ -175,7 +175,7 @@ const SetTrackCmd = struct {
             sut.globals.state.fx_ctrl.values.put(cc, .{ .param = .{ .normalized = 0.5 } }) catch unreachable;
         }
         for (testable_button_ccs) |cc| {
-            sut.globals.state.fx_ctrl.values.put(cc, .{ .button = false }) catch unreachable;
+            sut.globals.state.fx_ctrl.values.put(cc, .{ .param = .{ .normalized = 0.0 } }) catch unreachable;
         }
 
         // Populate the label pool from forward map + REAPER mock
@@ -275,6 +275,8 @@ const PanelInputParamCmd = struct {
 };
 
 // PanelInputButtonCmd: simulates panel_input for a button-type CC.
+// Because button CCs use cycling logic, the sent value is ignored — each
+// press toggles the param (for toggle params with range 0-1).
 const PanelInputButtonCmd = struct {
     cc: c1.CCs,
     value: f64,
@@ -286,29 +288,32 @@ const PanelInputButtonCmd = struct {
     }
 
     pub fn onModelOnly(self: *@This(), model: *Model) void {
-        // Buttons store normalized value in the model (converted to bool in the system)
-        model.param_values.put(self.cc, self.value) catch unreachable;
+        // Cycling toggles: 0 -> 1, nonzero -> 0
+        const current = model.param_values.get(self.cc) orelse 0.0;
+        const next: f64 = if (current > 0.5) 0.0 else 1.0;
+        model.param_values.put(self.cc, next) catch unreachable;
     }
 
     pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
         fx_ctrl_actions.fxCtrlActions(sut.globals, .{ .panel_input = .{ .cc = self.cc, .value = self.value } });
         self.onModelOnly(model);
 
-        // Verify application state (button stores bool)
+        const expected = model.param_values.get(self.cc) orelse return false;
+
+        // Verify application state (mappable buttons are stored as .param)
         const state_val = sut.globals.state.fx_ctrl.values.get(self.cc) orelse return false;
-        const state_bool = switch (state_val) {
-            .button => |b| b,
+        const state_norm = switch (state_val) {
+            .param => |p| p.normalized,
             else => return false,
         };
-        const expected_bool = self.value > 0.5;
-        if (state_bool != expected_bool) return false;
+        if (@abs(state_norm - expected) > 0.001) return false;
 
         // Verify REAPER mock parameter was updated
         const media_track = reaper.CSurf_TrackFromID(model.current_track_id.?, false);
         const fx_idx = getFxIdx(self.cc) orelse return false;
         const param_idx = getParamIdx(self.cc) orelse return false;
         const reaper_val = reaper.TrackFX_GetParamNormalized(media_track, fx_idx, param_idx);
-        if (@abs(reaper_val - self.value) > 0.001) return false;
+        if (@abs(reaper_val - expected) > 0.001) return false;
 
         return true;
     }

@@ -13,6 +13,7 @@ const reaeq = @import("../reaeq.zig");
 const log = std.log.scoped(.csurf);
 const TrackList = @import("../fx_ctrl_state.zig").TrackList;
 const utils = @import("../utils.zig");
+const TrackState = @import("../track_state.zig");
 const FxCtrlState = @import("../fx_ctrl_state.zig").FxControlState;
 
 var tmp: [4096:0]u8 = undefined;
@@ -227,7 +228,15 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
                 // at fxIdx, at fxPrm, set the value
                 if (fxPrm) |param| {
                     log.info("set param\n", .{});
-                    _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
+                    if (comptime cc.isBtn()) {
+                        // Button CCs use cycling logic for discrete/toggle params
+                        const fxp = fx_ctrl.track_state.forward_map.get(cc);
+                        const is_toggle = if (fxp) |f| f.is_toggle else false;
+                        const new_norm = TrackState.cycleDiscreteParam(tr, fxIdx, param, is_toggle);
+                        setUIVal(cc, new_norm, fx_ctrl);
+                    } else {
+                        _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
+                    }
                     var fmt_buf: [256:0]u8 = undefined;
                     if (reaper.TrackFX_GetFormattedParamValue(tr, fxIdx, param, &fmt_buf, fmt_buf.len)) {
                         fx_ctrl.track_state.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
@@ -240,7 +249,12 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
                 pReaper.TrackFX_Show(.{ tr, strip.fx_index, 1 });
             }
             if (fx_ctrl.track_state.forward_map.get(cc)) |fxp| {
-                _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, norm_val });
+                if (comptime cc.isBtn()) {
+                    const new_norm = TrackState.cycleDiscreteParam(tr, fxp.fx_index, fxp.param_index, fxp.is_toggle);
+                    setUIVal(cc, new_norm, fx_ctrl);
+                } else {
+                    _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, norm_val });
+                }
                 var fmt_buf: [256:0]u8 = undefined;
                 if (reaper.TrackFX_GetFormattedParamValue(tr, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
                     fx_ctrl.track_state.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));

@@ -38,6 +38,7 @@ const ActiveModules = packed struct {
 pub const FxParam = struct {
     fx_index: c_int,
     param_index: u16,
+    is_toggle: bool = false,
 };
 
 pub const ParamKey = packed struct {
@@ -81,12 +82,58 @@ pub fn deinitMaps(self: *TrackState, allocator: std.mem.Allocator) void {
     self.forward_map.deinit(allocator);
 }
 
+fn normalizeToRange(value: f64, min: f64, max: f64) f64 {
+    const range = max - min;
+    std.debug.assert(range >= 0.0);
+    return if (range == 0.0) 0.0 else (value - min) / range;
+}
+
+/// Cycle a discrete parameter to its next value using native (non-normalized) values.
+/// For toggle params, flips between min and max. For multi-step discrete params,
+/// increments by step and wraps at max. For continuous params on a button, toggles
+/// around the midpoint. Returns the new normalized value after cycling.
+pub fn cycleDiscreteParam(
+    track: reaper.MediaTrack,
+    fx_index: c_int,
+    param_index: c_int,
+    is_toggle: bool,
+) f64 {
+    var min: f64 = undefined;
+    var max: f64 = undefined;
+    var mid: f64 = undefined;
+    const current = reaper.TrackFX_GetParamEx(track, fx_index, param_index, &min, &max, &mid);
+
+    if (is_toggle) {
+        const new_val = if (current > mid) min else max;
+        _ = reaper.TrackFX_SetParam(track, fx_index, param_index, new_val);
+        return normalizeToRange(new_val, min, max);
+    }
+
+    var step: f64 = undefined;
+    var small: f64 = undefined;
+    var large: f64 = undefined;
+    var toggle_unused: bool = undefined;
+    if (reaper.TrackFX_GetParameterStepSizes(track, fx_index, param_index, &step, &small, &large, &toggle_unused)) {
+        if (step >= 1.0) {
+            var next = current + step;
+            if (next > max) next = min;
+            _ = reaper.TrackFX_SetParam(track, fx_index, param_index, next);
+            return normalizeToRange(next, min, max);
+        }
+    }
+
+    // Continuous param on a button: toggle around midpoint
+    const new_val = if (current > mid) min else max;
+    _ = reaper.TrackFX_SetParam(track, fx_index, param_index, new_val);
+    return normalizeToRange(new_val, min, max);
+}
+
 /// Populate the label pool from the forward map and REAPER parameter names.
 /// Because this queries REAPER APIs, it belongs here rather than in label_pool.zig.
 /// Call this immediately after validateTrack at every call site.
 pub fn getLabels(
     label_pool: *LabelPool,
-    forward_map: *const std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam),
+    forward_map: *std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam),
     track: reaper.MediaTrack,
 ) void {
     var query_buf: [256:0]u8 = undefined;
@@ -102,6 +149,16 @@ pub fn getLabels(
                     label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &query_buf)));
                 } else {
                     label_pool.setFmtValue(cc, "-");
+                }
+                // Query step sizes to determine whether the param is a toggle
+                var step: f64 = undefined;
+                var small: f64 = undefined;
+                var large: f64 = undefined;
+                var is_toggle: bool = undefined;
+                if (reaper.TrackFX_GetParameterStepSizes(track, fxp.fx_index, @intCast(fxp.param_index), &step, &small, &large, &is_toggle)) {
+                    if (forward_map.getPtr(cc)) |entry| {
+                        entry.is_toggle = is_toggle;
+                    }
                 }
             } else {
                 label_pool.fillDefaults(cc);

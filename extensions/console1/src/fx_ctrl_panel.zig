@@ -19,6 +19,26 @@ const SCRouting = fx_ctrl_state.SCRouting;
 const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const TransportState = @import("action_types.zig").TransportState;
 const LabelPool = @import("track_state.zig").LabelPool;
+const toggle_active_color = @import("constants.zig").toggle_active_color;
+const button = @import("components/button.zig");
+
+fn renderMappableButton(
+    ctx: imgui.ContextPtr,
+    comptime cc: c1.CCs,
+    fx_state: *FxCtrlState,
+    mode: Mode,
+    text_pos: ?button.TextPosition,
+) !?WidgetInput {
+    const is_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+    const val = fx_state.values.get(cc).?.param.normalized > 0.5;
+    const mapped = is_fx_mode and fx_state.track_state.forward_map.get(cc) != null;
+    const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getPrmLabel(cc) else "-";
+    const color: ?c_int = if (mapped and val) toggle_active_color else null;
+    if (try roundButton(.{ ctx, label, "##" ++ @tagName(cc), null, null, text_pos, !mapped, color })) {
+        return .{ .cc = cc, .value = if (val) 0 else 1 };
+    }
+    return null;
+}
 
 /// Calculate the maximum width of a list of labels and calculate offsets
 /// The offsets buffer will be filled with (max_width - width) / 2 for each label
@@ -77,7 +97,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     }
     try sectional(ctx);
     // Gate Module
-    if (try gatePanel(ctx, mode, fx_state, transport, translations, &id_buf)) |gate_rv| {
+    if (try gatePanel(ctx, mode, fx_state, transport, &id_buf)) |gate_rv| {
         rv = gate_rv;
     }
     try sectional(ctx);
@@ -87,7 +107,7 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     }
     try sectional(ctx);
     // Compressor Module
-    if (try compPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |comp_rv| {
+    if (try compPanel(ctx, mode, fx_state, transport, &id_buf)) |comp_rv| {
         rv = comp_rv;
     }
     try sectional(ctx);
@@ -234,7 +254,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
         const filt_to_comp_disabled = (filt_to_comp_label == null);
         // Orange color (ABGR) when the toggle is active
-        const ftc_color: ?c_int = if (fx_state.filter_to_comp) @as(c_int, @bitCast(@as(u32, 0xFF00A5FF))) else null;
+        const ftc_color: ?c_int = if (fx_state.filter_to_comp) toggle_active_color else null;
         if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_disabled, ftc_color })) {
             rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
         }
@@ -265,24 +285,15 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     return rv;
 }
 
-fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
+fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    const shp_bypass = fx_state.values.get(.Shp_shape).?.button;
-    const shp_bypass_val = shp_bypass;
-    const shp_shape_key: ?TranslationKey = switch (mode) {
-        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Shp_shape,
-        else => null,
-    };
-    const shp_shape_label = if (shp_shape_key) |key| tr(translations, key) else null;
-    const shp_shape_display_label: [:0]const u8 = shp_shape_label orelse "-";
-    const shp_shape_disabled = (shp_shape_label == null);
-    if (try roundButton(.{ ctx, shp_shape_display_label, "##" ++ @tagName(c1.CCs.Inpt_preset), null, null, .right, shp_shape_disabled })) {
-        rv = .{ .cc = .Shp_shape, .value = if (shp_bypass_val) 0 else 1 };
+    if (try renderMappableButton(ctx, .Shp_shape, fx_state, mode, .right)) |action| {
+        rv = action;
     }
 
     // First column
@@ -311,17 +322,8 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
                 rv = .{ .cc = .Shp_Gate, .value = gate_prm.normalized };
             }
 
-            const hard_gate = fx_state.values.get(.Shp_hard_gate).?.button;
-            const hard_gate_val = hard_gate;
-            const hard_gate_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Shp_hard_gate,
-                else => null,
-            };
-            const hard_gate_label = if (hard_gate_key) |key| tr(translations, key) else null;
-            const hard_gate_display_label: [:0]const u8 = hard_gate_label orelse "-";
-            const hard_gate_disabled = (hard_gate_label == null);
-            if (try roundButton(.{ ctx, hard_gate_display_label, "##" ++ @tagName(c1.CCs.Shp_hard_gate), null, null, .below, hard_gate_disabled })) {
-                rv = .{ .cc = .Shp_hard_gate, .value = if (hard_gate_val) 0 else 1 };
+            if (try renderMappableButton(ctx, .Shp_hard_gate, fx_state, mode, .below)) |action| {
+                rv = action;
             }
         }
     }
@@ -392,17 +394,8 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    const eq_bypass = fx_state.values.get(.Eq_eq).?.button;
-    const eq_eq_key: ?TranslationKey = switch (mode) {
-        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_eq,
-        .transport => .trsprt_Eq_eq,
-        else => null,
-    };
-    const eq_eq_label = if (eq_eq_key) |key| tr(translations, key) else null;
-    const eq_eq_display_label: [:0]const u8 = eq_eq_label orelse "-";
-    const eq_eq_disabled = (eq_eq_label == null);
-    if (try roundButton(.{ ctx, eq_eq_display_label, "##" ++ @tagName(c1.CCs.Eq_eq), null, null, .right, eq_eq_disabled })) {
-        rv = .{ .cc = .Eq_eq, .value = if (eq_bypass) 0 else 1 };
+    if (try renderMappableButton(ctx, .Eq_eq, fx_state, mode, .right)) |action| {
+        rv = action;
     }
 
     { // first column
@@ -411,17 +404,8 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
-            const lo_shape = fx_state.values.get(.Eq_lp_shape).?.button;
-            const lp_shape_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_lp_shape,
-                .transport => .trsprt_Eq_lp_shape,
-                else => null,
-            };
-            const lp_shape_label = if (lp_shape_key) |key| tr(translations, key) else null;
-            const lp_shape_display_label: [:0]const u8 = lp_shape_label orelse "-";
-            const lp_shape_disabled = (lp_shape_label == null);
-            if (try roundButton(.{ ctx, lp_shape_display_label, "##" ++ @tagName(c1.CCs.Eq_lp_shape), null, null, .right, lp_shape_disabled })) {
-                rv = .{ .cc = .Eq_lp_shape, .value = if (lo_shape) 0 else 1 };
+            if (try renderMappableButton(ctx, .Eq_lp_shape, fx_state, mode, .right)) |action| {
+                rv = action;
             }
 
             // Calculate max width for this column's knobs
@@ -586,17 +570,8 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
-            const hi_shape = fx_state.values.get(.Eq_hp_shape).?.button;
-            const hp_shape_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_hp_shape,
-                .transport => .trsprt_Eq_hp_shape,
-                else => null,
-            };
-            const hp_shape_label = if (hp_shape_key) |key| tr(translations, key) else null;
-            const hp_shape_display_label: [:0]const u8 = hp_shape_label orelse "-";
-            const hp_shape_disabled = (hp_shape_label == null);
-            if (try roundButton(.{ ctx, hp_shape_display_label, "##" ++ @tagName(c1.CCs.Eq_hp_shape), null, null, .right, hp_shape_disabled })) {
-                rv = .{ .cc = .Eq_hp_shape, .value = if (hi_shape) 0 else 1 };
+            if (try renderMappableButton(ctx, .Eq_hp_shape, fx_state, mode, .right)) |action| {
+                rv = action;
             }
 
             // Calculate max width for this column's knobs
@@ -640,24 +615,15 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
     return rv;
 }
 
-fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
+fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    const comp_bypass = fx_state.values.get(.Comp_comp).?.button;
-    const comp_comp_key: ?TranslationKey = switch (mode) {
-        .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Comp_comp,
-        .transport => .trsprt_Comp_comp,
-        else => null,
-    };
-    const comp_comp_label = if (comp_comp_key) |key| tr(translations, key) else null;
-    const comp_comp_display_label: [:0]const u8 = comp_comp_label orelse "-";
-    const comp_comp_disabled = (comp_comp_label == null);
-    if (try roundButton(.{ ctx, comp_comp_display_label, "##" ++ @tagName(c1.CCs.Comp_comp), null, null, .right, comp_comp_disabled })) {
-        rv = .{ .cc = .Comp_comp, .value = if (comp_bypass) 0 else 1 };
+    if (try renderMappableButton(ctx, .Comp_comp, fx_state, mode, .right)) |action| {
+        rv = action;
     }
 
     // First column

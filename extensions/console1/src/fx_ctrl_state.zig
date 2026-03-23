@@ -95,18 +95,20 @@ pub fn init(gpa: std.mem.Allocator) FxControlState {
             .Tr_tr1, .Tr_tr10, .Tr_tr11, .Tr_tr12, .Tr_tr13, .Tr_tr14, .Tr_tr15, .Tr_tr16, .Tr_tr17, .Tr_tr18, .Tr_tr19, .Tr_tr2, .Tr_tr20, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6, .Tr_tr7, .Tr_tr8, .Tr_tr9 => .{ .track = .{} },
             // Meters
             .Shp_Mtr, .Comp_Mtr, .Inpt_MtrLft, .Inpt_MtrRgt, .Out_MtrLft, .Out_MtrRgt => .{ .meter = .{} },
-            // Simple buttons
+            // Hardcoded track control buttons (not FX-mappable)
             .Out_mute,
             .Out_solo,
+            => .{
+                .button = false,
+            },
+            // Mappable button CCs stored as params to support discrete FX values
             .Comp_comp,
             .Eq_eq,
             .Eq_hp_shape,
             .Eq_lp_shape,
             .Shp_hard_gate,
             .Shp_shape,
-            => .{
-                .button = false,
-            },
+            => .{ .param = .{} },
             // Everything else is a parameter
             else => .{ .param = .{} },
         }) catch unreachable;

@@ -43,6 +43,7 @@ const Mocks = struct {
     TrackFX_GetNumParams: @TypeOf(reaper.TrackFX_GetNumParams),
     TrackFX_GetParamName: @TypeOf(reaper.TrackFX_GetParamName),
     TrackFX_GetFormattedParamValue: @TypeOf(reaper.TrackFX_GetFormattedParamValue),
+    TrackFX_GetParameterStepSizes: @TypeOf(reaper.TrackFX_GetParameterStepSizes),
     GetNumTracks: @TypeOf(reaper.GetNumTracks),
     CountTracks: @TypeOf(reaper.CountTracks),
     GetTrack: @TypeOf(reaper.GetTrack),
@@ -54,6 +55,8 @@ const Mocks = struct {
     GetSelectedTrack: @TypeOf(reaper.GetSelectedTrack),
     TrackFX_GetParamNormalized: @TypeOf(reaper.TrackFX_GetParamNormalized),
     TrackFX_SetParamNormalized: @TypeOf(reaper.TrackFX_SetParamNormalized),
+    TrackFX_GetParamEx: @TypeOf(reaper.TrackFX_GetParamEx),
+    TrackFX_SetParam: @TypeOf(reaper.TrackFX_SetParam),
     CSurf_TrackFromID: @TypeOf(reaper.CSurf_TrackFromID),
     CSurf_TrackToID: @TypeOf(reaper.CSurf_TrackToID),
     // Transport-related mocks
@@ -398,6 +401,25 @@ fn TrackFX_GetFormattedParamValue(track: reaper.MediaTrack, fx_idx: c_int, param
     return true;
 }
 
+fn TrackFX_GetParameterStepSizes(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, step_out: *f64, small_step_out: *f64, large_step_out: *f64, is_toggle_out: *bool) callconv(.C) bool {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *const Track = track_ptr.?;
+
+    if (fx_idx < 0 or fx_idx >= tr.fx_list.items.len) return false;
+    const fx = tr.fx_list.items[@intCast(fx_idx)];
+
+    if (param_idx < 0 or param_idx >= fx.params.len) return false;
+    const p = fx.params[@intCast(param_idx)];
+
+    step_out.* = p.step_size;
+    small_step_out.* = 0.0;
+    large_step_out.* = 0.0;
+    is_toggle_out.* = p.is_toggle;
+    return true;
+}
+
 fn TrackFX_GetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int) callconv(.C) f64 {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return -1.0;
@@ -422,6 +444,42 @@ fn TrackFX_SetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int,
 
     if (param < 0 or param >= fx_item.params.len) return false;
     fx_item.params[@intCast(param)].normalized_value = value;
+    return true;
+}
+
+fn TrackFX_GetParamEx(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, min_out: *f64, max_out: *f64, mid_out: *f64) callconv(.C) f64 {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return 0.0;
+
+    const tr: *const Track = track_ptr.?;
+
+    if (fx_idx < 0 or fx_idx >= tr.fx_list.items.len) return 0.0;
+    const fx = tr.fx_list.items[@intCast(fx_idx)];
+
+    if (param_idx < 0 or param_idx >= fx.params.len) return 0.0;
+    const p = fx.params[@intCast(param_idx)];
+
+    min_out.* = p.min_val;
+    max_out.* = p.max_val;
+    mid_out.* = (p.min_val + p.max_val) / 2.0;
+    // Return the current value in native range
+    return p.normalized_value * (p.max_val - p.min_val) + p.min_val;
+}
+
+fn TrackFX_SetParam(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, val: f64) callconv(.C) bool {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *Track = track_ptr.?;
+
+    if (fx_idx < 0 or fx_idx >= tr.fx_list.items.len) return false;
+    var fx_item = &tr.fx_list.items[@intCast(fx_idx)];
+
+    if (param_idx < 0 or param_idx >= fx_item.params.len) return false;
+    const p = &fx_item.params[@intCast(param_idx)];
+    const range = p.max_val - p.min_val;
+    if (range == 0.0) return false;
+    p.normalized_value = (val - p.min_val) / range;
     return true;
 }
 

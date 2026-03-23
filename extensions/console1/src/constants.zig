@@ -1,4 +1,3 @@
-
 pub const CONTROLLER_NAME = "PRKN_C1";
 pub const window_height: c_int = 240;
 pub const window_width: c_int = 280;
@@ -12,5 +11,6 @@ pub const maxval: f64 = 1.0;
 pub const knob_size = 40.0;
 
 pub const param_text_color: c_int = 0xFFFFFFFF;
+pub const toggle_active_color: c_int = @bitCast(@as(u32, 0xFF00A5FF));
 
 pub const g_csurf_mcpmode = false;

@@ -2,6 +2,10 @@ pub const Param = struct {
     name: [:0]const u8,
     normalized_value: f64 = 0.0,
     formatted_value: [:0]const u8,
+    step_size: f64 = 0.0,
+    is_toggle: bool = false,
+    min_val: f64 = 0.0,
+    max_val: f64 = 1.0,
 };
 
 // Input/output pin routing data
