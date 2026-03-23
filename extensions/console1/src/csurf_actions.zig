@@ -90,6 +90,12 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
                             }
                         }
 
+                        // Update the formatted value in the label pool
+                        var fmt_buf: [256:0]u8 = undefined;
+                        if (reaper.TrackFX_GetFormattedParamValue(prm_chg.track, @intCast(prm_chg.fx_index), @intCast(prm_chg.param_index), &fmt_buf, fmt_buf.len)) {
+                            globals.state.fx_ctrl.track_state.label_pool.setFmtValue(control_cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
+                        }
+
                         // Send MIDI feedback to update the console's knob LEDs
                         actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = control_cc, .value = @intFromFloat(prm_chg.value * 127.0) } } });
 

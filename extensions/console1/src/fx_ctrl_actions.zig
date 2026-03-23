@@ -147,6 +147,10 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         if (globals.state.fx_ctrl.track_state.forward_map.get(input.cc)) |fxp| {
                             _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
+                            var fmt_buf: [256:0]u8 = undefined;
+                            if (reaper.TrackFX_GetFormattedParamValue(media_track, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
+                                globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
+                            }
                         }
                     }
                 },
@@ -176,6 +180,10 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         if (globals.state.fx_ctrl.track_state.forward_map.get(input.cc)) |fxp| {
                             _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
+                            var fmt_buf: [256:0]u8 = undefined;
+                            if (reaper.TrackFX_GetFormattedParamValue(media_track, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
+                                globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
+                            }
                         }
                     }
                 },

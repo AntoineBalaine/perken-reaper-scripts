@@ -108,6 +108,8 @@ test {
     _ = @import("tests/midi_learn_test.zig");
     _ = @import("tests/mappings_integration_tests.zig");
     _ = @import("tests/strip_mode_transitions_test.zig");
+    _ = @import("tests/label_pool_integration_test.zig");
+    _ = @import("label_pool.zig");
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");
 }

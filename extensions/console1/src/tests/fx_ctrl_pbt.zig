@@ -16,6 +16,7 @@ const c1 = @import("../c1.zig");
 const reaper = @import("../reaper.zig").reaper;
 const utils = @import("../utils.zig");
 const models = @import("../models/models.zig");
+const LabelPool = TrackState.LabelPool;
 
 // The model tracks the expected state for FX control three-way synchronization:
 // UI/controller input -> application state (fx_ctrl.values) -> REAPER FX parameters.
@@ -31,23 +32,31 @@ const Model = struct {
     // we store the expected normalized value for each CC.
     param_values: std.AutoHashMap(c1.CCs, f64),
 
+    // Expected formatted value strings per CC, updated after each SetParam.
+    // The mock returns "0.5" as formatted_value for all params initially,
+    // and TrackFX_GetFormattedParamValue returns whatever is stored on the mock param.
+    expected_fmt_vals: std.AutoHashMap(c1.CCs, [:0]const u8),
+
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Model {
         return .{
             .param_values = std.AutoHashMap(c1.CCs, f64).init(allocator),
+            .expected_fmt_vals = std.AutoHashMap(c1.CCs, [:0]const u8).init(allocator),
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Model) void {
         self.param_values.deinit();
+        self.expected_fmt_vals.deinit();
     }
 
     pub fn reset(self: *Model) void {
         self.current_track_id = null;
         self.track_phase_inverted = false;
         self.param_values.clearRetainingCapacity();
+        self.expected_fmt_vals.clearRetainingCapacity();
     }
 };
 
@@ -66,10 +75,7 @@ const System = struct {
         self.globals.state.fx_ctrl.track_state.forward_map.clearRetainingCapacity();
     }
 
-    pub fn deinit(_: *System) void {
-        // Globals.deinit handles deinitMaps with globals.arena,
-        // which is the same allocator used in populateMapsFromMapping.
-    }
+    pub fn deinit(_: *System) void {}
 };
 
 // ============================================================================
@@ -98,9 +104,12 @@ const SetTrackCmd = struct {
         // Initialize all testable CCs to 0.5
         for (testable_param_ccs) |cc| {
             model.param_values.put(cc, 0.5) catch unreachable;
+            // All mock params have formatted_value = "0.5" initially
+            model.expected_fmt_vals.put(cc, "0.5") catch unreachable;
         }
         for (testable_button_ccs) |cc| {
             model.param_values.put(cc, 0.0) catch unreachable;
+            model.expected_fmt_vals.put(cc, "0.5") catch unreachable;
         }
     }
 
@@ -169,6 +178,28 @@ const SetTrackCmd = struct {
             sut.globals.state.fx_ctrl.values.put(cc, .{ .button = false }) catch unreachable;
         }
 
+        // Populate the label pool from forward map + REAPER mock
+        TrackState.getLabels(
+            &sut.globals.state.fx_ctrl.track_state.label_pool,
+            &sut.globals.state.fx_ctrl.track_state.forward_map,
+            media_track,
+        );
+
+        // Verify pool consistency: mapped CCs have real param names,
+        // unmapped CCs have "-" defaults
+        inline for (comptime std.enums.values(c1.CCs)) |cc| {
+            if (LabelPool.indexOf(cc) != null) {
+                const label = sut.globals.state.fx_ctrl.track_state.label_pool.getPrmLabel(cc);
+                if (sut.globals.state.fx_ctrl.track_state.forward_map.get(cc) != null) {
+                    // Mapped CC should have a real name (not "-")
+                    if (std.mem.eql(u8, label, "-")) return false;
+                } else {
+                    // Unmapped CC should have "-"
+                    if (!std.mem.eql(u8, label, "-")) return false;
+                }
+            }
+        }
+
         self.onModelOnly(model);
         return true;
     }
@@ -231,6 +262,13 @@ const PanelInputParamCmd = struct {
         const param_idx = getParamIdx(self.cc) orelse return false;
         const reaper_val = reaper.TrackFX_GetParamNormalized(media_track, fx_idx, param_idx);
         if (@abs(reaper_val - self.value) > 0.001) return false;
+
+        // Verify the label pool's fmt_val was updated to match what
+        // TrackFX_GetFormattedParamValue returns from the mock
+        if (model.expected_fmt_vals.get(self.cc)) |expected_fmt| {
+            const pool_fmt = sut.globals.state.fx_ctrl.track_state.label_pool.getFmtValue(self.cc);
+            if (!std.mem.eql(u8, pool_fmt, expected_fmt)) return false;
+        }
 
         return true;
     }

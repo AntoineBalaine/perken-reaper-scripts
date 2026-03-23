@@ -42,6 +42,7 @@ const Mocks = struct {
     TrackFX_SetEnabled: @TypeOf(reaper.TrackFX_SetEnabled),
     TrackFX_GetNumParams: @TypeOf(reaper.TrackFX_GetNumParams),
     TrackFX_GetParamName: @TypeOf(reaper.TrackFX_GetParamName),
+    TrackFX_GetFormattedParamValue: @TypeOf(reaper.TrackFX_GetFormattedParamValue),
     GetNumTracks: @TypeOf(reaper.GetNumTracks),
     CountTracks: @TypeOf(reaper.CountTracks),
     GetTrack: @TypeOf(reaper.GetTrack),
@@ -374,6 +375,24 @@ fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_in
     const name_len = @min(param.name.len, @as(usize, @intCast(buf_size)) - 1);
     @memcpy(buf[0..name_len], param.name[0..name_len]);
     buf[name_len] = 0;
+    return true;
+}
+
+fn TrackFX_GetFormattedParamValue(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, buf_out: [*:0]u8, buf_size: c_int) callconv(.C) bool {
+    const track_ptr: ?*Track = @ptrCast(@alignCast(track));
+    if (track_ptr == null) return false;
+
+    const tr: *const Track = track_ptr.?;
+
+    if (fx_idx < 0 or fx_idx >= tr.fx_list.items.len) return false;
+    const fx = tr.fx_list.items[@intCast(fx_idx)];
+
+    if (param_idx < 0 or param_idx >= fx.params.len) return false;
+    const param = fx.params[@intCast(param_idx)];
+
+    const val_len = @min(param.formatted_value.len, @as(usize, @intCast(buf_size)) - 1);
+    @memcpy(buf_out[0..val_len], param.formatted_value[0..val_len]);
+    buf_out[val_len] = 0;
     return true;
 }
 

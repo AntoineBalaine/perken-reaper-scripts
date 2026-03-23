@@ -15,6 +15,7 @@ const Guid = @import("utils.zig").Guid;
 const MappingsList = @import("mappings_list.zig");
 const log = std.log.scoped(.validation);
 const Preferences = @import("settings.zig").Preferences;
+pub const LabelPool = @import("label_pool.zig");
 
 pub const MAX_FX = 5;
 const MAX_PARSED_FX = MAX_FX * 2;
@@ -73,10 +74,40 @@ fx_count: usize = 0,
 mode: TrackMode = .{ .multi_fx = ModuleLocations.initFill(null) },
 reverse_map: std.AutoArrayHashMapUnmanaged(u32, c1.CCs) = .empty,
 forward_map: std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam) = .empty,
+label_pool: LabelPool = .empty,
 
 pub fn deinitMaps(self: *TrackState, allocator: std.mem.Allocator) void {
     self.reverse_map.deinit(allocator);
     self.forward_map.deinit(allocator);
+}
+
+/// Populate the label pool from the forward map and REAPER parameter names.
+/// Because this queries REAPER APIs, it belongs here rather than in label_pool.zig.
+/// Call this immediately after validateTrack at every call site.
+pub fn getLabels(
+    label_pool: *LabelPool,
+    forward_map: *const std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam),
+    track: reaper.MediaTrack,
+) void {
+    var query_buf: [256:0]u8 = undefined;
+    inline for (comptime std.enums.values(c1.CCs)) |cc| {
+        if (LabelPool.indexOf(cc) != null) {
+            if (forward_map.get(cc)) |fxp| {
+                if (reaper.TrackFX_GetParamName(track, fxp.fx_index, @intCast(fxp.param_index), &query_buf, query_buf.len)) {
+                    label_pool.setPrmLabel(cc, std.mem.span(@as([*:0]const u8, &query_buf)));
+                } else {
+                    label_pool.fillDefaults(cc);
+                }
+                if (reaper.TrackFX_GetFormattedParamValue(track, fxp.fx_index, @intCast(fxp.param_index), &query_buf, query_buf.len)) {
+                    label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &query_buf)));
+                } else {
+                    label_pool.setFmtValue(cc, "-");
+                }
+            } else {
+                label_pool.fillDefaults(cc);
+            }
+        }
+    }
 }
 
 pub fn getModuleLocations(self: *TrackState) ?*ModuleLocations {

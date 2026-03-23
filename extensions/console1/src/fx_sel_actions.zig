@@ -132,6 +132,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 globals.arena,
                 &globals.mappings_list,
             );
+            track_state_mod.getLabels(&track_state.label_pool, &track_state.forward_map, track);
 
             // Because FX parameter loading now happens in enter_assign action,
             // we enter mapping mode if needed, otherwise return to fx_ctrl
@@ -245,6 +246,7 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
     }
 
     _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences, globals.arena, &globals.mappings_list);
+    track_state_mod.getLabels(&track_state.label_pool, &track_state.forward_map, track);
 
     if (mapping_name) |map_name| {
         _ = globals.map_store.getMap(name, .STRIP, map_name, &globals.mappings_list) catch {};

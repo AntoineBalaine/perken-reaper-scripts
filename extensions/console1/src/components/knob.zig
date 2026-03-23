@@ -51,6 +51,8 @@ pub const Rectangle = struct {
 pub const LabelId = struct {
     label: [:0]const u8,
     id: [:0]const u8,
+    /// When non-null, displayed below the knob instead of the formatted normalized float.
+    value_text: ?[:0]const u8 = null,
 };
 
 pub inline fn angle_min() f64 {
@@ -182,7 +184,7 @@ pub fn drawWidget(
 
         const label_y = center_y + radius + 5.0; // Add some padding
         var buf: [24]u8 = undefined;
-        const val_fmt = try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
+        const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| vt else try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
         var txt_size: Size = .{ .w = undefined, .h = undefined };
         try imgui.CalcTextSize(.{ ctx, val_fmt.ptr, &txt_size.w, &txt_size.h });
         try imgui.DrawList_AddText(.{ drwls, center_x - txt_size.w / 2.0, label_y, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), val_fmt });

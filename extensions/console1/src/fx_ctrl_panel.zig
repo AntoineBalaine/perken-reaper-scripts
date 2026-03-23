@@ -18,6 +18,7 @@ const FxCtrlState = fx_ctrl_state.FxControlState;
 const SCRouting = fx_ctrl_state.SCRouting;
 const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const TransportState = @import("action_types.zig").TransportState;
+const LabelPool = @import("track_state.zig").LabelPool;
 
 /// Calculate the maximum width of a list of labels and calculate offsets
 /// The offsets buffer will be filled with (max_width - width) / 2 for each label
@@ -69,30 +70,29 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     const transport = &ui.state.transport;
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
-    var label_buf: [128:0]u8 = undefined;
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
-    if (try inputPanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |input_rv| {
+    if (try inputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |input_rv| {
         rv = input_rv;
     }
     try sectional(ctx);
     // Gate Module
-    if (try gatePanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |gate_rv| {
+    if (try gatePanel(ctx, mode, fx_state, transport, translations, &id_buf)) |gate_rv| {
         rv = gate_rv;
     }
     try sectional(ctx);
     // EQ Module
-    if (try eqPanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |eq_rv| {
+    if (try eqPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |eq_rv| {
         rv = eq_rv;
     }
     try sectional(ctx);
     // Compressor Module
-    if (try compPanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |comp_rv| {
+    if (try compPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |comp_rv| {
         rv = comp_rv;
     }
     try sectional(ctx);
     // Output Module
-    if (try outputPanel(ctx, mode, fx_state, transport, translations, &label_buf, &id_buf)) |output_rv| {
+    if (try outputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |output_rv| {
         rv = output_rv;
     }
 
@@ -111,7 +111,7 @@ pub fn sectional(ctx: imgui.ContextPtr) !void {
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
 }
 
-fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -138,16 +138,14 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         try imgui.Dummy(.{ ctx, 0, KNOB_SIZE * 2 });
 
         // Center-align the knob
-        const gain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Inpt_Gain,
-            else => null,
-        };
-        const gain_label = if (gain_key) |key| tr(translations, key) else null;
-        const gain_disabled = (gain_label == null);
+        const pool = &fx_state.track_state.label_pool;
+        const gain_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+        const gain_disabled = !gain_is_fx;
         const gain_no_val_display = gain_disabled or value_display_disabled;
         const label_id = Knobs.LabelId{
-            .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{gain_label orelse "-"}),
+            .label = if (gain_is_fx) pool.getPrmLabel(.Inpt_Gain) else "-",
             .id = try std.fmt.bufPrintZ(id_buf, "Inpt_Gain", .{}),
+            .value_text = if (gain_is_fx) pool.getFmtValue(.Inpt_Gain) else null,
         };
         var offsets = [_]?f64{null};
         const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{label_id.label}, &offsets);
@@ -187,30 +185,25 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
                 break :blk (mapping.COMP.Comp_HiCut == null and mapping.COMP.Comp_LoCut == null);
             } else false;
 
-            const hicut_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => if (ftc) .fx_ctrl_Comp_HiCut else .fx_ctrl_Inpt_HiCut,
-                .transport => .trsprt_Inpt_HiCut,
-                else => null,
-            };
-            const hicut_label = if (hicut_key) |key| tr(translations, key) else null;
-            const hicut_disabled = (hicut_label == null) or comp_filter_unmapped;
+            const inpt_pool = &fx_state.track_state.label_pool;
+            const hicut_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const hicut_is_transport = (mode == .transport);
+            const hicut_pool_cc: c1.CCs = if (ftc) .Comp_HiCut else .Inpt_HiCut;
+            const hicut_disabled = (!hicut_is_fx and !hicut_is_transport) or comp_filter_unmapped;
             const hicut_no_val_display = hicut_disabled or value_display_disabled;
             const hicut_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{hicut_label orelse "-"}),
+                .label = if (hicut_is_fx) inpt_pool.getPrmLabel(hicut_pool_cc) else if (hicut_is_transport) tr(translations, .trsprt_Inpt_HiCut) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Inpt_HiCut", .{}),
+                .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(hicut_pool_cc) else null,
             };
 
-            const locut_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => if (ftc) .fx_ctrl_Comp_LoCut else .fx_ctrl_Inpt_LoCut,
-                else => null,
-            };
-            const locut_label = if (locut_key) |key| tr(translations, key) else null;
-            const locut_disabled = (locut_label == null) or comp_filter_unmapped;
+            const locut_pool_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
+            const locut_disabled = !hicut_is_fx or comp_filter_unmapped;
             const locut_no_val_display = locut_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
             const locut_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{locut_label orelse "-"}),
+                .label = if (hicut_is_fx) inpt_pool.getPrmLabel(locut_pool_cc) else "-",
                 .id = "Inpt_LoCut",
+                .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(locut_pool_cc) else null,
             };
             var offsets = [_]?f64{ null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hicut_label_id.label, locut_label_id.label }, &offsets);
@@ -272,7 +265,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     return rv;
 }
 
-fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -300,16 +293,14 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
             try imgui.Dummy(.{ ctx, 0, KNOB_SIZE * 0.75 });
 
             // Center-align the knob
-            const gate_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Shp_Gate,
-                else => null,
-            };
-            const gate_label = if (gate_key) |key| tr(translations, key) else null;
-            const gate_disabled = (gate_label == null);
+            const pool = &fx_state.track_state.label_pool;
+            const gate_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const gate_disabled = !gate_is_fx;
             const gate_no_val_display = gate_disabled or value_display_disabled;
             const label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{gate_label orelse "-"}),
+                .label = if (gate_is_fx) pool.getPrmLabel(.Shp_Gate) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Shp_Gate", .{}),
+                .value_text = if (gate_is_fx) pool.getFmtValue(.Shp_Gate) else null,
             };
             var offsets = [_]?f64{null};
             _ = try getMaxLabelWidth(ctx, &[_][:0]const u8{label_id.label}, &offsets);
@@ -343,42 +334,30 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
         defer imgui.EndGroup(.{ctx}) catch {};
         {
             // Calculate max width for this column's knobs
-            const release_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Shp_GateRelease,
-                else => null,
-            };
-            const release_label = if (release_key) |key| tr(translations, key) else null;
-            const release_disabled = (release_label == null);
+            const shp_pool = &fx_state.track_state.label_pool;
+            const shp_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const release_disabled = !shp_is_fx;
             const release_no_val_display = release_disabled or value_display_disabled;
             const release_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{release_label orelse "-"}),
+                .label = if (shp_is_fx) shp_pool.getPrmLabel(.Shp_GateRelease) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Shp_GateRelease", .{}),
+                .value_text = if (shp_is_fx) shp_pool.getFmtValue(.Shp_GateRelease) else null,
             };
 
-            const sustain_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Shp_sustain,
-                else => null,
-            };
-            const sustain_label = if (sustain_key) |key| tr(translations, key) else null;
-            const sustain_disabled = (sustain_label == null);
+            const sustain_disabled = !shp_is_fx;
             const sustain_no_val_display = sustain_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
             const sustain_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{sustain_label orelse "-"}),
+                .label = if (shp_is_fx) shp_pool.getPrmLabel(.Shp_sustain) else "-",
                 .id = "Shp_sustain",
+                .value_text = if (shp_is_fx) shp_pool.getFmtValue(.Shp_sustain) else null,
             };
 
-            const punch_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Shp_Punch,
-                else => null,
-            };
-            const punch_label = if (punch_key) |key| tr(translations, key) else null;
-            const punch_disabled = (punch_label == null);
+            const punch_disabled = !shp_is_fx;
             const punch_no_val_display = punch_disabled or value_display_disabled;
-            var label_buf3: [128:0]u8 = undefined;
             const punch_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf3, "{s}", .{punch_label orelse "-"}),
+                .label = if (shp_is_fx) shp_pool.getPrmLabel(.Shp_Punch) else "-",
                 .id = "Shp_Punch",
+                .value_text = if (shp_is_fx) shp_pool.getFmtValue(.Shp_Punch) else null,
             };
             var offsets = [_]?f64{ null, null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ release_label_id.label, sustain_label_id.label, punch_label_id.label }, &offsets);
@@ -406,7 +385,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
     return rv;
 }
 
-fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -446,30 +425,22 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             }
 
             // Calculate max width for this column's knobs
-            const lofreq_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_LoFrq,
-                else => null,
-            };
-            const lofreq_label = if (lofreq_key) |key| tr(translations, key) else null;
-            const lofreq_disabled = (lofreq_label == null);
+            const eq_pool = &fx_state.track_state.label_pool;
+            const eq_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const lofreq_disabled = !eq_is_fx;
             const lofreq_no_val_display = lofreq_disabled or value_display_disabled;
             const lofreq_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{lofreq_label orelse "-"}),
+                .label = if (eq_is_fx) eq_pool.getPrmLabel(.Eq_LoFrq) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Eq_LoFrq", .{}),
+                .value_text = if (eq_is_fx) eq_pool.getFmtValue(.Eq_LoFrq) else null,
             };
 
-            const logain_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_LoGain,
-                .transport => .trsprt_Eq_LoGain,
-                else => null,
-            };
-            const logain_label = if (logain_key) |key| tr(translations, key) else null;
-            const logain_disabled = (logain_label == null);
+            const logain_disabled = !eq_is_fx and mode != .transport;
             const logain_no_val_display = logain_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
             const logain_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{logain_label orelse "-"}),
+                .label = if (eq_is_fx) eq_pool.getPrmLabel(.Eq_LoGain) else if (mode == .transport) tr(translations, .trsprt_Eq_LoGain) else "-",
                 .id = "Eq_LoGain",
+                .value_text = if (eq_is_fx) eq_pool.getFmtValue(.Eq_LoGain) else null,
             };
             var offsets = [_]?f64{ null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ lofreq_label_id.label, logain_label_id.label }, &offsets);
@@ -498,43 +469,30 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         defer imgui.EndGroup(.{ctx}) catch {};
         {
             // Calculate max width for this column's knobs
-            const lomidq_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_LoMidQ,
-                else => null,
-            };
-            const lomidq_label = if (lomidq_key) |key| tr(translations, key) else null;
-            const lomidq_disabled = (lomidq_label == null);
+            const eq2_pool = &fx_state.track_state.label_pool;
+            const eq2_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const lomidq_disabled = !eq2_is_fx;
             const lomidq_no_val_display = lomidq_disabled or value_display_disabled;
             const lomidq_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{lomidq_label orelse "-"}),
+                .label = if (eq2_is_fx) eq2_pool.getPrmLabel(.Eq_LoMidQ) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Eq_LoMidQ", .{}),
+                .value_text = if (eq2_is_fx) eq2_pool.getFmtValue(.Eq_LoMidQ) else null,
             };
 
-            const lomidfreq_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_LoMidFrq,
-                else => null,
-            };
-            const lomidfreq_label = if (lomidfreq_key) |key| tr(translations, key) else null;
-            const lomidfreq_disabled = (lomidfreq_label == null);
+            const lomidfreq_disabled = !eq2_is_fx;
             const lomidfreq_no_val_display = lomidfreq_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
             const lomidfreq_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{lomidfreq_label orelse "-"}),
+                .label = if (eq2_is_fx) eq2_pool.getPrmLabel(.Eq_LoMidFrq) else "-",
                 .id = "Eq_LoMidFrq",
+                .value_text = if (eq2_is_fx) eq2_pool.getFmtValue(.Eq_LoMidFrq) else null,
             };
 
-            const lomidgain_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_LoMidGain,
-                .transport => .trsprt_Eq_LoMidGain,
-                else => null,
-            };
-            const lomidgain_label = if (lomidgain_key) |key| tr(translations, key) else null;
-            const lomidgain_disabled = (lomidgain_label == null);
+            const lomidgain_disabled = !eq2_is_fx and mode != .transport;
             const lomidgain_no_val_display = lomidgain_disabled or value_display_disabled;
-            var label_buf3: [128:0]u8 = undefined;
             const lomidgain_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf3, "{s}", .{lomidgain_label orelse "-"}),
+                .label = if (eq2_is_fx) eq2_pool.getPrmLabel(.Eq_LoMidGain) else if (mode == .transport) tr(translations, .trsprt_Eq_LoMidGain) else "-",
                 .id = "Eq_LoMidGain",
+                .value_text = if (eq2_is_fx) eq2_pool.getFmtValue(.Eq_LoMidGain) else null,
             };
             var offsets = [_]?f64{ null, null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ lomidq_label_id.label, lomidfreq_label_id.label, lomidgain_label_id.label }, &offsets);
@@ -569,43 +527,30 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         defer imgui.EndGroup(.{ctx}) catch {};
         {
             // Calculate max width for this column's knobs
-            const himidq_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_HiMidQ,
-                else => null,
-            };
-            const himidq_label = if (himidq_key) |key| tr(translations, key) else null;
-            const himidq_disabled = (himidq_label == null);
+            const eq3_pool = &fx_state.track_state.label_pool;
+            const eq3_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const himidq_disabled = !eq3_is_fx;
             const himidq_no_val_display = himidq_disabled or value_display_disabled;
             const himidq_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{himidq_label orelse "-"}),
+                .label = if (eq3_is_fx) eq3_pool.getPrmLabel(.Eq_HiMidQ) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Eq_HiMidQ", .{}),
+                .value_text = if (eq3_is_fx) eq3_pool.getFmtValue(.Eq_HiMidQ) else null,
             };
 
-            const himidfreq_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_HiMidFrq,
-                else => null,
-            };
-            const himidfreq_label = if (himidfreq_key) |key| tr(translations, key) else null;
-            const himidfreq_disabled = (himidfreq_label == null);
+            const himidfreq_disabled = !eq3_is_fx;
             const himidfreq_no_val_display = himidfreq_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
             const himidfreq_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{himidfreq_label orelse "-"}),
+                .label = if (eq3_is_fx) eq3_pool.getPrmLabel(.Eq_HiMidFrq) else "-",
                 .id = "Eq_HiMidFrq",
+                .value_text = if (eq3_is_fx) eq3_pool.getFmtValue(.Eq_HiMidFrq) else null,
             };
 
-            const himidgain_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_HiMidGain,
-                .transport => .trsprt_Eq_HiMidGain,
-                else => null,
-            };
-            const himidgain_label = if (himidgain_key) |key| tr(translations, key) else null;
-            const himidgain_disabled = (himidgain_label == null);
+            const himidgain_disabled = !eq3_is_fx and mode != .transport;
             const himidgain_no_val_display = himidgain_disabled or value_display_disabled;
-            var label_buf3: [128:0]u8 = undefined;
             const himidgain_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf3, "{s}", .{himidgain_label orelse "-"}),
+                .label = if (eq3_is_fx) eq3_pool.getPrmLabel(.Eq_HiMidGain) else if (mode == .transport) tr(translations, .trsprt_Eq_HiMidGain) else "-",
                 .id = "Eq_HiMidGain",
+                .value_text = if (eq3_is_fx) eq3_pool.getFmtValue(.Eq_HiMidGain) else null,
             };
             var offsets = [_]?f64{ null, null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ himidq_label_id.label, himidfreq_label_id.label, himidgain_label_id.label }, &offsets);
@@ -655,30 +600,22 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             }
 
             // Calculate max width for this column's knobs
-            const hifreq_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_HiFrq,
-                else => null,
-            };
-            const hifreq_label = if (hifreq_key) |key| tr(translations, key) else null;
-            const hifreq_disabled = (hifreq_label == null);
+            const eq4_pool = &fx_state.track_state.label_pool;
+            const eq4_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const hifreq_disabled = !eq4_is_fx;
             const hifreq_no_val_display = hifreq_disabled or value_display_disabled;
             const hifreq_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{hifreq_label orelse "-"}),
+                .label = if (eq4_is_fx) eq4_pool.getPrmLabel(.Eq_HiFrq) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Eq_HiFrq", .{}),
+                .value_text = if (eq4_is_fx) eq4_pool.getFmtValue(.Eq_HiFrq) else null,
             };
 
-            const higain_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Eq_HiGain,
-                .transport => .trsprt_Eq_HiGain,
-                else => null,
-            };
-            const higain_label = if (higain_key) |key| tr(translations, key) else null;
-            const higain_disabled = (higain_label == null);
+            const higain_disabled = !eq4_is_fx and mode != .transport;
             const higain_no_val_display = higain_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
             const higain_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{higain_label orelse "-"}),
+                .label = if (eq4_is_fx) eq4_pool.getPrmLabel(.Eq_HiGain) else if (mode == .transport) tr(translations, .trsprt_Eq_HiGain) else "-",
                 .id = "Eq_HiGain",
+                .value_text = if (eq4_is_fx) eq4_pool.getFmtValue(.Eq_HiGain) else null,
             };
             var offsets = [_]?f64{ null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ hifreq_label_id.label, higain_label_id.label }, &offsets);
@@ -703,7 +640,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
     return rv;
 }
 
-fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -731,29 +668,22 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
             try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
             // Calculate max width for this column's knobs
-            const ratio_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Comp_Ratio,
-                else => null,
-            };
-            const ratio_label = if (ratio_key) |key| tr(translations, key) else null;
-            const ratio_disabled = (ratio_label == null);
+            const comp_pool = &fx_state.track_state.label_pool;
+            const comp_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const ratio_disabled = !comp_is_fx;
             const ratio_no_val_display = ratio_disabled or value_display_disabled;
             const ratio_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{ratio_label orelse "-"}),
+                .label = if (comp_is_fx) comp_pool.getPrmLabel(.Comp_Ratio) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Comp_Ratio", .{}),
+                .value_text = if (comp_is_fx) comp_pool.getFmtValue(.Comp_Ratio) else null,
             };
 
-            const drywet_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Comp_DryWet,
-                else => null,
-            };
-            const drywet_label = if (drywet_key) |key| tr(translations, key) else null;
-            const drywet_disabled = (drywet_label == null);
+            const drywet_disabled = !comp_is_fx;
             const drywet_no_val_display = drywet_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
             const drywet_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{drywet_label orelse "-"}),
+                .label = if (comp_is_fx) comp_pool.getPrmLabel(.Comp_DryWet) else "-",
                 .id = "Comp_DryWet",
+                .value_text = if (comp_is_fx) comp_pool.getFmtValue(.Comp_DryWet) else null,
             };
             var offsets = [_]?f64{ null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ ratio_label_id.label, drywet_label_id.label }, &offsets);
@@ -780,42 +710,30 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
         defer imgui.EndGroup(.{ctx}) catch {};
         {
             // Calculate max width for this column's knobs
-            const attack_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Comp_Attack,
-                else => null,
-            };
-            const attack_label = if (attack_key) |key| tr(translations, key) else null;
-            const attack_disabled = (attack_label == null);
+            const comp2_pool = &fx_state.track_state.label_pool;
+            const comp2_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const attack_disabled = !comp2_is_fx;
             const attack_no_val_display = attack_disabled or value_display_disabled;
             const attack_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{attack_label orelse "-"}),
+                .label = if (comp2_is_fx) comp2_pool.getPrmLabel(.Comp_Attack) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Comp_Attack", .{}),
+                .value_text = if (comp2_is_fx) comp2_pool.getFmtValue(.Comp_Attack) else null,
             };
 
-            const release_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Comp_Release,
-                else => null,
-            };
-            const release_label = if (release_key) |key| tr(translations, key) else null;
-            const release_disabled = (release_label == null);
-            const release_no_val_display = release_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
+            const comp_release_disabled = !comp2_is_fx;
+            const release_no_val_display = comp_release_disabled or value_display_disabled;
             const release_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{release_label orelse "-"}),
+                .label = if (comp2_is_fx) comp2_pool.getPrmLabel(.Comp_Release) else "-",
                 .id = "Comp_Release",
+                .value_text = if (comp2_is_fx) comp2_pool.getFmtValue(.Comp_Release) else null,
             };
 
-            const thresh_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Comp_Thresh,
-                else => null,
-            };
-            const thresh_label = if (thresh_key) |key| tr(translations, key) else null;
-            const thresh_disabled = (thresh_label == null);
+            const thresh_disabled = !comp2_is_fx;
             const thresh_no_val_display = thresh_disabled or value_display_disabled;
-            var label_buf3: [128:0]u8 = undefined;
             const thresh_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf3, "{s}", .{thresh_label orelse "-"}),
+                .label = if (comp2_is_fx) comp2_pool.getPrmLabel(.Comp_Thresh) else "-",
                 .id = "Comp_Thresh",
+                .value_text = if (comp2_is_fx) comp2_pool.getFmtValue(.Comp_Thresh) else null,
             };
             var offsets = [_]?f64{ null, null, null };
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{ attack_label_id.label, release_label_id.label, thresh_label_id.label }, &offsets);
@@ -828,7 +746,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
 
             // Second knob
             var release_prm = fx_state.values.get(.Comp_Release).?.param;
-            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = release_disabled }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = comp_release_disabled }, max_width)) {
                 rv = .{ .cc = .Comp_Release, .value = release_prm.normalized };
             }
 
@@ -843,7 +761,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
     return rv;
 }
 
-fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, label_buf: *[128:0]u8, id_buf: *[64:0]u8) !?WidgetInput {
+fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -875,33 +793,26 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
         }
         {
             // Calculate max width for this column's knobs
-            const drive_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_Drive,
-                .transport => .trsprt_Out_Drive,
-                else => null,
-            };
-            const drive_label = if (drive_key) |key| tr(translations, key) else null;
-            const drive_disabled = (drive_label == null);
+            const out_pool = &fx_state.track_state.label_pool;
+            const out_is_fx = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+            const out_is_transport = (mode == .transport);
+            const drive_disabled = !out_is_fx and !out_is_transport;
             const drive_no_val_display = drive_disabled or value_display_disabled;
             const drive_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{drive_label orelse "-"}),
+                .label = if (out_is_fx) out_pool.getPrmLabel(.Out_Drive) else if (out_is_transport) tr(translations, .trsprt_Out_Drive) else "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Out_Drive", .{}),
+                .value_text = if (out_is_fx) out_pool.getFmtValue(.Out_Drive) else null,
             };
 
-            const char_key: ?TranslationKey = switch (mode) {
-                .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_DriveChar,
-                .transport => .trsprt_Out_DriveChar,
-                else => null,
-            };
-            const char_label = if (char_key) |key| tr(translations, key) else null;
-            const char_disabled = (char_label == null);
+            const char_disabled = !out_is_fx and !out_is_transport;
             const char_no_val_display = char_disabled or value_display_disabled;
-            var label_buf2: [128:0]u8 = undefined;
             const char_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf2, "{s}", .{char_label orelse "-"}),
+                .label = if (out_is_fx) out_pool.getPrmLabel(.Out_DriveChar) else if (out_is_transport) tr(translations, .trsprt_Out_DriveChar) else "-",
                 .id = "Out_DriveChar",
+                .value_text = if (out_is_fx) out_pool.getFmtValue(.Out_DriveChar) else null,
             };
 
+            // Out_Pan always controls track pan (not FX param), so we use translation labels
             const pan_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_Pan,
                 .transport => .trsprt_Out_Pan,
@@ -910,9 +821,8 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const pan_label = if (pan_key) |key| tr(translations, key) else null;
             const pan_disabled = (pan_label == null);
             const pan_no_val_display = pan_disabled or value_display_disabled;
-            var label_buf3: [128:0]u8 = undefined;
             const pan_label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(&label_buf3, "{s}", .{pan_label orelse "-"}),
+                .label = pan_label orelse "-",
                 .id = "Out_Pan",
             };
             var offsets = [_]?f64{ null, null, null };
@@ -1002,6 +912,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             }
 
             // Center-align the volume knob
+            // Out_Vol always controls track volume (not FX param), so we use translation labels
             const vol_key: ?TranslationKey = switch (mode) {
                 .fx_ctrl, .mapping_panel, .fx_sel => .fx_ctrl_Out_Vol,
                 .transport => .trsprt_Out_Vol,
@@ -1011,7 +922,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const vol_disabled = (vol_label == null);
             const vol_no_val_display = vol_disabled or value_display_disabled;
             const label_id = Knobs.LabelId{
-                .label = try std.fmt.bufPrintZ(label_buf, "{s}", .{vol_label orelse "-"}),
+                .label = vol_label orelse "-",
                 .id = try std.fmt.bufPrintZ(id_buf, "Out_Vol", .{}),
             };
             var offsets = [_]?f64{null};

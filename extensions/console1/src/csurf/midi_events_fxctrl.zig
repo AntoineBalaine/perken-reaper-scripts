@@ -228,6 +228,10 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
                 if (fxPrm) |param| {
                     log.info("set param\n", .{});
                     _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
+                    var fmt_buf: [256:0]u8 = undefined;
+                    if (reaper.TrackFX_GetFormattedParamValue(tr, fxIdx, param, &fmt_buf, fmt_buf.len)) {
+                        fx_ctrl.track_state.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
+                    }
                 }
             }
         },
@@ -237,6 +241,10 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
             }
             if (fx_ctrl.track_state.forward_map.get(cc)) |fxp| {
                 _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, norm_val });
+                var fmt_buf: [256:0]u8 = undefined;
+                if (reaper.TrackFX_GetFormattedParamValue(tr, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
+                    fx_ctrl.track_state.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
+                }
             }
         },
     }
