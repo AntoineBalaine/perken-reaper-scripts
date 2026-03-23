@@ -228,6 +228,37 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
     const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
     const track_state = &globals.state.fx_ctrl.track_state;
 
+    // When switching from multi-fx to channel strip, we must remove the
+    // existing module FX first. Otherwise they remain on the track as
+    // duplicates alongside the new strip FX.
+    switch (track_state.mode) {
+        .multi_fx => |locs| {
+            // Collect indices and delete in descending order so that
+            // earlier deletions don't shift the indices of later ones.
+            var indices: [5]?i32 = .{ null, null, null, null, null };
+            inline for (comptime std.enums.values(PhysicalModule), 0..) |module, i| {
+                if (locs.get(module)) |loc| {
+                    indices[i] = loc.fx_index;
+                }
+            }
+            std.mem.sort(?i32, &indices, {}, struct {
+                fn f(_: void, a: ?i32, b: ?i32) bool {
+                    // Because nulls should sort last, we treat them as
+                    // less-than any value so they end up at the tail.
+                    return (a orelse return false) > (b orelse return true);
+                }
+            }.f);
+            for (indices) |maybe_idx| {
+                const idx = maybe_idx orelse break;
+                _ = pReaper.TrackFX_Delete(.{ track, idx });
+            }
+            track_state.mode = .{ .multi_fx = track_state_mod.ModuleLocations.initFill(null) };
+        },
+        .channel_strip => |strip| {
+            _ = pReaper.TrackFX_Delete(.{ track, strip.fx_index });
+        },
+    }
+
     const new_fx_index = pReaper.TrackFX_AddByName(.{ track, name, false, -1000 - reaper.TrackFX_GetCount(track) });
     if (new_fx_index < 0) {
         log.err("Failed to add channel strip FX: {s}", .{name});
