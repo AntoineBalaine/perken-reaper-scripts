@@ -119,6 +119,22 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
                 // Stop meters update timer
             }
         },
+        .project_reset => {
+            // REAPER fires CSURF_EXT_RESET on project tab switches. All MediaTrack
+            // pointers from the previous project are now invalid, so we must clear
+            // all track-related state before REAPER sends new track notifications.
+            globals.state.current_tr_id = null;
+            globals.state.selectedTracks.clearRetainingCapacity();
+            globals.state.fx_ctrl.track_state.reverse_map.clearRetainingCapacity();
+            globals.state.fx_ctrl.track_state.forward_map.clearRetainingCapacity();
+            globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
+            globals.state.fx_ctrl.display = null;
+            globals.state.fx_ctrl.vol_lastpos = 0;
+
+            // Clear MIDI LEDs and refresh the track list for the new project
+            actions.dispatch(globals, .{ .midi_out = .clear_all });
+            actions.dispatch(globals, .{ .track_list = .refresh });
+        },
         else => {},
     }
 }

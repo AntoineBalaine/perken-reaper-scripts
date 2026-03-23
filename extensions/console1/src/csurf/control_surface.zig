@@ -351,7 +351,9 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETFXCHANGE => {},
         .SETFXENABLED => {},
         .MIDI_DEVICE_REMAP => {},
-        .RESET => {},
+        .RESET => {
+            actions.dispatch(getGlobals(), .{ .Csurf = .project_reset });
+        },
         .SETAUTORECARM => {},
         .SETBPMANDPLAYRATE => {},
         .SETMETRONOME => {},

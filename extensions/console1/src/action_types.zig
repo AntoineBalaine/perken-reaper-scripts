@@ -179,6 +179,7 @@ pub const CsurfAction = union(enum) {
     fx_chain_changed: MediaTrack,
     fx_param_changed: ParamChg,
     fx_window_state: WinChg,
+    project_reset,
 };
 
 // MIDI Output
