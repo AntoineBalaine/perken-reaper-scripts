@@ -633,8 +633,9 @@ fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReape
     _ = pan;
     _ = ignoresurf;
 }
-fn SetMixerScroll(leftmosttrack: reaper.MediaTrack) callconv(.C) std.meta.Child(reaper.MediaTrack) {
-    return leftmosttrack orelse unreachable;
+fn SetMixerScroll(leftmosttrack: reaper.MediaTrack) callconv(.C) *reaper.MediaTrack {
+    _ = leftmosttrack;
+    return @constCast(&@as(reaper.MediaTrack, null));
 }
 fn TrackList_AdjustWindows(isMinor: bool) callconv(.C) void {
     _ = isMinor;

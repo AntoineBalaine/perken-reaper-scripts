@@ -66,7 +66,7 @@ fn setupChainInOrder(globals: *Globals, order: []const ModulesList) reaper.Media
         globals.preferences.default_fx,
         &globals.map_store,
         globals.preferences,
-        testing.allocator,
+        globals.arena,
         &globals.mappings_list,
     );
 
