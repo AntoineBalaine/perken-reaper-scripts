@@ -185,7 +185,20 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         if (globals.state.fx_ctrl.track_state.forward_map.get(input.cc)) |fxp| {
-                            if (input.cc.isBtn()) {
+                            if (fxp.param_index == TrackState.FxParam.SYNTHETIC) {
+                                // Synthetic entry (e.g. ReaEQ filter types via SetNamedConfigParm)
+                                reaeq.cycleReaEqFilterType(media_track, fxp.fx_index, input.cc);
+                                const band_key: [:0]const u8 = if (input.cc == .Eq_lp_shape) "BANDTYPE0" else "BANDTYPE3";
+                                var band_buf: [64:0]u8 = undefined;
+                                if (reaper.TrackFX_GetNamedConfigParm(media_track, fxp.fx_index, band_key, &band_buf, band_buf.len)) {
+                                    const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
+                                    const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
+                                    const name = TrackState.bandTypeName(band_int);
+                                    globals.state.fx_ctrl.track_state.label_pool.setPrmLabel(input.cc, name);
+                                    globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, name);
+                                }
+                                return;
+                            } else if (input.cc.isBtn()) {
                                 // Button CCs use cycling logic for discrete/toggle params
                                 const new_norm = TrackState.cycleDiscreteParam(media_track, fxp.fx_index, fxp.param_index, fxp.is_toggle);
                                 if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| {
@@ -204,35 +217,10 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                                     _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
                                 }
                             }
+
                             var fmt_buf: [256:0]u8 = undefined;
                             if (reaper.TrackFX_GetFormattedParamValue(media_track, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
                                 globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
-                            }
-                        } else if (input.cc == .Eq_hp_shape or input.cc == .Eq_lp_shape) {
-                            // ReaEQ fallback: filter type is not a regular param, so it
-                            // cannot appear in the forward map. Use SetNamedConfigParm instead.
-                            var tmp: [512:0]u8 = undefined;
-                            const eq_module = input.cc.toModule() orelse return;
-                            switch (globals.state.fx_ctrl.track_state.mode) {
-                                .multi_fx => |locs| {
-                                    if (locs.get(eq_module)) |fxmap| {
-                                        const hasName = reaper.TrackFX_GetNamedConfigParm(media_track, fxmap.fx_index, "original_name", &tmp, tmp.len);
-                                        if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)")) {
-                                            reaeq.cycleReaEqFilterType(media_track, fxmap.fx_index, input.cc);
-                                            // Update the pool label with the new filter type name
-                                            const band_key: [:0]const u8 = if (input.cc == .Eq_hp_shape) "BANDTYPE0" else "BANDTYPE3";
-                                            var band_buf: [64:0]u8 = undefined;
-                                            if (reaper.TrackFX_GetNamedConfigParm(media_track, fxmap.fx_index, band_key, &band_buf, band_buf.len)) {
-                                                const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
-                                                const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
-                                                const name = TrackState.bandTypeName(band_int);
-                                                globals.state.fx_ctrl.track_state.label_pool.setPrmLabel(input.cc, name);
-                                                globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, name);
-                                            }
-                                        }
-                                    }
-                                },
-                                .channel_strip => {},
                             }
                         }
                     }

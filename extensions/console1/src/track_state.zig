@@ -39,6 +39,10 @@ pub const FxParam = struct {
     fx_index: c_int,
     param_index: u16,
     is_toggle: bool = false,
+
+    /// Sentinel value for params that are not regular REAPER params
+    /// (e.g. ReaEQ band types accessed via SetNamedConfigParm).
+    pub const SYNTHETIC: u16 = 0xFFFF;
 };
 
 pub const ParamKey = packed struct {
@@ -76,7 +80,6 @@ mode: TrackMode = .{ .multi_fx = ModuleLocations.initFill(null) },
 reverse_map: std.AutoArrayHashMapUnmanaged(u32, c1.CCs) = .empty,
 forward_map: std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam) = .empty,
 label_pool: LabelPool = .empty,
-reaeq_loaded: bool = false,
 step_accum: [LabelPool.COUNT]f64 = [_]f64{0.0} ** LabelPool.COUNT,
 
 pub fn deinitMaps(self: *TrackState, allocator: std.mem.Allocator) void {
@@ -199,86 +202,45 @@ pub fn getLabels(
     self: *TrackState,
     track: reaper.MediaTrack,
 ) void {
-    // Detect whether ReaEQ is the EQ module by checking the FX name.
-    // We iterate all FX on the track (not just the EQ module location)
-    // because the module location might not be populated yet if ReaEQ
-    // is the only EQ and hasn't been assigned to a module slot.
-    self.reaeq_loaded = false;
-    const fx_count = reaper.TrackFX_GetCount(track);
-    if (fx_count > 0) {
-        var name_buf: [256:0]u8 = undefined;
-        var i: c_int = 0;
-        while (i < fx_count) : (i += 1) {
-            if (reaper.TrackFX_GetNamedConfigParm(track, i, "original_name", &name_buf, name_buf.len)) {
-                if (std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &name_buf)), "VST: ReaEQ (Cockos)")) {
-                    self.reaeq_loaded = true;
-                    break;
-                }
-            }
-        }
-    }
-
     var query_buf: [256:0]u8 = undefined;
     inline for (comptime std.enums.values(c1.CCs)) |cc| {
         if (LabelPool.indexOf(cc) != null) {
             if (self.forward_map.get(cc)) |fxp| {
-                if (reaper.TrackFX_GetParamName(track, fxp.fx_index, @intCast(fxp.param_index), &query_buf, query_buf.len)) {
-                    self.label_pool.setPrmLabel(cc, std.mem.span(@as([*:0]const u8, &query_buf)));
+                if (fxp.param_index == FxParam.SYNTHETIC) {
+                    // Synthetic entry (e.g. ReaEQ band types). Populate
+                    // labels from GetNamedConfigParm instead of GetParamName.
+                    const band_key: [:0]const u8 = if (cc == .Eq_lp_shape) "BANDTYPE0" else if (cc == .Eq_hp_shape) "BANDTYPE3" else "-";
+                    if (reaper.TrackFX_GetNamedConfigParm(track, fxp.fx_index, band_key, &query_buf, query_buf.len)) {
+                        const band_str = std.mem.span(@as([*:0]const u8, &query_buf));
+                        const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
+                        const name = bandTypeName(band_int);
+                        self.label_pool.setPrmLabel(cc, name);
+                        self.label_pool.setFmtValue(cc, name);
+                    }
                 } else {
-                    self.label_pool.fillDefaults(cc);
-                }
-                if (reaper.TrackFX_GetFormattedParamValue(track, fxp.fx_index, @intCast(fxp.param_index), &query_buf, query_buf.len)) {
-                    self.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &query_buf)));
-                } else {
-                    self.label_pool.setFmtValue(cc, "-");
-                }
-                // Query step sizes to determine whether the param is a toggle
-                var step: f64 = undefined;
-                var small: f64 = undefined;
-                var large: f64 = undefined;
-                var is_toggle: bool = undefined;
-                if (reaper.TrackFX_GetParameterStepSizes(track, fxp.fx_index, @intCast(fxp.param_index), &step, &small, &large, &is_toggle)) {
-                    if (self.forward_map.getPtr(cc)) |entry| {
-                        entry.is_toggle = is_toggle;
+                    if (reaper.TrackFX_GetParamName(track, fxp.fx_index, @intCast(fxp.param_index), &query_buf, query_buf.len)) {
+                        self.label_pool.setPrmLabel(cc, std.mem.span(@as([*:0]const u8, &query_buf)));
+                    } else {
+                        self.label_pool.fillDefaults(cc);
+                    }
+                    if (reaper.TrackFX_GetFormattedParamValue(track, fxp.fx_index, @intCast(fxp.param_index), &query_buf, query_buf.len)) {
+                        self.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &query_buf)));
+                    } else {
+                        self.label_pool.setFmtValue(cc, "-");
+                    }
+                    // Query step sizes to determine whether the param is a toggle
+                    var step: f64 = undefined;
+                    var small: f64 = undefined;
+                    var large: f64 = undefined;
+                    var is_toggle: bool = undefined;
+                    if (reaper.TrackFX_GetParameterStepSizes(track, fxp.fx_index, @intCast(fxp.param_index), &step, &small, &large, &is_toggle)) {
+                        if (self.forward_map.getPtr(cc)) |entry| {
+                            entry.is_toggle = is_toggle;
+                        }
                     }
                 }
             } else {
                 self.label_pool.fillDefaults(cc);
-            }
-        }
-    }
-
-    // For ReaEQ, populate shape button labels with the current filter type
-    // names. We find the ReaEQ FX index by scanning all FX on the track,
-    // because the EQ module location may not be populated.
-    if (self.reaeq_loaded) {
-        const reaeq_fx_idx = blk: {
-            var name_buf2: [256:0]u8 = undefined;
-            var fi: c_int = 0;
-            while (fi < reaper.TrackFX_GetCount(track)) : (fi += 1) {
-                if (reaper.TrackFX_GetFXName(track, fi, &name_buf2, name_buf2.len)) {
-                    if (std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &name_buf2)), "VST: ReaEQ (Cockos)")) {
-                        break :blk fi;
-                    }
-                }
-            }
-            break :blk @as(c_int, -1);
-        };
-        if (reaeq_fx_idx >= 0) {
-            var band_buf: [64:0]u8 = undefined;
-            // Low band (Eq_hp_shape -> BANDTYPE0)
-            if (reaper.TrackFX_GetNamedConfigParm(track, reaeq_fx_idx, "BANDTYPE0", &band_buf, band_buf.len)) {
-                const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
-                const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
-                self.label_pool.setPrmLabel(.Eq_hp_shape, bandTypeName(band_int));
-                self.label_pool.setFmtValue(.Eq_hp_shape, bandTypeName(band_int));
-            }
-            // High band (Eq_lp_shape -> BANDTYPE3)
-            if (reaper.TrackFX_GetNamedConfigParm(track, reaeq_fx_idx, "BANDTYPE3", &band_buf, band_buf.len)) {
-                const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
-                const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
-                self.label_pool.setPrmLabel(.Eq_lp_shape, bandTypeName(band_int));
-                self.label_pool.setFmtValue(.Eq_lp_shape, bandTypeName(band_int));
             }
         }
     }
@@ -1406,6 +1368,14 @@ pub fn updateTrackState(
 
             if (tagged_mapping) |mapping| {
                 populateMapsFromMapping(&track_state.reverse_map, &track_state.forward_map, allocator, mapping, location.index);
+            }
+
+            // ReaEQ doesn't expose filter band types as regular params,
+            // so we insert synthetic forward map entries to let the UI
+            // treat the shape buttons as mapped.
+            if (module == .EQ and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, buf)), "VST: ReaEQ (Cockos)")) {
+                track_state.forward_map.put(allocator, .Eq_lp_shape, .{ .fx_index = location.index, .param_index = FxParam.SYNTHETIC }) catch {};
+                track_state.forward_map.put(allocator, .Eq_hp_shape, .{ .fx_index = location.index, .param_index = FxParam.SYNTHETIC }) catch {};
             }
 
             var modules = ActiveModules{};

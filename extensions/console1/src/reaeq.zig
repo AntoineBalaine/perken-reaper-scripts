@@ -17,8 +17,8 @@ const lo_band_cycle = [_]BandType{ .loshelf, .band, .hipass };
 const hi_band_cycle = [_]BandType{ .hishelf, .band, .lopass };
 
 pub fn cycleReaEqFilterType(mediaTrack: reaper.MediaTrack, fxidx: c_int, cc: c1.CCs) void {
-    const bandid: u8 = if (cc == c1.CCs.Eq_hp_shape) 0 else if (cc == c1.CCs.Eq_lp_shape) 3 else return;
-    const cycle = if (cc == c1.CCs.Eq_hp_shape) &lo_band_cycle else &hi_band_cycle;
+    const bandid: u8 = if (cc == c1.CCs.Eq_lp_shape) 0 else if (cc == c1.CCs.Eq_hp_shape) 3 else return;
+    const cycle = if (cc == c1.CCs.Eq_lp_shape) &lo_band_cycle else &hi_band_cycle;
 
     // Read the current band type
     var bandKeyBuf: [64:0]u8 = undefined;

@@ -222,8 +222,19 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
             // if setting filter types on reaeq
             if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
                 const hasName = reaper.TrackFX_GetNamedConfigParm(tr, fxIdx, "original_name", &tmp, tmp.len);
-                if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)"))
+                if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)")) {
                     reaeq.cycleReaEqFilterType(tr, fxIdx, cc);
+                    // Update the pool label with the new filter type name
+                    const band_key: [:0]const u8 = if (cc == c1.CCs.Eq_lp_shape) "BANDTYPE0" else "BANDTYPE3";
+                    var band_buf: [64:0]u8 = undefined;
+                    if (reaper.TrackFX_GetNamedConfigParm(tr, fxIdx, band_key, &band_buf, band_buf.len)) {
+                        const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
+                        const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
+                        const name = TrackState.bandTypeName(band_int);
+                        fx_ctrl.track_state.label_pool.setPrmLabel(cc, name);
+                        fx_ctrl.track_state.label_pool.setFmtValue(cc, name);
+                    }
+                }
                 return;
             }
 
