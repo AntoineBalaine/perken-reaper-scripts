@@ -155,7 +155,7 @@ pub fn validateTrack(
     mappings_list: *MappingsList,
 ) !void {
     const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store, preferences.*, allocator, mappings_list);
-    TrackState.getLabels(&self.track_state.label_pool, &self.track_state.forward_map, mediaTrack);
+    self.track_state.getLabels(mediaTrack);
 
     if (!manual_routing) {
         self.scRouting = self.getSetSideChainRouting(mediaTrack, reRoute);

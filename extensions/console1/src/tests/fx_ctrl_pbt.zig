@@ -179,11 +179,7 @@ const SetTrackCmd = struct {
         }
 
         // Populate the label pool from forward map + REAPER mock
-        TrackState.getLabels(
-            &sut.globals.state.fx_ctrl.track_state.label_pool,
-            &sut.globals.state.fx_ctrl.track_state.forward_map,
-            media_track,
-        );
+        sut.globals.state.fx_ctrl.track_state.getLabels(media_track);
 
         // Verify pool consistency: mapped CCs have real param names,
         // unmapped CCs have "-" defaults

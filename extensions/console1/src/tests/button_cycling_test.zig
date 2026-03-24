@@ -64,7 +64,7 @@ test "getLabels populates is_toggle from TrackFX_GetParameterStepSizes" {
     track_state.forward_map.put(alloc, .Out_Drive, .{ .fx_index = 1, .param_index = 0 }) catch unreachable;
 
     const media_track = reaper.CSurf_TrackFromID(1, false);
-    TrackState.getLabels(&track_state.label_pool, &track_state.forward_map, media_track);
+    track_state.getLabels(media_track);
 
     try testing.expect(track_state.forward_map.get(.Comp_comp).?.is_toggle == true);
     try testing.expect(track_state.forward_map.get(.Comp_Attack).?.is_toggle == false);

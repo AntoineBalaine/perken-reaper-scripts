@@ -215,9 +215,9 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
             }
             // if setting filter types on reaeq
             if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
-                const hasName = reaper.TrackFX_GetFXName(tr, fxIdx, &tmp, tmp.len);
+                const hasName = reaper.TrackFX_GetNamedConfigParm(tr, fxIdx, "original_name", &tmp, tmp.len);
                 if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)"))
-                    reaeq.setReaEqFilterType(tr, fxIdx, cc, val);
+                    reaeq.cycleReaEqFilterType(tr, fxIdx, cc);
                 return;
             }
 

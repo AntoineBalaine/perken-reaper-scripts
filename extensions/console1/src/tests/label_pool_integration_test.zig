@@ -101,7 +101,7 @@ test "getLabels populates pool from REAPER param names" {
     setupMapsForTrack(&track_state, alloc);
 
     const media_track = reaper.CSurf_TrackFromID(1, false);
-    TrackState.getLabels(&track_state.label_pool, &track_state.forward_map, media_track);
+    track_state.getLabels(media_track);
 
     // Verify mapped CCs have REAPER param names
     try testing.expectEqualStrings("Input Gain (dB)", track_state.label_pool.getPrmLabel(.Inpt_Gain));
@@ -131,7 +131,7 @@ test "getLabels fills defaults for unmapped CCs" {
     setupMapsForTrack(&track_state, alloc);
 
     const media_track = reaper.CSurf_TrackFromID(1, false);
-    TrackState.getLabels(&track_state.label_pool, &track_state.forward_map, media_track);
+    track_state.getLabels(media_track);
 
     // Out_Pan and Out_Vol are not in the OUTPT mapping (only Out_Drive and Out_DriveChar are),
     // so they should get "-" defaults.
@@ -153,7 +153,7 @@ test "getLabels with empty forward map fills all defaults" {
     // No FX on the track, empty forward map
     var track_state = TrackState{};
     const media_track = reaper.CSurf_TrackFromID(1, false);
-    TrackState.getLabels(&track_state.label_pool, &track_state.forward_map, media_track);
+    track_state.getLabels(media_track);
 
     // Every assignable CC should have "-" for both label and value
     try testing.expectEqualStrings("-", track_state.label_pool.getPrmLabel(.Comp_Attack));
@@ -180,7 +180,7 @@ test "pool/forward map consistency: mapped CCs have real names, unmapped have de
     setupMapsForTrack(&track_state, alloc);
 
     const media_track = reaper.CSurf_TrackFromID(1, false);
-    TrackState.getLabels(&track_state.label_pool, &track_state.forward_map, media_track);
+    track_state.getLabels(media_track);
 
     // Verify the property: every assignable CC is either in the forward map (with a
     // real param name) or has "-" as its label.

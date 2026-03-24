@@ -40,6 +40,27 @@ fn renderMappableButton(
     return null;
 }
 
+fn renderShapeButton(
+    ctx: imgui.ContextPtr,
+    comptime cc: c1.CCs,
+    fx_state: *FxCtrlState,
+    mode: Mode,
+    text_pos: ?button.TextPosition,
+) !?WidgetInput {
+    const is_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+    const val = fx_state.values.get(cc).?.param.normalized > 0.5;
+    const mapped = is_fx_mode and fx_state.track_state.forward_map.get(cc) != null;
+    // Shape buttons are also active when ReaEQ is loaded (even though the CC is not
+    // in the forward map), because ReaEQ filter types are set via SetNamedConfigParm.
+    const active = mapped or (is_fx_mode and fx_state.track_state.reaeq_loaded);
+    const label: [:0]const u8 = if (active) fx_state.track_state.label_pool.getPrmLabel(cc) else "-";
+    const color: ?c_int = if (active and val) toggle_active_color else null;
+    if (try roundButton(.{ ctx, label, "##" ++ @tagName(cc), null, null, text_pos, !active, color })) {
+        return .{ .cc = cc, .value = if (val) 0 else 1 };
+    }
+    return null;
+}
+
 /// Calculate the maximum width of a list of labels and calculate offsets
 /// The offsets buffer will be filled with (max_width - width) / 2 for each label
 /// or null if the label width equals the max width
@@ -404,7 +425,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
-            if (try renderMappableButton(ctx, .Eq_lp_shape, fx_state, mode, .right)) |action| {
+            if (try renderShapeButton(ctx, .Eq_lp_shape, fx_state, mode, .right)) |action| {
                 rv = action;
             }
 
@@ -570,7 +591,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
-            if (try renderMappableButton(ctx, .Eq_hp_shape, fx_state, mode, .right)) |action| {
+            if (try renderShapeButton(ctx, .Eq_hp_shape, fx_state, mode, .right)) |action| {
                 rv = action;
             }
 

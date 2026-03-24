@@ -2,45 +2,43 @@ const std = @import("std");
 const reaper = @import("reaper.zig").reaper;
 const pReaper = @import("pReaper.zig");
 const c1 = @import("c1.zig");
-const bandtypes = enum(c_int) {
-    allpass = 5,
-    band = 8,
-    band_alt = 9,
-    band_alt2 = 2,
-    bandpass = 7,
-    hipass = 4,
-    hishelf = 1,
-    lopass = 3,
+
+const BandType = enum(c_int) {
     loshelf = 0,
-    notch = 6,
-    parallel_ban = 10,
+    hishelf = 1,
+    band = 8,
+    hipass = 4,
+    lopass = 3,
 };
 
-// Console1 only supports cut, bell, shelf for bands 1 and 4
-//
-pub fn setReaEqFilterType(mediaTrack: reaper.MediaTrack, fxidx: c_int, cc: c1.CCs, ccval: u8) void {
-    var bandTypeBuf: [64:0]u8 = undefined;
-    // only allow three types of filters
-    // get value from controller?
-    const bandid: ?u8 = if (cc == c1.CCs.Eq_hp_shape) 0 else if (cc == c1.CCs.Eq_lp_shape) 3 else null;
-    if (bandid == null) return;
-    _ = std.fmt.bufPrintZ(&bandTypeBuf, "BANDTYPE{d}", .{bandid.?}) catch {
-        return;
-    };
-    const val = switch (ccval) {
-        //shelf
-        0x0 => if (cc == c1.CCs.Eq_hp_shape) bandtypes.loshelf else if (cc == c1.CCs.Eq_lp_shape) bandtypes.hishelf else null,
-        // bell
-        0x3f => bandtypes.band,
-        // cut
-        0x7f => if (cc == c1.CCs.Eq_hp_shape) bandtypes.hipass else if (cc == c1.CCs.Eq_lp_shape) bandtypes.lopass else null,
-        else => null,
-    };
-    if (val) |value| {
-        var valueBuf: [64:0]u8 = undefined;
-        _ = std.fmt.bufPrintZ(&valueBuf, "{d}", .{@intFromEnum(value)}) catch {
-            return;
-        };
-        _ = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, fxidx, @as([*:0]u8, &bandTypeBuf), @as([*:0]u8, &valueBuf) });
+// The allowed filter types for each shape button. Each press cycles to
+// the next type in the sequence, wrapping around at the end.
+const lo_band_cycle = [_]BandType{ .loshelf, .band, .hipass };
+const hi_band_cycle = [_]BandType{ .hishelf, .band, .lopass };
+
+pub fn cycleReaEqFilterType(mediaTrack: reaper.MediaTrack, fxidx: c_int, cc: c1.CCs) void {
+    const bandid: u8 = if (cc == c1.CCs.Eq_hp_shape) 0 else if (cc == c1.CCs.Eq_lp_shape) 3 else return;
+    const cycle = if (cc == c1.CCs.Eq_hp_shape) &lo_band_cycle else &hi_band_cycle;
+
+    // Read the current band type
+    var bandKeyBuf: [64:0]u8 = undefined;
+    _ = std.fmt.bufPrintZ(&bandKeyBuf, "BANDTYPE{d}", .{bandid}) catch return;
+    var valueBuf: [64:0]u8 = undefined;
+    if (!reaper.TrackFX_GetNamedConfigParm(mediaTrack, fxidx, &bandKeyBuf, &valueBuf, valueBuf.len)) return;
+
+    const current_str = std.mem.span(@as([*:0]const u8, &valueBuf));
+    const current_int = std.fmt.parseInt(c_int, current_str, 10) catch return;
+
+    // Find the current type in the cycle and advance to the next one
+    var next_idx: usize = 0;
+    for (cycle, 0..) |bt, i| {
+        if (@intFromEnum(bt) == current_int) {
+            next_idx = (i + 1) % cycle.len;
+            break;
+        }
     }
+
+    var newValueBuf: [64:0]u8 = undefined;
+    _ = std.fmt.bufPrintZ(&newValueBuf, "{d}", .{@intFromEnum(cycle[next_idx])}) catch return;
+    _ = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, fxidx, @as([*:0]u8, &bandKeyBuf), @as([*:0]u8, &newValueBuf) });
 }
