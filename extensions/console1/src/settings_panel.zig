@@ -224,9 +224,7 @@ pub fn draw(
         }
 
         if (try imgui.Button(.{ ctx, safePrint(&buf, "{s}##stngs_sv", .{tr(translations, .settings_save)}) })) {
-            if (self.dirty) {
-                return .close_save;
-            }
+            return .close_save;
         }
         try imgui.SameLine(.{ctx});
         if (try imgui.Button(.{ ctx, safePrint(&buf, "{s}##stngs_x", .{tr(translations, .settings_cancel)}) })) {
