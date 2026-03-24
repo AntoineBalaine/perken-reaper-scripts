@@ -238,3 +238,99 @@ test "mappable button CCs are stored as .param, hardcoded buttons as .button" {
     try testing.expect(state.values.get(.Out_mute).? == .button);
     try testing.expect(state.values.get(.Out_solo).? == .button);
 }
+
+// --------------------------------------------------------------------------
+// Knob discrete stepping tests
+// --------------------------------------------------------------------------
+
+test "stepDiscreteParam: accumulates deltas and steps at boundary" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var reaper_teardown = models.reaper.setupTestModel(alloc, 1, 4);
+    defer reaper_teardown.teardown();
+
+    const track_ptr = &reaper_teardown.model_ptr.tracks.items[1];
+    const params = try alloc.alloc(models.Param, 1);
+    params[0] = .{
+        .name = "Ratio",
+        .normalized_value = 0.0,
+        .formatted_value = "1",
+        .step_size = 1.0,
+        .is_toggle = false,
+        .min_val = 0.0,
+        .max_val = 5.0,
+    };
+    try track_ptr.fx_list.append(alloc, .{
+        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .enabled = true,
+        .params = params,
+        .named_configs = .{ .original_name = "FX", .renamed_name = "FX" },
+    });
+
+    const media_track = reaper.CSurf_TrackFromID(1, false);
+    // Norm step = 1/5 = 0.2. We use Comp_Attack (index 0 in pool) as CC.
+    var track_state = TrackState{};
+    track_state.forward_map.put(alloc, .Comp_Attack, .{ .fx_index = 0, .param_index = 0 }) catch unreachable;
+
+    // Small delta below threshold — should not step
+    const result = track_state.stepDiscreteParam(.Comp_Attack, media_track, 0, 0, 0.1);
+    try testing.expect(result == null);
+
+    // Another small delta crossing the threshold — should step once
+    var norm = track_state.stepDiscreteParam(.Comp_Attack, media_track, 0, 0, 0.15).?;
+    try testing.expectApproxEqAbs(0.2, norm, 0.001);
+
+    // Large delta crossing two steps at once
+    norm = track_state.stepDiscreteParam(.Comp_Attack, media_track, 0, 0, 0.45).?;
+    try testing.expectApproxEqAbs(0.6, norm, 0.001);
+
+    // Step backward
+    norm = track_state.stepDiscreteParam(.Comp_Attack, media_track, 0, 0, -0.25).?;
+    try testing.expectApproxEqAbs(0.4, norm, 0.001);
+
+    // Clamp at max: current is native 2 (norm 0.4), send large forward delta
+    norm = track_state.stepDiscreteParam(.Comp_Attack, media_track, 0, 0, 0.9).?;
+    try testing.expectApproxEqAbs(1.0, norm, 0.001);
+
+    // Large backward delta: -0.99 / 0.2 = 4 steps, from 5 to 1 (norm 0.2)
+    norm = track_state.stepDiscreteParam(.Comp_Attack, media_track, 0, 0, -0.99).?;
+    try testing.expectApproxEqAbs(0.2, norm, 0.001);
+
+    // Another backward delta to reach 0
+    norm = track_state.stepDiscreteParam(.Comp_Attack, media_track, 0, 0, -0.25).?;
+    try testing.expectApproxEqAbs(0.0, norm, 0.001);
+}
+
+test "stepDiscreteParam: returns null for continuous params" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var reaper_teardown = models.reaper.setupTestModel(alloc, 1, 4);
+    defer reaper_teardown.teardown();
+
+    const track_ptr = &reaper_teardown.model_ptr.tracks.items[1];
+    const params = try alloc.alloc(models.Param, 1);
+    params[0] = .{
+        .name = "Threshold",
+        .normalized_value = 0.5,
+        .formatted_value = "-18 dB",
+        .step_size = 0.01,
+        .is_toggle = false,
+        .min_val = 0.0,
+        .max_val = 1.0,
+    };
+    try track_ptr.fx_list.append(alloc, .{
+        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .enabled = true,
+        .params = params,
+        .named_configs = .{ .original_name = "FX", .renamed_name = "FX" },
+    });
+
+    const media_track = reaper.CSurf_TrackFromID(1, false);
+    var track_state = TrackState{};
+    const result = track_state.stepDiscreteParam(.Comp_Attack, media_track, 0, 0, 0.5);
+    try testing.expect(result == null);
+}

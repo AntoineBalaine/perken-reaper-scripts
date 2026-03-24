@@ -245,6 +245,56 @@ fn varargSettingsSave(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*an
 
 const apidef_SettingsSave: [*:0]const u8 = "bool\x00\x00\x00Console1: Enters settings mode and saves preferences.\x00";
 
+// -- C1_TrackEntry: triggers track entry validation for the given track index --
+
+fn apiTrackEntry(track_idx: c_int) callconv(.C) bool {
+    const globals = getGlobals();
+    const media_track = reaper.CSurf_TrackFromID(track_idx, false);
+    if (media_track == null) {
+        log.err("C1_TrackEntry: track {d} not found", .{track_idx});
+        return false;
+    }
+    globals.state.current_tr_id = track_idx;
+    actions.dispatch(globals, .{ .fx_ctrl = .{ .on_track_entry = media_track } });
+    return true;
+}
+
+fn varargTrackEntry(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyopaque {
+    _ = numparms;
+    const args = arglist orelse return null;
+    const track_idx: c_int = @intCast(@intFromPtr(args.*));
+    const result = apiTrackEntry(track_idx);
+    return if (result) @ptrFromInt(1) else @ptrFromInt(0);
+}
+
+const apidef_TrackEntry: [*:0]const u8 = "bool\x00int\x00track_idx\x00Console1: Triggers track entry validation for the given track index (1-based).\x00";
+
+// -- C1_PanelInput: sends a panel_input action with CC name and float value --
+
+fn apiPanelInput(cc_name: [*:0]const u8, value: f64) callconv(.C) bool {
+    const c1 = @import("c1.zig");
+    const name = std.mem.span(cc_name);
+    const cc = std.meta.stringToEnum(c1.CCs, name) orelse {
+        log.err("C1_PanelInput: unknown CC '{s}'", .{name});
+        return false;
+    };
+    const globals = getGlobals();
+    actions.dispatch(globals, .{ .fx_ctrl = .{ .panel_input = .{ .cc = cc, .value = value } } });
+    return true;
+}
+
+fn varargPanelInput(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyopaque {
+    _ = numparms;
+    const args = arglist orelse return null;
+    const cc_name: [*:0]const u8 = @ptrCast(args.* orelse return null);
+    const next_arg: *?*anyopaque = @ptrCast(@alignCast(@as([*]u8, @ptrCast(args)) + @sizeOf(?*anyopaque)));
+    const value_ptr: *f64 = @ptrCast(@alignCast(next_arg.* orelse return null));
+    const result = apiPanelInput(cc_name, value_ptr.*);
+    return if (result) @ptrFromInt(1) else @ptrFromInt(0);
+}
+
+const apidef_PanelInput: [*:0]const u8 = "bool\x00const char*,double*\x00cc_name,value\x00Console1: Sends a panel_input action with the given CC name and value (0.0-1.0).\x00";
+
 // -- Registration --
 
 fn reg(
@@ -272,4 +322,6 @@ pub fn registerTestApis() void {
     reg("API_C1_GetModuleLocations", @ptrCast(@constCast(&apiGetModuleLocations)), "APIvararg_C1_GetModuleLocations", @ptrCast(@constCast(&varargGetModuleLocations)), "APIdef_C1_GetModuleLocations", @ptrCast(@constCast(apidef_GetModuleLocations)));
     reg("API_C1_SetModuleOrder", @ptrCast(@constCast(&apiSetModuleOrder)), "APIvararg_C1_SetModuleOrder", @ptrCast(@constCast(&varargSetModuleOrder)), "APIdef_C1_SetModuleOrder", @ptrCast(@constCast(apidef_SetModuleOrder)));
     reg("API_C1_SettingsSave", @ptrCast(@constCast(&apiSettingsSave)), "APIvararg_C1_SettingsSave", @ptrCast(@constCast(&varargSettingsSave)), "APIdef_C1_SettingsSave", @ptrCast(@constCast(apidef_SettingsSave)));
+    reg("API_C1_PanelInput", @ptrCast(@constCast(&apiPanelInput)), "APIvararg_C1_PanelInput", @ptrCast(@constCast(&varargPanelInput)), "APIdef_C1_PanelInput", @ptrCast(@constCast(apidef_PanelInput)));
+    reg("API_C1_TrackEntry", @ptrCast(@constCast(&apiTrackEntry)), "APIvararg_C1_TrackEntry", @ptrCast(@constCast(&varargTrackEntry)), "APIdef_C1_TrackEntry", @ptrCast(@constCast(apidef_TrackEntry)));
 }

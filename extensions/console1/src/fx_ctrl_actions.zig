@@ -157,20 +157,24 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     }
                 },
                 else => {
-                    // Get the control value pointer
+                    // Read the current value before updating, because discrete
+                    // stepping needs to compare the old value to determine direction.
+                    const prev_norm = if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| switch (vp.*) {
+                        .param => |p| p.normalized,
+                        else => 0.0,
+                    } else 0.0;
+
+                    // Update the stored value for continuous params. For discrete
+                    // params, the stepping logic below will set the correct value.
                     if (globals.state.fx_ctrl.values.getPtr(input.cc)) |value_ptr| {
-                        // Check which variant is active
                         switch (value_ptr.*) {
                             .param => |*param_value| {
-                                // Handle parameter type
                                 param_value.normalized = input.value;
                             },
                             .button => |*button_value| {
-                                // Handle button type (convert value to boolean)
                                 button_value.* = input.value > 0.5;
                             },
                             .track, .meter => {
-                                // These types shouldn't be handled here
                                 log.warn("Unexpected control type for CC {s}", .{@tagName(input.cc)});
                             },
                         }
@@ -188,7 +192,17 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                                     vp.param.normalized = new_norm;
                                 }
                             } else {
-                                _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
+                                // For knob CCs, accumulate the normalized delta and step
+                                // when a boundary is crossed. Falls back to SetParamNormalized
+                                // for continuous params.
+                                const norm_delta = input.value - prev_norm;
+                                if (globals.state.fx_ctrl.track_state.stepDiscreteParam(input.cc, media_track, fxp.fx_index, fxp.param_index, norm_delta)) |new_norm| {
+                                    if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| {
+                                        vp.param.normalized = new_norm;
+                                    }
+                                } else {
+                                    _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
+                                }
                             }
                             var fmt_buf: [256:0]u8 = undefined;
                             if (reaper.TrackFX_GetFormattedParamValue(media_track, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {

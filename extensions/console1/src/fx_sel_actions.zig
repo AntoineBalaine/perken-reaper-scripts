@@ -8,8 +8,7 @@ const PhysicalModule = statemachine.PhysicalModule;
 const constants = @import("constants.zig");
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.fx_sel_actions);
-const track_state_mod = @import("track_state.zig");
-const TrackState = track_state_mod.TrackState;
+const TrackState = @import("track_state.zig");
 const Globals = @import("globals.zig").Globals;
 const utils = @import("utils.zig");
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
@@ -56,7 +55,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 .channel_strip => |strip| {
                     _ = pReaper.TrackFX_Delete(.{ track, strip.fx_index });
                     // Reset to multi_fx so determineInsertionIndex works correctly
-                    track_state.mode = .{ .multi_fx = track_state_mod.ModuleLocations.initFill(null) };
+                    track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
                 },
                 .multi_fx => {},
             }
@@ -252,7 +251,7 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
                 const idx = maybe_idx orelse break;
                 _ = pReaper.TrackFX_Delete(.{ track, idx });
             }
-            track_state.mode = .{ .multi_fx = track_state_mod.ModuleLocations.initFill(null) };
+            track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
         },
         .channel_strip => |strip| {
             _ = pReaper.TrackFX_Delete(.{ track, strip.fx_index });

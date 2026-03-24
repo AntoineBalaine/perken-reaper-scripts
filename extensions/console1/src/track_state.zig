@@ -77,13 +77,14 @@ reverse_map: std.AutoArrayHashMapUnmanaged(u32, c1.CCs) = .empty,
 forward_map: std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam) = .empty,
 label_pool: LabelPool = .empty,
 reaeq_loaded: bool = false,
+step_accum: [LabelPool.COUNT]f64 = [_]f64{0.0} ** LabelPool.COUNT,
 
 pub fn deinitMaps(self: *TrackState, allocator: std.mem.Allocator) void {
     self.reverse_map.deinit(allocator);
     self.forward_map.deinit(allocator);
 }
 
-fn normalizeToRange(value: f64, min: f64, max: f64) f64 {
+fn clamp(T: type, value: T, min: T, max: T) T {
     const range = max - min;
     std.debug.assert(range >= 0.0);
     return if (range == 0.0) 0.0 else (value - min) / range;
@@ -107,7 +108,7 @@ pub fn cycleDiscreteParam(
     if (is_toggle) {
         const new_val = if (current > mid) min else max;
         _ = reaper.TrackFX_SetParam(track, fx_index, param_index, new_val);
-        return normalizeToRange(new_val, min, max);
+        return clamp(f64, new_val, min, max);
     }
 
     var step: f64 = undefined;
@@ -119,14 +120,76 @@ pub fn cycleDiscreteParam(
             var next = current + step;
             if (next > max) next = min;
             _ = reaper.TrackFX_SetParam(track, fx_index, param_index, next);
-            return normalizeToRange(next, min, max);
+            return clamp(f64, next, min, max);
         }
     }
 
     // Continuous param on a button: toggle around midpoint
     const new_val = if (current > mid) min else max;
     _ = reaper.TrackFX_SetParam(track, fx_index, param_index, new_val);
-    return normalizeToRange(new_val, min, max);
+    return clamp(f64, new_val, min, max);
+}
+
+/// Accumulate a normalized delta for a discrete parameter and step when a
+/// boundary is crossed. Returns the new normalized value, or null if the
+/// param is not discrete (step < 1.0), in which case the caller should
+/// fall back to SetParamNormalized.
+pub fn stepDiscreteParam(
+    self: *TrackState,
+    cc: c1.CCs,
+    track: reaper.MediaTrack,
+    fx_index: c_int,
+    param_index: c_int,
+    norm_delta: f64,
+) ?f64 {
+    var step: f64 = undefined;
+    var small: f64 = undefined;
+    var large: f64 = undefined;
+    var is_toggle: bool = undefined;
+    if (!reaper.TrackFX_GetParameterStepSizes(track, fx_index, param_index, &step, &small, &large, &is_toggle)) {
+        return null;
+    }
+    if (step < 1.0) return null;
+
+    const idx = LabelPool.indexOf(cc) orelse return null;
+    const accum = &self.step_accum[idx];
+
+    // Reset the accumulator on direction reversal
+    if ((accum.* > 0 and norm_delta < 0) or (accum.* < 0 and norm_delta > 0)) {
+        accum.* = 0;
+    }
+
+    var min: f64 = undefined;
+    var max: f64 = undefined;
+    var mid: f64 = undefined;
+    const current = reaper.TrackFX_GetParamEx(track, fx_index, param_index, &min, &max, &mid);
+    const range = max - min;
+    if (range == 0) return null;
+
+    // The normalized step size tells us how much of the 0-1 range one
+    // native step occupies. We accumulate the knob's normalized delta
+    // and step once per threshold crossing.
+    const norm_step = step / range;
+    accum.* += norm_delta;
+
+    var steps_to_take: i32 = 0;
+    while (accum.* >= norm_step) {
+        steps_to_take += 1;
+        accum.* -= norm_step;
+    }
+    while (accum.* <= -norm_step) {
+        steps_to_take -= 1;
+        accum.* += norm_step;
+    }
+
+    if (steps_to_take == 0) return null;
+
+    var next = current + @as(f64, @floatFromInt(steps_to_take)) * step;
+    if (next > max) next = max;
+    if (next < min) next = min;
+
+    _ = reaper.TrackFX_SetParam(track, fx_index, param_index, next);
+    return clamp(f64, next, min, max);
 }
 
 /// Populate the label pool from the forward map and REAPER parameter names.

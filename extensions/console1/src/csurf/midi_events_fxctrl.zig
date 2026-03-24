@@ -203,6 +203,12 @@ pub fn setUIVal(cc: c1.CCs, norm_val: f64, fx_ctrl: *FxCtrlState) void {
 
 pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reaper.MediaTrack, val: u8, fx_ctrl: *FxCtrlState) void {
     const norm_val = @as(f64, @floatFromInt(val)) / 127;
+    // Capture the previous value before updating, because discrete
+    // stepping needs it to determine direction.
+    const prev_norm = if (fx_ctrl.values.getPtr(cc)) |vp| switch (vp.*) {
+        .param => |p| p.normalized,
+        else => 0.0,
+    } else 0.0;
     setUIVal(cc, norm_val, fx_ctrl);
     const structPrm = @tagName(cc);
     switch (fx_ctrl.track_state.mode) {
@@ -235,7 +241,12 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
                         const new_norm = TrackState.cycleDiscreteParam(tr, fxIdx, param, is_toggle);
                         setUIVal(cc, new_norm, fx_ctrl);
                     } else {
-                        _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
+                        const norm_delta = norm_val - prev_norm;
+                        if (fx_ctrl.track_state.stepDiscreteParam(cc, tr, fxIdx, param, norm_delta)) |new_norm| {
+                            setUIVal(cc, new_norm, fx_ctrl);
+                        } else {
+                            _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
+                        }
                     }
                     var fmt_buf: [256:0]u8 = undefined;
                     if (reaper.TrackFX_GetFormattedParamValue(tr, fxIdx, param, &fmt_buf, fmt_buf.len)) {
@@ -253,7 +264,12 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
                     const new_norm = TrackState.cycleDiscreteParam(tr, fxp.fx_index, fxp.param_index, fxp.is_toggle);
                     setUIVal(cc, new_norm, fx_ctrl);
                 } else {
-                    _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, norm_val });
+                    const norm_delta = norm_val - prev_norm;
+                    if (fx_ctrl.track_state.stepDiscreteParam(cc, tr, fxp.fx_index, fxp.param_index, norm_delta)) |new_norm| {
+                        setUIVal(cc, new_norm, fx_ctrl);
+                    } else {
+                        _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, norm_val });
+                    }
                 }
                 var fmt_buf: [256:0]u8 = undefined;
                 if (reaper.TrackFX_GetFormattedParamValue(tr, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
