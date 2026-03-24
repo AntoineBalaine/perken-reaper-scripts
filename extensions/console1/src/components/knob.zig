@@ -215,6 +215,14 @@ pub fn YControl(ctx: imgui.ContextPtr, id: [:0]const u8, value: *f64, w: f64, h:
         speed = 2000.0;
     }
 
+    // Double-click resets to the midpoint (0.5 normalized). REAPER does
+    // not expose a parameter's true default value, so the midpoint is the
+    // best available approximation.
+    if (isHovered and try imgui.IsMouseDoubleClicked(.{ ctx, imgui.MouseButton_Left })) {
+        value.* = (min_val + max_val) / 2.0;
+        return .{ isHovered, true };
+    }
+
     if (try imgui.IsItemActive(.{ctx})) {
         var delta_x: f64 = undefined;
         var delta_y: f64 = undefined;
