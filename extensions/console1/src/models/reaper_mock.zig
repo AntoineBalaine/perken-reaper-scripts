@@ -90,6 +90,8 @@ const Mocks = struct {
     CSurf_SetSurfaceSolo: @TypeOf(reaper.CSurf_SetSurfaceSolo),
     CSurf_SetSurfaceVolume: @TypeOf(reaper.CSurf_SetSurfaceVolume),
     CSurf_SetSurfacePan: @TypeOf(reaper.CSurf_SetSurfacePan),
+    SetMixerScroll: @TypeOf(reaper.SetMixerScroll),
+    TrackList_AdjustWindows: @TypeOf(reaper.TrackList_AdjustWindows),
 };
 
 // Helper functions to set up and tear down the mock API
@@ -572,6 +574,12 @@ fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReape
     _ = trackid;
     _ = pan;
     _ = ignoresurf;
+}
+fn SetMixerScroll(leftmosttrack: reaper.MediaTrack) callconv(.C) std.meta.Child(reaper.MediaTrack) {
+    return leftmosttrack orelse unreachable;
+}
+fn TrackList_AdjustWindows(isMinor: bool) callconv(.C) void {
+    _ = isMinor;
 }
 
 fn CSurf_TrackToID(track: MediaTrack, mcpView: bool) callconv(.C) c_int {

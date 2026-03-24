@@ -26,7 +26,7 @@ pub const SettingsFields = enum {
     log_to_file,
     start_suspended,
     // show_track_list,
-    // focus_page_tracks,
+    focus_page_tracks,
     auto_insert_modules,
     auto_insert_bypassed,
     auto_reorder_modules,
@@ -277,6 +277,7 @@ pub fn toggleField(self: *@This(), field: SettingsFields) bool {
         .manual_routing => self.manual_routing = !self.manual_routing,
         .log_to_file => self.log_to_file = !self.log_to_file,
         .start_suspended => self.start_suspended = !self.start_suspended,
+        .focus_page_tracks => self.focus_page_tracks = !self.focus_page_tracks,
         // Handle combo boxes differently
         else => {
             rv = false;

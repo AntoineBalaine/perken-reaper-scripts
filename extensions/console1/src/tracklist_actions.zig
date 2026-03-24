@@ -157,48 +157,109 @@ fn updateTrackNames(globals: *Globals) void {
 }
 
 fn focusPageTracks(globals: *Globals) void {
-    const page_start = globals.state.fx_ctrl.current_page * TrackList.PageSize;
+    const page_start: c_int = @intCast(globals.state.fx_ctrl.current_page * TrackList.PageSize);
 
-    // Set vertical scroll to show selected tracks
-    // Note: this requires SWS extension
-    if (reaper.APIExists("BR_GetArrangeView")) {
-        // FIXME: there should be a way to have this using the type system.
-        // // Get arrange view info
-        // var start_time: f64 = undefined;
-        // var end_time: f64 = undefined;
-        // _ = reaper.BR_GetArrangeView(null, &start_time, &end_time);
+    // The track list uses CSurf IDs (0=master, 1=first track, ...).
+    // CSurf_TrackFromID maps these to MediaTrack pointers correctly.
+    const first_tr = reaper.CSurf_TrackFromID(page_start, constants.g_csurf_mcpmode);
+    if (first_tr == null) return;
 
-        // // Get first and last track positions
-        // if (reaper.GetTrack(0, @intCast(page_start))) |first_tr| {
-        //     if (reaper.GetTrack(0, @intCast(page_end - 1))) |last_tr| {
-        //         const first_y = reaper.GetMediaTrackInfo_Value(first_tr, "I_TCPY");
-        //         const last_y = reaper.GetMediaTrackInfo_Value(last_tr, "I_TCPY");
-        //         const last_h = reaper.GetMediaTrackInfo_Value(last_tr, "I_TCPH");
+    // Resize tracks so the current page fills the TCP viewport.
+    // Because the scroll position depends on track heights, we must
+    // apply the height zoom before scrolling.
+    const GetDlgItem_fn = c.GetDlgItem orelse return;
+    const GetClientRect_fn = c.GetClientRect orelse return;
 
-        //         // Adjust view to show all selected tracks
-        //         _ = reaper.BR_SetArrangeView(null, start_time, end_time, first_y, last_y + last_h);
-        //     }
-        // }
-    } else {
-        // Fallback if SWS not available: use basic scroll
-        const first_tr = reaper.GetTrack(0, @intCast(page_start));
-        _ = reaper.SetMixerScroll(first_tr);
+    const main_hwnd: c.HWND = @ptrCast(reaper.GetMainHwnd());
+    const arrange_hwnd = GetDlgItem_fn(main_hwnd, 0x3E8);
+    if (arrange_hwnd == null) return;
+
+    var rect: c.RECT = undefined;
+    GetClientRect_fn(arrange_hwnd, &rect);
+    // On macOS, SWELL can return flipped Y coordinates (bottom < top),
+    // so we use @abs to normalize.
+    const tcp_height: c_int = @intCast(@abs(rect.bottom - rect.top));
+    if (tcp_height > 0) {
+        applyTrackHeightZoom(tcp_height, @intCast(globals.state.fx_ctrl.current_page), TrackList.PageSize);
     }
 
-    // Optional: adjust track heights to fit in view
-    if (globals.preferences.focus_page_tracks) {
-        // FIXME: should be able to query the arrange view height
-        // const arrange_h = reaper.GetMainHwnd(); // Get arrange window height
-        // const target_height = @as(i32, @intFromFloat(@as(f32, @floatFromInt(arrange_h)) / @as(f32, @floatFromInt(TrackList.PageSize))));
+    // Scroll after height changes so the scroll position accounts for
+    // the new track heights.
+    _ = reaper.SetMixerScroll(first_tr);
 
-        // i = page_start;
-        // while (i < page_end) : (i += 1) {
-        //     if (reaper.GetTrack(0, @intCast(i))) |tr| {
-        //         _ = reaper.SetMediaTrackInfo_Value(tr, "I_TCPH", target_height);
-        //     }
-        // }
+    // Scroll the arrange TCP to the first track on the page using the
+    // same approach as SWS's ScrollToTrackIfNotInArrange: compute the
+    // absolute Y by summing I_WNDH for all preceding tracks, then set
+    // the scrollbar position via CoolSB_SetScrollInfo + WM_VSCROLL.
+    scrollArrangeTCPToTrack(arrange_hwnd, page_start);
+}
+
+/// Scrolls the arrange TCP so that the track at the given CSurf ID is
+/// at the top of the viewport. Uses CoolSB_SetScrollInfo (resolved via
+/// plugin_getapi at runtime) followed by SendMessage(WM_VSCROLL) to
+/// match the pattern used by the SWS extension.
+fn scrollArrangeTCPToTrack(arrange_hwnd: c.HWND, target_csurf_id: c_int) void {
+    const CoolSB_SetScrollInfoFn = *fn (c.HWND, c_int, *c.SCROLLINFO, c_int) callconv(.C) c_int;
+    const CoolSB_GetScrollInfoFn = *fn (c.HWND, c_int, *c.SCROLLINFO) callconv(.C) c_int;
+
+    const set_fn_ptr = reaper.plugin_getapi("CoolSB_SetScrollInfo");
+    const get_fn_ptr = reaper.plugin_getapi("CoolSB_GetScrollInfo");
+    if (set_fn_ptr == null or get_fn_ptr == null) return;
+
+    const coolsb_set: CoolSB_SetScrollInfoFn = @ptrCast(@alignCast(set_fn_ptr));
+    const coolsb_get: CoolSB_GetScrollInfoFn = @ptrCast(@alignCast(get_fn_ptr));
+
+    // Get current scrollbar state
+    var si: c.SCROLLINFO = std.mem.zeroes(c.SCROLLINFO);
+    si.cbSize = @sizeOf(c.SCROLLINFO);
+    si.fMask = c.SIF_ALL;
+    _ = coolsb_get(arrange_hwnd, c.SB_VERT, &si);
+
+    // Compute the absolute Y of the target track by summing I_WNDH
+    // for all tracks before it (I_WNDH includes spacers).
+    var abs_y: c_int = 0;
+    var i: c_int = 0;
+    while (i < target_csurf_id) : (i += 1) {
+        const tr = reaper.CSurf_TrackFromID(i, constants.g_csurf_mcpmode);
+        if (tr != null) {
+            abs_y += @intFromFloat(reaper.GetMediaTrackInfo_Value(tr, "I_WNDH"));
+        }
     }
-    unreachable;
+
+    si.nPos = abs_y;
+    _ = coolsb_set(arrange_hwnd, c.SB_VERT, &si, 1);
+
+    const SendMessage_fn = c.SendMessage orelse return;
+    _ = SendMessage_fn(arrange_hwnd, c.WM_VSCROLL, c.SB_THUMBPOSITION | (@as(c.WPARAM, @intCast(abs_y)) << 16), 0);
+}
+
+/// Resizes tracks so that the tracks on the given page fill the TCP viewport,
+/// and resets tracks outside the page to their default height. Uses CSurf track
+/// IDs (0=master, 1=first regular track, ...) to stay consistent with the
+/// track list's indexing.
+pub fn applyTrackHeightZoom(tcp_height: c_int, current_page: usize, page_size: usize) void {
+    if (tcp_height <= 0) return;
+
+    const track_height: f64 = @floatFromInt(@divFloor(tcp_height, @as(c_int, @intCast(page_size))));
+    // CSurf track IDs: 0=master, 1..N=regular tracks. Total count = GetNumTracks() + 1.
+    const track_count: usize = @intCast(reaper.GetNumTracks() + 1);
+    const page_start = current_page * page_size;
+    const page_end = @min(page_start + page_size, track_count);
+
+    var i: usize = 0;
+    while (i < track_count) : (i += 1) {
+        const tr = reaper.CSurf_TrackFromID(@intCast(i), constants.g_csurf_mcpmode);
+        if (tr == null) continue;
+
+        if (i >= page_start and i < page_end) {
+            _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "I_HEIGHTOVERRIDE", track_height });
+        } else {
+            // Reset non-page tracks to default height
+            _ = pReaper.SetMediaTrackInfo_Value(.{ tr, "I_HEIGHTOVERRIDE", 0 });
+        }
+    }
+
+    reaper.TrackList_AdjustWindows(false);
 }
 
 // unselect all other tracks.

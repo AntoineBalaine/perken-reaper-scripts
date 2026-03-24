@@ -226,6 +226,25 @@ fn varargSetModuleOrder(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*
 
 const apidef_SetModuleOrder: [*:0]const u8 = "bool\x00const char*\x00order_name\x00Console1: Triggers a module reorder. Valid orders: EQ-S-C, S-C-EQ, S-EQ-C.\x00";
 
+// -- C1_SettingsSave: enters settings mode (if not already), then dispatches save --
+
+fn apiSettingsSave() callconv(.C) bool {
+    const globals = getGlobals();
+    if (globals.state.current_mode != .settings) {
+        actions.dispatch(globals, .{ .change_mode = .settings });
+    }
+    actions.dispatch(globals, .{ .settings = .save });
+    return true;
+}
+
+fn varargSettingsSave(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyopaque {
+    _ = .{ arglist, numparms };
+    const result = apiSettingsSave();
+    return if (result) @ptrFromInt(1) else @ptrFromInt(0);
+}
+
+const apidef_SettingsSave: [*:0]const u8 = "bool\x00\x00\x00Console1: Enters settings mode and saves preferences.\x00";
+
 // -- Registration --
 
 fn reg(
@@ -252,4 +271,5 @@ pub fn registerTestApis() void {
     reg("API_C1_GetModuleOrder", @ptrCast(@constCast(&apiGetModuleOrder)), "APIvararg_C1_GetModuleOrder", @ptrCast(@constCast(&varargGetModuleOrder)), "APIdef_C1_GetModuleOrder", @ptrCast(@constCast(apidef_GetModuleOrder)));
     reg("API_C1_GetModuleLocations", @ptrCast(@constCast(&apiGetModuleLocations)), "APIvararg_C1_GetModuleLocations", @ptrCast(@constCast(&varargGetModuleLocations)), "APIdef_C1_GetModuleLocations", @ptrCast(@constCast(apidef_GetModuleLocations)));
     reg("API_C1_SetModuleOrder", @ptrCast(@constCast(&apiSetModuleOrder)), "APIvararg_C1_SetModuleOrder", @ptrCast(@constCast(&varargSetModuleOrder)), "APIdef_C1_SetModuleOrder", @ptrCast(@constCast(apidef_SetModuleOrder)));
+    reg("API_C1_SettingsSave", @ptrCast(@constCast(&apiSettingsSave)), "APIvararg_C1_SettingsSave", @ptrCast(@constCast(&varargSettingsSave)), "APIdef_C1_SettingsSave", @ptrCast(@constCast(apidef_SettingsSave)));
 }

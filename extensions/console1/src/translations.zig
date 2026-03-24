@@ -105,6 +105,7 @@ pub const TranslationKey = enum {
     settings_output,
     settings_language_restart,
     settings_language,
+    settings_focus_page_tracks,
     settings_auto_insert_modules,
     settings_auto_insert_bypassed,
 
@@ -381,6 +382,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "settings_output", "OUTPT" },
     .{ "settings_language_restart", "Language change requires restart" },
     .{ "settings_language", "Language" },
+    .{ "settings_focus_page_tracks", "Sync track list with REAPER views" },
     .{ "settings_auto_insert_modules", "Auto-insert missing modules" },
     .{ "settings_auto_insert_bypassed", "Insert new modules as bypassed" },
     .{ "trsprt_Inpt_disp_mode", "Mode" },

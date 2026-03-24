@@ -146,6 +146,19 @@ pub fn draw(
 
         try imgui.Separator(.{ctx});
 
+        // Track List View Sync
+        {
+            const popColor = try pushColIfSelected(ctx, .focus_page_tracks, scroll_pos);
+            defer if (popColor) |pop| pop(ctx) catch {};
+            const label = safePrint(&buf, "{s}##focuspg", .{tr(translations, .settings_focus_page_tracks)});
+            if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.focus_page_tracks })) {
+                rv = .{ .val_update = .{ .bool_val = .{ .field = .focus_page_tracks, .val = self.temp_settings.focus_page_tracks } } };
+                self.dirty = true;
+            }
+        }
+
+        try imgui.Separator(.{ctx});
+
         // Track Validation Settings
         {
             const popColor = try pushColIfSelected(ctx, .auto_insert_modules, scroll_pos);
