@@ -91,6 +91,10 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     actions.dispatch(globals, .{ .change_mode = .transport });
                 },
                 .Tr_ext_sidechain => {
+                    if (globals.state.fx_ctrl.track_state.mode == .channel_strip) {
+                        handlePanelParamInput(globals, input);
+                        return;
+                    }
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         const routing: SCRouting = @enumFromInt(@as(u8, @intFromFloat(input.value)));
@@ -108,6 +112,10 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     }
                 },
                 .Tr_order => {
+                    if (globals.state.fx_ctrl.track_state.mode == .channel_strip) {
+                        handlePanelParamInput(globals, input);
+                        return;
+                    }
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
                         const order: ModulesOrder = @enumFromInt(@as(u8, @intFromFloat(input.value)));
@@ -156,75 +164,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                         }
                     }
                 },
-                else => {
-                    // Read the current value before updating, because discrete
-                    // stepping needs to compare the old value to determine direction.
-                    const prev_norm = if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| switch (vp.*) {
-                        .param => |p| p.normalized,
-                        else => 0.0,
-                    } else 0.0;
-
-                    // Update the stored value for continuous params. For discrete
-                    // params, the stepping logic below will set the correct value.
-                    if (globals.state.fx_ctrl.values.getPtr(input.cc)) |value_ptr| {
-                        switch (value_ptr.*) {
-                            .param => |*param_value| {
-                                param_value.normalized = input.value;
-                            },
-                            .button => |*button_value| {
-                                button_value.* = input.value > 0.5;
-                            },
-                            .track, .meter => {
-                                log.warn("Unexpected control type for CC {s}", .{@tagName(input.cc)});
-                            },
-                        }
-                    }
-
-                    // Send MIDI feedback regardless of the control type
-                    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
-                    if (globals.state.current_tr_id) |tr_id| {
-                        const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        if (globals.state.fx_ctrl.track_state.forward_map.get(input.cc)) |fxp| {
-                            if (fxp.param_index == TrackState.FxParam.SYNTHETIC) {
-                                // Synthetic entry (e.g. ReaEQ filter types via SetNamedConfigParm)
-                                reaeq.cycleReaEqFilterType(media_track, fxp.fx_index, input.cc);
-                                const band_key: [:0]const u8 = if (input.cc == .Eq_lp_shape) "BANDTYPE0" else "BANDTYPE3";
-                                var band_buf: [64:0]u8 = undefined;
-                                if (reaper.TrackFX_GetNamedConfigParm(media_track, fxp.fx_index, band_key, &band_buf, band_buf.len)) {
-                                    const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
-                                    const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
-                                    const name = TrackState.bandTypeName(band_int);
-                                    globals.state.fx_ctrl.track_state.label_pool.setPrmLabel(input.cc, name);
-                                    globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, name);
-                                }
-                                return;
-                            } else if (input.cc.isBtn()) {
-                                // Button CCs use cycling logic for discrete/toggle params
-                                const new_norm = TrackState.cycleDiscreteParam(media_track, fxp.fx_index, fxp.param_index, fxp.is_toggle);
-                                if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| {
-                                    vp.param.normalized = new_norm;
-                                }
-                            } else {
-                                // For knob CCs, accumulate the normalized delta and step
-                                // when a boundary is crossed. Falls back to SetParamNormalized
-                                // for continuous params.
-                                const norm_delta = input.value - prev_norm;
-                                if (globals.state.fx_ctrl.track_state.stepDiscreteParam(input.cc, media_track, fxp.fx_index, fxp.param_index, norm_delta)) |new_norm| {
-                                    if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| {
-                                        vp.param.normalized = new_norm;
-                                    }
-                                } else {
-                                    _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
-                                }
-                            }
-
-                            var fmt_buf: [256:0]u8 = undefined;
-                            if (reaper.TrackFX_GetFormattedParamValue(media_track, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
-                                globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
-                            }
-                        }
-                    }
-                },
+                else => handlePanelParamInput(globals, input),
             }
         },
         .on_track_entry => |media_track| onTrackEntry(globals, media_track),
@@ -249,6 +189,76 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
     }
 }
 
+fn handlePanelParamInput(globals: *Globals, input: WidgetInput) void {
+    // Read the current value before updating, because discrete
+    // stepping needs to compare the old value to determine direction.
+    const prev_norm = if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| switch (vp.*) {
+        .param => |p| p.normalized,
+        else => 0.0,
+    } else 0.0;
+
+    // Update the stored value for continuous params. For discrete
+    // params, the stepping logic below will set the correct value.
+    if (globals.state.fx_ctrl.values.getPtr(input.cc)) |value_ptr| {
+        switch (value_ptr.*) {
+            .param => |*param_value| {
+                param_value.normalized = input.value;
+            },
+            .button => |*button_value| {
+                button_value.* = input.value > 0.5;
+            },
+            .track, .meter => {
+                log.warn("Unexpected control type for CC {s}", .{@tagName(input.cc)});
+            },
+        }
+    }
+
+    // Send MIDI feedback regardless of the control type
+    actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = input.cc, .value = @intFromFloat(@min(input.value, 1.0) * 127) } } });
+    if (globals.state.current_tr_id) |tr_id| {
+        const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
+        if (globals.state.fx_ctrl.track_state.forward_map.get(input.cc)) |fxp| {
+            if (fxp.param_index == TrackState.FxParam.SYNTHETIC) {
+                // Synthetic entry (e.g. ReaEQ filter types via SetNamedConfigParm)
+                reaeq.cycleReaEqFilterType(media_track, fxp.fx_index, input.cc);
+                const band_key: [:0]const u8 = if (input.cc == .Eq_lp_shape) "BANDTYPE0" else "BANDTYPE3";
+                var band_buf: [64:0]u8 = undefined;
+                if (reaper.TrackFX_GetNamedConfigParm(media_track, fxp.fx_index, band_key, &band_buf, band_buf.len)) {
+                    const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
+                    const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
+                    const name = TrackState.bandTypeName(band_int);
+                    globals.state.fx_ctrl.track_state.label_pool.setPrmLabel(input.cc, name);
+                    globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, name);
+                }
+                return;
+            } else if (input.cc.isBtn()) {
+                // Button CCs use cycling logic for discrete/toggle params
+                const new_norm = TrackState.cycleDiscreteParam(media_track, fxp.fx_index, fxp.param_index, fxp.is_toggle);
+                if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| {
+                    vp.param.normalized = new_norm;
+                }
+            } else {
+                // For knob CCs, accumulate the normalized delta and step
+                // when a boundary is crossed. Falls back to SetParamNormalized
+                // for continuous params.
+                const norm_delta = input.value - prev_norm;
+                if (globals.state.fx_ctrl.track_state.stepDiscreteParam(input.cc, media_track, fxp.fx_index, fxp.param_index, norm_delta)) |new_norm| {
+                    if (globals.state.fx_ctrl.values.getPtr(input.cc)) |vp| {
+                        vp.param.normalized = new_norm;
+                    }
+                } else {
+                    _ = pReaper.TrackFX_SetParamNormalized(.{ media_track, fxp.fx_index, fxp.param_index, input.value });
+                }
+            }
+
+            var fmt_buf: [256:0]u8 = undefined;
+            if (reaper.TrackFX_GetFormattedParamValue(media_track, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
+                globals.state.fx_ctrl.track_state.label_pool.setFmtValue(input.cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
+            }
+        }
+    }
+}
+
 /// Handles FX window visibility when switching tracks
 /// Closes FX window of previous track and opens FX window of new track if display mode is active
 fn handleFxWindowDisplay(globals: *Globals, media_track: MediaTrack) void {
@@ -263,9 +273,6 @@ fn handleFxWindowDisplay(globals: *Globals, media_track: MediaTrack) void {
     }
 }
 
-/// Main track selection handler for Console1
-/// Validates track's FX chain, updates window display,
-/// and synchronizes all controller feedback (LEDs, knobs) with track state
 fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
     log.debug("track entry", .{});
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);

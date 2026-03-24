@@ -78,7 +78,7 @@ pub const Shp = struct {
 
 /// A flattened mapping for channel strip FX that contain all Console1 sections
 /// in a single plugin. Each field is an optional parameter index within the FX.
-/// Because channel strip mode repurposes SC_routing and Tr_order as freely
+/// Because channel strip mode repurposes Tr_ext_sidechain and Tr_order as freely
 /// assignable parameters, they are included here.
 pub const ChannelStripMapping = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
@@ -130,7 +130,7 @@ pub const ChannelStripMapping = struct {
     Out_Vol: ?u16 = null,
 
     // Reassignable controls (no fixed meaning in channel strip mode)
-    SC_routing: ?u16 = null,
+    Tr_ext_sidechain: ?u16 = null,
     Tr_order: ?u16 = null,
 };
 

@@ -178,7 +178,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                         if (assign.midi_learn_active) {
                             const current_module = std.meta.activeTag(assign.current_mappings);
                             const module_matches = if (current_module == .STRIP)
-                                cc.isFxAssignable() or cc == .Tr_order
+                                cc.isFxAssignable() or cc == .Tr_order or cc == .Tr_ext_sidechain
                             else if (cc.toModule()) |mod|
                                 @intFromEnum(mod) == @intFromEnum(current_module)
                             else

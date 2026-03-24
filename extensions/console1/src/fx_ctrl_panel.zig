@@ -730,6 +730,8 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, _: *cons
 fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
+    const is_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
+    const is_strip = is_fx_mode and fx_state.track_state.mode == .channel_strip;
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
@@ -738,24 +740,32 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
     {
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
-        const tr_order_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => switch (fx_state.track_state.getModulesOrder()) {
-                .@"EQ-S-C" => .fx_ctrl_Tr_order_eq_s_c,
-                .@"S-C-EQ" => .fx_ctrl_Tr_order_s_c_eq,
-                .@"S-EQ-C" => .fx_ctrl_Tr_order_s_eq_c,
-            },
-            else => null,
-        };
-        const tr_order_label = if (tr_order_key) |key| tr(translations, key) else null;
-        const tr_order_display_label: [:0]const u8 = tr_order_label orelse "-";
-        const tr_order_disabled = (tr_order_label == null);
-        if (try roundButton(.{ ctx, tr_order_display_label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, tr_order_disabled })) {
-            const next_order: ModulesOrder = switch (fx_state.track_state.getModulesOrder()) {
-                .@"EQ-S-C" => .@"S-C-EQ",
-                .@"S-C-EQ" => .@"S-EQ-C",
-                .@"S-EQ-C" => .@"EQ-S-C",
+        if (is_strip) {
+            const mapped = fx_state.track_state.forward_map.get(.Tr_order) != null;
+            const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getFmtValue(.Tr_order) else "-";
+            if (try roundButton(.{ ctx, label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, !mapped })) {
+                rv = .{ .cc = .Tr_order, .value = 0 };
+            }
+        } else {
+            const tr_order_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl, .mapping_panel, .fx_sel => switch (fx_state.track_state.getModulesOrder()) {
+                    .@"EQ-S-C" => .fx_ctrl_Tr_order_eq_s_c,
+                    .@"S-C-EQ" => .fx_ctrl_Tr_order_s_c_eq,
+                    .@"S-EQ-C" => .fx_ctrl_Tr_order_s_eq_c,
+                },
+                else => null,
             };
-            rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@intFromEnum(next_order))) };
+            const tr_order_label = if (tr_order_key) |key| tr(translations, key) else null;
+            const tr_order_display_label: [:0]const u8 = tr_order_label orelse "-";
+            const tr_order_disabled = (tr_order_label == null);
+            if (try roundButton(.{ ctx, tr_order_display_label, "##" ++ @tagName(c1.CCs.Tr_order), null, null, .right, tr_order_disabled })) {
+                const next_order: ModulesOrder = switch (fx_state.track_state.getModulesOrder()) {
+                    .@"EQ-S-C" => .@"S-C-EQ",
+                    .@"S-C-EQ" => .@"S-EQ-C",
+                    .@"S-EQ-C" => .@"EQ-S-C",
+                };
+                rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@intFromEnum(next_order))) };
+            }
         }
         {
             // Calculate max width for this column's knobs
@@ -829,24 +839,32 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
-        const ext_sidechain_key: ?TranslationKey = switch (mode) {
-            .fx_ctrl, .mapping_panel, .fx_sel => switch (fx_state.scRouting) {
-                .off => .fx_ctrl_Tr_ext_sidechain,
-                .toShape => .fx_ctrl_Tr_ext_sidechain_shape,
-                .toComp => .fx_ctrl_Tr_ext_sidechain_comp,
-            },
-            else => null,
-        };
-        const ext_sidechain_label = if (ext_sidechain_key) |key| tr(translations, key) else null;
-        const ext_sidechain_display_label: [:0]const u8 = ext_sidechain_label orelse "-";
-        const ext_sidechain_disabled = (ext_sidechain_label == null);
-        if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {
-            const next_routing: SCRouting = switch (fx_state.scRouting) {
-                .off => .toShape,
-                .toShape => .toComp,
-                .toComp => .off,
+        if (is_strip) {
+            const mapped = fx_state.track_state.forward_map.get(.Tr_ext_sidechain) != null;
+            const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getFmtValue(.Tr_ext_sidechain) else "-";
+            if (try roundButton(.{ ctx, label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, !mapped })) {
+                rv = .{ .cc = .Tr_ext_sidechain, .value = 0 };
+            }
+        } else {
+            const ext_sidechain_key: ?TranslationKey = switch (mode) {
+                .fx_ctrl, .mapping_panel, .fx_sel => switch (fx_state.scRouting) {
+                    .off => .fx_ctrl_Tr_ext_sidechain,
+                    .toShape => .fx_ctrl_Tr_ext_sidechain_shape,
+                    .toComp => .fx_ctrl_Tr_ext_sidechain_comp,
+                },
+                else => null,
             };
-            rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@intFromEnum(next_routing))) };
+            const ext_sidechain_label = if (ext_sidechain_key) |key| tr(translations, key) else null;
+            const ext_sidechain_display_label: [:0]const u8 = ext_sidechain_label orelse "-";
+            const ext_sidechain_disabled = (ext_sidechain_label == null);
+            if (try roundButton(.{ ctx, ext_sidechain_display_label, "##" ++ @tagName(c1.CCs.Tr_ext_sidechain), null, null, .right, ext_sidechain_disabled })) {
+                const next_routing: SCRouting = switch (fx_state.scRouting) {
+                    .off => .toShape,
+                    .toShape => .toComp,
+                    .toComp => .off,
+                };
+                rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@intFromEnum(next_routing))) };
+            }
         }
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE * 2, KNOB_SIZE * 2 });

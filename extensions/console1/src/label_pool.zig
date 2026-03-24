@@ -5,7 +5,7 @@ const Self = @This();
 
 pub const SLOT_SIZE = 32;
 pub const ENTRY_SIZE = SLOT_SIZE * 2;
-pub const COUNT = 40;
+pub const COUNT = 41;
 
 pub const empty: Self = .{};
 
@@ -53,6 +53,7 @@ pub fn indexOf(cc: CCs) ?u8 {
         .Shp_shape => 37,
         .Shp_sustain => 38,
         .Tr_order => 39,
+        .Tr_ext_sidechain => 40,
         else => null,
     };
 }

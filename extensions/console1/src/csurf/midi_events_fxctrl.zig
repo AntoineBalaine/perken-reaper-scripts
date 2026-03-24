@@ -3,8 +3,6 @@ const reaper = @import("../reaper.zig").reaper;
 const pReaper = @import("../pReaper.zig");
 const MediaTrack = reaper.MediaTrack;
 const c1 = @import("../c1.zig");
-const ModulesList = @import("../statemachine.zig").ModulesList;
-const PhysicalModule = @import("../statemachine.zig").PhysicalModule;
 const Globals = @import("../globals.zig").Globals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
@@ -77,6 +75,12 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
         },
         .Shp_Mtr => {}, // meters unhandled
         .Tr_ext_sidechain => {
+            if (globals.state.fx_ctrl.track_state.mode == .channel_strip) {
+                if (getTrack(globals.state.current_tr_id)) |tr| {
+                    setPrmVal(.Tr_ext_sidechain, tr, val, &globals.state.fx_ctrl);
+                }
+                return;
+            }
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
                     0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(
@@ -95,6 +99,12 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
             }
         },
         .Tr_order => {
+            if (globals.state.fx_ctrl.track_state.mode == .channel_strip) {
+                if (getTrack(globals.state.current_tr_id)) |tr| {
+                    setPrmVal(.Tr_order, tr, val, &globals.state.fx_ctrl);
+                }
+                return;
+            }
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
                     0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(
@@ -157,23 +167,16 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
             } else {
                 if (getTrack(globals.state.current_tr_id)) |tr| {
                     if (cc == .Inpt_HiCut) {
-                        setPrmVal(.Inpt_HiCut, .INPUT, tr, val, &globals.state.fx_ctrl);
+                        setPrmVal(.Inpt_HiCut, tr, val, &globals.state.fx_ctrl);
                     } else {
-                        setPrmVal(.Inpt_LoCut, .INPUT, tr, val, &globals.state.fx_ctrl);
+                        setPrmVal(.Inpt_LoCut, tr, val, &globals.state.fx_ctrl);
                     }
                 }
             }
         },
-        inline else => |cc_| {
+        else => {
             if (getTrack(globals.state.current_tr_id)) |tr| {
-                setPrmVal(cc_, switch (cc_) {
-                    .Comp_Attack, .Comp_DryWet, .Comp_Ratio, .Comp_Release, .Comp_Thresh, .Comp_comp, .Comp_HiCut, .Comp_LoCut => .COMP,
-                    .Eq_HiFrq, .Eq_HiGain, .Eq_HiMidFrq, .Eq_HiMidGain, .Eq_HiMidQ, .Eq_LoFrq, .Eq_LoGain, .Eq_LoMidFrq, .Eq_LoMidGain, .Eq_LoMidQ, .Eq_eq, .Eq_hp_shape, .Eq_lp_shape => .EQ,
-                    .Inpt_Gain => .INPUT,
-                    .Out_Drive, .Out_DriveChar => .OUTPT,
-                    .Shp_GateRelease, .Shp_Gate, .Shp_Punch, .Shp_hard_gate, .Shp_shape, .Shp_sustain => .GATE,
-                    else => unreachable,
-                }, tr, val, &globals.state.fx_ctrl);
+                setPrmVal(cc, tr, val, &globals.state.fx_ctrl);
             }
         },
     }
@@ -201,7 +204,7 @@ pub fn setUIVal(cc: c1.CCs, norm_val: f64, fx_ctrl: *FxCtrlState) void {
     }
 }
 
-pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reaper.MediaTrack, val: u8, fx_ctrl: *FxCtrlState) void {
+pub fn setPrmVal(cc: c1.CCs, tr: reaper.MediaTrack, val: u8, fx_ctrl: *FxCtrlState) void {
     const norm_val = @as(f64, @floatFromInt(val)) / 127;
     // Capture the previous value before updating, because discrete
     // stepping needs it to determine direction.
@@ -210,84 +213,41 @@ pub fn setPrmVal(comptime cc: c1.CCs, comptime section: PhysicalModule, tr: reap
         else => 0.0,
     } else 0.0;
     setUIVal(cc, norm_val, fx_ctrl);
-    const structPrm = @tagName(cc);
-    switch (fx_ctrl.track_state.mode) {
-        .multi_fx => |locs| {
-            const fxMap = locs.get(section);
-            if (fxMap == null) return;
-            const fxIdx = fxMap.?.fx_index;
-            if (fx_ctrl.display != null) { // show touched fx
-                pReaper.TrackFX_Show(.{ tr, fxIdx, 1 });
-            }
-            // if setting filter types on reaeq
-            if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape)) {
-                const hasName = reaper.TrackFX_GetNamedConfigParm(tr, fxIdx, "original_name", &tmp, tmp.len);
-                if (hasName and std.mem.eql(u8, std.mem.span(@as([*:0]const u8, &tmp)), "VST: ReaEQ (Cockos)")) {
-                    reaeq.cycleReaEqFilterType(tr, fxIdx, cc);
-                    // Update the pool label with the new filter type name
-                    const band_key: [:0]const u8 = if (cc == c1.CCs.Eq_lp_shape) "BANDTYPE0" else "BANDTYPE3";
-                    var band_buf: [64:0]u8 = undefined;
-                    if (reaper.TrackFX_GetNamedConfigParm(tr, fxIdx, band_key, &band_buf, band_buf.len)) {
-                        const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
-                        const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
-                        const name = TrackState.bandTypeName(band_int);
-                        fx_ctrl.track_state.label_pool.setPrmLabel(cc, name);
-                        fx_ctrl.track_state.label_pool.setFmtValue(cc, name);
-                    }
-                }
-                return;
-            }
+    const fxp = fx_ctrl.track_state.forward_map.get(cc) orelse return;
 
-            const mapping = fxMap.?.mapping;
-            if (mapping) |map| { // handle mapping
-                const fxPrm = @field(@field(map, @tagName(section)), structPrm);
+    if (fx_ctrl.display != null) {
+        pReaper.TrackFX_Show(.{ tr, fxp.fx_index, 1 });
+    }
 
-                // at fxIdx, at fxPrm, set the value
-                if (fxPrm) |param| {
-                    log.info("set param\n", .{});
-                    if (comptime cc.isBtn()) {
-                        // Button CCs use cycling logic for discrete/toggle params
-                        const fxp = fx_ctrl.track_state.forward_map.get(cc);
-                        const is_toggle = if (fxp) |f| f.is_toggle else false;
-                        const new_norm = TrackState.cycleDiscreteParam(tr, fxIdx, param, is_toggle);
-                        setUIVal(cc, new_norm, fx_ctrl);
-                    } else {
-                        const norm_delta = norm_val - prev_norm;
-                        if (fx_ctrl.track_state.stepDiscreteParam(cc, tr, fxIdx, param, norm_delta)) |new_norm| {
-                            setUIVal(cc, new_norm, fx_ctrl);
-                        } else {
-                            _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxIdx, param, norm_val });
-                        }
-                    }
-                    var fmt_buf: [256:0]u8 = undefined;
-                    if (reaper.TrackFX_GetFormattedParamValue(tr, fxIdx, param, &fmt_buf, fmt_buf.len)) {
-                        fx_ctrl.track_state.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
-                    }
-                }
-            }
-        },
-        .channel_strip => |strip| {
-            if (fx_ctrl.display != null) {
-                pReaper.TrackFX_Show(.{ tr, strip.fx_index, 1 });
-            }
-            if (fx_ctrl.track_state.forward_map.get(cc)) |fxp| {
-                if (comptime cc.isBtn()) {
-                    const new_norm = TrackState.cycleDiscreteParam(tr, fxp.fx_index, fxp.param_index, fxp.is_toggle);
-                    setUIVal(cc, new_norm, fx_ctrl);
-                } else {
-                    const norm_delta = norm_val - prev_norm;
-                    if (fx_ctrl.track_state.stepDiscreteParam(cc, tr, fxp.fx_index, fxp.param_index, norm_delta)) |new_norm| {
-                        setUIVal(cc, new_norm, fx_ctrl);
-                    } else {
-                        _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, norm_val });
-                    }
-                }
-                var fmt_buf: [256:0]u8 = undefined;
-                if (reaper.TrackFX_GetFormattedParamValue(tr, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
-                    fx_ctrl.track_state.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
-                }
-            }
-        },
+    // ReaEQ filter types are synthetic params handled via SetNamedConfigParm
+    if ((cc == c1.CCs.Eq_hp_shape or cc == c1.CCs.Eq_lp_shape) and fxp.param_index == TrackState.FxParam.SYNTHETIC) {
+        reaeq.cycleReaEqFilterType(tr, fxp.fx_index, cc);
+        const band_key: [:0]const u8 = if (cc == c1.CCs.Eq_lp_shape) "BANDTYPE0" else "BANDTYPE3";
+        var band_buf: [64:0]u8 = undefined;
+        if (reaper.TrackFX_GetNamedConfigParm(tr, fxp.fx_index, band_key, &band_buf, band_buf.len)) {
+            const band_str = std.mem.span(@as([*:0]const u8, &band_buf));
+            const band_int = std.fmt.parseInt(c_int, band_str, 10) catch 0;
+            const name = TrackState.bandTypeName(band_int);
+            fx_ctrl.track_state.label_pool.setPrmLabel(cc, name);
+            fx_ctrl.track_state.label_pool.setFmtValue(cc, name);
+        }
+        return;
+    }
+
+    if (cc.isBtn()) {
+        const new_norm = TrackState.cycleDiscreteParam(tr, fxp.fx_index, fxp.param_index, fxp.is_toggle);
+        setUIVal(cc, new_norm, fx_ctrl);
+    } else {
+        const norm_delta = norm_val - prev_norm;
+        if (fx_ctrl.track_state.stepDiscreteParam(cc, tr, fxp.fx_index, fxp.param_index, norm_delta)) |new_norm| {
+            setUIVal(cc, new_norm, fx_ctrl);
+        } else {
+            _ = pReaper.TrackFX_SetParamNormalized(.{ tr, fxp.fx_index, fxp.param_index, norm_val });
+        }
+    }
+    var fmt_buf: [256:0]u8 = undefined;
+    if (reaper.TrackFX_GetFormattedParamValue(tr, fxp.fx_index, @intCast(fxp.param_index), &fmt_buf, fmt_buf.len)) {
+        fx_ctrl.track_state.label_pool.setFmtValue(cc, std.mem.span(@as([*:0]const u8, &fmt_buf)));
     }
 }
 

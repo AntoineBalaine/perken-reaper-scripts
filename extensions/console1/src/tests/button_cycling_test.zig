@@ -234,9 +234,24 @@ test "mappable button CCs are stored as .param, hardcoded buttons as .button" {
     try testing.expect(state.values.get(.Eq_hp_shape).? == .param);
     try testing.expect(state.values.get(.Eq_lp_shape).? == .param);
 
+    // Strip-assignable controls should be .param so they can hold FX param values
+    try testing.expect(state.values.get(.Tr_order).? == .param);
+    try testing.expect(state.values.get(.Tr_ext_sidechain).? == .param);
+
     // Hardcoded buttons should still be .button
     try testing.expect(state.values.get(.Out_mute).? == .button);
     try testing.expect(state.values.get(.Out_solo).? == .button);
+}
+
+test "Tr_ext_sidechain has a label pool slot" {
+    try testing.expectEqual(@as(?u8, 40), LabelPool.indexOf(.Tr_ext_sidechain));
+
+    var pool = LabelPool{};
+    pool.setPrmLabel(.Tr_ext_sidechain, "Sidechain");
+    try testing.expectEqualStrings("Sidechain", pool.getPrmLabel(.Tr_ext_sidechain));
+
+    pool.setFmtValue(.Tr_ext_sidechain, "Self");
+    try testing.expectEqualStrings("Self", pool.getFmtValue(.Tr_ext_sidechain));
 }
 
 // --------------------------------------------------------------------------
