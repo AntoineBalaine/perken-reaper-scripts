@@ -7,6 +7,7 @@ const reentrancy = @import("reentrancy.zig");
 const test_api = @import("test_api.zig");
 const preset_installer = @import("preset_installer.zig");
 const Globals = @import("globals.zig").Globals;
+const tr = @import("translations.zig").tr;
 const log = std.log.scoped(.hooks);
 const getGlobals = @import("console1_extension.zig").getGlobals;
 
@@ -91,11 +92,13 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
 }
 
 pub fn runInstallPresets(globals: *Globals) void {
+    const title = tr(&globals.translations, .install_presets_title);
+
     // Because the user needs to confirm before we modify their preset files,
     // we show a message box and only proceed if they click OK
     const confirm = reaper.ShowMessageBox(
-        "This will install embedded presets from your map files into REAPER's preset directory.\nPlease restart REAPER after installation to load the new presets.\n\nContinue?",
-        "Console1: Install Map Presets",
+        tr(&globals.translations, .install_presets_confirm),
+        title,
         1, // MB_OKCANCEL
     );
     if (confirm != 1) return; // 1 = IDOK
@@ -115,19 +118,20 @@ pub fn runInstallPresets(globals: *Globals) void {
         preset_dir,
     ) catch |err| {
         log.err("Failed to install presets: {}", .{err});
-        var err_buf: [256:0]u8 = undefined;
-        const err_msg = std.fmt.bufPrintZ(&err_buf, "Failed to install presets: {s}", .{@errorName(err)}) catch return;
-        _ = reaper.ShowMessageBox(err_msg, "Console1: Error", 0);
+        _ = reaper.ShowMessageBox(tr(&globals.translations, .install_presets_error), title, 0);
         return;
     };
 
     var msg_buf: [512:0]u8 = undefined;
-    const msg = std.fmt.bufPrintZ(&msg_buf, "Installed {d} presets to {d} files.\nSkipped {d} duplicates.\n\nPlease restart REAPER to load the new presets.", .{
+    const result_msg = std.fmt.bufPrintZ(&msg_buf, "{s} {d} presets -> {d} files.\n{s} {d} duplicates.\n\n{s}", .{
+        tr(&globals.translations, .install_presets_installed),
         result.installed,
         result.files_written,
+        tr(&globals.translations, .install_presets_skipped),
         result.skipped,
+        tr(&globals.translations, .install_presets_restart),
     }) catch return;
-    _ = reaper.ShowMessageBox(msg, "Console1: Install Map Presets", 0);
+    _ = reaper.ShowMessageBox(result_msg, title, 0);
 }
 
 // Registration helper
