@@ -223,6 +223,12 @@ pub const AssignState = struct {
     module_fx_names: std.EnumArray(PhysicalModule, ?[:0]const u8) = std.EnumArray(PhysicalModule, ?[:0]const u8).initFill(null),
     /// translation key for the save mapping’s error message
     save_error: ?TranslationKey = null,
+    /// Contiguous storage for preset name strings, used by the preset dropdown
+    preset_strings: StringPool,
+    /// Byte offsets into preset_strings for each available preset name
+    preset_name_offsets: []const u32 = &.{},
+    /// Currently selected preset (offset into preset_strings), or null for no preset
+    selected_preset: ?u32 = null,
 
     pub const FxParameter = struct {
         index: u32,
@@ -230,15 +236,18 @@ pub const AssignState = struct {
     };
 
     pub fn init(gpa: std.mem.Allocator, mappings: MapStore.TaggedMapping) AssignState {
+        var arena = std.heap.ArenaAllocator.init(gpa);
         return AssignState{
             .current_mappings = mappings,
             .param_store = ParamStore.init(gpa),
-            .arena = std.heap.ArenaAllocator.init(gpa),
+            .arena = arena,
+            .preset_strings = StringPool.init(arena.allocator()),
         };
     }
 
     pub fn deinit(self: *AssignState) void {
         self.param_store.deinit();
+        self.preset_strings.deinit();
         self.arena.deinit();
     }
 };

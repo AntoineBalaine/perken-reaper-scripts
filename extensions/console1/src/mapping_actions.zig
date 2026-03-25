@@ -15,6 +15,7 @@ const pReaper = @import("pReaper.zig");
 const TrackState = @import("track_state.zig");
 const swell = @import("swell.zig");
 const tr = @import("translations.zig").tr;
+const preset_file_reader = @import("preset_file_reader.zig");
 
 pub const MappingPanelAction = @import("action_types.zig").MappingPanelAction;
 
@@ -136,6 +137,36 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                         .channel_strip => {},
                     },
                 }
+            }
+
+            // Because the assignment panel needs to show available presets in a dropdown,
+            // we load the preset names from the REAPER user preset file on disk.
+            if (fx_index) |fxi| {
+                if (globals.state.current_tr_id) |track_id| {
+                    const track_for_preset = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
+                    var preset_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+                    reaper.TrackFX_GetUserPresetFilename(track_for_preset, fxi, @ptrCast(&preset_path_buf), @intCast(preset_path_buf.len));
+                    const preset_path = std.mem.span(@as([*:0]const u8, &preset_path_buf));
+                    if (preset_path.len > 0) {
+                        assign_state.preset_name_offsets = preset_file_reader.readPresetNames(
+                            assign_allocator,
+                            &assign_state.preset_strings,
+                            @as([:0]const u8, @ptrCast(preset_path.ptr[0..preset_path.len :0])),
+                        ) catch &.{};
+                    }
+                }
+            }
+
+            // Because the loaded mapping may already have an fx_preset associated,
+            // we need to re-intern the preset name into AssignState’s string pool
+            // so the UI dropdown can display and match it.
+            switch (assign_state.current_mappings) {
+                inline else => |m| {
+                    if (m.fx_preset) |offset| {
+                        const name = globals.map_store.preset_strings.get(offset);
+                        assign_state.selected_preset = assign_state.preset_strings.intern(name) catch null;
+                    }
+                },
             }
 
             // The assignment panel’s knobs should start at the current
