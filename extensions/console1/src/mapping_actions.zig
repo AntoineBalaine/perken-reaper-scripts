@@ -453,6 +453,10 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             }
         },
 
+        .assign_set_preset => |maybe_offset| {
+            globals.state.mapping_panel.mode.assign.selected_preset = maybe_offset;
+        },
+
         .assign_request_save => {
             const assign_state = &globals.state.mapping_panel.mode.assign;
             assign_state.save_error = null;
@@ -470,6 +474,24 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 if (!isInsideMapsDir(path, maps_root)) {
                     assign_state.save_error = .save_error_outside_maps;
                     return;
+                }
+
+                // Because the selected preset lives in AssignState's StringPool, we need
+                // to re-intern it into MapStore's preset_strings before saving.
+                if (assign_state.selected_preset) |sel_offset| {
+                    const preset_name = assign_state.preset_strings.get(sel_offset);
+                    const map_offset = globals.map_store.preset_strings.intern(preset_name) catch null;
+                    switch (assign_state.current_mappings) {
+                        inline else => |*m| {
+                            m.fx_preset = map_offset;
+                        },
+                    }
+                } else {
+                    switch (assign_state.current_mappings) {
+                        inline else => |*m| {
+                            m.fx_preset = null;
+                        },
+                    }
                 }
 
                 // Perform the save directly from assign state
