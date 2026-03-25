@@ -292,6 +292,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     const cc_name = @tagName(mapping.control);
                     inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
                         if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                        if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
                         if (std.mem.eql(u8, cc_name, field.name)) {
                             @field(strip, field.name) = mapping.param;
                         }
@@ -364,6 +365,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     const cc_name = @tagName(control);
                     inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
                         if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                        if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
                         if (std.mem.eql(u8, cc_name, field.name)) {
                             @field(strip, field.name) = null;
                         }
@@ -556,6 +558,7 @@ fn populateKnobValues(
                 const mapping = @field(tagged_mapping, @tagName(module));
                 inline for (std.meta.fields(@TypeOf(mapping))) |field| {
                     if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                    if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
                     if (@field(mapping, field.name)) |param_idx| {
                         const cc = @field(c1.CCs, field.name);
                         const val = pReaper.TrackFX_GetParamNormalized(.{ track, location.fx_index, param_idx });

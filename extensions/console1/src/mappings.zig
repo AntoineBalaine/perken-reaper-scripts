@@ -6,12 +6,14 @@ const c1 = @import("c1.zig");
 const ModulesList = statemachine.ModulesList;
 const PhysicalModule = statemachine.PhysicalModule;
 const fs_helpers = @import("fs_helpers.zig");
+const StringPool = @import("string_pool.zig").StringPool;
 const log = std.log.scoped(.mappings);
 
 pub const MAPPING_FORMAT_VERSION = 1;
 
 pub const Comp = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
+    fx_preset: ?u32 = null,
     Comp_Attack: ?u16 = null,
     Comp_DryWet: ?u16 = null,
     Comp_Ratio: ?u16 = null,
@@ -25,6 +27,7 @@ pub const Comp = struct {
 
 pub const Eq = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
+    fx_preset: ?u32 = null,
     Eq_HiFrq: ?u16 = null,
     Eq_HiGain: ?u16 = null,
     Eq_HiMidFrq: ?u16 = null,
@@ -42,6 +45,7 @@ pub const Eq = struct {
 
 pub const Inpt = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
+    fx_preset: ?u32 = null,
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
     Inpt_Gain: ?u16 = null,
@@ -56,6 +60,7 @@ pub const Inpt = struct {
 
 pub const Outpt = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
+    fx_preset: ?u32 = null,
     Out_Drive: ?u16 = null,
     Out_DriveChar: ?u16 = null,
     // Out_MtrLft : u8 = null,
@@ -68,6 +73,7 @@ pub const Outpt = struct {
 
 pub const Shp = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
+    fx_preset: ?u32 = null,
     Shp_Gate: ?u16 = null,
     Shp_GateRelease: ?u16 = null,
     Shp_Punch: ?u16 = null,
@@ -82,6 +88,7 @@ pub const Shp = struct {
 /// assignable parameters, they are included here.
 pub const ChannelStripMapping = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
+    fx_preset: ?u32 = null,
 
     // Input section
     Inpt_Gain: ?u16 = null,
@@ -184,6 +191,7 @@ GATE: std.StringArrayHashMapUnmanaged(FxMaps(Shp)),
 STRIP: std.StringArrayHashMapUnmanaged(FxMaps(ChannelStripMapping)),
 controller_dir: [*:0]const u8,
 allocator: std.mem.Allocator,
+preset_strings: StringPool,
 pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This() {
     const self: MapStore = .{
         .INPUT = std.StringArrayHashMapUnmanaged(FxMaps(Inpt)){},
@@ -194,6 +202,7 @@ pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This(
         .STRIP = std.StringArrayHashMapUnmanaged(FxMaps(ChannelStripMapping)){},
         .controller_dir = controller_dir,
         .allocator = allocator,
+        .preset_strings = StringPool.init(allocator),
     };
     return self;
 }
@@ -218,6 +227,8 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *Ma
 
 pub fn deinit(self: *MapStore) void {
     log.debug("Cleaning up MapStore", .{});
+
+    self.preset_strings.deinit();
 
     // Clean up nested FxMaps structures
     var comp_iter = self.COMP.iterator();
@@ -320,7 +331,15 @@ pub fn saveStripToFile(
     defer file.close();
 
     var writer = file.writer();
+
+    // Because fx_preset is a StringPool offset (not a raw integer),
+    // we write it as a string before the generic field loop
+    if (mapping.fx_preset) |offset| {
+        try writer.print("fx_preset={s}\n", .{self.preset_strings.get(offset)});
+    }
+
     inline for (std.meta.fields(ChannelStripMapping)) |field| {
+        if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
         try writer.print("{s} = ", .{field.name});
         try formatOptionalU8(@field(mapping, field.name), writer);
         try writer.writeByte('\n');
@@ -523,6 +542,21 @@ pub fn getPreferredMapping(self: *MapStore, fx_name: [:0]const u8, module: Modul
     }
 }
 
+/// Returns the preset name associated with the preferred mapping for the given FX,
+/// or null if no preset is set. This only looks at already-cached mappings and
+/// does not trigger lazy loading from disk.
+pub fn getPresetName(self: *MapStore, fxName: [:0]const u8, module: ModulesList) ?[:0]const u8 {
+    switch (module) {
+        inline else => |tag| {
+            const map = &@field(self, @tagName(tag));
+            const ml = map.get(fxName) orelse return null;
+            const m = ml.mappings.get(ml.preferred_mapping) orelse return null;
+            const mapping = m orelse return null;
+            return if (mapping.fx_preset) |o| self.preset_strings.get(o) else null;
+        },
+    }
+}
+
 /// fetch mapping from disk, parse it, store it, and return it.
 /// Because the mappings_list index knows the absolute path for each mapping,
 /// we look up the path there instead of constructing it ourselves.
@@ -555,7 +589,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
     const mapping: TaggedMapping = switch (module) {
         .COMP => {
             var comp = Comp{};
-            _ = try readToU8Struct(&comp, &parser, &found_module);
+            _ = try readToU8Struct(&comp, &parser, &found_module, &self.preset_strings);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -575,7 +609,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .EQ => {
             var eq = Eq{};
-            _ = try readToU8Struct(&eq, &parser, &found_module);
+            _ = try readToU8Struct(&eq, &parser, &found_module, &self.preset_strings);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -595,7 +629,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .INPUT => {
             var inpt: Inpt = Inpt{};
-            _ = try readToU8Struct(&inpt, &parser, &found_module);
+            _ = try readToU8Struct(&inpt, &parser, &found_module, &self.preset_strings);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -615,7 +649,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .OUTPT => {
             var outpt: Outpt = Outpt{};
-            _ = try readToU8Struct(&outpt, &parser, &found_module);
+            _ = try readToU8Struct(&outpt, &parser, &found_module, &self.preset_strings);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -635,7 +669,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .GATE => {
             var shp: Shp = Shp{};
-            _ = try readToU8Struct(&shp, &parser, &found_module);
+            _ = try readToU8Struct(&shp, &parser, &found_module, &self.preset_strings);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -655,7 +689,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .STRIP => {
             var strip = ChannelStripMapping{};
-            _ = try readToU8Struct(&strip, &parser, &found_module);
+            _ = try readToU8Struct(&strip, &parser, &found_module, &self.preset_strings);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -678,8 +712,10 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
     return mapping;
 }
 
-/// parse comp/eq/gate/input/output structs, and extract the module field if present
-fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesList) !@TypeOf(ret_struct) {
+/// parse comp/eq/gate/input/output structs, and extract the module field if present.
+/// Because fx_preset is a string field stored as a StringPool offset, we handle it
+/// as a special case before the generic integer-parsing field loop.
+fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesList, preset_strings: ?*StringPool) !@TypeOf(ret_struct) {
     const T = @TypeOf(ret_struct.*);
     std.debug.assert(@typeInfo(T) == .@"struct");
 
@@ -696,9 +732,27 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
                             found_module.* = module_val;
                         }
                     }
+                    continue;
+                }
+
+                // Because fx_preset is a string value (not an integer), we handle it
+                // before the generic field loop to avoid it being misinterpreted
+                if (comptime @hasField(T, "fx_preset")) {
+                    if (std.mem.eql(u8, kv.key, "fx_preset")) {
+                        if (kv.value.len > 0) {
+                            if (preset_strings) |ps| {
+                                const sentinel_value = @as([:0]const u8, @ptrCast(kv.value.ptr[0..kv.value.len :0]));
+                                @field(ret_struct, "fx_preset") = try ps.intern(sentinel_value);
+                            }
+                        }
+                        continue;
+                    }
                 }
 
                 inline for (std.meta.fields(T)) |ns_info| {
+                    // Because fx_preset is handled above, we skip it here
+                    if (comptime std.mem.eql(u8, ns_info.name, "fx_preset")) continue;
+
                     if (std.mem.eql(u8, ns_info.name, kv.key)) {
                         const field_type = @TypeOf(@field(ret_struct, ns_info.name));
                         if (field_type == ?u16 or field_type == u16 or field_type == ?u8 or field_type == u8) {
@@ -772,8 +826,6 @@ pub fn saveToFile(
     mapping: TaggedMapping,
     file_path: [:0]const u8,
 ) !void {
-    _ = self;
-
     // Create the parent directory if it does not exist
     if (std.fs.path.dirname(file_path)) |dir_path| {
         fs_ops.makeDirAbsolute(dir_path) catch |err| {
@@ -800,35 +852,19 @@ pub fn saveToFile(
 
     // Write different fields based on module type
     switch (mapping) {
-        .COMP => |comp| inline for (std.meta.fields(@TypeOf(comp))) |field| {
-            try writer.print("{s} = ", .{field.name});
-            try formatOptionalU8(@field(comp, field.name), writer);
-            try writer.writeByte('\n');
-        },
-        .EQ => |eq| inline for (std.meta.fields(@TypeOf(eq))) |field| {
-            try writer.print("{s} = ", .{field.name});
-            try formatOptionalU8(@field(eq, field.name), writer);
-            try writer.writeByte('\n');
-        },
-        .INPUT => |input| inline for (std.meta.fields(@TypeOf(input))) |field| {
-            try writer.print("{s} = ", .{field.name});
-            try formatOptionalU8(@field(input, field.name), writer);
-            try writer.writeByte('\n');
-        },
-        .OUTPT => |outpt| inline for (std.meta.fields(@TypeOf(outpt))) |field| {
-            try writer.print("{s} = ", .{field.name});
-            try formatOptionalU8(@field(outpt, field.name), writer);
-            try writer.writeByte('\n');
-        },
-        .GATE => |gate| inline for (std.meta.fields(@TypeOf(gate))) |field| {
-            try writer.print("{s} = ", .{field.name});
-            try formatOptionalU8(@field(gate, field.name), writer);
-            try writer.writeByte('\n');
-        },
-        .STRIP => |strip| inline for (std.meta.fields(@TypeOf(strip))) |field| {
-            try writer.print("{s} = ", .{field.name});
-            try formatOptionalU8(@field(strip, field.name), writer);
-            try writer.writeByte('\n');
+        inline else => |m| {
+            // Because fx_preset is a StringPool offset (not a raw integer),
+            // we write it as a string before the generic field loop
+            if (m.fx_preset) |offset| {
+                try writer.print("fx_preset={s}\n", .{self.preset_strings.get(offset)});
+            }
+
+            inline for (std.meta.fields(@TypeOf(m))) |field| {
+                if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
+                try writer.print("{s} = ", .{field.name});
+                try formatOptionalU8(@field(m, field.name), writer);
+                try writer.writeByte('\n');
+            }
         },
     }
 }
@@ -849,7 +885,7 @@ test readToU8Struct {
     var ret_str: ExampleStruct = .{
         .repositoryformatversion = 0,
     };
-    _ = try readToU8Struct(&ret_str, &parser, &found_module);
+    _ = try readToU8Struct(&ret_str, &parser, &found_module, null);
     try expect(ret_str.repositoryformatversion == 8);
     // Because the example INI has no module field, found_module should remain null
     try expect(found_module == null);
@@ -869,7 +905,7 @@ test "readToU8Struct: module field is parsed correctly" {
 
     var found_module: ?ModulesList = null;
     var comp = Comp{};
-    _ = try readToU8Struct(&comp, &parser, &found_module);
+    _ = try readToU8Struct(&comp, &parser, &found_module, null);
 
     try testing.expect(found_module != null);
     try testing.expectEqual(ModulesList.COMP, found_module.?);
@@ -1079,4 +1115,96 @@ test "MapStore: setPreferredMapping - returns error for unfound FX" {
     const result = ctx.store.setPreferredMapping(nonexistent_fx, .COMP, some_path);
 
     try std.testing.expectError(error.FxNotFound, result);
+}
+
+test "readToU8Struct: fx_preset field is parsed correctly" {
+    const testing = std.testing;
+    const example =
+        \\ version=1
+        \\ module=COMP
+        \\ Comp_Thresh=0
+        \\ fx_preset=My Custom Preset
+    ;
+    var fbs = std.io.fixedBufferStream(example);
+    var parser = ini.parse(testing.allocator, fbs.reader());
+    defer parser.deinit();
+
+    var preset_strings = StringPool.init(testing.allocator);
+    defer preset_strings.deinit();
+
+    var found_module: ?ModulesList = null;
+    var comp = Comp{};
+    _ = try readToU8Struct(&comp, &parser, &found_module, &preset_strings);
+
+    // Because the INI contains fx_preset=My Custom Preset, the field should be set
+    try testing.expect(comp.fx_preset != null);
+    const preset_name = preset_strings.get(comp.fx_preset.?);
+    try testing.expectEqualStrings("My Custom Preset", preset_name);
+    try testing.expectEqual(@as(?u16, 0), comp.Comp_Thresh);
+}
+
+test "readToU8Struct: missing fx_preset remains null" {
+    const testing = std.testing;
+    const example =
+        \\ version=1
+        \\ module=COMP
+        \\ Comp_Thresh=0
+    ;
+    var fbs = std.io.fixedBufferStream(example);
+    var parser = ini.parse(testing.allocator, fbs.reader());
+    defer parser.deinit();
+
+    var preset_strings = StringPool.init(testing.allocator);
+    defer preset_strings.deinit();
+
+    var found_module: ?ModulesList = null;
+    var comp = Comp{};
+    _ = try readToU8Struct(&comp, &parser, &found_module, &preset_strings);
+
+    // Because the INI has no fx_preset line, the field should remain null
+    try testing.expect(comp.fx_preset == null);
+}
+
+test "readToU8Struct: fx_preset with null preset_strings parameter is ignored" {
+    const testing = std.testing;
+    const example =
+        \\ version=1
+        \\ fx_preset=Some Preset
+        \\ Comp_Thresh=5
+    ;
+    var fbs = std.io.fixedBufferStream(example);
+    var parser = ini.parse(testing.allocator, fbs.reader());
+    defer parser.deinit();
+
+    var found_module: ?ModulesList = null;
+    var comp = Comp{};
+    _ = try readToU8Struct(&comp, &parser, &found_module, null);
+
+    // Because preset_strings is null, the fx_preset field should remain null
+    // even though the INI contains the field
+    try testing.expect(comp.fx_preset == null);
+    try testing.expectEqual(@as(?u16, 5), comp.Comp_Thresh);
+}
+
+test "MapStore: getPresetName returns null when no preset is set" {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
+
+    const test_fx = "VST: ReaComp (Cockos)";
+
+    // Load the mapping first
+    _ = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
+
+    // Because the default mapping files have no fx_preset field,
+    // getPresetName should return null
+    const preset = ctx.store.getPresetName(test_fx, .COMP);
+    try std.testing.expect(preset == null);
+}
+
+test "MapStore: getPresetName returns null for unknown FX" {
+    var ctx = try TestContext.init();
+    defer ctx.deinit();
+
+    const preset = ctx.store.getPresetName("VST: NonexistentPlugin", .COMP);
+    try std.testing.expect(preset == null);
 }

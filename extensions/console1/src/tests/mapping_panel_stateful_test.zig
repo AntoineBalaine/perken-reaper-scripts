@@ -414,6 +414,7 @@ const AddMapping = struct {
                     const cc_name = @tagName(self.control);
                     inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
                         if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                        if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
                         if (std.mem.eql(u8, cc_name, field.name)) {
                             @field(strip, field.name) = self.param;
                         }
@@ -472,6 +473,7 @@ const AddMapping = struct {
                 const cc_name = @tagName(self.control);
                 inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
                     if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                    if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
                     if (std.mem.eql(u8, cc_name, field.name)) {
                         break :blk @field(strip, field.name) == self.param;
                     }
@@ -554,6 +556,7 @@ const RemoveMapping = struct {
                     const cc_name = @tagName(self.control);
                     inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
                         if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                        if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
                         if (std.mem.eql(u8, cc_name, field.name)) {
                             @field(strip, field.name) = null;
                         }
@@ -611,6 +614,7 @@ const RemoveMapping = struct {
                 const cc_name = @tagName(self.control);
                 inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
                     if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                    if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
                     if (std.mem.eql(u8, cc_name, field.name)) {
                         break :blk @field(strip, field.name) == null;
                     }

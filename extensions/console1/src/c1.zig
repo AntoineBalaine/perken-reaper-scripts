@@ -182,6 +182,7 @@ pub const CCs = enum(u8) {
         inline for (.{ mappings.Comp, mappings.Eq, mappings.Inpt, mappings.Outpt, mappings.Shp }) |MappingStruct| {
             inline for (std.meta.fields(MappingStruct)) |field| {
                 if (comptime std.mem.eql(u8, field.name, "version")) continue;
+                if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
                 if (std.mem.eql(u8, cc_name, field.name)) return true;
             }
         }
