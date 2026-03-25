@@ -741,8 +741,7 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
                     if (std.mem.eql(u8, kv.key, "fx_preset")) {
                         if (kv.value.len > 0) {
                             if (preset_strings) |ps| {
-                                const sentinel_value = @as([:0]const u8, @ptrCast(kv.value.ptr[0..kv.value.len :0]));
-                                @field(ret_struct, "fx_preset") = try ps.intern(sentinel_value);
+                                @field(ret_struct, "fx_preset") = try ps.intern(kv.value);
                             }
                         }
                         continue;

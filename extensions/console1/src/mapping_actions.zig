@@ -146,12 +146,12 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     const track_for_preset = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
                     var preset_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
                     reaper.TrackFX_GetUserPresetFilename(track_for_preset, fxi, @ptrCast(&preset_path_buf), @intCast(preset_path_buf.len));
-                    const preset_path = std.mem.span(@as([*:0]const u8, &preset_path_buf));
+                    const preset_path: [:0]const u8 = std.mem.span(@as([*:0]const u8, &preset_path_buf));
                     if (preset_path.len > 0) {
                         assign_state.preset_name_offsets = preset_file_reader.readPresetNames(
                             assign_allocator,
                             &assign_state.preset_strings,
-                            @as([:0]const u8, @ptrCast(preset_path.ptr[0..preset_path.len :0])),
+                            preset_path,
                         ) catch &.{};
                     }
                 }

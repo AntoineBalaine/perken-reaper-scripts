@@ -31,8 +31,7 @@ pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool
             },
             .property => |kv| {
                 if (in_preset_section and std.mem.eql(u8, kv.key, "Name") and kv.value.len > 0) {
-                    const sentinel_value = @as([:0]const u8, @ptrCast(kv.value.ptr[0..kv.value.len :0]));
-                    const offset = try preset_strings.intern(sentinel_value);
+                    const offset = try preset_strings.intern(kv.value);
                     try offsets.append(offset);
                 }
             },
@@ -70,7 +69,8 @@ test "readPresetNames: parses well-formed preset INI" {
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const abs_path = try tmp_dir.dir.realpath("test_presets.ini", &path_buf);
-    const abs_path_z = @as([:0]const u8, @ptrCast(abs_path.ptr[0..abs_path.len :0]));
+    const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
+    defer testing.allocator.free(abs_path_z);
 
     var preset_strings = StringPool.init(testing.allocator);
     defer preset_strings.deinit();
@@ -100,7 +100,8 @@ test "readPresetNames: empty preset file returns empty slice" {
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const abs_path = try tmp_dir.dir.realpath("empty_presets.ini", &path_buf);
-    const abs_path_z = @as([:0]const u8, @ptrCast(abs_path.ptr[0..abs_path.len :0]));
+    const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
+    defer testing.allocator.free(abs_path_z);
 
     var preset_strings = StringPool.init(testing.allocator);
     defer preset_strings.deinit();
@@ -132,7 +133,8 @@ test "readPresetNames: preset section without Name field is skipped" {
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const abs_path = try tmp_dir.dir.realpath("missing_name.ini", &path_buf);
-    const abs_path_z = @as([:0]const u8, @ptrCast(abs_path.ptr[0..abs_path.len :0]));
+    const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
+    defer testing.allocator.free(abs_path_z);
 
     var preset_strings = StringPool.init(testing.allocator);
     defer preset_strings.deinit();
