@@ -78,6 +78,7 @@ pub const MappingPanelAction = union(enum) {
     assign_remove_mapping: CCs,
     assign_change_module: ModulesList,
     assign_set_preset: ?u32,
+    assign_toggle_store_preset: void,
     assign_request_save: void,
     assign_cancel: void,
 };

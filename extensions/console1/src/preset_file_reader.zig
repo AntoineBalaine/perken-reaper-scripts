@@ -42,6 +42,73 @@ pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool
     return offsets.toOwnedSlice();
 }
 
+pub const PresetData = struct {
+    data: []const u8,
+    len: u32,
+};
+
+/// Reads the Data and Len fields for a specific preset from a REAPER user preset INI file.
+/// Returns null if the file doesn't exist or the preset name is not found.
+pub fn readPresetData(allocator: std.mem.Allocator, file_path: [:0]const u8, preset_name: [:0]const u8) !?PresetData {
+    const file = std.fs.openFileAbsolute(file_path, .{}) catch |err| {
+        if (err == error.FileNotFound) return null;
+        return err;
+    };
+    defer file.close();
+
+    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer temp_arena.deinit();
+
+    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    defer parser.deinit();
+
+    var in_preset_section = false;
+    var name_matches = false;
+    var found_data: ?[]const u8 = null;
+    var found_len: ?u32 = null;
+
+    while (try parser.next()) |record| {
+        switch (record) {
+            .section => |header| {
+                // Because we may have found a matching preset in the previous section,
+                // we check before moving to the next section
+                if (name_matches and found_data != null) {
+                    return PresetData{
+                        .data = found_data.?,
+                        .len = found_len orelse 0,
+                    };
+                }
+                in_preset_section = std.mem.startsWith(u8, header, "Preset");
+                name_matches = false;
+                found_data = null;
+                found_len = null;
+            },
+            .property => |kv| {
+                if (!in_preset_section) continue;
+                if (std.mem.eql(u8, kv.key, "Name") and std.mem.eql(u8, kv.value, preset_name)) {
+                    name_matches = true;
+                } else if (std.mem.eql(u8, kv.key, "Data") and name_matches) {
+                    found_data = try allocator.dupe(u8, kv.value);
+                } else if (std.mem.eql(u8, kv.key, "Len") and name_matches) {
+                    found_len = std.fmt.parseInt(u32, kv.value, 10) catch null;
+                }
+            },
+            .enumeration => {},
+        }
+    }
+
+    // Because the last section has no following section header to trigger the return,
+    // we check after the loop ends
+    if (name_matches and found_data != null) {
+        return PresetData{
+            .data = found_data.?,
+            .len = found_len orelse 0,
+        };
+    }
+
+    return null;
+}
+
 test "readPresetNames: parses well-formed preset INI" {
     const testing = std.testing;
 
@@ -157,4 +224,73 @@ test "readPresetNames: nonexistent file returns empty slice" {
     defer testing.allocator.free(offsets);
 
     try testing.expectEqual(@as(usize, 0), offsets.len);
+}
+
+test "readPresetData: returns matching preset data" {
+    const testing = std.testing;
+
+    var tmp_dir = testing.tmpDir(.{});
+    defer tmp_dir.cleanup();
+
+    const content =
+        \\[General]
+        \\NbPresets=2
+        \\[Preset0]
+        \\Name=First Preset
+        \\Data=AABBCCDD
+        \\Len=4
+        \\[Preset1]
+        \\Name=Second Preset
+        \\Data=11223344EEFF
+        \\Len=6
+    ;
+    const file = try tmp_dir.dir.createFile("presets_data.ini", .{});
+    try file.writeAll(content);
+    file.close();
+
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const abs_path = try tmp_dir.dir.realpath("presets_data.ini", &path_buf);
+    const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
+    defer testing.allocator.free(abs_path_z);
+
+    // Because we're looking for "Second Preset", we should get its data
+    const result = try readPresetData(testing.allocator, abs_path_z, "Second Preset");
+    try testing.expect(result != null);
+    try testing.expectEqualStrings("11223344EEFF", result.?.data);
+    try testing.expectEqual(@as(u32, 6), result.?.len);
+    testing.allocator.free(result.?.data);
+}
+
+test "readPresetData: returns null for non-matching name" {
+    const testing = std.testing;
+
+    var tmp_dir = testing.tmpDir(.{});
+    defer tmp_dir.cleanup();
+
+    const content =
+        \\[General]
+        \\NbPresets=1
+        \\[Preset0]
+        \\Name=Existing Preset
+        \\Data=AABB
+        \\Len=2
+    ;
+    const file = try tmp_dir.dir.createFile("presets_nomatch.ini", .{});
+    try file.writeAll(content);
+    file.close();
+
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const abs_path = try tmp_dir.dir.realpath("presets_nomatch.ini", &path_buf);
+    const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
+    defer testing.allocator.free(abs_path_z);
+
+    const result = try readPresetData(testing.allocator, abs_path_z, "Nonexistent Preset");
+    try testing.expect(result == null);
+}
+
+test "readPresetData: returns null for nonexistent file" {
+    const testing = std.testing;
+
+    const result = try readPresetData(testing.allocator, "/nonexistent/path/presets.ini", "Some Preset");
+    try testing.expect(result == null);
 }

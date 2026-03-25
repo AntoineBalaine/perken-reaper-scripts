@@ -223,12 +223,18 @@ pub const AssignState = struct {
     module_fx_names: std.EnumArray(PhysicalModule, ?[:0]const u8) = std.EnumArray(PhysicalModule, ?[:0]const u8).initFill(null),
     /// translation key for the save mapping’s error message
     save_error: ?TranslationKey = null,
-    /// Contiguous storage for preset name strings, used by the preset dropdown
-    preset_strings: StringPool,
+    /// Contiguous storage for preset name strings, used by the preset dropdown.
+    /// Because StringPool contains an ArenaAllocator with self-referential pointers,
+    /// we cannot initialize it when AssignState is created as a local variable (the
+    /// struct gets moved to its final location, invalidating the pointers). The caller
+    /// must call initPresetStrings() after placement. This field is null until then.
+    preset_strings: ?StringPool = null,
     /// Byte offsets into preset_strings for each available preset name
     preset_name_offsets: []const u32 = &.{},
     /// Currently selected preset (offset into preset_strings), or null for no preset
     selected_preset: ?u32 = null,
+    /// Whether to embed preset data in the map file when saving
+    store_preset_data: bool = false,
 
     pub const FxParameter = struct {
         index: u32,
@@ -236,18 +242,22 @@ pub const AssignState = struct {
     };
 
     pub fn init(gpa: std.mem.Allocator, mappings: MapStore.TaggedMapping) AssignState {
-        var arena = std.heap.ArenaAllocator.init(gpa);
         return AssignState{
             .current_mappings = mappings,
             .param_store = ParamStore.init(gpa),
-            .arena = arena,
-            .preset_strings = StringPool.init(arena.allocator()),
+            .arena = std.heap.ArenaAllocator.init(gpa),
         };
+    }
+
+    pub fn initPresetStrings(self: *AssignState, gpa: std.mem.Allocator) void {
+        self.preset_strings = StringPool.init(gpa);
     }
 
     pub fn deinit(self: *AssignState) void {
         self.param_store.deinit();
-        self.preset_strings.deinit();
+        if (self.preset_strings) |*ps| {
+            ps.deinit();
+        }
         self.arena.deinit();
     }
 };

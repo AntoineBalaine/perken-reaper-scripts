@@ -184,6 +184,7 @@ pub const TranslationKey = enum {
     mapping_none,
     mapping_no_fx,
     mapping_preset_none,
+    mapping_store_preset,
 
     trsprt_Inpt_disp_mode,
     trsprt_Inpt_disp_on,
@@ -255,6 +256,7 @@ const default_translations = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "mapping_none", "none" },
     .{ "mapping_no_fx", "[No FX]" },
     .{ "mapping_preset_none", "No preset" },
+    .{ "mapping_store_preset", "Store preset in map file" },
     .{ "mapping_module_input", "INPUT" },
     .{ "mapping_module_gate", "GATE" },
     .{ "mapping_module_eq", "EQ" },
