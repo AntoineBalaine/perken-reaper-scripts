@@ -97,6 +97,12 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
             }
 
+            // Because the mapping may have an associated preset, we apply it
+            // right after insertion so the FX starts in the expected state.
+            if (globals.map_store.getPresetName(plugin.name, current_module)) |preset_name| {
+                _ = pReaper.TrackFX_SetPreset(.{ track, new_fx_index, preset_name });
+            }
+
             // If replacing existing module FX, remove it.
             // Because the new FX may have been inserted before or after the old one,
             // we need to check whether the old FX's index shifted due to the insertion.
@@ -273,6 +279,12 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
             return;
         };
         _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
+    }
+
+    // Because the mapping may have an associated preset, we apply it
+    // right after insertion so the FX starts in the expected state.
+    if (globals.map_store.getPresetName(name, .STRIP)) |preset_name| {
+        _ = pReaper.TrackFX_SetPreset(.{ track, new_fx_index, preset_name });
     }
 
     _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences, globals.arena_int.allocator(), &globals.mappings_list);
