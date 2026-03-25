@@ -128,7 +128,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 globals.preferences.default_fx,
                 &globals.map_store,
                 globals.preferences,
-                globals.arena,
+                globals.arena_int.allocator(),
                 &globals.mappings_list,
             );
             track_state.getLabels(track);
@@ -146,8 +146,8 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         },
         .rescan => {
             const fxp = @import("fx_parser.zig");
-            fxp.deinit(globals.arena);
-            fxp.init(globals.arena) catch {};
+            fxp.deinit(globals.arena_int.allocator());
+            fxp.init(globals.arena_int.allocator()) catch {};
         },
         .toggle_module_browser => |module| {
             if (globals.state.current_mode == .fx_sel and module == globals.state.fx_sel.current_category) {
@@ -275,7 +275,7 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
         _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
     }
 
-    _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences, globals.arena, &globals.mappings_list);
+    _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences, globals.arena_int.allocator(), &globals.mappings_list);
     track_state.getLabels(track);
 
     if (mapping_name) |map_name| {

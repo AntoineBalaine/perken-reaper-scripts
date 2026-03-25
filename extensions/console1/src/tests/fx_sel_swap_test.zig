@@ -37,7 +37,7 @@ fn setupFullChain(globals: *Globals) reaper.MediaTrack {
         globals.preferences.default_fx,
         &globals.map_store,
         globals.preferences,
-        globals.arena,
+        globals.arena_int.allocator(),
         &globals.mappings_list,
     );
 

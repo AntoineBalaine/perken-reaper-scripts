@@ -34,7 +34,6 @@ log_file: ?std.fs.File = null,
 // Resource management
 gpa_int: std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 999, .verbose_log = false }) = undefined,
 arena_int: std.heap.ArenaAllocator = undefined,
-arena: std.mem.Allocator = undefined,
 resource_path: [:0]const u8 = undefined,
 fs_ops: fs_helpers.FileSystemOps = undefined,
 translations: TranslationStore = undefined,
@@ -49,18 +48,17 @@ playState: bool = false,
 pauseState: bool = false,
 
 pub fn defaults(debug_allocator: std.mem.Allocator) !Globals {
-    // Create a basic instance
     var globals = Globals{};
 
     globals.arena_int = std.heap.ArenaAllocator.init(debug_allocator);
-    globals.arena = globals.arena_int.allocator();
+    const alloc = globals.arena_int.allocator();
     globals.fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
     globals.resource_path = "";
-    globals.preferences = try .defaults(globals.arena);
-    globals.mappings_list = .empty(globals.arena);
-    globals.map_store = .empty(globals.arena, globals.resource_path);
-    globals.translations = try .defaults(globals.arena);
-    globals.state = .init(globals.arena);
+    globals.preferences = try .defaults(alloc);
+    globals.mappings_list = .empty(alloc);
+    globals.map_store = .empty(alloc, globals.resource_path);
+    globals.translations = try .defaults(alloc);
+    globals.state = .init(alloc);
     globals.state.current_mode = .suspended;
 
     return globals;
@@ -74,38 +72,38 @@ pub fn init() !void {
     instance = .{};
     instance.gpa_int = .{};
     instance.arena_int = .init(instance.gpa_int.allocator());
-    instance.arena = instance.arena_int.allocator();
+    const alloc = instance.arena_int.allocator();
     instance.fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
 
     fs_helpers.ensureConfigPath(instance.fs_ops) catch {};
-    instance.resource_path = std.mem.span(try fs_helpers.getControllerPath(instance.arena));
+    instance.resource_path = std.mem.span(try fs_helpers.getControllerPath(alloc));
 
     // Initialize in dependency order
-    instance.preferences = try .init(instance.arena, instance.resource_path);
+    instance.preferences = try .init(alloc, instance.resource_path);
     instance.translations = try .init(
-        instance.arena,
+        alloc,
         instance.resource_path,
         instance.preferences.language, // We'll need to add this to preferences
     );
-    instance.mappings_list = .init(instance.arena, instance.resource_path);
+    instance.mappings_list = .init(alloc, instance.resource_path);
     instance.map_store = try .init(
-        instance.arena,
+        alloc,
         instance.resource_path,
         &instance.mappings_list,
         &instance.preferences.default_fx,
     );
-    instance.state = .init(instance.arena);
+    instance.state = .init(alloc);
     instance.settings_panel = try .init(&instance.preferences);
 
     if (instance.preferences.start_suspended) {
         instance.state.current_mode = .suspended;
     }
 
-    try fxParser.init(instance.arena);
+    try fxParser.init(alloc);
 }
 
 pub fn deinit(self: *Globals) void {
-    self.state.fx_ctrl.track_state.deinitMaps(self.arena);
+    self.state.fx_ctrl.track_state.deinitMaps(self.arena_int.allocator());
     self.arena_int.deinit();
 
     const deinit_status = self.gpa_int.deinit();

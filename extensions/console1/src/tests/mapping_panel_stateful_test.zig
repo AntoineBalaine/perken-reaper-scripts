@@ -106,8 +106,8 @@ const System = struct {
     // (via .allocator()) are now dangling. This method must be called once the
     // System is at its final memory location to reinitialize those pointers.
     pub fn fixupAfterMove(self: *System) void {
-        self.globals.mappings_list = MappingsList.init(self.globals.arena, self.globals.resource_path);
-        self.globals.map_store = .empty(self.globals.arena, self.globals.resource_path);
+        self.globals.mappings_list = MappingsList.init(self.globals.arena_int.allocator(), self.globals.resource_path);
+        self.globals.map_store = .empty(self.globals.arena_int.allocator(), self.globals.resource_path);
     }
 
     pub fn reset(self: *System) void {

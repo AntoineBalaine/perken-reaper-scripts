@@ -144,7 +144,7 @@ const SetTrackCmd = struct {
                     TrackState.populateMapsFromMapping(
                         &sut.globals.state.fx_ctrl.track_state.reverse_map,
                         &sut.globals.state.fx_ctrl.track_state.forward_map,
-                        sut.globals.arena,
+                        sut.globals.arena_int.allocator(),
                         mapping,
                         loc.fx_index,
                     );

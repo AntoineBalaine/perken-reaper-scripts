@@ -106,7 +106,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                             globals.preferences.default_fx,
                             &globals.map_store,
                             &globals.preferences,
-                            globals.arena,
+                            globals.arena_int.allocator(),
                             &globals.mappings_list,
                         ) catch {};
                     }
@@ -127,7 +127,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                             globals.preferences.default_fx,
                             &globals.map_store,
                             &globals.preferences,
-                            globals.arena,
+                            globals.arena_int.allocator(),
                             &globals.mappings_list,
                         ) catch {};
                     }
@@ -285,7 +285,7 @@ fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
         globals.preferences.default_fx,
         &globals.map_store,
         &globals.preferences,
-        globals.arena,
+        globals.arena_int.allocator(),
         &globals.mappings_list,
     ) catch {
         log.err("track validation failed: track {d}", .{id});
