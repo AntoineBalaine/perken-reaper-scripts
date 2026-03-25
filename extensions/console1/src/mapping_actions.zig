@@ -507,7 +507,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 const mapping_name: [:0]const u8 = alloc.dupeZ(u8, std.fs.path.stem(basename)) catch return;
                 const fx_name_z: [:0]const u8 = alloc.dupeZ(u8, fx_name) catch return;
 
-                globals.map_store.saveToFile(globals.fs_ops, module, fx_name_z, tagged_mapping, save_path) catch {
+                globals.map_store.saveToFile(globals.fs_ops, module, fx_name_z, tagged_mapping, save_path, null, null, null) catch {
                     assign_state.save_error = .save_error_write_failed;
                     return;
                 };

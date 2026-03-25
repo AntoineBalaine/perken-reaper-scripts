@@ -288,6 +288,9 @@ pub fn saveStripToFile(
     fx_name: [:0]const u8,
     mapping: ChannelStripMapping,
     mapping_name: [:0]const u8,
+    preset_file: ?[:0]const u8,
+    preset_data: ?[]const u8,
+    preset_len: ?u32,
 ) !void {
     var name_buf: [512:0]u8 = undefined;
     const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
@@ -343,6 +346,18 @@ pub fn saveStripToFile(
         try writer.print("{s} = ", .{field.name});
         try formatOptionalU8(@field(mapping, field.name), writer);
         try writer.writeByte('\n');
+    }
+
+    // Because preset data fields are not stored in the mapping structs,
+    // we write them from the caller-provided parameters
+    if (preset_file) |pf| {
+        try writer.print("fx_preset_file={s}\n", .{pf});
+        if (preset_data) |pd| {
+            try writer.print("fx_preset_data={s}\n", .{pd});
+        }
+        if (preset_len) |pl| {
+            try writer.print("fx_preset_len={d}\n", .{pl});
+        }
     }
 }
 
@@ -824,6 +839,9 @@ pub fn saveToFile(
     fx_name: [:0]const u8,
     mapping: TaggedMapping,
     file_path: [:0]const u8,
+    preset_file: ?[:0]const u8,
+    preset_data: ?[]const u8,
+    preset_len: ?u32,
 ) !void {
     // Create the parent directory if it does not exist
     if (std.fs.path.dirname(file_path)) |dir_path| {
@@ -865,6 +883,18 @@ pub fn saveToFile(
                 try writer.writeByte('\n');
             }
         },
+    }
+
+    // Because preset data fields are not stored in the mapping structs,
+    // we write them from the caller-provided parameters
+    if (preset_file) |pf| {
+        try writer.print("fx_preset_file={s}\n", .{pf});
+        if (preset_data) |pd| {
+            try writer.print("fx_preset_data={s}\n", .{pd});
+        }
+        if (preset_len) |pl| {
+            try writer.print("fx_preset_len={d}\n", .{pl});
+        }
     }
 }
 
