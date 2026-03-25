@@ -3,8 +3,20 @@ const ini = @import("ini");
 const StringPool = @import("string_pool.zig").StringPool;
 
 /// Reads preset names from a REAPER user preset INI file.
-/// The file format has [General] with NbPresets, and [PresetN] sections
-/// each containing a Name= field. We collect all Name values and intern
+///
+/// The expected file format is:
+///   [General]
+///   NbPresets=<count>
+///
+///   [Preset0]
+///   Name=<preset name>
+///   Data=<hex-encoded plugin state>
+///   Len=<byte length of decoded data>
+///
+///   [Preset1]
+///   ...
+///
+/// We collect all Name values from [PresetN] sections and intern
 /// them into the provided StringPool, returning a slice of offsets.
 pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool, file_path: [:0]const u8) ![]const u32 {
     const file = std.fs.openFileAbsolute(file_path, .{}) catch |err| {
@@ -43,6 +55,17 @@ pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool
 }
 
 pub const PresetData = struct {
+    data: []const u8,
+    len: u32,
+};
+
+/// Groups the preset data fields that get written to the map file.
+/// Used as a parameter when saving a mapping with embedded preset data.
+pub const EmbeddedPreset = struct {
+    file: [:0]const u8,
+    /// The hex-encoded plugin state, copied from the REAPER preset file's Data field.
+    /// Because this is an intermediate blob passed to a writer (not used as a C string),
+    /// it does not need a sentinel terminator.
     data: []const u8,
     len: u32,
 };

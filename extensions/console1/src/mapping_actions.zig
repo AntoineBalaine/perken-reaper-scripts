@@ -173,7 +173,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     if (preset_path.len > 0) {
                         placed.preset_name_offsets = preset_file_reader.readPresetNames(
                             placed.arena.allocator(),
-                            &placed.preset_strings.?,
+                            &placed.preset_strings,
                             preset_path,
                         ) catch &.{};
                     }
@@ -187,7 +187,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 inline else => |m| {
                     if (m.fx_preset) |offset| {
                         const name = globals.map_store.preset_strings.get(offset);
-                        placed.selected_preset = placed.preset_strings.?.intern(name) catch null;
+                        placed.selected_preset = placed.preset_strings.intern(name) catch null;
                     }
                 },
             }
@@ -489,7 +489,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 // Because the selected preset lives in AssignState's StringPool, we need
                 // to re-intern it into MapStore's preset_strings before saving.
                 if (assign_state.selected_preset) |sel_offset| {
-                    const preset_name = assign_state.preset_strings.?.get(sel_offset);
+                    const preset_name = assign_state.preset_strings.get(sel_offset);
                     const map_offset = globals.map_store.preset_strings.intern(preset_name) catch null;
                     switch (assign_state.current_mappings) {
                         inline else => |*m| {
@@ -519,12 +519,10 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
                 // Because the user may have checked "store preset in map file", we read the
                 // preset data from the REAPER preset file and pass it to saveToFile.
-                var p_file: ?[:0]const u8 = null;
-                var p_data: ?[]const u8 = null;
-                var p_len: ?u32 = null;
+                const embedded_preset: ?preset_file_reader.EmbeddedPreset = blk: {
+                    if (!assign_state.store_preset_data or assign_state.selected_preset == null) break :blk null;
 
-                if (assign_state.store_preset_data and assign_state.selected_preset != null) {
-                    const preset_name = assign_state.preset_strings.?.get(assign_state.selected_preset.?);
+                    const preset_name = assign_state.preset_strings.get(assign_state.selected_preset.?);
 
                     // Resolve fx_index to query the preset file path from REAPER
                     const save_fx_index: ?c_int = switch (module) {
@@ -538,28 +536,29 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                         },
                     };
 
-                    if (save_fx_index) |fxi| {
-                        if (globals.state.current_tr_id) |track_id| {
-                            const save_track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
-                            var preset_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-                            reaper.TrackFX_GetUserPresetFilename(save_track, fxi, @ptrCast(&preset_path_buf), @intCast(preset_path_buf.len));
-                            const preset_full_path: [:0]const u8 = std.mem.span(@as([*:0]const u8, &preset_path_buf));
+                    const fxi = save_fx_index orelse break :blk null;
+                    const track_id = globals.state.current_tr_id orelse break :blk null;
 
-                            if (preset_full_path.len > 0) {
-                                const preset_filename = std.fs.path.basename(preset_full_path);
-                                const preset_filename_z: [:0]const u8 = alloc.dupeZ(u8, preset_filename) catch return;
+                    const save_track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
+                    var preset_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+                    reaper.TrackFX_GetUserPresetFilename(save_track, fxi, @ptrCast(&preset_path_buf), @intCast(preset_path_buf.len));
+                    const preset_full_path: [:0]const u8 = std.mem.span(@as([*:0]const u8, &preset_path_buf));
 
-                                if (preset_file_reader.readPresetData(alloc, preset_full_path, preset_name) catch null) |pd| {
-                                    p_file = preset_filename_z;
-                                    p_data = pd.data;
-                                    p_len = pd.len;
-                                }
-                            }
-                        }
-                    }
-                }
+                    if (preset_full_path.len == 0) break :blk null;
 
-                globals.map_store.saveToFile(globals.fs_ops, module, fx_name_z, tagged_mapping, save_path, p_file, p_data, p_len) catch {
+                    const preset_filename = std.fs.path.basename(preset_full_path);
+                    const preset_filename_z: [:0]const u8 = alloc.dupeZ(u8, preset_filename) catch break :blk null;
+
+                    const maybe_pd = preset_file_reader.readPresetData(alloc, preset_full_path, preset_name) catch break :blk null;
+                    const pd = maybe_pd orelse break :blk null;
+                    break :blk preset_file_reader.EmbeddedPreset{
+                        .file = preset_filename_z,
+                        .data = pd.data,
+                        .len = pd.len,
+                    };
+                };
+
+                globals.map_store.saveToFile(globals.fs_ops, module, fx_name_z, tagged_mapping, save_path, embedded_preset) catch {
                     assign_state.save_error = .save_error_write_failed;
                     return;
                 };

@@ -7,6 +7,7 @@ const ModulesList = statemachine.ModulesList;
 const PhysicalModule = statemachine.PhysicalModule;
 const fs_helpers = @import("fs_helpers.zig");
 const StringPool = @import("string_pool.zig").StringPool;
+const preset_file_reader = @import("preset_file_reader.zig");
 const log = std.log.scoped(.mappings);
 
 pub const MAPPING_FORMAT_VERSION = 1;
@@ -288,9 +289,7 @@ pub fn saveStripToFile(
     fx_name: [:0]const u8,
     mapping: ChannelStripMapping,
     mapping_name: [:0]const u8,
-    preset_file: ?[:0]const u8,
-    preset_data: ?[]const u8,
-    preset_len: ?u32,
+    embedded_preset: ?preset_file_reader.EmbeddedPreset,
 ) !void {
     var name_buf: [512:0]u8 = undefined;
     const sanitized_name = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
@@ -350,14 +349,10 @@ pub fn saveStripToFile(
 
     // Because preset data fields are not stored in the mapping structs,
     // we write them from the caller-provided parameters
-    if (preset_file) |pf| {
-        try writer.print("fx_preset_file={s}\n", .{pf});
-        if (preset_data) |pd| {
-            try writer.print("fx_preset_data={s}\n", .{pd});
-        }
-        if (preset_len) |pl| {
-            try writer.print("fx_preset_len={d}\n", .{pl});
-        }
+    if (embedded_preset) |ep| {
+        try writer.print("fx_preset_file={s}\n", .{ep.file});
+        try writer.print("fx_preset_data={s}\n", .{ep.data});
+        try writer.print("fx_preset_len={d}\n", .{ep.len});
     }
 }
 
@@ -839,9 +834,7 @@ pub fn saveToFile(
     fx_name: [:0]const u8,
     mapping: TaggedMapping,
     file_path: [:0]const u8,
-    preset_file: ?[:0]const u8,
-    preset_data: ?[]const u8,
-    preset_len: ?u32,
+    embedded_preset: ?preset_file_reader.EmbeddedPreset,
 ) !void {
     // Create the parent directory if it does not exist
     if (std.fs.path.dirname(file_path)) |dir_path| {
@@ -887,14 +880,10 @@ pub fn saveToFile(
 
     // Because preset data fields are not stored in the mapping structs,
     // we write them from the caller-provided parameters
-    if (preset_file) |pf| {
-        try writer.print("fx_preset_file={s}\n", .{pf});
-        if (preset_data) |pd| {
-            try writer.print("fx_preset_data={s}\n", .{pd});
-        }
-        if (preset_len) |pl| {
-            try writer.print("fx_preset_len={d}\n", .{pl});
-        }
+    if (embedded_preset) |ep| {
+        try writer.print("fx_preset_file={s}\n", .{ep.file});
+        try writer.print("fx_preset_data={s}\n", .{ep.data});
+        try writer.print("fx_preset_len={d}\n", .{ep.len});
     }
 }
 

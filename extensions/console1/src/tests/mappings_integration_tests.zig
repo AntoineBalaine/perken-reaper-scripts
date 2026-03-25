@@ -96,7 +96,7 @@ test "Integration - loading a saved mapping reads the correct data" {
     const save_path = try std.fmt.bufPrintZ(&save_path_buf, "{s}/maps/test_plugin/{s}.ini", .{ config_path_z, test_mapping_name });
 
     // Save the mapping to disk
-    try store.saveToFile(fs_ops, .COMP, test_fx, test_mapping, save_path, null, null, null);
+    try store.saveToFile(fs_ops, .COMP, test_fx, test_mapping, save_path, null);
 
     // Register the saved path in the mappings_list so getMap can look it up
     try ml.registerPath(.COMP, test_fx, test_mapping_name, save_path);
@@ -178,8 +178,8 @@ test "Integration - the preferred mapping is used when loading an FX" {
     };
 
     // Save both mappings
-    try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = default_comp }, default_path, null, null, null);
-    try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = custom_comp }, custom_path, null, null, null);
+    try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = default_comp }, default_path, null);
+    try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = custom_comp }, custom_path, null);
 
     // Register paths
     try ml.registerPath(.COMP, test_fx, "default", default_path);
@@ -288,7 +288,7 @@ test "Integration - multiple mappings per FX workflow" {
 
     for (mapping_names, 0..) |mname, i| {
         save_paths[i] = try std.fmt.bufPrintZ(&path_bufs[i], "{s}/maps/multi_test/{s}.ini", .{ config_path_z, mname });
-        try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = comps[i] }, save_paths[i], null, null, null);
+        try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = comps[i] }, save_paths[i], null);
         try ml.registerPath(.COMP, test_fx, mname, save_paths[i]);
     }
 

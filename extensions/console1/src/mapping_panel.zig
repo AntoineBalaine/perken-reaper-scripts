@@ -197,42 +197,48 @@ fn formControls(
         }
     }
 
-    // Preset dropdown -- only shown when preset_strings has been initialized
-    // and user presets are available for this FX
-    if (assign_state.preset_strings) |ps| {
-        if (assign_state.preset_name_offsets.len > 0) {
-            try imgui.PushItemWidth(.{ ctx, 200.0 });
-            defer imgui.PopItemWidth(.{ctx}) catch {};
+    // Preset dropdown -- only shown when user presets are available for this FX.
+    // Because preset_name_offsets can only be non-empty after initPresetStrings
+    // has been called, checking its length is a sufficient guard for accessing
+    // preset_strings safely.
+    if (assign_state.preset_name_offsets.len > 0) {
+        try imgui.PushItemWidth(.{ ctx, 200.0 });
+        defer imgui.PopItemWidth(.{ctx}) catch {};
 
-            const current_label: [:0]const u8 = if (assign_state.selected_preset) |offset|
-                ps.get(offset)
-            else
-                tr(translations, .mapping_preset_none);
+        const current_label: [:0]const u8 = if (assign_state.selected_preset) |offset|
+            assign_state.preset_strings.get(offset)
+        else
+            tr(translations, .mapping_preset_none);
 
-            if (try imgui.BeginCombo(.{ ctx, "##preset_selection", current_label, null })) {
-                defer imgui.EndCombo(.{ctx}) catch {};
+        if (try imgui.BeginCombo(.{ ctx, "##preset_selection", current_label, null })) {
+            defer imgui.EndCombo(.{ctx}) catch {};
 
-                // "None" option to clear the preset association
-                if (try imgui.Selectable(.{ ctx, tr(translations, .mapping_preset_none) })) {
-                    rv = .{ .assign_set_preset = null };
-                }
-
-                for (assign_state.preset_name_offsets) |offset| {
-                    const name = ps.get(offset);
-                    if (try imgui.Selectable(.{ ctx, name })) {
-                        rv = .{ .assign_set_preset = offset };
-                    }
-                }
+            // "None" option to clear the preset association
+            if (try imgui.Selectable(.{ ctx, tr(translations, .mapping_preset_none) })) {
+                rv = .{ .assign_set_preset = null };
             }
 
-            // Because the checkbox is only meaningful when a preset is selected,
-            // we only show it in that case
-            if (assign_state.selected_preset != null) {
-                var store_preset = assign_state.store_preset_data;
-                if (try imgui.Checkbox(.{ ctx, tr(translations, .mapping_store_preset), &store_preset })) {
-                    rv = .{ .assign_toggle_store_preset = {} };
+            for (assign_state.preset_name_offsets) |offset| {
+                const name = assign_state.preset_strings.get(offset);
+                if (try imgui.Selectable(.{ ctx, name })) {
+                    rv = .{ .assign_set_preset = offset };
                 }
             }
+        }
+
+        // Because the checkbox should remain visible but inactive when no preset
+        // is selected, we disable it rather than hiding it
+        const no_preset_selected = assign_state.selected_preset == null;
+        if (no_preset_selected) {
+            try imgui.BeginDisabled(.{ctx});
+        }
+        defer if (no_preset_selected) {
+            imgui.EndDisabled(.{ctx}) catch {};
+        };
+
+        var store_preset = assign_state.store_preset_data;
+        if (try imgui.Checkbox(.{ ctx, tr(translations, .mapping_store_preset), &store_preset })) {
+            rv = .{ .assign_toggle_store_preset = {} };
         }
     }
 

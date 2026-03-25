@@ -209,32 +209,50 @@ pub const ParamStore = struct {
 };
 
 pub const AssignState = struct {
-    target_fx: [:0]const u8 = "",
+    target_fx: [:0]const u8,
     current_mappings: MapStore.TaggedMapping,
-    selected_parameter: ?u32 = null,
-    selected_control: ?c1.CCs = null,
-    learned_param: ?u32 = null,
-    midi_learn_active: bool = false,
+    selected_parameter: ?u32,
+    selected_control: ?c1.CCs,
+    learned_param: ?u32,
+    midi_learn_active: bool,
     param_store: ParamStore,
     arena: std.heap.ArenaAllocator,
-    knob_values: [128]f32 = [_]f32{0.5} ** 128,
+    knob_values: [128]f32,
     /// Because the UI needs to display FX names per module without calling
     /// REAPER APIs, we cache them here when entering assign mode.
-    module_fx_names: std.EnumArray(PhysicalModule, ?[:0]const u8) = std.EnumArray(PhysicalModule, ?[:0]const u8).initFill(null),
+    module_fx_names: std.EnumArray(PhysicalModule, ?[:0]const u8),
     /// translation key for the save mapping’s error message
-    save_error: ?TranslationKey = null,
+    save_error: ?TranslationKey,
     /// Contiguous storage for preset name strings, used by the preset dropdown.
     /// Because StringPool contains an ArenaAllocator with self-referential pointers,
     /// we cannot initialize it when AssignState is created as a local variable (the
     /// struct gets moved to its final location, invalidating the pointers). The caller
-    /// must call initPresetStrings() after placement. This field is null until then.
-    preset_strings: ?StringPool = null,
+    /// must call initPresetStrings() after placement. This field is undefined until then.
+    preset_strings: StringPool,
     /// Byte offsets into preset_strings for each available preset name
-    preset_name_offsets: []const u32 = &.{},
+    preset_name_offsets: []const u32,
     /// Currently selected preset (offset into preset_strings), or null for no preset
-    selected_preset: ?u32 = null,
+    selected_preset: ?u32,
     /// Whether to embed preset data in the map file when saving
-    store_preset_data: bool = false,
+    store_preset_data: bool,
+
+    pub const defaults = AssignState{
+        .target_fx = "",
+        .current_mappings = undefined,
+        .selected_parameter = null,
+        .selected_control = null,
+        .learned_param = null,
+        .midi_learn_active = false,
+        .param_store = undefined,
+        .arena = undefined,
+        .knob_values = [_]f32{0.5} ** 128,
+        .module_fx_names = std.EnumArray(PhysicalModule, ?[:0]const u8).initFill(null),
+        .save_error = null,
+        .preset_strings = undefined,
+        .preset_name_offsets = &.{},
+        .selected_preset = null,
+        .store_preset_data = false,
+    };
 
     pub const FxParameter = struct {
         index: u32,
@@ -242,11 +260,11 @@ pub const AssignState = struct {
     };
 
     pub fn init(gpa: std.mem.Allocator, mappings: MapStore.TaggedMapping) AssignState {
-        return AssignState{
-            .current_mappings = mappings,
-            .param_store = ParamStore.init(gpa),
-            .arena = std.heap.ArenaAllocator.init(gpa),
-        };
+        var state = defaults;
+        state.current_mappings = mappings;
+        state.param_store = ParamStore.init(gpa);
+        state.arena = std.heap.ArenaAllocator.init(gpa);
+        return state;
     }
 
     pub fn initPresetStrings(self: *AssignState, gpa: std.mem.Allocator) void {
@@ -255,9 +273,7 @@ pub const AssignState = struct {
 
     pub fn deinit(self: *AssignState) void {
         self.param_store.deinit();
-        if (self.preset_strings) |*ps| {
-            ps.deinit();
-        }
+        self.preset_strings.deinit();
         self.arena.deinit();
     }
 };
