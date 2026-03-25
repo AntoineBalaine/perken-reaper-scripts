@@ -5,12 +5,15 @@ const Mode = @import("statemachine.zig").Mode;
 const debugconfig = @import("config");
 const reentrancy = @import("reentrancy.zig");
 const test_api = @import("test_api.zig");
+const preset_installer = @import("preset_installer.zig");
+const Globals = @import("globals.zig").Globals;
 const log = std.log.scoped(.hooks);
 const getGlobals = @import("console1_extension.zig").getGlobals;
 
 // Store command IDs returned from registration
 pub var suspend_cmd_id: c_int = undefined;
 pub var toggle_gui_cmd_id: c_int = undefined;
+pub var install_presets_cmd_id: c_int = undefined;
 pub var reentrancy_test_cmd_id: c_int = undefined;
 pub var track_state_tests_cmd_id: c_int = undefined;
 var testCommandIds: TestCommandIds = undefined;
@@ -58,6 +61,10 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
         }
         actions.dispatch(globals, .set_fx_ctrl_gui);
         return 1;
+    } else if (command == install_presets_cmd_id) {
+        const globals = getGlobals();
+        runInstallPresets(globals);
+        return 1;
     } else if (debugconfig.@"test" and command == reentrancy_test_cmd_id) {
         reentrancy.runAllTests() catch |err| {
             log.err("Failed to run reentrancy tests: {}", .{err});
@@ -83,6 +90,46 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
     return 0;
 }
 
+pub fn runInstallPresets(globals: *Globals) void {
+    // Because the user needs to confirm before we modify their preset files,
+    // we show a message box and only proceed if they click OK
+    const confirm = reaper.ShowMessageBox(
+        "This will install embedded presets from your map files into REAPER's preset directory.\nPlease restart REAPER after installation to load the new presets.\n\nContinue?",
+        "Console1: Install Map Presets",
+        1, // MB_OKCANCEL
+    );
+    if (confirm != 1) return; // 1 = IDOK
+
+    var preset_dir_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    const resource_path = std.mem.span(@as([*:0]const u8, globals.resource_path));
+    const preset_dir = std.fmt.bufPrintZ(&preset_dir_buf, "{s}/presets", .{resource_path}) catch return;
+
+    // Because the install action is a one-shot operation, we use a temporary
+    // arena that gets freed when the action completes
+    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer temp_arena.deinit();
+
+    const result = preset_installer.installPresets(
+        temp_arena.allocator(),
+        &globals.mappings_list,
+        preset_dir,
+    ) catch |err| {
+        log.err("Failed to install presets: {}", .{err});
+        var err_buf: [256:0]u8 = undefined;
+        const err_msg = std.fmt.bufPrintZ(&err_buf, "Failed to install presets: {s}", .{@errorName(err)}) catch return;
+        _ = reaper.ShowMessageBox(err_msg, "Console1: Error", 0);
+        return;
+    };
+
+    var msg_buf: [512:0]u8 = undefined;
+    const msg = std.fmt.bufPrintZ(&msg_buf, "Installed {d} presets to {d} files.\nSkipped {d} duplicates.\n\nPlease restart REAPER to load the new presets.", .{
+        result.installed,
+        result.files_written,
+        result.skipped,
+    }) catch return;
+    _ = reaper.ShowMessageBox(msg, "Console1: Install Map Presets", 0);
+}
+
 // Registration helper
 pub fn registerCommands() void {
     const suspend_action: reaper.custom_action_register_t = .{
@@ -98,6 +145,13 @@ pub fn registerCommands() void {
         .name = "Console1: Hide FX Control Window",
     };
     toggle_gui_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&toggle_gui_action)));
+
+    const install_presets_action: reaper.custom_action_register_t = .{
+        .section = 0,
+        .id_str = "C1_INSTALL_MAP_PRESETS",
+        .name = "Console1: Install Map Presets",
+    };
+    install_presets_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&install_presets_action)));
 
     if (debugconfig.@"test") {
         testCommandIds = TestCommandIds.init();

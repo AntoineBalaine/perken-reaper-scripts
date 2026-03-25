@@ -59,6 +59,14 @@ pub const PresetData = struct {
     len: u32,
 };
 
+/// Groups the preset data fields read from a map file during installation.
+pub const MapPresetInfo = struct {
+    name: [:0]const u8,
+    file: [:0]const u8,
+    data: [:0]const u8,
+    len: u32,
+};
+
 /// Groups the preset data fields that get written to the map file.
 /// Used as a parameter when saving a mapping with embedded preset data.
 pub const EmbeddedPreset = struct {

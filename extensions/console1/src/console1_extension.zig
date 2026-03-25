@@ -114,4 +114,5 @@ test {
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");
     _ = @import("preset_file_reader.zig");
+    _ = @import("preset_installer.zig");
 }
