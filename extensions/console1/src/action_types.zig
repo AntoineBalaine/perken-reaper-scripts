@@ -98,6 +98,7 @@ pub const SettingsActions = union(enum) {
     scroll: u8,
     toggle,
     update_val: SettingsValUpdate,
+    install_presets,
 };
 
 // Transport

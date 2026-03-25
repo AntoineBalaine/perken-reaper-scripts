@@ -28,6 +28,7 @@ const SettingsRV = union(enum) {
     close_save,
     close_cancel,
     val_update: SettingsValUpdate,
+    install_presets,
 };
 
 pub fn draw(
@@ -242,6 +243,10 @@ pub fn draw(
         try imgui.SameLine(.{ctx});
         if (try imgui.Button(.{ ctx, safePrint(&buf, "{s}##stngs_x", .{tr(translations, .settings_cancel)}) })) {
             return .close_cancel;
+        }
+        try imgui.SameLine(.{ctx});
+        if (try imgui.Button(.{ ctx, safePrint(&buf, "{s}##stngs_ip", .{tr(translations, .install_presets_button)}) })) {
+            return .install_presets;
         }
     }
 

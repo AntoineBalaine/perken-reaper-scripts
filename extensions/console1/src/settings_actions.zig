@@ -3,6 +3,7 @@ const Globals = @import("globals.zig").Globals;
 const SettingsPanel = @import("settings_panel.zig");
 const Preferences = @import("settings.zig");
 const dispatch = @import("actions.zig").dispatch;
+const hooks = @import("hooks.zig");
 const log = std.log.scoped(.settings);
 
 pub const SettingsActions = @import("action_types.zig").SettingsActions;
@@ -124,6 +125,9 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
                 panel.dirty = true;
                 dispatch(globals, .{ .midi_out = .{ .settings_changed = val_update } });
             }
+        },
+        .install_presets => {
+            hooks.runInstallPresets(globals);
         },
         .scroll => |new_pos| {
             if (globals.settings_panel) |*settings_panel| {

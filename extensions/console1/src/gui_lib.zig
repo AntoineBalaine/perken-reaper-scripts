@@ -79,6 +79,7 @@ pub fn main(
                             .val_update => |update| rv = .{ .settings = .{ .update_val = update } },
                             .close_save => rv = .{ .settings = .save },
                             .close_cancel => rv = .{ .settings = .cancel },
+                            .install_presets => rv = .{ .settings = .install_presets },
                         }
                     }
                 }
@@ -90,6 +91,7 @@ pub fn main(
                             .val_update => |update| rv = .{ .settings = .{ .update_val = update } },
                             .close_save => rv = .{ .settings = .save },
                             .close_cancel => rv = .{ .settings = .cancel },
+                            .install_presets => rv = .{ .settings = .install_presets },
                         }
                     }
                 }
