@@ -109,10 +109,9 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     }
                 }
 
-                // Load the FX name for target_fx from REAPER
                 if (module == .STRIP) {
                     var fx_name_buf: [512:0]u8 = undefined;
-                    if (reaper.TrackFX_GetFXName(track, fxi, &fx_name_buf, fx_name_buf.len)) {
+                    if (reaper.TrackFX_GetNamedConfigParm(track, fxi, "original_name", &fx_name_buf, fx_name_buf.len)) {
                         const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
                         assign_state.target_fx = assign_allocator.dupeZ(u8, fx_name) catch return;
                     }
@@ -576,7 +575,7 @@ fn populateModuleFxNames(
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
         if (locs.get(module)) |location| {
             var fx_name_buf: [256:0]u8 = undefined;
-            if (reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len)) {
+            if (reaper.TrackFX_GetNamedConfigParm(track, location.fx_index, "original_name", &fx_name_buf, fx_name_buf.len)) {
                 const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
                 assign_state.module_fx_names.set(module, allocator.dupeZ(u8, fx_name) catch null);
             } else {

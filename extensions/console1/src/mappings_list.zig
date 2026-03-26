@@ -396,3 +396,32 @@ test "mappings_list stores FX names with slashes correctly" {
         try testing.expect(list.contains(fx_offset));
     }
 }
+
+test "multiple maps for the same FX are grouped under one key" {
+    const testing = std.testing;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var mem: [std.fs.max_path_bytes]u8 = undefined;
+    const pth = try std.fs.cwd().realpath(".", &mem);
+    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
+    const config_path_z = try allocator.dupeZ(u8, config_path);
+
+    var ml = init(allocator, config_path_z);
+    _ = &ml;
+
+    // Because the test resources have two map files for ReaEQ (default.ini
+    // and alternate.ini), they should be grouped under a single key with 2 entries.
+    const eq_map = ml.list.getPtr(.EQ);
+    var reaeq_count: usize = 0;
+    var iter = eq_map.iterator();
+    while (iter.next()) |entry| {
+        const fx_name = ml.strings.get(entry.key_ptr.*);
+        if (std.mem.eql(u8, fx_name, "VST: ReaEQ (Cockos)")) {
+            reaeq_count = entry.value_ptr.items.len;
+        }
+    }
+
+    try testing.expectEqual(@as(usize, 2), reaeq_count);
+}
