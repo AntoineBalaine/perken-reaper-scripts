@@ -15,7 +15,6 @@ const FxMaps = @import("mappings_list.zig");
 const Preferences = @import("settings.zig").Preferences;
 const Theme = @import("theme/Theme.zig");
 const fx_types = @import("fx_parser_types.zig");
-const c1_theme = @import("theme/c1_theme.zig");
 
 pub const UiState = struct {
     state: *statemachine.State,
@@ -35,5 +34,4 @@ pub const UiState = struct {
     fx_chains: *fx_types.Directory,
     track_templates: *fx_types.Directory,
     fx_tags: *fx_types.FxTags,
-    theme: *const c1_theme.C1Theme,
 };

@@ -19,8 +19,7 @@ const SCRouting = fx_ctrl_state.SCRouting;
 const ModulesOrder = fx_ctrl_state.ModulesOrder;
 const TransportState = @import("action_types.zig").TransportState;
 const LabelPool = @import("track_state.zig").LabelPool;
-const c1_theme = @import("theme/c1_theme.zig");
-const C1Theme = c1_theme.C1Theme;
+
 const button = @import("components/button.zig");
 
 fn renderMappableButton(
@@ -29,13 +28,12 @@ fn renderMappableButton(
     fx_state: *FxCtrlState,
     mode: Mode,
     text_pos: ?button.TextPosition,
-    theme: *const C1Theme,
 ) !?WidgetInput {
     const is_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
     const val = fx_state.values.get(cc).?.param.normalized > 0.5;
     const mapped = is_fx_mode and fx_state.track_state.forward_map.get(cc) != null;
     const label: [:0]const u8 = if (mapped) fx_state.track_state.label_pool.getPrmLabel(cc) else "-";
-    const color: ?c_int = if (mapped and val) theme.main.ActiveToggle else null;
+    const color: ?c_int = if (mapped and val) try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLines }) else null;
     if (try roundButton(.{ ctx, label, "##" ++ @tagName(cc), null, null, text_pos, !mapped, color })) {
         return .{ .cc = cc, .value = if (val) 0 else 1 };
     }
@@ -90,51 +88,50 @@ pub fn drawFxControlPanel(ctx: imgui.ContextPtr, ui: *UiState, translations: *Tr
     const mode: Mode = ui.state.current_mode;
     const fx_state = &ui.state.fx_ctrl;
     const transport = &ui.state.transport;
-    const theme = ui.theme;
     var win_pos = Knobs.Position{ .x = undefined, .y = undefined };
     try imgui.GetWindowPos(.{ ctx, &win_pos.x, &win_pos.y });
     var id_buf: [64:0]u8 = undefined;
     var rv: ?WidgetInput = null;
-    if (try inputPanel(ctx, mode, fx_state, transport, translations, &id_buf, theme)) |input_rv| {
+    if (try inputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |input_rv| {
         rv = input_rv;
     }
-    try sectional(ctx, theme.main.Border);
+    try sectional(ctx);
     // Gate Module
-    if (try gatePanel(ctx, mode, fx_state, &id_buf, theme)) |gate_rv| {
+    if (try gatePanel(ctx, mode, fx_state, &id_buf)) |gate_rv| {
         rv = gate_rv;
     }
-    try sectional(ctx, theme.main.Border);
+    try sectional(ctx);
     // EQ Module
-    if (try eqPanel(ctx, mode, fx_state, transport, translations, &id_buf, theme)) |eq_rv| {
+    if (try eqPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |eq_rv| {
         rv = eq_rv;
     }
-    try sectional(ctx, theme.main.Border);
+    try sectional(ctx);
     // Compressor Module
-    if (try compPanel(ctx, mode, fx_state, &id_buf, theme)) |comp_rv| {
+    if (try compPanel(ctx, mode, fx_state, &id_buf)) |comp_rv| {
         rv = comp_rv;
     }
-    try sectional(ctx, theme.main.Border);
+    try sectional(ctx);
     // Output Module
-    if (try outputPanel(ctx, mode, fx_state, transport, translations, &id_buf, theme)) |output_rv| {
+    if (try outputPanel(ctx, mode, fx_state, transport, translations, &id_buf)) |output_rv| {
         rv = output_rv;
     }
 
     if (!ui.midi_connected) {
         try imgui.SameLine(.{ctx});
-        try imgui.TextColored(.{ ctx, theme.main.ErrorText, tr(translations, .fx_ctrl_disconnected) });
+        try imgui.TextColored(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotHistogram }), tr(translations, .fx_ctrl_disconnected) });
     }
     return rv;
 }
 
-pub fn sectional(ctx: imgui.ContextPtr, separator_color: c_int) !void {
+pub fn sectional(ctx: imgui.ContextPtr) !void {
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
-    try vSeparator(.{ ctx, separator_color });
+    try vSeparator(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_Border }) });
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
 }
 
-fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8, theme: *const C1Theme) !?WidgetInput {
+fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
@@ -175,7 +172,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
 
         // Apply offset if needed
         var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
-        if (try Knobs.drawWidget(ctx, &gain_prm.normalized, label_id, .{ .no_val_display = gain_no_val_display, .disabled = gain_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+        if (try Knobs.drawWidget(ctx, &gain_prm.normalized, label_id, .{ .no_val_display = gain_no_val_display, .disabled = gain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
             rv = .{ .cc = .Inpt_Gain, .value = gain_prm.normalized };
         }
     }
@@ -237,14 +234,14 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
                 @as(f64, @floatFromInt(transport.rate)) / 127.0
             else
                 fx_state.values.get(hicut_cc).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &hicut_val, hicut_label_id, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &hicut_val, hicut_label_id, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Inpt_HiCut, .value = hicut_val };
             }
 
             // Second knob
             const locut_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
             var locut_prm = fx_state.values.get(locut_cc).?.param;
-            if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_label_id, .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_label_id, .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Inpt_LoCut, .value = locut_prm.normalized };
             }
         }
@@ -257,7 +254,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         const filt_to_comp_display_label: [:0]const u8 = filt_to_comp_label orelse "-";
         const filt_to_comp_disabled = (filt_to_comp_label == null);
         // Orange color (ABGR) when the toggle is active
-        const ftc_color: ?c_int = if (fx_state.filter_to_comp) theme.main.ActiveToggle else null;
+        const ftc_color: ?c_int = if (fx_state.filter_to_comp) try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLines }) else null;
         if (try roundButton(.{ ctx, filt_to_comp_display_label, "##" ++ @tagName(c1.CCs.Inpt_filt_to_comp), null, null, .right, filt_to_comp_disabled, ftc_color })) {
             rv = .{ .cc = .Inpt_filt_to_comp, .value = 1.0 };
         }
@@ -288,14 +285,14 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
     return rv;
 }
 
-fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: *[64:0]u8, theme: *const C1Theme) !?WidgetInput {
+fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    if (try renderMappableButton(ctx, .Shp_shape, fx_state, mode, .right, theme)) |action| {
+    if (try renderMappableButton(ctx, .Shp_shape, fx_state, mode, .right)) |action| {
         rv = action;
     }
 
@@ -321,11 +318,11 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // Apply offset if needed
             var gate_prm = fx_state.values.get(.Shp_Gate).?.param;
-            if (try Knobs.drawWidget(ctx, &gate_prm.normalized, label_id, .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled, .knob_bg = theme.main.FrameBg }, null)) {
+            if (try Knobs.drawWidget(ctx, &gate_prm.normalized, label_id, .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, null)) {
                 rv = .{ .cc = .Shp_Gate, .value = gate_prm.normalized };
             }
 
-            if (try renderMappableButton(ctx, .Shp_hard_gate, fx_state, mode, .below, theme)) |action| {
+            if (try renderMappableButton(ctx, .Shp_hard_gate, fx_state, mode, .below)) |action| {
                 rv = action;
             }
         }
@@ -369,19 +366,19 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // First knob
             var release_prm = fx_state.values.get(.Shp_GateRelease).?.param;
-            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = release_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = release_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Shp_GateRelease, .value = release_prm.normalized };
             }
 
             // Second knob
             var sustain_prm = fx_state.values.get(.Shp_sustain).?.param;
-            if (try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_label_id, .{ .no_val_display = sustain_no_val_display, .disabled = sustain_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_label_id, .{ .no_val_display = sustain_no_val_display, .disabled = sustain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Shp_sustain, .value = sustain_prm.normalized };
             }
 
             // Third knob
             var punch_prm = fx_state.values.get(.Shp_Punch).?.param;
-            if (try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_label_id, .{ .no_val_display = punch_no_val_display, .disabled = punch_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_label_id, .{ .no_val_display = punch_no_val_display, .disabled = punch_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Shp_Punch, .value = punch_prm.normalized };
             }
         }
@@ -390,14 +387,14 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
     return rv;
 }
 
-fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8, theme: *const C1Theme) !?WidgetInput {
+fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    if (try renderMappableButton(ctx, .Eq_eq, fx_state, mode, .right, theme)) |action| {
+    if (try renderMappableButton(ctx, .Eq_eq, fx_state, mode, .right)) |action| {
         rv = action;
     }
 
@@ -407,7 +404,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
-            if (try renderMappableButton(ctx, .Eq_lp_shape, fx_state, mode, .right, theme)) |action| {
+            if (try renderMappableButton(ctx, .Eq_lp_shape, fx_state, mode, .right)) |action| {
                 rv = action;
             }
 
@@ -434,7 +431,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // First knob
             var lofreq_prm = fx_state.values.get(.Eq_LoFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_label_id, .{ .no_val_display = lofreq_no_val_display, .disabled = lofreq_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_label_id, .{ .no_val_display = lofreq_no_val_display, .disabled = lofreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoFrq, .value = lofreq_prm.normalized };
             }
 
@@ -443,7 +440,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.scrub)) / 127.0
             else
                 fx_state.values.get(.Eq_LoGain).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &logain_val, logain_label_id, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &logain_val, logain_label_id, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoGain, .value = logain_val };
             }
         }
@@ -486,13 +483,13 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // First knob
             var lomidq_prm = fx_state.values.get(.Eq_LoMidQ).?.param;
-            if (try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_label_id, .{ .no_val_display = lomidq_no_val_display, .disabled = lomidq_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_label_id, .{ .no_val_display = lomidq_no_val_display, .disabled = lomidq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidQ, .value = lomidq_prm.normalized };
             }
 
             // Second knob
             var lomidfreq_prm = fx_state.values.get(.Eq_LoMidFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_label_id, .{ .no_val_display = lomidfreq_no_val_display, .disabled = lomidfreq_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_label_id, .{ .no_val_display = lomidfreq_no_val_display, .disabled = lomidfreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidFrq, .value = lomidfreq_prm.normalized };
             }
 
@@ -501,7 +498,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.jog)) / 127.0
             else
                 fx_state.values.get(.Eq_LoMidGain).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &lomidgain_val, lomidgain_label_id, .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &lomidgain_val, lomidgain_label_id, .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidGain, .value = lomidgain_val };
             }
         }
@@ -544,13 +541,13 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // First knob
             var himidq_prm = fx_state.values.get(.Eq_HiMidQ).?.param;
-            if (try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_label_id, .{ .no_val_display = himidq_no_val_display, .disabled = himidq_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_label_id, .{ .no_val_display = himidq_no_val_display, .disabled = himidq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidQ, .value = himidq_prm.normalized };
             }
 
             // Second knob
             var himidfreq_prm = fx_state.values.get(.Eq_HiMidFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_label_id, .{ .no_val_display = himidfreq_no_val_display, .disabled = himidfreq_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_label_id, .{ .no_val_display = himidfreq_no_val_display, .disabled = himidfreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidFrq, .value = himidfreq_prm.normalized };
             }
 
@@ -559,7 +556,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.jog_marker)) / 127.0
             else
                 fx_state.values.get(.Eq_HiMidGain).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &himidgain_val, himidgain_label_id, .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &himidgain_val, himidgain_label_id, .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidGain, .value = himidgain_val };
             }
         }
@@ -573,7 +570,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
         {
             try imgui.Dummy(.{ ctx, KNOB_SIZE / 2, KNOB_SIZE / 2 });
 
-            if (try renderMappableButton(ctx, .Eq_hp_shape, fx_state, mode, .right, theme)) |action| {
+            if (try renderMappableButton(ctx, .Eq_hp_shape, fx_state, mode, .right)) |action| {
                 rv = action;
             }
 
@@ -600,7 +597,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // First knob
             var hifreq_prm = fx_state.values.get(.Eq_HiFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_label_id, .{ .no_val_display = hifreq_no_val_display, .disabled = hifreq_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_label_id, .{ .no_val_display = hifreq_no_val_display, .disabled = hifreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiFrq, .value = hifreq_prm.normalized };
             }
 
@@ -609,7 +606,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.jog_item)) / 127.0
             else
                 fx_state.values.get(.Eq_HiGain).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &higain_val, higain_label_id, .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &higain_val, higain_label_id, .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiGain, .value = higain_val };
             }
         }
@@ -618,14 +615,14 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
     return rv;
 }
 
-fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: *[64:0]u8, theme: *const C1Theme) !?WidgetInput {
+fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    if (try renderMappableButton(ctx, .Comp_comp, fx_state, mode, .right, theme)) |action| {
+    if (try renderMappableButton(ctx, .Comp_comp, fx_state, mode, .right)) |action| {
         rv = action;
     }
 
@@ -659,13 +656,13 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // First knob
             var ratio_prm = fx_state.values.get(.Comp_Ratio).?.param;
-            if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_label_id, .{ .no_val_display = ratio_no_val_display, .disabled = ratio_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_label_id, .{ .no_val_display = ratio_no_val_display, .disabled = ratio_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Comp_Ratio, .value = ratio_prm.normalized };
             }
 
             // Second knob
             var drywet_prm = fx_state.values.get(.Comp_DryWet).?.param;
-            if (try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_label_id, .{ .no_val_display = drywet_no_val_display, .disabled = drywet_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_label_id, .{ .no_val_display = drywet_no_val_display, .disabled = drywet_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Comp_DryWet, .value = drywet_prm.normalized };
             }
         }
@@ -709,19 +706,19 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // First knob
             var attack_prm = fx_state.values.get(.Comp_Attack).?.param;
-            if (try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_label_id, .{ .no_val_display = attack_no_val_display, .disabled = attack_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_label_id, .{ .no_val_display = attack_no_val_display, .disabled = attack_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Comp_Attack, .value = attack_prm.normalized };
             }
 
             // Second knob
             var release_prm = fx_state.values.get(.Comp_Release).?.param;
-            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = comp_release_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = comp_release_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Comp_Release, .value = release_prm.normalized };
             }
 
             // Third knob
             var thresh_prm = fx_state.values.get(.Comp_Thresh).?.param;
-            if (try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_label_id, .{ .no_val_display = thresh_no_val_display, .disabled = thresh_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_label_id, .{ .no_val_display = thresh_no_val_display, .disabled = thresh_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Comp_Thresh, .value = thresh_prm.normalized };
             }
         }
@@ -730,7 +727,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
     return rv;
 }
 
-fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8, theme: *const C1Theme) !?WidgetInput {
+fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport: *const TransportState, translations: *TranslationStore, id_buf: *[64:0]u8) !?WidgetInput {
     var rv: ?WidgetInput = null;
     const value_display_disabled = (mode != .fx_ctrl and mode != .mapping_panel and mode != .fx_sel);
     const is_fx_mode = (mode == .fx_ctrl or mode == .mapping_panel or mode == .fx_sel);
@@ -812,7 +809,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.zoom_horizontal)) / 127.0
             else
                 fx_state.values.get(.Out_Drive).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &drive_val, drive_label_id, .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &drive_val, drive_label_id, .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Out_Drive, .value = drive_val };
             }
 
@@ -821,7 +818,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.zoom_vertical)) / 127.0
             else
                 fx_state.values.get(.Out_DriveChar).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &char_val, char_label_id, .{ .no_val_display = char_no_val_display, .disabled = char_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &char_val, char_label_id, .{ .no_val_display = char_no_val_display, .disabled = char_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Out_DriveChar, .value = char_val };
             }
 
@@ -830,7 +827,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.grid)) / 127.0
             else
                 fx_state.values.get(.Out_Pan).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &pan_val, pan_label_id, .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &pan_val, pan_label_id, .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Out_Pan, .value = pan_val };
             }
         }
@@ -920,7 +917,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.tr_sel)) / 127.0
             else
                 fx_state.values.get(.Out_Vol).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &vol_val, label_id, .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled, .knob_bg = theme.main.FrameBg }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &vol_val, label_id, .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
                 rv = .{ .cc = .Out_Vol, .value = vol_val };
             }
         }

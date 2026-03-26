@@ -96,14 +96,14 @@ pub fn drawTrackList(ctx: imgui.ContextPtr, state: *State, modifier_active: bool
     return action;
 }
 
-pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manager: *styles.StyleManager, translations: *TranslationStore, separator_color: c_int) !?c1.CCs {
+pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manager: *styles.StyleManager, translations: *TranslationStore) !?c1.CCs {
     const mode = state.current_mode;
     const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
     defer PopStyle(ctx) catch {};
 
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });
     // Add vertical separator after Input section
-    try vSeparator(.{ ctx, separator_color });
+    try vSeparator(.{ ctx, try imgui.GetStyleColor(.{ ctx, imgui.Col_Border }) });
 
     try imgui.SameLine(.{ctx});
     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + section_spacing });

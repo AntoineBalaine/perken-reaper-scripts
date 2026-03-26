@@ -51,7 +51,7 @@ pub fn main(
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations, ui.theme.main.Border)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_pg_up => rv = .{ .track_list = .{ .page_change = .up } },
                             .Tr_pg_dn => rv = .{ .track_list = .{ .page_change = .down } },
@@ -128,7 +128,7 @@ pub fn main(
                 if (ui.preferences.show_track_list) {
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations, ui.theme.main.Border)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1 => rv = .{ .fx_sel = .{ .toggle_module_browser = .INPUT } },
                             .Tr_tr2 => rv = .{ .fx_sel = .{ .toggle_module_browser = .GATE } },
@@ -182,7 +182,6 @@ pub fn main(
                             ui.state,
                             assign_state,
                             ui.translations,
-                            ui.theme,
                         ),
                     };
                     if (map_action) |action| {
@@ -218,7 +217,7 @@ pub fn main(
                     try imgui.SameLine(.{ctx});
                     try imgui.SetCursorPosX(.{ ctx, try imgui.GetCursorPosX(.{ctx}) + 20 });
 
-                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations, ui.theme.main.Border)) |tr_cc| {
+                    if (try track_list_panel.drawTrackListTwoColumns(ctx, ui.state, style_manager, ui.translations)) |tr_cc| {
                         switch (tr_cc) {
                             .Tr_tr1, .Tr_tr2, .Tr_tr3, .Tr_tr4, .Tr_tr5 => |cc_| {
                                 const module: ModulesList = switch (cc_) {

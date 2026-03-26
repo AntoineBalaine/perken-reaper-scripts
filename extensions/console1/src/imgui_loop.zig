@@ -146,7 +146,6 @@ fn onTimer() callconv(.C) void {
         .fx_chains = &fx_parser.fx_chains,
         .track_templates = &fx_parser.track_templates,
         .fx_tags = &fx_parser.fx_tags,
-        .theme = &c1_theme.theme,
     };
 
     if (hot_reloader) |*reloader| {
