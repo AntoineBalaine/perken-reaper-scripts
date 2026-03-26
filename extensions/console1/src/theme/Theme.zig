@@ -3,7 +3,6 @@ const ImGui = @import("reaper_imgui");
 const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
 pub const ThemeTypes = @import("themeTypes.zig");
-const c1_theme = @import("c1_theme.zig");
 const fontello = @embedFile("../assets/fontello1.ttf");
 const systemfont = "sans-serif";
 
@@ -29,23 +28,30 @@ pub fn attachFonts(ctx: ImGui.ContextPtr) !void {
     try ImGui.Attach(.{ ctx, fontelloResource });
 }
 
-/// Load theme colors from the c1_theme INI file and set up fonts.
-/// styles.zig reads colors directly from c1_theme.theme.WindowColors,
-/// so we no longer need to populate Theme.clrs with our colors.
-/// Theme.clrs is still initialized (zeroed) for the legacy Palette/StyleEditor.
-pub fn init(ctx: ImGui.ContextPtr) !void {
-    c1_theme.init();
-    clrs = std.EnumArray(RColorsEnum, ThemeTypes.ThemeColor).initUndefined();
+/// Query the theme from reaper
+/// and store it in a table containing its colors and fonts.
+///
+/// If an ImGui context is provided, the fonts will be attached to the context, and created
+pub fn init(ctx: ImGui.ContextPtr, convert_colors: bool) !void {
+    clrs = std.EnumArray(std.meta.FieldEnum(ThemeTypes.ColorTable), ThemeTypes.ThemeColor).initUndefined();
     inline for (@typeInfo(ThemeTypes.ThemeVars).@"struct".fields) |themeVar| {
         const varName: [:0]const u8 = themeVar.name;
         const description = @field(ThemeTypes.themeVars, varName);
-        clrs.getPtr(std.meta.stringToEnum(RColorsEnum, varName).?).* = .{
-            .color = 0,
+        // const description = themeVar.default_value;
+        var col = reaper.GetThemeColor(@as([*:0]const u8, varName), 0); // NOTE: Flag doesn't seem to work (v6.78). Channel are swapped on MacOS and Linux.
+        if (convert_colors) {
+            const converted = try ImGui.ColorConvertNative(.{col});
+            col = (converted << 8) | 0xff;
+        }
+        const cl = ThemeTypes.ThemeColor{
+            .color = col,
             .description = description,
         };
+        clrs.getPtr(std.meta.stringToEnum(std.meta.FieldEnum(ThemeTypes.ColorTable), varName).?).* = cl;
     }
 
     fonts.MAIN = try ImGui.CreateFont(.{ systemfont, FONT_SMALL_SIZE, null });
+
     fonts.ICON_FONT_SMALL = try ImGui.CreateFontFromMem(.{ fontello, fontello.len, ICON_FONT_SMALL_SIZE, null });
     if (ctx) |context| {
         try attachFonts(context);

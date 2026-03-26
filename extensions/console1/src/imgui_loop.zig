@@ -29,8 +29,10 @@ fn init() !void {
     const ctx_flags = imgui.ConfigFlags_DockingEnable;
     ctx = try imgui.CreateContext(.{ plugin_name, ctx_flags });
 
-    // Load theme colors from INI and set up fonts
-    try Theme.init(ctx);
+    // Query REAPER theme colors and set up fonts (legacy path)
+    try Theme.init(ctx, true);
+    // Parse the INI-based theme (new path, overrides legacy in styles.init)
+    c1_theme.init();
 
     win_flags =
         imgui.WindowFlags_NoCollapse +

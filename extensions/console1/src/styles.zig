@@ -2,7 +2,6 @@ const std = @import("std");
 const imgui = @import("reaper_imgui");
 const Theme = @import("theme/Theme.zig");
 const c1_theme = @import("theme/c1_theme.zig");
-const WindowColors = c1_theme.WindowColors;
 
 pub const Docker = struct {
     pub const UNDOCKED: i32 = 0;
@@ -163,8 +162,10 @@ pub fn init(ctx: imgui.ContextPtr) !void {
     MainStyle = std.mem.zeroes(StyleStruct);
     try getStyleData(ctx, &MainStyle);
     ConfigStyle = MainStyle; // copy
-    loadStyle(&MainStyle, MAIN_STYLEVARS, &c1_theme.theme.main);
-    loadStyle(&ConfigStyle, CONFIG_STYLEVARS, &c1_theme.theme.config);
+    try loadStyle(&MainStyle, MAIN_STYLEVARS, MAIN_COLORS);
+    try loadStyle(&ConfigStyle, CONFIG_STYLEVARS, CONFIG_COLORS);
+    overrideFromC1Theme(&MainStyle, &c1_theme.theme.main);
+    overrideFromC1Theme(&ConfigStyle, &c1_theme.theme.config);
 }
 
 pub const VEC = std.StaticStringMap(void).initComptime(.{
@@ -185,6 +186,22 @@ pub const VEC = std.StaticStringMap(void).initComptime(.{
 const CONFIG_STYLEVARS = std.StaticStringMap(XYStruct).initComptime(.{
     .{ "FrameBorderSize", XYStruct{ .x = 1, .y = 0 } },
 });
+const CONFIG_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
+    .{ "CheckMark", "genlist_selbg" },
+    .{ "WindowBg", "col_main_bg" },
+    .{ "ChildBg", "genlist_bg" },
+    .{ "Text", "genlist_fg" },
+    .{ "Tab", "genlist_seliabg" },
+    .{ "PopupBg", "col_main_bg" },
+    .{ "FrameBg", "genlist_seliabg" },
+    .{ "Button", "genlist_seliabg" },
+    .{ "Tab", "genlist_selbg" },
+    .{ "TitleBg", "col_main_bg" },
+    .{ "TitleBgActive", "genlist_bg" },
+    .{ "TabHovered", "genlist_selbg" },
+    .{ "TabSelected", "genlist_selfg" },
+    .{ "TabSelectedOverline", "genlist_selfg" },
+});
 
 const MAIN_STYLEVARS = std.StaticStringMap(XYStruct).initComptime(.{
     .{ "ChildRounding", XYStruct{ .x = 4, .y = 0 } },
@@ -193,8 +210,29 @@ const MAIN_STYLEVARS = std.StaticStringMap(XYStruct).initComptime(.{
     .{ "ItemSpacing", XYStruct{ .x = 4, .y = 2 } },
     .{ "WindowPadding", XYStruct{ .x = 4, .y = 4 } },
 });
+const MAIN_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
+    .{ "Border", "selcol_tr2_bg" },
+    .{ "Button", "col_main_bg2" },
+    .{ "ButtonActive", "midi_endpt" },
+    .{ "ButtonHovered", "col_env5" },
+    .{ "CheckMark", "col_seltrack" },
+    .{ "DragDropTarget", "col_main_resize2" },
+    .{ "FrameBg", "col_main_bg2" },
+    .{ "FrameBgActive", "midi_endpt" },
+    .{ "FrameBgHovered", "col_env5" },
+    .{ "SliderGrab", "col_cursor" },
+    .{ "SliderGrabActive", "col_cursor2" },
+    .{ "Tab", "arrange_vgrid" },
+    .{ "TabActive", "auto_item_unsel" },
+    .{ "TabHovered", "genlist_selbg" },
+    .{ "TabSelected", "genlist_selfg" },
+    .{ "TabSelectedOverline", "genlist_selfg" },
+    .{ "Text", "col_seltrack" },
+    .{ "WindowBg", "col_main_bg2" },
+});
 
-pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStringMap(XYStruct), window_colors: *const WindowColors) void {
+pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStringMap(XYStruct), comptime colors_map: std.StaticStringMap([:0]const u8)) !void {
+    // push theme colors into the styleStruct
     inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
         const xy = stylesData.style_vars.getPtr(@enumFromInt(field.value));
         const val = stylevars_map.get(field.name[9..]);
@@ -203,15 +241,41 @@ pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStr
             xy.y = styleVarVal.y;
         }
     }
+    const rColorsEnum = std.meta.FieldEnum(Theme.ThemeTypes.ColorTable);
     inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
-        // ImGui color names are prefixed with "Col_" (e.g., "Col_CheckMark").
-        // We strip that prefix to match the WindowColors field names.
+        const reaper_theme_col_name = comptime colors_map.get(field.name[4..]);
+        if (reaper_theme_col_name) |theme_col| {
+            const val = Theme.clrs.get(std.meta.stringToEnum(rColorsEnum, theme_col).?).color;
+            stylesData.colors.getPtr(@enumFromInt(field.value)).* = val;
+        }
+    }
+}
+
+/// Override the style colors with values from the c1_theme INI file.
+/// For standard ImGui colors (CheckMark, Text, Border, etc.), we match
+/// the Col_ prefix-stripped name against WindowColors fields.
+/// For our custom semantic colors (ActiveToggle, ErrorText), we map them
+/// into unused ImGui color slots (Col_PlotLines, Col_PlotHistogram).
+fn overrideFromC1Theme(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
+    const WC = c1_theme.WindowColors;
+    inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
         const color_name = field.name[4..];
-        if (@hasField(WindowColors, color_name)) {
+        if (@hasField(WC, color_name)) {
             const val = @field(window_colors, color_name);
             if (val != 0) {
                 stylesData.colors.getPtr(@enumFromInt(field.value)).* = val;
             }
+        }
+    }
+    // Map semantic colors into unused ImGui color slots
+    if (window_colors.ActiveToggle != 0) {
+        if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotLines")) |idx| {
+            stylesData.colors.getPtr(idx).* = window_colors.ActiveToggle;
+        }
+    }
+    if (window_colors.ErrorText != 0) {
+        if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotHistogram")) |idx| {
+            stylesData.colors.getPtr(idx).* = window_colors.ErrorText;
         }
     }
 }
