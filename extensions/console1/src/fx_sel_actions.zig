@@ -12,6 +12,7 @@ const TrackState = @import("track_state.zig");
 const Globals = @import("globals.zig").Globals;
 const utils = @import("utils.zig");
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
+const MapStore = @import("mappings.zig");
 
 pub const FxSelActions = @import("action_types.zig").FxSelActions;
 
@@ -63,17 +64,11 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             const phys_module: PhysicalModule = @enumFromInt(@intFromEnum(current_module));
             const insert_idx = determineInsertionIndex(&globals.state, track, phys_module, globals.preferences.preferred_module_order);
 
-            // Check if we need to load a specific mapping or determine if mapping exists
-            var needs_mapping = false;
+            var loaded_mapping: ?MapStore.TaggedMapping = null;
             if (plugin.mapping_name) |map_name| {
-                // Load specific mapping (don't change preferred setting)
-                _ = globals.map_store.getMap(plugin.name, current_module, map_name, &globals.mappings_list) catch |err| {
-                    log.err("Failed to load mapping {s} for {s}: {}", .{ map_name, plugin.name, err });
-                    needs_mapping = true;
-                };
+                loaded_mapping = globals.map_store.getMap(plugin.name, current_module, map_name, &globals.mappings_list) catch null;
             } else {
-                // Check if any mapping exists for this FX
-                needs_mapping = (globals.map_store.get(plugin.name, current_module, &globals.mappings_list) == null);
+                loaded_mapping = globals.map_store.get(plugin.name, current_module, &globals.mappings_list);
             }
 
             // Add new FX
@@ -97,10 +92,16 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
             }
 
-            // Because the mapping may have an associated preset, we apply it
-            // right after insertion so the FX starts in the expected state.
-            if (globals.map_store.getPresetName(plugin.name, current_module)) |preset_name| {
-                _ = pReaper.TrackFX_SetPreset(.{ track, new_fx_index, preset_name });
+            // Apply associated preset, right after insertion
+            if (loaded_mapping) |lm| {
+                switch (lm) {
+                    inline else => |m| {
+                        if (m.fx_preset) |offset| {
+                            const preset_name = globals.map_store.preset_strings.get(offset);
+                            _ = pReaper.TrackFX_SetPreset(.{ track, new_fx_index, preset_name });
+                        }
+                    },
+                }
             }
 
             // If replacing existing module FX, remove it.
@@ -141,7 +142,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
 
             // Because FX parameter loading now happens in enter_assign action,
             // we enter mapping mode if needed, otherwise return to fx_ctrl
-            if (needs_mapping) {
+            if (loaded_mapping == null) {
                 dispatch(globals, .{ .change_mode = .mapping_panel });
             } else {
                 dispatch(globals, .{ .change_mode = .fx_ctrl });
@@ -281,8 +282,7 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
         _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
     }
 
-    // Because the mapping may have an associated preset, we apply it
-    // right after insertion so the FX starts in the expected state.
+    // Apply associated preset, right after insertion
     if (globals.map_store.getPresetName(name, .STRIP)) |preset_name| {
         _ = pReaper.TrackFX_SetPreset(.{ track, new_fx_index, preset_name });
     }
