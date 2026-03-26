@@ -19,15 +19,11 @@ pub fn readMapPresetInfo(allocator: std.mem.Allocator, map_file_path: [:0]const 
     };
     defer file.close();
 
-    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer temp_arena.deinit();
-
-    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    var parser = ini.parse(allocator, file.reader());
     defer parser.deinit();
 
     // Because the INI parser's kv.value points into the parser's internal buffer
-    // which is freed when temp_arena is deinitialized, we must dupe the values
-    // during parsing rather than after the loop ends.
+    // which gets reused on each iteration, we must dupe the values during parsing.
     var found_name: ?[:0]const u8 = null;
     var found_file: ?[:0]const u8 = null;
     var found_data: ?[:0]const u8 = null;
@@ -51,15 +47,7 @@ pub fn readMapPresetInfo(allocator: std.mem.Allocator, map_file_path: [:0]const 
         }
     }
 
-    // Because all four fields must be present for the preset data to be usable,
-    // we return null if any is missing. We must also free any already-allocated
-    // strings to avoid leaks.
-    if (found_name == null or found_file == null or found_data == null) {
-        if (found_name) |n| allocator.free(n);
-        if (found_file) |f| allocator.free(f);
-        if (found_data) |d| allocator.free(d);
-        return null;
-    }
+    if (found_name == null or found_file == null or found_data == null) return null;
 
     return preset_file_reader.MapPresetInfo{
         .name = found_name.?,
@@ -74,15 +62,16 @@ pub fn readMapPresetInfo(allocator: std.mem.Allocator, map_file_path: [:0]const 
 /// deduplicate against existing presets in the target REAPER preset file, and append
 /// any new ones.
 pub fn installPresets(
-    allocator: std.mem.Allocator,
     mappings_list: *MappingsList,
     preset_dir: [:0]const u8,
 ) !InstallResult {
     var result = InstallResult{};
 
-    // Because MappingsList organizes mappings as EnumArray(ModulesList, ModuleMap)
-    // where ModuleMap = ArrayHashMap(fx_name_offset -> ArrayList(MapEntry)),
-    // we iterate through all modules and their FX entries.
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    var hash_to_path = std.AutoHashMap(u64, [:0]const u8).init(arena.allocator());
+
     inline for (comptime std.enums.values(@import("statemachine.zig").ModulesList)) |module| {
         const module_map = mappings_list.list.getPtr(module);
         var fx_iter = module_map.iterator();
@@ -90,32 +79,25 @@ pub fn installPresets(
         while (fx_iter.next()) |fx_entry| {
             const mapping_entries = fx_entry.value_ptr.items;
 
-            // Phase 1: collect hashes and map paths for this FX
-            var hash_to_path = std.AutoHashMap(u64, [:0]const u8).init(allocator);
-            defer hash_to_path.deinit();
-
+            _ = arena.reset(.retain_capacity);
+            hash_to_path = std.AutoHashMap(u64, [:0]const u8).init(arena.allocator());
             var preset_filename: ?[:0]const u8 = null;
 
             for (mapping_entries) |entry| {
                 const map_path = mappings_list.strings.get(entry.path_offset);
-                const info = readMapPresetInfo(allocator, map_path) catch continue orelse continue;
-                defer allocator.free(info.name);
-                defer allocator.free(info.file);
+                const info = readMapPresetInfo(arena.allocator(), map_path) catch continue orelse continue;
 
                 const data_hash = std.hash.Wyhash.hash(0, info.data);
                 hash_to_path.put(data_hash, map_path) catch continue;
 
                 if (preset_filename == null) {
-                    preset_filename = allocator.dupeZ(u8, info.file) catch continue;
+                    preset_filename = info.file;
                 }
-
-                allocator.free(info.data);
             }
 
             if (hash_to_path.count() == 0) continue;
 
             const pf = preset_filename orelse continue;
-            defer allocator.free(pf);
 
             // Phase 2: deduplicate against existing preset file
             var target_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
@@ -125,10 +107,7 @@ pub fn installPresets(
             if (std.fs.openFileAbsolute(target_path, .{})) |existing_file| {
                 defer existing_file.close();
 
-                var parse_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-                defer parse_arena.deinit();
-
-                var parser = ini.parse(parse_arena.allocator(), existing_file.reader());
+                var parser = ini.parse(arena.allocator(), existing_file.reader());
                 defer parser.deinit();
 
                 var in_preset_section = false;
@@ -177,7 +156,7 @@ pub fn installPresets(
             if (hash_to_path.count() == 0) continue;
 
             // Phase 3: append new presets
-            appendPresetsToFile(allocator, target_path, &hash_to_path, &existing_count, &result) catch |err| {
+            appendPresetsToFile(arena.allocator(), target_path, &hash_to_path, &existing_count, &result) catch |err| {
                 log.err("Failed to append presets to {s}: {}", .{ target_path, err });
                 continue;
             };
@@ -221,9 +200,6 @@ fn appendPresetsToFile(
     while (iter.next()) |entry| {
         const map_path = entry.value_ptr.*;
         const info = readMapPresetInfo(allocator, map_path) catch continue orelse continue;
-        defer allocator.free(info.name);
-        defer allocator.free(info.file);
-        defer allocator.free(info.data);
 
         var section_buf: [64]u8 = undefined;
         const section_header = std.fmt.bufPrint(&section_buf, "\n[Preset{d}]\n", .{existing_count.*}) catch continue;
@@ -290,12 +266,12 @@ test "readMapPresetInfo: returns data from map with embedded preset" {
     const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
     defer testing.allocator.free(abs_path_z);
 
-    const maybe_info = try readMapPresetInfo(testing.allocator, abs_path_z);
+    var test_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer test_arena.deinit();
+
+    const maybe_info = try readMapPresetInfo(test_arena.allocator(), abs_path_z);
     try testing.expect(maybe_info != null);
     const info = maybe_info.?;
-    defer testing.allocator.free(info.name);
-    defer testing.allocator.free(info.file);
-    defer testing.allocator.free(info.data);
 
     try testing.expectEqualStrings("My Preset", info.name);
     try testing.expectEqualStrings("vst-reacomp.ini", info.file);
@@ -325,7 +301,12 @@ test "readMapPresetInfo: returns null when preset data is missing" {
     const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
     defer testing.allocator.free(abs_path_z);
 
-    const info = try readMapPresetInfo(testing.allocator, abs_path_z);
+    // Because readMapPresetInfo expects an arena (partial allocations are not
+    // individually freed on null return), we use one here.
+    var test_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer test_arena.deinit();
+
+    const info = try readMapPresetInfo(test_arena.allocator(), abs_path_z);
     try testing.expect(info == null);
 }
 

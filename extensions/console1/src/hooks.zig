@@ -107,13 +107,7 @@ pub fn runInstallPresets(globals: *Globals) void {
     const resource_path = std.mem.span(@as([*:0]const u8, globals.resource_path));
     const preset_dir = std.fmt.bufPrintZ(&preset_dir_buf, "{s}/presets", .{resource_path}) catch return;
 
-    // Because the install action is a one-shot operation, we use a temporary
-    // arena that gets freed when the action completes
-    var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer temp_arena.deinit();
-
     const result = preset_installer.installPresets(
-        temp_arena.allocator(),
         &globals.mappings_list,
         preset_dir,
     ) catch |err| {

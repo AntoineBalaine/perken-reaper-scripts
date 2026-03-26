@@ -55,7 +55,7 @@ pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool
 }
 
 pub const PresetData = struct {
-    data: []const u8,
+    data: [:0]const u8,
     len: u32,
 };
 
@@ -71,10 +71,7 @@ pub const MapPresetInfo = struct {
 /// Used as a parameter when saving a mapping with embedded preset data.
 pub const EmbeddedPreset = struct {
     file: [:0]const u8,
-    /// The hex-encoded plugin state, copied from the REAPER preset file's Data field.
-    /// Because this is an intermediate blob passed to a writer (not used as a C string),
-    /// it does not need a sentinel terminator.
-    data: []const u8,
+    data: [:0]const u8,
     len: u32,
 };
 
@@ -95,7 +92,7 @@ pub fn readPresetData(allocator: std.mem.Allocator, file_path: [:0]const u8, pre
 
     var in_preset_section = false;
     var name_matches = false;
-    var found_data: ?[]const u8 = null;
+    var found_data: ?[:0]const u8 = null;
     var found_len: ?u32 = null;
 
     while (try parser.next()) |record| {
@@ -119,7 +116,7 @@ pub fn readPresetData(allocator: std.mem.Allocator, file_path: [:0]const u8, pre
                 if (std.mem.eql(u8, kv.key, "Name") and std.mem.eql(u8, kv.value, preset_name)) {
                     name_matches = true;
                 } else if (std.mem.eql(u8, kv.key, "Data") and name_matches) {
-                    found_data = try allocator.dupe(u8, kv.value);
+                    found_data = try allocator.dupeZ(u8, kv.value);
                 } else if (std.mem.eql(u8, kv.key, "Len") and name_matches) {
                     found_len = std.fmt.parseInt(u32, kv.value, 10) catch null;
                 }
@@ -284,12 +281,13 @@ test "readPresetData: returns matching preset data" {
     const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
     defer testing.allocator.free(abs_path_z);
 
-    // Because we're looking for "Second Preset", we should get its data
-    const result = try readPresetData(testing.allocator, abs_path_z, "Second Preset");
+    var test_arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer test_arena.deinit();
+
+    const result = try readPresetData(test_arena.allocator(), abs_path_z, "Second Preset");
     try testing.expect(result != null);
     try testing.expectEqualStrings("11223344EEFF", result.?.data);
     try testing.expectEqual(@as(u32, 6), result.?.len);
-    testing.allocator.free(result.?.data);
 }
 
 test "readPresetData: returns null for non-matching name" {

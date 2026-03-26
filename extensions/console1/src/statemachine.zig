@@ -236,7 +236,7 @@ pub const AssignState = struct {
     /// Whether to embed preset data in the map file when saving
     store_preset_data: bool,
 
-    pub const defaults = AssignState{
+    const defaults: AssignState = .{
         .target_fx = "",
         .current_mappings = undefined,
         .selected_parameter = null,
@@ -260,7 +260,7 @@ pub const AssignState = struct {
     };
 
     pub fn init(gpa: std.mem.Allocator, mappings: MapStore.TaggedMapping) AssignState {
-        var state = defaults;
+        var state: AssignState = .defaults;
         state.current_mappings = mappings;
         state.param_store = ParamStore.init(gpa);
         state.arena = std.heap.ArenaAllocator.init(gpa);
