@@ -210,22 +210,39 @@ fn processIniFile(ctx: *WalkContext, dir: std.fs.Dir, file_name: []const u8) voi
     abs_path_buf[path_len + sep.len + file_name.len] = 0;
     const abs_path: [:0]const u8 = abs_path_buf[0 .. path_len + sep.len + file_name.len :0];
 
-    // Intern strings
-    const fx_offset = ctx.strings.intern(header.fx_name) catch return;
     const name_offset = ctx.strings.intern(mapping_name) catch return;
     const path_offset = ctx.strings.intern(abs_path) catch return;
 
-    // Insert into the appropriate module map
+    // Because StringPool does not deduplicate, we search for an existing entry
+    // by string value rather than relying on offset equality. Without this,
+    // two map files for the same FX would create separate entries in the module
+    // map, each with 1 mapping, instead of being grouped together.
     const mod_map = ctx.list.getPtr(header.module);
-    const gop = mod_map.getOrPut(ctx.arena, fx_offset) catch return;
-    if (!gop.found_existing) {
-        gop.value_ptr.* = std.ArrayList(MapEntry).init(ctx.arena);
+    var existing_key: ?u32 = null;
+    var iter = mod_map.iterator();
+    while (iter.next()) |map_entry| {
+        const stored_fx_name = ctx.strings.get(map_entry.key_ptr.*);
+        if (std.mem.eql(u8, stored_fx_name, header.fx_name)) {
+            existing_key = map_entry.key_ptr.*;
+            break;
+        }
     }
 
-    gop.value_ptr.append(.{
-        .name_offset = name_offset,
-        .path_offset = path_offset,
-    }) catch return;
+    if (existing_key) |key| {
+        const entries = mod_map.getPtr(key).?;
+        entries.append(.{
+            .name_offset = name_offset,
+            .path_offset = path_offset,
+        }) catch return;
+    } else {
+        const fx_offset = ctx.strings.intern(header.fx_name) catch return;
+        var entries = std.ArrayList(MapEntry).init(ctx.arena);
+        entries.append(.{
+            .name_offset = name_offset,
+            .path_offset = path_offset,
+        }) catch return;
+        mod_map.put(ctx.arena, fx_offset, entries) catch return;
+    }
 }
 
 fn readIniHeader(arena: std.mem.Allocator, dir: std.fs.Dir, file_name: []const u8) ?IniHeader {
