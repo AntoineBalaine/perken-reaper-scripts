@@ -13,7 +13,6 @@ pub const Result = struct {
 
 pub fn ButtonsBar(
     ctx: imgui.ContextPtr,
-    style_manager: *styles.StyleManager,
     translations: *const TranslationStore,
 ) !Result {
     var rv = Result{ .open = true, .action = null };
@@ -41,30 +40,6 @@ pub fn ButtonsBar(
         }
         if (try imgui.IsItemHovered(.{ctx})) {
             try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_settings) });
-        }
-
-        { // main win style config
-            try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
-            defer imgui.PopFont(.{ctx}) catch {};
-            if (try imgui.Button(.{ ctx, Theme.Icons.get(.arrow_right), defaults.button_size, defaults.button_size })) {
-                style_manager.main_style_open.* = !style_manager.main_style_open.*;
-            }
-        }
-
-        if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_main_styles) });
-        }
-
-        { // Helper Win style config
-            try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
-            defer imgui.PopFont(.{ctx}) catch {};
-            if (try imgui.Button(.{ ctx, Theme.Icons.get(.arrow_down), defaults.button_size, defaults.button_size })) {
-                style_manager.config_style_open.* = !style_manager.config_style_open.*;
-            }
-        }
-
-        if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_settings_styles) });
         }
 
         { // mapping panel shortcut
