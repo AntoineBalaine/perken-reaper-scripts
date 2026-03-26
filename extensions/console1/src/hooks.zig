@@ -104,7 +104,7 @@ pub fn runInstallPresets(globals: *Globals) void {
     if (confirm != 1) return; // 1 = IDOK
 
     var preset_dir_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-    const resource_path = std.mem.span(@as([*:0]const u8, globals.resource_path));
+    const resource_path = std.mem.span(reaper.GetResourcePath());
     const preset_dir = std.fmt.bufPrintZ(&preset_dir_buf, "{s}/presets", .{resource_path}) catch return;
 
     const result = preset_installer.installPresets(

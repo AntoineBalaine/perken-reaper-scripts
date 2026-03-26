@@ -79,8 +79,7 @@ pub fn installPresets(
         while (fx_iter.next()) |fx_entry| {
             const mapping_entries = fx_entry.value_ptr.items;
 
-            _ = arena.reset(.retain_capacity);
-            hash_to_path = std.AutoHashMap(u64, [:0]const u8).init(arena.allocator());
+            hash_to_path.clearRetainingCapacity();
             var preset_filename: ?[:0]const u8 = null;
 
             for (mapping_entries) |entry| {
@@ -111,44 +110,25 @@ pub fn installPresets(
                 defer parser.deinit();
 
                 var in_preset_section = false;
-                var section_data: ?[]const u8 = null;
 
                 while (parser.next() catch null) |record| {
                     switch (record) {
                         .section => |header| {
-                            // Because we need to hash the previous section's data before
-                            // moving on, we process it here
-                            if (in_preset_section) {
-                                if (section_data) |sd| {
-                                    const h = std.hash.Wyhash.hash(0, sd);
-                                    if (hash_to_path.contains(h)) {
-                                        _ = hash_to_path.remove(h);
-                                        result.skipped += 1;
-                                    }
-                                }
-                            }
                             in_preset_section = std.mem.startsWith(u8, header, "Preset");
-                            section_data = null;
                         },
                         .property => |kv| {
                             if (in_preset_section and std.mem.eql(u8, kv.key, "Data")) {
-                                section_data = kv.value;
+                                const h = std.hash.Wyhash.hash(0, kv.value);
+                                if (hash_to_path.contains(h)) {
+                                    _ = hash_to_path.remove(h);
+                                    result.skipped += 1;
+                                }
                             }
                             if (std.mem.eql(u8, kv.key, "NbPresets")) {
                                 existing_count = std.fmt.parseInt(u32, kv.value, 10) catch 0;
                             }
                         },
                         .enumeration => {},
-                    }
-                }
-                // Because the last section has no following header, we process it here
-                if (in_preset_section) {
-                    if (section_data) |sd| {
-                        const h = std.hash.Wyhash.hash(0, sd);
-                        if (hash_to_path.contains(h)) {
-                            _ = hash_to_path.remove(h);
-                            result.skipped += 1;
-                        }
                     }
                 }
             } else |_| {}

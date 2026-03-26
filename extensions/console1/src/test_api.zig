@@ -295,6 +295,40 @@ fn varargPanelInput(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyo
 
 const apidef_PanelInput: [*:0]const u8 = "bool\x00const char*,double*\x00cc_name,value\x00Console1: Sends a panel_input action with the given CC name and value (0.0-1.0).\x00";
 
+// -- C1_InstallPresets: runs the preset installer and returns result counts --
+
+fn apiInstallPresets() callconv(.C) [*:0]const u8 {
+    const globals = getGlobals();
+
+    var preset_dir_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    const resource_path = std.mem.span(reaper.GetResourcePath());
+    const preset_dir = std.fmt.bufPrintZ(&preset_dir_buf, "{s}/presets", .{resource_path}) catch return "error: bufPrintZ failed";
+
+    const preset_installer = @import("preset_installer.zig");
+    const result = preset_installer.installPresets(&globals.mappings_list, preset_dir) catch |err| {
+        log.err("C1_InstallPresets failed: {}", .{err});
+        return "error";
+    };
+
+    const buf = struct {
+        var b: [128:0]u8 = undefined;
+    };
+    const msg = std.fmt.bufPrintZ(&buf.b, "installed={d} skipped={d} files={d}", .{
+        result.installed,
+        result.skipped,
+        result.files_written,
+    }) catch return "error: format failed";
+    return msg.ptr;
+}
+
+fn varargInstallPresets(arglist: ?*?*anyopaque, numparms: c_int) callconv(.C) ?*anyopaque {
+    _ = .{ arglist, numparms };
+    const result = apiInstallPresets();
+    return @ptrCast(@constCast(result));
+}
+
+const apidef_InstallPresets: [*:0]const u8 = "const char*\x00\x00\x00Console1: Runs the preset installer and returns result counts.\x00";
+
 // -- Registration --
 
 fn reg(
@@ -324,4 +358,5 @@ pub fn registerTestApis() void {
     reg("API_C1_SettingsSave", @ptrCast(@constCast(&apiSettingsSave)), "APIvararg_C1_SettingsSave", @ptrCast(@constCast(&varargSettingsSave)), "APIdef_C1_SettingsSave", @ptrCast(@constCast(apidef_SettingsSave)));
     reg("API_C1_PanelInput", @ptrCast(@constCast(&apiPanelInput)), "APIvararg_C1_PanelInput", @ptrCast(@constCast(&varargPanelInput)), "APIdef_C1_PanelInput", @ptrCast(@constCast(apidef_PanelInput)));
     reg("API_C1_TrackEntry", @ptrCast(@constCast(&apiTrackEntry)), "APIvararg_C1_TrackEntry", @ptrCast(@constCast(&varargTrackEntry)), "APIdef_C1_TrackEntry", @ptrCast(@constCast(apidef_TrackEntry)));
+    reg("API_C1_InstallPresets", @ptrCast(@constCast(&apiInstallPresets)), "APIvararg_C1_InstallPresets", @ptrCast(@constCast(&varargInstallPresets)), "APIdef_C1_InstallPresets", @ptrCast(@constCast(apidef_InstallPresets)));
 }
