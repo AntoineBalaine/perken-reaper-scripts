@@ -270,6 +270,7 @@ fn convertNativeColor(native: c_int) c_int {
 
 fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
     const WC = c1_theme.WindowColors;
+    @setEvalBranchQuota(10_000);
     inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
         const color_name = field.name[4..];
         if (@hasField(WC, color_name)) {
@@ -287,6 +288,11 @@ fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.Win
     if (window_colors.ErrorText != 0) {
         if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotHistogram")) |idx| {
             stylesData.colors.getPtr(idx).* = convertNativeColor(window_colors.ErrorText);
+        }
+    }
+    if (window_colors.KnobBg != 0) {
+        if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotLinesHovered")) |idx| {
+            stylesData.colors.getPtr(idx).* = convertNativeColor(window_colors.KnobBg);
         }
     }
 }

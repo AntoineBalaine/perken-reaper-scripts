@@ -172,7 +172,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
 
         // Apply offset if needed
         var gain_prm = fx_state.values.get(.Inpt_Gain).?.param;
-        if (try Knobs.drawWidget(ctx, &gain_prm.normalized, label_id, .{ .no_val_display = gain_no_val_display, .disabled = gain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+        if (try Knobs.drawWidget(ctx, &gain_prm.normalized, label_id, .{ .no_val_display = gain_no_val_display, .disabled = gain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
             rv = .{ .cc = .Inpt_Gain, .value = gain_prm.normalized };
         }
     }
@@ -234,14 +234,14 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
                 @as(f64, @floatFromInt(transport.rate)) / 127.0
             else
                 fx_state.values.get(hicut_cc).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &hicut_val, hicut_label_id, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &hicut_val, hicut_label_id, .{ .no_val_display = hicut_no_val_display, .disabled = hicut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Inpt_HiCut, .value = hicut_val };
             }
 
             // Second knob
             const locut_cc: c1.CCs = if (ftc) .Comp_LoCut else .Inpt_LoCut;
             var locut_prm = fx_state.values.get(locut_cc).?.param;
-            if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_label_id, .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &locut_prm.normalized, locut_label_id, .{ .no_val_display = locut_no_val_display, .disabled = locut_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Inpt_LoCut, .value = locut_prm.normalized };
             }
         }
@@ -318,7 +318,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // Apply offset if needed
             var gate_prm = fx_state.values.get(.Shp_Gate).?.param;
-            if (try Knobs.drawWidget(ctx, &gate_prm.normalized, label_id, .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, null)) {
+            if (try Knobs.drawWidget(ctx, &gate_prm.normalized, label_id, .{ .no_val_display = gate_no_val_display, .disabled = gate_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, null)) {
                 rv = .{ .cc = .Shp_Gate, .value = gate_prm.normalized };
             }
 
@@ -366,19 +366,19 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // First knob
             var release_prm = fx_state.values.get(.Shp_GateRelease).?.param;
-            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = release_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = release_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Shp_GateRelease, .value = release_prm.normalized };
             }
 
             // Second knob
             var sustain_prm = fx_state.values.get(.Shp_sustain).?.param;
-            if (try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_label_id, .{ .no_val_display = sustain_no_val_display, .disabled = sustain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &sustain_prm.normalized, sustain_label_id, .{ .no_val_display = sustain_no_val_display, .disabled = sustain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Shp_sustain, .value = sustain_prm.normalized };
             }
 
             // Third knob
             var punch_prm = fx_state.values.get(.Shp_Punch).?.param;
-            if (try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_label_id, .{ .no_val_display = punch_no_val_display, .disabled = punch_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &punch_prm.normalized, punch_label_id, .{ .no_val_display = punch_no_val_display, .disabled = punch_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Shp_Punch, .value = punch_prm.normalized };
             }
         }
@@ -431,7 +431,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // First knob
             var lofreq_prm = fx_state.values.get(.Eq_LoFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_label_id, .{ .no_val_display = lofreq_no_val_display, .disabled = lofreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &lofreq_prm.normalized, lofreq_label_id, .{ .no_val_display = lofreq_no_val_display, .disabled = lofreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoFrq, .value = lofreq_prm.normalized };
             }
 
@@ -440,7 +440,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.scrub)) / 127.0
             else
                 fx_state.values.get(.Eq_LoGain).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &logain_val, logain_label_id, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &logain_val, logain_label_id, .{ .no_val_display = logain_no_val_display, .disabled = logain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoGain, .value = logain_val };
             }
         }
@@ -483,13 +483,13 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // First knob
             var lomidq_prm = fx_state.values.get(.Eq_LoMidQ).?.param;
-            if (try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_label_id, .{ .no_val_display = lomidq_no_val_display, .disabled = lomidq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &lomidq_prm.normalized, lomidq_label_id, .{ .no_val_display = lomidq_no_val_display, .disabled = lomidq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidQ, .value = lomidq_prm.normalized };
             }
 
             // Second knob
             var lomidfreq_prm = fx_state.values.get(.Eq_LoMidFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_label_id, .{ .no_val_display = lomidfreq_no_val_display, .disabled = lomidfreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &lomidfreq_prm.normalized, lomidfreq_label_id, .{ .no_val_display = lomidfreq_no_val_display, .disabled = lomidfreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidFrq, .value = lomidfreq_prm.normalized };
             }
 
@@ -498,7 +498,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.jog)) / 127.0
             else
                 fx_state.values.get(.Eq_LoMidGain).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &lomidgain_val, lomidgain_label_id, .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &lomidgain_val, lomidgain_label_id, .{ .no_val_display = lomidgain_no_val_display, .disabled = lomidgain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_LoMidGain, .value = lomidgain_val };
             }
         }
@@ -541,13 +541,13 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // First knob
             var himidq_prm = fx_state.values.get(.Eq_HiMidQ).?.param;
-            if (try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_label_id, .{ .no_val_display = himidq_no_val_display, .disabled = himidq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &himidq_prm.normalized, himidq_label_id, .{ .no_val_display = himidq_no_val_display, .disabled = himidq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidQ, .value = himidq_prm.normalized };
             }
 
             // Second knob
             var himidfreq_prm = fx_state.values.get(.Eq_HiMidFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_label_id, .{ .no_val_display = himidfreq_no_val_display, .disabled = himidfreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &himidfreq_prm.normalized, himidfreq_label_id, .{ .no_val_display = himidfreq_no_val_display, .disabled = himidfreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidFrq, .value = himidfreq_prm.normalized };
             }
 
@@ -556,7 +556,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.jog_marker)) / 127.0
             else
                 fx_state.values.get(.Eq_HiMidGain).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &himidgain_val, himidgain_label_id, .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &himidgain_val, himidgain_label_id, .{ .no_val_display = himidgain_no_val_display, .disabled = himidgain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiMidGain, .value = himidgain_val };
             }
         }
@@ -597,7 +597,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
 
             // First knob
             var hifreq_prm = fx_state.values.get(.Eq_HiFrq).?.param;
-            if (try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_label_id, .{ .no_val_display = hifreq_no_val_display, .disabled = hifreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &hifreq_prm.normalized, hifreq_label_id, .{ .no_val_display = hifreq_no_val_display, .disabled = hifreq_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiFrq, .value = hifreq_prm.normalized };
             }
 
@@ -606,7 +606,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
                 @as(f64, @floatFromInt(transport.jog_item)) / 127.0
             else
                 fx_state.values.get(.Eq_HiGain).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &higain_val, higain_label_id, .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &higain_val, higain_label_id, .{ .no_val_display = higain_no_val_display, .disabled = higain_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Eq_HiGain, .value = higain_val };
             }
         }
@@ -656,13 +656,13 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // First knob
             var ratio_prm = fx_state.values.get(.Comp_Ratio).?.param;
-            if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_label_id, .{ .no_val_display = ratio_no_val_display, .disabled = ratio_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &ratio_prm.normalized, ratio_label_id, .{ .no_val_display = ratio_no_val_display, .disabled = ratio_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Comp_Ratio, .value = ratio_prm.normalized };
             }
 
             // Second knob
             var drywet_prm = fx_state.values.get(.Comp_DryWet).?.param;
-            if (try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_label_id, .{ .no_val_display = drywet_no_val_display, .disabled = drywet_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &drywet_prm.normalized, drywet_label_id, .{ .no_val_display = drywet_no_val_display, .disabled = drywet_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Comp_DryWet, .value = drywet_prm.normalized };
             }
         }
@@ -706,19 +706,19 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
 
             // First knob
             var attack_prm = fx_state.values.get(.Comp_Attack).?.param;
-            if (try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_label_id, .{ .no_val_display = attack_no_val_display, .disabled = attack_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &attack_prm.normalized, attack_label_id, .{ .no_val_display = attack_no_val_display, .disabled = attack_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Comp_Attack, .value = attack_prm.normalized };
             }
 
             // Second knob
             var release_prm = fx_state.values.get(.Comp_Release).?.param;
-            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = comp_release_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &release_prm.normalized, release_label_id, .{ .no_val_display = release_no_val_display, .disabled = comp_release_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Comp_Release, .value = release_prm.normalized };
             }
 
             // Third knob
             var thresh_prm = fx_state.values.get(.Comp_Thresh).?.param;
-            if (try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_label_id, .{ .no_val_display = thresh_no_val_display, .disabled = thresh_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &thresh_prm.normalized, thresh_label_id, .{ .no_val_display = thresh_no_val_display, .disabled = thresh_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Comp_Thresh, .value = thresh_prm.normalized };
             }
         }
@@ -809,7 +809,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.zoom_horizontal)) / 127.0
             else
                 fx_state.values.get(.Out_Drive).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &drive_val, drive_label_id, .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &drive_val, drive_label_id, .{ .no_val_display = drive_no_val_display, .disabled = drive_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Out_Drive, .value = drive_val };
             }
 
@@ -818,7 +818,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.zoom_vertical)) / 127.0
             else
                 fx_state.values.get(.Out_DriveChar).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &char_val, char_label_id, .{ .no_val_display = char_no_val_display, .disabled = char_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &char_val, char_label_id, .{ .no_val_display = char_no_val_display, .disabled = char_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Out_DriveChar, .value = char_val };
             }
 
@@ -827,7 +827,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.grid)) / 127.0
             else
                 fx_state.values.get(.Out_Pan).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &pan_val, pan_label_id, .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &pan_val, pan_label_id, .{ .no_val_display = pan_no_val_display, .disabled = pan_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Out_Pan, .value = pan_val };
             }
         }
@@ -917,7 +917,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                 @as(f64, @floatFromInt(transport.tr_sel)) / 127.0
             else
                 fx_state.values.get(.Out_Vol).?.param.normalized;
-            if (try Knobs.drawWidget(ctx, &vol_val, label_id, .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, max_width)) {
+            if (try Knobs.drawWidget(ctx, &vol_val, label_id, .{ .no_val_display = vol_no_val_display, .disabled = vol_disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, max_width)) {
                 rv = .{ .cc = .Out_Vol, .value = vol_val };
             }
         }

@@ -58,6 +58,7 @@ pub const WindowColors = struct {
     ChildBg: c_int = 0,
     DragDropTarget: c_int = 0,
     FrameBg: c_int = 0,
+    KnobBg: c_int = 0,
     FrameBgActive: c_int = 0,
     FrameBgHovered: c_int = 0,
     PopupBg: c_int = 0,

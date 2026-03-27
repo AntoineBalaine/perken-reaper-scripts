@@ -390,7 +390,7 @@ fn mappingWidget(
                 .id = @tagName(cc),
             };
             const knob_value = assign_state.knob_values[@intFromEnum(cc)];
-            break :blk try mappingKnob.drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, cc, assignment_label, &assign_state.param_store, translations);
+            break :blk try mappingKnob.drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, cc, assignment_label, &assign_state.param_store, translations);
         },
     };
 
