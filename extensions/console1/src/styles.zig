@@ -164,8 +164,8 @@ pub fn init(ctx: imgui.ContextPtr) !void {
     ConfigStyle = MainStyle; // copy
     loadStyleVars(&MainStyle, MAIN_STYLEVARS);
     loadStyleVars(&ConfigStyle, CONFIG_STYLEVARS);
-    overrideFromC1Theme(&MainStyle, &c1_theme.theme.main);
-    overrideFromC1Theme(&ConfigStyle, &c1_theme.theme.config);
+    applyThemeColors(&MainStyle, &c1_theme.theme.main);
+    applyThemeColors(&ConfigStyle, &c1_theme.theme.config);
 }
 
 pub const VEC = std.StaticStringMap(void).initComptime(.{
@@ -254,12 +254,12 @@ pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStr
     }
 }
 
-/// Override the style colors with values from the c1_theme INI file.
+/// Apply the theme colors from the c1_theme INI file into the style struct.
 /// For standard ImGui colors (CheckMark, Text, Border, etc.), we match
 /// the Col_ prefix-stripped name against WindowColors fields.
 /// For our custom semantic colors (ActiveToggle, ErrorText), we map them
 /// into unused ImGui color slots (Col_PlotLines, Col_PlotHistogram).
-fn overrideFromC1Theme(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
+fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
     const WC = c1_theme.WindowColors;
     inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
         const color_name = field.name[4..];
