@@ -279,7 +279,6 @@ fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.Win
             }
         }
     }
-    // Map semantic colors into unused ImGui color slots
     if (window_colors.ActiveToggle != 0) {
         if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotLines")) |idx| {
             stylesData.colors.getPtr(idx).* = convertNativeColor(window_colors.ActiveToggle);
