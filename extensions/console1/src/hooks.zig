@@ -10,11 +10,13 @@ const Globals = @import("globals.zig").Globals;
 const tr = @import("translations.zig").tr;
 const log = std.log.scoped(.hooks);
 const getGlobals = @import("console1_extension.zig").getGlobals;
+const theme_dump = @import("theme_dump.zig");
 
 // Store command IDs returned from registration
 pub var suspend_cmd_id: c_int = undefined;
 pub var toggle_gui_cmd_id: c_int = undefined;
 pub var install_presets_cmd_id: c_int = undefined;
+pub var dump_theme_cmd_id: c_int = undefined;
 pub var reentrancy_test_cmd_id: c_int = undefined;
 pub var track_state_tests_cmd_id: c_int = undefined;
 var testCommandIds: TestCommandIds = undefined;
@@ -65,6 +67,9 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
     } else if (command == install_presets_cmd_id) {
         const globals = getGlobals();
         runInstallPresets(globals);
+        return 1;
+    } else if (command == dump_theme_cmd_id) {
+        theme_dump.dumpThemeToFile();
         return 1;
     } else if (debugconfig.@"test" and command == reentrancy_test_cmd_id) {
         reentrancy.runAllTests() catch |err| {
@@ -150,6 +155,13 @@ pub fn registerCommands() void {
         .name = "Console1: Install Map Presets",
     };
     install_presets_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&install_presets_action)));
+
+    const dump_theme_action: reaper.custom_action_register_t = .{
+        .section = 0,
+        .id_str = "C1_DUMP_THEME",
+        .name = "Console1: Dump Theme Colors to INI",
+    };
+    dump_theme_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&dump_theme_action)));
 
     if (debugconfig.@"test") {
         testCommandIds = TestCommandIds.init();
