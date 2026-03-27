@@ -259,15 +259,10 @@ pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStr
 }
 
 /// Apply the theme colors from the c1_theme INI file into the style struct.
-/// For standard ImGui colors (CheckMark, Text, Border, etc.), we match
-/// the Col_ prefix-stripped name against WindowColors fields.
-/// For our custom semantic colors (ActiveToggle, ErrorText), we map them
-/// into unused ImGui color slots (Col_PlotLines, Col_PlotHistogram).
-fn convertNativeColor(native: c_int) c_int {
-    const converted = imgui.ColorConvertNative(.{native}) catch return native;
-    return (converted << 8) | 0xff;
-}
-
+/// All colors in the INI are stored in ImGui format and are written directly.
+/// For standard ImGui colors, we match the Col_ prefix-stripped name against
+/// WindowColors fields. For custom semantic colors, we map them into unused
+/// ImGui color slots.
 pub fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
     const WC = c1_theme.WindowColors;
     @setEvalBranchQuota(10_000);
@@ -276,7 +271,7 @@ pub fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme
         if (@hasField(WC, color_name)) {
             const val = @field(window_colors, color_name);
             if (val != 0) {
-                stylesData.colors.getPtr(@enumFromInt(field.value)).* = convertNativeColor(val);
+                stylesData.colors.getPtr(@enumFromInt(field.value)).* = val;
             }
         }
     }

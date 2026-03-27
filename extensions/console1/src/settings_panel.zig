@@ -39,7 +39,6 @@ pub fn draw(
     translations: *TranslationStore,
 ) !?SettingsRV {
     var rv: ?SettingsRV = null;
-    const scroll_pos = self.scroll_position_rel;
     const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
     defer PopStyle(ctx) catch {};
     {
@@ -48,9 +47,6 @@ pub fn draw(
 
         // Language Selection at the top
         {
-            const popColor = try pushColIfSelected(ctx, .language, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
-
             try imgui.PushItemWidth(.{ ctx, 300.0 });
             defer imgui.PopItemWidth(.{ctx}) catch {};
 
@@ -86,8 +82,6 @@ pub fn draw(
 
         // UI Settings
         {
-            const popColor = try pushColIfSelected(ctx, .show_startup_message, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##strtp", .{tr(translations, .settings_show_startup_message)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_startup_message })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .show_startup_message, .val = self.temp_settings.show_startup_message } } };
@@ -95,8 +89,6 @@ pub fn draw(
             }
         }
         {
-            const popColor = try pushColIfSelected(ctx, .show_feedback_window, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##fdkw", .{tr(translations, .settings_show_feedback_window)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_feedback_window })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .show_feedback_window, .val = self.temp_settings.show_feedback_window } } };
@@ -104,8 +96,6 @@ pub fn draw(
             }
         }
         {
-            const popColor = try pushColIfSelected(ctx, .show_plugin_ui, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##plgui", .{tr(translations, .settings_show_plugin_ui)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.show_plugin_ui })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .show_plugin_ui, .val = self.temp_settings.show_plugin_ui } } };
@@ -115,8 +105,6 @@ pub fn draw(
 
         // Routing Settings
         {
-            const popColor = try pushColIfSelected(ctx, .manual_routing, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##mnlrtng", .{tr(translations, .settings_manual_routing)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.manual_routing })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .manual_routing, .val = self.temp_settings.manual_routing } } };
@@ -126,8 +114,6 @@ pub fn draw(
 
         // Logging Settings
         {
-            const popColor = try pushColIfSelected(ctx, .log_to_file, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##lgfd", .{tr(translations, .settings_log_to_file)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.log_to_file })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .log_to_file, .val = self.temp_settings.log_to_file } } };
@@ -136,8 +122,6 @@ pub fn draw(
         }
 
         {
-            const popColor = try pushColIfSelected(ctx, .start_suspended, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##strt_sspndchkbx", .{tr(translations, .settings_start_suspended)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.start_suspended })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .start_suspended, .val = self.temp_settings.start_suspended } } };
@@ -149,8 +133,6 @@ pub fn draw(
 
         // Track List View Sync
         {
-            const popColor = try pushColIfSelected(ctx, .focus_page_tracks, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##focuspg", .{tr(translations, .settings_focus_page_tracks)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.focus_page_tracks })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .focus_page_tracks, .val = self.temp_settings.focus_page_tracks } } };
@@ -162,8 +144,6 @@ pub fn draw(
 
         // Track Validation Settings
         {
-            const popColor = try pushColIfSelected(ctx, .auto_insert_modules, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##autoins", .{tr(translations, .settings_auto_insert_modules)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.auto_insert_modules })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .auto_insert_modules, .val = self.temp_settings.auto_insert_modules } } };
@@ -183,8 +163,6 @@ pub fn draw(
                 imgui.EndDisabled(.{ctx}) catch {};
             };
 
-            const popColor = try pushColIfSelected(ctx, .auto_insert_bypassed, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "{s}##autobps", .{tr(translations, .settings_auto_insert_bypassed)});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.auto_insert_bypassed })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .auto_insert_bypassed, .val = self.temp_settings.auto_insert_bypassed } } };
@@ -193,8 +171,6 @@ pub fn draw(
         }
 
         {
-            const popColor = try pushColIfSelected(ctx, .auto_reorder_modules, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
             const label = safePrint(&buf, "Auto-reorder modules to canonical order##autoreord", .{});
             if (try imgui.Checkbox(.{ ctx, label, &self.temp_settings.auto_reorder_modules })) {
                 rv = .{ .val_update = .{ .bool_val = .{ .field = .auto_reorder_modules, .val = self.temp_settings.auto_reorder_modules } } };
@@ -213,9 +189,6 @@ pub fn draw(
             defer if (!self.temp_settings.auto_reorder_modules) {
                 imgui.EndDisabled(.{ctx}) catch {};
             };
-
-            const popColor = try pushColIfSelected(ctx, .preferred_module_order, scroll_pos);
-            defer if (popColor) |pop| pop(ctx) catch {};
 
             try imgui.PushItemWidth(.{ ctx, 150.0 });
             defer imgui.PopItemWidth(.{ctx}) catch {};
@@ -269,15 +242,6 @@ pub fn draw(
             defer imgui.PopItemWidth(.{ctx}) catch {};
 
             {
-                const popColor = try pushColIfSelected(ctx, switch (module) {
-                    .INPUT => .default_INPUT,
-                    .GATE => .default_GATE,
-                    .EQ => .default_EQ,
-                    .COMP => .default_COMP,
-                    .OUTPT => .default_OUTPT,
-                    .STRIP => .default_OUTPT,
-                }, scroll_pos);
-                defer if (popColor) |pop| pop(ctx) catch {};
                 // Begin combo for this module
                 const module_label = switch (module) {
                     .INPUT => tr(translations, .settings_input),
@@ -339,16 +303,4 @@ pub fn draw(
 
 test {
     std.testing.refAllDecls(@This());
-}
-
-fn pushColIfSelected(ctx: imgui.ContextPtr, variant: Preferences.SettingsFields, scroll_pos: u8) !?*const fn (ctx: imgui.ContextPtr) anyerror!void {
-    if (@intFromEnum(variant) == scroll_pos) {
-        const text_color = try imgui.GetStyleColor(.{ ctx, imgui.Col_TextSelectedBg });
-        try imgui.PushStyleColor(.{ ctx, imgui.Col_Text, text_color });
-        return struct {
-            fn pop(cntx: imgui.ContextPtr) !void {
-                try imgui.PopStyleColor(.{cntx});
-            }
-        }.pop;
-    } else return null;
 }
