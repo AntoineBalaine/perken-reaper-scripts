@@ -2,7 +2,7 @@ const std = @import("std");
 const ImGui = @import("reaper_imgui");
 const Reaper = @import("../reaper.zig");
 const reaper = Reaper.reaper;
-pub const ThemeTypes = @import("themeTypes.zig");
+pub const ThemeTypes = @import("reaperThemeTypes.zig");
 const fontello = @embedFile("../assets/fontello1.ttf");
 const systemfont = "sans-serif";
 

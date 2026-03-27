@@ -1,6 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
-const Theme = @import("theme/Theme.zig");
+const Theme = @import("theme/ReaperTheme.zig");
 const c1_theme = @import("theme/c1_theme.zig");
 
 pub const Docker = struct {
@@ -186,6 +186,7 @@ pub const VEC = std.StaticStringMap(void).initComptime(.{
 const CONFIG_STYLEVARS = std.StaticStringMap(XYStruct).initComptime(.{
     .{ "FrameBorderSize", XYStruct{ .x = 1, .y = 0 } },
 });
+/// Legacy: see MAIN_COLORS comment.
 const CONFIG_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "CheckMark", "genlist_selbg" },
     .{ "WindowBg", "col_main_bg" },
@@ -210,6 +211,8 @@ const MAIN_STYLEVARS = std.StaticStringMap(XYStruct).initComptime(.{
     .{ "ItemSpacing", XYStruct{ .x = 4, .y = 2 } },
     .{ "WindowPadding", XYStruct{ .x = 4, .y = 4 } },
 });
+/// Legacy: maps ImGui color names to REAPER theme color names for ReaperTheme.zig's Theme.clrs.
+/// Used by loadStyle, which is no longer called from init().
 const MAIN_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "Border", "selcol_tr2_bg" },
     .{ "Button", "col_main_bg2" },
@@ -242,6 +245,7 @@ fn loadStyleVars(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStr
     }
 }
 
+/// Legacy: loads colors from ReaperTheme.zig's Theme.clrs. No longer called from init().
 pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStringMap(XYStruct), comptime colors_map: std.StaticStringMap([:0]const u8)) !void {
     loadStyleVars(stylesData, stylevars_map);
     const rColorsEnum = std.meta.FieldEnum(Theme.ThemeTypes.ColorTable);

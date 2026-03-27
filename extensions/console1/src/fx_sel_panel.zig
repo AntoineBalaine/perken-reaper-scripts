@@ -1,6 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
-const Theme = @import("theme/Theme.zig");
+const Theme = @import("theme/ReaperTheme.zig");
 const fx_types = @import("fx_parser_types.zig");
 const styles = @import("styles.zig");
 const PushWindowStyle = @import("styles_components.zig").PushStyle;

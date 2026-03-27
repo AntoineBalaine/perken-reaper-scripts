@@ -14,7 +14,7 @@ const TranslationKey = Translations.TranslationKey;
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 
 const constants = @import("constants.zig");
-const Theme = @import("theme/Theme.zig");
+const Theme = @import("theme/ReaperTheme.zig");
 const c1_theme = @import("theme/c1_theme.zig");
 const mappingKnob = @import("components/mappingKnob.zig");
 

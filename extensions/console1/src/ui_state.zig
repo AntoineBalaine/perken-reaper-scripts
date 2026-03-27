@@ -13,7 +13,7 @@ const TranslationStore = @import("translations.zig").TranslationStore;
 const SettingsPanel = @import("settings_panel.zig");
 const FxMaps = @import("mappings_list.zig");
 const Preferences = @import("settings.zig").Preferences;
-const Theme = @import("theme/Theme.zig");
+const Theme = @import("theme/ReaperTheme.zig");
 const fx_types = @import("fx_parser_types.zig");
 
 pub const UiState = struct {
