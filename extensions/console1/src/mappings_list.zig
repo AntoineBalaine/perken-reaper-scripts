@@ -213,10 +213,12 @@ fn processIniFile(ctx: *WalkContext, dir: std.fs.Dir, file_name: []const u8) voi
     const name_offset = ctx.strings.intern(mapping_name) catch return;
     const path_offset = ctx.strings.intern(abs_path) catch return;
 
-    // Because StringPool does not deduplicate, we search for an existing entry
-    // by string value rather than relying on offset equality. Without this,
-    // two map files for the same FX would create separate entries in the module
-    // map, each with 1 mapping, instead of being grouped together.
+    // Because StringPool does not deduplicate (two calls to intern with the same
+    // string return different offsets), we can't use the offset as a lookup key
+    // directly. We do a linear scan by string value instead. This runs once per
+    // map file at startup, and the number of distinct FX per module is small
+    // (typically dozens), so the cost is negligible. The alternative would be to
+    // add deduplication to StringPool, which would affect the whole codebase.
     const mod_map = ctx.list.getPtr(header.module);
     var existing_key: ?u32 = null;
     var iter = mod_map.iterator();
@@ -403,16 +405,31 @@ test "multiple maps for the same FX are grouped under one key" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
-    const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
+    // Because we need two map files for the same FX to test grouping,
+    // we create them in a temp directory rather than keeping fixtures
+    // in src/resources (which could be installed by the backup code path).
+    var tmp_dir = testing.tmpDir(.{});
+    defer tmp_dir.cleanup();
+
+    try tmp_dir.dir.makePath("maps/EQ/reaeq");
+    {
+        const f = try tmp_dir.dir.createFile("maps/EQ/reaeq/default.ini", .{});
+        defer f.close();
+        try f.writeAll("version=1\nmodule=EQ\nfx_name=VST: ReaEQ (Cockos)\nEq_HiFrq=0\n");
+    }
+    {
+        const f = try tmp_dir.dir.createFile("maps/EQ/reaeq/alternate.ini", .{});
+        defer f.close();
+        try f.writeAll("version=1\nmodule=EQ\nfx_name=VST: ReaEQ (Cockos)\nEq_HiFrq=9\n");
+    }
+
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const tmp_path = try tmp_dir.dir.realpath(".", &path_buf);
+    const config_path_z = try allocator.dupeZ(u8, tmp_path);
 
     var ml = init(allocator, config_path_z);
     _ = &ml;
 
-    // Because the test resources have two map files for ReaEQ (default.ini
-    // and alternate.ini), they should be grouped under a single key with 2 entries.
     const eq_map = ml.list.getPtr(.EQ);
     var reaeq_count: usize = 0;
     var iter = eq_map.iterator();

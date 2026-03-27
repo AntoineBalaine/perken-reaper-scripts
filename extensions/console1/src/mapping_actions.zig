@@ -500,14 +500,8 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 const mapping_name: [:0]const u8 = alloc.dupeZ(u8, std.fs.path.stem(basename)) catch return;
                 const fx_name_z: [:0]const u8 = alloc.dupeZ(u8, fx_name) catch return;
 
-                // Because the embedded preset data is only needed during the saveToFile
-                // call, we use a temporary arena scoped to this block to avoid leaking
-                // allocations into the assign_state arena.
-                var save_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-                defer save_arena.deinit();
-
                 const embedded_preset = resolveEmbeddedPreset(
-                    save_arena.allocator(),
+                    alloc,
                     assign_state,
                     module,
                     &globals.state.fx_ctrl.track_state,
