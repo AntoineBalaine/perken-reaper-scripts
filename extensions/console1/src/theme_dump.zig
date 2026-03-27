@@ -43,14 +43,6 @@ const config_colors = [_]ColorEntry{
     .{ "WindowBg", "col_main_bg" },
 };
 
-fn nativeToRgba(native: c_int) u32 {
-    const n: u32 = @bitCast(native);
-    const r = n & 0xFF;
-    const g = (n >> 8) & 0xFF;
-    const b = (n >> 16) & 0xFF;
-    return (r << 24) | (g << 16) | (b << 8) | 0xFF;
-}
-
 pub fn dumpThemeToFile() void {
     const resource_path = std.mem.span(reaper.GetResourcePath());
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
@@ -82,12 +74,10 @@ fn writeSection(writer: anytype, header: []const u8, entries: []const ColorEntry
         const ini_name = entry[0];
         const reaper_name = entry[1];
         if (reaper_name.len == 0) {
-            // Custom color with no REAPER equivalent — write a placeholder
             try writer.print("{s} = 00000000\n", .{ini_name});
         } else {
-            const col = reaper.GetThemeColor(@as([*:0]const u8, reaper_name), 0);
-            const rgba = nativeToRgba(col);
-            try writer.print("{s} = {X:0>8}\n", .{ ini_name, rgba });
+            const col: u32 = @bitCast(reaper.GetThemeColor(@as([*:0]const u8, reaper_name), 0));
+            try writer.print("{s} = {X:0>8}\n", .{ ini_name, col });
         }
     }
 }

@@ -263,6 +263,11 @@ pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStr
 /// the Col_ prefix-stripped name against WindowColors fields.
 /// For our custom semantic colors (ActiveToggle, ErrorText), we map them
 /// into unused ImGui color slots (Col_PlotLines, Col_PlotHistogram).
+fn convertNativeColor(native: c_int) c_int {
+    const converted = imgui.ColorConvertNative(.{native}) catch return native;
+    return (converted << 8) | 0xff;
+}
+
 fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
     const WC = c1_theme.WindowColors;
     inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
@@ -270,19 +275,19 @@ fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.Win
         if (@hasField(WC, color_name)) {
             const val = @field(window_colors, color_name);
             if (val != 0) {
-                stylesData.colors.getPtr(@enumFromInt(field.value)).* = val;
+                stylesData.colors.getPtr(@enumFromInt(field.value)).* = convertNativeColor(val);
             }
         }
     }
     // Map semantic colors into unused ImGui color slots
     if (window_colors.ActiveToggle != 0) {
         if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotLines")) |idx| {
-            stylesData.colors.getPtr(idx).* = window_colors.ActiveToggle;
+            stylesData.colors.getPtr(idx).* = convertNativeColor(window_colors.ActiveToggle);
         }
     }
     if (window_colors.ErrorText != 0) {
         if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotHistogram")) |idx| {
-            stylesData.colors.getPtr(idx).* = window_colors.ErrorText;
+            stylesData.colors.getPtr(idx).* = convertNativeColor(window_colors.ErrorText);
         }
     }
 }
