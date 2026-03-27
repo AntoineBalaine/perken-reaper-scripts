@@ -16,15 +16,8 @@ fn isCustomColor(name: []const u8) bool {
     return custom_colors.get(name) != null;
 }
 
-fn nativeToImgui(native: c_int) c_int {
-    const converted = imgui.ColorConvertNative(.{native}) catch return native;
-    return (converted << 8) | 0xff;
-}
-
-fn imguiToNative(color: c_int) c_int {
-    const without_alpha = color >> 8;
-    return imgui.ColorConvertNative(.{without_alpha}) catch return color;
-}
+const ColorsEnum = styles.ColorsEnum;
+const StyleStruct = styles.StyleStruct;
 
 pub fn draw(ctx: imgui.ContextPtr, style_manager: *styles.StyleManager) !?SaveAction {
     if (!theme_editor_open) return null;
@@ -40,17 +33,12 @@ pub fn draw(ctx: imgui.ContextPtr, style_manager: *styles.StyleManager) !?SaveAc
 
             if (try imgui.BeginTabItem(.{ ctx, "Main" })) {
                 defer imgui.EndTabItem(.{ctx}) catch {};
-                if (drawColorList(ctx, &c1_theme.theme.main)) {
-                    styles.applyThemeColors(&styles.MainStyle, &c1_theme.theme.main);
-                    _ = style_manager;
-                }
+                drawColorList(ctx, style_manager.MainStyle);
             }
 
             if (try imgui.BeginTabItem(.{ ctx, "Config" })) {
                 defer imgui.EndTabItem(.{ctx}) catch {};
-                if (drawColorList(ctx, &c1_theme.theme.config)) {
-                    styles.applyThemeColors(&styles.ConfigStyle, &c1_theme.theme.config);
-                }
+                drawColorList(ctx, style_manager.ConfigStyle);
             }
         }
 
@@ -63,25 +51,12 @@ pub fn draw(ctx: imgui.ContextPtr, style_manager: *styles.StyleManager) !?SaveAc
     return rv;
 }
 
-fn drawColorList(ctx: imgui.ContextPtr, colors: *WindowColors) bool {
-    var changed = false;
-    inline for (std.meta.fields(WindowColors)) |field| {
-        const val = &@field(colors, field.name);
-        var display_color: c_int = if (isCustomColor(field.name))
-            val.*
-        else
-            nativeToImgui(val.*);
-
-        if ((imgui.ColorEdit4(.{ ctx, field.name, &display_color, imgui.ColorEditFlags_NoInputs }) catch false)) {
-            if (isCustomColor(field.name)) {
-                val.* = display_color;
-            } else {
-                val.* = imguiToNative(display_color);
-            }
-            changed = true;
-        }
+fn drawColorList(ctx: imgui.ContextPtr, style_struct: *StyleStruct) void {
+    @setEvalBranchQuota(10_000);
+    inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
+        const color = style_struct.colors.getPtr(@enumFromInt(field.value));
+        _ = imgui.ColorEdit4(.{ ctx, field.name, color, imgui.ColorEditFlags_NoInputs }) catch {};
     }
-    return changed;
 }
 
 pub const SaveAction = enum { save };
