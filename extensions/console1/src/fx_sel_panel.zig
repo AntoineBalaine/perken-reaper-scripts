@@ -156,7 +156,7 @@ pub fn ModulePopup(
 ) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
 
-    const PopWindowStyle = try PushWindowStyle(ctx, .main, style_manager);
+    const PopWindowStyle = try PushWindowStyle(ctx, .config, style_manager);
     defer PopWindowStyle(ctx) catch {};
 
     try imgui.SetNextWindowSize(.{ ctx, 400, 300, imgui.Cond_FirstUseEver });

@@ -115,4 +115,5 @@ test {
     _ = @import("mapping_browser.zig");
     _ = @import("preset_file_reader.zig");
     _ = @import("preset_installer.zig");
+    _ = @import("theme/c1_theme.zig");
 }

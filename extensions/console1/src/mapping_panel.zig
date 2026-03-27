@@ -12,6 +12,8 @@ const Translations = @import("translations.zig");
 const TranslationStore = Translations.TranslationStore;
 const TranslationKey = Translations.TranslationKey;
 const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
+const c1_theme = @import("theme/c1_theme.zig");
+const C1Theme = c1_theme.C1Theme;
 const constants = @import("constants.zig");
 const Theme = @import("theme/Theme.zig");
 
@@ -55,17 +57,18 @@ pub fn drawMappingPanel(
     state: *const State,
     assign_state: *const AssignState,
     translations: *TranslationStore,
+    theme: *const C1Theme,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
 
     try imgui.BeginGroup(.{ctx});
     defer imgui.EndGroup(.{ctx}) catch {};
 
-    if (try controls(ctx, state, assign_state, translations)) |action| {
+    if (try controls(ctx, state, assign_state, translations, theme)) |action| {
         rv = action;
     }
     try imgui.SameLine(.{ctx});
-    if (try formControls(ctx, assign_state, translations)) |action| {
+    if (try formControls(ctx, assign_state, translations, theme.main.ErrorText)) |action| {
         rv = action;
     }
     return rv;
@@ -77,6 +80,7 @@ fn controls(
     state: *const State,
     assign_state: *const AssignState,
     translations: *TranslationStore,
+    theme: *const C1Theme,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
 
@@ -100,14 +104,14 @@ fn controls(
             imgui.EndDisabled(.{ctx}) catch {};
         };
 
-        if (try panel_info.panel_fn(ctx, state, assign_state, translations, !is_active)) |act| {
+        if (try panel_info.panel_fn(ctx, state, assign_state, translations, !is_active, theme)) |act| {
             if (is_active) {
                 rv = act;
             }
         }
 
         // Add sectional divider between panels (except after the last one)
-        try fx_ctrl_panel.sectional(ctx);
+        try fx_ctrl_panel.sectional(ctx, theme.main.Border);
     }
 
     return rv;
@@ -164,6 +168,7 @@ fn formControls(
     ctx: imgui.ContextPtr,
     assign_state: *const AssignState,
     translations: *TranslationStore,
+    err_color: c_int,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
     var text_buf: [256:0]u8 = undefined;
@@ -296,7 +301,7 @@ fn formControls(
     }
 
     if (assign_state.save_error) |err_key| {
-        try imgui.TextColored(.{ ctx, @as(c_int, @bitCast(@as(c_uint, 0xFF0000FF))), tr(translations, err_key) });
+        try imgui.TextColored(.{ ctx, err_color, tr(translations, err_key) });
     }
 
     return rv;
@@ -357,6 +362,7 @@ fn mappingWidget(
     variant: enum { button, knob },
     disabled: bool,
     translations: *TranslationStore,
+    theme: *const C1Theme,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
 
@@ -387,7 +393,7 @@ fn mappingWidget(
                 .id = @tagName(cc),
             };
             const knob_value = assign_state.knob_values[@intFromEnum(cc)];
-            break :blk try @import("components/mappingKnob.zig").drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled }, cc, assignment_label, &assign_state.param_store, translations);
+            break :blk try @import("components/mappingKnob.zig").drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled, .knob_bg = theme.main.FrameBg }, cc, assignment_label, &assign_state.param_store, translations);
         },
     };
 
@@ -409,6 +415,7 @@ fn inputMappingPanel(
     assign_state: *const AssignState,
     translations: *TranslationStore,
     disabled: bool,
+    theme: *const C1Theme,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -434,7 +441,7 @@ fn inputMappingPanel(
         };
         const gain_label = if (gain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Inpt_Gain, gain_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Inpt_Gain, gain_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -461,12 +468,12 @@ fn inputMappingPanel(
         const locut_label = if (locut_key) |key| tr(translations, key) else "-";
 
         // HiCut knob
-        if (try mappingWidget(ctx, state, assign_state, .Inpt_HiCut, hicut_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Inpt_HiCut, hicut_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
         // LoCut knob
-        if (try mappingWidget(ctx, state, assign_state, .Inpt_LoCut, locut_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Inpt_LoCut, locut_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -480,6 +487,7 @@ fn gateMappingPanel(
     assign_state: *const AssignState,
     translations: *TranslationStore,
     disabled: bool,
+    theme: *const C1Theme,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -498,7 +506,7 @@ fn gateMappingPanel(
     };
     const shp_shape_label = if (shp_shape_key) |key| tr(translations, key) else "-";
 
-    if (try mappingWidget(ctx, state, assign_state, .Shp_shape, shp_shape_label, .button, disabled, translations)) |act| {
+    if (try mappingWidget(ctx, state, assign_state, .Shp_shape, shp_shape_label, .button, disabled, translations, theme)) |act| {
         rv = act;
     }
 
@@ -516,7 +524,7 @@ fn gateMappingPanel(
         };
         const gate_label = if (gate_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Shp_Gate, gate_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Shp_Gate, gate_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -527,7 +535,7 @@ fn gateMappingPanel(
         };
         const hard_gate_label = if (hard_gate_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Shp_hard_gate, hard_gate_label, .button, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Shp_hard_gate, hard_gate_label, .button, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -546,7 +554,7 @@ fn gateMappingPanel(
         };
         const release_label = if (release_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Shp_GateRelease, release_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Shp_GateRelease, release_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -557,7 +565,7 @@ fn gateMappingPanel(
         };
         const sustain_label = if (sustain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Shp_sustain, sustain_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Shp_sustain, sustain_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -568,7 +576,7 @@ fn gateMappingPanel(
         };
         const punch_label = if (punch_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Shp_Punch, punch_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Shp_Punch, punch_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -582,6 +590,7 @@ fn eqMappingPanel(
     assign_state: *const AssignState,
     translations: *TranslationStore,
     disabled: bool,
+    theme: *const C1Theme,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -600,7 +609,7 @@ fn eqMappingPanel(
     };
     const eq_eq_label = if (eq_eq_key) |key| tr(translations, key) else "-";
 
-    if (try mappingWidget(ctx, state, assign_state, .Eq_eq, eq_eq_label, .button, disabled, translations)) |act| {
+    if (try mappingWidget(ctx, state, assign_state, .Eq_eq, eq_eq_label, .button, disabled, translations, theme)) |act| {
         rv = act;
     }
 
@@ -618,7 +627,7 @@ fn eqMappingPanel(
         };
         const lp_shape_label = if (lp_shape_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_lp_shape, lp_shape_label, .button, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_lp_shape, lp_shape_label, .button, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -629,7 +638,7 @@ fn eqMappingPanel(
         };
         const lofreq_label = if (lofreq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoFrq, lofreq_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_LoFrq, lofreq_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -640,7 +649,7 @@ fn eqMappingPanel(
         };
         const logain_label = if (logain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoGain, logain_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_LoGain, logain_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -659,7 +668,7 @@ fn eqMappingPanel(
         };
         const lomidq_label = if (lomidq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidQ, lomidq_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidQ, lomidq_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -670,7 +679,7 @@ fn eqMappingPanel(
         };
         const lomidfreq_label = if (lomidfreq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidFrq, lomidfreq_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidFrq, lomidfreq_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -681,7 +690,7 @@ fn eqMappingPanel(
         };
         const lomidgain_label = if (lomidgain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidGain, lomidgain_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_LoMidGain, lomidgain_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -700,7 +709,7 @@ fn eqMappingPanel(
         };
         const himidq_label = if (himidq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidQ, himidq_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidQ, himidq_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -711,7 +720,7 @@ fn eqMappingPanel(
         };
         const himidfreq_label = if (himidfreq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidFrq, himidfreq_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidFrq, himidfreq_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -722,7 +731,7 @@ fn eqMappingPanel(
         };
         const himidgain_label = if (himidgain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidGain, himidgain_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_HiMidGain, himidgain_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -743,7 +752,7 @@ fn eqMappingPanel(
         };
         const hp_shape_label = if (hp_shape_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_hp_shape, hp_shape_label, .button, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_hp_shape, hp_shape_label, .button, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -754,7 +763,7 @@ fn eqMappingPanel(
         };
         const hifreq_label = if (hifreq_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiFrq, hifreq_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_HiFrq, hifreq_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -765,7 +774,7 @@ fn eqMappingPanel(
         };
         const higain_label = if (higain_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Eq_HiGain, higain_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Eq_HiGain, higain_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -779,6 +788,7 @@ fn compMappingPanel(
     assign_state: *const AssignState,
     translations: *TranslationStore,
     disabled: bool,
+    theme: *const C1Theme,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -797,7 +807,7 @@ fn compMappingPanel(
     };
     const comp_comp_label = if (comp_comp_key) |key| tr(translations, key) else "-";
 
-    if (try mappingWidget(ctx, state, assign_state, .Comp_comp, comp_comp_label, .button, disabled, translations)) |act| {
+    if (try mappingWidget(ctx, state, assign_state, .Comp_comp, comp_comp_label, .button, disabled, translations, theme)) |act| {
         rv = act;
     }
 
@@ -815,7 +825,7 @@ fn compMappingPanel(
         };
         const ratio_label = if (ratio_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Comp_Ratio, ratio_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Comp_Ratio, ratio_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -826,7 +836,7 @@ fn compMappingPanel(
         };
         const drywet_label = if (drywet_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Comp_DryWet, drywet_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Comp_DryWet, drywet_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -845,7 +855,7 @@ fn compMappingPanel(
         };
         const attack_label = if (attack_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Comp_Attack, attack_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Comp_Attack, attack_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -856,7 +866,7 @@ fn compMappingPanel(
         };
         const release_label = if (release_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Comp_Release, release_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Comp_Release, release_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -867,7 +877,7 @@ fn compMappingPanel(
         };
         const thresh_label = if (thresh_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Comp_Thresh, thresh_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Comp_Thresh, thresh_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -878,7 +888,7 @@ fn compMappingPanel(
         };
         const comp_hicut_label = if (comp_hicut_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Comp_HiCut, comp_hicut_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Comp_HiCut, comp_hicut_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -889,7 +899,7 @@ fn compMappingPanel(
         };
         const comp_locut_label = if (comp_locut_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Comp_LoCut, comp_locut_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Comp_LoCut, comp_locut_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -903,6 +913,7 @@ fn outputMappingPanel(
     assign_state: *const AssignState,
     translations: *TranslationStore,
     disabled: bool,
+    theme: *const C1Theme,
 ) !?mapping_actions.MappingPanelAction {
     var rv: ?mapping_actions.MappingPanelAction = null;
     const mode = .fx_ctrl; // Always use fx_ctrl mode for labels
@@ -926,7 +937,7 @@ fn outputMappingPanel(
         };
         const drive_label = if (drive_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Out_Drive, drive_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Out_Drive, drive_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -937,7 +948,7 @@ fn outputMappingPanel(
         };
         const char_label = if (char_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Out_DriveChar, char_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Out_DriveChar, char_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -948,7 +959,7 @@ fn outputMappingPanel(
         };
         const pan_label = if (pan_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Out_Pan, pan_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Out_Pan, pan_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }
@@ -969,7 +980,7 @@ fn outputMappingPanel(
         };
         const out_solo_label = if (out_solo_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Out_solo, out_solo_label, .button, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Out_solo, out_solo_label, .button, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -982,7 +993,7 @@ fn outputMappingPanel(
         };
         const out_mute_label = if (out_mute_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Out_mute, out_mute_label, .button, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Out_mute, out_mute_label, .button, disabled, translations, theme)) |act| {
             rv = act;
         }
 
@@ -993,7 +1004,7 @@ fn outputMappingPanel(
         };
         const vol_label = if (vol_key) |key| tr(translations, key) else "-";
 
-        if (try mappingWidget(ctx, state, assign_state, .Out_Vol, vol_label, .knob, disabled, translations)) |act| {
+        if (try mappingWidget(ctx, state, assign_state, .Out_Vol, vol_label, .knob, disabled, translations, theme)) |act| {
             rv = act;
         }
     }

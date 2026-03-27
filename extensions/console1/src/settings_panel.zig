@@ -40,7 +40,7 @@ pub fn draw(
 ) !?SettingsRV {
     var rv: ?SettingsRV = null;
     const scroll_pos = self.scroll_position_rel;
-    const PopStyle = try styles_components.PushStyle(ctx, .rack, style_manager);
+    const PopStyle = try styles_components.PushStyle(ctx, .main, style_manager);
     defer PopStyle(ctx) catch {};
     {
         try imgui.BeginGroup(.{ctx});

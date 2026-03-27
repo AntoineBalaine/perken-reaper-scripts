@@ -22,7 +22,7 @@ pub fn drawSavePresetDialog(
 ) !?MappingPanelAction {
     var rv: ?MappingPanelAction = null;
 
-    const PopWindowStyle = try PushWindowStyle(ctx, .main, style_manager);
+    const PopWindowStyle = try PushWindowStyle(ctx, .config, style_manager);
     defer PopWindowStyle(ctx) catch {};
 
     // Because we want to show existing presets for reference, we list them

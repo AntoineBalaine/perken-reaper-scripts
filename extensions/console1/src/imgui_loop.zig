@@ -7,6 +7,7 @@ const styles = @import("styles.zig");
 const extension = @import("console1_extension.zig");
 const actions = @import("actions.zig");
 const Theme = @import("theme/Theme.zig");
+const c1_theme = @import("theme/c1_theme.zig");
 const reapack = @import("reapack.zig");
 const HotReloader = @import("hotreload.zig").HotReloader;
 const UiState = @import("ui_state.zig").UiState;
@@ -28,8 +29,8 @@ fn init() !void {
     const ctx_flags = imgui.ConfigFlags_DockingEnable;
     ctx = try imgui.CreateContext(.{ plugin_name, ctx_flags });
 
-    // only query the theme upon first run
-    try Theme.init(ctx, true);
+    // Load theme colors from INI and set up fonts
+    try Theme.init(ctx);
 
     win_flags =
         imgui.WindowFlags_NoCollapse +
@@ -123,10 +124,10 @@ fn onTimer() callconv(.C) void {
         init() catch |err| handleGuiError(err);
     }
     var style_manager: styles.StyleManager = .{
+        .config_style_open = &styles.config_style_open,
         .main_style_open = &styles.main_style_open,
-        .rack_style_open = &styles.rack_style_open,
-        .RackStyle = &styles.RackStyle,
-        .MainWinStyle = &styles.MainWinStyle,
+        .MainStyle = &styles.MainStyle,
+        .ConfigStyle = &styles.ConfigStyle,
     };
 
     var ui_state = UiState{
@@ -143,6 +144,7 @@ fn onTimer() callconv(.C) void {
         .fx_chains = &fx_parser.fx_chains,
         .track_templates = &fx_parser.track_templates,
         .fx_tags = &fx_parser.fx_tags,
+        .theme = &c1_theme.theme,
     };
 
     if (hot_reloader) |*reloader| {

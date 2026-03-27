@@ -5,8 +5,8 @@ const Palette = @import("components/Palette.zig").Palette;
 const styles = @import("styles.zig");
 
 const Content = struct {
-    rackWindowLabel: [:0]const u8 = "Rack Style Configurations",
-    mainWindowLabel: [:0]const u8 = "Window Style Configurations",
+    mainWindowLabel: [:0]const u8 = "Main Style Configurations",
+    configWindowLabel: [:0]const u8 = "Config Style Configurations",
     trackChannels: [:0]const u8 = "sizes",
     containerChannels: [:0]const u8 = "colors",
 };
@@ -18,19 +18,19 @@ const ColorsEnum = styles.ColorsEnum;
 
 pub fn StyleEditor(ctx: imgui.ContextPtr, win: WinStyle, style_manager: *styles.StyleManager) !void {
     var is_open = switch (win) {
-        .rack => style_manager.rack_style_open,
         .main => style_manager.main_style_open,
+        .config => style_manager.config_style_open,
     };
     _ = &is_open;
     std.debug.assert(is_open.*);
-    const PopStyle = try PushStyle(ctx, .main, style_manager);
+    const PopStyle = try PushStyle(ctx, .config, style_manager);
     defer PopStyle(ctx) catch {};
     try imgui.SetNextWindowSizeConstraints(.{ ctx, styles.WIDTH_MIN, styles.HEIGHT_MIN, styles.WIDTH_MAX, styles.HEIGHT_MAX });
 
     const flags = imgui.WindowFlags_TopMost + imgui.WindowFlags_NoCollapse + imgui.WindowFlags_AlwaysAutoResize;
     if (try imgui.Begin(.{ ctx, switch (win) {
-        .rack => content.rackWindowLabel,
         .main => content.mainWindowLabel,
+        .config => content.configWindowLabel,
     }, is_open, flags })) {
         defer imgui.End(.{ctx}) catch {};
         try ShowStyleEditor(ctx, win, style_manager);
@@ -65,8 +65,8 @@ fn slider(comptime variant: std.meta.FieldEnum(styles.StyleStruct), ctx: imgui.C
 
 fn ShowStyleEditor(ctx: imgui.ContextPtr, window: WinStyle, style_manager: *styles.StyleManager) !void {
     var style_struct = switch (window) {
-        .rack => style_manager.RackStyle,
-        .main => style_manager.MainWinStyle,
+        .main => style_manager.MainStyle,
+        .config => style_manager.ConfigStyle,
     };
     _ = &style_struct;
     if (try imgui.BeginTabBar(.{ ctx, "##tabs", imgui.TabBarFlags_None })) {
@@ -156,8 +156,8 @@ pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle, style_manager: *sty
     var style_push_count: u8 = 0;
     var color_push_count: u8 = 0;
     const style = switch (win_style) {
-        .rack => style_manager.RackStyle.*,
-        .main => style_manager.MainWinStyle.*,
+        .main => style_manager.MainStyle.*,
+        .config => style_manager.ConfigStyle.*,
     };
     try imgui.PushFont(.{ ctx, Theme.fonts.MAIN });
     inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
@@ -182,14 +182,14 @@ pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle, style_manager: *sty
     std.debug.assert(@typeInfo(ColorsEnum).@"enum".fields.len == color_push_count);
 
     return switch (win_style) {
-        .rack => struct {
+        .main => struct {
             fn pop(cntx: imgui.ContextPtr) !void {
                 try imgui.PopFont(.{cntx});
                 try imgui.PopStyleVar(.{ cntx, @typeInfo(StyleVarsEnum).@"enum".fields.len });
                 try imgui.PopStyleColor(.{ cntx, @typeInfo(ColorsEnum).@"enum".fields.len });
             }
         }.pop,
-        .main => struct {
+        .config => struct {
             fn pop(cntx: imgui.ContextPtr) !void {
                 try imgui.PopFont(.{cntx});
                 try imgui.PopStyleVar(.{ cntx, @typeInfo(StyleVarsEnum).@"enum".fields.len });

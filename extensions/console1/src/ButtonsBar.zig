@@ -21,7 +21,7 @@ pub fn ButtonsBar(
         try imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
 
-        { // close the rack
+        { // close the main window
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, @as([*:0]const u8, Theme.Icons.get(.close)), defaults.button_size, defaults.button_size })) {
@@ -47,7 +47,7 @@ pub fn ButtonsBar(
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.arrow_right), defaults.button_size, defaults.button_size })) {
-                style_manager.rack_style_open.* = !style_manager.rack_style_open.*;
+                style_manager.main_style_open.* = !style_manager.main_style_open.*;
             }
         }
 
@@ -59,7 +59,7 @@ pub fn ButtonsBar(
             try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
             if (try imgui.Button(.{ ctx, Theme.Icons.get(.arrow_down), defaults.button_size, defaults.button_size })) {
-                style_manager.main_style_open.* = !style_manager.main_style_open.*;
+                style_manager.config_style_open.* = !style_manager.config_style_open.*;
             }
         }
 

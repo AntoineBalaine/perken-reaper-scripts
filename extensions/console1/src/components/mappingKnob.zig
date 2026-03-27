@@ -65,7 +65,9 @@ pub fn drawWidget(
         defer imgui.PopClipRect(.{ctx}) catch {};
 
         // Draw background color
-        try imgui.DrawList_AddRectFilled(.{ drwls, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, 0xFFFFFF22 });
+        if (flags.knob_bg) |bg| {
+            try imgui.DrawList_AddRectFilled(.{ drwls, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, bg });
+        }
 
         // Draw label at top
         try imgui.DrawList_AddText(.{ drwls, widget_rect.min_x + (total_width - label_size.w) / 2, widget_rect.min_y + text_padding, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), label_id.label });

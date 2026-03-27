@@ -32,7 +32,7 @@ pub const Position = struct {
     y: f64,
 };
 pub const TrackStart = enum(u2) { left, right, center };
-pub const ControlFlags = packed struct {
+pub const ControlFlags = struct {
     selected: bool = false,
     trackStart: TrackStart = .left,
     /// Indicates if the knob is disabled.
@@ -40,6 +40,8 @@ pub const ControlFlags = packed struct {
     disabled: bool = false,
     /// When true, the knob will not display the value label below it.
     no_val_display: bool = false,
+    /// When non-null, the knob draws a filled rectangle behind the widget with this color.
+    knob_bg: ?c_int = null,
 };
 pub const Rectangle = struct {
     min_x: f64,
@@ -112,7 +114,9 @@ pub fn drawWidget(
         defer imgui.PopClipRect(.{ctx}) catch {};
 
         // Draw background color
-        try imgui.DrawList_AddRectFilled(.{ drwls, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, 0xFFFFFF22 });
+        if (flags.knob_bg) |bg| {
+            try imgui.DrawList_AddRectFilled(.{ drwls, widget_rect.min_x, widget_rect.min_y, widget_rect.max_x, widget_rect.max_y, bg });
+        }
 
         // Draw label at top
         try imgui.DrawList_AddText(.{
