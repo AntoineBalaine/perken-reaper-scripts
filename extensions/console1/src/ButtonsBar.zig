@@ -35,7 +35,7 @@ pub fn ButtonsBar(
         { // settings win
             try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
-            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.pin), defaults.button_size, defaults.button_size })) {
+            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.wrench), defaults.button_size, defaults.button_size })) {
                 rv.action = .{ .settings = .open };
             }
         }
@@ -57,7 +57,7 @@ pub fn ButtonsBar(
         { // theme editor
             try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
-            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.wrench), defaults.button_size, defaults.button_size })) {
+            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.pin), defaults.button_size, defaults.button_size })) {
                 theme_editor.theme_editor_open = !theme_editor.theme_editor_open;
             }
         }
