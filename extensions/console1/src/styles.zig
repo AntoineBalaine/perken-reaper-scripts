@@ -259,10 +259,6 @@ pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStr
 }
 
 /// Apply the theme colors from the c1_theme INI file into the style struct.
-/// All colors in the INI are stored in ImGui format and are written directly.
-/// For standard ImGui colors, we match the Col_ prefix-stripped name against
-/// WindowColors fields. For custom semantic colors, we map them into unused
-/// ImGui color slots.
 pub fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
     const WC = c1_theme.WindowColors;
     @setEvalBranchQuota(10_000);
