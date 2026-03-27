@@ -282,17 +282,17 @@ fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.Win
     }
     if (window_colors.ActiveToggle != 0) {
         if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotLines")) |idx| {
-            stylesData.colors.getPtr(idx).* = convertNativeColor(window_colors.ActiveToggle);
+            stylesData.colors.getPtr(idx).* = window_colors.ActiveToggle;
         }
     }
     if (window_colors.ErrorText != 0) {
         if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotHistogram")) |idx| {
-            stylesData.colors.getPtr(idx).* = convertNativeColor(window_colors.ErrorText);
+            stylesData.colors.getPtr(idx).* = window_colors.ErrorText;
         }
     }
     if (window_colors.KnobBg != 0) {
         if (comptime std.meta.stringToEnum(ColorsEnum, "Col_PlotLinesHovered")) |idx| {
-            stylesData.colors.getPtr(idx).* = convertNativeColor(window_colors.KnobBg);
+            stylesData.colors.getPtr(idx).* = window_colors.KnobBg;
         }
     }
 }
