@@ -110,6 +110,10 @@ test {
     _ = @import("tests/strip_mode_transitions_test.zig");
     _ = @import("tests/label_pool_integration_test.zig");
     _ = @import("tests/button_cycling_test.zig");
+    _ = @import("tests/mock_imgui_test.zig");
+    _ = @import("models/test_ui_state.zig");
+    _ = @import("tests/panel_trace_test.zig");
+    _ = @import("tests/gui_integration_test.zig");
     _ = @import("label_pool.zig");
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");

@@ -21,7 +21,7 @@ pub const reaper_array = anyopaque;
 pub const Error = error{ImGui};
 pub var last_error: ?[*:0]const u8 = null;
 
-const API = struct {
+pub const API = struct {
     ArrowButton: *fn (ContextPtr, [*:0]const u8, c_int) callconv(.C) bool,
     Button: *fn (ContextPtr, [*:0]const u8, ?*f64, ?*f64) callconv(.C) bool,
     Checkbox: *fn (ContextPtr, [*:0]const u8, *bool) callconv(.C) bool,
@@ -983,7 +983,7 @@ const API = struct {
     pub var FocusedFlags_RootWindow: c_int = undefined;
 };
 
-var api: API = undefined;
+pub var api: API = undefined;
 pub usingnamespace API;
 
 ///-- **Button > ArrowButton**
