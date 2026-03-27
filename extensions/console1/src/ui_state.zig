@@ -24,7 +24,7 @@ pub const UiState = struct {
     settings_panel: ?*SettingsPanel,
     preferences: *const Preferences,
     midi_connected: bool,
-    // Because the host and UI lib each have their own copy of Theme.fonts
+    // Because the host and UI lib each have their own copy of c1_theme.fonts
     // (they are separate compilation units), the host passes its font pointers
     // so the UI lib can set its copy before rendering.
     main_font: imgui.FontPtr,

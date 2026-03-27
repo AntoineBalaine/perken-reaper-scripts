@@ -1,5 +1,51 @@
 const std = @import("std");
 const ini = @import("ini");
+const imgui = @import("reaper_imgui");
+const fontello = @embedFile("../assets/fontello1.ttf");
+const systemfont = "sans-serif";
+
+pub const FONT_SMALL_SIZE: c_int = 14;
+pub const ICON_FONT_SMALL_SIZE: c_int = 13;
+
+const Fonts = struct {
+    MAIN: imgui.FontPtr = undefined,
+    ICON_FONT_SMALL: imgui.FontPtr = undefined,
+};
+
+pub var fonts = Fonts{};
+
+pub fn initFonts(ctx: imgui.ContextPtr) !void {
+    fonts.MAIN = try imgui.CreateFont(.{ systemfont, FONT_SMALL_SIZE, null });
+    fonts.ICON_FONT_SMALL = try imgui.CreateFontFromMem(.{ fontello, fontello.len, ICON_FONT_SMALL_SIZE, null });
+    if (ctx) |context| {
+        const mainFontResource: imgui.ResourcePtr = @ptrCast(fonts.MAIN);
+        try imgui.Attach(.{ context, mainFontResource });
+        const fontelloResource: imgui.ResourcePtr = @ptrCast(fonts.ICON_FONT_SMALL);
+        try imgui.Attach(.{ context, fontelloResource });
+    }
+}
+
+const IconsList = enum {
+    arrow_down,
+    arrow_right,
+    close,
+    kebab,
+    plus,
+    save,
+    wrench,
+    pin,
+};
+
+pub const Icons = std.EnumArray(IconsList, [:0]const u8).init(.{
+    .arrow_down = "~",
+    .arrow_right = "_",
+    .close = "?",
+    .kebab = "ß",
+    .plus = "B",
+    .save = "Ä",
+    .wrench = "k",
+    .pin = "R",
+});
 
 pub const WindowColors = struct {
     ActiveToggle: c_int = 0,

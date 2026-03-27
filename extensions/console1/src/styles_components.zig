@@ -1,6 +1,7 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
 const Theme = @import("theme/Theme.zig");
+const c1_theme = @import("theme/c1_theme.zig");
 const Palette = @import("components/Palette.zig").Palette;
 const styles = @import("styles.zig");
 
@@ -159,7 +160,7 @@ pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle, style_manager: *sty
         .main => style_manager.MainStyle.*,
         .config => style_manager.ConfigStyle.*,
     };
-    try imgui.PushFont(.{ ctx, Theme.fonts.MAIN });
+    try imgui.PushFont(.{ ctx, c1_theme.fonts.MAIN });
     inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
         const xy = style.style_vars.get(@enumFromInt(field.value));
         const stylevar = @field(imgui, field.name);

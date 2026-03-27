@@ -1,5 +1,6 @@
 const imgui = @import("reaper_imgui");
 const Theme = @import("theme/Theme.zig");
+const c1_theme = @import("theme/c1_theme.zig");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");
 const actions = @import("action_types.zig");
@@ -21,9 +22,9 @@ pub fn ButtonsBar(
         defer imgui.EndGroup(.{ctx}) catch {};
 
         { // close the main window
-            try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
+            try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
-            if (try imgui.Button(.{ ctx, @as([*:0]const u8, Theme.Icons.get(.close)), defaults.button_size, defaults.button_size })) {
+            if (try imgui.Button(.{ ctx, @as([*:0]const u8, c1_theme.Icons.get(.close)), defaults.button_size, defaults.button_size })) {
                 rv.open = false;
             }
         }
@@ -32,9 +33,9 @@ pub fn ButtonsBar(
         }
 
         { // settings win
-            try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
+            try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
-            if (try imgui.Button(.{ ctx, Theme.Icons.get(.pin), defaults.button_size, defaults.button_size })) {
+            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.pin), defaults.button_size, defaults.button_size })) {
                 rv.action = .{ .settings = .open };
             }
         }
@@ -43,9 +44,9 @@ pub fn ButtonsBar(
         }
 
         { // mapping panel shortcut
-            try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
+            try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
             defer imgui.PopFont(.{ctx}) catch {};
-            if (try imgui.Button(.{ ctx, Theme.Icons.get(.plus), defaults.button_size, defaults.button_size })) {
+            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.plus), defaults.button_size, defaults.button_size })) {
                 rv.action = .{ .change_mode = .mapping_panel };
             }
         }

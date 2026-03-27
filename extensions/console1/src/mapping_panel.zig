@@ -15,6 +15,8 @@ const fx_ctrl_panel = @import("fx_ctrl_panel.zig");
 
 const constants = @import("constants.zig");
 const Theme = @import("theme/Theme.zig");
+const c1_theme = @import("theme/c1_theme.zig");
+const mappingKnob = @import("components/mappingKnob.zig");
 
 // Function to handle the parameters column
 fn params(
@@ -332,10 +334,10 @@ fn assignmentList(
 
                     try imgui.SameLine(.{ctx});
                     {
-                        try imgui.PushFont(.{ ctx, Theme.fonts.ICON_FONT_SMALL });
+                        try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
                         defer imgui.PopFont(.{ctx}) catch {};
                         const btn_label = std.fmt.bufPrintZ(buf, "{s}##rm_{s}", .{
-                            Theme.Icons.get(.close), field.name,
+                            c1_theme.Icons.get(.close), field.name,
                         }) catch "x";
                         if (try imgui.SmallButton(.{ ctx, @as([*:0]const u8, @ptrCast(btn_label.ptr)) })) {
                             rv = .{ .assign_remove_mapping = @field(c1.CCs, field.name) };
@@ -388,7 +390,7 @@ fn mappingWidget(
                 .id = @tagName(cc),
             };
             const knob_value = assign_state.knob_values[@intFromEnum(cc)];
-            break :blk try @import("components/mappingKnob.zig").drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, cc, assignment_label, &assign_state.param_store, translations);
+            break :blk try mappingKnob.drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_FrameBg }) }, cc, assignment_label, &assign_state.param_store, translations);
         },
     };
 

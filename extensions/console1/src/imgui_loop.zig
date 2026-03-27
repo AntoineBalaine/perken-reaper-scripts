@@ -29,10 +29,8 @@ fn init() !void {
     const ctx_flags = imgui.ConfigFlags_DockingEnable;
     ctx = try imgui.CreateContext(.{ plugin_name, ctx_flags });
 
-    // Query REAPER theme colors and set up fonts (legacy path)
-    try Theme.init(ctx, true);
-    // Parse the INI-based theme (new path, overrides legacy in styles.init)
     c1_theme.init();
+    try c1_theme.initFonts(ctx);
 
     win_flags =
         imgui.WindowFlags_NoCollapse +
@@ -78,10 +76,10 @@ pub fn reset() void {
         return;
     }
     if (ctx) |context| {
-        const mainFontResource: imgui.ResourcePtr = @ptrCast(Theme.fonts.MAIN);
+        const mainFontResource: imgui.ResourcePtr = @ptrCast(c1_theme.fonts.MAIN);
         imgui.Detach(.{ context, mainFontResource }) catch {};
 
-        const fontelloResource: imgui.ResourcePtr = @ptrCast(Theme.fonts.ICON_FONT_SMALL);
+        const fontelloResource: imgui.ResourcePtr = @ptrCast(c1_theme.fonts.ICON_FONT_SMALL);
         imgui.Detach(.{ context, fontelloResource }) catch {};
     }
 
@@ -140,8 +138,8 @@ fn onTimer() callconv(.C) void {
         .settings_panel = if (globals.settings_panel) |*panel| panel else null,
         .preferences = &globals.preferences,
         .midi_connected = globals.m_midi_in != null,
-        .main_font = Theme.fonts.MAIN,
-        .icon_font = Theme.fonts.ICON_FONT_SMALL,
+        .main_font = c1_theme.fonts.MAIN,
+        .icon_font = c1_theme.fonts.ICON_FONT_SMALL,
         .fx_plugins_by_type = &fx_parser.pluginsByType,
         .fx_chains = &fx_parser.fx_chains,
         .track_templates = &fx_parser.track_templates,

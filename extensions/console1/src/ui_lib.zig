@@ -3,7 +3,7 @@ const gui_lib = @import("gui_lib.zig");
 const UiState = @import("ui_state.zig").UiState;
 const styles = @import("styles.zig");
 const action_types = @import("action_types.zig");
-const Theme = @import("theme/Theme.zig");
+const c1_theme = @import("theme/c1_theme.zig");
 
 // Because we return a ModeAction pointer across the C ABI boundary, we
 // need a static location to store the value between frames.
@@ -26,10 +26,10 @@ export fn ui_render(
     style_manager: *styles.StyleManager,
 ) callconv(.C) c_int {
     // Because the host and UI lib are separate compilation units, the UI lib
-    // has its own copy of Theme.fonts that needs to be synced from the host's
+    // has its own copy of c1_theme.fonts that needs to be synced from the host's
     // font pointers each frame.
-    Theme.fonts.MAIN = ui_state.main_font;
-    Theme.fonts.ICON_FONT_SMALL = ui_state.icon_font;
+    c1_theme.fonts.MAIN = ui_state.main_font;
+    c1_theme.fonts.ICON_FONT_SMALL = ui_state.icon_font;
 
     if (gui_lib.main(ctx, ui_state, win_flags, style_manager)) |maybe_action| {
         if (maybe_action) |action| {

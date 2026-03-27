@@ -162,8 +162,8 @@ pub fn init(ctx: imgui.ContextPtr) !void {
     MainStyle = std.mem.zeroes(StyleStruct);
     try getStyleData(ctx, &MainStyle);
     ConfigStyle = MainStyle; // copy
-    try loadStyle(&MainStyle, MAIN_STYLEVARS, MAIN_COLORS);
-    try loadStyle(&ConfigStyle, CONFIG_STYLEVARS, CONFIG_COLORS);
+    loadStyleVars(&MainStyle, MAIN_STYLEVARS);
+    loadStyleVars(&ConfigStyle, CONFIG_STYLEVARS);
     overrideFromC1Theme(&MainStyle, &c1_theme.theme.main);
     overrideFromC1Theme(&ConfigStyle, &c1_theme.theme.config);
 }
@@ -231,8 +231,7 @@ const MAIN_COLORS = std.StaticStringMap([:0]const u8).initComptime(.{
     .{ "WindowBg", "col_main_bg2" },
 });
 
-pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStringMap(XYStruct), comptime colors_map: std.StaticStringMap([:0]const u8)) !void {
-    // push theme colors into the styleStruct
+fn loadStyleVars(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStringMap(XYStruct)) void {
     inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
         const xy = stylesData.style_vars.getPtr(@enumFromInt(field.value));
         const val = stylevars_map.get(field.name[9..]);
@@ -241,6 +240,10 @@ pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStr
             xy.y = styleVarVal.y;
         }
     }
+}
+
+pub fn loadStyle(stylesData: *StyleStruct, comptime stylevars_map: std.StaticStringMap(XYStruct), comptime colors_map: std.StaticStringMap([:0]const u8)) !void {
+    loadStyleVars(stylesData, stylevars_map);
     const rColorsEnum = std.meta.FieldEnum(Theme.ThemeTypes.ColorTable);
     inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
         const reaper_theme_col_name = comptime colors_map.get(field.name[4..]);
@@ -287,7 +290,7 @@ pub fn PushStyle(ctx: imgui.ContextPtr, win_style: WinStyle) !*const fn (ctx: im
         .main => MainStyle,
         .config => ConfigStyle,
     };
-    try imgui.PushFont(.{ ctx, Theme.fonts.MAIN });
+    try imgui.PushFont(.{ ctx, c1_theme.fonts.MAIN });
     inline for (@typeInfo(StyleVarsEnum).@"enum".fields) |field| {
         const xy = style.style_vars.get(@enumFromInt(field.value));
         const stylevar = @field(imgui, field.name);
