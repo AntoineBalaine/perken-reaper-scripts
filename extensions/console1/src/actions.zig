@@ -16,6 +16,7 @@ const trackListAction = @import("tracklist_actions.zig").trackListAction;
 const midi_out = @import("midi_out.zig");
 const transportAction = @import("transport_actions.zig").transportAction;
 const default_fx_sel_actions = @import("default_fx_sel_actions.zig");
+const theme_dump = @import("theme_dump.zig");
 
 const valid_transitions = statemachine.valid_transitions;
 
@@ -90,6 +91,7 @@ pub fn dispatch(app: *Globals, action: ModeAction) void {
                 .track_list => |tr_action| trackListAction(app, tr_action),
                 .midi_out => |m_out_action| midi_out.sendMidiFeedback(app, m_out_action),
                 .transport => |trspt_act| transportAction(app, trspt_act),
+                .save_theme => theme_dump.saveThemeToFile(),
                 else => unreachable,
             }
         },

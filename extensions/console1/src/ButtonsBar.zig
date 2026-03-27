@@ -1,6 +1,6 @@
 const imgui = @import("reaper_imgui");
-const Theme = @import("theme/ReaperTheme.zig");
 const c1_theme = @import("theme/c1_theme.zig");
+const theme_editor = @import("theme_editor.zig");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");
 const actions = @import("action_types.zig");
@@ -52,6 +52,17 @@ pub fn ButtonsBar(
         }
         if (try imgui.IsItemHovered(.{ctx})) {
             try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_mapping_panel) });
+        }
+
+        { // theme editor
+            try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
+            defer imgui.PopFont(.{ctx}) catch {};
+            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.wrench), defaults.button_size, defaults.button_size })) {
+                theme_editor.theme_editor_open = !theme_editor.theme_editor_open;
+            }
+        }
+        if (try imgui.IsItemHovered(.{ctx})) {
+            try imgui.SetTooltip(.{ ctx, "Theme Editor" });
         }
     }
 

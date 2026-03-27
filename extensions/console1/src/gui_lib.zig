@@ -13,6 +13,7 @@ const mapping_panel = @import("mapping_panel.zig");
 const module_selection_panel = @import("module_selection_panel.zig");
 const track_list_panel = @import("track_list_panel.zig");
 const c1 = @import("c1.zig");
+const theme_editor = @import("theme_editor.zig");
 
 const plugin_name = "CONSOLE1";
 
@@ -248,6 +249,12 @@ pub fn main(
             else => {},
         }
     }
+    if (try theme_editor.draw(ctx, style_manager)) |action| {
+        switch (action) {
+            .save => rv = .save_theme,
+        }
+    }
+
     // Add debug panel
     if (logger.debug_window_active) {
         try debug_panel.drawDebugPanel(ctx, ui.state);

@@ -268,7 +268,7 @@ fn convertNativeColor(native: c_int) c_int {
     return (converted << 8) | 0xff;
 }
 
-fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
+pub fn applyThemeColors(stylesData: *StyleStruct, window_colors: *const c1_theme.WindowColors) void {
     const WC = c1_theme.WindowColors;
     @setEvalBranchQuota(10_000);
     inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {

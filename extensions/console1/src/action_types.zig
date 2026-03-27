@@ -214,4 +214,5 @@ pub const ModeAction = union(enum) {
     set_fx_ctrl_gui,
     track_list: TrackListAction,
     midi_out: MidiOutAction,
+    save_theme,
 };
