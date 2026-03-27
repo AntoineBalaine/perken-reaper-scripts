@@ -97,7 +97,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
                 const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, fxi));
                 assign_state.param_store.clear();
-                const param_allocator = assign_state.param_store.strings.arena.allocator();
+                const param_allocator = assign_state.param_store.allocator;
                 assign_state.param_store.params.ensureTotalCapacity(param_allocator, params_length) catch return;
 
                 var prm_name_buf: [256:0]u8 = undefined;
@@ -427,7 +427,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     const params_length: usize = @intCast(reaper.TrackFX_GetNumParams(track, location.fx_index));
 
                     assign_state.param_store.clear();
-                    const param_allocator = assign_state.param_store.strings.arena.allocator();
+                    const param_allocator = assign_state.param_store.allocator;
                     assign_state.param_store.params.ensureTotalCapacity(param_allocator, params_length) catch return;
 
                     var prm_name_buf: [256:0]u8 = undefined;
@@ -473,7 +473,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 // to re-intern it into MapStore's preset_strings before saving.
                 if (assign_state.selected_preset) |sel_offset| {
                     const preset_name = assign_state.preset_strings.get(sel_offset);
-                    const map_offset = globals.map_store.preset_strings.intern(preset_name) catch null;
+                    const map_offset = globals.map_store.preset_strings.intern(globals.map_store.allocator, preset_name) catch null;
                     switch (assign_state.current_mappings) {
                         inline else => |*m| {
                             m.fx_preset = map_offset;

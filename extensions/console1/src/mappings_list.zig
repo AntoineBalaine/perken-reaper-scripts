@@ -6,11 +6,11 @@ const fs_helpers = @import("fs_helpers.zig");
 const StringPool = @import("string_pool.zig").StringPool;
 
 pub const MapEntry = struct {
-    name_offset: u32, // mapping name (filename without .ini) in StringPool
-    path_offset: u32, // absolute file path in StringPool
+    name_offset: StringPool.StringRef, // mapping name (filename without .ini) in StringPool
+    path_offset: StringPool.StringRef, // absolute file path in StringPool
 };
 
-pub const ModuleMap = std.ArrayHashMapUnmanaged(u32, std.ArrayList(MapEntry), std.array_hash_map.AutoContext(u32), false);
+pub const ModuleMap = std.ArrayHashMapUnmanaged(StringPool.StringRef, std.ArrayList(MapEntry), std.array_hash_map.AutoContext(StringPool.StringRef), false);
 
 pub const IniHeader = struct {
     module: ModulesList,
@@ -18,10 +18,11 @@ pub const IniHeader = struct {
 };
 
 // Store hierarchical FX names with their mapping entries using StringPool offsets.
-// Keys are FX name offsets (u32), values are ArrayLists of MapEntry.
+// Keys are FX name StringRefs, values are ArrayLists of MapEntry.
 // Using ArrayHashMap to maintain insertion order for scrolling/indexing.
 list: std.EnumArray(ModulesList, ModuleMap),
 strings: StringPool,
+allocator: std.mem.Allocator,
 
 pub fn empty(arena: std.mem.Allocator) @This() {
     return .{
@@ -33,12 +34,13 @@ pub fn empty(arena: std.mem.Allocator) @This() {
             .OUTPT = .empty,
             .STRIP = .empty,
         }),
-        .strings = StringPool.init(arena),
+        .strings = .empty,
+        .allocator = arena,
     };
 }
 
 pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
-    var strings = StringPool.init(arena);
+    var strings: StringPool = .empty;
     var list = std.EnumArray(ModulesList, ModuleMap).initUndefined();
 
     inline for (comptime std.enums.values(ModulesList)) |module| {
@@ -56,6 +58,7 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
         return .{
             .list = list,
             .strings = strings,
+            .allocator = arena,
         };
     };
     defer maps_dir.close();
@@ -74,6 +77,7 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
     return .{
         .list = list,
         .strings = strings,
+        .allocator = arena,
     };
 }
 
@@ -84,9 +88,9 @@ pub fn deinit(self: *@This()) void {
         while (iter.next()) |entry| {
             entry.value_ptr.deinit();
         }
-        mod_map.deinit(self.strings.arena.allocator());
+        mod_map.deinit(self.allocator);
     }
-    self.strings.deinit();
+    self.strings.deinit(self.allocator);
 }
 
 pub fn lookupPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, mapping_name: [:0]const u8) ?[:0]const u8 {
@@ -112,49 +116,28 @@ pub fn lookupPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, ma
 }
 
 pub fn registerPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, mapping_name: [:0]const u8, file_path: [:0]const u8) !void {
-    const arena = self.strings.arena.allocator();
-    const name_offset = try self.strings.intern(mapping_name);
-    const path_offset = try self.strings.intern(file_path);
+    const fx_offset = try self.strings.intern(self.allocator, fx_name);
+    const name_offset = try self.strings.intern(self.allocator, mapping_name);
+    const path_offset = try self.strings.intern(self.allocator, file_path);
 
     const mod_map = self.list.getPtr(module);
+    const gop = try mod_map.getOrPut(self.allocator, fx_offset);
+    if (!gop.found_existing) {
+        gop.value_ptr.* = std.ArrayList(MapEntry).init(self.allocator);
+    }
 
-    // Because StringPool does not deduplicate, we search by string value to find
-    // an existing entry for this fx_name rather than relying on offset equality.
-    var existing_key: ?u32 = null;
-    var iter = mod_map.iterator();
-    while (iter.next()) |map_entry| {
-        const stored_fx_name = self.strings.get(map_entry.key_ptr.*);
-        if (std.mem.eql(u8, stored_fx_name, fx_name)) {
-            existing_key = map_entry.key_ptr.*;
-            break;
+    // Check if an entry with the same mapping name already exists
+    for (gop.value_ptr.items) |*entry| {
+        if (entry.name_offset == name_offset) {
+            entry.path_offset = path_offset;
+            return;
         }
     }
 
-    if (existing_key) |key| {
-        const entries = mod_map.getPtr(key).?;
-
-        // Check if an entry with the same mapping name already exists
-        for (entries.items) |*entry| {
-            const stored_name = self.strings.get(entry.name_offset);
-            if (std.mem.eql(u8, stored_name, mapping_name)) {
-                entry.path_offset = path_offset;
-                return;
-            }
-        }
-
-        try entries.append(.{
-            .name_offset = name_offset,
-            .path_offset = path_offset,
-        });
-    } else {
-        const fx_offset = try self.strings.intern(fx_name);
-        var entries = std.ArrayList(MapEntry).init(arena);
-        try entries.append(.{
-            .name_offset = name_offset,
-            .path_offset = path_offset,
-        });
-        try mod_map.put(arena, fx_offset, entries);
-    }
+    try gop.value_ptr.append(.{
+        .name_offset = name_offset,
+        .path_offset = path_offset,
+    });
 }
 
 const WalkContext = struct {
@@ -210,41 +193,22 @@ fn processIniFile(ctx: *WalkContext, dir: std.fs.Dir, file_name: []const u8) voi
     abs_path_buf[path_len + sep.len + file_name.len] = 0;
     const abs_path: [:0]const u8 = abs_path_buf[0 .. path_len + sep.len + file_name.len :0];
 
-    const name_offset = ctx.strings.intern(mapping_name) catch return;
-    const path_offset = ctx.strings.intern(abs_path) catch return;
+    const fx_offset = ctx.strings.intern(ctx.arena, header.fx_name) catch return;
+    const name_offset = ctx.strings.intern(ctx.arena, mapping_name) catch return;
+    const path_offset = ctx.strings.intern(ctx.arena, abs_path) catch return;
 
-    // Because StringPool does not deduplicate (two calls to intern with the same
-    // string return different offsets), we can't use the offset as a lookup key
-    // directly. We do a linear scan by string value instead. This runs once per
-    // map file at startup, and the number of distinct FX per module is small
-    // (typically dozens), so the cost is negligible. The alternative would be to
-    // add deduplication to StringPool, which would affect the whole codebase.
+    // Because StringPool deduplicates, the same fx_name always returns the same
+    // StringRef, so getOrPut finds existing entries without a linear scan.
     const mod_map = ctx.list.getPtr(header.module);
-    var existing_key: ?u32 = null;
-    var iter = mod_map.iterator();
-    while (iter.next()) |map_entry| {
-        const stored_fx_name = ctx.strings.get(map_entry.key_ptr.*);
-        if (std.mem.eql(u8, stored_fx_name, header.fx_name)) {
-            existing_key = map_entry.key_ptr.*;
-            break;
-        }
+    const gop = mod_map.getOrPut(ctx.arena, fx_offset) catch return;
+    if (!gop.found_existing) {
+        gop.value_ptr.* = std.ArrayList(MapEntry).init(ctx.arena);
     }
 
-    if (existing_key) |key| {
-        const entries = mod_map.getPtr(key).?;
-        entries.append(.{
-            .name_offset = name_offset,
-            .path_offset = path_offset,
-        }) catch return;
-    } else {
-        const fx_offset = ctx.strings.intern(header.fx_name) catch return;
-        var entries = std.ArrayList(MapEntry).init(ctx.arena);
-        entries.append(.{
-            .name_offset = name_offset,
-            .path_offset = path_offset,
-        }) catch return;
-        mod_map.put(ctx.arena, fx_offset, entries) catch return;
-    }
+    gop.value_ptr.append(.{
+        .name_offset = name_offset,
+        .path_offset = path_offset,
+    }) catch return;
 }
 
 fn readIniHeader(arena: std.mem.Allocator, dir: std.fs.Dir, file_name: []const u8) ?IniHeader {
@@ -313,11 +277,11 @@ test "StringPool offsets remain valid after buffer reallocation" {
     const testing = std.testing;
     const allocator = testing.allocator;
 
-    var strings = StringPool.init(allocator);
-    defer strings.deinit();
+    var strings: StringPool = .empty;
+    defer strings.deinit(allocator);
 
     // Intern multiple strings to force buffer reallocation
-    var offsets = std.ArrayList(u32).init(allocator);
+    var offsets = std.ArrayList(StringPool.StringRef).init(allocator);
     defer offsets.deinit();
 
     const test_strings = [_][:0]const u8{
@@ -333,7 +297,7 @@ test "StringPool offsets remain valid after buffer reallocation" {
 
     // Store all offsets
     for (test_strings) |str| {
-        const offset = try strings.intern(str);
+        const offset = try strings.intern(allocator, str);
         try offsets.append(offset);
     }
 
@@ -348,8 +312,8 @@ test "mappings_list stores FX names with slashes correctly" {
     const testing = std.testing;
     const allocator = testing.allocator;
 
-    var strings = StringPool.init(allocator);
-    defer strings.deinit();
+    var strings: StringPool = .empty;
+    defer strings.deinit(allocator);
 
     var list = ModuleMap{};
     defer {
@@ -366,16 +330,16 @@ test "mappings_list stores FX names with slashes correctly" {
         "JS: RBJ Highpass/Lowpass Filters",
     };
 
-    var stored_offsets = std.ArrayList(u32).init(allocator);
+    var stored_offsets = std.ArrayList(StringPool.StringRef).init(allocator);
     defer stored_offsets.deinit();
 
     for (fx_names) |fx_name| {
-        const fx_offset = try strings.intern(fx_name);
+        const fx_offset = try strings.intern(allocator, fx_name);
         try stored_offsets.append(fx_offset);
 
         // Create a MapEntry with a dummy mapping
-        const mapping_name_offset = try strings.intern("default");
-        const path_offset = try strings.intern("/some/path/default.ini");
+        const mapping_name_offset = try strings.intern(allocator, "default");
+        const path_offset = try strings.intern(allocator, "/some/path/default.ini");
 
         var entries = std.ArrayList(MapEntry).init(allocator);
         try entries.append(.{

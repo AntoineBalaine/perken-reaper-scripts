@@ -9,6 +9,7 @@ const statemachine = @import("statemachine.zig");
 const reaper = @import("reaper.zig").reaper;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const settings = @import("settings.zig");
+const StringPool = @import("string_pool.zig").StringPool;
 
 pub const Mode = statemachine.Mode;
 pub const ModulesList = statemachine.ModulesList;
@@ -77,7 +78,7 @@ pub const MappingPanelAction = union(enum) {
     assign_update_knob: struct { cc: CCs, value: f32 },
     assign_remove_mapping: CCs,
     assign_change_module: ModulesList,
-    assign_set_preset: ?u32,
+    assign_set_preset: ?StringPool.StringRef,
     assign_toggle_store_preset: void,
     assign_request_save: void,
     assign_cancel: void,

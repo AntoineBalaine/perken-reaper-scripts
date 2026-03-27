@@ -8,17 +8,16 @@ test "StringPool - basic operations" {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var pool = StringPool.init(allocator);
-    defer pool.deinit();
+    var pool: StringPool = .empty;
+    defer pool.deinit(allocator);
 
     // Test intern returns correct offsets
-    const offset1 = try pool.intern("Hello");
-    const offset2 = try pool.intern("World");
-    const offset3 = try pool.intern("Test");
+    const offset1 = try pool.intern(allocator, "Hello");
+    const offset2 = try pool.intern(allocator, "World");
+    const offset3 = try pool.intern(allocator, "Test");
 
-    try testing.expectEqual(@as(u32, 0), offset1);
-    try testing.expect(offset2 > offset1);
-    try testing.expect(offset3 > offset2);
+    try testing.expect(@intFromEnum(offset2) > @intFromEnum(offset1));
+    try testing.expect(@intFromEnum(offset3) > @intFromEnum(offset2));
 
     // Test get retrieves correct strings
     try testing.expectEqualStrings("Hello", pool.get(offset1));
@@ -31,25 +30,24 @@ test "StringPool - clear retains capacity" {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var pool = StringPool.init(allocator);
-    defer pool.deinit();
+    var pool: StringPool = .empty;
+    defer pool.deinit(allocator);
 
     // Add strings
-    _ = try pool.intern("First");
-    _ = try pool.intern("Second");
-    _ = try pool.intern("Third");
+    _ = try pool.intern(allocator, "First");
+    _ = try pool.intern(allocator, "Second");
+    _ = try pool.intern(allocator, "Third");
 
-    const capacity_before = pool.buffer.capacity;
+    const capacity_before = pool.bytes.capacity;
     try testing.expect(capacity_before > 0);
 
     // Clear and check capacity is retained
     pool.clear();
-    try testing.expectEqual(@as(usize, 0), pool.buffer.items.len);
-    try testing.expectEqual(capacity_before, pool.buffer.capacity);
+    try testing.expectEqual(@as(usize, 0), pool.bytes.items.len);
+    try testing.expectEqual(capacity_before, pool.bytes.capacity);
 
     // Verify we can add new strings after clear
-    const offset = try pool.intern("After Clear");
-    try testing.expectEqual(@as(u32, 0), offset);
+    const offset = try pool.intern(allocator, "After Clear");
     try testing.expectEqualStrings("After Clear", pool.get(offset));
 }
 
@@ -94,7 +92,7 @@ test "ParamStore - clear resets both strings and params" {
 
     try testing.expectEqual(@as(usize, 3), store.len());
 
-    const string_capacity_before = store.strings.buffer.capacity;
+    const string_capacity_before = store.strings.bytes.capacity;
     const params_capacity_before = store.params.capacity;
 
     // Clear
@@ -102,8 +100,8 @@ test "ParamStore - clear resets both strings and params" {
 
     // Verify both are reset but capacity retained
     try testing.expectEqual(@as(usize, 0), store.len());
-    try testing.expectEqual(@as(usize, 0), store.strings.buffer.items.len);
-    try testing.expectEqual(string_capacity_before, store.strings.buffer.capacity);
+    try testing.expectEqual(@as(usize, 0), store.strings.bytes.items.len);
+    try testing.expectEqual(string_capacity_before, store.strings.bytes.capacity);
     try testing.expectEqual(params_capacity_before, store.params.capacity);
 
     // Verify we can add new params after clear
@@ -146,10 +144,10 @@ test "StringPool - handles empty strings" {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var pool = StringPool.init(allocator);
-    defer pool.deinit();
+    var pool: StringPool = .empty;
+    defer pool.deinit(allocator);
 
-    const offset = try pool.intern("");
+    const offset = try pool.intern(allocator, "");
     try testing.expectEqualStrings("", pool.get(offset));
 }
 

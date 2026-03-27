@@ -14,7 +14,7 @@ pub const MAPPING_FORMAT_VERSION = 1;
 
 pub const Comp = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    fx_preset: ?u32 = null,
+    fx_preset: ?StringPool.StringRef = null,
     Comp_Attack: ?u16 = null,
     Comp_DryWet: ?u16 = null,
     Comp_Ratio: ?u16 = null,
@@ -28,7 +28,7 @@ pub const Comp = struct {
 
 pub const Eq = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    fx_preset: ?u32 = null,
+    fx_preset: ?StringPool.StringRef = null,
     Eq_HiFrq: ?u16 = null,
     Eq_HiGain: ?u16 = null,
     Eq_HiMidFrq: ?u16 = null,
@@ -46,7 +46,7 @@ pub const Eq = struct {
 
 pub const Inpt = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    fx_preset: ?u32 = null,
+    fx_preset: ?StringPool.StringRef = null,
     // Inpt_MtrLft : u8 = 0 ,
     // Inpt_MtrRgt : u8 = 0 ,
     Inpt_Gain: ?u16 = null,
@@ -61,7 +61,7 @@ pub const Inpt = struct {
 
 pub const Outpt = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    fx_preset: ?u32 = null,
+    fx_preset: ?StringPool.StringRef = null,
     Out_Drive: ?u16 = null,
     Out_DriveChar: ?u16 = null,
     // Out_MtrLft : u8 = null,
@@ -74,7 +74,7 @@ pub const Outpt = struct {
 
 pub const Shp = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    fx_preset: ?u32 = null,
+    fx_preset: ?StringPool.StringRef = null,
     Shp_Gate: ?u16 = null,
     Shp_GateRelease: ?u16 = null,
     Shp_Punch: ?u16 = null,
@@ -89,7 +89,7 @@ pub const Shp = struct {
 /// assignable parameters, they are included here.
 pub const ChannelStripMapping = struct {
     version: u8 = MAPPING_FORMAT_VERSION,
-    fx_preset: ?u32 = null,
+    fx_preset: ?StringPool.StringRef = null,
 
     // Input section
     Inpt_Gain: ?u16 = null,
@@ -203,7 +203,7 @@ pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This(
         .STRIP = std.StringArrayHashMapUnmanaged(FxMaps(ChannelStripMapping)){},
         .controller_dir = controller_dir,
         .allocator = allocator,
-        .preset_strings = StringPool.init(allocator),
+        .preset_strings = .empty,
     };
     return self;
 }
@@ -229,7 +229,7 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *Ma
 pub fn deinit(self: *MapStore) void {
     log.debug("Cleaning up MapStore", .{});
 
-    self.preset_strings.deinit();
+    self.preset_strings.deinit(self.allocator);
 
     // Clean up nested FxMaps structures
     var comp_iter = self.COMP.iterator();
@@ -599,7 +599,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
     const mapping: TaggedMapping = switch (module) {
         .COMP => {
             var comp = Comp{};
-            _ = try readToU8Struct(&comp, &parser, &found_module, &self.preset_strings);
+            _ = try readToU8Struct(&comp, &parser, &found_module, &self.preset_strings, self.allocator);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -619,7 +619,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .EQ => {
             var eq = Eq{};
-            _ = try readToU8Struct(&eq, &parser, &found_module, &self.preset_strings);
+            _ = try readToU8Struct(&eq, &parser, &found_module, &self.preset_strings, self.allocator);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -639,7 +639,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .INPUT => {
             var inpt: Inpt = Inpt{};
-            _ = try readToU8Struct(&inpt, &parser, &found_module, &self.preset_strings);
+            _ = try readToU8Struct(&inpt, &parser, &found_module, &self.preset_strings, self.allocator);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -659,7 +659,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .OUTPT => {
             var outpt: Outpt = Outpt{};
-            _ = try readToU8Struct(&outpt, &parser, &found_module, &self.preset_strings);
+            _ = try readToU8Struct(&outpt, &parser, &found_module, &self.preset_strings, self.allocator);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -679,7 +679,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .GATE => {
             var shp: Shp = Shp{};
-            _ = try readToU8Struct(&shp, &parser, &found_module, &self.preset_strings);
+            _ = try readToU8Struct(&shp, &parser, &found_module, &self.preset_strings, self.allocator);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -699,7 +699,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         },
         .STRIP => {
             var strip = ChannelStripMapping{};
-            _ = try readToU8Struct(&strip, &parser, &found_module, &self.preset_strings);
+            _ = try readToU8Struct(&strip, &parser, &found_module, &self.preset_strings, self.allocator);
 
             if (found_module) |m| {
                 if (m != module) return error.ModuleMismatch;
@@ -725,7 +725,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
 /// parse comp/eq/gate/input/output structs, and extract the module field if present.
 /// Because fx_preset is a string field stored as a StringPool offset, we handle it
 /// as a special case before the generic integer-parsing field loop.
-fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesList, preset_strings: ?*StringPool) !@TypeOf(ret_struct) {
+fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesList, preset_strings: ?*StringPool, allocator: std.mem.Allocator) !@TypeOf(ret_struct) {
     const T = @TypeOf(ret_struct.*);
     std.debug.assert(@typeInfo(T) == .@"struct");
 
@@ -751,7 +751,7 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
                     if (std.mem.eql(u8, kv.key, "fx_preset")) {
                         if (kv.value.len > 0) {
                             if (preset_strings) |ps| {
-                                @field(ret_struct, "fx_preset") = try ps.intern(kv.value);
+                                @field(ret_struct, "fx_preset") = try ps.intern(allocator, kv.value);
                             }
                         }
                         continue;
@@ -903,7 +903,7 @@ test readToU8Struct {
     var ret_str: ExampleStruct = .{
         .repositoryformatversion = 0,
     };
-    _ = try readToU8Struct(&ret_str, &parser, &found_module, null);
+    _ = try readToU8Struct(&ret_str, &parser, &found_module, null, std.testing.allocator);
     try expect(ret_str.repositoryformatversion == 8);
     // Because the example INI has no module field, found_module should remain null
     try expect(found_module == null);
@@ -923,7 +923,7 @@ test "readToU8Struct: module field is parsed correctly" {
 
     var found_module: ?ModulesList = null;
     var comp = Comp{};
-    _ = try readToU8Struct(&comp, &parser, &found_module, null);
+    _ = try readToU8Struct(&comp, &parser, &found_module, null, testing.allocator);
 
     try testing.expect(found_module != null);
     try testing.expectEqual(ModulesList.COMP, found_module.?);
@@ -1147,12 +1147,12 @@ test "readToU8Struct: fx_preset field is parsed correctly" {
     var parser = ini.parse(testing.allocator, fbs.reader());
     defer parser.deinit();
 
-    var preset_strings = StringPool.init(testing.allocator);
-    defer preset_strings.deinit();
+    var preset_strings: StringPool = .empty;
+    defer preset_strings.deinit(testing.allocator);
 
     var found_module: ?ModulesList = null;
     var comp = Comp{};
-    _ = try readToU8Struct(&comp, &parser, &found_module, &preset_strings);
+    _ = try readToU8Struct(&comp, &parser, &found_module, &preset_strings, testing.allocator);
 
     // Because the INI contains fx_preset=My Custom Preset, the field should be set
     try testing.expect(comp.fx_preset != null);
@@ -1172,12 +1172,12 @@ test "readToU8Struct: missing fx_preset remains null" {
     var parser = ini.parse(testing.allocator, fbs.reader());
     defer parser.deinit();
 
-    var preset_strings = StringPool.init(testing.allocator);
-    defer preset_strings.deinit();
+    var preset_strings: StringPool = .empty;
+    defer preset_strings.deinit(testing.allocator);
 
     var found_module: ?ModulesList = null;
     var comp = Comp{};
-    _ = try readToU8Struct(&comp, &parser, &found_module, &preset_strings);
+    _ = try readToU8Struct(&comp, &parser, &found_module, &preset_strings, testing.allocator);
 
     // Because the INI has no fx_preset line, the field should remain null
     try testing.expect(comp.fx_preset == null);
@@ -1196,7 +1196,7 @@ test "readToU8Struct: fx_preset with null preset_strings parameter is ignored" {
 
     var found_module: ?ModulesList = null;
     var comp = Comp{};
-    _ = try readToU8Struct(&comp, &parser, &found_module, null);
+    _ = try readToU8Struct(&comp, &parser, &found_module, null, testing.allocator);
 
     // Because preset_strings is null, the fx_preset field should remain null
     // even though the INI contains the field

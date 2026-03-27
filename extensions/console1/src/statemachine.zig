@@ -123,7 +123,7 @@ pub const FxSelSubMode = union(enum) {
         /// The StringPool offset for this FX. We use this to look up the
         /// mapping list in mappings_list, because the StringPool stores
         /// both FX names and mapping names by offset.
-        fx_string_pool_offset: u32,
+        fx_string_pool_offset: StringPool.StringRef,
         scroll_position_abs: u8 = 0,
         scroll_position_rel: usize = 0,
     },
@@ -163,21 +163,26 @@ pub const BrowseState = struct {
 pub const ParamStore = struct {
     strings: StringPool,
     params: std.ArrayListUnmanaged(ParamEntry),
+    allocator: std.mem.Allocator,
 
     pub const ParamEntry = struct {
         index: i32,
-        name_offset: u32,
+        name_offset: StringPool.StringRef,
     };
 
     pub fn init(gpa: std.mem.Allocator) ParamStore {
         return .{
-            .strings = StringPool.init(gpa),
+            .strings = .empty,
             .params = .{},
+            .allocator = gpa,
         };
     }
 
     pub fn deinit(self: *ParamStore) void {
-        self.strings.deinit();
+        self.strings.deinit(self.allocator);
+        self.params.deinit(self.allocator);
+        self.strings = .empty;
+        self.params = .{};
     }
 
     pub fn clear(self: *ParamStore) void {
@@ -186,9 +191,8 @@ pub const ParamStore = struct {
     }
 
     pub fn addParam(self: *ParamStore, index: i32, name: [:0]const u8) !void {
-        const name_offset = try self.strings.intern(name);
-        const allocator = self.strings.arena.allocator();
-        try self.params.append(allocator, .{
+        const name_offset = try self.strings.intern(self.allocator, name);
+        try self.params.append(self.allocator, .{
             .index = index,
             .name_offset = name_offset,
         });
@@ -224,15 +228,13 @@ pub const AssignState = struct {
     /// translation key for the save mapping’s error message
     save_error: ?TranslationKey,
     /// Contiguous storage for preset name strings, used by the preset dropdown.
-    /// Because StringPool contains an ArenaAllocator with self-referential pointers,
-    /// we cannot initialize it when AssignState is created as a local variable (the
-    /// struct gets moved to its final location, invalidating the pointers). The caller
-    /// must call initPresetStrings() after placement. This field is undefined until then.
+    /// The caller must call initPresetStrings() after placement to set the allocator.
+    /// This field is undefined until then.
     preset_strings: StringPool,
-    /// Byte offsets into preset_strings for each available preset name
-    preset_name_offsets: []const u32,
-    /// Currently selected preset (offset into preset_strings), or null for no preset
-    selected_preset: ?u32,
+    /// Refs into preset_strings for each available preset name
+    preset_name_offsets: []const StringPool.StringRef,
+    /// Currently selected preset (ref into preset_strings), or null for no preset
+    selected_preset: ?StringPool.StringRef,
     /// Whether to embed preset data in the map file when saving
     store_preset_data: bool,
 
@@ -268,12 +270,13 @@ pub const AssignState = struct {
     }
 
     pub fn initPresetStrings(self: *AssignState, gpa: std.mem.Allocator) void {
-        self.preset_strings = StringPool.init(gpa);
+        _ = gpa;
+        self.preset_strings = .empty;
     }
 
     pub fn deinit(self: *AssignState) void {
         self.param_store.deinit();
-        self.preset_strings.deinit();
+        self.preset_strings.deinit(self.arena.allocator());
         self.arena.deinit();
     }
 };

@@ -18,7 +18,7 @@ const StringPool = @import("string_pool.zig").StringPool;
 ///
 /// We collect all Name values from [PresetN] sections and intern
 /// them into the provided StringPool, returning a slice of offsets.
-pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool, file_path: [:0]const u8) ![]const u32 {
+pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool, file_path: [:0]const u8) ![]const StringPool.StringRef {
     const file = std.fs.openFileAbsolute(file_path, .{}) catch |err| {
         if (err == error.FileNotFound) return &.{};
         return err;
@@ -31,7 +31,7 @@ pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool
     var parser = ini.parse(temp_arena.allocator(), file.reader());
     defer parser.deinit();
 
-    var offsets = std.ArrayList(u32).init(allocator);
+    var offsets = std.ArrayList(StringPool.StringRef).init(allocator);
     errdefer offsets.deinit();
 
     var in_preset_section = false;
@@ -43,7 +43,7 @@ pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool
             },
             .property => |kv| {
                 if (in_preset_section and std.mem.eql(u8, kv.key, "Name") and kv.value.len > 0) {
-                    const offset = try preset_strings.intern(kv.value);
+                    const offset = try preset_strings.intern(allocator, kv.value);
                     try offsets.append(offset);
                 }
             },
@@ -166,8 +166,8 @@ test "readPresetNames: parses well-formed preset INI" {
     const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
     defer testing.allocator.free(abs_path_z);
 
-    var preset_strings = StringPool.init(testing.allocator);
-    defer preset_strings.deinit();
+    var preset_strings: StringPool = .empty;
+    defer preset_strings.deinit(testing.allocator);
 
     const offsets = try readPresetNames(testing.allocator, &preset_strings, abs_path_z);
     defer testing.allocator.free(offsets);
@@ -197,8 +197,8 @@ test "readPresetNames: empty preset file returns empty slice" {
     const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
     defer testing.allocator.free(abs_path_z);
 
-    var preset_strings = StringPool.init(testing.allocator);
-    defer preset_strings.deinit();
+    var preset_strings: StringPool = .empty;
+    defer preset_strings.deinit(testing.allocator);
 
     const offsets = try readPresetNames(testing.allocator, &preset_strings, abs_path_z);
     defer testing.allocator.free(offsets);
@@ -230,8 +230,8 @@ test "readPresetNames: preset section without Name field is skipped" {
     const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
     defer testing.allocator.free(abs_path_z);
 
-    var preset_strings = StringPool.init(testing.allocator);
-    defer preset_strings.deinit();
+    var preset_strings: StringPool = .empty;
+    defer preset_strings.deinit(testing.allocator);
 
     const offsets = try readPresetNames(testing.allocator, &preset_strings, abs_path_z);
     defer testing.allocator.free(offsets);
@@ -244,8 +244,8 @@ test "readPresetNames: preset section without Name field is skipped" {
 test "readPresetNames: nonexistent file returns empty slice" {
     const testing = std.testing;
 
-    var preset_strings = StringPool.init(testing.allocator);
-    defer preset_strings.deinit();
+    var preset_strings: StringPool = .empty;
+    defer preset_strings.deinit(testing.allocator);
 
     const offsets = try readPresetNames(testing.allocator, &preset_strings, "/nonexistent/path/to/presets.ini");
     defer testing.allocator.free(offsets);

@@ -204,7 +204,7 @@ test "ParamStore - memory efficiency across multiple loads" {
 
     // Capacity should have stabilized (not growing unbounded)
     // We verify this by checking the buffer isn't excessively large
-    try testing.expect(param_store.strings.buffer.capacity < 10000);
+    try testing.expect(param_store.strings.bytes.capacity < 10000);
 }
 
 test "ParamStore - handles FX with no parameters" {

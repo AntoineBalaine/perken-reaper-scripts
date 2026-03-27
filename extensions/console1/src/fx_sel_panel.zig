@@ -12,6 +12,7 @@ const ui_helpers = @import("ui_helpers.zig");
 const UiState = @import("ui_state.zig").UiState;
 const FxSelSubMode = @import("statemachine.zig").FxSelSubMode;
 const FxSelectionState = @import("statemachine.zig").FxSelectionState;
+const StringPool = @import("string_pool.zig").StringPool;
 
 pub const NAME: [:0]const u8 = "Fx Browser";
 /// last used fx name
@@ -143,7 +144,7 @@ pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
     mappings: @import("mappings_list.zig").ModuleMap,
-    strings: *const @import("string_pool.zig").StringPool,
+    strings: *const StringPool,
     current_index: usize,
     sub_mode: FxSelSubMode,
     scroll_changed: *bool,
