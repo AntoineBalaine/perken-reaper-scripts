@@ -92,45 +92,44 @@ pub fn readPresetData(allocator: std.mem.Allocator, file_path: [:0]const u8, pre
 
     var in_preset_section = false;
     var name_matches = false;
-    var found_data: ?[:0]const u8 = null;
-    var found_len: ?u32 = null;
+    // Because REAPER writes Data before Name in its preset files, we capture
+    // the Data value into the temp arena first. We only dupe it into the
+    // caller's allocator when we confirm the Name matches.
+    var section_data: ?[]const u8 = null;
+    var section_len: ?u32 = null;
 
     while (try parser.next()) |record| {
         switch (record) {
             .section => |header| {
-                // Because we may have found a matching preset in the previous section,
-                // we check before moving to the next section
-                if (name_matches and found_data != null) {
+                if (in_preset_section and name_matches and section_data != null) {
                     return PresetData{
-                        .data = found_data.?,
-                        .len = found_len orelse 0,
+                        .data = try allocator.dupeZ(u8, section_data.?),
+                        .len = section_len orelse 0,
                     };
                 }
                 in_preset_section = std.mem.startsWith(u8, header, "Preset");
                 name_matches = false;
-                found_data = null;
-                found_len = null;
+                section_data = null;
+                section_len = null;
             },
             .property => |kv| {
                 if (!in_preset_section) continue;
                 if (std.mem.eql(u8, kv.key, "Name") and std.mem.eql(u8, kv.value, preset_name)) {
                     name_matches = true;
-                } else if (std.mem.eql(u8, kv.key, "Data") and name_matches) {
-                    found_data = try allocator.dupeZ(u8, kv.value);
-                } else if (std.mem.eql(u8, kv.key, "Len") and name_matches) {
-                    found_len = std.fmt.parseInt(u32, kv.value, 10) catch null;
+                } else if (std.mem.eql(u8, kv.key, "Data")) {
+                    section_data = try temp_arena.allocator().dupe(u8, kv.value);
+                } else if (std.mem.eql(u8, kv.key, "Len")) {
+                    section_len = std.fmt.parseInt(u32, kv.value, 10) catch null;
                 }
             },
             .enumeration => {},
         }
     }
 
-    // Because the last section has no following section header to trigger the return,
-    // we check after the loop ends
-    if (name_matches and found_data != null) {
+    if (in_preset_section and name_matches and section_data != null) {
         return PresetData{
-            .data = found_data.?,
-            .len = found_len orelse 0,
+            .data = try allocator.dupeZ(u8, section_data.?),
+            .len = section_len orelse 0,
         };
     }
 
