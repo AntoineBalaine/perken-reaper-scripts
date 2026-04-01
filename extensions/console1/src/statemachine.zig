@@ -219,6 +219,9 @@ pub const AssignState = struct {
     selected_control: ?c1.CCs,
     learned_param: ?u32,
     midi_learn_active: bool,
+    /// The FX chain index of the plugin being assigned, so that MIDI learn
+    /// capture can verify that a touched parameter belongs to the correct FX.
+    assign_fx_index: ?c_int,
     param_store: ParamStore,
     arena: std.heap.ArenaAllocator,
     knob_values: [128]f32,
@@ -245,6 +248,7 @@ pub const AssignState = struct {
         .selected_control = null,
         .learned_param = null,
         .midi_learn_active = false,
+        .assign_fx_index = null,
         .param_store = undefined,
         .arena = undefined,
         .knob_values = [_]f32{0.5} ** 128,

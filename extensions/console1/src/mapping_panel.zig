@@ -92,6 +92,28 @@ fn controls(
         .{ .module = .OUTPT, .panel_fn = outputMappingPanel },
     };
 
+    // Because ChannelStripMapping has the same CC field names as the individual
+    // module mappings, we can reuse the 5 existing panel functions with all of
+    // them active. The strip FX name header is shown once at the top.
+    if (assign_state.current_mappings == .STRIP) {
+        if (assign_state.target_fx.len > 0) {
+            try imgui.TextDisabled(.{ ctx, assign_state.target_fx });
+        }
+
+        inline for (panels) |panel_info| {
+            if (try panel_info.panel_fn(ctx, state, assign_state, translations, false)) |act| {
+                rv = act;
+            }
+            try fx_ctrl_panel.sectional(ctx);
+        }
+
+        if (try stripExtraControls(ctx, state, assign_state, translations)) |act| {
+            rv = act;
+        }
+
+        return rv;
+    }
+
     // Call each panel function, but only process actions from the active one
     inline for (panels) |panel_info| {
         const is_active = assign_state.current_mappings == panel_info.module;
@@ -200,11 +222,19 @@ fn formControls(
         }
     }
 
-    // Preset dropdown -- only shown when user presets are available for this FX.
-    // Because preset_name_offsets can only be non-empty after initPresetStrings
-    // has been called, checking its length is a sufficient guard for accessing
-    // preset_strings safely.
-    if (assign_state.preset_name_offsets.len > 0) {
+    // Preset dropdown and checkbox. Both are always visible, but disabled
+    // when there are no presets available or no preset is selected.
+    {
+        const no_presets = assign_state.preset_name_offsets.len == 0;
+        const no_preset_selected = assign_state.selected_preset == null;
+
+        if (no_presets) {
+            try imgui.BeginDisabled(.{ctx});
+        }
+        defer if (no_presets) {
+            imgui.EndDisabled(.{ctx}) catch {};
+        };
+
         try imgui.PushItemWidth(.{ ctx, 200.0 });
         defer imgui.PopItemWidth(.{ctx}) catch {};
 
@@ -216,7 +246,6 @@ fn formControls(
         if (try imgui.BeginCombo(.{ ctx, "##preset_selection", current_label, null })) {
             defer imgui.EndCombo(.{ctx}) catch {};
 
-            // "None" option to clear the preset association
             if (try imgui.Selectable(.{ ctx, tr(translations, .mapping_preset_none) })) {
                 rv = .{ .assign_set_preset = null };
             }
@@ -229,14 +258,11 @@ fn formControls(
             }
         }
 
-        // Because the checkbox should remain visible but inactive when no preset
-        // is selected, we disable it rather than hiding it
-        const no_preset_selected = assign_state.selected_preset == null;
         if (no_preset_selected) {
-            try imgui.BeginDisabled(.{ctx});
+            if (!no_presets) try imgui.BeginDisabled(.{ctx});
         }
         defer if (no_preset_selected) {
-            imgui.EndDisabled(.{ctx}) catch {};
+            if (!no_presets) imgui.EndDisabled(.{ctx}) catch {};
         };
 
         var store_preset = assign_state.store_preset_data;
@@ -999,6 +1025,29 @@ fn outputMappingPanel(
         if (try mappingWidget(ctx, state, assign_state, .Out_Vol, vol_label, .knob, disabled, translations)) |act| {
             rv = act;
         }
+    }
+
+    return rv;
+}
+
+// Renders the two reassignable CCs that only exist in channel-strip mode.
+fn stripExtraControls(
+    ctx: imgui.ContextPtr,
+    state: *const State,
+    assign_state: *const AssignState,
+    translations: *TranslationStore,
+) !?mapping_actions.MappingPanelAction {
+    var rv: ?mapping_actions.MappingPanelAction = null;
+
+    try imgui.BeginGroup(.{ctx});
+    defer imgui.EndGroup(.{ctx}) catch {};
+
+    if (try mappingWidget(ctx, state, assign_state, .Tr_ext_sidechain, "Sidechain", .knob, false, translations)) |act| {
+        rv = act;
+    }
+    try imgui.SameLine(.{ctx});
+    if (try mappingWidget(ctx, state, assign_state, .Tr_order, "Order", .knob, false, translations)) |act| {
+        rv = act;
     }
 
     return rv;

@@ -98,6 +98,113 @@ test "fx_ctrl panel shows disconnected text when midi not connected" {
     try testing.expect(mock.containsText("Console disconnected") or mock.containsWidget(.text_colored, "Console disconnected"));
 }
 
+test "mapping panel in strip assign mode renders preset checkbox and param list" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+    const StringPool = @import("../string_pool.zig").StringPool;
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+
+    // Set up assign mode for STRIP with some parameters in the param store
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .STRIP = mappings.ChannelStripMapping{} },
+    );
+    assign_state.assign_fx_index = 0;
+
+    // Add some fake parameters to the param store
+    assign_state.param_store.addParam(0, "Gain") catch unreachable;
+    assign_state.param_store.addParam(1, "Threshold") catch unreachable;
+    assign_state.param_store.addParam(2, "Ratio") catch unreachable;
+
+    // Add a fake preset to make the preset section visible
+    assign_state.initPresetStrings(builder.state.mapping_panel.gpa_int.allocator());
+    const arena_alloc = assign_state.arena.allocator();
+    const ref = assign_state.preset_strings.intern(arena_alloc, "My Preset") catch unreachable;
+    const offsets = arena_alloc.alloc(StringPool.StringRef, 1) catch unreachable;
+    offsets[0] = ref;
+    assign_state.preset_name_offsets = offsets;
+
+    builder.state.mapping_panel.mode = .{ .assign = assign_state };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    // The module selection dropdown should be rendered
+    try testing.expect(mock.containsWidget(.begin_combo, "##module_selection"));
+
+    // When preset data is populated, the preset section should be visible
+    try testing.expect(mock.containsWidget(.begin_combo, "##preset_selection"));
+    try testing.expect(mock.containsWidget(.checkbox, "Store preset in map file"));
+
+    // In strip assign mode, all 5 module panels should be active (not disabled),
+    // because ChannelStripMapping shares the same CC field names.
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Inpt_Gain"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Comp_Attack"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Eq_HiGain"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Out_Vol"));
+
+    // The two reassignable strip-only controls should be rendered
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Tr_ext_sidechain"));
+    try testing.expect(mock.containsWidget(.begin_combo, "##combo_Tr_order"));
+
+    // No module panels should be disabled (the checkbox disabled region is expected
+    // when no preset is selected, but the knob panels should all be enabled).
+    // The only begin_disabled should be from the preset checkbox.
+    try testing.expect(mock.widgetCount(.begin_disabled) <= 1);
+}
+
+test "mapping panel shows preset checkbox even without presets on disk" {
+    const statemachine = @import("../statemachine.zig");
+    const mappings = @import("../mappings.zig");
+
+    var mock = MockImGui.init(testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+    setupGlobals();
+
+    var builder = TestUiStateBuilder.init(testing.allocator);
+    defer builder.deinit();
+    _ = builder.withMode(.mapping_panel);
+    builder.preferences.show_track_list = false;
+
+    builder.state.mapping_panel.deinitCurrentSubMode();
+    var assign_state = statemachine.AssignState.init(
+        builder.state.mapping_panel.gpa_int.allocator(),
+        .{ .COMP = mappings.Comp{} },
+    );
+    assign_state.assign_fx_index = 0;
+    // No presets populated -- preset_name_offsets stays empty
+
+    builder.state.mapping_panel.mode = .{ .assign = assign_state };
+
+    var ui = builder.build();
+    var style_mgr = builder.buildStyleManager();
+
+    _ = try gui_lib.main(null, &ui, 0, &style_mgr);
+
+    // Both the preset dropdown and checkbox should be rendered (disabled,
+    // since there are no presets on disk).
+    try testing.expect(mock.containsWidget(.begin_combo, "##preset_selection"));
+    try testing.expect(mock.containsWidget(.checkbox, "Store preset in map file"));
+
+    // The disabled region should wrap both the dropdown and checkbox
+    try testing.expect(mock.widgetCount(.begin_disabled) >= 1);
+}
+
 test "roundButton component renders with mock imgui" {
     var mock = MockImGui.init(testing.allocator);
     defer mock.deinit();

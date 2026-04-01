@@ -253,6 +253,44 @@ test "readPresetNames: nonexistent file returns empty slice" {
     try testing.expectEqual(@as(usize, 0), offsets.len);
 }
 
+test "readPresetNames: handles Data lines exceeding INI parser line limit" {
+    const testing = std.testing;
+
+    var tmp_dir = testing.tmpDir(.{});
+    defer tmp_dir.cleanup();
+
+    // Build a file where Data exceeds the INI parser's 4096-byte line limit,
+    // matching the format of REAPER's user preset files (Data before Name).
+    const file = try tmp_dir.dir.createFile("long_data.ini", .{});
+    try file.writeAll("[General]\nNbPresets=2\n");
+    try file.writeAll("[Preset0]\n");
+    try file.writeAll("Data=");
+    // Write 8000 hex chars (well over the 4096 limit)
+    var i: usize = 0;
+    while (i < 8000) : (i += 1) {
+        try file.writeAll("A");
+    }
+    try file.writeAll("\nLen=4000\nName=Long Data Preset\n");
+    try file.writeAll("[Preset1]\nName=Short Preset\nData=AABB\nLen=2\n");
+    file.close();
+
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const abs_path = try tmp_dir.dir.realpath("long_data.ini", &path_buf);
+    const abs_path_z = try testing.allocator.dupeZ(u8, abs_path);
+    defer testing.allocator.free(abs_path_z);
+
+    var preset_strings: StringPool = .empty;
+    defer preset_strings.deinit(testing.allocator);
+
+    const offsets = try readPresetNames(testing.allocator, &preset_strings, abs_path_z);
+    defer testing.allocator.free(offsets);
+
+    // Both presets should be found despite the first one having a too-long Data line
+    try testing.expectEqual(@as(usize, 2), offsets.len);
+    try testing.expectEqualStrings("Long Data Preset", preset_strings.get(offsets[0]));
+    try testing.expectEqualStrings("Short Preset", preset_strings.get(offsets[1]));
+}
+
 test "readPresetData: returns matching preset data" {
     const testing = std.testing;
 

@@ -605,15 +605,16 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
                 if (m != module) return error.ModuleMismatch;
             }
 
-            var gop = try self.COMP.getOrPut(self.allocator, fxName);
-            if (!gop.found_existing) {
-                gop.value_ptr.* = FxMaps(Comp){
+            const entry = self.COMP.getPtr(fxName) orelse blk: {
+                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                try self.COMP.put(self.allocator, owned_key, FxMaps(Comp){
                     .mappings = std.StringArrayHashMapUnmanaged(?Comp){},
                     .preferred_mapping = filePath_z,
-                };
-            }
+                });
+                break :blk self.COMP.getPtr(owned_key).?;
+            };
 
-            try gop.value_ptr.mappings.put(self.allocator, filePath_z, comp);
+            try entry.mappings.put(self.allocator, filePath_z, comp);
 
             return TaggedMapping{ .COMP = comp };
         },
@@ -625,15 +626,16 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
                 if (m != module) return error.ModuleMismatch;
             }
 
-            var gop = try self.EQ.getOrPut(self.allocator, fxName);
-            if (!gop.found_existing) {
-                gop.value_ptr.* = FxMaps(Eq){
+            const entry = self.EQ.getPtr(fxName) orelse blk: {
+                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                try self.EQ.put(self.allocator, owned_key, FxMaps(Eq){
                     .mappings = std.StringArrayHashMapUnmanaged(?Eq){},
                     .preferred_mapping = filePath_z,
-                };
-            }
+                });
+                break :blk self.EQ.getPtr(owned_key).?;
+            };
 
-            try gop.value_ptr.mappings.put(self.allocator, filePath_z, eq);
+            try entry.mappings.put(self.allocator, filePath_z, eq);
 
             return TaggedMapping{ .EQ = eq };
         },
@@ -645,15 +647,16 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
                 if (m != module) return error.ModuleMismatch;
             }
 
-            var gop = try self.INPUT.getOrPut(self.allocator, fxName);
-            if (!gop.found_existing) {
-                gop.value_ptr.* = FxMaps(Inpt){
+            const entry = self.INPUT.getPtr(fxName) orelse blk: {
+                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                try self.INPUT.put(self.allocator, owned_key, FxMaps(Inpt){
                     .mappings = std.StringArrayHashMapUnmanaged(?Inpt){},
                     .preferred_mapping = filePath_z,
-                };
-            }
+                });
+                break :blk self.INPUT.getPtr(owned_key).?;
+            };
 
-            try gop.value_ptr.mappings.put(self.allocator, filePath_z, inpt);
+            try entry.mappings.put(self.allocator, filePath_z, inpt);
 
             return TaggedMapping{ .INPUT = inpt };
         },
@@ -665,15 +668,16 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
                 if (m != module) return error.ModuleMismatch;
             }
 
-            var gop = try self.OUTPT.getOrPut(self.allocator, fxName);
-            if (!gop.found_existing) {
-                gop.value_ptr.* = FxMaps(Outpt){
+            const entry = self.OUTPT.getPtr(fxName) orelse blk: {
+                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                try self.OUTPT.put(self.allocator, owned_key, FxMaps(Outpt){
                     .mappings = std.StringArrayHashMapUnmanaged(?Outpt){},
                     .preferred_mapping = filePath_z,
-                };
-            }
+                });
+                break :blk self.OUTPT.getPtr(owned_key).?;
+            };
 
-            try gop.value_ptr.mappings.put(self.allocator, filePath_z, outpt);
+            try entry.mappings.put(self.allocator, filePath_z, outpt);
 
             return TaggedMapping{ .OUTPT = outpt };
         },
@@ -685,15 +689,16 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
                 if (m != module) return error.ModuleMismatch;
             }
 
-            var gop = try self.GATE.getOrPut(self.allocator, fxName);
-            if (!gop.found_existing) {
-                gop.value_ptr.* = FxMaps(Shp){
+            const entry = self.GATE.getPtr(fxName) orelse blk: {
+                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                try self.GATE.put(self.allocator, owned_key, FxMaps(Shp){
                     .mappings = std.StringArrayHashMapUnmanaged(?Shp){},
                     .preferred_mapping = filePath_z,
-                };
-            }
+                });
+                break :blk self.GATE.getPtr(owned_key).?;
+            };
 
-            try gop.value_ptr.mappings.put(self.allocator, filePath_z, shp);
+            try entry.mappings.put(self.allocator, filePath_z, shp);
 
             return TaggedMapping{ .GATE = shp };
         },
@@ -705,15 +710,16 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
                 if (m != module) return error.ModuleMismatch;
             }
 
-            var gop = try self.STRIP.getOrPut(self.allocator, fxName);
-            if (!gop.found_existing) {
-                gop.value_ptr.* = FxMaps(ChannelStripMapping){
+            const entry = self.STRIP.getPtr(fxName) orelse blk: {
+                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                try self.STRIP.put(self.allocator, owned_key, FxMaps(ChannelStripMapping){
                     .mappings = std.StringArrayHashMapUnmanaged(?ChannelStripMapping){},
                     .preferred_mapping = filePath_z,
-                };
-            }
+                });
+                break :blk self.STRIP.getPtr(owned_key).?;
+            };
 
-            try gop.value_ptr.mappings.put(self.allocator, filePath_z, strip);
+            try entry.mappings.put(self.allocator, filePath_z, strip);
 
             return TaggedMapping{ .STRIP = strip };
         },

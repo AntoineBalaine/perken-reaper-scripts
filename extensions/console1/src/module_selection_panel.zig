@@ -47,11 +47,6 @@ pub fn drawModuleSelectionPanel(
     }
     imgui.EndGroup(.{ctx}) catch {};
 
-    // Channel strip option
-    if (try imgui.Selectable(.{ ctx, "CHANNEL STRIP" })) {
-        rv = .{ .enter_assign = .STRIP };
-    }
-
     try imgui.Separator(.{ctx});
 
     if (try imgui.Button(.{ ctx, tr(translations, .module_sel_cancel) })) {

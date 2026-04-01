@@ -86,6 +86,7 @@ const System = struct {
                 .{ .COMP = mappings.Comp{} },
             ),
         };
+        g.state.mapping_panel.mode.assign.assign_fx_index = 0;
 
         return System{
             .globals = g,
@@ -103,6 +104,7 @@ const System = struct {
                 .{ .COMP = mappings.Comp{} },
             ),
         };
+        self.globals.state.mapping_panel.mode.assign.assign_fx_index = 0;
         self.globals.state.current_mode = .mapping_panel;
     }
 
@@ -217,6 +219,41 @@ const LearnParam = struct {
     }
 };
 
+/// Simulates the csurf_actions.fx_param_changed filtering: the param is only
+/// captured when the fx_index matches assign_fx_index.
+const FxParamChanged = struct {
+    fx_index: usize,
+    param_index: u32,
+    pub const name = "fx_param_changed";
+
+    pub fn checkPrecondition(_: *@This(), model: *const Model) bool {
+        return model.active;
+    }
+
+    pub fn onModelOnly(self: *@This(), model: *Model) void {
+        // Because assign_fx_index is 0 in the test setup, only fx_index 0 is accepted.
+        if (self.fx_index == 0) {
+            model.learned_param = self.param_index;
+            modelTryComplete(model);
+        }
+    }
+
+    pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
+        const assign = sut.getAssign();
+        // Replicate the csurf_actions filtering logic:
+        // only dispatch assign_midi_learned_param when fx_index matches assign_fx_index.
+        if (assign.midi_learn_active) {
+            if (assign.assign_fx_index) |expected_fx| {
+                if (self.fx_index == @as(usize, @intCast(expected_fx))) {
+                    mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = self.param_index });
+                }
+            }
+        }
+        self.onModelOnly(model);
+        return verifySynced(model, sut);
+    }
+};
+
 // ============================================================================
 // Stateful PBT
 // ============================================================================
@@ -234,6 +271,9 @@ test "midi_learn - stateful property test" {
     var param_0 = LearnParam{ .param_index = 0 };
     var param_1 = LearnParam{ .param_index = 1 };
     var param_5 = LearnParam{ .param_index = 5 };
+    // FX param changes from the correct FX (index 0) and a wrong FX (index 1)
+    var fx_param_correct = FxParamChanged{ .fx_index = 0, .param_index = 3 };
+    var fx_param_wrong = FxParamChanged{ .fx_index = 1, .param_index = 3 };
 
     const commands = [_]Command(Model, System){
         Command(Model, System).init(&toggle_cmd),
@@ -243,6 +283,8 @@ test "midi_learn - stateful property test" {
         Command(Model, System).init(&param_0),
         Command(Model, System).init(&param_1),
         Command(Model, System).init(&param_5),
+        Command(Model, System).init(&fx_param_correct),
+        Command(Model, System).init(&fx_param_wrong),
     };
 
     var bytes: [128 * 1024]u8 = undefined;
@@ -386,6 +428,66 @@ test "midi_learn - param index above 255 is accepted with u16 storage" {
     mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_select_control = .Comp_Attack });
     mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 300 });
     try std.testing.expect(assign.current_mappings.COMP.Comp_Attack.? == 300);
+}
+
+test "midi_learn - fx_param_changed captures param on correct FX" {
+    const allocator = std.testing.allocator;
+    var sut = try System.init(allocator);
+    defer sut.deinit();
+
+    const assign = sut.getAssign();
+    assign.assign_fx_index = 0;
+
+    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
+    try std.testing.expect(assign.midi_learn_active);
+
+    // Simulate csurf_actions filtering: fx_index 0 matches assign_fx_index.
+    if (assign.assign_fx_index) |expected_fx| {
+        const fx_index: usize = 0;
+        std.debug.assert(fx_index == @as(usize, @intCast(expected_fx)));
+        mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 5 });
+    }
+    try std.testing.expect(assign.learned_param.? == 5);
+}
+
+test "midi_learn - fx_param_changed rejects param from wrong FX" {
+    const allocator = std.testing.allocator;
+    var sut = try System.init(allocator);
+    defer sut.deinit();
+
+    const assign = sut.getAssign();
+    assign.assign_fx_index = 0;
+
+    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
+    try std.testing.expect(assign.midi_learn_active);
+
+    // Simulate csurf_actions filtering: fx_index 1 does not match assign_fx_index 0.
+    if (assign.assign_fx_index) |expected_fx| {
+        const fx_index: usize = 1;
+        if (fx_index == @as(usize, @intCast(expected_fx))) {
+            mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 5 });
+        }
+    }
+    try std.testing.expect(assign.learned_param == null);
+}
+
+test "midi_learn - fx_param_changed with null assign_fx_index rejects all" {
+    const allocator = std.testing.allocator;
+    var sut = try System.init(allocator);
+    defer sut.deinit();
+
+    const assign = sut.getAssign();
+    assign.assign_fx_index = null;
+
+    mapping_actions.mappingPanelActions(&sut.globals, .assign_toggle_midi_learn);
+    try std.testing.expect(assign.midi_learn_active);
+
+    // Simulate csurf_actions filtering: assign_fx_index is null, so nothing is dispatched.
+    if (assign.assign_fx_index) |expected_fx| {
+        _ = expected_fx;
+        mapping_actions.mappingPanelActions(&sut.globals, .{ .assign_midi_learned_param = 5 });
+    }
+    try std.testing.expect(assign.learned_param == null);
 }
 
 test "midi_learn - isFxAssignable correctness" {

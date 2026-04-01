@@ -31,25 +31,33 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
             inline for (std.meta.fields(ModulesList), 0..) |field, i| {
                 const module = @field(ModulesList, field.name);
-                if (module == .STRIP) continue;
                 const module_name = @tagName(module);
-                const phys: PhysicalModule = @enumFromInt(@intFromEnum(module));
 
-                const loc_opt = switch (globals.state.fx_ctrl.track_state.mode) {
-                    .multi_fx => |locs| locs.get(phys),
-                    .channel_strip => null,
+                // Because STRIP resolves its FX from channel_strip state
+                // while physical modules resolve from multi_fx locations,
+                // we branch on the module type within the same loop.
+                const fx_index_opt: ?c_int = if (module == .STRIP)
+                    switch (globals.state.fx_ctrl.track_state.mode) {
+                        .channel_strip => |strip| strip.fx_index,
+                        .multi_fx => null,
+                    }
+                else blk: {
+                    const phys: PhysicalModule = @enumFromInt(@intFromEnum(module));
+                    break :blk switch (globals.state.fx_ctrl.track_state.mode) {
+                        .multi_fx => |locs| if (locs.get(phys)) |loc| loc.fx_index else null,
+                        .channel_strip => null,
+                    };
                 };
-                if (loc_opt) |location| {
+
+                if (fx_index_opt) |fx_index| {
                     if (globals.state.current_tr_id) |track_id| {
                         const track = reaper.CSurf_TrackFromID(track_id, constants.g_csurf_mcpmode);
                         var fx_name_buf: [512:0]u8 = undefined;
-                        const success = reaper.TrackFX_GetFXName(track, location.fx_index, &fx_name_buf, fx_name_buf.len);
-                        if (!success) {
-                            browse_state.available_modules[i] = null;
-                        } else {
+                        if (reaper.TrackFX_GetFXName(track, fx_index, &fx_name_buf, fx_name_buf.len)) {
                             const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                            const formatted = std.fmt.allocPrintZ(browse_allocator, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
-                            browse_state.available_modules[i] = formatted;
+                            browse_state.available_modules[i] = std.fmt.allocPrintZ(browse_allocator, "{s}    [{s}]", .{ module_name, fx_name }) catch null;
+                        } else {
+                            browse_state.available_modules[i] = null;
                         }
                     } else {
                         browse_state.available_modules[i] = null;
@@ -92,6 +100,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     .channel_strip => null,
                 },
             };
+            assign_state.assign_fx_index = fx_index;
             if (fx_index) |fxi| {
                 const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id orelse return, constants.g_csurf_mcpmode);
 

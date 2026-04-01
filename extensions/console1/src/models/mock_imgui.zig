@@ -157,6 +157,7 @@ const ImguiMocks = struct {
     PopStyleColor: @TypeOf(imgui.api.PopStyleColor),
     PushID: @TypeOf(imgui.api.PushID),
     PopID: @TypeOf(imgui.api.PopID),
+    SetNextItemWidth: @TypeOf(imgui.api.SetNextItemWidth),
     PushItemWidth: @TypeOf(imgui.api.PushItemWidth),
     PopItemWidth: @TypeOf(imgui.api.PopItemWidth),
     SetCursorPosX: @TypeOf(imgui.api.SetCursorPosX),
@@ -508,6 +509,7 @@ pub const MockImGui = struct {
     const PopStyleColor = &mockPopStyleColor;
     const PushID = &mockPushID;
     const PopID = &mockPopID;
+    const SetNextItemWidth = &mockSetNextItemWidth;
     const PushItemWidth = &mockPushItemWidth;
     const PopItemWidth = &mockPopItemWidth;
 
@@ -826,6 +828,8 @@ fn mockPopID(_: imgui.ContextPtr) callconv(.C) void {
     trace(.pop_id, "");
     popPair(.id);
 }
+
+fn mockSetNextItemWidth(_: imgui.ContextPtr, _: f64) callconv(.C) void {}
 
 fn mockPushItemWidth(_: imgui.ContextPtr, _: f64) callconv(.C) void {
     trace(.push_item_width, "");

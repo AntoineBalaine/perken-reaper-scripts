@@ -56,12 +56,10 @@ pub fn csurfActions(globals: *Globals, set_action: CsurfAction) void {
                 std.meta.activeTag(globals.state.mapping_panel.mode) == .assign and
                 globals.state.mapping_panel.mode.assign.midi_learn_active)
             {
-                const key: u32 = @bitCast(TrackState.ParamKey{
-                    .fx_index = @intCast(prm_chg.fx_index),
-                    .param_index = @intCast(prm_chg.param_index),
-                });
-                if (globals.state.fx_ctrl.track_state.reverse_map.get(key) != null) {
-                    actions.dispatch(globals, .{ .mapping_panel = .{ .assign_midi_learned_param = @intCast(prm_chg.param_index) } });
+                if (globals.state.mapping_panel.mode.assign.assign_fx_index) |expected_fx| {
+                    if (prm_chg.fx_index == @as(usize, @intCast(expected_fx))) {
+                        actions.dispatch(globals, .{ .mapping_panel = .{ .assign_midi_learned_param = @intCast(prm_chg.param_index) } });
+                    }
                 }
             }
 

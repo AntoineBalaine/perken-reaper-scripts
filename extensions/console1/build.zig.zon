@@ -17,8 +17,8 @@
     // internet connectivity.
     .dependencies = .{
         .ini = .{
-            .url = "https://github.com/AntoineBalaine/ini/archive/95d1a6c.tar.gz",
-            .hash = "N-V-__8AAL-XAACsuikiYqj7rp49fTAMqw-3kydJGAJfxlj_",
+            .url = "https://github.com/AntoineBalaine/ini/archive/d5d1130062e3.tar.gz",
+            .hash = "N-V-__8AAMaXAADBd3SZZVoq54wmI0VjlyYcXXh98BCdpCBF",
         },
         .WDL = .{
             .url = "https://github.com/justinfrankel/WDL/archive/dda0d7519ee9d50d59a39fc1b1a82001416a3dff.tar.gz",
