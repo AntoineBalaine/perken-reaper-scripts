@@ -144,6 +144,8 @@ fn onTimer() callconv(.C) void {
         .fx_chains = &fx_parser.fx_chains,
         .track_templates = &fx_parser.track_templates,
         .fx_tags = &fx_parser.fx_tags,
+        .editing_cc = &globals.state.fx_ctrl.editing_cc,
+        .edit_buf = &globals.state.fx_ctrl.edit_buf,
     };
 
     if (hot_reloader) |*reloader| {

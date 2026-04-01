@@ -80,6 +80,11 @@ filter_to_comp: bool = false,
 display: ?u8 = null,
 vol_lastpos: u8 = 0,
 
+/// Which knob CC is currently in value-text-edit mode, or null if none.
+editing_cc: ?c1.CCs = null,
+/// Input buffer for the value text input. Populated by the panel when entering edit mode.
+edit_buf: [24]u8 = std.mem.zeroes([24]u8),
+
 /// Paging
 /// 0-based page number
 current_page: u8 = 0,

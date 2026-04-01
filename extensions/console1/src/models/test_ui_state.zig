@@ -8,6 +8,7 @@ const Preferences = @import("../settings.zig").Preferences;
 const fx_types = @import("../fx_parser_types.zig");
 const styles = @import("../styles.zig");
 const FxControlState = @import("../fx_ctrl_state.zig").FxControlState;
+const c1 = @import("../c1.zig");
 
 pub const TestUiStateBuilder = struct {
     allocator: std.mem.Allocator,
@@ -27,6 +28,10 @@ pub const TestUiStateBuilder = struct {
     config_style: styles.StyleStruct,
     main_style_open: bool,
     config_style_open: bool,
+
+    // Knob value text editing state
+    editing_cc: ?c1.CCs = null,
+    edit_buf: [24]u8 = std.mem.zeroes([24]u8),
 
     pub fn init(allocator: std.mem.Allocator) TestUiStateBuilder {
         return .{
@@ -68,6 +73,8 @@ pub const TestUiStateBuilder = struct {
             .fx_chains = &self.fx_chains,
             .track_templates = &self.track_templates,
             .fx_tags = &self.fx_tags,
+            .editing_cc = &self.editing_cc,
+            .edit_buf = &self.edit_buf,
         };
     }
 

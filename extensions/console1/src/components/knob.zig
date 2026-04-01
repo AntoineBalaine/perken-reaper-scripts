@@ -50,6 +50,15 @@ pub const Rectangle = struct {
     max_y: f64,
 };
 
+pub const KnobResult = union(enum) {
+    active,
+    value_dclick,
+    value_submit: f64,
+    value_cancel,
+};
+
+pub const EditMode = ?*[24]u8;
+
 pub const LabelId = struct {
     label: [:0]const u8,
     id: [:0]const u8,
@@ -85,10 +94,11 @@ pub fn drawWidget(
     label_id: LabelId,
     flags: ControlFlags,
     max_width: ?f64,
-) !bool {
+    edit_mode: EditMode,
+) !?KnobResult {
     const drwls = try imgui.GetWindowDrawList(.{ctx});
     const radius = knob_size / 2;
-    var active = false;
+    var result: ?KnobResult = null;
 
     // Calculate text size for label
     var label_size: Size = .{ .w = undefined, .h = undefined };
@@ -102,11 +112,12 @@ pub fn drawWidget(
     if (max_width) |max_w| total_width = @max(max_w, total_width);
 
     const val_disp: f64 = if (flags.no_val_display) 1 else 2;
+    const line_height = try imgui.GetTextLineHeightWithSpacing(.{ctx});
     const widget_rect = Rectangle{
         .min_x = cur_pos.x,
         .min_y = cur_pos.y,
         .max_x = cur_pos.x + total_width,
-        .max_y = cur_pos.y + radius * val_disp + label_size.h + text_padding * val_disp + try imgui.GetTextLineHeightWithSpacing(.{ctx}),
+        .max_y = cur_pos.y + radius * val_disp + label_size.h + text_padding * val_disp + line_height * 1.5,
     };
 
     display_value: {
@@ -157,8 +168,9 @@ pub fn drawWidget(
             },
         }
         const isHovered = rv[0];
+        const active = rv[1];
 
-        active = rv[1];
+        if (active) result = .active;
 
         const drwLs = try imgui.GetWindowDrawList(.{ctx});
         var circleColor = try imgui.GetStyleColor(.{ ctx, imgui.Col_TitleBg });
@@ -186,12 +198,57 @@ pub fn drawWidget(
 
         if (flags.no_val_display) break :display_value;
 
-        const label_y = center_y + radius + 5.0; // Add some padding
-        var buf: [24]u8 = undefined;
-        const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| vt else try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
-        var txt_size: Size = .{ .w = undefined, .h = undefined };
-        try imgui.CalcTextSize(.{ ctx, val_fmt.ptr, &txt_size.w, &txt_size.h });
-        try imgui.DrawList_AddText(.{ drwls, center_x - txt_size.w / 2.0, label_y, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), val_fmt });
+        const label_y = center_y + radius + 2.5;
+
+        if (edit_mode) |edit_buf| {
+            // Render InputText instead of static value text
+            try imgui.SetCursorScreenPos(.{ ctx, widget_rect.min_x, label_y });
+            try imgui.PushItemWidth(.{ ctx, total_width });
+            defer imgui.PopItemWidth(.{ctx}) catch {};
+            try imgui.SetKeyboardFocusHere(.{ctx});
+
+            var val_edit_id_buf: [48]u8 = undefined;
+            const val_edit_id = std.fmt.bufPrintZ(&val_edit_id_buf, "##val_edit_{s}", .{label_id.id}) catch "##val_edit";
+
+            const enter_pressed = try imgui.InputText(.{
+                ctx,
+                val_edit_id,
+                @as([*]u8, @ptrCast(edit_buf)),
+                @as(c_int, @intCast(edit_buf.len)),
+                imgui.InputTextFlags_EnterReturnsTrue | imgui.InputTextFlags_AutoSelectAll,
+                null,
+            });
+
+            if (enter_pressed) {
+                const text = std.mem.sliceTo(edit_buf, 0);
+                if (std.fmt.parseFloat(f64, text)) |parsed| {
+                    result = .{ .value_submit = std.math.clamp(parsed, 0.0, 1.0) };
+                } else |_| {
+                    result = .value_cancel;
+                }
+            } else if (try imgui.IsKeyPressed(.{ ctx, imgui.Key_Escape })) {
+                result = .value_cancel;
+            }
+        } else {
+            // Render static value text
+            var buf: [24]u8 = undefined;
+            const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| vt else try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
+            var txt_size: Size = .{ .w = undefined, .h = undefined };
+            try imgui.CalcTextSize(.{ ctx, val_fmt.ptr, &txt_size.w, &txt_size.h });
+            try imgui.DrawList_AddText(.{ drwls, center_x - txt_size.w / 2.0, label_y, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), val_fmt });
+
+            // Invisible button over the value text for double-click detection
+            try imgui.SetCursorScreenPos(.{ ctx, center_x - txt_size.w / 2.0, label_y });
+            try imgui.SetNextItemAllowOverlap(.{ctx});
+
+            var val_dclick_id_buf: [48]u8 = undefined;
+            const val_dclick_id = std.fmt.bufPrintZ(&val_dclick_id_buf, "##val_dc_{s}", .{label_id.id}) catch "##val_dc";
+
+            _ = try imgui.InvisibleButton(.{ ctx, val_dclick_id, txt_size.w, txt_size.h });
+            if (try imgui.IsItemHovered(.{ctx}) and try imgui.IsMouseDoubleClicked(.{ ctx, imgui.MouseButton_Left })) {
+                result = .value_dclick;
+            }
+        }
     }
 
     try imgui.SetCursorScreenPos(.{ ctx, widget_rect.min_x, widget_rect.min_y });
@@ -200,7 +257,7 @@ pub fn drawWidget(
         widget_rect.max_x - widget_rect.min_x,
         widget_rect.max_y - widget_rect.min_y,
     });
-    return active;
+    return result;
 }
 
 pub fn YControl(ctx: imgui.ContextPtr, id: [:0]const u8, value: *f64, w: f64, h: f64, min_val: f64, max_val: f64, flags: YControlFlags) !std.meta.Tuple(&[_]type{ bool, bool }) {

@@ -85,6 +85,9 @@ pub const WidgetKind = enum {
     end_drag_drop_target,
     accept_drag_drop_payload_rgb,
     text_wrapped,
+    input_text,
+    set_keyboard_focus_here,
+    is_key_pressed,
 };
 
 pub const TraceEntry = struct {
@@ -227,6 +230,10 @@ const ImguiMocks = struct {
     BeginTabItem: @TypeOf(imgui.api.BeginTabItem),
     EndTabItem: @TypeOf(imgui.api.EndTabItem),
     ColorEdit4: @TypeOf(imgui.api.ColorEdit4),
+    // Knob value text editing functions
+    InputText: @TypeOf(imgui.api.InputText),
+    SetKeyboardFocusHere: @TypeOf(imgui.api.SetKeyboardFocusHere),
+    IsKeyPressed: @TypeOf(imgui.api.IsKeyPressed),
 };
 
 // -- Push/Pop pair tracking --
@@ -265,6 +272,10 @@ pub const MockImGui = struct {
     checkbox_overrides: std.StringHashMapUnmanaged(bool),
     selectable_targets: std.StringHashMapUnmanaged(void),
     combo_open_targets: std.StringHashMapUnmanaged(void),
+    double_click_targets: std.StringHashMapUnmanaged(void),
+    key_press_targets: std.AutoArrayHashMap(c_int, void),
+    input_text_enter: std.StringHashMapUnmanaged(void),
+    last_invisible_button_label: []const u8 = "",
     allocator: std.mem.Allocator,
     orig_funcs: ImguiMocks,
     orig_get_error: @TypeOf(imgui.getError),
@@ -278,6 +289,9 @@ pub const MockImGui = struct {
             .checkbox_overrides = .{},
             .selectable_targets = .{},
             .combo_open_targets = .{},
+            .double_click_targets = .{},
+            .key_press_targets = std.AutoArrayHashMap(c_int, void).init(allocator),
+            .input_text_enter = .{},
             .allocator = allocator,
             .orig_funcs = undefined,
             .orig_get_error = undefined,
@@ -291,6 +305,9 @@ pub const MockImGui = struct {
         self.checkbox_overrides.deinit(self.allocator);
         self.selectable_targets.deinit(self.allocator);
         self.combo_open_targets.deinit(self.allocator);
+        self.double_click_targets.deinit(self.allocator);
+        self.key_press_targets.deinit();
+        self.input_text_enter.deinit(self.allocator);
     }
 
     pub fn install(self: *MockImGui) void {
@@ -346,6 +363,18 @@ pub const MockImGui = struct {
         self.selectable_targets.put(self.allocator, label, {}) catch @panic("selectable_targets put OOM");
     }
 
+    pub fn doubleClick(self: *MockImGui, label: []const u8) void {
+        self.double_click_targets.put(self.allocator, label, {}) catch @panic("double_click_targets put OOM");
+    }
+
+    pub fn pressKey(self: *MockImGui, key: c_int) void {
+        self.key_press_targets.put(key, {}) catch @panic("key_press_targets put OOM");
+    }
+
+    pub fn setInputTextEnter(self: *MockImGui, label: []const u8) void {
+        self.input_text_enter.put(self.allocator, label, {}) catch @panic("input_text_enter put OOM");
+    }
+
     pub fn assertBalanced(self: *const MockImGui) !void {
         for (std.enums.values(PairCategory)) |cat| {
             if (self.pair_depths.get(cat) != 0) {
@@ -384,6 +413,10 @@ pub const MockImGui = struct {
         self.checkbox_overrides.clearRetainingCapacity();
         self.selectable_targets.clearRetainingCapacity();
         self.combo_open_targets.clearRetainingCapacity();
+        self.double_click_targets.clearRetainingCapacity();
+        self.key_press_targets.clearRetainingCapacity();
+        self.input_text_enter.clearRetainingCapacity();
+        self.last_invisible_button_label = "";
     }
 
     // -- Trace query helpers --
@@ -550,6 +583,10 @@ pub const MockImGui = struct {
     const BeginTabItem = &mockBeginTabItem;
     const EndTabItem = &mockEndTabItem;
     const ColorEdit4 = &mockColorEdit4;
+    // Knob value text editing
+    const InputText = &mockInputText;
+    const SetKeyboardFocusHere = &mockSetKeyboardFocusHere;
+    const IsKeyPressed = &mockIsKeyPressed;
 };
 
 // -- Panic stub for unmocked functions --
@@ -639,6 +676,9 @@ fn mockSmallButton(_: imgui.ContextPtr, label: [*:0]const u8) callconv(.C) bool 
 }
 
 fn mockInvisibleButton(_: imgui.ContextPtr, label: [*:0]const u8, _: f64, _: f64, _: ?*c_int) callconv(.C) bool {
+    const m = g_mock orelse @panic("g_mock is null");
+    const lbl = std.mem.span(label);
+    m.last_invisible_button_label = m.frame_arena.allocator().dupe(u8, lbl) catch @panic("dupe OOM");
     return traceAndConsumeClick(.invisible_button, label);
 }
 
@@ -927,15 +967,33 @@ fn mockSetNextWindowDockID(_: imgui.ContextPtr, _: c_int, _: ?*c_int) callconv(.
 }
 
 fn mockIsItemHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) bool {
-    return false;
+    const m = g_mock orelse return false;
+    return m.double_click_targets.contains(m.last_invisible_button_label);
 }
 
 fn mockIsMouseDoubleClicked(_: imgui.ContextPtr, _: c_int) callconv(.C) bool {
-    return false;
+    const m = g_mock orelse return false;
+    return m.double_click_targets.contains(m.last_invisible_button_label);
 }
 
 fn mockIsKeyDown(_: imgui.ContextPtr, _: c_int) callconv(.C) bool {
     return false;
+}
+
+fn mockIsKeyPressed(_: imgui.ContextPtr, key: c_int, _: ?*bool) callconv(.C) bool {
+    trace(.is_key_pressed, "");
+    const m = g_mock orelse return false;
+    return m.key_press_targets.contains(key);
+}
+
+fn mockSetKeyboardFocusHere(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) void {
+    trace(.set_keyboard_focus_here, "");
+}
+
+fn mockInputText(_: imgui.ContextPtr, label: [*:0]const u8, _: [*]u8, _: c_int, _: ?*c_int, _: imgui.FunctionPtr) callconv(.C) bool {
+    trace(.input_text, std.mem.span(label));
+    const m = g_mock orelse return false;
+    return m.input_text_enter.contains(std.mem.span(label));
 }
 
 fn mockGetMouseDragDelta(_: imgui.ContextPtr, x: *f64, y: *f64, _: ?*c_int, _: ?*f64) callconv(.C) void {

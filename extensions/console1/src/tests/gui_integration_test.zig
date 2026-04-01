@@ -114,6 +114,8 @@ const GuiTestHarness = struct {
             .fx_chains = &self.fx_chains,
             .track_templates = &self.track_templates,
             .fx_tags = &self.fx_tags,
+            .editing_cc = &g.state.fx_ctrl.editing_cc,
+            .edit_buf = &g.state.fx_ctrl.edit_buf,
         };
     }
 

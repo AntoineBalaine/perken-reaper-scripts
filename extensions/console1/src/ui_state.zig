@@ -15,6 +15,7 @@ const FxMaps = @import("mappings_list.zig");
 const Preferences = @import("settings.zig").Preferences;
 const Theme = @import("theme/ReaperTheme.zig");
 const fx_types = @import("fx_parser_types.zig");
+const c1 = @import("c1.zig");
 
 pub const UiState = struct {
     state: *statemachine.State,
@@ -34,4 +35,7 @@ pub const UiState = struct {
     fx_chains: *fx_types.Directory,
     track_templates: *fx_types.Directory,
     fx_tags: *fx_types.FxTags,
+    // Knob value text editing state — pointers into FxControlState.
+    editing_cc: *?c1.CCs,
+    edit_buf: *[24]u8,
 };
