@@ -1,54 +1,87 @@
-PERKEN CONSOLE1
+# Perken Console1
 
-A control surface to integrate the console 1 MKII into Reaper. I’d gotten frustrated with being locked into using Softube’s plugins, the ilok, and the absence of a linux version. 
-If anyone’s interested in trying this thing, bear in mind it is still at the experimental phase. 
-### If you want to try it
-This is for the tech-inclined. You’ll have to compile the project yourself. 
-- install Zig. 
-- Macos: make sure clang is installed
-- Linux: make sure gcc is installed
-- build the application
+A REAPER control surface extension for the Softube Console1 MKII hardware controller. This extension replaces Softube's proprietary plugin dependency, allowing you to use any REAPER-compatible plugin with the Console1 hardware on macOS, Linux, and Windows.
 
-MacOS:
+## What it does
+
+The Console1 hardware has five module sections (Input, Gate, EQ, Compressor, Output) with dedicated knobs and buttons for each. This extension maps those physical controls to parameters of any plugin you choose, organized by module. You can browse and assign plugins per module, create custom parameter mappings, and switch between different configurations.
+
+The extension includes:
+
+- FX Control mode: control plugin parameters from the Console1 knobs and buttons, with per-module assignment and visual feedback in a GUI overlay.
+- FX Selection panel: browse available plugins by type, category, or developer, and assign them to Console1 modules. Plugins with predefined mappings appear at the top of the list.
+- Transport mode: control playback, recording, navigation, zoom, and other REAPER functions from the Console1.
+- Mapping panel: create custom parameter mappings for any plugin.
+- Settings panel: configure preferences, default FX assignments, and module order.
+- Track list: select and navigate tracks from the GUI.
+- Channel strip mode: assign a single multi-section plugin (like Tukan SumChannel S2) across all five modules.
+
+## Supported platforms
+
+- macOS (x86_64 and arm64)
+- Linux (x86_64 and aarch64)
+- Windows (x86_64)
+
+## Installation
+
+### From release artifacts
+
+Download the release archive for your platform from the GitHub releases page. The archive contains:
+
+- The host extension binary (`reaper_c1.dylib`/`.so`/`.dll`)
+- The UI library (`reaper_c1_ui.dylib`/`.so`/`.dll`)
+- Map files (predefined parameter mappings for common plugins)
+- A patched version of Tukan SumChannel S2 JSFX with full parameter exposure
+
+Copy the binaries to your REAPER `UserPlugins/` directory and the map files to `Data/Perken/Console1/maps/` inside your REAPER resource path.
+
+Default resource path locations:
+- macOS: `~/Library/Application Support/REAPER/`
+- Linux: `~/.config/REAPER/`
+- Windows: `%APPDATA%\REAPER\`
+
+### Building from source
+
+Requirements: Zig 0.14.0, clang (macOS) or gcc (Linux/Windows).
+
 ```bash
+# macOS
 zig build --prefix "$HOME/Library/Application Support/REAPER/UserPlugins"
+zig build ui --prefix "$HOME/Library/Application Support/REAPER/UserPlugins"
+
+# Linux
+zig build --prefix "$HOME/.config/REAPER/UserPlugins"
+zig build ui --prefix "$HOME/.config/REAPER/UserPlugins"
 ```
-Linux:
+
+Then install the map files:
+
 ```bash
-zig build --prefix "$HOME/.config/REAPER/UserPlugins" 
+./cmp.sh --install
 ```
-This moves the compiled binary to reaper’s user plugins folder.
-If you are using a portable install, you might want to fix the path of your `UserPlugins` folder.
-- move the project’s `resources` folder to `REAPER/Data/Perken/Console1/resources/`
-- start reaper
-- de-activate the console’s midi input in `settings => midi devices`
-- map the console’s in/out to `softube console1` in `settings => control/osc/web => add`
-### Features:
-- FX control 
-	- Upon selecting a track, Console1 loads a container that wraps 5 FX, each corresponding to the sections of the console (input/gate/eq/compressor/output). The container represents your channel strip The mappings that match the knobs with the FX params are contained in the config files (`REAPER/Data/Perken/Console1/resources`). 
-	- It’s possible to create your own mapping files and try them out.  To do that, you have to annotate it in the `defaults.ini` file, restart reaper, and re-set the console’s connection in reaper’s `settings => control/osc/web`.
-	- It’s not possible to swap FX mappings mid-session atm. 
-	- Only one channel strip’s map is available: HBJ highpass/lowpass (input), reagate, reaeq, reacomp, and reaanalog (output)
-- track controls: change tracks’ phase, volume, pan, solo, mute
-- track synchronization: 
-	- any changes on the track will (should?) be reflected in the controller. 
-	- on track selection, the console’s knobs sync with the track’s channel strip.
-	- clicking the track-number buttons will select the corresponding tracks
-- FX display: 
-	- `Display On` button will toggle the selected track’s fx chain. It also follows track selection, so when you select a new track the previous fxchain gets closed and the new one gets opened
-	- When the fxchain is open, whatever fx you’re tweaking from the console will get focused.
-- Fx order: change the position of the EQ inside of the container, relative to the Gate and compressor. Gate is always placed before the container
-- External Side chain: set pin mappings for channels 3-4 to route into FX’s inputs 3-4. The console does NOT set the FX’s detection mode to side chain - you’ll have to do that manually.
-- Meters: Compressor and output meters work. Output meter is NOT accurate. Gate and input meter do NOT work. Gate meter will probably happen, input meter will probably NOT happen.
 
-### Limitations:
-- UNTESTED ON WINDOWS - will most likely not work. MacOS and Linux are good to go.
-- can’t change FX mid-session from the console.
-- can’t save presets
-- Button `Filters to compressor` does not work.
-- Buttons `Dupl Track All/Group` do not work either.
-### Know issues:
-- going back and forth between multiple project tabs crashes reaper when the console is active
+## Getting started
 
-### Some features I’d like to build
-- Creating more fx mappings
+See [docs/getting-started.md](docs/getting-started.md) for a walkthrough of the first launch and basic usage.
+
+## REAPER setup
+
+After installing, start REAPER and configure the Console1:
+
+1. Go to `Preferences > MIDI Devices` and disable the Console1's MIDI input (so REAPER doesn't treat it as a generic MIDI controller).
+2. Go to `Preferences > Control/OSC/Web > Add` and select "Softube Console1" as the control surface. Map the Console1's MIDI input and output ports.
+3. The Console1 GUI should appear. If it doesn't, check `Extensions > Console1` in the REAPER menu.
+
+## Predefined mappings
+
+The extension ships with parameter mappings for common plugins including ReaComp, ReaEQ, ReaGate, and several Tukan Studios plugins. The map files are INI-based and live in `Data/Perken/Console1/maps/` inside your REAPER resource path.
+
+You can create your own mappings using the mapping panel (accessible from the FX selection workflow when a plugin has no existing mapping).
+
+## Reporting issues
+
+Please report bugs at the GitHub issues page. Include your REAPER version, operating system, and steps to reproduce the issue.
+
+## License
+
+This project is under development. License terms will be finalized before the public release.
