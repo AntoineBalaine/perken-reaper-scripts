@@ -70,8 +70,9 @@ pub fn build(b: *std.Build) !void {
 
     // allow passing testing flags
     const version = b.option([]const u8, "version", "Build version string") orelse "dev";
+    const is_test = b.option(bool, "test", "Create actions to test inside reaper") orelse false;
     const options = b.addOptions();
-    options.addOption(bool, "test", b.option(bool, "test", "Create actions to test inside reaper") orelse false);
+    options.addOption(bool, "test", is_test);
     options.addOption(bool, "headless", b.option(bool, "headless", "Headless mode: register csurf directly without REAPER preferences") orelse false);
     options.addOption([]const u8, "version", version);
     lib.root_module.addOptions("config", options);
@@ -186,6 +187,7 @@ pub fn build(b: *std.Build) !void {
     ui_lib.root_module.addImport("ini", ini.module("ini"));
     reaziglib.addSharedModules(reazig_dep, ui_lib.root_module);
     const ui_options = b.addOptions();
+    ui_options.addOption(bool, "test", is_test);
     ui_options.addOption([]const u8, "version", version);
     ui_lib.root_module.addOptions("config", ui_options);
 

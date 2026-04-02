@@ -1,6 +1,7 @@
 const imgui = @import("reaper_imgui");
 const c1_theme = @import("theme/c1_theme.zig");
 const theme_editor = @import("theme_editor.zig");
+const config = @import("config");
 const defaults = @import("constants.zig");
 const styles = @import("styles.zig");
 const actions = @import("action_types.zig");
@@ -43,19 +44,19 @@ pub fn ButtonsBar(
             try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_settings) });
         }
 
-        { // mapping panel shortcut
-            try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
-            defer imgui.PopFont(.{ctx}) catch {};
-            if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.plus), defaults.button_size, defaults.button_size })) {
-                rv.action = .{ .change_mode = .mapping_panel };
+        if (comptime @field(config, "test")) {
+            { // mapping panel shortcut (dev only)
+                try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
+                defer imgui.PopFont(.{ctx}) catch {};
+                if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.plus), defaults.button_size, defaults.button_size })) {
+                    rv.action = .{ .change_mode = .mapping_panel };
+                }
             }
-        }
-        if (try imgui.IsItemHovered(.{ctx})) {
-            try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_mapping_panel) });
-        }
+            if (try imgui.IsItemHovered(.{ctx})) {
+                try imgui.SetTooltip(.{ ctx, tr(translations, .buttons_mapping_panel) });
+            }
 
-        if (comptime @import("builtin").mode == .Debug) {
-            {
+            { // theme editor (dev only)
                 try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
                 defer imgui.PopFont(.{ctx}) catch {};
                 if (try imgui.Button(.{ ctx, c1_theme.Icons.get(.pin), defaults.button_size, defaults.button_size })) {
