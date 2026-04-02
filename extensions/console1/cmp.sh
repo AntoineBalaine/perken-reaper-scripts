@@ -62,6 +62,11 @@ if $DO_INSTALL; then
   mkdir -p "$MAPS_DEST"
   cp -r maps/* "$MAPS_DEST/"
   echo "Maps installed to $MAPS_DEST"
+
+  JSFX_DEST="$REAPER_PATH/Effects/Perken"
+  mkdir -p "$JSFX_DEST"
+  cp -r src/resources/jsfx/* "$JSFX_DEST/"
+  echo "JSFX files installed to $JSFX_DEST"
 fi
 
 if $DO_REAPER; then
