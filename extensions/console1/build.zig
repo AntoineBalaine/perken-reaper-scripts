@@ -69,9 +69,11 @@ pub fn build(b: *std.Build) !void {
     }
 
     // allow passing testing flags
+    const version = b.option([]const u8, "version", "Build version string") orelse "dev";
     const options = b.addOptions();
     options.addOption(bool, "test", b.option(bool, "test", "Create actions to test inside reaper") orelse false);
     options.addOption(bool, "headless", b.option(bool, "headless", "Headless mode: register csurf directly without REAPER preferences") orelse false);
+    options.addOption([]const u8, "version", version);
     lib.root_module.addOptions("config", options);
 
     // On macOS/Linux, SWELL requires PHP to generate dialog/menu resources from .rc files.
@@ -183,6 +185,9 @@ pub fn build(b: *std.Build) !void {
     ui_lib.linkLibC();
     ui_lib.root_module.addImport("ini", ini.module("ini"));
     reaziglib.addSharedModules(reazig_dep, ui_lib.root_module);
+    const ui_options = b.addOptions();
+    ui_options.addOption([]const u8, "version", version);
+    ui_lib.root_module.addOptions("config", ui_options);
 
     const ui_dest = if (is_macos)
         "reaper_c1_ui.dylib"

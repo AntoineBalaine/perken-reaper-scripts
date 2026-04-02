@@ -27,6 +27,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     const options = b.addOptions();
     options.addOption(bool, "test", true);
     options.addOption(bool, "headless", false);
+    options.addOption([]const u8, "version", "test");
     test_exe.root_module.addOptions("config", options);
 
     const is_windows = target.result.os.tag == .windows;
