@@ -1,5 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
+const config = @import("config");
 const Preferences = @import("settings.zig");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
@@ -287,8 +288,17 @@ pub fn draw(
                 }
             }
         }
-
     }
+
+    try imgui.Spacing(.{ctx});
+    try imgui.Separator(.{ctx});
+    try imgui.Spacing(.{ctx});
+    {
+        var buf: [256:0]u8 = undefined;
+        const version_label = safePrint(&buf, "Console1 v{s} - by Antoine Music", .{config.version});
+        try imgui.Text(.{ ctx, version_label });
+    }
+
     return rv;
 }
 
