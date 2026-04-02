@@ -201,8 +201,8 @@ fn sendTrkCtrlFdb(midi_out: reaper.midi_Output, track: reaper.MediaTrack) void {
     const solo = reaper.GetMediaTrackInfo_Value(track, "I_SOLO") > 0.5;
     const phase = reaper.GetMediaTrackInfo_Value(track, "B_PHASE") > 0.5;
 
-    setParamLED(c1.CCs.Out_Vol, @as(u8, @intFromFloat(volume * 127)), midi_out);
-    setParamLED(c1.CCs.Out_Pan, @as(u8, @intFromFloat((pan + 1.0) * 63.5)), midi_out);
+    setParamLED(c1.CCs.Out_Vol, @as(u8, @intFromFloat(std.math.clamp(volume * 127, 0, 127))), midi_out);
+    setParamLED(c1.CCs.Out_Pan, @as(u8, @intFromFloat(std.math.clamp((pan + 1.0) * 63.5, 0, 127))), midi_out);
     setParamLED(c1.CCs.Out_mute, if (mute) 0x7f else 0, midi_out);
     setParamLED(c1.CCs.Out_solo, if (solo) 0x7f else 0, midi_out);
     setParamLED(c1.CCs.Inpt_phase_inv, if (phase) 0x7f else 0, midi_out);
