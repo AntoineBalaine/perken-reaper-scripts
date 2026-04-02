@@ -232,7 +232,7 @@ pub fn drawWidget(
         } else {
             // Render static value text
             var buf: [24]u8 = undefined;
-            const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| vt else try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
+            const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| (if (vt.len == 0) "-" else vt) else try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
             var txt_size: Size = .{ .w = undefined, .h = undefined };
             try imgui.CalcTextSize(.{ ctx, val_fmt.ptr, &txt_size.w, &txt_size.h });
             try imgui.DrawList_AddText(.{ drwls, center_x - txt_size.w / 2.0, label_y, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), val_fmt });
