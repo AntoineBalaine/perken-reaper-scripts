@@ -1,0 +1,5 @@
+@description Console1 FX Parameter Mappings
+@version 0.1.0
+@author Antoine Music
+@provides
+  Console1/maps/**/*.ini

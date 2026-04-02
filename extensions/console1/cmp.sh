@@ -60,7 +60,7 @@ fi
 if $DO_INSTALL; then
   MAPS_DEST="$REAPER_PATH/Data/Perken/Console1/maps"
   mkdir -p "$MAPS_DEST"
-  cp -r maps/* "$MAPS_DEST/"
+  cp -r Perken/Console1/maps/* "$MAPS_DEST/"
   echo "Maps installed to $MAPS_DEST"
 
   JSFX_DEST="$REAPER_PATH/Effects/Perken"

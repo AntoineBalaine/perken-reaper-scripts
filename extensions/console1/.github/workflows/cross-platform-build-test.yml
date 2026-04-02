@@ -13,14 +13,24 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x86_64
+            host_ext: so
+            ui_ext: so
           - os: ubuntu-24.04-arm
             name: linux-aarch64
+            host_ext: so
+            ui_ext: so
           - os: macos-13
             name: macos-x86_64
+            host_ext: dylib
+            ui_ext: dylib
           - os: macos-latest
             name: macos-aarch64
+            host_ext: dylib
+            ui_ext: dylib
           - os: windows-latest
             name: windows-x86_64
+            host_ext: dll
+            ui_ext: dll
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.name }}
@@ -58,13 +68,26 @@ jobs:
       - name: Build UI library
         run: zig build ui -Dversion=${{ steps.version.outputs.version }}
 
+      - name: Rename binaries for release
+        shell: bash
+        run: |
+          mkdir -p release-binaries
+          cp zig-out/reaper_c1.${{ matrix.host_ext }} release-binaries/reaper_c1-${{ matrix.name }}.${{ matrix.host_ext }}
+          cp zig-out/reaper_c1_ui.${{ matrix.ui_ext }} release-binaries/reaper_c1_ui-${{ matrix.name }}.${{ matrix.ui_ext }}
+
       - name: Bundle maps and JSFX into artifact
         shell: bash
         run: |
-          cp -r maps zig-out/maps
+          cp -r Perken/Console1/maps zig-out/maps
           cp -r src/resources/jsfx zig-out/jsfx
 
-      - name: Upload artifacts
+      - name: Upload platform binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.name }}
+          path: release-binaries/
+
+      - name: Upload full artifact
         uses: actions/upload-artifact@v4
         with:
           name: reaper-c1-${{ matrix.name }}
@@ -82,15 +105,19 @@ jobs:
         with:
           path: artifacts/
 
-      - name: Create release archives
+      - name: Prepare release assets
         run: |
-          cd artifacts
-          for dir in reaper-c1-*; do
-            tar -czf "${dir}.tar.gz" -C "$dir" .
+          mkdir -p release-assets
+          # Collect individual binaries for ReaPack
+          cp artifacts/binaries-*/* release-assets/
+          # Create per-platform archives for manual install
+          for dir in artifacts/reaper-c1-*; do
+            name=$(basename "$dir")
+            tar -czf "release-assets/${name}.tar.gz" -C "$dir" .
           done
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/reaper-c1-*.tar.gz
+          files: release-assets/*
           generate_release_notes: true

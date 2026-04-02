@@ -1,0 +1,14 @@
+@description Console1: Softube Console1 MKII integration for REAPER
+@version 0.1.0
+@author Antoine Music
+@provides
+  [darwin64     ] reaper_c1.dylib    https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1-macos-x86_64.dylib
+  [darwin-arm64 ] reaper_c1.dylib    https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1-macos-aarch64.dylib
+  [linux64      ] reaper_c1.so       https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1-linux-x86_64.so
+  [linux-aarch64] reaper_c1.so       https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1-linux-aarch64.so
+  [win64        ] reaper_c1.dll      https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1-windows-x86_64.dll
+  [darwin64     ] reaper_c1_ui.dylib https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1_ui-macos-x86_64.dylib
+  [darwin-arm64 ] reaper_c1_ui.dylib https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1_ui-macos-aarch64.dylib
+  [linux64      ] reaper_c1_ui.so    https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1_ui-linux-x86_64.so
+  [linux-aarch64] reaper_c1_ui.so    https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1_ui-linux-aarch64.so
+  [win64        ] reaper_c1_ui.dll   https://github.com/AntoineBalaine/reaperConsole1/releases/download/v$version/reaper_c1_ui-windows-x86_64.dll
