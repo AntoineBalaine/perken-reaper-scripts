@@ -777,8 +777,9 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
                                 @field(ret_struct, ns_info.name) = val;
                                 if (std.mem.eql(u8, ns_info.name, "version")) {
                                     version_found = true;
-                                    if (val != MAPPING_FORMAT_VERSION) {
-                                        log.warn("Mapping file has version {d}, expected {d}", .{ val, MAPPING_FORMAT_VERSION });
+                                    if (val > MAPPING_FORMAT_VERSION) {
+                                        log.err("Mapping file has version {d}, but this build only supports up to version {d}", .{ val, MAPPING_FORMAT_VERSION });
+                                        return error.UnsupportedMapVersion;
                                     }
                                 }
                             }
@@ -791,11 +792,12 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
         }
     }
 
-    if (!version_found) {
-        const config = @import("config");
-        const is_test = @hasDecl(config, "test") and @field(config, "test");
-        if (!is_test) {
-            log.warn("Mapping file missing version field, assuming version 0 (old format)", .{});
+    // Only enforce the version requirement on structs that have a version field
+    // (i.e., the actual mapping types, not arbitrary test structs).
+    if (comptime @hasField(T, "version")) {
+        if (!version_found) {
+            log.err("Mapping file is missing the required version field", .{});
+            return error.MissingVersion;
         }
     }
 
@@ -1231,4 +1233,51 @@ test "MapStore: getPresetName returns null for unknown FX" {
 
     const preset = ctx.store.getPresetName("VST: NonexistentPlugin", .COMP);
     try std.testing.expect(preset == null);
+}
+
+test "readToU8Struct: version 1 parses successfully" {
+    const example =
+        \\ version=1
+        \\ module=COMP
+        \\ Comp_Thresh=10
+    ;
+    var fbs = std.io.fixedBufferStream(example);
+    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    defer parser.deinit();
+
+    var found_module: ?ModulesList = null;
+    var comp = Comp{};
+    _ = try readToU8Struct(&comp, &parser, &found_module, null, std.testing.allocator);
+    try std.testing.expectEqual(@as(?u16, 10), comp.Comp_Thresh);
+}
+
+test "readToU8Struct: missing version field returns error.MissingVersion" {
+    const example =
+        \\ module=COMP
+        \\ Comp_Thresh=10
+    ;
+    var fbs = std.io.fixedBufferStream(example);
+    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    defer parser.deinit();
+
+    var found_module: ?ModulesList = null;
+    var comp = Comp{};
+    const result = readToU8Struct(&comp, &parser, &found_module, null, std.testing.allocator);
+    try std.testing.expectError(error.MissingVersion, result);
+}
+
+test "readToU8Struct: version 2 returns error.UnsupportedMapVersion" {
+    const example =
+        \\ version=2
+        \\ module=COMP
+        \\ Comp_Thresh=10
+    ;
+    var fbs = std.io.fixedBufferStream(example);
+    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    defer parser.deinit();
+
+    var found_module: ?ModulesList = null;
+    var comp = Comp{};
+    const result = readToU8Struct(&comp, &parser, &found_module, null, std.testing.allocator);
+    try std.testing.expectError(error.UnsupportedMapVersion, result);
 }
