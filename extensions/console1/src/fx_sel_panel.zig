@@ -178,7 +178,13 @@ pub fn ModulePopup(
                     const is_selected = (i == current_index);
 
                     if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(fx_name)) })) {
-                        rv = .confirm;
+                        const mapping_offsets = entry.value_ptr.*;
+                        if (mapping_offsets.items.len == 1) {
+                            const mapping_name = strings.get(mapping_offsets.items[0].name_offset);
+                            rv = .{ .plugin = .{ .name = fx_name, .mapping_name = mapping_name } };
+                        } else {
+                            rv = .{ .select_fx = fx_offset };
+                        }
                     }
                     if (is_selected) {
                         try ui_helpers.drawInvertedSlctblColors(ctx, fx_name, g_drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
@@ -209,7 +215,7 @@ pub fn ModulePopup(
                     const is_selected = (i == current_index);
 
                     if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(mapping_name)) })) {
-                        rv = .confirm;
+                        rv = .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } };
                     }
                     if (is_selected) {
                         try ui_helpers.drawInvertedSlctblColors(ctx, mapping_name, g_drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));

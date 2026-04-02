@@ -226,7 +226,13 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 },
             }
         },
-        .select_fx => {},
+        .select_fx => |fx_offset| {
+            const fx_name = globals.mappings_list.strings.get(fx_offset);
+            globals.state.fx_sel.sub_mode = .{ .select_mapping = .{
+                .fx_name = fx_name,
+                .fx_string_pool_offset = fx_offset,
+            } };
+        },
     }
 }
 
@@ -282,17 +288,18 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
         _ = pReaper.TrackFX_SetNamedConfigParm(.{ track, new_fx_index, "renamed_name", new_name });
     }
 
-    // Apply associated preset, right after insertion
+    // Load the mapping first so that fx_preset is available for preset application
+    if (mapping_name) |map_name| {
+        _ = globals.map_store.getMap(name, .STRIP, map_name, &globals.mappings_list) catch {};
+    }
+
+    // Apply associated preset after the mapping has been loaded
     if (globals.map_store.getPresetName(name, .STRIP)) |preset_name| {
         _ = pReaper.TrackFX_SetPreset(.{ track, new_fx_index, preset_name });
     }
 
     _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences, globals.arena_int.allocator(), &globals.mappings_list);
     track_state.getLabels(track);
-
-    if (mapping_name) |map_name| {
-        _ = globals.map_store.getMap(name, .STRIP, map_name, &globals.mappings_list) catch {};
-    }
 
     const needs_mapping = (globals.map_store.get(name, .STRIP, &globals.mappings_list) == null);
     if (needs_mapping) {
