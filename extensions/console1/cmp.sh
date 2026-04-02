@@ -15,9 +15,12 @@ case "$(uname)" in
     ;;
 esac
 
+REAPER_PATH="$(dirname "$REAPER_PLUGINS")"
+
 DO_BUILD=true
 DO_UI=true
 DO_REAPER=true
+DO_INSTALL=false
 HEADLESS=false
 
 for arg in "$@"; do
@@ -28,14 +31,16 @@ for arg in "$@"; do
       echo "  -ui            Build only the UI library"
       echo "  -b, --build    Build host + UI, skip REAPER"
       echo "  -r, --reaper   Skip builds, just launch REAPER"
+      echo "  -i, --install  Copy map files to REAPER resource path"
       echo "  -hd            Build in headless mode"
       echo "  -h, --help     Show this help"
       exit 0
       ;;
-    -ui)        DO_BUILD=false; DO_UI=true; DO_REAPER=false ;;
-    --build|-b) DO_BUILD=true; DO_UI=true; DO_REAPER=false ;;
-    --reaper|-r) DO_BUILD=false; DO_UI=false; DO_REAPER=true ;;
-    -hd)         HEADLESS=true ;;
+    -ui)          DO_BUILD=false; DO_UI=true; DO_REAPER=false ;;
+    --build|-b)   DO_BUILD=true; DO_UI=true; DO_REAPER=false ;;
+    --reaper|-r)  DO_BUILD=false; DO_UI=false; DO_REAPER=true ;;
+    --install|-i) DO_INSTALL=true; DO_BUILD=false; DO_UI=false; DO_REAPER=false ;;
+    -hd)          HEADLESS=true ;;
   esac
 done
 
@@ -50,6 +55,13 @@ fi
 
 if $DO_UI; then
   zig build ui --prefix "$REAPER_PLUGINS" || exit 1
+fi
+
+if $DO_INSTALL; then
+  MAPS_DEST="$REAPER_PATH/Data/Perken/Console1/maps"
+  mkdir -p "$MAPS_DEST"
+  cp -r maps/* "$MAPS_DEST/"
+  echo "Maps installed to $MAPS_DEST"
 fi
 
 if $DO_REAPER; then
