@@ -129,8 +129,6 @@ pub fn draw(
             }
         }
 
-        try imgui.Separator(.{ctx});
-
         // Track List View Sync
         {
             const label = safePrint(&buf, "{s}##focuspg", .{tr(translations, .settings_focus_page_tracks)});
@@ -139,8 +137,6 @@ pub fn draw(
                 self.dirty = true;
             }
         }
-
-        try imgui.Separator(.{ctx});
 
         // Track Validation Settings
         {
@@ -292,11 +288,6 @@ pub fn draw(
             }
         }
 
-        // Channel strip mode settings
-        try imgui.Spacing(.{ctx});
-        try imgui.Separator(.{ctx});
-        try imgui.Spacing(.{ctx});
-        try imgui.Text(.{ ctx, "Channel Strip Mode" });
     }
     return rv;
 }
