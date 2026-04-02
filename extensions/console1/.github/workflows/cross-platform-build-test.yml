@@ -34,6 +34,11 @@ jobs:
         with:
           version: 0.14.0
 
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
       - name: Install PHP (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -45,16 +50,47 @@ jobs:
         run: brew install php
 
       - name: Run tests
-        run: zig build test -Dtest=true
+        run: zig build test -Dtest=true -Dversion=${{ steps.version.outputs.version }}
 
       - name: Build host extension
-        run: zig build -Dtest=true
+        run: zig build -Dversion=${{ steps.version.outputs.version }}
 
       - name: Build UI library
-        run: zig build ui
+        run: zig build ui -Dversion=${{ steps.version.outputs.version }}
+
+      - name: Bundle maps and JSFX into artifact
+        shell: bash
+        run: |
+          cp -r maps zig-out/maps
+          cp -r src/resources/jsfx zig-out/jsfx
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: reaper-c1-${{ matrix.name }}
           path: zig-out/
+
+  release:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create release archives
+        run: |
+          cd artifacts
+          for dir in reaper-c1-*; do
+            tar -czf "${dir}.tar.gz" -C "$dir" .
+          done
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/reaper-c1-*.tar.gz
+          generate_release_notes: true
