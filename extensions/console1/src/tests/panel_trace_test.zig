@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 const imgui = @import("reaper_imgui");
-const MockImGui = @import("../models/mock_imgui.zig").MockImGui;
+const MockImGui = @import("mock_imgui").MockImGui;
 const TestUiStateBuilder = @import("../models/test_ui_state.zig").TestUiStateBuilder;
 const gui_lib = @import("../gui_lib.zig");
 const Theme = @import("../theme/c1_theme.zig");
@@ -101,7 +101,7 @@ test "fx_ctrl panel shows disconnected text when midi not connected" {
 test "mapping panel in strip assign mode renders preset checkbox and param list" {
     const statemachine = @import("../statemachine.zig");
     const mappings = @import("../mappings.zig");
-    const StringPool = @import("../string_pool.zig").StringPool;
+    const StringPool = @import("string_pool").StringPool;
 
     var mock = MockImGui.init(testing.allocator);
     defer mock.deinit();

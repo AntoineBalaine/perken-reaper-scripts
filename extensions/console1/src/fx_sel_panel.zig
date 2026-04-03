@@ -1,7 +1,7 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
 const Theme = @import("theme/ReaperTheme.zig");
-const fx_types = @import("fx_parser_types.zig");
+const fx_types = @import("fx_parser_types");
 const styles = @import("styles.zig");
 const PushWindowStyle = @import("styles_components.zig").PushStyle;
 const safePrint = @import("debug_panel.zig").safePrint;
@@ -12,7 +12,7 @@ const ui_helpers = @import("ui_helpers.zig");
 const UiState = @import("ui_state.zig").UiState;
 const FxSelSubMode = @import("statemachine.zig").FxSelSubMode;
 const FxSelectionState = @import("statemachine.zig").FxSelectionState;
-const StringPool = @import("string_pool.zig").StringPool;
+const StringPool = @import("string_pool").StringPool;
 
 pub const NAME: [:0]const u8 = "Fx Browser";
 /// last used fx name
@@ -140,19 +140,26 @@ fn Menus(ctx: imgui.ContextPtr, ui: *UiState, translations: *TranslationStore) !
     return rv;
 }
 
+/// Bundles the state needed to visually highlight the currently-selected
+/// module slot. External consumers that do not use module-slot selection
+/// can pass `null` for the `highlight` parameter to disable highlighting.
+pub const HighlightConfig = struct {
+    current_index: usize,
+    scroll_changed: *bool,
+    g_drwls_splitter: *imgui.DrawListSplitterPtr,
+};
+
 pub fn ModulePopup(
     ctx: imgui.ContextPtr,
     module: @import("statemachine.zig").ModulesList,
     mappings: @import("mappings_list.zig").ModuleMap,
     strings: *const StringPool,
-    current_index: usize,
     sub_mode: FxSelSubMode,
-    scroll_changed: *bool,
     display_menus: bool,
-    g_drwls_splitter: *imgui.DrawListSplitterPtr,
     style_manager: *styles.StyleManager,
     translations: *TranslationStore,
     ui: *UiState,
+    highlight: ?*HighlightConfig,
 ) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
 
@@ -175,7 +182,6 @@ pub fn ModulePopup(
                 while (iterator.next()) |entry| : (i += 1) {
                     const fx_offset = entry.key_ptr.*;
                     const fx_name = strings.get(fx_offset);
-                    const is_selected = (i == current_index);
 
                     if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(fx_name)) })) {
                         const mapping_offsets = entry.value_ptr.*;
@@ -186,11 +192,13 @@ pub fn ModulePopup(
                             rv = .{ .select_fx = fx_offset };
                         }
                     }
-                    if (is_selected) {
-                        try ui_helpers.drawInvertedSlctblColors(ctx, fx_name, g_drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
-                        if (scroll_changed.*) {
-                            try imgui.SetScrollHereY(.{ ctx, 0.5 });
-                            scroll_changed.* = false;
+                    if (highlight) |hl| {
+                        if (i == hl.current_index) {
+                            try ui_helpers.drawInvertedSlctblColors(ctx, fx_name, hl.g_drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
+                            if (hl.scroll_changed.*) {
+                                try imgui.SetScrollHereY(.{ ctx, 0.5 });
+                                hl.scroll_changed.* = false;
+                            }
                         }
                     }
                 }
@@ -212,16 +220,17 @@ pub fn ModulePopup(
                 const entries = mappings.get(sel.fx_string_pool_offset) orelse return null;
                 for (entries.items, 0..) |map_entry, i| {
                     const mapping_name = strings.get(map_entry.name_offset);
-                    const is_selected = (i == current_index);
 
                     if (try imgui.Selectable(.{ ctx, @as([*:0]const u8, @ptrCast(mapping_name)) })) {
                         rv = .{ .plugin = .{ .name = sel.fx_name, .mapping_name = mapping_name } };
                     }
-                    if (is_selected) {
-                        try ui_helpers.drawInvertedSlctblColors(ctx, mapping_name, g_drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
-                        if (scroll_changed.*) {
-                            try imgui.SetScrollHereY(.{ ctx, 0.5 });
-                            scroll_changed.* = false;
+                    if (highlight) |hl| {
+                        if (i == hl.current_index) {
+                            try ui_helpers.drawInvertedSlctblColors(ctx, mapping_name, hl.g_drwls_splitter, try imgui.GetWindowDrawList(.{ctx}));
+                            if (hl.scroll_changed.*) {
+                                try imgui.SetScrollHereY(.{ ctx, 0.5 });
+                                hl.scroll_changed.* = false;
+                            }
                         }
                     }
                 }

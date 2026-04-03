@@ -6,10 +6,10 @@
 
 const c1 = @import("c1.zig");
 const statemachine = @import("statemachine.zig");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const fx_ctrl_state = @import("fx_ctrl_state.zig");
 const settings = @import("settings.zig");
-const StringPool = @import("string_pool.zig").StringPool;
+const StringPool = @import("string_pool").StringPool;
 
 pub const Mode = statemachine.Mode;
 pub const ModulesList = statemachine.ModulesList;

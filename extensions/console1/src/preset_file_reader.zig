@@ -1,6 +1,6 @@
 const std = @import("std");
 const ini = @import("ini");
-const StringPool = @import("string_pool.zig").StringPool;
+const StringPool = @import("string_pool").StringPool;
 
 /// Reads preset names from a REAPER user preset INI file.
 ///

@@ -1,7 +1,7 @@
 const std = @import("std");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const ini = @import("ini");
-const types = @import("fx_parser_types.zig");
+const types = @import("fx_parser_types");
 
 pub const FxType = types.FxType;
 pub const FxList = types.FxList;

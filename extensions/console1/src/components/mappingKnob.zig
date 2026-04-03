@@ -1,6 +1,6 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
-const knob = @import("knob.zig");
+const knob = @import("knob");
 const adjustBrightness = knob.adjustBrightness;
 const Circle = knob.Circle;
 const Arc = knob.Arc;

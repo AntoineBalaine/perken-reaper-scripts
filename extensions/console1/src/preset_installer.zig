@@ -1,6 +1,6 @@
 const std = @import("std");
 const ini = @import("ini");
-const preset_file_reader = @import("preset_file_reader.zig");
+const preset_file_reader = @import("preset_file_reader");
 const MappingsList = @import("mappings_list.zig");
 const log = std.log.scoped(.mappings);
 

@@ -1,6 +1,6 @@
 const std = @import("std");
 const ImGui = @import("reaper_imgui");
-const Reaper = @import("../reaper.zig");
+const Reaper = @import("reaper");
 const reaper = Reaper.reaper;
 pub const ThemeTypes = @import("reaperThemeTypes.zig");
 const fontello = @embedFile("../assets/fontello1.ttf");

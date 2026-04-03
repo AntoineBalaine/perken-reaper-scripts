@@ -96,19 +96,22 @@ pub fn main(
                     .browse_fx => ui.state.default_fx_sel.scroll_position_rel,
                     .select_mapping => |sel| sel.scroll_position_rel,
                 };
+                var default_hl = fx_sel_panel.HighlightConfig{
+                    .current_index = current_index,
+                    .scroll_changed = &ui.state.default_fx_sel.scroll_changed,
+                    .g_drwls_splitter = ui.drwls_splitter,
+                };
                 if (try fx_sel_panel.ModulePopup(
                     ctx,
                     module,
                     list,
                     &ui.mappings_list.strings,
-                    current_index,
                     ui.state.default_fx_sel.sub_mode,
-                    &ui.state.default_fx_sel.scroll_changed,
                     false,
-                    ui.drwls_splitter,
                     style_manager,
                     ui.translations,
                     ui,
+                    &default_hl,
                 )) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }
@@ -148,19 +151,22 @@ pub fn main(
                     .browse_fx => ui.state.fx_sel.scroll_position_rel,
                     .select_mapping => |sel| sel.scroll_position_rel,
                 };
+                var fx_hl = fx_sel_panel.HighlightConfig{
+                    .current_index = current_index,
+                    .scroll_changed = &ui.state.fx_sel.scroll_changed,
+                    .g_drwls_splitter = ui.drwls_splitter,
+                };
                 if (try fx_sel_panel.ModulePopup(
                     ctx,
                     module,
                     list,
                     &ui.mappings_list.strings,
-                    current_index,
                     ui.state.fx_sel.sub_mode,
-                    &ui.state.fx_sel.scroll_changed,
                     true,
-                    ui.drwls_splitter,
                     style_manager,
                     ui.translations,
                     ui,
+                    &fx_hl,
                 )) |sel_action| {
                     rv = .{ .fx_sel = sel_action };
                 }

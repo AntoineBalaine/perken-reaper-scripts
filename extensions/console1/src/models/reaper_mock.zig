@@ -937,7 +937,7 @@ test "mock reaper API track operations" {
 
 const std = @import("std");
 const testing = std.testing;
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const Guid = @import("../utils.zig").Guid;
 const fx_model = @import("fx_model.zig");
 const Param = fx_model.Param;

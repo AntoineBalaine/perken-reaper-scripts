@@ -1,7 +1,7 @@
 const std = @import("std");
 const c1 = @import("../c1.zig");
 const C1Model = @import("c1_model.zig");
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 
 // Define the types needed for the MIDI wrapper
 pub const midi_Input_w = ?*reaper.midi_Input;

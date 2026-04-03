@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const StringPool = @import("../string_pool.zig").StringPool;
+const StringPool = @import("string_pool").StringPool;
 const ParamStore = @import("../statemachine.zig").ParamStore;
 
 test "StringPool - basic operations" {

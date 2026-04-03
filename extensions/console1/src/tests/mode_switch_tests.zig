@@ -2,7 +2,7 @@ const std = @import("std");
 const models = @import("../models/models.zig");
 const c1 = @import("../c1.zig");
 const Globals = @import("../globals.zig");
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 
 /// convenience function that lumps together the setup/teardown
 /// utilities of the reaper mocks, midi mocks, and minimal globals.

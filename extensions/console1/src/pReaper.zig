@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const ACCEL = reaper.ACCEL;
 const AudioAccessor = reaper.AudioAccessor;
 const AudioWriter = reaper.AudioWriter;

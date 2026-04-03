@@ -1,5 +1,5 @@
 const std = @import("std");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const c1_theme = @import("theme/c1_theme.zig");
 const WindowColors = c1_theme.WindowColors;
 

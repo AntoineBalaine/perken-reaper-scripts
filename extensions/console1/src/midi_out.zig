@@ -1,5 +1,5 @@
 const std = @import("std");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const c1 = @import("c1.zig");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;

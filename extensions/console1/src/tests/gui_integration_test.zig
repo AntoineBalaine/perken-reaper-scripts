@@ -2,7 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const imgui = @import("reaper_imgui");
 const zlowcheck = @import("zlowcheck");
-const MockImGui = @import("../models/mock_imgui.zig").MockImGui;
+const MockImGui = @import("mock_imgui").MockImGui;
 const gui_lib = @import("../gui_lib.zig");
 const actions_mod = @import("../actions.zig");
 const action_types = @import("../action_types.zig");
@@ -14,7 +14,7 @@ const Theme = @import("../theme/c1_theme.zig");
 const styles = @import("../styles.zig");
 const UiState = @import("../ui_state.zig").UiState;
 const SettingsPanel = @import("../settings_panel.zig");
-const fx_types = @import("../fx_parser_types.zig");
+const fx_types = @import("fx_parser_types");
 const fx_parser = @import("../fx_parser.zig");
 
 // -- Test harness --

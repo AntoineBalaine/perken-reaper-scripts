@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 const imgui = @import("reaper_imgui");
-const MockImGui = @import("../models/mock_imgui.zig").MockImGui;
+const MockImGui = @import("mock_imgui").MockImGui;
 
 test "mock install sets getError to mockGetError" {
     var mock = MockImGui.init(testing.allocator);

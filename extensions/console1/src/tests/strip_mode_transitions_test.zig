@@ -12,7 +12,7 @@ const ModulesList = statemachine.ModulesList;
 const Mode = statemachine.Mode;
 const fx_sel_actions = @import("../fx_sel_actions.zig");
 const actions = @import("../actions.zig");
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const test_setup = @import("mode_switch_tests.zig").test_setup;
 
 // The model tracks only the current mode. The property under test is that

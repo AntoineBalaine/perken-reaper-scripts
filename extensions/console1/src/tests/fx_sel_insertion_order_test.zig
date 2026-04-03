@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const models = @import("../models/models.zig");
 const Globals = @import("../globals.zig");
 const statemachine = @import("../statemachine.zig");

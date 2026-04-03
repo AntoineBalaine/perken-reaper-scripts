@@ -1,5 +1,5 @@
 const std = @import("std");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const Allocator = std.mem.Allocator;
 const log = std.log.scoped(.fs_helpers);
 

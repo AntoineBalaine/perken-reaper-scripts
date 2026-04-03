@@ -411,7 +411,7 @@ fn mappingWidget(
             translations,
         ),
         .knob => blk: {
-            const label_id = @import("components/knob.zig").LabelId{
+            const label_id = @import("knob").LabelId{
                 .label = label,
                 .id = @tagName(cc),
             };

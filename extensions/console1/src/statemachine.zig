@@ -10,7 +10,7 @@ const c1 = @import("c1.zig");
 const MapStore = @import("mappings.zig");
 const FxControlState = @import("fx_ctrl_state.zig");
 const TransportState = @import("action_types.zig").TransportState;
-const StringPool = @import("string_pool.zig").StringPool;
+const StringPool = @import("string_pool").StringPool;
 const TranslationKey = @import("translations.zig").TranslationKey;
 
 pub const PhysicalModule = enum {

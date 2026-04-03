@@ -6,8 +6,8 @@ const c1 = @import("c1.zig");
 const ModulesList = statemachine.ModulesList;
 const PhysicalModule = statemachine.PhysicalModule;
 const fs_helpers = @import("fs_helpers.zig");
-const StringPool = @import("string_pool.zig").StringPool;
-const preset_file_reader = @import("preset_file_reader.zig");
+const StringPool = @import("string_pool").StringPool;
+const preset_file_reader = @import("preset_file_reader");
 const log = std.log.scoped(.mappings);
 
 pub const MAPPING_FORMAT_VERSION = 1;

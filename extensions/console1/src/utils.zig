@@ -1,5 +1,5 @@
 const std = @import("std");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 pub fn volToU8(vol: f64) u8 {
     var d: f64 = (reaper.DB2SLIDER(VAL2DB(vol)) * 127.0 / 1000.0);
     d = if (d < 0.0) 0.0 else if (d > 127.0) 127.0 else d;

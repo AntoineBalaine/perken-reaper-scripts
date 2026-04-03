@@ -1,5 +1,6 @@
 const std = @import("std");
-const Dependencies = @import("build.zig").Dependencies;
+const root = @import("build.zig");
+const Dependencies = root.Dependencies;
 
 pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: Dependencies) void {
     const entry_point_path = b.path("./src/console1_extension.zig");
@@ -96,6 +97,10 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     test_exe.root_module.addImport("ini", dependencies.ini.module("ini"));
     test_exe.root_module.addImport("zlowcheck", dependencies.zlowcheck.module("zlowcheck"));
     test_exe.root_module.addImport("reaper_imgui", dependencies.imgui_mod);
+
+    // Register shared modules so that test code can resolve module-name
+    // imports (e.g. @import("reaper"), @import("string_pool")).
+    root.addSharedModules(b, test_exe.root_module);
 
     // Link required libraries
     test_exe.linkLibC();

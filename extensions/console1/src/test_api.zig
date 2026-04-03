@@ -12,7 +12,7 @@
 // It unpacks the arglist and calls the real function.
 
 const std = @import("std");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
 const statemachine = @import("statemachine.zig");
 const Mode = statemachine.Mode;

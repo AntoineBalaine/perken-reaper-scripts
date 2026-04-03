@@ -3,7 +3,7 @@ const ModulesList = @import("statemachine.zig").ModulesList;
 const log = std.log.scoped(.mapping_list);
 const ini = @import("ini");
 const fs_helpers = @import("fs_helpers.zig");
-const StringPool = @import("string_pool.zig").StringPool;
+const StringPool = @import("string_pool").StringPool;
 
 pub const MapEntry = struct {
     name_offset: StringPool.StringRef, // mapping name (filename without .ini) in StringPool

@@ -1,7 +1,7 @@
 // zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_zig.so hello_world.zig
 
 const std = @import("std");
-const Reaper = @import("reaper.zig");
+const Reaper = @import("reaper");
 const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
 const c = @cImport({
@@ -118,7 +118,7 @@ test {
     _ = @import("label_pool.zig");
     _ = @import("mappings.zig");
     _ = @import("mapping_browser.zig");
-    _ = @import("preset_file_reader.zig");
+    _ = @import("preset_file_reader");
     _ = @import("preset_installer.zig");
     _ = @import("theme/c1_theme.zig");
 }

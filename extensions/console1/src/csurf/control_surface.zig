@@ -1,5 +1,5 @@
 const std = @import("std");
-const Reaper = @import("../reaper.zig");
+const Reaper = @import("reaper");
 const reaper = Reaper.reaper;
 const utils = @import("../utils.zig");
 const MediaTrack = Reaper.reaper.MediaTrack;

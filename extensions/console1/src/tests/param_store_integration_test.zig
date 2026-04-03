@@ -4,7 +4,7 @@ const reaper_mock = @import("../models/reaper_mock.zig");
 const ParamStore = @import("../statemachine.zig").ParamStore;
 const FX = @import("../models/models.zig").FX;
 const Param = @import("../models/models.zig").Param;
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const utils = @import("../utils.zig");
 
 fn createTestFX(allocator: std.mem.Allocator, param_names: []const [:0]const u8) !FX {

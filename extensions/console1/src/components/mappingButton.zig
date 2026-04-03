@@ -1,5 +1,5 @@
 const imgui = @import("reaper_imgui");
-const knob = @import("knob.zig");
+const knob = @import("knob");
 const Size = knob.Size;
 const Position = knob.Position;
 const Rectangle = knob.Rectangle;

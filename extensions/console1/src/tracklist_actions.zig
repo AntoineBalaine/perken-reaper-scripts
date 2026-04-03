@@ -1,6 +1,6 @@
 const std = @import("std");
 const c1 = @import("c1.zig");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const statemachine = @import("statemachine.zig");
 const State = statemachine.State;
 const log = std.log.scoped(.track_list);

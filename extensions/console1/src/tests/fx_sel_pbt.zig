@@ -12,7 +12,7 @@ const ModulesList = statemachine.ModulesList;
 const Mode = statemachine.Mode;
 const fx_sel_actions = @import("../fx_sel_actions.zig");
 const FxSelActions = fx_sel_actions.FxSelActions;
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const test_setup = @import("mode_switch_tests.zig").test_setup;
 
 // The model tracks FX selection mode state: the current module category,
@@ -278,4 +278,3 @@ test "fx_sel stateful - with random bytes" {
         try fxSelStatefulTest({}, &random_bytes);
     }
 }
-

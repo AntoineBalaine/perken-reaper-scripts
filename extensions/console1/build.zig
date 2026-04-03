@@ -162,6 +162,57 @@ pub fn build(b: *std.Build) !void {
     const zlowcheck = b.dependency("zlowcheck", .{ .target = target, .optimize = optimize });
     lib.root_module.addImport("zlowcheck", zlowcheck.module("zlowcheck"));
 
+    // Shared modules: reusable modules that external consumers can import as
+    // a Zig package dependency. Each module's cross-references use module
+    // names (not file paths), so they resolve correctly in any consumer.
+    const reaper_mod = b.addModule("reaper", .{
+        .root_source_file = b.path("src/reaper.zig"),
+    });
+
+    const string_pool_mod = b.addModule("string_pool", .{
+        .root_source_file = b.path("src/string_pool.zig"),
+    });
+    _ = b.addModule("fx_parser_types", .{
+        .root_source_file = b.path("src/fx_parser_types.zig"),
+    });
+
+    const color_helpers_mod = b.addModule("colorHelpers", .{
+        .root_source_file = b.path("src/theme/colorHelpers.zig"),
+    });
+    color_helpers_mod.addImport("reaper_imgui", imgui_mod);
+
+    // Note: c1_theme and reaperThemeTypes live under src/theme/ which uses
+    // @embedFile("../assets/...") to reference assets outside its directory.
+    // Because a module's package root is derived from its root_source_file,
+    // those embed paths would escape the package boundary.  These files are
+    // therefore kept as file-path imports within the root module rather
+    // than being registered as standalone modules.
+
+    const preset_file_reader_mod = b.addModule("preset_file_reader", .{
+        .root_source_file = b.path("src/preset_file_reader.zig"),
+    });
+    preset_file_reader_mod.addImport("string_pool", string_pool_mod);
+    preset_file_reader_mod.addImport("ini", ini.module("ini"));
+
+    const knob_mod = b.addModule("knob", .{
+        .root_source_file = b.path("src/components/knob.zig"),
+    });
+    knob_mod.addImport("reaper_imgui", imgui_mod);
+
+    const mock_imgui_mod = b.addModule("mock_imgui", .{
+        .root_source_file = b.path("src/models/mock_imgui.zig"),
+    });
+    mock_imgui_mod.addImport("reaper_imgui", imgui_mod);
+
+    const reaper_mock_generic_mod = b.addModule("reaper_mock_generic", .{
+        .root_source_file = b.path("src/models/reaper_mock_generic.zig"),
+    });
+    reaper_mock_generic_mod.addImport("reaper", reaper_mod);
+
+    // Register shared modules on the host extension so that files within the
+    // root module that use module-name imports can resolve them.
+    addSharedModules(b, lib.root_module);
+
     _ = tests.addTests(b, target, Dependencies{
         .ini = ini,
         .wdl = wdl_dep,
@@ -185,6 +236,9 @@ pub fn build(b: *std.Build) !void {
     ui_lib.linkLibC();
     ui_lib.root_module.addImport("ini", ini.module("ini"));
     ui_lib.root_module.addImport("reaper_imgui", imgui_mod);
+    // The UI library transitively imports shared files (e.g. fx_sel_panel
+    // uses fx_parser_types and string_pool), so it needs the shared modules.
+    addSharedModules(b, ui_lib.root_module);
 
     const ui_dest = if (is_macos)
         "reaper_c1_ui.dylib"
@@ -200,4 +254,30 @@ pub fn build(b: *std.Build) !void {
 
     const ui_step = b.step("ui", "Build hot-reloadable UI library");
     ui_step.dependOn(&ui_install.step);
+}
+
+/// Registers all shared modules as imports on `consumer` so that any file
+/// compiled within that module can resolve `@import("reaper")`,
+/// `@import("string_pool")`, etc.  External packages that depend on the C1
+/// repo call this from their own `build.zig` after adding C1 as a
+/// dependency.
+pub fn addSharedModules(b: *std.Build, consumer: *std.Build.Module) void {
+    const module_names = [_][]const u8{
+        "reaper",
+        "string_pool",
+        "fx_parser_types",
+        "colorHelpers",
+        "preset_file_reader",
+        "knob",
+        "mock_imgui",
+        "reaper_mock_generic",
+        "reaper_imgui",
+    };
+    for (module_names) |name| {
+        // b.modules already contains every module created with addModule
+        // during the build() call, so we can look them up by name.
+        if (b.modules.get(name)) |mod| {
+            consumer.addImport(name, mod);
+        }
+    }
 }

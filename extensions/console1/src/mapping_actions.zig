@@ -8,14 +8,14 @@ const mappings = @import("mappings.zig");
 const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.mapping_actions);
 const TaggedMapping = mappings.TaggedMapping;
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const constants = @import("constants.zig");
 const utils = @import("utils.zig");
 const pReaper = @import("pReaper.zig");
 const TrackState = @import("track_state.zig");
 const swell = @import("swell.zig");
 const tr = @import("translations.zig").tr;
-const preset_file_reader = @import("preset_file_reader.zig");
+const preset_file_reader = @import("preset_file_reader");
 
 pub const MappingPanelAction = @import("action_types.zig").MappingPanelAction;
 

@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
-const MockImGui = @import("../models/mock_imgui.zig").MockImGui;
-const Knobs = @import("../components/knob.zig");
+const MockImGui = @import("mock_imgui").MockImGui;
+const Knobs = @import("knob");
 const imgui = @import("reaper_imgui");
 
 fn setupMock(allocator: std.mem.Allocator) !*MockImGui {

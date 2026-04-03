@@ -10,7 +10,7 @@ const Globals = @import("../globals.zig").Globals;
 const transport_actions = @import("../transport_actions.zig");
 const TransportAction = transport_actions.TransportAction;
 const TransportState = transport_actions.TransportState;
-const reaper = @import("../reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const test_setup = @import("mode_switch_tests.zig").test_setup;
 
 // The model mirrors TransportState's scroll position fields.
@@ -456,4 +456,3 @@ test "transport stateful - with random bytes" {
         try transportStatefulTest({}, &random_bytes);
     }
 }
-

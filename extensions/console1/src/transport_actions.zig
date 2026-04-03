@@ -1,6 +1,6 @@
 const std = @import("std");
 const c1 = @import("c1.zig");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const pReaper = @import("pReaper.zig");
 const log = std.log.scoped(.transport);
 const utils = @import("utils.zig");

@@ -1,6 +1,6 @@
 const std = @import("std");
 const pReaper = @import("pReaper.zig");
-const reaper = @import("reaper.zig").reaper;
+const reaper = @import("reaper").reaper;
 const log = std.log.scoped(.reentrancy);
 
 pub var current_test: ?*ApiTestResult = null;
