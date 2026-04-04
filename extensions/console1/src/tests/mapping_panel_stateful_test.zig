@@ -17,7 +17,8 @@ const MappingPanelAction = mapping_actions.MappingPanelAction;
 const mappings = @import("../mappings.zig");
 const TaggedMapping = mappings.TaggedMapping;
 const c1 = @import("../c1.zig");
-const fs_helpers = @import("../fs_helpers.zig");
+const fs_helpers = @import("fs_helpers");
+const defaults = @import("../defaults.zig");
 const MappingsList = @import("../mappings_list.zig");
 
 const MockFileSystem = fs_helpers.MockFileSystem;
@@ -78,7 +79,7 @@ const System = struct {
 
         // Use real filesystem to copy embedded files to temp dir
         const real_fs = fs_helpers.RealFileSystem.fileSystemOps();
-        try fs_helpers.copyEmbeddedFilesToDir(real_fs, temp_path_owned);
+        try defaults.copyEmbeddedFilesToDir(real_fs, temp_path_owned);
 
         // Build resource_path pointing to temp Console1 directory
         const resource_path = try std.fs.path.joinZ(allocator, &.{

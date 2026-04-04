@@ -2,7 +2,7 @@ const std = @import("std");
 const ModulesList = @import("statemachine.zig").ModulesList;
 const log = std.log.scoped(.mapping_list);
 const ini = @import("ini");
-const fs_helpers = @import("fs_helpers.zig");
+const fs_helpers = @import("fs_helpers");
 const StringPool = @import("string_pool").StringPool;
 
 pub const MapEntry = struct {

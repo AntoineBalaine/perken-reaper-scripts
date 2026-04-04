@@ -172,9 +172,22 @@ pub fn build(b: *std.Build) !void {
     const string_pool_mod = b.addModule("string_pool", .{
         .root_source_file = b.path("src/string_pool.zig"),
     });
-    _ = b.addModule("fx_parser_types", .{
+    const fx_parser_types_mod = b.addModule("fx_parser_types", .{
         .root_source_file = b.path("src/fx_parser_types.zig"),
     });
+
+    const fs_helpers_mod = b.addModule("fs_helpers", .{
+        .root_source_file = b.path("src/fs_helpers.zig"),
+    });
+    fs_helpers_mod.addImport("reaper", reaper_mod);
+
+    const fx_parser_mod = b.addModule("fx_parser", .{
+        .root_source_file = b.path("src/fx_parser.zig"),
+    });
+    fx_parser_mod.addImport("reaper", reaper_mod);
+    fx_parser_mod.addImport("ini", ini.module("ini"));
+    fx_parser_mod.addImport("fx_parser_types", fx_parser_types_mod);
+    fx_parser_mod.addImport("fs_helpers", fs_helpers_mod);
 
     const color_helpers_mod = b.addModule("colorHelpers", .{
         .root_source_file = b.path("src/theme/colorHelpers.zig"),
@@ -266,6 +279,8 @@ pub fn addSharedModules(b: *std.Build, consumer: *std.Build.Module) void {
         "reaper",
         "string_pool",
         "fx_parser_types",
+        "fs_helpers",
+        "fx_parser",
         "colorHelpers",
         "preset_file_reader",
         "knob",

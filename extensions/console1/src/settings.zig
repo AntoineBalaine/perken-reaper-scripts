@@ -3,7 +3,7 @@ const ini = @import("ini");
 const ModulesList = @import("statemachine.zig").ModulesList; // Changed from mappings_mod.FxMap
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const log = std.log.scoped(.preferences);
-const fs_helpers = @import("fs_helpers.zig");
+const fs_helpers = @import("fs_helpers");
 
 // Hard-coded fallback defaults as EnumMap
 pub const fallback_defaults = std.EnumMap(ModulesList, [:0]const u8).init(.{

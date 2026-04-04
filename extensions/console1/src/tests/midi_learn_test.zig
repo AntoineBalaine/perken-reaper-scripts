@@ -16,7 +16,8 @@ const MappingPanelAction = mapping_actions.MappingPanelAction;
 const mappings = @import("../mappings.zig");
 const c1 = @import("../c1.zig");
 const CCs = c1.CCs;
-const fs_helpers = @import("../fs_helpers.zig");
+const fs_helpers = @import("fs_helpers");
+const defaults = @import("../defaults.zig");
 const MockFileSystem = fs_helpers.MockFileSystem;
 
 // ============================================================================
@@ -61,7 +62,7 @@ const System = struct {
         defer allocator.free(temp_path_owned);
 
         const real_fs = fs_helpers.RealFileSystem.fileSystemOps();
-        try fs_helpers.copyEmbeddedFilesToDir(real_fs, temp_path_owned);
+        try defaults.copyEmbeddedFilesToDir(real_fs, temp_path_owned);
 
         const resource_path = try std.fs.path.joinZ(allocator, &.{
             temp_path_owned, "Data", "Perken", "Console1",

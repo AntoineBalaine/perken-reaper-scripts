@@ -157,7 +157,7 @@ fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) 
 
 fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const path = @import("fs_helpers.zig").joinStrings(&path_buffer, &.{
+    const path = @import("fs_helpers").joinStrings(&path_buffer, &.{
         std.mem.span(reaper.GetResourcePath()),
         std.fs.path.sep_str,
         "reaper-fxtags.ini",

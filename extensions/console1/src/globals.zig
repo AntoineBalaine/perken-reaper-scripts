@@ -7,7 +7,7 @@ const SettingsPanel = @import("settings_panel.zig");
 const FxMaps = @import("mappings_list.zig");
 const reaper = @import("reaper").reaper;
 const fxParser = @import("fx_parser.zig");
-const fs_helpers = @import("fs_helpers.zig");
+const fs_helpers = @import("fs_helpers");
 const actions = @import("actions.zig");
 const log = std.log.scoped(.globals);
 const imgui = @import("reaper_imgui");
@@ -75,7 +75,7 @@ pub fn init() !void {
     const alloc = instance.arena_int.allocator();
     instance.fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
 
-    fs_helpers.ensureConfigPath(instance.fs_ops) catch {};
+    @import("defaults.zig").ensureConfigPath(instance.fs_ops) catch {};
     instance.resource_path = std.mem.span(try fs_helpers.getControllerPath(alloc));
 
     // Initialize in dependency order

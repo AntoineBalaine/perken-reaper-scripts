@@ -1,6 +1,6 @@
 const std = @import("std");
 const ini = @import("ini");
-const fs_helpers = @import("fs_helpers.zig");
+const fs_helpers = @import("fs_helpers");
 const log = std.log.scoped(.translations);
 
 pub const TranslationKey = enum {
