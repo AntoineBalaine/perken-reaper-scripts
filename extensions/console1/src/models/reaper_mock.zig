@@ -98,7 +98,7 @@ const Mocks = struct {
 };
 
 // Helper functions to set up and tear down the mock API
-fn setupMockReaperAPI(model: *Session) Mocks {
+pub fn setupMockReaperAPI(model: *Session) Mocks {
     setCurrentModel(model);
 
     // Create a Mocks struct to store original functions
@@ -119,13 +119,39 @@ fn setupMockReaperAPI(model: *Session) Mocks {
     return origFuncs;
 }
 
-fn restoreMockReaperAPI(origFuncs: anytype) void {
+pub fn restoreMockReaperAPI(origFuncs: anytype) void {
     inline for (std.meta.fields(Mocks)) |field| {
         const name = field.name;
         @constCast(&@field(reaper, name)).* = @constCast(&@field(origFuncs, name)).*;
     }
 
     g_session = null;
+}
+
+/// Generic setup: given a custom MockSet struct and a type with mock function
+/// declarations, saves the current reaper API pointers and replaces them with
+/// the mocks. The caller restores them with restoreGenericMockAPI.
+pub fn setupGenericMockAPI(comptime MockSet: type, comptime mock_source: type) MockSet {
+    var originals: MockSet = undefined;
+    inline for (std.meta.fields(MockSet)) |field| {
+        const name = field.name;
+        @field(originals, name) = @field(reaper, name);
+        if (@hasDecl(mock_source, name)) {
+            @constCast(&@field(reaper, name)).* = @constCast(&@field(mock_source, name));
+        } else {
+            @compileError("No mock implementation found for " ++ name);
+        }
+    }
+    return originals;
+}
+
+/// Generic restore: given original function pointers saved by setupGenericMockAPI,
+/// restores them back onto the reaper API.
+pub fn restoreGenericMockAPI(comptime MockSet: type, originals: MockSet) void {
+    inline for (std.meta.fields(MockSet)) |field| {
+        const name = field.name;
+        @constCast(&@field(reaper, name)).* = @field(originals, name);
+    }
 }
 
 // Mock REAPER API functions with the same signatures as the real API

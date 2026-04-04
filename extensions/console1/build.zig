@@ -217,10 +217,10 @@ pub fn build(b: *std.Build) !void {
     });
     mock_imgui_mod.addImport("reaper_imgui", imgui_mod);
 
-    const reaper_mock_generic_mod = b.addModule("reaper_mock_generic", .{
-        .root_source_file = b.path("src/models/reaper_mock_generic.zig"),
+    const reaper_mock_mod = b.addModule("reaper_mock", .{
+        .root_source_file = b.path("src/models/reaper_mock.zig"),
     });
-    reaper_mock_generic_mod.addImport("reaper", reaper_mod);
+    reaper_mock_mod.addImport("reaper", reaper_mod);
 
     // Register shared modules on the host extension so that files within the
     // root module that use module-name imports can resolve them.
@@ -285,7 +285,7 @@ pub fn addSharedModules(b: *std.Build, consumer: *std.Build.Module) void {
         "preset_file_reader",
         "knob",
         "mock_imgui",
-        "reaper_mock_generic",
+        "reaper_mock",
         "reaper_imgui",
     };
     for (module_names) |name| {
