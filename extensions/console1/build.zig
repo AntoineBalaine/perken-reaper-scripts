@@ -181,6 +181,12 @@ pub fn build(b: *std.Build) !void {
     });
     fs_helpers_mod.addImport("reaper", reaper_mod);
 
+    const translator_mod = b.addModule("Translator", .{
+        .root_source_file = b.path("src/Translator.zig"),
+    });
+    translator_mod.addImport("ini", ini.module("ini"));
+    translator_mod.addImport("fs_helpers", fs_helpers_mod);
+
     const fx_parser_mod = b.addModule("fx_parser", .{
         .root_source_file = b.path("src/fx_parser.zig"),
     });
@@ -287,6 +293,7 @@ pub fn addSharedModules(b: *std.Build, consumer: *std.Build.Module) void {
         "mock_imgui",
         "reaper_mock",
         "reaper_imgui",
+        "Translator",
     };
     for (module_names) |name| {
         // b.modules already contains every module created with addModule
