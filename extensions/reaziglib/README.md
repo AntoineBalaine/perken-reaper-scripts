@@ -1,4 +1,4 @@
-# reazig
+# reaziglib
 
 Shared Zig modules for building REAPER extensions with ReaImGui.
 
@@ -6,11 +6,11 @@ Shared Zig modules for building REAPER extensions with ReaImGui.
 
 ### Core
 
-| Module         | Description                                             |
-|----------------|---------------------------------------------------------|
-| `reaper`       | REAPER C API bindings (function pointers, opaque types) |
-| `reaper_imgui` | ReaImGui bindings                                       |
-|                |                                                         | `utils` | Volume/pan conversion, GUID handling, CC delta helpers, StringPool |
+| Module         | Description                                                      |
+|----------------|------------------------------------------------------------------|
+| `reaper`       | REAPER C API bindings (function pointers, opaque types)          |
+| `reaper_imgui` | ReaImGui bindings                                                |
+| `utils`        | Volume/pan conversion, GUID handling, CC delta helpers, StringPool |
 
 ### FX
 
@@ -53,11 +53,11 @@ Shared Zig modules for building REAPER extensions with ReaImGui.
 
 ## Usage
 
-Add reazig to your `build.zig.zon`:
+Add reaziglib to your `build.zig.zon`:
 
 ```zig
-.reazig = .{
-    .url = "https://github.com/AntoineBalaine/reazig/archive/<commit>.tar.gz",
+.reaziglib = .{
+    .url = "https://github.com/AntoineBalaine/reaziglib/archive/<commit>.tar.gz",
     .hash = "<hash>",
 },
 ```
@@ -65,30 +65,30 @@ Add reazig to your `build.zig.zon`:
 Get the hash with:
 
 ```
-zig fetch https://github.com/AntoineBalaine/reazig/archive/<commit>.tar.gz
+zig fetch https://github.com/AntoineBalaine/reaziglib/archive/<commit>.tar.gz
 ```
 
-Then in your `build.zig`, either wire all modules at once:
+Then in your `build.zig`, wire all modules at once:
 
 ```zig
-const reazig = @import("reazig");
+const reaziglib = @import("reaziglib");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const reazig_dep = b.dependency("reazig", .{ .target = target, .optimize = optimize });
+    const reazig_dep = b.dependency("reaziglib", .{ .target = target, .optimize = optimize });
 
     const lib = b.addSharedLibrary(.{ ... });
+    lib.linkLibC();
 
-    // adds all 17 modules in one call
-    reazig.addSharedModules(reazig_dep, lib.root_module);
+    reaziglib.addSharedModules(reazig_dep, lib.root_module);
 }
 ```
 
 Or pick individual modules:
 
 ```zig
-const reazig_dep = b.dependency("reazig", .{ .target = target, .optimize = optimize });
+const reazig_dep = b.dependency("reaziglib", .{ .target = target, .optimize = optimize });
 lib.root_module.addImport("reaper", reazig_dep.module("reaper"));
 lib.root_module.addImport("reaper_imgui", reazig_dep.module("reaper_imgui"));
 ```
@@ -99,6 +99,17 @@ Then in your Zig source files:
 const reaper = @import("reaper").reaper;
 const imgui = @import("reaper_imgui");
 ```
+
+## Example
+
+The `example/` directory contains a minimal REAPER extension that loads and prints a message to the console. To build it:
+
+```
+cd example
+zig build
+```
+
+The output is `zig-out/lib/reaper_hello.so` (or `.dylib` on macOS). Copy it to your REAPER `UserPlugins` directory and restart REAPER.
 
 ## License
 
