@@ -10,7 +10,7 @@ const csurf = @import("control_surface.zig");
 const reaeq = @import("../reaeq.zig");
 const log = std.log.scoped(.csurf);
 const TrackList = @import("../fx_ctrl_state.zig").TrackList;
-const utils = @import("../utils.zig");
+const utils = @import("utils");
 const TrackState = @import("../track_state.zig");
 const FxCtrlState = @import("../fx_ctrl_state.zig").FxControlState;
 

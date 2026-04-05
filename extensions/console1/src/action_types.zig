@@ -116,14 +116,7 @@ pub const TransportState = struct {
     grid: u8 = 0,
 };
 
-pub const AutomationMode = enum(c_int) {
-    trim,
-    read,
-    touch,
-    latch,
-    preview,
-    write,
-};
+pub const AutomationMode = @import("automation_mode").AutomationMode;
 
 pub const TransportAction = union(enum) {
     automation_mode: AutomationMode,

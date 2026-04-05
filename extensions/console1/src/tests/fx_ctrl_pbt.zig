@@ -14,7 +14,7 @@ const PhysicalModule = statemachine.PhysicalModule;
 const fx_ctrl_actions = @import("../fx_ctrl_actions.zig");
 const c1 = @import("../c1.zig");
 const reaper = @import("reaper").reaper;
-const utils = @import("../utils.zig");
+const utils = @import("utils");
 const models = @import("../models/models.zig");
 const LabelPool = TrackState.LabelPool;
 
@@ -491,7 +491,7 @@ fn fxCtrlStatefulTest(_: void, input: []const u8) !void {
             p.* = .{ .name = "param", .normalized_value = 0.5, .formatted_value = "0.5" };
         }
         try track_ptr.fx_list.append(alloc, .{
-            .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+            .guid = std.mem.zeroes(@import("utils").Guid),
             .enabled = true,
             .params = params,
             .named_configs = .{ .original_name = "Test FX", .renamed_name = "Test FX" },

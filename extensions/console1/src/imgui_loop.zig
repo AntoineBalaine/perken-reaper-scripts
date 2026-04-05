@@ -11,7 +11,7 @@ const c1_theme = @import("theme/c1_theme.zig");
 const reapack = @import("reapack.zig");
 const HotReloader = @import("hotreload.zig").HotReloader;
 const UiState = @import("ui_state.zig").UiState;
-const fx_parser = @import("fx_parser.zig");
+const fx_parser = @import("fx_parser");
 
 const log = std.log.scoped(.imgui_loop);
 const plugin_name = "CONSOLE1";

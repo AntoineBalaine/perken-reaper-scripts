@@ -14,7 +14,7 @@ const onMidiEvent_FxCtrl = MidiEvts.onMidiEvent_FxCtrl;
 const actions = @import("actions.zig");
 const pReaper = @import("pReaper.zig");
 const csurf = @import("csurf/control_surface.zig");
-const utils = @import("utils.zig");
+const utils = @import("utils");
 const reaeq = @import("reaeq.zig");
 const TrackState = @import("track_state.zig");
 

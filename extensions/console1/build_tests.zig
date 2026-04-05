@@ -1,5 +1,6 @@
 const std = @import("std");
 const root = @import("build.zig");
+const reaziglib = @import("reaziglib");
 const Dependencies = root.Dependencies;
 
 pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: Dependencies) void {
@@ -96,11 +97,9 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     // Add dependencies
     test_exe.root_module.addImport("ini", dependencies.ini.module("ini"));
     test_exe.root_module.addImport("zlowcheck", dependencies.zlowcheck.module("zlowcheck"));
-    test_exe.root_module.addImport("reaper_imgui", dependencies.imgui_mod);
 
-    // Register shared modules so that test code can resolve module-name
-    // imports (e.g. @import("reaper"), @import("string_pool")).
-    root.addSharedModules(b, test_exe.root_module);
+    // Register shared modules from reaziglib
+    reaziglib.addSharedModules(dependencies.reaziglib, test_exe.root_module);
 
     // Link required libraries
     test_exe.linkLibC();

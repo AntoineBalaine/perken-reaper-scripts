@@ -132,7 +132,7 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
         .scroll => |new_pos| {
             if (globals.settings_panel) |*settings_panel| {
                 const fields_count = comptime countFields(@TypeOf(globals.preferences));
-                if (@import("utils.zig").calculateNewScrollPosition(
+                if (@import("utils").calculateNewScrollPosition(
                     i16,
                     &settings_panel.scroll_position_abs,
                     &settings_panel.scroll_position_rel,

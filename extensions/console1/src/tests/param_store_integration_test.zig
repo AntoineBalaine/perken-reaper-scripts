@@ -1,11 +1,11 @@
 const std = @import("std");
 const testing = std.testing;
-const reaper_mock = @import("../models/reaper_mock.zig");
+const reaper_mock = @import("reaper_mock");
 const ParamStore = @import("../statemachine.zig").ParamStore;
 const FX = @import("../models/models.zig").FX;
 const Param = @import("../models/models.zig").Param;
 const reaper = @import("reaper").reaper;
-const utils = @import("../utils.zig");
+const utils = @import("utils");
 
 fn createTestFX(allocator: std.mem.Allocator, param_names: []const [:0]const u8) !FX {
     var params = try allocator.alloc(Param, param_names.len);

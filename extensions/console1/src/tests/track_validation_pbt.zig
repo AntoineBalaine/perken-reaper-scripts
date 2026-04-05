@@ -17,7 +17,7 @@ const Preferences = @import("../settings.zig").Preferences;
 const ModulesList = @import("../statemachine.zig").ModulesList;
 const ModulesOrder = @import("../fx_ctrl_state.zig").ModulesOrder;
 const MapStore = @import("../mappings.zig");
-const Guid = @import("../utils.zig").Guid;
+const Guid = @import("utils").Guid;
 
 /// used in tests
 pub fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {

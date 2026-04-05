@@ -32,6 +32,10 @@
             .url = "https://github.com/AntoineBalaine/zlowcheck/archive/44d1a1726ee1dabe22c9e75b7948993cef3409be.tar.gz",
             .hash = "zlowcheck-0.0.0-upaXybSvAwBYDrxmhs05Jba16Hrgjvtg0GSU5Y2zF_sk",
         },
+        .reaziglib = .{
+            .url = "https://github.com/AntoineBalaine/reaziglib/archive/101a243ea7a8.tar.gz",
+            .hash = "reaziglib-0.0.0-jusUJWkeEAAqi-UlPvfESgtyE5kO5VLlL5u9twVVB0wW",
+        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

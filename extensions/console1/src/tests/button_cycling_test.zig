@@ -37,7 +37,7 @@ test "getLabels populates is_toggle from TrackFX_GetParameterStepSizes" {
     comp_params[1].name = "Attack (ms)";
 
     try track_ptr.fx_list.append(alloc, .{
-        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .guid = std.mem.zeroes(@import("utils").Guid),
         .enabled = true,
         .params = comp_params,
         .named_configs = .{ .original_name = "Test Comp", .renamed_name = "Test Comp" },
@@ -51,7 +51,7 @@ test "getLabels populates is_toggle from TrackFX_GetParameterStepSizes" {
     out_params[0].name = "Drive Amount";
 
     try track_ptr.fx_list.append(alloc, .{
-        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .guid = std.mem.zeroes(@import("utils").Guid),
         .enabled = true,
         .params = out_params,
         .named_configs = .{ .original_name = "Test Out", .renamed_name = "Test Out" },
@@ -95,7 +95,7 @@ test "cycleDiscreteParam: toggle param flips between 0 and 1" {
         .max_val = 1.0,
     };
     try track_ptr.fx_list.append(alloc, .{
-        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .guid = std.mem.zeroes(@import("utils").Guid),
         .enabled = true,
         .params = params,
         .named_configs = .{ .original_name = "FX", .renamed_name = "FX" },
@@ -134,7 +134,7 @@ test "cycleDiscreteParam: 6-step param cycles and wraps" {
         .max_val = 5.0,
     };
     try track_ptr.fx_list.append(alloc, .{
-        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .guid = std.mem.zeroes(@import("utils").Guid),
         .enabled = true,
         .params = params,
         .named_configs = .{ .original_name = "FX", .renamed_name = "FX" },
@@ -170,7 +170,7 @@ test "cycleDiscreteParam: 3-step param at max wraps to min" {
         .max_val = 2.0,
     };
     try track_ptr.fx_list.append(alloc, .{
-        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .guid = std.mem.zeroes(@import("utils").Guid),
         .enabled = true,
         .params = params,
         .named_configs = .{ .original_name = "FX", .renamed_name = "FX" },
@@ -201,7 +201,7 @@ test "cycleDiscreteParam: continuous param on button toggles around midpoint" {
         .max_val = 1.0,
     };
     try track_ptr.fx_list.append(alloc, .{
-        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .guid = std.mem.zeroes(@import("utils").Guid),
         .enabled = true,
         .params = params,
         .named_configs = .{ .original_name = "FX", .renamed_name = "FX" },
@@ -278,7 +278,7 @@ test "stepDiscreteParam: accumulates deltas and steps at boundary" {
         .max_val = 5.0,
     };
     try track_ptr.fx_list.append(alloc, .{
-        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .guid = std.mem.zeroes(@import("utils").Guid),
         .enabled = true,
         .params = params,
         .named_configs = .{ .original_name = "FX", .renamed_name = "FX" },
@@ -338,7 +338,7 @@ test "stepDiscreteParam: returns null for continuous params" {
         .max_val = 1.0,
     };
     try track_ptr.fx_list.append(alloc, .{
-        .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+        .guid = std.mem.zeroes(@import("utils").Guid),
         .enabled = true,
         .params = params,
         .named_configs = .{ .original_name = "FX", .renamed_name = "FX" },

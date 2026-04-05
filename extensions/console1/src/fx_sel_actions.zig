@@ -10,7 +10,7 @@ const dispatch = @import("actions.zig").dispatch;
 const log = std.log.scoped(.fx_sel_actions);
 const TrackState = @import("track_state.zig");
 const Globals = @import("globals.zig").Globals;
-const utils = @import("utils.zig");
+const utils = @import("utils");
 const ModulesOrder = @import("fx_ctrl_state.zig").ModulesOrder;
 const MapStore = @import("mappings.zig");
 
@@ -152,7 +152,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             dispatch(globals, .{ .change_mode = .fx_ctrl });
         },
         .rescan => {
-            const fxp = @import("fx_parser.zig");
+            const fxp = @import("fx_parser");
             fxp.deinit(globals.arena_int.allocator());
             fxp.init(globals.arena_int.allocator()) catch {};
         },

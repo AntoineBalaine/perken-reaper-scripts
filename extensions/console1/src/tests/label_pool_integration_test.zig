@@ -46,7 +46,7 @@ fn setupTrackWithFx(reaper_teardown: anytype, alloc: std.mem.Allocator) !void {
             };
         }
         try track_ptr.fx_list.append(alloc, .{
-            .guid = std.mem.zeroes(@import("../utils.zig").Guid),
+            .guid = std.mem.zeroes(@import("utils").Guid),
             .enabled = true,
             .params = params,
             .named_configs = .{ .original_name = "Test FX", .renamed_name = "Test FX" },

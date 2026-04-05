@@ -6,7 +6,7 @@ const Mode = statemachine.Mode;
 const Globals = @import("globals.zig").Globals;
 const constants = @import("constants.zig");
 const log = std.log.scoped(.midi_output);
-const utils = @import("utils.zig");
+const utils = @import("utils");
 const builtin = @import("builtin");
 const c = @cImport({
     @cDefine("WDL_ALLOW_UNSIGNED_DEFAULT_CHAR", "1");

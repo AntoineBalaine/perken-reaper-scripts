@@ -4,7 +4,7 @@ const State = statemachine.State;
 const Globals = @import("globals.zig").Globals;
 const ModulesList = statemachine.ModulesList;
 const dispatch = @import("actions.zig").dispatch;
-const utils = @import("utils.zig");
+const utils = @import("utils");
 const log = std.log.scoped(.default_fx_sel_actions);
 
 pub fn defaultFxSelActions(globals: *Globals, sel_action: @import("fx_sel_actions.zig").FxSelActions) void {
