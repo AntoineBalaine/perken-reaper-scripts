@@ -112,6 +112,11 @@ pub fn build(b: *std.Build) void {
     reaper_mock_mod.addImport("fx_model", fx_model_mod);
     reaper_mock_mod.addImport("track_model", track_model_mod);
     reaper_mock_mod.addImport("session", session_mod);
+
+    // slotted_buffer (no deps)
+    _ = b.addModule("slotted_buffer", .{
+        .root_source_file = b.path("src/slotted_buffer.zig"),
+    });
 }
 
 pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {
@@ -133,6 +138,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "track_model",
         "session",
         "Translator",
+        "slotted_buffer",
     };
     for (module_names) |name| {
         consumer.addImport(name, dep.module(name));
