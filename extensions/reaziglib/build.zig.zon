@@ -1,6 +1,6 @@
 .{
-    .name = .reazig,
-    .fingerprint = 0x1befaca155ac437b,
+    .name = .reaziglib,
+    .fingerprint = 0x43b2008c2514eb8e,
     .version = "0.0.0",
     .dependencies = .{
         .ini = .{
