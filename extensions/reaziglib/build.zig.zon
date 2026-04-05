@@ -1,6 +1,6 @@
 .{
-    .name = .reaper_zig_lib,
-    .fingerprint = 0x68ff577b825aecbe,
+    .name = .reazig,
+    .fingerprint = 0x1befaca155ac437b,
     .version = "0.0.0",
     .dependencies = .{
         .ini = .{
