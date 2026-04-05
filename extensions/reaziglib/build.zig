@@ -76,12 +76,42 @@ pub fn build(b: *std.Build) void {
     });
     mock_imgui_mod.addImport("reaper_imgui", reaper_imgui_mod);
 
-    // reaper_mock depends on reaper and utils (for model types under models/)
+    // automation_mode (no deps)
+    const automation_mode_mod = b.addModule("automation_mode", .{
+        .root_source_file = b.path("src/models/automation_mode.zig"),
+    });
+
+    // fx_model depends on utils
+    const fx_model_mod = b.addModule("fx_model", .{
+        .root_source_file = b.path("src/models/fx_model.zig"),
+    });
+    fx_model_mod.addImport("utils", utils_mod);
+
+    // track_model depends on utils, fx_model, automation_mode
+    const track_model_mod = b.addModule("track_model", .{
+        .root_source_file = b.path("src/models/track_model.zig"),
+    });
+    track_model_mod.addImport("utils", utils_mod);
+    track_model_mod.addImport("fx_model", fx_model_mod);
+    track_model_mod.addImport("automation_mode", automation_mode_mod);
+
+    // session depends on track_model, utils, automation_mode
+    const session_mod = b.addModule("session", .{
+        .root_source_file = b.path("src/models/session.zig"),
+    });
+    session_mod.addImport("track_model", track_model_mod);
+    session_mod.addImport("utils", utils_mod);
+    session_mod.addImport("automation_mode", automation_mode_mod);
+
+    // reaper_mock depends on reaper, utils, fx_model, track_model, session
     const reaper_mock_mod = b.addModule("reaper_mock", .{
         .root_source_file = b.path("src/models/reaper_mock.zig"),
     });
     reaper_mock_mod.addImport("reaper", reaper_mod);
     reaper_mock_mod.addImport("utils", utils_mod);
+    reaper_mock_mod.addImport("fx_model", fx_model_mod);
+    reaper_mock_mod.addImport("track_model", track_model_mod);
+    reaper_mock_mod.addImport("session", session_mod);
 }
 
 pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {
@@ -98,6 +128,10 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "knob",
         "mock_imgui",
         "reaper_mock",
+        "automation_mode",
+        "fx_model",
+        "track_model",
+        "session",
         "Translator",
     };
     for (module_names) |name| {

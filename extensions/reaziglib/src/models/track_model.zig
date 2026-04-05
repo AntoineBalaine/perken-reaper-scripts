@@ -1,7 +1,7 @@
 const std = @import("std");
-const AutomationMode = @import("automation_mode.zig").AutomationMode;
+const AutomationMode = @import("automation_mode").AutomationMode;
 const utils = @import("utils");
-const fx_model = @import("fx_model.zig");
+const fx_model = @import("fx_model");
 const FX = fx_model.FX;
 pub const TrackInfo = struct {
     phase: bool = false,
