@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
 
     const is_macos = target.result.os.tag == .macos;
     const dest = if (is_macos) "reaper_hello.dylib" else "reaper_hello.so";
-    const install = b.addInstallArtifact(lib, .{ .dest_sub_path = dest });
+    const install = b.addInstallArtifact(lib, .{ .dest_dir = .{ .override = .{ .custom = "" } }, .dest_sub_path = dest });
     b.getInstallStep().dependOn(&install.step);
 
     // Test target

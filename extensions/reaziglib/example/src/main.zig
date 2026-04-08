@@ -15,14 +15,10 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     if (!Reaper.init(rec.?))
         return 0;
 
-    imgui_available = loadImGui();
-
-    if (imgui_available) {
-        Reaper.ShowConsoleMsg("reaziglib example: ReaImGui loaded, registering timer.\n");
-        _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
-    } else {
-        Reaper.ShowConsoleMsg("reaziglib example: ReaImGui not found, running without GUI.\n");
-    }
+    // Register the timer unconditionally. ImGui init is deferred to the first
+    // timer tick because ReaImGui may not have loaded yet at plugin entry time
+    // (REAPER loads plugins alphabetically, and reaper_hello < reaper_imgui).
+    _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
 
     return 1;
 }
@@ -33,6 +29,11 @@ fn loadImGui() bool {
 }
 
 fn onTimer() callconv(.C) void {
+    if (!imgui_available) {
+        imgui_available = loadImGui();
+        if (!imgui_available) return;
+    }
+
     if (ctx == null) {
         ctx = imgui.api.CreateContext("reaziglib example", null);
         if (ctx == null) return;
@@ -65,4 +66,5 @@ fn onTimer() callconv(.C) void {
 test {
     _ = @import("tests/mock_reaper_test.zig");
     _ = @import("tests/mock_imgui_test.zig");
+    _ = @import("tests/flag_constants_test.zig");
 }

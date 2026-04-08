@@ -421,570 +421,1132 @@ pub const API = struct {
     SetScrollHereY: *fn (ContextPtr, ?*f64) callconv(.C) void,
     SetScrollX: *fn (ContextPtr, f64) callconv(.C) void,
     SetScrollY: *fn (ContextPtr, f64) callconv(.C) void,
-
-    pub var Dir_Down: c_int = undefined;
-    pub var Dir_Left: c_int = undefined;
-    pub var Dir_None: c_int = undefined;
-    pub var Dir_Right: c_int = undefined;
-    pub var Dir_Up: c_int = undefined;
-    pub var ButtonFlags_MouseButtonLeft: c_int = undefined;
-    pub var ButtonFlags_MouseButtonMiddle: c_int = undefined;
-    pub var ButtonFlags_MouseButtonRight: c_int = undefined;
-    pub var ButtonFlags_None: c_int = undefined;
-    pub var ColorEditFlags_NoAlpha: c_int = undefined;
-    pub var ColorEditFlags_NoBorder: c_int = undefined;
-    pub var ColorEditFlags_NoDragDrop: c_int = undefined;
-    pub var ColorEditFlags_NoInputs: c_int = undefined;
-    pub var ColorEditFlags_NoLabel: c_int = undefined;
-    pub var ColorEditFlags_NoOptions: c_int = undefined;
-    pub var ColorEditFlags_NoPicker: c_int = undefined;
-    pub var ColorEditFlags_NoSidePreview: c_int = undefined;
-    pub var ColorEditFlags_NoSmallPreview: c_int = undefined;
-    pub var ColorEditFlags_NoTooltip: c_int = undefined;
-    pub var ColorEditFlags_None: c_int = undefined;
-    pub var ColorEditFlags_AlphaBar: c_int = undefined;
-    pub var ColorEditFlags_AlphaPreview: c_int = undefined;
-    pub var ColorEditFlags_AlphaPreviewHalf: c_int = undefined;
-    pub var ColorEditFlags_DisplayHSV: c_int = undefined;
-    pub var ColorEditFlags_DisplayHex: c_int = undefined;
-    pub var ColorEditFlags_DisplayRGB: c_int = undefined;
-    pub var ColorEditFlags_Float: c_int = undefined;
-    pub var ColorEditFlags_InputHSV: c_int = undefined;
-    pub var ColorEditFlags_InputRGB: c_int = undefined;
-    pub var ColorEditFlags_PickerHueBar: c_int = undefined;
-    pub var ColorEditFlags_PickerHueWheel: c_int = undefined;
-    pub var ColorEditFlags_Uint8: c_int = undefined;
-    pub var ComboFlags_HeightLarge: c_int = undefined;
-    pub var ComboFlags_HeightLargest: c_int = undefined;
-    pub var ComboFlags_HeightRegular: c_int = undefined;
-    pub var ComboFlags_HeightSmall: c_int = undefined;
-    pub var ComboFlags_NoArrowButton: c_int = undefined;
-    pub var ComboFlags_NoPreview: c_int = undefined;
-    pub var ComboFlags_None: c_int = undefined;
-    pub var ComboFlags_PopupAlignLeft: c_int = undefined;
-    pub var ComboFlags_WidthFitPreview: c_int = undefined;
-    pub var SelectableFlags_AllowDoubleClick: c_int = undefined;
-    pub var SelectableFlags_AllowOverlap: c_int = undefined;
-    pub var SelectableFlags_Disabled: c_int = undefined;
-    pub var SelectableFlags_DontClosePopups: c_int = undefined;
-    pub var SelectableFlags_None: c_int = undefined;
-    pub var SelectableFlags_SpanAllColumns: c_int = undefined;
-    pub var ConfigFlags_DockingEnable: c_int = undefined;
-    pub var ConfigFlags_NavEnableKeyboard: c_int = undefined;
-    pub var ConfigFlags_NavEnableSetMousePos: c_int = undefined;
-    pub var ConfigFlags_NavNoCaptureKeyboard: c_int = undefined;
-    pub var ConfigFlags_NoKeyboard: c_int = undefined;
-    pub var ConfigFlags_NoMouse: c_int = undefined;
-    pub var ConfigFlags_NoMouseCursorChange: c_int = undefined;
-    pub var ConfigFlags_NoSavedSettings: c_int = undefined;
-    pub var ConfigFlags_None: c_int = undefined;
-    pub var ConfigVar_DebugBeginReturnValueLoop: c_int = undefined;
-    pub var ConfigVar_DebugBeginReturnValueOnce: c_int = undefined;
-    pub var ConfigVar_DockingNoSplit: c_int = undefined;
-    pub var ConfigVar_DockingTransparentPayload: c_int = undefined;
-    pub var ConfigVar_DockingWithShift: c_int = undefined;
-    pub var ConfigVar_DragClickToInputText: c_int = undefined;
-    pub var ConfigVar_Flags: c_int = undefined;
-    pub var ConfigVar_HoverDelayNormal: c_int = undefined;
-    pub var ConfigVar_HoverDelayShort: c_int = undefined;
-    pub var ConfigVar_HoverFlagsForTooltipMouse: c_int = undefined;
-    pub var ConfigVar_HoverFlagsForTooltipNav: c_int = undefined;
-    pub var ConfigVar_HoverStationaryDelay: c_int = undefined;
-    pub var ConfigVar_InputTextCursorBlink: c_int = undefined;
-    pub var ConfigVar_InputTextEnterKeepActive: c_int = undefined;
-    pub var ConfigVar_InputTrickleEventQueue: c_int = undefined;
-    pub var ConfigVar_KeyRepeatDelay: c_int = undefined;
-    pub var ConfigVar_KeyRepeatRate: c_int = undefined;
-    pub var ConfigVar_MacOSXBehaviors: c_int = undefined;
-    pub var ConfigVar_MouseDoubleClickMaxDist: c_int = undefined;
-    pub var ConfigVar_MouseDoubleClickTime: c_int = undefined;
-    pub var ConfigVar_MouseDragThreshold: c_int = undefined;
-    pub var ConfigVar_ViewportsNoDecoration: c_int = undefined;
-    pub var ConfigVar_WindowsMoveFromTitleBarOnly: c_int = undefined;
-    pub var ConfigVar_WindowsResizeFromEdges: c_int = undefined;
-    pub var DragDropFlags_None: c_int = undefined;
-    pub var DragDropFlags_AcceptBeforeDelivery: c_int = undefined;
-    pub var DragDropFlags_AcceptNoDrawDefaultRect: c_int = undefined;
-    pub var DragDropFlags_AcceptNoPreviewTooltip: c_int = undefined;
-    pub var DragDropFlags_AcceptPeekOnly: c_int = undefined;
-    pub var DragDropFlags_PayloadAutoExpire: c_int = undefined;
-    pub var DragDropFlags_SourceAllowNullID: c_int = undefined;
-    pub var DragDropFlags_SourceExtern: c_int = undefined;
-    pub var DragDropFlags_SourceNoDisableHover: c_int = undefined;
-    pub var DragDropFlags_SourceNoHoldToOpenOthers: c_int = undefined;
-    pub var DragDropFlags_SourceNoPreviewTooltip: c_int = undefined;
-    pub var SliderFlags_AlwaysClamp: c_int = undefined;
-    pub var SliderFlags_Logarithmic: c_int = undefined;
-    pub var SliderFlags_NoInput: c_int = undefined;
-    pub var SliderFlags_NoRoundToFormat: c_int = undefined;
-    pub var SliderFlags_None: c_int = undefined;
-    pub var SliderFlags_WrapAround: c_int = undefined;
-    pub var DrawFlags_Closed: c_int = undefined;
-    pub var DrawFlags_None: c_int = undefined;
-    pub var DrawFlags_RoundCornersAll: c_int = undefined;
-    pub var DrawFlags_RoundCornersBottom: c_int = undefined;
-    pub var DrawFlags_RoundCornersBottomLeft: c_int = undefined;
-    pub var DrawFlags_RoundCornersBottomRight: c_int = undefined;
-    pub var DrawFlags_RoundCornersLeft: c_int = undefined;
-    pub var DrawFlags_RoundCornersNone: c_int = undefined;
-    pub var DrawFlags_RoundCornersRight: c_int = undefined;
-    pub var DrawFlags_RoundCornersTop: c_int = undefined;
-    pub var DrawFlags_RoundCornersTopLeft: c_int = undefined;
-    pub var DrawFlags_RoundCornersTopRight: c_int = undefined;
-    pub var FontFlags_Bold: c_int = undefined;
-    pub var FontFlags_Italic: c_int = undefined;
-    pub var FontFlags_None: c_int = undefined;
-    pub var HoveredFlags_AllowWhenBlockedByActiveItem: c_int = undefined;
-    pub var HoveredFlags_AllowWhenBlockedByPopup: c_int = undefined;
-    pub var HoveredFlags_ForTooltip: c_int = undefined;
-    pub var HoveredFlags_NoNavOverride: c_int = undefined;
-    pub var HoveredFlags_None: c_int = undefined;
-    pub var HoveredFlags_Stationary: c_int = undefined;
-    pub var HoveredFlags_AllowWhenDisabled: c_int = undefined;
-    pub var HoveredFlags_AllowWhenOverlapped: c_int = undefined;
-    pub var HoveredFlags_AllowWhenOverlappedByItem: c_int = undefined;
-    pub var HoveredFlags_AllowWhenOverlappedByWindow: c_int = undefined;
-    pub var HoveredFlags_RectOnly: c_int = undefined;
-    pub var HoveredFlags_DelayNone: c_int = undefined;
-    pub var HoveredFlags_DelayNormal: c_int = undefined;
-    pub var HoveredFlags_DelayShort: c_int = undefined;
-    pub var HoveredFlags_NoSharedDelay: c_int = undefined;
-    pub var HoveredFlags_AnyWindow: c_int = undefined;
-    pub var HoveredFlags_ChildWindows: c_int = undefined;
-    pub var HoveredFlags_DockHierarchy: c_int = undefined;
-    pub var HoveredFlags_NoPopupHierarchy: c_int = undefined;
-    pub var HoveredFlags_RootAndChildWindows: c_int = undefined;
-    pub var HoveredFlags_RootWindow: c_int = undefined;
-    pub var Key_0: c_int = undefined;
-    pub var Key_1: c_int = undefined;
-    pub var Key_2: c_int = undefined;
-    pub var Key_3: c_int = undefined;
-    pub var Key_4: c_int = undefined;
-    pub var Key_5: c_int = undefined;
-    pub var Key_6: c_int = undefined;
-    pub var Key_7: c_int = undefined;
-    pub var Key_8: c_int = undefined;
-    pub var Key_9: c_int = undefined;
-    pub var Key_A: c_int = undefined;
-    pub var Key_Apostrophe: c_int = undefined;
-    pub var Key_AppBack: c_int = undefined;
-    pub var Key_AppForward: c_int = undefined;
-    pub var Key_B: c_int = undefined;
-    pub var Key_Backslash: c_int = undefined;
-    pub var Key_Backspace: c_int = undefined;
-    pub var Key_C: c_int = undefined;
-    pub var Key_CapsLock: c_int = undefined;
-    pub var Key_Comma: c_int = undefined;
-    pub var Key_D: c_int = undefined;
-    pub var Key_Delete: c_int = undefined;
-    pub var Key_DownArrow: c_int = undefined;
-    pub var Key_E: c_int = undefined;
-    pub var Key_End: c_int = undefined;
-    pub var Key_Enter: c_int = undefined;
-    pub var Key_Equal: c_int = undefined;
-    pub var Key_Escape: c_int = undefined;
-    pub var Key_F: c_int = undefined;
-    pub var Key_F1: c_int = undefined;
-    pub var Key_F10: c_int = undefined;
-    pub var Key_F11: c_int = undefined;
-    pub var Key_F12: c_int = undefined;
-    pub var Key_F13: c_int = undefined;
-    pub var Key_F14: c_int = undefined;
-    pub var Key_F15: c_int = undefined;
-    pub var Key_F16: c_int = undefined;
-    pub var Key_F17: c_int = undefined;
-    pub var Key_F18: c_int = undefined;
-    pub var Key_F19: c_int = undefined;
-    pub var Key_F2: c_int = undefined;
-    pub var Key_F20: c_int = undefined;
-    pub var Key_F21: c_int = undefined;
-    pub var Key_F22: c_int = undefined;
-    pub var Key_F23: c_int = undefined;
-    pub var Key_F24: c_int = undefined;
-    pub var Key_F3: c_int = undefined;
-    pub var Key_F4: c_int = undefined;
-    pub var Key_F5: c_int = undefined;
-    pub var Key_F6: c_int = undefined;
-    pub var Key_F7: c_int = undefined;
-    pub var Key_F8: c_int = undefined;
-    pub var Key_F9: c_int = undefined;
-    pub var Key_G: c_int = undefined;
-    pub var Key_GraveAccent: c_int = undefined;
-    pub var Key_H: c_int = undefined;
-    pub var Key_Home: c_int = undefined;
-    pub var Key_I: c_int = undefined;
-    pub var Key_Insert: c_int = undefined;
-    pub var Key_J: c_int = undefined;
-    pub var Key_K: c_int = undefined;
-    pub var Key_Keypad0: c_int = undefined;
-    pub var Key_Keypad1: c_int = undefined;
-    pub var Key_Keypad2: c_int = undefined;
-    pub var Key_Keypad3: c_int = undefined;
-    pub var Key_Keypad4: c_int = undefined;
-    pub var Key_Keypad5: c_int = undefined;
-    pub var Key_Keypad6: c_int = undefined;
-    pub var Key_Keypad7: c_int = undefined;
-    pub var Key_Keypad8: c_int = undefined;
-    pub var Key_Keypad9: c_int = undefined;
-    pub var Key_KeypadAdd: c_int = undefined;
-    pub var Key_KeypadDecimal: c_int = undefined;
-    pub var Key_KeypadDivide: c_int = undefined;
-    pub var Key_KeypadEnter: c_int = undefined;
-    pub var Key_KeypadEqual: c_int = undefined;
-    pub var Key_KeypadMultiply: c_int = undefined;
-    pub var Key_KeypadSubtract: c_int = undefined;
-    pub var Key_L: c_int = undefined;
-    pub var Key_LeftAlt: c_int = undefined;
-    pub var Key_LeftArrow: c_int = undefined;
-    pub var Key_LeftBracket: c_int = undefined;
-    pub var Key_LeftCtrl: c_int = undefined;
-    pub var Key_LeftShift: c_int = undefined;
-    pub var Key_LeftSuper: c_int = undefined;
-    pub var Key_M: c_int = undefined;
-    pub var Key_Menu: c_int = undefined;
-    pub var Key_Minus: c_int = undefined;
-    pub var Key_N: c_int = undefined;
-    pub var Key_NumLock: c_int = undefined;
-    pub var Key_O: c_int = undefined;
-    pub var Key_P: c_int = undefined;
-    pub var Key_PageDown: c_int = undefined;
-    pub var Key_PageUp: c_int = undefined;
-    pub var Key_Pause: c_int = undefined;
-    pub var Key_Period: c_int = undefined;
-    pub var Key_PrintScreen: c_int = undefined;
-    pub var Key_Q: c_int = undefined;
-    pub var Key_R: c_int = undefined;
-    pub var Key_RightAlt: c_int = undefined;
-    pub var Key_RightArrow: c_int = undefined;
-    pub var Key_RightBracket: c_int = undefined;
-    pub var Key_RightCtrl: c_int = undefined;
-    pub var Key_RightShift: c_int = undefined;
-    pub var Key_RightSuper: c_int = undefined;
-    pub var Key_S: c_int = undefined;
-    pub var Key_ScrollLock: c_int = undefined;
-    pub var Key_Semicolon: c_int = undefined;
-    pub var Key_Slash: c_int = undefined;
-    pub var Key_Space: c_int = undefined;
-    pub var Key_T: c_int = undefined;
-    pub var Key_Tab: c_int = undefined;
-    pub var Key_U: c_int = undefined;
-    pub var Key_UpArrow: c_int = undefined;
-    pub var Key_V: c_int = undefined;
-    pub var Key_W: c_int = undefined;
-    pub var Key_X: c_int = undefined;
-    pub var Key_Y: c_int = undefined;
-    pub var Key_Z: c_int = undefined;
-    pub var Mod_Alt: c_int = undefined;
-    pub var Mod_Ctrl: c_int = undefined;
-    pub var Mod_None: c_int = undefined;
-    pub var Mod_Shift: c_int = undefined;
-    pub var Mod_Super: c_int = undefined;
-    pub var Key_MouseLeft: c_int = undefined;
-    pub var Key_MouseMiddle: c_int = undefined;
-    pub var Key_MouseRight: c_int = undefined;
-    pub var Key_MouseWheelX: c_int = undefined;
-    pub var Key_MouseWheelY: c_int = undefined;
-    pub var Key_MouseX1: c_int = undefined;
-    pub var Key_MouseX2: c_int = undefined;
-    pub var MouseButton_Left: c_int = undefined;
-    pub var MouseButton_Middle: c_int = undefined;
-    pub var MouseButton_Right: c_int = undefined;
-    pub var MouseCursor_Arrow: c_int = undefined;
-    pub var MouseCursor_Hand: c_int = undefined;
-    pub var MouseCursor_None: c_int = undefined;
-    pub var MouseCursor_NotAllowed: c_int = undefined;
-    pub var MouseCursor_ResizeAll: c_int = undefined;
-    pub var MouseCursor_ResizeEW: c_int = undefined;
-    pub var MouseCursor_ResizeNESW: c_int = undefined;
-    pub var MouseCursor_ResizeNS: c_int = undefined;
-    pub var MouseCursor_ResizeNWSE: c_int = undefined;
-    pub var MouseCursor_TextInput: c_int = undefined;
-    pub var InputFlags_None: c_int = undefined;
-    pub var InputFlags_Repeat: c_int = undefined;
-    pub var InputFlags_RouteFromRootWindow: c_int = undefined;
-    pub var InputFlags_RouteOverActive: c_int = undefined;
-    pub var InputFlags_RouteOverFocused: c_int = undefined;
-    pub var InputFlags_RouteUnlessBgFocused: c_int = undefined;
-    pub var InputFlags_Tooltip: c_int = undefined;
-    pub var InputFlags_RouteActive: c_int = undefined;
-    pub var InputFlags_RouteAlways: c_int = undefined;
-    pub var InputFlags_RouteFocused: c_int = undefined;
-    pub var InputFlags_RouteGlobal: c_int = undefined;
-    pub var PopupFlags_None: c_int = undefined;
-    pub var PopupFlags_MouseButtonLeft: c_int = undefined;
-    pub var PopupFlags_MouseButtonMiddle: c_int = undefined;
-    pub var PopupFlags_MouseButtonRight: c_int = undefined;
-    pub var PopupFlags_NoOpenOverItems: c_int = undefined;
-    pub var PopupFlags_AnyPopup: c_int = undefined;
-    pub var PopupFlags_AnyPopupId: c_int = undefined;
-    pub var PopupFlags_AnyPopupLevel: c_int = undefined;
-    pub var PopupFlags_NoOpenOverExistingPopup: c_int = undefined;
-    pub var PopupFlags_NoReopen: c_int = undefined;
-    pub var Col_Border: c_int = undefined;
-    pub var Col_BorderShadow: c_int = undefined;
-    pub var Col_Button: c_int = undefined;
-    pub var Col_ButtonActive: c_int = undefined;
-    pub var Col_ButtonHovered: c_int = undefined;
-    pub var Col_CheckMark: c_int = undefined;
-    pub var Col_ChildBg: c_int = undefined;
-    pub var Col_DockingEmptyBg: c_int = undefined;
-    pub var Col_DockingPreview: c_int = undefined;
-    pub var Col_DragDropTarget: c_int = undefined;
-    pub var Col_FrameBg: c_int = undefined;
-    pub var Col_FrameBgActive: c_int = undefined;
-    pub var Col_FrameBgHovered: c_int = undefined;
-    pub var Col_Header: c_int = undefined;
-    pub var Col_HeaderActive: c_int = undefined;
-    pub var Col_HeaderHovered: c_int = undefined;
-    pub var Col_MenuBarBg: c_int = undefined;
-    pub var Col_ModalWindowDimBg: c_int = undefined;
-    pub var Col_NavHighlight: c_int = undefined;
-    pub var Col_NavWindowingDimBg: c_int = undefined;
-    pub var Col_NavWindowingHighlight: c_int = undefined;
-    pub var Col_PlotHistogram: c_int = undefined;
-    pub var Col_PlotHistogramHovered: c_int = undefined;
-    pub var Col_PlotLines: c_int = undefined;
-    pub var Col_PlotLinesHovered: c_int = undefined;
-    pub var Col_PopupBg: c_int = undefined;
-    pub var Col_ResizeGrip: c_int = undefined;
-    pub var Col_ResizeGripActive: c_int = undefined;
-    pub var Col_ResizeGripHovered: c_int = undefined;
-    pub var Col_ScrollbarBg: c_int = undefined;
-    pub var Col_ScrollbarGrab: c_int = undefined;
-    pub var Col_ScrollbarGrabActive: c_int = undefined;
-    pub var Col_ScrollbarGrabHovered: c_int = undefined;
-    pub var Col_Separator: c_int = undefined;
-    pub var Col_SeparatorActive: c_int = undefined;
-    pub var Col_SeparatorHovered: c_int = undefined;
-    pub var Col_SliderGrab: c_int = undefined;
-    pub var Col_SliderGrabActive: c_int = undefined;
-    pub var Col_Tab: c_int = undefined;
-    pub var Col_TabDimmed: c_int = undefined;
-    pub var Col_TabDimmedSelected: c_int = undefined;
-    pub var Col_TabDimmedSelectedOverline: c_int = undefined;
-    pub var Col_TabHovered: c_int = undefined;
-    pub var Col_TabSelected: c_int = undefined;
-    pub var Col_TabSelectedOverline: c_int = undefined;
-    pub var Col_TableBorderLight: c_int = undefined;
-    pub var Col_TableBorderStrong: c_int = undefined;
-    pub var Col_TableHeaderBg: c_int = undefined;
-    pub var Col_TableRowBg: c_int = undefined;
-    pub var Col_TableRowBgAlt: c_int = undefined;
-    pub var Col_Text: c_int = undefined;
-    pub var Col_TextDisabled: c_int = undefined;
-    pub var Col_TextSelectedBg: c_int = undefined;
-    pub var Col_TitleBg: c_int = undefined;
-    pub var Col_TitleBgActive: c_int = undefined;
-    pub var Col_TitleBgCollapsed: c_int = undefined;
-    pub var Col_WindowBg: c_int = undefined;
-    pub var StyleVar_Alpha: c_int = undefined;
-    pub var StyleVar_ButtonTextAlign: c_int = undefined;
-    pub var StyleVar_CellPadding: c_int = undefined;
-    pub var StyleVar_ChildBorderSize: c_int = undefined;
-    pub var StyleVar_ChildRounding: c_int = undefined;
-    pub var StyleVar_DisabledAlpha: c_int = undefined;
-    pub var StyleVar_FrameBorderSize: c_int = undefined;
-    pub var StyleVar_FramePadding: c_int = undefined;
-    pub var StyleVar_FrameRounding: c_int = undefined;
-    pub var StyleVar_GrabMinSize: c_int = undefined;
-    pub var StyleVar_GrabRounding: c_int = undefined;
-    pub var StyleVar_IndentSpacing: c_int = undefined;
-    pub var StyleVar_ItemInnerSpacing: c_int = undefined;
-    pub var StyleVar_ItemSpacing: c_int = undefined;
-    pub var StyleVar_PopupBorderSize: c_int = undefined;
-    pub var StyleVar_PopupRounding: c_int = undefined;
-    pub var StyleVar_ScrollbarRounding: c_int = undefined;
-    pub var StyleVar_ScrollbarSize: c_int = undefined;
-    pub var StyleVar_SelectableTextAlign: c_int = undefined;
-    pub var StyleVar_SeparatorTextAlign: c_int = undefined;
-    pub var StyleVar_SeparatorTextBorderSize: c_int = undefined;
-    pub var StyleVar_SeparatorTextPadding: c_int = undefined;
-    pub var StyleVar_TabBarBorderSize: c_int = undefined;
-    pub var StyleVar_TabBorderSize: c_int = undefined;
-    pub var StyleVar_TabRounding: c_int = undefined;
-    pub var StyleVar_TableAngledHeadersAngle: c_int = undefined;
-    pub var StyleVar_TableAngledHeadersTextAlign: c_int = undefined;
-    pub var StyleVar_WindowBorderSize: c_int = undefined;
-    pub var StyleVar_WindowMinSize: c_int = undefined;
-    pub var StyleVar_WindowPadding: c_int = undefined;
-    pub var StyleVar_WindowRounding: c_int = undefined;
-    pub var StyleVar_WindowTitleAlign: c_int = undefined;
-    pub var TabBarFlags_AutoSelectNewTabs: c_int = undefined;
-    pub var TabBarFlags_DrawSelectedOverline: c_int = undefined;
-    pub var TabBarFlags_FittingPolicyResizeDown: c_int = undefined;
-    pub var TabBarFlags_FittingPolicyScroll: c_int = undefined;
-    pub var TabBarFlags_NoCloseWithMiddleMouseButton: c_int = undefined;
-    pub var TabBarFlags_NoTabListScrollingButtons: c_int = undefined;
-    pub var TabBarFlags_NoTooltip: c_int = undefined;
-    pub var TabBarFlags_None: c_int = undefined;
-    pub var TabBarFlags_Reorderable: c_int = undefined;
-    pub var TabBarFlags_TabListPopupButton: c_int = undefined;
-    pub var TabItemFlags_Leading: c_int = undefined;
-    pub var TabItemFlags_NoAssumedClosure: c_int = undefined;
-    pub var TabItemFlags_NoCloseWithMiddleMouseButton: c_int = undefined;
-    pub var TabItemFlags_NoPushId: c_int = undefined;
-    pub var TabItemFlags_NoReorder: c_int = undefined;
-    pub var TabItemFlags_NoTooltip: c_int = undefined;
-    pub var TabItemFlags_None: c_int = undefined;
-    pub var TabItemFlags_SetSelected: c_int = undefined;
-    pub var TabItemFlags_Trailing: c_int = undefined;
-    pub var TabItemFlags_UnsavedDocument: c_int = undefined;
-    pub var TableRowFlags_Headers: c_int = undefined;
-    pub var TableRowFlags_None: c_int = undefined;
-    pub var TableBgTarget_CellBg: c_int = undefined;
-    pub var TableBgTarget_None: c_int = undefined;
-    pub var TableBgTarget_RowBg0: c_int = undefined;
-    pub var TableBgTarget_RowBg1: c_int = undefined;
-    pub var TableColumnFlags_None: c_int = undefined;
-    pub var TableColumnFlags_AngledHeader: c_int = undefined;
-    pub var TableColumnFlags_DefaultHide: c_int = undefined;
-    pub var TableColumnFlags_DefaultSort: c_int = undefined;
-    pub var TableColumnFlags_Disabled: c_int = undefined;
-    pub var TableColumnFlags_IndentDisable: c_int = undefined;
-    pub var TableColumnFlags_IndentEnable: c_int = undefined;
-    pub var TableColumnFlags_NoClip: c_int = undefined;
-    pub var TableColumnFlags_NoHeaderLabel: c_int = undefined;
-    pub var TableColumnFlags_NoHeaderWidth: c_int = undefined;
-    pub var TableColumnFlags_NoHide: c_int = undefined;
-    pub var TableColumnFlags_NoReorder: c_int = undefined;
-    pub var TableColumnFlags_NoResize: c_int = undefined;
-    pub var TableColumnFlags_NoSort: c_int = undefined;
-    pub var TableColumnFlags_NoSortAscending: c_int = undefined;
-    pub var TableColumnFlags_NoSortDescending: c_int = undefined;
-    pub var TableColumnFlags_PreferSortAscending: c_int = undefined;
-    pub var TableColumnFlags_PreferSortDescending: c_int = undefined;
-    pub var TableColumnFlags_WidthFixed: c_int = undefined;
-    pub var TableColumnFlags_WidthStretch: c_int = undefined;
-    pub var TableColumnFlags_IsEnabled: c_int = undefined;
-    pub var TableColumnFlags_IsHovered: c_int = undefined;
-    pub var TableColumnFlags_IsSorted: c_int = undefined;
-    pub var TableColumnFlags_IsVisible: c_int = undefined;
-    pub var SortDirection_Ascending: c_int = undefined;
-    pub var SortDirection_Descending: c_int = undefined;
-    pub var SortDirection_None: c_int = undefined;
-    pub var TableFlags_None: c_int = undefined;
-    pub var TableFlags_NoClip: c_int = undefined;
-    pub var TableFlags_Borders: c_int = undefined;
-    pub var TableFlags_BordersH: c_int = undefined;
-    pub var TableFlags_BordersInner: c_int = undefined;
-    pub var TableFlags_BordersInnerH: c_int = undefined;
-    pub var TableFlags_BordersInnerV: c_int = undefined;
-    pub var TableFlags_BordersOuter: c_int = undefined;
-    pub var TableFlags_BordersOuterH: c_int = undefined;
-    pub var TableFlags_BordersOuterV: c_int = undefined;
-    pub var TableFlags_BordersV: c_int = undefined;
-    pub var TableFlags_RowBg: c_int = undefined;
-    pub var TableFlags_ContextMenuInBody: c_int = undefined;
-    pub var TableFlags_Hideable: c_int = undefined;
-    pub var TableFlags_NoSavedSettings: c_int = undefined;
-    pub var TableFlags_Reorderable: c_int = undefined;
-    pub var TableFlags_Resizable: c_int = undefined;
-    pub var TableFlags_Sortable: c_int = undefined;
-    pub var TableFlags_HighlightHoveredColumn: c_int = undefined;
-    pub var TableFlags_NoPadInnerX: c_int = undefined;
-    pub var TableFlags_NoPadOuterX: c_int = undefined;
-    pub var TableFlags_PadOuterX: c_int = undefined;
-    pub var TableFlags_ScrollX: c_int = undefined;
-    pub var TableFlags_ScrollY: c_int = undefined;
-    pub var TableFlags_NoHostExtendX: c_int = undefined;
-    pub var TableFlags_NoHostExtendY: c_int = undefined;
-    pub var TableFlags_NoKeepColumnsVisible: c_int = undefined;
-    pub var TableFlags_PreciseWidths: c_int = undefined;
-    pub var TableFlags_SizingFixedFit: c_int = undefined;
-    pub var TableFlags_SizingFixedSame: c_int = undefined;
-    pub var TableFlags_SizingStretchProp: c_int = undefined;
-    pub var TableFlags_SizingStretchSame: c_int = undefined;
-    pub var TableFlags_SortMulti: c_int = undefined;
-    pub var TableFlags_SortTristate: c_int = undefined;
-    pub var InputTextFlags_None: c_int = undefined;
-    pub var InputTextFlags_CharsDecimal: c_int = undefined;
-    pub var InputTextFlags_CharsHexadecimal: c_int = undefined;
-    pub var InputTextFlags_CharsNoBlank: c_int = undefined;
-    pub var InputTextFlags_CharsScientific: c_int = undefined;
-    pub var InputTextFlags_CharsUppercase: c_int = undefined;
-    pub var InputTextFlags_CallbackAlways: c_int = undefined;
-    pub var InputTextFlags_CallbackCharFilter: c_int = undefined;
-    pub var InputTextFlags_CallbackCompletion: c_int = undefined;
-    pub var InputTextFlags_CallbackEdit: c_int = undefined;
-    pub var InputTextFlags_CallbackHistory: c_int = undefined;
-    pub var InputTextFlags_AllowTabInput: c_int = undefined;
-    pub var InputTextFlags_CtrlEnterForNewLine: c_int = undefined;
-    pub var InputTextFlags_EnterReturnsTrue: c_int = undefined;
-    pub var InputTextFlags_EscapeClearsAll: c_int = undefined;
-    pub var InputTextFlags_AlwaysOverwrite: c_int = undefined;
-    pub var InputTextFlags_AutoSelectAll: c_int = undefined;
-    pub var InputTextFlags_DisplayEmptyRefVal: c_int = undefined;
-    pub var InputTextFlags_NoHorizontalScroll: c_int = undefined;
-    pub var InputTextFlags_NoUndoRedo: c_int = undefined;
-    pub var InputTextFlags_ParseEmptyRefVal: c_int = undefined;
-    pub var InputTextFlags_Password: c_int = undefined;
-    pub var InputTextFlags_ReadOnly: c_int = undefined;
-    pub var TreeNodeFlags_AllowOverlap: c_int = undefined;
-    pub var TreeNodeFlags_Bullet: c_int = undefined;
-    pub var TreeNodeFlags_CollapsingHeader: c_int = undefined;
-    pub var TreeNodeFlags_DefaultOpen: c_int = undefined;
-    pub var TreeNodeFlags_FramePadding: c_int = undefined;
-    pub var TreeNodeFlags_Framed: c_int = undefined;
-    pub var TreeNodeFlags_Leaf: c_int = undefined;
-    pub var TreeNodeFlags_NoAutoOpenOnLog: c_int = undefined;
-    pub var TreeNodeFlags_NoTreePushOnOpen: c_int = undefined;
-    pub var TreeNodeFlags_None: c_int = undefined;
-    pub var TreeNodeFlags_OpenOnArrow: c_int = undefined;
-    pub var TreeNodeFlags_OpenOnDoubleClick: c_int = undefined;
-    pub var TreeNodeFlags_Selected: c_int = undefined;
-    pub var TreeNodeFlags_SpanAllColumns: c_int = undefined;
-    pub var TreeNodeFlags_SpanAvailWidth: c_int = undefined;
-    pub var TreeNodeFlags_SpanFullWidth: c_int = undefined;
-    pub var TreeNodeFlags_SpanTextWidth: c_int = undefined;
-    pub var Cond_Always: c_int = undefined;
-    pub var Cond_Appearing: c_int = undefined;
-    pub var Cond_FirstUseEver: c_int = undefined;
-    pub var Cond_Once: c_int = undefined;
-    pub var ChildFlags_AlwaysAutoResize: c_int = undefined;
-    pub var ChildFlags_AlwaysUseWindowPadding: c_int = undefined;
-    pub var ChildFlags_AutoResizeX: c_int = undefined;
-    pub var ChildFlags_AutoResizeY: c_int = undefined;
-    pub var ChildFlags_Border: c_int = undefined;
-    pub var ChildFlags_FrameStyle: c_int = undefined;
-    pub var ChildFlags_NavFlattened: c_int = undefined;
-    pub var ChildFlags_None: c_int = undefined;
-    pub var ChildFlags_ResizeX: c_int = undefined;
-    pub var ChildFlags_ResizeY: c_int = undefined;
-    pub var WindowFlags_AlwaysAutoResize: c_int = undefined;
-    pub var WindowFlags_AlwaysHorizontalScrollbar: c_int = undefined;
-    pub var WindowFlags_AlwaysVerticalScrollbar: c_int = undefined;
-    pub var WindowFlags_HorizontalScrollbar: c_int = undefined;
-    pub var WindowFlags_MenuBar: c_int = undefined;
-    pub var WindowFlags_NoBackground: c_int = undefined;
-    pub var WindowFlags_NoCollapse: c_int = undefined;
-    pub var WindowFlags_NoDecoration: c_int = undefined;
-    pub var WindowFlags_NoDocking: c_int = undefined;
-    pub var WindowFlags_NoFocusOnAppearing: c_int = undefined;
-    pub var WindowFlags_NoInputs: c_int = undefined;
-    pub var WindowFlags_NoMouseInputs: c_int = undefined;
-    pub var WindowFlags_NoMove: c_int = undefined;
-    pub var WindowFlags_NoNav: c_int = undefined;
-    pub var WindowFlags_NoNavFocus: c_int = undefined;
-    pub var WindowFlags_NoNavInputs: c_int = undefined;
-    pub var WindowFlags_NoResize: c_int = undefined;
-    pub var WindowFlags_NoSavedSettings: c_int = undefined;
-    pub var WindowFlags_NoScrollWithMouse: c_int = undefined;
-    pub var WindowFlags_NoScrollbar: c_int = undefined;
-    pub var WindowFlags_NoTitleBar: c_int = undefined;
-    pub var WindowFlags_None: c_int = undefined;
-    pub var WindowFlags_TopMost: c_int = undefined;
-    pub var WindowFlags_UnsavedDocument: c_int = undefined;
-    pub var FocusedFlags_AnyWindow: c_int = undefined;
-    pub var FocusedFlags_ChildWindows: c_int = undefined;
-    pub var FocusedFlags_DockHierarchy: c_int = undefined;
-    pub var FocusedFlags_NoPopupHierarchy: c_int = undefined;
-    pub var FocusedFlags_None: c_int = undefined;
-    pub var FocusedFlags_RootAndChildWindows: c_int = undefined;
-    pub var FocusedFlags_RootWindow: c_int = undefined;
 };
 
 pub var api: API = undefined;
-pub usingnamespace API;
+
+// Flag constants (moved out of API struct for incremental compilation)
+pub var Dir_Down: c_int = undefined;
+pub var Dir_Left: c_int = undefined;
+pub var Dir_None: c_int = undefined;
+pub var Dir_Right: c_int = undefined;
+pub var Dir_Up: c_int = undefined;
+pub var ButtonFlags_MouseButtonLeft: c_int = undefined;
+pub var ButtonFlags_MouseButtonMiddle: c_int = undefined;
+pub var ButtonFlags_MouseButtonRight: c_int = undefined;
+pub var ButtonFlags_None: c_int = undefined;
+pub var ColorEditFlags_NoAlpha: c_int = undefined;
+pub var ColorEditFlags_NoBorder: c_int = undefined;
+pub var ColorEditFlags_NoDragDrop: c_int = undefined;
+pub var ColorEditFlags_NoInputs: c_int = undefined;
+pub var ColorEditFlags_NoLabel: c_int = undefined;
+pub var ColorEditFlags_NoOptions: c_int = undefined;
+pub var ColorEditFlags_NoPicker: c_int = undefined;
+pub var ColorEditFlags_NoSidePreview: c_int = undefined;
+pub var ColorEditFlags_NoSmallPreview: c_int = undefined;
+pub var ColorEditFlags_NoTooltip: c_int = undefined;
+pub var ColorEditFlags_None: c_int = undefined;
+pub var ColorEditFlags_AlphaBar: c_int = undefined;
+pub var ColorEditFlags_AlphaPreview: c_int = undefined;
+pub var ColorEditFlags_AlphaPreviewHalf: c_int = undefined;
+pub var ColorEditFlags_DisplayHSV: c_int = undefined;
+pub var ColorEditFlags_DisplayHex: c_int = undefined;
+pub var ColorEditFlags_DisplayRGB: c_int = undefined;
+pub var ColorEditFlags_Float: c_int = undefined;
+pub var ColorEditFlags_InputHSV: c_int = undefined;
+pub var ColorEditFlags_InputRGB: c_int = undefined;
+pub var ColorEditFlags_PickerHueBar: c_int = undefined;
+pub var ColorEditFlags_PickerHueWheel: c_int = undefined;
+pub var ColorEditFlags_Uint8: c_int = undefined;
+pub var ComboFlags_HeightLarge: c_int = undefined;
+pub var ComboFlags_HeightLargest: c_int = undefined;
+pub var ComboFlags_HeightRegular: c_int = undefined;
+pub var ComboFlags_HeightSmall: c_int = undefined;
+pub var ComboFlags_NoArrowButton: c_int = undefined;
+pub var ComboFlags_NoPreview: c_int = undefined;
+pub var ComboFlags_None: c_int = undefined;
+pub var ComboFlags_PopupAlignLeft: c_int = undefined;
+pub var ComboFlags_WidthFitPreview: c_int = undefined;
+pub var SelectableFlags_AllowDoubleClick: c_int = undefined;
+pub var SelectableFlags_AllowOverlap: c_int = undefined;
+pub var SelectableFlags_Disabled: c_int = undefined;
+pub var SelectableFlags_DontClosePopups: c_int = undefined;
+pub var SelectableFlags_None: c_int = undefined;
+pub var SelectableFlags_SpanAllColumns: c_int = undefined;
+pub var ConfigFlags_DockingEnable: c_int = undefined;
+pub var ConfigFlags_NavEnableKeyboard: c_int = undefined;
+pub var ConfigFlags_NavEnableSetMousePos: c_int = undefined;
+pub var ConfigFlags_NavNoCaptureKeyboard: c_int = undefined;
+pub var ConfigFlags_NoKeyboard: c_int = undefined;
+pub var ConfigFlags_NoMouse: c_int = undefined;
+pub var ConfigFlags_NoMouseCursorChange: c_int = undefined;
+pub var ConfigFlags_NoSavedSettings: c_int = undefined;
+pub var ConfigFlags_None: c_int = undefined;
+pub var ConfigVar_DebugBeginReturnValueLoop: c_int = undefined;
+pub var ConfigVar_DebugBeginReturnValueOnce: c_int = undefined;
+pub var ConfigVar_DockingNoSplit: c_int = undefined;
+pub var ConfigVar_DockingTransparentPayload: c_int = undefined;
+pub var ConfigVar_DockingWithShift: c_int = undefined;
+pub var ConfigVar_DragClickToInputText: c_int = undefined;
+pub var ConfigVar_Flags: c_int = undefined;
+pub var ConfigVar_HoverDelayNormal: c_int = undefined;
+pub var ConfigVar_HoverDelayShort: c_int = undefined;
+pub var ConfigVar_HoverFlagsForTooltipMouse: c_int = undefined;
+pub var ConfigVar_HoverFlagsForTooltipNav: c_int = undefined;
+pub var ConfigVar_HoverStationaryDelay: c_int = undefined;
+pub var ConfigVar_InputTextCursorBlink: c_int = undefined;
+pub var ConfigVar_InputTextEnterKeepActive: c_int = undefined;
+pub var ConfigVar_InputTrickleEventQueue: c_int = undefined;
+pub var ConfigVar_KeyRepeatDelay: c_int = undefined;
+pub var ConfigVar_KeyRepeatRate: c_int = undefined;
+pub var ConfigVar_MacOSXBehaviors: c_int = undefined;
+pub var ConfigVar_MouseDoubleClickMaxDist: c_int = undefined;
+pub var ConfigVar_MouseDoubleClickTime: c_int = undefined;
+pub var ConfigVar_MouseDragThreshold: c_int = undefined;
+pub var ConfigVar_ViewportsNoDecoration: c_int = undefined;
+pub var ConfigVar_WindowsMoveFromTitleBarOnly: c_int = undefined;
+pub var ConfigVar_WindowsResizeFromEdges: c_int = undefined;
+pub var DragDropFlags_None: c_int = undefined;
+pub var DragDropFlags_AcceptBeforeDelivery: c_int = undefined;
+pub var DragDropFlags_AcceptNoDrawDefaultRect: c_int = undefined;
+pub var DragDropFlags_AcceptNoPreviewTooltip: c_int = undefined;
+pub var DragDropFlags_AcceptPeekOnly: c_int = undefined;
+pub var DragDropFlags_PayloadAutoExpire: c_int = undefined;
+pub var DragDropFlags_SourceAllowNullID: c_int = undefined;
+pub var DragDropFlags_SourceExtern: c_int = undefined;
+pub var DragDropFlags_SourceNoDisableHover: c_int = undefined;
+pub var DragDropFlags_SourceNoHoldToOpenOthers: c_int = undefined;
+pub var DragDropFlags_SourceNoPreviewTooltip: c_int = undefined;
+pub var SliderFlags_AlwaysClamp: c_int = undefined;
+pub var SliderFlags_Logarithmic: c_int = undefined;
+pub var SliderFlags_NoInput: c_int = undefined;
+pub var SliderFlags_NoRoundToFormat: c_int = undefined;
+pub var SliderFlags_None: c_int = undefined;
+pub var SliderFlags_WrapAround: c_int = undefined;
+pub var DrawFlags_Closed: c_int = undefined;
+pub var DrawFlags_None: c_int = undefined;
+pub var DrawFlags_RoundCornersAll: c_int = undefined;
+pub var DrawFlags_RoundCornersBottom: c_int = undefined;
+pub var DrawFlags_RoundCornersBottomLeft: c_int = undefined;
+pub var DrawFlags_RoundCornersBottomRight: c_int = undefined;
+pub var DrawFlags_RoundCornersLeft: c_int = undefined;
+pub var DrawFlags_RoundCornersNone: c_int = undefined;
+pub var DrawFlags_RoundCornersRight: c_int = undefined;
+pub var DrawFlags_RoundCornersTop: c_int = undefined;
+pub var DrawFlags_RoundCornersTopLeft: c_int = undefined;
+pub var DrawFlags_RoundCornersTopRight: c_int = undefined;
+pub var FontFlags_Bold: c_int = undefined;
+pub var FontFlags_Italic: c_int = undefined;
+pub var FontFlags_None: c_int = undefined;
+pub var HoveredFlags_AllowWhenBlockedByActiveItem: c_int = undefined;
+pub var HoveredFlags_AllowWhenBlockedByPopup: c_int = undefined;
+pub var HoveredFlags_ForTooltip: c_int = undefined;
+pub var HoveredFlags_NoNavOverride: c_int = undefined;
+pub var HoveredFlags_None: c_int = undefined;
+pub var HoveredFlags_Stationary: c_int = undefined;
+pub var HoveredFlags_AllowWhenDisabled: c_int = undefined;
+pub var HoveredFlags_AllowWhenOverlapped: c_int = undefined;
+pub var HoveredFlags_AllowWhenOverlappedByItem: c_int = undefined;
+pub var HoveredFlags_AllowWhenOverlappedByWindow: c_int = undefined;
+pub var HoveredFlags_RectOnly: c_int = undefined;
+pub var HoveredFlags_DelayNone: c_int = undefined;
+pub var HoveredFlags_DelayNormal: c_int = undefined;
+pub var HoveredFlags_DelayShort: c_int = undefined;
+pub var HoveredFlags_NoSharedDelay: c_int = undefined;
+pub var HoveredFlags_AnyWindow: c_int = undefined;
+pub var HoveredFlags_ChildWindows: c_int = undefined;
+pub var HoveredFlags_DockHierarchy: c_int = undefined;
+pub var HoveredFlags_NoPopupHierarchy: c_int = undefined;
+pub var HoveredFlags_RootAndChildWindows: c_int = undefined;
+pub var HoveredFlags_RootWindow: c_int = undefined;
+pub var Key_0: c_int = undefined;
+pub var Key_1: c_int = undefined;
+pub var Key_2: c_int = undefined;
+pub var Key_3: c_int = undefined;
+pub var Key_4: c_int = undefined;
+pub var Key_5: c_int = undefined;
+pub var Key_6: c_int = undefined;
+pub var Key_7: c_int = undefined;
+pub var Key_8: c_int = undefined;
+pub var Key_9: c_int = undefined;
+pub var Key_A: c_int = undefined;
+pub var Key_Apostrophe: c_int = undefined;
+pub var Key_AppBack: c_int = undefined;
+pub var Key_AppForward: c_int = undefined;
+pub var Key_B: c_int = undefined;
+pub var Key_Backslash: c_int = undefined;
+pub var Key_Backspace: c_int = undefined;
+pub var Key_C: c_int = undefined;
+pub var Key_CapsLock: c_int = undefined;
+pub var Key_Comma: c_int = undefined;
+pub var Key_D: c_int = undefined;
+pub var Key_Delete: c_int = undefined;
+pub var Key_DownArrow: c_int = undefined;
+pub var Key_E: c_int = undefined;
+pub var Key_End: c_int = undefined;
+pub var Key_Enter: c_int = undefined;
+pub var Key_Equal: c_int = undefined;
+pub var Key_Escape: c_int = undefined;
+pub var Key_F: c_int = undefined;
+pub var Key_F1: c_int = undefined;
+pub var Key_F10: c_int = undefined;
+pub var Key_F11: c_int = undefined;
+pub var Key_F12: c_int = undefined;
+pub var Key_F13: c_int = undefined;
+pub var Key_F14: c_int = undefined;
+pub var Key_F15: c_int = undefined;
+pub var Key_F16: c_int = undefined;
+pub var Key_F17: c_int = undefined;
+pub var Key_F18: c_int = undefined;
+pub var Key_F19: c_int = undefined;
+pub var Key_F2: c_int = undefined;
+pub var Key_F20: c_int = undefined;
+pub var Key_F21: c_int = undefined;
+pub var Key_F22: c_int = undefined;
+pub var Key_F23: c_int = undefined;
+pub var Key_F24: c_int = undefined;
+pub var Key_F3: c_int = undefined;
+pub var Key_F4: c_int = undefined;
+pub var Key_F5: c_int = undefined;
+pub var Key_F6: c_int = undefined;
+pub var Key_F7: c_int = undefined;
+pub var Key_F8: c_int = undefined;
+pub var Key_F9: c_int = undefined;
+pub var Key_G: c_int = undefined;
+pub var Key_GraveAccent: c_int = undefined;
+pub var Key_H: c_int = undefined;
+pub var Key_Home: c_int = undefined;
+pub var Key_I: c_int = undefined;
+pub var Key_Insert: c_int = undefined;
+pub var Key_J: c_int = undefined;
+pub var Key_K: c_int = undefined;
+pub var Key_Keypad0: c_int = undefined;
+pub var Key_Keypad1: c_int = undefined;
+pub var Key_Keypad2: c_int = undefined;
+pub var Key_Keypad3: c_int = undefined;
+pub var Key_Keypad4: c_int = undefined;
+pub var Key_Keypad5: c_int = undefined;
+pub var Key_Keypad6: c_int = undefined;
+pub var Key_Keypad7: c_int = undefined;
+pub var Key_Keypad8: c_int = undefined;
+pub var Key_Keypad9: c_int = undefined;
+pub var Key_KeypadAdd: c_int = undefined;
+pub var Key_KeypadDecimal: c_int = undefined;
+pub var Key_KeypadDivide: c_int = undefined;
+pub var Key_KeypadEnter: c_int = undefined;
+pub var Key_KeypadEqual: c_int = undefined;
+pub var Key_KeypadMultiply: c_int = undefined;
+pub var Key_KeypadSubtract: c_int = undefined;
+pub var Key_L: c_int = undefined;
+pub var Key_LeftAlt: c_int = undefined;
+pub var Key_LeftArrow: c_int = undefined;
+pub var Key_LeftBracket: c_int = undefined;
+pub var Key_LeftCtrl: c_int = undefined;
+pub var Key_LeftShift: c_int = undefined;
+pub var Key_LeftSuper: c_int = undefined;
+pub var Key_M: c_int = undefined;
+pub var Key_Menu: c_int = undefined;
+pub var Key_Minus: c_int = undefined;
+pub var Key_N: c_int = undefined;
+pub var Key_NumLock: c_int = undefined;
+pub var Key_O: c_int = undefined;
+pub var Key_P: c_int = undefined;
+pub var Key_PageDown: c_int = undefined;
+pub var Key_PageUp: c_int = undefined;
+pub var Key_Pause: c_int = undefined;
+pub var Key_Period: c_int = undefined;
+pub var Key_PrintScreen: c_int = undefined;
+pub var Key_Q: c_int = undefined;
+pub var Key_R: c_int = undefined;
+pub var Key_RightAlt: c_int = undefined;
+pub var Key_RightArrow: c_int = undefined;
+pub var Key_RightBracket: c_int = undefined;
+pub var Key_RightCtrl: c_int = undefined;
+pub var Key_RightShift: c_int = undefined;
+pub var Key_RightSuper: c_int = undefined;
+pub var Key_S: c_int = undefined;
+pub var Key_ScrollLock: c_int = undefined;
+pub var Key_Semicolon: c_int = undefined;
+pub var Key_Slash: c_int = undefined;
+pub var Key_Space: c_int = undefined;
+pub var Key_T: c_int = undefined;
+pub var Key_Tab: c_int = undefined;
+pub var Key_U: c_int = undefined;
+pub var Key_UpArrow: c_int = undefined;
+pub var Key_V: c_int = undefined;
+pub var Key_W: c_int = undefined;
+pub var Key_X: c_int = undefined;
+pub var Key_Y: c_int = undefined;
+pub var Key_Z: c_int = undefined;
+pub var Mod_Alt: c_int = undefined;
+pub var Mod_Ctrl: c_int = undefined;
+pub var Mod_None: c_int = undefined;
+pub var Mod_Shift: c_int = undefined;
+pub var Mod_Super: c_int = undefined;
+pub var Key_MouseLeft: c_int = undefined;
+pub var Key_MouseMiddle: c_int = undefined;
+pub var Key_MouseRight: c_int = undefined;
+pub var Key_MouseWheelX: c_int = undefined;
+pub var Key_MouseWheelY: c_int = undefined;
+pub var Key_MouseX1: c_int = undefined;
+pub var Key_MouseX2: c_int = undefined;
+pub var MouseButton_Left: c_int = undefined;
+pub var MouseButton_Middle: c_int = undefined;
+pub var MouseButton_Right: c_int = undefined;
+pub var MouseCursor_Arrow: c_int = undefined;
+pub var MouseCursor_Hand: c_int = undefined;
+pub var MouseCursor_None: c_int = undefined;
+pub var MouseCursor_NotAllowed: c_int = undefined;
+pub var MouseCursor_ResizeAll: c_int = undefined;
+pub var MouseCursor_ResizeEW: c_int = undefined;
+pub var MouseCursor_ResizeNESW: c_int = undefined;
+pub var MouseCursor_ResizeNS: c_int = undefined;
+pub var MouseCursor_ResizeNWSE: c_int = undefined;
+pub var MouseCursor_TextInput: c_int = undefined;
+pub var InputFlags_None: c_int = undefined;
+pub var InputFlags_Repeat: c_int = undefined;
+pub var InputFlags_RouteFromRootWindow: c_int = undefined;
+pub var InputFlags_RouteOverActive: c_int = undefined;
+pub var InputFlags_RouteOverFocused: c_int = undefined;
+pub var InputFlags_RouteUnlessBgFocused: c_int = undefined;
+pub var InputFlags_Tooltip: c_int = undefined;
+pub var InputFlags_RouteActive: c_int = undefined;
+pub var InputFlags_RouteAlways: c_int = undefined;
+pub var InputFlags_RouteFocused: c_int = undefined;
+pub var InputFlags_RouteGlobal: c_int = undefined;
+pub var PopupFlags_None: c_int = undefined;
+pub var PopupFlags_MouseButtonLeft: c_int = undefined;
+pub var PopupFlags_MouseButtonMiddle: c_int = undefined;
+pub var PopupFlags_MouseButtonRight: c_int = undefined;
+pub var PopupFlags_NoOpenOverItems: c_int = undefined;
+pub var PopupFlags_AnyPopup: c_int = undefined;
+pub var PopupFlags_AnyPopupId: c_int = undefined;
+pub var PopupFlags_AnyPopupLevel: c_int = undefined;
+pub var PopupFlags_NoOpenOverExistingPopup: c_int = undefined;
+pub var PopupFlags_NoReopen: c_int = undefined;
+pub var Col_Border: c_int = undefined;
+pub var Col_BorderShadow: c_int = undefined;
+pub var Col_Button: c_int = undefined;
+pub var Col_ButtonActive: c_int = undefined;
+pub var Col_ButtonHovered: c_int = undefined;
+pub var Col_CheckMark: c_int = undefined;
+pub var Col_ChildBg: c_int = undefined;
+pub var Col_DockingEmptyBg: c_int = undefined;
+pub var Col_DockingPreview: c_int = undefined;
+pub var Col_DragDropTarget: c_int = undefined;
+pub var Col_FrameBg: c_int = undefined;
+pub var Col_FrameBgActive: c_int = undefined;
+pub var Col_FrameBgHovered: c_int = undefined;
+pub var Col_Header: c_int = undefined;
+pub var Col_HeaderActive: c_int = undefined;
+pub var Col_HeaderHovered: c_int = undefined;
+pub var Col_MenuBarBg: c_int = undefined;
+pub var Col_ModalWindowDimBg: c_int = undefined;
+pub var Col_NavHighlight: c_int = undefined;
+pub var Col_NavWindowingDimBg: c_int = undefined;
+pub var Col_NavWindowingHighlight: c_int = undefined;
+pub var Col_PlotHistogram: c_int = undefined;
+pub var Col_PlotHistogramHovered: c_int = undefined;
+pub var Col_PlotLines: c_int = undefined;
+pub var Col_PlotLinesHovered: c_int = undefined;
+pub var Col_PopupBg: c_int = undefined;
+pub var Col_ResizeGrip: c_int = undefined;
+pub var Col_ResizeGripActive: c_int = undefined;
+pub var Col_ResizeGripHovered: c_int = undefined;
+pub var Col_ScrollbarBg: c_int = undefined;
+pub var Col_ScrollbarGrab: c_int = undefined;
+pub var Col_ScrollbarGrabActive: c_int = undefined;
+pub var Col_ScrollbarGrabHovered: c_int = undefined;
+pub var Col_Separator: c_int = undefined;
+pub var Col_SeparatorActive: c_int = undefined;
+pub var Col_SeparatorHovered: c_int = undefined;
+pub var Col_SliderGrab: c_int = undefined;
+pub var Col_SliderGrabActive: c_int = undefined;
+pub var Col_Tab: c_int = undefined;
+pub var Col_TabDimmed: c_int = undefined;
+pub var Col_TabDimmedSelected: c_int = undefined;
+pub var Col_TabDimmedSelectedOverline: c_int = undefined;
+pub var Col_TabHovered: c_int = undefined;
+pub var Col_TabSelected: c_int = undefined;
+pub var Col_TabSelectedOverline: c_int = undefined;
+pub var Col_TableBorderLight: c_int = undefined;
+pub var Col_TableBorderStrong: c_int = undefined;
+pub var Col_TableHeaderBg: c_int = undefined;
+pub var Col_TableRowBg: c_int = undefined;
+pub var Col_TableRowBgAlt: c_int = undefined;
+pub var Col_Text: c_int = undefined;
+pub var Col_TextDisabled: c_int = undefined;
+pub var Col_TextSelectedBg: c_int = undefined;
+pub var Col_TitleBg: c_int = undefined;
+pub var Col_TitleBgActive: c_int = undefined;
+pub var Col_TitleBgCollapsed: c_int = undefined;
+pub var Col_WindowBg: c_int = undefined;
+pub var StyleVar_Alpha: c_int = undefined;
+pub var StyleVar_ButtonTextAlign: c_int = undefined;
+pub var StyleVar_CellPadding: c_int = undefined;
+pub var StyleVar_ChildBorderSize: c_int = undefined;
+pub var StyleVar_ChildRounding: c_int = undefined;
+pub var StyleVar_DisabledAlpha: c_int = undefined;
+pub var StyleVar_FrameBorderSize: c_int = undefined;
+pub var StyleVar_FramePadding: c_int = undefined;
+pub var StyleVar_FrameRounding: c_int = undefined;
+pub var StyleVar_GrabMinSize: c_int = undefined;
+pub var StyleVar_GrabRounding: c_int = undefined;
+pub var StyleVar_IndentSpacing: c_int = undefined;
+pub var StyleVar_ItemInnerSpacing: c_int = undefined;
+pub var StyleVar_ItemSpacing: c_int = undefined;
+pub var StyleVar_PopupBorderSize: c_int = undefined;
+pub var StyleVar_PopupRounding: c_int = undefined;
+pub var StyleVar_ScrollbarRounding: c_int = undefined;
+pub var StyleVar_ScrollbarSize: c_int = undefined;
+pub var StyleVar_SelectableTextAlign: c_int = undefined;
+pub var StyleVar_SeparatorTextAlign: c_int = undefined;
+pub var StyleVar_SeparatorTextBorderSize: c_int = undefined;
+pub var StyleVar_SeparatorTextPadding: c_int = undefined;
+pub var StyleVar_TabBarBorderSize: c_int = undefined;
+pub var StyleVar_TabBorderSize: c_int = undefined;
+pub var StyleVar_TabRounding: c_int = undefined;
+pub var StyleVar_TableAngledHeadersAngle: c_int = undefined;
+pub var StyleVar_TableAngledHeadersTextAlign: c_int = undefined;
+pub var StyleVar_WindowBorderSize: c_int = undefined;
+pub var StyleVar_WindowMinSize: c_int = undefined;
+pub var StyleVar_WindowPadding: c_int = undefined;
+pub var StyleVar_WindowRounding: c_int = undefined;
+pub var StyleVar_WindowTitleAlign: c_int = undefined;
+pub var TabBarFlags_AutoSelectNewTabs: c_int = undefined;
+pub var TabBarFlags_DrawSelectedOverline: c_int = undefined;
+pub var TabBarFlags_FittingPolicyResizeDown: c_int = undefined;
+pub var TabBarFlags_FittingPolicyScroll: c_int = undefined;
+pub var TabBarFlags_NoCloseWithMiddleMouseButton: c_int = undefined;
+pub var TabBarFlags_NoTabListScrollingButtons: c_int = undefined;
+pub var TabBarFlags_NoTooltip: c_int = undefined;
+pub var TabBarFlags_None: c_int = undefined;
+pub var TabBarFlags_Reorderable: c_int = undefined;
+pub var TabBarFlags_TabListPopupButton: c_int = undefined;
+pub var TabItemFlags_Leading: c_int = undefined;
+pub var TabItemFlags_NoAssumedClosure: c_int = undefined;
+pub var TabItemFlags_NoCloseWithMiddleMouseButton: c_int = undefined;
+pub var TabItemFlags_NoPushId: c_int = undefined;
+pub var TabItemFlags_NoReorder: c_int = undefined;
+pub var TabItemFlags_NoTooltip: c_int = undefined;
+pub var TabItemFlags_None: c_int = undefined;
+pub var TabItemFlags_SetSelected: c_int = undefined;
+pub var TabItemFlags_Trailing: c_int = undefined;
+pub var TabItemFlags_UnsavedDocument: c_int = undefined;
+pub var TableRowFlags_Headers: c_int = undefined;
+pub var TableRowFlags_None: c_int = undefined;
+pub var TableBgTarget_CellBg: c_int = undefined;
+pub var TableBgTarget_None: c_int = undefined;
+pub var TableBgTarget_RowBg0: c_int = undefined;
+pub var TableBgTarget_RowBg1: c_int = undefined;
+pub var TableColumnFlags_None: c_int = undefined;
+pub var TableColumnFlags_AngledHeader: c_int = undefined;
+pub var TableColumnFlags_DefaultHide: c_int = undefined;
+pub var TableColumnFlags_DefaultSort: c_int = undefined;
+pub var TableColumnFlags_Disabled: c_int = undefined;
+pub var TableColumnFlags_IndentDisable: c_int = undefined;
+pub var TableColumnFlags_IndentEnable: c_int = undefined;
+pub var TableColumnFlags_NoClip: c_int = undefined;
+pub var TableColumnFlags_NoHeaderLabel: c_int = undefined;
+pub var TableColumnFlags_NoHeaderWidth: c_int = undefined;
+pub var TableColumnFlags_NoHide: c_int = undefined;
+pub var TableColumnFlags_NoReorder: c_int = undefined;
+pub var TableColumnFlags_NoResize: c_int = undefined;
+pub var TableColumnFlags_NoSort: c_int = undefined;
+pub var TableColumnFlags_NoSortAscending: c_int = undefined;
+pub var TableColumnFlags_NoSortDescending: c_int = undefined;
+pub var TableColumnFlags_PreferSortAscending: c_int = undefined;
+pub var TableColumnFlags_PreferSortDescending: c_int = undefined;
+pub var TableColumnFlags_WidthFixed: c_int = undefined;
+pub var TableColumnFlags_WidthStretch: c_int = undefined;
+pub var TableColumnFlags_IsEnabled: c_int = undefined;
+pub var TableColumnFlags_IsHovered: c_int = undefined;
+pub var TableColumnFlags_IsSorted: c_int = undefined;
+pub var TableColumnFlags_IsVisible: c_int = undefined;
+pub var SortDirection_Ascending: c_int = undefined;
+pub var SortDirection_Descending: c_int = undefined;
+pub var SortDirection_None: c_int = undefined;
+pub var TableFlags_None: c_int = undefined;
+pub var TableFlags_NoClip: c_int = undefined;
+pub var TableFlags_Borders: c_int = undefined;
+pub var TableFlags_BordersH: c_int = undefined;
+pub var TableFlags_BordersInner: c_int = undefined;
+pub var TableFlags_BordersInnerH: c_int = undefined;
+pub var TableFlags_BordersInnerV: c_int = undefined;
+pub var TableFlags_BordersOuter: c_int = undefined;
+pub var TableFlags_BordersOuterH: c_int = undefined;
+pub var TableFlags_BordersOuterV: c_int = undefined;
+pub var TableFlags_BordersV: c_int = undefined;
+pub var TableFlags_RowBg: c_int = undefined;
+pub var TableFlags_ContextMenuInBody: c_int = undefined;
+pub var TableFlags_Hideable: c_int = undefined;
+pub var TableFlags_NoSavedSettings: c_int = undefined;
+pub var TableFlags_Reorderable: c_int = undefined;
+pub var TableFlags_Resizable: c_int = undefined;
+pub var TableFlags_Sortable: c_int = undefined;
+pub var TableFlags_HighlightHoveredColumn: c_int = undefined;
+pub var TableFlags_NoPadInnerX: c_int = undefined;
+pub var TableFlags_NoPadOuterX: c_int = undefined;
+pub var TableFlags_PadOuterX: c_int = undefined;
+pub var TableFlags_ScrollX: c_int = undefined;
+pub var TableFlags_ScrollY: c_int = undefined;
+pub var TableFlags_NoHostExtendX: c_int = undefined;
+pub var TableFlags_NoHostExtendY: c_int = undefined;
+pub var TableFlags_NoKeepColumnsVisible: c_int = undefined;
+pub var TableFlags_PreciseWidths: c_int = undefined;
+pub var TableFlags_SizingFixedFit: c_int = undefined;
+pub var TableFlags_SizingFixedSame: c_int = undefined;
+pub var TableFlags_SizingStretchProp: c_int = undefined;
+pub var TableFlags_SizingStretchSame: c_int = undefined;
+pub var TableFlags_SortMulti: c_int = undefined;
+pub var TableFlags_SortTristate: c_int = undefined;
+pub var InputTextFlags_None: c_int = undefined;
+pub var InputTextFlags_CharsDecimal: c_int = undefined;
+pub var InputTextFlags_CharsHexadecimal: c_int = undefined;
+pub var InputTextFlags_CharsNoBlank: c_int = undefined;
+pub var InputTextFlags_CharsScientific: c_int = undefined;
+pub var InputTextFlags_CharsUppercase: c_int = undefined;
+pub var InputTextFlags_CallbackAlways: c_int = undefined;
+pub var InputTextFlags_CallbackCharFilter: c_int = undefined;
+pub var InputTextFlags_CallbackCompletion: c_int = undefined;
+pub var InputTextFlags_CallbackEdit: c_int = undefined;
+pub var InputTextFlags_CallbackHistory: c_int = undefined;
+pub var InputTextFlags_AllowTabInput: c_int = undefined;
+pub var InputTextFlags_CtrlEnterForNewLine: c_int = undefined;
+pub var InputTextFlags_EnterReturnsTrue: c_int = undefined;
+pub var InputTextFlags_EscapeClearsAll: c_int = undefined;
+pub var InputTextFlags_AlwaysOverwrite: c_int = undefined;
+pub var InputTextFlags_AutoSelectAll: c_int = undefined;
+pub var InputTextFlags_DisplayEmptyRefVal: c_int = undefined;
+pub var InputTextFlags_NoHorizontalScroll: c_int = undefined;
+pub var InputTextFlags_NoUndoRedo: c_int = undefined;
+pub var InputTextFlags_ParseEmptyRefVal: c_int = undefined;
+pub var InputTextFlags_Password: c_int = undefined;
+pub var InputTextFlags_ReadOnly: c_int = undefined;
+pub var TreeNodeFlags_AllowOverlap: c_int = undefined;
+pub var TreeNodeFlags_Bullet: c_int = undefined;
+pub var TreeNodeFlags_CollapsingHeader: c_int = undefined;
+pub var TreeNodeFlags_DefaultOpen: c_int = undefined;
+pub var TreeNodeFlags_FramePadding: c_int = undefined;
+pub var TreeNodeFlags_Framed: c_int = undefined;
+pub var TreeNodeFlags_Leaf: c_int = undefined;
+pub var TreeNodeFlags_NoAutoOpenOnLog: c_int = undefined;
+pub var TreeNodeFlags_NoTreePushOnOpen: c_int = undefined;
+pub var TreeNodeFlags_None: c_int = undefined;
+pub var TreeNodeFlags_OpenOnArrow: c_int = undefined;
+pub var TreeNodeFlags_OpenOnDoubleClick: c_int = undefined;
+pub var TreeNodeFlags_Selected: c_int = undefined;
+pub var TreeNodeFlags_SpanAllColumns: c_int = undefined;
+pub var TreeNodeFlags_SpanAvailWidth: c_int = undefined;
+pub var TreeNodeFlags_SpanFullWidth: c_int = undefined;
+pub var TreeNodeFlags_SpanTextWidth: c_int = undefined;
+pub var Cond_Always: c_int = undefined;
+pub var Cond_Appearing: c_int = undefined;
+pub var Cond_FirstUseEver: c_int = undefined;
+pub var Cond_Once: c_int = undefined;
+pub var ChildFlags_AlwaysAutoResize: c_int = undefined;
+pub var ChildFlags_AlwaysUseWindowPadding: c_int = undefined;
+pub var ChildFlags_AutoResizeX: c_int = undefined;
+pub var ChildFlags_AutoResizeY: c_int = undefined;
+pub var ChildFlags_Border: c_int = undefined;
+pub var ChildFlags_FrameStyle: c_int = undefined;
+pub var ChildFlags_NavFlattened: c_int = undefined;
+pub var ChildFlags_None: c_int = undefined;
+pub var ChildFlags_ResizeX: c_int = undefined;
+pub var ChildFlags_ResizeY: c_int = undefined;
+pub var WindowFlags_AlwaysAutoResize: c_int = undefined;
+pub var WindowFlags_AlwaysHorizontalScrollbar: c_int = undefined;
+pub var WindowFlags_AlwaysVerticalScrollbar: c_int = undefined;
+pub var WindowFlags_HorizontalScrollbar: c_int = undefined;
+pub var WindowFlags_MenuBar: c_int = undefined;
+pub var WindowFlags_NoBackground: c_int = undefined;
+pub var WindowFlags_NoCollapse: c_int = undefined;
+pub var WindowFlags_NoDecoration: c_int = undefined;
+pub var WindowFlags_NoDocking: c_int = undefined;
+pub var WindowFlags_NoFocusOnAppearing: c_int = undefined;
+pub var WindowFlags_NoInputs: c_int = undefined;
+pub var WindowFlags_NoMouseInputs: c_int = undefined;
+pub var WindowFlags_NoMove: c_int = undefined;
+pub var WindowFlags_NoNav: c_int = undefined;
+pub var WindowFlags_NoNavFocus: c_int = undefined;
+pub var WindowFlags_NoNavInputs: c_int = undefined;
+pub var WindowFlags_NoResize: c_int = undefined;
+pub var WindowFlags_NoSavedSettings: c_int = undefined;
+pub var WindowFlags_NoScrollWithMouse: c_int = undefined;
+pub var WindowFlags_NoScrollbar: c_int = undefined;
+pub var WindowFlags_NoTitleBar: c_int = undefined;
+pub var WindowFlags_None: c_int = undefined;
+pub var WindowFlags_TopMost: c_int = undefined;
+pub var WindowFlags_UnsavedDocument: c_int = undefined;
+pub var FocusedFlags_AnyWindow: c_int = undefined;
+pub var FocusedFlags_ChildWindows: c_int = undefined;
+pub var FocusedFlags_DockHierarchy: c_int = undefined;
+pub var FocusedFlags_NoPopupHierarchy: c_int = undefined;
+pub var FocusedFlags_None: c_int = undefined;
+pub var FocusedFlags_RootAndChildWindows: c_int = undefined;
+pub var FocusedFlags_RootWindow: c_int = undefined;
+
+const flag_names = [_][*:0]const u8{
+    "Dir_Down",
+    "Dir_Left",
+    "Dir_None",
+    "Dir_Right",
+    "Dir_Up",
+    "ButtonFlags_MouseButtonLeft",
+    "ButtonFlags_MouseButtonMiddle",
+    "ButtonFlags_MouseButtonRight",
+    "ButtonFlags_None",
+    "ColorEditFlags_NoAlpha",
+    "ColorEditFlags_NoBorder",
+    "ColorEditFlags_NoDragDrop",
+    "ColorEditFlags_NoInputs",
+    "ColorEditFlags_NoLabel",
+    "ColorEditFlags_NoOptions",
+    "ColorEditFlags_NoPicker",
+    "ColorEditFlags_NoSidePreview",
+    "ColorEditFlags_NoSmallPreview",
+    "ColorEditFlags_NoTooltip",
+    "ColorEditFlags_None",
+    "ColorEditFlags_AlphaBar",
+    "ColorEditFlags_AlphaPreview",
+    "ColorEditFlags_AlphaPreviewHalf",
+    "ColorEditFlags_DisplayHSV",
+    "ColorEditFlags_DisplayHex",
+    "ColorEditFlags_DisplayRGB",
+    "ColorEditFlags_Float",
+    "ColorEditFlags_InputHSV",
+    "ColorEditFlags_InputRGB",
+    "ColorEditFlags_PickerHueBar",
+    "ColorEditFlags_PickerHueWheel",
+    "ColorEditFlags_Uint8",
+    "ComboFlags_HeightLarge",
+    "ComboFlags_HeightLargest",
+    "ComboFlags_HeightRegular",
+    "ComboFlags_HeightSmall",
+    "ComboFlags_NoArrowButton",
+    "ComboFlags_NoPreview",
+    "ComboFlags_None",
+    "ComboFlags_PopupAlignLeft",
+    "ComboFlags_WidthFitPreview",
+    "SelectableFlags_AllowDoubleClick",
+    "SelectableFlags_AllowOverlap",
+    "SelectableFlags_Disabled",
+    "SelectableFlags_DontClosePopups",
+    "SelectableFlags_None",
+    "SelectableFlags_SpanAllColumns",
+    "ConfigFlags_DockingEnable",
+    "ConfigFlags_NavEnableKeyboard",
+    "ConfigFlags_NavEnableSetMousePos",
+    "ConfigFlags_NavNoCaptureKeyboard",
+    "ConfigFlags_NoKeyboard",
+    "ConfigFlags_NoMouse",
+    "ConfigFlags_NoMouseCursorChange",
+    "ConfigFlags_NoSavedSettings",
+    "ConfigFlags_None",
+    "ConfigVar_DebugBeginReturnValueLoop",
+    "ConfigVar_DebugBeginReturnValueOnce",
+    "ConfigVar_DockingNoSplit",
+    "ConfigVar_DockingTransparentPayload",
+    "ConfigVar_DockingWithShift",
+    "ConfigVar_DragClickToInputText",
+    "ConfigVar_Flags",
+    "ConfigVar_HoverDelayNormal",
+    "ConfigVar_HoverDelayShort",
+    "ConfigVar_HoverFlagsForTooltipMouse",
+    "ConfigVar_HoverFlagsForTooltipNav",
+    "ConfigVar_HoverStationaryDelay",
+    "ConfigVar_InputTextCursorBlink",
+    "ConfigVar_InputTextEnterKeepActive",
+    "ConfigVar_InputTrickleEventQueue",
+    "ConfigVar_KeyRepeatDelay",
+    "ConfigVar_KeyRepeatRate",
+    "ConfigVar_MacOSXBehaviors",
+    "ConfigVar_MouseDoubleClickMaxDist",
+    "ConfigVar_MouseDoubleClickTime",
+    "ConfigVar_MouseDragThreshold",
+    "ConfigVar_ViewportsNoDecoration",
+    "ConfigVar_WindowsMoveFromTitleBarOnly",
+    "ConfigVar_WindowsResizeFromEdges",
+    "DragDropFlags_None",
+    "DragDropFlags_AcceptBeforeDelivery",
+    "DragDropFlags_AcceptNoDrawDefaultRect",
+    "DragDropFlags_AcceptNoPreviewTooltip",
+    "DragDropFlags_AcceptPeekOnly",
+    "DragDropFlags_PayloadAutoExpire",
+    "DragDropFlags_SourceAllowNullID",
+    "DragDropFlags_SourceExtern",
+    "DragDropFlags_SourceNoDisableHover",
+    "DragDropFlags_SourceNoHoldToOpenOthers",
+    "DragDropFlags_SourceNoPreviewTooltip",
+    "SliderFlags_AlwaysClamp",
+    "SliderFlags_Logarithmic",
+    "SliderFlags_NoInput",
+    "SliderFlags_NoRoundToFormat",
+    "SliderFlags_None",
+    "SliderFlags_WrapAround",
+    "DrawFlags_Closed",
+    "DrawFlags_None",
+    "DrawFlags_RoundCornersAll",
+    "DrawFlags_RoundCornersBottom",
+    "DrawFlags_RoundCornersBottomLeft",
+    "DrawFlags_RoundCornersBottomRight",
+    "DrawFlags_RoundCornersLeft",
+    "DrawFlags_RoundCornersNone",
+    "DrawFlags_RoundCornersRight",
+    "DrawFlags_RoundCornersTop",
+    "DrawFlags_RoundCornersTopLeft",
+    "DrawFlags_RoundCornersTopRight",
+    "FontFlags_Bold",
+    "FontFlags_Italic",
+    "FontFlags_None",
+    "HoveredFlags_AllowWhenBlockedByActiveItem",
+    "HoveredFlags_AllowWhenBlockedByPopup",
+    "HoveredFlags_ForTooltip",
+    "HoveredFlags_NoNavOverride",
+    "HoveredFlags_None",
+    "HoveredFlags_Stationary",
+    "HoveredFlags_AllowWhenDisabled",
+    "HoveredFlags_AllowWhenOverlapped",
+    "HoveredFlags_AllowWhenOverlappedByItem",
+    "HoveredFlags_AllowWhenOverlappedByWindow",
+    "HoveredFlags_RectOnly",
+    "HoveredFlags_DelayNone",
+    "HoveredFlags_DelayNormal",
+    "HoveredFlags_DelayShort",
+    "HoveredFlags_NoSharedDelay",
+    "HoveredFlags_AnyWindow",
+    "HoveredFlags_ChildWindows",
+    "HoveredFlags_DockHierarchy",
+    "HoveredFlags_NoPopupHierarchy",
+    "HoveredFlags_RootAndChildWindows",
+    "HoveredFlags_RootWindow",
+    "Key_0",
+    "Key_1",
+    "Key_2",
+    "Key_3",
+    "Key_4",
+    "Key_5",
+    "Key_6",
+    "Key_7",
+    "Key_8",
+    "Key_9",
+    "Key_A",
+    "Key_Apostrophe",
+    "Key_AppBack",
+    "Key_AppForward",
+    "Key_B",
+    "Key_Backslash",
+    "Key_Backspace",
+    "Key_C",
+    "Key_CapsLock",
+    "Key_Comma",
+    "Key_D",
+    "Key_Delete",
+    "Key_DownArrow",
+    "Key_E",
+    "Key_End",
+    "Key_Enter",
+    "Key_Equal",
+    "Key_Escape",
+    "Key_F",
+    "Key_F1",
+    "Key_F10",
+    "Key_F11",
+    "Key_F12",
+    "Key_F13",
+    "Key_F14",
+    "Key_F15",
+    "Key_F16",
+    "Key_F17",
+    "Key_F18",
+    "Key_F19",
+    "Key_F2",
+    "Key_F20",
+    "Key_F21",
+    "Key_F22",
+    "Key_F23",
+    "Key_F24",
+    "Key_F3",
+    "Key_F4",
+    "Key_F5",
+    "Key_F6",
+    "Key_F7",
+    "Key_F8",
+    "Key_F9",
+    "Key_G",
+    "Key_GraveAccent",
+    "Key_H",
+    "Key_Home",
+    "Key_I",
+    "Key_Insert",
+    "Key_J",
+    "Key_K",
+    "Key_Keypad0",
+    "Key_Keypad1",
+    "Key_Keypad2",
+    "Key_Keypad3",
+    "Key_Keypad4",
+    "Key_Keypad5",
+    "Key_Keypad6",
+    "Key_Keypad7",
+    "Key_Keypad8",
+    "Key_Keypad9",
+    "Key_KeypadAdd",
+    "Key_KeypadDecimal",
+    "Key_KeypadDivide",
+    "Key_KeypadEnter",
+    "Key_KeypadEqual",
+    "Key_KeypadMultiply",
+    "Key_KeypadSubtract",
+    "Key_L",
+    "Key_LeftAlt",
+    "Key_LeftArrow",
+    "Key_LeftBracket",
+    "Key_LeftCtrl",
+    "Key_LeftShift",
+    "Key_LeftSuper",
+    "Key_M",
+    "Key_Menu",
+    "Key_Minus",
+    "Key_N",
+    "Key_NumLock",
+    "Key_O",
+    "Key_P",
+    "Key_PageDown",
+    "Key_PageUp",
+    "Key_Pause",
+    "Key_Period",
+    "Key_PrintScreen",
+    "Key_Q",
+    "Key_R",
+    "Key_RightAlt",
+    "Key_RightArrow",
+    "Key_RightBracket",
+    "Key_RightCtrl",
+    "Key_RightShift",
+    "Key_RightSuper",
+    "Key_S",
+    "Key_ScrollLock",
+    "Key_Semicolon",
+    "Key_Slash",
+    "Key_Space",
+    "Key_T",
+    "Key_Tab",
+    "Key_U",
+    "Key_UpArrow",
+    "Key_V",
+    "Key_W",
+    "Key_X",
+    "Key_Y",
+    "Key_Z",
+    "Mod_Alt",
+    "Mod_Ctrl",
+    "Mod_None",
+    "Mod_Shift",
+    "Mod_Super",
+    "Key_MouseLeft",
+    "Key_MouseMiddle",
+    "Key_MouseRight",
+    "Key_MouseWheelX",
+    "Key_MouseWheelY",
+    "Key_MouseX1",
+    "Key_MouseX2",
+    "MouseButton_Left",
+    "MouseButton_Middle",
+    "MouseButton_Right",
+    "MouseCursor_Arrow",
+    "MouseCursor_Hand",
+    "MouseCursor_None",
+    "MouseCursor_NotAllowed",
+    "MouseCursor_ResizeAll",
+    "MouseCursor_ResizeEW",
+    "MouseCursor_ResizeNESW",
+    "MouseCursor_ResizeNS",
+    "MouseCursor_ResizeNWSE",
+    "MouseCursor_TextInput",
+    "InputFlags_None",
+    "InputFlags_Repeat",
+    "InputFlags_RouteFromRootWindow",
+    "InputFlags_RouteOverActive",
+    "InputFlags_RouteOverFocused",
+    "InputFlags_RouteUnlessBgFocused",
+    "InputFlags_Tooltip",
+    "InputFlags_RouteActive",
+    "InputFlags_RouteAlways",
+    "InputFlags_RouteFocused",
+    "InputFlags_RouteGlobal",
+    "PopupFlags_None",
+    "PopupFlags_MouseButtonLeft",
+    "PopupFlags_MouseButtonMiddle",
+    "PopupFlags_MouseButtonRight",
+    "PopupFlags_NoOpenOverItems",
+    "PopupFlags_AnyPopup",
+    "PopupFlags_AnyPopupId",
+    "PopupFlags_AnyPopupLevel",
+    "PopupFlags_NoOpenOverExistingPopup",
+    "PopupFlags_NoReopen",
+    "Col_Border",
+    "Col_BorderShadow",
+    "Col_Button",
+    "Col_ButtonActive",
+    "Col_ButtonHovered",
+    "Col_CheckMark",
+    "Col_ChildBg",
+    "Col_DockingEmptyBg",
+    "Col_DockingPreview",
+    "Col_DragDropTarget",
+    "Col_FrameBg",
+    "Col_FrameBgActive",
+    "Col_FrameBgHovered",
+    "Col_Header",
+    "Col_HeaderActive",
+    "Col_HeaderHovered",
+    "Col_MenuBarBg",
+    "Col_ModalWindowDimBg",
+    "Col_NavHighlight",
+    "Col_NavWindowingDimBg",
+    "Col_NavWindowingHighlight",
+    "Col_PlotHistogram",
+    "Col_PlotHistogramHovered",
+    "Col_PlotLines",
+    "Col_PlotLinesHovered",
+    "Col_PopupBg",
+    "Col_ResizeGrip",
+    "Col_ResizeGripActive",
+    "Col_ResizeGripHovered",
+    "Col_ScrollbarBg",
+    "Col_ScrollbarGrab",
+    "Col_ScrollbarGrabActive",
+    "Col_ScrollbarGrabHovered",
+    "Col_Separator",
+    "Col_SeparatorActive",
+    "Col_SeparatorHovered",
+    "Col_SliderGrab",
+    "Col_SliderGrabActive",
+    "Col_Tab",
+    "Col_TabDimmed",
+    "Col_TabDimmedSelected",
+    "Col_TabDimmedSelectedOverline",
+    "Col_TabHovered",
+    "Col_TabSelected",
+    "Col_TabSelectedOverline",
+    "Col_TableBorderLight",
+    "Col_TableBorderStrong",
+    "Col_TableHeaderBg",
+    "Col_TableRowBg",
+    "Col_TableRowBgAlt",
+    "Col_Text",
+    "Col_TextDisabled",
+    "Col_TextSelectedBg",
+    "Col_TitleBg",
+    "Col_TitleBgActive",
+    "Col_TitleBgCollapsed",
+    "Col_WindowBg",
+    "StyleVar_Alpha",
+    "StyleVar_ButtonTextAlign",
+    "StyleVar_CellPadding",
+    "StyleVar_ChildBorderSize",
+    "StyleVar_ChildRounding",
+    "StyleVar_DisabledAlpha",
+    "StyleVar_FrameBorderSize",
+    "StyleVar_FramePadding",
+    "StyleVar_FrameRounding",
+    "StyleVar_GrabMinSize",
+    "StyleVar_GrabRounding",
+    "StyleVar_IndentSpacing",
+    "StyleVar_ItemInnerSpacing",
+    "StyleVar_ItemSpacing",
+    "StyleVar_PopupBorderSize",
+    "StyleVar_PopupRounding",
+    "StyleVar_ScrollbarRounding",
+    "StyleVar_ScrollbarSize",
+    "StyleVar_SelectableTextAlign",
+    "StyleVar_SeparatorTextAlign",
+    "StyleVar_SeparatorTextBorderSize",
+    "StyleVar_SeparatorTextPadding",
+    "StyleVar_TabBarBorderSize",
+    "StyleVar_TabBorderSize",
+    "StyleVar_TabRounding",
+    "StyleVar_TableAngledHeadersAngle",
+    "StyleVar_TableAngledHeadersTextAlign",
+    "StyleVar_WindowBorderSize",
+    "StyleVar_WindowMinSize",
+    "StyleVar_WindowPadding",
+    "StyleVar_WindowRounding",
+    "StyleVar_WindowTitleAlign",
+    "TabBarFlags_AutoSelectNewTabs",
+    "TabBarFlags_DrawSelectedOverline",
+    "TabBarFlags_FittingPolicyResizeDown",
+    "TabBarFlags_FittingPolicyScroll",
+    "TabBarFlags_NoCloseWithMiddleMouseButton",
+    "TabBarFlags_NoTabListScrollingButtons",
+    "TabBarFlags_NoTooltip",
+    "TabBarFlags_None",
+    "TabBarFlags_Reorderable",
+    "TabBarFlags_TabListPopupButton",
+    "TabItemFlags_Leading",
+    "TabItemFlags_NoAssumedClosure",
+    "TabItemFlags_NoCloseWithMiddleMouseButton",
+    "TabItemFlags_NoPushId",
+    "TabItemFlags_NoReorder",
+    "TabItemFlags_NoTooltip",
+    "TabItemFlags_None",
+    "TabItemFlags_SetSelected",
+    "TabItemFlags_Trailing",
+    "TabItemFlags_UnsavedDocument",
+    "TableRowFlags_Headers",
+    "TableRowFlags_None",
+    "TableBgTarget_CellBg",
+    "TableBgTarget_None",
+    "TableBgTarget_RowBg0",
+    "TableBgTarget_RowBg1",
+    "TableColumnFlags_None",
+    "TableColumnFlags_AngledHeader",
+    "TableColumnFlags_DefaultHide",
+    "TableColumnFlags_DefaultSort",
+    "TableColumnFlags_Disabled",
+    "TableColumnFlags_IndentDisable",
+    "TableColumnFlags_IndentEnable",
+    "TableColumnFlags_NoClip",
+    "TableColumnFlags_NoHeaderLabel",
+    "TableColumnFlags_NoHeaderWidth",
+    "TableColumnFlags_NoHide",
+    "TableColumnFlags_NoReorder",
+    "TableColumnFlags_NoResize",
+    "TableColumnFlags_NoSort",
+    "TableColumnFlags_NoSortAscending",
+    "TableColumnFlags_NoSortDescending",
+    "TableColumnFlags_PreferSortAscending",
+    "TableColumnFlags_PreferSortDescending",
+    "TableColumnFlags_WidthFixed",
+    "TableColumnFlags_WidthStretch",
+    "TableColumnFlags_IsEnabled",
+    "TableColumnFlags_IsHovered",
+    "TableColumnFlags_IsSorted",
+    "TableColumnFlags_IsVisible",
+    "SortDirection_Ascending",
+    "SortDirection_Descending",
+    "SortDirection_None",
+    "TableFlags_None",
+    "TableFlags_NoClip",
+    "TableFlags_Borders",
+    "TableFlags_BordersH",
+    "TableFlags_BordersInner",
+    "TableFlags_BordersInnerH",
+    "TableFlags_BordersInnerV",
+    "TableFlags_BordersOuter",
+    "TableFlags_BordersOuterH",
+    "TableFlags_BordersOuterV",
+    "TableFlags_BordersV",
+    "TableFlags_RowBg",
+    "TableFlags_ContextMenuInBody",
+    "TableFlags_Hideable",
+    "TableFlags_NoSavedSettings",
+    "TableFlags_Reorderable",
+    "TableFlags_Resizable",
+    "TableFlags_Sortable",
+    "TableFlags_HighlightHoveredColumn",
+    "TableFlags_NoPadInnerX",
+    "TableFlags_NoPadOuterX",
+    "TableFlags_PadOuterX",
+    "TableFlags_ScrollX",
+    "TableFlags_ScrollY",
+    "TableFlags_NoHostExtendX",
+    "TableFlags_NoHostExtendY",
+    "TableFlags_NoKeepColumnsVisible",
+    "TableFlags_PreciseWidths",
+    "TableFlags_SizingFixedFit",
+    "TableFlags_SizingFixedSame",
+    "TableFlags_SizingStretchProp",
+    "TableFlags_SizingStretchSame",
+    "TableFlags_SortMulti",
+    "TableFlags_SortTristate",
+    "InputTextFlags_None",
+    "InputTextFlags_CharsDecimal",
+    "InputTextFlags_CharsHexadecimal",
+    "InputTextFlags_CharsNoBlank",
+    "InputTextFlags_CharsScientific",
+    "InputTextFlags_CharsUppercase",
+    "InputTextFlags_CallbackAlways",
+    "InputTextFlags_CallbackCharFilter",
+    "InputTextFlags_CallbackCompletion",
+    "InputTextFlags_CallbackEdit",
+    "InputTextFlags_CallbackHistory",
+    "InputTextFlags_AllowTabInput",
+    "InputTextFlags_CtrlEnterForNewLine",
+    "InputTextFlags_EnterReturnsTrue",
+    "InputTextFlags_EscapeClearsAll",
+    "InputTextFlags_AlwaysOverwrite",
+    "InputTextFlags_AutoSelectAll",
+    "InputTextFlags_DisplayEmptyRefVal",
+    "InputTextFlags_NoHorizontalScroll",
+    "InputTextFlags_NoUndoRedo",
+    "InputTextFlags_ParseEmptyRefVal",
+    "InputTextFlags_Password",
+    "InputTextFlags_ReadOnly",
+    "TreeNodeFlags_AllowOverlap",
+    "TreeNodeFlags_Bullet",
+    "TreeNodeFlags_CollapsingHeader",
+    "TreeNodeFlags_DefaultOpen",
+    "TreeNodeFlags_FramePadding",
+    "TreeNodeFlags_Framed",
+    "TreeNodeFlags_Leaf",
+    "TreeNodeFlags_NoAutoOpenOnLog",
+    "TreeNodeFlags_NoTreePushOnOpen",
+    "TreeNodeFlags_None",
+    "TreeNodeFlags_OpenOnArrow",
+    "TreeNodeFlags_OpenOnDoubleClick",
+    "TreeNodeFlags_Selected",
+    "TreeNodeFlags_SpanAllColumns",
+    "TreeNodeFlags_SpanAvailWidth",
+    "TreeNodeFlags_SpanFullWidth",
+    "TreeNodeFlags_SpanTextWidth",
+    "Cond_Always",
+    "Cond_Appearing",
+    "Cond_FirstUseEver",
+    "Cond_Once",
+    "ChildFlags_AlwaysAutoResize",
+    "ChildFlags_AlwaysUseWindowPadding",
+    "ChildFlags_AutoResizeX",
+    "ChildFlags_AutoResizeY",
+    "ChildFlags_Border",
+    "ChildFlags_FrameStyle",
+    "ChildFlags_NavFlattened",
+    "ChildFlags_None",
+    "ChildFlags_ResizeX",
+    "ChildFlags_ResizeY",
+    "WindowFlags_AlwaysAutoResize",
+    "WindowFlags_AlwaysHorizontalScrollbar",
+    "WindowFlags_AlwaysVerticalScrollbar",
+    "WindowFlags_HorizontalScrollbar",
+    "WindowFlags_MenuBar",
+    "WindowFlags_NoBackground",
+    "WindowFlags_NoCollapse",
+    "WindowFlags_NoDecoration",
+    "WindowFlags_NoDocking",
+    "WindowFlags_NoFocusOnAppearing",
+    "WindowFlags_NoInputs",
+    "WindowFlags_NoMouseInputs",
+    "WindowFlags_NoMove",
+    "WindowFlags_NoNav",
+    "WindowFlags_NoNavFocus",
+    "WindowFlags_NoNavInputs",
+    "WindowFlags_NoResize",
+    "WindowFlags_NoSavedSettings",
+    "WindowFlags_NoScrollWithMouse",
+    "WindowFlags_NoScrollbar",
+    "WindowFlags_NoTitleBar",
+    "WindowFlags_None",
+    "WindowFlags_TopMost",
+    "WindowFlags_UnsavedDocument",
+    "FocusedFlags_AnyWindow",
+    "FocusedFlags_ChildWindows",
+    "FocusedFlags_DockHierarchy",
+    "FocusedFlags_NoPopupHierarchy",
+    "FocusedFlags_None",
+    "FocusedFlags_RootAndChildWindows",
+    "FocusedFlags_RootWindow",
+};
 
 ///-- **Button > ArrowButton**
 ///-- Square button with an arrow shape. 'dir' is one of the Dir_* values
@@ -6994,7 +7556,7 @@ inline fn getEnum(func: ?*fn () callconv(.C) c_int) c_int {
 }
 
 pub fn init(plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque) !void {
-    @setEvalBranchQuota(0x1000);
+    @setEvalBranchQuota(0x10000);
     @setRuntimeSafety(false);
 
     const getFunc: ?*fn (v: [*:0]const u8, n: [*:0]const u8) callconv(.C) *anyopaque =
@@ -7017,10 +7579,10 @@ pub fn init(plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque) !
         };
     }
 
-    inline for (@typeInfo(API).@"struct".decls) |decl| {
-        @field(API, decl.name) = getEnum(@alignCast(@ptrCast(getFunc.?(api_version, decl.name))));
+    inline for (flag_names) |name| {
+        @field(@This(), std.mem.span(name)) = getEnum(@alignCast(@ptrCast(getFunc.?(api_version, name))));
         checkError() catch |err| {
-            std.debug.print("imgui api load failure: inline struct decls: {s} \n", .{decl.name});
+            std.debug.print("imgui api load failure: inline struct decls: {s} \n", .{name});
             return err;
         };
     }
