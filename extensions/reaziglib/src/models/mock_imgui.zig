@@ -45,8 +45,11 @@ pub const WidgetKind = enum {
     set_next_window_size,
     set_next_window_dock_id,
     set_next_item_allow_overlap,
+    draw_list_add_rect,
     draw_list_add_rect_filled,
     draw_list_add_text,
+    draw_list_add_text_ex,
+    draw_list_add_quad_filled,
     draw_list_add_circle_filled,
     draw_list_add_circle,
     draw_list_add_line,
@@ -169,8 +172,11 @@ const ImguiMocks = struct {
     GetWindowDrawList: @TypeOf(imgui.api.GetWindowDrawList),
     GetWindowPos: @TypeOf(imgui.api.GetWindowPos),
     GetWindowSize: @TypeOf(imgui.api.GetWindowSize),
+    DrawList_AddRect: @TypeOf(imgui.api.DrawList_AddRect),
     DrawList_AddRectFilled: @TypeOf(imgui.api.DrawList_AddRectFilled),
     DrawList_AddText: @TypeOf(imgui.api.DrawList_AddText),
+    DrawList_AddTextEx: @TypeOf(imgui.api.DrawList_AddTextEx),
+    DrawList_AddQuadFilled: @TypeOf(imgui.api.DrawList_AddQuadFilled),
     DrawList_AddCircleFilled: @TypeOf(imgui.api.DrawList_AddCircleFilled),
     DrawList_AddCircle: @TypeOf(imgui.api.DrawList_AddCircle),
     DrawList_AddLine: @TypeOf(imgui.api.DrawList_AddLine),
@@ -527,8 +533,11 @@ pub const MockImGui = struct {
     const GetWindowSize = &mockGetWindowSize;
 
     // DrawList
+    const DrawList_AddRect = &mockDL_AddRect;
     const DrawList_AddRectFilled = &mockDL_AddRectFilled;
     const DrawList_AddText = &mockDL_AddText;
+    const DrawList_AddTextEx = &mockDL_AddTextEx;
+    const DrawList_AddQuadFilled = &mockDL_AddQuadFilled;
     const DrawList_AddCircleFilled = &mockDL_AddCircleFilled;
     const DrawList_AddCircle = &mockDL_AddCircle;
     const DrawList_AddLine = &mockDL_AddLine;
@@ -896,6 +905,11 @@ fn mockGetWindowSize(_: imgui.ContextPtr, w: *f64, h: *f64) callconv(.C) void {
 // -- DrawList mocks (take DrawListPtr as first arg, not ContextPtr) --
 // Each signature must exactly match the corresponding API field.
 
+// DrawList_AddRect: (DrawListPtr, f64, f64, f64, f64, c_int, ?*f64, ?*c_int, ?*f64) void
+fn mockDL_AddRect(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64, _: ?*c_int, _: ?*f64) callconv(.C) void {
+    trace(.draw_list_add_rect, "");
+}
+
 // DrawList_AddRectFilled: (DrawListPtr, f64, f64, f64, f64, c_int, ?*f64, ?*c_int) void
 fn mockDL_AddRectFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: ?*f64, _: ?*c_int) callconv(.C) void {
     trace(.draw_list_add_rect_filled, "");
@@ -904,6 +918,16 @@ fn mockDL_AddRectFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _:
 // DrawList_AddText: (DrawListPtr, f64, f64, c_int, [*:0]const u8) void
 fn mockDL_AddText(_: imgui.DrawListPtr, _: f64, _: f64, _: c_int, txt: [*:0]const u8) callconv(.C) void {
     trace(.draw_list_add_text, std.mem.span(txt));
+}
+
+// DrawList_AddTextEx: (DrawListPtr, FontPtr, f64, f64, f64, c_int, [*:0]const u8, ?*f64, ?*f64, ?*f64, ?*f64, ?*f64) void
+fn mockDL_AddTextEx(_: imgui.DrawListPtr, _: imgui.FontPtr, _: f64, _: f64, _: f64, _: c_int, txt: [*:0]const u8, _: ?*f64, _: ?*f64, _: ?*f64, _: ?*f64, _: ?*f64) callconv(.C) void {
+    trace(.draw_list_add_text_ex, std.mem.span(txt));
+}
+
+// DrawList_AddQuadFilled: (DrawListPtr, f64, f64, f64, f64, f64, f64, f64, f64, c_int) void
+fn mockDL_AddQuadFilled(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, _: c_int) callconv(.C) void {
+    trace(.draw_list_add_quad_filled, "");
 }
 
 // DrawList_AddCircleFilled: (DrawListPtr, f64, f64, f64, c_int, ?*c_int) void
