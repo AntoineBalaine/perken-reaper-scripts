@@ -117,6 +117,12 @@ pub fn build(b: *std.Build) void {
     _ = b.addModule("slotted_buffer", .{
         .root_source_file = b.path("src/slotted_buffer.zig"),
     });
+
+    // swell (depends on reaper)
+    const swell_mod = b.addModule("swell", .{
+        .root_source_file = b.path("src/swell.zig"),
+    });
+    swell_mod.addImport("reaper", reaper_mod);
 }
 
 pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {
@@ -139,6 +145,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "session",
         "Translator",
         "slotted_buffer",
+        "swell",
     };
     for (module_names) |name| {
         consumer.addImport(name, dep.module(name));
