@@ -123,6 +123,13 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/swell.zig"),
     });
     swell_mod.addImport("reaper", reaper_mod);
+
+    // reaper_theme depends on reaper, reaper_imgui
+    const reaper_theme_mod = b.addModule("reaper_theme", .{
+        .root_source_file = b.path("src/reaper_theme/ReaperTheme.zig"),
+    });
+    reaper_theme_mod.addImport("reaper", reaper_mod);
+    reaper_theme_mod.addImport("reaper_imgui", reaper_imgui_mod);
 }
 
 pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {
@@ -146,6 +153,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "Translator",
         "slotted_buffer",
         "swell",
+        "reaper_theme",
     };
     for (module_names) |name| {
         consumer.addImport(name, dep.module(name));
