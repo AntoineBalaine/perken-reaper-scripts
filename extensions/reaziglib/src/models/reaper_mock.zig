@@ -95,6 +95,8 @@ const Mocks = struct {
     CSurf_SetSurfacePan: @TypeOf(reaper.CSurf_SetSurfacePan),
     SetMixerScroll: @TypeOf(reaper.SetMixerScroll),
     TrackList_AdjustWindows: @TypeOf(reaper.TrackList_AdjustWindows),
+    TrackFX_GetParamFromIdent: @TypeOf(reaper.TrackFX_GetParamFromIdent),
+    GetResourcePath: @TypeOf(reaper.GetResourcePath),
 };
 
 // Helper functions to set up and tear down the mock API
@@ -271,10 +273,18 @@ fn TrackFX_GetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:
     const param_name = std.mem.span(parmname);
     const fx_item = tr.fx_list.items[@intCast(fx)];
 
+    if (std.mem.eql(u8, param_name, "parallel")) {
+        bufOut[0] = '0' + fx_item.named_configs.parallel;
+        bufOut[1] = 0;
+        return true;
+    }
+
     const name = if (std.mem.eql(u8, param_name, "renamed_name"))
         fx_item.named_configs.renamed_name
     else if (std.mem.eql(u8, param_name, "original_name"))
         fx_item.named_configs.original_name
+    else if (std.mem.eql(u8, param_name, "fx_type"))
+        fx_item.named_configs.fx_type
     else
         return false;
 
@@ -667,6 +677,16 @@ fn TrackList_AdjustWindows(isMinor: bool) callconv(.C) void {
     _ = isMinor;
 }
 
+fn TrackFX_GetParamFromIdent(_: MediaTrack, _: c_int, _: [*:0]const u8) callconv(.C) c_int {
+    return -1;
+}
+
+pub var resource_path: [:0]const u8 = "";
+
+fn GetResourcePath() callconv(.C) [*:0]const u8 {
+    return resource_path.ptr;
+}
+
 fn CSurf_TrackToID(track: MediaTrack, mcpView: bool) callconv(.C) c_int {
     _ = mcpView;
     const session = g_session.?;
@@ -782,6 +802,12 @@ fn SetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8, newvalue: f6
     } else if (std.mem.eql(u8, param, "B_PHASE")) {
         track.?.info.phase = newvalue > 0.5;
         return true;
+    } else if (std.mem.eql(u8, param, "I_FXEN")) {
+        track.?.info.fx_enabled = newvalue > 0.5;
+        return true;
+    } else if (std.mem.eql(u8, param, "I_AUTOMODE")) {
+        track.?.automation_mode = @enumFromInt(@as(c_int, @intFromFloat(newvalue)));
+        return true;
     }
 
     return false;
@@ -803,6 +829,10 @@ fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv(.C)
         return @floatFromInt(track.?.info.solo);
     } else if (std.mem.eql(u8, param, "B_PHASE")) {
         return if (track.?.info.phase) 1.0 else 0.0;
+    } else if (std.mem.eql(u8, param, "I_FXEN")) {
+        return if (track.?.info.fx_enabled) 1.0 else 0.0;
+    } else if (std.mem.eql(u8, param, "I_AUTOMODE")) {
+        return @floatFromInt(@intFromEnum(track.?.automation_mode));
     }
 
     return 0;

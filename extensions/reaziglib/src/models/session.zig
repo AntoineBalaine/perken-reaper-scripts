@@ -44,6 +44,12 @@ pub fn getTrackName(self: @This(), track: Track.Track) ?[:0]const u8 {
     return null;
 }
 
+pub fn setFxParams(self: *@This(), track_idx: usize, fx_idx: usize, params: []const fx_model.Param) !void {
+    const new_params = try self.arena_alloc.alloc(fx_model.Param, params.len);
+    @memcpy(new_params, params);
+    self.tracks.items[track_idx].fx_list.items[fx_idx].params = new_params;
+}
+
 pub fn setTrackName(self: *@This(), track_index: usize, name: []const u8) !void {
     if (track_index >= self.tracks.items.len) return error.InvalidTrackIndex;
     const interned_name = try self.string_pool.add(self.arena_alloc, name);
@@ -53,4 +59,5 @@ pub fn setTrackName(self: *@This(), track_index: usize, name: []const u8) !void 
 const std = @import("std");
 const AutomationMode = @import("automation_mode").AutomationMode;
 const Track = @import("track_model");
+const fx_model = @import("fx_model");
 const StringPool = @import("utils").StringPool;

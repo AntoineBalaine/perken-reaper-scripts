@@ -10,6 +10,7 @@ pub const TrackInfo = struct {
     pan: f64 = 0.0,
     mute: bool = false,
     solo: i32 = 0,
+    fx_enabled: bool = true,
 };
 
 pub const PeakInfo = struct {

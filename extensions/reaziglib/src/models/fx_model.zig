@@ -9,10 +9,12 @@ pub const Param = struct {
 };
 
 // Input/output pin routing data
-const NamedConfigs = struct {
+pub const NamedConfigs = struct {
     original_name: [:0]const u8,
     renamed_name: [:0]const u8,
     gain_reduction_db: ?f64 = null,
+    parallel: u8 = 0,
+    fx_type: [:0]const u8 = "VST",
 };
 
 pub const FX = struct {

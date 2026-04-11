@@ -102,6 +102,7 @@ pub fn build(b: *std.Build) void {
     session_mod.addImport("track_model", track_model_mod);
     session_mod.addImport("utils", utils_mod);
     session_mod.addImport("automation_mode", automation_mode_mod);
+    session_mod.addImport("fx_model", fx_model_mod);
 
     // reaper_mock depends on reaper, utils, fx_model, track_model, session
     const reaper_mock_mod = b.addModule("reaper_mock", .{
