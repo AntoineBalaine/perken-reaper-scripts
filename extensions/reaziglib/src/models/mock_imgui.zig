@@ -280,6 +280,7 @@ pub const MockImGui = struct {
     selectable_targets: std.StringHashMapUnmanaged(void),
     combo_open_targets: std.StringHashMapUnmanaged(void),
     double_click_targets: std.StringHashMapUnmanaged(void),
+    drag_targets: std.StringHashMapUnmanaged(f64),
     key_press_targets: std.AutoArrayHashMap(c_int, void),
     input_text_enter: std.StringHashMapUnmanaged(void),
     last_invisible_button_label: []const u8 = "",
@@ -297,6 +298,7 @@ pub const MockImGui = struct {
             .selectable_targets = .{},
             .combo_open_targets = .{},
             .double_click_targets = .{},
+            .drag_targets = .{},
             .key_press_targets = std.AutoArrayHashMap(c_int, void).init(allocator),
             .input_text_enter = .{},
             .allocator = allocator,
@@ -313,6 +315,7 @@ pub const MockImGui = struct {
         self.selectable_targets.deinit(self.allocator);
         self.combo_open_targets.deinit(self.allocator);
         self.double_click_targets.deinit(self.allocator);
+        self.drag_targets.deinit(self.allocator);
         self.key_press_targets.deinit();
         self.input_text_enter.deinit(self.allocator);
     }
@@ -370,6 +373,10 @@ pub const MockImGui = struct {
         self.selectable_targets.put(self.allocator, label, {}) catch @panic("selectable_targets put OOM");
     }
 
+    pub fn drag(self: *MockImGui, label: []const u8, delta_y: f64) void {
+        self.drag_targets.put(self.allocator, label, delta_y) catch @panic("drag_targets put OOM");
+    }
+
     pub fn doubleClick(self: *MockImGui, label: []const u8) void {
         self.double_click_targets.put(self.allocator, label, {}) catch @panic("double_click_targets put OOM");
     }
@@ -421,6 +428,7 @@ pub const MockImGui = struct {
         self.selectable_targets.clearRetainingCapacity();
         self.combo_open_targets.clearRetainingCapacity();
         self.double_click_targets.clearRetainingCapacity();
+        self.drag_targets.clearRetainingCapacity();
         self.key_press_targets.clearRetainingCapacity();
         self.input_text_enter.clearRetainingCapacity();
         self.last_invisible_button_label = "";
@@ -554,7 +562,7 @@ pub const MockImGui = struct {
     const SetNextWindowSize = &mockSetNextWindowSize;
     const SetNextWindowDockID = &mockSetNextWindowDockID;
     const SetNextItemAllowOverlap = &mockVoidCtx;
-    const IsItemActive = &mockBoolCtxFalse;
+    const IsItemActive = &mockIsItemActive;
     const IsItemHovered = &mockIsItemHovered;
     const IsMouseDoubleClicked = &mockIsMouseDoubleClicked;
     const IsKeyDown = &mockIsKeyDown;
@@ -1004,8 +1012,14 @@ fn mockIsMouseDoubleClicked(_: imgui.ContextPtr, _: c_int) callconv(.C) bool {
     return m.double_click_targets.contains(m.last_invisible_button_label);
 }
 
-fn mockIsKeyDown(_: imgui.ContextPtr, _: c_int) callconv(.C) bool {
-    return false;
+fn mockIsItemActive(_: imgui.ContextPtr) callconv(.C) bool {
+    const m = g_mock orelse return false;
+    return m.drag_targets.contains(m.last_invisible_button_label);
+}
+
+fn mockIsKeyDown(_: imgui.ContextPtr, key: c_int) callconv(.C) bool {
+    const m = g_mock orelse return false;
+    return m.key_press_targets.contains(key);
 }
 
 fn mockIsKeyPressed(_: imgui.ContextPtr, key: c_int, _: ?*bool) callconv(.C) bool {
@@ -1025,8 +1039,13 @@ fn mockInputText(_: imgui.ContextPtr, label: [*:0]const u8, _: [*]u8, _: c_int, 
 }
 
 fn mockGetMouseDragDelta(_: imgui.ContextPtr, x: *f64, y: *f64, _: ?*c_int, _: ?*f64) callconv(.C) void {
-    x.* = 0.0;
-    y.* = 0.0;
+    const m = g_mock orelse {
+        x.* = 0;
+        y.* = 0;
+        return;
+    };
+    x.* = 0;
+    y.* = if (m.drag_targets.get(m.last_invisible_button_label)) |delta| delta else 0;
 }
 
 fn mockResetMouseDragDelta(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) void {}
