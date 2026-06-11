@@ -463,6 +463,10 @@ pub const entries = [_]actions.Entry{
     .{ .name = "SetRecordMidiReplace", .def = .{ .steps = &.{.{ .cmd = 40504 }} } },
     .{ .name = "SetRecordMidiTouchReplace", .def = .{ .steps = &.{.{ .cmd = 40852 }} } },
     .{ .name = "SetRecordModeNormal", .def = .{ .steps = &.{.{ .cmd = 40252 }} } },
+    // reavim binds these (defaults/main.lua <space>r,s / r,v) but never defined
+    // them — broken refs in reavim itself; supplied here with the real cmd ids.
+    .{ .name = "SetRecordModeItemSelectionAutoPunch", .def = .{ .steps = &.{.{ .cmd = 40253 }} } },
+    .{ .name = "SetRecordModeTimeSelectionAutoPunch", .def = .{ .steps = &.{.{ .cmd = 40076 }} } },
     .{ .name = "SetRecordMonitorOnly", .def = .{ .steps = &.{.{ .cmd = 40498 }} } },
     .{ .name = "SetSelectedItemFadeBoundaries", .def = .{ .steps = &.{.{ .named = "_SWS_AWFADESEL" }} } },
     .{ .name = "SetTimeSelectionEnd", .def = .{ .steps = &.{.{ .cmd = 40626 }} } },
