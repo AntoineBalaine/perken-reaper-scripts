@@ -122,15 +122,23 @@ fn focusInScope(msg: *accel.MSG) bool {
     return swell.isInWindow(Reaper.GetMainHwnd(), h);
 }
 
-/// Keys targeting a text field must never be eaten — typing in a track rename
-/// box behaves like insert mode regardless of the vim mode.
-fn isTextField(msg: *accel.MSG) bool {
+/// Standard interactive controls consume their own navigation/text keys, so
+/// vim must never eat them — this covers the action list (SysListView32) and
+/// FX-browser/media-explorer lists, text fields (Edit/richedit), combo boxes,
+/// trees and buttons, wherever they live (even parented under the main window).
+/// The arrange surfaces have REAPER-prefixed classes and are NOT in this set.
+fn focusHandlesOwnKeys(msg: *accel.MSG) bool {
     const h = msg.hwnd orelse return false;
     var buf: [64]u8 = undefined;
     const cls = swell.getClassName(h, &buf);
     return std.mem.eql(u8, cls, "Edit") or
+        std.ascii.startsWithIgnoreCase(cls, "richedit") or
         std.ascii.eqlIgnoreCase(cls, "combobox") or
-        std.ascii.startsWithIgnoreCase(cls, "richedit");
+        std.mem.eql(u8, cls, "SysListView32") or
+        std.mem.eql(u8, cls, "SysTreeView32") or
+        std.mem.eql(u8, cls, "Button") or
+        std.mem.eql(u8, cls, "ScrollBar") or
+        std.mem.eql(u8, cls, "msctls_trackbar32");
 }
 
 /// Returns the translateAccel return value: 0 = pass through, 1 = eat.
@@ -144,9 +152,13 @@ pub fn onKey(msg: *accel.MSG) c_int {
     const vk: u8 = @truncate(msg.wParam);
     if (vk == VK_SHIFT or vk == VK_CONTROL or vk == VK_MENU) return 0;
 
-    // Only act when the arrange view or MIDI editor has focus. Other REAPER
-    // windows (action list, FX browser, dialogs) keep their own key handling.
+    // Pass everything through unless focus is on a vim editing surface. Two
+    // guards: focusInScope rejects separate windows (FX browser, floating
+    // dialogs); focusHandlesOwnKeys rejects standard controls even when they
+    // are parented under the main window (the action list is a SysListView32
+    // child of the main window, so ancestry alone would not exclude it).
     if (!focusInScope(msg)) return 0;
+    if (focusHandlesOwnKeys(msg)) return 0;
 
     // SWELL packs the win32 ACCEL modifier mask into lParam; FVIRTKEY
     // distinguishes virtual-key codes from raw ASCII punctuation chars.
@@ -165,9 +177,6 @@ pub fn onKey(msg: *accel.MSG) c_int {
         }
         return 0;
     }
-
-    // ---- normal / visual modes ----
-    if (isTextField(msg)) return 0;
 
     const b = bindings orelse return 0;
 
