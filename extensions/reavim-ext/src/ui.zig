@@ -8,6 +8,7 @@ const imgui = @import("reaper_imgui");
 const vim = @import("vim.zig");
 const config = @import("config.zig");
 const keymod = @import("key.zig");
+const meta = @import("meta.zig");
 
 const log = std.log.scoped(.extension);
 
@@ -190,6 +191,7 @@ fn renderContent() void {
     var fbs = std.io.fixedBufferStream(&status);
     const w = fbs.writer();
     w.print("[{s}]", .{@tagName(vim.activeContext())}) catch {};
+    if (meta.recording) w.writeAll("  REC") catch {};
     if (pending.len > 0) w.print("  {s}", .{pending}) catch {};
     if (vim.lastAction().len > 0) w.print("  last: {s}", .{vim.lastAction()}) catch {};
     const status_z = std.fmt.bufPrintZ(&line, "{s}", .{fbs.getWritten()}) catch return;

@@ -19,6 +19,7 @@ const builder = @import("builder.zig");
 const runner = @import("runner.zig");
 const config = @import("config.zig");
 const state = @import("state.zig");
+const meta = @import("meta.zig");
 
 const log = std.log.scoped(.engine);
 
@@ -197,10 +198,15 @@ pub fn onKey(msg: *accel.MSG) c_int {
     if (builder.build(&b.tables, ctx, gmode, key_buf[0..key_len])) |cmd| {
         setLastAction(cmd);
         clearPending();
-        Reaper.Undo_BeginBlock();
-        runner.execute(cmd, ctx);
-        Reaper.Undo_EndBlock("reavim", 1);
-        Reaper.UpdateArrange();
+        if (meta.metaKind(&cmd) != null) {
+            meta.handle(cmd, ctx);
+        } else {
+            Reaper.Undo_BeginBlock();
+            runner.execute(cmd, ctx);
+            Reaper.Undo_EndBlock("reavim", 1);
+            Reaper.UpdateArrange();
+            meta.afterExecute(cmd);
+        }
         return 1;
     }
 

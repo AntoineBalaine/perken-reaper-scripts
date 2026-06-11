@@ -183,6 +183,7 @@ test {
     _ = @import("swell_win.zig");
     _ = @import("key.zig");
     _ = @import("trie.zig");
+    _ = @import("meta.zig");
     _ = @import("ported/helpers.zig");
     _ = @import("ported/movement.zig");
     _ = @import("ported/selection.zig");
