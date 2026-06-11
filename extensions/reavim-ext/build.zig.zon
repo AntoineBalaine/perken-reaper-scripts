@@ -1,0 +1,20 @@
+.{
+    .name = .reavim_ext,
+    .fingerprint = 0xb79e01860ff88336,
+    .version = "0.0.0",
+    .dependencies = .{
+        .reaziglib = .{
+            .path = "../reaziglib",
+        },
+        .ini = .{
+            .path = "../ini",
+        },
+        .WDL = .{
+            .url = "https://github.com/justinfrankel/WDL/archive/dda0d7519ee9d50d59a39fc1b1a82001416a3dff.tar.gz",
+            .hash = "122026ee38b3ef9cbb44a2cf8f1735ba5dbaef29975560ad3e2f78b43437707a8b9a",
+        },
+    },
+    .paths = .{
+        "",
+    },
+}
