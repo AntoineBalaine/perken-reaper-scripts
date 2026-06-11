@@ -84,10 +84,19 @@ repetitions = 5
   named-command + builtin + stub action kinds. Pending: punctuation keys (needs a
   SWELL VK probe round — ASCII/VK collisions), sequence timeout policy for
   prefix-ambiguous bindings.
-- [x] **4 — feedback UI** (`src/ui.zig`): dockable ReaImGui window with mode, pending
-  keys + count, last action, completion hints. Done before milestone 3 by request.
-- [ ] **3 — grammar**: operator+motion composition, registers, visual modes.
-- [ ] **5 — macros / repeat**, porting hot custom actions to Zig.
+- [x] **4 — feedback UI** (`src/ui.zig`): dockable ReaImGui window (Console1 theme),
+  whichkey-style alphabetical columns with pagination, mode/context/pending/REC
+  status line, action names via kbd_getTextFromCmd.
+- [x] **3 — grammar**: full reavim composition grammar (`src/grammar.zig`,
+  `src/builder.zig`, `src/runner.zig`): operator+motion/selector compositions,
+  counts, registers, visual track/timeline modes. Punctuation keys solved via
+  SWELL's FVIRTKEY-in-lParam distinction (`src/key.zig` is_char).
+- [x] **5 — full port**: 644 data actions + 588 bindings generated from the
+  inventories in `port/`; ~97 custom Lua functions ported native across
+  `src/ported/` (movement, selection, tracks, items, routing, marks, envelope,
+  fx, midi, kawa, drums, misc); macros/repeat/`.` in `src/meta.zig`.
+  Remaining stubs by design: InsertFxAtSlot, toggleKeySnap, QuantizeTool,
+  midi_arranging (HARD), midi_controller + dev (SKIP), pasteRhythm (HARD).
 
 ## Build
 
