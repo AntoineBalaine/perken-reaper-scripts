@@ -114,6 +114,40 @@ pub const reaper = struct { // @import("reaper");
         return true;
     }
 
+    /// Resolve only the named API functions instead of the whole catalog.
+    /// A consumer that calls initSubset (and never init) compiles in only the
+    /// functions it lists — the rest are never referenced, so Zig's lazy
+    /// analysis keeps them out of the binary entirely. Names are validated at
+    /// comptime against the declarations. Returns false if a listed function
+    /// is missing from the host REAPER (so an unavailable function you actually
+    /// use fails the load cleanly; functions you don't list can never do so).
+    pub fn initSubset(rec: *plugin_info_t, comptime names: []const [:0]const u8) bool {
+        if (rec.caller_version != PLUGIN_VERSION) {
+            return false;
+        }
+
+        const getFunc = rec.getFunc.?;
+        inline for (names) |name| {
+            if (!@hasDecl(@This(), name))
+                @compileError("reaper.initSubset: no such function '" ++ name ++ "'");
+            comptime var decl_type = @typeInfo(@TypeOf(@field(@This(), name)));
+            const is_optional = decl_type == .optional;
+            if (is_optional)
+                decl_type = @typeInfo(decl_type.optional.child);
+            if (decl_type != .pointer or @typeInfo(decl_type.pointer.child) != .@"fn")
+                @compileError("reaper.initSubset: '" ++ name ++ "' is not a function pointer");
+            if (getFunc(name)) |func|
+                @field(@This(), name) = @alignCast(@ptrCast(func))
+            else if (is_optional)
+                @field(@This(), name) = null
+            else {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     pub var plugin_register: *fn (name: [*:0]const u8, infostruct: *anyopaque) callconv(.C) c_int = undefined;
     pub var plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) ?*anyopaque = undefined;
     // pub var ShowMessageBox: *fn (body: [*:0]const u8, title: [*:0]const u8, flags: c_int) callconv(.C) void = undefined;
