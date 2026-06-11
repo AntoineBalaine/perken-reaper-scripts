@@ -33,6 +33,44 @@ const ported_misc = @import("ported/misc.zig");
 
 const default_bindings = @embedFile("default_bindings.ini");
 
+// REAPER API functions this extension uses — resolved selectively at load
+// (reaziglib.reaper.initSubset). Unlisted functions are never compiled in.
+// A call to a function not in this list is a load-time failure, not silent.
+const reaper_api = [_][:0]const u8{
+    "AddMediaItemToTrack",       "AddProjectMarker",                 "CountEnvelopePoints",
+    "CountSelectedMediaItems",   "CountSelectedTracks",              "CountTakes",
+    "CountTracks",               "CreateTrackSend",                  "DeleteEnvelopePointRange",
+    "DeleteProjectMarker",       "DeleteTrack",                      "EnumProjectMarkers",
+    "GetActiveTake",             "GetCursorPosition",                "GetEnvelopePoint",
+    "GetEnvelopeScalingMode",    "GetEnvelopeStateChunk",            "GetExtState",
+    "GetItemStateChunk",         "GetLastMarkerAndCurRegion",        "GetLastTouchedTrack",
+    "GetMainHwnd",               "GetMediaItemInfo_Value",           "GetMediaItemTakeInfo_Value",
+    "GetMediaItemTake_Item",     "GetMediaItem_Track",               "GetMediaTrackInfo_Value",
+    "GetNumTracks",              "GetParentTrack",                   "GetProjExtState",
+    "GetProjectLength",          "GetResourcePath",                  "GetSelectedEnvelope",
+    "GetSelectedMediaItem",      "GetSelectedTrack",                 "GetSetMediaTrackInfo_String",
+    "GetSet_LoopTimeRange",      "GetTake",                          "GetToggleCommandStateEx",
+    "GetTrack",                  "GetTrackMediaItem",                "GetTrackNumMediaItems",
+    "GetTrackNumSends",          "GetUserInputs",                    "InsertEnvelopePoint",
+    "InsertTrackAtIndex",        "IsMediaItemSelected",              "MIDIEditor_GetActive",
+    "MIDIEditor_GetTake",        "MIDIEditor_LastFocused_OnCommand", "MIDIEditor_OnCommand",
+    "MIDIEditor_SetSetting_int", "MIDI_CountEvts",                   "MIDI_GetNote",
+    "MIDI_GetPPQPosFromProjQN",  "MIDI_GetProjQNFromPPQPos",         "MIDI_GetProjTimeFromPPQPos",
+    "MIDI_InsertNote",           "MIDI_SetNote",                     "MIDI_Sort",
+    "Main_OnCommand",            "MoveEditCursor",                   "MoveMediaItemToTrack",
+    "NamedCommandLookup",        "PreventUIRefresh",                 "ScaleToEnvelopeMode",
+    "SectionFromUniqueID",       "SetEditCurPos",                    "SetEnvelopePoint",
+    "SetExtState",               "SetItemStateChunk",                "SetMIDIEditorGrid",
+    "SetMediaItemInfo_Value",    "SetMediaItemTakeInfo_Value",       "SetMediaTrackInfo_Value",
+    "SetOnlyTrackSelected",      "SetProjExtState",                  "SetProjectGrid",
+    "SetTrackSelected",          "ShowMessageBox",                   "SnapToGrid",
+    "SplitMediaItem",            "TakeIsMIDI",                       "TimeMap2_beatsToTime",
+    "TrackFX_GetFXName",         "TrackFX_GetInstrument",            "TrackFX_GetPreset",
+    "Undo_BeginBlock",           "Undo_EndBlock",                    "UpdateArrange",
+    "UpdateItemInProject",       "get_config_var",                   "kbd_getTextFromCmd",
+    "plugin_getapi",             "plugin_register",
+};
+
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
         .Debug => .debug,
@@ -114,7 +152,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     if (rec == null)
         return 0; // cleanup
 
-    if (!Reaper.init(rec.?))
+    if (!Reaper.initSubset(rec.?, &reaper_api))
         return 0;
 
     if (Reaper.plugin_register("<accelerator", @ptrCast(&accel_reg)) == 0) {
