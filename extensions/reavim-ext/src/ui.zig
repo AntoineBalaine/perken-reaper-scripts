@@ -15,8 +15,18 @@ const log = std.log.scoped(.extension);
 var imgui_available: ?bool = null; // null = not attempted yet
 var ctx: imgui.ContextPtr = null;
 var font: imgui.FontPtr = null;
-var user_closed = false;
+var hidden = false;
 var prev_mode: vim.Mode = .off;
+
+/// Show/hide the feedback window (bindable action). Returns the new state.
+pub fn toggleVisible() bool {
+    hidden = !hidden;
+    return !hidden;
+}
+
+pub fn isVisible() bool {
+    return !hidden;
+}
 
 const FONT_SIZE: c_int = 14;
 
@@ -143,13 +153,10 @@ fn keyLessThan(_: void, a: vim.Completion, b: vim.Completion) bool {
 }
 
 fn onTimer() callconv(.C) void {
-    // Re-open on each off->on transition, even if the user closed the window.
-    // The window itself stays up across mode changes (including off) so the
-    // user can always see which mode they're in.
-    if (vim.mode() != .off and prev_mode == .off) user_closed = false;
+    if (vim.mode() != .off and prev_mode == .off) hidden = false;
     prev_mode = vim.mode();
 
-    if (user_closed) return;
+    if (hidden) return;
     if (!ensureImGui()) return;
 
     if (ctx == null) {
@@ -177,7 +184,7 @@ fn onTimer() callconv(.C) void {
     if (visible) renderContent();
     imgui.api.End(ctx);
 
-    if (!is_open) user_closed = true;
+    if (!is_open) hidden = true;
 }
 
 fn renderContent() void {

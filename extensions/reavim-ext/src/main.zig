@@ -53,6 +53,7 @@ var accel_reg = accel.accelerator_register_t{
 };
 
 var toggle_cmd_id: c_int = 0;
+var whichkey_cmd_id: c_int = 0;
 var bindings: ?config.Bindings = null;
 var registry: ?actions_mod.Registry = null;
 
@@ -130,6 +131,13 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     if (toggle_cmd_id == 0)
         ext_log.err("failed to register toggle action", .{});
 
+    const whichkey_action: Reaper.custom_action_register_t = .{
+        .section = 0,
+        .id_str = "REAVIM_TOGGLE_WHICHKEY",
+        .name = "ReaVim: Toggle whichkey window",
+    };
+    whichkey_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&whichkey_action)));
+
     _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
     _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 
@@ -146,6 +154,10 @@ fn onCommand(sec: *Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
         vim.toggle();
         return 1;
     }
+    if (whichkey_cmd_id != 0 and command == whichkey_cmd_id) {
+        _ = ui.toggleVisible();
+        return 1;
+    }
     return 0;
 }
 
@@ -153,6 +165,8 @@ fn onCommand(sec: *Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
 fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
     if (toggle_cmd_id != 0 and command_id == toggle_cmd_id)
         return if (vim.mode() != .off) 1 else 0;
+    if (whichkey_cmd_id != 0 and command_id == whichkey_cmd_id)
+        return if (ui.isVisible()) 1 else 0;
     return -1;
 }
 
