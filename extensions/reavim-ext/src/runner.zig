@@ -8,6 +8,7 @@ const grammar = @import("grammar.zig");
 const actions = @import("actions.zig");
 const builder = @import("builder.zig");
 const state = @import("state.zig");
+const helpers = @import("ported/helpers.zig");
 
 const log = std.log.scoped(.engine);
 
@@ -22,13 +23,16 @@ var saved_guids: [MAX_SAVED_TRACKS][64]u8 = undefined;
 var saved_count: usize = 0;
 
 fn saveTrackSelection() void {
+    // GUID identifies a track across selection changes. The handle must be
+    // passed re-typed (helpers.getTrackString) — NOT as &handle, which would
+    // hand REAPER a stack address to dereference as a track (segfault).
     saved_count = 0;
     const n = Reaper.CountSelectedTracks(0);
     var i: c_int = 0;
     while (i < n and saved_count < MAX_SAVED_TRACKS) : (i += 1) {
-        var tr: Reaper.MediaTrack = Reaper.GetSelectedTrack(0, i);
-        if (tr == null) continue;
-        _ = Reaper.GetSetMediaTrackInfo_String(&tr, "GUID", @ptrCast(&saved_guids[saved_count]), false);
+        const tr = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const guid = helpers.getTrackString(tr, "GUID", &saved_guids[saved_count]) orelse continue;
+        if (guid.len < saved_guids[saved_count].len) saved_guids[saved_count][guid.len] = 0;
         saved_count += 1;
     }
 }
@@ -38,13 +42,12 @@ fn restoreTrackSelection() void {
     const total = Reaper.CountTracks(0);
     var i: c_int = 0;
     while (i < total) : (i += 1) {
-        var tr: Reaper.MediaTrack = Reaper.GetTrack(0, i);
-        if (tr == null) continue;
-        var guid: [64]u8 = undefined;
-        _ = Reaper.GetSetMediaTrackInfo_String(&tr, "GUID", @ptrCast(&guid), false);
+        const tr = Reaper.GetTrack(0, i) orelse continue;
+        var guidbuf: [64]u8 = undefined;
+        const guid = helpers.getTrackString(tr, "GUID", &guidbuf) orelse continue;
         for (saved_guids[0..saved_count]) |*g| {
-            if (std.mem.eql(u8, std.mem.sliceTo(g, 0), std.mem.sliceTo(&guid, 0))) {
-                Reaper.SetTrackSelected(tr.?, true);
+            if (std.mem.eql(u8, std.mem.sliceTo(g, 0), guid)) {
+                Reaper.SetTrackSelected(tr, true);
                 break;
             }
         }

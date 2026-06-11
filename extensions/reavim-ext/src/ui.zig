@@ -226,9 +226,20 @@ fn renderContent() void {
     const page_items = items[start..@min(start + page_size, items.len)];
 
     const context = vim.activeContext();
+    // Column-major layout: the alphabetical run reads DOWN column 0, then
+    // column 1, etc. ImGui fills cells row-major, so we remap each cell to the
+    // item that belongs at that (row, col) in column-major order.
+    const np = page_items.len;
+    const num_rows = (np + columns - 1) / columns;
     if (imgui.api.BeginTable(ctx, "bindings", @intCast(columns), null, null, null, null)) {
-        for (page_items) |item| {
+        var cell: usize = 0;
+        while (cell < num_rows * columns) : (cell += 1) {
             _ = imgui.api.TableNextColumn(ctx);
+            const vrow = cell / columns;
+            const vcol = cell % columns;
+            const idx = vcol * num_rows + vrow;
+            if (idx >= np) continue; // trailing empty cell in a short last column
+            const item = page_items[idx];
 
             var kbuf: [16]u8 = undefined;
             const kt = if (item.key.vk == 0) "a-z" else keymod.format(item.key, &kbuf);
