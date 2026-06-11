@@ -9,6 +9,7 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const accel = @import("accel.zig");
+const swell = @import("swell_win.zig");
 const logger = @import("logger.zig");
 const vim = @import("vim.zig");
 const config = @import("config.zig");
@@ -163,7 +164,10 @@ fn translateAccel(msg: *accel.MSG, ctx: *accel.accelerator_register_t) callconv(
         const msg_hwnd = if (msg.hwnd) |h| @intFromPtr(h) else 0;
         const vk: u8 = @truncate(msg.wParam);
         const printable: u8 = if (vk >= 0x20 and vk < 0x7f) vk else '.';
-        log.debug("{s}(0x{x:0>4}) vk=0x{x:0>2} '{c}' lParam=0x{x} virt={} shift={} ctrl={} alt={} hwnd=0x{x} midi_editor=0x{x}", .{
+        var clsbuf: [64]u8 = undefined;
+        const cls = if (msg.hwnd) |h| swell.getClassName(h, &clsbuf) else "";
+        const in_main = if (msg.hwnd) |h| swell.isInWindow(Reaper.GetMainHwnd(), h) else false;
+        log.debug("{s}(0x{x:0>4}) vk=0x{x:0>2} '{c}' lParam=0x{x} virt={} shift={} ctrl={} alt={} hwnd=0x{x} class='{s}' in_main={} midi_editor=0x{x}", .{
             accel.msgName(msg.message),
             msg.message,
             vk,
@@ -174,6 +178,8 @@ fn translateAccel(msg: *accel.MSG, ctx: *accel.accelerator_register_t) callconv(
             (msg.lParam & accel.FCONTROL) != 0,
             (msg.lParam & accel.FALT) != 0,
             msg_hwnd,
+            cls,
+            in_main,
             midi_hwnd,
         });
     }

@@ -111,6 +111,17 @@ fn contextOf(msg: *accel.MSG) Context {
     return if (swell.isInWindow(editor, h)) .midi else .main;
 }
 
+/// True only when the key is destined for the arrange view (the main window or
+/// a child of it) or the MIDI editor. Any other REAPER window — the action
+/// list, FX browser, render/preferences dialogs, media explorer — must keep
+/// its own key handling, so vim passes those through untouched.
+fn focusInScope(msg: *accel.MSG) bool {
+    const h = msg.hwnd orelse return false;
+    const editor = Reaper.MIDIEditor_GetActive();
+    if (@intFromPtr(editor) != 0 and swell.isInWindow(editor, h)) return true;
+    return swell.isInWindow(Reaper.GetMainHwnd(), h);
+}
+
 /// Keys targeting a text field must never be eaten — typing in a track rename
 /// box behaves like insert mode regardless of the vim mode.
 fn isTextField(msg: *accel.MSG) bool {
@@ -132,6 +143,10 @@ pub fn onKey(msg: *accel.MSG) c_int {
 
     const vk: u8 = @truncate(msg.wParam);
     if (vk == VK_SHIFT or vk == VK_CONTROL or vk == VK_MENU) return 0;
+
+    // Only act when the arrange view or MIDI editor has focus. Other REAPER
+    // windows (action list, FX browser, dialogs) keep their own key handling.
+    if (!focusInScope(msg)) return 0;
 
     // SWELL packs the win32 ACCEL modifier mask into lParam; FVIRTKEY
     // distinguishes virtual-key codes from raw ASCII punctuation chars.
