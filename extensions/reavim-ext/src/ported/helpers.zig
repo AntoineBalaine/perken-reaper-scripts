@@ -410,6 +410,60 @@ pub fn collectNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) ![]N
     return list.toOwnedSlice();
 }
 
+/// GetActiveTake returns NULL for items without takes; the binding's return
+/// type is non-optional, so re-type it.
+pub fn getActiveTake(item: *Reaper.MediaItem) ?*Reaper.MediaItem_Take {
+    const f: *const fn (item: *Reaper.MediaItem) callconv(.C) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.GetActiveTake);
+    return f(item);
+}
+
+// ---- chord grouping (kawa.lua get_chords/sort_chords) -------------------------
+
+/// Note in project-QN domain carrying its REAPER note index — kawa.lua's
+/// KawaNote (minus the redundant take/length fields).
+pub const QnNote = struct {
+    idx: c_int,
+    selected: bool,
+    muted: bool,
+    start_qn: f64,
+    end_qn: f64,
+    chan: c_int,
+    pitch: c_int,
+    vel: c_int,
+};
+
+fn chordLessThan(_: void, a: QnNote, b: QnNote) bool {
+    if (a.start_qn == b.start_qn) return a.pitch > b.pitch;
+    return a.start_qn < b.start_qn;
+}
+
+/// Sort notes into chord order: start QN ascending, pitch descending within a
+/// chord. Replaces kawa's get_chords (which keyed a Lua table by the exact
+/// startQn float — so exact == grouping is faithful) plus sort_chords.
+pub fn sortChordOrder(notes: []QnNote) void {
+    std.mem.sort(QnNote, notes, {}, chordLessThan);
+}
+
+/// Iterator over the chords (runs of equal start QN) of a chord-ordered
+/// slice. Each yielded chord is pitch-descending: [0] is the top note,
+/// [len-1] the bottom; yielded slices are never empty.
+pub const ChordIterator = struct {
+    notes: []const QnNote,
+    i: usize = 0,
+
+    pub fn next(self: *ChordIterator) ?[]const QnNote {
+        if (self.i >= self.notes.len) return null;
+        const start = self.i;
+        while (self.i < self.notes.len and self.notes[self.i].start_qn == self.notes[start].start_qn)
+            self.i += 1;
+        return self.notes[start..self.i];
+    }
+};
+
+pub fn chords(notes: []const QnNote) ChordIterator {
+    return .{ .notes = notes };
+}
+
 // ---- user input -------------------------------------------------------------
 
 /// GetUserInputs with a single field; returns the trimmed reply, or null on
@@ -473,6 +527,43 @@ test "classifyEnvelopeChunk rejects garbage" {
     try std.testing.expect(classifyEnvelopeChunk("<WHATENV\n>") == null);
     // PARMENV with a malformed header must not leak tokens from later lines
     try std.testing.expect(classifyEnvelopeChunk("<PARMENV 0:wet\n0 1 0.5\n>") == null);
+}
+
+test "sortChordOrder + chords groups by exact startQn, pitch descending" {
+    const mk = struct {
+        fn n(idx: c_int, start: f64, pitch: c_int) QnNote {
+            return .{ .idx = idx, .selected = false, .muted = false, .start_qn = start, .end_qn = start + 1, .chan = 0, .pitch = pitch, .vel = 100 };
+        }
+    };
+    // Two chords plus a lone note, deliberately shuffled.
+    var notes = [_]QnNote{
+        mk.n(0, 2.0, 64),
+        mk.n(1, 0.5, 60),
+        mk.n(2, 0.5, 72),
+        mk.n(3, 2.0, 67),
+        mk.n(4, 4.25, 48),
+        mk.n(5, 0.5, 67),
+    };
+    sortChordOrder(&notes);
+
+    var it = chords(&notes);
+    const c1 = it.next().?;
+    try std.testing.expectEqual(@as(usize, 3), c1.len);
+    try std.testing.expectEqual(@as(c_int, 72), c1[0].pitch); // top
+    try std.testing.expectEqual(@as(c_int, 67), c1[1].pitch);
+    try std.testing.expectEqual(@as(c_int, 60), c1[2].pitch); // bottom
+    const c2 = it.next().?;
+    try std.testing.expectEqual(@as(usize, 2), c2.len);
+    try std.testing.expectEqual(@as(c_int, 67), c2[0].pitch);
+    const c3 = it.next().?;
+    try std.testing.expectEqual(@as(usize, 1), c3.len);
+    try std.testing.expectEqual(@as(c_int, 4), c3[0].idx);
+    try std.testing.expectEqual(@as(?[]const QnNote, null), it.next());
+}
+
+test "chords iterator on empty slice" {
+    var it = chords(&.{});
+    try std.testing.expectEqual(@as(?[]const QnNote, null), it.next());
 }
 
 test "getTrackIndex is the 1-based number minus one" {

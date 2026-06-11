@@ -8,10 +8,7 @@ const helpers = @import("helpers.zig");
 
 // ---- ABI shims (reaziglib types these returns as non-optional) ---------------
 
-fn getActiveTake(item: *Reaper.MediaItem) ?*Reaper.MediaItem_Take {
-    const f: *const fn (item: *Reaper.MediaItem) callconv(.C) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.GetActiveTake);
-    return f(item);
-}
+const getActiveTake = helpers.getActiveTake;
 
 fn getTake(item: *Reaper.MediaItem, takeidx: c_int) ?*Reaper.MediaItem_Take {
     const f: *const fn (item: *Reaper.MediaItem, takeidx: c_int) callconv(.C) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.GetTake);
