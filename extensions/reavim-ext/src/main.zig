@@ -17,6 +17,8 @@ const runner = @import("runner.zig");
 const actions_mod = @import("actions.zig");
 const defaults_actions = @import("defaults_actions.zig");
 const lib_state = @import("lib_state.zig");
+const ported_movement = @import("ported/movement.zig");
+const ported_selection = @import("ported/selection.zig");
 
 const default_bindings = @embedFile("default_bindings.ini");
 
@@ -51,6 +53,8 @@ fn loadBindings() void {
     registry = actions_mod.Registry.init(alloc, &.{
         &defaults_actions.entries,
         &lib_state.entries,
+        &ported_movement.entries,
+        &ported_selection.entries,
     }) catch |err| {
         ext_log.err("action registry init failed: {s}", .{@errorName(err)});
         return;
@@ -159,4 +163,7 @@ test {
     _ = @import("swell_win.zig");
     _ = @import("key.zig");
     _ = @import("trie.zig");
+    _ = @import("ported/helpers.zig");
+    _ = @import("ported/movement.zig");
+    _ = @import("ported/selection.zig");
 }
