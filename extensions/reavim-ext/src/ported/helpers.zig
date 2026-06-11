@@ -71,6 +71,42 @@ pub fn trackHandle(ptr: *Reaper.MediaTrack) Reaper.MediaTrack {
     return @ptrCast(ptr);
 }
 
+// ---- commands ---------------------------------------------------------------
+
+/// NamedCommandLookup + Main_OnCommand with a warning when the extension
+/// providing the command (SWS, Xenakios, ...) is not installed.
+pub fn runNamedCommand(name: [*:0]const u8) void {
+    const id = Reaper.NamedCommandLookup(name);
+    if (id == 0) {
+        log.warn("named command not found: {s}", .{name});
+        return;
+    }
+    Reaper.Main_OnCommand(id, 0);
+}
+
+// ---- track string properties (GetSetMediaTrackInfo_String) -------------------
+
+/// Read a track string property ("P_NAME", "GUID", ...) into `buf`; returns
+/// the slice into `buf`, or null on failure. `buf` must be large enough for
+/// the property (REAPER's API carries no size — 512 covers names, 64 GUIDs).
+pub fn getTrackString(track: Reaper.MediaTrack, parm: [*:0]const u8, buf: []u8) ?[]const u8 {
+    const tp = trackPtr(track) orelse return null;
+    buf[0] = 0;
+    if (!Reaper.GetSetMediaTrackInfo_String(tp, parm, @ptrCast(buf.ptr), false))
+        return null;
+    return std.mem.sliceTo(buf, 0);
+}
+
+/// Write a track string property; values longer than 511 bytes are truncated.
+pub fn setTrackString(track: Reaper.MediaTrack, parm: [*:0]const u8, value: []const u8) bool {
+    const tp = trackPtr(track) orelse return false;
+    var buf: [512]u8 = undefined;
+    const n = @min(value.len, buf.len - 1);
+    @memcpy(buf[0..n], value[0..n]);
+    buf[n] = 0;
+    return Reaper.GetSetMediaTrackInfo_String(tp, parm, @ptrCast(&buf), true);
+}
+
 // ---- time selection ---------------------------------------------------------
 
 pub fn setTimeSelection(start: f64, end_: f64) void {

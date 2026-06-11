@@ -19,6 +19,10 @@ const defaults_actions = @import("defaults_actions.zig");
 const lib_state = @import("lib_state.zig");
 const ported_movement = @import("ported/movement.zig");
 const ported_selection = @import("ported/selection.zig");
+const ported_tracks = @import("ported/tracks.zig");
+const ported_items = @import("ported/items.zig");
+const ported_routing = @import("ported/routing.zig");
+const ported_marks = @import("ported/marks.zig");
 
 const default_bindings = @embedFile("default_bindings.ini");
 
@@ -55,6 +59,10 @@ fn loadBindings() void {
         &lib_state.entries,
         &ported_movement.entries,
         &ported_selection.entries,
+        &ported_tracks.entries,
+        &ported_items.entries,
+        &ported_routing.entries,
+        &ported_marks.entries,
     }) catch |err| {
         ext_log.err("action registry init failed: {s}", .{@errorName(err)});
         return;
@@ -166,4 +174,8 @@ test {
     _ = @import("ported/helpers.zig");
     _ = @import("ported/movement.zig");
     _ = @import("ported/selection.zig");
+    _ = @import("ported/tracks.zig");
+    _ = @import("ported/items.zig");
+    _ = @import("ported/routing.zig");
+    _ = @import("ported/marks.zig");
 }
