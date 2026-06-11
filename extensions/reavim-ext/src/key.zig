@@ -69,6 +69,43 @@ const named_keys = std.StaticStringMap(u8).initComptime(.{
     .{ "pagedown", VK.NEXT },
 });
 
+/// Builds the canonical Key for an incoming key event (SWELL semantics).
+/// - numpad digits normalize to plain digits (counts work from the numpad)
+/// - GDK keyvals are layout-resolved: on layouts where digits need Shift
+///   (AZERTY), a digit arrives as vk '0'-'9' WITH the shift flag — the shift
+///   was consumed producing the digit and must not survive into the token
+/// - non-virtual keys are literal ASCII chars, already shifted ('?' is 0x3F)
+pub fn fromEvent(vk: u8, virt: bool, shift: bool, ctrl: bool, alt: bool) Key {
+    const norm_vk: u8 = if (virt and vk >= 0x60 and vk <= 0x69) '0' + (vk - 0x60) else vk;
+    const digit_vk = norm_vk >= '0' and norm_vk <= '9';
+    return .{
+        .vk = norm_vk,
+        .ctrl = ctrl,
+        .shift = if (virt and !digit_vk) shift else false,
+        .alt = alt,
+        .is_char = !virt and vk != VK.SPACE,
+    };
+}
+
+test "fromEvent: AZERTY shifted digits become plain digits" {
+    const k = fromEvent(0x31, true, true, false, false); // '1' with shift held
+    try std.testing.expectEqual(@as(u8, '1'), k.vk);
+    try std.testing.expect(!k.shift);
+    try std.testing.expect(!k.is_char);
+}
+
+test "fromEvent: numpad digits normalize; letters keep shift; chars pre-shifted" {
+    const np = fromEvent(0x65, true, false, false, false); // VK_NUMPAD5
+    try std.testing.expectEqual(@as(u8, '5'), np.vk);
+
+    const J = fromEvent('J', true, true, false, false);
+    try std.testing.expect(J.shift);
+
+    const q = fromEvent('?', false, false, false, false);
+    try std.testing.expect(q.is_char);
+    try std.testing.expectEqual(@as(u8, '?'), q.vk);
+}
+
 pub const ParseError = error{
     UnknownKeyName,
     UnknownModifier,

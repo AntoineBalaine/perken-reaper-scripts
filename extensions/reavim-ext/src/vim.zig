@@ -181,14 +181,7 @@ pub fn onKey(msg: *accel.MSG) c_int {
     // Key-ups: eat plain ones (their downs were eaten), pass modified ones.
     if (up) return if (mods.ctrl or mods.alt) 0 else 1;
 
-    const k = keymod.Key{
-        .vk = vk,
-        .ctrl = mods.ctrl,
-        // ASCII char keys arrive pre-shifted ('?' is 0x3F); shift is meaningless there.
-        .shift = if (virt) mods.shift else false,
-        .alt = mods.alt,
-        .is_char = !virt and vk != keymod.VK.SPACE,
-    };
+    const k = keymod.fromEvent(vk, virt, mods.shift, mods.ctrl, mods.alt);
     if (key_len >= key_buf.len) clearPending();
     key_buf[key_len] = k;
     key_len += 1;
