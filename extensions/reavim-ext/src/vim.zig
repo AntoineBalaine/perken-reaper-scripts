@@ -20,6 +20,7 @@ const runner = @import("runner.zig");
 const config = @import("config.zig");
 const state = @import("state.zig");
 const meta = @import("meta.zig");
+const ui = @import("ui.zig");
 
 const log = std.log.scoped(.engine);
 
@@ -186,6 +187,20 @@ pub fn onKey(msg: *accel.MSG) c_int {
         active_ctx = ctx;
     }
 
+    // Whichkey pagination ([whichkey] config, default PageDown/PageUp). These
+    // flip the completion grid's page and never touch the pending key sequence
+    // — dedicated to the whichkey while vim owns the keyboard (no-op on a
+    // single page), so they can't disrupt a sequence mid-flight. They are not
+    // reached when a dialog/control has focus (the guards above pass those
+    // through), so the action list keeps its own PageDown/PageUp.
+    const k = keymod.fromEvent(vk, virt, mods.shift, mods.ctrl, mods.alt);
+    if (k.eql(b.page_next) or k.eql(b.page_prev)) {
+        if (down) {
+            if (k.eql(b.page_next)) ui.pageNext() else ui.pagePrev();
+        }
+        return 1;
+    }
+
     // ESC: clear pending; exit visual modes; pass through otherwise.
     if (vk == VK_ESCAPE and !mods.ctrl and !mods.alt) {
         if (key_len > 0) {
@@ -205,7 +220,6 @@ pub fn onKey(msg: *accel.MSG) c_int {
     // Key-ups: eat plain ones (their downs were eaten), pass modified ones.
     if (up) return if (mods.ctrl or mods.alt) 0 else 1;
 
-    const k = keymod.fromEvent(vk, virt, mods.shift, mods.ctrl, mods.alt);
     if (key_len >= key_buf.len) clearPending();
     key_buf[key_len] = k;
     key_len += 1;

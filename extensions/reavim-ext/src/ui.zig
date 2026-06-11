@@ -106,11 +106,26 @@ const pushed_colors = [_]struct { col: *c_int, val: c_int }{
 
 var page: usize = 0;
 var last_comp_count: usize = 0;
+var last_n_pages: usize = 1; // set each render; used by keyboard pagination
 
 const ROWS_PER_PAGE: usize = 8;
 const COL_WIDTH: f64 = 230;
 const MAX_DESC_LEN: usize = 26;
 const MAX_HEIGHT: f64 = 235;
+
+/// True when the completion grid currently spans more than one page.
+pub fn hasPages() bool {
+    return last_n_pages > 1;
+}
+
+/// Advance / retreat the whichkey page, wrapping. No-op with a single page.
+pub fn pageNext() void {
+    if (last_n_pages > 1) page = (page + 1) % last_n_pages;
+}
+
+pub fn pagePrev() void {
+    if (last_n_pages > 1) page = (page + last_n_pages - 1) % last_n_pages;
+}
 
 fn truncDesc(desc: []const u8, buf: []u8) []const u8 {
     if (desc.len <= MAX_DESC_LEN) return desc;
@@ -201,17 +216,18 @@ fn renderContent() void {
     const status_z = std.fmt.bufPrintZ(&line, "{s}", .{fbs.getWritten()}) catch return;
     imgui.api.Text(ctx, status_z);
 
-    if (m == .insert) return;
+    if (m == .insert) {
+        last_n_pages = 1;
+        return;
+    }
 
     var comps: [96]vim.Completion = undefined;
     const items = vim.completions(&comps);
-    if (items.len == 0) return;
-    std.mem.sort(vim.Completion, items, {}, keyLessThan);
-
-    if (items.len != last_comp_count) {
-        last_comp_count = items.len;
-        page = 0;
+    if (items.len == 0) {
+        last_n_pages = 1;
+        return;
     }
+    std.mem.sort(vim.Completion, items, {}, keyLessThan);
 
     var avail_w: f64 = 0;
     var avail_h: f64 = 0;
@@ -220,6 +236,13 @@ fn renderContent() void {
 
     const page_size = columns * ROWS_PER_PAGE;
     const n_pages = (items.len + page_size - 1) / page_size;
+
+    if (items.len != last_comp_count) {
+        last_comp_count = items.len;
+        page = 0;
+        log.debug("whichkey: {d} items, avail_w={d:.0}, {d} cols, {d} pages", .{ items.len, avail_w, columns, n_pages });
+    }
+    last_n_pages = n_pages;
     if (page >= n_pages) page = n_pages - 1;
 
     const start = page * page_size;

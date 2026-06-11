@@ -23,12 +23,29 @@ const log = std.log.scoped(.config);
 pub const Bindings = struct {
     arena: std.heap.ArenaAllocator,
     tables: builder.BindingTables,
+    /// Whichkey pagination keys (the [whichkey] config section). Special-cased
+    /// in the engine — they are not regular bindings, so they work mid-sequence.
+    page_next: keymod.Key = .{ .vk = keymod.VK.NEXT }, // PageDown
+    page_prev: keymod.Key = .{ .vk = keymod.VK.PRIOR }, // PageUp
 
     pub fn deinit(self: *Bindings) void {
         for (&self.tables.tries) |*row| for (row) |*t| t.deinit();
         self.arena.deinit();
     }
 };
+
+const CurSection = union(enum) {
+    binding: Section,
+    whichkey,
+    unknown,
+};
+
+/// Parses a single-key value like "<pagedown>" or "<C-n>" for [whichkey].
+fn parseSingleKey(raw: []const u8) ?keymod.Key {
+    const tok = keymod.parseToken(std.mem.trim(u8, raw, " \t")) catch return null;
+    if (tok.len != std.mem.trim(u8, raw, " \t").len) return null; // must be exactly one key
+    return tok.key;
+}
 
 const IniContext = enum { main, midi, global };
 
@@ -136,34 +153,54 @@ pub fn parse(
     var parser = ini.parse(gpa, reader);
     defer parser.deinit();
 
-    var section: ?Section = null;
+    var section: CurSection = .unknown;
     var keybuf = std.ArrayList(keymod.Key).init(gpa);
     defer keybuf.deinit();
 
     while (try parser.next()) |record| {
         switch (record) {
             .section => |name| {
-                section = parseSectionName(name);
-                if (section == null)
+                if (std.mem.eql(u8, name, "whichkey")) {
+                    section = .whichkey;
+                } else if (parseSectionName(name)) |sec| {
+                    section = .{ .binding = sec };
+                } else {
+                    section = .unknown;
                     log.warn("unknown section [{s}] — skipped", .{name});
+                }
             },
-            .property => |kv| {
-                const sec = section orelse continue;
-                keybuf.clearRetainingCapacity();
-                keymod.parseSequence(kv.key, &keybuf) catch |err| {
-                    log.warn("bad key sequence '{s}': {s} — skipped", .{ kv.key, @errorName(err) });
-                    continue;
-                };
-                if (keybuf.items.len == 0) continue;
-                const value = parseValue(kv.value, arena) catch |err| {
-                    log.warn("bad value '{s}' for '{s}': {s} — skipped", .{ kv.value, kv.key, @errorName(err) });
-                    continue;
-                };
-                try entries.append(.{
-                    .section = sec,
-                    .keys = try arena.dupe(keymod.Key, keybuf.items),
-                    .value = value,
-                });
+            .property => |kv| switch (section) {
+                .unknown => {},
+                .whichkey => {
+                    const key = parseSingleKey(kv.value) orelse {
+                        log.warn("bad whichkey key '{s}' for '{s}' — skipped", .{ kv.value, kv.key });
+                        continue;
+                    };
+                    if (std.mem.eql(u8, kv.key, "page_next")) {
+                        b.page_next = key;
+                    } else if (std.mem.eql(u8, kv.key, "page_prev")) {
+                        b.page_prev = key;
+                    } else {
+                        log.warn("unknown [whichkey] key '{s}' — skipped", .{kv.key});
+                    }
+                },
+                .binding => |sec| {
+                    keybuf.clearRetainingCapacity();
+                    keymod.parseSequence(kv.key, &keybuf) catch |err| {
+                        log.warn("bad key sequence '{s}': {s} — skipped", .{ kv.key, @errorName(err) });
+                        continue;
+                    };
+                    if (keybuf.items.len == 0) continue;
+                    const value = parseValue(kv.value, arena) catch |err| {
+                        log.warn("bad value '{s}' for '{s}': {s} — skipped", .{ kv.value, kv.key, @errorName(err) });
+                        continue;
+                    };
+                    try entries.append(.{
+                        .section = sec,
+                        .keys = try arena.dupe(keymod.Key, keybuf.items),
+                        .value = value,
+                    });
+                },
             },
             .enumeration => {},
         }
@@ -204,6 +241,29 @@ const test_defs = [_]actions.Entry{
     .{ .name = "NextTrack", .def = .{ .steps = &.{.{ .cmd = 40285 }}, .prefix_repetition_count = true } },
     .{ .name = "RemoveTracks", .def = .{ .steps = &.{.{ .cmd = 40005 }} } },
 };
+
+test "whichkey pagination keys default and override" {
+    var reg = try actions.Registry.init(std.testing.allocator, &.{});
+    defer reg.deinit();
+
+    // defaults when no [whichkey] section
+    var d = try parseString(std.testing.allocator, &reg, "[main.command]\nj = 40285\n");
+    defer d.deinit();
+    try std.testing.expectEqual(keymod.VK.NEXT, d.page_next.vk);
+    try std.testing.expectEqual(keymod.VK.PRIOR, d.page_prev.vk);
+
+    // override via config
+    var o = try parseString(std.testing.allocator, &reg,
+        \\[whichkey]
+        \\page_next = <C-n>
+        \\page_prev = <C-p>
+    );
+    defer o.deinit();
+    try std.testing.expectEqual(@as(u8, 'N'), o.page_next.vk);
+    try std.testing.expect(o.page_next.ctrl);
+    try std.testing.expectEqual(@as(u8, 'P'), o.page_prev.vk);
+    try std.testing.expect(o.page_prev.ctrl);
+}
 
 test "quoted keys with comment chars bind" {
     const text =
