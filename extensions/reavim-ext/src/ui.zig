@@ -79,10 +79,14 @@ fn commandName(id: c_int, context: vim.Context, buf: []u8) []const u8 {
         .main => 0,
         .midi => 32060,
     };
+    const fallback = std.fmt.bufPrint(buf, "cmd:{d}", .{id}) catch "?";
     const section = Reaper.SectionFromUniqueID(section_id);
-    const name = std.mem.span(Reaper.kbd_getTextFromCmd(id, section));
+    if (@intFromPtr(section) == 0) return fallback;
+    const ptr = Reaper.kbd_getTextFromCmd(id, section);
+    if (@intFromPtr(ptr) == 0) return fallback;
+    const name = std.mem.span(ptr);
     if (name.len > 0) return name;
-    return std.fmt.bufPrint(buf, "cmd:{d}", .{id}) catch "?";
+    return fallback;
 }
 
 fn textColored(c: imgui.ContextPtr, color: c_int, txt: [*:0]const u8) void {

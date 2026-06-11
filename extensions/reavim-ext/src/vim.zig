@@ -193,9 +193,18 @@ pub fn onKey(msg: *accel.MSG) c_int {
     key_buf[key_len] = k;
     key_len += 1;
 
+    if (std.log.logEnabled(.debug, .engine)) {
+        var kb: [16]u8 = undefined;
+        var pb: [96]u8 = undefined;
+        log.debug("key token '{s}' -> buffer '{s}' [ctx={s} mode={s}]", .{
+            keymod.format(k, &kb), pending(&pb), @tagName(ctx), @tagName(state.grammarMode()),
+        });
+    }
+
     const gmode = state.grammarMode();
 
     if (builder.build(&b.tables, ctx, gmode, key_buf[0..key_len])) |cmd| {
+        log.debug("-> built: {s} (comp={s})", .{ cmd.keys[0].name, @tagName(cmd.comp) });
         setLastAction(cmd);
         clearPending();
         if (meta.metaKind(&cmd) != null) {
@@ -211,11 +220,14 @@ pub fn onKey(msg: *accel.MSG) c_int {
     }
 
     var comp_buf: [8]Completion = undefined;
-    if (builder.completions(&b.tables, ctx, gmode, key_buf[0..key_len], &comp_buf).len > 0) {
+    const conts = builder.completions(&b.tables, ctx, gmode, key_buf[0..key_len], &comp_buf);
+    if (conts.len > 0) {
+        log.debug("-> pending ({d}+ continuations)", .{conts.len});
         return 1; // pending — wait for more keys
     }
 
     // Undefined sequence.
+    log.debug("-> undefined sequence, cleared", .{});
     const was_start = key_len == 1;
     clearPending();
     if (was_start and (mods.ctrl or mods.alt)) return 0;

@@ -163,8 +163,18 @@ fn translateAccel(msg: *accel.MSG, ctx: *accel.accelerator_register_t) callconv(
         const msg_hwnd = if (msg.hwnd) |h| @intFromPtr(h) else 0;
         const vk: u8 = @truncate(msg.wParam);
         const printable: u8 = if (vk >= 0x20 and vk < 0x7f) vk else '.';
-        log.debug("{s}(0x{x:0>4}) vk=0x{x:0>2} '{c}' hwnd=0x{x} midi_editor=0x{x}", .{
-            accel.msgName(msg.message), msg.message, vk, printable, msg_hwnd, midi_hwnd,
+        log.debug("{s}(0x{x:0>4}) vk=0x{x:0>2} '{c}' lParam=0x{x} virt={} shift={} ctrl={} alt={} hwnd=0x{x} midi_editor=0x{x}", .{
+            accel.msgName(msg.message),
+            msg.message,
+            vk,
+            printable,
+            msg.lParam,
+            (msg.lParam & accel.FVIRTKEY) != 0,
+            (msg.lParam & accel.FSHIFT) != 0,
+            (msg.lParam & accel.FCONTROL) != 0,
+            (msg.lParam & accel.FALT) != 0,
+            msg_hwnd,
+            midi_hwnd,
         });
     }
 
