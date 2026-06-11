@@ -208,6 +208,9 @@ pub fn onKey(msg: *accel.MSG) c_int {
             Reaper.Undo_EndBlock("reavim", 1);
             Reaper.UpdateArrange();
             meta.afterExecute(cmd);
+            log.debug("post-exec: cursor={d:.3} sel_tracks={d}", .{
+                Reaper.GetCursorPosition(), Reaper.CountSelectedTracks(0),
+            });
         }
         return 1;
     }

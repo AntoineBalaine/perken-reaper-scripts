@@ -1,0 +1,4 @@
+SCR 4 0 RS_reavimsetup "Custom: reavim_setup.lua" "reavim_setup.lua"
+SCR 4 0 RS_reavimdump "Custom: reavim_dump_state.lua" "reavim_dump_state.lua"
+KEY 0 119 RS_reavimdump 0
+KEY 0 118 _REAVIM_TOGGLE 0
