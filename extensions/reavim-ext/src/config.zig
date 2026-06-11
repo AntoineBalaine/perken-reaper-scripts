@@ -205,6 +205,31 @@ const test_defs = [_]actions.Entry{
     .{ .name = "RemoveTracks", .def = .{ .steps = &.{.{ .cmd = 40005 }} } },
 };
 
+test "quoted keys with comment chars bind" {
+    const text =
+        \\[main.command]
+        \\";" = 40912
+        \\"x#1" = 40913
+        \\"\"#" = "+recall #"
+    ;
+    var reg = try actions.Registry.init(std.testing.allocator, &.{});
+    defer reg.deinit();
+    var b = try parseString(std.testing.allocator, &reg, text);
+    defer b.deinit();
+
+    var keys = std.ArrayList(keymod.Key).init(std.testing.allocator);
+    defer keys.deinit();
+
+    try keymod.parseSequence(";", &keys);
+    const semi = builder.build(&b.tables, .main, .normal, keys.items).?;
+    try std.testing.expectEqual(@as(c_int, 40912), semi.keys[0].def.steps[0].cmd);
+
+    keys.clearRetainingCapacity();
+    try keymod.parseSequence("x#1", &keys);
+    const hash = builder.build(&b.tables, .main, .normal, keys.items).?;
+    try std.testing.expectEqual(@as(c_int, 40913), hash.keys[0].def.steps[0].cmd);
+}
+
 test "parse new format with registry names, raw ids, global merge and shadowing" {
     const text =
         \\[main.track_motion]
