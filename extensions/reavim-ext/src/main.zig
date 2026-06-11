@@ -23,6 +23,9 @@ const ported_tracks = @import("ported/tracks.zig");
 const ported_items = @import("ported/items.zig");
 const ported_routing = @import("ported/routing.zig");
 const ported_marks = @import("ported/marks.zig");
+const ported_envelope = @import("ported/envelope.zig");
+const ported_fx = @import("ported/fx.zig");
+const ported_midi = @import("ported/midi.zig");
 
 const default_bindings = @embedFile("default_bindings.ini");
 
@@ -63,6 +66,9 @@ fn loadBindings() void {
         &ported_items.entries,
         &ported_routing.entries,
         &ported_marks.entries,
+        &ported_envelope.entries,
+        &ported_fx.entries,
+        &ported_midi.entries,
     }) catch |err| {
         ext_log.err("action registry init failed: {s}", .{@errorName(err)});
         return;
@@ -178,4 +184,7 @@ test {
     _ = @import("ported/items.zig");
     _ = @import("ported/routing.zig");
     _ = @import("ported/marks.zig");
+    _ = @import("ported/envelope.zig");
+    _ = @import("ported/fx.zig");
+    _ = @import("ported/midi.zig");
 }

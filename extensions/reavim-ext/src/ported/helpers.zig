@@ -1,7 +1,8 @@
 //! Shared helpers for the ported custom_actions modules — the Zig port of the
 //! parts of reavim's custom_actions/utils.lua (plus utils/reaper_state.lua)
-//! that movement.zig and selection.zig need. MIDI/envelope/chunk helpers come
-//! with later batches.
+//! that the ported action modules need, plus the envelope value-range helper
+//! (envelope.lua's getEnvelopeRange/getEnvelopeMinMaxValues) and the MIDI
+//! notes snapshot (midi.listNotes + the MIDI_GetNote loops).
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 
@@ -113,6 +114,17 @@ pub fn setTimeSelection(start: f64, end_: f64) void {
     var s = start;
     var e = end_;
     Reaper.GetSet_LoopTimeRange(true, false, &s, &e, false);
+}
+
+pub const TimeRange = struct { start: f64, end_: f64 };
+
+/// Read the current time selection (GetSet_LoopTimeRange2 with isSet=false in
+/// the Lua; the project-less variant is the same call for the current project).
+pub fn getTimeSelection() TimeRange {
+    var s: f64 = 0;
+    var e: f64 = 0;
+    Reaper.GetSet_LoopTimeRange(false, false, &s, &e, false);
+    return .{ .start = s, .end_ = e };
 }
 
 // ---- item position lists (utils.getItemPositionsOnSelectedTracks etc.) -----
@@ -262,6 +274,142 @@ pub fn popCursorPosition() ?f64 {
     return pos;
 }
 
+// ---- envelopes ----------------------------------------------------------------
+
+/// GetSelectedEnvelope returns NULL when no envelope is selected and takes
+/// NULL for "current project"; the binding types both as non-optional.
+pub fn getSelectedEnvelope() ?*Reaper.TrackEnvelope {
+    const f: *const fn (proj: ?*Reaper.ReaProject) callconv(.C) ?*Reaper.TrackEnvelope = @ptrCast(Reaper.GetSelectedEnvelope);
+    return f(null);
+}
+
+/// Native replacement for SWS SNM_GetIntConfigVar: read an int-sized config
+/// variable via the raw get_config_var API (which Lua cannot dereference —
+/// the only reason the original needed SWS).
+pub fn getIntConfigVar(name: [*:0]const u8, fallback: c_int) c_int {
+    const f: *const fn (name: [*:0]const u8, szOut: *c_int) callconv(.C) ?*anyopaque = @ptrCast(Reaper.get_config_var);
+    var sz: c_int = 0;
+    const p = f(name, &sz) orelse return fallback;
+    if (sz != @sizeOf(c_int)) return fallback;
+    const ip: *align(1) const c_int = @ptrCast(p);
+    return ip.*;
+}
+
+pub const EnvelopeRange = struct { min: f64, max: f64, center: f64 };
+
+const ChunkEnvKind = union(enum) {
+    fixed: EnvelopeRange,
+    volenv,
+    pitchenv,
+    tempoenv,
+};
+
+/// Sniff the envelope type from the first state-chunk line and resolve the
+/// per-type value range (envelope.lua getEnvelopeRange, by Cfillion). PARMENV
+/// carries min/max/center inline; vol/pitch/tempo need config vars (resolved
+/// by the caller so this stays pure/testable).
+fn classifyEnvelopeChunk(chunk: []const u8) ?ChunkEnvKind {
+    if (chunk.len < 2 or chunk[0] != '<') return null;
+    const line_end = std.mem.indexOfScalar(u8, chunk, '\n') orelse chunk.len;
+    var tokens = std.mem.tokenizeAny(u8, chunk[0..line_end], " \t\r");
+    const tag = tokens.next() orelse return null;
+    const env_type = tag[1..];
+
+    if (std.mem.indexOf(u8, env_type, "PARMENV") != null) {
+        _ = tokens.next() orelse return null; // param ident
+        const min = std.fmt.parseFloat(f64, tokens.next() orelse return null) catch return null;
+        const max = std.fmt.parseFloat(f64, tokens.next() orelse return null) catch return null;
+        const center = std.fmt.parseFloat(f64, tokens.next() orelse return null) catch return null;
+        return .{ .fixed = .{ .min = min, .max = max, .center = center } };
+    }
+    // Substring match like the Lua (VOLENV also catches AUXVOLENV/VOLENV2).
+    if (std.mem.indexOf(u8, env_type, "VOLENV") != null) return .volenv;
+    if (std.mem.indexOf(u8, env_type, "PANENV") != null) return .{ .fixed = .{ .min = -1, .max = 1, .center = 0 } };
+    if (std.mem.indexOf(u8, env_type, "WIDTHENV") != null) return .{ .fixed = .{ .min = -1, .max = 1, .center = 0 } };
+    if (std.mem.indexOf(u8, env_type, "MUTEENV") != null) return .{ .fixed = .{ .min = 0, .max = 1, .center = 0.5 } };
+    if (std.mem.indexOf(u8, env_type, "SPEEDENV") != null) return .{ .fixed = .{ .min = 0.1, .max = 4, .center = 1 } };
+    if (std.mem.indexOf(u8, env_type, "PITCHENV") != null) return .pitchenv;
+    if (std.mem.indexOf(u8, env_type, "TEMPOENV") != null) return .tempoenv;
+    return null;
+}
+
+/// Min/max/center of an envelope in raw envelope units, with fader scaling
+/// applied (envelope.lua getEnvelopeMinMaxValues). Null on unknown envelope
+/// types (where the Lua error()'d). Only the chunk header is needed, so a
+/// truncating read into a fixed buffer is fine.
+pub fn envelopeRange(env: *Reaper.TrackEnvelope) ?EnvelopeRange {
+    var buf: [4096]u8 = undefined;
+    buf[0] = 0;
+    if (!Reaper.GetEnvelopeStateChunk(env, @ptrCast(&buf), buf.len, false)) return null;
+    const kind = classifyEnvelopeChunk(std.mem.sliceTo(&buf, 0)) orelse {
+        log.warn("unknown envelope type — cannot determine value range", .{});
+        return null;
+    };
+    var range: EnvelopeRange = switch (kind) {
+        .fixed => |r| r,
+        .volenv => blk: {
+            const max: f64 = switch (getIntConfigVar("volenvrange", 0)) {
+                1, 3 => 1,
+                0, 2 => 2,
+                4, 6 => 4,
+                5, 7 => 16,
+                else => 2,
+            };
+            break :blk .{ .min = 0, .max = max, .center = if (max == 1) 0.5 else 1 };
+        },
+        .pitchenv => blk: {
+            const semis: f64 = @floatFromInt(getIntConfigVar("pitchenvrange", 0) & 0x0F);
+            break :blk .{ .min = -semis, .max = semis, .center = 0 };
+        },
+        .tempoenv => blk: {
+            const min: f64 = @floatFromInt(getIntConfigVar("tempoenvmin", 0));
+            const max: f64 = @floatFromInt(getIntConfigVar("tempoenvmax", 0));
+            break :blk .{ .min = min, .max = max, .center = (max + min) / 2 };
+        },
+    };
+    if (Reaper.GetEnvelopeScalingMode(env) == 1) {
+        range = .{
+            .min = Reaper.ScaleToEnvelopeMode(1, range.min),
+            .max = Reaper.ScaleToEnvelopeMode(1, range.max),
+            .center = Reaper.ScaleToEnvelopeMode(1, range.center),
+        };
+    }
+    return range;
+}
+
+// ---- MIDI notes snapshot ------------------------------------------------------
+
+pub const Note = struct {
+    selected: bool,
+    muted: bool,
+    start_ppq: f64,
+    end_ppq: f64,
+    chan: c_int,
+    pitch: c_int,
+    vel: c_int,
+};
+
+/// Snapshot every note of a take — midi.listNotes plus the per-action
+/// MIDI_GetNote loops of midi.lua (and later kawa.lua/pasteRhythm.lua),
+/// ported once.
+pub fn collectNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) ![]Note {
+    var n_notes: c_int = 0;
+    var n_cc: c_int = 0;
+    var n_sysex: c_int = 0;
+    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
+
+    var list = std.ArrayList(Note).init(alloc);
+    errdefer list.deinit();
+    var i: c_int = 0;
+    while (i < n_notes) : (i += 1) {
+        var n: Note = undefined;
+        if (!Reaper.MIDI_GetNote(take, i, &n.selected, &n.muted, &n.start_ppq, &n.end_ppq, &n.chan, &n.pitch, &n.vel))
+            continue;
+        try list.append(n);
+    }
+    return list.toOwnedSlice();
+}
+
 // ---- user input -------------------------------------------------------------
 
 /// GetUserInputs with a single field; returns the trimmed reply, or null on
@@ -296,6 +444,35 @@ test "mergeBigItems empty input" {
     const big = try mergeBigItems(std.testing.allocator, &.{});
     defer std.testing.allocator.free(big);
     try std.testing.expectEqual(@as(usize, 0), big.len);
+}
+
+test "classifyEnvelopeChunk parses PARMENV header ranges" {
+    const chunk = "<PARMENV 0:wet 0 1 0.25\nACT 1 -1\nVIS 1 1 1\n>";
+    const kind = classifyEnvelopeChunk(chunk).?;
+    try std.testing.expectEqual(EnvelopeRange{ .min = 0, .max = 1, .center = 0.25 }, kind.fixed);
+}
+
+test "classifyEnvelopeChunk maps built-in envelope types" {
+    try std.testing.expectEqual(ChunkEnvKind.volenv, classifyEnvelopeChunk("<VOLENV2\nACT 1\n>").?);
+    try std.testing.expectEqual(ChunkEnvKind.volenv, classifyEnvelopeChunk("<AUXVOLENV\n>").?);
+    try std.testing.expectEqual(ChunkEnvKind.pitchenv, classifyEnvelopeChunk("<PITCHENV\n>").?);
+    try std.testing.expectEqual(ChunkEnvKind.tempoenv, classifyEnvelopeChunk("<TEMPOENVEX\n>").?);
+    try std.testing.expectEqual(
+        EnvelopeRange{ .min = -1, .max = 1, .center = 0 },
+        classifyEnvelopeChunk("<PANENV2\n>").?.fixed,
+    );
+    try std.testing.expectEqual(
+        EnvelopeRange{ .min = 0, .max = 1, .center = 0.5 },
+        classifyEnvelopeChunk("<MUTEENV\n>").?.fixed,
+    );
+}
+
+test "classifyEnvelopeChunk rejects garbage" {
+    try std.testing.expect(classifyEnvelopeChunk("") == null);
+    try std.testing.expect(classifyEnvelopeChunk("TRACK 1") == null);
+    try std.testing.expect(classifyEnvelopeChunk("<WHATENV\n>") == null);
+    // PARMENV with a malformed header must not leak tokens from later lines
+    try std.testing.expect(classifyEnvelopeChunk("<PARMENV 0:wet\n0 1 0.5\n>") == null);
 }
 
 test "getTrackIndex is the 1-based number minus one" {
