@@ -1,41 +1,41 @@
-//! The vim engine: trie-backed key dispatch over the accelerator hook.
+//! The vim engine front-end: accumulates keys from the accelerator hook and
+//! drives the builder/runner grammar machinery (faithful to reavim's
+//! state_machine.lua). State between keystrokes: mode + key buffer.
 //!
-//! State between keystrokes is just: mode + trie cursor + pending count +
-//! pending-keys display buffer. Modifier state is tracked from the hook
-//! traffic itself (the hook is first in queue, so it sees the modifier
-//! keydowns/keyups) — the same approach js_ReaScriptAPI uses for VKeys.
-//!
-//! Normal-mode policy:
+//! Policy:
 //!   - keys in text fields always pass through
-//!   - unbound ctrl/alt combos pass through (native Ctrl+S keeps working)
+//!   - insert mode passes everything except ESC (back to normal)
+//!   - unbound ctrl/alt combos at the start of a sequence pass through
 //!   - unbound plain keys are eaten (vim-like; no surprise spacebar playback)
-//!   - digits accumulate a count before a sequence starts
-//!   - ESC clears the pending sequence / leaves insert mode
+//!   - ESC clears a pending sequence; in visual modes it returns to normal;
+//!     in normal mode with nothing pending it passes through
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const accel = @import("accel.zig");
 const swell = @import("swell_win.zig");
 const keymod = @import("key.zig");
+const grammar = @import("grammar.zig");
+const builder = @import("builder.zig");
+const runner = @import("runner.zig");
 const config = @import("config.zig");
+const state = @import("state.zig");
 
 const log = std.log.scoped(.engine);
 
-pub const Mode = enum { off, normal, insert };
-pub const Context = config.Context;
+pub const Mode = state.VimMode;
+pub const Context = grammar.Context;
+pub const Completion = builder.Completion;
 
-pub var mode: Mode = .off;
 var bindings: ?*config.Bindings = null;
 
 const Mods = struct { ctrl: bool = false, shift: bool = false, alt: bool = false };
 var mods: Mods = .{};
 
-var cursor: ?config.KeyTrie.Cursor = null;
+var key_buf: [32]keymod.Key = undefined;
+var key_len: usize = 0;
 var active_ctx: Context = .main;
-var count: u32 = 0;
 
 // For the feedback UI.
-var pending_buf: [128]u8 = undefined;
-var pending_len: usize = 0;
 var last_action_buf: [128]u8 = undefined;
 var last_action_len: usize = 0;
 
@@ -44,74 +44,63 @@ const VK_CONTROL: u8 = 0x11;
 const VK_MENU: u8 = 0x12;
 const VK_ESCAPE: u8 = 0x1b;
 
+pub fn mode() Mode {
+    return state.mode;
+}
+
 pub fn setBindings(b: *config.Bindings) void {
     bindings = b;
     clearPending();
 }
 
 pub fn toggle() void {
-    mode = if (mode == .off) .normal else .off;
+    state.mode = if (state.mode == .off) .normal else .off;
     mods = .{};
     clearPending();
-    log.info("vim mode: {s}", .{@tagName(mode)});
+    log.info("vim mode: {s}", .{@tagName(state.mode)});
 }
 
-/// "ReaVim: Enter normal mode" — bindable, works from insert (and as a panic reset).
-pub fn enterNormal() void {
-    if (mode == .off) return;
-    mode = .normal;
-    clearPending();
-    log.info("mode: normal", .{});
-}
-
-pub fn pending() []const u8 {
-    return pending_buf[0..pending_len];
+pub fn pending(buf: []u8) []const u8 {
+    var len: usize = 0;
+    for (key_buf[0..key_len]) |k| {
+        var kb: [16]u8 = undefined;
+        const s = keymod.format(k, &kb);
+        if (len + s.len > buf.len) break;
+        @memcpy(buf[len..][0..s.len], s);
+        len += s.len;
+    }
+    return buf[0..len];
 }
 
 pub fn lastAction() []const u8 {
     return last_action_buf[0..last_action_len];
 }
 
-pub fn pendingCount() u32 {
-    return count;
-}
-
 pub fn activeContext() Context {
     return active_ctx;
 }
 
-pub const Completion = config.KeyTrie.Cursor.Completion;
-
-/// Children of the current trie position (root when no sequence is pending).
+/// Possible next keys given the current buffer (for the feedback window).
 pub fn completions(buf: []Completion) []Completion {
     const b = bindings orelse return buf[0..0];
-    var c = cursor orelse b.get(active_ctx, .normal).cursor();
-    return c.completions(buf);
+    return builder.completions(&b.tables, active_ctx, state.grammarMode(), key_buf[0..key_len], buf);
 }
 
 fn clearPending() void {
-    cursor = null;
-    count = 0;
-    pending_len = 0;
+    key_len = 0;
 }
 
-fn appendPending(k: keymod.Key) void {
-    var buf: [16]u8 = undefined;
-    const s = keymod.format(k, &buf);
-    if (pending_len + s.len <= pending_buf.len) {
-        @memcpy(pending_buf[pending_len..][0..s.len], s);
-        pending_len += s.len;
+fn setLastAction(cmd: builder.Command) void {
+    var fbs = std.io.fixedBufferStream(&last_action_buf);
+    const w = fbs.writer();
+    var i: usize = 0;
+    while (i < cmd.n()) : (i += 1) {
+        if (i > 0) w.writeAll(" + ") catch break;
+        const k = cmd.keys[i];
+        if (k.prefixed_repetitions > 1) w.print("{d}x ", .{k.prefixed_repetitions}) catch break;
+        w.writeAll(k.name) catch break;
     }
-}
-
-fn setLastAction(action: config.Action, n: u32) void {
-    var dbuf: [96]u8 = undefined;
-    const desc = action.describe(&dbuf);
-    const s = if (n > 1)
-        std.fmt.bufPrint(&last_action_buf, "{d}x {s}", .{ n, desc }) catch return
-    else
-        std.fmt.bufPrint(&last_action_buf, "{s}", .{desc}) catch return;
-    last_action_len = s.len;
+    last_action_len = fbs.getWritten().len;
 }
 
 fn contextOf(msg: *accel.MSG) Context {
@@ -132,47 +121,9 @@ fn isTextField(msg: *accel.MSG) bool {
         std.ascii.startsWithIgnoreCase(cls, "richedit");
 }
 
-fn execute(action: config.Action, ctx: Context, n: u32) void {
-    setLastAction(action, n);
-    switch (action) {
-        .cmd => |id| dispatchCmd(id, ctx, n),
-        .named => |name| {
-            const id = Reaper.NamedCommandLookup(name.ptr);
-            if (id == 0) {
-                log.warn("named command not found: {s}", .{name});
-                return;
-            }
-            dispatchCmd(id, ctx, n);
-        },
-        .builtin => |b| switch (b) {
-            .insert => {
-                mode = .insert;
-                log.info("mode: insert (native bindings active)", .{});
-            },
-            .normal => enterNormal(),
-            .off => {
-                mode = .off;
-                log.info("vim mode: off", .{});
-            },
-            .clear => {},
-        },
-        .stub => |name| log.warn("action '{s}' not ported yet (stub)", .{name}),
-    }
-}
-
-fn dispatchCmd(id: c_int, ctx: Context, n: u32) void {
-    var i: u32 = 0;
-    while (i < n) : (i += 1) {
-        switch (ctx) {
-            .main => Reaper.Main_OnCommand(id, 0),
-            .midi => _ = Reaper.MIDIEditor_LastFocused_OnCommand(id, false),
-        }
-    }
-}
-
 /// Returns the translateAccel return value: 0 = pass through, 1 = eat.
 pub fn onKey(msg: *accel.MSG) c_int {
-    if (mode == .off) return 0;
+    if (state.mode == .off) return 0;
 
     const down = msg.message == accel.WM_KEYDOWN or msg.message == accel.WM_SYSKEYDOWN;
     const up = msg.message == accel.WM_KEYUP or msg.message == accel.WM_SYSKEYUP;
@@ -195,15 +146,16 @@ pub fn onKey(msg: *accel.MSG) c_int {
         else => {},
     }
 
-    if (mode == .insert) {
+    if (state.mode == .insert) {
         if (down and vk == VK_ESCAPE and !mods.ctrl and !mods.alt) {
-            enterNormal();
+            state.setModeToNormal();
+            log.info("mode: normal", .{});
             return 1;
         }
         return 0;
     }
 
-    // ---- normal mode ----
+    // ---- normal / visual modes ----
     if (isTextField(msg)) return 0;
 
     const b = bindings orelse return 0;
@@ -214,61 +166,57 @@ pub fn onKey(msg: *accel.MSG) c_int {
         active_ctx = ctx;
     }
 
-    // ESC clears any pending sequence; with nothing pending it passes through.
+    // ESC: clear pending; exit visual modes; pass through otherwise.
     if (vk == VK_ESCAPE and !mods.ctrl and !mods.alt) {
-        if (cursor != null or count > 0) {
+        if (key_len > 0) {
             if (down) clearPending();
+            return 1;
+        }
+        if (state.mode == .visual_track or state.mode == .visual_timeline) {
+            if (down) {
+                state.setModeToNormal();
+                log.info("mode: normal", .{});
+            }
             return 1;
         }
         return 0;
     }
 
-    // Key-ups: eat for anything we'd handle on the down, pass otherwise.
-    // (Eating ups of eaten downs keeps REAPER from seeing orphan key-ups.)
+    // Key-ups: eat plain ones (their downs were eaten), pass modified ones.
     if (up) return if (mods.ctrl or mods.alt) 0 else 1;
 
-    // Count accumulation: digits before/within a count, not mid-sequence.
-    if (!mods.ctrl and !mods.alt and !mods.shift and cursor == null) {
-        if (vk >= '0' and vk <= '9' and !(count == 0 and vk == '0')) {
-            count = count *| 10 +| (vk - '0');
-            return 1;
-        }
-    }
-
     const k = keymod.Key{ .vk = vk, .ctrl = mods.ctrl, .shift = mods.shift, .alt = mods.alt };
-    var c = cursor orelse b.get(ctx, .normal).cursor();
+    if (key_len >= key_buf.len) clearPending();
+    key_buf[key_len] = k;
+    key_len += 1;
 
-    switch (c.step(k)) {
-        .nomatch => {
-            const had_pending = cursor != null;
-            clearPending();
-            // Unbound ctrl/alt combos keep their native behavior;
-            // unbound plain keys are eaten in normal mode.
-            if ((mods.ctrl or mods.alt) and !had_pending) return 0;
-            return 1;
-        },
-        .pending => {
-            appendPending(k);
-            cursor = c;
-            return 1;
-        },
-        .exact => |action| {
-            const n = if (count == 0) 1 else count;
-            clearPending();
-            execute(action, ctx, n);
-            return 1;
-        },
-        .ambiguous => |a| {
-            // A binding and longer sequences both exist: wait for the next key
-            // (no timeout yet — ESC executes nothing, this is v1 policy).
-            _ = a;
-            appendPending(k);
-            cursor = c;
-            return 1;
-        },
+    const gmode = state.grammarMode();
+
+    if (builder.build(&b.tables, ctx, gmode, key_buf[0..key_len])) |cmd| {
+        setLastAction(cmd);
+        clearPending();
+        Reaper.Undo_BeginBlock();
+        runner.execute(cmd, ctx);
+        Reaper.Undo_EndBlock("reavim", 1);
+        Reaper.UpdateArrange();
+        return 1;
     }
+
+    var comp_buf: [8]Completion = undefined;
+    if (builder.completions(&b.tables, ctx, gmode, key_buf[0..key_len], &comp_buf).len > 0) {
+        return 1; // pending — wait for more keys
+    }
+
+    // Undefined sequence.
+    const was_start = key_len == 1;
+    clearPending();
+    if (was_start and (mods.ctrl or mods.alt)) return 0;
+    return 1;
 }
 
 test {
     _ = @import("config.zig");
+    _ = @import("builder.zig");
+    _ = @import("grammar.zig");
+    _ = @import("actions.zig");
 }

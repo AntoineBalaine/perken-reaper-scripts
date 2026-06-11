@@ -54,22 +54,23 @@ fn ensureImGui() bool {
 }
 
 /// Action display name, reavim-style: real action names instead of raw ids.
-fn displayName(action: config.Action, context: vim.Context, buf: []u8) []const u8 {
-    switch (action) {
-        .cmd => |id| return commandName(id, context, buf),
-        .named => |name| {
-            const id = Reaper.NamedCommandLookup(name.ptr);
-            if (id != 0) return commandName(id, context, buf);
-            return name;
-        },
-        .builtin => |b| return switch (b) {
-            .insert => "Enter insert mode",
-            .normal => "Enter normal mode",
-            .off => "Turn vim mode off",
-            .clear => "Clear pending keys",
-        },
-        .stub => |name| return std.fmt.bufPrint(buf, "{s} (stub)", .{name}) catch name,
+fn displayName(bv: anytype, context: vim.Context, buf: []u8) []const u8 {
+    const def = bv.def;
+    if (def.desc) |d| return d;
+    if (def.steps.len == 1) {
+        switch (def.steps[0]) {
+            .cmd => |id| return commandName(id, context, buf),
+            .named => |name| {
+                const id = Reaper.NamedCommandLookup(name.ptr);
+                if (id != 0) return commandName(id, context, buf);
+                return name;
+            },
+            else => {},
+        }
     }
+    if (def.steps.len == 0)
+        return std.fmt.bufPrint(buf, "{s} (stub)", .{bv.name}) catch bv.name;
+    return bv.name;
 }
 
 fn commandName(id: c_int, context: vim.Context, buf: []u8) []const u8 {
@@ -125,8 +126,8 @@ fn onTimer() callconv(.C) void {
     // Re-open on each off->on transition, even if the user closed the window.
     // The window itself stays up across mode changes (including off) so the
     // user can always see which mode they're in.
-    if (vim.mode != .off and prev_mode == .off) user_closed = false;
-    prev_mode = vim.mode;
+    if (vim.mode() != .off and prev_mode == .off) user_closed = false;
+    prev_mode = vim.mode();
 
     if (user_closed) return;
     if (!ensureImGui()) return;
@@ -161,38 +162,40 @@ fn onTimer() callconv(.C) void {
 
 fn renderContent() void {
     var line: [256]u8 = undefined;
+    const m = vim.mode();
 
     // Compact status line: mode, context, pending keys, last action.
     const mode_txt = std.fmt.bufPrintZ(&line, "-- {s} --", .{
-        switch (vim.mode) {
+        switch (m) {
             .normal => "NORMAL",
             .insert => "INSERT",
+            .visual_track => "VISUAL TRACK",
+            .visual_timeline => "VISUAL TLINE",
             .off => "OFF",
         },
     }) catch return;
-    const mode_col: c_int = switch (vim.mode) {
-        .normal => col_accent,
+    const mode_col: c_int = switch (m) {
+        .normal, .visual_track, .visual_timeline => col_accent,
         .insert => col_green,
         .off => col_text,
     };
     textColored(ctx, mode_col, mode_txt);
 
-    if (vim.mode == .off) return;
+    if (m == .off) return;
 
     imgui.api.SameLine(ctx, null, null);
     var status: [192]u8 = undefined;
-    const pending = vim.pending();
-    const n = vim.pendingCount();
+    var pbuf: [96]u8 = undefined;
+    const pending = vim.pending(&pbuf);
     var fbs = std.io.fixedBufferStream(&status);
     const w = fbs.writer();
     w.print("[{s}]", .{@tagName(vim.activeContext())}) catch {};
-    if (n > 0) w.print("  {d}{s}", .{ n, pending }) catch {} else if (pending.len > 0)
-        w.print("  {s}", .{pending}) catch {};
+    if (pending.len > 0) w.print("  {s}", .{pending}) catch {};
     if (vim.lastAction().len > 0) w.print("  last: {s}", .{vim.lastAction()}) catch {};
     const status_z = std.fmt.bufPrintZ(&line, "{s}", .{fbs.getWritten()}) catch return;
     imgui.api.Text(ctx, status_z);
 
-    if (vim.mode != .normal) return;
+    if (m == .insert) return;
 
     var comps: [96]vim.Completion = undefined;
     const items = vim.completions(&comps);
@@ -222,7 +225,7 @@ fn renderContent() void {
             _ = imgui.api.TableNextColumn(ctx);
 
             var kbuf: [16]u8 = undefined;
-            const kt = keymod.format(item.key, &kbuf);
+            const kt = if (item.key.vk == 0) "a-z" else keymod.format(item.key, &kbuf);
             const ktz = std.fmt.bufPrintZ(&line, "{s: >5}", .{kt}) catch continue;
             textColored(ctx, col_key, ktz);
             imgui.api.SameLine(ctx, null, null);

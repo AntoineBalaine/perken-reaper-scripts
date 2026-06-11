@@ -13,6 +13,10 @@ const logger = @import("logger.zig");
 const vim = @import("vim.zig");
 const config = @import("config.zig");
 const ui = @import("ui.zig");
+const runner = @import("runner.zig");
+const actions_mod = @import("actions.zig");
+const defaults_actions = @import("defaults_actions.zig");
+const lib_state = @import("lib_state.zig");
 
 const default_bindings = @embedFile("default_bindings.ini");
 
@@ -37,19 +41,29 @@ var accel_reg = accel.accelerator_register_t{
 
 var toggle_cmd_id: c_int = 0;
 var bindings: ?config.Bindings = null;
+var registry: ?actions_mod.Registry = null;
 
 /// User config beats the embedded defaults:
 /// <resource>/perken/reavim-ext/bindings.ini
 fn loadBindings() void {
     const alloc = std.heap.c_allocator;
-    const resource = std.mem.span(Reaper.GetResourcePath());
 
+    registry = actions_mod.Registry.init(alloc, &.{
+        &defaults_actions.entries,
+        &lib_state.entries,
+    }) catch |err| {
+        ext_log.err("action registry init failed: {s}", .{@errorName(err)});
+        return;
+    };
+    runner.registry = &registry.?;
+
+    const resource = std.mem.span(Reaper.GetResourcePath());
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = std.fmt.bufPrint(&path_buf, "{s}/perken/reavim-ext/bindings.ini", .{resource}) catch "";
 
     if (std.fs.openFileAbsolute(path, .{})) |file| {
         defer file.close();
-        if (config.parse(alloc, file.reader())) |b| {
+        if (config.parse(alloc, &registry.?, file.reader())) |b| {
             bindings = b;
             ext_log.info("bindings loaded from {s}", .{path});
         } else |err| {
@@ -60,7 +74,7 @@ fn loadBindings() void {
     }
 
     if (bindings == null) {
-        bindings = config.parseString(alloc, default_bindings) catch |err| {
+        bindings = config.parseString(alloc, &registry.?, default_bindings) catch |err| {
             ext_log.err("default bindings failed to parse: {s}", .{@errorName(err)});
             return;
         };
@@ -113,7 +127,7 @@ fn onCommand(sec: *Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
 // -1 = not ours / doesn't toggle, 0 = ours and off, 1 = ours and on
 fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
     if (toggle_cmd_id != 0 and command_id == toggle_cmd_id)
-        return if (vim.mode != .off) 1 else 0;
+        return if (vim.mode() != .off) 1 else 0;
     return -1;
 }
 

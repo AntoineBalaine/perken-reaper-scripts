@@ -41,6 +41,13 @@ pub fn Trie(comptime V: type) type {
             node.value = value;
         }
 
+        /// Insert that overwrites an existing value (context shadows global).
+        pub fn insertReplace(self: *Self, seq: []const Key, value: V) !void {
+            std.debug.assert(seq.len > 0);
+            const idx = try self.walkOrCreate(seq);
+            self.nodes.items[idx].value = value;
+        }
+
         /// Attaches a folder label to a prefix (creating it if needed).
         pub fn setLabel(self: *Self, seq: []const Key, label: []const u8) !void {
             const idx = try self.walkOrCreate(seq);
