@@ -130,21 +130,16 @@ pub fn onKey(msg: *accel.MSG) c_int {
     if (!down and !up) return 0;
 
     const vk: u8 = @truncate(msg.wParam);
-    switch (vk) {
-        VK_SHIFT => {
-            mods.shift = down;
-            return 0;
-        },
-        VK_CONTROL => {
-            mods.ctrl = down;
-            return 0;
-        },
-        VK_MENU => {
-            mods.alt = down;
-            return 0;
-        },
-        else => {},
-    }
+    if (vk == VK_SHIFT or vk == VK_CONTROL or vk == VK_MENU) return 0;
+
+    // SWELL packs the win32 ACCEL modifier mask into lParam; FVIRTKEY
+    // distinguishes virtual-key codes from raw ASCII punctuation chars.
+    const virt = (msg.lParam & accel.FVIRTKEY) != 0;
+    mods = .{
+        .shift = (msg.lParam & accel.FSHIFT) != 0,
+        .ctrl = (msg.lParam & accel.FCONTROL) != 0,
+        .alt = (msg.lParam & accel.FALT) != 0,
+    };
 
     if (state.mode == .insert) {
         if (down and vk == VK_ESCAPE and !mods.ctrl and !mods.alt) {
@@ -185,7 +180,14 @@ pub fn onKey(msg: *accel.MSG) c_int {
     // Key-ups: eat plain ones (their downs were eaten), pass modified ones.
     if (up) return if (mods.ctrl or mods.alt) 0 else 1;
 
-    const k = keymod.Key{ .vk = vk, .ctrl = mods.ctrl, .shift = mods.shift, .alt = mods.alt };
+    const k = keymod.Key{
+        .vk = vk,
+        .ctrl = mods.ctrl,
+        // ASCII char keys arrive pre-shifted ('?' is 0x3F); shift is meaningless there.
+        .shift = if (virt) mods.shift else false,
+        .alt = mods.alt,
+        .is_char = !virt and vk != keymod.VK.SPACE,
+    };
     if (key_len >= key_buf.len) clearPending();
     key_buf[key_len] = k;
     key_len += 1;

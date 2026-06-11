@@ -15,7 +15,11 @@ pub const Key = packed struct(u16) {
     ctrl: bool = false,
     shift: bool = false,
     alt: bool = false,
-    _pad: u5 = 0,
+    /// True when vk holds a literal ASCII character (punctuation) rather than
+    /// a virtual-key code — SWELL delivers punctuation as raw ASCII without
+    /// FVIRTKEY, already shifted ('?' arrives as 0x3F on any layout).
+    is_char: bool = false,
+    _pad: u4 = 0,
 
     pub fn bits(self: Key) u16 {
         return @bitCast(self);
@@ -107,7 +111,8 @@ fn parseBareChar(c: u8) ParseError!Key {
         'A'...'Z' => .{ .vk = c, .shift = true },
         '0'...'9' => .{ .vk = c },
         ' ' => .{ .vk = VK.SPACE },
-        // Punctuation needs the SWELL probe round first (VK/ASCII collisions).
+        // Printable punctuation: literal ASCII char keys ('<' needs <lt>).
+        '!'...'/', ':'...'@', '['...'`', '{'...'~' => .{ .vk = c, .is_char = true },
         else => error.UnsupportedCharacter,
     };
 }
@@ -131,6 +136,9 @@ fn parseBracketGroup(inner: []const u8) ParseError!Key {
 
     var key: Key = blk: {
         if (rest.len == 1) break :blk try parseBareChar(rest[0]);
+
+        if (std.mem.eql(u8, rest, "lt"))
+            break :blk Key{ .vk = '<', .is_char = true };
 
         if (std.mem.startsWith(u8, rest, "vk=")) {
             const vk = std.fmt.parseInt(u8, rest[3..], 0) catch return error.InvalidVkEscape;
@@ -181,10 +189,11 @@ pub fn format(key: Key, buf: []u8) []const u8 {
         else => null,
     };
 
-    const is_letter = key.vk >= 'A' and key.vk <= 'Z';
-    const is_digit = key.vk >= '0' and key.vk <= '9';
+    const is_letter = !key.is_char and key.vk >= 'A' and key.vk <= 'Z';
+    const is_digit = !key.is_char and key.vk >= '0' and key.vk <= '9';
+    const is_plain_char = key.is_char and !key.ctrl and !key.alt and key.vk != '<';
     const needs_bracket = key.ctrl or key.alt or name != null or
-        (!is_letter and !is_digit) or (key.shift and !is_letter);
+        (!is_letter and !is_digit and !is_plain_char) or (key.shift and !is_letter);
 
     if (!needs_bracket) {
         const c: u8 = if (is_letter and !key.shift) std.ascii.toLower(key.vk) else key.vk;
@@ -196,7 +205,13 @@ pub fn format(key: Key, buf: []u8) []const u8 {
     if (key.ctrl) w.writeAll("C-") catch return fbs.getWritten();
     if (key.alt) w.writeAll("M-") catch return fbs.getWritten();
     if (key.shift and !is_letter) w.writeAll("S-") catch return fbs.getWritten();
-    if (name) |n| {
+    if (key.is_char) {
+        if (key.vk == '<') {
+            w.writeAll("lt") catch return fbs.getWritten();
+        } else {
+            w.writeByte(key.vk) catch return fbs.getWritten();
+        }
+    } else if (name) |n| {
         w.writeAll(n) catch return fbs.getWritten();
     } else if (is_letter) {
         w.writeByte(if (key.shift) key.vk else std.ascii.toLower(key.vk)) catch return fbs.getWritten();
