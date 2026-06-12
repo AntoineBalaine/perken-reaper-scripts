@@ -12,20 +12,21 @@ const meta = @import("meta.zig");
 
 const log = std.log.scoped(.extension);
 
-var imgui_available: ?bool = null; // null = not attempted yet
+var imgui_available = false; // set once at register()
 var ctx: imgui.ContextPtr = null;
 var font: imgui.FontPtr = null;
 var hidden = false;
 var prev_mode: vim.Mode = .off;
 
-/// Show/hide the feedback window (bindable action). Returns the new state.
+/// Show/hide the feedback window (bindable action). No-op without ReaImGui.
 pub fn toggleVisible() bool {
+    if (!imgui_available) return false;
     hidden = !hidden;
     return !hidden;
 }
 
 pub fn isVisible() bool {
-    return !hidden;
+    return imgui_available and !hidden;
 }
 
 const FONT_SIZE: c_int = 14;
@@ -45,23 +46,27 @@ const col_accent = rgba(0xFF00A5FF); // ActiveToggle
 const col_green = rgba(0x13BD99FF); // ButtonActive
 const col_key = rgba(0xC1FFE1FF); // ButtonHovered, opaque
 
+/// Resolve ReaImGui once at load. The feedback window is optional: if ReaImGui
+/// isn't installed, set the flag and never subscribe the timer — the extension
+/// runs fully without any UI. (reavim's plugin file sorts after
+/// reaper_imgui-*, so ReaImGui's API is already registered by the time this
+/// runs when it is installed.)
 pub fn register() void {
+    imgui.init(Reaper.plugin_getapi) catch {
+        log.warn("ReaImGui not available — feedback window disabled (install via ReaPack)", .{});
+        return;
+    };
+    imgui_available = true;
     _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
 }
 
 pub fn unregister() void {
+    if (!imgui_available) return;
     _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
 }
 
-fn ensureImGui() bool {
-    if (imgui_available) |ok| return ok;
-    imgui.init(Reaper.plugin_getapi) catch {
-        imgui_available = false;
-        log.warn("ReaImGui not available — feedback window disabled (install via ReaPack)", .{});
-        return false;
-    };
-    imgui_available = true;
-    return true;
+pub fn available() bool {
+    return imgui_available;
 }
 
 /// Action display name, reavim-style: real action names instead of raw ids.
@@ -157,7 +162,6 @@ fn onTimer() callconv(.C) void {
     prev_mode = vim.mode();
 
     if (hidden) return;
-    if (!ensureImGui()) return;
 
     if (ctx == null) {
         var cfg_flags: c_int = imgui.ConfigFlags_DockingEnable;
