@@ -1,7 +1,7 @@
 # reavim-ext
 
-A compiled REAPER extension (Zig, built on [reaziglib](../reaziglib)) reimplementing
-[reavim](../perken-reaper-scripts/reavim)'s vim mode — without taking over the user's keymap.
+A compiled REAPER extension (Zig, built on [reaziglib](https://github.com/AntoineBalaine/reaziglib))
+reimplementing reavim's vim mode — without taking over the user's keymap.
 
 ## Install
 
@@ -66,7 +66,7 @@ toggle action (registered via `custom_action` + `hookcommand2`) turns vim mode o
 
 ## Config format
 
-INI (via [ini](../ini), the same fork reaziglib already depends on). The nesting in
+INI (via [ini](https://github.com/AntoineBalaine/ini), the same fork reaziglib already depends on). The nesting in
 reavim's Lua definitions is an authoring convenience, not structural — the trie
 flattens everything — so full key sequences become keys under dotted section headers:
 
