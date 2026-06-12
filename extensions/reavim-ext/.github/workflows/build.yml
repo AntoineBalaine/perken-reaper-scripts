@@ -1,0 +1,73 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create the release and upload assets
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: reavim-ext
+      - uses: actions/checkout@v4
+        with:
+          repository: AntoineBalaine/reaziglib
+          path: reaziglib
+      - uses: actions/checkout@v4
+        with:
+          repository: AntoineBalaine/ini
+          path: ini
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.1
+
+      - name: Test
+        working-directory: reavim-ext
+        run: zig build test
+
+      - name: Build all REAPER platforms
+        working-directory: reavim-ext
+        run: |
+          set -euo pipefail
+          targets=(
+            "linux-x86_64    x86_64-linux-gnu  so"
+            "linux-aarch64   aarch64-linux-gnu so"
+            "macos-x86_64    x86_64-macos      dylib"
+            "macos-aarch64   aarch64-macos     dylib"
+            "windows-x86_64  x86_64-windows    dll"
+            "windows-aarch64 aarch64-windows   dll"
+          )
+          mkdir -p ../dist
+          for row in "${targets[@]}"; do
+            read -r name tgt ext <<<"$row"
+            echo "::group::$name ($tgt)"
+            rm -rf zig-out
+            zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe
+            pkg="../dist/reavim-ext-$name"
+            mkdir -p "$pkg"
+            cp "zig-out/reaper_reavim.$ext" "$pkg/"
+            cp src/default_bindings.ini "$pkg/bindings.ini"
+            (cd ../dist && zip -qr "reavim-ext-$name.zip" "reavim-ext-$name")
+            echo "::endgroup::"
+          done
+          ls -la ../dist/*.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reavim-ext-builds
+          path: dist/*.zip
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true

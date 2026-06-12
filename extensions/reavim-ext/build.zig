@@ -9,11 +9,14 @@ pub fn build(b: *std.Build) void {
     const ini_dep = b.dependency("ini", .{ .target = target, .optimize = optimize });
     const wdl_dep = b.dependency("WDL", .{ .target = target, .optimize = optimize });
 
+    const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .Debug);
+
     const lib = b.addSharedLibrary(.{
         .name = "reaper_reavim",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .strip = strip,
     });
     lib.linkLibC();
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
@@ -22,8 +25,12 @@ pub fn build(b: *std.Build) void {
     _ = wdl_dep; // kept as a dependency for SWELL header reference (src/swell_win.zig
     // implements a minimal pure-Zig modstub instead of compiling WDL's C++ one)
 
-    const is_macos = target.result.os.tag == .macos;
-    const dest = if (is_macos) "reaper_reavim.dylib" else "reaper_reavim.so";
+    const ext = switch (target.result.os.tag) {
+        .macos => "dylib",
+        .windows => "dll",
+        else => "so",
+    };
+    const dest = b.fmt("reaper_reavim.{s}", .{ext});
     const install = b.addInstallArtifact(lib, .{ .dest_dir = .{ .override = .{ .custom = "" } }, .dest_sub_path = dest });
     b.getInstallStep().dependOn(&install.step);
 
