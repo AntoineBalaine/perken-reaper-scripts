@@ -30,8 +30,6 @@ const ported_kawa = @import("ported/kawa.zig");
 const ported_drums = @import("ported/drums.zig");
 const ported_misc = @import("ported/misc.zig");
 
-const default_bindings = @embedFile("default_bindings.ini");
-
 // REAPER API functions this extension uses — resolved selectively at load
 // (reaziglib.reaper.initSubset). Unlisted functions are never compiled in.
 // A call to a function not in this list is a load-time failure, not silent.
@@ -90,6 +88,7 @@ var accel_reg = accel.accelerator_register_t{
 
 var toggle_cmd_id: c_int = 0;
 var whichkey_cmd_id: c_int = 0;
+var edit_cmd_id: c_int = 0;
 var bindings: ?config.Bindings = null;
 var registry: ?actions_mod.Registry = null;
 
@@ -136,7 +135,7 @@ fn loadBindings() void {
     }
 
     if (bindings == null) {
-        bindings = config.parseString(alloc, &registry.?, default_bindings) catch |err| {
+        bindings = config.parseString(alloc, &registry.?, lib_state.default_bindings) catch |err| {
             ext_log.err("default bindings failed to parse: {s}", .{@errorName(err)});
             return;
         };
@@ -174,6 +173,13 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     };
     whichkey_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&whichkey_action)));
 
+    const edit_action: Reaper.custom_action_register_t = .{
+        .section = 0,
+        .id_str = "REAVIM_EDIT_BINDINGS",
+        .name = "ReaVim: Edit bindings",
+    };
+    edit_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&edit_action)));
+
     _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
     _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 
@@ -193,6 +199,10 @@ fn onCommand(sec: *Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
     }
     if (whichkey_cmd_id != 0 and command == whichkey_cmd_id) {
         _ = ui.toggleVisible();
+        return 1;
+    }
+    if (edit_cmd_id != 0 and command == edit_cmd_id) {
+        lib_state.editBindings();
         return 1;
     }
     return 0;

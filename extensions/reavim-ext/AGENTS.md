@@ -16,6 +16,20 @@ Everything needed lives under `/tank/projects` so it survives container resets
 - Portable REAPER 7.74 (licensed): `/tank/projects/reaper-portable`
 - The extension is symlinked into REAPER: `reaper-portable/UserPlugins/reaper_reavim.so -> /tank/projects/reavim-ext/zig-out/reaper_reavim.so`
 
+## Config and state files
+
+Both live under REAPER's resource path (`Options -> Show REAPER resource path`):
+
+- `Data/Perken/bindings.ini` — the user keymap (optional; embedded
+  `src/default_bindings.ini` is used when absent). Read once at load.
+- `Data/Perken/reavim.ini` — extension-owned on/off persistence (`enabled=1/0`),
+  written on toggle, read by `vim.restoreState()` at load.
+
+Three REAPER actions are registered (search "ReaVim" in the action list):
+`ReaVim: Toggle vim mode`, `ReaVim: Toggle whichkey window`, and `ReaVim: Edit
+bindings` (opens `bindings.ini` in the OS default editor, creating it from the
+embedded defaults if missing). The edit action is also bound to `<space>B`.
+
 ## Build
 
 From the repo root:
