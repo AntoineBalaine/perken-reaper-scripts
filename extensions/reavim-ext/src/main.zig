@@ -94,7 +94,7 @@ var bindings: ?config.Bindings = null;
 var registry: ?actions_mod.Registry = null;
 
 /// User config beats the embedded defaults:
-/// <resource>/perken/reavim-ext/bindings.ini
+/// <resource>/Data/Perken/bindings.ini
 fn loadBindings() void {
     const alloc = std.heap.c_allocator;
 
@@ -121,7 +121,7 @@ fn loadBindings() void {
 
     const resource = std.mem.span(Reaper.GetResourcePath());
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const path = std.fmt.bufPrint(&path_buf, "{s}/perken/reavim-ext/bindings.ini", .{resource}) catch "";
+    const path = std.fmt.bufPrint(&path_buf, "{s}/Data/Perken/bindings.ini", .{resource}) catch "";
 
     if (std.fs.openFileAbsolute(path, .{})) |file| {
         defer file.close();

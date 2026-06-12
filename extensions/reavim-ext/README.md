@@ -13,7 +13,7 @@ A release archive contains the extension library (`reaper_reavim.so` / `.dylib` 
    Restart REAPER. (macOS, if downloaded: `xattr -dr com.apple.quarantine
    reaper_reavim.dylib`, or REAPER silently won't load it.)
 2. Optional, to customize the keymap: copy `bindings.ini` to
-   `<resource path>/perken/reavim-ext/bindings.ini` (same resource folder as
+   `<resource path>/Data/Perken/bindings.ini` (same resource folder as
    `UserPlugins`; create the subfolders). The extension ships with built-in
    defaults, so this is only needed to change keys. Bindings are read once at
    startup — restart REAPER after editing. The format is documented at the top
@@ -102,7 +102,7 @@ repetitions = 5
   the back of the queue and never sees MIDI editor keys.
 - [x] **2 — trie + config**: vim-notation key encoding (`src/key.zig`), binding trie
   (`src/trie.zig`), INI config (`src/config.zig`, user file at
-  `<resource>/perken/reavim-ext/bindings.ini`, embedded defaults otherwise), counts
+  `<resource>/Data/Perken/bindings.ini`, embedded defaults otherwise), counts
   (`3j`), per-context dispatch (Main_OnCommand / MIDIEditor_LastFocused_OnCommand),
   named-command + builtin + stub action kinds. Pending: punctuation keys (needs a
   SWELL VK probe round — ASCII/VK collisions), sequence timeout policy for
