@@ -9,7 +9,6 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const accel = @import("accel.zig");
-const swell = @import("swell_win.zig");
 const logger = @import("logger.zig");
 const vim = @import("vim.zig");
 const config = @import("config.zig");
@@ -81,7 +80,6 @@ pub const std_options = std.Options{
     .logFn = logger.logFn,
 };
 
-const log = std.log.scoped(.accel);
 const ext_log = std.log.scoped(.extension);
 
 var accel_reg = accel.accelerator_register_t{
@@ -180,6 +178,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 
     loadBindings();
+    vim.restoreState();
     ui.register();
 
     ext_log.info("loaded — bind \"ReaVim: Toggle vim mode\" to a key, or run it from the action list", .{});
@@ -210,32 +209,6 @@ fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
 
 fn translateAccel(msg: *accel.MSG, ctx: *accel.accelerator_register_t) callconv(.C) c_int {
     _ = ctx;
-
-    if (std.log.logEnabled(.debug, .accel)) {
-        const midi_hwnd = @intFromPtr(Reaper.MIDIEditor_GetActive());
-        const msg_hwnd = if (msg.hwnd) |h| @intFromPtr(h) else 0;
-        const vk: u8 = @truncate(msg.wParam);
-        const printable: u8 = if (vk >= 0x20 and vk < 0x7f) vk else '.';
-        var clsbuf: [64]u8 = undefined;
-        const cls = if (msg.hwnd) |h| swell.getClassName(h, &clsbuf) else "";
-        const in_main = if (msg.hwnd) |h| swell.isInWindow(Reaper.GetMainHwnd(), h) else false;
-        log.debug("{s}(0x{x:0>4}) vk=0x{x:0>2} '{c}' lParam=0x{x} virt={} shift={} ctrl={} alt={} hwnd=0x{x} class='{s}' in_main={} midi_editor=0x{x}", .{
-            accel.msgName(msg.message),
-            msg.message,
-            vk,
-            printable,
-            msg.lParam,
-            (msg.lParam & accel.FVIRTKEY) != 0,
-            (msg.lParam & accel.FSHIFT) != 0,
-            (msg.lParam & accel.FCONTROL) != 0,
-            (msg.lParam & accel.FALT) != 0,
-            msg_hwnd,
-            cls,
-            in_main,
-            midi_hwnd,
-        });
-    }
-
     return vim.onKey(msg);
 }
 

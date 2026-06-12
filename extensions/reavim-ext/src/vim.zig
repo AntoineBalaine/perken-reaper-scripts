@@ -55,11 +55,48 @@ pub fn setBindings(b: *config.Bindings) void {
     clearPending();
 }
 
+// On/off state persists across restarts in a small file the extension owns,
+// under REAPER's resource path.
+const persist_rel = "Data/Perken/reavim.ini";
+
+fn persistPath(buf: []u8) ?[]const u8 {
+    const resource = std.mem.span(Reaper.GetResourcePath());
+    return std.fmt.bufPrint(buf, "{s}/{s}", .{ resource, persist_rel }) catch null;
+}
+
+fn persistEnabled(on: bool) void {
+    const resource = std.mem.span(Reaper.GetResourcePath());
+    var dbuf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir = std.fmt.bufPrint(&dbuf, "{s}/Data/Perken", .{resource}) catch return;
+    std.fs.makeDirAbsolute(dir) catch {}; // ok if it already exists (Data/ always does)
+    var pbuf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = persistPath(&pbuf) orelse return;
+    const file = std.fs.createFileAbsolute(path, .{}) catch return;
+    defer file.close();
+    file.writeAll(if (on) "enabled=1\n" else "enabled=0\n") catch {};
+}
+
 pub fn toggle() void {
     state.mode = if (state.mode == .off) .normal else .off;
     mods = .{};
     clearPending();
+    persistEnabled(state.mode != .off);
     log.info("vim mode: {s}", .{@tagName(state.mode)});
+}
+
+/// Restore the on/off state persisted by a previous session.
+/// Call once at load, after bindings are set.
+pub fn restoreState() void {
+    var pbuf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = persistPath(&pbuf) orelse return;
+    const file = std.fs.openFileAbsolute(path, .{}) catch return;
+    defer file.close();
+    var content: [64]u8 = undefined;
+    const n = file.readAll(&content) catch return;
+    if (std.mem.indexOf(u8, content[0..n], "enabled=1") != null) {
+        state.mode = .normal;
+        log.info("vim mode: normal (restored)", .{});
+    }
 }
 
 pub fn pending(buf: []u8) []const u8 {
@@ -224,18 +261,9 @@ pub fn onKey(msg: *accel.MSG) c_int {
     key_buf[key_len] = k;
     key_len += 1;
 
-    if (std.log.logEnabled(.debug, .engine)) {
-        var kb: [16]u8 = undefined;
-        var pb: [96]u8 = undefined;
-        log.debug("key token '{s}' -> buffer '{s}' [ctx={s} mode={s}]", .{
-            keymod.format(k, &kb), pending(&pb), @tagName(ctx), @tagName(state.grammarMode()),
-        });
-    }
-
     const gmode = state.grammarMode();
 
     if (builder.build(&b.tables, ctx, gmode, key_buf[0..key_len])) |cmd| {
-        log.debug("-> built: {s} (comp={s})", .{ cmd.keys[0].name, @tagName(cmd.comp) });
         setLastAction(cmd);
         clearPending();
         if (meta.metaKind(&cmd) != null) {
@@ -246,9 +274,6 @@ pub fn onKey(msg: *accel.MSG) c_int {
             Reaper.Undo_EndBlock("reavim", 1);
             Reaper.UpdateArrange();
             meta.afterExecute(cmd);
-            log.debug("post-exec: cursor={d:.3} sel_tracks={d}", .{
-                Reaper.GetCursorPosition(), Reaper.CountSelectedTracks(0),
-            });
         }
         return 1;
     }
@@ -256,12 +281,10 @@ pub fn onKey(msg: *accel.MSG) c_int {
     var comp_buf: [8]Completion = undefined;
     const conts = builder.completions(&b.tables, ctx, gmode, key_buf[0..key_len], &comp_buf);
     if (conts.len > 0) {
-        log.debug("-> pending ({d}+ continuations)", .{conts.len});
         return 1; // pending — wait for more keys
     }
 
     // Undefined sequence.
-    log.debug("-> undefined sequence, cleared", .{});
     const was_start = key_len == 1;
     clearPending();
     if (was_start and (mods.ctrl or mods.alt)) return 0;
