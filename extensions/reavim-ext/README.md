@@ -3,6 +3,29 @@
 A compiled REAPER extension (Zig, built on [reaziglib](../reaziglib)) reimplementing
 [reavim](../perken-reaper-scripts/reavim)'s vim mode — without taking over the user's keymap.
 
+## Install
+
+A release archive contains the extension library (`reaper_reavim.so` / `.dylib` /
+`.dll`) and an optional `bindings.ini`.
+
+1. Copy `reaper_reavim.*` into REAPER's `UserPlugins` folder. To find it, open
+   `Options -> Show REAPER resource path...` in REAPER and go into `UserPlugins`.
+   Restart REAPER. (macOS, if downloaded: `xattr -dr com.apple.quarantine
+   reaper_reavim.dylib`, or REAPER silently won't load it.)
+2. Optional, to customize the keymap: copy `bindings.ini` to
+   `<resource path>/perken/reavim-ext/bindings.ini` (same resource folder as
+   `UserPlugins`; create the subfolders). The extension ships with built-in
+   defaults, so this is only needed to change keys. Bindings are read once at
+   startup — restart REAPER after editing. The format is documented at the top
+   of the file.
+3. In `Actions -> Show action list` (search "ReaVim"), bind `ReaVim: Toggle vim
+   mode` to a key. `ReaVim: Toggle whichkey window` shows/hides the feedback
+   window (which needs ReaImGui, installable via ReaPack; the extension works
+   without it).
+
+With vim mode on you start in normal mode; press `i` for insert (keys pass
+through to REAPER) and `Esc` to return.
+
 ## Why an extension instead of the script approach
 
 Today reavim installs a ~2100-entry `.ReaperKeyMap` that rebinds every key to a Lua
@@ -108,3 +131,8 @@ zig build test
 Zig 0.14.1 (a toolchain lives at `/tank/projects/.toolchains/zig-x86_64-linux-0.14.1/`).
 Deploy by copying `zig-out/reaper_reavim.so` to REAPER's `UserPlugins` directory and
 restarting REAPER.
+
+## Changelog
+
+0.1.1
+Add the readme in the release - with install instructions

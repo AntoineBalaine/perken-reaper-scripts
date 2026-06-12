@@ -42,6 +42,7 @@ jobs:
             mkdir -p "$pkg"
             cp "zig-out/reaper_reavim.$ext" "$pkg/"
             cp src/default_bindings.ini "$pkg/bindings.ini"
+            cp README.md "$pkg/README.md"
             (cd dist && zip -qr "reavim-ext-$name.zip" "reavim-ext-$name")
             echo "::endgroup::"
           done
