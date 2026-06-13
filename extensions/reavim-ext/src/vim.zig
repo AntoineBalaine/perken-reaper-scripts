@@ -176,7 +176,10 @@ fn focusHandlesOwnKeys(msg: *accel.MSG) bool {
         std.mem.eql(u8, cls, "SysTreeView32") or
         std.mem.eql(u8, cls, "Button") or
         std.mem.eql(u8, cls, "ScrollBar") or
-        std.mem.eql(u8, cls, "msctls_trackbar32");
+        std.mem.eql(u8, cls, "msctls_trackbar32") or
+        std.ascii.startsWithIgnoreCase(cls, "REAIMGUI_") or
+        std.mem.eql(u8, cls, "reaper_imgui_context") or
+        std.mem.eql(u8, cls, "Lua_LICE_gfx_standalone");
 }
 
 /// Returns the translateAccel return value: 0 = pass through, 1 = eat.
@@ -190,11 +193,6 @@ pub fn onKey(msg: *accel.MSG) c_int {
     const vk: u8 = @truncate(msg.wParam);
     if (vk == VK_SHIFT or vk == VK_CONTROL or vk == VK_MENU) return 0;
 
-    // Pass everything through unless focus is on a vim editing surface. Two
-    // guards: focusInScope rejects separate windows (FX browser, floating
-    // dialogs); focusHandlesOwnKeys rejects standard controls even when they
-    // are parented under the main window (the action list is a SysListView32
-    // child of the main window, so ancestry alone would not exclude it).
     if (!focusInScope(msg)) return 0;
     if (focusHandlesOwnKeys(msg)) return 0;
 
