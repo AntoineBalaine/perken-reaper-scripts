@@ -122,6 +122,7 @@ const pushed_colors = [_]struct { col: *c_int, val: c_int }{
 var page: usize = 0;
 var last_comp_count: usize = 0;
 var last_n_pages: usize = 1; // set each render; used by keyboard pagination
+var folded: bool = false;
 
 const ROWS_PER_PAGE: usize = 8;
 const COL_WIDTH: f64 = 230;
@@ -181,10 +182,14 @@ fn onTimer() callconv(.C) void {
 
     // Default into REAPER's docker on first use; the user can move it after.
     imgui.api.SetNextWindowDockID(ctx, -1, &imgui.Cond_FirstUseEver);
-    imgui.api.SetNextWindowSizeConstraints(ctx, 320, 60, 8192, MAX_HEIGHT, null);
+    if (folded) {
+        const FOLDED_H: f64 = @as(f64, @floatFromInt(FONT_SIZE)) * 2.5;
+        imgui.api.SetNextWindowSize(ctx, 0, FOLDED_H, &imgui.Cond_Always);
+    }
 
     var is_open: bool = true;
-    const visible = imgui.api.Begin(ctx, "ReaVim", &is_open, null);
+    var begin_flags: c_int = imgui.WindowFlags_NoSavedSettings;
+    const visible = imgui.api.Begin(ctx, "ReaVim", &is_open, &begin_flags);
     if (visible) renderContent();
     imgui.api.End(ctx);
 
@@ -210,6 +215,8 @@ fn renderContent() void {
         .insert => col_green,
         .off => col_text,
     };
+    if (imgui.api.SmallButton(ctx, if (folded) "\xe2\x96\xb6" else "\xe2\x96\xbc")) folded = !folded;
+    imgui.api.SameLine(ctx, null, null);
     textColored(ctx, mode_col, mode_txt);
 
     if (m == .off) return;
@@ -226,6 +233,8 @@ fn renderContent() void {
     if (vim.lastAction().len > 0) w.print("  last: {s}", .{vim.lastAction()}) catch {};
     const status_z = std.fmt.bufPrintZ(&line, "{s}", .{fbs.getWritten()}) catch return;
     imgui.api.Text(ctx, status_z);
+
+    if (folded) return;
 
     if (m == .insert) {
         last_n_pages = 1;
