@@ -165,10 +165,7 @@ fn focusInScope(msg: *accel.MSG) bool {
 /// FX-browser/media-explorer lists, text fields (Edit/richedit), combo boxes,
 /// trees and buttons, wherever they live (even parented under the main window).
 /// The arrange surfaces have REAPER-prefixed classes and are NOT in this set.
-fn focusHandlesOwnKeys(msg: *accel.MSG) bool {
-    const h = msg.hwnd orelse return false;
-    var buf: [64]u8 = undefined;
-    const cls = swell.getClassName(h, &buf);
+fn classHandlesOwnKeys(cls: []const u8) bool {
     return std.mem.eql(u8, cls, "Edit") or
         std.ascii.startsWithIgnoreCase(cls, "richedit") or
         std.ascii.eqlIgnoreCase(cls, "combobox") or
@@ -180,6 +177,21 @@ fn focusHandlesOwnKeys(msg: *accel.MSG) bool {
         std.ascii.startsWithIgnoreCase(cls, "REAIMGUI_") or
         std.mem.eql(u8, cls, "reaper_imgui_context") or
         std.mem.eql(u8, cls, "Lua_LICE_gfx_standalone");
+}
+
+/// On macOS, msg.hwnd and GetFocus() can disagree — the accelerator hook may
+/// deliver a container HWND while the actual focused control is a child Edit.
+/// Check both so either one can grant passthrough.
+fn focusHandlesOwnKeys(msg: *accel.MSG) bool {
+    var buf: [64]u8 = undefined;
+    if (msg.hwnd) |h| {
+        if (classHandlesOwnKeys(swell.getClassName(h, &buf))) return true;
+    }
+    var fbuf: [64]u8 = undefined;
+    if (swell.getFocus()) |f| {
+        if (classHandlesOwnKeys(swell.getClassName(f, &fbuf))) return true;
+    }
+    return false;
 }
 
 /// Returns the translateAccel return value: 0 = pass through, 1 = eat.
