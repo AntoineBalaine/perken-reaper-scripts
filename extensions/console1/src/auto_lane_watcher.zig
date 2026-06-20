@@ -3,15 +3,17 @@ const reaper = @import("reaper").reaper;
 const pReaper = @import("pReaper.zig");
 const log = std.log.scoped(.auto_lane_watcher);
 
-// zRun fires ~30x/sec. Poll every 10 ticks ≈ 3 checks/sec.
 const POLL_INTERVAL: u32 = 10;
+
+const CMD_HIDE_ALL_ENVELOPES: c_int = 40889; // Envelope: Hide all envelopes for tracks
+const CMD_SHOW_LAST_TOUCHED_FX_ENV: c_int = 41142; // FX: Show/hide track envelope for last touched FX parameter
 
 const ActiveLane = struct {
     track: reaper.MediaTrack,
-    env: *reaper.TrackEnvelope,
     fx_index: c_int,
     param_index: c_int,
     initial_point_count: c_int,
+    env: *reaper.TrackEnvelope,
 };
 
 var watcher_active: bool = false;
@@ -25,56 +27,68 @@ pub fn isActive() bool {
 pub fn toggle() void {
     watcher_active = !watcher_active;
     if (!watcher_active) {
-        if (current_lane) |lane| {
-            hideAllOnTrack(lane.track);
-            current_lane = null;
-        }
+        hideAllOnTrack(current_lane);
+        current_lane = null;
     }
     log.info("auto lane watcher {s}", .{if (watcher_active) "enabled" else "disabled"});
 }
 
-/// Called from SETLASTTOUCHEDFX. Hides all envelopes on the current track,
-/// then shows only the newly touched parameter's lane.
+/// Called from SETLASTTOUCHEDFX. Hides all envelopes on the track then shows
+/// the lane for the newly touched parameter.
 pub fn onLastTouchedFx(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void {
     assert(watcher_active);
 
-    // Same lane already shown — nothing to do.
     if (current_lane) |lane| {
         if (lane.track == track and lane.fx_index == fx_index and lane.param_index == param_index)
             return;
-        // Different track: hide all lanes on the old track first.
-        if (lane.track != track) hideAllOnTrack(lane.track);
+        if (lane.track != track)
+            hideAllOnTrack(current_lane);
     }
 
-    // Hide all existing lanes on the target track before showing the new one.
-    hideAllOnTrack(track);
     current_lane = null;
 
-    showLane(track, fx_index, param_index);
-}
+    // Hide all envelopes on the track, then show the last-touched one.
+    // The track is already selected because the user just interacted with its FX.
+    pReaper.Main_OnCommand(.{ CMD_HIDE_ALL_ENVELOPES, 0 });
+    pReaper.Main_OnCommand(.{ CMD_SHOW_LAST_TOUCHED_FX_ENV, 0 });
 
-/// Called from SETFOCUSEDFX (all-null) and SETFXOPEN (closed). Hides all
-/// automation lanes on the current track.
-pub fn onFocusDismissed() void {
-    if (current_lane) |lane| {
-        hideAllOnTrack(lane.track);
-        current_lane = null;
+    // Grab the envelope handle so we can watch its point count.
+    const env_raw = pReaper.GetFXEnvelope(.{ track, fx_index, param_index, false });
+    if (@intFromPtr(env_raw) == 0) {
+        log.warn("could not get envelope after showing it for fx={d} param={d}", .{ fx_index, param_index });
+        return;
     }
+    const env: *reaper.TrackEnvelope = env_raw;
+
+    current_lane = .{
+        .track = track,
+        .fx_index = fx_index,
+        .param_index = param_index,
+        .initial_point_count = pReaper.CountEnvelopePoints(.{env}),
+        .env = env,
+    };
+    poll_tick = 0;
 }
 
-/// Called from SETLASTTOUCHEDTRACK. If the newly active track differs from
-/// the one we are watching, hides all lanes on the old track.
+/// Called from SETFOCUSEDFX (all-null) and SETFXOPEN (closed).
+pub fn onFocusDismissed() void {
+    hideAllOnTrack(current_lane);
+    current_lane = null;
+}
+
+/// Called from SETLASTTOUCHEDTRACK. Hides envelopes on the old track when
+/// the user moves to a different one.
 pub fn onTrackChanged(new_track: reaper.MediaTrack) void {
     if (!watcher_active) return;
     const lane = current_lane orelse return;
     if (lane.track != new_track) {
-        hideAllOnTrack(lane.track);
+        hideAllOnTrack(current_lane);
         current_lane = null;
     }
 }
 
-/// Called from zRun, throttled to POLL_INTERVAL ticks. Promotes the active
-/// lane to persistent once the user adds a new point to it.
+/// Called from zRun, throttled. Stops watching once the user adds a point
+/// (the lane becomes persistent and no longer needs to be auto-hidden).
 pub fn pollRun() void {
     if (!watcher_active) return;
     poll_tick += 1;
@@ -82,78 +96,16 @@ pub fn pollRun() void {
     poll_tick = 0;
 
     const lane = current_lane orelse return;
-
     if (pReaper.CountEnvelopePoints(.{lane.env}) > lane.initial_point_count) {
         log.debug("auto lane: user added a point — lane is now persistent", .{});
-        current_lane = null; // stop watching; keep the lane visible
+        current_lane = null;
     }
 }
 
-fn showLane(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void {
-    const env_raw = pReaper.GetFXEnvelope(.{ track, fx_index, param_index, true });
-    if (@intFromPtr(env_raw) == 0) {
-        log.warn("GetFXEnvelope returned null for fx={d} param={d}", .{ fx_index, param_index });
-        return;
-    }
-    const env: *reaper.TrackEnvelope = env_raw;
-
-    const initial_count = pReaper.CountEnvelopePoints(.{env});
-
-    // Reaper auto-inserts a point at t=0 when creating a fresh envelope.
-    // Remove it so any subsequent point is genuinely from the user.
-    if (initial_count == 1) {
-        _ = pReaper.DeleteEnvelopePointRange(.{ env, -1.0, 0.001 });
-        _ = pReaper.Envelope_SortPoints(.{env});
-    }
-
-    setEnvelopeVisible(env, true);
-    pReaper.UpdateArrange(.{});
-
-    current_lane = .{
-        .track = track,
-        .env = env,
-        .fx_index = fx_index,
-        .param_index = param_index,
-        .initial_point_count = if (initial_count == 1) 0 else initial_count,
-    };
-    poll_tick = 0;
-}
-
-fn hideAllOnTrack(track: reaper.MediaTrack) void {
-    const count = pReaper.CountTrackEnvelopes(.{track});
-    var i: c_int = 0;
-    while (i < count) : (i += 1) {
-        const env = pReaper.GetTrackEnvelope(.{ track, i });
-        if (@intFromPtr(env) != 0) setEnvelopeVisible(env, false);
-    }
-    pReaper.UpdateArrange(.{});
-}
-
-fn setEnvelopeVisible(env: *reaper.TrackEnvelope, visible: bool) void {
-    // 64 KB covers all realistic envelope state chunks. The VIS flag lives
-    // within the first ~200 bytes but we must write the full chunk back to
-    // avoid truncating existing user points.
-    var buf: [65536:0]u8 = undefined;
-    if (!pReaper.GetEnvelopeStateChunk(.{ env, @as(*i8, @ptrCast(&buf[0])), @as(c_int, @intCast(buf.len)), false })) return;
-
-    const chunk = std.mem.span(@as([*:0]u8, &buf));
-
-    // A well-formed chunk ends with '>'. Truncated data must not be written back.
-    if (!std.mem.endsWith(u8, chunk, ">")) {
-        log.warn("envelope state chunk appears truncated — skipping VIS toggle", .{});
-        return;
-    }
-
-    const vis_pos = std.mem.indexOf(u8, chunk, "VIS ") orelse {
-        log.warn("VIS flag not found in envelope state chunk", .{});
-        return;
-    };
-    const vis_val_pos = vis_pos + "VIS ".len;
-    assert(vis_val_pos < chunk.len);
-
-    buf[vis_val_pos] = if (visible) '1' else '0';
-
-    _ = pReaper.SetEnvelopeStateChunk(.{ env, @as([*:0]const u8, @ptrCast(&buf)), false });
+fn hideAllOnTrack(lane: ?ActiveLane) void {
+    const l = lane orelse return;
+    pReaper.SetOnlyTrackSelected(.{l.track});
+    pReaper.Main_OnCommand(.{ CMD_HIDE_ALL_ENVELOPES, 0 });
 }
 
 const assert = std.debug.assert;
