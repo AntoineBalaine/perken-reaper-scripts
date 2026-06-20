@@ -70,6 +70,64 @@ pub fn onLastTouchedFx(track: reaper.MediaTrack, fx_index: c_int, param_index: c
     poll_tick = 0;
 }
 
+/// Called from the SETFXPARAM csurf callback. When the track is in trim or
+/// read mode, REAPER drives the parameter from the envelope and snaps any
+/// plugin-UI tweak back to the point. We redirect the tweak instead: we take
+/// the value the user set and write it into the envelope point, reproducing
+/// what dragging the native trim slider does. This makes a plugin-UI tweak
+/// trim the lane, which trim/read mode does not do natively.
+///
+pub fn onFxParamChanged(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void {
+    if (!watcher_active) return;
+
+    // Only redirect in trim/read modes. The global automation override, when
+    // set, takes precedence over the track's own mode.
+    const override = pReaper.GetGlobalAutomationOverride(.{});
+    const effective_mode: c_int = if (override >= 0)
+        override
+    else
+        @intFromFloat(pReaper.GetMediaTrackInfo_Value(.{ track, "I_AUTOMODE" }));
+    // 0 = trim/read, 1 = read. Touch/write/latch (2/3/4) write points natively,
+    // so we must not interfere there. 5 = bypass.
+    if (effective_mode != 0 and effective_mode != 1) return;
+
+    const env_raw = pReaper.GetFXEnvelope(.{ track, fx_index, param_index, false });
+    if (@intFromPtr(env_raw) == 0) return;
+    const env: *reaper.TrackEnvelope = env_raw;
+
+    // Only the single-point floating lane is handled. A multi-point lane's trim
+    // is an offset of every point, which is a different operation.
+    if (pReaper.CountEnvelopePoints(.{env}) != 1) return;
+
+    // The point stores the parameter's native value in the envelope's scaling
+    // space, not the normalized 0..1 value. We read the native value the user
+    // just set (the parameter already sits at it) and convert through the
+    // scaling mode: identity for unscaled envelopes, fader curve otherwise.
+    var min_val: f64 = 0;
+    var max_val: f64 = 0;
+    const native_value = pReaper.TrackFX_GetParam(.{ track, fx_index, param_index, &min_val, &max_val });
+    const scaling_mode = pReaper.GetEnvelopeScalingMode(.{env});
+    var target_value = pReaper.ScaleToEnvelopeMode(.{ scaling_mode, native_value });
+
+    // Preserve the point's time, shape, tension and selection; only the value
+    // changes. We read the existing point to fill those fields.
+    var time: f64 = 0;
+    var old_value: f64 = 0;
+    var shape: c_int = 0;
+    var tension: f64 = 0;
+    var selected: bool = false;
+    if (!pReaper.GetEnvelopePoint(.{ env, 0, &time, &old_value, &shape, &tension, &selected })) return;
+
+    // The csurf callback fires every frame while the envelope drives the
+    // parameter, so without this guard we would rewrite the same value
+    // continuously. Only write when the user actually moved the value.
+    if (@abs(old_value - target_value) < 1e-9) return;
+
+    var no_sort = false;
+    _ = pReaper.SetEnvelopePoint(.{ env, 0, &time, &target_value, &shape, &tension, &selected, &no_sort });
+    pReaper.UpdateArrange(.{});
+}
+
 /// Called from SETFOCUSEDFX (all-null) and SETFXOPEN (closed).
 pub fn onFocusDismissed() void {
     hideAllOnTrack(current_lane);

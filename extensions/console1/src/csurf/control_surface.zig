@@ -342,22 +342,18 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             var globals = getGlobals();
             _ = &globals;
 
-            // DIAGNOSTIC: log every SETFXPARAM unconditionally, before any track
-            // filtering, to learn whether the callback fires while an envelope is
-            // open in trim mode and whether the reported value matches the live
-            // parameter value or the snapped-back envelope value.
-            {
-                const f_raw: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
-                const fx_raw: c_int = (f_raw >> 16) & 0xFFFF;
-                const prm_raw: c_int = f_raw & 0xFFFF;
-                const cb_value = @as(*f64, @alignCast(@ptrCast(parm3))).*;
-                const live_value = reaper.TrackFX_GetParamNormalized(track, fx_raw, prm_raw);
+            const f: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
+            const fxidx: c_int = (f >> 16) & 0xFFFF;
+            const prmidx: c_int = f & 0xFFFF;
+            const value = @as(*f64, @alignCast(@ptrCast(parm3))).*;
 
-                // Read the envelope's first point so we can tell whether moving the
-                // trim slider (vs tweaking the param) edits the underlying point or
-                // stores the trim somewhere we cannot reach.
+            // Diagnostic: cb_value is the value REAPER reported, live_value is the
+            // parameter read back immediately, pt0_value is the envelope's first
+            // point. .err level so it survives the -Dtest build's log_level=.err.
+            {
+                const live_value = reaper.TrackFX_GetParamNormalized(track, fxidx, prmidx);
                 var pt0_value: f64 = -1.0;
-                const env_raw = reaper.GetFXEnvelope(track, fx_raw, prm_raw, false);
+                const env_raw = reaper.GetFXEnvelope(track, fxidx, prmidx, false);
                 if (@intFromPtr(env_raw) != 0) {
                     var t: f64 = 0;
                     var v: f64 = 0;
@@ -368,29 +364,23 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                         pt0_value = v;
                     }
                 }
-
-                // NOTE: .err level so it survives the -Dtest build's log_level=.err filter. Temporary diagnostic.
                 log.err("SETFXPARAM diag: tr_id={d} cur_tr_id={?d} fx={d} prm={d} cb_value={d:.4} live_value={d:.4} pt0_value={d:.4}", .{
-                    id, globals.state.current_tr_id, fx_raw, prm_raw, cb_value, live_value, pt0_value,
+                    id, globals.state.current_tr_id, fxidx, prmidx, value, live_value, pt0_value,
                 });
             }
 
+            // In trim/read mode a plugin-UI tweak would snap back to the envelope.
+            // The watcher redirects it into the envelope point so the tweak trims
+            // the lane. Runs for the event's own track, which self-gates inside.
+            if (auto_lane_watcher.isActive())
+                auto_lane_watcher.onFxParamChanged(track, fxidx, prmidx);
+
             if (globals.state.current_tr_id == id) {
-                const f: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
-
-                const fxidx = (f >> 16) & 0xFFFF;
-                const fx_idx_cast: usize = @intCast(fxidx);
-                // const prmidx = f & 0xFFFF;
-                const prm_idx_cast: usize = @intCast(f & 0xFFFF);
-
-                const value = @as(*f64, @alignCast(@ptrCast(parm3))).*;
-                _ = value; // autofix
-
                 actions.dispatch(globals, .{ .Csurf = .{ .fx_param_changed = .{
                     .track = track,
-                    .fx_index = fx_idx_cast,
-                    .param_index = prm_idx_cast,
-                    .value = @as(*f64, @alignCast(@ptrCast(parm3))).*,
+                    .fx_index = @intCast(fxidx),
+                    .param_index = @intCast(prmidx),
+                    .value = value,
                 } } });
             }
         },
