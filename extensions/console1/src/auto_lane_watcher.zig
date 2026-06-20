@@ -1,6 +1,8 @@
 const std = @import("std");
 const reaper = @import("reaper").reaper;
 const pReaper = @import("pReaper.zig");
+const sws = @import("sws.zig");
+const csurf = @import("csurf/control_surface.zig");
 const log = std.log.scoped(.auto_lane_watcher);
 
 const CMD_HIDE_ALL_ENVELOPES: c_int = 40889; // Envelope: Hide all envelopes for tracks
@@ -147,7 +149,7 @@ fn dismissLane() void {
     const should_remove = count <= lane.initial_point_count;
     log.err("dismissLane: count={d} initial={d} -> {s}", .{ count, lane.initial_point_count, if (should_remove) "remove" else "keep" });
     if (should_remove) {
-        removeEnvelope(lane.env, lane.track);
+        removeEnvelope(lane.track, lane.fx_index, lane.param_index);
     }
 
     pReaper.SetOnlyTrackSelected(.{lane.track});
@@ -158,92 +160,91 @@ fn dismissLane() void {
 
 /// Removes an FX parameter envelope entirely. There is no API to delete an
 /// envelope and deleting all its points leaves an empty lane behind, so we
-/// splice the envelope's PARMENV block out of the parent track's state chunk.
-/// We locate the block by its EGUID (indentation-agnostic) rather than by a
-/// verbatim chunk match, because the track chunk indents nested blocks while
-/// GetEnvelopeStateChunk returns the block un-indented.
-fn removeEnvelope(env: *reaper.TrackEnvelope, track: reaper.MediaTrack) void {
-    const alloc = std.heap.page_allocator;
-
-    // Read the envelope's own chunk just to extract its EGUID.
-    var env_buf: [64 * 1024:0]u8 = undefined;
-    const env_ptr: *i8 = @ptrCast(&env_buf[0]);
-    const env_cap: c_int = @intCast(env_buf.len);
-    if (!pReaper.GetEnvelopeStateChunk(.{ env, env_ptr, env_cap, false })) {
-        log.err("removeEnvelope: GetEnvelopeStateChunk failed", .{});
+/// reproduce the me2beats "Delete envelope for last touched parameter" script:
+/// read the track chunk through the SWS fast-string API, splice out the target
+/// <PARMENV ...> block, and write the chunk back.
+fn removeEnvelope(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void {
+    if (!sws.available) {
+        log.err("removeEnvelope: SWS extension not available", .{});
         return;
     }
-    const env_chunk = std.mem.span(@as([*:0]u8, &env_buf));
 
-    const eguid = extractEguid(env_chunk) orelse {
-        log.err("removeEnvelope: no EGUID in env chunk", .{});
-        return;
-    };
-
-    // Track chunks can be large because they embed FX (plugin) state.
-    const cap: usize = 4 * 1024 * 1024;
-    const track_buf = alloc.allocSentinel(u8, cap, 0) catch return;
-    defer alloc.free(track_buf);
-    const track_ptr: *i8 = @ptrCast(&track_buf[0]);
-    const track_cap: c_int = @intCast(cap + 1);
-    if (!pReaper.GetTrackStateChunk(.{ track, track_ptr, track_cap, false })) {
-        log.err("removeEnvelope: track chunk exceeds {d} bytes", .{cap});
-        return;
-    }
-    const track_chunk = std.mem.span(@as([*:0]u8, track_buf.ptr));
-
-    const gpos = std.mem.indexOf(u8, track_chunk, eguid) orelse {
-        log.err("removeEnvelope: EGUID {s} not found in track chunk (len={d})", .{ eguid, track_chunk.len });
-        return;
-    };
-
-    // Walk backwards to the start of the enclosing <PARMENV line.
-    const parmenv_pos = std.mem.lastIndexOf(u8, track_chunk[0..gpos], "<PARMENV") orelse {
-        log.err("removeEnvelope: no <PARMENV before EGUID", .{});
-        return;
-    };
-    const block_start = if (std.mem.lastIndexOfScalar(u8, track_chunk[0..parmenv_pos], '\n')) |nl| nl + 1 else 0;
-
-    // Walk forwards line by line, tracking nesting depth, to the matching '>'.
-    var block_end: usize = block_start;
-    var depth: i32 = 0;
-    var i = block_start;
-    while (i < track_chunk.len) {
-        const line_end = if (std.mem.indexOfScalarPos(u8, track_chunk, i, '\n')) |nl| nl + 1 else track_chunk.len;
-        const line = std.mem.trim(u8, track_chunk[i..line_end], " \t\r\n");
-        if (std.mem.startsWith(u8, line, "<")) {
-            depth += 1;
-        } else if (std.mem.startsWith(u8, line, ">")) {
-            depth -= 1;
-            if (depth == 0) {
-                block_end = line_end;
-                break;
-            }
+    // Find the ordinal of the target envelope among the track's FX-parameter
+    // envelopes. This matches the order PARMENV blocks appear in the chunk
+    // (built-in vol/pan envelopes serialize as VOLENV/PANENV, not PARMENV).
+    const env_count = pReaper.CountTrackEnvelopes(.{track});
+    var ordinal: c_int = -1;
+    var target: ?c_int = null;
+    var i: c_int = 0;
+    while (i < env_count) : (i += 1) {
+        const tr_env = pReaper.GetTrackEnvelope(.{ track, i });
+        if (@intFromPtr(tr_env) == 0) continue;
+        var e_fx: c_int = -1;
+        var e_prm: c_int = -1;
+        _ = pReaper.Envelope_GetParentTrack(.{ tr_env, &e_fx, &e_prm });
+        if (e_fx < 0) continue; // skip built-in (vol/pan/etc.) envelopes
+        ordinal += 1;
+        if (e_fx == fx_index and e_prm == param_index) {
+            target = ordinal;
+            break;
         }
-        i = line_end;
     }
-    if (depth != 0) {
-        log.err("removeEnvelope: unbalanced PARMENV block", .{});
+    const target_ordinal = target orelse {
+        log.err("removeEnvelope: no matching FX-param envelope (fx={d} prm={d})", .{ fx_index, param_index });
+        return;
+    };
+
+    // Read the track chunk via the SWS fast-string API (handles any size).
+    const fs = sws.SNM_CreateFastString("");
+    defer sws.SNM_DeleteFastString(fs);
+    if (!sws.SNM_GetSetObjectState(@ptrCast(track), fs, false, false)) {
+        log.err("removeEnvelope: SNM get chunk failed", .{});
+        return;
+    }
+    const chunk = std.mem.span(sws.SNM_GetFastString(fs));
+
+    // Find the target-th <PARMENV ... > block. Non-greedy like the script's
+    // '<PARMENV.->' pattern: from "<PARMENV" to the first '>'.
+    var x: c_int = -1;
+    var search: usize = 0;
+    var blk_start: usize = 0;
+    var blk_end: usize = 0;
+    var found = false;
+    while (std.mem.indexOfPos(u8, chunk, search, "<PARMENV")) |p| {
+        const gt = std.mem.indexOfScalarPos(u8, chunk, p, '>') orelse break;
+        x += 1;
+        if (x == target_ordinal) {
+            blk_start = p;
+            blk_end = gt + 1;
+            if (blk_end < chunk.len and chunk[blk_end] == '\n') blk_end += 1; // drop trailing newline
+            found = true;
+            break;
+        }
+        search = gt + 1;
+    }
+    if (!found) {
+        log.err("removeEnvelope: PARMENV block #{d} not found", .{target_ordinal});
         return;
     }
 
-    // Splice out [block_start, block_end).
-    const tail = track_chunk[block_end..];
-    std.mem.copyForwards(u8, track_buf[block_start .. block_start + tail.len], tail);
-    track_buf[block_start + tail.len] = 0;
+    // Build the chunk without the block.
+    const alloc = std.heap.page_allocator;
+    const new_len = chunk.len - (blk_end - blk_start);
+    const new_buf = alloc.allocSentinel(u8, new_len, 0) catch return;
+    defer alloc.free(new_buf);
+    @memcpy(new_buf[0..blk_start], chunk[0..blk_start]);
+    @memcpy(new_buf[blk_start..new_len], chunk[blk_end..]);
 
-    const new_ptr: [*:0]const u8 = track_buf.ptr;
-    const ok = pReaper.SetTrackStateChunk(.{ track, new_ptr, false });
-    log.err("removeEnvelope: spliced [{d}..{d}] SetTrackStateChunk={}", .{ block_start, block_end, ok });
-}
+    // Write the chunk back, guarding against reentrant csurf notifications.
+    const prev_ignore = csurf.ignore_notifications;
+    csurf.ignore_notifications = true;
+    defer csurf.ignore_notifications = prev_ignore;
 
-/// Extracts the EGUID token (e.g. "{...}") from an envelope state chunk.
-fn extractEguid(env_chunk: []const u8) ?[]const u8 {
-    const key = "EGUID ";
-    const kpos = std.mem.indexOf(u8, env_chunk, key) orelse return null;
-    const after = env_chunk[kpos + key.len ..];
-    const nl = std.mem.indexOfScalar(u8, after, '\n') orelse after.len;
-    return std.mem.trim(u8, after[0..nl], " \t\r\n");
+    const fs2 = sws.SNM_CreateFastString("");
+    defer sws.SNM_DeleteFastString(fs2);
+    _ = sws.SNM_SetFastString(fs2, new_buf.ptr);
+    const ok = sws.SNM_GetSetObjectState(@ptrCast(track), fs2, true, false);
+    log.err("removeEnvelope: ord={d} spliced [{d}..{d}] set={}", .{ target_ordinal, blk_start, blk_end, ok });
 }
 
 const assert = std.debug.assert;

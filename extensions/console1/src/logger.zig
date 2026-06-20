@@ -130,6 +130,8 @@ pub fn logFn(
         .transport,
         .default_fx_sel_actions,
         .fx_sel_panel,
+        .auto_lane_watcher,
+        .sws,
         .tests,
         .test_api,
         => @tagName(scope),
