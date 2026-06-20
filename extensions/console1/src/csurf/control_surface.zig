@@ -27,6 +27,7 @@ const getGlobals = @import("../console1_extension.zig").getGlobals;
 const constants = @import("../constants.zig");
 const actions = @import("../actions.zig");
 const midi_events = @import("midi_events.zig");
+const auto_lane_watcher = @import("../auto_lane_watcher.zig");
 const log = std.log.scoped(.csurf);
 
 pub var ignore_notifications = false;
@@ -133,6 +134,8 @@ export fn zRun() callconv(.C) void {
             midi_events.OnMidiEvent(evts, globals);
         }
     }
+
+    auto_lane_watcher.pollRun();
 
     if (globals.state.current_mode == .fx_ctrl and globals.state.selectedTracks.count() > 1) {
         actions.dispatch(globals, .{ .midi_out = .blink });
@@ -284,7 +287,11 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETFOCUSEDFX => {
             if (parm2 != null) return 1; // ignore media items' FXchains
             const trId = if (parm1) |trPtr| reaper.CSurf_TrackToID(@as(MediaTrack, @ptrCast(trPtr)), constants.g_csurf_mcpmode) else null;
-            if (trId == null) return 1;
+            if (trId == null) {
+                // All-null means focus was cleared — dismiss the temporary lane.
+                if (auto_lane_watcher.isActive()) auto_lane_watcher.onFocusDismissed();
+                return 1;
+            }
             if (parm3) |ptr| {
                 const fxIdx = @as(*u8, @ptrCast(ptr));
                 var globals = getGlobals();
@@ -302,9 +309,11 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
                 // const isOpen = @as(*u8, @ptrCast(ptr));
                 if (isOpen == 0) { // UI closed
                     getGlobals().state.fx_ctrl.display = null;
+                    if (auto_lane_watcher.isActive()) auto_lane_watcher.onFocusDismissed();
                 }
             } else {
                 getGlobals().state.fx_ctrl.display = null;
+                if (auto_lane_watcher.isActive()) auto_lane_watcher.onFocusDismissed();
             }
         },
 
@@ -360,7 +369,25 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
         .SETMIXERSCROLL => {},
         .SETFXPARAM_RECFX => {},
         .SETINPUTMONITOR => {},
-        .SETLASTTOUCHEDFX => {},
+        // parm1=(MediaTrack*)track, parm2=(int*)mediaitemidx (NULL=track FX), parm3=(int*)fxidx. all NULL=clear.
+        .SETLASTTOUCHEDFX => if (auto_lane_watcher.isActive() and parm2 == null) {
+            if (parm1 == null) {
+                // All-null means last touched FX was cleared — dismiss.
+                auto_lane_watcher.onFocusDismissed();
+            } else {
+                const track: MediaTrack = @ptrCast(parm1.?);
+                // parm3 encodes only the FX index; the param index is retrieved via
+                // GetLastTouchedFX which the runtime updates atomically with this callback.
+                var tracknumber: c_int = 0;
+                var fxnumber: c_int = 0;
+                var paramnumber: c_int = 0;
+                if (reaper.GetLastTouchedFX(&tracknumber, &fxnumber, &paramnumber)) {
+                    // Low 24 bits of fxnumber = FX index in chain (ignoring record-FX high bits).
+                    const fx_index: c_int = @intCast(fxnumber & 0x00FFFFFF);
+                    auto_lane_watcher.onLastTouchedFx(track, fx_index, paramnumber);
+                }
+            }
+        },
         .SETPROJECTMARKERCHANGE => {},
         .SETRECMODE => {},
         .SETRECVPAN => {},
