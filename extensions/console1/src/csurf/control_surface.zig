@@ -341,6 +341,40 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             const id = reaper.CSurf_TrackToID(track, constants.g_csurf_mcpmode);
             var globals = getGlobals();
             _ = &globals;
+
+            // DIAGNOSTIC: log every SETFXPARAM unconditionally, before any track
+            // filtering, to learn whether the callback fires while an envelope is
+            // open in trim mode and whether the reported value matches the live
+            // parameter value or the snapped-back envelope value.
+            {
+                const f_raw: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
+                const fx_raw: c_int = (f_raw >> 16) & 0xFFFF;
+                const prm_raw: c_int = f_raw & 0xFFFF;
+                const cb_value = @as(*f64, @alignCast(@ptrCast(parm3))).*;
+                const live_value = reaper.TrackFX_GetParamNormalized(track, fx_raw, prm_raw);
+
+                // Read the envelope's first point so we can tell whether moving the
+                // trim slider (vs tweaking the param) edits the underlying point or
+                // stores the trim somewhere we cannot reach.
+                var pt0_value: f64 = -1.0;
+                const env_raw = reaper.GetFXEnvelope(track, fx_raw, prm_raw, false);
+                if (@intFromPtr(env_raw) != 0) {
+                    var t: f64 = 0;
+                    var v: f64 = 0;
+                    var shape: c_int = 0;
+                    var tension: f64 = 0;
+                    var selected: bool = false;
+                    if (reaper.GetEnvelopePoint(env_raw, 0, &t, &v, &shape, &tension, &selected)) {
+                        pt0_value = v;
+                    }
+                }
+
+                // NOTE: .err level so it survives the -Dtest build's log_level=.err filter. Temporary diagnostic.
+                log.err("SETFXPARAM diag: tr_id={d} cur_tr_id={?d} fx={d} prm={d} cb_value={d:.4} live_value={d:.4} pt0_value={d:.4}", .{
+                    id, globals.state.current_tr_id, fx_raw, prm_raw, cb_value, live_value, pt0_value,
+                });
+            }
+
             if (globals.state.current_tr_id == id) {
                 const f: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
 
