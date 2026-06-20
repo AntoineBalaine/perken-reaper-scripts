@@ -319,8 +319,11 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
 
         .SETLASTTOUCHEDTRACK => {
             log.debug("set last touched track", .{});
-            if (parm1) |mediaTrack|
-                actions.dispatch(getGlobals(), .{ .Csurf = .{ .last_touched_track = @ptrCast(mediaTrack) } });
+            if (parm1) |mediaTrack| {
+                const track: reaper.MediaTrack = @ptrCast(mediaTrack);
+                if (auto_lane_watcher.isActive()) auto_lane_watcher.onTrackChanged(track);
+                actions.dispatch(getGlobals(), .{ .Csurf = .{ .last_touched_track = track } });
+            }
         },
         .SETPAN_EX => {
             // csurf doesn't have means of checking if fx get re-ordered.

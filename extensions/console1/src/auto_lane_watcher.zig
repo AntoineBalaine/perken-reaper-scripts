@@ -11,8 +11,6 @@ const ActiveLane = struct {
     env: *reaper.TrackEnvelope,
     fx_index: c_int,
     param_index: c_int,
-    // Point count when the lane was first opened. A lane becomes persistent
-    // once the user adds at least one new point above this baseline.
     initial_point_count: c_int,
 };
 
@@ -27,14 +25,16 @@ pub fn isActive() bool {
 pub fn toggle() void {
     watcher_active = !watcher_active;
     if (!watcher_active) {
-        dismissCurrent();
+        if (current_lane) |lane| {
+            hideAllOnTrack(lane.track);
+            current_lane = null;
+        }
     }
     log.info("auto lane watcher {s}", .{if (watcher_active) "enabled" else "disabled"});
 }
 
-/// Called from the SETLASTTOUCHEDFX csurf callback.
-/// Shows the envelope for the newly touched parameter and hides the previous
-/// temporary lane if the user added no new points to it.
+/// Called from SETLASTTOUCHEDFX. Hides all envelopes on the current track,
+/// then shows only the newly touched parameter's lane.
 pub fn onLastTouchedFx(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void {
     assert(watcher_active);
 
@@ -42,17 +42,35 @@ pub fn onLastTouchedFx(track: reaper.MediaTrack, fx_index: c_int, param_index: c
     if (current_lane) |lane| {
         if (lane.track == track and lane.fx_index == fx_index and lane.param_index == param_index)
             return;
+        // Different track: hide all lanes on the old track first.
+        if (lane.track != track) hideAllOnTrack(lane.track);
     }
 
-    dismissCurrent();
+    // Hide all existing lanes on the target track before showing the new one.
+    hideAllOnTrack(track);
+    current_lane = null;
+
     showLane(track, fx_index, param_index);
 }
 
-/// Called when SETFOCUSEDFX fires with all-null params (focus cleared) or when
-/// SETFXOPEN fires with the FX window closed. Hides the current temporary lane
-/// unless the user has already added points to it (making it persistent).
+/// Called from SETFOCUSEDFX (all-null) and SETFXOPEN (closed). Hides all
+/// automation lanes on the current track.
 pub fn onFocusDismissed() void {
-    dismissCurrent();
+    if (current_lane) |lane| {
+        hideAllOnTrack(lane.track);
+        current_lane = null;
+    }
+}
+
+/// Called from SETLASTTOUCHEDTRACK. If the newly active track differs from
+/// the one we are watching, hides all lanes on the old track.
+pub fn onTrackChanged(new_track: reaper.MediaTrack) void {
+    if (!watcher_active) return;
+    const lane = current_lane orelse return;
+    if (lane.track != new_track) {
+        hideAllOnTrack(lane.track);
+        current_lane = null;
+    }
 }
 
 /// Called from zRun, throttled to POLL_INTERVAL ticks. Promotes the active
@@ -72,8 +90,6 @@ pub fn pollRun() void {
 }
 
 fn showLane(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void {
-    // Get or create the envelope. With create=true this always returns non-null,
-    // but the C API does not enforce that at the type level.
     const env_raw = pReaper.GetFXEnvelope(.{ track, fx_index, param_index, true });
     if (@intFromPtr(env_raw) == 0) {
         log.warn("GetFXEnvelope returned null for fx={d} param={d}", .{ fx_index, param_index });
@@ -83,9 +99,8 @@ fn showLane(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void 
 
     const initial_count = pReaper.CountEnvelopePoints(.{env});
 
-    // When Reaper creates a fresh envelope it auto-inserts a point at t=0.
-    // We remove it so the lane starts empty and any subsequent point is
-    // genuinely from the user.
+    // Reaper auto-inserts a point at t=0 when creating a fresh envelope.
+    // Remove it so any subsequent point is genuinely from the user.
     if (initial_count == 1) {
         _ = pReaper.DeleteEnvelopePointRange(.{ env, -1.0, 0.001 });
         _ = pReaper.Envelope_SortPoints(.{env});
@@ -104,16 +119,14 @@ fn showLane(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void 
     poll_tick = 0;
 }
 
-fn dismissCurrent() void {
-    const lane = current_lane orelse return;
-
-    const has_new_points = pReaper.CountEnvelopePoints(.{lane.env}) > lane.initial_point_count;
-    if (!has_new_points) {
-        setEnvelopeVisible(lane.env, false);
-        pReaper.UpdateArrange(.{});
+fn hideAllOnTrack(track: reaper.MediaTrack) void {
+    const count = pReaper.CountTrackEnvelopes(.{track});
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        const env = pReaper.GetTrackEnvelope(.{ track, i });
+        if (@intFromPtr(env) != 0) setEnvelopeVisible(env, false);
     }
-
-    current_lane = null;
+    pReaper.UpdateArrange(.{});
 }
 
 fn setEnvelopeVisible(env: *reaper.TrackEnvelope, visible: bool) void {
