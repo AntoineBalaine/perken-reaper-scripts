@@ -135,8 +135,6 @@ export fn zRun() callconv(.C) void {
         }
     }
 
-    auto_lane_watcher.pollRun();
-
     if (globals.state.current_mode == .fx_ctrl and globals.state.selectedTracks.count() > 1) {
         actions.dispatch(globals, .{ .midi_out = .blink });
         if (globals.playState and !globals.pauseState) {
