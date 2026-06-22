@@ -274,6 +274,16 @@ pub fn onKey(msg: *accel.MSG) c_int {
     const gmode = state.grammarMode();
 
     if (builder.build(&b.tables, ctx, gmode, key_buf[0..key_len])) |cmd| {
+        // A bare register-optional command (e.g. "q" matched as RecordMacro with
+        // no register) must wait for the register key when not currently recording.
+        // While recording, bare fires immediately to act as the stop toggle.
+        if (cmd.keys[0].def.register_action and
+            cmd.keys[0].def.register_optional and
+            cmd.keys[0].register == null and
+            !meta.recording)
+        {
+            return 1; // keep key_buf intact; next key will extend to "qa"
+        }
         setLastAction(cmd);
         clearPending();
         if (meta.metaKind(&cmd) != null) {

@@ -98,12 +98,19 @@ pub fn handle(cmd: builder.Command, ctx: grammar.Context) void {
             log.info("played macro @{c} x{d} ({d} commands)", .{
                 registerName(reg.bits()), times, list.items.len,
             });
+            last_command = cmd; // allow "." to repeat the last @<reg> call
         },
         .repeat_last => {
             const last = last_command orelse return;
             const times = @max(cmd.keys[0].prefixed_repetitions, 1);
             var i: u32 = 0;
-            while (i < times) : (i += 1) runner.execute(last, ctx);
+            while (i < times) : (i += 1) {
+                if (metaKind(&last) != null) {
+                    handle(last, ctx);
+                } else {
+                    runner.execute(last, ctx);
+                }
+            }
             if (recording) appendToMacro(record_register, last);
         },
         .show_binding_list => {
