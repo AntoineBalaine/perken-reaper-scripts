@@ -253,17 +253,24 @@ fn renderContent() void {
     if (m == .off) return;
 
     imgui.api.SameLine(ctx, null, null);
-    var status: [192]u8 = undefined;
     var pbuf: [96]u8 = undefined;
     const pending = vim.pending(&pbuf);
-    var fbs = std.io.fixedBufferStream(&status);
-    const w = fbs.writer();
-    w.print("[{s}]", .{@tagName(vim.activeContext())}) catch {};
-    if (meta.recording) w.writeAll("  REC") catch {};
-    if (pending.len > 0) w.print("  {s}", .{pending}) catch {};
-    if (vim.lastAction().len > 0) w.print("  last: {s}", .{vim.lastAction()}) catch {};
-    const status_z = utils.safePrint(&line, "{s}", .{fbs.getWritten()});
-    imgui.api.Text(ctx, status_z);
+    imgui.api.Text(ctx, utils.safePrint(&line, "[{s}]", .{@tagName(vim.activeContext())}));
+    if (meta.recording) {
+        const k: keymod.Key = @bitCast(meta.record_register);
+        const reg_ch: u8 = if (k.vk >= 'A' and k.vk <= 'Z') k.vk + 32 else k.vk;
+        var rbuf: [24:0]u8 = undefined;
+        imgui.api.SameLine(ctx, null, null);
+        textColored(ctx, rgba(0xFF3333FF), utils.safePrint(&rbuf, "  \xe2\x97\x8f REC @{c}", .{reg_ch}));
+    }
+    if (pending.len > 0) {
+        imgui.api.SameLine(ctx, null, null);
+        imgui.api.Text(ctx, utils.safePrint(&line, "  {s}", .{pending}));
+    }
+    if (vim.lastAction().len > 0) {
+        imgui.api.SameLine(ctx, null, null);
+        imgui.api.Text(ctx, utils.safePrint(&line, "  last: {s}", .{vim.lastAction()}));
+    }
 
     if (folded) return;
 
