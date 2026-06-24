@@ -334,6 +334,60 @@ test "Guid conversion" {
     try testing.expectEqual(guid, guid2);
 }
 
+pub fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) [:0]const u8 {
+    return std.fmt.bufPrintZ(buf, fmt, args) catch |err| switch (err) {
+        error.NoSpaceLeft => blk: {
+            const ellipsis = "…";
+            const end = buf.len - ellipsis.len - 1;
+            @memcpy(buf[end .. end + ellipsis.len], ellipsis);
+            buf[end + ellipsis.len] = '\x00';
+            break :blk @as([:0]const u8, buf[0 .. end + ellipsis.len :0]);
+        },
+    };
+}
+
+test "safePrint" {
+    const testing = std.testing;
+    const expect = testing.expect;
+    const expectEqualStrings = testing.expectEqualStrings;
+
+    {
+        var buf: [32:0]u8 = undefined;
+        const result = safePrint(&buf, "test {d}", .{42});
+        try expectEqualStrings("test 42", result);
+    }
+
+    {
+        var buf: [8:0]u8 = undefined;
+        const result = safePrint(&buf, "test {d}", .{42});
+        try expectEqualStrings("test 42", result);
+    }
+
+    {
+        var buf: [7:0]u8 = undefined;
+        const result = safePrint(&buf, "test {d}", .{42});
+        try expectEqualStrings("tes…", result);
+    }
+
+    {
+        var buf: [4:0]u8 = undefined;
+        const result = safePrint(&buf, "test this", .{});
+        try expectEqualStrings("…", result);
+    }
+
+    {
+        var buf: [8:0]u8 = undefined;
+        const result = safePrint(&buf, "", .{});
+        try expectEqualStrings("", result);
+    }
+
+    {
+        var buf: [8:0]u8 = undefined;
+        _ = safePrint(&buf, "test", .{});
+        try expect(buf[4] == 0);
+    }
+}
+
 pub const StringPool = struct {
     bytes: std.ArrayListUnmanaged(u8),
     table: std.HashMapUnmanaged(StringRef, void, TableContext, std.hash_map.default_max_load_percentage),
