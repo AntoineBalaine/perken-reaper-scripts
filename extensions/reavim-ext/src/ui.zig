@@ -125,8 +125,8 @@ var last_n_pages: usize = 1; // set each render; used by keyboard pagination
 var folded: bool = false;
 
 const ROWS_PER_PAGE: usize = 8;
-const COL_WIDTH: f64 = 230;
-const MAX_DESC_LEN: usize = 26;
+const COL_WIDTH: f64 = 270;
+const DESC_BUF: usize = 256; // upper bound for a description + ellipsis
 const MAX_HEIGHT: f64 = 235;
 
 /// True when the completion grid currently spans more than one page.
@@ -143,11 +143,41 @@ pub fn pagePrev() void {
     if (last_n_pages > 1) page = (page + last_n_pages - 1) % last_n_pages;
 }
 
-fn truncDesc(desc: []const u8, buf: []u8) []const u8 {
-    if (desc.len <= MAX_DESC_LEN) return desc;
-    @memcpy(buf[0 .. MAX_DESC_LEN - 3], desc[0 .. MAX_DESC_LEN - 3]);
-    @memcpy(buf[MAX_DESC_LEN - 3 ..][0..3], "...");
-    return buf[0..MAX_DESC_LEN];
+/// Pixel width of a null-terminated string in the current font.
+fn textWidth(c: imgui.ContextPtr, ztext: [*:0]const u8) f64 {
+    var w: f64 = 0;
+    var h: f64 = 0;
+    imgui.api.CalcTextSize(c, ztext, &w, &h, null, null);
+    return w;
+}
+
+/// Fit a description into max_w pixels: return it whole when it fits, otherwise
+/// the longest prefix that fits with a trailing "..." appended. This fills the
+/// actual (stretch-sized) column width instead of a fixed character count.
+fn fitDesc(c: imgui.ContextPtr, desc: []const u8, max_w: f64, buf: []u8) [:0]const u8 {
+    const full = std.fmt.bufPrintZ(buf, "{s}", .{desc}) catch return buf[0..0 :0];
+    if (max_w <= 0 or textWidth(c, full) <= max_w) return full;
+
+    // Largest n such that desc[0..n] + "..." still fits.
+    var lo: usize = 0;
+    var hi: usize = desc.len;
+    var best: usize = 0;
+    while (lo <= hi) {
+        const mid = lo + (hi - lo) / 2;
+        const cand = std.fmt.bufPrintZ(buf, "{s}...", .{desc[0..mid]}) catch {
+            if (mid == 0) break;
+            hi = mid - 1;
+            continue;
+        };
+        if (textWidth(c, cand) <= max_w) {
+            best = mid;
+            lo = mid + 1;
+        } else {
+            if (mid == 0) break;
+            hi = mid - 1;
+        }
+    }
+    return std.fmt.bufPrintZ(buf, "{s}...", .{desc[0..best]}) catch buf[0..0 :0];
 }
 
 fn keyLessThan(_: void, a: vim.Completion, b: vim.Completion) bool {
@@ -290,13 +320,19 @@ fn renderContent() void {
             textColored(ctx, col_key, ktz);
             imgui.api.SameLine(ctx, null, null);
 
+            // Remaining pixel width in this cell for the description; fitDesc
+            // trims to it so the label fills the stretched column width.
+            var cell_w: f64 = 0;
+            var cell_h: f64 = 0;
+            imgui.api.GetContentRegionAvail(ctx, &cell_w, &cell_h);
+
             var dbuf: [192]u8 = undefined;
-            var tbuf: [MAX_DESC_LEN]u8 = undefined;
+            var tbuf: [DESC_BUF]u8 = undefined;
             const desc = if (item.value) |v|
                 displayName(v, context, &dbuf)
             else
                 std.fmt.bufPrint(&dbuf, "+{s}", .{item.label orelse "..."}) catch "...";
-            const row = std.fmt.bufPrintZ(&line, "{s}", .{truncDesc(desc, &tbuf)}) catch continue;
+            const row = fitDesc(ctx, desc, cell_w, &tbuf);
             imgui.api.Text(ctx, row);
         }
         imgui.api.EndTable(ctx);
