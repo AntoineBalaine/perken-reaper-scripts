@@ -34,6 +34,14 @@ pub fn build(b: *std.Build) void {
     const install = b.addInstallArtifact(lib, .{ .dest_dir = .{ .override = .{ .custom = "" } }, .dest_sub_path = dest });
     b.getInstallStep().dependOn(&install.step);
 
+    // Install the default keybindings as bindings.ini at the prefix root. This
+    // is a separate step (not part of the default install) so it can be invoked
+    // with its own --prefix pointing at <resource>/Data/Perken, while the plugin
+    // installs under <resource>/UserPlugins.
+    const bindings_install = b.addInstallFile(b.path("src/default_bindings.ini"), "bindings.ini");
+    const bindings_step = b.step("bindings", "Install default keybindings to the prefix");
+    bindings_step.dependOn(&bindings_install.step);
+
     const test_exe = b.addTest(.{
         .name = "reavim_tests",
         .root_source_file = b.path("src/main.zig"),
