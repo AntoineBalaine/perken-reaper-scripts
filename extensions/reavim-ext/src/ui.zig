@@ -334,6 +334,15 @@ fn renderContent() void {
                 std.fmt.bufPrint(&dbuf, "+{s}", .{item.label orelse "..."}) catch "...";
             const row = fitDesc(ctx, desc, cell_w, &tbuf);
             imgui.api.Text(ctx, row);
+
+            // When fitDesc trimmed the label to the column width, reveal the
+            // full text on hover. fitDesc returns the whole desc verbatim when
+            // it fits, so an inequality means it was truncated.
+            if (!std.mem.eql(u8, row, desc)) {
+                var full: [DESC_BUF]u8 = undefined;
+                const full_z = std.fmt.bufPrintZ(&full, "{s}", .{desc}) catch continue;
+                imgui.api.SetItemTooltip(ctx, full_z);
+            }
         }
         imgui.api.EndTable(ctx);
     }
