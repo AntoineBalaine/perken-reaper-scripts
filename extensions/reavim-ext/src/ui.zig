@@ -9,6 +9,7 @@ const vim = @import("vim.zig");
 const config = @import("config.zig");
 const keymod = @import("key.zig");
 const meta = @import("meta.zig");
+const utils = @import("utils");
 
 const log = std.log.scoped(.extension);
 
@@ -70,7 +71,7 @@ pub fn available() bool {
 }
 
 /// Action display name, reavim-style: real action names instead of raw ids.
-fn displayName(bv: anytype, context: vim.Context, buf: []u8) []const u8 {
+fn displayName(bv: anytype, context: vim.Context, buf: [:0]u8) []const u8 {
     const def = bv.def;
     if (def.desc) |d| return d;
     if (def.steps.len == 1) {
@@ -85,16 +86,16 @@ fn displayName(bv: anytype, context: vim.Context, buf: []u8) []const u8 {
         }
     }
     if (def.steps.len == 0)
-        return std.fmt.bufPrint(buf, "{s} (stub)", .{bv.name}) catch bv.name;
+        return utils.safePrint(buf, "{s} (stub)", .{bv.name});
     return bv.name;
 }
 
-fn commandName(id: c_int, context: vim.Context, buf: []u8) []const u8 {
+fn commandName(id: c_int, context: vim.Context, buf: [:0]u8) []const u8 {
     const section_id: c_int = switch (context) {
         .main => 0,
         .midi => 32060,
     };
-    const fallback = std.fmt.bufPrint(buf, "cmd:{d}", .{id}) catch "?";
+    const fallback = utils.safePrint(buf, "cmd:{d}", .{id});
     const section = Reaper.SectionFromUniqueID(section_id);
     if (@intFromPtr(section) == 0) return fallback;
     const ptr = Reaper.kbd_getTextFromCmd(id, section);
@@ -227,11 +228,11 @@ fn onTimer() callconv(.C) void {
 }
 
 fn renderContent() void {
-    var line: [256]u8 = undefined;
+    var line: [256:0]u8 = undefined;
     const m = vim.mode();
 
     // Compact status line: mode, context, pending keys, last action.
-    const mode_txt = std.fmt.bufPrintZ(&line, "-- {s} --", .{
+    const mode_txt = utils.safePrint(&line, "-- {s} --", .{
         switch (m) {
             .normal => "NORMAL",
             .insert => "INSERT",
@@ -239,7 +240,7 @@ fn renderContent() void {
             .visual_timeline => "VISUAL TLINE",
             .off => "OFF",
         },
-    }) catch return;
+    });
     const mode_col: c_int = switch (m) {
         .normal, .visual_track, .visual_timeline => col_accent,
         .insert => col_green,
@@ -261,7 +262,7 @@ fn renderContent() void {
     if (meta.recording) w.writeAll("  REC") catch {};
     if (pending.len > 0) w.print("  {s}", .{pending}) catch {};
     if (vim.lastAction().len > 0) w.print("  last: {s}", .{vim.lastAction()}) catch {};
-    const status_z = std.fmt.bufPrintZ(&line, "{s}", .{fbs.getWritten()}) catch return;
+    const status_z = utils.safePrint(&line, "{s}", .{fbs.getWritten()});
     imgui.api.Text(ctx, status_z);
 
     if (folded) return;
@@ -316,7 +317,7 @@ fn renderContent() void {
 
             var kbuf: [16]u8 = undefined;
             const kt = if (item.key.vk == 0) "a-z" else keymod.format(item.key, &kbuf);
-            const ktz = std.fmt.bufPrintZ(&line, "{s: >5}", .{kt}) catch continue;
+            const ktz = utils.safePrint(&line, "{s: >5}", .{kt});
             textColored(ctx, col_key, ktz);
             imgui.api.SameLine(ctx, null, null);
 
@@ -326,12 +327,12 @@ fn renderContent() void {
             var cell_h: f64 = 0;
             imgui.api.GetContentRegionAvail(ctx, &cell_w, &cell_h);
 
-            var dbuf: [192]u8 = undefined;
+            var dbuf: [192:0]u8 = undefined;
             var tbuf: [DESC_BUF]u8 = undefined;
             const desc = if (item.value) |v|
                 displayName(v, context, &dbuf)
             else
-                std.fmt.bufPrint(&dbuf, "+{s}", .{item.label orelse "..."}) catch "...";
+                utils.safePrint(&dbuf, "+{s}", .{item.label orelse "..."});
             const row = fitDesc(ctx, desc, cell_w, &tbuf);
             imgui.api.Text(ctx, row);
 
@@ -339,8 +340,8 @@ fn renderContent() void {
             // full text on hover. fitDesc returns the whole desc verbatim when
             // it fits, so an inequality means it was truncated.
             if (!std.mem.eql(u8, row, desc)) {
-                var full: [DESC_BUF]u8 = undefined;
-                const full_z = std.fmt.bufPrintZ(&full, "{s}", .{desc}) catch continue;
+                var full: [DESC_BUF:0]u8 = undefined;
+                const full_z = utils.safePrint(&full, "{s}", .{desc});
                 imgui.api.SetItemTooltip(ctx, full_z);
             }
         }
@@ -350,7 +351,7 @@ fn renderContent() void {
     if (n_pages > 1) {
         if (imgui.api.SmallButton(ctx, "<")) page = if (page == 0) n_pages - 1 else page - 1;
         imgui.api.SameLine(ctx, null, null);
-        const pg = std.fmt.bufPrintZ(&line, "{d}/{d}", .{ page + 1, n_pages }) catch return;
+        const pg = utils.safePrint(&line, "{d}/{d}", .{ page + 1, n_pages });
         imgui.api.Text(ctx, pg);
         imgui.api.SameLine(ctx, null, null);
         if (imgui.api.SmallButton(ctx, ">")) page = (page + 1) % n_pages;
