@@ -5,6 +5,7 @@ const control_surface = @import("csurf/control_surface_mft.zig");
 const defaults_mft = @import("defaults_mft.zig");
 const fs_helpers = @import("fs_helpers");
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
+const mft_imgui = @import("mft_imgui.zig");
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
@@ -32,6 +33,8 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     };
 
     _ = reaper.plugin_register("csurf", @ptrCast(@constCast(&control_surface.mft_reg)));
+
+    mft_imgui.register();
 
     return 1;
 }
