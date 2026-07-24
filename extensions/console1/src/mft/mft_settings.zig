@@ -13,8 +13,8 @@ const NAME_LEN = 256;
 var buffers: [5][NAME_LEN:0]u8 = undefined;
 var synced = false;
 
-// The number of selectable rows: four colors, sensitivity, five plugin names.
-pub const ITEM_COUNT: i16 = 10;
+// The number of selectable rows: six colors, sensitivity, five plugin names.
+pub const ITEM_COUNT: i16 = 12;
 // Highlight for the selected row (the Console One teal accent).
 const HIGHLIGHT: c_int = @bitCast(@as(u32, 0x13BD99FF));
 
@@ -89,12 +89,14 @@ pub fn drawForm(ctx: imgui.ContextPtr, globals: *MftGlobals) !void {
     try row(ctx, cursor == 1, std.fmt.bufPrintZ(&buf, "GATE color: {d}", .{p.color_gate}) catch "GATE color");
     try row(ctx, cursor == 2, std.fmt.bufPrintZ(&buf, "EQ color: {d}", .{p.color_eq}) catch "EQ color");
     try row(ctx, cursor == 3, std.fmt.bufPrintZ(&buf, "COMP color: {d}", .{p.color_comp}) catch "COMP color");
-    try row(ctx, cursor == 4, std.fmt.bufPrintZ(&buf, "Sensitivity: {d:.2}", .{p.sensitivity}) catch "Sensitivity");
+    try row(ctx, cursor == 4, std.fmt.bufPrintZ(&buf, "SETTINGS color: {d}", .{p.color_settings}) catch "SETTINGS color");
+    try row(ctx, cursor == 5, std.fmt.bufPrintZ(&buf, "TRANSPORT color: {d}", .{p.color_transport}) catch "TRANSPORT color");
+    try row(ctx, cursor == 6, std.fmt.bufPrintZ(&buf, "Sensitivity: {d:.2}", .{p.sensitivity}) catch "Sensitivity");
 
     try imgui.Separator(.{ctx});
     try imgui.Text(.{ ctx, "Default plugin per slot (keyboard):" });
     for (0..5) |i| {
-        try row(ctx, cursor == 5 + i, SLOT_LABELS[i]);
+        try row(ctx, cursor == 7 + i, SLOT_LABELS[i]);
         try imgui.SameLine(.{ctx});
         _ = try imgui.InputText(.{ ctx, NAME_IDS[i], @as([*]u8, @ptrCast(&buffers[i])), NAME_LEN, null, null });
     }

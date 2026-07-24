@@ -15,11 +15,13 @@ pub const MftPreferences = struct {
     default_output: [:0]const u8 = "JS: Saturation",
     // Multiplier on the base per-click step, 0.1 to 4.0.
     sensitivity: f32 = 1.0,
-    // Hue positions on the MFT color wheel (channel 3).
+    // Hue positions on the MFT color wheel (channel 2).
     color_io: u8 = 0x0F,
     color_gate: u8 = 0x5A,
     color_eq: u8 = 0x3C,
     color_comp: u8 = 0x56,
+    color_settings: u8 = 0x49,
+    color_transport: u8 = 0x6B,
 
     pub fn colorForModule(self: *const MftPreferences, module: MftActiveModule) u8 {
         return switch (module) {
@@ -27,7 +29,8 @@ pub const MftPreferences = struct {
             .GATE => self.color_gate,
             .EQ => self.color_eq,
             .COMP => self.color_comp,
-            .SETTINGS, .TRANSPORT => 0,
+            .SETTINGS => self.color_settings,
+            .TRANSPORT => self.color_transport,
         };
     }
 
@@ -64,7 +67,9 @@ pub const MftPreferences = struct {
         try w.print("color_io = {d}\n", .{self.color_io});
         try w.print("color_gate = {d}\n", .{self.color_gate});
         try w.print("color_eq = {d}\n", .{self.color_eq});
-        try w.print("color_comp = {d}\n\n", .{self.color_comp});
+        try w.print("color_comp = {d}\n", .{self.color_comp});
+        try w.print("color_settings = {d}\n", .{self.color_settings});
+        try w.print("color_transport = {d}\n\n", .{self.color_transport});
         try w.print("[input]\n{s}\n\n", .{self.default_input});
         try w.print("[gate]\n{s}\n\n", .{self.default_gate});
         try w.print("[eq]\n{s}\n\n", .{self.default_eq});
@@ -93,6 +98,10 @@ fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !
                     self.color_eq = std.fmt.parseInt(u8, kv.value, 10) catch self.color_eq;
                 } else if (std.mem.eql(u8, kv.key, "color_comp")) {
                     self.color_comp = std.fmt.parseInt(u8, kv.value, 10) catch self.color_comp;
+                } else if (std.mem.eql(u8, kv.key, "color_settings")) {
+                    self.color_settings = std.fmt.parseInt(u8, kv.value, 10) catch self.color_settings;
+                } else if (std.mem.eql(u8, kv.key, "color_transport")) {
+                    self.color_transport = std.fmt.parseInt(u8, kv.value, 10) catch self.color_transport;
                 }
             },
             // Plugin names appear as bare lines under a module section.

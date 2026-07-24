@@ -137,6 +137,14 @@ fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
             break :blk p.color_comp;
         },
         4 => blk: {
+            p.color_settings = wrapHue(p.color_settings, delta);
+            break :blk p.color_settings;
+        },
+        5 => blk: {
+            p.color_transport = wrapHue(p.color_transport, delta);
+            break :blk p.color_transport;
+        },
+        6 => blk: {
             p.sensitivity = std.math.clamp(p.sensitivity + @as(f32, @floatFromInt(delta)) * 0.05, 0.1, 4.0);
             break :blk null;
         },
