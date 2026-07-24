@@ -36,13 +36,15 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     // On macOS/Linux, SWELL requires PHP to generate dialog/menu resources from .rc files.
     // On Windows, resources are compiled natively, so PHP is not needed.
     if (!is_windows) {
-        const php_script = dependencies.wdl.path("WDL/swell/swell_resgen.php");
-        const resource_rc = b.path("src/csurf/resource.rc");
+        if (b.findProgram(&.{"php"}, &.{})) |_| {
+            const php_script = dependencies.wdl.path("WDL/swell/swell_resgen.php");
+            const resource_rc = b.path("src/csurf/resource.rc");
 
-        const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
-        php_cmd.addFileArg(php_script);
-        php_cmd.addFileArg(resource_rc);
-        test_exe.step.dependOn(&php_cmd.step);
+            const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
+            php_cmd.addFileArg(php_script);
+            php_cmd.addFileArg(resource_rc);
+            test_exe.step.dependOn(&php_cmd.step);
+        } else |_| {}
     }
 
     // Exclude midi_wrapper.cpp since we are using our mock implementation.

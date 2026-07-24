@@ -1,0 +1,297 @@
+const std = @import("std");
+const builtin = @import("builtin");
+const Reaper = @import("reaper");
+const reaper = Reaper.reaper;
+const MediaTrack = reaper.MediaTrack;
+const c = @cImport({
+    @cDefine("WDL_ALLOW_UNSIGNED_DEFAULT_CHAR", "1");
+    if (builtin.os.tag != .windows) {
+        @cDefine("SWELL_PROVIDED_BY_APP", "");
+    }
+    @cInclude("csurf/control_surface_wrapper.h");
+    if (builtin.os.tag == .windows) {
+        @cInclude("windows.h");
+    } else {
+        @cInclude("WDL/swell/swell-types.h");
+        @cInclude("WDL/swell/swell-functions.h");
+    }
+    @cInclude("WDL/win32_utf8.h");
+    @cInclude("WDL/wdltypes.h");
+    @cInclude("resource.h");
+    @cInclude("csurf/midi_wrapper.h");
+});
+const constants = @import("../constants_mft.zig");
+const midi_events = @import("midi_events_mft.zig");
+const MftGlobals = @import("../mft_globals.zig").MftGlobals;
+const MODULE_COLORS = @import("../mft_state.zig").MODULE_COLORS;
+const log = std.log.scoped(.csurf_mft);
+
+pub var ignore_notifications = false;
+pub var my_csurf: c.C_ControlSurface = undefined;
+
+pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
+    var globals = MftGlobals.get();
+    globals.m_midi_in_dev = indev;
+    globals.m_midi_out_dev = outdev;
+    globals.m_midi_in = if (indev >= 0) reaper.CreateMIDIInput(indev) else null;
+    globals.m_midi_out = if (outdev >= 0) c.CreateThreadedMIDIOutput(reaper.CreateMIDIOutput(outdev, false, null)) else null;
+    if (errStats) |errstats| {
+        if (indev >= 0 and globals.m_midi_in == null) errstats.* |= 1;
+        if (outdev >= 0 and globals.m_midi_out == null) errstats.* |= 2;
+    }
+    if (globals.m_midi_in) |midi_in| {
+        c.MidiIn_start(midi_in);
+    } else {
+        log.err("couldn’t create midi in", .{});
+    }
+    if (globals.m_midi_out) |midi_out| {
+        clearAllLEDs(midi_out);
+        sendModuleColor(midi_out, globals.mft.active_module);
+    } else {
+        log.err("couldn’t create midi out", .{});
+    }
+
+    const myCsurf: c.C_ControlSurface = c.ControlSurface_Create();
+    my_csurf = myCsurf;
+    return myCsurf;
+}
+
+pub fn deinit(csurf: c.C_ControlSurface) void {
+    var globals = MftGlobals.get();
+    if (globals.m_midi_out) |midi_out| {
+        clearAllLEDs(midi_out);
+        c.MidiOut_Destroy(midi_out);
+        globals.m_midi_out = null;
+    }
+    if (globals.m_midi_in) |midi_in| {
+        c.MidiIn_Destroy(midi_in);
+        globals.m_midi_in = null;
+    }
+    c.ControlSurface_Destroy(csurf);
+}
+
+fn clearAllLEDs(midi_out: reaper.midi_Output) void {
+    for (0..16) |i| {
+        c.MidiOut_Send(midi_out, 0xb0, @intCast(i), 0x0, -1);
+        c.MidiOut_Send(midi_out, 0xb2, @intCast(i), 0x0, -1);
+    }
+}
+
+fn sendModuleColor(midi_out: reaper.midi_Output, module: @import("../mft_state.zig").MftActiveModule) void {
+    const color = MODULE_COLORS.get(module);
+    for (0..16) |i| {
+        c.MidiOut_Send(midi_out, 0xb2, @intCast(i), color, -1);
+    }
+}
+
+export fn zGetTypeString() callconv(.C) [*]const u8 {
+    return constants.CONTROLLER_NAME;
+}
+
+export fn zGetDescString() callconv(.C) [*]const u8 {
+    return reaper.LocalizeString("Perken MFT", "csurf", 1);
+}
+
+var config_buf: [512:0]u8 = undefined;
+export fn zGetConfigString() callconv(.C) [*]const u8 {
+    const globals = MftGlobals.get();
+    _ = std.fmt.bufPrintZ(&config_buf, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
+        return "0 0 0 0";
+    };
+    return &config_buf;
+}
+
+export fn zCloseNoReset() callconv(.C) void {
+    deinit(my_csurf);
+}
+
+export fn zRun() callconv(.C) void {
+    if (ignore_notifications) return;
+    const globals = MftGlobals.get();
+    if (globals.m_midi_in) |midi_in| {
+        c.MidiIn_SwapBufs(midi_in, c.GetTickCount.?());
+        const list = c.MidiIn_GetReadBuf(midi_in);
+        var l: c_int = 0;
+        while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
+            midi_events.OnMidiEvent(evts, globals);
+        }
+    }
+}
+
+export fn zSetTrackListChange() callconv(.C) void {}
+export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
+    _ = trackid;
+    _ = volume;
+}
+export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
+    _ = trackid;
+    _ = pan;
+}
+export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
+    _ = trackid;
+    _ = mute;
+}
+export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) void {
+    _ = trackid;
+    _ = selected;
+}
+export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
+    _ = trackid;
+    _ = solo;
+}
+export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.C) void {
+    _ = trackid;
+    _ = recarm;
+}
+export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
+    _ = play;
+    _ = pause;
+    _ = rec;
+}
+export fn zSetRepeatState(rep: bool) callconv(.C) void {
+    _ = rep;
+}
+export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.C) void {
+    _ = trackid;
+    _ = title;
+}
+export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
+    _ = trackid;
+    _ = isPan;
+    return false;
+}
+export fn zSetAutoMode(mode: c_int) callconv(.C) void {
+    _ = mode;
+}
+export fn zResetCachedVolPanStates() callconv(.C) void {}
+export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
+    _ = trackid;
+}
+export fn zIsKeyDown(key: c_int) callconv(.C) bool {
+    _ = key;
+    return false;
+}
+export fn zExtended(call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.C) c_int {
+    _ = call;
+    _ = parm1;
+    _ = parm2;
+    _ = parm3;
+    return 0;
+}
+
+fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, lparam: c.LPARAM) c.LRESULT {
+    return c.SendMessage.?(c.GetDlgItem.?(hwnd, idx), msg, wparam, lparam);
+}
+
+fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.C) c.WDL_DLGRET {
+    switch (uMsg) {
+        c.WM_INITDIALOG => {
+            var parms: [4]i32 = undefined;
+            parseParms(@ptrFromInt(@as(usize, @intCast(lParam))), &parms);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT1), c.SW_HIDE);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT1_LBL), c.SW_HIDE);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT2), c.SW_HIDE);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT2_LBL), c.SW_HIDE);
+            c.ShowWindow.?(c.GetDlgItem.?(hwndDlg, c.IDC_EDIT2_LBL2), c.SW_HIDE);
+
+            var n = reaper.GetNumMIDIInputs();
+            const loc = reaper.LocalizeString("None", "csurf", 0);
+            var x = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(loc))));
+            _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, @as(c.WPARAM, @intCast(x)), -1);
+            x = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(loc))));
+            _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, @as(c.WPARAM, @intCast(x)), -1);
+            var cur: c_int = 0;
+            while (cur < n) : (cur += 1) {
+                var buf: [512]c_char = undefined;
+                if (reaper.GetMIDIInputName(cur, &buf, @sizeOf(@TypeOf(buf)))) {
+                    const a: c.WPARAM = @intCast(sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_ADDSTRING, @as(c.WPARAM, 0), @as(c.LPARAM, @intCast(@intFromPtr(&buf)))));
+                    _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETITEMDATA, a, cur);
+                    if (cur == parms[2]) {
+                        _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_SETCURSEL, a, 0);
+                    }
+                }
+            }
+
+            n = reaper.GetNumMIDIOutputs();
+            cur = 0;
+            while (cur < n) : (cur += 1) {
+                var buf: [512]c_char = undefined;
+                if (reaper.GetMIDIOutputName(@intCast(cur), &buf, @sizeOf(@TypeOf(buf)))) {
+                    const a: c.WPARAM = @intCast(sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_ADDSTRING, 0, @as(c.LPARAM, @intCast(@intFromPtr(&buf)))));
+                    _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETITEMDATA, a, @as(c.LPARAM, @intCast(cur)));
+                    if (cur == parms[3]) {
+                        _ = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_SETCURSEL, a, 0);
+                    }
+                }
+            }
+        },
+        c.WM_USER + 1024 => {
+            if (wParam > 1 and lParam != 0) {
+                var indev: isize = -1;
+                var outdev: isize = -1;
+                const offs: isize = 0;
+                const size: isize = 9;
+
+                var r = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETCURSEL, 0, 0);
+                if (r != c.CB_ERR) indev = sendDlgItemMessage(hwndDlg, c.IDC_COMBO2, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
+
+                r = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETCURSEL, 0, 0);
+                if (r != c.CB_ERR) outdev = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
+
+                var tmp: [512:0]u8 = undefined;
+                _ = std.fmt.bufPrintZ(&tmp, "{d} {d} {d} {d}", .{ offs, size, indev, outdev }) catch return 0;
+                _ = c.lstrcpyn.?(lParam, &tmp, @intCast(wParam));
+            }
+        },
+        else => {},
+    }
+    return 0;
+}
+
+fn makeIntResource(x: anytype) [*c]const u8 {
+    return @ptrFromInt(@as(u32, @intCast(x)));
+}
+
+pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND {
+    _ = type_string;
+    const cast: c.LPARAM = @intCast(@intFromPtr(initConfigString));
+    return c.SWELL_CreateDialog.?(c.SWELL_curmodule_dialogresource_head, makeIntResource(c.IDD_SURFACEEDIT_MCU), parent, &dlgProc, cast);
+}
+
+fn parseParms(str: [*c]const c_char, parms: *[4]i32) void {
+    parms[0] = 0;
+    parms[1] = 9;
+    parms[2] = -1;
+    parms[3] = -1;
+
+    var iterator = std.mem.splitScalar(u8, std.mem.span(@as([*:0]const u8, @ptrCast(str))), ' ');
+    var x: u8 = 0;
+    while (iterator.next()) |val| {
+        if (!std.mem.eql(u8, "", val) and x < 4) {
+            const parsed = std.fmt.parseInt(i32, val, 10) catch -1;
+            parms[x] = parsed;
+            x += 1;
+        }
+    }
+}
+
+fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
+    _ = type_string;
+    var parms: [4]i32 = undefined;
+    parseParms(configString, &parms);
+    return init(parms[2], parms[3], errStats);
+}
+
+const reaper_csurf_reg_t = extern struct {
+    type_string: [*:0]const u8,
+    desc_string: [*:0]const u8,
+    IReaperControlSurface: *const fn (type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface,
+    ShowConfig: *const fn (type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND,
+};
+
+pub const mft_reg = reaper_csurf_reg_t{
+    .type_string = constants.CONTROLLER_NAME,
+    .desc_string = "Perken MFT",
+    .IReaperControlSurface = &createFunc,
+    .ShowConfig = &configFunc,
+};
