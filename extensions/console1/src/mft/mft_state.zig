@@ -11,6 +11,8 @@ pub const MftState = struct {
     // The FX index of the most recently tweaked parameter, so the side button
     // can toggle that plugin's floating window.
     last_fx_index: ?c_int = null,
+    // The highlighted row in settings mode (0..SETTINGS_ITEM_COUNT-1).
+    settings_cursor: u8 = 0,
 
     pub fn setHeld(self: *MftState, encoder_idx: u8) void {
         std.debug.assert(encoder_idx < 16);

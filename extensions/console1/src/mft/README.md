@@ -41,8 +41,8 @@ Encoders are numbered 1 to 16, left to right and top to bottom.
 The six side buttons are on channel 4, CCs 8 to 13, ordered L1, L2, L3, R1,
 R2, R3:
 
-- L1 toggles the floating window of the active module's plugin (the last-tweaked
-  FX in that module, else the module's primary FX).
+- L1 toggles the track's FX chain window, focused on the active module's plugin
+  (the last-tweaked FX in that module, else the module's primary FX).
 - R1, R2, R3 toggle mute, solo, and phase invert on the current track.
 - L2 and L3 are unused for now.
 
@@ -58,17 +58,19 @@ has a rotation function and a press function:
 
 - Rotations: jog, scrub, zoom horizontal, zoom vertical, playrate, grid, track
   select, marker jog.
-- Presses: loop toggle, loop start, loop end, snap toggle, then the automation
-  modes trim, read, latch, write.
+- Presses reset or toggle their own knob's function: pressing the playrate knob
+  resets the playrate to 1, pressing the grid knob toggles snap, and pressing the
+  marker-jog knob inserts a marker at the cursor or removes the one already
+  there. The other encoder presses are unassigned in transport mode.
 
 ### Settings mode
 
 Selecting SETTINGS edits the preferences, persisted to
-`Data/Perken/MFT/preferences.ini`. Encoders 1 to 4 adjust the IO, GATE, EQ, and
-COMP LED hues, previewed live on every knob as you turn; encoder 5 adjusts the
-encoder sensitivity. The panel shows those values and has a text field per module
-for the default plugin name, edited with the keyboard. Save writes the ini;
-Cancel reloads it, discarding edits.
+`Data/Perken/MFT/preferences.ini`. Encoder 1 scrolls a highlight through the
+settings list; encoder 2 adjusts the highlighted value. The numeric settings are
+the four module LED hues (previewed live on every knob as you adjust) and the
+encoder sensitivity. The five default plugin names are edited with the keyboard
+in their text fields. Save writes the ini; Cancel reloads it, discarding edits.
 
 ## LED feedback
 

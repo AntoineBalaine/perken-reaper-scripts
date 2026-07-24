@@ -25,6 +25,7 @@ const mappings = @import("../mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("../mft_fx.zig");
 const mft_transport = @import("../mft_transport.zig");
+const mft_settings = @import("../mft_settings.zig");
 const midi_out = @import("../midi_out_mft.zig");
 const log = std.log.scoped(.mft_midi);
 
@@ -87,11 +88,23 @@ fn wrapHue(cur: u8, delta: i8) u8 {
     return @intCast(@mod(@as(i16, cur) + delta, 128));
 }
 
-// Encoders 1-5 edit the numeric settings live in settings mode. Colors 1-4
-// preview on every knob as they change; encoder 5 adjusts sensitivity.
+// Settings mode: encoder 1 scrolls the highlighted row, encoder 2 adjusts the
+// selected value. Text (plugin name) rows are edited with the keyboard in the
+// panel, so encoder 2 has no effect on them.
 fn settingsRotate(globals: *MftGlobals, slot: u3, delta: i8) void {
+    switch (slot) {
+        0 => {
+            const n = @as(i16, globals.mft.settings_cursor) + delta;
+            globals.mft.settings_cursor = @intCast(@mod(n, mft_settings.ITEM_COUNT));
+        },
+        1 => adjustSelectedSetting(globals, delta),
+        else => {},
+    }
+}
+
+fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
     const p = &globals.preferences;
-    const hue: ?u8 = switch (slot) {
+    const hue: ?u8 = switch (globals.mft.settings_cursor) {
         0 => blk: {
             p.color_io = wrapHue(p.color_io, delta);
             break :blk p.color_io;
@@ -112,7 +125,7 @@ fn settingsRotate(globals: *MftGlobals, slot: u3, delta: i8) void {
             p.sensitivity = std.math.clamp(p.sensitivity + @as(f32, @floatFromInt(delta)) * 0.05, 0.1, 4.0);
             break :blk null;
         },
-        else => null,
+        else => null, // plugin-name rows: keyboard only
     };
     if (hue) |h| {
         if (globals.m_midi_out) |mo| midi_out.sendAllColors(mo, h);
@@ -165,7 +178,7 @@ fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
         mft.SIDE_BUTTON_CCS[0] => { // L1
             if (MappableModule.fromActive(globals.mft.active_module)) |module| {
                 if (mft_fx.moduleFxToShow(globals, track, module, globals.mft.last_fx_index)) |fx| {
-                    mft_fx.toggleFxWindow(track, fx);
+                    mft_fx.toggleFxChain(track, fx);
                 }
             }
         },

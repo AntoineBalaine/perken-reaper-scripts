@@ -125,13 +125,14 @@ fn fxBaseName(track: reaper.MediaTrack, fx: c_int, buf: *[512:0]u8) ?[:0]const u
     return buf[0..base_len :0];
 }
 
-// Toggle the floating window of one FX. TrackFX_GetOpen reports whether it is
-// visible; showFlag 3 shows the floating window, 2 hides it.
-pub fn toggleFxWindow(track: reaper.MediaTrack, fx_index: c_int) void {
+// Toggle the track's FX chain window, focused on the given FX. Matches the
+// Console One, which opens the whole chain rather than a single floating window.
+// showFlag 1 shows the chain (with fx_index selected), 0 hides it.
+pub fn toggleFxChain(track: reaper.MediaTrack, fx_index: c_int) void {
     if (reaper.TrackFX_GetOpen(track, fx_index)) {
-        reaper.TrackFX_Show(track, fx_index, 2);
+        reaper.TrackFX_Show(track, fx_index, 0);
     } else {
-        reaper.TrackFX_Show(track, fx_index, 3);
+        reaper.TrackFX_Show(track, fx_index, 1);
     }
 }
 
