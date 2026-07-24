@@ -8,4 +8,5 @@ test {
     _ = @import("mft_mappings.zig");
     _ = @import("mft_map_store.zig");
     _ = @import("mft_fx.zig");
+    _ = @import("mft_wizard.zig");
 }

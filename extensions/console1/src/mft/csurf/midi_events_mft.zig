@@ -34,6 +34,13 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
     const cc = if (status == 0xb0) msg[1] else msg[0];
     const val = if (status == 0xb0) msg[2] else msg[1];
 
+    // While calibration is running, every event is captured by the wizard
+    // instead of driving parameters or switching modules.
+    if (globals.wizard.active) {
+        globals.wizard.onMidi(chan, cc, val);
+        return;
+    }
+
     switch (chan) {
         mft.ENCODER_ROT_CHANNEL => onEncoderRotation(cc, val, globals),
         mft.ENCODER_BTN_CHANNEL => onEncoderButton(cc, val, globals),

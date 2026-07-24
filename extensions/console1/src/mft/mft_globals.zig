@@ -3,6 +3,7 @@ const reaper = @import("reaper").reaper;
 const fs_helpers = @import("fs_helpers");
 const MftState = @import("mft_state.zig").MftState;
 const MftMapStore = @import("mft_map_store.zig").MftMapStore;
+const WizardState = @import("mft_wizard.zig").WizardState;
 
 pub const MftGlobals = struct {
     m_midi_in: ?*reaper.midi_Input = null,
@@ -17,6 +18,7 @@ pub const MftGlobals = struct {
     // The track whose FX the encoders currently drive. Follows REAPER's
     // last-touched track (see the SETLASTTOUCHEDTRACK csurf callback).
     current_track: reaper.MediaTrack = null,
+    wizard: WizardState = .{},
 
     pub var instance: MftGlobals = .{};
 

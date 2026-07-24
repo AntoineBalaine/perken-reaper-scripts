@@ -100,3 +100,18 @@ documentation, not from testing on hardware. On first use with a real MFT,
 expect to confirm the encoder direction and tune the color hues. Those live in
 `mft.zig` (channels, sensitivity, two's-complement decode) and `mft_state.zig`
 (the per-module hue table).
+
+To make that first calibration easier, the panel has a calibration wizard. Press
+Start calibration and it walks through every control in turn: turn each encoder
+one click clockwise, press each encoder, then press each side button. While the
+wizard is active it captures the incoming MIDI instead of driving parameters, and
+for each step it shows what it expected against what it observed and a
+pass/fail/skip marker. Retry re-captures the current step, Skip moves on, Next
+advances. Because the six side-button CCs are not firmly known, those steps just
+capture and report whatever arrives, which is how you discover their real CCs.
+
+Every step is also logged to the console (run REAPER from a terminal to see it),
+and Finish or Stop writes a full report to
+`Data/Perken/MFT/wizard_report.md`. A failed encoder-direction step means the
+sign in `decodeTwosComplement` needs flipping; an unexpected CC means the CC map
+is offset.

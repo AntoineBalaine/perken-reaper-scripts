@@ -7,7 +7,12 @@ const MftActiveModule = @import("mft_state.zig").MftActiveModule;
 const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("mft_fx.zig");
+const wizard = @import("mft_wizard.zig");
 const log = std.log.scoped(.mft_imgui);
+
+const color_pass: c_int = @bitCast(@as(u32, 0x66CC66FF));
+const color_fail: c_int = @bitCast(@as(u32, 0xFF5555FF));
+const color_muted: c_int = @bitCast(@as(u32, 0x999999FF));
 
 const plugin_name = "MFT";
 
@@ -130,6 +135,52 @@ fn draw(globals: *MftGlobals) !void {
         _ = try imgui.Button(.{ ctx, lbl, 34.0, 24.0 });
     }
     imgui.EndGroup(.{ctx}) catch {};
+
+    try drawWizard(globals);
+}
+
+fn drawWizard(globals: *MftGlobals) !void {
+    const w = &globals.wizard;
+    try imgui.Separator(.{ctx});
+
+    if (!w.active) {
+        if (try imgui.Button(.{ ctx, "Start calibration" })) w.start();
+        return;
+    }
+
+    const step = wizard.steps[w.current];
+    const result = w.results[w.current];
+
+    var buf: [128:0]u8 = undefined;
+    try imgui.Text(.{ ctx, std.fmt.bufPrintZ(&buf, "Calibration {d}/{d}", .{ w.current + 1, wizard.STEP_COUNT }) catch "Calibration" });
+    try imgui.Text(.{ ctx, wizard.describe(step, &buf) });
+    try imgui.TextColored(.{ ctx, color_muted, wizard.expectedText(step, &buf) });
+    try imgui.Text(.{ ctx, wizard.observedText(result, &buf) });
+
+    const status_color = switch (result.status) {
+        .pass => color_pass,
+        .fail => color_fail,
+        .pending, .skipped => color_muted,
+    };
+    try imgui.TextColored(.{ ctx, status_color, @tagName(result.status) });
+
+    if (try imgui.Button(.{ ctx, "Retry" })) w.retry();
+    try imgui.SameLine(.{ctx});
+    if (try imgui.Button(.{ ctx, "Skip" })) w.skip();
+    try imgui.SameLine(.{ctx});
+    if (w.isLast()) {
+        if (try imgui.Button(.{ ctx, "Finish" })) {
+            wizard.writeReport(w, globals.resource_path) catch |err| log.err("report write failed: {s}", .{@errorName(err)});
+            w.stop();
+        }
+    } else {
+        if (try imgui.Button(.{ ctx, "Next" })) w.next();
+    }
+    try imgui.SameLine(.{ctx});
+    if (try imgui.Button(.{ ctx, "Stop" })) {
+        wizard.writeReport(w, globals.resource_path) catch {};
+        w.stop();
+    }
 }
 
 fn drawCell(idx: usize, vals: *const [8]f64, mapped: *const [8]bool, active: MftActiveModule) !void {
