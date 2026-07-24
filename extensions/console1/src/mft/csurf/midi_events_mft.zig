@@ -53,12 +53,12 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
 
     const module = MappableModule.fromActive(globals.mft.active_module) orelse return;
     const track = globals.current_track orelse return;
-    const resolved = mft_fx.resolveFx(globals, track, module) orelse return;
-    const param = resolved.mapping.slotToParam(slot) orelse return;
+    const routing = mft_fx.resolveModule(globals, track, module);
+    const target = routing.targets[slot] orelse return;
 
-    const current = reaper.TrackFX_GetParamNormalized(track, resolved.fx_index, @intCast(param));
+    const current = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
     const new_val = std.math.clamp(current + @as(f64, delta_f32), 0.0, 1.0);
-    _ = reaper.TrackFX_SetParamNormalized(track, resolved.fx_index, @intCast(param), new_val);
+    _ = reaper.TrackFX_SetParamNormalized(track, target.fx_index, @intCast(target.param), new_val);
 
     if (globals.m_midi_out) |mo| {
         midi_out.sendRingUpdate(mo, slot, @floatCast(new_val));

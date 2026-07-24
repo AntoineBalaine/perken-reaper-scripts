@@ -67,12 +67,23 @@ knob_8 = 10
 
 Maps live under `Data/Perken/MFT/maps/factory/<MODULE>/<fx_name>/default.ini`,
 where `<MODULE>` is IO, GATE, EQ, or COMP. When an encoder is turned, the
-extension scans the current track's FX chain for the first FX whose name has a
-map for the active module.
+extension scans the current track's FX chain and merges every FX that has a map
+for the active module: each FX fills the encoder slots its map defines, and the
+first FX to claim a slot wins.
 
-Factory default maps for ReaEQ, ReaComp, ReaGate, and the RBJ filters are
+The IO module folds the Console One input and output plugins into one surface.
+Input plugins (the RBJ filters, the two volume smoothers) map to knobs 1 to 4;
+output plugins (ReaAnalog, Saturation) map to knobs 5 to 8. So an input plugin
+and an output plugin on the same track drive one IO panel together without
+colliding.
+
+Factory maps for ReaEQ, ReaComp, ReaGate, and the five input/output plugins are
 embedded in the binary and written to disk on first run. They are derived from
 the Console One factory maps.
+
+Note: the extension does not yet auto-insert the plugins onto the track; it maps
+whatever is already there. Auto-loading the IO plugins on entering IO mode is a
+planned follow-up.
 
 ## On-screen panel
 

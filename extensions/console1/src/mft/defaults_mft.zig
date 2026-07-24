@@ -20,7 +20,14 @@ const factory_maps = [_]FactoryMap{
     .{ .module_dir = "EQ", .fx_name = "VST: ReaEQ (Cockos)", .content = @embedFile("resources/maps/factory/EQ/reaeq/default.ini") },
     .{ .module_dir = "COMP", .fx_name = "VST: ReaComp (Cockos)", .content = @embedFile("resources/maps/factory/COMP/reacomp/default.ini") },
     .{ .module_dir = "GATE", .fx_name = "VST: ReaGate (Cockos)", .content = @embedFile("resources/maps/factory/GATE/reagate/default.ini") },
+    // IO folds the Console One input and output plugins into one module. Input
+    // plugins map to knobs 1-4, output plugins to knobs 5-8, so an input and an
+    // output plugin on the same track merge onto one surface without colliding.
     .{ .module_dir = "IO", .fx_name = "JS: RBJ Highpass/Lowpass Filters", .content = @embedFile("resources/maps/factory/IO/rbj_filters/default.ini") },
+    .{ .module_dir = "IO", .fx_name = "JS: Volume/Pan Smoother v5", .content = @embedFile("resources/maps/factory/IO/vol_pan/default.ini") },
+    .{ .module_dir = "IO", .fx_name = "JS: Volume Adjustment", .content = @embedFile("resources/maps/factory/IO/vol_adj/default.ini") },
+    .{ .module_dir = "IO", .fx_name = "JS: ReaAnalog", .content = @embedFile("resources/maps/factory/IO/reaanalog/default.ini") },
+    .{ .module_dir = "IO", .fx_name = "JS: Saturation", .content = @embedFile("resources/maps/factory/IO/saturation/default.ini") },
 };
 
 pub fn ensureConfigPath(fs_ops: FileSystemOps) !void {

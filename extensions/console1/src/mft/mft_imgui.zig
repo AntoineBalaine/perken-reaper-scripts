@@ -92,14 +92,11 @@ fn draw(globals: *MftGlobals) !void {
     var mapped = [_]bool{false} ** 8;
     if (MappableModule.fromActive(active)) |module| {
         if (globals.current_track) |track| {
-            if (mft_fx.resolveFx(globals, track, module)) |resolved| {
-                var slot: u3 = 0;
-                while (true) : (slot += 1) {
-                    if (resolved.mapping.slotToParam(slot)) |param| {
-                        vals[slot] = reaper.TrackFX_GetParamNormalized(track, resolved.fx_index, @intCast(param));
-                        mapped[slot] = true;
-                    }
-                    if (slot == 7) break;
+            const routing = mft_fx.resolveModule(globals, track, module);
+            for (routing.targets, 0..) |maybe_target, slot| {
+                if (maybe_target) |target| {
+                    vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
+                    mapped[slot] = true;
                 }
             }
         }
