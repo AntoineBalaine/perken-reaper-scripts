@@ -9,6 +9,7 @@ const MappableModule = mappings.MappableModule;
 const mft_fx = @import("mft_fx.zig");
 const mft_transport = @import("mft_transport.zig");
 const mft_settings = @import("mft_settings.zig");
+const mft_theme = @import("mft_theme.zig");
 const wizard = @import("mft_wizard.zig");
 const log = std.log.scoped(.mft_imgui);
 
@@ -93,6 +94,10 @@ fn onTimer() callconv(.C) void {
 }
 
 fn draw(globals: *MftGlobals) !void {
+    // Match the Console One palette and style around the whole window.
+    const style = mft_theme.pushStyle(ctx);
+    defer mft_theme.popStyle(ctx, style);
+
     if (!try imgui.Begin(.{ ctx, plugin_name })) {
         imgui.End(.{ctx}) catch {};
         return;

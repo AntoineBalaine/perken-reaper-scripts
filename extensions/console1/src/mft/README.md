@@ -134,6 +134,10 @@ with three side buttons on each edge. The top eight cells show the live value of
 each mapped parameter as a bar; the bottom eight are the module selectors, with
 the active module highlighted in its color.
 
+The panel uses the same color palette and style as the Console One UI. The
+palette is a copy of the Console One theme INI (`resources/default_reaper_theme.ini`),
+pushed as ImGui colors and style vars around the window each frame.
+
 ## Calibration
 
 The MIDI CC numbers, the relative encoding direction, and the LED color and ring
