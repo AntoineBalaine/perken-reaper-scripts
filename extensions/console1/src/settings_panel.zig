@@ -9,7 +9,7 @@ const styles_components = @import("styles_components.zig");
 const FxMaps = @import("mappings_list.zig");
 const TranslationStore = @import("translations.zig").TranslationStore;
 const tr = @import("translations.zig").tr;
-const safePrint = @import("debug_panel.zig").safePrint;
+const safePrint = @import("utils").safePrint;
 
 // Temporary copy for editing
 temp_settings: Preferences,

@@ -33,8 +33,8 @@
             .hash = "zlowcheck-0.0.0-upaXybSvAwBYDrxmhs05Jba16Hrgjvtg0GSU5Y2zF_sk",
         },
         .reaziglib = .{
-            .url = "https://github.com/AntoineBalaine/reaziglib/archive/101a243ea7a8.tar.gz",
-            .hash = "reaziglib-0.0.0-jusUJWkeEAAqi-UlPvfESgtyE5kO5VLlL5u9twVVB0wW",
+            .url = "https://github.com/AntoineBalaine/reaziglib/archive/9615b11904bbf7f9d82ff2c308ca5f258e4a4b27.tar.gz",
+            .hash = "reaziglib-0.0.0-jusUJXMnEACKRQYFVzYfW873sBhSaFkbCoo5HQJk82kE",
         },
     },
     .paths = .{
