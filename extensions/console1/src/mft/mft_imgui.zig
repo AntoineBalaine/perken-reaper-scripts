@@ -18,8 +18,8 @@ const color_fail: c_int = @bitCast(@as(u32, 0xFF5555FF));
 const color_muted: c_int = @bitCast(@as(u32, 0x999999FF));
 
 const plugin_name = "MFT";
-const CELL_W: f64 = 92.0;
-const CELL_H: f64 = 58.0;
+const CELL_W: f64 = 96.0;
+const CELL_H: f64 = 80.0;
 const SIDE_W: f64 = 72.0;
 const SIDE_H: f64 = 26.0;
 
@@ -77,6 +77,18 @@ fn hueToRgb(hue: u8) c_int {
 fn moduleColor(globals: *MftGlobals, module: MftActiveModule) c_int {
     return hueToRgb(globals.preferences.colorForModule(module));
 }
+
+// Per-frame display data for the eight top-row knobs of the active module.
+const KnobInfo = struct {
+    vals: [8]f64 = [_]f64{0.0} ** 8,
+    mapped: [8]bool = [_]bool{false} ** 8,
+    name_bufs: [8][64:0]u8 = undefined,
+    has_name: [8]bool = [_]bool{false} ** 8,
+
+    fn name(self: *const KnobInfo, slot: usize) [:0]const u8 {
+        return std.mem.sliceTo(&self.name_bufs[slot], 0);
+    }
+};
 
 // Render a normalized value as an eight-segment bar like "[####----]".
 fn gauge(value: f64, buf: *[16:0]u8) [:0]const u8 {
@@ -153,16 +165,18 @@ fn draw(globals: *MftGlobals) !void {
         mft_settings.markUnsynced();
     }
 
-    // Read the eight top-row parameter values for the active module.
-    var vals = [_]f64{0.0} ** 8;
-    var mapped = [_]bool{false} ** 8;
+    // Read the eight top-row parameter values and names for the active module.
+    var info = KnobInfo{};
     if (MappableModule.fromActive(active)) |module| {
         if (globals.current_track) |track| {
             const routing = mft_fx.resolveModule(globals, track, module);
             for (routing.targets, 0..) |maybe_target, slot| {
                 if (maybe_target) |target| {
-                    vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
-                    mapped[slot] = true;
+                    info.vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
+                    info.mapped[slot] = true;
+                    if (reaper.TrackFX_GetParamName(track, target.fx_index, @intCast(target.param), @ptrCast(&info.name_bufs[slot]), 64)) {
+                        info.has_name[slot] = true;
+                    }
                 }
             }
         }
@@ -184,7 +198,7 @@ fn draw(globals: *MftGlobals) !void {
         while (col < 4) : (col += 1) {
             const idx = row * 4 + col;
             if (col > 0) try imgui.SameLine(.{ctx});
-            try drawCell(globals, idx, &vals, &mapped, active);
+            try drawCell(globals, idx, &info, active);
         }
     }
     imgui.EndGroup(.{ctx}) catch {};
@@ -203,7 +217,7 @@ fn draw(globals: *MftGlobals) !void {
 // Draw one knob or module-selector cell as a bordered box holding its label and,
 // depending on the mode, its value and press action. Module cells carry the
 // module's color on the border and show the mode name under the knob label.
-fn drawCell(globals: *MftGlobals, idx: usize, vals: *const [8]f64, mapped: *const [8]bool, active: MftActiveModule) !void {
+fn drawCell(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: MftActiveModule) !void {
     var id_buf: [12:0]u8 = undefined;
     const cell_id = std.fmt.bufPrintZ(&id_buf, "##c{d}", .{idx}) catch "##c";
 
@@ -211,25 +225,36 @@ fn drawCell(globals: *MftGlobals, idx: usize, vals: *const [8]f64, mapped: *cons
     if (border_color) |bc| try imgui.PushStyleColor(.{ ctx, imgui.Col_Border, bc });
     defer if (border_color != null) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
-    _ = try imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border });
+    // NoScrollbar keeps a too-tight box from spawning (and, in ReaImGui,
+    // crashing on) a scrollbar; the box is sized to fit its lines.
+    _ = try imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border, imgui.WindowFlags_NoScrollbar });
     defer imgui.EndChild(.{ctx}) catch {};
 
     var lbl_buf: [8:0]u8 = undefined;
     const klabel = std.fmt.bufPrintZ(&lbl_buf, "K{d}", .{idx + 1}) catch "K";
 
     if (idx < 8) {
-        try imgui.Text(.{ ctx, klabel });
         switch (active) {
             // Transport mode shows each encoder's rotation and press function.
             .TRANSPORT => {
+                try imgui.Text(.{ ctx, klabel });
                 try imgui.Text(.{ ctx, mft_transport.rotationLabel(idx) });
                 try imgui.Text(.{ ctx, mft_transport.pressLabel(idx) });
             },
-            .SETTINGS => try imgui.Text(.{ ctx, "-" }),
-            // A mappable module shows the value gauge and the press action.
+            .SETTINGS => {
+                try imgui.Text(.{ ctx, klabel });
+                try imgui.Text(.{ ctx, "-" });
+            },
+            // A mappable module: the mapped parameter's name is the knob label,
+            // shown above the value gauge and the press action.
             else => {
+                if (info.has_name[idx]) {
+                    try imgui.Text(.{ ctx, info.name(idx) });
+                } else {
+                    try imgui.Text(.{ ctx, klabel });
+                }
                 var gauge_buf: [16:0]u8 = undefined;
-                try imgui.Text(.{ ctx, gauge(if (mapped[idx]) vals[idx] else 0.0, &gauge_buf) });
+                try imgui.Text(.{ ctx, gauge(if (info.mapped[idx]) info.vals[idx] else 0.0, &gauge_buf) });
                 try imgui.Text(.{ ctx, "hold:fine" });
             },
         }

@@ -139,9 +139,10 @@ default plugin per slot.
 
 When ReaImGui is present, a panel mirrors the hardware: a 4x4 grid of encoders
 with three labeled side buttons on each edge (L1 chain, R1 mute, R2 solo, R3
-phase). Each encoder is drawn as a bordered box holding its knob label and, for
-the top eight, the value gauge and the press action (in transport mode the
-rotation and press functions). The bottom eight cells are the module selectors:
+phase). Each encoder is drawn as a bordered box holding its label and, for the top
+eight, the value gauge and the press action (in transport mode the rotation and
+press functions). In an FX-control mode a mapped knob shows the mapped
+parameter's name as its label. The bottom eight cells are the module selectors:
 each shows its knob label above the mode it selects, with the module's border and
 the active module's text drawn in that module's color.
 
