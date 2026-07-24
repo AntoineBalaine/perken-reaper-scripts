@@ -138,12 +138,19 @@ default plugin per slot.
 ## On-screen panel
 
 When ReaImGui is present, a panel mirrors the hardware: a 4x4 grid of encoders
-with three side buttons on each edge. The top eight cells show the live value of
-each mapped parameter as a bar; the bottom eight are the module selectors, with
-the active module highlighted in its color.
+with three labeled side buttons on each edge (L1 chain, R1 mute, R2 solo, R3
+phase). Each encoder is drawn as a bordered box holding its knob label and, for
+the top eight, the value gauge and the press action (in transport mode the
+rotation and press functions). The bottom eight cells are the module selectors:
+each shows its knob label above the mode it selects, with the module's border and
+the active module's text drawn in that module's color.
 
-The panel uses the same color palette and style as the Console One UI. The
-palette is a copy of the Console One theme INI (`resources/default_reaper_theme.ini`),
+The active-mode text and each module cell's border use the controller's own color
+code for that mode (the LED hue converted to RGB), so the panel matches the
+hardware colors.
+
+The rest of the panel uses the same color palette and style as the Console One
+UI, a copy of the Console One theme INI (`resources/default_reaper_theme.ini`)
 pushed as ImGui colors and style vars around the window each frame.
 
 ## Calibration

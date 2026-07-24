@@ -18,28 +18,64 @@ const color_fail: c_int = @bitCast(@as(u32, 0xFF5555FF));
 const color_muted: c_int = @bitCast(@as(u32, 0x999999FF));
 
 const plugin_name = "MFT";
+const CELL_W: f64 = 92.0;
+const CELL_H: f64 = 58.0;
+const SIDE_W: f64 = 72.0;
+const SIDE_H: f64 = 26.0;
 
 var ctx: imgui.ContextPtr = null;
 var disabled = false;
 var ready = false;
 
-// Encoder labels for the 4x4 grid. The top eight are parameter knobs; the
-// bottom eight are module selectors (last two reserved).
-const knob_labels = [8][:0]const u8{ "K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8" };
-const module_labels = [6][:0]const u8{ "IO", "GATE", "EQ", "COMP", "SET", "TRANS" };
-const left_labels = [3][:0]const u8{ "L1", "L2", "L3" };
-const right_labels = [3][:0]const u8{ "R1", "R2", "R3" };
+// Short module names shown on the bottom-row selector cells.
+const module_labels = [6][:0]const u8{ "IO", "GATE", "EQ", "COMP", "SETTINGS", "TRANSPORT" };
 
-// Panel display colors per module (packed 0xRRGGBBAA), chosen to echo the
-// hardware LED hues.
-fn uiColor(module: MftActiveModule) c_int {
-    return switch (module) {
-        .IO => @bitCast(@as(u32, 0x33CCFFFF)),
-        .GATE => @bitCast(@as(u32, 0xFF99CCFF)),
-        .EQ => @bitCast(@as(u32, 0x66CC66FF)),
-        .COMP => @bitCast(@as(u32, 0xFF5555FF)),
-        .SETTINGS, .TRANSPORT => @bitCast(@as(u32, 0x999999FF)),
-    };
+// Convert an HSV color (h in degrees, s and v in 0..1) to a packed 0xRRGGBBAA
+// ImGui color.
+fn hsvToRgb(h: f32, s: f32, v: f32) c_int {
+    const c = v * s;
+    const hp = h / 60.0;
+    const x = c * (1.0 - @abs(@mod(hp, 2.0) - 1.0));
+    var r: f32 = 0;
+    var g: f32 = 0;
+    var b: f32 = 0;
+    if (hp < 1.0) {
+        r = c;
+        g = x;
+    } else if (hp < 2.0) {
+        r = x;
+        g = c;
+    } else if (hp < 3.0) {
+        g = c;
+        b = x;
+    } else if (hp < 4.0) {
+        g = x;
+        b = c;
+    } else if (hp < 5.0) {
+        r = x;
+        b = c;
+    } else {
+        r = c;
+        b = x;
+    }
+    const m = v - c;
+    const ri: u32 = @intFromFloat(std.math.clamp((r + m) * 255.0, 0.0, 255.0));
+    const gi: u32 = @intFromFloat(std.math.clamp((g + m) * 255.0, 0.0, 255.0));
+    const bi: u32 = @intFromFloat(std.math.clamp((b + m) * 255.0, 0.0, 255.0));
+    return @bitCast((ri << 24) | (gi << 16) | (bi << 8) | 0xFF);
+}
+
+// Map the MFT color-wheel hue (0-127) to an RGB color for the panel, so the UI
+// matches the controller's color code. On the wheel red sits near 0x56 (86);
+// increasing hue moves toward blue below it and purple above, so the HSV angle
+// is roughly (86 - hue) * (360/128).
+fn hueToRgb(hue: u8) c_int {
+    const deg = @mod((86.0 - @as(f32, @floatFromInt(hue))) * (360.0 / 128.0), 360.0);
+    return hsvToRgb(deg, 1.0, 1.0);
+}
+
+fn moduleColor(globals: *MftGlobals, module: MftActiveModule) c_int {
+    return hueToRgb(globals.preferences.colorForModule(module));
 }
 
 // Render a normalized value as an eight-segment bar like "[####----]".
@@ -105,7 +141,7 @@ fn draw(globals: *MftGlobals) !void {
     defer imgui.End(.{ctx}) catch {};
 
     const active = globals.mft.active_module;
-    try imgui.TextColored(.{ ctx, uiColor(active), @tagName(active) });
+    try imgui.TextColored(.{ ctx, moduleColor(globals, active), @tagName(active) });
     try imgui.Separator(.{ctx});
 
     // Settings mode draws its form above the grid; otherwise the buffers stay
@@ -132,11 +168,11 @@ fn draw(globals: *MftGlobals) !void {
         }
     }
 
-    // Left side buttons.
+    // Left side buttons, labeled with their function.
     try imgui.BeginGroup(.{ctx});
-    for (left_labels) |lbl| {
-        _ = try imgui.Button(.{ ctx, lbl, 34.0, 24.0 });
-    }
+    _ = try imgui.Button(.{ ctx, "L1 Chain", SIDE_W, SIDE_H });
+    _ = try imgui.Button(.{ ctx, "L2", SIDE_W, SIDE_H });
+    _ = try imgui.Button(.{ ctx, "L3", SIDE_W, SIDE_H });
     imgui.EndGroup(.{ctx}) catch {};
     try imgui.SameLine(.{ctx});
 
@@ -148,20 +184,72 @@ fn draw(globals: *MftGlobals) !void {
         while (col < 4) : (col += 1) {
             const idx = row * 4 + col;
             if (col > 0) try imgui.SameLine(.{ctx});
-            try drawCell(idx, &vals, &mapped, active);
+            try drawCell(globals, idx, &vals, &mapped, active);
         }
     }
     imgui.EndGroup(.{ctx}) catch {};
     try imgui.SameLine(.{ctx});
 
-    // Right side buttons.
+    // Right side buttons, labeled with their function.
     try imgui.BeginGroup(.{ctx});
-    for (right_labels) |lbl| {
-        _ = try imgui.Button(.{ ctx, lbl, 34.0, 24.0 });
-    }
+    _ = try imgui.Button(.{ ctx, "R1 Mute", SIDE_W, SIDE_H });
+    _ = try imgui.Button(.{ ctx, "R2 Solo", SIDE_W, SIDE_H });
+    _ = try imgui.Button(.{ ctx, "R3 Phase", SIDE_W, SIDE_H });
     imgui.EndGroup(.{ctx}) catch {};
 
     try drawWizard(globals);
+}
+
+// Draw one knob or module-selector cell as a bordered box holding its label and,
+// depending on the mode, its value and press action. Module cells carry the
+// module's color on the border and show the mode name under the knob label.
+fn drawCell(globals: *MftGlobals, idx: usize, vals: *const [8]f64, mapped: *const [8]bool, active: MftActiveModule) !void {
+    var id_buf: [12:0]u8 = undefined;
+    const cell_id = std.fmt.bufPrintZ(&id_buf, "##c{d}", .{idx}) catch "##c";
+
+    const border_color: ?c_int = if (moduleForCell(idx)) |m| moduleColor(globals, m) else null;
+    if (border_color) |bc| try imgui.PushStyleColor(.{ ctx, imgui.Col_Border, bc });
+    defer if (border_color != null) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+
+    _ = try imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border });
+    defer imgui.EndChild(.{ctx}) catch {};
+
+    var lbl_buf: [8:0]u8 = undefined;
+    const klabel = std.fmt.bufPrintZ(&lbl_buf, "K{d}", .{idx + 1}) catch "K";
+
+    if (idx < 8) {
+        try imgui.Text(.{ ctx, klabel });
+        switch (active) {
+            // Transport mode shows each encoder's rotation and press function.
+            .TRANSPORT => {
+                try imgui.Text(.{ ctx, mft_transport.rotationLabel(idx) });
+                try imgui.Text(.{ ctx, mft_transport.pressLabel(idx) });
+            },
+            .SETTINGS => try imgui.Text(.{ ctx, "-" }),
+            // A mappable module shows the value gauge and the press action.
+            else => {
+                var gauge_buf: [16:0]u8 = undefined;
+                try imgui.Text(.{ ctx, gauge(if (mapped[idx]) vals[idx] else 0.0, &gauge_buf) });
+                try imgui.Text(.{ ctx, "hold:fine" });
+            },
+        }
+        return;
+    }
+
+    // Module selector cells: label above the mode it selects, on its own line.
+    if (moduleForCell(idx)) |module| {
+        var txt_buf: [24:0]u8 = undefined;
+        const txt = std.fmt.bufPrintZ(&txt_buf, "{s}\n{s}", .{ klabel, module_labels[idx - 8] }) catch klabel;
+        if (module == active) {
+            try imgui.TextColored(.{ ctx, moduleColor(globals, module), txt });
+        } else {
+            try imgui.Text(.{ ctx, txt });
+        }
+    } else {
+        var txt_buf: [12:0]u8 = undefined;
+        const txt = std.fmt.bufPrintZ(&txt_buf, "{s}\n-", .{klabel}) catch klabel;
+        try imgui.Text(.{ ctx, txt });
+    }
 }
 
 fn drawWizard(globals: *MftGlobals) !void {
@@ -218,93 +306,26 @@ fn drawWizard(globals: *MftGlobals) !void {
     }
 }
 
-fn drawCell(idx: usize, vals: *const [8]f64, mapped: *const [8]bool, active: MftActiveModule) !void {
-    try imgui.BeginGroup(.{ctx});
-    defer imgui.EndGroup(.{ctx}) catch {};
-
-    if (idx < 8) {
-        try imgui.Text(.{ ctx, knob_labels[idx] });
-        switch (active) {
-            // Transport mode labels the top row with each encoder's rotation
-            // function and its press function.
-            .TRANSPORT => {
-                try imgui.Text(.{ ctx, mft_transport.rotationLabel(idx) });
-                try imgui.Text(.{ ctx, mft_transport.pressLabel(idx) });
-            },
-            // Settings mode has no options yet.
-            .SETTINGS => try imgui.Text(.{ ctx, "-" }),
-            // A mappable module shows an eight-segment ASCII gauge for the value.
-            // Text keeps the panel testable against the mock ImGui (which does
-            // not mock ProgressBar).
-            else => {
-                var gauge_buf: [16:0]u8 = undefined;
-                try imgui.Text(.{ ctx, gauge(if (mapped[idx]) vals[idx] else 0.0, &gauge_buf) });
-            },
-        }
-        return;
-    }
-
-    if (moduleForCell(idx)) |module| {
-        const is_active = module == active;
-        if (is_active) try imgui.PushStyleColor(.{ ctx, imgui.Col_Button, uiColor(module) });
-        defer if (is_active) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
-        _ = try imgui.Button(.{ ctx, module_labels[idx - 8], 72.0, 30.0 });
-    } else {
-        // Reserved encoder: a placeholder with a unique id.
-        const label = if (idx == 14) "-##14" else "-##15";
-        _ = try imgui.Button(.{ ctx, label, 72.0, 30.0 });
-    }
-}
-
-// Run the panel against the mock ImGui and assert every Begin/End, group, and
-// style-color push/pop is balanced. This is the balance checker Antoine's
-// reaziglib provides; it catches a stray End or an unpopped style at compile of
-// the test run rather than as a runtime ImGui error.
+// Run the panel against the mock ImGui and assert every window, child, group,
+// and style-color push/pop is balanced.
 const MockImGui = @import("mock_imgui").MockImGui;
 
-test "panel: begin/end pairs balanced (idle)" {
+fn assertPanelBalanced(module: MftActiveModule, calibrating: bool) !void {
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
     mock.install();
     defer mock.restore();
 
     var globals: MftGlobals = .{};
+    globals.mft.active_module = module;
+    if (calibrating) globals.wizard.start();
     try draw(&globals);
     try mock.assertBalanced();
 }
 
-test "panel: begin/end pairs balanced (calibration active)" {
-    var mock = MockImGui.init(std.testing.allocator);
-    defer mock.deinit();
-    mock.install();
-    defer mock.restore();
-
-    var globals: MftGlobals = .{};
-    globals.wizard.start();
-    try draw(&globals);
-    try mock.assertBalanced();
-}
-
-test "panel: begin/end pairs balanced (transport mode)" {
-    var mock = MockImGui.init(std.testing.allocator);
-    defer mock.deinit();
-    mock.install();
-    defer mock.restore();
-
-    var globals: MftGlobals = .{};
-    globals.mft.active_module = .TRANSPORT;
-    try draw(&globals);
-    try mock.assertBalanced();
-}
-
-test "panel: begin/end pairs balanced (settings mode)" {
-    var mock = MockImGui.init(std.testing.allocator);
-    defer mock.deinit();
-    mock.install();
-    defer mock.restore();
-
-    var globals: MftGlobals = .{};
-    globals.mft.active_module = .SETTINGS;
-    try draw(&globals);
-    try mock.assertBalanced();
+test "panel balanced across modes" {
+    try assertPanelBalanced(.IO, false);
+    try assertPanelBalanced(.TRANSPORT, false);
+    try assertPanelBalanced(.SETTINGS, false);
+    try assertPanelBalanced(.IO, true);
 }
