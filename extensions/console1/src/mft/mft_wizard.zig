@@ -49,7 +49,7 @@ pub const steps: [STEP_COUNT]Step = blk: {
 
 fn evaluate(step: Step, channel: u8, cc: u8, val: u8) Status {
     return switch (step.kind) {
-        .rotate => if (channel == mft.ENCODER_ROT_CHANNEL and cc == step.index and mft.decodeTwosComplement(val) > 0)
+        .rotate => if (channel == mft.ENCODER_ROT_CHANNEL and cc == step.index and mft.decodeRelative(val) > 0)
             .pass
         else
             .fail,
@@ -187,21 +187,21 @@ test "wizard: steps cover all controls" {
 }
 
 test "wizard: evaluate rotate direction and channel" {
-    // Clockwise on the right encoder passes.
-    try std.testing.expectEqual(Status.pass, evaluate(.{ .kind = .rotate, .index = 0 }, mft.ENCODER_ROT_CHANNEL, 0, 1));
-    // Counter-clockwise (127 = -1) fails, flagging an inverted direction.
-    try std.testing.expectEqual(Status.fail, evaluate(.{ .kind = .rotate, .index = 0 }, mft.ENCODER_ROT_CHANNEL, 0, 127));
+    // Clockwise on the right encoder (65 = +1) passes.
+    try std.testing.expectEqual(Status.pass, evaluate(.{ .kind = .rotate, .index = 0 }, mft.ENCODER_ROT_CHANNEL, 0, 65));
+    // Counter-clockwise (63 = -1) fails, flagging an inverted direction.
+    try std.testing.expectEqual(Status.fail, evaluate(.{ .kind = .rotate, .index = 0 }, mft.ENCODER_ROT_CHANNEL, 0, 63));
     // Wrong CC fails.
-    try std.testing.expectEqual(Status.fail, evaluate(.{ .kind = .rotate, .index = 0 }, mft.ENCODER_ROT_CHANNEL, 5, 1));
+    try std.testing.expectEqual(Status.fail, evaluate(.{ .kind = .rotate, .index = 0 }, mft.ENCODER_ROT_CHANNEL, 5, 65));
 }
 
 test "wizard: onMidi captures once and holds" {
     var s = WizardState{};
     s.start();
-    s.onMidi(mft.ENCODER_ROT_CHANNEL, 0, 1);
+    s.onMidi(mft.ENCODER_ROT_CHANNEL, 0, 65);
     try std.testing.expectEqual(Status.pass, s.results[0].status);
     // A second event for the same step is ignored.
-    s.onMidi(mft.ENCODER_ROT_CHANNEL, 0, 127);
+    s.onMidi(mft.ENCODER_ROT_CHANNEL, 0, 63);
     try std.testing.expectEqual(Status.pass, s.results[0].status);
-    try std.testing.expectEqual(@as(u8, 1), s.results[0].obs_val);
+    try std.testing.expectEqual(@as(u8, 65), s.results[0].obs_val);
 }

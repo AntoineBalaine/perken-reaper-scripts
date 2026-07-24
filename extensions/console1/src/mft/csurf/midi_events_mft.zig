@@ -53,7 +53,7 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     if (cc >= 8) return;
     const slot: u3 = @intCast(cc);
 
-    const delta = mft.decodeTwosComplement(val);
+    const delta = mft.decodeRelative(val);
     if (delta == 0) return;
     const sensitivity: f32 = if (globals.mft.isHeld(cc)) mft.FINE_SENSITIVITY_MULTIPLIER else 1.0;
     const delta_f32 = @as(f32, @floatFromInt(delta)) * mft.BASE_SENSITIVITY * sensitivity;
@@ -107,5 +107,7 @@ fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
     _ = cc;
     _ = val;
     _ = globals;
-    // TODO phase 4.9: track previous / next (pending design decision)
+    // Unused by design: the extension follows REAPER's last-touched track, so
+    // the side buttons have no function. Hardware calibration found them on
+    // channel 4, CCs 8-13 (see mft.SIDE_BUTTON_CCS) if a use is ever assigned.
 }

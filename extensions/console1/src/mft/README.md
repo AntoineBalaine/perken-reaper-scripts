@@ -115,8 +115,8 @@ capture and report whatever arrives, which is how you discover their real CCs.
 Every step is also logged to the console (run REAPER from a terminal to see it),
 and Finish or Stop writes a full report to
 `Data/Perken/MFT/wizard_report.md`. A failed encoder-direction step means the
-sign in `decodeTwosComplement` needs flipping; an unexpected CC means the CC map
-is offset.
+relative decode in `decodeRelative` is off; an unexpected CC means the CC map is
+offset.
 
 The panel also has an LED test button. While it runs, every knob cycles through
 the MFT color palette and the rings sweep, so the color and ring feedback path

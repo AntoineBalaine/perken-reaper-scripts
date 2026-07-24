@@ -17,16 +17,22 @@ pub const ModuleBtnCC = enum(u8) {
     TRANSPORT = 13,
 };
 
-pub fn decodeTwosComplement(val: u8) i8 {
-    if (val <= 64) return @intCast(val);
-    return @as(i8, @truncate(@as(i16, val) - 128));
+// The six side buttons, discovered on hardware: channel 4, CCs 8-13.
+pub const SIDE_BUTTON_CCS = [6]u8{ 8, 9, 10, 11, 12, 13 };
+
+// Decode a relative encoder value into a signed delta. The MFT relative mode is
+// centered on 64: one click clockwise sends 65 (0x41), one click
+// counter-clockwise sends 63 (0x3F), and faster turns step further from 64
+// (confirmed on hardware via the calibration wizard). So the delta is val - 64.
+pub fn decodeRelative(val: u8) i8 {
+    return @as(i8, @intCast(val)) - 64;
 }
 
-test decodeTwosComplement {
+test decodeRelative {
     const t = std.testing;
-    try t.expectEqual(@as(i8, 0), decodeTwosComplement(0));
-    try t.expectEqual(@as(i8, 1), decodeTwosComplement(1));
-    try t.expectEqual(@as(i8, 64), decodeTwosComplement(64));
-    try t.expectEqual(@as(i8, -1), decodeTwosComplement(127));
-    try t.expectEqual(@as(i8, -63), decodeTwosComplement(65));
+    try t.expectEqual(@as(i8, 0), decodeRelative(64)); // no movement
+    try t.expectEqual(@as(i8, 1), decodeRelative(65)); // one click clockwise
+    try t.expectEqual(@as(i8, -1), decodeRelative(63)); // one click counter-clockwise
+    try t.expectEqual(@as(i8, 63), decodeRelative(127)); // fast clockwise
+    try t.expectEqual(@as(i8, -63), decodeRelative(1)); // fast counter-clockwise
 }
