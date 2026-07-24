@@ -58,10 +58,16 @@ has a rotation function and a press function:
 
 - Rotations: jog, scrub, zoom horizontal, zoom vertical, playrate, grid, track
   select, marker jog.
-- Presses reset or toggle their own knob's function: pressing the playrate knob
-  resets the playrate to 1, pressing the grid knob toggles snap, and pressing the
-  marker-jog knob inserts a marker at the cursor or removes the one already
-  there. The other encoder presses are unassigned in transport mode.
+- Presses reset or toggle their own knob's function: the zoom-horizontal and
+  zoom-vertical knob presses fit the project horizontally and fit/minimize the
+  tracks vertically, the track-select knob press inserts a new track, the
+  playrate knob press resets the playrate to 1, the grid knob press toggles
+  snap, and the marker-jog knob press inserts a marker at the cursor or removes
+  the one already there.
+- Experiment: knob 3 (zoom horizontal) can be turned while held to zoom
+  vertically instead. Turning it normally zooms horizontally; holding it and
+  turning zooms vertically; a plain click (press and release without turning)
+  fits the project horizontally.
 
 ### Settings mode
 

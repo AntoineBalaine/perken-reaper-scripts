@@ -61,12 +61,17 @@ fn adjustRate(delta: i8) void {
     reaper.CSurf_OnPlayRateChange(new_rate);
 }
 
+// Vertical zoom step, used by knob 4's rotation and by knob 3 when pressed.
+pub fn zoomVertical(delta: i8) void {
+    reaper.CSurf_OnZoom(0, delta);
+}
+
 pub fn onRotate(idx: u3, delta: i8) void {
     switch (idx) {
         0 => reaper.CSurf_OnRewFwd(0, delta),
         1 => reaper.CSurf_ScrubAmt((1.0 / 128.0) * @as(f64, @floatFromInt(delta))),
         2 => reaper.CSurf_OnZoom(delta, 0),
-        3 => reaper.CSurf_OnZoom(0, delta),
+        3 => zoomVertical(delta),
         4 => adjustRate(delta),
         5 => reaper.Main_OnCommand(if (delta > 0) CMD_GRID_MULTIPLY else CMD_GRID_DIVIDE, 0),
         6 => reaper.Main_OnCommand(if (delta > 0) CMD_NEXT_TRACK else CMD_PREV_TRACK, 0),

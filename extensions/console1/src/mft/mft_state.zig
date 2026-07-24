@@ -13,6 +13,10 @@ pub const MftState = struct {
     last_fx_index: ?c_int = null,
     // The highlighted row in settings mode (0..SETTINGS_ITEM_COUNT-1).
     settings_cursor: u8 = 0,
+    // Whether an encoder was turned while held in transport mode, so a press was
+    // a press-and-turn gesture rather than a click. Used by the knob-3 vertical
+    // zoom experiment.
+    transport_turned: bool = false,
 
     pub fn setHeld(self: *MftState, encoder_idx: u8) void {
         std.debug.assert(encoder_idx < 16);

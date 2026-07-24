@@ -61,7 +61,16 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     // Transport mode drives its own continuous functions; settings mode has none
     // yet. Only a mappable module routes to FX parameters.
     switch (globals.mft.active_module) {
-        .TRANSPORT => return mft_transport.onRotate(slot, delta),
+        .TRANSPORT => {
+            // Knob 3 held + turned does vertical zoom instead of horizontal.
+            if (slot == 2 and globals.mft.isHeld(2)) {
+                globals.mft.transport_turned = true;
+                mft_transport.zoomVertical(delta);
+            } else {
+                mft_transport.onRotate(slot, delta);
+            }
+            return;
+        },
         .SETTINGS => return settingsRotate(globals, slot, delta),
         else => {},
     }
@@ -138,13 +147,32 @@ fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
     }
 }
 
+// Knob 3 uses press-and-turn for vertical zoom, so its click action (fit
+// horizontal) is deferred to release and suppressed when a turn happened while
+// held. The other knobs fire their press action immediately.
+fn transportButton(globals: *MftGlobals, idx: u3, pressed: bool) void {
+    if (idx == 2) {
+        if (pressed) {
+            globals.mft.setHeld(2);
+            globals.mft.transport_turned = false;
+        } else {
+            if (globals.mft.isHeld(2) and !globals.mft.transport_turned) {
+                mft_transport.onPress(2);
+            }
+            globals.mft.clearHeld(2);
+        }
+        return;
+    }
+    if (pressed) mft_transport.onPress(idx);
+}
+
 fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     const pressed = val == 127;
     if (cc < 8) {
         // Presses on the top two rows depend on the active mode. In a mappable
         // module they arm fine-tune; in transport mode they drive transport.
         switch (globals.mft.active_module) {
-            .TRANSPORT => if (pressed) mft_transport.onPress(@intCast(cc)),
+            .TRANSPORT => transportButton(globals, @intCast(cc), pressed),
             .SETTINGS => {},
             else => if (pressed) globals.mft.setHeld(cc) else globals.mft.clearHeld(cc),
         }
