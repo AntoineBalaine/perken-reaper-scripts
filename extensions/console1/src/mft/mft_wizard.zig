@@ -1,5 +1,6 @@
 const std = @import("std");
 const mft = @import("mft.zig");
+const mft_state = @import("mft_state.zig");
 const log = std.log.scoped(.mft_wizard);
 
 // A guided calibration pass. Because the CC numbers, the relative encoding
@@ -66,6 +67,10 @@ pub const WizardState = struct {
     active: bool = false,
     current: usize = 0,
     results: [STEP_COUNT]Result = [_]Result{.{}} ** STEP_COUNT,
+    // LED test: cycles colours and sweeps the rings so the feedback path can be
+    // eyeballed. `led_frame` advances once per panel frame.
+    led_test_active: bool = false,
+    led_frame: u32 = 0,
 
     pub fn start(self: *WizardState) void {
         self.active = true;
@@ -110,6 +115,17 @@ pub const WizardState = struct {
 
     pub fn isLast(self: *const WizardState) bool {
         return self.current + 1 == STEP_COUNT;
+    }
+
+    // Advance the LED test one frame and return the hue and ring position to
+    // send to every knob. The colour steps through the palette every 20 frames;
+    // the ring sweeps 0..127 each frame.
+    pub fn ledTestAdvance(self: *WizardState) struct { hue: u8, ring: u8 } {
+        const colors = mft_state.LED_TEST_COLORS;
+        const hue = colors[(self.led_frame / 20) % colors.len];
+        const ring: u8 = @intCast(self.led_frame % 128);
+        self.led_frame +%= 1;
+        return .{ .hue = hue, .ring = ring };
     }
 };
 

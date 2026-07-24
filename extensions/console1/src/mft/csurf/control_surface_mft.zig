@@ -94,6 +94,8 @@ export fn zCloseNoReset() callconv(.C) void {
     deinit(my_csurf);
 }
 
+var led_test_running = false;
+
 export fn zRun() callconv(.C) void {
     if (ignore_notifications) return;
     const globals = MftGlobals.get();
@@ -103,6 +105,21 @@ export fn zRun() callconv(.C) void {
         var l: c_int = 0;
         while (c.MDEvtLs_EnumItems(list, &l)) |evts| : (l += 1) {
             midi_events.OnMidiEvent(evts, globals);
+        }
+    }
+
+    // The LED test is toggled from the panel; the sweep runs here so the panel
+    // stays free of the MIDI-out cImport. On stopping, restore the surface.
+    if (globals.m_midi_out) |mo| {
+        if (globals.wizard.led_test_active) {
+            const frame = globals.wizard.ledTestAdvance();
+            midi_out.sendAllColors(mo, frame.hue);
+            midi_out.sendAllRings(mo, frame.ring);
+            led_test_running = true;
+        } else if (led_test_running) {
+            led_test_running = false;
+            midi_out.clearAll(mo);
+            midi_out.sendModuleColor(mo, globals.mft.active_module);
         }
     }
 }

@@ -115,3 +115,13 @@ and Finish or Stop writes a full report to
 `Data/Perken/MFT/wizard_report.md`. A failed encoder-direction step means the
 sign in `decodeTwosComplement` needs flipping; an unexpected CC means the CC map
 is offset.
+
+The panel also has an LED test button. While it runs, every knob cycles through
+the MFT color palette and the rings sweep, so the color and ring feedback path
+can be eyeballed independently of input. Stopping it restores the active
+module's color. The module colors and the test palette are taken from the
+verified values in `synth_map_midiFighter.lua`.
+
+The panel's ImGui layout is checked for balanced Begin/End, group, and
+style-color push/pop pairs by a unit test that runs it against the mock ImGui
+from reaziglib (`zig build mft-test`).

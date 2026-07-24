@@ -39,6 +39,15 @@ fn uiColor(module: MftActiveModule) c_int {
     };
 }
 
+// Render a normalized value as an eight-segment bar like "[####----]".
+fn gauge(value: f64, buf: *[16:0]u8) [:0]const u8 {
+    const clamped = std.math.clamp(value, 0.0, 1.0);
+    const filled: usize = @intFromFloat(@round(clamped * 8.0));
+    var tmp: [8]u8 = undefined;
+    for (0..8) |i| tmp[i] = if (i < filled) '#' else '-';
+    return std.fmt.bufPrintZ(buf, "[{s}]", .{tmp[0..8]}) catch buf[0..0 :0];
+}
+
 // The module a bottom-row encoder selects, or null for the two reserved cells.
 fn moduleForCell(idx: usize) ?MftActiveModule {
     return switch (idx) {
@@ -143,6 +152,16 @@ fn drawWizard(globals: *MftGlobals) !void {
     const w = &globals.wizard;
     try imgui.Separator(.{ctx});
 
+    // LED test toggle. The actual color/ring sweep is driven from the control
+    // surface's run loop; here the panel only flips the flag so it stays free of
+    // the MIDI-out cImport and remains unit-testable.
+    if (w.led_test_active) {
+        if (try imgui.Button(.{ ctx, "Stop LED test" })) w.led_test_active = false;
+    } else if (try imgui.Button(.{ ctx, "LED test" })) {
+        w.led_test_active = true;
+        w.led_frame = 0;
+    }
+
     if (!w.active) {
         if (try imgui.Button(.{ ctx, "Start calibration" })) w.start();
         return;
@@ -189,8 +208,10 @@ fn drawCell(idx: usize, vals: *const [8]f64, mapped: *const [8]bool, active: Mft
 
     if (idx < 8) {
         try imgui.Text(.{ ctx, knob_labels[idx] });
-        const value: f64 = if (mapped[idx]) vals[idx] else 0.0;
-        try imgui.ProgressBar(.{ ctx, value, 72.0, 12.0 });
+        // An eight-segment ASCII gauge for the value. Text keeps the panel
+        // testable against the mock ImGui (which does not mock ProgressBar).
+        var gauge_buf: [16:0]u8 = undefined;
+        try imgui.Text(.{ ctx, gauge(if (mapped[idx]) vals[idx] else 0.0, &gauge_buf) });
         return;
     }
 
@@ -204,4 +225,33 @@ fn drawCell(idx: usize, vals: *const [8]f64, mapped: *const [8]bool, active: Mft
         const label = if (idx == 14) "-##14" else "-##15";
         _ = try imgui.Button(.{ ctx, label, 72.0, 30.0 });
     }
+}
+
+// Run the panel against the mock ImGui and assert every Begin/End, group, and
+// style-color push/pop is balanced. This is the balance checker Antoine's
+// reaziglib provides; it catches a stray End or an unpopped style at compile of
+// the test run rather than as a runtime ImGui error.
+const MockImGui = @import("mock_imgui").MockImGui;
+
+test "panel: begin/end pairs balanced (idle)" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    try draw(&globals);
+    try mock.assertBalanced();
+}
+
+test "panel: begin/end pairs balanced (calibration active)" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.wizard.start();
+    try draw(&globals);
+    try mock.assertBalanced();
 }
