@@ -38,9 +38,34 @@ Encoders are numbered 1 to 16, left to right and top to bottom.
   GATE, EQ, COMP, SETTINGS, or TRANSPORT respectively. Encoders 15 and 16 are
   reserved.
 
+The six side buttons are on channel 4, CCs 8 to 13, ordered L1, L2, L3, R1,
+R2, R3:
+
+- L1 toggles the floating window of the active module's plugin (the last-tweaked
+  FX in that module, else the module's primary FX).
+- R1, R2, R3 toggle mute, solo, and phase invert on the current track.
+- L2 and L3 are unused for now.
+
 The extension drives REAPER's last-touched track, so selecting a track or
 touching one of its FX points the encoders at that track. There is no
-controller-based track selector.
+controller-based track selector; in transport mode encoder 7 scrolls the
+selected track.
+
+### Transport mode
+
+Selecting TRANSPORT reuses the eight top encoders for transport control. Each
+has a rotation function and a press function:
+
+- Rotations: jog, scrub, zoom horizontal, zoom vertical, playrate, grid, track
+  select, marker jog.
+- Presses: loop toggle, loop start, loop end, snap toggle, then the automation
+  modes trim, read, latch, write.
+
+### Settings mode
+
+Selecting SETTINGS currently shows a placeholder. A preferences system for the
+MFT (default plugin per module, encoder sensitivity, LED colors) is planned, at
+which point settings mode will edit those.
 
 ## LED feedback
 
@@ -139,3 +164,15 @@ verified values in `synth_map_midiFighter.lua`.
 The panel's ImGui layout is checked for balanced Begin/End, group, and
 style-color push/pop pairs by a unit test that runs it against the mock ImGui
 from reaziglib (`zig build mft-test`).
+
+## Planned / TODO
+
+- Per-plugin sidechain routing. Because each module has eight push encoders
+  available, sidechain routing can be exposed per plugin rather than as a global
+  gate-to-comp link like the Console One. Deferred as a later feature.
+- A preferences system so settings mode can edit the per-module default plugin,
+  encoder sensitivity, and the LED colors.
+- Full reordering of an FX chain that is already out of order (today only newly
+  inserted FX are positioned).
+- Confirm the physical side-button order (L1-L3, R1-R3) against the CC order
+  8-13 on hardware; the wizard reports the observed CCs.

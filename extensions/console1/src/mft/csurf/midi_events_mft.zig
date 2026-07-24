@@ -56,6 +56,15 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
 
     const delta = mft.decodeRelative(val);
     if (delta == 0) return;
+
+    // Transport mode drives its own continuous functions; settings mode has none
+    // yet. Only a mappable module routes to FX parameters.
+    switch (globals.mft.active_module) {
+        .TRANSPORT => return mft_transport.onRotate(slot, delta),
+        .SETTINGS => return,
+        else => {},
+    }
+
     const sensitivity: f32 = if (globals.mft.isHeld(cc)) mft.FINE_SENSITIVITY_MULTIPLIER else 1.0;
     const delta_f32 = @as(f32, @floatFromInt(delta)) * mft.BASE_SENSITIVITY * sensitivity;
 
@@ -113,14 +122,20 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
 
 fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
     if (val != 127) return;
-    // L1 (side button 1, CC 8) toggles the floating window of the most recently
-    // tweaked plugin. The other side buttons are unused; track selection follows
-    // REAPER's last-touched track. Side-button CCs are 8-13 on channel 4.
-    if (cc == mft.SIDE_BUTTON_CCS[0]) {
-        if (globals.current_track) |track| {
-            if (globals.mft.last_fx_index) |fx| {
-                mft_fx.toggleFxWindow(track, fx);
+    const track = globals.current_track orelse return;
+    // Side buttons on channel 4, CCs 8-13: L1-L3 then R1-R3.
+    // L1 toggles the active module's plugin window; R1-R3 mute, solo, phase.
+    switch (cc) {
+        mft.SIDE_BUTTON_CCS[0] => { // L1
+            if (MappableModule.fromActive(globals.mft.active_module)) |module| {
+                if (mft_fx.moduleFxToShow(globals, track, module, globals.mft.last_fx_index)) |fx| {
+                    mft_fx.toggleFxWindow(track, fx);
+                }
             }
-        }
+        },
+        mft.SIDE_BUTTON_CCS[3] => mft_fx.toggleMute(track), // R1
+        mft.SIDE_BUTTON_CCS[4] => mft_fx.toggleSolo(track), // R2
+        mft.SIDE_BUTTON_CCS[5] => mft_fx.togglePhase(track), // R3
+        else => {},
     }
 }

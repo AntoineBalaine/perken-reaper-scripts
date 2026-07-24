@@ -210,8 +210,12 @@ fn drawCell(idx: usize, vals: *const [8]f64, mapped: *const [8]bool, active: Mft
     if (idx < 8) {
         try imgui.Text(.{ ctx, knob_labels[idx] });
         switch (active) {
-            // Transport mode labels the top row with its transport functions.
-            .TRANSPORT => try imgui.Text(.{ ctx, mft_transport.label(idx) }),
+            // Transport mode labels the top row with each encoder's rotation
+            // function and its press function.
+            .TRANSPORT => {
+                try imgui.Text(.{ ctx, mft_transport.rotationLabel(idx) });
+                try imgui.Text(.{ ctx, mft_transport.pressLabel(idx) });
+            },
             // Settings mode has no options yet.
             .SETTINGS => try imgui.Text(.{ ctx, "-" }),
             // A mappable module shows an eight-segment ASCII gauge for the value.

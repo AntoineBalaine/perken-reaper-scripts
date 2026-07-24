@@ -134,6 +134,36 @@ pub fn toggleFxWindow(track: reaper.MediaTrack, fx_index: c_int) void {
     }
 }
 
+// The FX whose window L1 should toggle for the active module: the last-tweaked
+// FX if it belongs to the module, otherwise the module's first (primary) FX.
+// This keeps L1 showing the plugin that matches the mode on screen.
+pub fn moduleFxToShow(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule, last: ?c_int) ?c_int {
+    const routing = resolveModule(globals, track, module);
+    var first: ?c_int = null;
+    for (routing.targets) |maybe_target| {
+        if (maybe_target) |target| {
+            if (first == null) first = target.fx_index;
+            if (last) |l| {
+                if (l == target.fx_index) return l;
+            }
+        }
+    }
+    return first;
+}
+
+pub fn toggleMute(track: reaper.MediaTrack) void {
+    _ = reaper.CSurf_OnMuteChange(track, -1);
+}
+
+pub fn toggleSolo(track: reaper.MediaTrack) void {
+    _ = reaper.CSurf_OnSoloChange(track, -1);
+}
+
+pub fn togglePhase(track: reaper.MediaTrack) void {
+    const cur = reaper.GetMediaTrackInfo_Value(track, "B_PHASE");
+    _ = reaper.SetMediaTrackInfo_Value(track, "B_PHASE", if (cur == 0) 1 else 0);
+}
+
 fn trackHasSlot(track: reaper.MediaTrack, slot: ModuleSlot) bool {
     const count = reaper.TrackFX_GetCount(track);
     var i: c_int = 0;
