@@ -66,10 +66,15 @@ knob_8 = 10
 ```
 
 Maps live under `Data/Perken/MFT/maps/factory/<MODULE>/<fx_name>/default.ini`,
-where `<MODULE>` is IO, GATE, EQ, or COMP. When an encoder is turned, the
-extension scans the current track's FX chain and merges every FX that has a map
-for the active module: each FX fills the encoder slots its map defines, and the
-first FX to claim a slot wins.
+where `<MODULE>` is IO, GATE, EQ, or COMP.
+
+FX are identified the same way as the Console One: by a `(C1-X)` suffix on the
+FX's renamed name, where X is I, S, E, C, or O (input, gate, EQ, comp, output).
+The MFT reuses this scheme, so a track set up by either extension is recognized
+by the other. When an encoder is turned, the extension scans the track for FX
+whose suffix names one of the active module's slots and merges their maps: each
+FX fills the encoder slots its map defines, and the first FX to claim a slot
+wins.
 
 The IO module folds the Console One input and output plugins into one surface.
 Input plugins (the RBJ filters, the two volume smoothers) map to knobs 1 to 4;
@@ -82,10 +87,17 @@ embedded in the binary and written to disk on first run. They are derived from
 the Console One factory maps.
 
 Switching to a module auto-inserts that module's default plugin onto the current
-track if it is not already present, matching the Console One behavior. The
+track if the slot is not already filled, matching the Console One behavior. The
 defaults follow the Console One defaults: ReaEQ, ReaComp, ReaGate, and for IO
-both the Volume/Pan Smoother (input) and Saturation (output). Existing FX are
-left in place; the new instance is appended to the end of the chain.
+both the Volume/Pan Smoother (input) and Saturation (output). Insertion respects
+the canonical track order (input, gate, EQ, comp, output) regardless of the
+order the modules are selected, so selecting gate and then IO still places the
+IO input ahead of the gate. An existing un-suffixed instance of a default plugin
+is adopted (suffixed) rather than duplicated.
+
+Not yet handled: reordering FX that are already on the track in the wrong order
+(only newly inserted FX are positioned), and a preference to choose a different
+default plugin per slot.
 
 ## On-screen panel
 
