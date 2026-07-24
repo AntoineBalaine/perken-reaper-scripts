@@ -63,9 +63,12 @@ has a rotation function and a press function:
 
 ### Settings mode
 
-Selecting SETTINGS currently shows a placeholder. A preferences system for the
-MFT (default plugin per module, encoder sensitivity, LED colors) is planned, at
-which point settings mode will edit those.
+Selecting SETTINGS edits the preferences, persisted to
+`Data/Perken/MFT/preferences.ini`. Encoders 1 to 4 adjust the IO, GATE, EQ, and
+COMP LED hues, previewed live on every knob as you turn; encoder 5 adjusts the
+encoder sensitivity. The panel shows those values and has a text field per module
+for the default plugin name, edited with the keyboard. Save writes the ini;
+Cancel reloads it, discarding edits.
 
 ## LED feedback
 

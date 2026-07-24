@@ -61,7 +61,7 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     // yet. Only a mappable module routes to FX parameters.
     switch (globals.mft.active_module) {
         .TRANSPORT => return mft_transport.onRotate(slot, delta),
-        .SETTINGS => return,
+        .SETTINGS => return settingsRotate(globals, slot, delta),
         else => {},
     }
 
@@ -80,6 +80,42 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
 
     if (globals.m_midi_out) |mo| {
         midi_out.sendRingUpdate(mo, slot, @floatCast(new_val));
+    }
+}
+
+fn wrapHue(cur: u8, delta: i8) u8 {
+    return @intCast(@mod(@as(i16, cur) + delta, 128));
+}
+
+// Encoders 1-5 edit the numeric settings live in settings mode. Colors 1-4
+// preview on every knob as they change; encoder 5 adjusts sensitivity.
+fn settingsRotate(globals: *MftGlobals, slot: u3, delta: i8) void {
+    const p = &globals.preferences;
+    const hue: ?u8 = switch (slot) {
+        0 => blk: {
+            p.color_io = wrapHue(p.color_io, delta);
+            break :blk p.color_io;
+        },
+        1 => blk: {
+            p.color_gate = wrapHue(p.color_gate, delta);
+            break :blk p.color_gate;
+        },
+        2 => blk: {
+            p.color_eq = wrapHue(p.color_eq, delta);
+            break :blk p.color_eq;
+        },
+        3 => blk: {
+            p.color_comp = wrapHue(p.color_comp, delta);
+            break :blk p.color_comp;
+        },
+        4 => blk: {
+            p.sensitivity = std.math.clamp(p.sensitivity + @as(f32, @floatFromInt(delta)) * 0.05, 0.1, 4.0);
+            break :blk null;
+        },
+        else => null,
+    };
+    if (hue) |h| {
+        if (globals.m_midi_out) |mo| midi_out.sendAllColors(mo, h);
     }
 }
 

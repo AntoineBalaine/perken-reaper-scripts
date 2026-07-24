@@ -8,6 +8,7 @@ const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("mft_fx.zig");
 const mft_transport = @import("mft_transport.zig");
+const mft_settings = @import("mft_settings.zig");
 const wizard = @import("mft_wizard.zig");
 const log = std.log.scoped(.mft_imgui);
 
@@ -101,6 +102,15 @@ fn draw(globals: *MftGlobals) !void {
     const active = globals.mft.active_module;
     try imgui.TextColored(.{ ctx, uiColor(active), @tagName(active) });
     try imgui.Separator(.{ctx});
+
+    // Settings mode draws its form above the grid; otherwise the buffers stay
+    // synced from preferences for the next time it is opened.
+    if (active == .SETTINGS) {
+        try mft_settings.drawForm(ctx, globals);
+        try imgui.Separator(.{ctx});
+    } else {
+        mft_settings.markUnsynced();
+    }
 
     // Read the eight top-row parameter values for the active module.
     var vals = [_]f64{0.0} ** 8;
@@ -278,6 +288,18 @@ test "panel: begin/end pairs balanced (transport mode)" {
 
     var globals: MftGlobals = .{};
     globals.mft.active_module = .TRANSPORT;
+    try draw(&globals);
+    try mock.assertBalanced();
+}
+
+test "panel: begin/end pairs balanced (settings mode)" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.active_module = .SETTINGS;
     try draw(&globals);
     try mock.assertBalanced();
 }
