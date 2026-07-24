@@ -4,6 +4,7 @@ const fs_helpers = @import("fs_helpers");
 const MftState = @import("mft_state.zig").MftState;
 const MftMapStore = @import("mft_map_store.zig").MftMapStore;
 const WizardState = @import("mft_wizard.zig").WizardState;
+const MftPreferences = @import("mft_preferences.zig").MftPreferences;
 
 pub const MftGlobals = struct {
     m_midi_in: ?*reaper.midi_Input = null,
@@ -19,6 +20,7 @@ pub const MftGlobals = struct {
     // last-touched track (see the SETLASTTOUCHEDTRACK csurf callback).
     current_track: reaper.MediaTrack = null,
     wizard: WizardState = .{},
+    preferences: MftPreferences = .{},
 
     pub var instance: MftGlobals = .{};
 
@@ -37,6 +39,13 @@ pub const MftGlobals = struct {
         });
         self.resource_path = alloc.dupeZ(u8, joined) catch "";
         self.map_store = MftMapStore.init(alloc, self.resource_path);
+
+        // Load preferences, writing the defaults on first run.
+        self.preferences = MftPreferences.load(alloc, self.resource_path) catch blk: {
+            const defaults = MftPreferences{};
+            defaults.saveToDisk(self.resource_path) catch {};
+            break :blk defaults;
+        };
     }
 
     pub fn deinit(self: *MftGlobals) void {

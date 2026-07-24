@@ -55,17 +55,18 @@ pub const ModuleSlot = enum {
             .output => 'O',
         };
     }
-
-    pub fn defaultPlugin(self: ModuleSlot) [:0]const u8 {
-        return switch (self) {
-            .input => "JS: Volume/Pan Smoother v5",
-            .gate => "VST: ReaGate (Cockos)",
-            .eq => "VST: ReaEQ (Cockos)",
-            .comp => "VST: ReaComp (Cockos)",
-            .output => "JS: Saturation",
-        };
-    }
 };
+
+// The default plugin for a slot, read from user preferences.
+fn defaultPluginFor(globals: *MftGlobals, slot: ModuleSlot) [:0]const u8 {
+    return switch (slot) {
+        .input => globals.preferences.default_input,
+        .gate => globals.preferences.default_gate,
+        .eq => globals.preferences.default_eq,
+        .comp => globals.preferences.default_comp,
+        .output => globals.preferences.default_output,
+    };
+}
 
 // The track slots a module drives. IO spans input and output; the others are a
 // single slot.
@@ -213,10 +214,10 @@ fn setSlotSuffix(track: reaper.MediaTrack, fx: c_int, name: [:0]const u8, slot: 
 // plugin if present, otherwise inserting a fresh one at the canonical position.
 // Because the position comes from the slot rank rather than the selection order,
 // selecting modules out of order still yields a correctly ordered chain.
-pub fn ensureModuleFx(track: reaper.MediaTrack, module: MappableModule) void {
+pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule) void {
     for (slotsFor(module)) |slot| {
         if (trackHasSlot(track, slot)) continue;
-        const name = slot.defaultPlugin();
+        const name = defaultPluginFor(globals, slot);
 
         if (findUnsuffixedFx(track, name)) |existing| {
             setSlotSuffix(track, existing, name, slot);

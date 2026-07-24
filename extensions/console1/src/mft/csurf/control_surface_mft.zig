@@ -49,7 +49,7 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     }
     if (globals.m_midi_out) |mo| {
         midi_out.clearAll(mo);
-        midi_out.sendModuleColor(mo, globals.mft.active_module);
+        midi_out.sendModuleColor(mo, globals.preferences.colorForModule(globals.mft.active_module));
     } else {
         log.err("couldn’t create midi out", .{});
     }
@@ -119,7 +119,7 @@ export fn zRun() callconv(.C) void {
         } else if (led_test_running) {
             led_test_running = false;
             midi_out.clearAll(mo);
-            midi_out.sendModuleColor(mo, globals.mft.active_module);
+            midi_out.sendModuleColor(mo, globals.preferences.colorForModule(globals.mft.active_module));
         }
     }
 }

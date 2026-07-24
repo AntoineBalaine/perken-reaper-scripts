@@ -65,8 +65,8 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
         else => {},
     }
 
-    const sensitivity: f32 = if (globals.mft.isHeld(cc)) mft.FINE_SENSITIVITY_MULTIPLIER else 1.0;
-    const delta_f32 = @as(f32, @floatFromInt(delta)) * mft.BASE_SENSITIVITY * sensitivity;
+    const fine: f32 = if (globals.mft.isHeld(cc)) mft.FINE_SENSITIVITY_MULTIPLIER else 1.0;
+    const delta_f32 = @as(f32, @floatFromInt(delta)) * mft.BASE_SENSITIVITY * fine * globals.preferences.sensitivity;
 
     const module = MappableModule.fromActive(globals.mft.active_module) orelse return;
     const track = globals.current_track orelse return;
@@ -111,12 +111,12 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     // current track if absent, matching the Console One behavior.
     if (MappableModule.fromActive(module)) |mappable| {
         if (globals.current_track) |track| {
-            mft_fx.ensureModuleFx(track, mappable);
+            mft_fx.ensureModuleFx(globals, track, mappable);
         }
     }
 
     if (globals.m_midi_out) |mo| {
-        midi_out.sendModuleColor(mo, module);
+        midi_out.sendModuleColor(mo, globals.preferences.colorForModule(module));
     }
 }
 

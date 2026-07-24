@@ -19,8 +19,6 @@ const c = @cImport({
 });
 const reaper = @import("reaper").reaper;
 const mft = @import("mft.zig");
-const MftActiveModule = @import("mft_state.zig").MftActiveModule;
-const MODULE_COLORS = @import("mft_state.zig").MODULE_COLORS;
 
 // Ring position on channel 1: the normalized parameter value scaled to 0-127.
 pub fn sendRingUpdate(midi_out: reaper.midi_Output, slot: u3, normalized: f32) void {
@@ -31,10 +29,9 @@ pub fn sendRingUpdate(midi_out: reaper.midi_Output, slot: u3, normalized: f32) v
 
 // Color on channel 3: a hue position on the 0-127 wheel, sent to all 16 knobs
 // so the whole surface reflects the active module.
-pub fn sendModuleColor(midi_out: reaper.midi_Output, module: MftActiveModule) void {
-    const color = MODULE_COLORS.get(module);
+pub fn sendModuleColor(midi_out: reaper.midi_Output, hue: u8) void {
     for (0..16) |i| {
-        c.MidiOut_Send(midi_out, 0xb0 | mft.COLOR_CHANNEL, @intCast(i), color, -1);
+        c.MidiOut_Send(midi_out, 0xb0 | mft.COLOR_CHANNEL, @intCast(i), hue, -1);
     }
 }
 
