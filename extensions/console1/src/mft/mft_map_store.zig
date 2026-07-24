@@ -156,3 +156,18 @@ test "parseMapping: missing version errors" {
 
     try t.expectError(error.MissingVersion, parseMapping(&parser));
 }
+
+test "parseMapping: shipped EQ factory map matches expected slots" {
+    const t = std.testing;
+    const content = @embedFile("resources/maps/factory/EQ/reaeq/default.ini");
+    var fbs = std.io.fixedBufferStream(content);
+    var parser = ini.parse(t.allocator, fbs.reader());
+    defer parser.deinit();
+
+    const m = try parseMapping(&parser);
+    // Top row: the four band frequencies; bottom row: the four gains.
+    try t.expectEqual(@as(?u16, 0), m.slotToParam(0));
+    try t.expectEqual(@as(?u16, 9), m.slotToParam(3));
+    try t.expectEqual(@as(?u16, 1), m.slotToParam(4));
+    try t.expectEqual(@as(?u16, 10), m.slotToParam(7));
+}
