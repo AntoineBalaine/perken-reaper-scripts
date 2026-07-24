@@ -22,9 +22,12 @@ const c = @cImport({
 });
 const constants = @import("../constants_mft.zig");
 const midi_events = @import("midi_events_mft.zig");
+const midi_out = @import("../midi_out_mft.zig");
 const MftGlobals = @import("../mft_globals.zig").MftGlobals;
-const MODULE_COLORS = @import("../mft_state.zig").MODULE_COLORS;
 const log = std.log.scoped(.csurf_mft);
+
+// REAPER csurf Extended() call selector for the last-touched track change.
+const CSURF_EXT_SETLASTTOUCHEDTRACK: c_int = 0x0001000C;
 
 pub var ignore_notifications = false;
 pub var my_csurf: c.C_ControlSurface = undefined;
@@ -44,9 +47,9 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
     } else {
         log.err("couldn’t create midi in", .{});
     }
-    if (globals.m_midi_out) |midi_out| {
-        clearAllLEDs(midi_out);
-        sendModuleColor(midi_out, globals.mft.active_module);
+    if (globals.m_midi_out) |mo| {
+        midi_out.clearAll(mo);
+        midi_out.sendModuleColor(mo, globals.mft.active_module);
     } else {
         log.err("couldn’t create midi out", .{});
     }
@@ -58,9 +61,9 @@ pub fn init(indev: c_int, outdev: c_int, errStats: ?*c_int) c.C_ControlSurface {
 
 pub fn deinit(csurf: c.C_ControlSurface) void {
     var globals = MftGlobals.get();
-    if (globals.m_midi_out) |midi_out| {
-        clearAllLEDs(midi_out);
-        c.MidiOut_Destroy(midi_out);
+    if (globals.m_midi_out) |mo| {
+        midi_out.clearAll(mo);
+        c.MidiOut_Destroy(mo);
         globals.m_midi_out = null;
     }
     if (globals.m_midi_in) |midi_in| {
@@ -68,20 +71,6 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
         globals.m_midi_in = null;
     }
     c.ControlSurface_Destroy(csurf);
-}
-
-fn clearAllLEDs(midi_out: reaper.midi_Output) void {
-    for (0..16) |i| {
-        c.MidiOut_Send(midi_out, 0xb0, @intCast(i), 0x0, -1);
-        c.MidiOut_Send(midi_out, 0xb2, @intCast(i), 0x0, -1);
-    }
-}
-
-fn sendModuleColor(midi_out: reaper.midi_Output, module: @import("../mft_state.zig").MftActiveModule) void {
-    const color = MODULE_COLORS.get(module);
-    for (0..16) |i| {
-        c.MidiOut_Send(midi_out, 0xb2, @intCast(i), color, -1);
-    }
 }
 
 export fn zGetTypeString() callconv(.C) [*]const u8 {
@@ -172,10 +161,13 @@ export fn zIsKeyDown(key: c_int) callconv(.C) bool {
     return false;
 }
 export fn zExtended(call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.C) c_int {
-    _ = call;
-    _ = parm1;
     _ = parm2;
     _ = parm3;
+    if (call == CSURF_EXT_SETLASTTOUCHEDTRACK) {
+        // parm1 is the newly last-touched MediaTrack (null clears it). The
+        // encoders drive this track's FX until the next change.
+        MftGlobals.get().current_track = @ptrCast(parm1);
+    }
     return 0;
 }
 

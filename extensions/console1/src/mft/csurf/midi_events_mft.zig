@@ -21,7 +21,11 @@ const reaper = @import("reaper").reaper;
 const mft = @import("../mft.zig");
 const MftGlobals = @import("../mft_globals.zig").MftGlobals;
 const MftActiveModule = @import("../mft_state.zig").MftActiveModule;
-const MODULE_COLORS = @import("../mft_state.zig").MODULE_COLORS;
+const mappings = @import("../mft_mappings.zig");
+const MappableModule = mappings.MappableModule;
+const MftModuleMapping = mappings.MftModuleMapping;
+const midi_out = @import("../midi_out_mft.zig");
+const log = std.log.scoped(.mft_midi);
 
 pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
     const msg = c.MIDI_event_message(evt);
@@ -40,11 +44,47 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *MftGlobals) void {
 
 fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     if (cc >= 8) return;
+    const slot: u3 = @intCast(cc);
+
     const delta = mft.decodeTwosComplement(val);
+    if (delta == 0) return;
     const sensitivity: f32 = if (globals.mft.isHeld(cc)) mft.FINE_SENSITIVITY_MULTIPLIER else 1.0;
     const delta_f32 = @as(f32, @floatFromInt(delta)) * mft.BASE_SENSITIVITY * sensitivity;
-    _ = delta_f32;
-    // TODO phase 4: look up mapping for active module, apply delta to FX parameter, send ring update
+
+    const module = MappableModule.fromActive(globals.mft.active_module) orelse return;
+    const track = globals.current_track orelse return;
+    const resolved = resolveFx(globals, track, module) orelse return;
+    const param = resolved.mapping.slotToParam(slot) orelse return;
+
+    const current = reaper.TrackFX_GetParamNormalized(track, resolved.fx_index, @intCast(param));
+    const new_val = std.math.clamp(current + @as(f64, delta_f32), 0.0, 1.0);
+    _ = reaper.TrackFX_SetParamNormalized(track, resolved.fx_index, @intCast(param), new_val);
+
+    if (globals.m_midi_out) |mo| {
+        midi_out.sendRingUpdate(mo, slot, @floatCast(new_val));
+    }
+}
+
+const ResolvedFx = struct {
+    fx_index: c_int,
+    mapping: MftModuleMapping,
+};
+
+// Find the first FX on the track whose name has a mapping for the active
+// module. Because the MFT dedicates the eight encoders to one module at a
+// time, a single FX per module is enough.
+fn resolveFx(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule) ?ResolvedFx {
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        var name_buf: [512:0]u8 = undefined;
+        if (!reaper.TrackFX_GetFXName(track, i, &name_buf, name_buf.len)) continue;
+        const name: [:0]const u8 = std.mem.sliceTo(&name_buf, 0);
+        if (globals.map_store.get(module, name)) |mapping| {
+            return .{ .fx_index = i, .mapping = mapping };
+        }
+    }
+    return null;
 }
 
 fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
@@ -64,8 +104,8 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
         else => return,
     };
     globals.mft.active_module = module;
-    if (globals.m_midi_out) |midi_out| {
-        sendModuleColor(midi_out, module);
+    if (globals.m_midi_out) |mo| {
+        midi_out.sendModuleColor(mo, module);
     }
 }
 
@@ -73,12 +113,5 @@ fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
     _ = cc;
     _ = val;
     _ = globals;
-    // TODO phase 4.9: track previous / next
-}
-
-fn sendModuleColor(midi_out: reaper.midi_Output, module: MftActiveModule) void {
-    const color = MODULE_COLORS.get(module);
-    for (0..16) |i| {
-        c.MidiOut_Send(midi_out, 0xb2, @intCast(i), color, -1);
-    }
+    // TODO phase 4.9: track previous / next (pending design decision)
 }

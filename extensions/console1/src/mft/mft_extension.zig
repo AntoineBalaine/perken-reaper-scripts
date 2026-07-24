@@ -4,6 +4,7 @@ const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface_mft.zig");
 const defaults_mft = @import("defaults_mft.zig");
 const fs_helpers = @import("fs_helpers");
+const MftGlobals = @import("mft_globals.zig").MftGlobals;
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
@@ -16,6 +17,7 @@ pub const std_options = std.Options{
 
 fn init() !void {
     defaults_mft.ensureConfigPath(fs_helpers.RealFileSystem.fileSystemOps()) catch {};
+    MftGlobals.get().init();
 }
 
 export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
@@ -32,9 +34,4 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     _ = reaper.plugin_register("csurf", @ptrCast(@constCast(&control_surface.mft_reg)));
 
     return 1;
-}
-
-test {
-    _ = @import("mft.zig");
-    _ = @import("mft_state.zig");
 }

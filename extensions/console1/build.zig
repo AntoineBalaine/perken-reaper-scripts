@@ -326,4 +326,23 @@ fn addMftTarget(
 
     const mft_step = b.step("mft", "Build reaper_mft extension");
     mft_step.dependOn(&client_install.step);
+
+    // Unit tests over the MFT extension's test block. Kept separate from the
+    // Console One test suite because the two extensions share no code.
+    const mft_test = b.addTest(.{
+        .root_source_file = b.path("src/mft/mft_tests.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const mft_test_options = b.addOptions();
+    mft_test_options.addOption(bool, "test", true);
+    mft_test_options.addOption(bool, "headless", false);
+    mft_test_options.addOption([]const u8, "version", "test");
+    mft_test.root_module.addOptions("config", mft_test_options);
+    mft_test.root_module.addImport("ini", ini.module("ini"));
+    reaziglib.addSharedModules(reazig_dep, mft_test.root_module);
+
+    const run_mft_test = b.addRunArtifact(mft_test);
+    const mft_test_step = b.step("mft-test", "Run reaper_mft unit tests");
+    mft_test_step.dependOn(&run_mft_test.step);
 }
