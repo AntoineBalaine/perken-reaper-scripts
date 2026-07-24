@@ -3,7 +3,10 @@ const std = @import("std");
 pub const ENCODER_ROT_CHANNEL: u8 = 0x00;
 pub const ENCODER_BTN_CHANNEL: u8 = 0x01;
 pub const SIDE_BTN_CHANNEL: u8 = 0x03;
-pub const COLOR_CHANNEL: u8 = 0x02;
+// LED color feedback goes out on channel 2 (0xB1), same as the working ReaLearn
+// and Spotify-controller configs. It shares the channel number with button
+// input but is a separate output stream.
+pub const COLOR_CHANNEL: u8 = 0x01;
 
 pub const BASE_SENSITIVITY: f32 = 1.0 / 127.0;
 pub const FINE_SENSITIVITY_MULTIPLIER: f32 = 0.1;

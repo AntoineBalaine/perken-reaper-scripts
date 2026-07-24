@@ -78,7 +78,7 @@ Two kinds of feedback go back to the device:
 
 - Ring position (channel 1): after each parameter change the new value is scaled
   to 0 to 127 and sent to the encoder's LED ring.
-- Color (channel 3): on a module switch every knob is recolored to the active
+- Color (channel 2): on a module switch every knob is recolored to the active
   module's hue, so the surface always shows which module is live.
 
 ## Maps
