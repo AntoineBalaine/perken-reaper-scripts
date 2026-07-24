@@ -142,6 +142,9 @@ fn onTimer() callconv(.C) void {
 }
 
 fn draw(globals: *MftGlobals) !void {
+    // Side button L2 hides the panel: with no Begin call the window disappears.
+    if (!globals.mft.panel_visible) return;
+
     // Match the Console One palette and style around the whole window.
     const style = mft_theme.pushStyle(ctx);
     defer mft_theme.popStyle(ctx, style);
@@ -185,8 +188,8 @@ fn draw(globals: *MftGlobals) !void {
     // Left side buttons, labeled with their function.
     try imgui.BeginGroup(.{ctx});
     _ = try imgui.Button(.{ ctx, "L1 Chain", SIDE_W, SIDE_H });
-    _ = try imgui.Button(.{ ctx, "L2", SIDE_W, SIDE_H });
-    _ = try imgui.Button(.{ ctx, "L3", SIDE_W, SIDE_H });
+    _ = try imgui.Button(.{ ctx, "L2 Hide", SIDE_W, SIDE_H });
+    _ = try imgui.Button(.{ ctx, "L3 FXsel", SIDE_W, SIDE_H });
     imgui.EndGroup(.{ctx}) catch {};
     try imgui.SameLine(.{ctx});
 

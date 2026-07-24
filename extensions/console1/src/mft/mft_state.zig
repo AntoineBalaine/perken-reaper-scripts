@@ -13,6 +13,8 @@ pub const MftState = struct {
     last_fx_index: ?c_int = null,
     // The highlighted row in settings mode (0..SETTINGS_ITEM_COUNT-1).
     settings_cursor: u8 = 0,
+    // Whether the on-screen panel is shown (toggled by side button L2).
+    panel_visible: bool = true,
     // Whether an encoder was turned while held in transport mode, so a press was
     // a press-and-turn gesture rather than a click. Used by the knob-3 vertical
     // zoom experiment.

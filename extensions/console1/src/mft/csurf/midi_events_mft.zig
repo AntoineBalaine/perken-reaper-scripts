@@ -213,11 +213,15 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
 
 fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
     if (val != 127) return;
+    // Side buttons on channel 4, CCs 8-13: L1-L3 then R1-R3. L2 (panel toggle)
+    // needs no track; the others act on the current track when there is one.
+    if (cc == mft.SIDE_BUTTON_CCS[1]) {
+        globals.mft.panel_visible = !globals.mft.panel_visible; // L2: hide/show panel
+        return;
+    }
     const track = globals.current_track orelse return;
-    // Side buttons on channel 4, CCs 8-13: L1-L3 then R1-R3.
-    // L1 toggles the active module's plugin window; R1-R3 mute, solo, phase.
     switch (cc) {
-        mft.SIDE_BUTTON_CCS[0] => { // L1
+        mft.SIDE_BUTTON_CCS[0] => { // L1: toggle the active module's FX chain
             if (MappableModule.fromActive(globals.mft.active_module)) |module| {
                 if (mft_fx.moduleFxToShow(globals, track, module, globals.mft.last_fx_index)) |fx| {
                     mft_fx.toggleFxChain(track, fx);
