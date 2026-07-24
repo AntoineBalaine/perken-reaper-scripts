@@ -30,6 +30,40 @@ pub const SlotRouting = struct {
     }
 };
 
+// The default plugin(s) inserted when a module is selected, taken from the
+// Console One defaults. IO gets both an input and an output plugin so the two
+// halves of the module have something to drive.
+fn defaultPluginsFor(module: MappableModule) []const [:0]const u8 {
+    return switch (module) {
+        .IO => &.{ "JS: Volume/Pan Smoother v5", "JS: Saturation" },
+        .GATE => &.{"VST: ReaGate (Cockos)"},
+        .EQ => &.{"VST: ReaEQ (Cockos)"},
+        .COMP => &.{"VST: ReaComp (Cockos)"},
+    };
+}
+
+fn trackHasFx(track: reaper.MediaTrack, name: [:0]const u8) bool {
+    const count = reaper.TrackFX_GetCount(track);
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        var name_buf: [512:0]u8 = undefined;
+        if (!reaper.TrackFX_GetFXName(track, i, &name_buf, name_buf.len)) continue;
+        if (std.mem.eql(u8, std.mem.sliceTo(&name_buf, 0), name)) return true;
+    }
+    return false;
+}
+
+// Insert the module's default plugins onto the track if they are not already
+// present, so that switching to a module gives the encoders something to drive.
+// instantiate = -1 appends a fresh instance at the end of the chain.
+pub fn ensureModuleFx(track: reaper.MediaTrack, module: MappableModule) void {
+    for (defaultPluginsFor(module)) |name| {
+        if (!trackHasFx(track, name)) {
+            _ = reaper.TrackFX_AddByName(track, name, false, -1);
+        }
+    }
+}
+
 // Build the eight-slot routing for a module by scanning the track's FX chain.
 // Every FX that has a map for the module contributes the slots it defines; the
 // first FX to define a slot wins. Because a module's maps use disjoint knob

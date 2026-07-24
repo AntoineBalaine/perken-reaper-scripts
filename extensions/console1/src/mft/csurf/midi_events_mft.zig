@@ -89,6 +89,15 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
         else => return,
     };
     globals.mft.active_module = module;
+
+    // Switching to a mappable module auto-inserts its default plugins onto the
+    // current track if absent, matching the Console One behavior.
+    if (MappableModule.fromActive(module)) |mappable| {
+        if (globals.current_track) |track| {
+            mft_fx.ensureModuleFx(track, mappable);
+        }
+    }
+
     if (globals.m_midi_out) |mo| {
         midi_out.sendModuleColor(mo, module);
     }

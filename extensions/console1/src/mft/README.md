@@ -81,9 +81,11 @@ Factory maps for ReaEQ, ReaComp, ReaGate, and the five input/output plugins are
 embedded in the binary and written to disk on first run. They are derived from
 the Console One factory maps.
 
-Note: the extension does not yet auto-insert the plugins onto the track; it maps
-whatever is already there. Auto-loading the IO plugins on entering IO mode is a
-planned follow-up.
+Switching to a module auto-inserts that module's default plugin onto the current
+track if it is not already present, matching the Console One behavior. The
+defaults follow the Console One defaults: ReaEQ, ReaComp, ReaGate, and for IO
+both the Volume/Pan Smoother (input) and Saturation (output). Existing FX are
+left in place; the new instance is appended to the end of the chain.
 
 ## On-screen panel
 
