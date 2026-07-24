@@ -20,6 +20,11 @@ const CMD_PREV_TRACK = 40286;
 
 const CMD_INSERT_MARKER = 40157;
 const CMD_DELETE_MARKER_NEAR_CURSOR = 40613;
+const CMD_INSERT_TRACK = 40001;
+// The two zoom-fit command IDs are best guesses and need confirming against the
+// REAPER action list on hardware (right-click the action, copy command ID).
+const CMD_ZOOM_FIT_PROJECT_H = 40295; // View: fit whole project horizontally (VERIFY)
+const CMD_ZOOM_FIT_TRACKS_V = 40110; // View: minimize/fit all tracks vertically (VERIFY)
 
 pub fn rotationLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
@@ -39,8 +44,11 @@ pub fn rotationLabel(idx: usize) [:0]const u8 {
 // meaningful momentary action are assigned.
 pub fn pressLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
+        2 => "FitH",
+        3 => "FitV",
         4 => "Rate=1",
         5 => "Snap",
+        6 => "NewTrk",
         7 => "Marker",
         else => "-",
     };
@@ -68,8 +76,11 @@ pub fn onRotate(idx: u3, delta: i8) void {
 
 pub fn onPress(idx: u3) void {
     switch (idx) {
+        2 => reaper.Main_OnCommand(CMD_ZOOM_FIT_PROJECT_H, 0), // fit project horizontally
+        3 => reaper.Main_OnCommand(CMD_ZOOM_FIT_TRACKS_V, 0), // fit/minimize tracks vertically
         4 => reaper.CSurf_OnPlayRateChange(1.0), // reset playrate
         5 => reaper.Main_OnCommand(CMD_SNAP, 0), // toggle grid snap
+        6 => reaper.Main_OnCommand(CMD_INSERT_TRACK, 0), // insert new track
         7 => toggleMarker(),
         else => {},
     }

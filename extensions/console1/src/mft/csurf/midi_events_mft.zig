@@ -79,6 +79,12 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     const new_val = std.math.clamp(current + @as(f64, delta_f32), 0.0, 1.0);
     _ = reaper.TrackFX_SetParamNormalized(track, target.fx_index, @intCast(target.param), new_val);
 
+    // When the FX chain window is open, focus the plugin whose parameter is
+    // being tweaked, so switching modules brings that module's FX to the front.
+    if (reaper.TrackFX_GetChainVisible(track) != -1) {
+        reaper.TrackFX_Show(track, target.fx_index, 1);
+    }
+
     if (globals.m_midi_out) |mo| {
         midi_out.sendRingUpdate(mo, slot, @floatCast(new_val));
     }
