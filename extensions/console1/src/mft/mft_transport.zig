@@ -17,6 +17,8 @@ const CMD_GRID_DIVIDE = 40783;
 const CMD_GRID_MULTIPLY = 40786;
 const CMD_NEXT_TRACK = 40285;
 const CMD_PREV_TRACK = 40286;
+const CMD_NEXT_ITEM = 40417; // Item navigation: select and move to next item
+const CMD_PREV_ITEM = 40416; // Item navigation: select and move to previous item
 
 const CMD_INSERT_MARKER = 40157;
 const CMD_DELETE_MARKER_NEAR_CURSOR = 40613;
@@ -29,7 +31,7 @@ const CMD_ZOOM_FIT_TRACKS_V = 40110; // View: minimize/fit all tracks vertically
 pub fn rotationLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
         0 => "Jog",
-        1 => "Scrub",
+        1 => "Item",
         2 => "Zoom H",
         3 => "Zoom V",
         4 => "Rate",
@@ -69,7 +71,7 @@ pub fn zoomVertical(delta: i8) void {
 pub fn onRotate(idx: u3, delta: i8) void {
     switch (idx) {
         0 => reaper.CSurf_OnRewFwd(0, delta),
-        1 => reaper.CSurf_ScrubAmt((1.0 / 128.0) * @as(f64, @floatFromInt(delta))),
+        1 => reaper.Main_OnCommand(if (delta > 0) CMD_NEXT_ITEM else CMD_PREV_ITEM, 0),
         2 => reaper.CSurf_OnZoom(delta, 0),
         3 => zoomVertical(delta),
         4 => adjustRate(delta),
@@ -119,6 +121,7 @@ fn toggleMarker() void {
 
 test "transport labels" {
     try std.testing.expectEqualStrings("Jog", rotationLabel(0));
+    try std.testing.expectEqualStrings("Item", rotationLabel(1));
     try std.testing.expectEqualStrings("Mkr", rotationLabel(7));
     try std.testing.expectEqualStrings("Rate=1", pressLabel(4));
     try std.testing.expectEqualStrings("Snap", pressLabel(5));

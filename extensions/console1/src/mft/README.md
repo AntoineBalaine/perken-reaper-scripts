@@ -56,8 +56,8 @@ selected track.
 Selecting TRANSPORT reuses the eight top encoders for transport control. Each
 has a rotation function and a press function:
 
-- Rotations: jog, scrub, zoom horizontal, zoom vertical, playrate, grid, track
-  select, marker jog.
+- Rotations: jog, item navigation (select and move to next/previous item), zoom
+  horizontal, zoom vertical, playrate, grid, track select, marker jog.
 - Presses reset or toggle their own knob's function: the zoom-horizontal and
   zoom-vertical knob presses fit the project horizontally and fit/minimize the
   tracks vertically, the track-select knob press inserts a new track, the
