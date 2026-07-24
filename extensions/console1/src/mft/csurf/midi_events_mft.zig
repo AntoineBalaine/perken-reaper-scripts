@@ -63,6 +63,7 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     const routing = mft_fx.resolveModule(globals, track, module);
     const target = routing.targets[slot] orelse return;
 
+    globals.mft.last_fx_index = target.fx_index;
     const current = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
     const new_val = std.math.clamp(current + @as(f64, delta_f32), 0.0, 1.0);
     _ = reaper.TrackFX_SetParamNormalized(track, target.fx_index, @intCast(target.param), new_val);
@@ -104,10 +105,15 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
 }
 
 fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
-    _ = cc;
-    _ = val;
-    _ = globals;
-    // Unused by design: the extension follows REAPER's last-touched track, so
-    // the side buttons have no function. Hardware calibration found them on
-    // channel 4, CCs 8-13 (see mft.SIDE_BUTTON_CCS) if a use is ever assigned.
+    if (val != 127) return;
+    // L1 (side button 1, CC 8) toggles the floating window of the most recently
+    // tweaked plugin. The other side buttons are unused; track selection follows
+    // REAPER's last-touched track. Side-button CCs are 8-13 on channel 4.
+    if (cc == mft.SIDE_BUTTON_CCS[0]) {
+        if (globals.current_track) |track| {
+            if (globals.mft.last_fx_index) |fx| {
+                mft_fx.toggleFxWindow(track, fx);
+            }
+        }
+    }
 }

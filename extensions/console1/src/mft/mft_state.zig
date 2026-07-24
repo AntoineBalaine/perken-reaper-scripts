@@ -20,6 +20,9 @@ pub const LED_TEST_COLORS = [_]u8{ 0x02, 0x0F, 0x19, 0x2E, 0x3C, 0x40, 0x49, 0x5
 pub const MftState = struct {
     active_module: MftActiveModule = .IO,
     held_encoders: u16 = 0,
+    // The FX index of the most recently tweaked parameter, so the side button
+    // can toggle that plugin's floating window.
+    last_fx_index: ?c_int = null,
 
     pub fn setHeld(self: *MftState, encoder_idx: u8) void {
         std.debug.assert(encoder_idx < 16);

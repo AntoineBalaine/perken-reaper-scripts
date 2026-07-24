@@ -30,6 +30,16 @@ pub const SlotRouting = struct {
     }
 };
 
+// Toggle the floating window of one FX. TrackFX_GetOpen reports whether it is
+// visible; showFlag 3 shows the floating window, 2 hides it.
+pub fn toggleFxWindow(track: reaper.MediaTrack, fx_index: c_int) void {
+    if (reaper.TrackFX_GetOpen(track, fx_index)) {
+        reaper.TrackFX_Show(track, fx_index, 2);
+    } else {
+        reaper.TrackFX_Show(track, fx_index, 3);
+    }
+}
+
 // The default plugin(s) inserted when a module is selected, taken from the
 // Console One defaults. IO gets both an input and an output plugin so the two
 // halves of the module have something to drive.
