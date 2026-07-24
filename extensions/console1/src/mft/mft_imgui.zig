@@ -7,6 +7,7 @@ const MftActiveModule = @import("mft_state.zig").MftActiveModule;
 const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("mft_fx.zig");
+const mft_transport = @import("mft_transport.zig");
 const wizard = @import("mft_wizard.zig");
 const log = std.log.scoped(.mft_imgui);
 
@@ -208,10 +209,19 @@ fn drawCell(idx: usize, vals: *const [8]f64, mapped: *const [8]bool, active: Mft
 
     if (idx < 8) {
         try imgui.Text(.{ ctx, knob_labels[idx] });
-        // An eight-segment ASCII gauge for the value. Text keeps the panel
-        // testable against the mock ImGui (which does not mock ProgressBar).
-        var gauge_buf: [16:0]u8 = undefined;
-        try imgui.Text(.{ ctx, gauge(if (mapped[idx]) vals[idx] else 0.0, &gauge_buf) });
+        switch (active) {
+            // Transport mode labels the top row with its transport functions.
+            .TRANSPORT => try imgui.Text(.{ ctx, mft_transport.label(idx) }),
+            // Settings mode has no options yet.
+            .SETTINGS => try imgui.Text(.{ ctx, "-" }),
+            // A mappable module shows an eight-segment ASCII gauge for the value.
+            // Text keeps the panel testable against the mock ImGui (which does
+            // not mock ProgressBar).
+            else => {
+                var gauge_buf: [16:0]u8 = undefined;
+                try imgui.Text(.{ ctx, gauge(if (mapped[idx]) vals[idx] else 0.0, &gauge_buf) });
+            },
+        }
         return;
     }
 
@@ -252,6 +262,18 @@ test "panel: begin/end pairs balanced (calibration active)" {
 
     var globals: MftGlobals = .{};
     globals.wizard.start();
+    try draw(&globals);
+    try mock.assertBalanced();
+}
+
+test "panel: begin/end pairs balanced (transport mode)" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.active_module = .TRANSPORT;
     try draw(&globals);
     try mock.assertBalanced();
 }

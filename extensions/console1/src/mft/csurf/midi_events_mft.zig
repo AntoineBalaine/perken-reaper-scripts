@@ -24,6 +24,7 @@ const MftActiveModule = @import("../mft_state.zig").MftActiveModule;
 const mappings = @import("../mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("../mft_fx.zig");
+const mft_transport = @import("../mft_transport.zig");
 const midi_out = @import("../midi_out_mft.zig");
 const log = std.log.scoped(.mft_midi);
 
@@ -76,7 +77,13 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
 fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
     const pressed = val == 127;
     if (cc < 8) {
-        if (pressed) globals.mft.setHeld(cc) else globals.mft.clearHeld(cc);
+        // Presses on the top two rows depend on the active mode. In a mappable
+        // module they arm fine-tune; in transport mode they drive transport.
+        switch (globals.mft.active_module) {
+            .TRANSPORT => if (pressed) mft_transport.onPress(@intCast(cc)),
+            .SETTINGS => {},
+            else => if (pressed) globals.mft.setHeld(cc) else globals.mft.clearHeld(cc),
+        }
         return;
     }
     if (!pressed) return;
