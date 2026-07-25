@@ -6,7 +6,7 @@ pub const MftActiveModule = enum { IO, GATE, EQ, COMP, SETTINGS, TRANSPORT };
 pub const LED_TEST_COLORS = [_]u8{ 0x02, 0x0F, 0x19, 0x2E, 0x3C, 0x40, 0x49, 0x56, 0x5A, 0x6B, 0x71 };
 
 pub const MftState = struct {
-    active_module: MftActiveModule = .IO,
+    active_module: MftActiveModule = .TRANSPORT,
     held_encoders: u16 = 0,
     // The FX index of the most recently tweaked parameter, so the side button
     // can toggle that plugin's floating window.
