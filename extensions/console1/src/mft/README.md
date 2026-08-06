@@ -43,8 +43,13 @@ R2, R3:
 
 - L1 toggles the track's FX chain window, focused on the active module's plugin
   (the last-tweaked FX in that module, else the module's primary FX).
+- L2 hides and shows the on-screen panel.
 - R1, R2, R3 toggle mute, solo, and phase invert on the current track.
-- L2 and L3 are unused for now.
+- L3 is reserved for the fx/map selector.
+
+The panel can also be toggled from REAPER's action list via the action "MFT:
+Toggle UI" (id `PRKN_MFT_TOGGLE_UI`), which can be bound to a key, so the panel
+can be reopened without the controller.
 
 The extension drives REAPER's last-touched track, so selecting a track or
 touching one of its FX points the encoders at that track. There is no

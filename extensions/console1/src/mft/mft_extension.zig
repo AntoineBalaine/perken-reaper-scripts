@@ -16,6 +16,38 @@ pub const std_options = std.Options{
     },
 };
 
+// Command id of the "MFT: Toggle UI" custom action, so it can be bound to a key.
+var toggle_ui_cmd_id: c_int = undefined;
+
+fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, valhw: c_int, relmode: c_int, hwnd: ?reaper.HWND) callconv(.C) bool {
+    _ = .{ sec, val, valhw, relmode, hwnd };
+    if (command == toggle_ui_cmd_id) {
+        const g = MftGlobals.get();
+        g.mft.panel_visible = !g.mft.panel_visible;
+        return true;
+    }
+    return false;
+}
+
+// Report the toggle state so the action shows a checkmark in menus.
+fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
+    if (command_id == toggle_ui_cmd_id) {
+        return if (MftGlobals.get().mft.panel_visible) 1 else 0;
+    }
+    return -1;
+}
+
+fn registerActions() void {
+    const toggle_action: reaper.custom_action_register_t = .{
+        .section = 0,
+        .id_str = "PRKN_MFT_TOGGLE_UI",
+        .name = "MFT: Toggle UI",
+    };
+    toggle_ui_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&toggle_action)));
+    _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
+    _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
+}
+
 fn init() !void {
     defaults_mft.ensureConfigPath(fs_helpers.RealFileSystem.fileSystemOps()) catch {};
     MftGlobals.get().init();
@@ -34,6 +66,7 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
 
     _ = reaper.plugin_register("csurf", @ptrCast(@constCast(&control_surface.mft_reg)));
 
+    registerActions();
     mft_imgui.register();
 
     return 1;
