@@ -187,34 +187,42 @@ fn draw(globals: *MftGlobals) !void {
         }
     }
 
+    // Each group's EndGroup is deferred inside its own block so that a throw by
+    // any call in between cannot skip it and leave the ImGui stack unbalanced.
     // Left side buttons, labeled with their function.
-    try imgui.BeginGroup(.{ctx});
-    _ = try imgui.Button(.{ ctx, "L1 Chain", SIDE_W, SIDE_H });
-    _ = try imgui.Button(.{ ctx, "L2 Hide", SIDE_W, SIDE_H });
-    _ = try imgui.Button(.{ ctx, "L3 FXsel", SIDE_W, SIDE_H });
-    imgui.EndGroup(.{ctx}) catch {};
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+        _ = try imgui.Button(.{ ctx, "L1 Chain", SIDE_W, SIDE_H });
+        _ = try imgui.Button(.{ ctx, "L2 Hide", SIDE_W, SIDE_H });
+        _ = try imgui.Button(.{ ctx, "L3 FXsel", SIDE_W, SIDE_H });
+    }
     try imgui.SameLine(.{ctx});
 
     // 4x4 encoder grid.
-    try imgui.BeginGroup(.{ctx});
-    var row: usize = 0;
-    while (row < 4) : (row += 1) {
-        var col: usize = 0;
-        while (col < 4) : (col += 1) {
-            const idx = row * 4 + col;
-            if (col > 0) try imgui.SameLine(.{ctx});
-            try drawCell(globals, idx, &info, active);
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+        var row: usize = 0;
+        while (row < 4) : (row += 1) {
+            var col: usize = 0;
+            while (col < 4) : (col += 1) {
+                const idx = row * 4 + col;
+                if (col > 0) try imgui.SameLine(.{ctx});
+                try drawCell(globals, idx, &info, active);
+            }
         }
     }
-    imgui.EndGroup(.{ctx}) catch {};
     try imgui.SameLine(.{ctx});
 
     // Right side buttons, labeled with their function.
-    try imgui.BeginGroup(.{ctx});
-    _ = try imgui.Button(.{ ctx, "R1 Mute", SIDE_W, SIDE_H });
-    _ = try imgui.Button(.{ ctx, "R2 Solo", SIDE_W, SIDE_H });
-    _ = try imgui.Button(.{ ctx, "R3 Phase", SIDE_W, SIDE_H });
-    imgui.EndGroup(.{ctx}) catch {};
+    {
+        try imgui.BeginGroup(.{ctx});
+        defer imgui.EndGroup(.{ctx}) catch {};
+        _ = try imgui.Button(.{ ctx, "R1 Mute", SIDE_W, SIDE_H });
+        _ = try imgui.Button(.{ ctx, "R2 Solo", SIDE_W, SIDE_H });
+        _ = try imgui.Button(.{ ctx, "R3 Phase", SIDE_W, SIDE_H });
+    }
 
     try drawWizard(globals);
 }
