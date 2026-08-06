@@ -1,6 +1,9 @@
 //! Feedback window: dockable ReaImGui window showing mode, pending keys,
 //! and completion hints. Timer-driven, Console1-style; ImGui init is deferred
-//! to the first tick where the window is needed (ReaImGui may load after us).
+//! to REAPER's first post-boot timer tick, since register() runs inside
+//! ReaperPluginEntry during REAPER's plugin-load phase -- before REAPER's
+//! main loop starts and before other extensions' own ReaperPluginEntry
+//! calls are guaranteed to have run yet.
 //! Colors are Console1's main palette (reaperConsole1 default_reaper_theme.ini).
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
@@ -18,7 +21,8 @@ const state = @import("state.zig");
 
 const log = std.log.scoped(.extension);
 
-var imgui_available = false; // set once at register()
+var imgui_checked = false; // resolved on REAPER's first post-boot timer tick
+var imgui_available = false;
 var ctx: imgui.ContextPtr = null;
 var font: imgui.FontPtr = null;
 var hidden = false;
@@ -57,22 +61,16 @@ const col_green = rgba(0x13BD99FF); // ButtonActive
 const col_key = rgba(0xC1FFE1FF); // ButtonHovered, opaque
 const col_accent_dim = rgba(0xFF00A566); // accent at 40% for text selection
 
-/// Resolve ReaImGui once at load. The feedback window is optional: if ReaImGui
-/// isn't installed, set the flag and never subscribe the timer — the extension
-/// runs fully without any UI. (reavim's plugin file sorts after
-/// reaper_imgui-*, so ReaImGui's API is already registered by the time this
-/// runs when it is installed.)
+/// Always subscribe the timer. ReaImGui availability is resolved lazily on
+/// the first timer tick instead of here (see ensureImguiChecked) -- REAPER
+/// only starts delivering timer callbacks once every plugin has finished
+/// loading and the main loop is running, which makes the first onTimer call
+/// a reliable, order-independent "boot is done" signal.
 pub fn register() void {
-    imgui.init(Reaper.plugin_getapi) catch {
-        log.warn("ReaImGui not available — feedback window disabled (install via ReaPack)", .{});
-        return;
-    };
-    imgui_available = true;
     _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
 }
 
 pub fn unregister() void {
-    if (!imgui_available) return;
     _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
 }
 
@@ -391,6 +389,9 @@ fn keyLessThan(_: void, a: vim.Completion, b: vim.Completion) bool {
 }
 
 fn onTimer() callconv(.C) void {
+    ensureImguiChecked();
+    if (!imgui_available) return;
+
     if (vim.mode() != .off and prev_mode == .off) hidden = false;
     prev_mode = vim.mode();
 
@@ -434,6 +435,19 @@ fn onTimer() callconv(.C) void {
         hidden = true;
         window_focused = false;
     }
+}
+
+/// Resolve the ReaImGui API exactly once, on REAPER's first post-boot timer
+/// tick. Safe to call unconditionally from onTimer every frame; the checked
+/// flag makes this a no-op after the first call.
+fn ensureImguiChecked() void {
+    if (imgui_checked) return;
+    imgui_checked = true;
+    imgui.init(Reaper.plugin_getapi) catch {
+        log.warn("ReaImGui not available — feedback window disabled (install via ReaPack)", .{});
+        return;
+    };
+    imgui_available = true;
 }
 
 fn renderContent() void {
