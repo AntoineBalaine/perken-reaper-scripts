@@ -138,6 +138,7 @@ fn onTimer() callconv(.C) void {
     }
     draw(MftGlobals.get()) catch |err| {
         log.err("MFT panel draw error: {s}", .{@errorName(err)});
+        if (imgui.last_error) |msg| log.err("imgui: {s}", .{std.mem.span(msg)});
     };
 }
 
@@ -149,11 +150,12 @@ fn draw(globals: *MftGlobals) !void {
     const style = mft_theme.pushStyle(ctx);
     defer mft_theme.popStyle(ctx, style);
 
-    if (!try imgui.Begin(.{ ctx, plugin_name })) {
-        imgui.End(.{ctx}) catch {};
-        return;
-    }
+    // If Begin errors the window was never begun, so skip End (styles pop via
+    // the defer above). A collapsed window returns false but must still be
+    // ended, so End is deferred unconditionally once Begin succeeds.
+    const visible = imgui.Begin(.{ ctx, plugin_name }) catch return;
     defer imgui.End(.{ctx}) catch {};
+    if (!visible) return;
 
     const active = globals.mft.active_module;
     try imgui.TextColored(.{ ctx, moduleColor(globals, active), @tagName(active) });
@@ -229,8 +231,9 @@ fn drawCell(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: Mft
     defer if (border_color != null) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
     // NoScrollbar keeps a too-tight box from spawning (and, in ReaImGui,
-    // crashing on) a scrollbar; the box is sized to fit its lines.
-    _ = try imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border, imgui.WindowFlags_NoScrollbar });
+    // crashing on) a scrollbar; the box is sized to fit its lines. If BeginChild
+    // errors the child was not begun, so skip EndChild.
+    _ = imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border, imgui.WindowFlags_NoScrollbar }) catch return;
     defer imgui.EndChild(.{ctx}) catch {};
 
     var lbl_buf: [8:0]u8 = undefined;
