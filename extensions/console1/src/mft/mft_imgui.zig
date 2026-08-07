@@ -150,11 +150,14 @@ fn draw(globals: *MftGlobals) !void {
     const style = mft_theme.pushStyle(ctx);
     defer mft_theme.popStyle(ctx, style);
 
-    // If Begin errors the window was never begun, so skip End (styles pop via
-    // the defer above). A collapsed window returns false but must still be
-    // ended, so End is deferred unconditionally once Begin succeeds.
-    const visible = imgui.Begin(.{ ctx, plugin_name }) catch return;
+    // ReaImGui runs the underlying C function before checking for an error, so
+    // when Begin errors the window IS already opened in ImGui's stack. The defer
+    // must be registered before any error escape so End is always called and the
+    // stack stays balanced. (Placing the defer after a catch return instead would
+    // leave an unclosed window and cause every subsequent frame to fail.)
+    const begin_result = imgui.Begin(.{ ctx, plugin_name, null, imgui.WindowFlags_NoCollapse });
     defer imgui.End(.{ctx}) catch {};
+    const visible = try begin_result;
     if (!visible) return;
 
     const active = globals.mft.active_module;
@@ -187,12 +190,13 @@ fn draw(globals: *MftGlobals) !void {
         }
     }
 
-    // Each group's EndGroup is deferred inside its own block so that a throw by
-    // any call in between cannot skip it and leave the ImGui stack unbalanced.
+    // Each group result is captured before the defer so EndGroup is always called
+    // even if BeginGroup errors, keeping the ImGui group stack balanced.
     // Left side buttons, labeled with their function.
     {
-        try imgui.BeginGroup(.{ctx});
+        const gr = imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
+        try gr;
         _ = try imgui.Button(.{ ctx, "L1 Chain", SIDE_W, SIDE_H });
         _ = try imgui.Button(.{ ctx, "L2 Hide", SIDE_W, SIDE_H });
         _ = try imgui.Button(.{ ctx, "L3 FXsel", SIDE_W, SIDE_H });
@@ -201,8 +205,9 @@ fn draw(globals: *MftGlobals) !void {
 
     // 4x4 encoder grid.
     {
-        try imgui.BeginGroup(.{ctx});
+        const gr = imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
+        try gr;
         var row: usize = 0;
         while (row < 4) : (row += 1) {
             var col: usize = 0;
@@ -217,8 +222,9 @@ fn draw(globals: *MftGlobals) !void {
 
     // Right side buttons, labeled with their function.
     {
-        try imgui.BeginGroup(.{ctx});
+        const gr = imgui.BeginGroup(.{ctx});
         defer imgui.EndGroup(.{ctx}) catch {};
+        try gr;
         _ = try imgui.Button(.{ ctx, "R1 Mute", SIDE_W, SIDE_H });
         _ = try imgui.Button(.{ ctx, "R2 Solo", SIDE_W, SIDE_H });
         _ = try imgui.Button(.{ ctx, "R3 Phase", SIDE_W, SIDE_H });
@@ -238,11 +244,11 @@ fn drawCell(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: Mft
     if (border_color) |bc| try imgui.PushStyleColor(.{ ctx, imgui.Col_Border, bc });
     defer if (border_color != null) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
-    // NoScrollbar keeps a too-tight box from spawning (and, in ReaImGui,
-    // crashing on) a scrollbar; the box is sized to fit its lines. If BeginChild
-    // errors the child was not begun, so skip EndChild.
-    _ = imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border, imgui.WindowFlags_NoScrollbar }) catch return;
+    // NoScrollbar prevents a too-tight box from spawning a scrollbar; the box is
+    // sized to fit its lines. Same defer-before-try pattern as the outer Begin.
+    const child_result = imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border, imgui.WindowFlags_NoScrollbar });
     defer imgui.EndChild(.{ctx}) catch {};
+    _ = try child_result;
 
     var lbl_buf: [8:0]u8 = undefined;
     const klabel = std.fmt.bufPrintZ(&lbl_buf, "K{d}", .{idx + 1}) catch "K";
