@@ -150,87 +150,78 @@ fn draw(globals: *MftGlobals) !void {
     const style = mft_theme.pushStyle(ctx);
     defer mft_theme.popStyle(ctx, style);
 
-    // ReaImGui runs the underlying C function before checking for an error, so
-    // when Begin errors the window IS already opened in ImGui's stack. The defer
-    // must be registered before any error escape so End is always called and the
-    // stack stays balanced. (Placing the defer after a catch return instead would
-    // leave an unclosed window and cause every subsequent frame to fail.)
-    const begin_result = imgui.Begin(.{ ctx, plugin_name, null, imgui.WindowFlags_NoCollapse });
-    defer imgui.End(.{ctx}) catch {};
-    const visible = try begin_result;
-    if (!visible) return;
+    if (try imgui.Begin(.{ ctx, plugin_name, null, imgui.WindowFlags_NoCollapse })) {
+        defer imgui.End(.{ctx}) catch {};
 
-    const active = globals.mft.active_module;
-    try imgui.TextColored(.{ ctx, moduleColor(globals, active), @tagName(active) });
-    try imgui.Separator(.{ctx});
-
-    // Settings mode draws its form above the grid; otherwise the buffers stay
-    // synced from preferences for the next time it is opened.
-    if (active == .SETTINGS) {
-        try mft_settings.drawForm(ctx, globals);
+        const active = globals.mft.active_module;
+        try imgui.TextColored(.{ ctx, moduleColor(globals, active), @tagName(active) });
         try imgui.Separator(.{ctx});
-    } else {
-        mft_settings.markUnsynced();
-    }
 
-    // Read the eight top-row parameter values and names for the active module.
-    var info = KnobInfo{};
-    if (MappableModule.fromActive(active)) |module| {
-        if (globals.current_track) |track| {
-            const routing = mft_fx.resolveModule(globals, track, module);
-            for (routing.targets, 0..) |maybe_target, slot| {
-                if (maybe_target) |target| {
-                    info.vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
-                    info.mapped[slot] = true;
-                    if (reaper.TrackFX_GetParamName(track, target.fx_index, @intCast(target.param), @ptrCast(&info.name_bufs[slot]), 64)) {
-                        info.has_name[slot] = true;
+        // Settings mode draws its form above the grid; otherwise the buffers stay
+        // synced from preferences for the next time it is opened.
+        if (active == .SETTINGS) {
+            try mft_settings.drawForm(ctx, globals);
+            try imgui.Separator(.{ctx});
+        } else {
+            mft_settings.markUnsynced();
+        }
+
+        // Read the eight top-row parameter values and names for the active module.
+        var info = KnobInfo{};
+        if (MappableModule.fromActive(active)) |module| {
+            if (globals.current_track) |track| {
+                const routing = mft_fx.resolveModule(globals, track, module);
+                for (routing.targets, 0..) |maybe_target, slot| {
+                    if (maybe_target) |target| {
+                        info.vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
+                        info.mapped[slot] = true;
+                        if (reaper.TrackFX_GetParamName(track, target.fx_index, @intCast(target.param), @ptrCast(&info.name_bufs[slot]), 64)) {
+                            info.has_name[slot] = true;
+                        }
                     }
                 }
             }
         }
-    }
 
-    // Each group result is captured before the defer so EndGroup is always called
-    // even if BeginGroup errors, keeping the ImGui group stack balanced.
-    // Left side buttons, labeled with their function.
-    {
-        const gr = imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-        try gr;
-        _ = try imgui.Button(.{ ctx, "L1 Chain", SIDE_W, SIDE_H });
-        _ = try imgui.Button(.{ ctx, "L2 Hide", SIDE_W, SIDE_H });
-        _ = try imgui.Button(.{ ctx, "L3 FXsel", SIDE_W, SIDE_H });
-    }
-    try imgui.SameLine(.{ctx});
+        // Each group result is captured before the defer so EndGroup is always called
+        // even if BeginGroup errors, keeping the ImGui group stack balanced.
+        // Left side buttons, labeled with their function.
+        {
+            try imgui.BeginGroup(.{ctx});
+            defer imgui.EndGroup(.{ctx}) catch {};
+            _ = try imgui.Button(.{ ctx, "L1 Chain", SIDE_W, SIDE_H });
+            _ = try imgui.Button(.{ ctx, "L2 Hide", SIDE_W, SIDE_H });
+            _ = try imgui.Button(.{ ctx, "L3 FXsel", SIDE_W, SIDE_H });
+        }
+        try imgui.SameLine(.{ctx});
 
-    // 4x4 encoder grid.
-    {
-        const gr = imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-        try gr;
-        var row: usize = 0;
-        while (row < 4) : (row += 1) {
-            var col: usize = 0;
-            while (col < 4) : (col += 1) {
-                const idx = row * 4 + col;
-                if (col > 0) try imgui.SameLine(.{ctx});
-                try drawCell(globals, idx, &info, active);
+        // 4x4 encoder grid.
+        {
+            try imgui.BeginGroup(.{ctx});
+            defer imgui.EndGroup(.{ctx}) catch {};
+            var row: usize = 0;
+            while (row < 4) : (row += 1) {
+                var col: usize = 0;
+                while (col < 4) : (col += 1) {
+                    const idx = row * 4 + col;
+                    if (col > 0) try imgui.SameLine(.{ctx});
+                    try drawCell(globals, idx, &info, active);
+                }
             }
         }
-    }
-    try imgui.SameLine(.{ctx});
+        try imgui.SameLine(.{ctx});
 
-    // Right side buttons, labeled with their function.
-    {
-        const gr = imgui.BeginGroup(.{ctx});
-        defer imgui.EndGroup(.{ctx}) catch {};
-        try gr;
-        _ = try imgui.Button(.{ ctx, "R1 Mute", SIDE_W, SIDE_H });
-        _ = try imgui.Button(.{ ctx, "R2 Solo", SIDE_W, SIDE_H });
-        _ = try imgui.Button(.{ ctx, "R3 Phase", SIDE_W, SIDE_H });
-    }
+        // Right side buttons, labeled with their function.
+        {
+            try imgui.BeginGroup(.{ctx});
+            defer imgui.EndGroup(.{ctx}) catch {};
+            _ = try imgui.Button(.{ ctx, "R1 Mute", SIDE_W, SIDE_H });
+            _ = try imgui.Button(.{ ctx, "R2 Solo", SIDE_W, SIDE_H });
+            _ = try imgui.Button(.{ ctx, "R3 Phase", SIDE_W, SIDE_H });
+        }
 
-    try drawWizard(globals);
+        try drawWizard(globals);
+    }
 }
 
 // Draw one knob or module-selector cell as a bordered box holding its label and,
