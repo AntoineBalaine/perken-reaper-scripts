@@ -124,6 +124,19 @@ fn onTimer() callconv(.C) void {
         ready = true;
         return;
     }
+
+    const globals = MftGlobals.get();
+
+    // A ReaImGui context stays valid only while it is used every defer cycle (see
+    // the CreateContext docs); one left unused is garbage-collected. Hiding the
+    // panel by skipping Begin therefore leaves `ctx` pointing at a reclaimed
+    // context, so the next Begin on re-show errors on every frame. So we drop our
+    // handle while hidden and let onTimer recreate a fresh context on re-show.
+    if (!globals.mft.panel_visible) {
+        ctx = null;
+        return;
+    }
+
     if (ctx == null) {
         imgui.init(reaper.plugin_getapi) catch {
             log.err("ReaImGui not available; disabling MFT panel", .{});
@@ -136,15 +149,15 @@ fn onTimer() callconv(.C) void {
             return;
         };
     }
-    draw(MftGlobals.get()) catch |err| {
+    draw(globals) catch |err| {
         log.err("MFT panel draw error: {s}", .{@errorName(err)});
         if (imgui.last_error) |msg| log.err("imgui: {s}", .{std.mem.span(msg)});
     };
 }
 
 fn draw(globals: *MftGlobals) !void {
-    // Side button L2 hides the panel: with no Begin call the window disappears.
-    if (!globals.mft.panel_visible) return;
+    // Only called while the panel is visible: onTimer owns the hide/show cycle by
+    // dropping the context when hidden, so draw always submits the window.
 
     // Match the Console One palette and style around the whole window.
     const style = mft_theme.pushStyle(ctx);
