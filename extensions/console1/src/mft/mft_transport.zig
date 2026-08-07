@@ -131,5 +131,6 @@ test "transport labels" {
     try std.testing.expectEqualStrings("Rate=1", pressLabel(4));
     try std.testing.expectEqualStrings("Snap", pressLabel(5));
     try std.testing.expectEqualStrings("Marker", pressLabel(7));
-    try std.testing.expectEqualStrings("-", pressLabel(0));
+    try std.testing.expectEqualStrings("Play/Stop", pressLabel(0));
+    try std.testing.expectEqualStrings("-", pressLabel(8));
 }
