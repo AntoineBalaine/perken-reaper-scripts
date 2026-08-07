@@ -4,6 +4,7 @@
 //! zig build -Dtest=true --prefix "$HOME/.config/REAPER/UserPlugins" && zig build ui --prefix "$HOME/.config/REAPER/UserPlugins"
 //! or on MacOS:
 //! zig build -Dtest=true --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && zig build ui --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
+//! zig build mft --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
 const std = @import("std");
 const reaziglib = @import("reaziglib");
 const tests = @import("build_tests.zig");
@@ -285,10 +286,10 @@ fn addMftTarget(
 
     const cpp_flags: []const []const u8 = if (is_windows)
         &.{
-            "cl",                         "/c",
-            "/O2",                        "/std:c++14",
+            "cl",                                           "/c",
+            "/O2",                                          "/std:c++14",
             b.fmt("/I{s}", .{wdl_dep.path("").getPath(b)}), "/DNOMINMAX",
-            "/D_CRT_SECURE_NO_WARNINGS",  "/D_CRT_NONSTDC_NO_DEPRECATE",
+            "/D_CRT_SECURE_NO_WARNINGS",                    "/D_CRT_NONSTDC_NO_DEPRECATE",
             "/Fo",
         }
     else

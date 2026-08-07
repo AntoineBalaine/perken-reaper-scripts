@@ -19,6 +19,8 @@ const CMD_NEXT_TRACK = 40285;
 const CMD_PREV_TRACK = 40286;
 const CMD_NEXT_ITEM = 40417; // Item navigation: select and move to next item
 const CMD_PREV_ITEM = 40416; // Item navigation: select and move to previous item
+const CMD_PLAY_STOP = 40044;
+const CMD_PLAY_PAUSE = 40073;
 
 const CMD_INSERT_MARKER = 40157;
 const CMD_DELETE_MARKER_NEAR_CURSOR = 40613;
@@ -46,6 +48,8 @@ pub fn rotationLabel(idx: usize) [:0]const u8 {
 // meaningful momentary action are assigned.
 pub fn pressLabel(idx: usize) [:0]const u8 {
     return switch (idx) {
+        0 => "Play/Stop",
+        1 => "Play/Pause",
         2 => "FitH",
         3 => "FitV",
         4 => "Rate=1",
@@ -83,13 +87,14 @@ pub fn onRotate(idx: u3, delta: i8) void {
 
 pub fn onPress(idx: u3) void {
     switch (idx) {
+        0 => reaper.Main_OnCommand(CMD_PLAY_STOP, 0),
+        1 => reaper.Main_OnCommand(CMD_PLAY_PAUSE, 0),
         2 => reaper.Main_OnCommand(CMD_ZOOM_FIT_PROJECT_H, 0), // fit project horizontally
         3 => reaper.Main_OnCommand(CMD_ZOOM_FIT_TRACKS_V, 0), // fit/minimize tracks vertically
         4 => reaper.CSurf_OnPlayRateChange(1.0), // reset playrate
         5 => reaper.Main_OnCommand(CMD_SNAP, 0), // toggle grid snap
         6 => reaper.Main_OnCommand(CMD_INSERT_TRACK, 0), // insert new track
         7 => toggleMarker(),
-        else => {},
     }
 }
 
