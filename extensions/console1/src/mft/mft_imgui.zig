@@ -163,7 +163,7 @@ fn draw(globals: *MftGlobals) !void {
     const style = mft_theme.pushStyle(ctx);
     defer mft_theme.popStyle(ctx, style);
 
-    if (try imgui.Begin(.{ ctx, plugin_name, null, imgui.WindowFlags_NoCollapse })) {
+    if (try imgui.Begin(.{ ctx, plugin_name })) {
         defer imgui.End(.{ctx}) catch {};
 
         const active = globals.mft.active_module;
