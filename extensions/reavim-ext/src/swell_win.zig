@@ -1,8 +1,17 @@
-//! Minimal pure-Zig SWELL modstub (Linux/macOS). On load, REAPER looks for an
-//! exported SWELL_dllMain and passes it a GetFunc resolver for the SWELL API
-//! (same mechanism WDL's swell-modstub-generic.cpp uses — see its SWELL_dllMain).
-//! We resolve only the window functions the vim engine needs. On Windows these
-//! would be native win32 calls; that platform is wired up when needed.
+//! Window introspection (GetFocus/GetParent/GetClassName/IsChild) for the vim
+//! engine's focus-context logic (vim.zig).
+//!
+//! On Linux/macOS, REAPER is hosted through SWELL (WDL's win32-compat layer),
+//! so these calls have to go through SWELL's own resolver mechanism: on load,
+//! REAPER looks for an exported SWELL_dllMain and passes it a GetFunc resolver
+//! for the SWELL API (same mechanism WDL's swell-modstub-generic.cpp uses —
+//! see its SWELL_dllMain). We resolve only the window functions the vim
+//! engine needs.
+//!
+//! On Windows, REAPER is a native win32 application — there is no SWELL layer
+//! to go through at all, so this calls user32.dll directly. SWELL_dllMain is
+//! still exported unconditionally below (real Windows REAPER never looks for
+//! or calls it, so this is inert there, not harmful).
 const std = @import("std");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
@@ -13,7 +22,21 @@ const HWND = Reaper.HWND;
 // Nullable name: the macOS version handshake is GetFunc(NULL) == 0x100.
 const GetFuncT = *const fn (name: ?[*:0]const u8) callconv(.C) ?*anyopaque;
 
-// Signatures from WDL/swell/swell-functions.h
+const is_windows = builtin.os.tag == .windows;
+
+// Native win32 declarations (user32.dll), used only on Windows. Signatures
+// per the standard Win32 API (winuser.h); GetClassNameA is used rather than
+// the wide variant since the vim engine only needs a short ASCII-range class
+// name to match against (classHandlesOwnKeys in vim.zig), the same tradeoff
+// SWELL's own GetClassName makes on the other platforms.
+const user32 = if (is_windows) struct {
+    extern "user32" fn GetFocus() callconv(.C) ?HWND;
+    extern "user32" fn GetParent(hWnd: HWND) callconv(.C) ?HWND;
+    extern "user32" fn IsChild(hWndParent: HWND, hWnd: HWND) callconv(.C) c_int;
+    extern "user32" fn GetClassNameA(hWnd: HWND, lpClassName: [*]u8, nMaxCount: c_int) callconv(.C) c_int;
+} else struct {};
+
+// Signatures from WDL/swell/swell-functions.h (Linux/macOS only).
 var fnGetFocus: ?*const fn () callconv(.C) ?HWND = null;
 var fnGetParent: ?*const fn (hwnd: HWND) callconv(.C) ?HWND = null;
 var fnIsChild: ?*const fn (parent: HWND, child: HWND) callconv(.C) c_int = null;
@@ -82,23 +105,31 @@ fn macosHostGetFunc() ?GetFuncT {
 }
 
 pub fn available() bool {
+    if (is_windows) return true; // native user32 calls, always available
     return fnGetFocus != null and fnGetParent != null and fnGetClassName != null;
 }
 
 pub fn getFocus() ?HWND {
+    if (is_windows) return user32.GetFocus();
     const f = fnGetFocus orelse return null;
     return f();
 }
 
 pub fn getParent(hwnd: HWND) ?HWND {
+    if (is_windows) return user32.GetParent(hwnd);
     const f = fnGetParent orelse return null;
     return f(hwnd);
 }
 
 /// Writes the window's class name into buf, returns it as a slice ("" on failure).
 pub fn getClassName(hwnd: HWND, buf: []u8) []const u8 {
-    const f = fnGetClassName orelse return "";
     if (buf.len == 0) return "";
+    if (is_windows) {
+        const n = user32.GetClassNameA(hwnd, buf.ptr, @intCast(buf.len));
+        if (n <= 0) return "";
+        return buf[0..@min(@as(usize, @intCast(n)), buf.len)];
+    }
+    const f = fnGetClassName orelse return "";
     const n = f(hwnd, buf.ptr, @intCast(buf.len));
     if (n <= 0) return "";
     return buf[0..@min(@as(usize, @intCast(n)), buf.len)];
