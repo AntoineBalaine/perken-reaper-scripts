@@ -10,7 +10,9 @@
 //!   - ESC clears a pending sequence; in visual modes it returns to normal;
 //!     in normal mode with nothing pending it passes through
 const std = @import("std");
+const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
+const win_file = @import("win_file.zig");
 const accel = @import("accel.zig");
 const swell = @import("swell_win.zig");
 const keymod = @import("key.zig");
@@ -68,12 +70,21 @@ fn persistEnabled(on: bool) void {
     const resource = std.mem.span(Reaper.GetResourcePath());
     var dbuf: [std.fs.max_path_bytes]u8 = undefined;
     const dir = std.fmt.bufPrint(&dbuf, "{s}/Data/Perken", .{resource}) catch return;
-    std.fs.makeDirAbsolute(dir) catch {}; // ok if it already exists (Data/ always does)
     var pbuf: [std.fs.max_path_bytes]u8 = undefined;
     const path = persistPath(&pbuf) orelse return;
+    const content = if (on) "enabled=1\n" else "enabled=0\n";
+
+    // See main.zig's loadBindings for why std.fs's *Absolute calls are
+    // avoided on Windows (stack overflow at REAPER's call depth).
+    if (builtin.os.tag == .windows) {
+        _ = win_file.makeDir(dir); // ok if it already exists (Data/ always does)
+        _ = win_file.writeFile(path, content);
+        return;
+    }
+    std.fs.makeDirAbsolute(dir) catch {}; // ok if it already exists (Data/ always does)
     const file = std.fs.createFileAbsolute(path, .{}) catch return;
     defer file.close();
-    file.writeAll(if (on) "enabled=1\n" else "enabled=0\n") catch {};
+    file.writeAll(content) catch {};
 }
 
 pub fn toggle() void {
@@ -89,11 +100,16 @@ pub fn toggle() void {
 pub fn restoreState() void {
     var pbuf: [std.fs.max_path_bytes]u8 = undefined;
     const path = persistPath(&pbuf) orelse return;
-    const file = std.fs.openFileAbsolute(path, .{}) catch return;
-    defer file.close();
     var content: [64]u8 = undefined;
-    const n = file.readAll(&content) catch return;
-    if (std.mem.indexOf(u8, content[0..n], "enabled=1") != null) {
+    const read: []const u8 = if (builtin.os.tag == .windows)
+        win_file.readFileInto(path, &content) orelse return
+    else got: {
+        const file = std.fs.openFileAbsolute(path, .{}) catch return;
+        defer file.close();
+        const n = file.readAll(&content) catch return;
+        break :got content[0..n];
+    };
+    if (std.mem.indexOf(u8, read, "enabled=1") != null) {
         state.mode = .normal;
         log.info("vim mode: normal (restored)", .{});
     }
