@@ -7,12 +7,14 @@
 //! key bindings stay untouched. A "ReaVim: Toggle vim mode" action is
 //! registered in the main section to switch it on and off.
 const std = @import("std");
+const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const accel = @import("accel.zig");
 const logger = @import("logger.zig");
 const vim = @import("vim.zig");
 const config = @import("config.zig");
 const ui = @import("ui.zig");
+const win_file = @import("win_file.zig");
 const runner = @import("runner.zig");
 const actions_mod = @import("actions.zig");
 const defaults_actions = @import("defaults_actions.zig");
@@ -122,7 +124,25 @@ fn loadBindings() void {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = std.fmt.bufPrint(&path_buf, "{s}/Data/Perken/bindings.ini", .{resource}) catch "";
 
-    if (std.fs.openFileAbsolute(path, .{})) |file| {
+    // std.fs.openFileAbsolute is avoided on Windows: its internal stack frame
+    // (UTF-16 conversion, long-path prefixing) is large enough to overflow
+    // the stack at the depth REAPER calls into this extension at, even
+    // though the identical call is fine in a standalone program. win_file
+    // uses raw CreateFileA/ReadFile instead, which have small enough frames
+    // to fit in the stack room actually left at that depth.
+    if (builtin.os.tag == .windows) {
+        if (win_file.readFile(alloc, path)) |content| {
+            defer alloc.free(content);
+            if (config.parseString(alloc, &registry.?, content)) |b| {
+                bindings = b;
+                ext_log.info("bindings loaded from {s}", .{path});
+            } else |err| {
+                ext_log.err("failed to parse {s}: {s} — falling back to defaults", .{ path, @errorName(err) });
+            }
+        } else {
+            ext_log.info("no user bindings at {s} — using built-in defaults", .{path});
+        }
+    } else if (std.fs.openFileAbsolute(path, .{})) |file| {
         defer file.close();
         if (config.parse(alloc, &registry.?, file.reader())) |b| {
             bindings = b;

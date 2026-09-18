@@ -5,6 +5,7 @@ const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
 const state = @import("state.zig");
+const win_file = @import("win_file.zig");
 
 const log = std.log.scoped(.engine);
 
@@ -19,14 +20,24 @@ pub fn editBindings() void {
     const resource = std.mem.span(Reaper.GetResourcePath());
     var dbuf: [std.fs.max_path_bytes]u8 = undefined;
     const dir = std.fmt.bufPrint(&dbuf, "{s}/Data/Perken", .{resource}) catch return;
-    std.fs.makeDirAbsolute(dir) catch {};
     var pbuf: [std.fs.max_path_bytes]u8 = undefined;
     const path = std.fmt.bufPrint(&pbuf, "{s}/Data/Perken/bindings.ini", .{resource}) catch return;
-    std.fs.accessAbsolute(path, .{}) catch {
-        const f = std.fs.createFileAbsolute(path, .{}) catch return;
-        defer f.close();
-        f.writeAll(default_bindings) catch {};
-    };
+
+    // See main.zig's loadBindings for why std.fs's *Absolute calls are
+    // avoided on Windows (stack overflow at REAPER's call depth).
+    if (builtin.os.tag == .windows) {
+        _ = win_file.makeDir(dir);
+        if (!win_file.exists(path)) {
+            _ = win_file.writeFile(path, default_bindings);
+        }
+    } else {
+        std.fs.makeDirAbsolute(dir) catch {};
+        std.fs.accessAbsolute(path, .{}) catch {
+            const f = std.fs.createFileAbsolute(path, .{}) catch return;
+            defer f.close();
+            f.writeAll(default_bindings) catch {};
+        };
+    }
     const argv: []const []const u8 = switch (builtin.os.tag) {
         .macos => &.{ "open", path },
         .windows => &.{ "cmd", "/c", "start", "", path },
