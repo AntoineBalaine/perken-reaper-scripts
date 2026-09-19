@@ -13,6 +13,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const win_file = @import("win_file.zig");
+const win_input = @import("win_input.zig");
 const accel = @import("accel.zig");
 const swell = @import("swell_win.zig");
 const keymod = @import("key.zig");
@@ -224,10 +225,19 @@ pub fn onKey(msg: *accel.MSG) c_int {
     if (!focusInScope(msg)) return 0;
     if (focusHandlesOwnKeys(msg)) return 0;
 
-    // SWELL packs the win32 ACCEL modifier mask into lParam; FVIRTKEY
-    // distinguishes virtual-key codes from raw ASCII punctuation chars.
-    const virt = (msg.lParam & accel.FVIRTKEY) != 0;
-    mods = .{
+    // On Windows, wParam for WM_KEYDOWN/WM_SYSKEYDOWN is always a real
+    // virtual-key code — the ASCII-vs-VK ambiguity FVIRTKEY resolves only
+    // exists in SWELL's translated message format on Linux/macOS — and
+    // lParam is the real win32 key-message layout (repeat count, scan code,
+    // ...), not SWELL's synthetic ACCEL-style modifier mask, so modifier
+    // state has to come from a live query instead of being read out of
+    // lParam. See win_input.zig for the full story.
+    const virt = if (builtin.os.tag == .windows) true else (msg.lParam & accel.FVIRTKEY) != 0;
+    mods = if (builtin.os.tag == .windows) .{
+        .shift = win_input.keyDown(VK_SHIFT),
+        .ctrl = win_input.keyDown(VK_CONTROL),
+        .alt = win_input.keyDown(VK_MENU),
+    } else .{
         .shift = (msg.lParam & accel.FSHIFT) != 0,
         .ctrl = (msg.lParam & accel.FCONTROL) != 0,
         .alt = (msg.lParam & accel.FALT) != 0,
