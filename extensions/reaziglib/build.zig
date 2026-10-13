@@ -138,6 +138,16 @@ pub fn build(b: *std.Build) void {
     reaper_theme_mod.addImport("reaper", reaper_mod);
     reaper_theme_mod.addImport("reaper_imgui", reaper_imgui_mod);
 
+    // csurf: the control surface shim. It compiles C++ (a subclass of
+    // REAPER's IReaperControlSurface), so it is not part of addSharedModules;
+    // extensions opt in with addCsurf.
+    const csurf_mod = b.addModule("csurf", .{
+        .root_source_file = b.path("src/csurf/csurf.zig"),
+    });
+    csurf_mod.addImport("reaper", reaper_mod);
+    csurf_mod.addIncludePath(b.path("src/csurf"));
+    csurf_mod.addCSourceFile(.{ .file = b.path("src/csurf/csurf_shim.cpp"), .flags = &csurf_cxx_flags });
+
     // The modules above are consumed as source by the extensions, so their
     // test blocks never run in the extensions' own test steps. Because of
     // that, each file that carries tests gets its own test binary here, with
@@ -172,6 +182,36 @@ pub fn build(b: *std.Build) void {
         for (test_imports) |imp| t.root_module.addImport(imp.name, imp.mod);
         test_step.dependOn(&b.addRunArtifact(t).step);
     }
+
+    // The csurf test also compiles csurf_shim_test.cpp, which calls the
+    // surface through IReaperControlSurface's virtual table as REAPER would.
+    const csurf_test = b.addTest(.{
+        .root_source_file = b.path("src/csurf/csurf.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    csurf_test.linkLibC();
+    csurf_test.root_module.addImport("reaper", reaper_mod);
+    csurf_test.root_module.addIncludePath(b.path("src/csurf"));
+    csurf_test.root_module.addCSourceFile(.{ .file = b.path("src/csurf/csurf_shim.cpp"), .flags = &csurf_cxx_flags });
+    csurf_test.root_module.addCSourceFile(.{ .file = b.path("src/csurf/csurf_shim_test.cpp"), .flags = &csurf_cxx_flags });
+    test_step.dependOn(&b.addRunArtifact(csurf_test).step);
+}
+
+/// The shim uses no C++ standard library, exceptions or RTTI, so consumers do
+/// not need to link a C++ runtime; hidden visibility keeps its symbols from
+/// interposing on the host's.
+const csurf_cxx_flags = [_][]const u8{
+    "-std=c++14",
+    "-fno-exceptions",
+    "-fno-rtti",
+    "-fvisibility=hidden",
+};
+
+/// Adds the control surface shim (the "csurf" module) to a consumer. It is
+/// opt-in because it compiles C++.
+pub fn addCsurf(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {
+    consumer.addImport("csurf", dep.module("csurf"));
 }
 
 pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {
