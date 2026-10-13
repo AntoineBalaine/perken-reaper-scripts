@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **Editing helpers moved to perken-extensions**: drums (flam/ras/crescendo), kawa chord voicings, routing (busses), InsertFxAtSlot, item fades/trims/stretch from the mouse, track volume ±3 dB / rename from VSTi preset / exclusive solo, envelope point actions, MIDI key snap and batch rename now live in the separate `perken-extensions` extension, so that reavim-ext only contains the vim grammar. Their keys stay in the default `bindings.ini` as commented-out `_PERKEN_<Action>` entries; uncomment them after installing perken-extensions
+- **Batch rename settings** move from the `[rename]` section of `bindings.ini` to `Data/Perken/perken-extensions.ini`
+- Named commands bound in the MIDI context (`_SOMETHING`) are now sent to the MIDI editor, like numeric command ids already were
+
+### Fixed
+- **Windows** (from the `windows-prerelease` branch, now merged): native window introspection for the focus checks, a workaround for a `std.fs` stack overflow when loading bindings, and modifier-key detection
+
 ## [v0.2.0]
 
 ### Added

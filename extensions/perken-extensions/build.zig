@@ -1,0 +1,46 @@
+const std = @import("std");
+const reaziglib = @import("reaziglib");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const reazig_dep = b.dependency("reaziglib", .{ .target = target, .optimize = optimize });
+    const ini_dep = b.dependency("ini", .{ .target = target, .optimize = optimize });
+
+    const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .Debug);
+
+    const lib = b.addSharedLibrary(.{
+        .name = "reaper_perken_extensions",
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .strip = strip,
+    });
+    lib.linkLibC();
+    reaziglib.addSharedModules(reazig_dep, lib.root_module);
+    lib.root_module.addImport("ini", ini_dep.module("ini"));
+
+    const ext = switch (target.result.os.tag) {
+        .macos => "dylib",
+        .windows => "dll",
+        else => "so",
+    };
+    const dest = b.fmt("reaper_perken_extensions.{s}", .{ext});
+    const install = b.addInstallArtifact(lib, .{ .dest_dir = .{ .override = .{ .custom = "" } }, .dest_sub_path = dest });
+    b.getInstallStep().dependOn(&install.step);
+
+    const test_exe = b.addTest(.{
+        .name = "perken_extensions_tests",
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
+    test_exe.linkLibC();
+    reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
+    test_exe.root_module.addImport("ini", ini_dep.module("ini"));
+
+    const run_test = b.addRunArtifact(test_exe);
+    const test_step = b.step("test", "Run tests");
+    test_step.dependOn(&run_test.step);
+}

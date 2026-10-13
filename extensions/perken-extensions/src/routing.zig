@@ -3,7 +3,7 @@
 //! custom color, are not folder children, and are not the bus itself.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
-const actions = @import("../actions.zig");
+const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
 
 /// Bus name prefixes created by buildBusses (verbatim from routing.lua,

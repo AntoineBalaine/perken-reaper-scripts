@@ -25,32 +25,30 @@ const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
+const config = @import("config.zig");
 
-const log = std.log.scoped(.engine);
+const log = std.log.scoped(.rename);
 
-/// macOS opens the script in Terminal.app, which runs it through the user's
-/// login shell. Other platforms use the Debian-style terminal alternative.
-pub const default_terminal: []const u8 = switch (builtin.os.tag) {
-    .macos => "open -a Terminal",
-    else => "x-terminal-emulator -e",
-};
-/// An empty editor means "the user's default editor". The script runs in the
-/// terminal's login shell, where the user's profile has set $VISUAL and
-/// $EDITOR, so it resolves them there rather than from REAPER's environment.
-pub const default_editor: []const u8 = "";
+/// When no editor is configured, the script asks the terminal's login shell
+/// for the user's editor: the user's profile sets $VISUAL and $EDITOR there,
+/// not in REAPER's environment.
 const user_editor_expr = "${VISUAL:-${EDITOR:-vim}}";
-/// Terminal.app is the only terminal the auto-close knows how to drive, and
-/// it only exists on macOS.
-pub const default_close_terminal = builtin.os.tag == .macos;
 
-/// The terminal command, which receives the script path as its last argument.
-/// It is set from the [rename] section of bindings.ini at load.
-pub var terminal: []const u8 = default_terminal;
-/// The editor command, which receives the names file as its last argument.
-/// Empty selects the user's default editor.
-pub var editor: []const u8 = default_editor;
-/// Whether to close the Terminal.app window once the editor has exited.
-pub var close_terminal: bool = default_close_terminal;
+/// The [rename] settings from perken-extensions.ini. They are re-read at the
+/// start of every rename, so that edits apply without restarting REAPER.
+pub var settings: ?config.Settings = null;
+
+pub fn terminal() []const u8 {
+    return if (settings) |st| st.rename_terminal else config.default_terminal;
+}
+
+pub fn editor() []const u8 {
+    return if (settings) |st| st.rename_editor else config.default_editor;
+}
+
+pub fn closeTerminal() bool {
+    return if (settings) |st| st.rename_close_terminal else config.default_close_terminal;
+}
 
 pub const MAX_TRACKS = 1024;
 const GUID_LEN = 64;
@@ -165,6 +163,9 @@ pub fn start() void {
         return;
     }
 
+    if (settings) |*st| st.deinit();
+    settings = config.load(std.heap.c_allocator);
+
     const resource = std.mem.span(Reaper.GetResourcePath());
     session.dir_len = (std.fmt.bufPrint(&session.dir_buf, "{s}/Data/Perken/rename", .{resource}) catch return).len;
     std.fs.cwd().makePath(session.dir()) catch |err| {
@@ -241,7 +242,7 @@ pub fn writeScript(done_path: []const u8) bool {
     writeShellQuoted(w, tty_path) catch return false;
     // The editor is spliced in unquoted on purpose, so that it may carry its
     // own arguments (e.g. "nvim -u NONE" or "code --wait").
-    const editor_cmd = if (editor.len == 0) user_editor_expr else editor;
+    const editor_cmd = if (editor().len == 0) user_editor_expr else editor();
     w.print("\n{s} ", .{editor_cmd}) catch return false;
     writeShellQuoted(w, names_path) catch return false;
     w.writeAll("\necho $? > ") catch return false;
@@ -259,7 +260,7 @@ pub fn launchTerminal() bool {
     var cmd_buf: [std.fs.max_path_bytes * 2]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&cmd_buf);
     const w = fbs.writer();
-    w.print("{s} ", .{terminal}) catch return false;
+    w.print("{s} ", .{terminal()}) catch return false;
     writeShellQuoted(w, script_path) catch return false;
     w.writeAll(" >/dev/null 2>&1 &") catch return false;
     runDetached(fbs.getWritten());
@@ -305,7 +306,7 @@ pub fn pollDone() void {
         log.info("batch rename: editor exited with status {s}, rename cancelled", .{status});
     }
 
-    if (close_terminal and readTty()) {
+    if (closeTerminal() and readTty()) {
         session.phase = .closing;
         session.close_at = session.ticks + CLOSE_DELAY_TICKS;
     } else {

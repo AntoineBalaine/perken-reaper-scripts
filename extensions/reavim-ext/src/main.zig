@@ -21,17 +21,9 @@ const defaults_actions = @import("defaults_actions.zig");
 const lib_state = @import("lib_state.zig");
 const ported_movement = @import("ported/movement.zig");
 const ported_selection = @import("ported/selection.zig");
-const ported_tracks = @import("ported/tracks.zig");
-const ported_items = @import("ported/items.zig");
-const ported_routing = @import("ported/routing.zig");
 const ported_marks = @import("ported/marks.zig");
-const ported_envelope = @import("ported/envelope.zig");
-const ported_fx = @import("ported/fx.zig");
 const ported_midi = @import("ported/midi.zig");
-const ported_kawa = @import("ported/kawa.zig");
-const ported_drums = @import("ported/drums.zig");
 const ported_misc = @import("ported/misc.zig");
-const batch_rename = @import("batch_rename.zig");
 
 // REAPER API functions this extension uses — resolved selectively at load
 // (reaziglib.reaper.initSubset). Unlisted functions are never compiled in.
@@ -92,7 +84,6 @@ var accel_reg = accel.accelerator_register_t{
 var toggle_cmd_id: c_int = 0;
 var whichkey_cmd_id: c_int = 0;
 var edit_cmd_id: c_int = 0;
-var rename_cmd_id: c_int = 0;
 var bindings: ?config.Bindings = null;
 var registry: ?actions_mod.Registry = null;
 
@@ -106,17 +97,9 @@ fn loadBindings() void {
         &lib_state.entries,
         &ported_movement.entries,
         &ported_selection.entries,
-        &ported_tracks.entries,
-        &ported_items.entries,
-        &ported_routing.entries,
         &ported_marks.entries,
-        &ported_envelope.entries,
-        &ported_fx.entries,
         &ported_midi.entries,
-        &ported_kawa.entries,
-        &ported_drums.entries,
         &ported_misc.entries,
-        &batch_rename.entries,
         &ui.entries,
     }) catch |err| {
         ext_log.err("action registry init failed: {s}", .{@errorName(err)});
@@ -165,9 +148,6 @@ fn loadBindings() void {
         };
     }
     vim.setBindings(&bindings.?);
-    batch_rename.terminal = bindings.?.rename_terminal;
-    batch_rename.editor = bindings.?.rename_editor;
-    batch_rename.close_terminal = bindings.?.rename_close_terminal;
 }
 
 export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_info_t) c_int {
@@ -207,13 +187,6 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     };
     edit_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&edit_action)));
 
-    const rename_action: Reaper.custom_action_register_t = .{
-        .section = 0,
-        .id_str = "REAVIM_BATCH_RENAME_TRACKS",
-        .name = "ReaVim: Batch rename selected tracks in editor",
-    };
-    rename_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&rename_action)));
-
     _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
     _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 
@@ -237,10 +210,6 @@ fn onCommand(sec: *Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
     }
     if (edit_cmd_id != 0 and command == edit_cmd_id) {
         lib_state.editBindings();
-        return 1;
-    }
-    if (rename_cmd_id != 0 and command == rename_cmd_id) {
-        batch_rename.start();
         return 1;
     }
     return 0;
@@ -276,16 +245,8 @@ test {
     _ = @import("reaper_helpers");
     _ = @import("ported/movement.zig");
     _ = @import("ported/selection.zig");
-    _ = @import("ported/tracks.zig");
-    _ = @import("ported/items.zig");
-    _ = @import("ported/routing.zig");
     _ = @import("ported/marks.zig");
-    _ = @import("ported/envelope.zig");
-    _ = @import("ported/fx.zig");
     _ = @import("ported/midi.zig");
-    _ = @import("ported/kawa.zig");
-    _ = @import("ported/drums.zig");
     _ = @import("ported/misc.zig");
-    _ = @import("batch_rename.zig");
     _ = @import("search.zig");
 }

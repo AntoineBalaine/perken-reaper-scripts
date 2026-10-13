@@ -2,9 +2,8 @@
 //! Action names and flags mirror definitions/extended_defaults/actions.lua —
 //! every entry here carries midiCommand = true in the Lua defs.
 //!
-//! toggleKeySnap stays a logging stub: the Lua drives the MIDI editor's
-//! key-snap checkbox over js_ReaScriptAPI window messages, and reaziglib has
-//! no JS_* bindings.
+//! toggleKeySnap is an editing helper rather than part of the vim grammar, so
+//! it lives in the perken-extensions extension.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const actions = @import("../actions.zig");
@@ -147,15 +146,6 @@ fn prevBigNoteStart(_: *actions.RunCtx) void {
     moveToPrevBigNote(.start);
 }
 
-// ---- key snap (stub) -----------------------------------------------------------------
-
-// TODO: needs js_ReaScriptAPI bindings missing from reaziglib:
-// JS_Window_FindChildByID(editor, 0x4EC) for the key-snap checkbox plus
-// JS_WindowMessage_Send (BM_GETCHECK / BM_SETCHECK / WM_COMMAND 1260).
-fn toggleKeySnap(_: *actions.RunCtx) void {
-    log.warn("'toggleKeySnap' not ported yet — js_ReaScriptAPI window-message bindings missing from reaziglib", .{});
-}
-
 // ---- screenset on editor close ---------------------------------------------------------
 
 fn loadScreenSetWhenClosingEditor(_: *actions.RunCtx) void {
@@ -172,7 +162,6 @@ pub const entries = [_]actions.Entry{
     .{ .name = "NextBigNoteStart", .def = .{ .steps = &.{ .{ .action = "UnselectAllEvents" }, .{ .func = &nextBigNoteStart } }, .midi_command = true, .prefix_repetition_count = true } },
     .{ .name = "PrevBigNoteEnd", .def = .{ .steps = &.{ .{ .action = "UnselectAllEvents" }, .{ .func = &prevBigNoteEnd } }, .midi_command = true, .prefix_repetition_count = true } },
     .{ .name = "PrevBigNoteStart", .def = .{ .steps = &.{ .{ .action = "UnselectAllEvents" }, .{ .func = &prevBigNoteStart } }, .midi_command = true, .prefix_repetition_count = true } },
-    .{ .name = "toggleKeySnap", .def = .{ .steps = &.{.{ .func = &toggleKeySnap }}, .midi_command = true } },
     .{ .name = "CloseUndockedMidiEditorOrPassToMainWindow", .def = .{ .steps = &.{ .{ .cmd = 40477 }, .{ .func = &loadScreenSetWhenClosingEditor } }, .midi_command = true } },
 };
 

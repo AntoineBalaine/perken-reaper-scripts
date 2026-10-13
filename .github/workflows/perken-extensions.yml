@@ -1,0 +1,77 @@
+name: perken-extensions
+
+# This monorepo holds several packages, so this workflow only runs when
+# perken-extensions or something it builds against changes. GitHub does not
+# evaluate path filters on tag pushes, so a perken-extensions-v* tag always
+# triggers a release.
+on:
+  push:
+    branches: [main]
+    tags: ["perken-extensions-v*"]
+    paths:
+      - "extensions/perken-extensions/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/perken-extensions.yml"
+  pull_request:
+    paths:
+      - "extensions/perken-extensions/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/perken-extensions.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create the release and upload assets
+    defaults:
+      run:
+        working-directory: extensions/perken-extensions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.14.1
+
+      - name: Test
+        run: zig build test
+
+      # The extension is pure Zig, so every platform cross-compiles from one runner.
+      - name: Build all REAPER platforms
+        run: |
+          set -euo pipefail
+          targets=(
+            "linux-x86_64    x86_64-linux-gnu  so"
+            "linux-aarch64   aarch64-linux-gnu so"
+            "macos-x86_64    x86_64-macos      dylib"
+            "macos-aarch64   aarch64-macos     dylib"
+            "windows-x86_64  x86_64-windows    dll"
+            "windows-aarch64 aarch64-windows   dll"
+          )
+          mkdir -p dist
+          for row in "${targets[@]}"; do
+            read -r name tgt ext <<<"$row"
+            echo "::group::$name ($tgt)"
+            rm -rf zig-out
+            zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe
+            pkg="dist/perken-extensions-$name"
+            mkdir -p "$pkg"
+            cp "zig-out/reaper_perken_extensions.$ext" "$pkg/"
+            cp README.md "$pkg/README.md"
+            (cd dist && zip -qr "perken-extensions-$name.zip" "perken-extensions-$name")
+            echo "::endgroup::"
+          done
+          ls -la dist/*.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perken-extensions-builds
+          path: extensions/perken-extensions/dist/*.zip
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/perken-extensions-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: extensions/perken-extensions/dist/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -4,7 +4,7 @@
 //! id, which only exists on the original install).
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
-const actions = @import("../actions.zig");
+const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
 
 const log = std.log.scoped(.engine);

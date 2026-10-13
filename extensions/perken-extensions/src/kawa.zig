@@ -15,7 +15,7 @@
 //!   here MIDI_Sort runs after the inserts as the API requires.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
-const actions = @import("../actions.zig");
+const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
 
 // MIDI-editor command ids used by kawa's createMIDIFunc3.

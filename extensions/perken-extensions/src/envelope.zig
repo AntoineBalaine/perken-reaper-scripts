@@ -8,7 +8,7 @@
 //! bindings.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
-const actions = @import("../actions.zig");
+const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
 
 // ---- ABI shim: SetEnvelopePoint's In parameters take NULL for "keep" ----------
@@ -184,12 +184,13 @@ fn deletePoints(_: *actions.RunCtx) void {
 pub const entries = [_]actions.Entry{
     .{ .name = "DeleteEnvelopePoints", .def = .{ .steps = &.{.{ .func = &deletePoints }} } },
     .{ .name = "SelectEnvelopePoints", .def = .{ .steps = &.{.{ .func = &selectPointsCrossingTimeSelection }} } },
-    .{ .name = "SelectedPoints", .def = .{ .steps = &.{ .{ .action = "RemoveTimeSelection" }, .{ .func = &setTimeSelectionToSelectedEnvelopePoints } } } },
+    // 40635: "Time selection: Remove (unselect) time selection".
+    .{ .name = "SelectedPoints", .def = .{ .steps = &.{ .{ .cmd = 40635 }, .{ .func = &setTimeSelectionToSelectedEnvelopePoints } } } },
     .{ .name = "SetPointMin", .def = .{ .steps = &.{.{ .func = &setPointMin }} } },
     .{ .name = "SetPointMax", .def = .{ .steps = &.{.{ .func = &setPointMax }} } },
     .{ .name = "SetPointCenter", .def = .{ .steps = &.{.{ .func = &setPointCenter }} } },
-    .{ .name = "MoveEnvelopePointDown", .def = .{ .steps = &.{.{ .func = &moveEnvelopePointDown }}, .prefix_repetition_count = true } },
-    .{ .name = "MoveEnvelopePointUp", .def = .{ .steps = &.{.{ .func = &moveEnvelopePointUp }}, .prefix_repetition_count = true } },
+    .{ .name = "MoveEnvelopePointDown", .def = .{ .steps = &.{.{ .func = &moveEnvelopePointDown }} } },
+    .{ .name = "MoveEnvelopePointUp", .def = .{ .steps = &.{.{ .func = &moveEnvelopePointUp }} } },
     .{ .name = "InsertToggleAtTimeSelection", .def = .{ .steps = &.{.{ .func = &insertToggleAtTimeSelection }} } },
 };
 

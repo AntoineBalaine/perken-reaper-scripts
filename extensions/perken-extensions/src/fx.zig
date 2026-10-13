@@ -1,7 +1,7 @@
 //! Port of reavim custom_actions/fx.lua — a single HARD action, registered
 //! as a logging stub for now.
 const std = @import("std");
-const actions = @import("../actions.zig");
+const actions = @import("actions.zig");
 
 const log = std.log.scoped(.engine);
 

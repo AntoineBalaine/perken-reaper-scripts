@@ -3,7 +3,7 @@
 //! paste_before is pure command choreography, so it stays a steps-only entry.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
-const actions = @import("../actions.zig");
+const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
 
 // ---- ABI shims (reaziglib types these returns as non-optional) ---------------
@@ -202,7 +202,6 @@ pub const entries = [_]actions.Entry{
                 .{ .named = "_SWS_RESTORESEL" }, // restore track selection
                 .{ .cmd = 40058 }, // paste item
             },
-            .prefix_repetition_count = true,
         },
     },
     .{ .name = "Set2msFades", .def = .{ .steps = &.{.{ .func = &set2msFades }} } },

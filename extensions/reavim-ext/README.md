@@ -115,11 +115,13 @@ repetitions = 5
   counts, registers, visual track/timeline modes. Punctuation keys solved via
   SWELL's FVIRTKEY-in-lParam distinction (`src/key.zig` is_char).
 - [x] **5 — full port**: 644 data actions + 588 bindings generated from the
-  inventories in `port/`; ~97 custom Lua functions ported native across
-  `src/ported/` (movement, selection, tracks, items, routing, marks, envelope,
-  fx, midi, kawa, drums, misc); macros/repeat/`.` in `src/meta.zig`.
-  Remaining stubs by design: InsertFxAtSlot, toggleKeySnap, QuantizeTool,
-  midi_arranging (HARD), midi_controller + dev (SKIP), pasteRhythm (HARD).
+  inventories in `port/`; the custom Lua functions the grammar depends on
+  are ported native in `src/ported/` (movement, selection, marks, midi
+  motions, misc); macros/repeat/`.` in `src/meta.zig`. The editing helpers
+  (drums, kawa, routing, fx, items, tracks, envelope, key snap, batch
+  rename) moved to the separate `perken-extensions` extension; the default
+  `bindings.ini` lists their keys commented out, as `_PERKEN_<Action>`
+  entries to uncomment after installing it.
 
 ## Build
 

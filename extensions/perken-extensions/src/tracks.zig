@@ -2,7 +2,7 @@
 //! Action names and flags mirror definitions/extended_defaults/actions.lua.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
-const actions = @import("../actions.zig");
+const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
 
 // ---- track volume nudges ------------------------------------------------------
@@ -94,8 +94,8 @@ fn soloExclusive(_: *actions.RunCtx) void {
 // ---- registry entries -------------------------------------------------------------
 
 pub const entries = [_]actions.Entry{
-    .{ .name = "TrackVolumeDown3", .def = .{ .steps = &.{.{ .func = &trackVolumeDown3 }}, .prefix_repetition_count = true } },
-    .{ .name = "TrackVolumeUp3", .def = .{ .steps = &.{.{ .func = &trackVolumeUp3 }}, .prefix_repetition_count = true } },
+    .{ .name = "TrackVolumeDown3", .def = .{ .steps = &.{.{ .func = &trackVolumeDown3 }} } },
+    .{ .name = "TrackVolumeUp3", .def = .{ .steps = &.{.{ .func = &trackVolumeUp3 }} } },
     .{ .name = "RenameTrackToVstiPresetName", .def = .{ .steps = &.{.{ .func = &renameTrackToVstiPresetName }} } },
     .{ .name = "toggleSoloExclusive", .def = .{ .steps = &.{.{ .func = &soloExclusive }} } },
 };
