@@ -184,18 +184,24 @@ pub fn build(b: *std.Build) void {
 
     // The csurf test also compiles csurf_shim_test.cpp, which calls the
     // surface through IReaperControlSurface's virtual table as REAPER would.
-    const csurf_test = b.addTest(.{
-        .root_source_file = b.path("src/csurf/csurf.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    csurf_test.linkLibC();
-    csurf_test.root_module.addImport("reaper", reaper_mod);
-    const csurf_dir = b.path("src/csurf");
-    const tt = csurf_test.rootModuleTarget();
-    csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim"));
-    csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim_test.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim_test"));
-    test_step.dependOn(&b.addRunArtifact(csurf_test).step);
+    // That C++ is compiled with REAPER's toolchain, which only exists for the
+    // host OS. This build function also runs when an extension that does not
+    // use the shim (reavim-ext) cross-compiles reaziglib for another OS, so
+    // the test is only set up when building for the host.
+    if (target.result.os.tag == builtin.os.tag) {
+        const csurf_test = b.addTest(.{
+            .root_source_file = b.path("src/csurf/csurf.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        csurf_test.linkLibC();
+        csurf_test.root_module.addImport("reaper", reaper_mod);
+        const csurf_dir = b.path("src/csurf");
+        const tt = csurf_test.rootModuleTarget();
+        csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim"));
+        csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim_test.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim_test"));
+        test_step.dependOn(&b.addRunArtifact(csurf_test).step);
+    }
 }
 
 /// Compiler flags for a C++ file, per compiler family.
