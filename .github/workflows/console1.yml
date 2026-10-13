@@ -20,6 +20,9 @@ on:
       - ".github/workflows/console1.yml"
   workflow_dispatch:
 
+# macOS jobs are pinned to macos-15: on the macos-26 image that
+# macos-latest now points to, Zig 0.14.1 links nothing from the C library
+# (likely the newer SDK's library stubs), while the macOS 15 SDK works.
 jobs:
   build-and-test:
     strategy:
@@ -38,7 +41,7 @@ jobs:
             name: macos-x86_64
             host_ext: dylib
             ui_ext: dylib
-          - os: macos-latest
+          - os: macos-15
             name: macos-aarch64
             host_ext: dylib
             ui_ext: dylib

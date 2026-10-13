@@ -20,6 +20,9 @@ on:
       - ".github/workflows/mft.yml"
   workflow_dispatch:
 
+# macOS jobs are pinned to macos-15: on the macos-26 image that
+# macos-latest now points to, Zig 0.14.1 links nothing from the C library
+# (likely the newer SDK's library stubs), while the macOS 15 SDK works.
 jobs:
   build-and-test:
     strategy:
@@ -29,7 +32,7 @@ jobs:
           - { os: ubuntu-latest,    name: linux-x86_64,   ext: so }
           - { os: ubuntu-24.04-arm, name: linux-aarch64,  ext: so }
           - { os: macos-13,         name: macos-x86_64,   ext: dylib }
-          - { os: macos-latest,     name: macos-aarch64,  ext: dylib }
+          - { os: macos-15,     name: macos-aarch64,  ext: dylib }
           - { os: windows-latest,   name: windows-x86_64, ext: dll }
 
     runs-on: ${{ matrix.os }}

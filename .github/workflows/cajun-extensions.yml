@@ -19,6 +19,9 @@ on:
       - ".github/workflows/cajun-extensions.yml"
   workflow_dispatch:
 
+# macOS jobs are pinned to macos-15: on the macos-26 image that
+# macos-latest now points to, Zig 0.14.1 links nothing from the C library
+# (likely the newer SDK's library stubs), while the macOS 15 SDK works.
 jobs:
   # The extension contains C++ that REAPER calls (the control surface shim),
   # which must be compiled with REAPER's own toolchain on each OS (see
@@ -31,8 +34,8 @@ jobs:
           - { os: ubuntu-latest,    name: linux-x86_64,   target: native,       ext: so }
           - { os: ubuntu-24.04-arm, name: linux-aarch64,  target: native,       ext: so }
           # Apple clang builds both macOS architectures from one runner.
-          - { os: macos-latest,     name: macos-aarch64,  target: native,       ext: dylib }
-          - { os: macos-latest,     name: macos-x86_64,   target: x86_64-macos, ext: dylib }
+          - { os: macos-15,     name: macos-aarch64,  target: native,       ext: dylib }
+          - { os: macos-15,     name: macos-x86_64,   target: x86_64-macos, ext: dylib }
           - { os: windows-latest,   name: windows-x86_64, target: native,       ext: dll }
 
     runs-on: ${{ matrix.os }}
