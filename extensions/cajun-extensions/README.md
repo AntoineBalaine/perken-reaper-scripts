@@ -27,6 +27,15 @@ The auto lane watcher reacts to REAPER's state changes through a hidden
 control surface (reaziglib's `csurf` shim), registered only while the
 watcher is on; it does not appear in REAPER's control surface preferences.
 
+## Beat and tempo detection (in progress)
+
+`src/beat/` tracks beats, downbeats and the tempo between beats in audio,
+using [qm-dsp](https://github.com/c4dm/qm-dsp)'s bar and beat tracker (Queen
+Mary, University of London; the tracker Ardour ships). qm-dsp is pinned in
+`build.zig.zon` and compiled, unmodified, with REAPER's toolchain; a small C
+bridge (`src/beat/qm_bridge.cpp`) follows qm-dsp's own Vamp plugin. The
+REAPER action that analyses an item is not written yet.
+
 ## Settings
 
 Optional, in `<resource path>/Data/Perken/cajun-extensions.ini`:
@@ -51,3 +60,8 @@ zig build test        # unit tests
 zig build             # Debug build into zig-out/
 zig build -Doptimize=ReleaseSafe
 ```
+
+## License
+
+GPL-3.0 (see `LICENSE`), because the extension includes qm-dsp, which is
+licensed under the GPL (version 2 or later).

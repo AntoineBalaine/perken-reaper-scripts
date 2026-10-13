@@ -156,6 +156,7 @@ test {
     _ = @import("surface.zig");
     _ = @import("sws.zig");
     _ = @import("auto_lane_watcher.zig");
+    _ = @import("beat/beat.zig");
     _ = @import("config.zig");
     _ = @import("drums.zig");
     _ = @import("kawa.zig");

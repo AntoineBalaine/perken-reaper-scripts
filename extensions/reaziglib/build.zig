@@ -220,7 +220,7 @@ const csurf_cxx_flags = CxxFlags{
     .msvc = &.{ "/GR-", "/GS-" },
 };
 
-/// Compiles one C++ file with REAPER's own toolchain and returns the object
+/// Compiles one C or C++ file with REAPER's own toolchain and returns the object
 /// file, to add to an artifact with addObjectFile. C++ that REAPER calls
 /// through virtual methods (control surfaces, MIDI devices) must use that
 /// toolchain: MSVC's cl on Windows, Apple clang on macOS, gcc on Linux (see
@@ -242,9 +242,13 @@ pub fn reaperCxxObject(
             .{ @tagName(target.os.tag), @tagName(builtin.os.tag) },
         );
     }
+    // A .c file is compiled as C (e.g. a C library bundled with C++ code),
+    // anything else as C++14.
+    const is_c = std.mem.endsWith(u8, lazyPathName(file), ".c");
     switch (target.os.tag) {
         .windows => {
-            const cmd = b.addSystemCommand(&.{ "cl", "/nologo", "/c", "/O2", "/std:c++14", "/DNOMINMAX" });
+            const cmd = b.addSystemCommand(&.{ "cl", "/nologo", "/c", "/O2", "/DNOMINMAX" });
+            if (!is_c) cmd.addArg("/std:c++14");
             for (include_dirs) |dir| cmd.addPrefixedDirectoryArg("/I", dir);
             cmd.addArgs(flags.msvc);
             const obj = cmd.addPrefixedOutputFileArg("/Fo", b.fmt("{s}.obj", .{out_basename}));
@@ -252,7 +256,8 @@ pub fn reaperCxxObject(
             return obj;
         },
         else => {
-            const cmd = b.addSystemCommand(&.{ if (target.os.tag == .macos) "clang" else "gcc", "-c", "-fPIC", "-O2", "-std=c++14" });
+            const cmd = b.addSystemCommand(&.{ if (target.os.tag == .macos) "clang" else "gcc", "-c", "-fPIC", "-O2" });
+            cmd.addArg(if (is_c) "-std=c99" else "-std=c++14");
             if (target.os.tag == .macos) {
                 // Build for the requested architecture and macOS version,
                 // which may differ from the host's defaults.
@@ -270,6 +275,41 @@ pub fn reaperCxxObject(
             cmd.addFileArg(file);
             return obj;
         },
+    }
+}
+
+/// The file name of a source path, whichever package it comes from.
+/// LazyPath.getDisplayName does not give the file name for a path inside a
+/// dependency, so the variants are read directly.
+pub fn lazyPathName(file: std.Build.LazyPath) []const u8 {
+    return switch (file) {
+        .src_path => |p| p.sub_path,
+        .dependency => |d| d.sub_path,
+        .cwd_relative => |p| p,
+        .generated => |g| g.sub_path,
+    };
+}
+
+/// Links the C++ runtime for C++ compiled with reaperCxxObject that uses the
+/// C++ standard library. The control surface shim does not need it.
+///
+/// - macOS: Zig's bundled libc++, linked statically, as console1 does
+///   (linkLibCpp). Apple's libc++ is LLVM's libc++, so objects compiled by
+///   Apple clang against its headers use the same symbols. (Zig maps the
+///   library names "c++" and "stdc++" to its bundled libc++, so a system
+///   C++ library can not be requested by name.)
+/// - Linux: gcc compiles against GNU libstdc++, whose symbols Zig's libc++
+///   does not provide, so the libstdc++ that gcc itself uses is linked by
+///   its path, as gcc reports it.
+/// - Windows (MSVC's runtime) is not handled yet.
+pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) void {
+    switch (compile.rootModuleTarget().os.tag) {
+        .macos => compile.linkLibCpp(),
+        .linux => {
+            const path = std.mem.trim(u8, b.run(&.{ "gcc", "-print-file-name=libstdc++.so" }), " \n\r\t");
+            compile.addObjectFile(.{ .cwd_relative = path });
+        },
+        else => {},
     }
 }
 

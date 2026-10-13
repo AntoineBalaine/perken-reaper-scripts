@@ -10,6 +10,10 @@
             .url = "https://github.com/AntoineBalaine/ini/archive/5b75cfec6ef76dd563c373bd5aae1ca96fd54fb8.tar.gz",
             .hash = "N-V-__8AAJDsawBiTNjNT9xhCw08Kw-RongN_n7OdAnOykS9",
         },
+        .qm_dsp = .{
+            .url = "https://github.com/c4dm/qm-dsp/archive/e34a3cc188332ed7c33cd9257ef164de5b587191.tar.gz",
+            .hash = "N-V-__8AAB2sGQDH4iWgDr9St9yFFBG8wwerTW2lD8yysnSp",
+        },
     },
     .paths = .{
         "",
