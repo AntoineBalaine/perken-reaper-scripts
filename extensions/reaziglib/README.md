@@ -2,6 +2,10 @@
 
 Shared Zig modules for building REAPER extensions with ReaImGui.
 
+C++ that REAPER calls through virtual methods (e.g. the `csurf` control
+surface shim) must be compiled with REAPER's own toolchain; see the
+[toolchain rule](../README.md#toolchain-rule-c-that-reaper-calls-must-use-reapers-toolchain).
+
 ## Modules
 
 ### Core
