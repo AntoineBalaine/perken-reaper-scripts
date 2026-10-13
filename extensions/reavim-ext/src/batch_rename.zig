@@ -151,6 +151,14 @@ pub fn splitNames(content: []const u8, out: [][]const u8) ?usize {
 
 /// Entry point for the action: writes the names file and opens the editor.
 pub fn start() void {
+    // Batch rename has no Windows terminal launcher yet, and the std.fs
+    // calls below can overflow the stack at the depth REAPER calls into the
+    // extension on Windows (see win_file.zig). Because of both, Windows is
+    // refused before any file is touched.
+    if (builtin.os.tag == .windows) {
+        log.warn("batch rename: not supported on Windows yet", .{});
+        return;
+    }
     const total = Reaper.CountSelectedTracks(0);
     if (total <= 0) {
         log.info("batch rename: no track selected", .{});
@@ -245,10 +253,6 @@ pub fn writeScript(done_path: []const u8) bool {
 
 /// Runs the terminal command in the background (see runDetached).
 pub fn launchTerminal() bool {
-    if (builtin.os.tag == .windows) {
-        log.warn("batch rename: not supported on Windows yet", .{});
-        return false;
-    }
     var script_buf: [std.fs.max_path_bytes]u8 = undefined;
     const script_path = sessionPath(&script_buf, "edit.command") orelse return false;
 
