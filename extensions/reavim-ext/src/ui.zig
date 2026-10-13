@@ -18,6 +18,10 @@ var ctx: imgui.ContextPtr = null;
 var font: imgui.FontPtr = null;
 var hidden = false;
 var prev_mode: vim.Mode = .off;
+/// Whether ImGui reported the whichkey window as focused on the last frame.
+/// The vim engine reads it to redirect keys typed into the window back to the
+/// arrange view, because those keys would otherwise be swallowed silently.
+pub var window_focused = false;
 
 /// Show/hide the feedback window (bindable action). No-op without ReaImGui.
 pub fn toggleVisible() bool {
@@ -193,7 +197,10 @@ fn onTimer() callconv(.C) void {
     if (vim.mode() != .off and prev_mode == .off) hidden = false;
     prev_mode = vim.mode();
 
-    if (hidden) return;
+    if (hidden) {
+        window_focused = false;
+        return;
+    }
 
     if (ctx == null) {
         var cfg_flags: c_int = imgui.ConfigFlags_DockingEnable;
@@ -221,10 +228,15 @@ fn onTimer() callconv(.C) void {
     var is_open: bool = true;
     var begin_flags: c_int = imgui.WindowFlags_NoSavedSettings;
     const visible = imgui.api.Begin(ctx, "ReaVim", &is_open, &begin_flags);
+    var focus_flags: c_int = imgui.FocusedFlags_RootAndChildWindows;
+    window_focused = visible and imgui.api.IsWindowFocused(ctx, &focus_flags);
     if (visible) renderContent();
     imgui.api.End(ctx);
 
-    if (!is_open) hidden = true;
+    if (!is_open) {
+        hidden = true;
+        window_focused = false;
+    }
 }
 
 fn renderContent() void {

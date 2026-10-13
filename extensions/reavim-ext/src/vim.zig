@@ -194,6 +194,39 @@ fn focusHandlesOwnKeys(msg: *accel.MSG) bool {
     return false;
 }
 
+/// ReaImGui windows (ours and other scripts') carry these class names.
+fn isImGuiClass(cls: []const u8) bool {
+    return std.ascii.startsWithIgnoreCase(cls, "REAIMGUI_") or
+        std.mem.eql(u8, cls, "reaper_imgui_context");
+}
+
+/// The whichkey window gives no visual cue that it holds keyboard focus, so
+/// keys typed into it would be lost from the user's point of view. Because of
+/// that, a key destined for a ReaImGui window while our whichkey reports focus
+/// is treated as a key for the arrange view. Requiring both conditions keeps
+/// keys typed into other scripts' ReaImGui windows untouched.
+fn keyTargetsWhichkey(msg: *accel.MSG) bool {
+    if (!ui.window_focused) return false;
+    var buf: [64]u8 = undefined;
+    if (msg.hwnd) |h| {
+        if (isImGuiClass(swell.getClassName(h, &buf))) return true;
+    }
+    var fbuf: [64]u8 = undefined;
+    if (swell.getFocus()) |f| {
+        if (isImGuiClass(swell.getClassName(f, &fbuf))) return true;
+    }
+    return false;
+}
+
+/// Hands keyboard focus back to the arrange view (the main window's child with
+/// control id 1000), so that the following keys reach it directly.
+fn focusArrange() void {
+    const main_hwnd = Reaper.GetMainHwnd();
+    const arrange = swell.getDlgItem(main_hwnd, 1000) orelse main_hwnd;
+    swell.setFocus(arrange);
+    ui.window_focused = false;
+}
+
 /// Returns the translateAccel return value: 0 = pass through, 1 = eat.
 pub fn onKey(msg: *accel.MSG) c_int {
     if (state.mode == .off) return 0;
@@ -205,8 +238,14 @@ pub fn onKey(msg: *accel.MSG) c_int {
     const vk: u8 = @truncate(msg.wParam);
     if (vk == VK_SHIFT or vk == VK_CONTROL or vk == VK_MENU) return 0;
 
-    if (!focusInScope(msg)) return 0;
-    if (focusHandlesOwnKeys(msg)) return 0;
+    if (keyTargetsWhichkey(msg)) {
+        // Only the key-down moves focus; the key-up of the same key then
+        // arrives in the arrange view, where it is handled normally.
+        if (down) focusArrange();
+    } else {
+        if (!focusInScope(msg)) return 0;
+        if (focusHandlesOwnKeys(msg)) return 0;
+    }
 
     // SWELL packs the win32 ACCEL modifier mask into lParam; FVIRTKEY
     // distinguishes virtual-key codes from raw ASCII punctuation chars.

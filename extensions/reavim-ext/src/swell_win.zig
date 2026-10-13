@@ -18,6 +18,8 @@ var fnGetFocus: ?*const fn () callconv(.C) ?HWND = null;
 var fnGetParent: ?*const fn (hwnd: HWND) callconv(.C) ?HWND = null;
 var fnIsChild: ?*const fn (parent: HWND, child: HWND) callconv(.C) c_int = null;
 var fnGetClassName: ?*const fn (hwnd: HWND, buf: [*]u8, bufsz: c_int) callconv(.C) c_int = null;
+var fnSetFocus: ?*const fn (hwnd: HWND) callconv(.C) void = null;
+var fnGetDlgItem: ?*const fn (hwnd: HWND, idx: c_int) callconv(.C) ?HWND = null;
 
 const DLL_PROCESS_ATTACH: c_uint = 1;
 
@@ -37,6 +39,8 @@ export fn SWELL_dllMain(hInst: ?*anyopaque, callMode: c_uint, getFunc: ?*anyopaq
             fnGetParent = @ptrCast(@alignCast(g("GetParent") orelse null));
             fnIsChild = @ptrCast(@alignCast(g("IsChild") orelse null));
             fnGetClassName = @ptrCast(@alignCast(g("GetClassName") orelse null));
+            fnSetFocus = @ptrCast(@alignCast(g("SetFocus") orelse null));
+            fnGetDlgItem = @ptrCast(@alignCast(g("GetDlgItem") orelse null));
         }
         if (fnGetFocus == null or fnGetParent == null or fnIsChild == null or fnGetClassName == null)
             log.warn("some SWELL window functions failed to resolve", .{});
@@ -93,6 +97,16 @@ pub fn getFocus() ?HWND {
 pub fn getParent(hwnd: HWND) ?HWND {
     const f = fnGetParent orelse return null;
     return f(hwnd);
+}
+
+pub fn setFocus(hwnd: HWND) void {
+    const f = fnSetFocus orelse return;
+    f(hwnd);
+}
+
+pub fn getDlgItem(hwnd: HWND, idx: c_int) ?HWND {
+    const f = fnGetDlgItem orelse return null;
+    return f(hwnd, idx);
 }
 
 /// Writes the window's class name into buf, returns it as a slice ("" on failure).
