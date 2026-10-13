@@ -131,6 +131,40 @@ pub fn build(b: *std.Build) void {
     });
     reaper_theme_mod.addImport("reaper", reaper_mod);
     reaper_theme_mod.addImport("reaper_imgui", reaper_imgui_mod);
+
+    // The modules above are consumed as source by the extensions, so their
+    // test blocks never run in the extensions' own test steps. Because of
+    // that, each file that carries tests gets its own test binary here, with
+    // the imports those files use.
+    const test_step = b.step("test", "Run reaziglib unit tests");
+    const test_files = [_][]const u8{
+        "src/utils.zig",
+        "src/slotted_buffer.zig",
+        "src/preset_file_reader.zig",
+        "src/fs_helpers.zig",
+        "src/swell.zig",
+        "src/models/reaper_mock.zig",
+    };
+    const test_imports = [_]struct { name: []const u8, mod: *std.Build.Module }{
+        .{ .name = "reaper", .mod = reaper_mod },
+        .{ .name = "utils", .mod = utils_mod },
+        .{ .name = "string_pool", .mod = string_pool_mod },
+        .{ .name = "ini", .mod = ini.module("ini") },
+        .{ .name = "fx_model", .mod = fx_model_mod },
+        .{ .name = "track_model", .mod = track_model_mod },
+        .{ .name = "session", .mod = session_mod },
+        .{ .name = "automation_mode", .mod = automation_mode_mod },
+    };
+    for (test_files) |file| {
+        const t = b.addTest(.{
+            .root_source_file = b.path(file),
+            .target = target,
+            .optimize = optimize,
+        });
+        t.linkLibC();
+        for (test_imports) |imp| t.root_module.addImport(imp.name, imp.mod);
+        test_step.dependOn(&b.addRunArtifact(t).step);
+    }
 }
 
 pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {
