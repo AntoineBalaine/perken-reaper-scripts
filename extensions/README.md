@@ -14,6 +14,29 @@ package with its own `build.zig`, `build.zig.zon`, CI workflow
 Extensions depend on `reaziglib` by path (`.path = "../reaziglib"`), so a
 change to the library and to the code using it lands in one commit.
 
+## Releases and tags
+
+Each extension is versioned and released on its own, from its own tags:
+
+| Extension | Tag | Workflow |
+|---|---|---|
+| reavim-ext | `reavim-ext-v<version>` | `.github/workflows/reavim-ext.yml` |
+| cajun-extensions | `cajun-extensions-v<version>` | `.github/workflows/cajun-extensions.yml` |
+| Console1 (`reaper_c1`, `reaper_c1_ui`) | `console1-v<version>` | `.github/workflows/console1.yml` |
+| MIDI Fighter Twister (`reaper_mft`) | `mft-v<version>` | `.github/workflows/mft.yml` |
+
+- A tag triggers only its own workflow, which builds only that extension and
+  publishes a GitHub release with only its binaries. reaziglib is not
+  released; the extensions build it from source.
+- Branch pushes and pull requests build an extension when its folder,
+  reaziglib or its workflow changes; they never release.
+- The version in the tag is baked into the binary (`-Dversion`, `dev` for
+  untagged builds) and logged when the extension loads.
+- Releases do not claim GitHub's "Latest" badge, because several extensions
+  release from this repository. To list one extension's releases, filter the
+  releases page by its tag prefix.
+- Each extension keeps its own `CHANGELOG.md`.
+
 ## Toolchain rule: C++ that REAPER calls must use REAPER's toolchain
 
 REAPER calls some extension code through **C++ virtual methods**: a control

@@ -10,6 +10,11 @@ pub fn build(b: *std.Build) void {
     const wdl_dep = b.dependency("WDL", .{ .target = target, .optimize = optimize });
 
     const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .Debug);
+    // The release version, baked into the binary so that it knows which
+    // release it came from. CI passes it from the <name>-v<version> tag.
+    const version = b.option([]const u8, "version", "Version string baked into the binary") orelse "dev";
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", version);
 
     const lib = b.addSharedLibrary(.{
         .name = "reaper_reavim",
@@ -21,6 +26,7 @@ pub fn build(b: *std.Build) void {
     lib.linkLibC();
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
     lib.root_module.addImport("ini", ini_dep.module("ini"));
+    lib.root_module.addOptions("build_options", build_options);
 
     _ = wdl_dep; // kept as a dependency for SWELL header reference (src/swell_win.zig
     // implements a minimal pure-Zig modstub instead of compiling WDL's C++ one)
@@ -51,6 +57,7 @@ pub fn build(b: *std.Build) void {
     test_exe.linkLibC();
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
     test_exe.root_module.addImport("ini", ini_dep.module("ini"));
+    test_exe.root_module.addOptions("build_options", build_options);
 
     const run_test = b.addRunArtifact(test_exe);
     const test_step = b.step("test", "Run tests");

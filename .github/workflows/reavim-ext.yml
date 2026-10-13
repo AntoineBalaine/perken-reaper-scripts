@@ -32,6 +32,17 @@ jobs:
         with:
           version: 0.14.1
 
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        # Tags look like reavim-ext-v1.2.3; other runs build a "dev" version.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/reavim-ext-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#reavim-ext-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Test
         run: zig build test
 
@@ -51,7 +62,7 @@ jobs:
             read -r name tgt ext <<<"$row"
             echo "::group::$name ($tgt)"
             rm -rf zig-out
-            zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe
+            zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }}
             pkg="dist/reavim-ext-$name"
             mkdir -p "$pkg"
             cp "zig-out/reaper_reavim.$ext" "$pkg/"
@@ -74,3 +85,6 @@ jobs:
           files: extensions/reavim-ext/dist/*.zip
           generate_release_notes: true
           fail_on_unmatched_files: true
+          # Several extensions release from this repository, so no single
+          # release may claim "Latest".
+          make_latest: false

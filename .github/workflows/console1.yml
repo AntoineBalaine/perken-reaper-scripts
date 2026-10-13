@@ -1,9 +1,10 @@
 name: console1
 
 # This monorepo holds several packages, so this workflow only runs when the
-# Console1/MFT extensions or something they build against change. GitHub does
-# not evaluate path filters on tag pushes, so a console1-v* tag always
-# triggers a build and a release.
+# Console1 extension or something it builds against changes. GitHub does not
+# evaluate path filters on tag pushes, so a console1-v* tag always triggers a
+# build and a release. The MIDI Fighter Twister extension lives in the same
+# folder but is built and released on its own (mft.yml, mft-v* tags).
 on:
   push:
     branches: [main]
@@ -61,6 +62,12 @@ jobs:
         with:
           version: 0.14.0
 
+      # The C++ is compiled with MSVC's cl, which is only on PATH inside a
+      # Visual Studio developer environment.
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Extract version from tag
         id: version
         shell: bash
@@ -91,19 +98,12 @@ jobs:
       - name: Build UI library
         run: zig build ui -Dversion=${{ steps.version.outputs.version }}
 
-      - name: Run MFT tests
-        run: zig build mft-test
-
-      - name: Build MFT extension
-        run: zig build mft -Dversion=${{ steps.version.outputs.version }}
-
       - name: Rename binaries for release
         shell: bash
         run: |
           mkdir -p release-binaries
           cp zig-out/reaper_c1.${{ matrix.host_ext }} release-binaries/reaper_c1-${{ matrix.name }}.${{ matrix.host_ext }}
           cp zig-out/reaper_c1_ui.${{ matrix.ui_ext }} release-binaries/reaper_c1_ui-${{ matrix.name }}.${{ matrix.ui_ext }}
-          cp zig-out/reaper_mft.${{ matrix.host_ext }} release-binaries/reaper_mft-${{ matrix.name }}.${{ matrix.host_ext }}
 
       - name: Bundle maps into artifact
         shell: bash
@@ -151,3 +151,6 @@ jobs:
         with:
           files: release-assets/*
           generate_release_notes: true
+          # Several extensions release from this repository, so no single
+          # release may claim "Latest".
+          make_latest: false

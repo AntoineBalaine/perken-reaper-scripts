@@ -9,6 +9,11 @@ pub fn build(b: *std.Build) void {
     const ini_dep = b.dependency("ini", .{ .target = target, .optimize = optimize });
 
     const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .Debug);
+    // The release version, baked into the binary so that it knows which
+    // release it came from. CI passes it from the <name>-v<version> tag.
+    const version = b.option([]const u8, "version", "Version string baked into the binary") orelse "dev";
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", version);
 
     const lib = b.addSharedLibrary(.{
         .name = "reaper_cajun_extensions",
@@ -21,6 +26,7 @@ pub fn build(b: *std.Build) void {
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
     reaziglib.addCsurf(b, reazig_dep, lib);
     lib.root_module.addImport("ini", ini_dep.module("ini"));
+    lib.root_module.addOptions("build_options", build_options);
 
     const ext = switch (target.result.os.tag) {
         .macos => "dylib",
@@ -41,6 +47,7 @@ pub fn build(b: *std.Build) void {
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
     reaziglib.addCsurf(b, reazig_dep, test_exe);
     test_exe.root_module.addImport("ini", ini_dep.module("ini"));
+    test_exe.root_module.addOptions("build_options", build_options);
 
     const run_test = b.addRunArtifact(test_exe);
     const test_step = b.step("test", "Run tests");

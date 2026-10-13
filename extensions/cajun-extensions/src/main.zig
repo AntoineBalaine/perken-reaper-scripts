@@ -6,6 +6,7 @@
 //! from any keymap, including reavim-ext's bindings.ini. Actions flagged
 //! `midi_command` are registered in the MIDI editor section.
 const std = @import("std");
+const build_options = @import("build_options");
 const Reaper = @import("reaper").reaper;
 const logger = @import("logger.zig");
 const actions = @import("actions.zig");
@@ -112,7 +113,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
     _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 
-    log.info("loaded {d} actions (search \"Perken:\" in the action list)", .{all_entries.len});
+    log.info("v{s} loaded {d} actions (search \"Cajun:\" in the action list)", .{ build_options.version, all_entries.len });
     return 1;
 }
 

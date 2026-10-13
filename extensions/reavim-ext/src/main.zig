@@ -8,6 +8,7 @@
 //! registered in the main section to switch it on and off.
 const std = @import("std");
 const builtin = @import("builtin");
+const build_options = @import("build_options");
 const Reaper = @import("reaper").reaper;
 const accel = @import("accel.zig");
 const logger = @import("logger.zig");
@@ -194,7 +195,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     vim.restoreState();
     ui.register();
 
-    ext_log.info("loaded — bind \"ReaVim: Toggle vim mode\" to a key, or run it from the action list", .{});
+    ext_log.info("v{s} loaded — bind \"ReaVim: Toggle vim mode\" to a key, or run it from the action list", .{build_options.version});
     return 1;
 }
 

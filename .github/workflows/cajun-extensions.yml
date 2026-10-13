@@ -54,12 +54,23 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        # Tags look like cajun-extensions-v1.2.3; other runs build a "dev" version.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/cajun-extensions-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#cajun-extensions-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Test
         if: matrix.target == 'native'
         run: zig build test
 
       - name: Build
-        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe
+        run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }}
 
       - name: Package
         run: |
@@ -91,3 +102,6 @@ jobs:
           files: artifacts/*/*.zip
           generate_release_notes: true
           fail_on_unmatched_files: true
+          # Several extensions release from this repository, so no single
+          # release may claim "Latest".
+          make_latest: false
