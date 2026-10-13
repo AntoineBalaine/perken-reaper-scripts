@@ -31,7 +31,10 @@ pub const Bindings = struct {
     /// Batch-rename launcher (the [rename] config section). The terminal
     /// command receives the editor script as its last argument.
     rename_terminal: []const u8 = batch_rename.default_terminal,
+    /// An empty editor selects the user's $VISUAL / $EDITOR (vim fallback).
     rename_editor: []const u8 = batch_rename.default_editor,
+    /// Close the Terminal.app window once the editor exits (macOS only).
+    rename_close_terminal: bool = batch_rename.default_close_terminal,
 
     pub fn deinit(self: *Bindings) void {
         for (&self.tables.tries) |*row| for (row) |*t| t.deinit();
@@ -45,6 +48,15 @@ const CurSection = union(enum) {
     rename,
     unknown,
 };
+
+/// Parses a boolean setting: true/false, yes/no, on/off or 1/0.
+fn parseBool(v: []const u8) ?bool {
+    const truthy = [_][]const u8{ "true", "yes", "on", "1" };
+    const falsy = [_][]const u8{ "false", "no", "off", "0" };
+    for (truthy) |t| if (std.ascii.eqlIgnoreCase(v, t)) return true;
+    for (falsy) |f| if (std.ascii.eqlIgnoreCase(v, f)) return false;
+    return null;
+}
 
 /// Parses a single-key value like "<pagedown>" or "<C-n>" for [whichkey].
 fn parseSingleKey(raw: []const u8) ?keymod.Key {
@@ -202,6 +214,11 @@ pub fn parse(
                         b.rename_terminal = try arena.dupe(u8, v);
                     } else if (std.mem.eql(u8, kv.key, "editor")) {
                         b.rename_editor = try arena.dupe(u8, v);
+                    } else if (std.mem.eql(u8, kv.key, "close_terminal")) {
+                        b.rename_close_terminal = parseBool(v) orelse {
+                            log.warn("bad [rename] close_terminal '{s}' (use true/false) — skipped", .{v});
+                            continue;
+                        };
                     } else {
                         log.warn("unknown [rename] key '{s}' — skipped", .{kv.key});
                     }
@@ -274,17 +291,20 @@ test "rename settings default and override" {
     var d = try parseString(std.testing.allocator, &reg, "[main.command]\nj = 40285\n");
     defer d.deinit();
     try std.testing.expectEqualStrings(batch_rename.default_terminal, d.rename_terminal);
-    try std.testing.expectEqualStrings("vim", d.rename_editor);
+    try std.testing.expectEqualStrings("", d.rename_editor);
+    try std.testing.expectEqual(batch_rename.default_close_terminal, d.rename_close_terminal);
 
     var o = try parseString(std.testing.allocator, &reg,
         \\[rename]
         \\terminal = open -a iTerm
         \\editor = nvim -u NONE
+        \\close_terminal = false
         \\
     );
     defer o.deinit();
     try std.testing.expectEqualStrings("open -a iTerm", o.rename_terminal);
     try std.testing.expectEqualStrings("nvim -u NONE", o.rename_editor);
+    try std.testing.expect(!o.rename_close_terminal);
 }
 
 test "whichkey pagination keys default and override" {

@@ -115,6 +115,7 @@ fn loadBindings() void {
         &ported_drums.entries,
         &ported_misc.entries,
         &batch_rename.entries,
+        &ui.entries,
     }) catch |err| {
         ext_log.err("action registry init failed: {s}", .{@errorName(err)});
         return;
@@ -146,6 +147,7 @@ fn loadBindings() void {
     vim.setBindings(&bindings.?);
     batch_rename.terminal = bindings.?.rename_terminal;
     batch_rename.editor = bindings.?.rename_editor;
+    batch_rename.close_terminal = bindings.?.rename_close_terminal;
 }
 
 export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_info_t) c_int {
@@ -265,4 +267,5 @@ test {
     _ = @import("ported/drums.zig");
     _ = @import("ported/misc.zig");
     _ = @import("batch_rename.zig");
+    _ = @import("search.zig");
 }

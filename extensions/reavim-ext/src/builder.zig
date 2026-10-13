@@ -179,7 +179,7 @@ fn tryDoubledOperator(
 
 /// The operator+motion candidate that doubled operators build into, if the
 /// (context, mode) grammar has one.
-fn doubledOperatorCandidate(ctx: grammar.Context, mode: grammar.Mode) ?grammar.Candidate {
+pub fn doubledOperatorCandidate(ctx: grammar.Context, mode: grammar.Mode) ?grammar.Candidate {
     for (grammar.candidatesFor(ctx, mode)) |cand| {
         if (cand.comp == .track_op_motion) return cand;
     }

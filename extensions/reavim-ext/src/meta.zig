@@ -113,11 +113,7 @@ pub fn handle(cmd: builder.Command, ctx: grammar.Context) void {
             }
             if (recording) appendToMacro(record_register, last);
         },
-        .show_binding_list => {
-            // The feedback window's completion grid is the binding list today;
-            // a searchable list is future UI work.
-            log.info("binding list: see the ReaVim feedback window", .{});
-        },
+        .show_binding_list => @import("ui.zig").openSearch(),
     }
 }
 

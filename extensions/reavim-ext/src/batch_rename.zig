@@ -1,15 +1,21 @@
-//! Batch rename of the selected tracks in an external editor (vim by default).
+//! Batch rename of the selected tracks in an external editor (the user's
+//! $VISUAL or $EDITOR, falling back to vim).
 //!
 //! REAPER's API is only callable in-process and the editor runs in a separate
 //! terminal, so the exchange goes through files under
 //! <resource>/Data/Perken/rename/:
 //!   1. tracks.txt holds the selected tracks' names, one per line, and the
 //!      session remembers each track's GUID in the same order.
-//!   2. edit.command is a small shell script that runs the editor on
-//!      tracks.txt and then writes the editor's exit status into `done`.
+//!   2. edit.command is a small shell script that records its terminal
+//!      device into `tty`, runs the editor on tracks.txt, and then writes the
+//!      editor's exit status into `done`.
 //!   3. The configured terminal command is launched with that script.
 //!   4. A timer polls for `done`. Once it exists, line N of tracks.txt becomes
 //!      the name of track N, inside a single undo block.
+//!   5. On macOS, about a second later (once the script and its shell have
+//!      exited, so that Terminal.app does not ask to terminate a running
+//!      process), close.applescript closes the Terminal.app window whose tab
+//!      shows that terminal device.
 //!
 //! Because the line order is what maps a name to a track, the rename is
 //! refused when the line count changed. Quitting the editor with a non-zero
@@ -28,13 +34,23 @@ pub const default_terminal: []const u8 = switch (builtin.os.tag) {
     .macos => "open -a Terminal",
     else => "x-terminal-emulator -e",
 };
-pub const default_editor: []const u8 = "vim";
+/// An empty editor means "the user's default editor". The script runs in the
+/// terminal's login shell, where the user's profile has set $VISUAL and
+/// $EDITOR, so it resolves them there rather than from REAPER's environment.
+pub const default_editor: []const u8 = "";
+const user_editor_expr = "${VISUAL:-${EDITOR:-vim}}";
+/// Terminal.app is the only terminal the auto-close knows how to drive, and
+/// it only exists on macOS.
+pub const default_close_terminal = builtin.os.tag == .macos;
 
 /// The terminal command, which receives the script path as its last argument.
 /// It is set from the [rename] section of bindings.ini at load.
 pub var terminal: []const u8 = default_terminal;
 /// The editor command, which receives the names file as its last argument.
+/// Empty selects the user's default editor.
 pub var editor: []const u8 = default_editor;
+/// Whether to close the Terminal.app window once the editor has exited.
+pub var close_terminal: bool = default_close_terminal;
 
 pub const MAX_TRACKS = 1024;
 const GUID_LEN = 64;
@@ -42,14 +58,42 @@ const MAX_FILE_BYTES = 1024 * 1024;
 /// The timer runs at roughly 30Hz, so this polls the done file a few times
 /// per second.
 const POLL_EVERY_TICKS = 10;
+/// The delay between the editor exiting and the window being closed, which
+/// lets the launcher script and its login shell exit first.
+const CLOSE_DELAY_TICKS = 30;
+
+/// Closes the Terminal.app window whose tab runs on the given tty. It does
+/// nothing when Terminal.app is not running (so it never launches it), and
+/// leaves windows with several tabs alone, because closing the window would
+/// close the user's other tabs too.
+const close_script =
+    \\on run argv
+    \\    set target to item 1 of argv
+    \\    if application "Terminal" is not running then return
+    \\    tell application "Terminal"
+    \\        repeat with w in windows
+    \\            if (count of tabs of w) is 1 and tty of tab 1 of w is target then
+    \\                close w
+    \\                return
+    \\            end if
+    \\        end repeat
+    \\    end tell
+    \\end run
+    \\
+;
+
+pub const Phase = enum { idle, editing, closing };
 
 pub const Session = struct {
-    active: bool = false,
+    phase: Phase = .idle,
     count: usize = 0,
     guids: [MAX_TRACKS][GUID_LEN]u8 = undefined,
     dir_buf: [std.fs.max_path_bytes]u8 = undefined,
     dir_len: usize = 0,
     ticks: u32 = 0,
+    close_at: u32 = 0,
+    tty_buf: [64]u8 = undefined,
+    tty_len: usize = 0,
     timer_registered: bool = false,
 
     pub fn dir(self: *const Session) []const u8 {
@@ -125,12 +169,15 @@ pub fn start() void {
     var done_buf: [std.fs.max_path_bytes]u8 = undefined;
     const done_path = sessionPath(&done_buf, "done") orelse return;
     std.fs.deleteFileAbsolute(done_path) catch {};
+    var tty_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const tty_path = sessionPath(&tty_path_buf, "tty") orelse return;
+    std.fs.deleteFileAbsolute(tty_path) catch {};
 
     if (!writeNamesFile()) return;
     if (!writeScript(done_path)) return;
     if (!launchTerminal()) return;
 
-    session.active = true;
+    session.phase = .editing;
     session.ticks = 0;
     if (!session.timer_registered) {
         _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
@@ -180,9 +227,14 @@ pub fn writeScript(done_path: []const u8) bool {
     defer file.close();
     var bw = std.io.bufferedWriter(file.writer());
     const w = bw.writer();
-    // The editor setting is spliced in unquoted on purpose, so that it may
-    // carry its own arguments (e.g. "nvim -u NONE").
-    w.print("#!/bin/sh\n{s} ", .{editor}) catch return false;
+    var tty_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const tty_path = sessionPath(&tty_buf, "tty") orelse return false;
+    w.writeAll("#!/bin/sh\ntty > ") catch return false;
+    writeShellQuoted(w, tty_path) catch return false;
+    // The editor is spliced in unquoted on purpose, so that it may carry its
+    // own arguments (e.g. "nvim -u NONE" or "code --wait").
+    const editor_cmd = if (editor.len == 0) user_editor_expr else editor;
+    w.print("\n{s} ", .{editor_cmd}) catch return false;
     writeShellQuoted(w, names_path) catch return false;
     w.writeAll("\necho $? > ") catch return false;
     writeShellQuoted(w, done_path) catch return false;
@@ -191,9 +243,7 @@ pub fn writeScript(done_path: []const u8) bool {
     return true;
 }
 
-/// Runs the terminal command through /bin/sh in the background. Because the
-/// shell exits right away, waiting on it does not block REAPER, and the
-/// terminal process is not left as a zombie child of REAPER.
+/// Runs the terminal command in the background (see runDetached).
 pub fn launchTerminal() bool {
     if (builtin.os.tag == .windows) {
         log.warn("batch rename: not supported on Windows yet", .{});
@@ -208,19 +258,12 @@ pub fn launchTerminal() bool {
     w.print("{s} ", .{terminal}) catch return false;
     writeShellQuoted(w, script_path) catch return false;
     w.writeAll(" >/dev/null 2>&1 &") catch return false;
-
-    const argv = [_][]const u8{ "/bin/sh", "-c", fbs.getWritten() };
-    var child = std.process.Child.init(&argv, std.heap.c_allocator);
-    child.spawn() catch |err| {
-        log.warn("batch rename: cannot launch terminal: {s}", .{@errorName(err)});
-        return false;
-    };
-    _ = child.wait() catch {};
+    runDetached(fbs.getWritten());
     return true;
 }
 
 pub fn stopTimer() void {
-    session.active = false;
+    session.phase = .idle;
     if (session.timer_registered) {
         _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
         session.timer_registered = false;
@@ -228,23 +271,91 @@ pub fn stopTimer() void {
 }
 
 pub fn onTimer() callconv(.C) void {
-    if (!session.active) return;
     session.ticks += 1;
-    if (session.ticks % POLL_EVERY_TICKS != 0) return;
+    switch (session.phase) {
+        .idle => {},
+        .editing => {
+            if (session.ticks % POLL_EVERY_TICKS == 0) pollDone();
+        },
+        .closing => {
+            if (session.ticks < session.close_at) return;
+            stopTimer();
+            closeTerminalWindow();
+        },
+    }
+}
 
+/// Checks whether the editor has exited; when it has, applies or cancels the
+/// rename and then schedules the window close or stops the timer.
+pub fn pollDone() void {
     var done_buf: [std.fs.max_path_bytes]u8 = undefined;
     const done_path = sessionPath(&done_buf, "done") orelse return;
     var status_buf: [16]u8 = undefined;
     const status_raw = std.fs.cwd().readFile(done_path, &status_buf) catch return;
-    stopTimer();
     std.fs.deleteFileAbsolute(done_path) catch {};
 
     const status = std.mem.trim(u8, status_raw, " \t\r\n");
-    if (!std.mem.eql(u8, status, "0")) {
+    if (std.mem.eql(u8, status, "0")) {
+        applyNames();
+    } else {
         log.info("batch rename: editor exited with status {s}, rename cancelled", .{status});
-        return;
     }
-    applyNames();
+
+    if (close_terminal and readTty()) {
+        session.phase = .closing;
+        session.close_at = session.ticks + CLOSE_DELAY_TICKS;
+    } else {
+        stopTimer();
+    }
+}
+
+/// Reads the terminal device the launcher script recorded. Returns false
+/// when it is missing or is not a device path (e.g. "not a tty").
+pub fn readTty() bool {
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = sessionPath(&path_buf, "tty") orelse return false;
+    const raw = std.fs.cwd().readFile(path, &session.tty_buf) catch return false;
+    const tty = std.mem.trim(u8, raw, " \t\r\n");
+    if (!std.mem.startsWith(u8, tty, "/dev/")) return false;
+    std.mem.copyForwards(u8, &session.tty_buf, tty);
+    session.tty_len = tty.len;
+    return true;
+}
+
+/// Writes close.applescript and runs it in the background with the recorded
+/// tty. macOS asks once for permission to let REAPER control Terminal.app;
+/// when it is refused, the window simply stays open.
+pub fn closeTerminalWindow() void {
+    if (builtin.os.tag != .macos) return;
+    var script_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const script_path = sessionPath(&script_buf, "close.applescript") orelse return;
+    std.fs.cwd().writeFile(.{ .sub_path = script_path, .data = close_script }) catch |err| {
+        log.warn("batch rename: cannot write {s}: {s}", .{ script_path, @errorName(err) });
+        return;
+    };
+
+    var cmd_buf: [std.fs.max_path_bytes * 2]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&cmd_buf);
+    const w = fbs.writer();
+    w.writeAll("osascript ") catch return;
+    writeShellQuoted(w, script_path) catch return;
+    w.writeByte(' ') catch return;
+    writeShellQuoted(w, session.tty_buf[0..session.tty_len]) catch return;
+    w.writeAll(" >/dev/null 2>&1 &") catch return;
+    runDetached(fbs.getWritten());
+}
+
+/// Runs a shell command line through /bin/sh. The command line ends with
+/// "&", so the shell exits right away: waiting on it does not block REAPER,
+/// and the background process is not left as a zombie child of REAPER.
+pub fn runDetached(cmd: []const u8) void {
+    const argv = [_][]const u8{ "/bin/sh", "-c", cmd };
+    var child = std.process.Child.init(&argv, std.heap.c_allocator);
+    child.spawn() catch |err| {
+        log.warn("batch rename: cannot run '{s}': {s}", .{ cmd, @errorName(err) });
+        return;
+    };
+    _ = child.wait() catch {};
 }
 
 pub fn applyNames() void {
