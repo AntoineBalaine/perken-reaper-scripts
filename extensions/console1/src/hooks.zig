@@ -12,8 +12,6 @@ const log = std.log.scoped(.hooks);
 const getGlobals = @import("console1_extension.zig").getGlobals;
 const theme_dump = @import("theme_dump.zig");
 
-const auto_lane_watcher = @import("auto_lane_watcher.zig");
-
 // Store command IDs returned from registration
 pub var suspend_cmd_id: c_int = undefined;
 pub var toggle_gui_cmd_id: c_int = undefined;
@@ -21,7 +19,6 @@ pub var install_presets_cmd_id: c_int = undefined;
 pub var save_theme_cmd_id: c_int = undefined;
 pub var reentrancy_test_cmd_id: c_int = undefined;
 pub var track_state_tests_cmd_id: c_int = undefined;
-pub var auto_lane_watcher_cmd_id: c_int = undefined;
 var testCommandIds: TestCommandIds = undefined;
 
 const TestCommandIds = struct {
@@ -66,9 +63,6 @@ pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
             actions.dispatch(globals, .{ .change_mode = .fx_ctrl });
         }
         actions.dispatch(globals, .set_fx_ctrl_gui);
-        return 1;
-    } else if (command == auto_lane_watcher_cmd_id) {
-        auto_lane_watcher.toggle();
         return 1;
     } else if (command == install_presets_cmd_id) {
         const globals = getGlobals();
@@ -191,13 +185,6 @@ pub fn registerCommands() void {
         };
         reentrancy_test_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&reentrancy_test_action)));
     }
-    const auto_lane_watcher_action: reaper.custom_action_register_t = .{
-        .section = 0,
-        .id_str = "C1_AUTO_LANE_WATCHER",
-        .name = "Console1: Toggle automation lane watcher",
-    };
-    auto_lane_watcher_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&auto_lane_watcher_action)));
-
     _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 
     if (debugconfig.@"test") {
@@ -218,10 +205,6 @@ pub export fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
     if (command_id == toggle_gui_cmd_id) {
         // Only valid when not suspended
         return if (getGlobals().state.fx_ctrl_gui_visible) 0 else 1;
-    }
-
-    if (command_id == auto_lane_watcher_cmd_id) {
-        return if (auto_lane_watcher.isActive()) 1 else 0;
     }
 
     return -1; // Not our action

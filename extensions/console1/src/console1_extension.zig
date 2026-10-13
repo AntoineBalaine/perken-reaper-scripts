@@ -11,7 +11,6 @@ const c = @cImport({
 });
 const ImGuiLoop = @import("imgui_loop.zig");
 const Globals = @import("globals.zig");
-const sws = @import("sws.zig");
 
 pub fn getGlobals() *Globals {
     return &Globals.instance;
@@ -65,9 +64,6 @@ export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_inf
     init() catch {
         return 0;
     };
-
-    // Resolve the SWS SNM chunk functions (used to remove FX-param envelopes).
-    sws.init(rec.?.getFunc.?);
 
     // In headless mode, we register a control surface instance directly so
     // that csurf callbacks fire without needing a valid reaper.ini csurf

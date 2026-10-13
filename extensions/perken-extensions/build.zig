@@ -19,6 +19,7 @@ pub fn build(b: *std.Build) void {
     });
     lib.linkLibC();
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
+    reaziglib.addCsurf(reazig_dep, lib.root_module);
     lib.root_module.addImport("ini", ini_dep.module("ini"));
 
     const ext = switch (target.result.os.tag) {
@@ -38,6 +39,7 @@ pub fn build(b: *std.Build) void {
     });
     test_exe.linkLibC();
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
+    reaziglib.addCsurf(reazig_dep, test_exe.root_module);
     test_exe.root_module.addImport("ini", ini_dep.module("ini"));
 
     const run_test = b.addRunArtifact(test_exe);

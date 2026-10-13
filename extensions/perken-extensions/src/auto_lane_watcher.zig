@@ -1,8 +1,17 @@
+//! Auto lane watcher: while it is on, touching an FX parameter shows that
+//! parameter's envelope lane (and hides the track's others); moving to
+//! another track, or closing or unfocusing the FX, dismisses the lane, and a
+//! lane that received no automation is removed again. In trim/read mode, a
+//! tweak in the plugin UI trims the lane's single point instead of snapping
+//! back. Moved here from reaperConsole1, where Console1's control surface fed
+//! it; perken-extensions' own hidden control surface (surface.zig) now
+//! delivers the same notifications, and is only registered while the watcher
+//! is on.
 const std = @import("std");
 const reaper = @import("reaper").reaper;
-const pReaper = @import("pReaper.zig");
 const sws = @import("sws.zig");
-const csurf = @import("csurf/control_surface.zig");
+const surface = @import("surface.zig");
+const actions = @import("actions.zig");
 const log = std.log.scoped(.auto_lane_watcher);
 
 const CMD_HIDE_ALL_ENVELOPES: c_int = 40889; // Envelope: Hide all envelopes for tracks
@@ -28,8 +37,20 @@ pub fn isActive() bool {
 }
 
 pub fn toggle() void {
-    watcher_active = !watcher_active;
-    if (!watcher_active) dismissLane();
+    if (!watcher_active) {
+        // SWS loads after this extension (plugin files load in name order),
+        // so its functions are resolved when the watcher starts, not at load.
+        if (!sws.available) sws.init();
+        if (!surface.acquire()) {
+            log.err("auto lane watcher: could not register the control surface", .{});
+            return;
+        }
+        watcher_active = true;
+    } else {
+        watcher_active = false;
+        dismissLane();
+        surface.release();
+    }
     log.info("auto lane watcher {s}", .{if (watcher_active) "enabled" else "disabled"});
 }
 
@@ -58,22 +79,22 @@ pub fn onFxParamChanged(track: reaper.MediaTrack, fx_index: c_int, param_index: 
 
     // Only redirect in trim/read modes. The global automation override, when
     // set, takes precedence over the track's own mode.
-    const override = pReaper.GetGlobalAutomationOverride(.{});
+    const override = reaper.GetGlobalAutomationOverride();
     const effective_mode: c_int = if (override >= 0)
         override
     else
-        @intFromFloat(pReaper.GetMediaTrackInfo_Value(.{ track, "I_AUTOMODE" }));
+        @intFromFloat(reaper.GetMediaTrackInfo_Value(track, "I_AUTOMODE"));
     // 0 = trim/read, 1 = read. Touch/write/latch (2/3/4) write points natively,
     // so we must not interfere there. 5 = bypass.
     if (effective_mode != 0 and effective_mode != 1) return;
 
-    const env_raw = pReaper.GetFXEnvelope(.{ track, fx_index, param_index, false });
+    const env_raw = reaper.GetFXEnvelope(track, fx_index, param_index, false);
     if (@intFromPtr(env_raw) == 0) return;
     const env: *reaper.TrackEnvelope = env_raw;
 
     // Only the single-point floating lane is handled. A multi-point lane's trim
     // is an offset of every point, which is a different operation.
-    if (pReaper.CountEnvelopePoints(.{env}) != 1) return;
+    if (reaper.CountEnvelopePoints(env) != 1) return;
 
     // The point stores the parameter's native value in the envelope's scaling
     // space, not the normalized 0..1 value. We read the native value the user
@@ -81,9 +102,9 @@ pub fn onFxParamChanged(track: reaper.MediaTrack, fx_index: c_int, param_index: 
     // scaling mode: identity for unscaled envelopes, fader curve otherwise.
     var min_val: f64 = 0;
     var max_val: f64 = 0;
-    const native_value = pReaper.TrackFX_GetParam(.{ track, fx_index, param_index, &min_val, &max_val });
-    const scaling_mode = pReaper.GetEnvelopeScalingMode(.{env});
-    var target_value = pReaper.ScaleToEnvelopeMode(.{ scaling_mode, native_value });
+    const native_value = reaper.TrackFX_GetParam(track, fx_index, param_index, &min_val, &max_val);
+    const scaling_mode = reaper.GetEnvelopeScalingMode(env);
+    var target_value = reaper.ScaleToEnvelopeMode(scaling_mode, native_value);
 
     // Preserve the point's time, shape, tension and selection; only the value
     // changes. We read the existing point to fill those fields.
@@ -92,7 +113,7 @@ pub fn onFxParamChanged(track: reaper.MediaTrack, fx_index: c_int, param_index: 
     var shape: c_int = 0;
     var tension: f64 = 0;
     var selected: bool = false;
-    if (!pReaper.GetEnvelopePoint(.{ env, 0, &time, &old_value, &shape, &tension, &selected })) return;
+    if (!reaper.GetEnvelopePoint(env, 0, &time, &old_value, &shape, &tension, &selected)) return;
 
     // The csurf callback fires every frame while the envelope drives the
     // parameter, so without this guard we would rewrite the same value
@@ -100,8 +121,8 @@ pub fn onFxParamChanged(track: reaper.MediaTrack, fx_index: c_int, param_index: 
     if (@abs(old_value - target_value) < 1e-9) return;
 
     var no_sort = false;
-    _ = pReaper.SetEnvelopePoint(.{ env, 0, &time, &target_value, &shape, &tension, &selected, &no_sort });
-    pReaper.UpdateArrange(.{});
+    _ = reaper.SetEnvelopePoint(env, 0, &time, &target_value, &shape, &tension, &selected, &no_sort);
+    reaper.UpdateArrange();
 }
 
 /// Called from SETFOCUSEDFX (all-null) and SETFXOPEN (closed).
@@ -119,11 +140,11 @@ pub fn onTrackChanged(new_track: reaper.MediaTrack) void {
 
 fn showLane(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void {
     // Hide everything on the target track, then show the last-touched envelope.
-    pReaper.SetOnlyTrackSelected(.{track});
-    pReaper.Main_OnCommand(.{ CMD_HIDE_ALL_ENVELOPES, 0 });
-    pReaper.Main_OnCommand(.{ CMD_SHOW_LAST_TOUCHED_FX_ENV, 0 });
+    reaper.SetOnlyTrackSelected(track);
+    reaper.Main_OnCommand(CMD_HIDE_ALL_ENVELOPES, 0);
+    reaper.Main_OnCommand(CMD_SHOW_LAST_TOUCHED_FX_ENV, 0);
 
-    const env_raw = pReaper.GetFXEnvelope(.{ track, fx_index, param_index, false });
+    const env_raw = reaper.GetFXEnvelope(track, fx_index, param_index, false);
     if (@intFromPtr(env_raw) == 0) {
         log.warn("could not get envelope after showing it for fx={d} param={d}", .{ fx_index, param_index });
         return;
@@ -134,7 +155,7 @@ fn showLane(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void 
         .track = track,
         .fx_index = fx_index,
         .param_index = param_index,
-        .initial_point_count = pReaper.CountEnvelopePoints(.{env}),
+        .initial_point_count = reaper.CountEnvelopePoints(env),
         .env = env,
     };
 }
@@ -145,16 +166,16 @@ fn showLane(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int) void 
 fn dismissLane() void {
     const lane = current_lane orelse return;
 
-    const count = pReaper.CountEnvelopePoints(.{lane.env});
+    const count = reaper.CountEnvelopePoints(lane.env);
     const should_remove = count <= lane.initial_point_count;
-    log.err("dismissLane: count={d} initial={d} -> {s}", .{ count, lane.initial_point_count, if (should_remove) "remove" else "keep" });
+    log.debug("dismissLane: count={d} initial={d} -> {s}", .{ count, lane.initial_point_count, if (should_remove) "remove" else "keep" });
     if (should_remove) {
         removeEnvelope(lane.track, lane.fx_index, lane.param_index);
     }
 
-    pReaper.SetOnlyTrackSelected(.{lane.track});
-    pReaper.Main_OnCommand(.{ CMD_HIDE_ALL_ENVELOPES, 0 });
-    pReaper.UpdateArrange(.{});
+    reaper.SetOnlyTrackSelected(lane.track);
+    reaper.Main_OnCommand(CMD_HIDE_ALL_ENVELOPES, 0);
+    reaper.UpdateArrange();
     current_lane = null;
 }
 
@@ -172,16 +193,16 @@ fn removeEnvelope(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int)
     // Find the ordinal of the target envelope among the track's FX-parameter
     // envelopes. This matches the order PARMENV blocks appear in the chunk
     // (built-in vol/pan envelopes serialize as VOLENV/PANENV, not PARMENV).
-    const env_count = pReaper.CountTrackEnvelopes(.{track});
+    const env_count = reaper.CountTrackEnvelopes(track);
     var ordinal: c_int = -1;
     var target: ?c_int = null;
     var i: c_int = 0;
     while (i < env_count) : (i += 1) {
-        const tr_env = pReaper.GetTrackEnvelope(.{ track, i });
+        const tr_env = reaper.GetTrackEnvelope(track, i);
         if (@intFromPtr(tr_env) == 0) continue;
         var e_fx: c_int = -1;
         var e_prm: c_int = -1;
-        _ = pReaper.Envelope_GetParentTrack(.{ tr_env, &e_fx, &e_prm });
+        _ = reaper.Envelope_GetParentTrack(tr_env, &e_fx, &e_prm);
         if (e_fx < 0) continue; // skip built-in (vol/pan/etc.) envelopes
         ordinal += 1;
         if (e_fx == fx_index and e_prm == param_index) {
@@ -236,15 +257,27 @@ fn removeEnvelope(track: reaper.MediaTrack, fx_index: c_int, param_index: c_int)
     @memcpy(new_buf[blk_start..new_len], chunk[blk_end..]);
 
     // Write the chunk back, guarding against reentrant csurf notifications.
-    const prev_ignore = csurf.ignore_notifications;
-    csurf.ignore_notifications = true;
-    defer csurf.ignore_notifications = prev_ignore;
+    const prev_ignore = surface.ignore_notifications;
+    surface.ignore_notifications = true;
+    defer surface.ignore_notifications = prev_ignore;
 
     const fs2 = sws.SNM_CreateFastString("");
     defer sws.SNM_DeleteFastString(fs2);
     _ = sws.SNM_SetFastString(fs2, new_buf.ptr);
     const ok = sws.SNM_GetSetObjectState(@ptrCast(track), fs2, true, false);
-    log.err("removeEnvelope: ord={d} spliced [{d}..{d}] set={}", .{ target_ordinal, blk_start, blk_end, ok });
+    log.debug("removeEnvelope: ord={d} spliced [{d}..{d}] set={}", .{ target_ordinal, blk_start, blk_end, ok });
 }
+
+fn toggleAction(_: *actions.RunCtx) void {
+    toggle();
+}
+
+pub const entries = [_]actions.Entry{
+    .{ .name = "AutoLaneWatcher", .def = .{
+        .steps = &.{.{ .func = &toggleAction }},
+        .desc = "Toggle auto lane watcher (show the last-touched FX parameter's envelope)",
+        .toggle_state = &isActive,
+    } },
+};
 
 const assert = std.debug.assert;

@@ -42,6 +42,9 @@ pub const ActionDef = struct {
     /// Human-readable name for REAPER's action list; falls back to the
     /// action's name.
     desc: ?[]const u8 = null,
+    /// For on/off actions: reports the current state to REAPER (toolbar
+    /// buttons and menu check marks).
+    toggle_state: ?*const fn () bool = null,
 };
 
 pub const Entry = struct {

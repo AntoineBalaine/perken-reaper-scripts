@@ -18,6 +18,8 @@ const tracks = @import("tracks.zig");
 const envelope = @import("envelope.zig");
 const keysnap = @import("keysnap.zig");
 const batch_rename = @import("batch_rename.zig");
+const auto_lane_watcher = @import("auto_lane_watcher.zig");
+const surface = @import("surface.zig");
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
@@ -60,12 +62,16 @@ const reaper_api = [_][:0]const u8{
     "TimeMap2_beatsToTime",        "TrackFX_GetFXName",          "TrackFX_GetInstrument",
     "TrackFX_GetPreset",           "Undo_BeginBlock",            "Undo_EndBlock",
     "UpdateArrange",               "UpdateItemInProject",        "get_config_var",
-    "plugin_register",
+    "plugin_register",             "plugin_getapi",              "GetFXEnvelope",
+    "GetGlobalAutomationOverride", "TrackFX_GetParam",           "SetOnlyTrackSelected",
+    "CountTrackEnvelopes",         "GetTrackEnvelope",           "Envelope_GetParentTrack",
+    "GetLastTouchedFX",
 };
 
 /// Every action this extension provides.
 pub const all_entries = drums.entries ++ kawa.entries ++ routing.entries ++ fx.entries ++
-    items.entries ++ tracks.entries ++ envelope.entries ++ keysnap.entries ++ batch_rename.entries;
+    items.entries ++ tracks.entries ++ envelope.entries ++ keysnap.entries ++ batch_rename.entries ++
+    auto_lane_watcher.entries;
 
 const main_section: c_int = 0;
 const midi_editor_section: c_int = 32060;
@@ -90,8 +96,11 @@ var cmd_ids = [_]c_int{0} ** all_entries.len;
 export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_info_t) c_int {
     _ = instance;
 
-    if (rec == null)
-        return 0; // cleanup
+    if (rec == null) {
+        // Unload: make sure REAPER no longer holds our control surface.
+        while (surface.holders > 0) surface.release();
+        return 0;
+    }
 
     if (!Reaper.initSubset(rec.?, &reaper_api))
         return 0;
@@ -101,6 +110,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
         if (cmd_ids[i] == 0) log.err("failed to register action {s}", .{reg.id_str});
     }
     _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
+    _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 
     log.info("loaded {d} actions (search \"Perken:\" in the action list)", .{all_entries.len});
     return 1;
@@ -111,8 +121,15 @@ fn onCommand(sec: *Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
     if (command == 0) return 0;
     for (cmd_ids, 0..) |id, i| {
         if (id != command) continue;
+        const def = &all_entries[i].def;
+        // Switching a mode on or off (a toggle action) changes no project
+        // state, so it gets no undo point.
+        if (def.toggle_state != null) {
+            actions.run(def);
+            return 1;
+        }
         Reaper.Undo_BeginBlock();
-        actions.run(&all_entries[i].def);
+        actions.run(def);
         // The undo point carries the action's name from the action list.
         Reaper.Undo_EndBlock(registrations[i].name, -1);
         Reaper.UpdateArrange();
@@ -121,8 +138,23 @@ fn onCommand(sec: *Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
     return 0;
 }
 
+/// Reports on/off actions' state: -1 = not ours or not a toggle, 0 = off,
+/// 1 = on.
+fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
+    if (command_id == 0) return -1;
+    for (cmd_ids, 0..) |id, i| {
+        if (id != command_id) continue;
+        const state = all_entries[i].def.toggle_state orelse return -1;
+        return if (state()) 1 else 0;
+    }
+    return -1;
+}
+
 test {
     _ = @import("actions.zig");
+    _ = @import("surface.zig");
+    _ = @import("sws.zig");
+    _ = @import("auto_lane_watcher.zig");
     _ = @import("config.zig");
     _ = @import("drums.zig");
     _ = @import("kawa.zig");
