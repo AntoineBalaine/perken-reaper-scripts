@@ -32,10 +32,9 @@
             .url = "https://github.com/AntoineBalaine/zlowcheck/archive/44d1a1726ee1dabe22c9e75b7948993cef3409be.tar.gz",
             .hash = "zlowcheck-0.0.0-upaXybSvAwBYDrxmhs05Jba16Hrgjvtg0GSU5Y2zF_sk",
         },
-        .reaziglib = .{
-            .url = "https://github.com/AntoineBalaine/reaziglib/archive/9615b11904bbf7f9d82ff2c308ca5f258e4a4b27.tar.gz",
-            .hash = "reaziglib-0.0.0-jusUJXMnEACKRQYFVzYfW873sBhSaFkbCoo5HQJk82kE",
-        },
+        // reaziglib lives in the same monorepo, so that a change to it and
+        // the extension code using it can land in one commit.
+        .reaziglib = .{ .path = "../reaziglib" },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

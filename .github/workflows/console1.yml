@@ -1,9 +1,23 @@
-name: CI
+name: console1
 
+# This monorepo holds several packages, so this workflow only runs when the
+# Console1/MFT extensions or something they build against change. GitHub does
+# not evaluate path filters on tag pushes, so a console1-v* tag always
+# triggers a build and a release.
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ["console1-v*"]
+    paths:
+      - "extensions/console1/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/console1.yml"
+  pull_request:
+    paths:
+      - "extensions/console1/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/console1.yml"
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -34,6 +48,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.name }}
+    defaults:
+      run:
+        working-directory: extensions/console1
 
     steps:
       - name: Checkout
@@ -47,7 +64,13 @@ jobs:
       - name: Extract version from tag
         id: version
         shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        # Tags look like console1-v1.2.3; other runs build a "dev" version.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/console1-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#console1-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install PHP (Linux)
         if: runner.os == 'Linux'
@@ -68,33 +91,40 @@ jobs:
       - name: Build UI library
         run: zig build ui -Dversion=${{ steps.version.outputs.version }}
 
+      - name: Run MFT tests
+        run: zig build mft-test
+
+      - name: Build MFT extension
+        run: zig build mft -Dversion=${{ steps.version.outputs.version }}
+
       - name: Rename binaries for release
         shell: bash
         run: |
           mkdir -p release-binaries
           cp zig-out/reaper_c1.${{ matrix.host_ext }} release-binaries/reaper_c1-${{ matrix.name }}.${{ matrix.host_ext }}
           cp zig-out/reaper_c1_ui.${{ matrix.ui_ext }} release-binaries/reaper_c1_ui-${{ matrix.name }}.${{ matrix.ui_ext }}
+          cp zig-out/reaper_mft.${{ matrix.host_ext }} release-binaries/reaper_mft-${{ matrix.name }}.${{ matrix.host_ext }}
 
-      - name: Bundle maps and JSFX into artifact
+      - name: Bundle maps into artifact
         shell: bash
         run: |
           cp -r Perken/Console1/maps zig-out/maps
-          cp -r src/resources/jsfx zig-out/jsfx
 
       - name: Upload platform binaries
         uses: actions/upload-artifact@v4
         with:
           name: binaries-${{ matrix.name }}
-          path: release-binaries/
+          path: extensions/console1/release-binaries/
 
       - name: Upload full artifact
         uses: actions/upload-artifact@v4
         with:
           name: reaper-c1-${{ matrix.name }}
-          path: zig-out/
+          path: extensions/console1/zig-out/
 
   release:
     needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/console1-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
