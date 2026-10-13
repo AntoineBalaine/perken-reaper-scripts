@@ -21,8 +21,8 @@
 **
 ** ALTERED SOURCE: this file contains only the IReaperControlSurface class from
 ** reaper_plugin.h (justinfrankel/reaper-sdk @ 6c755b2), so that the control
-** surface shim compiles without the rest of the SDK and WDL/SWELL. The
-** destructor is altered on Windows, see below.
+** surface shim compiles without the rest of the SDK and WDL/SWELL. The class
+** itself is unchanged.
 */
 
 #ifndef REAZIGLIB_REAPER_CSURF_H
@@ -34,20 +34,7 @@ class IReaperControlSurface
 {
   public:
     IReaperControlSurface() { }
-#if defined(_WIN32) && !defined(_MSC_VER)
-    // REAPER on Windows is built with MSVC and expects the MSVC C++ ABI, while
-    // this file is compiled by clang with the MinGW (Itanium) ABI. The two
-    // lay out a class's virtual table identically except for the destructor:
-    // MSVC uses one slot (the scalar deleting destructor, taking a flags
-    // argument), Itanium uses two (complete and deleting). Because of that,
-    // the virtual destructor is replaced on Windows by one virtual method in
-    // the MSVC destructor's slot, so that every following method lands where
-    // REAPER looks for it. Its signature matches MSVC's scalar deleting
-    // destructor on x64 and arm64.
-    virtual void *MsvcScalarDeletingDestructor(unsigned int flags) { return this; }
-#else
     virtual ~IReaperControlSurface() { }
-#endif
 
     virtual const char *GetTypeString()=0; // simple unique string with only A-Z, 0-9, no spaces or other chars
     virtual const char *GetDescString()=0; // human readable description (can include instance specific info)

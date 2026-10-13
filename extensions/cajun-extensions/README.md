@@ -40,6 +40,12 @@ close_terminal = true         ; macOS: close the Terminal.app window afterwards
 
 ## Build
 
+The auto lane watcher's control surface is C++ that REAPER calls, so the build
+compiles it with REAPER's own toolchain and must run on the target OS: Apple
+clang on macOS (both architectures, `-Dtarget=x86_64-macos` from an arm64 Mac
+works), gcc on Linux, MSVC's `cl` on Windows from a Visual Studio developer
+prompt. See [the toolchain rule](../README.md#toolchain-rule-c-that-reaper-calls-must-use-reapers-toolchain).
+
 ```sh
 zig build test        # unit tests
 zig build             # Debug build into zig-out/

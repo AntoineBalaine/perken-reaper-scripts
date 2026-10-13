@@ -54,7 +54,9 @@ What the rule does **not** cover:
 When an extension needs C++, it uses the same toolchain for all of its C++,
 so that the repository has one C++ toolchain, not two.
 
-> **Known exception, to be fixed:** reaziglib's control surface shim
-> (`reaziglib/src/csurf/`) is currently compiled with Zig's clang, with a
-> workaround for the MSVC virtual-table layout on Windows. It works on macOS,
-> but violates this rule and is unverified on Windows.
+reaziglib provides `reaperCxxObject`, which compiles a C++ file this way and
+returns the object file, and `addCsurf`, which uses it for the control
+surface shim (`reaziglib/src/csurf/`). A build that needs such C++ must run on
+the target's own OS with that compiler on `PATH` (on Windows, inside a Visual
+Studio developer environment); asking for another OS stops with an error.
+macOS builds can still target both architectures from one Mac.

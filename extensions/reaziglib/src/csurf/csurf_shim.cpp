@@ -3,6 +3,10 @@
 // extension can register a control surface (plugin_register("csurf_inst"))
 // and receive REAPER's state-change notifications.
 //
+// REAPER calls this class through its C++ virtual table, so this file must be
+// compiled with REAPER's own toolchain (MSVC on Windows, Apple clang on macOS,
+// gcc on Linux); see extensions/README.md. reaziglib.addCsurf does that.
+//
 // The shim uses no C++ standard library, exceptions or RTTI, so an extension
 // that uses it does not need to bundle a C++ runtime. The few runtime hooks
 // the compiler still references (operator delete for the deleting destructor,
@@ -11,15 +15,21 @@
 #include "reaper_csurf.h"
 #include "csurf_shim.h"
 
-extern "C" void *malloc(__SIZE_TYPE__ size);
+typedef decltype(sizeof(0)) zcsurf_size_t;
+
+extern "C" void *malloc(zcsurf_size_t size);
 extern "C" void free(void *ptr);
 extern "C" void abort(void);
 
 // Placement new, declared here because <new> belongs to the C++ standard
 // library this shim avoids.
-inline void *operator new(__SIZE_TYPE__, void *where) noexcept { return where; }
+inline void *operator new(zcsurf_size_t, void *where) noexcept { return where; }
 
+#if defined(_MSC_VER)
+#define ZCSURF_HIDDEN
+#else
 #define ZCSURF_HIDDEN __attribute__((visibility("hidden")))
+#endif
 
 class ZigSurface final : public IReaperControlSurface
 {
@@ -74,13 +84,22 @@ extern "C" ZCSURF_HIDDEN void zcsurf_destroy(void *surface)
 // Runtime hooks referenced by the virtual table. The deleting destructor is
 // never called with memory from operator new (zcsurf_destroy frees the
 // object itself), and no pure virtual method is ever called on a complete
-// ZigSurface, so these only satisfy the linker. They are weak, so that an
-// extension that does link a C++ runtime gets the runtime's definitions
-// instead of a duplicate-symbol error. operator delete can not be hidden (the
-// language declares it implicitly with default visibility), which is
-// harmless: macOS binds symbols per library, Linux loads plugins without
+// ZigSurface, so these only satisfy the linker. None of them interposes on
+// the host's: macOS binds symbols per library, Linux loads plugins without
 // exposing their symbols to other libraries, and Windows exports only symbols
-// marked for export, so none of these interpose on the host's.
+// marked for export.
+#if defined(_MSC_VER)
+// MSVC's runtime is not linked into the extension, so the shim provides the
+// hooks MSVC's code generation references.
+void operator delete(void *ptr) noexcept { free(ptr); }
+void operator delete(void *ptr, zcsurf_size_t) noexcept { free(ptr); }
+extern "C" int _purecall(void) { abort(); return 0; }
+#else
+// Weak, so that an extension that does link a C++ runtime gets the
+// runtime's definitions instead of a duplicate-symbol error. operator delete
+// can not be hidden: the language declares it implicitly with default
+// visibility.
 __attribute__((weak)) void operator delete(void *ptr) noexcept { free(ptr); }
-__attribute__((weak)) void operator delete(void *ptr, __SIZE_TYPE__) noexcept { free(ptr); }
+__attribute__((weak)) void operator delete(void *ptr, zcsurf_size_t) noexcept { free(ptr); }
 extern "C" __attribute__((weak)) ZCSURF_HIDDEN void __cxa_pure_virtual() { abort(); }
+#endif

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -138,15 +139,13 @@ pub fn build(b: *std.Build) void {
     reaper_theme_mod.addImport("reaper", reaper_mod);
     reaper_theme_mod.addImport("reaper_imgui", reaper_imgui_mod);
 
-    // csurf: the control surface shim. It compiles C++ (a subclass of
-    // REAPER's IReaperControlSurface), so it is not part of addSharedModules;
-    // extensions opt in with addCsurf.
+    // csurf: the Zig side of the control surface shim. Its C++ side must be
+    // compiled with REAPER's toolchain, which a module can not express, so
+    // extensions opt in with addCsurf, which adds both.
     const csurf_mod = b.addModule("csurf", .{
         .root_source_file = b.path("src/csurf/csurf.zig"),
     });
     csurf_mod.addImport("reaper", reaper_mod);
-    csurf_mod.addIncludePath(b.path("src/csurf"));
-    csurf_mod.addCSourceFile(.{ .file = b.path("src/csurf/csurf_shim.cpp"), .flags = &csurf_cxx_flags });
 
     // The modules above are consumed as source by the extensions, so their
     // test blocks never run in the extensions' own test steps. Because of
@@ -192,26 +191,95 @@ pub fn build(b: *std.Build) void {
     });
     csurf_test.linkLibC();
     csurf_test.root_module.addImport("reaper", reaper_mod);
-    csurf_test.root_module.addIncludePath(b.path("src/csurf"));
-    csurf_test.root_module.addCSourceFile(.{ .file = b.path("src/csurf/csurf_shim.cpp"), .flags = &csurf_cxx_flags });
-    csurf_test.root_module.addCSourceFile(.{ .file = b.path("src/csurf/csurf_shim_test.cpp"), .flags = &csurf_cxx_flags });
+    const csurf_dir = b.path("src/csurf");
+    const tt = csurf_test.rootModuleTarget();
+    csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim"));
+    csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim_test.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim_test"));
     test_step.dependOn(&b.addRunArtifact(csurf_test).step);
 }
+
+/// Compiler flags for a C++ file, per compiler family.
+pub const CxxFlags = struct {
+    /// clang (macOS) and gcc (Linux).
+    gnu: []const []const u8 = &.{},
+    /// MSVC's cl (Windows).
+    msvc: []const []const u8 = &.{},
+};
 
 /// The shim uses no C++ standard library, exceptions or RTTI, so consumers do
 /// not need to link a C++ runtime; hidden visibility keeps its symbols from
 /// interposing on the host's.
-const csurf_cxx_flags = [_][]const u8{
-    "-std=c++14",
-    "-fno-exceptions",
-    "-fno-rtti",
-    "-fvisibility=hidden",
+const csurf_cxx_flags = CxxFlags{
+    .gnu = &.{ "-fno-exceptions", "-fno-rtti", "-fvisibility=hidden" },
+    .msvc = &.{ "/GR-", "/GS-" },
 };
 
-/// Adds the control surface shim (the "csurf" module) to a consumer. It is
-/// opt-in because it compiles C++.
-pub fn addCsurf(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {
-    consumer.addImport("csurf", dep.module("csurf"));
+/// Compiles one C++ file with REAPER's own toolchain and returns the object
+/// file, to add to an artifact with addObjectFile. C++ that REAPER calls
+/// through virtual methods (control surfaces, MIDI devices) must use that
+/// toolchain: MSVC's cl on Windows, Apple clang on macOS, gcc on Linux (see
+/// extensions/README.md). This is Console1's pattern: the compiler runs as a
+/// system command, so the build runs on the target's own OS; there is no
+/// cross-compiling such C++.
+pub fn reaperCxxObject(
+    b: *std.Build,
+    target: std.Target,
+    file: std.Build.LazyPath,
+    include_dirs: []const std.Build.LazyPath,
+    flags: CxxFlags,
+    out_basename: []const u8,
+) std.Build.LazyPath {
+    if (target.os.tag != builtin.os.tag) {
+        std.debug.panic(
+            "C++ that REAPER calls must be compiled with REAPER's toolchain on the target OS; " ++
+                "building for {s} on {s} is not possible (see extensions/README.md)",
+            .{ @tagName(target.os.tag), @tagName(builtin.os.tag) },
+        );
+    }
+    switch (target.os.tag) {
+        .windows => {
+            const cmd = b.addSystemCommand(&.{ "cl", "/nologo", "/c", "/O2", "/std:c++14", "/DNOMINMAX" });
+            for (include_dirs) |dir| cmd.addPrefixedDirectoryArg("/I", dir);
+            cmd.addArgs(flags.msvc);
+            const obj = cmd.addPrefixedOutputFileArg("/Fo", b.fmt("{s}.obj", .{out_basename}));
+            cmd.addFileArg(file);
+            return obj;
+        },
+        else => {
+            const cmd = b.addSystemCommand(&.{ if (target.os.tag == .macos) "clang" else "gcc", "-c", "-fPIC", "-O2", "-std=c++14" });
+            if (target.os.tag == .macos) {
+                // Build for the requested architecture and macOS version,
+                // which may differ from the host's defaults.
+                const min = target.os.version_range.semver.min;
+                cmd.addArgs(&.{
+                    "-arch",
+                    if (target.cpu.arch == .aarch64) "arm64" else "x86_64",
+                    b.fmt("-mmacosx-version-min={d}.{d}", .{ min.major, min.minor }),
+                });
+            }
+            for (include_dirs) |dir| cmd.addPrefixedDirectoryArg("-I", dir);
+            cmd.addArgs(flags.gnu);
+            cmd.addArg("-o");
+            const obj = cmd.addOutputFileArg(b.fmt("{s}.o", .{out_basename}));
+            cmd.addFileArg(file);
+            return obj;
+        },
+    }
+}
+
+/// Adds the control surface shim to an extension: the "csurf" module (Zig
+/// side) and csurf_shim.cpp compiled with REAPER's toolchain (C++ side).
+/// It is opt-in because it compiles C++.
+pub fn addCsurf(b: *std.Build, dep: *std.Build.Dependency, compile: *std.Build.Step.Compile) void {
+    compile.root_module.addImport("csurf", dep.module("csurf"));
+    compile.addObjectFile(reaperCxxObject(
+        b,
+        compile.rootModuleTarget(),
+        dep.path("src/csurf/csurf_shim.cpp"),
+        &.{dep.path("src/csurf")},
+        csurf_cxx_flags,
+        "csurf_shim",
+    ));
 }
 
 pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module) void {

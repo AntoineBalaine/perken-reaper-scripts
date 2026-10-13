@@ -11,8 +11,9 @@
 //! remove it with `plugin_register("-csurf_inst", surface)` before
 //! `destroy`.
 //!
-//! Extensions opt in with `reaziglib.addCsurf`, because this module compiles
-//! C++.
+//! Extensions opt in with `reaziglib.addCsurf`, which adds this module and
+//! compiles csurf_shim.cpp with REAPER's own toolchain: REAPER calls the shim
+//! through C++ virtual methods (see extensions/README.md).
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 
