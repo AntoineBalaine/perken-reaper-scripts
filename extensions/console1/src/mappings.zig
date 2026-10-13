@@ -777,8 +777,11 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
                                 @field(ret_struct, ns_info.name) = val;
                                 if (std.mem.eql(u8, ns_info.name, "version")) {
                                     version_found = true;
+                                    // A mapping file from a newer build is a problem with the
+                                    // user's input, not an internal failure, so it is logged as
+                                    // a warning; the caller still receives the error.
                                     if (val > MAPPING_FORMAT_VERSION) {
-                                        log.err("Mapping file has version {d}, but this build only supports up to version {d}", .{ val, MAPPING_FORMAT_VERSION });
+                                        log.warn("Mapping file has version {d}, but this build only supports up to version {d}", .{ val, MAPPING_FORMAT_VERSION });
                                         return error.UnsupportedMapVersion;
                                     }
                                 }
@@ -796,7 +799,9 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
     // (i.e., the actual mapping types, not arbitrary test structs).
     if (comptime @hasField(T, "version")) {
         if (!version_found) {
-            log.err("Mapping file is missing the required version field", .{});
+            // As above, a malformed user file is logged as a warning rather
+            // than an error; the caller still receives the error.
+            log.warn("Mapping file is missing the required version field", .{});
             return error.MissingVersion;
         }
     }
