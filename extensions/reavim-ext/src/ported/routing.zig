@@ -4,7 +4,7 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const actions = @import("../actions.zig");
-const helpers = @import("helpers.zig");
+const helpers = @import("reaper_helpers");
 
 /// Bus name prefixes created by buildBusses (verbatim from routing.lua,
 /// including the trailing space in "PRC ").

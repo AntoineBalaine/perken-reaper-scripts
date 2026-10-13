@@ -24,7 +24,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
-const helpers = @import("ported/helpers.zig");
+const helpers = @import("reaper_helpers");
 
 const log = std.log.scoped(.engine);
 

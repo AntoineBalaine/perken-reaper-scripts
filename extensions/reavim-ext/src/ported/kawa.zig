@@ -16,7 +16,7 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const actions = @import("../actions.zig");
-const helpers = @import("helpers.zig");
+const helpers = @import("reaper_helpers");
 
 // MIDI-editor command ids used by kawa's createMIDIFunc3.
 const cmd_delete_tiny_notes: c_int = 40815; // delete all notes < 1/256 in length

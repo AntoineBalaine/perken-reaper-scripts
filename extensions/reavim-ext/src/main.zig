@@ -273,7 +273,7 @@ test {
     _ = @import("key.zig");
     _ = @import("trie.zig");
     _ = @import("meta.zig");
-    _ = @import("ported/helpers.zig");
+    _ = @import("reaper_helpers");
     _ = @import("ported/movement.zig");
     _ = @import("ported/selection.zig");
     _ = @import("ported/tracks.zig");

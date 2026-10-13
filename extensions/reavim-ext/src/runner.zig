@@ -8,7 +8,7 @@ const grammar = @import("grammar.zig");
 const actions = @import("actions.zig");
 const builder = @import("builder.zig");
 const state = @import("state.zig");
-const helpers = @import("ported/helpers.zig");
+const helpers = @import("reaper_helpers");
 
 const log = std.log.scoped(.engine);
 

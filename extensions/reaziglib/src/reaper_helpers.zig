@@ -1,8 +1,9 @@
-//! Shared helpers for the ported custom_actions modules — the Zig port of the
-//! parts of reavim's custom_actions/utils.lua (plus utils/reaper_state.lua)
-//! that the ported action modules need, plus the envelope value-range helper
-//! (envelope.lua's getEnvelopeRange/getEnvelopeMinMaxValues) and the MIDI
-//! notes snapshot (midi.listNotes + the MIDI_GetNote loops).
+//! Shared REAPER helpers for the Perken extensions. They started as the Zig
+//! port of reavim's custom_actions/utils.lua (plus utils/reaper_state.lua),
+//! extended with the envelope value-range helper (envelope.lua's
+//! getEnvelopeRange/getEnvelopeMinMaxValues) and the MIDI notes snapshot
+//! (midi.listNotes + the MIDI_GetNote loops). They live in reaziglib because
+//! both reavim-ext and perken-extensions use them.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 

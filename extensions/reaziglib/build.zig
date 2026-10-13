@@ -119,6 +119,12 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/slotted_buffer.zig"),
     });
 
+    // reaper_helpers depends on reaper
+    const reaper_helpers_mod = b.addModule("reaper_helpers", .{
+        .root_source_file = b.path("src/reaper_helpers.zig"),
+    });
+    reaper_helpers_mod.addImport("reaper", reaper_mod);
+
     // swell (depends on reaper)
     const swell_mod = b.addModule("swell", .{
         .root_source_file = b.path("src/swell.zig"),
@@ -144,6 +150,7 @@ pub fn build(b: *std.Build) void {
         "src/fs_helpers.zig",
         "src/swell.zig",
         "src/models/reaper_mock.zig",
+        "src/reaper_helpers.zig",
     };
     const test_imports = [_]struct { name: []const u8, mod: *std.Build.Module }{
         .{ .name = "reaper", .mod = reaper_mod },
@@ -189,6 +196,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "slotted_buffer",
         "swell",
         "reaper_theme",
+        "reaper_helpers",
     };
     for (module_names) |name| {
         consumer.addImport(name, dep.module(name));
