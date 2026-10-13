@@ -152,6 +152,10 @@ fn onTimer() callconv(.C) void {
     draw(globals) catch |err| {
         log.err("MFT panel draw error: {s}", .{@errorName(err)});
         if (imgui.last_error) |msg| log.err("imgui: {s}", .{std.mem.span(msg)});
+        // Because ReaImGui destroys a context after an ImGui assertion fails, our
+        // handle may now be dangling. We drop it so that the next tick creates a
+        // fresh context instead of failing on every frame.
+        ctx = null;
     };
 }
 
@@ -249,11 +253,19 @@ fn drawCell(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: Mft
     defer if (border_color != null) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
 
     // NoScrollbar prevents a too-tight box from spawning a scrollbar; the box is
-    // sized to fit its lines. Same defer-before-try pattern as the outer Begin.
-    const child_result = imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border, imgui.WindowFlags_NoScrollbar });
-    defer imgui.EndChild(.{ctx}) catch {};
-    _ = try child_result;
+    // sized to fit its lines. Because ReaImGui expects EndChild only when
+    // BeginChild returned true, a clipped cell (for instance when the window is
+    // shrunk) must skip EndChild: an extra EndChild trips an ImGui assertion, and
+    // ReaImGui then destroys the whole context.
+    if (try imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border, imgui.WindowFlags_NoScrollbar })) {
+        defer imgui.EndChild(.{ctx}) catch {};
+        try drawCellContents(globals, idx, info, active);
+    }
+}
 
+// Draw the lines inside one cell's child window. The caller owns the
+// BeginChild/EndChild pair.
+fn drawCellContents(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: MftActiveModule) !void {
     var lbl_buf: [8:0]u8 = undefined;
     const klabel = std.fmt.bufPrintZ(&lbl_buf, "K{d}", .{idx + 1}) catch "K";
 
