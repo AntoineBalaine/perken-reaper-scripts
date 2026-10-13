@@ -6,8 +6,11 @@
 //! runs on its worker thread; then the result: the median tempo, the tempo
 //! range, whether the tempo is steady, and the number of beats. The beats are
 //! previewed as take markers named bar.beat ("♩3.2"), which can be dragged to
-//! correct them. "×2" and "÷2" re-run the analysis biased towards double or
-//! half the tempo, for when the tracker locked onto the wrong one.
+//! correct them. "Lock to this tempo" re-runs the analysis constrained around
+//! the median tempo, for when the tracker switches metrical level in places
+//! (e.g. marking eighth notes in busy sections); "×2" and "÷2" re-run it
+//! constrained around double or half the tempo, for when it locked onto the
+//! wrong level everywhere.
 //!
 //! The window is a ReaImGui window, drawn from a timer that only runs while
 //! the window is open or an analysis is still running. ReaImGui's API is
@@ -234,8 +237,12 @@ pub fn drawResult(ctx: imgui.ContextPtr, job: *analysis.Job) void {
     imgui.api.Text(ctx, fmtZ(&line, "{d} beats, shown as take markers", .{s.beat_count}));
     imgui.api.Separator(ctx);
 
-    // Re-run biased towards double or half the tempo, for when the tracker
-    // locked onto the wrong one.
+    // Re-run constrained around the median, so that the tracker stays at
+    // that metrical level everywhere instead of switching in busy sections.
+    if (imgui.api.Button(ctx, "Lock to this tempo", null, null)) rerun(job.take, s.median);
+    imgui.api.SameLine(ctx, null, null);
+    // Re-run constrained around double or half the tempo, for when the
+    // tracker locked onto the wrong level everywhere.
     if (imgui.api.Button(ctx, "\u{00d7}2", null, null)) rerun(job.take, s.median * 2);
     imgui.api.SameLine(ctx, null, null);
     if (imgui.api.Button(ctx, "\u{00f7}2", null, null)) rerun(job.take, s.median / 2);
@@ -329,4 +336,49 @@ test "summarize: steady and varying tempi" {
     const r = try summarize(alloc, &ramp);
     try std.testing.expect(!r.steady);
     try std.testing.expect(r.low >= 100 and r.high <= 138);
+}
+
+/// An 89 BPM click track with loud eighth-note hi-hats between 10 and 20
+/// seconds: the busy middle section that can make the tracker switch to
+/// marking eighth notes.
+pub fn busyMiddleTrack(alloc: std.mem.Allocator, rate: f64) ![]f32 {
+    const audio = try beat.clickTrack(alloc, rate, 89, 30, 4);
+    const eighth = rate * 60.0 / 89.0 / 2.0;
+    const hat_len: usize = @intFromFloat(rate * 0.02);
+    var k: usize = 0;
+    while (true) : (k += 1) {
+        const start: usize = @intFromFloat(@as(f64, @floatFromInt(k)) * eighth);
+        const t0 = @as(f64, @floatFromInt(start)) / rate;
+        if (t0 >= 20.0 or start >= audio.len) break;
+        if (t0 < 10.0) continue;
+        var prng = std.Random.DefaultPrng.init(k);
+        var i: usize = 0;
+        while (i < hat_len and start + i < audio.len) : (i += 1) {
+            const env: f32 = @floatCast(@exp(-@as(f64, @floatFromInt(i)) / rate * 200.0));
+            audio[start + i] += 0.8 * env * (prng.random().float(f32) * 2 - 1);
+        }
+    }
+    return audio;
+}
+
+test "busy eighth notes in the middle do not throw a click track off its tempo" {
+    const alloc = std.testing.allocator;
+    const rate = 22050.0;
+    const audio = try busyMiddleTrack(alloc, rate);
+    defer alloc.free(audio);
+
+    // Free tracking, then locked around the tempo it found ("Lock to this
+    // tempo"): both stay at 89 BPM. Real recordings that do switch levels
+    // need more than loud hi-hats; this guards the synthetic case.
+    var free_run = try beat.track(alloc, audio, rate, .{});
+    defer free_run.deinit(alloc);
+    const f = try summarize(alloc, free_run.beats);
+    try std.testing.expectApproxEqRel(@as(f64, 89), f.median, 0.02);
+    try std.testing.expect(f.steady);
+
+    var locked = try beat.track(alloc, audio, rate, .{ .input_tempo = f.median, .constrain_tempo = 1 });
+    defer locked.deinit(alloc);
+    const l = try summarize(alloc, locked.beats);
+    try std.testing.expectApproxEqRel(@as(f64, 89), l.median, 0.02);
+    try std.testing.expect(l.steady);
 }

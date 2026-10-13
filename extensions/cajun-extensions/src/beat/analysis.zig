@@ -120,6 +120,7 @@ pub fn workerMain(job: *Job) void {
         return;
     };
     job.result = result;
+    logBeats(result.beats, job.params);
     job.phase.store(.done, .release);
 }
 
@@ -157,4 +158,14 @@ pub fn start(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take, params: bea
         .params = params,
     };
     return job;
+}
+
+/// Logs every detected beat at debug level (Debug builds print it to the
+/// terminal REAPER was started from), to see where the tracker changes tempo
+/// or metrical level.
+pub fn logBeats(beats: []const beat.Beat, params: beat.Params) void {
+    log.debug("{d} beats (input tempo {d:.1}, constrained: {})", .{ beats.len, params.input_tempo, params.constrain_tempo != 0 });
+    for (beats, 0..) |b, i| {
+        log.debug("beat {d}: {d:.3}s in-bar={d} tempo={d:.1}", .{ i, b.time, b.beat_in_bar, b.tempo });
+    }
 }
