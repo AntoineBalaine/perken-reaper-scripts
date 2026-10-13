@@ -4,7 +4,7 @@
 //! lane that received no automation is removed again. In trim/read mode, a
 //! tweak in the plugin UI trims the lane's single point instead of snapping
 //! back. Moved here from reaperConsole1, where Console1's control surface fed
-//! it; perken-extensions' own hidden control surface (surface.zig) now
+//! it; cajun-extensions' own hidden control surface (surface.zig) now
 //! delivers the same notifications, and is only registered while the watcher
 //! is on.
 const std = @import("std");

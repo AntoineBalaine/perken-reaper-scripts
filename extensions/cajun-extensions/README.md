@@ -1,8 +1,8 @@
-# perken-extensions
+# cajun-extensions
 
 Editing helpers for REAPER as a compiled extension (Zig, built on
 [reaziglib](../reaziglib)). Every action shows up in REAPER's action list as
-`Perken: <name>` and can be bound to any key, from REAPER's own keymap or from
+`Cajun: <name>` and can be bound to any key, from REAPER's own keymap or from
 [reavim-ext](../reavim-ext)'s `bindings.ini`.
 
 ## Actions
@@ -20,7 +20,7 @@ Editing helpers for REAPER as a compiled extension (Zig, built on
 | batch_rename | BatchRenameTracks: rename the selected tracks in your editor |
 | auto_lane_watcher | AutoLaneWatcher (toggle): touching an FX parameter shows its envelope lane and hides the track's others; the lane is dismissed when you change track or close the FX, and removed if it received no automation. In trim/read mode, plugin-UI tweaks trim the lane. Removing unused lanes needs SWS. |
 
-Each action's command id is `_PERKEN_<name>` (e.g. `_PERKEN_Flam`). Actions
+Each action's command id is `_CAJUN_<name>` (e.g. `_CAJUN_Flam`). Actions
 for the MIDI editor are registered in the MIDI editor section.
 
 The auto lane watcher reacts to REAPER's state changes through a hidden
@@ -29,7 +29,7 @@ watcher is on; it does not appear in REAPER's control surface preferences.
 
 ## Settings
 
-Optional, in `<resource path>/Data/Perken/perken-extensions.ini`:
+Optional, in `<resource path>/Data/Perken/cajun-extensions.ini`:
 
 ```ini
 [rename]

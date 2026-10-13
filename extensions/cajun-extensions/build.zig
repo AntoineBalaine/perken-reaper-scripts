@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) void {
     const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .Debug);
 
     const lib = b.addSharedLibrary(.{
-        .name = "reaper_perken_extensions",
+        .name = "reaper_cajun_extensions",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
@@ -27,12 +27,12 @@ pub fn build(b: *std.Build) void {
         .windows => "dll",
         else => "so",
     };
-    const dest = b.fmt("reaper_perken_extensions.{s}", .{ext});
+    const dest = b.fmt("reaper_cajun_extensions.{s}", .{ext});
     const install = b.addInstallArtifact(lib, .{ .dest_dir = .{ .override = .{ .custom = "" } }, .dest_sub_path = dest });
     b.getInstallStep().dependOn(&install.step);
 
     const test_exe = b.addTest(.{
-        .name = "perken_extensions_tests",
+        .name = "cajun_extensions_tests",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = .Debug,

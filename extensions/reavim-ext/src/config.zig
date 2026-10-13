@@ -120,7 +120,7 @@ fn toBindingValue(
             const steps = try arena.alloc(actions.Step, 1);
             steps[0] = .{ .named = n };
             // Like a numeric id, a named command bound in the MIDI context is
-            // dispatched to the MIDI editor; perken-extensions registers its
+            // dispatched to the MIDI editor; cajun-extensions registers its
             // MIDI actions in the MIDI editor section for that reason.
             def.* = .{ .steps = steps, .prefix_repetition_count = true, .midi_command = midi };
             return .{ .name = n, .def = def };

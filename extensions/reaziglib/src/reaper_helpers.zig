@@ -3,7 +3,7 @@
 //! extended with the envelope value-range helper (envelope.lua's
 //! getEnvelopeRange/getEnvelopeMinMaxValues) and the MIDI notes snapshot
 //! (midi.listNotes + the MIDI_GetNote loops). They live in reaziglib because
-//! both reavim-ext and perken-extensions use them.
+//! both reavim-ext and cajun-extensions use them.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 

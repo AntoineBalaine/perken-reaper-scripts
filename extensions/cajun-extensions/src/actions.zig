@@ -1,8 +1,8 @@
-//! The action model of perken-extensions.
+//! The action model of cajun-extensions.
 //!
 //! Each module exports `entries`, a table of named actions. main.zig
 //! registers every entry as a REAPER action whose command id is
-//! `_PERKEN_<name>`, so that reavim-ext (or any keymap) can bind it. Actions
+//! `_CAJUN_<name>`, so that reavim-ext (or any keymap) can bind it. Actions
 //! flagged `midi_command` are registered in the MIDI editor section, and their
 //! numeric steps are dispatched to the last focused MIDI editor.
 //!

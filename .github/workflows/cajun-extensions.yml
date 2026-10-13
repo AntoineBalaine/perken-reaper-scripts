@@ -1,22 +1,22 @@
-name: perken-extensions
+name: cajun-extensions
 
 # This monorepo holds several packages, so this workflow only runs when
-# perken-extensions or something it builds against changes. GitHub does not
-# evaluate path filters on tag pushes, so a perken-extensions-v* tag always
+# cajun-extensions or something it builds against changes. GitHub does not
+# evaluate path filters on tag pushes, so a cajun-extensions-v* tag always
 # triggers a release.
 on:
   push:
     branches: [main]
-    tags: ["perken-extensions-v*"]
+    tags: ["cajun-extensions-v*"]
     paths:
-      - "extensions/perken-extensions/**"
+      - "extensions/cajun-extensions/**"
       - "extensions/reaziglib/**"
-      - ".github/workflows/perken-extensions.yml"
+      - ".github/workflows/cajun-extensions.yml"
   pull_request:
     paths:
-      - "extensions/perken-extensions/**"
+      - "extensions/cajun-extensions/**"
       - "extensions/reaziglib/**"
-      - ".github/workflows/perken-extensions.yml"
+      - ".github/workflows/cajun-extensions.yml"
   workflow_dispatch:
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
       contents: write # required to create the release and upload assets
     defaults:
       run:
-        working-directory: extensions/perken-extensions
+        working-directory: extensions/cajun-extensions
     steps:
       - uses: actions/checkout@v4
       - uses: mlugg/setup-zig@v2
@@ -54,24 +54,24 @@ jobs:
             echo "::group::$name ($tgt)"
             rm -rf zig-out
             zig build -Dtarget="$tgt" -Doptimize=ReleaseSafe
-            pkg="dist/perken-extensions-$name"
+            pkg="dist/cajun-extensions-$name"
             mkdir -p "$pkg"
-            cp "zig-out/reaper_perken_extensions.$ext" "$pkg/"
+            cp "zig-out/reaper_cajun_extensions.$ext" "$pkg/"
             cp README.md "$pkg/README.md"
-            (cd dist && zip -qr "perken-extensions-$name.zip" "perken-extensions-$name")
+            (cd dist && zip -qr "cajun-extensions-$name.zip" "cajun-extensions-$name")
             echo "::endgroup::"
           done
           ls -la dist/*.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: perken-extensions-builds
-          path: extensions/perken-extensions/dist/*.zip
+          name: cajun-extensions-builds
+          path: extensions/cajun-extensions/dist/*.zip
 
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/perken-extensions-v')
+        if: startsWith(github.ref, 'refs/tags/cajun-extensions-v')
         uses: softprops/action-gh-release@v2
         with:
-          files: extensions/perken-extensions/dist/*.zip
+          files: extensions/cajun-extensions/dist/*.zip
           generate_release_notes: true
           fail_on_unmatched_files: true

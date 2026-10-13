@@ -1,4 +1,4 @@
-//! perken-extensions' hidden control surface.
+//! cajun-extensions' hidden control surface.
 //!
 //! REAPER reports state changes (last-touched FX, parameter changes, focused
 //! FX, track changes, ...) to control surfaces. Features that react to those
@@ -59,11 +59,11 @@ pub fn release() void {
 }
 
 fn typeString(_: ?*anyopaque) callconv(.C) [*:0]const u8 {
-    return "PERKENEXT";
+    return "CAJUNEXT";
 }
 
 fn descString(_: ?*anyopaque) callconv(.C) [*:0]const u8 {
-    return "Perken extensions (internal)";
+    return "Cajun extensions (internal)";
 }
 
 fn extended(_: ?*anyopaque, call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.C) c_int {
