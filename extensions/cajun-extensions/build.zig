@@ -52,6 +52,22 @@ pub fn build(b: *std.Build) void {
     test_exe.root_module.addImport("ini", ini_dep.module("ini"));
     test_exe.root_module.addOptions("build_options", build_options);
 
+    // Development tool: the beat tracker on a WAV file, outside REAPER
+    // (`zig build analyze -- file.wav`).
+    const analyze = b.addExecutable(.{
+        .name = "analyze",
+        .root_source_file = b.path("tools/analyze.zig"),
+        .target = target,
+        .optimize = .ReleaseSafe,
+    });
+    analyze.linkLibC();
+    analyze.root_module.addImport("beat", b.createModule(.{ .root_source_file = b.path("src/beat/beat.zig") }));
+    addBeatTracker(b, qm_dep, analyze);
+    const run_analyze = b.addRunArtifact(analyze);
+    if (b.args) |args| run_analyze.addArgs(args);
+    const analyze_step = b.step("analyze", "Run the beat tracker on a WAV file: zig build analyze -- file.wav");
+    analyze_step.dependOn(&run_analyze.step);
+
     const run_test = b.addRunArtifact(test_exe);
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_test.step);

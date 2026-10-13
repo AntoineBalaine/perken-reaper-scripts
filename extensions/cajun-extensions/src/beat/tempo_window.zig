@@ -30,10 +30,6 @@ const log = std.log.scoped(.tempo_window);
 /// can be told apart from the user's own markers and removed again.
 pub const marker_prefix = "\u{2669}"; // ♩
 
-/// The tempo is reported as steady when the middle 80% of the per-beat
-/// tempi lie within this fraction of the median.
-pub const steady_spread: f64 = 0.03;
-
 pub const ImguiState = enum { unchecked, present, missing };
 
 pub const State = struct {
@@ -49,34 +45,6 @@ pub const State = struct {
 };
 
 pub var state: State = .{};
-
-pub const Summary = struct {
-    median: f64,
-    low: f64,
-    high: f64,
-    steady: bool,
-    beat_count: usize,
-};
-
-/// Summarises a result: median tempo and the range of the middle 80% of the
-/// per-beat tempi, which ignores a few misplaced beats at either end.
-pub fn summarize(alloc: std.mem.Allocator, beats: []const beat.Beat) !Summary {
-    if (beats.len == 0) return .{ .median = 0, .low = 0, .high = 0, .steady = false, .beat_count = 0 };
-    const tempi = try alloc.alloc(f64, beats.len);
-    defer alloc.free(tempi);
-    for (beats, tempi) |b, *t| t.* = b.tempo;
-    std.mem.sort(f64, tempi, {}, std.sort.asc(f64));
-    const median = tempi[tempi.len / 2];
-    const low = tempi[tempi.len / 10];
-    const high = tempi[tempi.len - 1 - tempi.len / 10];
-    return .{
-        .median = median,
-        .low = low,
-        .high = high,
-        .steady = median > 0 and (high - low) / median <= steady_spread,
-        .beat_count = beats.len,
-    };
-}
 
 // ---- the action ----
 
@@ -226,7 +194,7 @@ pub fn drawContent(ctx: imgui.ContextPtr) void {
 pub fn drawResult(ctx: imgui.ContextPtr, job: *analysis.Job) void {
     var line: [256:0]u8 = undefined;
     const result = job.result orelse return;
-    const s = summarize(std.heap.c_allocator, result.beats) catch return;
+    const s = beat.summarize(std.heap.c_allocator, result.beats) catch return;
 
     imgui.api.Text(ctx, fmtZ(&line, "Tempo: {d:.1} BPM", .{s.median}));
     if (s.steady) {
@@ -323,21 +291,6 @@ pub const entries = [_]actions.Entry{
 
 // ---- tests ----
 
-test "summarize: steady and varying tempi" {
-    const alloc = std.testing.allocator;
-    var steady: [20]beat.Beat = undefined;
-    for (&steady, 0..) |*b, i| b.* = .{ .time = @floatFromInt(i), .beat_in_bar = 1, .tempo = 120 };
-    const s = try summarize(alloc, &steady);
-    try std.testing.expectEqual(@as(f64, 120), s.median);
-    try std.testing.expect(s.steady);
-
-    var ramp: [20]beat.Beat = undefined;
-    for (&ramp, 0..) |*b, i| b.* = .{ .time = @floatFromInt(i), .beat_in_bar = 1, .tempo = 100 + @as(f64, @floatFromInt(i)) * 2 };
-    const r = try summarize(alloc, &ramp);
-    try std.testing.expect(!r.steady);
-    try std.testing.expect(r.low >= 100 and r.high <= 138);
-}
-
 /// An 89 BPM click track with loud eighth-note hi-hats between 10 and 20
 /// seconds: the busy middle section that can make the tracker switch to
 /// marking eighth notes.
@@ -372,13 +325,13 @@ test "busy eighth notes in the middle do not throw a click track off its tempo" 
     // need more than loud hi-hats; this guards the synthetic case.
     var free_run = try beat.track(alloc, audio, rate, .{});
     defer free_run.deinit(alloc);
-    const f = try summarize(alloc, free_run.beats);
+    const f = try beat.summarize(alloc, free_run.beats);
     try std.testing.expectApproxEqRel(@as(f64, 89), f.median, 0.02);
     try std.testing.expect(f.steady);
 
     var locked = try beat.track(alloc, audio, rate, .{ .input_tempo = f.median, .constrain_tempo = 1 });
     defer locked.deinit(alloc);
-    const l = try summarize(alloc, locked.beats);
+    const l = try beat.summarize(alloc, locked.beats);
     try std.testing.expectApproxEqRel(@as(f64, 89), l.median, 0.02);
     try std.testing.expect(l.steady);
 }

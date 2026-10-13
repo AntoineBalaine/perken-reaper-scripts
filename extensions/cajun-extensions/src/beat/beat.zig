@@ -100,6 +100,38 @@ pub fn medianTempo(alloc: std.mem.Allocator, beats: []const Beat) !f64 {
     return tempi[tempi.len / 2];
 }
 
+/// The tempo is reported as steady when the middle 80% of the per-beat
+/// tempi lie within this fraction of the median.
+pub const steady_spread: f64 = 0.03;
+
+pub const Summary = struct {
+    median: f64,
+    low: f64,
+    high: f64,
+    steady: bool,
+    beat_count: usize,
+};
+
+/// Summarises a result: median tempo and the range of the middle 80% of the
+/// per-beat tempi, which ignores a few misplaced beats at either end.
+pub fn summarize(alloc: std.mem.Allocator, beats: []const Beat) !Summary {
+    if (beats.len == 0) return .{ .median = 0, .low = 0, .high = 0, .steady = false, .beat_count = 0 };
+    const tempi = try alloc.alloc(f64, beats.len);
+    defer alloc.free(tempi);
+    for (beats, tempi) |b, *t| t.* = b.tempo;
+    std.mem.sort(f64, tempi, {}, std.sort.asc(f64));
+    const median = tempi[tempi.len / 2];
+    const low = tempi[tempi.len / 10];
+    const high = tempi[tempi.len - 1 - tempi.len / 10];
+    return .{
+        .median = median,
+        .low = low,
+        .high = high,
+        .steady = median > 0 and (high - low) / median <= steady_spread,
+        .beat_count = beats.len,
+    };
+}
+
 // ---- tests ----
 
 /// A click track at a steady tempo: a 30 ms decaying 1 kHz burst on every
@@ -187,4 +219,19 @@ test "beatTempo and medianTempo" {
         .{ .time = 1, .beat_in_bar = 3, .tempo = 300 },
     };
     try std.testing.expectEqual(@as(f64, 120), try medianTempo(std.testing.allocator, &beats));
+}
+
+test "summarize: steady and varying tempi" {
+    const alloc = std.testing.allocator;
+    var steady: [20]Beat = undefined;
+    for (&steady, 0..) |*b, i| b.* = .{ .time = @floatFromInt(i), .beat_in_bar = 1, .tempo = 120 };
+    const s = try summarize(alloc, &steady);
+    try std.testing.expectEqual(@as(f64, 120), s.median);
+    try std.testing.expect(s.steady);
+
+    var ramp: [20]Beat = undefined;
+    for (&ramp, 0..) |*b, i| b.* = .{ .time = @floatFromInt(i), .beat_in_bar = 1, .tempo = 100 + @as(f64, @floatFromInt(i)) * 2 };
+    const r = try summarize(alloc, &ramp);
+    try std.testing.expect(!r.steady);
+    try std.testing.expect(r.low >= 100 and r.high <= 138);
 }
