@@ -17,6 +17,7 @@ const grammar = @import("grammar.zig");
 const actions = @import("actions.zig");
 const builder = @import("builder.zig");
 const lib_state = @import("lib_state.zig");
+const batch_rename = @import("batch_rename.zig");
 
 const log = std.log.scoped(.config);
 
@@ -27,6 +28,10 @@ pub const Bindings = struct {
     /// in the engine — they are not regular bindings, so they work mid-sequence.
     page_next: keymod.Key = .{ .vk = keymod.VK.NEXT }, // PageDown
     page_prev: keymod.Key = .{ .vk = keymod.VK.PRIOR }, // PageUp
+    /// Batch-rename launcher (the [rename] config section). The terminal
+    /// command receives the editor script as its last argument.
+    rename_terminal: []const u8 = batch_rename.default_terminal,
+    rename_editor: []const u8 = batch_rename.default_editor,
 
     pub fn deinit(self: *Bindings) void {
         for (&self.tables.tries) |*row| for (row) |*t| t.deinit();
@@ -37,6 +42,7 @@ pub const Bindings = struct {
 const CurSection = union(enum) {
     binding: Section,
     whichkey,
+    rename,
     unknown,
 };
 
@@ -135,7 +141,7 @@ pub fn parse(
 ) !Bindings {
     var b = Bindings{
         .arena = std.heap.ArenaAllocator.init(gpa),
-        .tables = undefined,
+        .tables = .{ .tries = undefined },
     };
     errdefer b.arena.deinit();
     for (&b.tables.tries) |*row| for (row) |*t| {
@@ -162,6 +168,8 @@ pub fn parse(
             .section => |name| {
                 if (std.mem.eql(u8, name, "whichkey")) {
                     section = .whichkey;
+                } else if (std.mem.eql(u8, name, "rename")) {
+                    section = .rename;
                 } else if (parseSectionName(name)) |sec| {
                     section = .{ .binding = sec };
                 } else {
@@ -182,6 +190,20 @@ pub fn parse(
                         b.page_prev = key;
                     } else {
                         log.warn("unknown [whichkey] key '{s}' — skipped", .{kv.key});
+                    }
+                },
+                .rename => {
+                    const v = std.mem.trim(u8, kv.value, " \t");
+                    if (v.len == 0) {
+                        log.warn("empty [rename] value for '{s}' — skipped", .{kv.key});
+                        continue;
+                    }
+                    if (std.mem.eql(u8, kv.key, "terminal")) {
+                        b.rename_terminal = try arena.dupe(u8, v);
+                    } else if (std.mem.eql(u8, kv.key, "editor")) {
+                        b.rename_editor = try arena.dupe(u8, v);
+                    } else {
+                        log.warn("unknown [rename] key '{s}' — skipped", .{kv.key});
                     }
                 },
                 .binding => |sec| {
@@ -227,6 +249,9 @@ pub fn parse(
         }
     }
 
+    if (registry.get("CurrentTrack")) |def| {
+        b.tables.current_track = .{ .name = "CurrentTrack", .def = def };
+    }
     return b;
 }
 
@@ -241,6 +266,26 @@ const test_defs = [_]actions.Entry{
     .{ .name = "NextTrack", .def = .{ .steps = &.{.{ .cmd = 40285 }}, .prefix_repetition_count = true } },
     .{ .name = "RemoveTracks", .def = .{ .steps = &.{.{ .cmd = 40005 }} } },
 };
+
+test "rename settings default and override" {
+    var reg = try actions.Registry.init(std.testing.allocator, &.{});
+    defer reg.deinit();
+
+    var d = try parseString(std.testing.allocator, &reg, "[main.command]\nj = 40285\n");
+    defer d.deinit();
+    try std.testing.expectEqualStrings(batch_rename.default_terminal, d.rename_terminal);
+    try std.testing.expectEqualStrings("vim", d.rename_editor);
+
+    var o = try parseString(std.testing.allocator, &reg,
+        \\[rename]
+        \\terminal = open -a iTerm
+        \\editor = nvim -u NONE
+        \\
+    );
+    defer o.deinit();
+    try std.testing.expectEqualStrings("open -a iTerm", o.rename_terminal);
+    try std.testing.expectEqualStrings("nvim -u NONE", o.rename_editor);
+}
 
 test "whichkey pagination keys default and override" {
     var reg = try actions.Registry.init(std.testing.allocator, &.{});

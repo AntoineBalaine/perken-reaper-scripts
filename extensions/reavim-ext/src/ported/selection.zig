@@ -41,6 +41,15 @@ fn onlyCurrentTrack(_: *actions.RunCtx) void {
     Reaper.SetOnlyTrackSelected(track);
 }
 
+/// Track operators span the range between the last-touched track and the first
+/// selected track after the motion runs. Because of that, this motion selects
+/// only the last-touched track, so that the operator applies to that single
+/// track instead of to the whole existing selection.
+fn currentTrack(_: *actions.RunCtx) void {
+    const track = Reaper.GetLastTouchedTrack() orelse Reaper.GetSelectedTrack(0, 0) orelse return;
+    Reaper.SetOnlyTrackSelected(track);
+}
+
 fn innerRegion(_: *actions.RunCtx) void {
     const ids = helpers.getLastMarkerAndCurRegion(Reaper.GetCursorPosition());
     _ = helpers.selectRegion(ids.region);
@@ -51,6 +60,7 @@ pub const entries = [_]actions.Entry{
     .{ .name = "Item", .def = .{ .steps = &.{.{ .func = &innerItem }} } },
     .{ .name = "BigItem", .def = .{ .steps = &.{.{ .func = &innerBigItem }} } },
     .{ .name = "SelectOnlyCurrentTrack", .def = .{ .steps = &.{.{ .func = &onlyCurrentTrack }} } },
+    .{ .name = "CurrentTrack", .def = .{ .steps = &.{.{ .func = &currentTrack }}, .desc = "current track" } },
     .{ .name = "Region", .def = .{ .steps = &.{.{ .func = &innerRegion }} } },
 };
 

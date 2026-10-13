@@ -662,7 +662,6 @@ pub const entries = [_]actions.Entry{
     .{ .name = "InsertChordBb", .def = .{ .steps = &.{ .{ .action = "InsertBb" }, .{ .action = "LeftMidiGridDivision" } }, .midi_command = true } },
     .{ .name = "InsertChordA", .def = .{ .steps = &.{ .{ .action = "InsertA" }, .{ .action = "LeftMidiGridDivision" } }, .midi_command = true } },
     .{ .name = "InsertChordAb", .def = .{ .steps = &.{ .{ .action = "InsertAb" }, .{ .action = "LeftMidiGridDivision" } }, .midi_command = true } },
-    .{ .name = "CurrentTrack", .def = .{} }, // placeholder selector (empty table in Lua)
     .{ .name = "IncreaseGrid", .def = .{ .steps = &.{.{ .cmd = 40786 }}, .prefix_repetition_count = true } },
     .{ .name = "DecreaseGrid", .def = .{ .steps = &.{.{ .cmd = 40783 }}, .prefix_repetition_count = true } },
     .{ .name = "QuitReaper", .def = .{ .steps = &.{.{ .cmd = 40004 }} } },
