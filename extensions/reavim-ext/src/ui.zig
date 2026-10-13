@@ -21,8 +21,10 @@ const state = @import("state.zig");
 
 const log = std.log.scoped(.extension);
 
-var imgui_checked = false; // resolved on REAPER's first post-boot timer tick
-var imgui_available = false;
+/// Because ReaImGui may load after us, its API can only be probed once boot
+/// is done, so the state starts `unchecked` and the first timer tick resolves
+/// it to `absent` or `present`.
+var imgui_state: enum { unchecked, absent, present } = .unchecked;
 var ctx: imgui.ContextPtr = null;
 var font: imgui.FontPtr = null;
 var hidden = false;
@@ -34,13 +36,13 @@ pub var window_focused = false;
 
 /// Show/hide the feedback window (bindable action). No-op without ReaImGui.
 pub fn toggleVisible() bool {
-    if (!imgui_available) return false;
+    if (imgui_state != .present) return false;
     hidden = !hidden;
     return !hidden;
 }
 
 pub fn isVisible() bool {
-    return imgui_available and !hidden;
+    return imgui_state == .present and !hidden;
 }
 
 const FONT_SIZE: c_int = 14;
@@ -75,7 +77,7 @@ pub fn unregister() void {
 }
 
 pub fn available() bool {
-    return imgui_available;
+    return imgui_state == .present;
 }
 
 // ---- binding search (pinned at the top of the window) ----
@@ -134,7 +136,10 @@ pub fn refreshResults() void {
 
 /// Opens the search box with typing captured by vim (the SearchBindings
 /// action). The window is shown and unfolded, because the box lives in it.
+/// Without ReaImGui, the box would never be drawn while vim still swallowed
+/// every key into it, so the action does nothing in that case.
 pub fn openSearch() void {
+    if (imgui_state != .present) return;
     hidden = false;
     folded = false;
     search_state.capturing = true;
@@ -390,7 +395,7 @@ fn keyLessThan(_: void, a: vim.Completion, b: vim.Completion) bool {
 
 fn onTimer() callconv(.C) void {
     ensureImguiChecked();
-    if (!imgui_available) return;
+    if (imgui_state != .present) return;
 
     if (vim.mode() != .off and prev_mode == .off) hidden = false;
     prev_mode = vim.mode();
@@ -438,16 +443,19 @@ fn onTimer() callconv(.C) void {
 }
 
 /// Resolve the ReaImGui API exactly once, on REAPER's first post-boot timer
-/// tick. Safe to call unconditionally from onTimer every frame; the checked
-/// flag makes this a no-op after the first call.
+/// tick. Safe to call unconditionally from onTimer every frame; the state
+/// makes this a no-op after the first call. Because the timer has no other
+/// use when ReaImGui is absent, we unregister it in that case so that the
+/// extension does not pay for a callback on every main-loop tick.
 fn ensureImguiChecked() void {
-    if (imgui_checked) return;
-    imgui_checked = true;
+    if (imgui_state != .unchecked) return;
     imgui.init(Reaper.plugin_getapi) catch {
         log.warn("ReaImGui not available — feedback window disabled (install via ReaPack)", .{});
+        imgui_state = .absent;
+        _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
         return;
     };
-    imgui_available = true;
+    imgui_state = .present;
 }
 
 fn renderContent() void {
