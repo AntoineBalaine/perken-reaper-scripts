@@ -21,6 +21,7 @@ const keysnap = @import("keysnap.zig");
 const batch_rename = @import("batch_rename.zig");
 const auto_lane_watcher = @import("auto_lane_watcher.zig");
 const surface = @import("surface.zig");
+const tempo_window = @import("beat/tempo_window.zig");
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
@@ -66,13 +67,17 @@ const reaper_api = [_][:0]const u8{
     "plugin_register",             "plugin_getapi",              "GetFXEnvelope",
     "GetGlobalAutomationOverride", "TrackFX_GetParam",           "SetOnlyTrackSelected",
     "CountTrackEnvelopes",         "GetTrackEnvelope",           "Envelope_GetParentTrack",
-    "GetLastTouchedFX",
+    "GetLastTouchedFX",            "CreateTakeAudioAccessor",    "GetAudioAccessorSamples",
+    "DestroyAudioAccessor",        "GetAudioAccessorStartTime",  "GetAudioAccessorEndTime",
+    "GetMediaItemTake_Source",     "GetMediaSourceNumChannels",  "SetTakeMarker",
+    "DeleteTakeMarker",            "GetNumTakeMarkers",          "GetTakeMarker",
+    "ValidatePtr2",                "GetTakeName",
 };
 
 /// Every action this extension provides.
 pub const all_entries = drums.entries ++ kawa.entries ++ routing.entries ++ fx.entries ++
     items.entries ++ tracks.entries ++ envelope.entries ++ keysnap.entries ++ batch_rename.entries ++
-    auto_lane_watcher.entries;
+    auto_lane_watcher.entries ++ tempo_window.entries;
 
 const main_section: c_int = 0;
 const midi_editor_section: c_int = 32060;
@@ -100,6 +105,8 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     if (rec == null) {
         // Unload: make sure REAPER no longer holds our control surface.
         while (surface.holders > 0) surface.release();
+        tempo_window.stopTimer();
+        tempo_window.discardJob();
         return 0;
     }
 
@@ -157,6 +164,7 @@ test {
     _ = @import("sws.zig");
     _ = @import("auto_lane_watcher.zig");
     _ = @import("beat/beat.zig");
+    _ = @import("beat/tempo_window.zig");
     _ = @import("config.zig");
     _ = @import("drums.zig");
     _ = @import("kawa.zig");
