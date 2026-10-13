@@ -3,10 +3,9 @@
     .fingerprint = 0xb79e01860ff88336,
     .version = "0.0.0",
     .dependencies = .{
-        .reaziglib = .{
-            .url = "https://github.com/AntoineBalaine/reaziglib/archive/9615b11904bbf7f9d82ff2c308ca5f258e4a4b27.tar.gz",
-            .hash = "reaziglib-0.0.0-jusUJXMnEACKRQYFVzYfW873sBhSaFkbCoo5HQJk82kE",
-        },
+        // reaziglib lives in the same monorepo, so that a change to it and
+        // the extension code using it can land in one commit.
+        .reaziglib = .{ .path = "../reaziglib" },
         .ini = .{
             .url = "https://github.com/AntoineBalaine/ini/archive/5b75cfec6ef76dd563c373bd5aae1ca96fd54fb8.tar.gz",
             .hash = "N-V-__8AAJDsawBiTNjNT9xhCw08Kw-RongN_n7OdAnOykS9",
