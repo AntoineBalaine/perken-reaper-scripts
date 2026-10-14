@@ -71,7 +71,10 @@ const reaper_api = [_][:0]const u8{
     "DestroyAudioAccessor",        "GetAudioAccessorStartTime",  "GetAudioAccessorEndTime",
     "GetMediaItemTake_Source",     "GetMediaSourceNumChannels",  "SetTakeMarker",
     "DeleteTakeMarker",            "GetNumTakeMarkers",          "GetTakeMarker",
-    "ValidatePtr2",                "GetTakeName",
+    "ValidatePtr2",                "GetTakeName",                "TimeMap2_timeToQN",
+    "TimeMap2_QNToTime",           "TimeMap2_timeToBeats",       "GetTakeNumStretchMarkers",
+    "SetTakeStretchMarker",        "CountTempoTimeSigMarkers",   "GetMediaItemTake_Item",
+    "SetCurrentBPM",               "UpdateTimeline",
 };
 
 /// Every action this extension provides.
@@ -165,6 +168,7 @@ test {
     _ = @import("auto_lane_watcher.zig");
     _ = @import("beat/beat.zig");
     _ = @import("beat/grid.zig");
+    _ = @import("beat/commit.zig");
     _ = @import("beat/tempo_window.zig");
     _ = @import("config.zig");
     _ = @import("drums.zig");

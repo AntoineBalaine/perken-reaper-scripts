@@ -24,6 +24,7 @@ const actions = @import("../actions.zig");
 const analysis = @import("analysis.zig");
 const beat = @import("beat.zig");
 const grid = @import("grid.zig");
+const commit = @import("commit.zig");
 
 const log = std.log.scoped(.tempo_window);
 
@@ -43,6 +44,8 @@ pub const State = struct {
     /// Preview markers were added for the current job's result.
     previewed: bool = false,
     beats_per_bar: c_int = 4,
+    /// The outcome of the last commit button, shown under the buttons.
+    message: [:0]const u8 = "",
 };
 
 pub var state: State = .{};
@@ -71,6 +74,7 @@ fn detectTempoAction(_: *actions.RunCtx) void {
 /// its preview markers.
 pub fn startAnalysis(take: *Reaper.MediaItem_Take, params: beat.Params) void {
     discardJob();
+    state.message = "";
     state.job = analysis.start(std.heap.c_allocator, take, params) catch |err| {
         const msg: [:0]const u8 = switch (err) {
             error.MidiTake => "The selected take is MIDI; tempo detection needs audio.",
@@ -225,6 +229,20 @@ pub fn drawResult(ctx: imgui.ContextPtr, job: *analysis.Job) void {
         imgui.api.Text(ctx, fmtZ(&line, "{d} detected beats shown as take markers", .{s.beat_count}));
     }
     imgui.api.Separator(ctx);
+
+    // Commit, in either direction: the grid follows the audio (project
+    // tempo), or the audio follows the grid (stretch markers).
+    if (job.grid_beats.len > 0) {
+        if (imgui.api.Button(ctx, "Set to project tempo", null, null)) {
+            state.message = if (commit.setProjectTempo(job.take, tempo)) "Project tempo set." else |err| commit.errorText(err);
+        }
+        imgui.api.SameLine(ctx, null, null);
+        if (imgui.api.Button(ctx, "Add stretch markers to grid", null, null)) {
+            state.message = if (commit.conformToGrid(job.take, job.start_time, job.grid_beats)) "The audio now follows the project grid." else |err| commit.errorText(err);
+        }
+        if (state.message.len > 0) imgui.api.TextWrapped(ctx, state.message);
+        imgui.api.Separator(ctx);
+    }
 
     // Re-run constrained around the tempo, so that the tracker stays at that
     // metrical level everywhere instead of switching in busy sections.
