@@ -37,6 +37,24 @@ Each extension is versioned and released on its own, from its own tags:
   releases page by its tag prefix.
 - Each extension keeps its own `CHANGELOG.md`.
 
+## Running the Linux CI locally
+
+Extensions with C++ (perken-utilities, console1) must build their Linux
+binaries on Linux with gcc, so a Mac can not check them directly.
+`linux-ci/linux-ci.sh` runs the Linux steps of every workflow in a Docker
+container matching GitHub's `ubuntu-latest` (Ubuntu 24.04, gcc, PHP, the
+pinned Zig):
+
+```sh
+extensions/linux-ci/linux-ci.sh            # arm64 Linux, native on Apple silicon
+extensions/linux-ci/linux-ci.sh --amd64    # x86_64 Linux, emulated (slower)
+```
+
+Each step prints PASS or FAIL; full output is in
+`linux-ci/logs/<arch>/<package>-<step>.log` (not committed). Docker Desktop
+must be running. The steps are listed in `linux-ci/run-steps.sh` and should
+follow the workflows when those change.
+
 ## Toolchain rule: C++ that REAPER calls must use REAPER's toolchain
 
 REAPER calls some extension code through **C++ virtual methods**: a control
