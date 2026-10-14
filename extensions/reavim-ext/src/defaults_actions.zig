@@ -59,6 +59,7 @@ pub const entries = [_]actions.Entry{
     .{ .name = "CopySelectedItems", .def = .{ .steps = &.{.{ .cmd = 40698 }} } },
     .{ .name = "CopyTrack", .def = .{ .steps = &.{.{ .cmd = 40210 }} } },
     .{ .name = "CropToActiveTake", .def = .{ .steps = &.{.{ .cmd = 40131 }} } },
+    .{ .name = "SetItemColorToDefault", .def = .{ .steps = &.{.{ .cmd = 40707 }} } },
     .{ .name = "CutEnvelopePoints", .def = .{ .steps = &.{.{ .cmd = 40325 }} } },
     .{ .name = "CutFxChain", .def = .{ .steps = &.{.{ .named = "_S&M_COPYFXCHAIN6" }} } },
     .{ .name = "CutInputFxChain", .def = .{ .steps = &.{.{ .named = "_S&M_CUT_INFXCHAIN" }} } },

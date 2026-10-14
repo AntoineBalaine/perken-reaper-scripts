@@ -50,6 +50,10 @@ pub fn closeTerminal() bool {
     return if (settings) |st| st.rename_close_terminal else config.default_close_terminal;
 }
 
+/// REAPER's "Item: Set to default color" (clears the custom color of the
+/// selected items, so they show their track's color).
+const item_default_color_cmd = 40707;
+
 pub const MAX_TRACKS = 1024;
 const GUID_LEN = 64;
 const MAX_FILE_BYTES = 1024 * 1024;
@@ -390,8 +394,11 @@ pub fn applyNames() void {
     // Because the names are set through the API, SWS auto-color is not told
     // about them. When SWS is loaded, we apply its rules inside the same undo
     // step, so that the renamed tracks get their colors; without SWS, nothing
-    // happens.
+    // happens. Because an item with a color of its own keeps it whatever its
+    // track does, REAPER's "Item: Set to default color" then makes the
+    // selected items follow their tracks' new colors.
     _ = helpers.runNamedCommandIfPresent("_SWSAUTOCOLOR_APPLY");
+    Reaper.Main_OnCommand(item_default_color_cmd, 0);
     Reaper.Undo_EndBlock("ReaVim: batch rename tracks", -1);
     Reaper.UpdateArrange();
     log.info("batch rename: renamed {d}/{d} tracks", .{ renamed, n });
