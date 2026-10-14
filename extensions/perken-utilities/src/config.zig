@@ -11,6 +11,11 @@
 //!                               ; (also used by "Search actions with fzf")
 //! editor = nvim                 ; unset: $VISUAL, else $EDITOR, else vim
 //! close_terminal = true         ; macOS: close the Terminal.app window afterwards
+//!
+//! [abc]
+//! command = /path/to/abcls      ; default: found by search (global npm install, nvm, login shell)
+//! clipboard = pbcopy            ; reads the ABC text from its standard input
+//! editor = open -a "Visual Studio Code"   ; default: the system opener (open, xdg-open)
 //! ```
 const std = @import("std");
 const builtin = @import("builtin");
@@ -34,18 +39,39 @@ pub const default_editor: []const u8 = "";
 /// it only exists on macOS.
 pub const default_close_terminal = builtin.os.tag == .macos;
 
+/// An empty command means "search for the abcls CLI", because REAPER started
+/// from the Finder has a minimal PATH, in which a bare `abcls` is not found.
+/// The user can give a path in the [abc] section instead.
+pub const default_abc_command: []const u8 = "";
+/// The program that copies its standard input to the system clipboard.
+pub const default_abc_clipboard: []const u8 = switch (builtin.os.tag) {
+    .macos => "pbcopy",
+    .windows => "clip",
+    else => "xclip -selection clipboard",
+};
+/// The program that opens a file. Because the system knows which editor the
+/// user chose for ABC files, we default to its own opener, and the [abc]
+/// section can name a specific editor instead.
+pub const default_abc_editor: []const u8 = switch (builtin.os.tag) {
+    .macos => "open",
+    else => "xdg-open",
+};
+
 pub const Settings = struct {
     arena: std.heap.ArenaAllocator,
     rename_terminal: []const u8 = default_terminal,
     rename_editor: []const u8 = default_editor,
     rename_close_terminal: bool = default_close_terminal,
+    abc_command: []const u8 = default_abc_command,
+    abc_clipboard: []const u8 = default_abc_clipboard,
+    abc_editor: []const u8 = default_abc_editor,
 
     pub fn deinit(self: *Settings) void {
         self.arena.deinit();
     }
 };
 
-pub const Section = enum { rename, unknown };
+pub const Section = enum { rename, abc, unknown };
 
 /// Parses a boolean setting: true/false, yes/no, on/off or 1/0.
 pub fn parseBool(v: []const u8) ?bool {
@@ -70,6 +96,8 @@ pub fn parse(gpa: std.mem.Allocator, reader: anytype) !Settings {
             .section => |name| {
                 if (std.mem.eql(u8, name, "rename")) {
                     section = .rename;
+                } else if (std.mem.eql(u8, name, "abc")) {
+                    section = .abc;
                 } else {
                     section = .unknown;
                     log.warn("unknown section [{s}] in {s} — skipped", .{ name, file_rel });
@@ -77,6 +105,22 @@ pub fn parse(gpa: std.mem.Allocator, reader: anytype) !Settings {
             },
             .property => |kv| switch (section) {
                 .unknown => {},
+                .abc => {
+                    const v = std.mem.trim(u8, kv.value, " \t");
+                    if (v.len == 0) {
+                        log.warn("empty [abc] value for '{s}' — skipped", .{kv.key});
+                        continue;
+                    }
+                    if (std.mem.eql(u8, kv.key, "command")) {
+                        settings.abc_command = try arena.dupe(u8, v);
+                    } else if (std.mem.eql(u8, kv.key, "clipboard")) {
+                        settings.abc_clipboard = try arena.dupe(u8, v);
+                    } else if (std.mem.eql(u8, kv.key, "editor")) {
+                        settings.abc_editor = try arena.dupe(u8, v);
+                    } else {
+                        log.warn("unknown [abc] key '{s}' — skipped", .{kv.key});
+                    }
+                },
                 .rename => {
                     const v = std.mem.trim(u8, kv.value, " \t");
                     if (v.len == 0) {
@@ -140,6 +184,28 @@ test "rename settings default and override" {
     try std.testing.expectEqualStrings("open -a iTerm", o.rename_terminal);
     try std.testing.expectEqualStrings("nvim -u NONE", o.rename_editor);
     try std.testing.expect(!o.rename_close_terminal);
+}
+
+test "abc settings default and override" {
+    var fbs_d = std.io.fixedBufferStream("");
+    var d = try parse(std.testing.allocator, fbs_d.reader());
+    defer d.deinit();
+    try std.testing.expectEqualStrings(default_abc_command, d.abc_command);
+    try std.testing.expectEqualStrings(default_abc_clipboard, d.abc_clipboard);
+    try std.testing.expectEqualStrings(default_abc_editor, d.abc_editor);
+
+    var fbs_o = std.io.fixedBufferStream(
+        \\[abc]
+        \\command = /opt/bin/abcls
+        \\clipboard = wl-copy
+        \\editor = code
+        \\
+    );
+    var o = try parse(std.testing.allocator, fbs_o.reader());
+    defer o.deinit();
+    try std.testing.expectEqualStrings("/opt/bin/abcls", o.abc_command);
+    try std.testing.expectEqualStrings("wl-copy", o.abc_clipboard);
+    try std.testing.expectEqualStrings("code", o.abc_editor);
 }
 
 test "parseBool accepts the usual spellings" {

@@ -24,6 +24,7 @@ const action_palette = @import("action_palette.zig");
 const auto_lane_watcher = @import("auto_lane_watcher.zig");
 const surface = @import("surface.zig");
 const tempo_window = @import("beat/tempo_window.zig");
+const abc_export = @import("abc_export.zig");
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
@@ -78,13 +79,14 @@ const reaper_api = [_][:0]const u8{
     "TimeMap2_timeToBeats",         "GetTakeNumStretchMarkers",         "SetTakeStretchMarker",
     "CountTempoTimeSigMarkers",     "GetMediaItemTake_Item",            "SetCurrentBPM",
     "TimeMap2_GetDividedBpmAtTime", "SetTempoTimeSigMarker",            "UpdateTimeline",
+    "TimeMap_GetTimeSigAtTime",
 };
 
 /// Every action this extension provides.
 pub const all_entries = drums.entries ++ kawa.entries ++ routing.entries ++ fx.entries ++
     items.entries ++ tracks.entries ++ envelope.entries ++ keysnap.entries ++ batch_rename.entries ++
     auto_lane_watcher.entries ++ tempo_window.entries ++ action_search.entries ++
-    action_palette.entries;
+    action_palette.entries ++ abc_export.entries;
 
 const main_section: c_int = 0;
 const midi_editor_section: c_int = 32060;
@@ -187,6 +189,7 @@ test {
     _ = @import("action_search.zig");
     _ = @import("action_palette.zig");
     _ = @import("fuzzy.zig");
+    _ = @import("abc_export.zig");
 }
 
 test "every action gets a unique command id string" {
