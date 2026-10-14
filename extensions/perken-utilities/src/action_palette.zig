@@ -10,6 +10,7 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const imgui = @import("reaper_imgui");
+const palette = @import("ui_palette");
 const actions = @import("actions.zig");
 const action_search = @import("action_search.zig");
 const fuzzy = @import("fuzzy.zig");
@@ -17,6 +18,9 @@ const fuzzy = @import("fuzzy.zig");
 const log = std.log.scoped(.action_palette);
 
 const MAX_RESULTS = 200;
+/// Larger than the whichkey window's 14, because this window is read while
+/// typing and scanning a list.
+const FONT_SIZE: c_int = 18;
 const QUERY_CAP = 256;
 const MAX_ACTIONS = 500_000;
 
@@ -30,6 +34,7 @@ pub const Entry = struct {
 pub const State = struct {
     imgui_state: ImguiState = .unchecked,
     ctx: imgui.ContextPtr = null,
+    font: imgui.FontPtr = null,
     open: bool = false,
     timer_registered: bool = false,
     /// Owns the names of `entries`; rebuilt every time the palette opens, so
@@ -195,13 +200,22 @@ fn drawWindow() void {
             state.open = false;
             return;
         }
+        state.font = imgui.api.CreateFont("sans-serif", FONT_SIZE, null);
+        if (state.font != null) imgui.api.Attach(state.ctx, @ptrCast(state.font));
     }
     const ctx = state.ctx;
-    imgui.api.SetNextWindowSize(ctx, 560, 400, &imgui.Cond_FirstUseEver);
+
+    // The font and colors are pushed before the window begins, so that its
+    // title bar and size use them too, exactly as the whichkey window does.
+    if (state.font != null) imgui.api.PushFont(ctx, state.font);
+    palette.push(ctx, &palette.window_colors);
+    imgui.api.SetNextWindowSize(ctx, 680, 460, &imgui.Cond_FirstUseEver);
     var is_open: bool = true;
     var flags: c_int = imgui.WindowFlags_NoSavedSettings | imgui.WindowFlags_NoCollapse;
     if (imgui.api.Begin(ctx, "Perken: search actions", &is_open, &flags)) drawContent(ctx);
     imgui.api.End(ctx);
+    palette.pop(ctx, palette.window_colors.len);
+    if (state.font != null) imgui.api.PopFont(ctx);
     if (!is_open) close();
 }
 
@@ -214,9 +228,12 @@ fn drawContent(ctx: imgui.ContextPtr) void {
         imgui.api.SetKeyboardFocusHere(ctx, null);
         state.focus_input = false;
     }
+    const field_colors = palette.fieldColors(palette.border);
+    palette.push(ctx, &field_colors);
     imgui.api.SetNextItemWidth(ctx, -1);
     var input_flags: c_int = imgui.InputTextFlags_None;
-    _ = imgui.api.InputText(ctx, "##query", &state.query, state.query.len, &input_flags, null);
+    _ = imgui.api.InputTextWithHint(ctx, "##query", "search actions", &state.query, state.query.len, &input_flags, null);
+    palette.pop(ctx, field_colors.len);
 
     if (!std.mem.eql(u8, std.mem.sliceTo(&state.query, 0), std.mem.sliceTo(&state.shown_query, 0))) refilter();
 
@@ -225,20 +242,28 @@ fn drawContent(ctx: imgui.ContextPtr) void {
     var label_buf: [MAX_RESULTS_LABEL:0]u8 = undefined;
     var counter: [64:0]u8 = undefined;
     const counter_text = std.fmt.bufPrintZ(&counter, "{d} of {d} actions", .{ state.result_count, state.entries.len }) catch "";
-    imgui.api.TextDisabled(ctx, counter_text);
+    imgui.api.Text(ctx, counter_text);
 
     var chosen: ?usize = null;
+    palette.push(ctx, &palette.list_colors);
     if (imgui.api.BeginChild(ctx, "##results", null, null, null, null)) {
         var i: usize = 0;
         while (i < state.result_count) : (i += 1) {
             const entry = state.entries[state.results[i].index];
             const label = std.fmt.bufPrintZ(&label_buf, "{s}##{d}", .{ entry.name, entry.id }) catch continue;
-            var is_selected = i == state.selected;
+            // Because Selectable writes its click back into `is_selected`,
+            // the push and the matching pop test a separate copy.
+            const highlighted = i == state.selected;
+            var is_selected = highlighted;
             var sel_flags: c_int = imgui.SelectableFlags_None;
+            // The selected row's text takes the bright key color, because
+            // the regular text color is too dim on the lighter highlight.
+            if (highlighted) imgui.api.PushStyleColor(ctx, imgui.Col_Text, palette.key);
             if (imgui.api.Selectable(ctx, label, &is_selected, &sel_flags, null, null)) {
                 state.selected = i;
                 chosen = i;
             }
+            if (highlighted) imgui.api.PopStyleColor(ctx, null);
             if (i == state.selected and state.follow_selection) {
                 imgui.api.SetScrollHereY(ctx, null);
                 state.follow_selection = false;
@@ -246,6 +271,7 @@ fn drawContent(ctx: imgui.ContextPtr) void {
         }
     }
     imgui.api.EndChild(ctx);
+    palette.pop(ctx, palette.list_colors.len);
 
     if (chosen) |c| runEntry(c);
 }

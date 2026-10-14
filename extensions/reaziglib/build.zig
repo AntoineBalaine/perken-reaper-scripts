@@ -58,6 +58,12 @@ pub fn build(b: *std.Build) void {
     });
     color_helpers_mod.addImport("reaper_imgui", reaper_imgui_mod);
 
+    // ui_palette depends on reaper_imgui
+    const ui_palette_mod = b.addModule("ui_palette", .{
+        .root_source_file = b.path("src/theme/palette.zig"),
+    });
+    ui_palette_mod.addImport("reaper_imgui", reaper_imgui_mod);
+
     // preset_file_reader depends on string_pool, ini
     const preset_file_reader_mod = b.addModule("preset_file_reader", .{
         .root_source_file = b.path("src/preset_file_reader.zig"),
@@ -395,6 +401,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "fs_helpers",
         "fx_parser",
         "colorHelpers",
+        "ui_palette",
         "preset_file_reader",
         "knob",
         "mock_imgui",

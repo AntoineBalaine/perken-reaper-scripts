@@ -8,6 +8,7 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const imgui = @import("reaper_imgui");
+const palette = @import("ui_palette");
 const vim = @import("vim.zig");
 const config = @import("config.zig");
 const keymod = @import("key.zig");
@@ -47,21 +48,19 @@ pub fn isVisible() bool {
 
 const FONT_SIZE: c_int = 14;
 
-fn rgba(comptime hex: u32) c_int {
-    return @bitCast(hex);
-}
+const rgba = palette.rgba;
 
-// Console1 main palette.
-const col_window_bg = rgba(0x333333FF);
-const col_text = rgba(0x818989FF);
-const col_border = rgba(0x4F4F4FFF);
-const col_title_bg = rgba(0x464646FF);
-const col_title_bg_active = rgba(0x606060FF);
-const col_frame_bg = rgba(0x333333FF);
-const col_accent = rgba(0xFF00A5FF); // ActiveToggle
-const col_green = rgba(0x13BD99FF); // ButtonActive
-const col_key = rgba(0xC1FFE1FF); // ButtonHovered, opaque
-const col_accent_dim = rgba(0xFF00A566); // accent at 40% for text selection
+// Console1 main palette, shared with the action palette (reaziglib's ui_palette).
+const col_window_bg = palette.window_bg;
+const col_text = palette.text;
+const col_border = palette.border;
+const col_title_bg = palette.title_bg;
+const col_title_bg_active = palette.title_bg_active;
+const col_frame_bg = palette.frame_bg;
+const col_accent = palette.accent;
+const col_green = palette.green;
+const col_key = palette.key;
+const col_accent_dim = palette.accent_dim;
 
 /// Always subscribe the timer. ReaImGui availability is resolved lazily on
 /// the first timer tick instead of here (see ensureImguiChecked) -- REAPER
@@ -215,15 +214,7 @@ fn renderSearchBox() void {
     // dark text on the dark frame: typed text uses the bright key color, the
     // hint the regular text color, on a frame lighter than the window. While
     // vim captures typing, the accent border shows where the keys go.
-    const field_colors = [_]struct { col: *c_int, val: c_int }{
-        .{ .col = &imgui.Col_Text, .val = col_key },
-        .{ .col = &imgui.Col_TextDisabled, .val = col_text },
-        .{ .col = &imgui.Col_FrameBg, .val = col_title_bg },
-        .{ .col = &imgui.Col_FrameBgHovered, .val = col_title_bg_active },
-        .{ .col = &imgui.Col_FrameBgActive, .val = col_title_bg_active },
-        .{ .col = &imgui.Col_TextSelectedBg, .val = col_accent_dim },
-        .{ .col = &imgui.Col_Border, .val = if (capturing) col_accent else col_border },
-    };
+    const field_colors = palette.fieldColors(if (capturing) col_accent else col_border);
     inline for (field_colors) |fc| imgui.api.PushStyleColor(ctx, fc.col.*, fc.val);
     imgui.api.PushStyleVar(ctx, imgui.StyleVar_FrameBorderSize, if (capturing) 1 else 0, null);
 
@@ -315,14 +306,7 @@ fn textColored(c: imgui.ContextPtr, color: c_int, txt: [*:0]const u8) void {
     imgui.api.PopStyleColor(c, null);
 }
 
-const pushed_colors = [_]struct { col: *c_int, val: c_int }{
-    .{ .col = &imgui.Col_WindowBg, .val = col_window_bg },
-    .{ .col = &imgui.Col_Text, .val = col_text },
-    .{ .col = &imgui.Col_Border, .val = col_border },
-    .{ .col = &imgui.Col_TitleBg, .val = col_title_bg },
-    .{ .col = &imgui.Col_TitleBgActive, .val = col_title_bg_active },
-    .{ .col = &imgui.Col_FrameBg, .val = col_frame_bg },
-};
+const pushed_colors = palette.window_colors;
 
 var page: usize = 0;
 var last_comp_count: usize = 0;
