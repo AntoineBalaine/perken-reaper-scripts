@@ -322,10 +322,15 @@ pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) voi
                 compile.addObjectFile(.{ .cwd_relative = path });
             }
         },
-        // Because cl's objects (built with /MD) name MSVC's dynamic runtime
-        // libraries (msvcrt, msvcprt) as default libraries, an msvc-ABI link
-        // finds them by itself, and nothing needs adding.
-        .windows => requireMsvcAbi(compile.rootModuleTarget()),
+        // Because Zig links an msvc-ABI binary against msvcrt.lib only, and
+        // does not follow the default libraries that cl's objects name, the
+        // rest of MSVC's dynamic runtime is linked explicitly: ucrt (the C
+        // library: realloc, round, and msvcrt's __acrt_* startup), vcruntime
+        // (msvcrt's __vcrt_* startup) and msvcprt (the C++ standard library).
+        .windows => {
+            requireMsvcAbi(compile.rootModuleTarget());
+            for ([_][]const u8{ "ucrt", "vcruntime", "msvcprt" }) |lib| compile.linkSystemLibrary(lib);
+        },
         else => {},
     }
 }
