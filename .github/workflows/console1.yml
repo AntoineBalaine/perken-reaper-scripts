@@ -26,6 +26,10 @@ on:
 # GitHub retired the macos-13 (Intel) runner, so the x86_64 Mac build runs on
 # macos-15 too, with -Dtarget=x86_64-macos (Apple clang builds both
 # architectures); its tests can only run on a native row.
+# Windows builds with the msvc ABI (x86_64-windows-msvc): cl compiles the
+# C++ that REAPER calls, and its objects need MSVC's runtime libraries,
+# which MinGW (Zig's default Windows ABI) does not provide. Tests run on
+# every row except the cross-built x86_64 Mac one (cross: true).
 jobs:
   build-and-test:
     strategy:
@@ -45,6 +49,7 @@ jobs:
           - os: macos-15
             name: macos-x86_64
             target: x86_64-macos
+            cross: true
             host_ext: dylib
             ui_ext: dylib
           - os: macos-15
@@ -54,7 +59,7 @@ jobs:
             ui_ext: dylib
           - os: windows-latest
             name: windows-x86_64
-            target: native
+            target: x86_64-windows-msvc
             host_ext: dll
             ui_ext: dll
 
@@ -101,7 +106,7 @@ jobs:
         run: brew install php
 
       - name: Run tests
-        if: matrix.target == 'native'
+        if: ${{ !matrix.cross }}
         run: zig build test -Dtest=true -Dversion=${{ steps.version.outputs.version }}
 
       - name: Build host extension

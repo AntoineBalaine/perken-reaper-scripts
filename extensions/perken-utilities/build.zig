@@ -2,7 +2,7 @@ const std = @import("std");
 const reaziglib = @import("reaziglib");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
+    const target = b.standardTargetOptions(.{ .default_target = reaziglib.reaperDefaultTarget() });
     const optimize = b.standardOptimizeOption(.{});
 
     const reazig_dep = b.dependency("reaziglib", .{ .target = target, .optimize = optimize });

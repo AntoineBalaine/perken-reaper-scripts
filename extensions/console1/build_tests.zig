@@ -83,7 +83,9 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
 
     // Link required libraries
     test_exe.linkLibC();
-    test_exe.linkLibCpp();
+    // Because cl's objects need MSVC's C++ runtime, not Zig's libc++,
+    // Windows links the runtime that matches them.
+    if (is_windows) reaziglib.linkReaperCxxRuntime(b, test_exe) else test_exe.linkLibCpp();
     if (target.result.isDarwinLibC()) {
         test_exe.root_module.linkFramework("AppKit", .{});
     }

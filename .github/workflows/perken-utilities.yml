@@ -22,6 +22,10 @@ on:
 # macOS jobs are pinned to macos-15: on the macos-26 image that
 # macos-latest now points to, Zig 0.14.1 links nothing from the C library
 # (likely the newer SDK's library stubs), while the macOS 15 SDK works.
+# Windows builds with the msvc ABI (x86_64-windows-msvc): cl compiles the
+# C++ that REAPER calls, and its objects need MSVC's runtime libraries,
+# which MinGW (Zig's default Windows ABI) does not provide. Tests run on
+# every row except the cross-built x86_64 Mac one (cross: true).
 jobs:
   # The extension contains C++ that REAPER calls (the control surface shim),
   # which must be compiled with REAPER's own toolchain on each OS (see
@@ -35,8 +39,8 @@ jobs:
           - { os: ubuntu-24.04-arm, name: linux-aarch64,  target: native,       ext: so }
           # Apple clang builds both macOS architectures from one runner.
           - { os: macos-15,     name: macos-aarch64,  target: native,       ext: dylib }
-          - { os: macos-15,     name: macos-x86_64,   target: x86_64-macos, ext: dylib }
-          - { os: windows-latest,   name: windows-x86_64, target: native,       ext: dll }
+          - { os: macos-15,     name: macos-x86_64,   target: x86_64-macos, ext: dylib, cross: true }
+          - { os: windows-latest,   name: windows-x86_64, target: x86_64-windows-msvc, ext: dll }
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.name }}
@@ -69,7 +73,7 @@ jobs:
           fi
 
       - name: Test
-        if: matrix.target == 'native'
+        if: ${{ !matrix.cross }}
         run: zig build test
 
       - name: Build

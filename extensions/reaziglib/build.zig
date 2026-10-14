@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
+    const target = b.standardTargetOptions(.{ .default_target = reaperDefaultTarget() });
     const optimize = b.standardOptimizeOption(.{});
 
     const ini = b.dependency("ini", .{ .target = target, .optimize = optimize });
@@ -247,11 +247,15 @@ pub fn reaperCxxObject(
     const is_c = std.mem.endsWith(u8, lazyPathName(file), ".c");
     switch (target.os.tag) {
         .windows => {
+            requireMsvcAbi(target);
             const cmd = b.addSystemCommand(&.{ "cl", "/nologo", "/c", "/O2", "/DNOMINMAX" });
             if (!is_c) cmd.addArg("/std:c++14");
             for (include_dirs) |dir| cmd.addPrefixedDirectoryArg("/I", dir);
             cmd.addArgs(flags.msvc);
             const obj = cmd.addPrefixedOutputFileArg("/Fo", b.fmt("{s}.obj", .{out_basename}));
+            // Because cl writes its error messages to stdout, which the build
+            // runner hides for a failing command, we let cl print directly.
+            cmd.stdio = .inherit;
             cmd.addFileArg(file);
             return obj;
         },
@@ -314,7 +318,31 @@ pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) voi
                 compile.addObjectFile(.{ .cwd_relative = path });
             }
         },
+        // Because cl's objects name MSVC's runtime libraries (LIBCMT,
+        // libcpmt) as default libraries, an msvc-ABI link finds them by
+        // itself, and nothing needs adding.
+        .windows => requireMsvcAbi(compile.rootModuleTarget()),
         else => {},
+    }
+}
+
+/// The default target for builds that link C++ compiled by
+/// reaperCxxObject. Because Zig's default ABI on Windows is gnu (MinGW),
+/// while cl produces MSVC objects that need MSVC's runtime libraries and
+/// whose C++ (name mangling, operator new, vtables) MinGW does not share,
+/// such builds must use the msvc ABI on Windows. Elsewhere this is the
+/// usual native target. Pass it as `standardTargetOptions(.{ .default_target
+/// = reaziglib.reaperDefaultTarget() })`.
+pub fn reaperDefaultTarget() std.Target.Query {
+    return if (builtin.os.tag == .windows) .{ .abi = .msvc } else .{};
+}
+
+/// Because cl's objects can only be linked into an msvc-ABI binary (see
+/// reaperDefaultTarget), we stop a gnu-ABI Windows build with a clear
+/// message instead of lld-link's missing libLIBCMT.a.
+pub fn requireMsvcAbi(target: std.Target) void {
+    if (target.os.tag == .windows and target.abi != .msvc) {
+        std.debug.panic("C++ for REAPER is compiled by cl on Windows, so this build needs the msvc ABI: pass -Dtarget={s}-windows-msvc (the default on a Windows host)", .{@tagName(target.cpu.arch)});
     }
 }
 

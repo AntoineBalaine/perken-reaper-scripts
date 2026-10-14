@@ -18,7 +18,7 @@ pub const Dependencies = struct {
 
 pub fn build(b: *std.Build) !void {
     // Create a library target
-    const target = b.standardTargetOptions(.{});
+    const target = b.standardTargetOptions(.{ .default_target = reaziglib.reaperDefaultTarget() });
     const optimize = b.standardOptimizeOption(.{});
 
     const wdl_dep = b.dependency("WDL", .{ .target = target, .optimize = optimize });
@@ -54,7 +54,7 @@ pub fn build(b: *std.Build) !void {
             } },
         });
     } else if (is_windows) {
-        lib.linkLibCpp();
+        reaziglib.linkReaperCxxRuntime(b, lib);
         client_install = b.addInstallArtifact(lib, .{
             .dest_sub_path = "reaper_c1.dll",
             .dest_dir = .{ .override = .{
@@ -224,7 +224,7 @@ fn addMftTarget(
         lib.linkLibCpp();
         break :blk b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_mft.dylib", .dest_dir = .{ .override = .{ .custom = "" } } });
     } else if (is_windows) blk: {
-        lib.linkLibCpp();
+        reaziglib.linkReaperCxxRuntime(b, lib);
         break :blk b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_mft.dll", .dest_dir = .{ .override = .{ .custom = "" } } });
     } else b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_mft.so", .dest_dir = .{ .override = .{ .custom = "" } } });
 
