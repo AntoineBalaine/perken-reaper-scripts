@@ -80,7 +80,7 @@ was to port. This is where each file ended up.
 | `library/marks.lua` | `reavim-ext/src/ported/marks.zig` | The five register actions; marks are kept in project ext state |
 | `custom_actions/movement.lua` | `reavim-ext/src/ported/movement.zig` | All 22 functions |
 | `custom_actions/selection.lua` | `reavim-ext/src/ported/selection.zig` | All 5 functions |
-| `custom_actions/midi.lua` | `reavim-ext/src/ported/midi.zig` | The 9 bound actions; `toggleKeySnap` is a stub, see below |
+| `custom_actions/midi.lua` | `reavim-ext/src/ported/midi.zig` | The 9 bound actions in the vim grammar; `toggleKeySnap` moved to `perken-utilities` as a stub, see below |
 | `custom_actions/custom_actions.lua` | `reavim-ext/src/ported/misc.zig` | The aggregator's own 5 functions |
 | `custom_actions/items.lua` | `perken-utilities/src/items.zig` | All 8 functions, 9 actions |
 | `custom_actions/tracks.lua` | `perken-utilities/src/tracks.zig` | All 4 functions |
@@ -92,30 +92,36 @@ was to port. This is where each file ended up.
 
 ### Registered but not functional yet (stubs)
 
-These actions exist and log a message when run, so that bindings to them do not
-break, but they do nothing yet.
+These actions are registered and log a message when run, so that a binding to
+them does not break, but they do nothing yet. Both are bound (commented out)
+in the default keymap.
 
-| Action | Where | Why |
-|---|---|---|
-| `toggleKeySnap` | `perken-utilities/src/keysnap.zig` | Toggles the MIDI editor's key-snap checkbox; the port is still to do |
-| The single `fx.lua` action | `perken-utilities/src/fx.zig` | Rated HARD in the inventory (`insertFXAtSlot`) |
-| `drums.quantizeTool` | `perken-utilities/src/drums.zig` | It launches a user-local quantize script by its registered command id, which only exists on the original install |
+| Action | Key | Where | Why it is a stub |
+|---|---|---|---|
+| `InsertFxAtSlot` | `<space>fi` | `perken-utilities/src/fx.zig` | Rated hard. The Lua opens the FX browser and detects the FX you picked by parsing a locale-dependent undo label. The better design is to watch a temporary track's FX count from a timer |
+| `toggleKeySnap` | `<space>ks` (MIDI) | `perken-utilities/src/keysnap.zig` | The Lua clicks the MIDI editor's key-snap checkbox through js_ReaScriptAPI. A compiled extension can send the window message itself, so it needs no JS_* bindings, but that is still to write |
 
 ### Not ported yet
 
-| Lua source | Size | State |
+Everything below is an editing helper, not part of the vim grammar, so it
+would be added to `perken-utilities`. In suggested order, easiest first:
+
+| Lua source | Tier | State |
 |---|---|---|
-| `custom_actions/harmonizer.lua` | 171 lines | On hold |
-| `custom_actions/midi_arranging.lua` | 377 lines, 5 functions | On hold |
-| `custom_actions/pasteRhythm.lua` | 341 lines | On hold |
+| `midi.LoadScreenSetWhenClosingEditor` | Easy | One REAPER command (40444), unbound, never ported |
+| `harmonizer.harmonize` | Medium | Pure music theory (parses chord symbols such as "Cmin7" and voices a melody note) with no REAPER calls, so it can be fully unit-tested. Only `midi_arranging` uses it |
+| `midi_arranging.insert_chord` | Medium | Prompts for a chord symbol and writes it as a text event at the cursor |
+| `midi_arranging` (4 more functions) | Hard | Group notes by text tags and send each group to its own MIDI channel or track, and harmonize a melody in close position. They need note and text-event snapshots plus `harmonizer`, and are unbound in the default keymap |
+| `pasteRhythm` | Hard | Applies the clipboard's MIDI rhythm to the selected item's pitches, a multi-step manipulation of MIDI takes |
 
 ### Not planned
 
 | Lua source | Why |
 |---|---|
-| `custom_actions/MFT.lua`, `Mapping_types.lua` | A Realearn mapping generator for the MIDI Fighter Twister, and the types it uses. MIDI Fighter Twister support exists separately, as the compiled `reaper_mft` in `console1` |
-| `custom_actions/midi_controller.lua` | A personal modulation-routing workflow built on serpent ExtState handoff and ultraschall chunk APIs |
-| `custom_actions/dev.lua` | Developer scratch code and launchers for user-local scripts |
+| `dev.lua` (3 functions) | Launchers for user-local scripts and developer scratch code |
+| `drums.quantizeTool` | It launches a third-party quantize script by its command id, which only exists on the original install; kept as a stub |
+| `midi_controller.lua` (3 functions), `MFT.lua`, `Mapping_types.lua` | The Realearn and MIDI Fighter Twister workflow, which the `mft` and Console1 extensions replace |
+| `envelope.autoMode` | Unbound and blocked on SWS functions that reaziglib does not wrap; the auto lane watcher in `perken-utilities` does the same job better |
 
 ### Compiled features with no Lua origin
 
@@ -129,14 +135,27 @@ break, but they do nothing yet.
 - **Console1 and MIDI Fighter Twister support**, which came from
   `reaperConsole1` when it was merged here.
 
-### Standalone Lua scripts that stay Lua
+### The standalone Lua scripts
 
-`main/`, `midi/`, `media_explorer/`, `realearn/` and `imgui/` hold ReaScripts
-that are not part of the vim mode and have no compiled port. Some cover the
-same ground as a compiled action (the drum and routing scripts in `main/`,
-for instance), and they remain available through ReaPack as they are. The Lua
-vim mode in `reavim/` is also still here; marking it deprecated in favour of
-`reavim-ext` is still to do.
+The scripts in `main/`, `midi/` and the other folders came first, as
+individual ReaScripts. Later they were folded into reavim as custom actions,
+and the custom actions are what was ported. The table follows the file and
+action names; it was not checked script by script for identical behaviour.
+All of the Lua scripts remain in the repository and on ReaPack as they are.
+
+| Folder | Compiled counterpart | State |
+|---|---|---|
+| `main/drum_actions/` (flam, 3stroke, 5stroke, crescendo, decrescendo) | `perken-utilities` drums: `Flam`, `Ras3`, `Ras5`, `Crescendo`, `Decrescendo` | Ported |
+| `main/Routing/` (`CreateBusses`, `routeColorsToBusses`) | `perken-utilities` routing: `BuildBusses`, `RouteToBusses` | Ported |
+| `midi/` (25 chord-voicing and note-selection scripts, plus helper folders: `doubleFifthUp`, `drop_2`, `select_top_note`, …) | `perken-utilities` kawa actions (23) | Ported |
+| `main/pasteRhythmToPitches.lua` | None | Not ported yet (`pasteRhythm`) |
+| `main/utilities/` | Their shared helpers live in `reaziglib/src/reaper_helpers.zig` | Helpers only; `itemNamesToMarkers.lua` has no counterpart |
+| `imgui/knobs` | The Zig `knob` module in reaziglib | Same purpose, written in Zig |
+| `imgui/shortcut_list` | None | Not ported |
+| `media_explorer/` (2 scripts) | None | Not ported, no plan |
+| `realearn/` (`lua_mapper`, `synth_map`) | None | Not ported; MIDI Fighter Twister support is the compiled `mft` extension |
+| `reavim/` | `reavim-ext` | Ported; marking the Lua version deprecated is still to do |
+| `deprecated/` | None | Frozen |
 
 ## What the extensions keep in REAPER's resource folder
 
