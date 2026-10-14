@@ -19,6 +19,7 @@ const tracks = @import("tracks.zig");
 const envelope = @import("envelope.zig");
 const keysnap = @import("keysnap.zig");
 const batch_rename = @import("batch_rename.zig");
+const action_search = @import("action_search.zig");
 const auto_lane_watcher = @import("auto_lane_watcher.zig");
 const surface = @import("surface.zig");
 const tempo_window = @import("beat/tempo_window.zig");
@@ -39,49 +40,49 @@ const log = std.log.scoped(.extension);
 // (reaziglib.reaper.initSubset). This covers the action modules and the
 // shared reaper_helpers module from reaziglib.
 const reaper_api = [_][:0]const u8{
-    "AddMediaItemToTrack",         "CountEnvelopePoints",          "CountSelectedMediaItems",
-    "CountSelectedTracks",         "CountTakes",                   "CountTracks",
-    "CreateTrackSend",             "DeleteEnvelopePointRange",     "DeleteTrack",
-    "EnumProjectMarkers",          "GetActiveTake",                "GetCursorPosition",
-    "GetEnvelopePoint",            "GetEnvelopeScalingMode",       "GetEnvelopeStateChunk",
-    "GetExtState",                 "GetItemStateChunk",            "GetLastMarkerAndCurRegion",
-    "GetMediaItemInfo_Value",      "GetMediaItemTakeInfo_Value",   "GetMediaTrackInfo_Value",
-    "GetParentTrack",              "GetProjectLength",             "GetResourcePath",
-    "GetSelectedEnvelope",         "GetSelectedMediaItem",         "GetSelectedTrack",
-    "GetSetMediaTrackInfo_String", "GetSet_LoopTimeRange",         "GetTake",
-    "GetToggleCommandStateEx",     "GetTrack",                     "GetTrackMediaItem",
-    "GetTrackNumMediaItems",       "GetTrackNumSends",             "GetUserInputs",
-    "InsertEnvelopePoint",         "InsertTrackAtIndex",           "IsMediaItemSelected",
-    "MIDIEditor_GetActive",        "MIDIEditor_GetTake",           "MIDIEditor_LastFocused_OnCommand",
-    "MIDIEditor_OnCommand",        "MIDI_CountEvts",               "MIDI_GetNote",
-    "MIDI_GetPPQPosFromProjQN",    "MIDI_GetProjQNFromPPQPos",     "MIDI_GetProjTimeFromPPQPos",
-    "MIDI_InsertNote",             "MIDI_SetNote",                 "MIDI_Sort",
-    "Main_OnCommand",              "MoveEditCursor",               "NamedCommandLookup",
-    "PreventUIRefresh",            "ScaleToEnvelopeMode",          "SetEnvelopePoint",
-    "SetExtState",                 "SetItemStateChunk",            "SetMediaItemInfo_Value",
-    "SetMediaItemTakeInfo_Value",  "SetMediaTrackInfo_Value",      "ShowMessageBox",
-    "SnapToGrid",                  "SplitMediaItem",               "TakeIsMIDI",
-    "TimeMap2_beatsToTime",        "TrackFX_GetFXName",            "TrackFX_GetInstrument",
-    "TrackFX_GetPreset",           "Undo_BeginBlock",              "Undo_EndBlock",
-    "UpdateArrange",               "UpdateItemInProject",          "get_config_var",
-    "plugin_register",             "plugin_getapi",                "GetFXEnvelope",
-    "GetGlobalAutomationOverride", "TrackFX_GetParam",             "SetOnlyTrackSelected",
-    "CountTrackEnvelopes",         "GetTrackEnvelope",             "Envelope_GetParentTrack",
-    "GetLastTouchedFX",            "CreateTakeAudioAccessor",      "GetAudioAccessorSamples",
-    "DestroyAudioAccessor",        "GetAudioAccessorStartTime",    "GetAudioAccessorEndTime",
-    "GetMediaItemTake_Source",     "GetMediaSourceNumChannels",    "SetTakeMarker",
-    "DeleteTakeMarker",            "GetNumTakeMarkers",            "GetTakeMarker",
-    "ValidatePtr2",                "GetTakeName",                  "TimeMap2_timeToQN",
-    "TimeMap2_QNToTime",           "TimeMap2_timeToBeats",         "GetTakeNumStretchMarkers",
-    "SetTakeStretchMarker",        "CountTempoTimeSigMarkers",     "GetMediaItemTake_Item",
-    "SetCurrentBPM",               "TimeMap2_GetDividedBpmAtTime", "SetTempoTimeSigMarker",
-    "UpdateTimeline",
+    "AddMediaItemToTrack",          "CountEnvelopePoints",              "CountSelectedMediaItems",
+    "CountSelectedTracks",          "CountTakes",                       "CountTracks",
+    "CreateTrackSend",              "DeleteEnvelopePointRange",         "DeleteTrack",
+    "EnumProjectMarkers",           "GetActiveTake",                    "GetCursorPosition",
+    "GetEnvelopePoint",             "GetEnvelopeScalingMode",           "GetEnvelopeStateChunk",
+    "GetExtState",                  "GetItemStateChunk",                "GetLastMarkerAndCurRegion",
+    "GetMediaItemInfo_Value",       "GetMediaItemTakeInfo_Value",       "GetMediaTrackInfo_Value",
+    "GetParentTrack",               "GetProjectLength",                 "GetResourcePath",
+    "GetSelectedEnvelope",          "GetSelectedMediaItem",             "GetSelectedTrack",
+    "GetSetMediaTrackInfo_String",  "GetSet_LoopTimeRange",             "GetTake",
+    "GetToggleCommandStateEx",      "GetTrack",                         "GetTrackMediaItem",
+    "GetTrackNumMediaItems",        "GetTrackNumSends",                 "GetUserInputs",
+    "InsertEnvelopePoint",          "InsertTrackAtIndex",               "IsMediaItemSelected",
+    "kbd_enumerateActions",         "SectionFromUniqueID",              "MIDIEditor_GetActive",
+    "MIDIEditor_GetTake",           "MIDIEditor_LastFocused_OnCommand", "MIDIEditor_OnCommand",
+    "MIDI_CountEvts",               "MIDI_GetNote",                     "MIDI_GetPPQPosFromProjQN",
+    "MIDI_GetProjQNFromPPQPos",     "MIDI_GetProjTimeFromPPQPos",       "MIDI_InsertNote",
+    "MIDI_SetNote",                 "MIDI_Sort",                        "Main_OnCommand",
+    "MoveEditCursor",               "NamedCommandLookup",               "PreventUIRefresh",
+    "ScaleToEnvelopeMode",          "SetEnvelopePoint",                 "SetExtState",
+    "SetItemStateChunk",            "SetMediaItemInfo_Value",           "SetMediaItemTakeInfo_Value",
+    "SetMediaTrackInfo_Value",      "ShowMessageBox",                   "SnapToGrid",
+    "SplitMediaItem",               "TakeIsMIDI",                       "TimeMap2_beatsToTime",
+    "TrackFX_GetFXName",            "TrackFX_GetInstrument",            "TrackFX_GetPreset",
+    "Undo_BeginBlock",              "Undo_EndBlock",                    "UpdateArrange",
+    "UpdateItemInProject",          "get_config_var",                   "plugin_register",
+    "plugin_getapi",                "GetFXEnvelope",                    "GetGlobalAutomationOverride",
+    "TrackFX_GetParam",             "SetOnlyTrackSelected",             "CountTrackEnvelopes",
+    "GetTrackEnvelope",             "Envelope_GetParentTrack",          "GetLastTouchedFX",
+    "CreateTakeAudioAccessor",      "GetAudioAccessorSamples",          "DestroyAudioAccessor",
+    "GetAudioAccessorStartTime",    "GetAudioAccessorEndTime",          "GetMediaItemTake_Source",
+    "GetMediaSourceNumChannels",    "SetTakeMarker",                    "DeleteTakeMarker",
+    "GetNumTakeMarkers",            "GetTakeMarker",                    "ValidatePtr2",
+    "GetTakeName",                  "TimeMap2_timeToQN",                "TimeMap2_QNToTime",
+    "TimeMap2_timeToBeats",         "GetTakeNumStretchMarkers",         "SetTakeStretchMarker",
+    "CountTempoTimeSigMarkers",     "GetMediaItemTake_Item",            "SetCurrentBPM",
+    "TimeMap2_GetDividedBpmAtTime", "SetTempoTimeSigMarker",            "UpdateTimeline",
 };
 
 /// Every action this extension provides.
 pub const all_entries = drums.entries ++ kawa.entries ++ routing.entries ++ fx.entries ++
     items.entries ++ tracks.entries ++ envelope.entries ++ keysnap.entries ++ batch_rename.entries ++
-    auto_lane_watcher.entries ++ tempo_window.entries;
+    auto_lane_watcher.entries ++ tempo_window.entries ++ action_search.entries;
 
 const main_section: c_int = 0;
 const midi_editor_section: c_int = 32060;
@@ -181,6 +182,7 @@ test {
     _ = @import("envelope.zig");
     _ = @import("keysnap.zig");
     _ = @import("batch_rename.zig");
+    _ = @import("action_search.zig");
 }
 
 test "every action gets a unique command id string" {
