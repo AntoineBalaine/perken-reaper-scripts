@@ -426,4 +426,5 @@ test {
     _ = @import("grammar.zig");
     _ = @import("actions.zig");
     _ = @import("accel.zig");
+    _ = @import("lib_state.zig");
 }

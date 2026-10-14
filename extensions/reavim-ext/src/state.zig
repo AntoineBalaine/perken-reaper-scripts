@@ -7,6 +7,10 @@ pub const Side = enum { left, right };
 
 pub var mode: VimMode = .off;
 pub var visual_track_pivot: c_int = 0;
+/// The track where a Shift+Up/Down track selection started, outside the
+/// visual modes. Because other ways of selecting tracks leave it stale,
+/// extendTrackSelection checks it against the actual selection before use.
+pub var track_anchor: ?c_int = null;
 pub var timeline_side: Side = .left;
 
 pub fn grammarMode() grammar.Mode {
