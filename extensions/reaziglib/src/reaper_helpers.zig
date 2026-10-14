@@ -86,6 +86,17 @@ pub fn runNamedCommand(name: [*:0]const u8) void {
     Reaper.Main_OnCommand(id, 0);
 }
 
+/// Runs a named command only when it exists, and says whether it ran.
+/// Because the command may belong to an extension the user has not
+/// installed (SWS, say), a missing one is not worth a warning, unlike in
+/// runNamedCommand.
+pub fn runNamedCommandIfPresent(name: [*:0]const u8) bool {
+    const id = Reaper.NamedCommandLookup(name);
+    if (id == 0) return false;
+    Reaper.Main_OnCommand(id, 0);
+    return true;
+}
+
 // ---- track string properties (GetSetMediaTrackInfo_String) -------------------
 
 /// Read a track string property ("P_NAME", "GUID", ...) into `buf`; returns

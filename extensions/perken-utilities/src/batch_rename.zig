@@ -387,6 +387,11 @@ pub fn applyNames() void {
         const tr = findTrackByGuid(std.mem.sliceTo(guid, 0)) orelse continue;
         if (helpers.setTrackString(tr, "P_NAME", name)) renamed += 1;
     }
+    // Because the names are set through the API, SWS auto-color is not told
+    // about them. When SWS is loaded, we apply its rules inside the same undo
+    // step, so that the renamed tracks get their colors; without SWS, nothing
+    // happens.
+    _ = helpers.runNamedCommandIfPresent("_SWSAUTOCOLOR_APPLY");
     Reaper.Undo_EndBlock("ReaVim: batch rename tracks", -1);
     Reaper.UpdateArrange();
     log.info("batch rename: renamed {d}/{d} tracks", .{ renamed, n });
