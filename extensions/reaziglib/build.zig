@@ -248,7 +248,11 @@ pub fn reaperCxxObject(
     switch (target.os.tag) {
         .windows => {
             requireMsvcAbi(target);
-            const cmd = b.addSystemCommand(&.{ "cl", "/nologo", "/c", "/O2", "/DNOMINMAX" });
+            // Because Zig links an msvc-ABI binary against MSVC's dynamic C
+            // runtime (msvcrt.lib), cl must use the same one (/MD); its default,
+            // the static runtime (/MT, LIBCMT), leaves the DLL's startup code
+            // without __vcrt_initialize and __acrt_initialize.
+            const cmd = b.addSystemCommand(&.{ "cl", "/nologo", "/c", "/O2", "/MD", "/DNOMINMAX" });
             if (!is_c) cmd.addArg("/std:c++14");
             for (include_dirs) |dir| cmd.addPrefixedDirectoryArg("/I", dir);
             cmd.addArgs(flags.msvc);
@@ -318,9 +322,9 @@ pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) voi
                 compile.addObjectFile(.{ .cwd_relative = path });
             }
         },
-        // Because cl's objects name MSVC's runtime libraries (LIBCMT,
-        // libcpmt) as default libraries, an msvc-ABI link finds them by
-        // itself, and nothing needs adding.
+        // Because cl's objects (built with /MD) name MSVC's dynamic runtime
+        // libraries (msvcrt, msvcprt) as default libraries, an msvc-ABI link
+        // finds them by itself, and nothing needs adding.
         .windows => requireMsvcAbi(compile.rootModuleTarget()),
         else => {},
     }
