@@ -69,20 +69,6 @@ pub fn parseSelection(line: []const u8) ?c_int {
     return if (id > 0) id else null;
 }
 
-/// REAPER's main actions section. The binding returns it as a pointer to the
-/// section pointer, so the function is re-typed to return the pointer itself.
-pub fn mainSection() ?Reaper.KbdSectionInfo {
-    const f: *const fn (uniqueID: c_int) callconv(.C) ?Reaper.KbdSectionInfo = @ptrCast(Reaper.SectionFromUniqueID);
-    return f(0);
-}
-
-/// Re-types the binding, which declares `nameOut` as a plain string instead
-/// of the pointer to a string that REAPER fills in.
-pub fn enumerateActions(section: Reaper.KbdSectionInfo, idx: c_int, name: *?[*:0]const u8) c_int {
-    const f: *const fn (section: Reaper.KbdSectionInfo, idx: c_int, nameOut: *?[*:0]const u8) callconv(.C) c_int = @ptrCast(Reaper.kbd_enumerateActions);
-    return f(section, idx, name);
-}
-
 fn writeListFile(path: []const u8) bool {
     const file = std.fs.createFileAbsolute(path, .{}) catch |err| {
         log.warn("cannot write {s}: {s}", .{ path, @errorName(err) });
@@ -92,14 +78,14 @@ fn writeListFile(path: []const u8) bool {
     var bw = std.io.bufferedWriter(file.writer());
     const w = bw.writer();
 
-    const section = mainSection() orelse {
+    const section = Reaper.SectionFromUniqueID(0) orelse {
         log.warn("REAPER has no main actions section", .{});
         return false;
     };
     var idx: c_int = 0;
     while (idx < MAX_ACTIONS) : (idx += 1) {
         var name: ?[*:0]const u8 = null;
-        const id = enumerateActions(section, idx, &name);
+        const id = Reaper.kbd_enumerateActions(section, idx, &name);
         if (id == 0) break;
         const text = if (name) |n| std.mem.span(n) else "";
         writeListLine(w, id, text) catch return false;

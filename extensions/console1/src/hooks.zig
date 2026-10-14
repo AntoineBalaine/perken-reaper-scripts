@@ -44,7 +44,7 @@ const TestCommandIds = struct {
 };
 
 // Command handler
-pub fn onCommand(sec: *reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
+pub fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
     _ = .{ sec, val, val2hw, relmode, hwnd };
 
     if (command == suspend_cmd_id) {

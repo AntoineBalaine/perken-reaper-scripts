@@ -13,7 +13,6 @@ const Reaper = @import("reaper").reaper;
 const imgui = @import("reaper_imgui");
 const palette = @import("ui_palette");
 const actions = @import("actions.zig");
-const action_search = @import("action_search.zig");
 const fuzzy = @import("fuzzy.zig");
 
 const log = std.log.scoped(.action_palette);
@@ -100,7 +99,7 @@ fn loadEntries() bool {
     state.entries = &.{};
     const alloc = state.arena.?.allocator();
 
-    const section = action_search.mainSection() orelse {
+    const section = Reaper.SectionFromUniqueID(0) orelse {
         log.warn("REAPER has no main actions section", .{});
         return false;
     };
@@ -108,7 +107,7 @@ fn loadEntries() bool {
     var idx: c_int = 0;
     while (idx < MAX_ACTIONS) : (idx += 1) {
         var name: ?[*:0]const u8 = null;
-        const id = action_search.enumerateActions(section, idx, &name);
+        const id = Reaper.kbd_enumerateActions(section, idx, &name);
         if (id == 0) break;
         const text = if (name) |n| std.mem.span(n) else "";
         if (text.len == 0) continue; // unnamed commands cannot be searched for

@@ -295,7 +295,7 @@ pub const reaper = struct { // @import("reaper");
     /// CountActionShortcuts
     /// Returns the number of shortcuts that exist for the given command ID.
     /// see GetActionShortcutDesc, DeleteActionShortcut, DoActionShortcutDialog.
-    pub var CountActionShortcuts: *fn (section: *KbdSectionInfo, cmdID: c_int) callconv(.C) c_int = undefined;
+    pub var CountActionShortcuts: *fn (section: KbdSectionInfo, cmdID: c_int) callconv(.C) c_int = undefined;
 
     /// CountAutomationItems
     /// Returns the number of automation items on this envelope. See GetSetAutomationItemInfo
@@ -562,7 +562,7 @@ pub const reaper = struct { // @import("reaper");
     /// DeleteActionShortcut
     /// Delete the specific shortcut for the given command ID.
     /// See CountActionShortcuts, GetActionShortcutDesc, DoActionShortcutDialog.
-    pub var DeleteActionShortcut: *fn (section: *KbdSectionInfo, cmdID: c_int, shortcutidx: c_int) callconv(.C) bool = undefined;
+    pub var DeleteActionShortcut: *fn (section: KbdSectionInfo, cmdID: c_int, shortcutidx: c_int) callconv(.C) bool = undefined;
 
     /// DeleteEnvelopePointEx
     /// Delete an envelope point. If setting multiple points at once, set noSort=true, and call Envelope_SortPoints when done.
@@ -623,7 +623,7 @@ pub const reaper = struct { // @import("reaper");
     /// DoActionShortcutDialog
     /// Open the action shortcut dialog to edit or add a shortcut for the given command ID. If (shortcutidx >= 0 && shortcutidx < CountActionShortcuts()), that specific shortcut will be replaced, otherwise a new shortcut will be added.
     /// See CountActionShortcuts, GetActionShortcutDesc, DeleteActionShortcut.
-    pub var DoActionShortcutDialog: *fn (hwnd: HWND, section: *KbdSectionInfo, cmdID: c_int, shortcutidx: c_int) callconv(.C) bool = undefined;
+    pub var DoActionShortcutDialog: *fn (hwnd: HWND, section: KbdSectionInfo, cmdID: c_int, shortcutidx: c_int) callconv(.C) bool = undefined;
 
     /// Dock_UpdateDockID
     /// updates preference for docker window ident_str to be in dock whichDock on next open
@@ -806,7 +806,7 @@ pub const reaper = struct { // @import("reaper");
     /// GetActionShortcutDesc
     /// Get the text description of a specific shortcut for the given command ID.
     /// See CountActionShortcuts,DeleteActionShortcut,DoActionShortcutDialog.
-    pub var GetActionShortcutDesc: *fn (section: *KbdSectionInfo, cmdID: c_int, shortcutidx: c_int, descOut: *c_char, descOut_sz: c_int) callconv(.C) bool = undefined;
+    pub var GetActionShortcutDesc: *fn (section: KbdSectionInfo, cmdID: c_int, shortcutidx: c_int, descOut: *c_char, descOut_sz: c_int) callconv(.C) bool = undefined;
 
     /// GetActiveTake
     /// get the active take in this item
@@ -1911,7 +1911,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetToggleCommandState2
     /// See GetToggleCommandStateEx.
-    pub var GetToggleCommandState2: *fn (section: *KbdSectionInfo, command_id: c_int) callconv(.C) c_int = undefined;
+    pub var GetToggleCommandState2: *fn (section: KbdSectionInfo, command_id: c_int) callconv(.C) c_int = undefined;
 
     /// GetToggleCommandStateEx
     /// For the main action context, the MIDI editor, or the media explorer, returns the toggle state of the action. 0=off, 1=on, -1=NA because the action does not have on/off states. For the MIDI editor, the action state for the most recently focused window will be returned.
@@ -1919,7 +1919,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetToggleCommandStateThroughHooks
     /// Returns the state of an action via extension plugins' hooks.
-    pub var GetToggleCommandStateThroughHooks: *fn (section: *KbdSectionInfo, command_id: c_int) callconv(.C) c_int = undefined;
+    pub var GetToggleCommandStateThroughHooks: *fn (section: KbdSectionInfo, command_id: c_int) callconv(.C) c_int = undefined;
 
     /// GetTooltipWindow
     /// gets a tooltip window,in case you want to ask it for font information. Can return NULL.
@@ -2230,7 +2230,7 @@ pub const reaper = struct { // @import("reaper");
     pub var joystick_update: *fn (dev: *joystick_device) callconv(.C) bool = undefined;
 
     /// kbd_enumerateActions
-    pub var kbd_enumerateActions: *fn (section: *KbdSectionInfo, idx: c_int, nameOut: [*:0]const u8) callconv(.C) c_int = undefined;
+    pub var kbd_enumerateActions: *fn (section: KbdSectionInfo, idx: c_int, nameOut: *?[*:0]const u8) callconv(.C) c_int = undefined;
 
     /// kbd_formatKeyName
     pub var kbd_formatKeyName: *fn (ac: *ACCEL, s: *c_char) callconv(.C) void = undefined;
@@ -2238,10 +2238,10 @@ pub const reaper = struct { // @import("reaper");
     /// kbd_getCommandName
     /// Get the string of a key assigned to command "cmd" in a section.
     /// This function is poorly named as it doesn't return the command's name, see kbd_getTextFromCmd.
-    pub var kbd_getCommandName: *fn (cmd: c_int, s: *c_char, section: *KbdSectionInfo) callconv(.C) void = undefined;
+    pub var kbd_getCommandName: *fn (cmd: c_int, s: *c_char, section: KbdSectionInfo) callconv(.C) void = undefined;
 
     /// kbd_getTextFromCmd
-    pub var kbd_getTextFromCmd: *fn (cmd: c_int, section: *KbdSectionInfo) callconv(.C) [*:0]const u8 = undefined;
+    pub var kbd_getTextFromCmd: *fn (cmd: c_int, section: KbdSectionInfo) callconv(.C) ?[*:0]const u8 = undefined;
 
     /// KBD_OnMainActionEx
     /// val/valhw are used for midi stuff.
@@ -2259,24 +2259,24 @@ pub const reaper = struct { // @import("reaper");
     pub var kbd_OnMidiList: *fn (list: *MIDI_eventlist, dev_index: c_int) callconv(.C) void = undefined;
 
     /// kbd_ProcessActionsMenu
-    pub var kbd_ProcessActionsMenu: *fn (menu: HMENU, section: *KbdSectionInfo) callconv(.C) void = undefined;
+    pub var kbd_ProcessActionsMenu: *fn (menu: HMENU, section: KbdSectionInfo) callconv(.C) void = undefined;
 
     /// kbd_processMidiEventActionEx
-    pub var kbd_processMidiEventActionEx: *fn (evt: *MIDI_event_t, section: *KbdSectionInfo, hwndCtx: HWND) callconv(.C) bool = undefined;
+    pub var kbd_processMidiEventActionEx: *fn (evt: *MIDI_event_t, section: KbdSectionInfo, hwndCtx: HWND) callconv(.C) bool = undefined;
 
     /// kbd_reprocessMenu
     /// Reprocess a menu recursively, setting key assignments to what their command IDs are mapped to.
-    pub var kbd_reprocessMenu: *fn (menu: HMENU, section: *KbdSectionInfo) callconv(.C) void = undefined;
+    pub var kbd_reprocessMenu: *fn (menu: HMENU, section: KbdSectionInfo) callconv(.C) void = undefined;
 
     /// kbd_RunCommandThroughHooks
     /// actioncommandID may get modified
-    pub var kbd_RunCommandThroughHooks: *fn (section: *KbdSectionInfo, actionCommandID: *const c_int, val: *const c_int, valhw: *const c_int, relmode: *const c_int, hwnd: HWND) callconv(.C) bool = undefined;
+    pub var kbd_RunCommandThroughHooks: *fn (section: KbdSectionInfo, actionCommandID: *const c_int, val: *const c_int, valhw: *const c_int, relmode: *const c_int, hwnd: HWND) callconv(.C) bool = undefined;
 
     /// kbd_translateAccelerator
     /// Pass in the HWND to receive commands, a MSG of a key command,  and a valid section,
     /// and kbd_translateAccelerator() will process it looking for any keys bound to it, and send the messages off.
     /// Returns 1 if processed, 0 if no key binding found.
-    pub var kbd_translateAccelerator: *fn (hwnd: HWND, msg: *MSG, section: *KbdSectionInfo) callconv(.C) c_int = undefined;
+    pub var kbd_translateAccelerator: *fn (hwnd: HWND, msg: *MSG, section: KbdSectionInfo) callconv(.C) c_int = undefined;
 
     /// LICE__Destroy
     pub var LICE__Destroy: *fn (bm: *LICE_IBitmap) callconv(.C) void = undefined;
@@ -3070,7 +3070,7 @@ pub const reaper = struct { // @import("reaper");
     pub var screenset_updateLastFocus: *fn (prevWin: HWND) callconv(.C) void = undefined;
 
     /// SectionFromUniqueID
-    pub var SectionFromUniqueID: *fn (uniqueID: c_int) callconv(.C) *KbdSectionInfo = undefined;
+    pub var SectionFromUniqueID: *fn (uniqueID: c_int) callconv(.C) ?KbdSectionInfo = undefined;
 
     /// SelectAllMediaItems
     pub var SelectAllMediaItems: *fn (proj: *ReaProject, selected: bool) callconv(.C) void = undefined;
@@ -3467,7 +3467,7 @@ pub const reaper = struct { // @import("reaper");
     pub var SetTrackUIWidth: *fn (track: MediaTrack, width: f64, relative: bool, done: bool, igngroupflags: c_int) callconv(.C) f64 = undefined;
 
     /// ShowActionList
-    pub var ShowActionList: *fn (section: *KbdSectionInfo, callerWnd: HWND) callconv(.C) void = undefined;
+    pub var ShowActionList: *fn (section: KbdSectionInfo, callerWnd: HWND) callconv(.C) void = undefined;
 
     /// ShowConsoleMsg
     /// Show a message to the user (also useful for debugging). Send "\n" for newline, "" to clear the console. Prefix string with "!SHOW:" and text will be added to console without opening the window. See ClearConsole

@@ -291,10 +291,8 @@ fn commandName(id: c_int, context: vim.Context, buf: [:0]u8) []const u8 {
         .midi => 32060,
     };
     const fallback = utils.safePrint(buf, "cmd:{d}", .{id});
-    const section = Reaper.SectionFromUniqueID(section_id);
-    if (@intFromPtr(section) == 0) return fallback;
-    const ptr = Reaper.kbd_getTextFromCmd(id, section);
-    if (@intFromPtr(ptr) == 0) return fallback;
+    const section = Reaper.SectionFromUniqueID(section_id) orelse return fallback;
+    const ptr = Reaper.kbd_getTextFromCmd(id, section) orelse return fallback;
     const name = std.mem.span(ptr);
     if (name.len > 0) return name;
     return fallback;
