@@ -1,9 +1,9 @@
 /* C interface to qm-dsp's bar and beat tracker (qm_bridge.cpp). Mirrored by
  * the extern declarations in beat.zig. All memory in a result is owned by
- * the bridge; release it with cajun_beat_result_free. */
+ * the bridge; release it with perken_beat_result_free. */
 
-#ifndef CAJUN_QM_BRIDGE_H
-#define CAJUN_QM_BRIDGE_H
+#ifndef PERKEN_QM_BRIDGE_H
+#define PERKEN_QM_BRIDGE_H
 
 #include <stddef.h>
 
@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-typedef struct cajun_beat_params
+typedef struct perken_beat_params
 {
     /* Tempo the beat-period estimate is biased towards, in BPM (120 in
      * qm-dsp's own plugin). */
@@ -24,9 +24,9 @@ typedef struct cajun_beat_params
     double tightness;
     /* Beats per bar for downbeat detection (4 in the plugin). */
     int beats_per_bar;
-} cajun_beat_params;
+} perken_beat_params;
 
-typedef struct cajun_beat_result
+typedef struct perken_beat_result
 {
     /* Beat positions in seconds from the start of the audio. */
     double *beat_times;
@@ -36,15 +36,15 @@ typedef struct cajun_beat_result
     size_t downbeat_count;
     /* Empty on success, otherwise why the analysis failed. */
     char error[160];
-} cajun_beat_result;
+} perken_beat_result;
 
 /* Tracks beats and downbeats in mono audio. Returns 0 on success; on failure
  * returns non-zero and describes the problem in result->error. Always pair
- * with cajun_beat_result_free. */
-int cajun_beat_track(const float *mono, size_t frames, double sample_rate,
-                     const cajun_beat_params *params, cajun_beat_result *result);
+ * with perken_beat_result_free. */
+int perken_beat_track(const float *mono, size_t frames, double sample_rate,
+                     const perken_beat_params *params, perken_beat_result *result);
 
-void cajun_beat_result_free(cajun_beat_result *result);
+void perken_beat_result_free(perken_beat_result *result);
 
 #ifdef __cplusplus
 }

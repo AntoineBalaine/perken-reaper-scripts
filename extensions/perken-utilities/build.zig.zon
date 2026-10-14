@@ -1,6 +1,6 @@
 .{
-    .name = .cajun_extensions,
-    .fingerprint = 0xe29914255b2c152d,
+    .name = .perken_utilities,
+    .fingerprint = 0x4fdad80938936c78,
     .version = "0.0.0",
     .dependencies = .{
         // reaziglib lives in the same monorepo, so that a change to it and

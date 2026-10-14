@@ -17,7 +17,7 @@ pub fn build(b: *std.Build) void {
     build_options.addOption([]const u8, "version", version);
 
     const lib = b.addSharedLibrary(.{
-        .name = "reaper_cajun_extensions",
+        .name = "reaper_perken_utilities",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
@@ -35,12 +35,12 @@ pub fn build(b: *std.Build) void {
         .windows => "dll",
         else => "so",
     };
-    const dest = b.fmt("reaper_cajun_extensions.{s}", .{ext});
+    const dest = b.fmt("reaper_perken_utilities.{s}", .{ext});
     const install = b.addInstallArtifact(lib, .{ .dest_dir = .{ .override = .{ .custom = "" } }, .dest_sub_path = dest });
     b.getInstallStep().dependOn(&install.step);
 
     const test_exe = b.addTest(.{
-        .name = "cajun_extensions_tests",
+        .name = "perken_utilities_tests",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = .Debug,

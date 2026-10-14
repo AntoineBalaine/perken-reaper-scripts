@@ -3,7 +3,7 @@
 //! every entry here carries midiCommand = true in the Lua defs.
 //!
 //! toggleKeySnap is an editing helper rather than part of the vim grammar, so
-//! it lives in the cajun-extensions extension.
+//! it lives in the perken-utilities extension.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const actions = @import("../actions.zig");

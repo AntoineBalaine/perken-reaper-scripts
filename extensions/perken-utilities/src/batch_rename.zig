@@ -34,7 +34,7 @@ const log = std.log.scoped(.rename);
 /// not in REAPER's environment.
 const user_editor_expr = "${VISUAL:-${EDITOR:-vim}}";
 
-/// The [rename] settings from cajun-extensions.ini. They are re-read at the
+/// The [rename] settings from perken-utilities.ini. They are re-read at the
 /// start of every rename, so that edits apply without restarting REAPER.
 pub var settings: ?config.Settings = null;
 

@@ -22,14 +22,14 @@
 // BarBeatTracker::m_stepSecs: 512 samples at 44100 Hz.
 static const double kStepSecs = 0.01161;
 
-static void setError(cajun_beat_result *result, const char *message)
+static void setError(perken_beat_result *result, const char *message)
 {
     std::strncpy(result->error, message, sizeof(result->error) - 1);
     result->error[sizeof(result->error) - 1] = 0;
 }
 
-extern "C" int cajun_beat_track(const float *mono, size_t frames, double sample_rate,
-                                const cajun_beat_params *params, cajun_beat_result *result)
+extern "C" int perken_beat_track(const float *mono, size_t frames, double sample_rate,
+                                const perken_beat_params *params, perken_beat_result *result)
 {
     std::memset(result, 0, sizeof(*result));
     if (!mono || !params || sample_rate <= 0) {
@@ -108,7 +108,7 @@ extern "C" int cajun_beat_track(const float *mono, size_t frames, double sample_
         result->downbeat_count = downbeats.size();
         result->downbeats = static_cast<int *>(std::malloc(sizeof(int) * (downbeats.size() + 1)));
         if (!result->beat_times || !result->downbeats) {
-            cajun_beat_result_free(result);
+            perken_beat_result_free(result);
             setError(result, "out of memory");
             return 1;
         }
@@ -119,17 +119,17 @@ extern "C" int cajun_beat_track(const float *mono, size_t frames, double sample_
         for (size_t i = 0; i < downbeats.size(); ++i) result->downbeats[i] = downbeats[i];
         return 0;
     } catch (const std::exception &e) {
-        cajun_beat_result_free(result);
+        perken_beat_result_free(result);
         setError(result, e.what());
         return 1;
     } catch (...) {
-        cajun_beat_result_free(result);
+        perken_beat_result_free(result);
         setError(result, "unknown error in qm-dsp");
         return 1;
     }
 }
 
-extern "C" void cajun_beat_result_free(cajun_beat_result *result)
+extern "C" void perken_beat_result_free(perken_beat_result *result)
 {
     if (!result) return;
     std::free(result->beat_times);

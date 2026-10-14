@@ -1,5 +1,5 @@
-//! cajun-extensions settings, read from
-//! <resource>/Data/Perken/cajun-extensions.ini.
+//! perken-utilities settings, read from
+//! <resource>/Data/Perken/perken-utilities.ini.
 //!
 //! The file is optional: every setting has a default. It is read when a
 //! feature that needs it starts (e.g. a batch rename), not at load, so that
@@ -18,7 +18,7 @@ const Reaper = @import("reaper").reaper;
 
 const log = std.log.scoped(.config);
 
-pub const file_rel = "Data/Perken/cajun-extensions.ini";
+pub const file_rel = "Data/Perken/perken-utilities.ini";
 
 /// macOS opens the batch-rename script in Terminal.app, which runs it through
 /// the user's login shell. Other platforms use the Debian-style terminal

@@ -1,6 +1,6 @@
 //! The tempo detection window and its action.
 //!
-//! "Cajun: Detect tempo of selected item" opens the window and starts an
+//! "Perken: Detect tempo of selected item" opens the window and starts an
 //! analysis of the selected item's active take (analysis.zig). The window
 //! shows the progress while the audio is read and "Analysing…" while qm-dsp
 //! runs on its worker thread; then the result: the median tempo, the tempo
@@ -54,15 +54,15 @@ pub var state: State = .{};
 
 fn detectTempoAction(_: *actions.RunCtx) void {
     if (state.imgui_state == .missing) {
-        _ = Reaper.ShowMessageBox("Tempo detection needs ReaImGui (install it with ReaPack).", "Cajun: tempo detection", 0);
+        _ = Reaper.ShowMessageBox("Tempo detection needs ReaImGui (install it with ReaPack).", "Perken: tempo detection", 0);
         return;
     }
     const item = helpers.getSelectedMediaItem(0) orelse {
-        _ = Reaper.ShowMessageBox("Select an audio item first.", "Cajun: tempo detection", 0);
+        _ = Reaper.ShowMessageBox("Select an audio item first.", "Perken: tempo detection", 0);
         return;
     };
     const take = helpers.getActiveTake(item) orelse {
-        _ = Reaper.ShowMessageBox("The selected item has no take.", "Cajun: tempo detection", 0);
+        _ = Reaper.ShowMessageBox("The selected item has no take.", "Perken: tempo detection", 0);
         return;
     };
     startAnalysis(take, .{ .beats_per_bar = state.beats_per_bar });
@@ -82,7 +82,7 @@ pub fn startAnalysis(take: *Reaper.MediaItem_Take, params: beat.Params) void {
             error.NoAudio => "The selected take has no audio to analyse.",
             error.OutOfMemory => "Out of memory.",
         };
-        _ = Reaper.ShowMessageBox(msg, "Cajun: tempo detection", 0);
+        _ = Reaper.ShowMessageBox(msg, "Perken: tempo detection", 0);
         return;
     };
     state.previewed = false;
@@ -126,7 +126,7 @@ pub fn onTimer() callconv(.C) void {
     if (state.imgui_state == .missing) {
         if (state.open) {
             state.open = false;
-            _ = Reaper.ShowMessageBox("Tempo detection needs ReaImGui (install it with ReaPack).", "Cajun: tempo detection", 0);
+            _ = Reaper.ShowMessageBox("Tempo detection needs ReaImGui (install it with ReaPack).", "Perken: tempo detection", 0);
         }
         discardJob();
         stopTimer();
@@ -162,14 +162,14 @@ pub fn onTimer() callconv(.C) void {
 pub fn drawWindow() void {
     if (state.ctx == null) {
         var cfg_flags: c_int = 0;
-        state.ctx = imgui.api.CreateContext("Cajun tempo detection", &cfg_flags);
+        state.ctx = imgui.api.CreateContext("Perken tempo detection", &cfg_flags);
         if (state.ctx == null) return;
     }
     const ctx = state.ctx;
     imgui.api.SetNextWindowSize(ctx, 380, 230, &imgui.Cond_FirstUseEver);
     var is_open: bool = true;
     var flags: c_int = imgui.WindowFlags_NoSavedSettings;
-    if (imgui.api.Begin(ctx, "Cajun: tempo detection", &is_open, &flags)) drawContent(ctx);
+    if (imgui.api.Begin(ctx, "Perken: tempo detection", &is_open, &flags)) drawContent(ctx);
     imgui.api.End(ctx);
     if (!is_open) state.open = false;
 }
@@ -184,7 +184,7 @@ pub fn drawContent(ctx: imgui.ContextPtr) void {
     imgui.api.Separator(ctx);
 
     const job = state.job orelse {
-        imgui.api.TextWrapped(ctx, "Select an audio item and run \"Cajun: Detect tempo of selected item\".");
+        imgui.api.TextWrapped(ctx, "Select an audio item and run \"Perken: Detect tempo of selected item\".");
         return;
     };
     imgui.api.Text(ctx, fmtZ(&line, "Item: {s}", .{if (takeIsValid(job.take)) std.mem.span(Reaper.GetTakeName(job.take)) else "(deleted)"}));
@@ -328,7 +328,7 @@ pub fn addPreviewMarkers(job: *analysis.Job, beats: []const beat.Beat) void {
         var color: c_int = 0; // REAPER's default marker color
         _ = Reaper.SetTakeMarker(job.take, -1, name, &srcpos, &color);
     }
-    Reaper.Undo_EndBlock("Cajun: preview detected beats", -1);
+    Reaper.Undo_EndBlock("Perken: preview detected beats", -1);
     Reaper.UpdateArrange();
 }
 
@@ -345,7 +345,7 @@ pub fn addGridMarkers(job: *analysis.Job, beats: []const grid.GridBeat) void {
         var color: c_int = 0; // REAPER's default marker color
         _ = Reaper.SetTakeMarker(job.take, -1, name, &srcpos, &color);
     }
-    Reaper.Undo_EndBlock("Cajun: preview beat grid", -1);
+    Reaper.Undo_EndBlock("Perken: preview beat grid", -1);
     Reaper.UpdateArrange();
 }
 
@@ -361,7 +361,7 @@ pub fn removePreviewMarkers(take: *Reaper.MediaItem_Take) void {
             _ = Reaper.DeleteTakeMarker(take, i);
         }
     }
-    Reaper.Undo_EndBlock("Cajun: remove beat preview", -1);
+    Reaper.Undo_EndBlock("Perken: remove beat preview", -1);
     Reaper.UpdateArrange();
 }
 

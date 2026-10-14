@@ -1,8 +1,8 @@
-//! cajun-extensions: editing helpers for REAPER as a compiled extension.
+//! perken-utilities: editing helpers for REAPER as a compiled extension.
 //!
 //! Every action in the modules' `entries` tables is registered as a REAPER
-//! action named "Cajun: <description>" with the command id
-//! `_CAJUN_<name>`, so that it shows up in the action list and can be bound
+//! action named "Perken: <description>" with the command id
+//! `_PERKEN_<name>`, so that it shows up in the action list and can be bound
 //! from any keymap, including reavim-ext's bindings.ini. Actions flagged
 //! `midi_command` are registered in the MIDI editor section.
 const std = @import("std");
@@ -93,8 +93,8 @@ const registrations = blk: {
     for (all_entries, 0..) |e, i| {
         regs[i] = .{
             .section = if (e.def.midi_command) midi_editor_section else main_section,
-            .id_str = std.fmt.comptimePrint("CAJUN_{s}", .{e.name}),
-            .name = std.fmt.comptimePrint("Cajun: {s}", .{e.def.desc orelse e.name}),
+            .id_str = std.fmt.comptimePrint("PERKEN_{s}", .{e.name}),
+            .name = std.fmt.comptimePrint("Perken: {s}", .{e.def.desc orelse e.name}),
         };
     }
     break :blk regs;
@@ -124,7 +124,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
     _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
 
-    log.info("v{s} loaded {d} actions (search \"Cajun:\" in the action list)", .{ build_options.version, all_entries.len });
+    log.info("v{s} loaded {d} actions (search \"Perken:\" in the action list)", .{ build_options.version, all_entries.len });
     return 1;
 }
 

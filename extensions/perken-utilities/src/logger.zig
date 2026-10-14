@@ -17,7 +17,7 @@ pub fn logFn(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    const scope_prefix = "(cajun:" ++ @tagName(scope) ++ "): ";
+    const scope_prefix = "(perken:" ++ @tagName(scope) ++ "): ";
 
     const color = switch (level) {
         .debug => Color.blue,

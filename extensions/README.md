@@ -7,7 +7,7 @@ package with its own `build.zig`, `build.zig.zon`, CI workflow
 | Extension | What it is |
 |---|---|
 | [`reavim-ext`](reavim-ext) | Vim mode for REAPER |
-| [`cajun-extensions`](cajun-extensions) | Editing helpers (drums, chord voicings, item/track/envelope tools, batch rename, auto lane watcher, ...) |
+| [`perken-utilities`](perken-utilities) | Editing helpers (drums, chord voicings, item/track/envelope tools, batch rename, auto lane watcher, ...) |
 | [`console1`](console1) | Softube Console1 MKII and MIDI Fighter Twister integrations |
 | [`reaziglib`](reaziglib) | Shared Zig modules (REAPER API bindings, helpers, UI) used by the others |
 
@@ -21,7 +21,7 @@ Each extension is versioned and released on its own, from its own tags:
 | Extension | Tag | Workflow |
 |---|---|---|
 | reavim-ext | `reavim-ext-v<version>` | `.github/workflows/reavim-ext.yml` |
-| cajun-extensions | `cajun-extensions-v<version>` | `.github/workflows/cajun-extensions.yml` |
+| perken-utilities | `perken-utilities-v<version>` | `.github/workflows/perken-utilities.yml` |
 | Console1 (`reaper_c1`, `reaper_c1_ui`) | `console1-v<version>` | `.github/workflows/console1.yml` |
 | MIDI Fighter Twister (`reaper_mft`) | `mft-v<version>` | `.github/workflows/mft.yml` |
 

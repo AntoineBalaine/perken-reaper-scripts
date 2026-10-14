@@ -120,7 +120,7 @@ pub fn setProjectTempo(take: *Reaper.MediaItem_Take, bpm: f64) CommitError!void 
     _ = Reaper.SetMediaItemInfo_Value(item, "C_BEATATTACHMODE", 0); // time
     setCurrentBpm(bpm);
     _ = Reaper.SetMediaItemInfo_Value(item, "C_BEATATTACHMODE", timebase);
-    Reaper.Undo_EndBlock("Cajun: set project tempo to the detected tempo", -1);
+    Reaper.Undo_EndBlock("Perken: set project tempo to the detected tempo", -1);
     Reaper.UpdateTimeline();
     Reaper.UpdateArrange();
     log.info("project tempo set to {d:.3} BPM", .{bpm});
@@ -144,7 +144,7 @@ pub fn setTempoForItem(take: *Reaper.MediaItem_Take, bpm: f64) CommitError!void 
     insertTempoMarker(end, restore);
     insertTempoMarker(start, bpm);
     _ = Reaper.SetMediaItemInfo_Value(timing.item, "C_BEATATTACHMODE", timebase);
-    Reaper.Undo_EndBlock("Cajun: set the detected tempo for the item", -1);
+    Reaper.Undo_EndBlock("Perken: set the detected tempo for the item", -1);
     Reaper.UpdateTimeline();
     Reaper.UpdateArrange();
     log.info("tempo {d:.3} BPM from {d:.3}s to {d:.3}s, then back to {d:.3} BPM", .{ bpm, start, end, restore });
@@ -160,7 +160,7 @@ pub fn alignToGrid(take: *Reaper.MediaItem_Take, analysis_start: f64, beats: []c
     const shift = nearestBarLine(downbeat_now) - downbeat_now;
     Reaper.Undo_BeginBlock();
     _ = Reaper.SetMediaItemInfo_Value(timing.item, "D_POSITION", timing.position + shift);
-    Reaper.Undo_EndBlock("Cajun: align the item's bar 1 to the project grid", -1);
+    Reaper.Undo_EndBlock("Perken: align the item's bar 1 to the project grid", -1);
     Reaper.UpdateArrange();
     log.info("item moved by {d:.3}s to put bar 1 on a bar line", .{shift});
 }
@@ -212,7 +212,7 @@ pub fn conformToGrid(take: *Reaper.MediaItem_Take, analysis_start: f64, beats: [
     // Keep the audio after the last marker whole: it plays at the item's
     // rate, so its duration in the item is unchanged.
     _ = Reaper.SetMediaItemInfo_Value(timing.item, "D_LENGTH", last_pos + (timing.length - last_src_time));
-    Reaper.Undo_EndBlock("Cajun: stretch the audio onto the project grid", -1);
+    Reaper.Undo_EndBlock("Perken: stretch the audio onto the project grid", -1);
     Reaper.UpdateArrange();
     log.info("{d} stretch markers put on the project grid", .{beats.len});
 }

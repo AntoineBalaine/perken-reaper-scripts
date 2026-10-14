@@ -119,8 +119,8 @@ repetitions = 5
   are ported native in `src/ported/` (movement, selection, marks, midi
   motions, misc); macros/repeat/`.` in `src/meta.zig`. The editing helpers
   (drums, kawa, routing, fx, items, tracks, envelope, key snap, batch
-  rename) moved to the separate `cajun-extensions` extension; the default
-  `bindings.ini` lists their keys commented out, as `_CAJUN_<Action>`
+  rename) moved to the separate `perken-utilities` extension; the default
+  `bindings.ini` lists their keys commented out, as `_PERKEN_<Action>`
   entries to uncomment after installing it.
 
 ## Build

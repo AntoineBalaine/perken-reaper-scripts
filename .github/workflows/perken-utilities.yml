@@ -1,22 +1,22 @@
-name: cajun-extensions
+name: perken-utilities
 
 # This monorepo holds several packages, so this workflow only runs when
-# cajun-extensions or something it builds against changes. GitHub does not
-# evaluate path filters on tag pushes, so a cajun-extensions-v* tag always
+# perken-utilities or something it builds against changes. GitHub does not
+# evaluate path filters on tag pushes, so a perken-utilities-v* tag always
 # triggers a release.
 on:
   push:
     branches: [main]
-    tags: ["cajun-extensions-v*"]
+    tags: ["perken-utilities-v*"]
     paths:
-      - "extensions/cajun-extensions/**"
+      - "extensions/perken-utilities/**"
       - "extensions/reaziglib/**"
-      - ".github/workflows/cajun-extensions.yml"
+      - ".github/workflows/perken-utilities.yml"
   pull_request:
     paths:
-      - "extensions/cajun-extensions/**"
+      - "extensions/perken-utilities/**"
       - "extensions/reaziglib/**"
-      - ".github/workflows/cajun-extensions.yml"
+      - ".github/workflows/perken-utilities.yml"
   workflow_dispatch:
 
 # macOS jobs are pinned to macos-15: on the macos-26 image that
@@ -43,7 +43,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: extensions/cajun-extensions
+        working-directory: extensions/perken-utilities
 
     steps:
       - uses: actions/checkout@v4
@@ -60,10 +60,10 @@ jobs:
       - name: Extract version from tag
         id: version
         shell: bash
-        # Tags look like cajun-extensions-v1.2.3; other runs build a "dev" version.
+        # Tags look like perken-utilities-v1.2.3; other runs build a "dev" version.
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/cajun-extensions-v* ]]; then
-            echo "version=${GITHUB_REF_NAME#cajun-extensions-v}" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/perken-utilities-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#perken-utilities-v}" >> "$GITHUB_OUTPUT"
           else
             echo "version=dev" >> "$GITHUB_OUTPUT"
           fi
@@ -78,21 +78,21 @@ jobs:
       - name: Package
         run: |
           set -euo pipefail
-          pkg="dist/cajun-extensions-${{ matrix.name }}"
+          pkg="dist/perken-utilities-${{ matrix.name }}"
           mkdir -p "$pkg"
-          cp "zig-out/reaper_cajun_extensions.${{ matrix.ext }}" "$pkg/"
+          cp "zig-out/reaper_perken_utilities.${{ matrix.ext }}" "$pkg/"
           cp README.md "$pkg/README.md"
           # cmake is on every runner image, unlike zip/7z.
-          (cd dist && cmake -E tar cf "cajun-extensions-${{ matrix.name }}.zip" --format=zip "cajun-extensions-${{ matrix.name }}")
+          (cd dist && cmake -E tar cf "perken-utilities-${{ matrix.name }}.zip" --format=zip "perken-utilities-${{ matrix.name }}")
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cajun-extensions-${{ matrix.name }}
-          path: extensions/cajun-extensions/dist/*.zip
+          name: perken-utilities-${{ matrix.name }}
+          path: extensions/perken-utilities/dist/*.zip
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/cajun-extensions-v')
+    if: startsWith(github.ref, 'refs/tags/perken-utilities-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write # required to create the release and upload assets

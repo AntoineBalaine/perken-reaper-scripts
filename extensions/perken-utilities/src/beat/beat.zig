@@ -28,8 +28,8 @@ pub const CResult = extern struct {
     @"error": [160]u8,
 };
 
-pub extern fn cajun_beat_track(mono: [*]const f32, frames: usize, sample_rate: f64, params: *const Params, result: *CResult) c_int;
-pub extern fn cajun_beat_result_free(result: *CResult) void;
+pub extern fn perken_beat_track(mono: [*]const f32, frames: usize, sample_rate: f64, params: *const Params, result: *CResult) c_int;
+pub extern fn perken_beat_result_free(result: *CResult) void;
 
 pub const Beat = struct {
     /// Position in seconds from the start of the analysed audio.
@@ -56,8 +56,8 @@ pub const TrackError = error{ AnalysisFailed, OutOfMemory };
 /// logged.
 pub fn track(alloc: std.mem.Allocator, mono: []const f32, sample_rate: f64, params: Params) TrackError!Result {
     var c: CResult = undefined;
-    defer cajun_beat_result_free(&c);
-    if (cajun_beat_track(mono.ptr, mono.len, sample_rate, &params, &c) != 0) {
+    defer perken_beat_result_free(&c);
+    if (perken_beat_track(mono.ptr, mono.len, sample_rate, &params, &c) != 0) {
         std.log.scoped(.beat).warn("beat tracking failed: {s}", .{std.mem.sliceTo(&c.@"error", 0)});
         return error.AnalysisFailed;
     }
