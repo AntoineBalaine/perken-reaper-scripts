@@ -10,7 +10,7 @@ Editing helpers for REAPER as a compiled extension (Zig, built on
 | Module | Actions |
 |---|---|
 | drums | Flam, Ras3, Ras5, Crescendo, Decrescendo, QuantizeTool (stub) |
-| kawa (MIDI editor) | chord note selection, drop-2/3/2&4 voicings, octave/interval doublings, Legato (selected notes, or all: each chord ends a tick before the next, the last at the item end) |
+| kawa (MIDI editor) | chord note selection, drop-2/3/2&4 voicings, octave/interval doublings, Legato (selected notes, or all: each chord ends a tick before the next selected one; the last, before the next note, else at the item end) |
 | routing | RouteToBusses, BuildBusses |
 | fx | InsertFxAtSlot (stub) |
 | items | paste before cursor, 2 ms fades, fades and trims from the mouse, split at note starts, stretch to cursor |
