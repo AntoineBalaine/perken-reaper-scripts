@@ -17,6 +17,7 @@ const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
+const commit = @import("beat/commit.zig");
 
 // MIDI-editor command ids used by kawa's createMIDIFunc3.
 const cmd_delete_tiny_notes: c_int = 40815; // delete all notes < 1/256 in length
@@ -302,9 +303,115 @@ fn doubleThirdDown(_: *actions.RunCtx) void {
     doubleNotes(-4);
 }
 
+// ---- legato ----------------------------------------------------------------------
+// Replaces the user's old REAPER custom action "AB - Custom Legato", which ran
+// kawa_MIDI_NoteLengthToEndOfTakeItem and then kawa_MIDI_ResolveOverLap: every
+// target note ended one tick before the next chord, and the last chord ran to
+// the end of the item.
+
+/// A target note as the legato logic sees it: its index in the take, and its
+/// start and end in PPQ ticks.
+pub const Span = struct { idx: c_int, start: f64, end: f64 };
+
+fn spanStartLessThan(spans: []const Span, a: usize, b: usize) bool {
+    return spans[a].start < spans[b].start;
+}
+
+/// Computes the legato end of every note in `spans`, into `out` (same order).
+/// A chord is the notes sharing one start; pitch plays no part. Every note
+/// ends one tick before the start of the next chord (the nearest later start
+/// among `spans`), and the last chord ends at `item_end`. Notes are both
+/// lengthened and shortened to that point. A note keeps its end when the
+/// point would leave it with no length: when the next chord is under two ticks
+/// away, or the item ends at or before the note's start.
+pub fn legatoEnds(alloc: std.mem.Allocator, spans: []const Span, item_end: f64, out: []f64) !void {
+    std.debug.assert(out.len == spans.len);
+    const tick: f64 = 1;
+    for (spans, out) |sp, *o| o.* = sp.end;
+
+    const order = try alloc.alloc(usize, spans.len);
+    defer alloc.free(order);
+    for (order, 0..) |*o, i| o.* = i;
+    std.mem.sort(usize, order, spans, spanStartLessThan);
+
+    var g: usize = 0;
+    while (g < order.len) {
+        const start = spans[order[g]].start;
+        var h = g;
+        while (h < order.len and spans[order[h]].start == start) h += 1;
+        const limit = if (h < order.len) spans[order[h]].start - tick else item_end;
+        if (limit > start) {
+            for (order[g..h]) |i| out[i] = limit;
+        }
+        g = h;
+    }
+}
+
+const NoteRec = struct { idx: c_int, selected: bool, muted: bool, start: f64, end: f64, chan: c_int, pitch: c_int, vel: c_int };
+
+/// The end of the take's item in PPQ ticks.
+fn itemEndPpq(take: *Reaper.MediaItem_Take) ?f64 {
+    const item = Reaper.GetMediaItemTake_Item(take);
+    if (@intFromPtr(item) == 0) return null;
+    const pos = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
+    const len = Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
+    return Reaper.MIDI_GetPPQPosFromProjQN(take, commit.timeToQn(pos + len));
+}
+
+/// Legato on the selected notes of the active MIDI editor's take, or on every
+/// note when none is selected. Nothing else in the take is touched: unlike
+/// kawa's scripts it does not delete short notes first, and it has no cap on
+/// the number of notes.
+fn legato(_: *actions.RunCtx) void {
+    const editor = helpers.midiEditorActive() orelse return;
+    const take = helpers.midiEditorTake(editor) orelse return;
+    const item_end = itemEndPpq(take) orelse return;
+
+    var n_notes: c_int = 0;
+    var n_cc: c_int = 0;
+    var n_sysex: c_int = 0;
+    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
+
+    var all = std.ArrayList(NoteRec).init(helpers.allocator);
+    defer all.deinit();
+    var any_selected = false;
+    var i: c_int = 0;
+    while (i < n_notes) : (i += 1) {
+        var r = NoteRec{ .idx = i, .selected = false, .muted = false, .start = 0, .end = 0, .chan = 0, .pitch = 0, .vel = 0 };
+        if (!Reaper.MIDI_GetNote(take, i, &r.selected, &r.muted, &r.start, &r.end, &r.chan, &r.pitch, &r.vel)) continue;
+        if (r.selected) any_selected = true;
+        all.append(r) catch return;
+    }
+
+    var targets = std.ArrayList(NoteRec).init(helpers.allocator);
+    defer targets.deinit();
+    for (all.items) |r| {
+        if (!any_selected or r.selected) targets.append(r) catch return;
+    }
+    if (targets.items.len == 0) return;
+
+    const spans = helpers.allocator.alloc(Span, targets.items.len) catch return;
+    defer helpers.allocator.free(spans);
+    const ends = helpers.allocator.alloc(f64, targets.items.len) catch return;
+    defer helpers.allocator.free(ends);
+    for (targets.items, spans) |r, *sp| sp.* = .{ .idx = r.idx, .start = r.start, .end = r.end };
+    legatoEnds(helpers.allocator, spans, item_end, ends) catch return;
+
+    Reaper.Undo_BeginBlock();
+    for (targets.items, ends) |r, new_end| {
+        if (new_end == r.end) continue;
+        const no_sort = true;
+        _ = Reaper.MIDI_SetNote(take, r.idx, &r.selected, &r.muted, &r.start, &new_end, &r.chan, &r.pitch, &r.vel, &no_sort);
+    }
+    Reaper.MIDI_Sort(take);
+    Reaper.Undo_EndBlock("Perken: legato", -1);
+    Reaper.UpdateArrange();
+}
+
 // ---- registry entries -------------------------------------------------------------
 
 pub const entries = [_]actions.Entry{
+    .{ .name = "Legato", .def = .{ .steps = &.{.{ .func = &legato }}, .midi_command = true, .desc = "Legato: notes end at the next chord, the last at the item end" } },
     .{ .name = "SelectBottomNotes", .def = .{ .steps = &.{.{ .func = &selectBottomNotes }}, .midi_command = true } },
     .{ .name = "SelectTopNotes", .def = .{ .steps = &.{.{ .func = &selectTopNotes }}, .midi_command = true } },
     .{ .name = "SelectMiddleNotes", .def = .{ .steps = &.{.{ .func = &selectMiddleNotes }}, .midi_command = true } },
@@ -375,4 +482,54 @@ test "partOfChord edge sizes match the Lua's table.remove behavior" {
 
 test {
     _ = helpers;
+}
+
+test "legato: each chord ends a tick before the next, the last at the item end" {
+    const spans = [_]Span{
+        .{ .idx = 0, .start = 0, .end = 100 },
+        .{ .idx = 1, .start = 0, .end = 400 }, // same chord, and longer than the gap
+        .{ .idx = 2, .start = 960, .end = 1000 },
+        .{ .idx = 3, .start = 1920, .end = 1930 },
+    };
+    var out: [4]f64 = undefined;
+    try legatoEnds(std.testing.allocator, &spans, 2880, &out);
+    try std.testing.expectEqualSlices(f64, &.{ 959, 959, 1919, 2880 }, &out);
+}
+
+test "legato: the order of the notes does not matter" {
+    const spans = [_]Span{
+        .{ .idx = 5, .start = 1920, .end = 1930 },
+        .{ .idx = 3, .start = 0, .end = 100 },
+        .{ .idx = 4, .start = 960, .end = 1000 },
+    };
+    var out: [3]f64 = undefined;
+    try legatoEnds(std.testing.allocator, &spans, 2880, &out);
+    try std.testing.expectEqualSlices(f64, &.{ 2880, 959, 1919 }, &out);
+}
+
+test "legato: a single note runs to the item end" {
+    const spans = [_]Span{.{ .idx = 0, .start = 480, .end = 600 }};
+    var out: [1]f64 = undefined;
+    try legatoEnds(std.testing.allocator, &spans, 1920, &out);
+    try std.testing.expectEqualSlices(f64, &.{1920}, &out);
+}
+
+test "legato: a note keeps its end when it would be left without length" {
+    // The next chord is one tick away, so the point one tick before it is the
+    // note's own start.
+    const close = [_]Span{ .{ .idx = 0, .start = 0, .end = 50 }, .{ .idx = 1, .start = 1, .end = 80 } };
+    var out2: [2]f64 = undefined;
+    try legatoEnds(std.testing.allocator, &close, 960, &out2);
+    try std.testing.expectEqualSlices(f64, &.{ 50, 960 }, &out2);
+
+    // The last chord starts at the item end.
+    const at_end = [_]Span{.{ .idx = 0, .start = 960, .end = 1000 }};
+    var out1: [1]f64 = undefined;
+    try legatoEnds(std.testing.allocator, &at_end, 960, &out1);
+    try std.testing.expectEqualSlices(f64, &.{1000}, &out1);
+}
+
+test "legato: no notes" {
+    var out: [0]f64 = undefined;
+    try legatoEnds(std.testing.allocator, &.{}, 960, &out);
 }
