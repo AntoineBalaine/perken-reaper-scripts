@@ -37,6 +37,30 @@ Each extension is versioned and released on its own, from its own tags:
   releases page by its tag prefix.
 - Each extension keeps its own `CHANGELOG.md`.
 
+## Building and installing into REAPER
+
+`build-install.sh` builds extensions and installs them into REAPER's
+`UserPlugins` folder (and launches REAPER on macOS, unless `-n` is given):
+
+```sh
+extensions/build-install.sh                          # reavim-ext and perken-utilities
+extensions/build-install.sh console1 mft             # the Console1 pair and MFT
+extensions/build-install.sh -z /path/to/zig -n reavim-ext
+```
+
+reavim-ext also installs its default keymap as `Data/Perken/bindings.ini`,
+through `install-bindings.sh`, which never destroys edits:
+
+- a missing file, or one that is still exactly what the last install wrote,
+  is replaced by the new defaults;
+- an edited file is kept, and the new defaults are written beside it as
+  `bindings.ini.new`, with a `diff` command to compare the two. Merge the
+  lines you want, or delete `bindings.ini` to take the new defaults.
+
+`extensions/install-bindings.test.sh` tests this in a temporary folder. Set
+`REAPER_RESOURCE_PATH` to install somewhere other than REAPER's own folder
+(the script then does not launch REAPER).
+
 ## Running the Linux CI locally
 
 Extensions with C++ (perken-utilities, console1) must build their Linux

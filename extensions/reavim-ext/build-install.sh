@@ -68,7 +68,9 @@ PREFIX="$RESOURCE/UserPlugins"
 BINDINGS_PREFIX="$RESOURCE/Data/Perken"
 
 "$ZIG" build --prefix "$PREFIX"
-"$ZIG" build bindings --prefix "$BINDINGS_PREFIX"
+# Because the keymap is the user's to edit, it is installed through
+# install-bindings.sh, which keeps an edited file instead of overwriting it.
+"$SCRIPT_DIR/../install-bindings.sh" "$SCRIPT_DIR/src/default_bindings.ini" "$BINDINGS_PREFIX"
 
 # On macOS we additionally launch a fresh REAPER instance once the build lands.
 if [ -n "$REAPER_BIN" ]; then
