@@ -71,14 +71,14 @@ pub fn parseSelection(line: []const u8) ?c_int {
 
 /// REAPER's main actions section. The binding returns it as a pointer to the
 /// section pointer, so the function is re-typed to return the pointer itself.
-fn mainSection() ?Reaper.KbdSectionInfo {
+pub fn mainSection() ?Reaper.KbdSectionInfo {
     const f: *const fn (uniqueID: c_int) callconv(.C) ?Reaper.KbdSectionInfo = @ptrCast(Reaper.SectionFromUniqueID);
     return f(0);
 }
 
 /// Re-types the binding, which declares `nameOut` as a plain string instead
 /// of the pointer to a string that REAPER fills in.
-fn enumerateActions(section: Reaper.KbdSectionInfo, idx: c_int, name: *?[*:0]const u8) c_int {
+pub fn enumerateActions(section: Reaper.KbdSectionInfo, idx: c_int, name: *?[*:0]const u8) c_int {
     const f: *const fn (section: Reaper.KbdSectionInfo, idx: c_int, nameOut: *?[*:0]const u8) callconv(.C) c_int = @ptrCast(Reaper.kbd_enumerateActions);
     return f(section, idx, name);
 }
