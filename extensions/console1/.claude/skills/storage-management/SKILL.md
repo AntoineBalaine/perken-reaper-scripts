@@ -48,7 +48,7 @@ This approach ensures that frequently used mappings remain in memory while rarel
 
 ## File Sanitization
 
-When loading or saving mappings, the extension sanitizes FX plugin names to create valid filenames. The sanitizeFxName function in src/mappings.zig replaces forward slashes with underscores to prevent directory traversal issues. The sanitized name is then used to construct the file path.
+When loading or saving mappings, the extension sanitizes FX plugin names to create valid filenames. The sanitizeFxName function in reaziglib's fs_helpers.zig replaces each character that Windows forbids in names (`< > : " / \ | ? *` and control characters) with an underscore and trims trailing spaces and dots, so "JS: ReaComp" is stored as "JS_ ReaComp". The sanitized name is then used to construct the file path. Because older versions replaced only slashes, startup renames legacy folders once (migrateFolderNames / migrateFolderNamesRecursive).
 
 ## Saving Mappings
 

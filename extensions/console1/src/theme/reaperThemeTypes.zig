@@ -1,4 +1,3 @@
-
 pub const ThemeColor = struct {
     description: [*:0]const u8,
     color: c_int,

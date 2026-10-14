@@ -183,6 +183,14 @@ pub fn copyEmbeddedFilesToDir(fs_ops: FileSystemOps, target_path: []const u8) !v
     const maps_path = joinStrings(&buf2, &.{ console1_path, std.fs.path.sep_str, "maps" });
     try ensureDir(fs_ops, maps_path);
 
+    // Because older versions named FX folders with characters that Windows
+    // forbids (such as "JS: ReaComp"), and saving now uses the Windows-safe
+    // name, we rename existing folders once so that an edited map is not left
+    // next to a newer copy of itself.
+    fs_helpers.migrateFolderNamesRecursive(maps_path) catch |err| {
+        std.log.err("Failed to rename legacy map folders in {s}: {s}", .{ maps_path, @errorName(err) });
+    };
+
     // Create defaults directory
     const defaults_path = joinStrings(&buf3, &.{ maps_path, std.fs.path.sep_str, "factory" });
     try ensureDir(fs_ops, defaults_path);

@@ -140,10 +140,89 @@ pub fn ensureFile(fs_ops: FileSystemOps, path: []const u8, contents: []const u8)
     try file.writeAll(contents);
 }
 
+/// Characters that Windows forbids in file and folder names. Because GitHub's
+/// artifact upload rejects the same ones, and macOS and Linux forbid only
+/// '/', these are the characters a map folder name must avoid to work
+/// everywhere.
+pub const forbidden_name_chars = "<>:\"/\\|?*";
+
+/// Turns an FX name into a folder name that every filesystem accepts.
+/// Because Windows forbids `< > : " / \ | ? *` and control characters in
+/// names, each of them becomes '_'; because Windows also drops trailing
+/// spaces and dots, those are trimmed. A name left empty (or one that was only
+/// dots, such as "..", which would point at the parent folder) becomes "_".
 pub fn sanitizeFxName(buf: *[512:0]u8, fx_name: []const u8) ![:0]const u8 {
-    const base_name = try std.fmt.bufPrintZ(buf, "{s}", .{fx_name});
-    _ = std.mem.replace(u8, base_name, "/", "_", buf);
-    return base_name;
+    if (fx_name.len > buf.len) return error.NoSpaceLeft;
+    var len: usize = 0;
+    for (fx_name) |c| {
+        buf[len] = if (c < 0x20 or std.mem.indexOfScalar(u8, forbidden_name_chars, c) != null) '_' else c;
+        len += 1;
+    }
+    while (len > 0 and (buf[len - 1] == ' ' or buf[len - 1] == '.')) len -= 1;
+    if (len == 0) {
+        buf[0] = '_';
+        len = 1;
+    }
+    buf[len] = 0;
+    return buf[0..len :0];
+}
+
+/// Renames each subfolder of `parent_dir` whose name sanitizeFxName would
+/// change. Because versions before the Windows-safe naming replaced only '/',
+/// users' disks still hold folders such as "JS: ReaAnalog"; sanitizing such a
+/// name gives the same result as sanitizing the FX name itself, so after this
+/// the folders sit where lookups expect them. We move the folders rather than
+/// let lookups create empty ones next to them, because users may have edited
+/// the maps inside. A folder is left alone when the sanitized name already
+/// exists, and a missing `parent_dir` is not an error.
+pub fn migrateFolderNames(parent_dir: []const u8) !void {
+    var dir = std.fs.openDirAbsolute(parent_dir, .{ .iterate = true }) catch |err| switch (err) {
+        error.FileNotFound => return,
+        else => return err,
+    };
+    defer dir.close();
+
+    // Because renaming while iterating can skip or repeat entries, we collect
+    // the names first.
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var names = std.ArrayList([]const u8).init(arena.allocator());
+    var iter = dir.iterate();
+    while (try iter.next()) |entry| {
+        if (entry.kind != .directory) continue;
+        try names.append(try arena.allocator().dupe(u8, entry.name));
+    }
+
+    var buf: [512:0]u8 = undefined;
+    for (names.items) |name| {
+        const sanitized = try sanitizeFxName(&buf, name);
+        if (std.mem.eql(u8, name, sanitized)) continue;
+        if (dir.access(sanitized, .{})) |_| continue else |_| {}
+        try dir.rename(name, sanitized);
+    }
+}
+
+/// Applies migrateFolderNames to `root_dir` and every folder below it.
+/// Because Console1's maps nest FX folders at several depths
+/// (maps/<source>/<MODULE>/<fx>/ and maps/STRIP/<fx>/), we walk the whole tree.
+pub fn migrateFolderNamesRecursive(root_dir: []const u8) !void {
+    try migrateFolderNames(root_dir);
+
+    var dir = std.fs.openDirAbsolute(root_dir, .{ .iterate = true }) catch |err| switch (err) {
+        error.FileNotFound => return,
+        else => return err,
+    };
+    defer dir.close();
+
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var children = std.ArrayList([]const u8).init(arena.allocator());
+    var iter = dir.iterate();
+    while (try iter.next()) |entry| {
+        if (entry.kind != .directory) continue;
+        try children.append(try std.fs.path.join(arena.allocator(), &.{ root_dir, entry.name }));
+    }
+    for (children.items) |child| try migrateFolderNamesRecursive(child);
 }
 
 test "sanitizeFxName" {
@@ -155,10 +234,16 @@ test "sanitizeFxName" {
     };
 
     const test_cases = [_]TestCase{
-        .{ .input = "VST: My/Plugin", .expected = "VST: My_Plugin" },
-        .{ .input = "VST: Plugin/With/Many/Slashes", .expected = "VST: Plugin_With_Many_Slashes" },
-        .{ .input = "VST: Some:Plugin/Name", .expected = "VST: Some:Plugin_Name" },
-        .{ .input = "", .expected = "" },
+        .{ .input = "VST: My/Plugin", .expected = "VST_ My_Plugin" },
+        .{ .input = "VST: Plugin/With/Many/Slashes", .expected = "VST_ Plugin_With_Many_Slashes" },
+        .{ .input = "JS: Amphitrite Compressor (chmaha)", .expected = "JS_ Amphitrite Compressor (chmaha)" },
+        .{ .input = "JS: NW8 \"A\" Plate Reverb (chmaha)", .expected = "JS_ NW8 _A_ Plate Reverb (chmaha)" },
+        .{ .input = "JS: Orpheus Console Sub|Aux Out (chmaha)", .expected = "JS_ Orpheus Console Sub_Aux Out (chmaha)" },
+        .{ .input = "a<b>c\\d?e*f\tg", .expected = "a_b_c_d_e_f_g" },
+        .{ .input = "VST: Trailing. . ", .expected = "VST_ Trailing" },
+        .{ .input = "..", .expected = "_" },
+        .{ .input = "", .expected = "_" },
+        .{ .input = "Plain name (Cockos)", .expected = "Plain name (Cockos)" },
     };
 
     var buf: [512:0]u8 = undefined;
@@ -167,6 +252,53 @@ test "sanitizeFxName" {
         const result = try sanitizeFxName(&buf, case.input);
         try testing.expectEqualStrings(case.expected, result);
     }
+}
+
+test "sanitizeFxName rejects names longer than the buffer" {
+    var buf: [512:0]u8 = undefined;
+    const long = [_]u8{'a'} ** 513;
+    try std.testing.expectError(error.NoSpaceLeft, sanitizeFxName(&buf, &long));
+}
+
+test "migrateFolderNames renames legacy folders once" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const parent = try tmp.dir.realpath(".", &path_buf);
+
+    try tmp.dir.makePath("JS: Volume_Pan Smoother v5");
+    try tmp.dir.writeFile(.{ .sub_path = "JS: Volume_Pan Smoother v5/default.ini", .data = "edited" });
+    try tmp.dir.makePath("reacomp");
+    // Because the sanitized name of this one already exists, it stays put.
+    try tmp.dir.makePath("JS: Taken");
+    try tmp.dir.makePath("JS_ Taken");
+
+    try migrateFolderNames(parent);
+    const content = try tmp.dir.readFileAlloc(testing.allocator, "JS_ Volume_Pan Smoother v5/default.ini", 64);
+    defer testing.allocator.free(content);
+    try testing.expectEqualStrings("edited", content);
+    try testing.expectError(error.FileNotFound, tmp.dir.access("JS: Volume_Pan Smoother v5", .{}));
+    try tmp.dir.access("reacomp", .{});
+    try tmp.dir.access("JS: Taken", .{});
+
+    // Because nothing is left to rename, a second run changes nothing.
+    try migrateFolderNames(parent);
+    try migrateFolderNames("/nonexistent-perken-test-dir");
+}
+
+test "migrateFolderNamesRecursive renames nested folders" {
+    const testing = std.testing;
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const root = try tmp.dir.realpath(".", &path_buf);
+
+    try tmp.dir.makePath("chmaha/COMP/JS: Amphitrite Compressor (chmaha)");
+    try tmp.dir.makePath("STRIP/JS: Evolution Channel Strip (chmaha)");
+    try migrateFolderNamesRecursive(root);
+    try tmp.dir.access("chmaha/COMP/JS_ Amphitrite Compressor (chmaha)", .{});
+    try tmp.dir.access("STRIP/JS_ Evolution Channel Strip (chmaha)", .{});
 }
 
 /// MockFileSystem for testing - tracks operations and uses temp directory

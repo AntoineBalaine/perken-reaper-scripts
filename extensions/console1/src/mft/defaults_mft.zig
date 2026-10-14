@@ -5,6 +5,7 @@ const FileSystemOps = fs_helpers.FileSystemOps;
 const joinStrings = fs_helpers.joinStrings;
 const ensureDir = fs_helpers.ensureDir;
 const ensureFile = fs_helpers.ensureFile;
+const MappableModule = @import("mft_mappings.zig").MappableModule;
 
 // Factory default maps derived from the Console One factory maps. They are
 // embedded in the binary and written to disk on first run so that the defaults
@@ -54,11 +55,22 @@ pub fn ensureConfigPath(fs_ops: FileSystemOps) !void {
     });
     try ensureDir(fs_ops, factory_path);
 
+    // Because older versions named FX folders with characters that Windows
+    // forbids (such as "JS: ReaAnalog"), and the store now looks them up by
+    // their Windows-safe name, we rename existing folders before anything
+    // looks them up or writes defaults next to them.
+    var module_buf: [std.fs.max_path_bytes]u8 = undefined;
+    inline for (comptime std.enums.values(MappableModule)) |module| {
+        const module_dir = joinStrings(&module_buf, &.{ factory_path, std.fs.path.sep_str, module.dirName() });
+        fs_helpers.migrateFolderNames(module_dir) catch |err| {
+            std.log.scoped(.mft_maps).err("Failed to rename legacy map folders in {s}: {s}", .{ module_dir, @errorName(err) });
+        };
+    }
+
     // Because the map store reads maps/factory/<MODULE>/<sanitized fx_name>/default.ini,
     // we write each default map into the directory named after its FX so that
     // the on-disk layout matches what the store looks up at runtime.
     var name_buf: [512:0]u8 = undefined;
-    var module_buf: [std.fs.max_path_bytes]u8 = undefined;
     var fx_buf: [std.fs.max_path_bytes]u8 = undefined;
     var file_buf: [std.fs.max_path_bytes]u8 = undefined;
     inline for (factory_maps) |m| {
