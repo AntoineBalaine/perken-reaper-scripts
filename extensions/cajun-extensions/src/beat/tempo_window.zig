@@ -23,6 +23,7 @@ const helpers = @import("reaper_helpers");
 const actions = @import("../actions.zig");
 const analysis = @import("analysis.zig");
 const beat = @import("beat.zig");
+const grid = @import("grid.zig");
 
 const log = std.log.scoped(.tempo_window);
 
@@ -132,7 +133,11 @@ pub fn onTimer() callconv(.C) void {
         job.step();
         if (job.phase.load(.acquire) == .done and !state.previewed) {
             if (takeIsValid(job.take)) {
-                if (job.result) |r| addPreviewMarkers(job, r.beats);
+                if (job.grid_beats.len > 0) {
+                    addGridMarkers(job, job.grid_beats);
+                } else if (job.result) |r| {
+                    addPreviewMarkers(job, r.beats);
+                }
             }
             state.previewed = true;
         }
@@ -195,27 +200,60 @@ pub fn drawResult(ctx: imgui.ContextPtr, job: *analysis.Job) void {
     var line: [256:0]u8 = undefined;
     const result = job.result orelse return;
     const s = beat.summarize(std.heap.c_allocator, result.beats) catch return;
+    // The constant grid's tempo when there is one, else the median.
+    var tempo = s.median;
 
-    imgui.api.Text(ctx, fmtZ(&line, "Tempo: {d:.1} BPM", .{s.median}));
-    if (s.steady) {
-        imgui.api.Text(ctx, "Steady tempo");
-    } else {
-        imgui.api.Text(ctx, fmtZ(&line, "Varies between {d:.1} and {d:.1} BPM", .{ s.low, s.high }));
+    if (job.grid) |g| {
+        if (g.tempo) |t| {
+            tempo = t.bpm;
+            imgui.api.Text(ctx, fmtZ(&line, "Tempo: {d} BPM (constant grid from {d:.2} s)", .{ fmtBpm(t.bpm), t.first_beat }));
+            if (job.passages.len == 0) {
+                imgui.api.Text(ctx, "The whole item follows the grid.");
+            } else {
+                imgui.api.Text(ctx, "Passages off the grid:");
+                for (job.passages[0..@min(job.passages.len, 6)]) |p| {
+                    imgui.api.Text(ctx, fmtZ(&line, "  {d:.1} - {d:.1} s, around {d:.0} BPM", .{ p.start, p.end, p.bpm }));
+                }
+                if (job.passages.len > 6) imgui.api.Text(ctx, fmtZ(&line, "  and {d} more", .{job.passages.len - 6}));
+            }
+            imgui.api.Text(ctx, fmtZ(&line, "{d} grid beats shown as take markers", .{job.grid_beats.len}));
+        }
     }
-    imgui.api.Text(ctx, fmtZ(&line, "{d} beats, shown as take markers", .{s.beat_count}));
+    if (job.grid_beats.len == 0) {
+        imgui.api.Text(ctx, fmtZ(&line, "No constant tempo found; median {d:.1} BPM", .{s.median}));
+        imgui.api.Text(ctx, fmtZ(&line, "Varies between {d:.1} and {d:.1} BPM", .{ s.low, s.high }));
+        imgui.api.Text(ctx, fmtZ(&line, "{d} detected beats shown as take markers", .{s.beat_count}));
+    }
     imgui.api.Separator(ctx);
 
-    // Re-run constrained around the median, so that the tracker stays at
-    // that metrical level everywhere instead of switching in busy sections.
-    if (imgui.api.Button(ctx, "Lock to this tempo", null, null)) rerun(job.take, s.median);
+    // Re-run constrained around the tempo, so that the tracker stays at that
+    // metrical level everywhere instead of switching in busy sections.
+    if (imgui.api.Button(ctx, "Lock to this tempo", null, null)) rerun(job.take, tempo);
     imgui.api.SameLine(ctx, null, null);
     // Re-run constrained around double or half the tempo, for when the
     // tracker locked onto the wrong level everywhere.
-    if (imgui.api.Button(ctx, "\u{00d7}2", null, null)) rerun(job.take, s.median * 2);
+    if (imgui.api.Button(ctx, "\u{00d7}2", null, null)) rerun(job.take, tempo * 2);
     imgui.api.SameLine(ctx, null, null);
-    if (imgui.api.Button(ctx, "\u{00f7}2", null, null)) rerun(job.take, s.median / 2);
+    if (imgui.api.Button(ctx, "\u{00f7}2", null, null)) rerun(job.take, tempo / 2);
     imgui.api.SameLine(ctx, null, null);
     if (imgui.api.Button(ctx, "Discard", null, null)) closeAndDiscard();
+}
+
+/// A tempo for display: whole BPM without decimals (the grid rounds to whole
+/// BPM when it can), otherwise three decimals.
+pub const BpmText = struct {
+    bpm: f64,
+    pub fn format(self: BpmText, comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+        if (self.bpm == @round(self.bpm)) {
+            try w.print("{d:.0}", .{self.bpm});
+        } else {
+            try w.print("{d:.3}", .{self.bpm});
+        }
+    }
+};
+
+pub fn fmtBpm(bpm: f64) BpmText {
+    return .{ .bpm = bpm };
 }
 
 pub fn rerun(take: *Reaper.MediaItem_Take, tempo: f64) void {
@@ -266,6 +304,23 @@ pub fn addPreviewMarkers(job: *analysis.Job, beats: []const beat.Beat) void {
         _ = Reaper.SetTakeMarker(job.take, -1, name, &srcpos, &color);
     }
     Reaper.Undo_EndBlock("Cajun: preview detected beats", -1);
+    Reaper.UpdateArrange();
+}
+
+/// Adds one take marker per beat of the constant grid, named bar.beat with
+/// the preview prefix ("♩0.3" for a pickup beat).
+pub fn addGridMarkers(job: *analysis.Job, beats: []const grid.GridBeat) void {
+    const offset = Reaper.GetMediaItemTakeInfo_Value(job.take, "D_STARTOFFS");
+    const rate = Reaper.GetMediaItemTakeInfo_Value(job.take, "D_PLAYRATE");
+    Reaper.Undo_BeginBlock();
+    for (beats) |b| {
+        var name_buf: [32:0]u8 = undefined;
+        const name = std.fmt.bufPrintZ(&name_buf, marker_prefix ++ "{d}.{d}", .{ b.bar, b.beat_in_bar }) catch continue;
+        var srcpos = offset + (job.start_time + b.time) * rate;
+        var color: c_int = 0; // REAPER's default marker color
+        _ = Reaper.SetTakeMarker(job.take, -1, name, &srcpos, &color);
+    }
+    Reaper.Undo_EndBlock("Cajun: preview beat grid", -1);
     Reaper.UpdateArrange();
 }
 

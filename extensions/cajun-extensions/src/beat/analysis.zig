@@ -8,6 +8,7 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const beat = @import("beat.zig");
+const grid = @import("grid.zig");
 
 const log = std.log.scoped(.beat);
 
@@ -38,6 +39,12 @@ pub const Job = struct {
     phase: std.atomic.Value(Phase) = std.atomic.Value(Phase).init(.reading),
     thread: ?std.Thread = null,
     result: ?beat.Result = null,
+    /// The constant-tempo grid of the result (Mixxx's post-processing), its
+    /// beats numbered by bar, and the passages off the grid. Computed by the
+    /// worker after the tracker.
+    grid: ?grid.Grid = null,
+    grid_beats: []grid.GridBeat = &.{},
+    passages: []grid.Passage = &.{},
     failure: [160]u8 = [_]u8{0} ** 160,
 
     /// Fraction of the work done, for the progress bar. Reading is shown as
@@ -104,6 +111,9 @@ pub const Job = struct {
         if (self.thread) |t| t.join();
         if (self.accessor) |a| Reaper.DestroyAudioAccessor(a);
         if (self.result) |*r| r.deinit(self.alloc);
+        if (self.grid) |*g| g.deinit(self.alloc);
+        self.alloc.free(self.grid_beats);
+        self.alloc.free(self.passages);
         self.mono.deinit(self.alloc);
         self.alloc.destroy(self);
     }
@@ -121,6 +131,10 @@ pub fn workerMain(job: *Job) void {
     };
     job.result = result;
     logBeats(result.beats, job.params);
+    computeGrid(job, result) catch {
+        job.fail("out of memory", .{});
+        return;
+    };
     job.phase.store(.done, .release);
 }
 
@@ -168,4 +182,29 @@ pub fn logBeats(beats: []const beat.Beat, params: beat.Params) void {
     for (beats, 0..) |b, i| {
         log.debug("beat {d}: {d:.3}s in-bar={d} tempo={d:.1}", .{ i, b.time, b.beat_in_bar, b.tempo });
     }
+}
+
+/// Off-grid passages are regions more than this far from the grid's tempo.
+pub const passage_tolerance: f64 = 0.05;
+
+/// The constant grid, its numbered beats over the item, and the passages off
+/// it. Worker thread; touches no REAPER API.
+pub fn computeGrid(job: *Job, result: beat.Result) !void {
+    const times = try job.alloc.alloc(f64, result.beats.len);
+    defer job.alloc.free(times);
+    var downbeats = std.ArrayList(f64).init(job.alloc);
+    defer downbeats.deinit();
+    for (result.beats, times) |b, *t| {
+        t.* = b.time;
+        if (b.beat_in_bar == 1) try downbeats.append(b.time);
+    }
+    var g = try grid.analyze(job.alloc, times);
+    errdefer g.deinit(job.alloc);
+    if (g.tempo) |tempo| {
+        const bpb: u32 = @intCast(@max(1, job.params.beats_per_bar));
+        job.grid_beats = try grid.gridBeats(job.alloc, tempo, job.end_time - job.start_time, bpb, downbeats.items);
+        job.passages = try grid.offGridPassages(job.alloc, g.regions, tempo.bpm, passage_tolerance);
+        log.debug("grid: {d:.3} BPM from {d:.3}s, {d} off-grid passages", .{ tempo.bpm, tempo.first_beat, job.passages.len });
+    }
+    job.grid = g;
 }

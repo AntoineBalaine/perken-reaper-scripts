@@ -261,6 +261,84 @@ pub fn analyze(alloc: std.mem.Allocator, beats: []const f64) !Grid {
     return .{ .tempo = tempo, .regions = regions };
 }
 
+/// A beat of the constant grid, numbered by bar and beat.
+pub const GridBeat = struct {
+    time: f64,
+    /// 0 for a pickup before the first full bar.
+    bar: u32,
+    /// 1 for the first beat of a bar.
+    beat_in_bar: u32,
+};
+
+/// The grid's beats from the anchor to `duration`, numbered so that bar 1
+/// starts on the grid beat most of the tracker's downbeats agree with: each
+/// downbeat within 25 ms of a grid beat votes for that beat's position
+/// modulo the bar length.
+pub fn gridBeats(alloc: std.mem.Allocator, tempo: ConstTempo, duration: f64, beats_per_bar: u32, downbeats: []const f64) ![]GridBeat {
+    const period = 60.0 / tempo.bpm;
+    const bpb: usize = @max(1, beats_per_bar);
+    const votes = try alloc.alloc(u32, bpb);
+    defer alloc.free(votes);
+    @memset(votes, 0);
+    for (downbeats) |d| {
+        const k = @round((d - tempo.first_beat) / period);
+        if (k < 0) continue;
+        if (@abs(d - (tempo.first_beat + k * period)) > max_phase_error) continue;
+        votes[@as(usize, @intFromFloat(k)) % bpb] += 1;
+    }
+    var downbeat_slot: usize = 0;
+    for (votes, 0..) |v, i| {
+        if (v > votes[downbeat_slot]) downbeat_slot = i;
+    }
+
+    var list = std.ArrayList(GridBeat).init(alloc);
+    errdefer list.deinit();
+    var k: usize = 0;
+    while (true) : (k += 1) {
+        const t = tempo.first_beat + @as(f64, @floatFromInt(k)) * period;
+        if (t > duration) break;
+        if (k < downbeat_slot) {
+            try list.append(.{ .time = t, .bar = 0, .beat_in_bar = @intCast(bpb - downbeat_slot + k + 1) });
+        } else {
+            const n = k - downbeat_slot;
+            try list.append(.{ .time = t, .bar = @intCast(n / bpb + 1), .beat_in_bar = @intCast(n % bpb + 1) });
+        }
+    }
+    return list.toOwnedSlice();
+}
+
+/// A stretch where the tracker's beats do not follow the constant grid.
+pub const Passage = struct { start: f64, end: f64, bpm: f64 };
+
+/// Consecutive regions whose tempo is more than `tolerance` away from the
+/// grid's, merged into passages, with their duration-weighted tempo.
+pub fn offGridPassages(alloc: std.mem.Allocator, regions: []const ConstRegion, grid_bpm: f64, tolerance: f64) ![]Passage {
+    var list = std.ArrayList(Passage).init(alloc);
+    errdefer list.deinit();
+    if (regions.len < 2 or !(grid_bpm > 0)) return list.toOwnedSlice();
+    var open: ?Passage = null;
+    var weighted: f64 = 0;
+    for (0..regions.len - 1) |i| {
+        const r = regions[i];
+        const end = regions[i + 1].first_beat;
+        const off = r.beat_length > 0 and @abs(r.bpm() - grid_bpm) / grid_bpm > tolerance;
+        if (off) {
+            if (open) |*o| {
+                o.end = end;
+            } else {
+                open = .{ .start = r.first_beat, .end = end, .bpm = 0 };
+                weighted = 0;
+            }
+            weighted += r.bpm() * (end - r.first_beat);
+        } else if (open) |o| {
+            try list.append(.{ .start = o.start, .end = o.end, .bpm = weighted / (o.end - o.start) });
+            open = null;
+        }
+    }
+    if (open) |o| try list.append(.{ .start = o.start, .end = o.end, .bpm = weighted / (o.end - o.start) });
+    return list.toOwnedSlice();
+}
+
 // ---- tests ----
 
 /// Beats of a steady tempo as the tracker reports them: each one rounded to
@@ -333,4 +411,36 @@ test "few beats: the average tempo" {
     var g = try analyze(alloc, &beats);
     defer g.deinit(alloc);
     try std.testing.expectApproxEqAbs(@as(f64, 120), g.tempo.?.bpm, 1e-9);
+}
+
+test "gridBeats numbers bars from the downbeats' majority" {
+    const alloc = std.testing.allocator;
+    const tempo = ConstTempo{ .bpm = 120, .first_beat = 0.1 };
+    // Downbeats on grid beats 2, 6, 10 (and one stray vote on 3).
+    const downbeats = [_]f64{ 0.1 + 2 * 0.5, 0.1 + 6 * 0.5 + 0.01, 0.1 + 10 * 0.5, 0.1 + 3 * 0.5 };
+    const beats = try gridBeats(alloc, tempo, 6.0, 4, &downbeats);
+    defer alloc.free(beats);
+    try std.testing.expectEqual(@as(u32, 0), beats[0].bar); // pickup
+    try std.testing.expectEqual(@as(u32, 3), beats[0].beat_in_bar);
+    try std.testing.expectEqual(@as(u32, 1), beats[2].bar);
+    try std.testing.expectEqual(@as(u32, 1), beats[2].beat_in_bar);
+    try std.testing.expectEqual(@as(u32, 2), beats[6].bar);
+    try std.testing.expectEqual(@as(u32, 1), beats[6].beat_in_bar);
+}
+
+test "offGridPassages merges neighbouring off-tempo regions" {
+    const alloc = std.testing.allocator;
+    const regions = [_]ConstRegion{
+        .{ .first_beat = 0, .beat_length = 60.0 / 88.0 },
+        .{ .first_beat = 100, .beat_length = 60.0 / 122.0 },
+        .{ .first_beat = 110, .beat_length = 60.0 / 118.0 },
+        .{ .first_beat = 130, .beat_length = 60.0 / 88.0 },
+        .{ .first_beat = 200, .beat_length = 0 },
+    };
+    const p = try offGridPassages(alloc, &regions, 88, 0.05);
+    defer alloc.free(p);
+    try std.testing.expectEqual(@as(usize, 1), p.len);
+    try std.testing.expectEqual(@as(f64, 100), p[0].start);
+    try std.testing.expectEqual(@as(f64, 130), p[0].end);
+    try std.testing.expect(p[0].bpm > 118 and p[0].bpm < 122);
 }
