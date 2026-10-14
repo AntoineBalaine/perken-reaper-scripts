@@ -237,6 +237,13 @@ pub fn drawResult(ctx: imgui.ContextPtr, job: *analysis.Job) void {
             state.message = if (commit.setProjectTempo(job.take, tempo)) "Project tempo set." else |err| commit.errorText(err);
         }
         imgui.api.SameLine(ctx, null, null);
+        if (imgui.api.Button(ctx, "Set tempo for this item", null, null)) {
+            state.message = if (commit.setTempoForItem(job.take, tempo)) "Tempo set for the item's span." else |err| commit.errorText(err);
+        }
+        if (imgui.api.Button(ctx, "Align item to project grid", null, null)) {
+            state.message = if (commit.alignToGrid(job.take, job.start_time, job.grid_beats)) "The item's bar 1 is on a project bar line." else |err| commit.errorText(err);
+        }
+        imgui.api.SameLine(ctx, null, null);
         if (imgui.api.Button(ctx, "Add stretch markers to grid", null, null)) {
             state.message = if (commit.conformToGrid(job.take, job.start_time, job.grid_beats)) "The audio now follows the project grid." else |err| commit.errorText(err);
         }

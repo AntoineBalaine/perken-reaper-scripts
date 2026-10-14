@@ -2,6 +2,11 @@
 //!
 //! - `setProjectTempo`: the grid follows the audio. The project tempo is set
 //!   to the detected tempo; the audio is not touched.
+//! - `setTempoForItem`: the grid follows the audio over the item only: a
+//!   tempo marker at the item's start with the detected tempo, and one at
+//!   its end restoring the tempo that was in effect there.
+//! - `alignToGrid`: the item slides, without stretching, so that the
+//!   detected bar 1 lands on the nearest project bar line.
 //! - `conformToGrid`: the audio follows the grid. Stretch markers are put on
 //!   the detected grid's beats and moved onto the project's beats, so that
 //!   REAPER stretches the take until bar 1 sits on a bar line and every beat
@@ -22,7 +27,7 @@ pub const CommitError = error{ TakeDeleted, HasTempoMarkers, HasStretchMarkers, 
 pub fn errorText(err: CommitError) [:0]const u8 {
     return switch (err) {
         error.TakeDeleted => "The analysed item no longer exists.",
-        error.HasTempoMarkers => "The project has tempo markers, so which tempo to change is ambiguous. Remove them or edit them by hand.",
+        error.HasTempoMarkers => "The project has tempo markers, so which tempo to change is ambiguous. Use \"Set tempo for this item\", or edit them by hand.",
         error.HasStretchMarkers => "The take already has stretch markers. Remove them first, so that none of yours are overwritten.",
         error.NoDownbeat => "No bar 1 was found in the grid.",
         error.NoBeats => "The grid has no beats.",
@@ -65,6 +70,24 @@ pub fn nearestBarLine(t: f64) f64 {
     return if (t - this_bar <= next_bar - t) this_bar else next_bar;
 }
 
+/// The tempo marker value in effect at `t`. REAPER reports a "divided" BPM
+/// (twice the marker's value in /8 time signatures, for instance), which is
+/// converted back with the time signature's denominator at `t`.
+pub fn tempoAt(t: f64) f64 {
+    const divided: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_GetDividedBpmAtTime);
+    const to_beats: *const fn (proj: ?*anyopaque, tpos: f64, measures: ?*c_int, cml: ?*c_int, fullbeats: ?*f64, cdenom: ?*c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToBeats);
+    var denom: c_int = 4;
+    _ = to_beats(null, t, null, null, null, &denom);
+    if (denom <= 0) denom = 4;
+    return divided(null, t) * 4.0 / @as(f64, @floatFromInt(denom));
+}
+
+/// Inserts a tempo-only marker (the time signature is left unchanged).
+pub fn insertTempoMarker(t: f64, bpm: f64) void {
+    const f: *const fn (proj: ?*anyopaque, ptidx: c_int, timepos: f64, measurepos: c_int, beatpos: f64, bpm: f64, num: c_int, denom: c_int, linear: bool) callconv(.C) bool = @ptrCast(Reaper.SetTempoTimeSigMarker);
+    _ = f(null, -1, t, -1, -1, bpm, 0, 0, false);
+}
+
 /// The project time of an item-relative time of the analysed take.
 pub const TakeTiming = struct {
     item: *Reaper.MediaItem,
@@ -101,6 +124,45 @@ pub fn setProjectTempo(take: *Reaper.MediaItem_Take, bpm: f64) CommitError!void 
     Reaper.UpdateTimeline();
     Reaper.UpdateArrange();
     log.info("project tempo set to {d:.3} BPM", .{bpm});
+}
+
+/// Sets the detected tempo for the item's span only (the grid follows the
+/// audio there): a tempo marker at the item's start with `bpm`, and one at
+/// its end restoring the tempo that was in effect at the end. The item is
+/// switched to time-based positioning for the change and restored, so its
+/// audio neither moves nor stretches. Works whether or not the project
+/// already has tempo markers.
+pub fn setTempoForItem(take: *Reaper.MediaItem_Take, bpm: f64) CommitError!void {
+    const timing = takeTiming(take);
+    const start = timing.position;
+    const end = timing.position + timing.length;
+    const restore = tempoAt(end);
+
+    Reaper.Undo_BeginBlock();
+    const timebase = Reaper.GetMediaItemInfo_Value(timing.item, "C_BEATATTACHMODE");
+    _ = Reaper.SetMediaItemInfo_Value(timing.item, "C_BEATATTACHMODE", 0); // time
+    insertTempoMarker(end, restore);
+    insertTempoMarker(start, bpm);
+    _ = Reaper.SetMediaItemInfo_Value(timing.item, "C_BEATATTACHMODE", timebase);
+    Reaper.Undo_EndBlock("Cajun: set the detected tempo for the item", -1);
+    Reaper.UpdateTimeline();
+    Reaper.UpdateArrange();
+    log.info("tempo {d:.3} BPM from {d:.3}s to {d:.3}s, then back to {d:.3} BPM", .{ bpm, start, end, restore });
+}
+
+/// Slides the item, without stretching, so that the detected grid's bar 1
+/// lands on the nearest project bar line. With the project at the detected
+/// tempo, every detected beat then sits on a project beat.
+pub fn alignToGrid(take: *Reaper.MediaItem_Take, analysis_start: f64, beats: []const grid.GridBeat) CommitError!void {
+    const d = firstDownbeat(beats) orelse return error.NoDownbeat;
+    const timing = takeTiming(take);
+    const downbeat_now = timing.position + analysis_start + beats[d].time;
+    const shift = nearestBarLine(downbeat_now) - downbeat_now;
+    Reaper.Undo_BeginBlock();
+    _ = Reaper.SetMediaItemInfo_Value(timing.item, "D_POSITION", timing.position + shift);
+    Reaper.Undo_EndBlock("Cajun: align the item's bar 1 to the project grid", -1);
+    Reaper.UpdateArrange();
+    log.info("item moved by {d:.3}s to put bar 1 on a bar line", .{shift});
 }
 
 /// Index of the grid's first beat of bar 1.
