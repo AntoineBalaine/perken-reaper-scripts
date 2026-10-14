@@ -30,12 +30,17 @@ surface shim) must be compiled with REAPER's own toolchain; see the
 |----------------|-------------------------------------------|
 | `knob`         | Knob widget for ReaImGui                  |
 | `colorHelpers` | Color utilities (HSV, contrast, blending) |
+| `ui_palette`   | The whichkey window's colors (Console1's main palette) and the color sets for windows, text fields and lists, shared by reavim-ext and Perken Utilities |
 
 ### Helpers
 
 | Module        | Description                                               |
 |---------------|-----------------------------------------------------------|
-| `fs_helpers`  | Buffer-based path utilities (joinStrings, sanitizeFxName) |
+| `fs_helpers`  | Buffer-based path utilities (joinStrings, sanitizeFxName, which makes an FX name a valid folder name on every OS, and the migration of older folder names) |
+| `reaper_helpers` | Shared REAPER helpers for the Perken extensions: ports of reavim's Lua helpers, pointer-shape shims over the API bindings, track strings, named commands |
+| `csurf`       | The Zig side of the control surface shim (the C++ half is built by `addCsurf`) |
+| `swell`       | The native "save file" dialog (SWELL's `BrowseForSaveFile`) |
+| `reaper_theme` | Reading REAPER's theme colors |
 | `string_pool` | Interned string deduplication                             |
 | `Translator`  | Translation file loader                                   |
 
@@ -56,6 +61,10 @@ surface shim) must be compiled with REAPER's own toolchain; see the
 | `automation_mode` | REAPER automation mode enum (trim, read, touch, latch, write) |
 
 ## Usage
+
+Inside this repository, the extensions depend on it by path
+(`.path = "../reaziglib"`); the rest of this section is for using it from
+another project.
 
 Add reaziglib to your `build.zig.zon`:
 

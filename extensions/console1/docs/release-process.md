@@ -11,23 +11,28 @@
 
 ## Creating a release
 
-A release is triggered by pushing a version tag to the main branch. The tag must start with `v` followed by a semver version number.
+> **The ReaPack and tester sections below still describe the former
+> standalone `reaperConsole1` repository.** They are revised before the
+> first release from the monorepo. The tag and workflow parts (this section
+> and the next) already match it.
+
+A release is triggered by pushing a version tag. Console1 and the MIDI Fighter Twister extension are released separately: the tag must be `console1-v` (or `mft-v`) followed by a semver version number.
 
 ```bash
 git checkout main
-git tag v0.1.0
-git push origin v0.1.0
+git tag console1-v0.1.0
+git push origin console1-v0.1.0
 ```
 
-This triggers the CI workflow, which builds binaries for all five platforms, runs the test suite, and creates a GitHub release with the artifacts attached.
+This triggers the CI workflow, which builds the binaries for each platform it supports, runs the test suite, and creates a GitHub release with the artifacts attached. The release does not claim GitHub's "Latest" badge, because several extensions release from this repository.
 
 ## How the CI workflow works
 
-The workflow at `.github/workflows/cross-platform-build-test.yml` runs on every `v*` tag push. It does the following:
+The workflows at `.github/workflows/console1.yml` and `mft.yml` run on every `console1-v*` and `mft-v*` tag push respectively (and build on branch pushes, without releasing). They do the following:
 
-For each platform (linux-x86_64, linux-aarch64, macos-x86_64, macos-aarch64, windows-x86_64):
+For each platform (linux-x86_64, linux-aarch64, macos-x86_64, macos-aarch64; Windows is left out until the code is ported, because it calls SWELL, which exists on macOS and Linux only):
 
-1. Extracts the version number from the tag (e.g., `v0.1.0` becomes `0.1.0`).
+1. Extracts the version number from the tag (e.g., `console1-v0.1.0` becomes `0.1.0`).
 2. Runs the test suite with `-Dtest=true -Dversion=<version>`.
 3. Builds the host extension and UI library with `-Dversion=<version>` (without `-Dtest=true`, so dev buttons are hidden).
 4. Renames the binaries to platform-specific names (e.g., `reaper_c1-linux-x86_64.so`).

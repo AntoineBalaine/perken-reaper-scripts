@@ -2,19 +2,24 @@
 
 reavim-ext is a compiled Zig REAPER extension (a vim mode) that intercepts
 keystrokes via REAPER's `<accelerator` hook. See `README.md` for the
-architecture and milestones; this file is the operational guide for an agent
-making changes: how to build, and how to run and inspect a real REAPER
+architecture and milestones, and `../ARCHITECTURE.md` for how it fits with the
+other extensions in this repository; this file is the operational guide for
+an agent making changes: how to build, and how to run and inspect a real REAPER
 headlessly so changes can be verified without a human at the keyboard.
 
-## Toolchain and persistent locations
+## Toolchain
 
-Everything needed lives under `/tank/projects` so it survives container resets
-(only `/tank` and `~/.claude` persist; the rest of `/home/claude` is wiped).
-
-- Zig 0.14.1: `/tank/projects/.toolchains/zig-x86_64-linux-0.14.1/zig`
-- Headless X stack (Xvfb, xdotool, GL/xkb libs, all rootless): `/tank/projects/.toolchains/xtools/prefix`
-- Portable REAPER 7.74 (licensed): `/tank/projects/reaper-portable`
-- The extension is symlinked into REAPER: `reaper-portable/UserPlugins/reaper_reavim.so -> /tank/projects/reavim-ext/zig-out/reaper_reavim.so`
+- Zig: the series pinned in `.zigversion` (0.14.x; any patch release works).
+  Put a matching `zig` on `PATH`, or pass `-z /path/to/zig` to the install
+  scripts.
+- The extension lives in the `perken-reaper-scripts` monorepo
+  (`extensions/reavim-ext`) and depends on `../reaziglib` by path.
+- To install it into your own REAPER, use `extensions/build-install.sh`. It
+  keeps an edited `bindings.ini` instead of overwriting it.
+- The headless rig below (Xvfb, xdotool, a portable REAPER) was built on a
+  Linux container, and is optional. Its paths are written as variables
+  (`$ZIG`, `$TOOLS`, `$REAPER_PORTABLE`); set them to wherever you keep those
+  tools. Nothing else in this file depends on it.
 
 ## Config and state files
 
@@ -35,16 +40,18 @@ embedded defaults if missing). The edit action is also bound to `<space>B`.
 From the repo root:
 
 ```sh
-Z=/tank/projects/.toolchains/zig-x86_64-linux-0.14.1/zig
-$Z fmt src/            # format (CONVENTION.md from reaperConsole1: always fmt)
+Z=zig                  # or the path of a matching zig
+$Z fmt src/            # format (always fmt before a commit)
 $Z build test          # unit tests — must be green before commit
 $Z build               # Debug .so (per-key + post-exec logging ACTIVE)
 $Z build -Doptimize=ReleaseSafe   # quiet build to hand to the user
 ```
 
 Debug builds log every keystroke and an API readout after each executed
-command (see Logging below). ReleaseSafe compiles that out. The symlink means
-a rebuild is picked up by the next REAPER launch with no copy step.
+command (see Logging below). ReleaseSafe compiles that out. In the headless
+rig, the extension is symlinked into the portable REAPER's `UserPlugins`
+(`reaper_reavim.so -> <repo>/zig-out/reaper_reavim.so`), so a rebuild is
+picked up by the next REAPER launch with no copy step.
 
 ## Running REAPER headlessly
 
@@ -53,14 +60,14 @@ starts Xvfb on `:99` if needed, launches REAPER into it, and dismisses the
 startup audio-device dialog. With the license installed there is no eval nag.
 
 ```sh
-/tank/projects/reaper-portable/run-headless.sh [project.RPP]
+$REAPER_PORTABLE/run-headless.sh [project.RPP]
 tail -f /tmp/reaper-test.log     # extension stderr (logging)
 ```
 
 Drive input with xdotool against display `:99`:
 
 ```sh
-P=/tank/projects/.toolchains/xtools/prefix
+P=$TOOLS/xtools/prefix
 export LD_LIBRARY_PATH=$P/usr/lib/x86_64-linux-gnu DISPLAY=:99
 X=$P/usr/bin/xdotool
 W=$($X search --name "REAPER v7" | head -1); $X windowfocus $W
