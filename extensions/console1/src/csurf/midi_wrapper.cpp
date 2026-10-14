@@ -4,6 +4,11 @@
 #include "WDL/ptrlist.h"
 #include "WDL/setthreadname.h"
 #include "midi_wrapper_classes.h"
+#ifdef _WIN32
+// Because SWELL declares _beginthreadex on macOS and Linux, only Windows
+// needs the C runtime's own declaration.
+#include <process.h>
+#endif
 
 class threadedMIDIOutput : public midi_Output {
 public:

@@ -7,7 +7,9 @@
 #include <stdio.h>
 
 #include "WDL/db2val.h"
+#ifndef _WIN32
 #include "WDL/swell/swell-types.h"
+#endif
 #include "WDL/wdlcstring.h"
 #include "WDL/wdlstring.h"
 #include "WDL/win32_utf8.h"

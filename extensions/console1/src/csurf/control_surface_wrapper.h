@@ -1,4 +1,10 @@
+// Because SWELL emulates Win32 on macOS and Linux only (its headers need
+// POSIX headers such as dlfcn.h), Windows gets the real Win32 types instead.
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include "WDL/swell/swell-types.h"
+#endif
 #include "WDL/wdltypes.h"
 #include <stdbool.h>
 #ifdef __cplusplus
