@@ -300,14 +300,19 @@ pub fn lazyPathName(file: std.Build.LazyPath) []const u8 {
 ///   C++ library can not be requested by name.)
 /// - Linux: gcc compiles against GNU libstdc++, whose symbols Zig's libc++
 ///   does not provide, so the libstdc++ that gcc itself uses is linked by
-///   its path, as gcc reports it.
+///   its path, as gcc reports it. gcc's code for C++ exceptions also calls
+///   the unwinder (_Unwind_Resume), which lives in libgcc_s, not in
+///   libstdc++; a g++ link adds it implicitly, Zig's linker does not, so it
+///   is linked by its path too.
 /// - Windows (MSVC's runtime) is not handled yet.
 pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) void {
     switch (compile.rootModuleTarget().os.tag) {
         .macos => compile.linkLibCpp(),
         .linux => {
-            const path = std.mem.trim(u8, b.run(&.{ "gcc", "-print-file-name=libstdc++.so" }), " \n\r\t");
-            compile.addObjectFile(.{ .cwd_relative = path });
+            for ([_][]const u8{ "libstdc++.so", "libgcc_s.so.1" }) |lib| {
+                const path = std.mem.trim(u8, b.run(&.{ "gcc", b.fmt("-print-file-name={s}", .{lib}) }), " \n\r\t");
+                compile.addObjectFile(.{ .cwd_relative = path });
+            }
         },
         else => {},
     }
