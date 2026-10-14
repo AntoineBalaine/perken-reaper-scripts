@@ -1,9 +1,10 @@
 //! The action palette ("Perken: Search actions (palette)"): a ReaImGui window
 //! with a text box and a fuzzy-matched list of every action in REAPER's main
 //! section (extensions and scripts included). Typing narrows the list, Up and
-//! Down (or Ctrl+P and Ctrl+N) move the selection, Enter or a click runs the
-//! action, and Escape closes the window. It needs no terminal, so there is no
-//! launcher script, no permission prompt and no files to exchange.
+//! Down (or Ctrl+P and Ctrl+N) move the selection by a row, PageUp and
+//! PageDown by a page, Enter or a click runs the action, and Escape closes
+//! the window. It needs no terminal, so there is no launcher script, no
+//! permission prompt and no files to exchange.
 //!
 //! The window is drawn from a timer that only runs while it is open. ReaImGui
 //! is resolved on the first tick, because it may load after this extension.
@@ -50,6 +51,9 @@ pub const State = struct {
     /// Scroll the list to the selected row on the next frame (set when the
     /// selection moves by keyboard, not by mouse).
     follow_selection: bool = false,
+    /// How many list rows fit in the window, measured while drawing the list
+    /// and used by PageUp and PageDown on the next frame.
+    visible_rows: usize = 10,
     /// The window just opened: focus the text box.
     focus_input: bool = false,
     /// The command chosen by the user. It runs on the next tick, after the
@@ -247,6 +251,11 @@ fn drawContent(ctx: imgui.ContextPtr) void {
     var chosen: ?usize = null;
     palette.push(ctx, &palette.list_colors);
     if (imgui.api.BeginChild(ctx, "##results", null, null, null, null)) {
+        var avail_w: f64 = 0;
+        var avail_h: f64 = 0;
+        imgui.api.GetContentRegionAvail(ctx, &avail_w, &avail_h);
+        const row_h = imgui.api.GetTextLineHeightWithSpacing(ctx);
+        if (row_h > 0 and avail_h > 0) state.visible_rows = @intFromFloat(avail_h / row_h);
         var i: usize = 0;
         while (i < state.result_count) : (i += 1) {
             const entry = state.entries[state.results[i].index];
@@ -278,7 +287,8 @@ fn drawContent(ctx: imgui.ContextPtr) void {
 
 const MAX_RESULTS_LABEL = 512;
 
-/// Up/Down and Ctrl+P/Ctrl+N move the selection, Enter runs it, Escape closes.
+/// Up/Down and Ctrl+P/Ctrl+N move the selection by a row, PageUp/PageDown by
+/// a page, Enter runs it, Escape closes.
 fn handleKeys(ctx: imgui.ContextPtr) void {
     const ctrl = (imgui.api.GetKeyMods(ctx) & imgui.Mod_Ctrl) != 0;
     if (state.result_count > 0) {
@@ -290,6 +300,14 @@ fn handleKeys(ctx: imgui.ContextPtr) void {
             state.selected = moveSelection(state.selected, state.result_count, -1);
             state.follow_selection = true;
         }
+        if (keyPressed(ctx, imgui.Key_PageDown)) {
+            state.selected = moveSelection(state.selected, state.result_count, pageStep(state.visible_rows));
+            state.follow_selection = true;
+        }
+        if (keyPressed(ctx, imgui.Key_PageUp)) {
+            state.selected = moveSelection(state.selected, state.result_count, -pageStep(state.visible_rows));
+            state.follow_selection = true;
+        }
         if (keyPressed(ctx, imgui.Key_Enter) or keyPressed(ctx, imgui.Key_KeypadEnter)) {
             runEntry(state.selected);
             return;
@@ -298,12 +316,20 @@ fn handleKeys(ctx: imgui.ContextPtr) void {
     if (keyPressed(ctx, imgui.Key_Escape)) close();
 }
 
-/// The selection after one step up or down. It stops at both ends instead of
-/// wrapping, so holding a key does not jump from the last result to the first.
+/// The selection after moving `step` rows (positive is down). It stops at
+/// both ends instead of wrapping, so holding a key does not jump from the
+/// last result to the first.
 pub fn moveSelection(selected: usize, count: usize, step: i32) usize {
     if (count == 0) return 0;
-    if (step > 0) return @min(selected + 1, count - 1);
-    return if (selected > 0) selected - 1 else 0;
+    if (step > 0) return @min(selected + @as(usize, @intCast(step)), count - 1);
+    return selected -| @as(usize, @intCast(-step));
+}
+
+/// How far PageUp and PageDown move: the rows that fit in the list, less one,
+/// so that the row at the edge stays in view as the next page begins. It is
+/// never below 1.
+pub fn pageStep(visible_rows: usize) i32 {
+    return @intCast(@max(visible_rows, 2) - 1);
 }
 
 test "moveSelection stops at both ends" {
@@ -312,4 +338,18 @@ test "moveSelection stops at both ends" {
     try std.testing.expectEqual(@as(usize, 0), moveSelection(0, 3, -1));
     try std.testing.expectEqual(@as(usize, 1), moveSelection(2, 3, -1));
     try std.testing.expectEqual(@as(usize, 0), moveSelection(0, 0, 1));
+}
+
+test "moveSelection moves by a page and stops at the ends" {
+    try std.testing.expectEqual(@as(usize, 9), moveSelection(0, 50, 9));
+    try std.testing.expectEqual(@as(usize, 49), moveSelection(45, 50, 9));
+    try std.testing.expectEqual(@as(usize, 11), moveSelection(20, 50, -9));
+    try std.testing.expectEqual(@as(usize, 0), moveSelection(3, 50, -9));
+}
+
+test "pageStep keeps one row of overlap and is never zero" {
+    try std.testing.expectEqual(@as(i32, 9), pageStep(10));
+    try std.testing.expectEqual(@as(i32, 1), pageStep(2));
+    try std.testing.expectEqual(@as(i32, 1), pageStep(1));
+    try std.testing.expectEqual(@as(i32, 1), pageStep(0));
 }
