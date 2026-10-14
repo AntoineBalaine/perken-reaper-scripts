@@ -374,10 +374,14 @@ const TestEnv = struct {
     }
 
     fn parse(env: *const TestEnv, seq: []const u8) !?Command {
+        return env.parseIn(.normal, seq);
+    }
+
+    fn parseIn(env: *const TestEnv, mode: grammar.Mode, seq: []const u8) !?Command {
         var keys = std.ArrayList(Key).init(std.testing.allocator);
         defer keys.deinit();
         try keymod.parseSequence(seq, &keys);
-        return build(&env.tables, .main, .normal, keys.items);
+        return build(&env.tables, .main, mode, keys.items);
     }
 };
 
@@ -420,6 +424,28 @@ test "operator + motion composition" {
     const sB = (try env.parse("s12B")).?;
     try std.testing.expectEqual(grammar.Composition.timeline_op_motion, sB.comp);
     try std.testing.expectEqual(@as(u32, 12), sB.keys[1].prefixed_repetitions);
+}
+
+test "visual track mode accepts timeline operators" {
+    var env = try TestEnv.init(std.testing.allocator);
+    defer env.deinit();
+
+    // Because the timeline operators act on the selected tracks, visual track
+    // mode runs them over the visual track selection.
+    const sB = (try env.parseIn(.visual_track, "sB")).?;
+    try std.testing.expectEqual(grammar.Composition.visual_track_timeline_op_motion, sB.comp);
+    try std.testing.expectEqualStrings("SelectItems", sB.keys[0].name);
+
+    // A key that is both a track and a timeline operator keeps the track meaning.
+    const d = (try env.parseIn(.visual_track, "d")).?;
+    try std.testing.expectEqual(grammar.Composition.visual_track_operator, d.comp);
+
+    // A plain timeline motion still just moves the cursor.
+    const B = (try env.parseIn(.visual_track, "B")).?;
+    try std.testing.expectEqual(grammar.Composition.visual_track_timeline_motion, B.comp);
+
+    // Normal mode is unchanged.
+    try std.testing.expectEqual(grammar.Composition.timeline_op_motion, (try env.parse("sB")).?.comp);
 }
 
 test "register actions: bare blocked, postfix matches, optional matches bare" {

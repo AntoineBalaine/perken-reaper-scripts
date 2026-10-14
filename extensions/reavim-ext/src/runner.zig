@@ -242,6 +242,24 @@ pub fn execute(cmd: builder.Command, ctx: grammar.Context) void {
             if (grammar.cfg.allow_visual_track_timeline_movement)
                 runActionKey(cmd.keys[0], ctx);
         },
+
+        .visual_track_timeline_op_selector, .visual_track_timeline_op_motion => {
+            // Because the timeline operators act on the selected tracks, we
+            // run them as in normal mode while the visual track selection is
+            // still in place, and only then leave the mode.
+            var inner = cmd;
+            inner.comp = if (cmd.comp == .visual_track_timeline_op_selector)
+                .timeline_op_selector
+            else
+                .timeline_op_motion;
+            execute(inner, ctx);
+            state.setModeToNormal();
+            if (!grammar.cfg.persist_visual_track_selection and
+                !cmd.keys[0].def.set_track_selection)
+            {
+                unselectAllButLastTouchedTrack();
+            }
+        },
     }
 }
 

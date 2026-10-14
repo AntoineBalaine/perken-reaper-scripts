@@ -41,6 +41,12 @@ pub const Composition = enum {
     visual_track_motion_extend,
     /// Timeline motion inside visual_track (gated by config).
     visual_track_timeline_motion,
+    /// Timeline operator over a selector, on the visual track selection:
+    /// as timeline_op_selector, then back to normal; maybe unselect.
+    visual_track_timeline_op_selector,
+    /// Timeline operator over a motion, on the visual track selection:
+    /// as timeline_op_motion, then back to normal; maybe unselect.
+    visual_track_timeline_op_motion,
 };
 
 pub const Candidate = struct {
@@ -65,6 +71,11 @@ const main_visual_track = [_]Candidate{
     .{ .types = &.{.track_operator}, .comp = .visual_track_operator },
     .{ .types = &.{.track_selector}, .comp = .plain },
     .{ .types = &.{.track_motion}, .comp = .visual_track_motion_extend },
+    // Because the timeline operators work on the selected tracks, the visual
+    // track selection is the set of tracks they act on. Track operators come
+    // first, so keys that are both (d, y, z) keep their track meaning here.
+    .{ .types = &.{ .timeline_operator, .timeline_selector }, .comp = .visual_track_timeline_op_selector },
+    .{ .types = &.{ .timeline_operator, .timeline_motion }, .comp = .visual_track_timeline_op_motion },
     .{ .types = &.{.timeline_motion}, .comp = .visual_track_timeline_motion },
     .{ .types = &.{.command}, .comp = .plain },
 };
