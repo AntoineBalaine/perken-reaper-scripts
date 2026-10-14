@@ -4,7 +4,8 @@ How this repository fits together: what lives where, how the compiled
 extensions relate to each other and to the older Lua scripts, which Lua code
 has been ported, and what the extensions keep in REAPER's resource folder.
 For the mechanics of releasing, building and installing, see
-[README.md](README.md).
+[README.md](README.md); to build, test, extend or debug an extension, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## The repository at a glance
 
@@ -194,3 +195,63 @@ run on the arm64 row.
   locally in Docker, which a Mac cannot otherwise do.
 - **Each extension keeps its own `CHANGELOG.md`** and releases from its own
   tags.
+
+## The vim grammar in brief
+
+`reavim-ext` turns key sequences into commands with a small grammar
+(`src/grammar.zig`). Each binding in the keymap has an action type, and the
+type decides how the key combines with the others.
+
+| Action type | Role | Example |
+|---|---|---|
+| `command` | Runs by itself | `p` (paste) |
+| `track_motion`, `timeline_motion` | Moves along the tracks or along time | `j`, `G`; `w`, `e` |
+| `track_operator`, `timeline_operator` | Acts on what a motion or selector spans | `d` (cut tracks), `s` (select items) |
+| `track_selector`, `timeline_selector` | Names a span without moving | `ig` (all tracks) |
+| `visual_track_command`, `visual_timeline_command` | A command that exists only inside a visual mode | `o` in `v` (switch the selection side) |
+
+There are three modes: normal, visual track (`V`) and visual timeline (`v`).
+
+- In **normal mode** an operator is followed by a motion or a selector, and
+  the pair runs as one command (`dj`, `se`). The type of the second key
+  decides which family runs, so the same operator letter can exist for both:
+  `dj` cuts tracks and `dw` cuts items. A counted motion (`d3j`) repeats it. A
+  track operator typed twice (`dd`, `yy`) applies to the current track.
+- In **visual track mode** the track motions extend a selection of tracks, a
+  track operator acts on it, and a timeline operator followed by a timeline
+  motion (`se`) acts on the selected tracks over that stretch of time.
+- In **visual timeline mode** the timeline motions extend a time selection,
+  and a timeline operator acts on it.
+
+The sections of the keymap (`[main.command]`, `[midi.timeline_motion]`, …)
+name the context (`main` or `midi`) and the action type.
+`reavim-ext/port/bindings_inventory.md` lists every binding and explains how
+the keymap files merge.
+
+## Licences
+
+| Part | Licence |
+|---|---|
+| `reavim/` (the Lua vim mode) | MIT, copyright 2016 ggVGc |
+| `extensions/reaziglib` | LGPL-3.0-or-later |
+| `extensions/perken-utilities` | GPL-3.0, because it includes qm-dsp, which is GPL-2.0-or-later |
+| `extensions/reavim-ext` | No licence file yet. It ports the MIT-licensed Lua code, whose notice has to stay with it |
+| `extensions/console1` | No licence file yet; its README says the terms are still to be settled |
+
+The Tukan Studios SumChannel S2 JSFX that `reaperConsole1` used to vendor is
+not in this repository, because Tukan publishes it without a licence. Do not
+add it back.
+
+## History of this repository
+
+The extensions began as separate repositories (`reavim-ext`, `reaziglib` and
+the private `reaperConsole1`) and were merged here on 2026-10-13. Their
+histories were rewritten into `extensions/<name>/` and replayed one after the
+other on top of the scripts history, with no merge commits, so the history is
+linear. Two consequences:
+
+- The commit hashes differ from those in the old standalone repositories, so a
+  hash quoted from one of them will not be found here.
+- Tags are prefixed with the extension name (`reavim-ext-v0.2.0`), and a tag
+  triggers only its own extension's workflow.
+

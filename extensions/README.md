@@ -14,6 +14,10 @@ package with its own `build.zig`, `build.zig.zon`, CI workflow
 Extensions depend on `reaziglib` by path (`.path = "../reaziglib"`), so a
 change to the library and to the code using it lands in one commit.
 
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how the pieces fit together and
+which Lua scripts have been ported; [CONTRIBUTING.md](CONTRIBUTING.md) covers
+building, testing, adding actions and debugging.
+
 ## Releases and tags
 
 Each extension is versioned and released on its own, from its own tags:
