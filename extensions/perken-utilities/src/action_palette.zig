@@ -2,8 +2,8 @@
 //! with a text box and a fuzzy-matched list of every action in REAPER's main
 //! section (extensions and scripts included). Typing narrows the list, Up and
 //! Down (or Ctrl+P and Ctrl+N) move the selection by a row, PageUp and
-//! PageDown by a page, Enter or a click runs the action, and Escape closes
-//! the window. It needs no terminal, so there is no launcher script, no
+//! PageDown by a page, Home and End jump to the first and last result, Enter
+//! or a click runs the action, and Escape closes the window. It needs no terminal, so there is no launcher script, no
 //! permission prompt and no files to exchange.
 //!
 //! The window is drawn from a timer that only runs while it is open. ReaImGui
@@ -288,7 +288,7 @@ fn drawContent(ctx: imgui.ContextPtr) void {
 const MAX_RESULTS_LABEL = 512;
 
 /// Up/Down and Ctrl+P/Ctrl+N move the selection by a row, PageUp/PageDown by
-/// a page, Enter runs it, Escape closes.
+/// a page, Home/End to the first/last result, Enter runs it, Escape closes.
 fn handleKeys(ctx: imgui.ContextPtr) void {
     const ctrl = (imgui.api.GetKeyMods(ctx) & imgui.Mod_Ctrl) != 0;
     if (state.result_count > 0) {
@@ -308,6 +308,14 @@ fn handleKeys(ctx: imgui.ContextPtr) void {
             state.selected = moveSelection(state.selected, state.result_count, -pageStep(state.visible_rows));
             state.follow_selection = true;
         }
+        if (keyPressed(ctx, imgui.Key_Home)) {
+            state.selected = edgeSelection(state.result_count, false);
+            state.follow_selection = true;
+        }
+        if (keyPressed(ctx, imgui.Key_End)) {
+            state.selected = edgeSelection(state.result_count, true);
+            state.follow_selection = true;
+        }
         if (keyPressed(ctx, imgui.Key_Enter) or keyPressed(ctx, imgui.Key_KeypadEnter)) {
             runEntry(state.selected);
             return;
@@ -323,6 +331,12 @@ pub fn moveSelection(selected: usize, count: usize, step: i32) usize {
     if (count == 0) return 0;
     if (step > 0) return @min(selected + @as(usize, @intCast(step)), count - 1);
     return selected -| @as(usize, @intCast(-step));
+}
+
+/// The first or last row of a list of `count` rows.
+pub fn edgeSelection(count: usize, last: bool) usize {
+    if (count == 0 or !last) return 0;
+    return count - 1;
 }
 
 /// How far PageUp and PageDown move: the rows that fit in the list, less one,
@@ -345,6 +359,13 @@ test "moveSelection moves by a page and stops at the ends" {
     try std.testing.expectEqual(@as(usize, 49), moveSelection(45, 50, 9));
     try std.testing.expectEqual(@as(usize, 11), moveSelection(20, 50, -9));
     try std.testing.expectEqual(@as(usize, 0), moveSelection(3, 50, -9));
+}
+
+test "edgeSelection picks the first or last row" {
+    try std.testing.expectEqual(@as(usize, 0), edgeSelection(5, false));
+    try std.testing.expectEqual(@as(usize, 4), edgeSelection(5, true));
+    try std.testing.expectEqual(@as(usize, 0), edgeSelection(0, true));
+    try std.testing.expectEqual(@as(usize, 0), edgeSelection(1, true));
 }
 
 test "pageStep keeps one row of overlap and is never zero" {
