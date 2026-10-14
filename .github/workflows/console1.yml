@@ -26,7 +26,8 @@ on:
 # GitHub retired the macos-13 (Intel) runner, so the x86_64 Mac build runs on
 # macos-15 too, with -Dtarget=x86_64-macos (Apple clang builds both
 # architectures); its tests can only run on a native row.
-# Windows builds with the msvc ABI (x86_64-windows-msvc): cl compiles the
+# Windows has no row yet (see the matrix); when it returns, it builds with
+# the msvc ABI (x86_64-windows-msvc): cl compiles the
 # C++ that REAPER calls, and its objects need MSVC's runtime libraries,
 # which MinGW (Zig's default Windows ABI) does not provide. Tests run on
 # every row except the cross-built x86_64 Mac one (cross: true).
@@ -57,11 +58,8 @@ jobs:
             target: native
             host_ext: dylib
             ui_ext: dylib
-          - os: windows-latest
-            name: windows-x86_64
-            target: x86_64-windows-msvc
-            host_ext: dll
-            ui_ext: dll
+          # Windows is left out until Console1 is ported: its Zig code calls
+          # SWELL (macOS/Linux only) and creates its dialog through it.
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.name }}
