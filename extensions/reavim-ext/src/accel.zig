@@ -25,6 +25,8 @@ pub const accelerator_register_t = extern struct {
     user: ?*anyopaque,
 };
 
+const std = @import("std");
+
 // SWELL key-message lParam flags (swell-generic-gdk.cpp packs the win32 ACCEL
 // modifier mask into lParam): FVIRTKEY distinguishes VK codes from raw ASCII
 // punctuation characters, which otherwise collide (e.g. '.' 0x2E == VK_DELETE).
@@ -32,6 +34,27 @@ pub const FVIRTKEY: isize = 0x01;
 pub const FSHIFT: isize = 0x04;
 pub const FCONTROL: isize = 0x08;
 pub const FALT: isize = 0x10;
+/// On macOS, SWELL reports the physical Control key with this flag, and the
+/// Command key as FCONTROL; on Linux it is the Super key.
+pub const FLWIN: isize = 0x20;
+
+/// Whether a key message counts as Ctrl-modified. Because SWELL reports
+/// Command as FCONTROL and the physical Control key as FLWIN on macOS, a
+/// user who types Ctrl+Plus expects the same binding as Cmd+Plus, so both
+/// count there. Elsewhere only FCONTROL does, since FLWIN is the Super key.
+pub fn ctrlHeld(lparam: isize, os: std.Target.Os.Tag) bool {
+    const mask: isize = if (os == .macos) FCONTROL | FLWIN else FCONTROL;
+    return (lparam & mask) != 0;
+}
+
+test "ctrlHeld counts the physical Control key on macOS only" {
+    try std.testing.expect(ctrlHeld(FCONTROL, .macos));
+    try std.testing.expect(ctrlHeld(FLWIN, .macos));
+    try std.testing.expect(ctrlHeld(FVIRTKEY | FSHIFT | FLWIN, .macos));
+    try std.testing.expect(!ctrlHeld(FVIRTKEY | FSHIFT, .macos));
+    try std.testing.expect(ctrlHeld(FCONTROL, .linux));
+    try std.testing.expect(!ctrlHeld(FLWIN, .linux));
+}
 
 pub const WM_KEYDOWN: c_uint = 0x0100;
 pub const WM_KEYUP: c_uint = 0x0101;

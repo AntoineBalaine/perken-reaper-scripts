@@ -281,7 +281,7 @@ pub fn onKey(msg: *accel.MSG) c_int {
         .alt = win_input.keyDown(VK_MENU),
     } else .{
         .shift = (msg.lParam & accel.FSHIFT) != 0,
-        .ctrl = (msg.lParam & accel.FCONTROL) != 0,
+        .ctrl = accel.ctrlHeld(msg.lParam, builtin.os.tag),
         .alt = (msg.lParam & accel.FALT) != 0,
     };
 
@@ -425,4 +425,5 @@ test {
     _ = @import("builder.zig");
     _ = @import("grammar.zig");
     _ = @import("actions.zig");
+    _ = @import("accel.zig");
 }
