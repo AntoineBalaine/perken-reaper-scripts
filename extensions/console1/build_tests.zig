@@ -62,39 +62,16 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
                 dependencies.wdl.path("WDL/swell/swell-modstub-generic.cpp"),
         };
 
-    const cpp_flags: []const []const u8 = if (is_windows)
-        &.{
-            "cl",
-            "/c",
-            "/O2",
-            "/std:c++14",
-            b.fmt("/I{s}", .{dependencies.wdl.path("").getPath(b)}),
-            "/DNOMINMAX",
-            "/D_CRT_SECURE_NO_WARNINGS",
-            "/D_CRT_NONSTDC_NO_DEPRECATE",
-            "/Fo",
-        }
-    else
-        &.{
-            if (is_macos) "clang" else "gcc",
-            "-c",
-            "-fPIC",
-            "-O2",
-            "-std=c++14",
-            b.fmt("-I{s}", .{dependencies.wdl.path("").getPath(b)}),
-            "-DSWELL_PROVIDED_BY_APP",
-            "-o",
-        };
-
+    // C++ that REAPER calls (the control surface, MIDI devices) is compiled
+    // with REAPER's own toolchain for the requested target, including its
+    // architecture and macOS version (see ../README.md).
+    const cxx_flags = reaziglib.CxxFlags{
+        .gnu = &.{"-DSWELL_PROVIDED_BY_APP"},
+        .msvc = &.{ "/D_CRT_SECURE_NO_WARNINGS", "/D_CRT_NONSTDC_NO_DEPRECATE" },
+    };
     for (cppfiles) |cppfile| {
-        const filearg = std.fmt.allocPrint(
-            b.allocator,
-            "{s}.o",
-            .{std.fs.path.basename(cppfile.getPath(b))},
-        ) catch unreachable;
-        const cxx = b.addSystemCommand(cpp_flags);
-        test_exe.addObjectFile(cxx.addOutputFileArg(filearg));
-        cxx.addFileArg(cppfile);
+        const name = b.fmt("{s}", .{std.fs.path.basename(reaziglib.lazyPathName(cppfile))});
+        test_exe.addObjectFile(reaziglib.reaperCxxObject(b, test_exe.rootModuleTarget(), cppfile, &.{dependencies.wdl.path("")}, cxx_flags, name));
     }
 
     // Add dependencies

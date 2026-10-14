@@ -318,6 +318,21 @@ pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) voi
     }
 }
 
+/// Zig locates the macOS SDK only when building for the host's own
+/// architecture. Building for the other Mac architecture (x86_64 from an
+/// arm64 Mac, as CI does) needs the SDK's frameworks and libraries added
+/// explicitly, e.g. to link AppKit; `xcrun` reports where the SDK is. Does
+/// nothing for other targets or a native build.
+pub fn addMacosSdk(b: *std.Build, compile: *std.Build.Step.Compile) void {
+    const target = compile.rootModuleTarget();
+    if (target.os.tag != .macos or builtin.os.tag != .macos) return;
+    if (target.cpu.arch == builtin.cpu.arch) return;
+    const sdk = std.mem.trim(u8, b.run(&.{ "xcrun", "--show-sdk-path" }), " \n\r\t");
+    compile.root_module.addFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "System/Library/Frameworks" }) });
+    compile.root_module.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "usr/include" }) });
+    compile.root_module.addLibraryPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "usr/lib" }) });
+}
+
 /// Adds the control surface shim to an extension: the "csurf" module (Zig
 /// side) and csurf_shim.cpp compiled with REAPER's toolchain (C++ side).
 /// It is opt-in because it compiles C++.

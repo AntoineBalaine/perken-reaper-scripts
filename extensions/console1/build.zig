@@ -44,6 +44,7 @@ pub fn build(b: *std.Build) !void {
     const is_macos = target.result.os.tag == .macos;
 
     if (is_macos) {
+        reaziglib.addMacosSdk(b, lib);
         lib.root_module.linkFramework("AppKit", .{});
         lib.linkLibCpp();
         client_install = b.addInstallArtifact(lib, .{
@@ -110,40 +111,16 @@ pub fn build(b: *std.Build) !void {
                 wdl_dep.path("WDL/swell/swell-modstub-generic.cpp"),
         };
 
-    const cpp_flags: []const []const u8 = if (is_windows)
-        &.{
-            "cl",
-            "/c",
-            "/O2",
-            "/std:c++14",
-            b.fmt("/I{s}", .{wdl_dep.path("").getPath(b)}),
-            "/DNOMINMAX",
-            "/D_CRT_SECURE_NO_WARNINGS",
-            "/D_CRT_NONSTDC_NO_DEPRECATE",
-            "/Fo",
-        }
-    else
-        &.{
-            if (is_macos) "clang" else "gcc",
-            "-c",
-            "-fPIC",
-            "-O2",
-            "-std=c++14",
-            b.fmt("-I{s}", .{wdl_dep.path("").getPath(b)}),
-            "-DSWELL_PROVIDED_BY_APP",
-            "-fsigned-char",
-            "-o",
-        };
-
+    // C++ that REAPER calls (the control surface, MIDI devices) is compiled
+    // with REAPER's own toolchain for the requested target, including its
+    // architecture and macOS version (see ../README.md).
+    const cxx_flags = reaziglib.CxxFlags{
+        .gnu = &.{ "-DSWELL_PROVIDED_BY_APP", "-fsigned-char" },
+        .msvc = &.{ "/D_CRT_SECURE_NO_WARNINGS", "/D_CRT_NONSTDC_NO_DEPRECATE" },
+    };
     for (cppfiles) |cppfile| {
-        const filearg = try std.fmt.allocPrint(
-            b.allocator,
-            "{s}.o",
-            .{std.fs.path.basename(cppfile.getPath(b))},
-        );
-        const cxx = b.addSystemCommand(cpp_flags);
-        lib.addObjectFile(cxx.addOutputFileArg(filearg));
-        cxx.addFileArg(cppfile);
+        const name = b.fmt("{s}", .{std.fs.path.basename(reaziglib.lazyPathName(cppfile))});
+        lib.addObjectFile(reaziglib.reaperCxxObject(b, lib.rootModuleTarget(), cppfile, &.{wdl_dep.path("")}, cxx_flags, name));
     }
 
     // On Windows, compile the .rc resource file with the native resource compiler.
@@ -242,6 +219,7 @@ fn addMftTarget(
     lib.linkLibC();
 
     const client_install: *std.Build.Step.InstallArtifact = if (is_macos) blk: {
+        reaziglib.addMacosSdk(b, lib);
         lib.root_module.linkFramework("AppKit", .{});
         lib.linkLibCpp();
         break :blk b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_mft.dylib", .dest_dir = .{ .override = .{ .custom = "" } } });
@@ -284,36 +262,16 @@ fn addMftTarget(
                 wdl_dep.path("WDL/swell/swell-modstub-generic.cpp"),
         };
 
-    const cpp_flags: []const []const u8 = if (is_windows)
-        &.{
-            "cl",                                           "/c",
-            "/O2",                                          "/std:c++14",
-            b.fmt("/I{s}", .{wdl_dep.path("").getPath(b)}), "/DNOMINMAX",
-            "/D_CRT_SECURE_NO_WARNINGS",                    "/D_CRT_NONSTDC_NO_DEPRECATE",
-            "/Fo",
-        }
-    else
-        &.{
-            if (is_macos) "clang" else "gcc",
-            "-c",
-            "-fPIC",
-            "-O2",
-            "-std=c++14",
-            b.fmt("-I{s}", .{wdl_dep.path("").getPath(b)}),
-            "-DSWELL_PROVIDED_BY_APP",
-            "-fsigned-char",
-            "-o",
-        };
-
+    // C++ that REAPER calls (the control surface, MIDI devices) is compiled
+    // with REAPER's own toolchain for the requested target, including its
+    // architecture and macOS version (see ../README.md).
+    const cxx_flags = reaziglib.CxxFlags{
+        .gnu = &.{ "-DSWELL_PROVIDED_BY_APP", "-fsigned-char" },
+        .msvc = &.{ "/D_CRT_SECURE_NO_WARNINGS", "/D_CRT_NONSTDC_NO_DEPRECATE" },
+    };
     for (cppfiles) |cppfile| {
-        const filearg = try std.fmt.allocPrint(
-            b.allocator,
-            "mft_{s}.o",
-            .{std.fs.path.basename(cppfile.getPath(b))},
-        );
-        const cxx = b.addSystemCommand(cpp_flags);
-        lib.addObjectFile(cxx.addOutputFileArg(filearg));
-        cxx.addFileArg(cppfile);
+        const name = b.fmt("mft_{s}", .{std.fs.path.basename(reaziglib.lazyPathName(cppfile))});
+        lib.addObjectFile(reaziglib.reaperCxxObject(b, lib.rootModuleTarget(), cppfile, &.{wdl_dep.path("")}, cxx_flags, name));
     }
 
     if (is_windows) {

@@ -23,6 +23,9 @@ on:
 # macOS jobs are pinned to macos-15: on the macos-26 image that
 # macos-latest now points to, Zig 0.14.1 links nothing from the C library
 # (likely the newer SDK's library stubs), while the macOS 15 SDK works.
+# GitHub retired the macos-13 (Intel) runner, so the x86_64 Mac build runs on
+# macos-15 too, with -Dtarget=x86_64-macos (Apple clang builds both
+# architectures); its tests can only run on a native row.
 jobs:
   build-and-test:
     strategy:
@@ -31,22 +34,27 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x86_64
+            target: native
             host_ext: so
             ui_ext: so
           - os: ubuntu-24.04-arm
             name: linux-aarch64
+            target: native
             host_ext: so
             ui_ext: so
-          - os: macos-13
+          - os: macos-15
             name: macos-x86_64
+            target: x86_64-macos
             host_ext: dylib
             ui_ext: dylib
           - os: macos-15
             name: macos-aarch64
+            target: native
             host_ext: dylib
             ui_ext: dylib
           - os: windows-latest
             name: windows-x86_64
+            target: native
             host_ext: dll
             ui_ext: dll
 
@@ -93,13 +101,14 @@ jobs:
         run: brew install php
 
       - name: Run tests
+        if: matrix.target == 'native'
         run: zig build test -Dtest=true -Dversion=${{ steps.version.outputs.version }}
 
       - name: Build host extension
-        run: zig build -Dversion=${{ steps.version.outputs.version }}
+        run: zig build -Dtarget=${{ matrix.target }} -Dversion=${{ steps.version.outputs.version }}
 
       - name: Build UI library
-        run: zig build ui -Dversion=${{ steps.version.outputs.version }}
+        run: zig build ui -Dtarget=${{ matrix.target }} -Dversion=${{ steps.version.outputs.version }}
 
       - name: Rename binaries for release
         shell: bash
