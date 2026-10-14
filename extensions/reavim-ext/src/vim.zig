@@ -8,7 +8,8 @@
 //!   - unbound ctrl/alt combos at the start of a sequence pass through
 //!   - unbound plain keys are eaten (vim-like; no surprise spacebar playback)
 //!   - ESC clears a pending sequence; in visual modes it returns to normal;
-//!     in normal mode with nothing pending it passes through
+//!     in normal mode with nothing pending it runs the <esc> binding (the
+//!     default keymap's Reset), or passes through when nothing is bound
 const std = @import("std");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
@@ -336,6 +337,14 @@ pub fn onKey(msg: *accel.MSG) c_int {
                 state.setModeToNormal();
                 log.info("mode: normal", .{});
             }
+            return 1;
+        }
+        // Because this early return would otherwise keep the <esc> binding
+        // (Reset: stop, normal mode, clear the selections) from ever being
+        // looked up, we run it here when the keymap binds it. Its key-up is
+        // eaten as well, since its down was.
+        if (builder.build(&b.tables, ctx, state.grammarMode(), &.{k}) != null) {
+            if (down) _ = pushKey(b, ctx, k, false);
             return 1;
         }
         return 0;
