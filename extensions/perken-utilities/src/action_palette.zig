@@ -59,18 +59,32 @@ pub const State = struct {
     /// window has stopped being drawn, so that it does not run with the
     /// palette still on screen.
     pending_cmd: c_int = 0,
+    /// Which REAPER section the palette lists and runs: the MIDI editor's when
+    /// it was opened from the MIDI editor, the main section's otherwise.
+    midi: bool = false,
+    /// The section the pending command belongs to.
+    pending_midi: bool = false,
 };
 
 pub var state: State = .{};
 
 // ---- the action ----
 
-fn paletteAction(_: *actions.RunCtx) void {
+const main_section: c_int = 0;
+const midi_editor_section: c_int = 32060;
+
+/// The id of the REAPER section whose actions the palette lists.
+pub fn sectionId(midi: bool) c_int {
+    return if (midi) midi_editor_section else main_section;
+}
+
+fn paletteAction(rctx: *actions.RunCtx) void {
     if (state.imgui_state == .missing) {
         showMissingImgui();
         return;
     }
     if (state.open) return;
+    state.midi = rctx.context == .midi;
     if (!loadEntries()) return;
     state.query[0] = 0;
     state.shown_query[0] = 0;
@@ -88,6 +102,11 @@ fn showMissingImgui() void {
 
 pub const entries = [_]actions.Entry{
     .{ .name = "SearchActionsPalette", .def = .{ .steps = &.{.{ .func = &paletteAction }}, .desc = "Search actions (palette)" } },
+    // Because the keymap runs a MIDI-context binding through the MIDI editor,
+    // which only knows the actions registered in its own section, the MIDI
+    // editor gets its own registration of the palette, which lists the MIDI
+    // editor's actions.
+    .{ .name = "SearchActionsPaletteMidi", .def = .{ .steps = &.{.{ .func = &paletteAction }}, .midi_command = true, .desc = "Search MIDI editor actions (palette)" } },
 };
 
 // ---- the action list ----
@@ -99,7 +118,7 @@ fn loadEntries() bool {
     state.entries = &.{};
     const alloc = state.arena.?.allocator();
 
-    const section = Reaper.SectionFromUniqueID(0) orelse {
+    const section = Reaper.SectionFromUniqueID(sectionId(state.midi)) orelse {
         log.warn("REAPER has no main actions section", .{});
         return false;
     };
@@ -163,7 +182,7 @@ pub fn onTimer() callconv(.C) void {
     if (state.pending_cmd != 0) {
         const id = state.pending_cmd;
         state.pending_cmd = 0;
-        Reaper.Main_OnCommand(id, 0);
+        actions.dispatch(id, state.pending_midi);
     }
 
     ensureImgui();
@@ -192,6 +211,7 @@ fn runEntry(result_index: usize) void {
     const entry = state.entries[state.results[result_index].index];
     log.info("running {d}: {s}", .{ entry.id, entry.name });
     state.pending_cmd = entry.id;
+    state.pending_midi = state.midi;
     close();
 }
 
@@ -215,7 +235,7 @@ fn drawWindow() void {
     imgui.api.SetNextWindowSize(ctx, 680, 460, &imgui.Cond_FirstUseEver);
     var is_open: bool = true;
     var flags: c_int = imgui.WindowFlags_NoSavedSettings | imgui.WindowFlags_NoCollapse;
-    if (imgui.api.Begin(ctx, "Perken: search actions", &is_open, &flags)) drawContent(ctx);
+    if (imgui.api.Begin(ctx, if (state.midi) "Perken: search MIDI editor actions" else "Perken: search actions", &is_open, &flags)) drawContent(ctx);
     imgui.api.End(ctx);
     palette.pop(ctx, palette.window_colors.len);
     if (state.font != null) imgui.api.PopFont(ctx);
@@ -372,4 +392,9 @@ test "pageStep keeps one row of overlap and is never zero" {
     try std.testing.expectEqual(@as(i32, 1), pageStep(2));
     try std.testing.expectEqual(@as(i32, 1), pageStep(1));
     try std.testing.expectEqual(@as(i32, 1), pageStep(0));
+}
+
+test "sectionId picks the MIDI editor's section only for the MIDI palette" {
+    try std.testing.expectEqual(@as(c_int, 0), sectionId(false));
+    try std.testing.expectEqual(@as(c_int, 32060), sectionId(true));
 }
