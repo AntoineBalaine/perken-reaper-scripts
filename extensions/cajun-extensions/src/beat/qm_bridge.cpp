@@ -98,8 +98,11 @@ extern "C" int cajun_beat_track(const float *mono, size_t frames, double sample_
         const float *downsampled = down_beat.getBufferedAudio(down_length);
         down_beat.findDownBeats(downsampled, down_length, beats, downbeats);
 
-        // The plugin's timestamps: beat index (in hops) times the step size,
-        // from the start of the audio.
+        // Beat index (in hops) times the step size, from the start of the
+        // audio, plus half a step: as Mixxx's analyser does
+        // (AnalyzerQueenMaryBeats::finalize), because a detected beat lies
+        // between two analysis frames. qm-dsp's Vamp plugin omits the half
+        // step.
         result->beat_count = beats.size();
         result->beat_times = static_cast<double *>(std::malloc(sizeof(double) * (beats.size() + 1)));
         result->downbeat_count = downbeats.size();
@@ -110,8 +113,8 @@ extern "C" int cajun_beat_track(const float *mono, size_t frames, double sample_
             return 1;
         }
         for (size_t i = 0; i < beats.size(); ++i) {
-            const size_t frame = size_t(beats[i]) * size_t(step);
-            result->beat_times[i] = double(frame) / sample_rate;
+            const double frame = beats[i] * double(step) + double(step) / 2.0;
+            result->beat_times[i] = frame / sample_rate;
         }
         for (size_t i = 0; i < downbeats.size(); ++i) result->downbeats[i] = downbeats[i];
         return 0;

@@ -13,6 +13,7 @@
 //! the tracker changes level.
 const std = @import("std");
 const beat = @import("beat");
+const grid = @import("grid");
 
 pub const Wav = struct {
     rate: u32,
@@ -65,6 +66,25 @@ pub fn printRun(out: anytype, label: []const u8, result: beat.Result, summary: b
         if (summary.steady) "steady" else "varying", summary.beat_count,
     });
     _ = result;
+}
+
+/// The constant-tempo grid (Mixxx's post-processing) and its regions.
+pub fn printGrid(out: anytype, alloc: std.mem.Allocator, result: beat.Result) !void {
+    const times = try alloc.alloc(f64, result.beats.len);
+    defer alloc.free(times);
+    for (result.beats, times) |b, *t| t.* = b.time;
+    var g = try grid.analyze(alloc, times);
+    defer g.deinit(alloc);
+    if (g.tempo) |t| {
+        try out.print("  constant tempo {d:.3} BPM, grid anchored at {d:.3}s\n", .{ t.bpm, t.first_beat });
+    } else {
+        try out.print("  no constant tempo could be inferred\n", .{});
+    }
+    try out.print("  {d} constant regions:\n", .{g.regions.len - 1});
+    for (g.regions[0 .. g.regions.len - 1], 0..) |r, i| {
+        const end = g.regions[i + 1].first_beat;
+        try out.print("    {d:>7.2}s - {d:>7.2}s  {d:>7.2} BPM  ({d} beats)\n", .{ r.first_beat, end, r.bpm(), grid.regionBeatCount(end - r.first_beat, r.beat_length) });
+    }
 }
 
 pub fn printOutliers(out: anytype, result: beat.Result, median: f64) !void {
@@ -140,10 +160,12 @@ pub fn main() !void {
     const f = try beat.summarize(alloc, free_run.beats);
     try printRun(out, "free  ", free_run, f);
     try printOutliers(out, free_run, f.median);
+    try printGrid(out, alloc, free_run);
 
     var locked = try beat.track(alloc, wav.mono, rate, .{ .input_tempo = f.median, .constrain_tempo = 1 });
     defer locked.deinit(alloc);
     const l = try beat.summarize(alloc, locked.beats);
     try printRun(out, "locked", locked, l);
     try printOutliers(out, locked, l.median);
+    try printGrid(out, alloc, locked);
 }

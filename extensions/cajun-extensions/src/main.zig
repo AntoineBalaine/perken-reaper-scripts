@@ -164,6 +164,7 @@ test {
     _ = @import("sws.zig");
     _ = @import("auto_lane_watcher.zig");
     _ = @import("beat/beat.zig");
+    _ = @import("beat/grid.zig");
     _ = @import("beat/tempo_window.zig");
     _ = @import("config.zig");
     _ = @import("drums.zig");

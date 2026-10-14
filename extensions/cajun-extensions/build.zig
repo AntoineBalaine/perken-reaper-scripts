@@ -62,6 +62,7 @@ pub fn build(b: *std.Build) void {
     });
     analyze.linkLibC();
     analyze.root_module.addImport("beat", b.createModule(.{ .root_source_file = b.path("src/beat/beat.zig") }));
+    analyze.root_module.addImport("grid", b.createModule(.{ .root_source_file = b.path("src/beat/grid.zig") }));
     addBeatTracker(b, qm_dep, analyze);
     const run_analyze = b.addRunArtifact(analyze);
     if (b.args) |args| run_analyze.addArgs(args);
