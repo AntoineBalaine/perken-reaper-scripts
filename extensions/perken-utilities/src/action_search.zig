@@ -20,7 +20,11 @@ const batch_rename = @import("batch_rename.zig");
 
 const log = std.log.scoped(.action_search);
 
-const POLL_EVERY_TICKS = 10;
+/// Because the person is waiting on the chosen action, the done file is
+/// checked on every timer tick (once per frame, about 30 times a second), so
+/// the action runs as soon as fzf has exited. Each check is one failed file
+/// open, and only happens while a search is open.
+const POLL_EVERY_TICKS = 1;
 /// A safety cap on the enumeration, which ends when REAPER returns 0.
 const MAX_ACTIONS = 500_000;
 
