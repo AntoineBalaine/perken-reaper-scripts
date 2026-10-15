@@ -698,7 +698,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// EnumProjects
     /// idx=-1 for current project,projfn can be NULL if not interested in filename. use idx 0x40000000 for currently rendering project, if any.
-    pub var EnumProjects: *fn (idx: c_int, projfnOutOptional: ?*c_char) callconv(.C) *ReaProject = undefined;
+    pub var EnumProjects: *fn (idx: c_int, projfnOutOptional: ?[*]u8, projfnOutOptional_sz: c_int) callconv(.C) ?*ReaProject = undefined;
 
     /// EnumProjExtState
     /// Enumerate the data stored with the project for a specific extname. Returns false when there is no more data. See SetProjExtState, GetProjExtState.
@@ -4193,3 +4193,103 @@ pub const reaper = struct { // @import("reaper");
     /// WDL_VirtualWnd_ScaledBlitBG
     pub var WDL_VirtualWnd_ScaledBlitBG: *fn (dest: *LICE_IBitmap, src: *WDL_VirtualWnd_BGCfg, destx: c_int, desty: c_int, destw: c_int, desth: c_int, clipx: c_int, clipy: c_int, clipw: c_int, cliph: c_int, alpha: f32, mode: c_int) callconv(.C) bool = undefined;
 };
+
+const std = @import("std");
+
+/// Whether `name` is a REAPER API function that `reaper` declares. The
+/// comparison runs over the declarations at compile time, so the table costs
+/// nothing in a binary that never calls this.
+pub fn isApiFunction(name: []const u8) bool {
+    @setEvalBranchQuota(200_000);
+    inline for (@typeInfo(reaper).@"struct".decls) |decl| {
+        comptime var info = @typeInfo(@TypeOf(@field(reaper, decl.name)));
+        if (comptime info == .optional) info = @typeInfo(info.optional.child);
+        if (comptime info == .pointer and @typeInfo(info.pointer.child) == .@"fn") {
+            if (std.mem.eql(u8, name, decl.name)) return true;
+        }
+    }
+    return false;
+}
+
+/// Finds the REAPER functions that `source` uses through a `Reaper.` or
+/// `reaper.` prefix but that `listed` does not name, and appends each one to
+/// `out` once.
+///
+/// Because an extension that loads its API with `reaper.initSubset` leaves an
+/// unlisted function as a null pointer, calling it crashes REAPER, and nothing
+/// fails at compile time. Each extension runs this over its sources in a unit
+/// test, so that a forgotten name fails the tests instead of crashing REAPER.
+pub fn unlistedCalls(
+    source: []const u8,
+    listed: []const [:0]const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
+    var i: usize = 0;
+    while (i < source.len) : (i += 1) {
+        const prefix_len: usize = if (std.mem.startsWith(u8, source[i..], "Reaper."))
+            "Reaper.".len
+        else if (std.mem.startsWith(u8, source[i..], "reaper."))
+            "reaper.".len
+        else
+            continue;
+        // A longer identifier that merely ends in "reaper" is not the module.
+        if (i > 0 and (std.ascii.isAlphanumeric(source[i - 1]) or source[i - 1] == '_')) continue;
+        const start = i + prefix_len;
+        var end = start;
+        while (end < source.len and (std.ascii.isAlphanumeric(source[end]) or source[end] == '_')) end += 1;
+        i = end;
+        const name = source[start..end];
+        if (name.len == 0 or !isApiFunction(name)) continue;
+        if (isListed(name, listed)) continue;
+        if (isListed(name, out.items)) continue;
+        try out.append(name);
+    }
+}
+
+/// Runs unlistedCalls over every .zig file in `paths`, where a path is either
+/// a source file or a folder that is searched recursively. The files are read
+/// into `arena`, which must outlive `out`, since the names point into them.
+pub fn unlistedCallsInPaths(
+    arena: std.mem.Allocator,
+    paths: []const []const u8,
+    listed: []const [:0]const u8,
+    out: *std.ArrayList([]const u8),
+) !void {
+    for (paths) |path| {
+        if (std.mem.endsWith(u8, path, ".zig")) {
+            const source = try std.fs.cwd().readFileAlloc(arena, path, 1 << 24);
+            try unlistedCalls(source, listed, out);
+            continue;
+        }
+        var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
+        defer dir.close();
+        var walker = try dir.walk(arena);
+        defer walker.deinit();
+        while (try walker.next()) |entry| {
+            if (entry.kind != .file or !std.mem.endsWith(u8, entry.basename, ".zig")) continue;
+            const source = try entry.dir.readFileAlloc(arena, entry.basename, 1 << 24);
+            try unlistedCalls(source, listed, out);
+        }
+    }
+}
+
+fn isListed(name: []const u8, names: anytype) bool {
+    for (names) |n| {
+        if (std.mem.eql(u8, name, n)) return true;
+    }
+    return false;
+}
+
+test "unlistedCalls reports each unlisted API function once" {
+    var out = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer out.deinit();
+    try unlistedCalls(
+        \\_ = Reaper.CountTracks(null);
+        \\_ = reaper.MIDI_GetGrid(take, &a, &b);
+        \\_ = Reaper.MIDI_GetGrid(take, &a, &b);
+        \\const t = Reaper.MediaTrack; // a type, not a function
+        \\_ = myreaper.CountTakes(item); // another identifier
+    , &.{"CountTracks"}, &out);
+    try std.testing.expectEqual(@as(usize, 1), out.items.len);
+    try std.testing.expectEqualStrings("MIDI_GetGrid", out.items[0]);
+}

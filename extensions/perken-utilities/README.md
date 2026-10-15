@@ -19,6 +19,7 @@ Editing helpers for REAPER as a compiled extension (Zig, built on
 | keysnap (MIDI editor) | toggleKeySnap (stub) |
 | batch_rename | BatchRenameTracks: rename the selected tracks in your editor |
 | abc_export | CopyItemsAsAbc, OpenItemsAsAbc and PreviewItemsAsAbc: convert the selected MIDI items to ABC with the [abcls](https://github.com/AntoineBalaine/abcls) CLI, one tune per item in timeline order (titled after the take), then copy the text to the clipboard, or open it as a temporary `.abc` file in the editor, with or without the score preview (the preview needs an abc-ls VS Code extension that handles `vscode://antoinebalaine.abc-ls/open` links). The items can sit anywhere in the project; each one's tempo and time signature are read at its start. macOS and Linux only. |
+| terminal | OpenTerminalInProjectDir: opens a shell in the folder of the current project (the recording path when the project was never saved). It uses the same terminal as batch rename, the `[rename] terminal` setting in `perken-utilities.ini`. macOS and Linux only. |
 | auto_lane_watcher | AutoLaneWatcher (toggle): touching an FX parameter shows its envelope lane and hides the track's others; the lane is dismissed when you change track or close the FX, and removed if it received no automation. In trim/read mode, plugin-UI tweaks trim the lane. Removing unused lanes needs SWS. |
 
 Each action's command id is `_PERKEN_<name>` (e.g. `_PERKEN_Flam`). Actions

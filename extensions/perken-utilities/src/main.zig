@@ -25,6 +25,7 @@ const auto_lane_watcher = @import("auto_lane_watcher.zig");
 const surface = @import("surface.zig");
 const tempo_window = @import("beat/tempo_window.zig");
 const abc_export = @import("abc_export.zig");
+const terminal = @import("terminal.zig");
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
@@ -45,17 +46,18 @@ const reaper_api = [_][:0]const u8{
     "AddMediaItemToTrack",          "CountEnvelopePoints",              "CountSelectedMediaItems",
     "CountSelectedTracks",          "CountTakes",                       "CountTracks",
     "CreateTrackSend",              "DeleteEnvelopePointRange",         "DeleteTrack",
-    "EnumProjectMarkers",           "GetActiveTake",                    "GetCursorPosition",
-    "GetEnvelopePoint",             "GetEnvelopeScalingMode",           "GetEnvelopeStateChunk",
-    "GetExtState",                  "GetItemStateChunk",                "GetLastMarkerAndCurRegion",
-    "GetMediaItemInfo_Value",       "GetMediaItemTakeInfo_Value",       "GetMediaTrackInfo_Value",
-    "GetParentTrack",               "GetProjectLength",                 "GetResourcePath",
-    "GetSelectedEnvelope",          "GetSelectedMediaItem",             "GetSelectedTrack",
-    "GetSetMediaTrackInfo_String",  "GetSet_LoopTimeRange",             "GetTake",
-    "GetToggleCommandStateEx",      "GetTrack",                         "GetTrackMediaItem",
-    "GetTrackNumMediaItems",        "GetTrackNumSends",                 "GetUserInputs",
-    "InsertEnvelopePoint",          "InsertTrackAtIndex",               "IsMediaItemSelected",
-    "kbd_enumerateActions",         "SectionFromUniqueID",              "MIDIEditor_GetActive",
+    "EnumProjectMarkers",           "EnumProjects",                     "GetProjectPath",
+    "GetActiveTake",                "GetCursorPosition",                "GetEnvelopePoint",
+    "GetEnvelopeScalingMode",       "GetEnvelopeStateChunk",            "GetExtState",
+    "GetItemStateChunk",            "GetLastMarkerAndCurRegion",        "GetMediaItemInfo_Value",
+    "GetMediaItemTakeInfo_Value",   "GetMediaTrackInfo_Value",          "GetParentTrack",
+    "GetProjectLength",             "GetResourcePath",                  "GetSelectedEnvelope",
+    "GetSelectedMediaItem",         "GetSelectedTrack",                 "GetSetMediaTrackInfo_String",
+    "GetSet_LoopTimeRange",         "GetTake",                          "GetToggleCommandStateEx",
+    "GetTrack",                     "GetTrackMediaItem",                "GetTrackNumMediaItems",
+    "GetTrackNumSends",             "GetUserInputs",                    "InsertEnvelopePoint",
+    "InsertTrackAtIndex",           "IsMediaItemSelected",              "kbd_enumerateActions",
+    "SectionFromUniqueID",          "MIDIEditor_GetActive",             "MIDI_GetGrid",
     "MIDIEditor_GetTake",           "MIDIEditor_LastFocused_OnCommand", "MIDIEditor_OnCommand",
     "MIDI_CountEvts",               "MIDI_GetNote",                     "MIDI_GetPPQPosFromProjQN",
     "MIDI_GetProjQNFromPPQPos",     "MIDI_GetProjTimeFromPPQPos",       "MIDI_InsertNote",
@@ -86,7 +88,7 @@ const reaper_api = [_][:0]const u8{
 pub const all_entries = drums.entries ++ kawa.entries ++ routing.entries ++ fx.entries ++
     items.entries ++ tracks.entries ++ envelope.entries ++ keysnap.entries ++ batch_rename.entries ++
     auto_lane_watcher.entries ++ tempo_window.entries ++ action_search.entries ++
-    action_palette.entries ++ abc_export.entries;
+    action_palette.entries ++ abc_export.entries ++ terminal.entries;
 
 const main_section: c_int = 0;
 const midi_editor_section: c_int = 32060;
@@ -190,6 +192,7 @@ test {
     _ = @import("action_palette.zig");
     _ = @import("fuzzy.zig");
     _ = @import("abc_export.zig");
+    _ = @import("terminal.zig");
 }
 
 test "every action gets a unique command id string" {
@@ -198,4 +201,18 @@ test "every action gets a unique command id string" {
             try std.testing.expect(!std.mem.eql(u8, a.name, b.name));
         }
     }
+}
+
+test "every REAPER function the sources call is in reaper_api" {
+    // Because initSubset leaves an unlisted function as a null pointer, a
+    // forgotten name compiles fine and then crashes REAPER when the action
+    // runs. This test reads the sources and fails on such a name instead.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var unlisted = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer unlisted.deinit();
+    const api = @import("reaper");
+    try api.unlistedCallsInPaths(arena.allocator(), @import("test_paths").sources, &reaper_api, &unlisted);
+    for (unlisted.items) |name| std.debug.print("REAPER function used but missing from reaper_api: {s}\n", .{name});
+    try std.testing.expectEqual(@as(usize, 0), unlisted.items.len);
 }

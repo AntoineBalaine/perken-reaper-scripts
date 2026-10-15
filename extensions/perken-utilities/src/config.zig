@@ -8,7 +8,8 @@
 //! ```ini
 //! [rename]
 //! terminal = open -a iTerm      ; receives the launcher script as last argument
-//!                               ; (also used by "Search actions with fzf")
+//!                               ; (also used by "Search actions with fzf" and
+//!                               ; "Open a shell in the project folder")
 //! editor = nvim                 ; unset: $VISUAL, else $EDITOR, else vim
 //! close_terminal = true         ; macOS: close the Terminal.app window afterwards
 //!

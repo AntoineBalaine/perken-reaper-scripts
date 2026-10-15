@@ -58,6 +58,14 @@ pub fn build(b: *std.Build) void {
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
     test_exe.root_module.addImport("ini", ini_dep.module("ini"));
     test_exe.root_module.addOptions("build_options", build_options);
+    // The sources that the API-list test scans: this extension's own, and
+    // the shared reaper_helpers module it compiles in from reaziglib.
+    const test_paths = b.addOptions();
+    test_paths.addOption([]const []const u8, "sources", &.{
+        b.pathFromRoot("src"),
+        reazig_dep.path("src/reaper_helpers.zig").getPath(b),
+    });
+    test_exe.root_module.addOptions("test_paths", test_paths);
 
     const run_test = b.addRunArtifact(test_exe);
     const test_step = b.step("test", "Run tests");

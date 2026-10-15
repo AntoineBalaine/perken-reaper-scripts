@@ -51,6 +51,14 @@ pub fn build(b: *std.Build) void {
     addBeatTracker(b, qm_dep, test_exe);
     test_exe.root_module.addImport("ini", ini_dep.module("ini"));
     test_exe.root_module.addOptions("build_options", build_options);
+    // The sources that the API-list test scans: this extension's own, and
+    // the shared reaper_helpers module it compiles in from reaziglib.
+    const test_paths = b.addOptions();
+    test_paths.addOption([]const []const u8, "sources", &.{
+        b.pathFromRoot("src"),
+        reazig_dep.path("src/reaper_helpers.zig").getPath(b),
+    });
+    test_exe.root_module.addOptions("test_paths", test_paths);
 
     // Development tool: the beat tracker on a WAV file, outside REAPER
     // (`zig build analyze -- file.wav`).

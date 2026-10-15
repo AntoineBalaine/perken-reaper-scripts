@@ -72,7 +72,8 @@ Then:
    tests run.
 2. Add every REAPER function the action calls to the `reaper_api` list in
    `main.zig`. Extensions resolve only the functions they list, and a missing
-   one is a null pointer at run time.
+   one is a null pointer at run time. A unit test in each extension's
+   `main.zig` scans the sources and fails on a function that is not listed.
 3. Add `; <keys> = _PERKEN_SayHello` to the default keymap
    (`reavim-ext/src/default_bindings.ini`). Entries for Perken Utilities ship
    commented out, so that the keymap works without it installed.
@@ -94,7 +95,8 @@ role decides how it combines with other keys, see the grammar summary in
 ## REAPER API: things that will bite
 
 - **A function must be in the extension's `reaper_api` list** (see above), or
-  it is never loaded.
+  it is never loaded. `zig build test` catches a forgotten one, as long as the
+  call is written `Reaper.Name` or `reaper.Name`.
 - **Some bindings in `reaziglib/src/reaper.zig` are mistyped.** The handle
   types (`MediaItem`, `MediaTrack`, …) are already pointers, yet functions
   take `*MediaItem`; `ReaProject` is an alias for `c_int`; and functions that
