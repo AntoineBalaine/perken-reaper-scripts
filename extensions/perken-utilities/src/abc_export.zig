@@ -6,8 +6,10 @@
 //! score, the conversion only goes one way. Each item's notes are written to a
 //! temporary standard MIDI file, the abcls CLI turns that file into ABC, and
 //! the tunes are joined into one document. Nothing is read back into REAPER,
-//! so the project and the score cannot drift apart. Because the CLI does the
-//! quantizing and the key handling, none of that is done here.
+//! so the project and the score cannot drift apart. Because the CLI takes the
+//! note lengths literally, a note a few ticks off the grid turns into ties
+//! with tiny leftover notes, so the notes are snapped to the take's MIDI grid
+//! first (the [abc] quantize setting). The CLI does the key handling.
 const std = @import("std");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
@@ -398,9 +400,38 @@ pub fn itemStartsEarlier(_: void, a: *Reaper.MediaItem, b: *Reaper.MediaItem) bo
     return Reaper.GetMediaItemInfo_Value(a, "D_POSITION") < Reaper.GetMediaItemInfo_Value(b, "D_POSITION");
 }
 
+/// The start and end, in quarter notes, of a note snapped to a grid of
+/// `grid_qn` quarter notes. Because a note needs some length, an end that
+/// would land on or before the start moves one grid step after the start.
+pub fn snapNoteQn(start_qn: f64, end_qn: f64, grid_qn: f64) struct { start: f64, end: f64 } {
+    const start = @round(start_qn / grid_qn) * grid_qn;
+    var end = @round(end_qn / grid_qn) * grid_qn;
+    if (end <= start) end = start + grid_qn;
+    return .{ .start = start, .end = end };
+}
+
+/// Snaps every note to the grid of the take's MIDI editor (the grid the take
+/// remembers, whether or not an editor is open). The positions are converted
+/// to project quarter notes and back, so that tempo changes are respected.
+pub fn quantizeNotes(take: *Reaper.MediaItem_Take, notes: []helpers.Note) void {
+    var swing: f64 = 0;
+    var note_len: f64 = 0;
+    const grid_qn = Reaper.MIDI_GetGrid(take, &swing, &note_len);
+    if (grid_qn <= 0) return;
+    for (notes) |*n| {
+        const snapped = snapNoteQn(
+            Reaper.MIDI_GetProjQNFromPPQPos(take, n.start_ppq),
+            Reaper.MIDI_GetProjQNFromPPQPos(take, n.end_ppq),
+            grid_qn,
+        );
+        n.start_ppq = Reaper.MIDI_GetPPQPosFromProjQN(take, snapped.start);
+        n.end_ppq = Reaper.MIDI_GetPPQPosFromProjQN(take, snapped.end);
+    }
+}
+
 /// Writes the item's notes to `path` as a standard MIDI file. Returns false
 /// when the item holds no audible note, so there is nothing to convert.
-pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []const u8) !bool {
+pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []const u8, quantize: bool) !bool {
     const take = helpers.getActiveTake(item) orelse return false;
     const item_start = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
     const item_end = item_start + Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
@@ -412,6 +443,7 @@ pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []
 
     const notes = try helpers.collectNotes(alloc, take);
     defer alloc.free(notes);
+    if (quantize) quantizeNotes(take, notes);
     var events = try collectEvents(alloc, notes, ppq_start, ppq_end);
     defer events.deinit();
     if (events.items.len == 0) return false;
@@ -454,7 +486,7 @@ pub fn convertSelection(alloc: std.mem.Allocator, settings: config.Settings) ?[]
     for (selected) |item| {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         const path = tempPath(&path_buf, "item.mid") orelse continue;
-        const has_notes = writeItemMidi(alloc, item, path) catch |err| {
+        const has_notes = writeItemMidi(alloc, item, path, settings.abc_quantize) catch |err| {
             log.warn("cannot write {s}: {s}", .{ path, @errorName(err) });
             continue;
         };
@@ -669,6 +701,15 @@ test "the preview link escapes the path" {
         "vscode://antoinebalaine.abc-ls/open?file=%2Fvar%2FT%2Fmy%20tune.abc&preview=1",
         fbs.getWritten(),
     );
+}
+
+test "snapNoteQn snaps both ends and keeps a length" {
+    const off = snapNoteQn(1.98, 3.49, 0.25);
+    try std.testing.expectEqual(@as(f64, 2), off.start);
+    try std.testing.expectEqual(@as(f64, 3.5), off.end);
+    const short = snapNoteQn(1.02, 1.08, 0.25);
+    try std.testing.expectEqual(@as(f64, 1), short.start);
+    try std.testing.expectEqual(@as(f64, 1.25), short.end);
 }
 
 test "the one-tick gaps that Legato leaves are closed" {

@@ -17,6 +17,7 @@
 //! command = /path/to/abcls      ; default: found by search (global npm install, nvm, login shell)
 //! clipboard = pbcopy            ; reads the ABC text from its standard input
 //! editor = open -a "Visual Studio Code"   ; default: the system opener (open, xdg-open)
+//! quantize = true               ; snap the notes to the take's MIDI grid first
 //! ```
 const std = @import("std");
 const builtin = @import("builtin");
@@ -58,6 +59,10 @@ pub const default_abc_editor: []const u8 = switch (builtin.os.tag) {
     else => "xdg-open",
 };
 
+/// Because the CLI writes note lengths as they are, notes off the grid become
+/// unreadable ties, so the export snaps them to the take's grid by default.
+pub const default_abc_quantize = true;
+
 pub const Settings = struct {
     arena: std.heap.ArenaAllocator,
     rename_terminal: []const u8 = default_terminal,
@@ -66,6 +71,7 @@ pub const Settings = struct {
     abc_command: []const u8 = default_abc_command,
     abc_clipboard: []const u8 = default_abc_clipboard,
     abc_editor: []const u8 = default_abc_editor,
+    abc_quantize: bool = default_abc_quantize,
 
     pub fn deinit(self: *Settings) void {
         self.arena.deinit();
@@ -118,6 +124,11 @@ pub fn parse(gpa: std.mem.Allocator, reader: anytype) !Settings {
                         settings.abc_clipboard = try arena.dupe(u8, v);
                     } else if (std.mem.eql(u8, kv.key, "editor")) {
                         settings.abc_editor = try arena.dupe(u8, v);
+                    } else if (std.mem.eql(u8, kv.key, "quantize")) {
+                        settings.abc_quantize = parseBool(v) orelse {
+                            log.warn("bad [abc] quantize '{s}' (use true/false) — skipped", .{v});
+                            continue;
+                        };
                     } else {
                         log.warn("unknown [abc] key '{s}' — skipped", .{kv.key});
                     }
