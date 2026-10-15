@@ -9,6 +9,7 @@
 //!   o = 40001                  ; raw command id
 //!   gg = _SWS_SOMETHING        ; named command
 //!   i = @insert                ; engine builtin (insert/normal/off/clear)
+//!   l = @unbind                ; drops a binding that the global section gave this context
 //!   d = +delete                ; folder label for completion hints
 const std = @import("std");
 const ini = @import("ini");
@@ -67,12 +68,14 @@ const Value = union(enum) {
     named: [:0]const u8,
     builtin: *const actions.ActionDef,
     label: []const u8,
+    unbind,
 };
 
 fn parseValue(raw: []const u8, arena: std.mem.Allocator) !Value {
     const v = std.mem.trim(u8, raw, " \t");
     if (v.len == 0) return error.EmptyValue;
     if (v[0] == '+') return .{ .label = try arena.dupe(u8, v[1..]) };
+    if (std.mem.eql(u8, v, "@unbind")) return .unbind;
     if (v[0] == '@') {
         inline for (@typeInfo(lib_state.builtin_defs).@"struct".decls) |d| {
             if (std.mem.eql(u8, v[1..], d.name))
@@ -102,7 +105,7 @@ fn toBindingValue(
     stub_def: *const actions.ActionDef,
 ) !?builder.BindingValue {
     switch (value) {
-        .label => unreachable, // handled by caller
+        .label, .unbind => unreachable, // handled by caller
         .name => |n| {
             if (registry.get(n)) |def| return .{ .name = n, .def = def };
             return .{ .name = n, .def = stub_def };
@@ -224,6 +227,10 @@ pub fn parse(
                     try t.setLabel(e.keys, e.value.label);
                     continue;
                 }
+                if (e.value == .unbind) {
+                    t.remove(e.keys);
+                    continue;
+                }
                 const bv = (try toBindingValue(e.value, registry, arena, ctx == .midi, stub_def)) orelse continue;
                 try t.insertReplace(e.keys, bv);
             }
@@ -294,6 +301,25 @@ test "quoted keys with comment chars bind" {
     try keymod.parseSequence("x#1", &keys);
     const hash = builder.build(&b.tables, .main, .normal, keys.items).?;
     try std.testing.expectEqual(@as(c_int, 40913), hash.keys[0].def.steps[0].cmd);
+}
+
+test "unbind drops a global binding in one context only" {
+    const text =
+        \\[global.timeline_motion]
+        \\j = NextTrack
+        \\
+        \\[midi.timeline_motion]
+        \\j = @unbind
+    ;
+    var reg = try actions.Registry.init(std.testing.allocator, &.{&test_defs});
+    defer reg.deinit();
+    var b = try parseString(std.testing.allocator, &reg, text);
+    defer b.deinit();
+    var keys = std.ArrayList(keymod.Key).init(std.testing.allocator);
+    defer keys.deinit();
+    try keymod.parseSequence("j", &keys);
+    try std.testing.expect(builder.build(&b.tables, .main, .normal, keys.items) != null);
+    try std.testing.expect(builder.build(&b.tables, .midi, .normal, keys.items) == null);
 }
 
 test "parse new format with registry names, raw ids, global merge and shadowing" {

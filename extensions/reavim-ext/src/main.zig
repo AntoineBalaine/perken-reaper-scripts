@@ -251,3 +251,69 @@ test {
     _ = @import("ported/misc.zig");
     _ = @import("search.zig");
 }
+
+test "the MIDI editor keymap: note selection, quantize and note editing keys" {
+    var reg = try actions_mod.Registry.init(std.testing.allocator, &.{
+        &defaults_actions.entries, &lib_state.entries, &ported_movement.entries, &ported_selection.entries,
+        &ported_marks.entries,     &ported_midi.entries, &ported_misc.entries,    &ui.entries,
+    });
+    defer reg.deinit();
+    const text = lib_state.default_bindings;
+    var b = try config.parseString(std.testing.allocator, &reg, text);
+    defer b.deinit();
+    const keymod = @import("key.zig");
+    const builder = @import("builder.zig");
+    const checks = [_]struct { ctx: @import("grammar.zig").Context, keys: []const u8, want: ?[]const u8 }{
+        .{ .ctx = .midi, .keys = "W", .want = "AddNextNoteToSelection" },
+        .{ .ctx = .midi, .keys = "B", .want = "AddPrevNoteToSelection" },
+        .{ .ctx = .midi, .keys = "w", .want = "NextNoteStart" },
+        .{ .ctx = .midi, .keys = "q", .want = "Quantize" },
+        // Plain arrows move: the cursor by the grid, the pitch row up and down.
+        .{ .ctx = .midi, .keys = "<right>", .want = "RightMidiGridDivision" },
+        .{ .ctx = .midi, .keys = "<left>", .want = "LeftMidiGridDivision" },
+        .{ .ctx = .midi, .keys = "<up>", .want = "PitchUp" },
+        .{ .ctx = .midi, .keys = "<down>", .want = "PitchDown" },
+        // h j k l are aliases of the arrows.
+        .{ .ctx = .midi, .keys = "h", .want = "LeftMidiGridDivision" },
+        .{ .ctx = .midi, .keys = "l", .want = "RightMidiGridDivision" },
+        .{ .ctx = .midi, .keys = "k", .want = "PitchUp" },
+        .{ .ctx = .midi, .keys = "j", .want = "PitchDown" },
+        // Shift extends the note selection.
+        .{ .ctx = .midi, .keys = "<S-right>", .want = "AddNextNoteToSelection" },
+        .{ .ctx = .midi, .keys = "<S-left>", .want = "AddPrevNoteToSelection" },
+        .{ .ctx = .midi, .keys = "L", .want = "AddNextNoteToSelection" },
+        .{ .ctx = .midi, .keys = "H", .want = "AddPrevNoteToSelection" },
+        // Ctrl edits the selected notes.
+        .{ .ctx = .midi, .keys = "<C-right>", .want = "MoveNoteRight" },
+        .{ .ctx = .midi, .keys = "<C-left>", .want = "MoveNoteLeft" },
+        .{ .ctx = .midi, .keys = "<C-up>", .want = "MoveNoteUpSemitone" },
+        .{ .ctx = .midi, .keys = "<C-down>", .want = "MoveNoteDownSemitone" },
+        .{ .ctx = .midi, .keys = "<C-S-up>", .want = "MoveNoteUpOctave" },
+        .{ .ctx = .midi, .keys = "<C-S-down>", .want = "MoveNoteDownOctave" },
+        .{ .ctx = .midi, .keys = "<C-S-right>", .want = "LengthenNotes" },
+        .{ .ctx = .midi, .keys = "<C-S-left>", .want = "ShortenNotes" },
+        .{ .ctx = .midi, .keys = "<C-l>", .want = "MoveNoteRight" },
+        .{ .ctx = .midi, .keys = "<C-k>", .want = "MoveNoteUpSemitone" },
+        .{ .ctx = .midi, .keys = "<C-L>", .want = "LengthenNotes" },
+        // g is Legato, which ships commented out; it must not fall back to the join operator.
+        .{ .ctx = .midi, .keys = "g", .want = null },
+        .{ .ctx = .midi, .keys = "<space>mj", .want = "JoinSelectedNotes" },
+        .{ .ctx = .midi, .keys = "n", .want = null },
+        .{ .ctx = .main, .keys = "<S-right>", .want = "NextMeasure" },
+        .{ .ctx = .main, .keys = "H", .want = "PrevMeasure" },
+        .{ .ctx = .main, .keys = "l", .want = "RightGridDivision" },
+        .{ .ctx = .main, .keys = "q", .want = "RecordMacro" },
+    };
+    for (checks) |c| {
+        var keys = std.ArrayList(keymod.Key).init(std.testing.allocator);
+        defer keys.deinit();
+        try keymod.parseSequence(c.keys, &keys);
+        const got = builder.build(&b.tables, c.ctx, .normal, keys.items);
+        if (c.want) |w| {
+            try std.testing.expect(got != null);
+            try std.testing.expectEqualStrings(w, got.?.keys[0].name);
+        } else {
+            try std.testing.expect(got == null);
+        }
+    }
+}

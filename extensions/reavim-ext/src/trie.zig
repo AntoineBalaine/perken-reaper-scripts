@@ -48,6 +48,17 @@ pub fn Trie(comptime V: type) type {
             self.nodes.items[idx].value = value;
         }
 
+        /// Removes the binding of a key sequence, so that a binding merged in
+        /// from a lower layer (the global one) no longer applies. A sequence
+        /// that was never bound is left alone.
+        pub fn remove(self: *Self, seq: []const Key) void {
+            var idx: u32 = 0;
+            for (seq) |k| {
+                idx = self.nodes.items[idx].children.get(k.bits()) orelse return;
+            }
+            self.nodes.items[idx].value = null;
+        }
+
         /// Attaches a folder label to a prefix (creating it if needed).
         pub fn setLabel(self: *Self, seq: []const Key, label: []const u8) !void {
             const idx = try self.walkOrCreate(seq);
