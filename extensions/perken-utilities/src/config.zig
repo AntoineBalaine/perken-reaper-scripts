@@ -17,7 +17,7 @@
 //! command = /path/to/abcls      ; default: found by search (global npm install, nvm, login shell)
 //! clipboard = pbcopy            ; reads the ABC text from its standard input
 //! editor = open -a "Visual Studio Code"   ; default: the system opener (open, xdg-open)
-//! quantize = true               ; snap the notes to the take's MIDI grid first
+//! quantize = true               ; snap the notes to sixteenths and triplets first
 //! ```
 const std = @import("std");
 const builtin = @import("builtin");

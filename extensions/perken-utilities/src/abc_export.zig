@@ -8,8 +8,8 @@
 //! the tunes are joined into one document. Nothing is read back into REAPER,
 //! so the project and the score cannot drift apart. Because the CLI takes the
 //! note lengths literally, a note a few ticks off the grid turns into ties
-//! with tiny leftover notes, so the notes are snapped to the take's MIDI grid
-//! first (the [abc] quantize setting). The CLI does the key handling.
+//! with tiny leftover notes, so the notes are snapped to a fixed grid of sixteenth
+//! notes and triplets first (the [abc] quantize setting). The CLI does the key handling.
 const std = @import("std");
 const builtin = @import("builtin");
 const Reaper = @import("reaper").reaper;
@@ -126,8 +126,11 @@ pub fn firstStartAfter(starts: []const u32, tick: u32) ?u32 {
 }
 
 /// Turns the take's notes into sorted events. Because the item can be
-/// trimmed, only the notes that start inside it are kept, and their
-/// positions are made relative to the item's start. Muted notes are dropped.
+/// trimmed, only the notes that start inside it are kept. Muted notes are
+/// dropped. Because the file has to start on a bar line, the positions are
+/// made relative to `origin_ppq`, the start of the bar that holds the item's
+/// start, so that a note keeps its offset inside the bar even when the item
+/// begins in the middle of one.
 pub fn isKept(n: helpers.Note, item_start_ppq: f64, item_end_ppq: f64) bool {
     if (n.muted) return false;
     return n.start_ppq >= item_start_ppq - 0.5 and n.start_ppq < item_end_ppq;
@@ -138,6 +141,7 @@ pub fn collectEvents(
     notes: []const helpers.Note,
     item_start_ppq: f64,
     item_end_ppq: f64,
+    origin_ppq: f64,
 ) !std.ArrayList(Event) {
     var events = std.ArrayList(Event).init(alloc);
     errdefer events.deinit();
@@ -148,18 +152,18 @@ pub fn collectEvents(
     defer starts.deinit();
     for (notes) |n| {
         if (!isKept(n, item_start_ppq, item_end_ppq)) continue;
-        try starts.append(@intFromFloat(@max(0, @round(n.start_ppq - item_start_ppq))));
+        try starts.append(@intFromFloat(@max(0, @round(n.start_ppq - origin_ppq))));
     }
     // Because Legato runs the last chord up to the end of the item, that end
     // counts as a boundary too.
-    try starts.append(@intFromFloat(@max(0, @round(item_end_ppq - item_start_ppq))));
+    try starts.append(@intFromFloat(@max(0, @round(item_end_ppq - origin_ppq))));
     std.mem.sort(u32, starts.items, {}, std.sort.asc(u32));
 
     for (notes) |n| {
         if (!isKept(n, item_start_ppq, item_end_ppq)) continue;
-        const start: u32 = @intFromFloat(@max(0, @round(n.start_ppq - item_start_ppq)));
+        const start: u32 = @intFromFloat(@max(0, @round(n.start_ppq - origin_ppq)));
         // Because a zero-length note would turn into a note-off before its note-on, we keep at least one tick.
-        var end: u32 = @max(start + 1, @as(u32, @intFromFloat(@max(0, @round(n.end_ppq - item_start_ppq)))));
+        var end: u32 = @max(start + 1, @as(u32, @intFromFloat(@max(0, @round(n.end_ppq - origin_ppq)))));
         if (firstStartAfter(starts.items, end)) |next| {
             if (next - end <= gap_tolerance_ticks) end = next;
         }
@@ -379,6 +383,14 @@ pub fn tempPath(buf: []u8, name: []const u8) ?[]const u8 {
     return std.fmt.bufPrint(buf, "{s}/perken_abc_{s}", .{ trimmed, name }) catch null;
 }
 
+/// The name of the ABC file of one conversion, made unique by the time of the
+/// conversion. Because VS Code keeps showing the text it already has for a
+/// path it has opened, reusing one file name made a new conversion look like
+/// the previous one; a new name per conversion makes it open as a new file.
+pub fn conversionFileName(buf: []u8, millis: i64) ?[]const u8 {
+    return std.fmt.bufPrint(buf, "items_{d}.abc", .{millis}) catch null;
+}
+
 /// Selected MIDI items in timeline order, so that the tunes of the document
 /// follow the order of the recordings.
 pub fn selectedMidiItems(buf: []*Reaper.MediaItem) []*Reaper.MediaItem {
@@ -400,29 +412,40 @@ pub fn itemStartsEarlier(_: void, a: *Reaper.MediaItem, b: *Reaper.MediaItem) bo
     return Reaper.GetMediaItemInfo_Value(a, "D_POSITION") < Reaper.GetMediaItemInfo_Value(b, "D_POSITION");
 }
 
-/// The start and end, in quarter notes, of a note snapped to a grid of
-/// `grid_qn` quarter notes. Because a note needs some length, an end that
-/// would land on or before the start moves one grid step after the start.
-pub fn snapNoteQn(start_qn: f64, end_qn: f64, grid_qn: f64) struct { start: f64, end: f64 } {
-    const start = @round(start_qn / grid_qn) * grid_qn;
-    var end = @round(end_qn / grid_qn) * grid_qn;
-    if (end <= start) end = start + grid_qn;
+/// The finest steps, in quarter notes, that a note position may snap to: the
+/// sixteenth note and the sixteenth-note triplet. Because the two grids share
+/// the eighth-note triplet and every eighth note, straight and triplet
+/// rhythms both survive the snap.
+pub const straight_step_qn: f64 = 0.25;
+pub const triplet_step_qn: f64 = 1.0 / 6.0;
+
+/// The position, in quarter notes, nearest to `qn` among the straight and the
+/// triplet steps.
+pub fn snapPositionQn(qn: f64) f64 {
+    const straight = @round(qn / straight_step_qn) * straight_step_qn;
+    const triplet = @round(qn / triplet_step_qn) * triplet_step_qn;
+    return if (@abs(qn - triplet) < @abs(qn - straight)) triplet else straight;
+}
+
+/// The start and end, in quarter notes, of a note snapped to the steps above.
+/// Because a note needs some length, an end that would land on or before the
+/// start moves one step after the start.
+pub fn snapNoteQn(start_qn: f64, end_qn: f64) struct { start: f64, end: f64 } {
+    const start = snapPositionQn(start_qn);
+    var end = snapPositionQn(end_qn);
+    if (end <= start + 1e-9) end = start + triplet_step_qn;
     return .{ .start = start, .end = end };
 }
 
-/// Snaps every note to the grid of the take's MIDI editor (the grid the take
-/// remembers, whether or not an editor is open). The positions are converted
-/// to project quarter notes and back, so that tempo changes are respected.
+/// Snaps every note to the steps above. Because the result must not depend
+/// on the grid division that happens to be set in REAPER's MIDI editor, the
+/// steps are fixed. The positions are converted to project quarter notes and
+/// back, so that tempo changes are respected.
 pub fn quantizeNotes(take: *Reaper.MediaItem_Take, notes: []helpers.Note) void {
-    var swing: f64 = 0;
-    var note_len: f64 = 0;
-    const grid_qn = Reaper.MIDI_GetGrid(take, &swing, &note_len);
-    if (grid_qn <= 0) return;
     for (notes) |*n| {
         const snapped = snapNoteQn(
             Reaper.MIDI_GetProjQNFromPPQPos(take, n.start_ppq),
             Reaper.MIDI_GetProjQNFromPPQPos(take, n.end_ppq),
-            grid_qn,
         );
         n.start_ppq = Reaper.MIDI_GetPPQPosFromProjQN(take, snapped.start);
         n.end_ppq = Reaper.MIDI_GetPPQPosFromProjQN(take, snapped.end);
@@ -444,7 +467,10 @@ pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []
     const notes = try helpers.collectNotes(alloc, take);
     defer alloc.free(notes);
     if (quantize) quantizeNotes(take, notes);
-    var events = try collectEvents(alloc, notes, ppq_start, ppq_end);
+    // Because the item can start in the middle of a bar, the ticks count from
+    // the bar line before it, which keeps every note at its place in the bar.
+    const bar_start_ppq = Reaper.MIDI_GetPPQPos_StartOfMeasure(take, ppq_start + 0.5);
+    var events = try collectEvents(alloc, notes, ppq_start, ppq_end, @min(bar_start_ppq, ppq_start));
     defer events.deinit();
     if (events.items.len == 0) return false;
 
@@ -543,7 +569,9 @@ pub fn openItemsAsAbc(_: *actions.RunCtx) void {
     defer alloc.free(document);
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const path = tempPath(&path_buf, "items.abc") orelse return;
+    var name_buf: [64]u8 = undefined;
+    const name = conversionFileName(&name_buf, std.time.milliTimestamp()) orelse return;
+    const path = tempPath(&path_buf, name) orelse return;
     std.fs.cwd().writeFile(.{ .sub_path = path, .data = document }) catch |err| {
         log.warn("cannot write {s}: {s}", .{ path, @errorName(err) });
         return showError("Because the temporary ABC file could not be written, nothing was opened.");
@@ -593,7 +621,9 @@ pub fn previewItemsAsAbc(_: *actions.RunCtx) void {
     defer alloc.free(document);
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const path = tempPath(&path_buf, "items.abc") orelse return;
+    var name_buf: [64]u8 = undefined;
+    const name = conversionFileName(&name_buf, std.time.milliTimestamp()) orelse return;
+    const path = tempPath(&path_buf, name) orelse return;
     std.fs.cwd().writeFile(.{ .sub_path = path, .data = document }) catch |err| {
         log.warn("cannot write {s}: {s}", .{ path, @errorName(err) });
         return showError("Because the temporary ABC file could not be written, nothing was opened.");
@@ -650,7 +680,7 @@ test "an item produces a one-track file with ordered events" {
         .{ .selected = false, .muted = false, .start_ppq = 960, .end_ppq = 1440, .chan = 0, .pitch = 60, .vel = 96 },
         .{ .selected = false, .muted = false, .start_ppq = 1440, .end_ppq = 1920, .chan = 0, .pitch = 60, .vel = 96 },
     };
-    var events = try collectEvents(alloc, &notes, 960, 3840);
+    var events = try collectEvents(alloc, &notes, 960, 3840, 960);
     defer events.deinit();
     try std.testing.expectEqual(@as(usize, 4), events.items.len);
     // the first note ends where the second begins: its off comes before the on
@@ -704,12 +734,18 @@ test "the preview link escapes the path" {
 }
 
 test "snapNoteQn snaps both ends and keeps a length" {
-    const off = snapNoteQn(1.98, 3.49, 0.25);
+    const off = snapNoteQn(1.98, 3.49);
     try std.testing.expectEqual(@as(f64, 2), off.start);
     try std.testing.expectEqual(@as(f64, 3.5), off.end);
-    const short = snapNoteQn(1.02, 1.08, 0.25);
+    const short = snapNoteQn(1.02, 1.08);
     try std.testing.expectEqual(@as(f64, 1), short.start);
-    try std.testing.expectEqual(@as(f64, 1.25), short.end);
+    try std.testing.expect(short.end > short.start);
+}
+
+test "snapping keeps both straight and triplet positions and ignores the editor grid" {
+    try std.testing.expectApproxEqAbs(@as(f64, 0.5), snapPositionQn(0.52), 1e-9);
+    try std.testing.expectApproxEqAbs(@as(f64, 1.0 / 3.0), snapPositionQn(0.34), 1e-9);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.75), snapPositionQn(0.74), 1e-9);
 }
 
 test "the one-tick gaps that Legato leaves are closed" {
@@ -722,7 +758,7 @@ test "the one-tick gaps that Legato leaves are closed" {
         // a real rest of a sixteenth note stays
         .{ .selected = false, .muted = false, .start_ppq = 1680, .end_ppq = 1900, .chan = 0, .pitch = 65, .vel = 90 },
     };
-    var events = try collectEvents(alloc, &notes, 0, 9999);
+    var events = try collectEvents(alloc, &notes, 0, 9999, 0);
     defer events.deinit();
     var ends = std.ArrayList(u32).init(alloc);
     defer ends.deinit();
@@ -735,7 +771,28 @@ test "a last note one tick short of the item end is closed" {
     const notes = [_]helpers.Note{
         .{ .selected = false, .muted = false, .start_ppq = 0, .end_ppq = 1919, .chan = 0, .pitch = 60, .vel = 90 },
     };
-    var events = try collectEvents(alloc, &notes, 0, 1920);
+    var events = try collectEvents(alloc, &notes, 0, 1920, 0);
     defer events.deinit();
     try std.testing.expectEqual(@as(u32, 1920), events.items[1].tick);
+}
+
+test "an item that starts inside a bar keeps the offset of its notes in the bar" {
+    const alloc = std.testing.allocator;
+    const notes = [_]helpers.Note{
+        .{ .selected = false, .muted = false, .start_ppq = 1920, .end_ppq = 2400, .chan = 0, .pitch = 60, .vel = 90 },
+    };
+    // The item starts at tick 1920, one half note after its bar line at 0.
+    var events = try collectEvents(alloc, &notes, 1920, 9999, 0);
+    defer events.deinit();
+    try std.testing.expectEqual(@as(u32, 1920), events.items[0].tick);
+    try std.testing.expectEqual(@as(u32, 2400), events.items[1].tick);
+}
+
+test "each conversion gets its own file name" {
+    var a: [64]u8 = undefined;
+    var b: [64]u8 = undefined;
+    const first = conversionFileName(&a, 1760000000000).?;
+    const second = conversionFileName(&b, 1760000000001).?;
+    try std.testing.expectEqualStrings("items_1760000000000.abc", first);
+    try std.testing.expect(!std.mem.eql(u8, first, second));
 }

@@ -62,6 +62,7 @@ const reaper_api = [_][:0]const u8{
     "MIDI_CountEvts",               "MIDI_GetNote",                     "MIDI_GetPPQPosFromProjQN",
     "MIDI_GetProjQNFromPPQPos",     "MIDI_GetProjTimeFromPPQPos",       "MIDI_InsertNote",
     "MIDI_SetNote",                 "MIDI_Sort",                        "Main_OnCommand",
+    "MIDI_GetPPQPos_StartOfMeasure",
     "MoveEditCursor",               "NamedCommandLookup",               "PreventUIRefresh",
     "ScaleToEnvelopeMode",          "SetEnvelopePoint",                 "SetExtState",
     "SetItemStateChunk",            "SetMediaItemInfo_Value",           "SetMediaItemTakeInfo_Value",
