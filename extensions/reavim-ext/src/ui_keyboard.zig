@@ -111,8 +111,6 @@ pub fn render(ctx: imgui.ContextPtr, b: *const config.Bindings) bool {
     const unit = @min(MAX_UNIT, avail_w / units);
     if (unit < MIN_UNIT) return false;
 
-    renderControls(ctx, layout, board);
-
     const held = vim.heldModifiers();
     var comp_buf: [MAX_COMPLETIONS]vim.Completion = undefined;
     const line_h = imgui.api.GetTextLineHeight(ctx);
@@ -152,50 +150,78 @@ pub fn render(ctx: imgui.ContextPtr, b: *const config.Bindings) bool {
     return true;
 }
 
-/// The layer buttons, then the layout and board switches. A layer button is
-/// shown pressed while its modifier is held or latched.
-fn renderControls(ctx: imgui.ContextPtr, layout: keyboard.Layout, board: keyboard.Board) void {
+/// The buttons of the side column, under the mode and the pending keys: the
+/// view switch, and while the keyboard shows, the layers and the board. A
+/// layer button is shown pressed while its modifier is held or latched.
+pub fn renderButtons(ctx: imgui.ContextPtr, b: *const config.Bindings) void {
+    const current = currentView(b);
+    imgui.api.Dummy(ctx, 0, 4);
+
+    if (iconButton(ctx, ui.Icon.grid, "Show the keys on a keyboard", current == .keyboard)) view_state.view = .keyboard;
+    if (iconButton(ctx, ui.Icon.list, "Show the keys as a list", current == .list)) view_state.view = .list;
+    if (current != .keyboard) return;
+
+    imgui.api.Dummy(ctx, 0, 4);
     const held = vim.heldModifiers();
-    if (layerButton(ctx, "Shift", held.shift, view_state.latched.shift))
+    if (layerButton(ctx, "Shift", "Show the Shift layer", held.shift, view_state.latched.shift))
         view_state.latched.shift = !view_state.latched.shift;
-    imgui.api.SameLine(ctx, null, null);
-    if (layerButton(ctx, "Alt", held.alt, view_state.latched.alt))
+    if (layerButton(ctx, "Alt", "Show the Alt layer", held.alt, view_state.latched.alt))
         view_state.latched.alt = !view_state.latched.alt;
-    imgui.api.SameLine(ctx, null, null);
-    if (layerButton(ctx, "Ctrl", held.ctrl, view_state.latched.ctrl))
+    if (layerButton(ctx, "Ctrl", "Show the Ctrl layer", held.ctrl, view_state.latched.ctrl))
         view_state.latched.ctrl = !view_state.latched.ctrl;
-    imgui.api.SameLine(ctx, null, null);
-    imgui.api.Text(ctx, "  ");
-    imgui.api.SameLine(ctx, null, null);
-    const layout_txt: [:0]const u8 = switch (layout) {
-        .bepo => "B\xc3\x89PO",
-        .qwerty => "QWERTY",
-    };
-    if (imgui.api.SmallButton(ctx, layout_txt)) {
+
+    imgui.api.Dummy(ctx, 0, 4);
+    const layout = view_state.layout orelse b.layout;
+    const board = view_state.board orelse b.board;
+    if (sideButton(ctx, if (layout == .bepo) "B\xc3\x89" else "QW", "Switch between the B\xc3\x89PO and QWERTY layouts", false))
         view_state.layout = if (layout == .bepo) .qwerty else .bepo;
-    }
-    imgui.api.SameLine(ctx, null, null);
-    const board_txt: [:0]const u8 = switch (board) {
-        .ortho => "ortholinear",
-        .staggered => "staggered",
-    };
-    if (imgui.api.SmallButton(ctx, board_txt)) {
+    if (iconButton(ctx, ui.Icon.board, "Switch between the ortholinear and the staggered board", board == .ortho))
         view_state.board = if (board == .ortho) .staggered else .ortho;
-    }
 }
 
-fn layerButton(ctx: imgui.ContextPtr, label: [:0]const u8, held: bool, latched: bool) bool {
-    const on = held or latched;
+const BUTTON_H: f64 = 22;
+
+/// A full-width text button of the side column. `on` paints it pressed. The
+/// tooltip is shown by the caller, because the icon buttons have the icon font
+/// pushed while they draw, and a tooltip drawn then would use it for its text.
+fn buttonOnly(ctx: imgui.ContextPtr, label: [:0]const u8, tip: [:0]const u8, on: bool) bool {
+    var id: [64:0]u8 = undefined;
     if (on) {
         imgui.api.PushStyleColor(ctx, imgui.Col_Button, palette.accent_dim);
         imgui.api.PushStyleColor(ctx, imgui.Col_Text, palette.key);
     }
-    const clicked = imgui.api.SmallButton(ctx, label);
+    var w: f64 = ui.SIDE_W;
+    var h: f64 = BUTTON_H;
+    const clicked = imgui.api.Button(ctx, utils.safePrint(&id, "{s}##side_{s}", .{ label, tip }), &w, &h);
     if (on) {
         var n: c_int = 2;
         imgui.api.PopStyleColor(ctx, &n);
     }
     return clicked;
+}
+
+fn showButtonTooltip(ctx: imgui.ContextPtr, tip: [:0]const u8) void {
+    if (imgui.api.IsItemHovered(ctx, &imgui.HoveredFlags_DelayNormal)) imgui.api.SetTooltip(ctx, tip);
+}
+
+fn sideButton(ctx: imgui.ContextPtr, label: [:0]const u8, tip: [:0]const u8, on: bool) bool {
+    const clicked = buttonOnly(ctx, label, tip, on);
+    showButtonTooltip(ctx, tip);
+    return clicked;
+}
+
+/// The same, with the label drawn in the icon font. The font is popped before
+/// the tooltip, so that the tooltip text uses the regular font.
+fn iconButton(ctx: imgui.ContextPtr, glyph: [:0]const u8, tip: [:0]const u8, on: bool) bool {
+    if (ui.icon_font != null) imgui.api.PushFont(ctx, ui.icon_font);
+    const clicked = buttonOnly(ctx, glyph, tip, on);
+    if (ui.icon_font != null) imgui.api.PopFont(ctx);
+    showButtonTooltip(ctx, tip);
+    return clicked;
+}
+
+fn layerButton(ctx: imgui.ContextPtr, label: [:0]const u8, tip: [:0]const u8, held: bool, latched: bool) bool {
+    return sideButton(ctx, label, tip, held or latched);
 }
 
 /// Finds what a cap does on the current layer.

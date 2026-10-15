@@ -29,6 +29,17 @@ const log = std.log.scoped(.extension);
 var imgui_state: enum { unchecked, absent, present } = .unchecked;
 var ctx: imgui.ContextPtr = null;
 var font: imgui.FontPtr = null;
+/// The icon font of the side buttons (Fontello). Its glyphs sit on Latin-1
+/// characters, so the table below names the ones the window uses.
+pub var icon_font: imgui.FontPtr = null;
+const fontello = @embedFile("assets/fontello1.ttf");
+const ICON_FONT_SIZE: c_int = 13;
+
+pub const Icon = struct {
+    pub const grid = ":";
+    pub const list = ";";
+    pub const board = "9";
+};
 var hidden = false;
 var prev_mode: vim.Mode = .off;
 /// Whether ImGui reported the whichkey window as focused on the last frame.
@@ -135,13 +146,12 @@ pub fn refreshResults() void {
 }
 
 /// Opens the search box with typing captured by vim (the SearchBindings
-/// action). The window is shown and unfolded, because the box lives in it.
+/// action). The window is shown, because the box lives in it.
 /// Without ReaImGui, the box would never be drawn while vim still swallowed
 /// every key into it, so the action does nothing in that case.
 pub fn openSearch() void {
     if (imgui_state != .present) return;
     hidden = false;
-    folded = false;
     search_state.capturing = true;
     search_state.query[0] = 0;
     search_state.selected = 0;
@@ -310,7 +320,6 @@ const pushed_colors = palette.window_colors;
 var page: usize = 0;
 var last_comp_count: usize = 0;
 var last_n_pages: usize = 1; // set each render; used by keyboard pagination
-var folded: bool = false;
 
 const ROWS_PER_PAGE: usize = 8;
 const COL_WIDTH: f64 = 270;
@@ -394,6 +403,8 @@ fn onTimer() callconv(.C) void {
         if (ctx == null) return;
         font = imgui.api.CreateFont("sans-serif", FONT_SIZE, null);
         if (font != null) imgui.api.Attach(ctx, @ptrCast(font));
+        icon_font = imgui.api.CreateFontFromMem(fontello, fontello.len, ICON_FONT_SIZE, null);
+        if (icon_font != null) imgui.api.Attach(ctx, @ptrCast(icon_font));
     }
 
     if (font != null) imgui.api.PushFont(ctx, font);
@@ -406,10 +417,6 @@ fn onTimer() callconv(.C) void {
 
     // Default into REAPER's docker on first use; the user can move it after.
     imgui.api.SetNextWindowDockID(ctx, -1, &imgui.Cond_FirstUseEver);
-    if (folded) {
-        const FOLDED_H: f64 = @as(f64, @floatFromInt(FONT_SIZE)) * 2.5;
-        imgui.api.SetNextWindowSize(ctx, 0, FOLDED_H, &imgui.Cond_Always);
-    }
 
     var is_open: bool = true;
     var begin_flags: c_int = imgui.WindowFlags_NoSavedSettings;
@@ -441,66 +448,95 @@ fn ensureImguiChecked() void {
     imgui_state = .present;
 }
 
+/// The width of the column of status text and buttons at the left of the
+/// window. Because horizontal room is scarce in a docker, the mode, the
+/// pending keys and the buttons share this one narrow column instead of
+/// taking a line each across the window.
+pub const SIDE_W: f64 = 52;
+
 fn renderContent() void {
+    renderSide();
+    if (vim.mode() == .off) {
+        if (search_state.capturing) closeSearch();
+        return;
+    }
+    imgui.api.SameLine(ctx, null, null);
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
+    renderMain();
+}
+
+/// The status column: one line that holds the mode and context, or the
+/// pending keys while a sequence is typed, then the buttons. Because the line
+/// count stays one, the buttons below do not move while typing. The full mode
+/// name, the context and the last action are in the tooltip of the line.
+fn renderSide() void {
     var line: [256:0]u8 = undefined;
     const m = vim.mode();
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
 
-    // Compact status line: mode, context, pending keys, last action.
-    const mode_txt = utils.safePrint(&line, "-- {s} --", .{
-        switch (m) {
-            .normal => "NORMAL",
-            .insert => "INSERT",
-            .visual_track => "VISUAL TRACK",
-            .visual_timeline => "VISUAL TLINE",
-            .off => "OFF",
-        },
-    });
+    const mode_tag: [:0]const u8 = switch (m) {
+        .normal => "N",
+        .insert => "I",
+        .visual_track => "VT",
+        .visual_timeline => "VL",
+        .off => "OFF",
+    };
     const mode_col: c_int = switch (m) {
         .normal, .visual_track, .visual_timeline => col_accent,
         .insert => col_green,
         .off => col_text,
     };
-    if (imgui.api.SmallButton(ctx, if (folded) "\xe2\x96\xb6" else "\xe2\x96\xbc")) folded = !folded;
-    imgui.api.SameLine(ctx, null, null);
-    textColored(ctx, mode_col, mode_txt);
 
-    if (m == .off) {
-        if (search_state.capturing) closeSearch();
-        return;
-    }
-
-    // Because the keyboard view needs a wide window, a button switches
-    // between it and the list for the rest of the session.
-    if (vim.currentBindings()) |b| {
-        imgui.api.SameLine(ctx, null, null);
-        const switch_txt: [:0]const u8 = switch (ui_keyboard.currentView(b)) {
-            .keyboard => "list",
-            .list => "keyboard",
-        };
-        if (imgui.api.SmallButton(ctx, switch_txt)) ui_keyboard.toggleView(b);
-    }
-
-    imgui.api.SameLine(ctx, null, null);
     var pbuf: [96]u8 = undefined;
     const pending = vim.pending(&pbuf);
-    imgui.api.Text(ctx, utils.safePrint(&line, "[{s}]", .{@tagName(vim.activeContext())}));
-    if (meta.recording) {
-        const k: keymod.Key = @bitCast(meta.record_register);
-        const reg_ch: u8 = if (k.vk >= 'A' and k.vk <= 'Z') k.vk + 32 else k.vk;
-        var rbuf: [24:0]u8 = undefined;
-        imgui.api.SameLine(ctx, null, null);
-        textColored(ctx, rgba(0xFF3333FF), utils.safePrint(&rbuf, "  \xe2\x97\x8f REC @{c}", .{reg_ch}));
+    if (m != .off and pending.len > 0) {
+        var tbuf: [DESC_BUF]u8 = undefined;
+        textColored(ctx, col_key, fitDesc(ctx, pending, SIDE_W, &tbuf));
+    } else {
+        textColored(ctx, mode_col, mode_tag);
+        if (m != .off) {
+            imgui.api.SameLine(ctx, null, null);
+            textColored(ctx, col_text, switch (vim.activeContext()) {
+                .main => "arr",
+                .midi => "mid",
+            });
+        }
+        if (meta.recording) {
+            const k: keymod.Key = @bitCast(meta.record_register);
+            const reg_ch: u8 = if (k.vk >= 'A' and k.vk <= 'Z') k.vk + 32 else k.vk;
+            imgui.api.SameLine(ctx, null, null);
+            textColored(ctx, rgba(0xFF3333FF), utils.safePrint(&line, "\xe2\x97\x8f{c}", .{reg_ch}));
+        }
     }
-    if (pending.len > 0) {
-        imgui.api.SameLine(ctx, null, null);
-        imgui.api.Text(ctx, utils.safePrint(&line, "  {s}", .{pending}));
+    if (imgui.api.IsItemHovered(ctx, null)) {
+        const last = vim.lastAction();
+        imgui.api.SetTooltip(ctx, utils.safePrint(&line, "-- {s} -- [{s}]{s}{s}{s}{s}", .{
+            switch (m) {
+                .normal => "NORMAL",
+                .insert => "INSERT",
+                .visual_track => "VISUAL TRACK",
+                .visual_timeline => "VISUAL TLINE",
+                .off => "OFF",
+            },
+            @tagName(vim.activeContext()),
+            if (pending.len > 0) "\npending: " else "",
+            pending,
+            if (last.len > 0) "\nlast: " else "",
+            last,
+        }));
     }
-    if (vim.lastAction().len > 0) {
-        imgui.api.SameLine(ctx, null, null);
-        imgui.api.Text(ctx, utils.safePrint(&line, "  last: {s}", .{vim.lastAction()}));
-    }
+    if (m == .off) return;
 
-    if (folded) return;
+    if (vim.currentBindings()) |b| ui_keyboard.renderButtons(ctx, b);
+}
+
+/// Everything right of the side column: the search box, then either the
+/// search results, the keyboard or the list of next keys.
+fn renderMain() void {
+    var line: [256:0]u8 = undefined;
+    const m = vim.mode();
 
     renderSearchBox();
     if (search_state.active()) {
