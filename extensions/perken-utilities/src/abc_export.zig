@@ -104,9 +104,33 @@ pub fn writeSmf(w: anytype, alloc: std.mem.Allocator, timing: Timing, events: []
     try w.writeAll(track.items);
 }
 
+/// The widest gap, in ticks, between the end of a note and the start of a later
+/// note that the export closes. Because the Legato action ends every chord one
+/// tick before the next one, to keep the notes from overlapping, the lengths
+/// it leaves are one tick short of the grid, and the CLI would turn such a
+/// length into a tie with a tiny leftover note. A gap this small cannot be
+/// heard, so we close it.
+pub const gap_tolerance_ticks: u32 = 2;
+
+/// The first start in the ascending `starts` that is later than `tick`.
+pub fn firstStartAfter(starts: []const u32, tick: u32) ?u32 {
+    var low: usize = 0;
+    var high: usize = starts.len;
+    while (low < high) {
+        const mid = low + (high - low) / 2;
+        if (starts[mid] <= tick) low = mid + 1 else high = mid;
+    }
+    return if (low < starts.len) starts[low] else null;
+}
+
 /// Turns the take's notes into sorted events. Because the item can be
 /// trimmed, only the notes that start inside it are kept, and their
 /// positions are made relative to the item's start. Muted notes are dropped.
+pub fn isKept(n: helpers.Note, item_start_ppq: f64, item_end_ppq: f64) bool {
+    if (n.muted) return false;
+    return n.start_ppq >= item_start_ppq - 0.5 and n.start_ppq < item_end_ppq;
+}
+
 pub fn collectEvents(
     alloc: std.mem.Allocator,
     notes: []const helpers.Note,
@@ -115,12 +139,28 @@ pub fn collectEvents(
 ) !std.ArrayList(Event) {
     var events = std.ArrayList(Event).init(alloc);
     errdefer events.deinit();
+
+    // Because closing a gap needs to know where the later notes start, we
+    // first collect the start of every kept note, in ascending order.
+    var starts = std.ArrayList(u32).init(alloc);
+    defer starts.deinit();
     for (notes) |n| {
-        if (n.muted) continue;
-        if (n.start_ppq < item_start_ppq - 0.5 or n.start_ppq >= item_end_ppq) continue;
+        if (!isKept(n, item_start_ppq, item_end_ppq)) continue;
+        try starts.append(@intFromFloat(@max(0, @round(n.start_ppq - item_start_ppq))));
+    }
+    // Because Legato runs the last chord up to the end of the item, that end
+    // counts as a boundary too.
+    try starts.append(@intFromFloat(@max(0, @round(item_end_ppq - item_start_ppq))));
+    std.mem.sort(u32, starts.items, {}, std.sort.asc(u32));
+
+    for (notes) |n| {
+        if (!isKept(n, item_start_ppq, item_end_ppq)) continue;
         const start: u32 = @intFromFloat(@max(0, @round(n.start_ppq - item_start_ppq)));
         // Because a zero-length note would turn into a note-off before its note-on, we keep at least one tick.
-        const end: u32 = @max(start + 1, @as(u32, @intFromFloat(@max(0, @round(n.end_ppq - item_start_ppq)))));
+        var end: u32 = @max(start + 1, @as(u32, @intFromFloat(@max(0, @round(n.end_ppq - item_start_ppq)))));
+        if (firstStartAfter(starts.items, end)) |next| {
+            if (next - end <= gap_tolerance_ticks) end = next;
+        }
         const channel: u8 = @intCast(std.math.clamp(n.chan, 0, 15));
         const pitch: u8 = @intCast(std.math.clamp(n.pitch, 0, 127));
         const velocity: u8 = @intCast(std.math.clamp(n.vel, 1, 127));
@@ -629,4 +669,32 @@ test "the preview link escapes the path" {
         "vscode://antoinebalaine.abc-ls/open?file=%2Fvar%2FT%2Fmy%20tune.abc&preview=1",
         fbs.getWritten(),
     );
+}
+
+test "the one-tick gaps that Legato leaves are closed" {
+    const alloc = std.testing.allocator;
+    const notes = [_]helpers.Note{
+        // a chord of two notes ending one tick before the next chord, then a note ending one tick before a rest
+        .{ .selected = false, .muted = false, .start_ppq = 0, .end_ppq = 959, .chan = 0, .pitch = 60, .vel = 90 },
+        .{ .selected = false, .muted = false, .start_ppq = 0, .end_ppq = 959, .chan = 0, .pitch = 64, .vel = 90 },
+        .{ .selected = false, .muted = false, .start_ppq = 960, .end_ppq = 1439, .chan = 0, .pitch = 62, .vel = 90 },
+        // a real rest of a sixteenth note stays
+        .{ .selected = false, .muted = false, .start_ppq = 1680, .end_ppq = 1900, .chan = 0, .pitch = 65, .vel = 90 },
+    };
+    var events = try collectEvents(alloc, &notes, 0, 9999);
+    defer events.deinit();
+    var ends = std.ArrayList(u32).init(alloc);
+    defer ends.deinit();
+    for (events.items) |e| if (!e.is_on) try ends.append(e.tick);
+    try std.testing.expectEqualSlices(u32, &.{ 960, 960, 1439, 1900 }, ends.items);
+}
+
+test "a last note one tick short of the item end is closed" {
+    const alloc = std.testing.allocator;
+    const notes = [_]helpers.Note{
+        .{ .selected = false, .muted = false, .start_ppq = 0, .end_ppq = 1919, .chan = 0, .pitch = 60, .vel = 90 },
+    };
+    var events = try collectEvents(alloc, &notes, 0, 1920);
+    defer events.deinit();
+    try std.testing.expectEqual(@as(u32, 1920), events.items[1].tick);
 }

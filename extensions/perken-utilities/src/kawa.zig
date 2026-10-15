@@ -437,9 +437,66 @@ fn legato(_: *actions.RunCtx) void {
     Reaper.UpdateArrange();
 }
 
+// ---- quantize note ends -----------------------------------------------------------
+
+/// The end, in quarter notes, that a note starting at `start_qn` and ending at
+/// `end_qn` gets when its end is snapped to a grid of `grid_qn` quarter notes.
+/// Because a note needs some length, an end that would land on or before the
+/// start moves to the first grid line after the start instead.
+pub fn quantizedEndQn(start_qn: f64, end_qn: f64, grid_qn: f64) f64 {
+    const snapped = @round(end_qn / grid_qn) * grid_qn;
+    if (snapped > start_qn) return snapped;
+    return (@floor(start_qn / grid_qn) + 1) * grid_qn;
+}
+
+/// Snaps the end of every selected note of the active MIDI editor's take (or
+/// of every note when none is selected) to the editor's grid, and leaves the
+/// starts alone. Because the grid is read from the editor, the action follows
+/// whatever grid division the user has chosen there.
+fn quantizeNoteEnds(_: *actions.RunCtx) void {
+    const editor = helpers.midiEditorActive() orelse return;
+    const take = helpers.midiEditorTake(editor) orelse return;
+
+    var swing: f64 = 0;
+    var note_len: f64 = 0;
+    var grid_qn = Reaper.MIDI_GetGrid(take, &swing, &note_len);
+    if (grid_qn <= 0) grid_qn = 1;
+
+    var n_notes: c_int = 0;
+    var n_cc: c_int = 0;
+    var n_sysex: c_int = 0;
+    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
+
+    var all = std.ArrayList(NoteRec).init(helpers.allocator);
+    defer all.deinit();
+    var any_selected = false;
+    var i: c_int = 0;
+    while (i < n_notes) : (i += 1) {
+        var r = NoteRec{ .idx = i, .selected = false, .muted = false, .start = 0, .end = 0, .chan = 0, .pitch = 0, .vel = 0 };
+        if (!Reaper.MIDI_GetNote(take, i, &r.selected, &r.muted, &r.start, &r.end, &r.chan, &r.pitch, &r.vel)) continue;
+        if (r.selected) any_selected = true;
+        all.append(r) catch return;
+    }
+
+    Reaper.Undo_BeginBlock();
+    for (all.items) |r| {
+        if (any_selected and !r.selected) continue;
+        const start_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, r.start);
+        const end_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, r.end);
+        const new_end = Reaper.MIDI_GetPPQPosFromProjQN(take, quantizedEndQn(start_qn, end_qn, grid_qn));
+        if (@abs(new_end - r.end) < 0.5) continue;
+        const no_sort = true;
+        _ = Reaper.MIDI_SetNote(take, r.idx, &r.selected, &r.muted, &r.start, &new_end, &r.chan, &r.pitch, &r.vel, &no_sort);
+    }
+    Reaper.MIDI_Sort(take);
+    Reaper.Undo_EndBlock("Perken: quantize note ends", -1);
+    Reaper.UpdateArrange();
+}
+
 // ---- registry entries -------------------------------------------------------------
 
 pub const entries = [_]actions.Entry{
+    .{ .name = "QuantizeNoteEnds", .def = .{ .steps = &.{.{ .func = &quantizeNoteEnds }}, .midi_command = true, .desc = "Quantize note ends to the grid, leaving the starts alone" } },
     .{ .name = "Legato", .def = .{ .steps = &.{.{ .func = &legato }}, .midi_command = true, .desc = "Legato: notes end at the next chord, the last at the item end" } },
     .{ .name = "SelectBottomNotes", .def = .{ .steps = &.{.{ .func = &selectBottomNotes }}, .midi_command = true } },
     .{ .name = "SelectTopNotes", .def = .{ .steps = &.{.{ .func = &selectTopNotes }}, .midi_command = true } },
@@ -591,4 +648,15 @@ test "legato: a next note too close leaves the last chord as it was" {
     var out: [1]f64 = undefined;
     try legatoEnds(std.testing.allocator, &spans, &.{1}, 960, &out);
     try std.testing.expectEqualSlices(f64, &.{50}, &out);
+}
+
+test "quantize ends: an end snaps to the nearest grid line" {
+    try std.testing.expectEqual(@as(f64, 1.0), quantizedEndQn(0, 0.9, 0.25));
+    try std.testing.expectEqual(@as(f64, 1.0), quantizedEndQn(0, 1.1, 0.25));
+    try std.testing.expectEqual(@as(f64, 1.25), quantizedEndQn(0, 1.2, 0.25));
+}
+
+test "quantize ends: an end that would not follow the start moves to the next grid line" {
+    try std.testing.expectEqual(@as(f64, 0.5), quantizedEndQn(0.3, 0.35, 0.5));
+    try std.testing.expectEqual(@as(f64, 1.0), quantizedEndQn(0.5, 0.6, 0.5));
 }
