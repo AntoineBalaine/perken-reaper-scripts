@@ -19,6 +19,7 @@ const builder = @import("builder.zig");
 const grammar = @import("grammar.zig");
 const search = @import("search.zig");
 const state = @import("state.zig");
+const ui_keyboard = @import("ui_keyboard.zig");
 
 const log = std.log.scoped(.extension);
 
@@ -266,7 +267,7 @@ fn renderSearchResults() void {
 }
 
 /// Action display name, reavim-style: real action names instead of raw ids.
-fn displayName(bv: anytype, context: vim.Context, buf: [:0]u8) []const u8 {
+pub fn displayName(bv: anytype, context: vim.Context, buf: [:0]u8) []const u8 {
     const def = bv.def;
     if (def.desc) |d| return d;
     if (def.steps.len == 1) {
@@ -298,7 +299,7 @@ fn commandName(id: c_int, context: vim.Context, buf: [:0]u8) []const u8 {
     return fallback;
 }
 
-fn textColored(c: imgui.ContextPtr, color: c_int, txt: [*:0]const u8) void {
+pub fn textColored(c: imgui.ContextPtr, color: c_int, txt: [*:0]const u8) void {
     imgui.api.PushStyleColor(c, imgui.Col_Text, color);
     imgui.api.Text(c, txt);
     imgui.api.PopStyleColor(c, null);
@@ -331,7 +332,7 @@ pub fn pagePrev() void {
 }
 
 /// Pixel width of a null-terminated string in the current font.
-fn textWidth(c: imgui.ContextPtr, ztext: [*:0]const u8) f64 {
+pub fn textWidth(c: imgui.ContextPtr, ztext: [*:0]const u8) f64 {
     var w: f64 = 0;
     var h: f64 = 0;
     imgui.api.CalcTextSize(c, ztext, &w, &h, null, null);
@@ -341,7 +342,7 @@ fn textWidth(c: imgui.ContextPtr, ztext: [*:0]const u8) f64 {
 /// Fit a description into max_w pixels: return it whole when it fits, otherwise
 /// the longest prefix that fits with a trailing "..." appended. This fills the
 /// actual (stretch-sized) column width instead of a fixed character count.
-fn fitDesc(c: imgui.ContextPtr, desc: []const u8, max_w: f64, buf: []u8) [:0]const u8 {
+pub fn fitDesc(c: imgui.ContextPtr, desc: []const u8, max_w: f64, buf: []u8) [:0]const u8 {
     const full = std.fmt.bufPrintZ(buf, "{s}", .{desc}) catch return buf[0..0 :0];
     if (max_w <= 0 or textWidth(c, full) <= max_w) return full;
 
@@ -468,6 +469,17 @@ fn renderContent() void {
         return;
     }
 
+    // Because the keyboard view needs a wide window, a button switches
+    // between it and the list for the rest of the session.
+    if (vim.currentBindings()) |b| {
+        imgui.api.SameLine(ctx, null, null);
+        const switch_txt: [:0]const u8 = switch (ui_keyboard.currentView(b)) {
+            .keyboard => "list",
+            .list => "keyboard",
+        };
+        if (imgui.api.SmallButton(ctx, switch_txt)) ui_keyboard.toggleView(b);
+    }
+
     imgui.api.SameLine(ctx, null, null);
     var pbuf: [96]u8 = undefined;
     const pending = vim.pending(&pbuf);
@@ -500,6 +512,13 @@ fn renderContent() void {
     if (m == .insert) {
         last_n_pages = 1;
         return;
+    }
+
+    if (vim.currentBindings()) |b| {
+        if (ui_keyboard.currentView(b) == .keyboard and ui_keyboard.render(ctx, b)) {
+            last_n_pages = 1;
+            return;
+        }
     }
 
     var comps: [96]vim.Completion = undefined;

@@ -143,6 +143,33 @@ pub fn completions(buf: []Completion) []Completion {
     return builder.completions(&b.tables, active_ctx, state.grammarMode(), key_buf[0..key_len], buf);
 }
 
+/// Types one key as if it had been pressed in the active context, keeping the
+/// pending sequence. A click on a cap of the whichkey keyboard uses it.
+pub fn typeKey(k: keymod.Key) void {
+    const b = bindings orelse return;
+    if (state.mode == .off or state.mode == .insert) return;
+    _ = pushKey(b, active_ctx, k, false);
+}
+
+/// The binding tables and the whichkey settings, for the keyboard view.
+pub fn currentBindings() ?*const config.Bindings {
+    return bindings;
+}
+
+/// The modifiers held right now. Because the engine binds the Command key
+/// and the physical Control key alike on macOS (see accel.ctrlHeld), both
+/// count as Ctrl there.
+pub fn heldModifiers() struct { shift: bool, ctrl: bool, alt: bool } {
+    const VK_LWIN: u8 = 0x5B;
+    const ctrl = swell.asyncKeyDown(VK_CONTROL) or
+        (builtin.os.tag == .macos and swell.asyncKeyDown(VK_LWIN));
+    return .{
+        .shift = swell.asyncKeyDown(VK_SHIFT),
+        .ctrl = ctrl,
+        .alt = swell.asyncKeyDown(VK_MENU),
+    };
+}
+
 fn clearPending() void {
     key_len = 0;
 }

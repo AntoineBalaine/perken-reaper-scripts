@@ -216,6 +216,9 @@ pub const Completion = struct {
     key: Key,
     label: ?[]const u8,
     value: ?BindingValue,
+    /// The grammar type of the trie the key was found in. The keyboard view
+    /// colors a binding by it when the binding has no category of its own.
+    action_type: ?grammar.ActionType = null,
 };
 
 /// Union of next keys that could extend `keys` toward a buildable command.
@@ -255,7 +258,7 @@ fn addDoubledOperatorCompletion(
     for (out[0..n.*]) |e| {
         if (e.key.bits() == keys[0].bits()) return;
     }
-    out[n.*] = .{ .key = keys[0], .label = null, .value = motion };
+    out[n.*] = .{ .key = keys[0], .label = null, .value = motion, .action_type = .track_operator };
     n.* += 1;
 }
 
@@ -274,7 +277,7 @@ fn collectForCandidate(
         // Children at the partial path of the remainder (count prefix skipped).
         const nd = countPrefixLen(rest);
         if (walkPath(t_trie, rest[nd..])) |node| {
-            addChildren(t_trie, node, out, n);
+            addChildren(t_trie, t, node, out, n);
             // A register-action terminal waits for its register key.
             if (valueAt(t_trie, node)) |v| {
                 if (v.def.register_action and rest.len > nd and n.* < out.len) {
@@ -284,7 +287,7 @@ fn collectForCandidate(
                         if (e.key.bits() == sentinel.bits()) dup = true;
                     }
                     if (!dup) {
-                        out[n.*] = .{ .key = sentinel, .label = "register a-z", .value = v };
+                        out[n.*] = .{ .key = sentinel, .label = "register a-z", .value = v, .action_type = t };
                         n.* += 1;
                     }
                 }
@@ -302,7 +305,7 @@ fn collectForCandidate(
     }
 }
 
-fn addChildren(t: *const KeyTrie, node: u32, out: []Completion, n: *usize) void {
+fn addChildren(t: *const KeyTrie, action_type: grammar.ActionType, node: u32, out: []Completion, n: *usize) void {
     var it = t.nodes.items[node].children.iterator();
     outer: while (it.next()) |e| {
         if (n.* >= out.len) return;
@@ -312,7 +315,7 @@ fn addChildren(t: *const KeyTrie, node: u32, out: []Completion, n: *usize) void 
             if (existing.key.bits() == k.bits()) continue :outer;
         }
         const child = t.nodes.items[e.value_ptr.*];
-        out[n.*] = .{ .key = k, .label = child.label, .value = child.value };
+        out[n.*] = .{ .key = k, .label = child.label, .value = child.value, .action_type = action_type };
         n.* += 1;
     }
 }

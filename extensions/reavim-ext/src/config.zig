@@ -11,6 +11,16 @@
 //!   i = @insert                ; engine builtin (insert/normal/off/clear)
 //!   l = @unbind                ; drops a binding that the global section gave this context
 //!   d = +delete                ; folder label for completion hints
+//!
+//! Two more sections configure the whichkey window instead of binding keys:
+//!
+//!   [whichkey]
+//!   page_next = <pagedown>     ; pagination keys of the list view
+//!   view = keyboard            ; keyboard | list
+//!   layout = bepo              ; qwerty | bepo (where each character sits)
+//!   board = ortho              ; staggered | ortho
+//!   [labels]
+//!   AddNextNoteToSelection = Extend → | extend   ; short cap label | category
 const std = @import("std");
 const ini = @import("ini");
 const keymod = @import("key.zig");
@@ -18,6 +28,7 @@ const grammar = @import("grammar.zig");
 const actions = @import("actions.zig");
 const builder = @import("builder.zig");
 const lib_state = @import("lib_state.zig");
+const keyboard = @import("keyboard.zig");
 
 const log = std.log.scoped(.config);
 
@@ -28,6 +39,13 @@ pub const Bindings = struct {
     /// in the engine — they are not regular bindings, so they work mid-sequence.
     page_next: keymod.Key = .{ .vk = keymod.VK.NEXT }, // PageDown
     page_prev: keymod.Key = .{ .vk = keymod.VK.PRIOR }, // PageUp
+    /// How the whichkey window shows the next keys, and on which keyboard.
+    view: keyboard.View = .keyboard,
+    layout: keyboard.Layout = .qwerty,
+    board: keyboard.Board = .staggered,
+    /// Short cap labels and categories by action name (the [labels] section).
+    /// The strings live in the arena.
+    labels: std.StringHashMapUnmanaged(keyboard.Label) = .{},
 
     pub fn deinit(self: *Bindings) void {
         for (&self.tables.tries) |*row| for (row) |*t| t.deinit();
@@ -38,6 +56,7 @@ pub const Bindings = struct {
 const CurSection = union(enum) {
     binding: Section,
     whichkey,
+    labels,
     unknown,
 };
 
@@ -46,6 +65,24 @@ fn parseSingleKey(raw: []const u8) ?keymod.Key {
     const tok = keymod.parseToken(std.mem.trim(u8, raw, " \t")) catch return null;
     if (tok.len != std.mem.trim(u8, raw, " \t").len) return null; // must be exactly one key
     return tok.key;
+}
+
+/// Applies a [whichkey] option that is not a key (view, layout, board).
+/// Returns false when the name is not one of them, so that the caller parses
+/// the value as a pagination key instead.
+fn parseWhichkeyOption(b: *Bindings, name: []const u8, raw: []const u8) !bool {
+    const value = std.mem.trim(u8, raw, " \t");
+    inline for (.{ .{ "view", keyboard.View }, .{ "layout", keyboard.Layout }, .{ "board", keyboard.Board } }) |opt| {
+        if (std.mem.eql(u8, name, opt[0])) {
+            if (std.meta.stringToEnum(opt[1], value)) |v| {
+                @field(b, opt[0]) = v;
+            } else {
+                log.warn("unknown [whichkey] {s} '{s}' — skipped", .{ opt[0], value });
+            }
+            return true;
+        }
+    }
+    return false;
 }
 
 const IniContext = enum { main, midi, global };
@@ -168,6 +205,8 @@ pub fn parse(
             .section => |name| {
                 if (std.mem.eql(u8, name, "whichkey")) {
                     section = .whichkey;
+                } else if (std.mem.eql(u8, name, "labels")) {
+                    section = .labels;
                 } else if (parseSectionName(name)) |sec| {
                     section = .{ .binding = sec };
                 } else {
@@ -177,7 +216,19 @@ pub fn parse(
             },
             .property => |kv| switch (section) {
                 .unknown => {},
+                .labels => {
+                    const label = keyboard.parseLabel(kv.value) catch |err| {
+                        log.warn("bad label '{s}' for '{s}': {s} — skipped", .{ kv.value, kv.key, @errorName(err) });
+                        continue;
+                    };
+                    const name = try arena.dupe(u8, std.mem.trim(u8, kv.key, " \t"));
+                    try b.labels.put(arena, name, .{
+                        .text = try arena.dupe(u8, label.text),
+                        .category = label.category,
+                    });
+                },
                 .whichkey => {
+                    if (try parseWhichkeyOption(&b, kv.key, kv.value)) continue;
                     const key = parseSingleKey(kv.value) orelse {
                         log.warn("bad whichkey key '{s}' for '{s}' — skipped", .{ kv.value, kv.key });
                         continue;
@@ -254,6 +305,30 @@ const test_defs = [_]actions.Entry{
     .{ .name = "NextTrack", .def = .{ .steps = &.{.{ .cmd = 40285 }}, .prefix_repetition_count = true } },
     .{ .name = "RemoveTracks", .def = .{ .steps = &.{.{ .cmd = 40005 }} } },
 };
+
+test "whichkey view options and labels" {
+    var reg = try actions.Registry.init(std.testing.allocator, &.{});
+    defer reg.deinit();
+    var b = try parseString(std.testing.allocator, &reg,
+        \\[whichkey]
+        \\view = list
+        \\layout = bepo
+        \\board = ortho
+        \\[labels]
+        \\AddNextNoteToSelection = Extend → | extend
+        \\Quantize = Quantize
+        \\Broken = X | nope
+    );
+    defer b.deinit();
+    try std.testing.expectEqual(keyboard.View.list, b.view);
+    try std.testing.expectEqual(keyboard.Layout.bepo, b.layout);
+    try std.testing.expectEqual(keyboard.Board.ortho, b.board);
+    const ext = b.labels.get("AddNextNoteToSelection").?;
+    try std.testing.expectEqualStrings("Extend →", ext.text);
+    try std.testing.expectEqual(keyboard.Category.extend, ext.category.?);
+    try std.testing.expect(b.labels.get("Quantize").?.category == null);
+    try std.testing.expect(b.labels.get("Broken") == null);
+}
 
 test "whichkey pagination keys default and override" {
     var reg = try actions.Registry.init(std.testing.allocator, &.{});

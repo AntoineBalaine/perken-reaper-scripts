@@ -233,6 +233,7 @@ fn translateAccel(msg: *accel.MSG, ctx: *accel.accelerator_register_t) callconv(
 // Force the SWELL_dllMain export into the shared library.
 comptime {
     _ = @import("swell_win.zig");
+    _ = @import("keyboard.zig");
 }
 
 test {
@@ -254,8 +255,8 @@ test {
 
 test "the MIDI editor keymap: note selection, quantize and note editing keys" {
     var reg = try actions_mod.Registry.init(std.testing.allocator, &.{
-        &defaults_actions.entries, &lib_state.entries, &ported_movement.entries, &ported_selection.entries,
-        &ported_marks.entries,     &ported_midi.entries, &ported_misc.entries,    &ui.entries,
+        &defaults_actions.entries, &lib_state.entries,   &ported_movement.entries, &ported_selection.entries,
+        &ported_marks.entries,     &ported_midi.entries, &ported_misc.entries,     &ui.entries,
     });
     defer reg.deinit();
     const text = lib_state.default_bindings;

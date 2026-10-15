@@ -34,6 +34,7 @@ const user32 = if (is_windows) struct {
     extern "user32" fn GetParent(hWnd: HWND) callconv(.C) ?HWND;
     extern "user32" fn IsChild(hWndParent: HWND, hWnd: HWND) callconv(.C) c_int;
     extern "user32" fn GetClassNameA(hWnd: HWND, lpClassName: [*]u8, nMaxCount: c_int) callconv(.C) c_int;
+    extern "user32" fn GetAsyncKeyState(vKey: c_int) callconv(.C) i16;
 } else struct {};
 
 // Signatures from WDL/swell/swell-functions.h (Linux/macOS only).
@@ -43,6 +44,7 @@ var fnIsChild: ?*const fn (parent: HWND, child: HWND) callconv(.C) c_int = null;
 var fnGetClassName: ?*const fn (hwnd: HWND, buf: [*]u8, bufsz: c_int) callconv(.C) c_int = null;
 var fnSetFocus: ?*const fn (hwnd: HWND) callconv(.C) void = null;
 var fnGetDlgItem: ?*const fn (hwnd: HWND, idx: c_int) callconv(.C) ?HWND = null;
+var fnGetAsyncKeyState: ?*const fn (key: c_int) callconv(.C) u16 = null;
 
 const DLL_PROCESS_ATTACH: c_uint = 1;
 
@@ -64,6 +66,7 @@ export fn SWELL_dllMain(hInst: ?*anyopaque, callMode: c_uint, getFunc: ?*anyopaq
             fnGetClassName = @ptrCast(@alignCast(g("GetClassName") orelse null));
             fnSetFocus = @ptrCast(@alignCast(g("SetFocus") orelse null));
             fnGetDlgItem = @ptrCast(@alignCast(g("GetDlgItem") orelse null));
+            fnGetAsyncKeyState = @ptrCast(@alignCast(g("GetAsyncKeyState") orelse null));
         }
         if (fnGetFocus == null or fnGetParent == null or fnIsChild == null or fnGetClassName == null)
             log.warn("some SWELL window functions failed to resolve", .{});
@@ -111,6 +114,19 @@ fn macosHostGetFunc() ?GetFuncT {
 pub fn available() bool {
     if (is_windows) return true; // native user32 calls, always available
     return fnGetFocus != null and fnGetParent != null and fnGetClassName != null;
+}
+
+/// Whether a key is held right now, whichever window has focus. The whichkey
+/// window polls the modifiers with it, because a modifier pressed on its own
+/// sends no key message that the engine would see. On macOS, SWELL reports
+/// Command as VK_CONTROL and the physical Control key as VK_LWIN.
+pub fn asyncKeyDown(vk: u8) bool {
+    if (is_windows) {
+        const st: u16 = @bitCast(user32.GetAsyncKeyState(@intCast(vk)));
+        return (st & 0x8000) != 0;
+    }
+    const f = fnGetAsyncKeyState orelse return false;
+    return (f(@intCast(vk)) & 0x8000) != 0;
 }
 
 pub fn getFocus() ?HWND {
