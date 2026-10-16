@@ -39,8 +39,7 @@ pub const entries = [_]actions.Entry{
     .{ .name = "CloseFxWindows", .def = .{ .steps = &.{.{ .named = "_S&M_WNCLS5" }} } },
     .{ .name = "CloseFxChains", .def = .{ .steps = &.{.{ .named = "_S&M_WNCLS4" }} } },
     .{ .name = "CloseProject", .def = .{ .steps = &.{.{ .cmd = 40860 }} } },
-    // extended_defaults: prepends LoadTrkScreenSet1 before closing
-    .{ .name = "CloseWindow", .def = .{ .steps = &.{ .{ .action = "LoadTrkScreenSet1" }, .{ .cmd = 2 } }, .midi_command = true } },
+    .{ .name = "CloseWindow", .def = .{ .steps = &.{.{ .cmd = 2 }}, .midi_command = true } },
     // track color
     .{ .name = "ColorTrack", .def = .{ .steps = &.{.{ .cmd = 40360 }}, .prefix_repetition_count = true } },
     .{ .name = "ColorTrackGradient", .def = .{ .steps = &.{.{ .named = "_SWS_TRACKGRAD" }} } },
@@ -266,7 +265,6 @@ pub const entries = [_]actions.Entry{
     .{ .name = "NudgeTrackVolumeUpBy1", .def = .{ .steps = &.{.{ .action = "NudgeTrackVolumeUp" }}, .repetitions = 20, .prefix_repetition_count = true } },
     .{ .name = "NudgeTrackVolumeUpBy1Tenth", .def = .{ .steps = &.{.{ .action = "NudgeTrackVolumeUp" }}, .repetitions = 2, .prefix_repetition_count = true } },
     .{ .name = "OnlySelectItemsCrossingTimeAndTrackSelection", .def = .{ .steps = &.{ .{ .action = "UnselectItems" }, .{ .action = "SelectItemsCrossingTimeAndTrackSelection" } } } },
-    .{ .name = "OpenInMidiEditor", .def = .{ .steps = &.{ .{ .action = "SaveTrkScreenSet1" }, .{ .action = "ZoomItemSelection" }, .{ .cmd = 40153 } } } },
     .{ .name = "OpenProject", .def = .{ .steps = &.{.{ .cmd = 40025 }} } },
     // paste
     .{ .name = "PasteAbove", .def = .{ .steps = &.{ .{ .action = "PrevTrack" }, .{ .action = "Paste" } }, .prefix_repetition_count = true } },

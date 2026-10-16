@@ -146,10 +146,60 @@ fn prevBigNoteStart(_: *actions.RunCtx) void {
     moveToPrevBigNote(.start);
 }
 
-// ---- screenset on editor close ---------------------------------------------------------
+// ---- arrange zoom around the MIDI editor ------------------------------------------------
 
-fn loadScreenSetWhenClosingEditor(_: *actions.RunCtx) void {
-    Reaper.Main_OnCommand(40444, 0); // Screenset: Load window set #04 (same id as LoadTrkScreenSet1)
+/// Because opening an item zooms the arrange view onto it, we keep the time
+/// range that was visible before, so that the view can go back to it once
+/// the MIDI editor is closed, whichever way it is closed.
+pub const ArrangeRestore = struct {
+    start: f64 = 0,
+    end: f64 = 0,
+    /// Whether the watcher has seen the editor open since the zoom.
+    editor_seen: bool = false,
+    /// Ticks spent waiting for the editor to appear. Because the open
+    /// command does nothing when no MIDI item is selected, we give up after
+    /// a few ticks instead of watching forever.
+    waiting_ticks: u32 = 0,
+    watching: bool = false,
+};
+
+pub var arrange_restore: ArrangeRestore = .{};
+
+/// Ticks to wait for the editor to appear before we stop watching.
+const OPEN_TIMEOUT_TICKS = 30;
+
+/// Zooms the arrange view to the selected items and opens them in the MIDI
+/// editor. When a previous open is still being watched, the saved range is
+/// kept, because the current view is already a zoomed one.
+fn openInMidiEditor(_: *actions.RunCtx) void {
+    if (!arrange_restore.watching) {
+        var start: f64 = 0;
+        var end_: f64 = 0;
+        Reaper.GetSet_ArrangeView2(null, false, 0, 0, &start, &end_);
+        arrange_restore = .{ .start = start, .end = end_, .watching = true };
+        _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&watchMidiEditorClose)));
+    }
+    helpers.runNamedCommand("_SWS_HZOOMITEMS");
+    Reaper.Main_OnCommand(40153, 0); // Item: Open in built-in MIDI editor
+}
+
+/// Timer callback: because the editor can be closed by a key, the mouse or
+/// the window's close button, we poll for it to disappear rather than hook
+/// each way of closing it.
+fn watchMidiEditorClose() callconv(.C) void {
+    if (helpers.midiEditorActive() != null) {
+        arrange_restore.editor_seen = true;
+        return;
+    }
+    if (!arrange_restore.editor_seen) {
+        arrange_restore.waiting_ticks += 1;
+        if (arrange_restore.waiting_ticks < OPEN_TIMEOUT_TICKS) return;
+    } else {
+        Reaper.GetSet_ArrangeView2(null, true, 0, 0, &arrange_restore.start, &arrange_restore.end);
+        Reaper.UpdateArrange();
+    }
+    arrange_restore.watching = false;
+    _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&watchMidiEditorClose)));
 }
 
 // ---- registry entries -------------------------------------------------------------
@@ -162,7 +212,8 @@ pub const entries = [_]actions.Entry{
     .{ .name = "NextBigNoteStart", .def = .{ .steps = &.{ .{ .action = "UnselectAllEvents" }, .{ .func = &nextBigNoteStart } }, .midi_command = true, .prefix_repetition_count = true } },
     .{ .name = "PrevBigNoteEnd", .def = .{ .steps = &.{ .{ .action = "UnselectAllEvents" }, .{ .func = &prevBigNoteEnd } }, .midi_command = true, .prefix_repetition_count = true } },
     .{ .name = "PrevBigNoteStart", .def = .{ .steps = &.{ .{ .action = "UnselectAllEvents" }, .{ .func = &prevBigNoteStart } }, .midi_command = true, .prefix_repetition_count = true } },
-    .{ .name = "CloseUndockedMidiEditorOrPassToMainWindow", .def = .{ .steps = &.{ .{ .cmd = 40477 }, .{ .func = &loadScreenSetWhenClosingEditor } }, .midi_command = true } },
+    .{ .name = "CloseUndockedMidiEditorOrPassToMainWindow", .def = .{ .steps = &.{.{ .cmd = 40477 }}, .midi_command = true } },
+    .{ .name = "OpenInMidiEditor", .def = .{ .steps = &.{.{ .func = &openInMidiEditor }}, .desc = "Open in MIDI editor" } },
 };
 
 // ---- tests ------------------------------------------------------------------

@@ -1433,7 +1433,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSet_ArrangeView2
     /// Gets or sets the arrange view start/end time for screen coordinates. use screen_x_start=screen_x_end=0 to use the full arrange view's start/end time
-    pub var GetSet_ArrangeView2: *fn (proj: *ReaProject, isSet: bool, screen_x_start: c_int, screen_x_end: c_int, start_timeInOut: *f64, end_timeInOut: *f64) callconv(.C) void = undefined;
+    pub var GetSet_ArrangeView2: *fn (proj: ?*ReaProject, isSet: bool, screen_x_start: c_int, screen_x_end: c_int, start_timeInOut: *f64, end_timeInOut: *f64) callconv(.C) void = undefined;
 
     /// GetSet_LoopTimeRange
     pub var GetSet_LoopTimeRange: *fn (isSet: bool, isLoop: bool, startOut: *f64, endOut: *f64, allowautoseek: bool) callconv(.C) void = undefined;
