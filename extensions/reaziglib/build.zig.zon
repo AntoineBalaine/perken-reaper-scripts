@@ -1,0 +1,14 @@
+.{
+    .name = .reaziglib,
+    .fingerprint = 0x43b2008c2514eb8e,
+    .version = "0.0.0",
+    .dependencies = .{
+        .ini = .{
+            .url = "https://github.com/AntoineBalaine/ini/archive/d5d1130062e3.tar.gz",
+            .hash = "N-V-__8AAMaXAADBd3SZZVoq54wmI0VjlyYcXXh98BCdpCBF",
+        },
+    },
+    .paths = .{
+        "",
+    },
+}

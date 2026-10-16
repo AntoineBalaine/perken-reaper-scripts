@@ -1,0 +1,178 @@
+//! Window introspection (GetFocus/GetParent/GetClassName/IsChild) for the vim
+//! engine's focus-context logic (vim.zig).
+//!
+//! On Linux/macOS, REAPER is hosted through SWELL (WDL's win32-compat layer),
+//! so these calls have to go through SWELL's own resolver mechanism: on load,
+//! REAPER looks for an exported SWELL_dllMain and passes it a GetFunc resolver
+//! for the SWELL API (same mechanism WDL's swell-modstub-generic.cpp uses —
+//! see its SWELL_dllMain). We resolve only the window functions the vim
+//! engine needs.
+//!
+//! On Windows, REAPER is a native win32 application — there is no SWELL layer
+//! to go through at all, so this calls user32.dll directly. SWELL_dllMain is
+//! still exported unconditionally below (real Windows REAPER never looks for
+//! or calls it, so this is inert there, not harmful).
+const std = @import("std");
+const builtin = @import("builtin");
+const Reaper = @import("reaper").reaper;
+
+const log = std.log.scoped(.swell);
+
+const HWND = Reaper.HWND;
+// Nullable name: the macOS version handshake is GetFunc(NULL) == 0x100.
+const GetFuncT = *const fn (name: ?[*:0]const u8) callconv(.C) ?*anyopaque;
+
+const is_windows = builtin.os.tag == .windows;
+
+// Native win32 declarations (user32.dll), used only on Windows. Signatures
+// per the standard Win32 API (winuser.h); GetClassNameA is used rather than
+// the wide variant since the vim engine only needs a short ASCII-range class
+// name to match against (classHandlesOwnKeys in vim.zig), the same tradeoff
+// SWELL's own GetClassName makes on the other platforms.
+const user32 = if (is_windows) struct {
+    extern "user32" fn GetFocus() callconv(.C) ?HWND;
+    extern "user32" fn GetParent(hWnd: HWND) callconv(.C) ?HWND;
+    extern "user32" fn IsChild(hWndParent: HWND, hWnd: HWND) callconv(.C) c_int;
+    extern "user32" fn GetClassNameA(hWnd: HWND, lpClassName: [*]u8, nMaxCount: c_int) callconv(.C) c_int;
+    extern "user32" fn GetAsyncKeyState(vKey: c_int) callconv(.C) i16;
+} else struct {};
+
+// Signatures from WDL/swell/swell-functions.h (Linux/macOS only).
+var fnGetFocus: ?*const fn () callconv(.C) ?HWND = null;
+var fnGetParent: ?*const fn (hwnd: HWND) callconv(.C) ?HWND = null;
+var fnIsChild: ?*const fn (parent: HWND, child: HWND) callconv(.C) c_int = null;
+var fnGetClassName: ?*const fn (hwnd: HWND, buf: [*]u8, bufsz: c_int) callconv(.C) c_int = null;
+var fnSetFocus: ?*const fn (hwnd: HWND) callconv(.C) void = null;
+var fnGetDlgItem: ?*const fn (hwnd: HWND, idx: c_int) callconv(.C) ?HWND = null;
+var fnGetAsyncKeyState: ?*const fn (key: c_int) callconv(.C) u16 = null;
+
+const DLL_PROCESS_ATTACH: c_uint = 1;
+
+export fn SWELL_dllMain(hInst: ?*anyopaque, callMode: c_uint, getFunc: ?*anyopaque) callconv(.C) c_int {
+    _ = hInst;
+    if (callMode == DLL_PROCESS_ATTACH) {
+        // The third parameter is the SWELL resolver on Linux only. On macOS
+        // the host passes NULL and the resolver comes from the app delegate
+        // (WDL swell-modstub.mm). Never return 0 here — that makes REAPER
+        // abandon the plugin without ever calling ReaperPluginEntry.
+        const gf: ?GetFuncT = if (getFunc) |g|
+            @as(GetFuncT, @ptrCast(@alignCast(g)))
+        else
+            macosHostGetFunc();
+        if (gf) |g| {
+            fnGetFocus = @ptrCast(@alignCast(g("GetFocus") orelse null));
+            fnGetParent = @ptrCast(@alignCast(g("GetParent") orelse null));
+            fnIsChild = @ptrCast(@alignCast(g("IsChild") orelse null));
+            fnGetClassName = @ptrCast(@alignCast(g("GetClassName") orelse null));
+            fnSetFocus = @ptrCast(@alignCast(g("SetFocus") orelse null));
+            fnGetDlgItem = @ptrCast(@alignCast(g("GetDlgItem") orelse null));
+            fnGetAsyncKeyState = @ptrCast(@alignCast(g("GetAsyncKeyState") orelse null));
+        }
+        if (fnGetFocus == null or fnGetParent == null or fnIsChild == null or fnGetClassName == null)
+            log.warn("some SWELL window functions failed to resolve", .{});
+    }
+    return 1; // allows DllMain to be called, if available
+}
+
+/// macOS: [[NSApp delegate] swellGetAPPAPIFunc] returns the SWELL resolver;
+/// resolver(NULL) == 0x100 is the API version handshake. The objc runtime is
+/// reached through dlsym so non-macOS builds need no extra link inputs.
+fn macosHostGetFunc() ?GetFuncT {
+    if (builtin.os.tag != .macos) return null;
+
+    const MsgSend0 = *const fn (?*anyopaque, ?*anyopaque) callconv(.C) ?*anyopaque;
+    const MsgSendBool = *const fn (?*anyopaque, ?*anyopaque, ?*anyopaque) callconv(.C) bool;
+    const GetClass = *const fn ([*:0]const u8) callconv(.C) ?*anyopaque;
+    const SelName = *const fn ([*:0]const u8) callconv(.C) ?*anyopaque;
+
+    // dlsym's pseudo-handle for "search everything" is (void*)-2, not NULL.
+    const RTLD_DEFAULT: ?*anyopaque = @ptrFromInt(@as(usize, @bitCast(@as(isize, -2))));
+    const objc_getClass: GetClass = @ptrCast(@alignCast(std.c.dlsym(RTLD_DEFAULT, "objc_getClass") orelse return null));
+    const sel_registerName: SelName = @ptrCast(@alignCast(std.c.dlsym(RTLD_DEFAULT, "sel_registerName") orelse return null));
+    const msg_send_raw = std.c.dlsym(RTLD_DEFAULT, "objc_msgSend") orelse return null;
+    const msgSend0: MsgSend0 = @ptrCast(@alignCast(msg_send_raw));
+    const msgSendBool: MsgSendBool = @ptrCast(@alignCast(msg_send_raw));
+
+    const nsapp_class = objc_getClass("NSApplication") orelse return null;
+    const app = msgSend0(nsapp_class, sel_registerName("sharedApplication")) orelse return null;
+    const delegate = msgSend0(app, sel_registerName("delegate")) orelse return null;
+
+    const api_sel = sel_registerName("swellGetAPPAPIFunc");
+    if (!msgSendBool(delegate, sel_registerName("respondsToSelector:"), api_sel)) {
+        log.warn("host app delegate has no swellGetAPPAPIFunc", .{});
+        return null;
+    }
+    const raw = msgSend0(delegate, api_sel) orelse return null;
+    const gf: GetFuncT = @ptrCast(@alignCast(raw));
+    if (@intFromPtr(gf(null)) != 0x100) {
+        log.warn("SWELL API provider returned unexpected version", .{});
+        return null;
+    }
+    return gf;
+}
+
+pub fn available() bool {
+    if (is_windows) return true; // native user32 calls, always available
+    return fnGetFocus != null and fnGetParent != null and fnGetClassName != null;
+}
+
+/// Whether a key is held right now, whichever window has focus. The whichkey
+/// window polls the modifiers with it, because a modifier pressed on its own
+/// sends no key message that the engine would see. On macOS, SWELL reports
+/// Command as VK_CONTROL and the physical Control key as VK_LWIN.
+pub fn asyncKeyDown(vk: u8) bool {
+    if (is_windows) {
+        const st: u16 = @bitCast(user32.GetAsyncKeyState(@intCast(vk)));
+        return (st & 0x8000) != 0;
+    }
+    const f = fnGetAsyncKeyState orelse return false;
+    return (f(@intCast(vk)) & 0x8000) != 0;
+}
+
+pub fn getFocus() ?HWND {
+    if (is_windows) return user32.GetFocus();
+    const f = fnGetFocus orelse return null;
+    return f();
+}
+
+pub fn getParent(hwnd: HWND) ?HWND {
+    if (is_windows) return user32.GetParent(hwnd);
+    const f = fnGetParent orelse return null;
+    return f(hwnd);
+}
+
+pub fn setFocus(hwnd: HWND) void {
+    const f = fnSetFocus orelse return;
+    f(hwnd);
+}
+
+pub fn getDlgItem(hwnd: HWND, idx: c_int) ?HWND {
+    const f = fnGetDlgItem orelse return null;
+    return f(hwnd, idx);
+}
+
+/// Writes the window's class name into buf, returns it as a slice ("" on failure).
+pub fn getClassName(hwnd: HWND, buf: []u8) []const u8 {
+    if (buf.len == 0) return "";
+    if (is_windows) {
+        const n = user32.GetClassNameA(hwnd, buf.ptr, @intCast(buf.len));
+        if (n <= 0) return "";
+        return buf[0..@min(@as(usize, @intCast(n)), buf.len)];
+    }
+    const f = fnGetClassName orelse return "";
+    const n = f(hwnd, buf.ptr, @intCast(buf.len));
+    if (n <= 0) return "";
+    return buf[0..@min(@as(usize, @intCast(n)), buf.len)];
+}
+
+/// True if `hwnd` equals `ancestor` or is a descendant of it.
+pub fn isInWindow(ancestor: HWND, hwnd: HWND) bool {
+    var cur: ?HWND = hwnd;
+    var depth: usize = 0;
+    while (cur) |c| : (depth += 1) {
+        if (c == ancestor) return true;
+        if (depth > 32) return false; // cycle guard
+        cur = getParent(c);
+    }
+    return false;
+}

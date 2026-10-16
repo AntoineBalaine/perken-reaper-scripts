@@ -1,0 +1,307 @@
+//! Run with
+//! zig build-lib -dynamic -O ReleaseFast -femit-bin=reaper_c1.so hello_world.zig -lc
+//! or use
+//! zig build -Dtest=true --prefix "$HOME/.config/REAPER/UserPlugins" && zig build ui --prefix "$HOME/.config/REAPER/UserPlugins"
+//! or on MacOS:
+//! zig build -Dtest=true --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && zig build ui --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
+//! zig build mft --prefix "$HOME/Library/Application Support/REAPER/UserPlugins" && /Applications/REAPER.app/Contents/MacOS/REAPER new
+const std = @import("std");
+const reaziglib = @import("reaziglib");
+const tests = @import("build_tests.zig");
+pub const Dependencies = struct {
+    ini: *std.Build.Dependency,
+    wdl: *std.Build.Dependency,
+    reaper_sdk: *std.Build.Dependency,
+    zlowcheck: *std.Build.Dependency,
+    reaziglib: *std.Build.Dependency,
+};
+
+pub fn build(b: *std.Build) !void {
+    // Create a library target
+    const target = b.standardTargetOptions(.{ .default_target = reaziglib.reaperDefaultTarget() });
+    const optimize = b.standardOptimizeOption(.{});
+
+    const wdl_dep = b.dependency("WDL", .{ .target = target, .optimize = optimize });
+    const reaper_sdk_dep = b.dependency("reaper-sdk", .{ .target = target, .optimize = optimize });
+
+    const lib = b.addSharedLibrary(.{
+        .name = "reaper_c1",
+        .root_source_file = b.path("src/console1_extension.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // include path for c header files
+    lib.addIncludePath(b.path("./src/"));
+    lib.addIncludePath(wdl_dep.path("")); // Root of WDL
+
+    lib.addIncludePath(reaper_sdk_dep.path("")); // Root of reaper-sdk
+
+    var client_install: *std.Build.Step.InstallArtifact = undefined;
+    lib.linkLibC();
+
+    const is_windows = target.result.os.tag == .windows;
+    const is_macos = target.result.os.tag == .macos;
+
+    if (is_macos) {
+        reaziglib.addMacosSdk(b, lib);
+        lib.root_module.linkFramework("AppKit", .{});
+        lib.linkLibCpp();
+        client_install = b.addInstallArtifact(lib, .{
+            .dest_sub_path = "reaper_c1.dylib",
+            .dest_dir = .{ .override = .{
+                .custom = "",
+            } },
+        });
+    } else if (is_windows) {
+        reaziglib.linkReaperCxxRuntime(b, lib);
+        client_install = b.addInstallArtifact(lib, .{
+            .dest_sub_path = "reaper_c1.dll",
+            .dest_dir = .{ .override = .{
+                .custom = "",
+            } },
+        });
+    } else {
+        client_install = b.addInstallArtifact(lib, .{
+            .dest_sub_path = "reaper_c1.so",
+            .dest_dir = .{ .override = .{
+                .custom = "",
+            } },
+        });
+    }
+
+    // allow passing testing flags
+    const version = b.option([]const u8, "version", "Build version string") orelse "dev";
+    const is_test = b.option(bool, "test", "Create actions to test inside reaper") orelse false;
+    const options = b.addOptions();
+    options.addOption(bool, "test", is_test);
+    options.addOption(bool, "headless", b.option(bool, "headless", "Headless mode: register csurf directly without REAPER preferences") orelse false);
+    options.addOption([]const u8, "version", version);
+    lib.root_module.addOptions("config", options);
+
+    // On macOS/Linux, SWELL requires PHP to generate dialog/menu resources from .rc files.
+    // On Windows, resources are compiled natively by the resource compiler, so PHP is not needed.
+    if (!is_windows) {
+        if (b.findProgram(&.{"php"}, &.{})) |_| {
+            const php_script = wdl_dep.path("WDL/swell/swell_resgen.php");
+            const resource_rc = b.path("src/csurf/resource.rc");
+
+            const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
+            php_cmd.addFileArg(php_script);
+            php_cmd.addFileArg(resource_rc);
+            lib.step.dependOn(&php_cmd.step);
+        } else |_| {}
+    }
+
+    // On Windows, the SWELL modstub is not needed because REAPER uses native Win32 directly.
+    const cppfiles: []const std.Build.LazyPath = if (is_windows)
+        &.{
+            b.path("src/csurf/control_surface.cpp"),
+            b.path("src/csurf/control_surface_wrapper.cpp"),
+            b.path("src/csurf/midi_wrapper.cpp"),
+        }
+    else
+        &.{
+            b.path("src/csurf/control_surface.cpp"),
+            b.path("src/csurf/control_surface_wrapper.cpp"),
+            b.path("src/csurf/midi_wrapper.cpp"),
+            if (is_macos)
+                wdl_dep.path("WDL/swell/swell-modstub.mm")
+            else
+                wdl_dep.path("WDL/swell/swell-modstub-generic.cpp"),
+        };
+
+    // C++ that REAPER calls (the control surface, MIDI devices) is compiled
+    // with REAPER's own toolchain for the requested target, including its
+    // architecture and macOS version (see ../README.md).
+    const cxx_flags = reaziglib.CxxFlags{
+        .gnu = &.{ "-DSWELL_PROVIDED_BY_APP", "-fsigned-char" },
+        .msvc = &.{ "/D_CRT_SECURE_NO_WARNINGS", "/D_CRT_NONSTDC_NO_DEPRECATE" },
+    };
+    for (cppfiles) |cppfile| {
+        const name = b.fmt("{s}", .{std.fs.path.basename(reaziglib.lazyPathName(cppfile))});
+        lib.addObjectFile(reaziglib.reaperCxxObject(b, lib.rootModuleTarget(), cppfile, &.{wdl_dep.path("")}, cxx_flags, name));
+    }
+
+    // On Windows, compile the .rc resource file with the native resource compiler.
+    if (is_windows) {
+        const rc_cmd = b.addSystemCommand(&.{ "rc", "/fo" });
+        lib.addObjectFile(rc_cmd.addOutputFileArg("resource.res"));
+        rc_cmd.addFileArg(b.path("src/csurf/resource.rc"));
+    }
+
+    b.getInstallStep().dependOn(&client_install.step);
+
+    // add dependencies: ini parser, etc.
+    const ini = b.dependency("ini", .{ .target = target, .optimize = optimize });
+    lib.root_module.addImport("ini", ini.module("ini"));
+
+    const zlowcheck = b.dependency("zlowcheck", .{ .target = target, .optimize = optimize });
+    lib.root_module.addImport("zlowcheck", zlowcheck.module("zlowcheck"));
+
+    // Shared modules from reaziglib
+    const reazig_dep = b.dependency("reaziglib", .{ .target = target, .optimize = optimize });
+    reaziglib.addSharedModules(reazig_dep, lib.root_module);
+
+    _ = tests.addTests(b, target, Dependencies{
+        .ini = ini,
+        .wdl = wdl_dep,
+        .reaper_sdk = reaper_sdk_dep,
+        .zlowcheck = zlowcheck,
+        .reaziglib = reazig_dep,
+    });
+
+    // Default step for building
+    const step = b.step("default", "Build reaper_c1.so");
+    step.dependOn(&lib.step);
+
+    // UI lib target: built as a shared library for hot-reloading.
+    // Build with: zig build ui
+    const ui_lib = b.addSharedLibrary(.{
+        .name = "reaper_c1_ui",
+        .root_source_file = b.path("src/ui_lib.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    ui_lib.linkLibC();
+    ui_lib.root_module.addImport("ini", ini.module("ini"));
+    reaziglib.addSharedModules(reazig_dep, ui_lib.root_module);
+    const ui_options = b.addOptions();
+    ui_options.addOption(bool, "test", is_test);
+    ui_options.addOption([]const u8, "version", version);
+    ui_lib.root_module.addOptions("config", ui_options);
+
+    const ui_dest = if (is_macos)
+        "reaper_c1_ui.dylib"
+    else if (is_windows)
+        "reaper_c1_ui.dll"
+    else
+        "reaper_c1_ui.so";
+
+    const ui_install = b.addInstallArtifact(ui_lib, .{
+        .dest_sub_path = ui_dest,
+        .dest_dir = .{ .override = .{ .custom = "" } },
+    });
+
+    const ui_step = b.step("ui", "Build hot-reloadable UI library");
+    ui_step.dependOn(&ui_install.step);
+
+    try addMftTarget(b, target, optimize, wdl_dep, reaper_sdk_dep, ini, reazig_dep, is_windows, is_macos, is_test, version);
+}
+
+// The MFT extension builds as a separate shared library. Because it compiles
+// its own copy of the C++ ZigControlSurface wrapper, it defines its own set of
+// z* csurf callbacks in control_surface_mft.zig and shares no symbols with the
+// Console One extension.
+fn addMftTarget(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    wdl_dep: *std.Build.Dependency,
+    reaper_sdk_dep: *std.Build.Dependency,
+    ini: *std.Build.Dependency,
+    reazig_dep: *std.Build.Dependency,
+    is_windows: bool,
+    is_macos: bool,
+    is_test: bool,
+    version: []const u8,
+) !void {
+    const lib = b.addSharedLibrary(.{
+        .name = "reaper_mft",
+        .root_source_file = b.path("src/mft/mft_extension.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    lib.addIncludePath(b.path("./src/"));
+    lib.addIncludePath(wdl_dep.path(""));
+    lib.addIncludePath(reaper_sdk_dep.path(""));
+    lib.linkLibC();
+
+    const client_install: *std.Build.Step.InstallArtifact = if (is_macos) blk: {
+        reaziglib.addMacosSdk(b, lib);
+        lib.root_module.linkFramework("AppKit", .{});
+        lib.linkLibCpp();
+        break :blk b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_mft.dylib", .dest_dir = .{ .override = .{ .custom = "" } } });
+    } else if (is_windows) blk: {
+        reaziglib.linkReaperCxxRuntime(b, lib);
+        break :blk b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_mft.dll", .dest_dir = .{ .override = .{ .custom = "" } } });
+    } else b.addInstallArtifact(lib, .{ .dest_sub_path = "reaper_mft.so", .dest_dir = .{ .override = .{ .custom = "" } } });
+
+    const options = b.addOptions();
+    options.addOption(bool, "test", is_test);
+    options.addOption(bool, "headless", false);
+    options.addOption([]const u8, "version", version);
+    lib.root_module.addOptions("config", options);
+
+    if (!is_windows) {
+        if (b.findProgram(&.{"php"}, &.{})) |_| {
+            const php_script = wdl_dep.path("WDL/swell/swell_resgen.php");
+            const resource_rc = b.path("src/csurf/resource.rc");
+            const php_cmd = b.addSystemCommand(&[_][]const u8{"php"});
+            php_cmd.addFileArg(php_script);
+            php_cmd.addFileArg(resource_rc);
+            lib.step.dependOn(&php_cmd.step);
+        } else |_| {}
+    }
+
+    const cppfiles: []const std.Build.LazyPath = if (is_windows)
+        &.{
+            b.path("src/csurf/control_surface.cpp"),
+            b.path("src/csurf/control_surface_wrapper.cpp"),
+            b.path("src/csurf/midi_wrapper.cpp"),
+        }
+    else
+        &.{
+            b.path("src/csurf/control_surface.cpp"),
+            b.path("src/csurf/control_surface_wrapper.cpp"),
+            b.path("src/csurf/midi_wrapper.cpp"),
+            if (is_macos)
+                wdl_dep.path("WDL/swell/swell-modstub.mm")
+            else
+                wdl_dep.path("WDL/swell/swell-modstub-generic.cpp"),
+        };
+
+    // C++ that REAPER calls (the control surface, MIDI devices) is compiled
+    // with REAPER's own toolchain for the requested target, including its
+    // architecture and macOS version (see ../README.md).
+    const cxx_flags = reaziglib.CxxFlags{
+        .gnu = &.{ "-DSWELL_PROVIDED_BY_APP", "-fsigned-char" },
+        .msvc = &.{ "/D_CRT_SECURE_NO_WARNINGS", "/D_CRT_NONSTDC_NO_DEPRECATE" },
+    };
+    for (cppfiles) |cppfile| {
+        const name = b.fmt("mft_{s}", .{std.fs.path.basename(reaziglib.lazyPathName(cppfile))});
+        lib.addObjectFile(reaziglib.reaperCxxObject(b, lib.rootModuleTarget(), cppfile, &.{wdl_dep.path("")}, cxx_flags, name));
+    }
+
+    if (is_windows) {
+        const rc_cmd = b.addSystemCommand(&.{ "rc", "/fo" });
+        lib.addObjectFile(rc_cmd.addOutputFileArg("mft_resource.res"));
+        rc_cmd.addFileArg(b.path("src/csurf/resource.rc"));
+    }
+
+    lib.root_module.addImport("ini", ini.module("ini"));
+    reaziglib.addSharedModules(reazig_dep, lib.root_module);
+
+    const mft_step = b.step("mft", "Build reaper_mft extension");
+    mft_step.dependOn(&client_install.step);
+
+    // Unit tests over the MFT extension's test block. Kept separate from the
+    // Console One test suite because the two extensions share no code.
+    const mft_test = b.addTest(.{
+        .root_source_file = b.path("src/mft/mft_tests.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const mft_test_options = b.addOptions();
+    mft_test_options.addOption(bool, "test", true);
+    mft_test_options.addOption(bool, "headless", false);
+    mft_test_options.addOption([]const u8, "version", "test");
+    mft_test.root_module.addOptions("config", mft_test_options);
+    mft_test.root_module.addImport("ini", ini.module("ini"));
+    reaziglib.addSharedModules(reazig_dep, mft_test.root_module);
+
+    const run_mft_test = b.addRunArtifact(mft_test);
+    const mft_test_step = b.step("mft-test", "Run reaper_mft unit tests");
+    mft_test_step.dependOn(&run_mft_test.step);
+}

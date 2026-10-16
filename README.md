@@ -1,5 +1,14 @@
 Scripts for the Reaper DAW.
 
+### Compiled extensions
+
+Part of this work is also available as compiled REAPER extensions, written in
+Zig, in [`extensions/`](extensions): a vim mode ([`reavim-ext`](extensions/reavim-ext)),
+editing helpers ([`perken-utilities`](extensions/perken-utilities)) and
+Console1 / MIDI Fighter Twister support ([`console1`](extensions/console1)).
+[`extensions/ARCHITECTURE.md`](extensions/ARCHITECTURE.md) explains how the
+repository fits together and which of the Lua scripts below have been ported.
+
 [Scripts list](#scripts-list) 
 
 ### Scripts list

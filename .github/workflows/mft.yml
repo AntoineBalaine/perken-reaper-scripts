@@ -1,0 +1,121 @@
+name: mft
+
+# The MIDI Fighter Twister extension (reaper_mft) lives in extensions/console1
+# but is built and released on its own, on mft-v* tags. This monorepo holds
+# several packages, so the workflow only runs when that folder or something it
+# builds against changes; GitHub does not evaluate path filters on tag pushes,
+# so an mft-v* tag always triggers a build and a release.
+on:
+  push:
+    branches: [main]
+    tags: ["mft-v*"]
+    paths:
+      - "extensions/console1/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/mft.yml"
+  pull_request:
+    paths:
+      - "extensions/console1/**"
+      - "extensions/reaziglib/**"
+      - ".github/workflows/mft.yml"
+  workflow_dispatch:
+
+# macOS jobs are pinned to macos-15: on the macos-26 image that
+# macos-latest now points to, Zig 0.14.1 links nothing from the C library
+# (likely the newer SDK's library stubs), while the macOS 15 SDK works.
+# GitHub retired the macos-13 (Intel) runner, so the x86_64 Mac build runs on
+# macos-15 too, with -Dtarget=x86_64-macos (Apple clang builds both
+# architectures); its tests can only run on a native row.
+# Windows has no row yet (see the matrix); when it returns, it builds with
+# the msvc ABI (x86_64-windows-msvc): cl compiles the
+# C++ that REAPER calls, and its objects need MSVC's runtime libraries,
+# which MinGW (Zig's default Windows ABI) does not provide. Tests run on
+# every row except the cross-built x86_64 Mac one (cross: true).
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,    name: linux-x86_64,   target: native,       ext: so }
+          - { os: ubuntu-24.04-arm, name: linux-aarch64,  target: native,       ext: so }
+          - { os: macos-15,         name: macos-x86_64,   target: x86_64-macos, ext: dylib, cross: true }
+          - { os: macos-15,         name: macos-aarch64,  target: native,       ext: dylib }
+          # Windows is left out until Console1/MFT is ported: its Zig code
+          # calls SWELL (macOS/Linux only) and creates its dialog through it.
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: extensions/console1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      # The C++ is compiled with MSVC's cl, which is only on PATH inside a
+      # Visual Studio developer environment.
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Extract version from tag
+        id: version
+        # Tags look like mft-v1.2.3; other runs build a "dev" version.
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/mft-v* ]]; then
+            echo "version=${GITHUB_REF_NAME#mft-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install PHP (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli
+
+      - name: Install PHP (macOS)
+        if: runner.os == 'macOS'
+        run: brew install php
+
+      - name: Test
+        if: ${{ !matrix.cross }}
+        run: zig build mft-test
+
+      - name: Build
+        run: zig build mft -Dtarget=${{ matrix.target }} -Dversion=${{ steps.version.outputs.version }}
+
+      - name: Rename binary for release
+        run: |
+          mkdir -p release-binaries
+          cp "zig-out/reaper_mft.${{ matrix.ext }}" "release-binaries/reaper_mft-${{ matrix.name }}.${{ matrix.ext }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mft-${{ matrix.name }}
+          path: extensions/console1/release-binaries/
+
+  release:
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/mft-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create the release and upload assets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          # Several extensions release from this repository, so no single
+          # release may claim "Latest".
+          make_latest: false

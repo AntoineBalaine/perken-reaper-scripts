@@ -1,0 +1,16 @@
+command script import ./lldb_pretty_printers.py
+
+type category enable zig
+type category enable zig.lang
+type category enable zig.std
+type category enable zig.stage2
+
+# Apply the command to all breakpoints
+breakpoint command add -a -o "script print('LLDB init file is working')"
+
+# Add verification commands that will work in the debug console
+command alias -- check-init script print("LLDBINIT VERIFICATION: Type categories enabled")
+command alias -- check-categories type category list
+
+# Print a message when LLDB starts to confirm .lldbinit is loaded
+script print("\n=== .lldbinit file loaded successfully ===\n")

@@ -1,0 +1,52 @@
+.{
+    .name = .reaper_zig_wrapper,
+    .fingerprint = 0xf6e3d32e8a60919d,
+    // This is a [Semantic Version](https://semver.org/).
+    // In a future version of Zig it will be used for package deduplication.
+    .version = "0.0.0",
+
+    // This field is optional.
+    // This is currently advisory only; Zig does not yet do anything
+    // with this value.
+    //.minimum_zig_version = "0.11.0",
+
+    // This field is optional.
+    // Each dependency must either provide a `url` and `hash`, or a `path`.
+    // `zig build --fetch` can be used to fetch all dependencies of a package, recursively.
+    // Once all dependencies are fetched, `zig build` no longer requires
+    // internet connectivity.
+    .dependencies = .{
+        .ini = .{
+            .url = "https://github.com/AntoineBalaine/ini/archive/d5d1130062e3.tar.gz",
+            .hash = "N-V-__8AAMaXAADBd3SZZVoq54wmI0VjlyYcXXh98BCdpCBF",
+        },
+        .WDL = .{
+            .url = "https://github.com/justinfrankel/WDL/archive/dda0d7519ee9d50d59a39fc1b1a82001416a3dff.tar.gz",
+            .hash = "122026ee38b3ef9cbb44a2cf8f1735ba5dbaef29975560ad3e2f78b43437707a8b9a",
+        },
+        .@"reaper-sdk" = .{
+            .url = "https://github.com/justinfrankel/reaper-sdk/archive/6c755b2696ff02a2f5d15d685712d6f2b7e4ed6d.tar.gz",
+            .hash = "12209fb480875e353b1f8a4d0c03ffb84046340adf32f4205dffbf77f82543e2e2fa",
+        },
+        .zlowcheck = .{
+            .url = "https://github.com/AntoineBalaine/zlowcheck/archive/44d1a1726ee1dabe22c9e75b7948993cef3409be.tar.gz",
+            .hash = "zlowcheck-0.0.0-upaXybSvAwBYDrxmhs05Jba16Hrgjvtg0GSU5Y2zF_sk",
+        },
+        // reaziglib lives in the same monorepo, so that a change to it and
+        // the extension code using it can land in one commit.
+        .reaziglib = .{ .path = "../reaziglib" },
+    },
+    .paths = .{
+        // This makes *all* files, recursively, included in this package. It is generally
+        // better to explicitly list the files and directories instead, to insure that
+        // fetching from tarballs, file system paths, and version control all result
+        // in the same contents hash.
+        "",
+        // For example...
+        //"build.zig",
+        //"build.zig.zon",
+        //"src",
+        //"LICENSE",
+        //"README.md",
+    },
+}
