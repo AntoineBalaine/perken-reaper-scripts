@@ -1,15 +1,22 @@
-//! Property-based test for rhythm_simplify's collapse rule, driven by
-//! libhegel (see hegel.zig) rather than hand-picked examples: for each
-//! common time signature, generates many random bars that exactly tile it
-//! in sixteenth-note units — libhegel chooses where to cut the bar into
+//! Property-based test for rhythm_simplify, driven by libhegel (see
+//! hegel.zig) rather than hand-picked examples: for each common time
+//! signature, generates many random bars that exactly tile it in
+//! sixteenth-note units — libhegel chooses where to cut the bar into
 //! segments and which segments are notes versus rests — and checks the
-//! invariants simplifyBar must never violate: total duration is preserved,
-//! no output symbol's span crosses a beat boundary, and the result is a
-//! fixed point (simplifying it again changes nothing). Symbol count is
-//! deliberately *not* checked as "never increases" — a raw gap like 5/16
-//! has no single standard notehead and correctly *must* split into more
-//! symbols (quarter + sixteenth) than the one raw input event it came
-//! from; that is this feature working, not a regression.
+//! invariants simplifyBar must never violate:
+//!
+//! - total duration is preserved;
+//! - every output symbol is one the meter's hierarchy actually allows at
+//!   the position it sits (the real correctness property, checked here
+//!   against isLegalSymbol rather than taken on trust);
+//! - every attack is preserved: the output has exactly as many note
+//!   onsets as the input, at the same positions, since tying splits a
+//!   note without adding an attack and nothing may ever merge two;
+//! - the result is a fixed point — simplifying it again changes nothing.
+//!
+//! Symbol count is deliberately *not* checked as "never increases". A raw
+//! gap of 5/16 has no single notehead and correctly becomes two symbols;
+//! that is the feature working, not a regression.
 //!
 //! This uses libhegel purely as an input generator for now (failures
 //! surface as an ordinary Zig test failure via std.testing.expect, not
@@ -21,42 +28,28 @@ const std = @import("std");
 const hegel = @import("hegel.zig");
 const rs = @import("rhythm_simplify.zig");
 
-const sixteenth = rs.Rational.of(1, 16);
-
 /// Bar length in sixteenth-note units — must divide evenly, checked by the
-/// assert below (holds for every TimeSig in rs.TimeSig).
+/// assert (holds for every TimeSig in rs.TimeSig).
 fn unitsInBar(time_sig: rs.TimeSig) usize {
-    // bar_len / sixteenth, computed as (bar_len.num * 16) / bar_len.den.
+    // bar_len / (1/16), computed as (bar_len.num * 16) / bar_len.den.
     const scaled = time_sig.bar_len.num * 16;
     std.debug.assert(@rem(scaled, time_sig.bar_len.den) == 0);
     return @intCast(@divExact(scaled, time_sig.bar_len.den));
 }
 
-/// Beat length in sixteenth-note units — same divide-evenly guarantee as
-/// unitsInBar, holds for every TimeSig in rs.TimeSig.
-fn unitsPerBeat(time_sig: rs.TimeSig) usize {
-    const scaled = time_sig.beat.num * 16;
-    std.debug.assert(@rem(scaled, time_sig.beat.den) == 0);
-    return @intCast(@divExact(scaled, time_sig.beat.den));
-}
-
 /// Draws a random bar that exactly tiles `time_sig` in sixteenth-note
-/// units: every beat boundary is always a cut — a raw quantized bar is a
-/// sequence of individually-timed note/rest events, never one event that
-/// already spans multiple beats, so simplifyBar's job is always to
-/// *reduce* symbol count from here, never to additionally split an input
-/// that was already invalid on its own terms — plus a random extra cut
-/// after each of the other total_units - 1 units (p=0.3, so segments
-/// average a bit over 3 units long), then a random note/rest kind per
-/// segment (p=0.5).
+/// units: a random cut after each of the first total_units - 1 units
+/// (p=0.3, so segments average a bit over 3 units long), then a random
+/// note/rest kind per segment (p=0.5). Cuts are unconstrained on purpose —
+/// a raw gap or a held note may well span several beats as one event, and
+/// re-tiling exactly those is the point of the module.
 fn drawBar(ctx: hegel.Ctx, tc: *hegel.TestCase, allocator: std.mem.Allocator, time_sig: rs.TimeSig) ![]rs.Event {
     const total_units = unitsInBar(time_sig);
-    const beat_units = unitsPerBeat(time_sig);
     var cuts = try std.ArrayList(usize).initCapacity(allocator, total_units);
     defer cuts.deinit();
     var i: usize = 1;
     while (i < total_units) : (i += 1) {
-        if (i % beat_units == 0 or try ctx.drawBool(tc, 0.3)) try cuts.append(i);
+        if (try ctx.drawBool(tc, 0.3)) try cuts.append(i);
     }
     try cuts.append(total_units);
 
@@ -77,6 +70,21 @@ fn totalDur(events: []const rs.Event) rs.Rational {
     return total;
 }
 
+/// Onsets at which a new note actually starts — a tied-into piece is a
+/// continuation of the previous attack, not a new one, so it doesn't
+/// count. This is what has to match between input and output.
+fn attackOnsets(allocator: std.mem.Allocator, events: []const rs.Event) ![]rs.Rational {
+    var onsets = std.ArrayList(rs.Rational).init(allocator);
+    var onset = rs.Rational.zero();
+    var prev_tied = false;
+    for (events) |e| {
+        if (e.kind == .note and !prev_tied) try onsets.append(onset);
+        prev_tied = e.kind == .note and e.tied_to_next;
+        onset = onset.add(e.dur);
+    }
+    return onsets.toOwnedSlice();
+}
+
 fn checkTimeSig(allocator: std.mem.Allocator, ctx: hegel.Ctx, time_sig: rs.TimeSig) !void {
     const settings = try ctx.settingsNew(300);
     defer ctx.settingsFree(settings);
@@ -93,18 +101,29 @@ fn checkTimeSig(allocator: std.mem.Allocator, ctx: hegel.Ctx, time_sig: rs.TimeS
 
         try std.testing.expect(totalDur(bar).eq(totalDur(simplified)));
 
+        // Every symbol must be legal where it sits.
         var onset = rs.Rational.zero();
         for (simplified) |e| {
-            try std.testing.expect(!rs.crossesABeat(time_sig, onset, e.dur));
+            try std.testing.expect(rs.isLegalSymbol(time_sig, onset, e.dur));
             onset = onset.add(e.dur);
         }
 
+        // No attack added, removed, or moved.
+        const before = try attackOnsets(allocator, bar);
+        defer allocator.free(before);
+        const after = try attackOnsets(allocator, simplified);
+        defer allocator.free(after);
+        try std.testing.expectEqual(before.len, after.len);
+        for (before, after) |x, y| try std.testing.expect(x.eq(y));
+
+        // Already simplified: simplifying again changes nothing.
         const twice = try rs.simplifyBar(allocator, time_sig, simplified);
         defer allocator.free(twice);
         try std.testing.expectEqual(simplified.len, twice.len);
         for (simplified, twice) |a, b| {
             try std.testing.expect(a.dur.eq(b.dur));
             try std.testing.expectEqual(a.kind, b.kind);
+            try std.testing.expectEqual(a.tied_to_next, b.tied_to_next);
         }
 
         try ctx.markComplete(tc, .valid);
@@ -112,7 +131,7 @@ fn checkTimeSig(allocator: std.mem.Allocator, ctx: hegel.Ctx, time_sig: rs.TimeS
     try std.testing.expectEqual(hegel.RunStatus.passed, try ctx.runResultStatus(run));
 }
 
-test "simplifyBar preserves duration and never grows the symbol count, across many random bars" {
+test "simplifyBar keeps duration, attacks and legality, and is a fixed point" {
     const allocator = std.testing.allocator;
     const ctx = hegel.Ctx.init();
     defer ctx.deinit();
