@@ -17,6 +17,7 @@
 //! guessing. Main thread only.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
+const timemap = @import("../timemap.zig");
 const grid = @import("grid.zig");
 
 const log = std.log.scoped(.beat);
@@ -48,25 +49,11 @@ pub fn setCurrentBpm(bpm: f64) void {
     f(null, bpm, false);
 }
 
-pub fn timeToQn(t: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, tpos: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToQN);
-    return f(null, t);
-}
-
-pub fn qnToTime(qn: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, qn: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_QNToTime);
-    return f(null, qn);
-}
-
 /// The time of the project's bar line nearest to `t`.
 pub fn nearestBarLine(t: f64) f64 {
-    const to_beats: *const fn (proj: ?*anyopaque, tpos: f64, measures: ?*c_int, cml: ?*c_int, fullbeats: ?*f64, cdenom: ?*c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToBeats);
-    const to_time: *const fn (proj: ?*anyopaque, tpos: f64, measures: ?*const c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_beatsToTime);
-    var measure: c_int = 0;
-    _ = to_beats(null, t, &measure, null, null, null);
-    const this_bar = to_time(null, 0, &measure);
-    const next_measure = measure + 1;
-    const next_bar = to_time(null, 0, &next_measure);
+    const measure = timemap.measureAtTime(t);
+    const this_bar = timemap.measureStartTime(measure);
+    const next_bar = timemap.measureStartTime(measure + 1);
     return if (t - this_bar <= next_bar - t) this_bar else next_bar;
 }
 
@@ -188,11 +175,11 @@ pub fn conformToGrid(take: *Reaper.MediaItem_Take, analysis_start: f64, beats: [
     const timing = takeTiming(take);
 
     const downbeat_now = timing.position + analysis_start + beats[d].time;
-    const downbeat_qn = timeToQn(nearestBarLine(downbeat_now));
+    const downbeat_qn = timemap.timeToQn(nearestBarLine(downbeat_now));
 
     // Move the item so that the first beat lands on its target exactly:
     // the audio before the first marker then keeps its speed.
-    const first_target = qnToTime(downbeat_qn - @as(f64, @floatFromInt(d)));
+    const first_target = timemap.qnToTime(downbeat_qn - @as(f64, @floatFromInt(d)));
     const first_now = timing.position + analysis_start + beats[0].time;
     const new_position = timing.position + (first_target - first_now);
 
@@ -202,7 +189,7 @@ pub fn conformToGrid(take: *Reaper.MediaItem_Take, analysis_start: f64, beats: [
     var last_src_time: f64 = 0;
     for (beats, 0..) |b, k| {
         const qn = downbeat_qn + @as(f64, @floatFromInt(@as(i64, @intCast(k)) - @as(i64, @intCast(d))));
-        const pos = qnToTime(qn) - new_position;
+        const pos = timemap.qnToTime(qn) - new_position;
         const item_rel = analysis_start + b.time;
         const srcpos = timing.start_offset + item_rel * timing.rate;
         _ = Reaper.SetTakeStretchMarker(take, -1, pos, &srcpos);

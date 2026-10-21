@@ -18,6 +18,7 @@ const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
 const commit = @import("beat/commit.zig");
+const timemap = @import("timemap.zig");
 
 // MIDI-editor command ids used by kawa's createMIDIFunc3.
 const cmd_delete_tiny_notes: c_int = 40815; // delete all notes < 1/256 in length
@@ -374,7 +375,7 @@ fn itemEndPpq(take: *Reaper.MediaItem_Take) ?f64 {
     if (@intFromPtr(item) == 0) return null;
     const pos = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
     const len = Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
-    return Reaper.MIDI_GetPPQPosFromProjQN(take, commit.timeToQn(pos + len));
+    return Reaper.MIDI_GetPPQPosFromProjQN(take, timemap.timeToQn(pos + len));
 }
 
 /// Legato on the selected notes of the active MIDI editor's take, or on every

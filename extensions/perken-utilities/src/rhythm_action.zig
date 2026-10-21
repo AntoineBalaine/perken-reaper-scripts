@@ -56,68 +56,20 @@ pub fn rationalToQn(r: Rational) f64 {
 
 // ---- building the musical context -------------------------------------------
 
-/// Where bars and signatures come from. REAPER is the real source
-/// (`reaperBarSource`); the seam exists so the assembly below can be tested
-/// against a synthetic grid, including meter changes and partial bars,
-/// without a REAPER host.
-pub const BarSource = struct {
-    ctx: ?*anyopaque = null,
-    /// QN where the bar containing `qn` begins.
-    barStartQn: *const fn (?*anyopaque, f64) f64,
-    /// QN where the bar after the one containing `qn` begins.
-    nextBarStartQn: *const fn (?*anyopaque, f64) f64,
-    /// The signature in force at `qn`, as {numerator, denominator}.
-    sigAtQn: *const fn (?*anyopaque, f64) [2]u32,
-};
-
-fn reaperBarStart(_: ?*anyopaque, qn: f64) f64 {
-    return timemap.barStartQn(qn);
-}
-fn reaperNextBarStart(_: ?*anyopaque, qn: f64) f64 {
-    return timemap.nextBarStartQn(qn);
-}
-fn reaperSigAt(_: ?*anyopaque, qn: f64) [2]u32 {
-    const sig = timemap.sigAtQn(qn);
-    return .{ sig.num, sig.denom };
-}
-
-pub fn reaperBarSource() BarSource {
-    return .{
-        .barStartQn = &reaperBarStart,
-        .nextBarStartQn = &reaperNextBarStart,
-        .sigAtQn = &reaperSigAt,
-    };
-}
-
-/// Guards against a source that never advances. A selection of a few hours
-/// is well under this, and a context asked past its end continues the last
-/// meter anyway, so stopping here cannot drop anything.
-const max_bars = 100_000;
-
 /// Builds the context covering [from_qn, to_qn), one bar at a time as the
 /// source reports them, so a meter change or a partial bar inside the span
 /// is described rather than assumed away.
-pub fn contextForSpan(allocator: std.mem.Allocator, src: BarSource, from_qn: f64, to_qn: f64) !meter.Context {
+pub fn contextForSpan(allocator: std.mem.Allocator, src: timemap.BarSource, from_qn: f64, to_qn: f64) !meter.Context {
     var bars = std.ArrayList(meter.Bar).init(allocator);
     errdefer bars.deinit();
 
-    var bar_qn = src.barStartQn(src.ctx, from_qn);
-    while (bars.items.len < max_bars) {
-        const sig = src.sigAtQn(src.ctx, bar_qn);
-        const hierarchy = meter.hierarchyFor(sig[0], sig[1]);
-        const next_qn = src.nextBarStartQn(src.ctx, bar_qn);
-
-        const start = qnToRational(bar_qn);
-        // A source that does not move on would spin this loop forever, and
-        // a hang here hangs REAPER. Fall back to the signature's own bar
-        // length, which is right whenever the grid is not doing something
-        // unusual, and let the loop end.
-        const end = if (next_qn > bar_qn) qnToRational(next_qn) else start.add(hierarchy.len);
-        try bars.append(.{ .start = start, .end = end, .hierarchy = hierarchy });
-        if (!(next_qn > bar_qn)) break;
-
-        bar_qn = next_qn;
-        if (!(bar_qn < to_qn)) break;
+    var it = timemap.walkBars(src, from_qn, to_qn);
+    while (it.next()) |bar| {
+        try bars.append(.{
+            .start = qnToRational(bar.start_qn),
+            .end = qnToRational(bar.end_qn),
+            .hierarchy = meter.hierarchyFor(bar.sig.num, bar.sig.denom),
+        });
     }
     return .{ .bars = try bars.toOwnedSlice() };
 }
@@ -315,7 +267,7 @@ fn simplifyNoteLengths(_: *actions.RunCtx) void {
 
     const from_qn = rationalToQn(attacks[0].start);
     const to_qn = rationalToQn(attacks[attacks.len - 1].end);
-    const ctx = contextForSpan(alloc, reaperBarSource(), from_qn, to_qn) catch return;
+    const ctx = contextForSpan(alloc, timemap.reaperBarSource(), from_qn, to_qn) catch return;
     defer freeContext(alloc, ctx);
     if (ctx.bars.len == 0) return;
 
@@ -381,53 +333,12 @@ test "a position a tick off the grid snaps to the value it means" {
     try std.testing.expect(qnToRational(1.0004).eq(Rational.of(1, 4)));
 }
 
-// A synthetic bar grid for the context tests: sections of (signature, bars),
-// so meter changes and short bars can be described without REAPER.
-const FakeGrid = struct {
-    /// Bar starts in QN, ascending, with one more entry than bars so the
-    /// last bar has an end.
-    starts: []const f64,
-    sigs: []const [2]u32,
-
-    fn barIndex(self: *const FakeGrid, qn: f64) usize {
-        var i: usize = 0;
-        while (i + 1 < self.starts.len and self.starts[i + 1] <= qn) i += 1;
-        // Past the last described bar there is no signature to report, so
-        // hold at the last one — the grid simply stops there, which is the
-        // stalling case contextForSpan has to survive.
-        return @min(i, self.sigs.len - 1);
-    }
-
-    fn barStart(ptr: ?*anyopaque, qn: f64) f64 {
-        const self: *const FakeGrid = @ptrCast(@alignCast(ptr.?));
-        return self.starts[self.barIndex(qn)];
-    }
-    fn nextBarStart(ptr: ?*anyopaque, qn: f64) f64 {
-        const self: *const FakeGrid = @ptrCast(@alignCast(ptr.?));
-        const i = self.barIndex(qn);
-        return if (i + 1 < self.starts.len) self.starts[i + 1] else self.starts[self.starts.len - 1];
-    }
-    fn sigAt(ptr: ?*anyopaque, qn: f64) [2]u32 {
-        const self: *const FakeGrid = @ptrCast(@alignCast(ptr.?));
-        return self.sigs[self.barIndex(qn)];
-    }
-
-    fn source(self: *const FakeGrid) BarSource {
-        return .{
-            .ctx = @constCast(@ptrCast(self)),
-            .barStartQn = &barStart,
-            .nextBarStartQn = &nextBarStart,
-            .sigAtQn = &sigAt,
-        };
-    }
-};
-
 test "a context is built from the grid's own barlines, meter change and all" {
     const allocator = std.testing.allocator;
     // 4/4 at QN 0, then 3/4 at QN 4, two bars of it.
-    const grid = FakeGrid{
+    const grid = timemap.FakeGrid{
         .starts = &.{ 0, 4, 7, 10 },
-        .sigs = &.{ .{ 4, 4 }, .{ 3, 4 }, .{ 3, 4 } },
+        .sigs = &.{ .{ .num = 4, .denom = 4 }, .{ .num = 3, .denom = 4 }, .{ .num = 3, .denom = 4 } },
     };
     const ctx = try contextForSpan(allocator, grid.source(), 0, 10);
     defer freeContext(allocator, ctx);
@@ -443,9 +354,9 @@ test "a context is built from the grid's own barlines, meter change and all" {
 test "a short bar keeps the length the grid gives it, not the signature's" {
     const allocator = std.testing.allocator;
     // A 4/4 bar cut short at QN 3 by a marker placed off the barline.
-    const grid = FakeGrid{
+    const grid = timemap.FakeGrid{
         .starts = &.{ 0, 3, 7 },
-        .sigs = &.{ .{ 4, 4 }, .{ 4, 4 } },
+        .sigs = &.{ .{ .num = 4, .denom = 4 }, .{ .num = 4, .denom = 4 } },
     };
     const ctx = try contextForSpan(allocator, grid.source(), 0, 5);
     defer freeContext(allocator, ctx);
@@ -453,17 +364,6 @@ test "a short bar keeps the length the grid gives it, not the signature's" {
     try std.testing.expect(ctx.bars[0].end.eq(Rational.of(3, 4)));
     // The hierarchy is still 4/4's; the bar is simply shorter than it.
     try std.testing.expect(ctx.bars[0].hierarchy.len.eq(Rational.of(1, 1)));
-}
-
-test "a grid that stops advancing ends the walk instead of hanging" {
-    const allocator = std.testing.allocator;
-    // nextBarStart returns the last entry forever once past it.
-    const grid = FakeGrid{ .starts = &.{ 0, 4 }, .sigs = &.{.{ 4, 4 }} };
-    const ctx = try contextForSpan(allocator, grid.source(), 0, 1000);
-    defer freeContext(allocator, ctx);
-    // Reached the stall and stopped, with the bars it did get.
-    try std.testing.expect(ctx.bars.len > 0);
-    try std.testing.expect(ctx.bars.len < max_bars);
 }
 
 test "chords become one attack and overlaps are clipped to the next" {
