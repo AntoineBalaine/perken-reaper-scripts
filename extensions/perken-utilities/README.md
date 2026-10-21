@@ -71,7 +71,15 @@ zig build -Doptimize=ReleaseSafe
 
 `zig build test` statically links `libhegel` for the property-based tests
 (test-only; the shipped extension does not link it) and downloads the pinned
-release on first run, so that build needs network access.
+release when it is missing, so that build needs network access once. To keep
+the archive between builds — which is how CI avoids re-downloading tens of
+megabytes every run — give it a directory:
+
+```sh
+zig build test -Dhegel-lib-dir=.hegel-cache   # or export HEGEL_LIB_DIR
+```
+
+It downloads only when the file is absent, so delete it to force a refresh.
 
 Behaviour that needs REAPER is checked by hand:
 [MANUAL_CHECKS.md](MANUAL_CHECKS.md) lists what to try after changing the

@@ -18,6 +18,13 @@ pub fn main() !void {
     const sha_url = args[2];
     const out_path = args[3];
 
+    // Already there: nothing to do, and nothing to ask the network for.
+    // The hash was checked when it was written; delete the file to force a
+    // fresh download.
+    if (std.fs.cwd().access(out_path, .{})) |_| {
+        return;
+    } else |_| {}
+
     var client = std.http.Client{ .allocator = allocator };
     defer client.deinit();
 

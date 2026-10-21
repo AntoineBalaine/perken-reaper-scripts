@@ -149,13 +149,38 @@ fn addHegel(b: *std.Build, compile: *std.Build.Step.Compile) void {
     const run = b.addRunArtifact(fetch_tool);
     run.addArg(base);
     run.addArg(sha_url);
-    const lib_path = run.addOutputFileArg(asset);
 
-    compile.addObjectFile(lib_path);
+    // With a directory given, the archive is kept there and downloaded only
+    // when it is missing, so a cache of that one directory spares CI the
+    // download on every run (the archives are tens of megabytes, and a
+    // runner starts with an empty Zig cache). Without one, it goes to the
+    // Zig cache as any other build output would.
+    if (hegelLibDir(b)) |dir| {
+        const path = b.pathJoin(&.{ dir, asset });
+        run.addArg(path);
+        // The tool exits straight away when the file is already there, so
+        // running every time costs nothing and needs no network.
+        run.has_side_effects = true;
+        compile.step.dependOn(&run.step);
+        compile.addObjectFile(.{ .cwd_relative = path });
+    } else {
+        compile.addObjectFile(run.addOutputFileArg(asset));
+    }
+
     if (target.os.tag != .windows) {
         compile.linkSystemLibrary("pthread");
         compile.linkSystemLibrary("dl");
     }
+}
+
+/// Where to keep the pinned libhegel archive between builds:
+/// `-Dhegel-lib-dir=<path>`, else `$HEGEL_LIB_DIR`, else nowhere (the Zig
+/// cache). Point it at a directory the CI caches, or at a stable local path
+/// to stop re-downloading after a `zig build --cache-dir` change.
+fn hegelLibDir(b: *std.Build) ?[]const u8 {
+    if (b.option([]const u8, "hegel-lib-dir", "Directory to keep the pinned libhegel archive in (test-only dependency)")) |dir|
+        return dir;
+    return std.process.getEnvVarOwned(b.allocator, "HEGEL_LIB_DIR") catch null;
 }
 
 /// qm-dsp's own build defines kiss_fft_scalar=double. Its warnings are not

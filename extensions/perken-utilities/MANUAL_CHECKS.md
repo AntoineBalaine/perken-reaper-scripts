@@ -25,7 +25,7 @@ Their note-reading loops were replaced with the shared
 old code rather than by test, so this section is where a mistake is most
 likely to show.
 
-### kawa: Legato (`Perked: Legato`, MIDI editor)
+### kawa: Legato (`Perken: Legato`, MIDI editor)
 
 - [ ] With **nothing** selected: every chord ends where the next one begins,
       the last at the item end. Same result as before the refactor.
@@ -166,5 +166,7 @@ appearing or disappearing.
 ## 4. Notes on the test build
 
 `zig build test` statically links `libhegel` for the property-based tests
-and downloads the pinned release on first run, so the first test build needs
-network access. It is test-only: the shipped extension does not link it.
+and downloads the pinned release when it is missing, so a first test build
+needs network access. Pass `-Dhegel-lib-dir=.hegel-cache` (or set
+`$HEGEL_LIB_DIR`) to keep the archive between builds, which is what CI does.
+It is test-only: the shipped extension does not link it.

@@ -155,6 +155,11 @@ release tag itself and `tools/fetch_hegel.zig` downloads the right platform's
 static archive, checked against the release's published `.sha256`. To move to
 a newer release, change `hegel_tag` in `build.zig`.
 
+Because those archives are tens of megabytes, `-Dhegel-lib-dir=<path>` (or
+`$HEGEL_LIB_DIR`) keeps one between builds and downloads only when it is
+absent. The workflow passes `.hegel-cache` and caches that directory, keyed
+on `build.zig`, so bumping the tag misses the cache exactly once.
+
 ## Continuous integration
 
 There is one workflow per extension in `.github/workflows/`. A branch push or
