@@ -40,6 +40,15 @@ const log = std.log.scoped(.rhythm);
 /// tick or two off even after quantising, so snapping is what lets the rest
 /// of the pipeline use exact rationals and compare positions for equality
 /// at all. Finer grids (64ths, quintuplets) land on the nearest 96th.
+///
+/// This is deliberately *not* the grid abc_export snaps to. That one picks
+/// the nearer of a sixteenth or a sixteenth-triplet in f64 (see
+/// `snapPositionQn` there), which suits a path whose notation is produced
+/// by the abcls CLI and may be triplets. This one must land on an exact
+/// rational for the tiling to reason about, and the tiling has no tuplets
+/// yet. The two paths can therefore place the same recorded note
+/// differently; that is a known, accepted difference, not an oversight, so
+/// do not unify them without deciding which grid should win.
 pub const snap_den: i64 = 96;
 
 /// Quarter notes to an exact rational in whole notes.
@@ -198,63 +207,14 @@ fn itemEndRational(take: *Reaper.MediaItem_Take) ?Rational {
     return qnToRational(timemap.timeToQn(pos + len));
 }
 
-/// Collects the take's notes in QN, keeping the selected ones when any are
-/// selected, in chord order.
-fn collectTargetNotes(allocator: std.mem.Allocator, take: *Reaper.MediaItem_Take) ?[]helpers.QnNote {
-    var n_notes: c_int = 0;
-    var n_cc: c_int = 0;
-    var n_sysex: c_int = 0;
-    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
-
-    var list = std.ArrayList(helpers.QnNote).init(allocator);
-    defer list.deinit();
-    var any_selected = false;
-    var i: c_int = 0;
-    while (i < n_notes) : (i += 1) {
-        var selected = false;
-        var muted = false;
-        var start_ppq: f64 = 0;
-        var end_ppq: f64 = 0;
-        var chan: c_int = 0;
-        var pitch: c_int = 0;
-        var vel: c_int = 0;
-        if (!Reaper.MIDI_GetNote(take, i, &selected, &muted, &start_ppq, &end_ppq, &chan, &pitch, &vel)) continue;
-        if (selected) any_selected = true;
-        list.append(.{
-            .idx = i,
-            .selected = selected,
-            .muted = muted,
-            .start_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, start_ppq),
-            .end_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, end_ppq),
-            .chan = chan,
-            .pitch = pitch,
-            .vel = vel,
-        }) catch return null;
-    }
-
-    if (any_selected) {
-        var w: usize = 0;
-        for (list.items) |n| {
-            if (n.selected) {
-                list.items[w] = n;
-                w += 1;
-            }
-        }
-        list.shrinkRetainingCapacity(w);
-    }
-
-    const notes = list.toOwnedSlice() catch return null;
-    helpers.sortChordOrder(notes);
-    return notes;
-}
-
 fn simplifyNoteLengths(_: *actions.RunCtx) void {
     const alloc = helpers.allocator;
     const editor = helpers.midiEditorActive() orelse return;
     const take = helpers.midiEditorTake(editor) orelse return;
 
-    const notes = collectTargetNotes(alloc, take) orelse return;
-    defer alloc.free(notes);
+    const collected = helpers.collectQnNotes(alloc, take) catch return;
+    defer alloc.free(collected.notes);
+    const notes = helpers.keepSelected(helpers.QnNote, collected.notes, collected.any_selected);
     if (notes.len == 0) return;
 
     const attacks = attacksOf(alloc, notes) catch return;

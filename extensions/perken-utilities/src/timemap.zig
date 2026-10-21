@@ -15,6 +15,7 @@
 
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
+const helpers = @import("reaper_helpers");
 
 pub fn qnToTime(qn: f64) f64 {
     const f: *const fn (proj: ?*anyopaque, qn: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_QNToTime);
@@ -44,8 +45,16 @@ pub fn sigAtTime(time: f64) Signature {
     };
 }
 
-/// The measure index containing `time`, as REAPER counts them.
-pub fn measureAtTime(time: f64) c_int {
+/// What one `TimeMap2_timeToBeats` call reports about a position: the
+/// measure it falls in and that measure's time-signature denominator.
+/// Both come back together because they come from the same call.
+pub const BeatsInfo = struct {
+    measure: c_int,
+    /// The denominator REAPER reports for this measure, never zero.
+    denominator: c_int,
+};
+
+pub fn beatsInfoAtTime(time: f64) BeatsInfo {
     const f: *const fn (
         proj: ?*anyopaque,
         tpos: f64,
@@ -55,19 +64,50 @@ pub fn measureAtTime(time: f64) c_int {
         cdenom: ?*c_int,
     ) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToBeats);
     var measure: c_int = 0;
-    _ = f(null, time, &measure, null, null, null);
-    return measure;
+    var denominator: c_int = 4;
+    _ = f(null, time, &measure, null, null, &denominator);
+    return .{ .measure = measure, .denominator = if (denominator > 0) denominator else 4 };
+}
+
+/// The measure index containing `time`, as REAPER counts them.
+pub fn measureAtTime(time: f64) c_int {
+    return beatsInfoAtTime(time).measure;
 }
 
 /// The time at which measure `measure` begins. Asking REAPER for the
 /// measure's own start, rather than adding up nominal bar lengths, is what
 /// keeps partial bars (a time-signature marker placed off a barline)
 /// honest: REAPER's grid is what the user sees.
+///
+/// reaziglib already wraps `TimeMap2_beatsToTime`, so this goes through
+/// that rather than re-casting it here.
 pub fn measureStartTime(measure: c_int) f64 {
-    const f: *const fn (proj: ?*anyopaque, tpos: f64, measures: ?*const c_int) callconv(.C) f64 =
-        @ptrCast(Reaper.TimeMap2_beatsToTime);
-    var m = measure;
-    return f(null, 0.0, &m);
+    return helpers.timeMap2BeatsToTime(0.0, measure);
+}
+
+/// REAPER's "divided" BPM at `time`: the tempo marker's value scaled by the
+/// time signature (doubled in /8 signatures, for instance). `tempoAt`
+/// converts it back; callers wanting the raw scaled figure use this.
+pub fn dividedBpmAtTime(time: f64) f64 {
+    const f: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 =
+        @ptrCast(Reaper.TimeMap2_GetDividedBpmAtTime);
+    return f(null, time);
+}
+
+/// The tempo marker value in effect at `time`, undoing the division above
+/// with the measure's own denominator.
+pub fn tempoAt(time: f64) f64 {
+    const denominator = beatsInfoAtTime(time).denominator;
+    return dividedBpmAtTime(time) * 4.0 / @as(f64, @floatFromInt(denominator));
+}
+
+/// The take-PPQ position where the measure containing `ppq` begins.
+///
+/// A separate REAPER call from the measure walk above, and the right one
+/// when the answer is wanted in a take's own PPQ domain; kept here so every
+/// bar-line lookup in the extension goes through one module.
+pub fn barStartPpq(take: *Reaper.MediaItem_Take, ppq: f64) f64 {
+    return Reaper.MIDI_GetPPQPos_StartOfMeasure(take, ppq);
 }
 
 /// The QN position where the measure containing `qn` begins.

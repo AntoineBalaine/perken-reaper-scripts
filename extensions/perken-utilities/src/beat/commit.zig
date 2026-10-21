@@ -57,17 +57,10 @@ pub fn nearestBarLine(t: f64) f64 {
     return if (t - this_bar <= next_bar - t) this_bar else next_bar;
 }
 
-/// The tempo marker value in effect at `t`. REAPER reports a "divided" BPM
-/// (twice the marker's value in /8 time signatures, for instance), which is
-/// converted back with the time signature's denominator at `t`.
-pub fn tempoAt(t: f64) f64 {
-    const divided: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_GetDividedBpmAtTime);
-    const to_beats: *const fn (proj: ?*anyopaque, tpos: f64, measures: ?*c_int, cml: ?*c_int, fullbeats: ?*f64, cdenom: ?*c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToBeats);
-    var denom: c_int = 4;
-    _ = to_beats(null, t, null, null, null, &denom);
-    if (denom <= 0) denom = 4;
-    return divided(null, t) * 4.0 / @as(f64, @floatFromInt(denom));
-}
+/// The tempo marker value in effect at `t`, undoing REAPER's division by
+/// the time signature. Lives in timemap.zig with the rest of the time-map
+/// access; re-exported because this module's callers know it by this name.
+pub const tempoAt = timemap.tempoAt;
 
 /// Inserts a tempo-only marker (the time signature is left unchanged).
 pub fn insertTempoMarker(t: f64, bpm: f64) void {

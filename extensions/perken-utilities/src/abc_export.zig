@@ -438,6 +438,10 @@ pub fn itemStartsEarlier(_: void, a: *Reaper.MediaItem, b: *Reaper.MediaItem) bo
 /// sixteenth note and the sixteenth-note triplet. Because the two grids share
 /// the eighth-note triplet and every eighth note, straight and triplet
 /// rhythms both survive the snap.
+///
+/// rhythm_action snaps to a different grid (96ths of a whole note, exact
+/// rationals, no tuplets) because its tiling needs exact arithmetic. The
+/// difference is known and accepted — see the note on `snap_den` there.
 pub const straight_step_qn: f64 = 0.25;
 pub const triplet_step_qn: f64 = 1.0 / 6.0;
 
@@ -535,7 +539,7 @@ pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []
     if (quantize) quantizeNotes(take, notes);
     // Because the item can start in the middle of a bar, the ticks count from
     // the bar line before it, which keeps every note at its place in the bar.
-    const bar_start_ppq = Reaper.MIDI_GetPPQPos_StartOfMeasure(take, ppq_start + 0.5);
+    const bar_start_ppq = timemap.barStartPpq(take, ppq_start + 0.5);
     var events = try collectEvents(alloc, notes, ppq_start, ppq_end, @min(bar_start_ppq, ppq_start));
     defer events.deinit();
     if (events.items.len == 0) return false;

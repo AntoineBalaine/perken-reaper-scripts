@@ -4,6 +4,7 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
+const timemap = @import("timemap.zig");
 const helpers = @import("reaper_helpers");
 
 // ---- ABI shims (reaziglib types these returns as non-optional) ---------------
@@ -184,11 +185,6 @@ fn stretchItemEndToCursor(_: *actions.RunCtx) void {
 
 // ---- conform items recorded at another tempo to the session tempo ----------------
 
-fn dividedBpmAtTime(time: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_GetDividedBpmAtTime);
-    return f(null, time);
-}
-
 const ConformCtx = struct {
     /// Start of the earliest selected item; the stretch scales around it.
     anchor: f64,
@@ -245,7 +241,7 @@ fn conformItemsToSessionTempo(_: *actions.RunCtx) void {
         anchor = @min(anchor, Reaper.GetMediaItemInfo_Value(item, "D_POSITION"));
     }
 
-    const ctx = ConformCtx{ .anchor = anchor, .factor = dividedBpmAtTime(anchor) / original };
+    const ctx = ConformCtx{ .anchor = anchor, .factor = timemap.dividedBpmAtTime(anchor) / original };
     i = 0;
     while (i < n) : (i += 1) {
         const item = helpers.getSelectedMediaItem(i) orelse continue;
