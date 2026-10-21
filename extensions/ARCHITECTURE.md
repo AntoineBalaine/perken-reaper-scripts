@@ -38,6 +38,7 @@ scripts came first and are still distributed, both live side by side.
 | [`reaziglib`](reaziglib) | none | REAPER API bindings, ReaImGui bindings, shared helpers, the shared window palette, the control surface shim |
 | [`reavim-ext`](reavim-ext) | `reaper_reavim` | The vim grammar: modes, operators, motions, the whichkey window and its search box. It owns the keymap |
 | [`perken-utilities`](perken-utilities) | `reaper_perken_utilities` | Editing helpers (drums, chord voicings, item, track and envelope tools, batch rename, tempo detection, the action search). Every action is registered in REAPER as `Perken: <name>` with the command id `_PERKEN_<name>` |
+| [`vr09`](vr09) | `vr09.clap` | A CLAP plugin, not an extension: a Roland VR-09 controller that sits on a track. It reaches REAPER's API through the host extension `cockos.reaper_extension` and needs no extension of its own. It builds on reaziglib's API bindings and has no C++ |
 | [`console1`](console1) | `reaper_c1`, `reaper_c1_ui`, `reaper_mft` | The Softube Console1 MKII control surface and its hot-reloadable panel, and MIDI Fighter Twister support. They are built and released separately (`console1-v*`, `mft-v*`) |
 
 How they depend on each other:
