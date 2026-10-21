@@ -194,6 +194,8 @@ test {
     _ = @import("fuzzy.zig");
     _ = @import("abc_export.zig");
     _ = @import("terminal.zig");
+    _ = @import("rational.zig");
+    _ = @import("meter.zig");
     _ = @import("rhythm_simplify.zig");
     _ = @import("hegel.zig");
     _ = @import("rhythm_simplify_pbt.zig");

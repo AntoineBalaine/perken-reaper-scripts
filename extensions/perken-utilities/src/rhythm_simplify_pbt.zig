@@ -1,9 +1,10 @@
 //! Property-based test for rhythm_simplify, driven by libhegel (see
-//! hegel.zig) rather than hand-picked examples. For each common time
-//! signature it generates many random runs of events — libhegel picks how
-//! many bars the run covers, where in the bar grid it starts, where to cut
-//! it into segments, and which segments are notes versus rests — and
-//! checks the invariants `simplify` must never violate:
+//! hegel.zig) rather than hand-picked examples. For each starting meter it
+//! generates many random runs of events — libhegel picks
+//! how many bars the run covers, whether the meter changes partway and to
+//! what, where in the bar grid the run starts, where to cut it into
+//! segments, and which segments are notes versus rests — and checks the
+//! invariants `simplify` must never violate:
 //!
 //! - total duration is preserved;
 //! - every output symbol is one the meter's hierarchy actually allows at
@@ -14,12 +15,15 @@
 //!   note without adding an attack and nothing may ever merge two;
 //! - the result is a fixed point — simplifying it again changes nothing.
 //!
-//! The multi-bar, arbitrary-start generation matters: an earlier version
-//! of this test only ever produced runs that tiled exactly one bar from
-//! position zero, and that blind spot hid a bug where any span reaching
-//! past the barline was silently truncated — duration vanished and no
-//! test noticed. Duration preservation only means something if the
-//! generator can produce spans that cross a barline.
+//! The multi-bar, arbitrary-start, meter-changing generation matters: an
+//! earlier version of this test only ever produced runs that tiled exactly
+//! one bar from position zero, and that blind spot hid a bug where any
+//! span reaching past the barline was silently truncated — duration
+//! vanished and no test noticed. Duration preservation only means
+//! something if the generator can produce spans that cross a barline, and
+//! the same reasoning applies to meter changes: a note held across a 4/4
+//! to 3/4 change is the case most likely to be mangled, so the generator
+//! has to be able to build one.
 //!
 //! Symbol count is deliberately *not* checked as "never increases". A raw
 //! gap of 5/16 has no single notehead and correctly becomes two symbols;
@@ -35,33 +39,52 @@ const std = @import("std");
 const hegel = @import("hegel.zig");
 const rs = @import("rhythm_simplify.zig");
 
-/// Bar length in sixteenth-note units — must divide evenly, checked by the
-/// assert (holds for every TimeSig in rs.TimeSig).
-fn unitsInBar(time_sig: rs.TimeSig) usize {
-    // bar_len / (1/16), computed as (bar_len.num * 16) / bar_len.den.
-    const scaled = time_sig.bar_len.num * 16;
-    std.debug.assert(@rem(scaled, time_sig.bar_len.den) == 0);
-    return @intCast(@divExact(scaled, time_sig.bar_len.den));
+/// A duration in sixteenth-note units — the signatures drawn below all
+/// divide evenly, which the assert holds us to.
+fn unitsOf(dur: rs.Rational) usize {
+    const scaled = dur.num * 16;
+    std.debug.assert(@rem(scaled, dur.den) == 0);
+    return @intCast(@divExact(scaled, dur.den));
 }
+
+/// Signatures the generator picks from: simple, compound and irregular, so
+/// the hierarchy derivation is exercised rather than just 4/4.
+const signatures = [_][2]u32{
+    .{ 4, 4 }, .{ 3, 4 }, .{ 2, 4 }, .{ 6, 8 }, .{ 12, 8 }, .{ 9, 8 }, .{ 5, 4 }, .{ 7, 8 },
+};
 
 const Run = struct {
     /// Where the first event begins, in whole notes from the bar grid.
     start: rs.Rational,
     events: []rs.Event,
+    ctx: rs.Context,
 };
 
-/// Draws a random run of events in sixteenth-note units: a start offset
-/// anywhere in the first bar, a length of one to three bars' worth, a
-/// random cut after each interior unit (p=0.3, so segments average a bit
-/// over three units), and a random note/rest kind per segment (p=0.5).
-/// Cuts are unconstrained on purpose — a held note or a gap may well span
-/// beats and barlines as one event, and re-tiling exactly those is the
-/// point of the module.
-fn drawRun(ctx: hegel.Ctx, tc: *hegel.TestCase, allocator: std.mem.Allocator, time_sig: rs.TimeSig) !Run {
-    const bar_units = unitsInBar(time_sig);
-    const start_unit = try ctx.drawInt(tc, 0, @intCast(bar_units - 1));
-    const bars = try ctx.drawInt(tc, 1, 3);
-    const total_units: usize = @intCast(@as(i64, @intCast(bar_units)) * bars);
+/// Draws a random run of events in sixteenth-note units, together with the
+/// meter context it sits in: one or two meter sections of one to three bars
+/// each (so about half the runs contain a meter change), a start offset
+/// anywhere in the first bar, a random cut after each interior unit
+/// (p=0.3, so segments average a bit over three units), and a random
+/// note/rest kind per segment (p=0.5). Cuts are unconstrained on purpose —
+/// a held note or a gap may well span beats, barlines and meter changes as
+/// one event, and re-tiling exactly those is the point of the module.
+fn drawRun(ctx: hegel.Ctx, tc: *hegel.TestCase, allocator: std.mem.Allocator, first_sig: [2]u32) !Run {
+    var sections: [2]rs.meter.Section = undefined;
+    var section_count: usize = 1;
+    sections[0] = .{ .num = first_sig[0], .denom = first_sig[1], .bars = @intCast(try ctx.drawInt(tc, 1, 3)) };
+    if (try ctx.drawBool(tc, 0.5)) {
+        const i: usize = @intCast(try ctx.drawInt(tc, 0, signatures.len - 1));
+        sections[1] = .{ .num = signatures[i][0], .denom = signatures[i][1], .bars = @intCast(try ctx.drawInt(tc, 1, 3)) };
+        section_count = 2;
+    }
+    const meter_ctx = try rs.meter.fromSections(allocator, rs.Rational.zero(), sections[0..section_count]);
+    errdefer rs.meter.freeContext(allocator, meter_ctx);
+
+    const first_bar_units = unitsOf(meter_ctx.bars[0].hierarchy.len);
+    const start_unit = try ctx.drawInt(tc, 0, @intCast(first_bar_units - 1));
+    // Run to the end of the context, so spans reach every barline and every
+    // meter change in it.
+    const total_units: usize = unitsOf(meter_ctx.end()) - @as(usize, @intCast(start_unit));
 
     var cuts = try std.ArrayList(usize).initCapacity(allocator, total_units);
     defer cuts.deinit();
@@ -82,6 +105,7 @@ fn drawRun(ctx: hegel.Ctx, tc: *hegel.TestCase, allocator: std.mem.Allocator, ti
     return .{
         .start = rs.Rational.of(start_unit, 16),
         .events = try events.toOwnedSlice(),
+        .ctx = meter_ctx,
     };
 }
 
@@ -106,7 +130,7 @@ fn attackOnsets(allocator: std.mem.Allocator, start: rs.Rational, events: []cons
     return onsets.toOwnedSlice();
 }
 
-fn checkTimeSig(allocator: std.mem.Allocator, ctx: hegel.Ctx, time_sig: rs.TimeSig) !void {
+fn checkSignature(allocator: std.mem.Allocator, ctx: hegel.Ctx, first_sig: [2]u32) !void {
     const settings = try ctx.settingsNew(300);
     defer ctx.settingsFree(settings);
     const run = try ctx.runStart(settings);
@@ -114,11 +138,13 @@ fn checkTimeSig(allocator: std.mem.Allocator, ctx: hegel.Ctx, time_sig: rs.TimeS
 
     while (try ctx.nextTestCase(run)) |tc| {
         defer ctx.testCaseFree(tc);
-        const drawn = try drawRun(ctx, tc, allocator, time_sig);
+        const drawn = try drawRun(ctx, tc, allocator, first_sig);
         defer allocator.free(drawn.events);
+        defer rs.meter.freeContext(allocator, drawn.ctx);
         const start = drawn.start;
+        const mctx = drawn.ctx;
 
-        const simplified = try rs.simplify(allocator, time_sig, start, drawn.events);
+        const simplified = try rs.simplify(allocator, mctx, start, drawn.events);
         defer allocator.free(simplified);
 
         // Nothing may be lost, least of all across a barline.
@@ -127,7 +153,7 @@ fn checkTimeSig(allocator: std.mem.Allocator, ctx: hegel.Ctx, time_sig: rs.TimeS
         // Every symbol must be legal where it sits.
         var onset = start;
         for (simplified) |e| {
-            try std.testing.expect(rs.isLegalSymbol(time_sig, onset, e.dur));
+            try std.testing.expect(rs.isLegalSymbol(mctx, onset, e.dur));
             onset = onset.add(e.dur);
         }
 
@@ -140,7 +166,7 @@ fn checkTimeSig(allocator: std.mem.Allocator, ctx: hegel.Ctx, time_sig: rs.TimeS
         for (before, after) |x, y| try std.testing.expect(x.eq(y));
 
         // Already simplified: simplifying again changes nothing.
-        const twice = try rs.simplify(allocator, time_sig, start, simplified);
+        const twice = try rs.simplify(allocator, mctx, start, simplified);
         defer allocator.free(twice);
         try std.testing.expectEqual(simplified.len, twice.len);
         for (simplified, twice) |a, b| {
@@ -154,14 +180,10 @@ fn checkTimeSig(allocator: std.mem.Allocator, ctx: hegel.Ctx, time_sig: rs.TimeS
     try std.testing.expectEqual(hegel.RunStatus.passed, try ctx.runResultStatus(run));
 }
 
-test "simplify keeps duration, attacks and legality across barlines, and is a fixed point" {
+test "simplify keeps duration, attacks and legality across barlines and meter changes" {
     const allocator = std.testing.allocator;
     const ctx = hegel.Ctx.init();
     defer ctx.deinit();
 
-    try checkTimeSig(allocator, ctx, rs.TimeSig.four_four);
-    try checkTimeSig(allocator, ctx, rs.TimeSig.three_four);
-    try checkTimeSig(allocator, ctx, rs.TimeSig.two_four);
-    try checkTimeSig(allocator, ctx, rs.TimeSig.six_eight);
-    try checkTimeSig(allocator, ctx, rs.TimeSig.twelve_eight);
+    for (signatures) |sig| try checkSignature(allocator, ctx, sig);
 }
