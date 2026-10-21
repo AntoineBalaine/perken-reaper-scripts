@@ -415,11 +415,21 @@ fn onTimer() callconv(.C) void {
         if (font != null) imgui.api.PopFont(ctx);
     }
 
-    // Default into REAPER's docker on first use; the user can move it after.
-    imgui.api.SetNextWindowDockID(ctx, -1, &imgui.Cond_FirstUseEver);
+    // Because a missing or empty [whichkey] dock setting counts as "none",
+    // the window then keeps the placement ImGui saved at the last session
+    // (position, size, or docker). Because a saved placement would otherwise
+    // win over the setting, a docker number turns saving off, so that the
+    // window opens in that docker at every start. ImGui numbers REAPER's
+    // dockers -1, -2, ... The window also remembers its placement while the
+    // bindings are not loaded yet.
+    const dock: ?u8 = if (vim.currentBindings()) |b| b.dock else null;
+    var begin_flags: c_int = 0;
+    if (dock) |docker| {
+        begin_flags = imgui.WindowFlags_NoSavedSettings;
+        imgui.api.SetNextWindowDockID(ctx, -@as(c_int, docker), &imgui.Cond_FirstUseEver);
+    }
 
     var is_open: bool = true;
-    var begin_flags: c_int = imgui.WindowFlags_NoSavedSettings;
     const visible = imgui.api.Begin(ctx, "ReaVim", &is_open, &begin_flags);
     var focus_flags: c_int = imgui.FocusedFlags_RootAndChildWindows;
     window_focused = visible and imgui.api.IsWindowFocused(ctx, &focus_flags);

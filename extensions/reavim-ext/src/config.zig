@@ -19,6 +19,7 @@
 //!   view = keyboard            ; keyboard | list
 //!   layout = bepo              ; qwerty | bepo (where each character sits)
 //!   board = ortho              ; staggered | ortho
+//!   dock = 1                   ; REAPER docker number (1-16) the window opens in | none (also: empty or missing) = remembers its last placement
 //!   [labels]
 //!   AddNextNoteToSelection = Extend → | extend   ; short cap label | category
 const std = @import("std");
@@ -43,6 +44,12 @@ pub const Bindings = struct {
     view: keyboard.View = .keyboard,
     layout: keyboard.Layout = .qwerty,
     board: keyboard.Board = .staggered,
+    /// The REAPER docker (1-16) that the whichkey window opens in, or null to
+    /// let it keep the placement of the last session. Because a docker number
+    /// turns the saving of the placement off, that setting decides where the
+    /// window lands at every start. Because a missing or empty setting counts
+    /// as "none", the default is null.
+    dock: ?u8 = null,
     /// Short cap labels and categories by action name (the [labels] section).
     /// The strings live in the arena.
     labels: std.StringHashMapUnmanaged(keyboard.Label) = .{},
@@ -67,11 +74,29 @@ fn parseSingleKey(raw: []const u8) ?keymod.Key {
     return tok.key;
 }
 
-/// Applies a [whichkey] option that is not a key (view, layout, board).
+/// Parses the value of the [whichkey] dock option: a docker number from 1 to
+/// 16, or "none" (or an empty value) for a window that keeps its last
+/// placement. Returns error.InvalidDock otherwise.
+fn parseDock(value: []const u8) error{InvalidDock}!?u8 {
+    if (value.len == 0 or std.mem.eql(u8, value, "none")) return null;
+    const n = std.fmt.parseInt(u8, value, 10) catch return error.InvalidDock;
+    if (n < 1 or n > 16) return error.InvalidDock;
+    return n;
+}
+
+/// Applies a [whichkey] option that is not a key (view, layout, board, dock).
 /// Returns false when the name is not one of them, so that the caller parses
 /// the value as a pagination key instead.
 fn parseWhichkeyOption(b: *Bindings, name: []const u8, raw: []const u8) !bool {
     const value = std.mem.trim(u8, raw, " \t");
+    if (std.mem.eql(u8, name, "dock")) {
+        if (parseDock(value)) |dock| {
+            b.dock = dock;
+        } else |_| {
+            log.warn("unknown [whichkey] dock '{s}' (expected 1-16 or none) — skipped", .{value});
+        }
+        return true;
+    }
     inline for (.{ .{ "view", keyboard.View }, .{ "layout", keyboard.Layout }, .{ "board", keyboard.Board } }) |opt| {
         if (std.mem.eql(u8, name, opt[0])) {
             if (std.meta.stringToEnum(opt[1], value)) |v| {
@@ -328,6 +353,34 @@ test "whichkey view options and labels" {
     try std.testing.expectEqual(keyboard.Category.extend, ext.category.?);
     try std.testing.expect(b.labels.get("Quantize").?.category == null);
     try std.testing.expect(b.labels.get("Broken") == null);
+}
+
+test "whichkey dock option" {
+    var reg = try actions.Registry.init(std.testing.allocator, &.{});
+    defer reg.deinit();
+
+    // a missing setting counts as "none"
+    var d = try parseString(std.testing.allocator, &reg, "[main.command]\nj = 40285\n");
+    defer d.deinit();
+    try std.testing.expectEqual(@as(?u8, null), d.dock);
+
+    // an empty setting counts as "none" too
+    var empty = try parseString(std.testing.allocator, &reg, "[whichkey]\ndock =\n");
+    defer empty.deinit();
+    try std.testing.expectEqual(@as(?u8, null), empty.dock);
+
+    var seven = try parseString(std.testing.allocator, &reg, "[whichkey]\ndock = 7\n");
+    defer seven.deinit();
+    try std.testing.expectEqual(@as(?u8, 7), seven.dock);
+
+    var floating = try parseString(std.testing.allocator, &reg, "[whichkey]\ndock = none\n");
+    defer floating.deinit();
+    try std.testing.expectEqual(@as(?u8, null), floating.dock);
+
+    // an out-of-range or unreadable value keeps the default
+    var bad = try parseString(std.testing.allocator, &reg, "[whichkey]\ndock = 17\n");
+    defer bad.deinit();
+    try std.testing.expectEqual(@as(?u8, null), bad.dock);
 }
 
 test "whichkey pagination keys default and override" {
