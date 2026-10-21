@@ -182,6 +182,77 @@ fn stretchItemEndToCursor(_: *actions.RunCtx) void {
     stretchItem(.right);
 }
 
+// ---- conform items recorded at another tempo to the session tempo ----------------
+
+fn dividedBpmAtTime(time: f64) f64 {
+    const f: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_GetDividedBpmAtTime);
+    return f(null, time);
+}
+
+const ConformCtx = struct {
+    /// Start of the earliest selected item; the stretch scales around it.
+    anchor: f64,
+    /// Session tempo divided by the original tempo of the recording.
+    factor: f64,
+};
+
+fn conformItem(ctx: *const ConformCtx, item: *Reaper.MediaItem) void {
+    const pos = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
+    const len = Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
+
+    // Because the item timebase would otherwise react to the new play rate, we pin it to time.
+    _ = Reaper.SetMediaItemInfo_Value(item, "C_BEATATTACHMODE", 0);
+
+    const takes = Reaper.CountTakes(item);
+    var t: c_int = 0;
+    while (t < takes) : (t += 1) {
+        const take = getTake(item, t) orelse continue;
+        const rate = Reaper.GetMediaItemTakeInfo_Value(take, "D_PLAYRATE");
+        _ = Reaper.SetMediaItemTakeInfo_Value(take, "D_PLAYRATE", rate * ctx.factor);
+    }
+    _ = Reaper.SetMediaItemInfo_Value(item, "D_LENGTH", len / ctx.factor);
+    _ = Reaper.SetMediaItemInfo_Value(item, "D_POSITION", ctx.anchor + (pos - ctx.anchor) / ctx.factor);
+    Reaper.UpdateItemInProject(item);
+}
+
+/// Because the selected items were played in real time against an external
+/// metronome, their notes only sit on the grid at the original tempo. We ask
+/// for that tempo, and we stretch the items by session tempo / original tempo,
+/// so that the notes land on the grid of the session. The session tempo is
+/// read at the start of the earliest selected item, and the item positions
+/// are scaled around that start, so that the gaps between the items stay
+/// proportional.
+fn conformItemsToSessionTempo(_: *actions.RunCtx) void {
+    const title = "Perken: conform items to session tempo";
+    const n = helpers.countSelectedMediaItems();
+    if (n == 0) {
+        _ = Reaper.ShowMessageBox("Because no item is selected, there is nothing to conform.", title, 0);
+        return;
+    }
+
+    var buf: [64]u8 = undefined;
+    const reply = helpers.getUserInput(title, "Original BPM of the recording", &buf) orelse return;
+    const original = std.fmt.parseFloat(f64, reply) catch 0;
+    if (!(original > 0)) {
+        _ = Reaper.ShowMessageBox("Because the original BPM is not a positive number, nothing was changed.", title, 0);
+        return;
+    }
+
+    var anchor = std.math.inf(f64);
+    var i: c_int = 0;
+    while (i < n) : (i += 1) {
+        const item = helpers.getSelectedMediaItem(i) orelse continue;
+        anchor = @min(anchor, Reaper.GetMediaItemInfo_Value(item, "D_POSITION"));
+    }
+
+    const ctx = ConformCtx{ .anchor = anchor, .factor = dividedBpmAtTime(anchor) / original };
+    i = 0;
+    while (i < n) : (i += 1) {
+        const item = helpers.getSelectedMediaItem(i) orelse continue;
+        conformItem(&ctx, item);
+    }
+}
+
 // ---- registry entries -------------------------------------------------------------
 
 pub const entries = [_]actions.Entry{
@@ -212,6 +283,10 @@ pub const entries = [_]actions.Entry{
     .{ .name = "SplitItemsAtNoteStart", .def = .{ .steps = &.{.{ .func = &splitItemsAtNoteStart }} } },
     .{ .name = "StretchItemStartToCursor", .def = .{ .steps = &.{.{ .func = &stretchItemStartToCursor }} } },
     .{ .name = "StretchItemEndToCursor", .def = .{ .steps = &.{.{ .func = &stretchItemEndToCursor }} } },
+    .{
+        .name = "ConformItemsToSessionTempo",
+        .def = .{ .desc = "conform items to session tempo", .steps = &.{.{ .func = &conformItemsToSessionTempo }} },
+    },
 };
 
 test {

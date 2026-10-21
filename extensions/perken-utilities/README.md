@@ -13,7 +13,7 @@ Editing helpers for REAPER as a compiled extension (Zig, built on
 | kawa (MIDI editor) | chord note selection, drop-2/3/2&4 voicings, octave/interval doublings, QuantizeNoteEnds (selected notes, or all: ends snap to the grid, starts stay), Legato (selected notes, or all: each chord ends a tick before the next selected one; the last, before the next note, else at the item end) |
 | routing | RouteToBusses, BuildBusses |
 | fx | InsertFxAtSlot (stub) |
-| items | paste before cursor, 2 ms fades, fades and trims from the mouse, split at note starts, stretch to cursor |
+| items | paste before cursor, 2 ms fades, fades and trims from the mouse, split at note starts, stretch to cursor, ConformItemsToSessionTempo (asks for the original BPM of the selected items, then stretches them by session tempo / original tempo so that their notes land on the session grid; the session tempo is read at the start of the earliest item, and the item positions scale around that start) |
 | tracks | volume ±3 dB, rename from the VSTi preset, exclusive solo |
 | envelope | point min/max/center, nudge points, delete points, toggle at time selection, select points |
 | keysnap (MIDI editor) | toggleKeySnap (stub) |
