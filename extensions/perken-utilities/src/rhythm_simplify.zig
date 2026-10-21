@@ -1,5 +1,5 @@
-//! Simplifies quantized note/rest sequences within a bar into the fewest,
-//! most readable symbols a reader expects at each position.
+//! Simplifies quantized note/rest sequences into the fewest, most readable
+//! symbols a reader expects at each position.
 //!
 //! The governing rule is metric hierarchy, not a flat "a symbol may never
 //! cross a beat": a bar subdivides into halves (or thirds), those into
@@ -173,8 +173,15 @@ pub const Event = struct {
     /// Set on a note that is tied into the next event, which is also a
     /// note: both noteheads are one continuous sound, written as several
     /// because no single symbol spans that position. Always false on a
-    /// rest — there is no such thing as a tied rest.
+    /// rest — there is no such thing as a tied rest, so a silence
+    /// crossing a barline is simply one rest per bar.
     tied_to_next: bool = false,
+    /// Set on a rest that fills its whole bar. `dur` stays the bar's true
+    /// length for all arithmetic; this only tells a renderer to draw the
+    /// whole-rest glyph, which by convention stands for an empty bar in
+    /// any meter (so a 3/4 bar of silence is a whole rest, not a dotted
+    /// half rest).
+    bar_rest: bool = false,
 };
 
 /// Single-symbol durations: plain values and their dotted (3/2) forms. A
@@ -200,12 +207,11 @@ fn isStandardValue(d: Rational) bool {
     return false;
 }
 
-/// Enough room for the pieces any one span in these meters can need.
-pub const max_pieces = 64;
-
-/// Recursive hierarchy tiling: covers [span_start, span_end) using only
-/// spans that are exact nodes of the meter's subdivision tree, descending
-/// a level whenever the span doesn't fill the current node exactly.
+/// Recursive hierarchy tiling within one bar: covers [span_start,
+/// span_end) using only spans that are exact nodes of the meter's
+/// subdivision tree, descending a level whenever the span doesn't fill the
+/// current node exactly. Appends rather than writing into a fixed buffer,
+/// so a span can never be silently truncated for want of room.
 fn tileInto(
     ts: TimeSig,
     node_start: Rational,
@@ -214,22 +220,23 @@ fn tileInto(
     span_start: Rational,
     span_end: Rational,
     kind: Kind,
-    out: []Event,
-    n: *usize,
-) void {
+    out: *std.ArrayList(Event),
+) !void {
     if (!span_start.lt(span_end)) return;
-    if (n.* >= out.len) return;
 
     const node_end = node_start.add(node_len);
     if (span_start.eq(node_start) and span_end.eq(node_end)) {
-        out[n.*] = .{ .kind = kind, .dur = node_len };
-        n.* += 1;
+        try out.append(.{
+            .kind = kind,
+            .dur = node_len,
+            // depth 0 is the bar itself: a rest filling it is an empty bar.
+            .bar_rest = depth == 0 and kind == .rest,
+        });
         return;
     }
     if (depth >= ts.divisions.len) {
         // Finer than the hierarchy goes: emit the remainder as it is.
-        out[n.*] = .{ .kind = kind, .dur = span_end.sub(span_start) };
-        n.* += 1;
+        try out.append(.{ .kind = kind, .dur = span_end.sub(span_start) });
         return;
     }
 
@@ -241,7 +248,7 @@ fn tileInto(
         const child_end = child_start.add(child_len);
         const s = Rational.max(span_start, child_start);
         const e = Rational.min(span_end, child_end);
-        if (s.lt(e)) tileInto(ts, child_start, child_len, depth + 1, s, e, kind, out, n);
+        if (s.lt(e)) try tileInto(ts, child_start, child_len, depth + 1, s, e, kind, out);
         child_start = child_end;
     }
 }
@@ -251,23 +258,24 @@ fn tileInto(
 /// two tied values within a beat". Only that order merges: short-then-long
 /// is a syncopation, which convention writes as a tie rather than moving
 /// the value, and the longer piece must sit on its own value's grid.
-fn dottedMergeInPlace(onset: Rational, buf: []Event, n: *usize) void {
+/// Runs over the pieces appended from index `from` on, which tileSpan only
+/// ever fills from a single bar, so a merged value cannot reach across a
+/// barline. `onset` is where that bar's portion starts.
+fn dottedMergeInPlace(onset: Rational, items: *std.ArrayList(Event), from: usize) void {
     var pos = onset;
-    var i: usize = 0;
-    while (i + 1 < n.*) {
-        const a = buf[i];
-        const b = buf[i + 1];
+    var i: usize = from;
+    while (i + 1 < items.items.len) {
+        const a = items.items[i];
+        const b = items.items[i + 1];
         const merged = a.dur.add(b.dur);
         if (a.dur.eq(b.dur.mulInt(2)) and
             isStandardValue(merged) and
             pos.isMultipleOf(a.dur))
         {
-            buf[i].dur = merged;
+            items.items[i].dur = merged;
             // tied_to_next of the pair is whatever the second piece had.
-            buf[i].tied_to_next = b.tied_to_next;
-            var j = i + 1;
-            while (j + 1 < n.*) : (j += 1) buf[j] = buf[j + 1];
-            n.* -= 1;
+            items.items[i].tied_to_next = b.tied_to_next;
+            _ = items.orderedRemove(i + 1);
             pos = pos.add(merged);
             i += 1;
             continue;
@@ -277,23 +285,51 @@ fn dottedMergeInPlace(onset: Rational, buf: []Event, n: *usize) void {
     }
 }
 
-/// Tiles one span into the fewest legal symbols, writing into `buf` and
-/// returning the slice used. `kind` notes get tied together, since a note
-/// span split by the hierarchy is still one attack; rests do not.
-pub fn tileSpan(ts: TimeSig, onset: Rational, dur: Rational, kind: Kind, buf: []Event) []Event {
-    var n: usize = 0;
-    tileInto(ts, Rational.zero(), ts.bar_len, 0, onset, onset.add(dur), kind, buf, &n);
-    dottedMergeInPlace(onset, buf, &n);
-    if (kind == .note and n > 0) {
-        for (buf[0 .. n - 1]) |*e| e.tied_to_next = true;
+/// The start of the bar containing `pos`.
+fn barStartAt(ts: TimeSig, pos: Rational) Rational {
+    // floor(pos / bar_len) * bar_len
+    const n = pos.num * ts.bar_len.den;
+    const d = pos.den * ts.bar_len.num;
+    const k = @divFloor(n, d);
+    return ts.bar_len.mulInt(k);
+}
+
+/// Tiles one span into the fewest legal symbols, appending them to `out`.
+/// Splits at every barline first — no symbol may cross one — then tiles
+/// each bar's portion against that bar's hierarchy. Note pieces are tied
+/// to each other, including across a barline, since a sustained note is
+/// still one attack; rests are not, because a tied rest does not exist.
+pub fn tileSpan(ts: TimeSig, onset: Rational, dur: Rational, kind: Kind, out: *std.ArrayList(Event)) !void {
+    const first = out.items.len;
+    const span_end = onset.add(dur);
+    var bar_start = barStartAt(ts, onset);
+    while (bar_start.lt(span_end)) {
+        const bar_end = bar_start.add(ts.bar_len);
+        const s = Rational.max(onset, bar_start);
+        const e = Rational.min(span_end, bar_end);
+        if (s.lt(e)) {
+            const bar_first = out.items.len;
+            try tileInto(ts, bar_start, ts.bar_len, 0, s, e, kind, out);
+            // Dotted values are a within-bar nicety; merge per bar so one
+            // can never reach across the barline.
+            dottedMergeInPlace(s, out, bar_first);
+        }
+        bar_start = bar_end;
     }
-    return buf[0..n];
+    if (kind == .note and out.items.len > first) {
+        for (out.items[first .. out.items.len - 1]) |*e| e.tied_to_next = true;
+    }
 }
 
 /// True if [onset, onset+dur) is writable as exactly one symbol here.
 pub fn isLegalSymbol(ts: TimeSig, onset: Rational, dur: Rational) bool {
-    var buf: [max_pieces]Event = undefined;
-    return tileSpan(ts, onset, dur, .rest, &buf).len == 1;
+    var backing: [64]Event = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(std.mem.asBytes(&backing));
+    var list = std.ArrayList(Event).initCapacity(fba.allocator(), 32) catch return false;
+    // Needing more than the buffer holds means it is certainly not one
+    // symbol, so a failure here answers the question too.
+    tileSpan(ts, onset, dur, .rest, &list) catch return false;
+    return list.items.len == 1;
 }
 
 /// One fixed-point pass: re-tiles each span into the fewest legal symbols.
@@ -303,16 +339,16 @@ pub fn isLegalSymbol(ts: TimeSig, onset: Rational, dur: Rational) bool {
 /// ever added or removed; a single note too long for one symbol here comes
 /// back as tied pieces. Staccato notes pass through untouched, since
 /// collapsePass shortened them deliberately.
-fn retilePass(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const Event) !struct { out: []Event, changed: bool } {
+fn retilePass(allocator: std.mem.Allocator, time_sig: TimeSig, start: Rational, events: []const Event) !struct { out: []Event, changed: bool } {
     var out = std.ArrayList(Event).init(allocator);
     errdefer out.deinit();
-    var buf: [max_pieces]Event = undefined;
-    var onset = Rational.zero();
+    var onset = start;
     var changed = false;
     var i: usize = 0;
     while (i < events.len) {
+        const first = out.items.len;
         if (events[i].kind == .rest) {
-            const start = i;
+            const run_start = i;
             const run_onset = onset;
             var run_len = Rational.zero();
             while (i < events.len and events[i].kind == .rest) {
@@ -320,9 +356,8 @@ fn retilePass(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const E
                 onset = onset.add(events[i].dur);
                 i += 1;
             }
-            const pieces = tileSpan(time_sig, run_onset, run_len, .rest, &buf);
-            if (differs(pieces, events[start..i])) changed = true;
-            try out.appendSlice(pieces);
+            try tileSpan(time_sig, run_onset, run_len, .rest, &out);
+            if (differs(out.items[first..], events[run_start..i])) changed = true;
             continue;
         }
 
@@ -333,11 +368,10 @@ fn retilePass(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const E
             i += 1;
             continue;
         }
-        const pieces = tileSpan(time_sig, onset, e.dur, .note, &buf);
-        // The run's last piece inherits whatever this note was tied to.
-        pieces[pieces.len - 1].tied_to_next = e.tied_to_next;
-        if (differs(pieces, events[i .. i + 1])) changed = true;
-        try out.appendSlice(pieces);
+        try tileSpan(time_sig, onset, e.dur, .note, &out);
+        // The last piece inherits whatever this note was tied to.
+        out.items[out.items.len - 1].tied_to_next = e.tied_to_next;
+        if (differs(out.items[first..], events[i .. i + 1])) changed = true;
         onset = onset.add(e.dur);
         i += 1;
     }
@@ -361,12 +395,12 @@ fn differs(a: []const Event, b: []const Event) bool {
 /// becoming a staccato quarter is idiomatic, while a quarter plus a
 /// quarter rest becoming a staccato half note is not — nobody writes
 /// that, and it would be read as a held note rather than a short one.
-/// Events must already tile the bar exactly (each one starts where the
-/// previous one ends) — that invariant is never changed by this function.
-fn collapsePass(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const Event) !struct { out: []Event, changed: bool } {
+/// Events must tile their span exactly (each one starts where the previous
+/// one ends) — that invariant is never changed by this function.
+fn collapsePass(allocator: std.mem.Allocator, time_sig: TimeSig, start: Rational, events: []const Event) !struct { out: []Event, changed: bool } {
     var out = try std.ArrayList(Event).initCapacity(allocator, events.len);
     errdefer out.deinit();
-    var onset = Rational.zero();
+    var onset = start;
     var changed = false;
     var i: usize = 0;
     while (i < events.len) {
@@ -391,19 +425,24 @@ fn collapsePass(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const
     return .{ .out = try out.toOwnedSlice(), .changed = changed };
 }
 
-/// Simplifies a bar's worth of events to a fixed point: re-tile every span
-/// into the fewest legal symbols (`retilePass`), then collapse equal-length
-/// note+rest pairs into staccato notes (`collapsePass`), until a full round
-/// changes nothing. Total duration and every attack position are preserved
-/// exactly; only the symbols representing them change.
-pub fn simplifyBar(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const Event) ![]Event {
+/// Simplifies a run of events to a fixed point: re-tile every span into the
+/// fewest legal symbols (`retilePass`), then collapse equal-length note+rest
+/// pairs into staccato notes (`collapsePass`), until a full round changes
+/// nothing. Total duration and every attack position are preserved exactly;
+/// only the symbols representing them change.
+///
+/// `start` is where the first event begins, measured in whole notes from
+/// the start of the bar grid, so the run may begin anywhere and may span
+/// any number of bars — spans crossing a barline are split there, notes
+/// tied across it and silence written as one rest per bar.
+pub fn simplify(allocator: std.mem.Allocator, time_sig: TimeSig, start: Rational, events: []const Event) ![]Event {
     var current = try allocator.dupe(Event, events);
     while (true) {
-        const retiled = try retilePass(allocator, time_sig, current);
+        const retiled = try retilePass(allocator, time_sig, start, current);
         allocator.free(current);
         current = retiled.out;
 
-        const collapsed = try collapsePass(allocator, time_sig, current);
+        const collapsed = try collapsePass(allocator, time_sig, start, current);
         allocator.free(current);
         current = collapsed.out;
 
@@ -421,7 +460,7 @@ fn totalDur(events: []const Event) Rational {
 test "a full 4/4 bar of silence is one whole rest" {
     const allocator = std.testing.allocator;
     const events = [_]Event{.{ .kind = .rest, .dur = Rational.of(1, 1) }};
-    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
     defer allocator.free(out);
     try std.testing.expectEqual(@as(usize, 1), out.len);
     try std.testing.expect(out[0].dur.eq(Rational.of(1, 1)));
@@ -443,7 +482,7 @@ test "silence across beats 2-3 of 4/4 becomes two quarter rests" {
         .{ .kind = .rest, .dur = Rational.of(1, 2) },
         .{ .kind = .note, .dur = Rational.of(1, 4) },
     };
-    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
     defer allocator.free(out);
 
     var rests: usize = 0;
@@ -464,7 +503,7 @@ test "a quarter note plus a quarter rest is not a staccato half note" {
         .{ .kind = .rest, .dur = Rational.of(1, 4) },
         .{ .kind = .note, .dur = Rational.of(1, 2) },
     };
-    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
     defer allocator.free(out);
     // The merged span [0, 1/2) *is* a legal half note, so only the beat
     // limit stops this; without it the rest would vanish into a staccato.
@@ -482,7 +521,7 @@ test "four sixteenth rests on the beat collapse to one quarter rest" {
         .{ .kind = .rest, .dur = s16 },
         .{ .kind = .rest, .dur = s16 },
     };
-    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
     defer allocator.free(out);
 
     try std.testing.expectEqual(@as(usize, 1), out.len);
@@ -500,7 +539,7 @@ test "one note too long for its position comes back as tied pieces" {
         .{ .kind = .note, .dur = Rational.of(1, 4) },
         .{ .kind = .rest, .dur = Rational.of(5, 8) },
     };
-    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
     defer allocator.free(out);
 
     var notes: usize = 0;
@@ -525,7 +564,7 @@ test "two adjacent note events are never merged — each is its own attack" {
         .{ .kind = .note, .dur = s16 },
         .{ .kind = .note, .dur = s16 },
     };
-    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
     defer allocator.free(out);
     try std.testing.expectEqual(@as(usize, 4), out.len);
     for (out) |e| try std.testing.expect(e.dur.eq(s16));
@@ -540,7 +579,7 @@ test "eighth note + eighth rest, twice, collapses to two staccato quarters" {
         .{ .kind = .note, .dur = e8 },
         .{ .kind = .rest, .dur = e8 },
     };
-    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
     defer allocator.free(out);
 
     try std.testing.expectEqual(@as(usize, 2), out.len);
@@ -563,7 +602,7 @@ test "a note+rest pair that would land on no single symbol is left alone" {
         .{ .kind = .note, .dur = e8 },
         .{ .kind = .rest, .dur = e8 },
     };
-    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
     defer allocator.free(out);
 
     try std.testing.expectEqual(@as(usize, 3), out.len);
@@ -583,7 +622,7 @@ test "6/8 beat 2 takes a dotted-quarter rest, which 4/4 beat 2 would not" {
         .{ .kind = .rest, .dur = Rational.of(1, 8) },
         .{ .kind = .rest, .dur = Rational.of(1, 8) },
     };
-    const out = try simplifyBar(allocator, TimeSig.six_eight, &events);
+    const out = try simplify(allocator, TimeSig.six_eight, Rational.zero(), &events);
     defer allocator.free(out);
     try std.testing.expectEqual(@as(usize, 2), out.len);
     try std.testing.expect(out[1].dur.eq(Rational.of(3, 8)));
@@ -593,6 +632,90 @@ test "a dotted quarter is preferred over a quarter plus an eighth on the beat" {
     // [0, 3/8) in 4/4: a quarter node plus the eighth after it, which the
     // dotted merge should turn into a single dotted quarter.
     try std.testing.expect(isLegalSymbol(TimeSig.four_four, Rational.zero(), Rational.of(3, 8)));
+}
+
+test "a note running past the barline is tied across it, losing nothing" {
+    const allocator = std.testing.allocator;
+    // Three quarters of rest, then a half note that reaches 1/4 into the
+    // next bar. The note must come back as tied pieces totalling 1/2, and
+    // the whole run must still total 5/4.
+    const events = [_]Event{
+        .{ .kind = .rest, .dur = Rational.of(3, 4) },
+        .{ .kind = .note, .dur = Rational.of(1, 2) },
+    };
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
+    defer allocator.free(out);
+
+    try std.testing.expect(totalDur(&events).eq(totalDur(out)));
+    try std.testing.expect(totalDur(out).eq(Rational.of(5, 4)));
+
+    var note_dur = Rational.zero();
+    var ties: usize = 0;
+    for (out) |e| {
+        if (e.kind == .note) {
+            note_dur = note_dur.add(e.dur);
+            if (e.tied_to_next) ties += 1;
+        }
+    }
+    try std.testing.expect(note_dur.eq(Rational.of(1, 2)));
+    // Split at the barline at 1/1: two pieces, so exactly one tie.
+    try std.testing.expectEqual(@as(usize, 1), ties);
+}
+
+test "silence running past the barline becomes one rest per bar, never tied" {
+    const allocator = std.testing.allocator;
+    const events = [_]Event{
+        .{ .kind = .note, .dur = Rational.of(3, 4) },
+        .{ .kind = .rest, .dur = Rational.of(1, 2) },
+    };
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
+    defer allocator.free(out);
+
+    try std.testing.expect(totalDur(&events).eq(totalDur(out)));
+    var rest_dur = Rational.zero();
+    for (out) |e| {
+        if (e.kind == .rest) {
+            rest_dur = rest_dur.add(e.dur);
+            try std.testing.expect(!e.tied_to_next);
+        }
+    }
+    try std.testing.expect(rest_dur.eq(Rational.of(1, 2)));
+}
+
+test "a run starting mid-bar is placed against the real grid, not from zero" {
+    const allocator = std.testing.allocator;
+    // A half-length silence starting on beat 2 of 4/4 is two quarter
+    // rests, exactly as when it is reached by preceding events — the
+    // start offset has to be honoured, not assumed to be zero.
+    const events = [_]Event{.{ .kind = .rest, .dur = Rational.of(1, 2) }};
+    const out = try simplify(allocator, TimeSig.four_four, Rational.of(1, 4), &events);
+    defer allocator.free(out);
+    try std.testing.expectEqual(@as(usize, 2), out.len);
+    for (out) |e| try std.testing.expect(e.dur.eq(Rational.of(1, 4)));
+}
+
+test "an empty bar is flagged as a whole-bar rest in every meter" {
+    const allocator = std.testing.allocator;
+    inline for (.{ TimeSig.four_four, TimeSig.three_four, TimeSig.two_four, TimeSig.six_eight }) |ts| {
+        const events = [_]Event{.{ .kind = .rest, .dur = ts.bar_len }};
+        const out = try simplify(allocator, ts, Rational.zero(), &events);
+        defer allocator.free(out);
+        try std.testing.expectEqual(@as(usize, 1), out.len);
+        // dur stays the bar's true length; only the glyph differs.
+        try std.testing.expect(out[0].dur.eq(ts.bar_len));
+        try std.testing.expect(out[0].bar_rest);
+    }
+}
+
+test "a rest that merely fills a beat is not flagged as a whole-bar rest" {
+    const allocator = std.testing.allocator;
+    const events = [_]Event{
+        .{ .kind = .rest, .dur = Rational.of(1, 4) },
+        .{ .kind = .note, .dur = Rational.of(3, 4) },
+    };
+    const out = try simplify(allocator, TimeSig.four_four, Rational.zero(), &events);
+    defer allocator.free(out);
+    try std.testing.expect(!out[0].bar_rest);
 }
 
 test "6/8 beat boundaries are the dotted-quarter grouping, not every eighth" {
