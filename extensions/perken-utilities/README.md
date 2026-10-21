@@ -11,6 +11,7 @@ Editing helpers for REAPER as a compiled extension (Zig, built on
 |---|---|
 | drums | Flam, Ras3, Ras5, Crescendo, Decrescendo, QuantizeTool (stub) |
 | kawa (MIDI editor) | chord note selection, drop-2/3/2&4 voicings, octave/interval doublings, QuantizeNoteEnds (selected notes, or all: ends snap to the grid, starts stay), Legato (selected notes, or all: each chord ends a tick before the next selected one; the last, before the next note, else at the item end) |
+| rhythm (MIDI editor) | SimplifyNoteLengths: note ends move out to the simplest value each position allows, read from the project's own bar grid and time signatures. Of the notation rules it applies, only the note-plus-equal-rest collapse reaches the MIDI data — re-tiled rests are not MIDI objects and a tie keeps one note — so lengthening is the visible effect. Chords take one length; a note overlapping the next attack stops there. |
 | routing | RouteToBusses, BuildBusses |
 | fx | InsertFxAtSlot (stub) |
 | items | paste before cursor, 2 ms fades, fades and trims from the mouse, split at note starts, stretch to cursor, ConformItemsToSessionTempo (asks for the original BPM of the selected items, then stretches them by session tempo / original tempo so that their notes land on the session grid; the session tempo is read at the start of the earliest item, and the item positions scale around that start) |
@@ -67,6 +68,14 @@ zig build test        # unit tests
 zig build             # Debug build into zig-out/
 zig build -Doptimize=ReleaseSafe
 ```
+
+`zig build test` statically links `libhegel` for the property-based tests
+(test-only; the shipped extension does not link it) and downloads the pinned
+release on first run, so that build needs network access.
+
+Behaviour that needs REAPER is checked by hand:
+[MANUAL_CHECKS.md](MANUAL_CHECKS.md) lists what to try after changing the
+note-length simplification or anything it shares code with.
 
 ## License
 

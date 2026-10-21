@@ -144,9 +144,16 @@ Each extension's `build.zig.zon` pins its dependencies by commit:
 | `reaper-sdk` | REAPER's C++ headers | `console1` |
 | `qm-dsp` | Beat tracking for the tempo tool (GPL) | `perken-utilities` |
 | `zlowcheck` | Property-based tests | `console1` |
+| `libhegel` | Property-based tests (test-only) | `perken-utilities` |
 
 To update one, run `zig fetch --save <url>` in the extension's folder, which
 rewrites the URL and the hash.
+
+`libhegel` is the exception: `zig fetch` rejects GitHub's raw release assets
+(unsupported `Content-Disposition`), so `perken-utilities/build.zig` pins the
+release tag itself and `tools/fetch_hegel.zig` downloads the right platform's
+static archive, checked against the release's published `.sha256`. To move to
+a newer release, change `hegel_tag` in `build.zig`.
 
 ## Continuous integration
 
