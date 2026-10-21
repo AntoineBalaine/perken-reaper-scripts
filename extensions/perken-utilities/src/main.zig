@@ -194,6 +194,7 @@ test {
     _ = @import("fuzzy.zig");
     _ = @import("abc_export.zig");
     _ = @import("terminal.zig");
+    _ = @import("rhythm_simplify.zig");
 }
 
 test "every action gets a unique command id string" {
