@@ -571,7 +571,7 @@ fn SetEditCurPos(time: f64, moveview: bool, seekplay: bool) callconv(.C) void {
     _ = seekplay;
     g_session.?.cursor_position = time;
 }
-fn GetSetProjectGrid(project: ReaProject, set: bool, divisionInOutOptional: ?*f64, swingmodeInOutOptional: ?*c_int, swingamtInOutOptional: ?*f64) callconv(.C) c_int {
+fn GetSetProjectGrid(project: ?ReaProject, set: bool, divisionInOutOptional: ?*f64, swingmodeInOutOptional: ?*c_int, swingamtInOutOptional: ?*f64) callconv(.C) c_int {
     _ = project;
     _ = set;
     if (divisionInOutOptional) |d| d.* = 0.25; // quarter note
@@ -579,16 +579,16 @@ fn GetSetProjectGrid(project: ReaProject, set: bool, divisionInOutOptional: ?*f6
     if (swingamtInOutOptional) |s| s.* = 0.0;
     return 0;
 }
-fn CountTempoTimeSigMarkers(proj: ReaProject) callconv(.C) c_int {
+fn CountTempoTimeSigMarkers(proj: ?ReaProject) callconv(.C) c_int {
     _ = proj;
     return 0;
 }
-fn FindTempoTimeSigMarker(project: ReaProject, time: f64) callconv(.C) c_int {
+fn FindTempoTimeSigMarker(project: ?ReaProject, time: f64) callconv(.C) c_int {
     _ = project;
     _ = time;
     return 0;
 }
-fn GetTempoTimeSigMarker(proj: ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.C) bool {
+fn GetTempoTimeSigMarker(proj: ?ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.C) bool {
     _ = proj;
     _ = ptidx;
     timeposOut.* = 0.0;
@@ -603,7 +603,7 @@ fn GetTempoTimeSigMarker(proj: ReaProject, ptidx: c_int, timeposOut: *f64, measu
 fn Master_GetTempo() callconv(.C) f64 {
     return 120.0;
 }
-fn Master_GetPlayRate(project: ReaProject) callconv(.C) f64 {
+fn Master_GetPlayRate(project: ?ReaProject) callconv(.C) f64 {
     _ = project;
     return 1.0;
 }
@@ -611,7 +611,7 @@ fn Master_NormalizePlayRate(playrate: f64, isnormalized: bool) callconv(.C) f64 
     _ = isnormalized;
     return playrate;
 }
-fn SnapToGrid(project: ReaProject, time_pos: f64) callconv(.C) f64 {
+fn SnapToGrid(project: ?ReaProject, time_pos: f64) callconv(.C) f64 {
     _ = project;
     return time_pos;
 }
@@ -619,7 +619,7 @@ fn NamedCommandLookup(command_name: [*:0]const u8) callconv(.C) c_int {
     _ = command_name;
     return 0;
 }
-fn TimeMap_curFrameRate(proj: ReaProject, dropFrameOut: *bool) callconv(.C) f64 {
+fn TimeMap_curFrameRate(proj: ?ReaProject, dropFrameOut: *bool) callconv(.C) f64 {
     _ = proj;
     dropFrameOut.* = false;
     return 30.0;
@@ -751,19 +751,19 @@ fn GetNumTracks() callconv(.C) c_int {
     return @intCast(g_session.?.tracks.items.len - 1); // Don't count master track
 }
 
-fn CountTracks(project: ReaProject) callconv(.C) c_int {
+fn CountTracks(project: ?ReaProject) callconv(.C) c_int {
     _ = project;
     return @intCast(g_session.?.tracks.items.len); // Count all tracks including master
 }
 
-fn GetTrack(project: ReaProject, trackidx: c_int) callconv(.C) MediaTrack {
+fn GetTrack(project: ?ReaProject, trackidx: c_int) callconv(.C) MediaTrack {
     _ = project;
     if (trackidx < 0 or trackidx >= g_session.?.tracks.items.len - 1) return null;
     const track = &g_session.?.tracks.items[@as(usize, @intCast(trackidx)) + 1];
     return @ptrCast(track);
 }
 
-fn GetMasterTrack(project: ReaProject) callconv(.C) MediaTrack {
+fn GetMasterTrack(project: ?ReaProject) callconv(.C) MediaTrack {
     _ = project;
     const track = &g_session.?.tracks.items[0];
     return @ptrCast(track);
@@ -869,7 +869,7 @@ fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.C) void {
     }
 }
 
-fn GetSelectedTrack(proj: ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack {
+fn GetSelectedTrack(proj: ?ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack {
     _ = proj;
     if (seltrackidx < 0 or seltrackidx >= g_session.?.selected_tracks.items.len) return null;
 
@@ -885,23 +885,23 @@ test "track creation and deletion with mock API" {
     defer test_ctx.teardown();
 
     // Initial track count
-    try testing.expectEqual(@as(c_int, 4), reaper.CountTracks(0)); // 3 regular + master
+    try testing.expectEqual(@as(c_int, 4), reaper.CountTracks(null)); // 3 regular + master
 
     // Test track creation
     reaper.InsertTrackAtIndex(1, true);
-    try testing.expectEqual(@as(c_int, 5), reaper.CountTracks(0)); // 4 regular + master
+    try testing.expectEqual(@as(c_int, 5), reaper.CountTracks(null)); // 4 regular + master
 
     // Get the newly created track
-    const new_track = @as(?*Track, @ptrCast(@alignCast(reaper.GetTrack(0, 1))));
+    const new_track = @as(?*Track, @ptrCast(@alignCast(reaper.GetTrack(null, 1))));
     try testing.expect(new_track.?.name == null);
 
     // Test track deletion
     reaper.DeleteTrack(@ptrCast(new_track.?));
-    try testing.expectEqual(@as(c_int, 4), reaper.CountTracks(0)); // Back to 3 regular + master
+    try testing.expectEqual(@as(c_int, 4), reaper.CountTracks(null)); // Back to 3 regular + master
 
     // Verify track numbering was updated
     for (0..3) |i| {
-        const track = @as(?*Track, @ptrCast(@alignCast(reaper.GetTrack(0, @intCast(i)))));
+        const track = @as(?*Track, @ptrCast(@alignCast(reaper.GetTrack(null, @intCast(i)))));
         try testing.expect(track != null);
     }
 }
@@ -913,7 +913,7 @@ test "fx operations with mock API" {
     defer test_ctx.teardown();
 
     // Get a track to work with
-    const track = @as(?*Track, @ptrCast(@alignCast(GetTrack(0, 0))));
+    const track = @as(?*Track, @ptrCast(@alignCast(GetTrack(null, 0))));
     try testing.expect(track != null);
 
     // Initially no FX
@@ -956,15 +956,15 @@ test "mock reaper API track operations" {
     // Test track count via mock API
     const num_tracks = GetNumTracks();
     try testing.expectEqual(@as(c_int, 3), num_tracks); // Regular tracks only
-    const total_tracks = CountTracks(0);
+    const total_tracks = CountTracks(null);
     try testing.expectEqual(@as(c_int, 4), total_tracks); // Including master
 
     // Test track retrieval via mock API
-    const track1 = @as(?*Track, @ptrCast(@alignCast(GetTrack(0, 0))));
+    const track1 = @as(?*Track, @ptrCast(@alignCast(GetTrack(null, 0))));
     try testing.expect(track1 != null);
     try testing.expectEqualStrings("Track 1", model.string_pool.getString(track1.?.name.?));
 
-    const master = @as(?*Track, @ptrCast(@alignCast(GetMasterTrack(0))));
+    const master = @as(?*Track, @ptrCast(@alignCast(GetMasterTrack(null))));
     try testing.expect(master != null);
     try testing.expectEqualStrings("Master", model.string_pool.getString(master.?.name.?));
 
@@ -972,7 +972,7 @@ test "mock reaper API track operations" {
     SetTrackSelected(@ptrCast(track1), true);
     try testing.expectEqual(@as(usize, 1), model.selected_tracks.items.len);
 
-    const selected = @as(?*Track, @ptrCast(@alignCast(GetSelectedTrack(0, 0))));
+    const selected = @as(?*Track, @ptrCast(@alignCast(GetSelectedTrack(null, 0))));
     try testing.expect(selected != null);
     try testing.expectEqualStrings("Track 1", model.string_pool.getString(selected.?.name.?));
 

@@ -61,7 +61,7 @@ pub fn pressLabel(idx: usize) [:0]const u8 {
 }
 
 fn adjustRate(delta: i8) void {
-    const cur = reaper.Master_GetPlayRate(0);
+    const cur = reaper.Master_GetPlayRate(null);
     const step = 0.01 * @as(f64, @floatFromInt(delta));
     const new_rate = std.math.clamp(cur + step, 0.25, 4.0);
     reaper.CSurf_OnPlayRateChange(new_rate);

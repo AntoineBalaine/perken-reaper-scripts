@@ -161,7 +161,7 @@ pub fn start() void {
         log.warn("batch rename: not supported on Windows yet", .{});
         return;
     }
-    const total = Reaper.CountSelectedTracks(0);
+    const total = Reaper.CountSelectedTracks(null);
     if (total <= 0) {
         log.info("batch rename: no track selected", .{});
         return;
@@ -211,10 +211,10 @@ pub fn writeNamesFile() bool {
     const w = bw.writer();
 
     session.count = 0;
-    const total = Reaper.CountSelectedTracks(0);
+    const total = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < total and session.count < MAX_TRACKS) : (i += 1) {
-        const tr = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const tr = Reaper.GetSelectedTrack(null, i) orelse continue;
         const guid_slot = &session.guids[session.count];
         @memset(guid_slot, 0);
         _ = helpers.getTrackString(tr, "GUID", guid_slot) orelse continue;
@@ -407,10 +407,10 @@ pub fn applyNames() void {
 /// Tracks are looked up by GUID because the user may have reordered or
 /// deleted tracks while the editor was open.
 pub fn findTrackByGuid(guid: []const u8) ?Reaper.MediaTrack {
-    const total = Reaper.CountTracks(0);
+    const total = Reaper.CountTracks(null);
     var i: c_int = 0;
     while (i < total) : (i += 1) {
-        const tr = Reaper.GetTrack(0, i) orelse continue;
+        const tr = Reaper.GetTrack(null, i) orelse continue;
         var buf: [GUID_LEN]u8 = undefined;
         const g = helpers.getTrackString(tr, "GUID", &buf) orelse continue;
         if (std.mem.eql(u8, g, guid)) return tr;

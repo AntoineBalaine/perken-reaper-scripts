@@ -8,18 +8,6 @@ const helpers = @import("reaper_helpers");
 
 const log = std.log.scoped(.engine);
 
-// ---- ABI shims (project argument typed non-optional in reaziglib) ---------------
-
-fn setMidiEditorGrid(division: f64) void {
-    const f: *const fn (project: ?*Reaper.ReaProject, division: f64) callconv(.C) void = @ptrCast(Reaper.SetMIDIEditorGrid);
-    f(null, division);
-}
-
-fn setProjectGrid(division: f64) void {
-    const f: *const fn (project: ?*Reaper.ReaProject, division: f64) callconv(.C) void = @ptrCast(Reaper.SetProjectGrid);
-    f(null, division);
-}
-
 // ---- grid division input ---------------------------------------------------------
 
 fn numberRunAt(s: []const u8, start: usize) ?[]const u8 {
@@ -66,13 +54,13 @@ fn promptGridDivision() ?f64 {
 
 fn setMidiGridDivision(_: *actions.RunCtx) void {
     const division = promptGridDivision() orelse return;
-    setMidiEditorGrid(division);
+    Reaper.SetMIDIEditorGrid(null, division);
     helpers.runNamedCommand("_SN_FOCUS_MIDI_EDITOR");
 }
 
 fn setGridDivision(_: *actions.RunCtx) void {
     const division = promptGridDivision() orelse return;
-    setProjectGrid(division);
+    Reaper.SetProjectGrid(null, division);
 }
 
 // ---- time selection ---------------------------------------------------------------
@@ -89,7 +77,7 @@ fn clearTimeSelection(_: *actions.RunCtx) void {
 /// The selected-items guard keeps REAPER from splitting every track when
 /// nothing is selected.
 fn splitItemsAtTimeSelection(_: *actions.RunCtx) void {
-    if (helpers.countSelectedMediaItems() == 0) return;
+    if (Reaper.CountSelectedMediaItems(null) == 0) return;
     Reaper.Main_OnCommand(40061, 0); // Item: Split items at time selection
 }
 

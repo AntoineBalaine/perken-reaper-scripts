@@ -18,6 +18,7 @@ const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
 const helpers = @import("reaper_helpers");
 const commit = @import("beat/commit.zig");
+const timemap = @import("timemap.zig");
 
 // MIDI-editor command ids used by kawa's createMIDIFunc3.
 const cmd_delete_tiny_notes: c_int = 40815; // delete all notes < 1/256 in length
@@ -61,46 +62,8 @@ fn collectTarget() ?Target {
         return null;
     }
 
-    var list = std.ArrayList(helpers.QnNote).init(helpers.allocator);
-    defer list.deinit();
-    var any_selected = false;
-    var i: c_int = 0;
-    while (i < n_notes) : (i += 1) {
-        var selected = false;
-        var muted = false;
-        var start_ppq: f64 = 0;
-        var end_ppq: f64 = 0;
-        var chan: c_int = 0;
-        var pitch: c_int = 0;
-        var vel: c_int = 0;
-        if (!Reaper.MIDI_GetNote(take, i, &selected, &muted, &start_ppq, &end_ppq, &chan, &pitch, &vel))
-            continue;
-        if (selected) any_selected = true;
-        list.append(.{
-            .idx = i,
-            .selected = selected,
-            .muted = muted,
-            .start_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, start_ppq),
-            .end_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, end_ppq),
-            .chan = chan,
-            .pitch = pitch,
-            .vel = vel,
-        }) catch return null;
-    }
-
-    if (any_selected) {
-        var w: usize = 0;
-        for (list.items) |n| {
-            if (n.selected) {
-                list.items[w] = n;
-                w += 1;
-            }
-        }
-        list.shrinkRetainingCapacity(w);
-    }
-
-    const notes = list.toOwnedSlice() catch return null;
-    helpers.sortChordOrder(notes);
+    const collected = helpers.collectQnNotes(helpers.allocator, take) catch return null;
+    const notes = helpers.keepSelected(helpers.QnNote, collected.notes, collected.any_selected);
     return .{ .editor = editor, .take = take, .notes = notes };
 }
 
@@ -366,15 +329,13 @@ pub fn legatoEnds(alloc: std.mem.Allocator, spans: []const Span, other_starts: [
     }
 }
 
-const NoteRec = struct { idx: c_int, selected: bool, muted: bool, start: f64, end: f64, chan: c_int, pitch: c_int, vel: c_int };
-
 /// The end of the take's item in PPQ ticks.
 fn itemEndPpq(take: *Reaper.MediaItem_Take) ?f64 {
     const item = Reaper.GetMediaItemTake_Item(take);
     if (@intFromPtr(item) == 0) return null;
     const pos = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
     const len = Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
-    return Reaper.MIDI_GetPPQPosFromProjQN(take, commit.timeToQn(pos + len));
+    return Reaper.MIDI_GetPPQPosFromProjQN(take, timemap.timeToQn(pos + len));
 }
 
 /// Legato on the selected notes of the active MIDI editor's take, or on every
@@ -388,25 +349,14 @@ fn legato(_: *actions.RunCtx) void {
     const take = helpers.midiEditorTake(editor) orelse return;
     const item_end = itemEndPpq(take) orelse return;
 
-    var n_notes: c_int = 0;
-    var n_cc: c_int = 0;
-    var n_sysex: c_int = 0;
-    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
+    const collected = helpers.collectPpqNotes(helpers.allocator, take) catch return;
+    defer helpers.allocator.free(collected.notes);
+    const all = collected.notes;
+    const any_selected = collected.any_selected;
 
-    var all = std.ArrayList(NoteRec).init(helpers.allocator);
-    defer all.deinit();
-    var any_selected = false;
-    var i: c_int = 0;
-    while (i < n_notes) : (i += 1) {
-        var r = NoteRec{ .idx = i, .selected = false, .muted = false, .start = 0, .end = 0, .chan = 0, .pitch = 0, .vel = 0 };
-        if (!Reaper.MIDI_GetNote(take, i, &r.selected, &r.muted, &r.start, &r.end, &r.chan, &r.pitch, &r.vel)) continue;
-        if (r.selected) any_selected = true;
-        all.append(r) catch return;
-    }
-
-    var targets = std.ArrayList(NoteRec).init(helpers.allocator);
+    var targets = std.ArrayList(helpers.PpqNote).init(helpers.allocator);
     defer targets.deinit();
-    for (all.items) |r| {
+    for (all) |r| {
         if (!any_selected or r.selected) targets.append(r) catch return;
     }
     if (targets.items.len == 0) return;
@@ -415,7 +365,7 @@ fn legato(_: *actions.RunCtx) void {
     // before the next of them.
     var others = std.ArrayList(f64).init(helpers.allocator);
     defer others.deinit();
-    for (all.items) |r| {
+    for (all) |r| {
         if (any_selected and !r.selected) others.append(r.start) catch return;
     }
 
@@ -462,24 +412,13 @@ fn quantizeNoteEnds(_: *actions.RunCtx) void {
     var grid_qn = Reaper.MIDI_GetGrid(take, &swing, &note_len);
     if (grid_qn <= 0) grid_qn = 1;
 
-    var n_notes: c_int = 0;
-    var n_cc: c_int = 0;
-    var n_sysex: c_int = 0;
-    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
-
-    var all = std.ArrayList(NoteRec).init(helpers.allocator);
-    defer all.deinit();
-    var any_selected = false;
-    var i: c_int = 0;
-    while (i < n_notes) : (i += 1) {
-        var r = NoteRec{ .idx = i, .selected = false, .muted = false, .start = 0, .end = 0, .chan = 0, .pitch = 0, .vel = 0 };
-        if (!Reaper.MIDI_GetNote(take, i, &r.selected, &r.muted, &r.start, &r.end, &r.chan, &r.pitch, &r.vel)) continue;
-        if (r.selected) any_selected = true;
-        all.append(r) catch return;
-    }
+    const collected = helpers.collectPpqNotes(helpers.allocator, take) catch return;
+    defer helpers.allocator.free(collected.notes);
+    const all = collected.notes;
+    const any_selected = collected.any_selected;
 
     Reaper.Undo_BeginBlock();
-    for (all.items) |r| {
+    for (all) |r| {
         if (any_selected and !r.selected) continue;
         const start_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, r.start);
         const end_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, r.end);

@@ -17,6 +17,7 @@
 //! guessing. Main thread only.
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
+const timemap = @import("../timemap.zig");
 const grid = @import("grid.zig");
 
 const log = std.log.scoped(.beat);
@@ -34,58 +35,22 @@ pub fn errorText(err: CommitError) [:0]const u8 {
     };
 }
 
-// ---- REAPER calls that take NULL for the current project ----
-// reaziglib binds these with a non-optional project pointer; re-typing the
-// loaded function pointer keeps the ABI and lets us pass null.
-
-pub fn countTempoMarkers() c_int {
-    const f: *const fn (proj: ?*anyopaque) callconv(.C) c_int = @ptrCast(Reaper.CountTempoTimeSigMarkers);
-    return f(null);
-}
-
-pub fn setCurrentBpm(bpm: f64) void {
-    const f: *const fn (proj: ?*anyopaque, bpm: f64, want_undo: bool) callconv(.C) void = @ptrCast(Reaper.SetCurrentBPM);
-    f(null, bpm, false);
-}
-
-pub fn timeToQn(t: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, tpos: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToQN);
-    return f(null, t);
-}
-
-pub fn qnToTime(qn: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, qn: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_QNToTime);
-    return f(null, qn);
-}
-
 /// The time of the project's bar line nearest to `t`.
 pub fn nearestBarLine(t: f64) f64 {
-    const to_beats: *const fn (proj: ?*anyopaque, tpos: f64, measures: ?*c_int, cml: ?*c_int, fullbeats: ?*f64, cdenom: ?*c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToBeats);
-    const to_time: *const fn (proj: ?*anyopaque, tpos: f64, measures: ?*const c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_beatsToTime);
-    var measure: c_int = 0;
-    _ = to_beats(null, t, &measure, null, null, null);
-    const this_bar = to_time(null, 0, &measure);
-    const next_measure = measure + 1;
-    const next_bar = to_time(null, 0, &next_measure);
+    const measure = timemap.measureAtTime(t);
+    const this_bar = timemap.measureStartTime(measure);
+    const next_bar = timemap.measureStartTime(measure + 1);
     return if (t - this_bar <= next_bar - t) this_bar else next_bar;
 }
 
-/// The tempo marker value in effect at `t`. REAPER reports a "divided" BPM
-/// (twice the marker's value in /8 time signatures, for instance), which is
-/// converted back with the time signature's denominator at `t`.
-pub fn tempoAt(t: f64) f64 {
-    const divided: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_GetDividedBpmAtTime);
-    const to_beats: *const fn (proj: ?*anyopaque, tpos: f64, measures: ?*c_int, cml: ?*c_int, fullbeats: ?*f64, cdenom: ?*c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToBeats);
-    var denom: c_int = 4;
-    _ = to_beats(null, t, null, null, null, &denom);
-    if (denom <= 0) denom = 4;
-    return divided(null, t) * 4.0 / @as(f64, @floatFromInt(denom));
-}
+/// The tempo marker value in effect at `t`, undoing REAPER's division by
+/// the time signature. Lives in timemap.zig with the rest of the time-map
+/// access; re-exported because this module's callers know it by this name.
+pub const tempoAt = timemap.tempoAt;
 
 /// Inserts a tempo-only marker (the time signature is left unchanged).
 pub fn insertTempoMarker(t: f64, bpm: f64) void {
-    const f: *const fn (proj: ?*anyopaque, ptidx: c_int, timepos: f64, measurepos: c_int, beatpos: f64, bpm: f64, num: c_int, denom: c_int, linear: bool) callconv(.C) bool = @ptrCast(Reaper.SetTempoTimeSigMarker);
-    _ = f(null, -1, t, -1, -1, bpm, 0, 0, false);
+    _ = Reaper.SetTempoTimeSigMarker(null, -1, t, -1, -1, bpm, 0, 0, false);
 }
 
 /// The project time of an item-relative time of the analysed take.
@@ -113,12 +78,12 @@ pub fn takeTiming(take: *Reaper.MediaItem_Take) TakeTiming {
 /// restored afterwards, so that its audio neither moves nor stretches even
 /// when its timebase is beats.
 pub fn setProjectTempo(take: *Reaper.MediaItem_Take, bpm: f64) CommitError!void {
-    if (countTempoMarkers() > 0) return error.HasTempoMarkers;
+    if (Reaper.CountTempoTimeSigMarkers(null) > 0) return error.HasTempoMarkers;
     const item = Reaper.GetMediaItemTake_Item(take);
     Reaper.Undo_BeginBlock();
     const timebase = Reaper.GetMediaItemInfo_Value(item, "C_BEATATTACHMODE");
     _ = Reaper.SetMediaItemInfo_Value(item, "C_BEATATTACHMODE", 0); // time
-    setCurrentBpm(bpm);
+    Reaper.SetCurrentBPM(null, bpm, false);
     _ = Reaper.SetMediaItemInfo_Value(item, "C_BEATATTACHMODE", timebase);
     Reaper.Undo_EndBlock("Perken: set project tempo to the detected tempo", -1);
     Reaper.UpdateTimeline();
@@ -188,11 +153,11 @@ pub fn conformToGrid(take: *Reaper.MediaItem_Take, analysis_start: f64, beats: [
     const timing = takeTiming(take);
 
     const downbeat_now = timing.position + analysis_start + beats[d].time;
-    const downbeat_qn = timeToQn(nearestBarLine(downbeat_now));
+    const downbeat_qn = timemap.timeToQn(nearestBarLine(downbeat_now));
 
     // Move the item so that the first beat lands on its target exactly:
     // the audio before the first marker then keeps its speed.
-    const first_target = qnToTime(downbeat_qn - @as(f64, @floatFromInt(d)));
+    const first_target = timemap.qnToTime(downbeat_qn - @as(f64, @floatFromInt(d)));
     const first_now = timing.position + analysis_start + beats[0].time;
     const new_position = timing.position + (first_target - first_now);
 
@@ -202,7 +167,7 @@ pub fn conformToGrid(take: *Reaper.MediaItem_Take, analysis_start: f64, beats: [
     var last_src_time: f64 = 0;
     for (beats, 0..) |b, k| {
         const qn = downbeat_qn + @as(f64, @floatFromInt(@as(i64, @intCast(k)) - @as(i64, @intCast(d))));
-        const pos = qnToTime(qn) - new_position;
+        const pos = timemap.qnToTime(qn) - new_position;
         const item_rel = analysis_start + b.time;
         const srcpos = timing.start_offset + item_rel * timing.rate;
         _ = Reaper.SetTakeStretchMarker(take, -1, pos, &srcpos);

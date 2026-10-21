@@ -111,10 +111,10 @@ fn lastTouchedIndex() ?c_int {
 fn selectionIsRange(anchor: c_int, active: c_int) bool {
     const lo = @min(anchor, active);
     const hi = @max(anchor, active);
-    if (Reaper.CountSelectedTracks(0) != hi - lo + 1) return false;
+    if (Reaper.CountSelectedTracks(null) != hi - lo + 1) return false;
     var i = lo;
     while (i <= hi) : (i += 1) {
-        const tr = Reaper.GetTrack(0, i) orelse return false;
+        const tr = Reaper.GetTrack(null, i) orelse return false;
         if (Reaper.GetMediaTrackInfo_Value(tr, "I_SELECTED") == 0) return false;
     }
     return true;
@@ -144,7 +144,7 @@ fn extendTrackSelection(direction: c_int) void {
     if (!selectionIsRange(anchor, active)) anchor = active;
     state.track_anchor = anchor;
 
-    _ = stepTarget(active, direction, Reaper.CountTracks(0)) orelse return;
+    _ = stepTarget(active, direction, Reaper.CountTracks(null)) orelse return;
 
     // Because REAPER's own "go to next/previous track" is what moves the
     // last-touched track (the active end) everywhere else in this extension,
@@ -152,10 +152,10 @@ fn extendTrackSelection(direction: c_int) void {
     Reaper.Main_OnCommand(if (direction > 0) 40285 else 40286, 0);
     const new_active = lastTouchedIndex() orelse return;
 
-    const count = Reaper.CountTracks(0);
+    const count = Reaper.CountTracks(null);
     var i: c_int = 0;
     while (i < count) : (i += 1) {
-        const tr = Reaper.GetTrack(0, i) orelse continue;
+        const tr = Reaper.GetTrack(null, i) orelse continue;
         const inside = i >= @min(anchor, new_active) and i <= @max(anchor, new_active);
         Reaper.SetTrackSelected(tr, inside);
     }

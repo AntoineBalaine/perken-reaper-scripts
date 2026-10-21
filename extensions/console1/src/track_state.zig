@@ -551,7 +551,7 @@ test "analyzeCoverage - empty FX list" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Because parsed_fx is empty, coverage should be all null
     var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
@@ -573,7 +573,7 @@ test "analyzeCoverage - all duplicates of same module" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Add multiple FX with the same module
     _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
@@ -622,7 +622,7 @@ test "analyzeCoverage - partial coverage" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Add only INPUT, EQ, and OUTPT
     _ = reaper.TrackFX_AddByName(track, "JS: Volume Adjustment", false, -1);
@@ -674,7 +674,7 @@ test "analyzeCoverage - multiple items in parsed_fx" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 6);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
     var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
@@ -707,7 +707,7 @@ test "analyzeCoverage - null suffix skipped" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     var parsed_fx_buf: [MAX_PARSED_FX]ParsedFx = undefined;
     var parsed_fx = std.ArrayListUnmanaged(ParsedFx).initBuffer(&parsed_fx_buf);
@@ -742,7 +742,7 @@ test "removeDuplicateModule - multiple spaces before suffix" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     _ = reaper.TrackFX_AddByName(track, "ReaComp", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "ReaComp   (C1-C)");
@@ -764,7 +764,7 @@ test "removeDuplicateModule - suffix at start" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     _ = reaper.TrackFX_AddByName(track, "(C1-E)", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "(C1-E)");
@@ -786,7 +786,7 @@ test "removeDuplicateModule - suffix at end" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     _ = reaper.TrackFX_AddByName(track, "Plugin (C1-I)", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "Plugin (C1-I)");
@@ -808,7 +808,7 @@ test "removeDuplicateModule - no suffix does not crash" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     _ = reaper.TrackFX_AddByName(track, "Normal Plugin", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "Normal Plugin");
@@ -831,7 +831,7 @@ test "removeDuplicateModule - text after closing paren preserved" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     _ = reaper.TrackFX_AddByName(track, "Plugin (C1-C) Extra", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(track, 0, "renamed_name", "Plugin (C1-C) Extra");
@@ -853,7 +853,7 @@ test "reorderFx2 - empty track to full chain" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Start with completely empty coverage
     const empty_coverage = ModuleCoverage{};
@@ -886,7 +886,7 @@ test "reorderFx2 - partial chain with INPUT and OUTPT" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Add only INPUT and OUTPT
     _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
@@ -934,7 +934,7 @@ test "reorderFx2 - chain already in correct order" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Add all modules in correct order
     _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
@@ -996,7 +996,7 @@ test "reorderFx2 - wrong order needs reordering" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Add modules in wrong order: OUTPT, COMP, EQ, GATE, INPUT
     _ = reaper.TrackFX_AddByName(track, "JS: Saturation", false, -1);
@@ -1065,7 +1065,7 @@ test "updateTrackState - module_locations populated correctly" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Add all modules
     _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
@@ -1136,7 +1136,7 @@ test "updateTrackState - fx_count matches module count" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Add all 5 modules
     _ = reaper.TrackFX_AddByName(track, "JS: Volume/Pan Smoother v5", false, -1);
@@ -1201,7 +1201,7 @@ test "updateTrackState - missing mapping handled gracefully" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     // Add a plugin that won't have a mapping
     _ = reaper.TrackFX_AddByName(track, "Nonexistent Plugin", false, -1);
@@ -1867,7 +1867,7 @@ test "reorderFx2 - property-based ordering validation" {
         var random = prng.random();
 
         // Create random permutation and add modules
-        const track = reaper.GetTrack(0, 0);
+        const track = reaper.GetTrack(null, 0);
         var module_order = [_]ModulesList{ .INPUT, .GATE, .EQ, .COMP, .OUTPT };
         random.shuffle(ModulesList, &module_order);
 
@@ -1940,7 +1940,7 @@ test "reorderFx2 - auto_insert_modules disabled" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 4);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     const empty_coverage = ModuleCoverage{};
 
@@ -1974,7 +1974,7 @@ test "reorderFx2 - auto_reorder_modules disabled" {
     var ctx = MockReaper.setupTestModel(arena.allocator(), 1, 6);
     defer ctx.teardown();
 
-    const track = reaper.GetTrack(0, 0);
+    const track = reaper.GetTrack(null, 0);
 
     const settings_mod = @import("settings.zig");
     const fallback_map = settings_mod.fallback_defaults;

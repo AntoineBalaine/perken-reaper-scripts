@@ -78,24 +78,24 @@ pub const AddMediaItemToTrack = function(&reaper.AddMediaItemToTrack, 1, &.{*Med
 
 /// AddProjectMarker
 /// Returns the index of the created marker/region, or -1 on failure. Supply wantidx>=0 if you want a particular index number, but you'll get a different index number a region and wantidx is already in use.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param isrgn bool
 ///-- @param pos f64
 ///-- @param rgnend f64
 ///-- @param name [*:0]const u8
 ///-- @param wantidx c_int
-pub const AddProjectMarker = function(&reaper.AddProjectMarker, 6, &.{ *ReaProject, bool, f64, f64, [*:0]const u8, c_int });
+pub const AddProjectMarker = function(&reaper.AddProjectMarker, 6, &.{ ?ReaProject, bool, f64, f64, [*:0]const u8, c_int });
 
 /// AddProjectMarker2
 /// Returns the index of the created marker/region, or -1 on failure. Supply wantidx>=0 if you want a particular index number, but you'll get a different index number a region and wantidx is already in use. color should be 0 (default color), or ColorToNative(r,g,b)|0x1000000
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param isrgn bool
 ///-- @param pos f64
 ///-- @param rgnend f64
 ///-- @param name [*:0]const u8
 ///-- @param wantidx c_int
 ///-- @param color c_int
-pub const AddProjectMarker2 = function(&reaper.AddProjectMarker2, 7, &.{ *ReaProject, bool, f64, f64, [*:0]const u8, c_int, c_int });
+pub const AddProjectMarker2 = function(&reaper.AddProjectMarker2, 7, &.{ ?ReaProject, bool, f64, f64, [*:0]const u8, c_int, c_int });
 
 /// AddRemoveReaScript
 /// Add a ReaScript (return the new command ID, or 0 if failed) or remove a ReaScript (return >0 on success). Use commit==true when adding/removing a single script. When bulk adding/removing n scripts, you can optimize the n-1 first calls with commit==false and commit==true for the last call.
@@ -112,13 +112,13 @@ pub const AddTakeToMediaItem = function(&reaper.AddTakeToMediaItem, 1, &.{*Media
 
 /// AddTempoTimeSigMarker
 /// Deprecated. Use SetTempoTimeSigMarker with ptidx=-1.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param timepos f64
 ///-- @param bpm f64
 ///-- @param num c_int
 ///-- @param denom c_int
 ///-- @param lineartempochange bool
-pub const AddTempoTimeSigMarker = function(&reaper.AddTempoTimeSigMarker, 6, &.{ *ReaProject, f64, f64, c_int, c_int, bool });
+pub const AddTempoTimeSigMarker = function(&reaper.AddTempoTimeSigMarker, 6, &.{ ?ReaProject, f64, f64, c_int, c_int, bool });
 
 /// adjustZoom
 /// forceset=0,doupd=true,centermode=-1 for default
@@ -129,8 +129,8 @@ pub const AddTempoTimeSigMarker = function(&reaper.AddTempoTimeSigMarker, 6, &.{
 pub const adjustZoom = function(&reaper.adjustZoom, 4, &.{ f64, c_int, bool, c_int });
 
 /// AnyTrackSolo
-///-- @param proj *ReaProject
-pub const AnyTrackSolo = function(&reaper.AnyTrackSolo, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const AnyTrackSolo = function(&reaper.AnyTrackSolo, 1, &.{?ReaProject});
 
 /// APIExists
 /// Returns true if function_name exists in the REAPER API
@@ -148,14 +148,14 @@ pub const APITest = function(&reaper.APITest, 0, &.{});
 /// value: amount to nudge by, or value to set to
 /// reverse: in nudge mode, nudges left (otherwise ignored)
 /// copies: in nudge duplicate mode, number of copies (otherwise ignored)
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param nudgeflag c_int
 ///-- @param nudgewhat c_int
 ///-- @param nudgeunits c_int
 ///-- @param value f64
 ///-- @param reverse bool
 ///-- @param copies c_int
-pub const ApplyNudge = function(&reaper.ApplyNudge, 7, &.{ *ReaProject, c_int, c_int, c_int, f64, bool, c_int });
+pub const ApplyNudge = function(&reaper.ApplyNudge, 7, &.{ ?ReaProject, c_int, c_int, c_int, f64, bool, c_int });
 
 /// ArmCommand
 /// arms a command (or disarms if 0 passed) in section sectionname (empty string for main)
@@ -286,31 +286,31 @@ pub const CountEnvelopePointsEx = function(&reaper.CountEnvelopePointsEx, 2, &.{
 
 /// CountMediaItems
 /// count the number of items in the project (proj=0 for active project)
-///-- @param proj *ReaProject
-pub const CountMediaItems = function(&reaper.CountMediaItems, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const CountMediaItems = function(&reaper.CountMediaItems, 1, &.{?ReaProject});
 
 /// CountProjectMarkers
 /// num_markersOut and num_regionsOut may be NULL.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param markersOut *c_int
 ///-- @param regionsOut *c_int
-pub const CountProjectMarkers = function(&reaper.CountProjectMarkers, 3, &.{ *ReaProject, *c_int, *c_int });
+pub const CountProjectMarkers = function(&reaper.CountProjectMarkers, 3, &.{ ?ReaProject, *c_int, *c_int });
 
 /// CountSelectedMediaItems
 /// count the number of selected items in the project (proj=0 for active project)
-///-- @param proj *ReaProject
-pub const CountSelectedMediaItems = function(&reaper.CountSelectedMediaItems, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const CountSelectedMediaItems = function(&reaper.CountSelectedMediaItems, 1, &.{?ReaProject});
 
 /// CountSelectedTracks
 /// Count the number of selected tracks in the project (proj=0 for active project). This function ignores the master track, see CountSelectedTracks2.
 ///-- @param proj ReaProject
-pub const CountSelectedTracks = function(&reaper.CountSelectedTracks, 1, &.{ReaProject});
+pub const CountSelectedTracks = function(&reaper.CountSelectedTracks, 1, &.{ ?ReaProject});
 
 /// CountSelectedTracks2
 /// Count the number of selected tracks in the project (proj=0 for active project).
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param wantmaster bool
-pub const CountSelectedTracks2 = function(&reaper.CountSelectedTracks2, 2, &.{ *ReaProject, bool });
+pub const CountSelectedTracks2 = function(&reaper.CountSelectedTracks2, 2, &.{ ?ReaProject, bool });
 
 /// CountTakeEnvelopes
 /// See GetTakeEnvelope
@@ -324,14 +324,14 @@ pub const CountTakes = function(&reaper.CountTakes, 1, &.{*MediaItem});
 
 /// CountTCPFXParms
 /// Count the number of FX parameter knobs displayed on the track control panel.
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param track MediaTrack
-pub const CountTCPFXParms = function(&reaper.CountTCPFXParms, 2, &.{ *ReaProject, MediaTrack });
+pub const CountTCPFXParms = function(&reaper.CountTCPFXParms, 2, &.{ ?ReaProject, MediaTrack });
 
 /// CountTempoTimeSigMarkers
 /// Count the number of tempo/time signature markers in the project. See GetTempoTimeSigMarker, SetTempoTimeSigMarker, AddTempoTimeSigMarker.
-///-- @param proj *ReaProject
-pub const CountTempoTimeSigMarkers = function(&reaper.CountTempoTimeSigMarkers, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const CountTempoTimeSigMarkers = function(&reaper.CountTempoTimeSigMarkers, 1, &.{?ReaProject});
 
 /// CountTrackEnvelopes
 /// see GetTrackEnvelope
@@ -346,7 +346,7 @@ pub const CountTrackMediaItems = function(&reaper.CountTrackMediaItems, 1, &.{Me
 /// CountTracks
 /// count the number of tracks in the project (proj=0 for active project)
 ///-- @param projOptional ReaProject
-pub const CountTracks = function(&reaper.CountTracks, 1, &.{ReaProject});
+pub const CountTracks = function(&reaper.CountTracks, 1, &.{ ?ReaProject});
 
 /// CreateLocalOscHandler
 /// callback is a function pointer: void (*callback)(*void obj, [*:0]const u8 msg, c_int msglen), which handles OSC messages sent from REAPER. The function return is a local osc handler. See SendLocalOscMessage, DestroyOscHandler.
@@ -718,16 +718,16 @@ pub const DeleteExtState = function(&reaper.DeleteExtState, 3, &.{ [*:0]const u8
 
 /// DeleteProjectMarker
 /// Delete a marker.  proj==NULL for the active project.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param markrgnindexnumber c_int
 ///-- @param isrgn bool
-pub const DeleteProjectMarker = function(&reaper.DeleteProjectMarker, 3, &.{ *ReaProject, c_int, bool });
+pub const DeleteProjectMarker = function(&reaper.DeleteProjectMarker, 3, &.{ ?ReaProject, c_int, bool });
 
 /// DeleteProjectMarkerByIndex
 /// Differs from DeleteProjectMarker only in that markrgnidx is 0 for the first marker/region, 1 for the next, etc (see EnumProjectMarkers3), rather than representing the displayed marker/region ID number (see SetProjectMarker4).
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param markrgnidx c_int
-pub const DeleteProjectMarkerByIndex = function(&reaper.DeleteProjectMarkerByIndex, 2, &.{ *ReaProject, c_int });
+pub const DeleteProjectMarkerByIndex = function(&reaper.DeleteProjectMarkerByIndex, 2, &.{ ?ReaProject, c_int });
 
 /// DeleteTakeMarker
 /// Delete a take marker. Note that idx will change for all following take markers. See GetNumTakeMarkers, GetTakeMarker, SetTakeMarker
@@ -744,9 +744,9 @@ pub const DeleteTakeStretchMarkers = function(&reaper.DeleteTakeStretchMarkers, 
 
 /// DeleteTempoTimeSigMarker
 /// Delete a tempo/time signature marker.
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param markerindex c_int
-pub const DeleteTempoTimeSigMarker = function(&reaper.DeleteTempoTimeSigMarker, 2, &.{ *ReaProject, c_int });
+pub const DeleteTempoTimeSigMarker = function(&reaper.DeleteTempoTimeSigMarker, 2, &.{ ?ReaProject, c_int });
 
 /// DeleteTrack
 /// deletes a track
@@ -831,9 +831,9 @@ pub const DuplicateCustomizableMenu = function(&reaper.DuplicateCustomizableMenu
 
 /// EditTempoTimeSigMarker
 /// Open the tempo/time signature marker editor dialog.
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param markerindex c_int
-pub const EditTempoTimeSigMarker = function(&reaper.EditTempoTimeSigMarker, 2, &.{ *ReaProject, c_int });
+pub const EditTempoTimeSigMarker = function(&reaper.EditTempoTimeSigMarker, 2, &.{ ?ReaProject, c_int });
 
 /// EnsureNotCompletelyOffscreen
 /// call with a saved window rect for your window and it'll correct any positioning info.
@@ -881,17 +881,17 @@ pub const EnumPitchShiftSubModes = function(&reaper.EnumPitchShiftSubModes, 2, &
 pub const EnumProjectMarkers = function(&reaper.EnumProjectMarkers, 6, &.{ c_int, *bool, *f64, *f64, [*:0]const u8, *c_int });
 
 /// EnumProjectMarkers2
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param idx c_int
 ///-- @param isrgnOut *bool
 ///-- @param posOut *f64
 ///-- @param rgnendOut *f64
 ///-- @param nameOut [*:0]const u8
 ///-- @param markrgnindexnumberOut *c_int
-pub const EnumProjectMarkers2 = function(&reaper.EnumProjectMarkers2, 7, &.{ *ReaProject, c_int, *bool, *f64, *f64, [*:0]const u8, *c_int });
+pub const EnumProjectMarkers2 = function(&reaper.EnumProjectMarkers2, 7, &.{ ?ReaProject, c_int, *bool, *f64, *f64, [*:0]const u8, *c_int });
 
 /// EnumProjectMarkers3
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param idx c_int
 ///-- @param isrgnOut *bool
 ///-- @param posOut *f64
@@ -899,7 +899,7 @@ pub const EnumProjectMarkers2 = function(&reaper.EnumProjectMarkers2, 7, &.{ *Re
 ///-- @param nameOut [*:0]const u8
 ///-- @param markrgnindexnumberOut *c_int
 ///-- @param colorOut *c_int
-pub const EnumProjectMarkers3 = function(&reaper.EnumProjectMarkers3, 8, &.{ *ReaProject, c_int, *bool, *f64, *f64, [*:0]const u8, *c_int, *c_int });
+pub const EnumProjectMarkers3 = function(&reaper.EnumProjectMarkers3, 8, &.{ ?ReaProject, c_int, *bool, *f64, *f64, [*:0]const u8, *c_int, *c_int });
 
 /// EnumProjects
 /// idx=-1 for current project,projfn can be NULL if not interested in filename. use idx 0x40000000 for currently rendering project, if any.
@@ -909,21 +909,21 @@ pub const EnumProjects = function(&reaper.EnumProjects, 2, &.{ c_int, ?*c_char }
 
 /// EnumProjExtState
 /// Enumerate the data stored with the project for a specific extname. Returns false when there is no more data. See SetProjExtState, GetProjExtState.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param extname [*:0]const u8
 ///-- @param idx c_int
 ///-- @param keyOutOptional *c_char
 ///-- @param sz c_int
 ///-- @param valOutOptional *c_char
 ///-- @param sz c_int
-pub const EnumProjExtState = function(&reaper.EnumProjExtState, 7, &.{ *ReaProject, [*:0]const u8, c_int, *c_char, c_int, *c_char, c_int });
+pub const EnumProjExtState = function(&reaper.EnumProjExtState, 7, &.{ ?ReaProject, [*:0]const u8, c_int, *c_char, c_int, *c_char, c_int });
 
 /// EnumRegionRenderMatrix
 /// Enumerate which tracks will be rendered within this region when using the region render matrix. When called with rendertrack==0, the function returns the first track that will be rendered (which may be the master track); rendertrack==1 will return the next track rendered, and so on. The function returns NULL when there are no more tracks that will be rendered within this region.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param regionindex c_int
 ///-- @param rendertrack c_int
-pub const EnumRegionRenderMatrix = function(&reaper.EnumRegionRenderMatrix, 3, &.{ *ReaProject, c_int, c_int });
+pub const EnumRegionRenderMatrix = function(&reaper.EnumRegionRenderMatrix, 3, &.{ ?ReaProject, c_int, c_int });
 
 /// EnumTrackMIDIProgramNames
 /// returns false if there are no plugins on the track that support MIDI programs,or if all programs have been enumerated
@@ -935,12 +935,12 @@ pub const EnumTrackMIDIProgramNames = function(&reaper.EnumTrackMIDIProgramNames
 
 /// EnumTrackMIDIProgramNamesEx
 /// returns false if there are no plugins on the track that support MIDI programs,or if all programs have been enumerated
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param track MediaTrack
 ///-- @param programNumber c_int
 ///-- @param programName *c_char
 ///-- @param sz c_int
-pub const EnumTrackMIDIProgramNamesEx = function(&reaper.EnumTrackMIDIProgramNamesEx, 5, &.{ *ReaProject, MediaTrack, c_int, *c_char, c_int });
+pub const EnumTrackMIDIProgramNamesEx = function(&reaper.EnumTrackMIDIProgramNamesEx, 5, &.{ ?ReaProject, MediaTrack, c_int, *c_char, c_int });
 
 /// Envelope_Evaluate
 /// Get the effective envelope value at a given time position. samplesRequested is how long the caller expects until the next call to Envelope_Evaluate (often, the buffer block size). The return value is how many samples beyond that time position that the returned values are valid. dVdS is the change in value per sample (first derivative), ddVdS is the second derivative, dddVdS is the third derivative. See GetEnvelopeScalingMode.
@@ -1000,9 +1000,9 @@ pub const file_exists = function(&reaper.file_exists, 1, &.{[*:0]const u8});
 
 /// FindTempoTimeSigMarker
 /// Find the tempo/time signature marker that falls at or before this time position (the marker that is in effect as of this time position).
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param time f64
-pub const FindTempoTimeSigMarker = function(&reaper.FindTempoTimeSigMarker, 2, &.{ *ReaProject, f64 });
+pub const FindTempoTimeSigMarker = function(&reaper.FindTempoTimeSigMarker, 2, &.{ ?ReaProject, f64 });
 
 /// format_timestr
 /// Format tpos (which is time in seconds) as hh:mm:ss.sss. See format_timestr_pos, format_timestr_len.
@@ -1093,8 +1093,8 @@ pub const GetActiveTake = function(&reaper.GetActiveTake, 1, &.{*MediaItem});
 
 /// GetAllProjectPlayStates
 /// returns the bitwise OR of all project play states (1=playing, 2=pause, 4=recording)
-///-- @param ignoreProject *ReaProject
-pub const GetAllProjectPlayStates = function(&reaper.GetAllProjectPlayStates, 1, &.{*ReaProject});
+///-- @param ignoreProject ?ReaProject
+pub const GetAllProjectPlayStates = function(&reaper.GetAllProjectPlayStates, 1, &.{?ReaProject});
 
 /// GetAppVersion
 /// Returns app version which may include an OS/arch signifier, such as: "6.17" (windows 32-bit), "6.17/x64" (windows 64-bit), "6.17/OSX64" (macOS 64-bit Intel), "6.17/OSX" (macOS 32-bit), "6.17/macOS-arm64", "6.17/linux-x86_64", "6.17/linux-i686", "6.17/linux-aarch64", "6.17/linux-armv7l", etc
@@ -1188,8 +1188,8 @@ pub const GetCursorPosition = function(&reaper.GetCursorPosition, 0, &.{});
 
 /// GetCursorPositionEx
 /// edit cursor position
-///-- @param proj *ReaProject
-pub const GetCursorPositionEx = function(&reaper.GetCursorPositionEx, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetCursorPositionEx = function(&reaper.GetCursorPositionEx, 1, &.{?ReaProject});
 
 /// GetDisplayedMediaItemColor
 /// see GetDisplayedMediaItemColor2.
@@ -1316,9 +1316,9 @@ pub const GetFocusedFX2 = function(&reaper.GetFocusedFX2, 3, &.{ *c_int, *c_int,
 
 /// GetFreeDiskSpaceForRecordPath
 /// returns free disk space in megabytes, pathIdx 0 for normal, 1 for alternate.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param pathidx c_int
-pub const GetFreeDiskSpaceForRecordPath = function(&reaper.GetFreeDiskSpaceForRecordPath, 2, &.{ *ReaProject, c_int });
+pub const GetFreeDiskSpaceForRecordPath = function(&reaper.GetFreeDiskSpaceForRecordPath, 2, &.{ ?ReaProject, c_int });
 
 /// GetFXEnvelope
 /// Returns the FX parameter envelope. If the envelope does not exist and create=true, the envelope will be created. If the envelope already exists and is bypassed and create=true, then the envelope will be unbypassed.
@@ -1398,11 +1398,11 @@ pub const GetLastColorThemeFile = function(&reaper.GetLastColorThemeFile, 0, &.{
 
 /// GetLastMarkerAndCurRegion
 /// Get the last project marker before time, and/or the project region that includes time. markeridx and regionidx are returned not necessarily as the displayed marker/region index, but as the index that can be passed to EnumProjectMarkers. Either or both of markeridx and regionidx may be NULL. See EnumProjectMarkers.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param time f64
 ///-- @param markeridxOut *c_int
 ///-- @param regionidxOut *c_int
-pub const GetLastMarkerAndCurRegion = function(&reaper.GetLastMarkerAndCurRegion, 4, &.{ *ReaProject, f64, *c_int, *c_int });
+pub const GetLastMarkerAndCurRegion = function(&reaper.GetLastMarkerAndCurRegion, 4, &.{ ?ReaProject, f64, *c_int, *c_int });
 
 /// GetLastTouchedFX
 /// Returns true if the last touched FX parameter is valid, false otherwise. The low word of tracknumber is the 1-based track index -- 0 means the master track, 1 means track 1, etc. If the high word of tracknumber is nonzero, it refers to the 1-based item index (1 is the first item on the track, etc). For track FX, the low 24 bits of fxnumber refer to the FX index in the chain, and if the next 8 bits are 01, then the FX is record FX. For item FX, the low word defines the FX index in the chain, and the high word defines the take number. Deprecated, see GetTouchedOrFocusedFX.
@@ -1422,8 +1422,8 @@ pub const GetMainHwnd = function(&reaper.GetMainHwnd, 0, &.{});
 pub const GetMasterMuteSoloFlags = function(&reaper.GetMasterMuteSoloFlags, 0, &.{});
 
 /// GetMasterTrack
-///-- @param proj *ReaProject
-pub const GetMasterTrack = function(&reaper.GetMasterTrack, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetMasterTrack = function(&reaper.GetMasterTrack, 1, &.{?ReaProject});
 
 /// GetMasterTrackVisibility
 /// returns &1 if the master track is visible in the TCP, &2 if NOT visible in the mixer. See SetMasterTrackVisibility.
@@ -1446,9 +1446,9 @@ pub const GetMediaFileMetadata = function(&reaper.GetMediaFileMetadata, 4, &.{ *
 
 /// GetMediaItem
 /// get an item from a project by item count (zero-based) (proj=0 for active project)
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param itemidx c_int
-pub const GetMediaItem = function(&reaper.GetMediaItem, 2, &.{ *ReaProject, c_int });
+pub const GetMediaItem = function(&reaper.GetMediaItem, 2, &.{ ?ReaProject, c_int });
 
 /// GetMediaItem_Track
 /// Get parent track of media item
@@ -1531,9 +1531,9 @@ pub const GetMediaItemTake_Source = function(&reaper.GetMediaItemTake_Source, 1,
 pub const GetMediaItemTake_Track = function(&reaper.GetMediaItemTake_Track, 1, &.{*MediaItem_Take});
 
 /// GetMediaItemTakeByGUID
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param guid *const GUID
-pub const GetMediaItemTakeByGUID = function(&reaper.GetMediaItemTakeByGUID, 2, &.{ *ReaProject, *const GUID });
+pub const GetMediaItemTakeByGUID = function(&reaper.GetMediaItemTakeByGUID, 2, &.{ ?ReaProject, *const GUID });
 
 /// GetMediaItemTakeInfo_Value
 /// Get media item take numerical-value attributes.
@@ -1789,13 +1789,13 @@ pub const GetPlayPosition2 = function(&reaper.GetPlayPosition2, 0, &.{});
 
 /// GetPlayPosition2Ex
 /// returns position of next audio block being processed
-///-- @param proj *ReaProject
-pub const GetPlayPosition2Ex = function(&reaper.GetPlayPosition2Ex, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetPlayPosition2Ex = function(&reaper.GetPlayPosition2Ex, 1, &.{?ReaProject});
 
 /// GetPlayPositionEx
 /// returns latency-compensated actual-what-you-hear position
-///-- @param proj *ReaProject
-pub const GetPlayPositionEx = function(&reaper.GetPlayPositionEx, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetPlayPositionEx = function(&reaper.GetPlayPositionEx, 1, &.{?ReaProject});
 
 /// GetPlayState
 /// &1=playing, &2=paused, &4=is recording
@@ -1803,8 +1803,8 @@ pub const GetPlayState = function(&reaper.GetPlayState, 0, &.{});
 
 /// GetPlayStateEx
 /// &1=playing, &2=paused, &4=is recording
-///-- @param proj *ReaProject
-pub const GetPlayStateEx = function(&reaper.GetPlayStateEx, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetPlayStateEx = function(&reaper.GetPlayStateEx, 1, &.{?ReaProject});
 
 /// GetPreferredDiskReadMode
 /// Gets user configured preferred disk read mode. mode/nb/bs are all parameters that should be passed to WDL_FileRead, see for more information.
@@ -1829,14 +1829,14 @@ pub const GetPreferredDiskWriteMode = function(&reaper.GetPreferredDiskWriteMode
 
 /// GetProjectLength
 /// returns length of project (maximum of end of media item, markers, end of regions, tempo map
-///-- @param proj *ReaProject
-pub const GetProjectLength = function(&reaper.GetProjectLength, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetProjectLength = function(&reaper.GetProjectLength, 1, &.{?ReaProject});
 
 /// GetProjectName
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param bufOut *c_char
 ///-- @param sz c_int
-pub const GetProjectName = function(&reaper.GetProjectName, 3, &.{ *ReaProject, *c_char, c_int });
+pub const GetProjectName = function(&reaper.GetProjectName, 3, &.{ ?ReaProject, *c_char, c_int });
 
 /// GetProjectPath
 /// Get the project recording path.
@@ -1846,21 +1846,21 @@ pub const GetProjectPath = function(&reaper.GetProjectPath, 2, &.{ *c_char, c_in
 
 /// GetProjectPathEx
 /// Get the project recording path.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param bufOut *c_char
 ///-- @param sz c_int
-pub const GetProjectPathEx = function(&reaper.GetProjectPathEx, 3, &.{ *ReaProject, *c_char, c_int });
+pub const GetProjectPathEx = function(&reaper.GetProjectPathEx, 3, &.{ ?ReaProject, *c_char, c_int });
 
 /// GetProjectStateChangeCount
 /// returns an integer that changes when the project state changes
-///-- @param proj *ReaProject
-pub const GetProjectStateChangeCount = function(&reaper.GetProjectStateChangeCount, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetProjectStateChangeCount = function(&reaper.GetProjectStateChangeCount, 1, &.{?ReaProject});
 
 /// GetProjectTimeOffset
 /// Gets project time offset in seconds (project settings - project start time). If rndframe is true, the offset is rounded to a multiple of the project frame size.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param rndframe bool
-pub const GetProjectTimeOffset = function(&reaper.GetProjectTimeOffset, 2, &.{ *ReaProject, bool });
+pub const GetProjectTimeOffset = function(&reaper.GetProjectTimeOffset, 2, &.{ ?ReaProject, bool });
 
 /// GetProjectTimeSignature
 /// deprecated
@@ -1871,19 +1871,19 @@ pub const GetProjectTimeSignature = function(&reaper.GetProjectTimeSignature, 2,
 /// GetProjectTimeSignature2
 /// Gets basic time signature (beats per minute, numerator of time signature in bpi)
 /// this does not reflect tempo envelopes but is purely what is set in the project settings.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param bpmOut *f64
 ///-- @param bpiOut *f64
-pub const GetProjectTimeSignature2 = function(&reaper.GetProjectTimeSignature2, 3, &.{ *ReaProject, *f64, *f64 });
+pub const GetProjectTimeSignature2 = function(&reaper.GetProjectTimeSignature2, 3, &.{ ?ReaProject, *f64, *f64 });
 
 /// GetProjExtState
 /// Get the value previously associated with this extname and key, the last time the project was saved. See SetProjExtState, EnumProjExtState.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param extname [*:0]const u8
 ///-- @param key [*:0]const u8
 ///-- @param valOutNeedBig *c_char
 ///-- @param sz c_int
-pub const GetProjExtState = function(&reaper.GetProjExtState, 5, &.{ *ReaProject, [*:0]const u8, [*:0]const u8, *c_char, c_int });
+pub const GetProjExtState = function(&reaper.GetProjExtState, 5, &.{ ?ReaProject, [*:0]const u8, [*:0]const u8, [*]u8, c_int });
 
 /// GetResourcePath
 /// returns path where ini files are stored, other things are in subdirectories.
@@ -1891,42 +1891,42 @@ pub const GetResourcePath = function(&reaper.GetResourcePath, 0, &.{});
 
 /// GetSelectedEnvelope
 /// get the currently selected envelope, returns NULL/nil if no envelope is selected
-///-- @param proj *ReaProject
-pub const GetSelectedEnvelope = function(&reaper.GetSelectedEnvelope, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetSelectedEnvelope = function(&reaper.GetSelectedEnvelope, 1, &.{?ReaProject});
 
 /// GetSelectedMediaItem
 /// get a selected item by selected item count (zero-based) (proj=0 for active project)
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param selitem c_int
-pub const GetSelectedMediaItem = function(&reaper.GetSelectedMediaItem, 2, &.{ *ReaProject, c_int });
+pub const GetSelectedMediaItem = function(&reaper.GetSelectedMediaItem, 2, &.{ ?ReaProject, c_int });
 
 /// GetSelectedTrack
 /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based). This function ignores the master track, see GetSelectedTrack2.
 ///-- @param proj ReaProject
 ///-- @param seltrackidx c_int
-pub const GetSelectedTrack = function(&reaper.GetSelectedTrack, 2, &.{ ReaProject, c_int });
+pub const GetSelectedTrack = function(&reaper.GetSelectedTrack, 2, &.{ ?ReaProject, c_int });
 
 /// GetSelectedTrack2
 /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based).
 ///-- @param proj ReaProject
 ///-- @param seltrackidx c_int
 ///-- @param wantmaster bool
-pub const GetSelectedTrack2 = function(&reaper.GetSelectedTrack2, 3, &.{ ReaProject, c_int, bool });
+pub const GetSelectedTrack2 = function(&reaper.GetSelectedTrack2, 3, &.{ ?ReaProject, c_int, bool });
 
 /// GetSelectedTrackEnvelope
 /// get the currently selected track envelope, returns NULL/nil if no envelope is selected
-///-- @param proj *ReaProject
-pub const GetSelectedTrackEnvelope = function(&reaper.GetSelectedTrackEnvelope, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const GetSelectedTrackEnvelope = function(&reaper.GetSelectedTrackEnvelope, 1, &.{?ReaProject});
 
 /// GetSet_ArrangeView2
 /// Gets or sets the arrange view start/end time for screen coordinates. use screen_x_start=screen_x_end=0 to use the full arrange view's start/end time
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param isSet bool
 ///-- @param start c_int
 ///-- @param end c_int
 ///-- @param timeInOut *f64
 ///-- @param timeInOut *f64
-pub const GetSet_ArrangeView2 = function(&reaper.GetSet_ArrangeView2, 6, &.{ *ReaProject, bool, c_int, c_int, *f64, *f64 });
+pub const GetSet_ArrangeView2 = function(&reaper.GetSet_ArrangeView2, 6, &.{ ?ReaProject, bool, c_int, c_int, *f64, *f64 });
 
 /// GetSet_LoopTimeRange
 ///-- @param isSet bool
@@ -1937,13 +1937,13 @@ pub const GetSet_ArrangeView2 = function(&reaper.GetSet_ArrangeView2, 6, &.{ *Re
 pub const GetSet_LoopTimeRange = function(&reaper.GetSet_LoopTimeRange, 5, &.{ bool, bool, *f64, *f64, bool });
 
 /// GetSet_LoopTimeRange2
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param isSet bool
 ///-- @param isLoop bool
 ///-- @param startOut *f64
 ///-- @param endOut *f64
 ///-- @param allowautoseek bool
-pub const GetSet_LoopTimeRange2 = function(&reaper.GetSet_LoopTimeRange2, 6, &.{ *ReaProject, bool, bool, *f64, *f64, bool });
+pub const GetSet_LoopTimeRange2 = function(&reaper.GetSet_LoopTimeRange2, 6, &.{ ?ReaProject, bool, bool, *f64, *f64, bool });
 
 /// GetSetAutomationItemInfo
 /// Get or set automation item information. autoitem_idx=0 for the first automation item on an envelope, 1 for the second item, etc. desc can be any of the following:
@@ -2240,20 +2240,20 @@ pub const GetSetObjectState2 = function(&reaper.GetSetObjectState2, 3, &.{ *void
 
 /// GetSetProjectAuthor
 /// deprecated, see GetSetProjectInfo_String with desc="PROJECT_AUTHOR"
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param set bool
 ///-- @param author *c_char
 ///-- @param sz c_int
-pub const GetSetProjectAuthor = function(&reaper.GetSetProjectAuthor, 4, &.{ *ReaProject, bool, *c_char, c_int });
+pub const GetSetProjectAuthor = function(&reaper.GetSetProjectAuthor, 4, &.{ ?ReaProject, bool, *c_char, c_int });
 
 /// GetSetProjectGrid
 /// Get or set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc. swingmode can be 1 for swing enabled, swingamt is -1..1. swingmode can be 3 for measure-grid. Returns grid configuration flags
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param set bool
 ///-- @param divisionInOutOptional *f64
 ///-- @param swingmodeInOutOptional *c_int
 ///-- @param swingamtInOutOptional *f64
-pub const GetSetProjectGrid = function(&reaper.GetSetProjectGrid, 5, &.{ *ReaProject, bool, *f64, *c_int, *f64 });
+pub const GetSetProjectGrid = function(&reaper.GetSetProjectGrid, 5, &.{ ?ReaProject, bool, *f64, *c_int, *f64 });
 
 /// GetSetProjectInfo
 /// Get or set project information.
@@ -2277,11 +2277,11 @@ pub const GetSetProjectGrid = function(&reaper.GetSetProjectGrid, 5, &.{ *ReaPro
 /// PROJECT_SRATE : samplerate (ignored unless PROJECT_SRATE_USE set)
 /// PROJECT_SRATE_USE : set to 1 if project samplerate is used
 ///
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param desc [*:0]const u8
 ///-- @param value f64
 ///-- @param set bool
-pub const GetSetProjectInfo = function(&reaper.GetSetProjectInfo, 4, &.{ *ReaProject, [*:0]const u8, f64, bool });
+pub const GetSetProjectInfo = function(&reaper.GetSetProjectInfo, 4, &.{ ?ReaProject, [*:0]const u8, f64, bool });
 
 /// GetSetProjectInfo_String
 /// Get or set project information.
@@ -2304,19 +2304,19 @@ pub const GetSetProjectInfo = function(&reaper.GetSetProjectInfo, 4, &.{ *ReaPro
 /// RENDER_FORMAT : base64-encoded sink configuration (see project files, etc). Callers can also pass a simple 4-byte string (non-base64-encoded), e.g. "evaw" or "l3pm", to use default settings for that sink type.
 /// RENDER_FORMAT2 : base64-encoded secondary sink configuration. Callers can also pass a simple 4-byte string (non-base64-encoded), e.g. "evaw" or "l3pm", to use default settings for that sink type, or "" to disable secondary render.
 ///
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param desc [*:0]const u8
 ///-- @param valuestrNeedBig *c_char
 ///-- @param set bool
-pub const GetSetProjectInfo_String = function(&reaper.GetSetProjectInfo_String, 4, &.{ *ReaProject, [*:0]const u8, *c_char, bool });
+pub const GetSetProjectInfo_String = function(&reaper.GetSetProjectInfo_String, 4, &.{ ?ReaProject, [*:0]const u8, *c_char, bool });
 
 /// GetSetProjectNotes
 /// gets or sets project notes, notesNeedBig_sz is ignored when setting
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param set bool
 ///-- @param notesNeedBig *c_char
 ///-- @param sz c_int
-pub const GetSetProjectNotes = function(&reaper.GetSetProjectNotes, 4, &.{ *ReaProject, bool, *c_char, c_int });
+pub const GetSetProjectNotes = function(&reaper.GetSetProjectNotes, 4, &.{ ?ReaProject, bool, *c_char, c_int });
 
 /// GetSetRepeat
 /// -1 == query,0=clear,1=set,>1=toggle . returns new value
@@ -2325,9 +2325,9 @@ pub const GetSetRepeat = function(&reaper.GetSetRepeat, 1, &.{c_int});
 
 /// GetSetRepeatEx
 /// -1 == query,0=clear,1=set,>1=toggle . returns new value
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param val c_int
-pub const GetSetRepeatEx = function(&reaper.GetSetRepeatEx, 2, &.{ *ReaProject, c_int });
+pub const GetSetRepeatEx = function(&reaper.GetSetRepeatEx, 2, &.{ ?ReaProject, c_int });
 
 /// GetSetTrackGroupMembership
 /// Gets or modifies the group membership for a track. Returns group state prior to call (each bit represents one of the 32 group numbers). if setmask has bits set, those bits in setvalue will be applied to group. Group can be one of:
@@ -2403,11 +2403,11 @@ pub const GetSetTrackGroupMembershipHigh = function(&reaper.GetSetTrackGroupMemb
 
 /// GetSetTrackMIDISupportFile
 /// Get or set the filename for storage of various track MIDI c_characteristics. 0=MIDI colormap image file, 1 or 2=MIDI bank/program select file (2=set new default). If fn != NULL, a new track MIDI storage file will be set; otherwise the existing track MIDI storage file will be returned.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param track MediaTrack
 ///-- @param which c_int
 ///-- @param filename [*:0]const u8
-pub const GetSetTrackMIDISupportFile = function(&reaper.GetSetTrackMIDISupportFile, 4, &.{ *ReaProject, MediaTrack, c_int, [*:0]const u8 });
+pub const GetSetTrackMIDISupportFile = function(&reaper.GetSetTrackMIDISupportFile, 4, &.{ ?ReaProject, MediaTrack, c_int, [*:0]const u8 });
 
 /// GetSetTrackSendInfo
 /// Get or set send/receive/hardware output attributes.
@@ -2519,12 +2519,12 @@ pub const GetTakeStretchMarkerSlope = function(&reaper.GetTakeStretchMarkerSlope
 
 /// GetTCPFXParm
 /// Get information about a specific FX parameter knob (see CountTCPFXParms).
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param track MediaTrack
 ///-- @param index c_int
 ///-- @param fxindexOut *c_int
 ///-- @param parmidxOut *c_int
-pub const GetTCPFXParm = function(&reaper.GetTCPFXParm, 5, &.{ *ReaProject, MediaTrack, c_int, *c_int, *c_int });
+pub const GetTCPFXParm = function(&reaper.GetTCPFXParm, 5, &.{ ?ReaProject, MediaTrack, c_int, *c_int, *c_int });
 
 /// GetTempoMatchPlayRate
 /// finds the playrate and target length to insert this item stretched to a round power-of-2 number of bars, between 1/8 and 256
@@ -2538,7 +2538,7 @@ pub const GetTempoMatchPlayRate = function(&reaper.GetTempoMatchPlayRate, 6, &.{
 
 /// GetTempoTimeSigMarker
 /// Get information about a tempo/time signature marker. See CountTempoTimeSigMarkers, SetTempoTimeSigMarker, AddTempoTimeSigMarker.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param ptidx c_int
 ///-- @param timeposOut *f64
 ///-- @param measureposOut *c_int
@@ -2547,7 +2547,7 @@ pub const GetTempoMatchPlayRate = function(&reaper.GetTempoMatchPlayRate, 6, &.{
 ///-- @param numOut *c_int
 ///-- @param denomOut *c_int
 ///-- @param lineartempoOut *bool
-pub const GetTempoTimeSigMarker = function(&reaper.GetTempoTimeSigMarker, 9, &.{ *ReaProject, c_int, *f64, *c_int, *f64, *f64, *c_int, *c_int, *bool });
+pub const GetTempoTimeSigMarker = function(&reaper.GetTempoTimeSigMarker, 9, &.{ ?ReaProject, c_int, *f64, *c_int, *f64, *f64, *c_int, *c_int, *bool });
 
 /// GetThemeColor
 /// Returns the theme color specified, or -1 on failure. If the low bit of flags is set, the color as originally specified by the theme (before any transformations) is returned, otherwise the current (possibly transformed and modified) color is returned. See SetThemeColor for a list of valid ini_key.
@@ -2604,7 +2604,7 @@ pub const GetTouchedOrFocusedFX = function(&reaper.GetTouchedOrFocusedFX, 6, &.{
 /// get a track from a project by track count (zero-based) (proj=0 for active project)
 ///-- @param proj ReaProject
 ///-- @param trackidx c_int
-pub const GetTrack = function(&reaper.GetTrack, 2, &.{ ReaProject, c_int });
+pub const GetTrack = function(&reaper.GetTrack, 2, &.{ ?ReaProject, c_int });
 
 /// GetTrackAutomationMode
 /// return the track mode, regardless of global override
@@ -2689,18 +2689,18 @@ pub const GetTrackMIDINoteName = function(&reaper.GetTrackMIDINoteName, 3, &.{ c
 
 /// GetTrackMIDINoteNameEx
 /// Get note/CC name. pitch 128 for CC0 name, 129 for CC1 name, etc. See SetTrackMIDINoteNameEx
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param track MediaTrack
 ///-- @param pitch c_int
 ///-- @param chan c_int
-pub const GetTrackMIDINoteNameEx = function(&reaper.GetTrackMIDINoteNameEx, 4, &.{ *ReaProject, MediaTrack, c_int, c_int });
+pub const GetTrackMIDINoteNameEx = function(&reaper.GetTrackMIDINoteNameEx, 4, &.{ ?ReaProject, MediaTrack, c_int, c_int });
 
 /// GetTrackMIDINoteRange
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param track MediaTrack
 ///-- @param loOut *c_int
 ///-- @param hiOut *c_int
-pub const GetTrackMIDINoteRange = function(&reaper.GetTrackMIDINoteRange, 4, &.{ *ReaProject, MediaTrack, *c_int, *c_int });
+pub const GetTrackMIDINoteRange = function(&reaper.GetTrackMIDINoteRange, 4, &.{ ?ReaProject, MediaTrack, *c_int, *c_int });
 
 /// GetTrackName
 /// Returns "MASTER" for master track, "Track N" if track has no name.
@@ -2861,17 +2861,17 @@ pub const GetUserInputs = function(&reaper.GetUserInputs, 5, &.{ [*:0]const u8, 
 
 /// GoToMarker
 /// Go to marker. If use_timeline_order==true, marker_index 1 refers to the first marker on the timeline.  If use_timeline_order==false, marker_index 1 refers to the first marker with the user-editable index of 1.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param index c_int
 ///-- @param order bool
-pub const GoToMarker = function(&reaper.GoToMarker, 3, &.{ *ReaProject, c_int, bool });
+pub const GoToMarker = function(&reaper.GoToMarker, 3, &.{ ?ReaProject, c_int, bool });
 
 /// GoToRegion
 /// Seek to region after current region finishes playing (smooth seek). If use_timeline_order==true, region_index 1 refers to the first region on the timeline.  If use_timeline_order==false, region_index 1 refers to the first region with the user-editable index of 1.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param index c_int
 ///-- @param order bool
-pub const GoToRegion = function(&reaper.GoToRegion, 3, &.{ *ReaProject, c_int, bool });
+pub const GoToRegion = function(&reaper.GoToRegion, 3, &.{ ?ReaProject, c_int, bool });
 
 /// GR_SelectColor
 /// Runs the system color chooser dialog.  Returns 0 if the user cancels the dialog.
@@ -2903,9 +2903,9 @@ pub const HasTrackMIDIPrograms = function(&reaper.HasTrackMIDIPrograms, 1, &.{c_
 
 /// HasTrackMIDIProgramsEx
 /// returns name of track plugin that is supplying MIDI programs,or NULL if there is none
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param track MediaTrack
-pub const HasTrackMIDIProgramsEx = function(&reaper.HasTrackMIDIProgramsEx, 2, &.{ *ReaProject, MediaTrack });
+pub const HasTrackMIDIProgramsEx = function(&reaper.HasTrackMIDIProgramsEx, 2, &.{ ?ReaProject, MediaTrack });
 
 /// Help_Set
 ///-- @param helpstring [*:0]const u8
@@ -3003,8 +3003,8 @@ pub const IsMediaItemSelected = function(&reaper.IsMediaItemSelected, 1, &.{*Med
 
 /// IsProjectDirty
 /// Is the project dirty (needing save)? Always returns 0 if 'undo/prompt to save' is disabled in preferences.
-///-- @param proj *ReaProject
-pub const IsProjectDirty = function(&reaper.IsProjectDirty, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const IsProjectDirty = function(&reaper.IsProjectDirty, 1, &.{?ReaProject});
 
 /// IsREAPER
 /// Returns true if dealing with REAPER, returns false for ReaMote, etc
@@ -3099,8 +3099,8 @@ pub const kbd_getTextFromCmd = function(&reaper.kbd_getTextFromCmd, 2, &.{ c_int
 ///-- @param valhw c_int
 ///-- @param relmode c_int
 ///-- @param hwnd HWND
-///-- @param proj *ReaProject
-pub const KBD_OnMainActionEx = function(&reaper.KBD_OnMainActionEx, 6, &.{ c_int, c_int, c_int, c_int, HWND, *ReaProject });
+///-- @param proj ?ReaProject
+pub const KBD_OnMainActionEx = function(&reaper.KBD_OnMainActionEx, 6, &.{ c_int, c_int, c_int, c_int, HWND, ?ReaProject });
 
 /// kbd_OnMidiEvent
 /// can be called from anywhere (threadsafe)
@@ -3637,9 +3637,9 @@ pub const LocalizeString = function(&reaper.LocalizeString, 3, &.{ [*:0]const u8
 
 /// Loop_OnArrow
 /// Move the loop selection left or right. Returns true if snap is enabled.
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param direction c_int
-pub const Loop_OnArrow = function(&reaper.Loop_OnArrow, 2, &.{ *ReaProject, c_int });
+pub const Loop_OnArrow = function(&reaper.Loop_OnArrow, 2, &.{ ?ReaProject, c_int });
 
 /// Main_OnCommand
 /// See Main_OnCommandEx.
@@ -3651,8 +3651,8 @@ pub const Main_OnCommand = function(&reaper.Main_OnCommand, 2, &.{ c_int, c_int 
 /// Performs an action belonging to the main action section. To perform non-native actions (ReaScripts, custom or extension plugins' actions) safely, see NamedCommandLookup().
 ///-- @param command c_int
 ///-- @param flag c_int
-///-- @param proj *ReaProject
-pub const Main_OnCommandEx = function(&reaper.Main_OnCommandEx, 3, &.{ c_int, c_int, *ReaProject });
+///-- @param proj ?ReaProject
+pub const Main_OnCommandEx = function(&reaper.Main_OnCommandEx, 3, &.{ c_int, c_int, ?ReaProject });
 
 /// Main_openProject
 /// opens a project. will prompt the user to save unless name is prefixed with 'noprompt:'. If name is prefixed with 'template:', project file will be loaded as a template.
@@ -3662,16 +3662,16 @@ pub const Main_openProject = function(&reaper.Main_openProject, 1, &.{[*:0]const
 
 /// Main_SaveProject
 /// Save the project.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param forceSaveAsInOptional bool
-pub const Main_SaveProject = function(&reaper.Main_SaveProject, 2, &.{ *ReaProject, bool });
+pub const Main_SaveProject = function(&reaper.Main_SaveProject, 2, &.{ ?ReaProject, bool });
 
 /// Main_SaveProjectEx
 /// Save the project. options: &1=save selected tracks as track template, &2=include media with track template, &4=include envelopes with track template. See Main_openProject, Main_SaveProject.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param filename [*:0]const u8
 ///-- @param options c_int
-pub const Main_SaveProjectEx = function(&reaper.Main_SaveProjectEx, 3, &.{ *ReaProject, [*:0]const u8, c_int });
+pub const Main_SaveProjectEx = function(&reaper.Main_SaveProjectEx, 3, &.{ ?ReaProject, [*:0]const u8, c_int });
 
 /// Main_UpdateLoopInfo
 ///-- @param ignoremask c_int
@@ -3679,8 +3679,8 @@ pub const Main_UpdateLoopInfo = function(&reaper.Main_UpdateLoopInfo, 1, &.{c_in
 
 /// MarkProjectDirty
 /// Marks project as dirty (needing save) if 'undo/prompt to save' is enabled in preferences.
-///-- @param proj *ReaProject
-pub const MarkProjectDirty = function(&reaper.MarkProjectDirty, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const MarkProjectDirty = function(&reaper.MarkProjectDirty, 1, &.{?ReaProject});
 
 /// MarkTrackItemsDirty
 /// If track is supplied, item is ignored
@@ -3689,13 +3689,13 @@ pub const MarkProjectDirty = function(&reaper.MarkProjectDirty, 1, &.{*ReaProjec
 pub const MarkTrackItemsDirty = function(&reaper.MarkTrackItemsDirty, 2, &.{ MediaTrack, *MediaItem });
 
 /// Master_GetPlayRate
-///-- @param project *ReaProject
-pub const Master_GetPlayRate = function(&reaper.Master_GetPlayRate, 1, &.{*ReaProject});
+///-- @param project ?ReaProject
+pub const Master_GetPlayRate = function(&reaper.Master_GetPlayRate, 1, &.{?ReaProject});
 
 /// Master_GetPlayRateAtTime
 ///-- @param s f64
-///-- @param proj *ReaProject
-pub const Master_GetPlayRateAtTime = function(&reaper.Master_GetPlayRateAtTime, 2, &.{ f64, *ReaProject });
+///-- @param proj ?ReaProject
+pub const Master_GetPlayRateAtTime = function(&reaper.Master_GetPlayRateAtTime, 2, &.{ f64, ?ReaProject });
 
 /// Master_GetTempo
 pub const Master_GetTempo = function(&reaper.Master_GetTempo, 0, &.{});
@@ -4238,8 +4238,8 @@ pub const OnPauseButton = function(&reaper.OnPauseButton, 0, &.{});
 
 /// OnPauseButtonEx
 /// direct way to simulate pause button hit
-///-- @param proj *ReaProject
-pub const OnPauseButtonEx = function(&reaper.OnPauseButtonEx, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const OnPauseButtonEx = function(&reaper.OnPauseButtonEx, 1, &.{?ReaProject});
 
 /// OnPlayButton
 /// direct way to simulate play button hit
@@ -4247,8 +4247,8 @@ pub const OnPlayButton = function(&reaper.OnPlayButton, 0, &.{});
 
 /// OnPlayButtonEx
 /// direct way to simulate play button hit
-///-- @param proj *ReaProject
-pub const OnPlayButtonEx = function(&reaper.OnPlayButtonEx, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const OnPlayButtonEx = function(&reaper.OnPlayButtonEx, 1, &.{?ReaProject});
 
 /// OnStopButton
 /// direct way to simulate stop button hit
@@ -4256,8 +4256,8 @@ pub const OnStopButton = function(&reaper.OnStopButton, 0, &.{});
 
 /// OnStopButtonEx
 /// direct way to simulate stop button hit
-///-- @param proj *ReaProject
-pub const OnStopButtonEx = function(&reaper.OnStopButtonEx, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const OnStopButtonEx = function(&reaper.OnStopButtonEx, 1, &.{?ReaProject});
 
 /// OpenColorThemeFile
 pub const OpenColorThemeFile = function(&reaper.OpenColorThemeFile, 0, &.{});
@@ -4320,14 +4320,14 @@ pub const parsepanstr = function(&reaper.parsepanstr, 1, &.{[*:0]const u8});
 pub const PCM_Sink_Create = function(&reaper.PCM_Sink_Create, 6, &.{ [*:0]const u8, [*:0]const u8, c_int, c_int, c_int, bool });
 
 /// PCM_Sink_CreateEx
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param filename [*:0]const u8
 ///-- @param cfg [*:0]const u8
 ///-- @param sz c_int
 ///-- @param nch c_int
 ///-- @param srate c_int
 ///-- @param buildpeaks bool
-pub const PCM_Sink_CreateEx = function(&reaper.PCM_Sink_CreateEx, 7, &.{ *ReaProject, [*:0]const u8, [*:0]const u8, c_int, c_int, c_int, bool });
+pub const PCM_Sink_CreateEx = function(&reaper.PCM_Sink_CreateEx, 7, &.{ ?ReaProject, [*:0]const u8, [*:0]const u8, c_int, c_int, c_int, bool });
 
 /// PCM_Sink_CreateMIDIFile
 ///-- @param filename [*:0]const u8
@@ -4338,13 +4338,13 @@ pub const PCM_Sink_CreateEx = function(&reaper.PCM_Sink_CreateEx, 7, &.{ *ReaPro
 pub const PCM_Sink_CreateMIDIFile = function(&reaper.PCM_Sink_CreateMIDIFile, 5, &.{ [*:0]const u8, [*:0]const u8, c_int, f64, c_int });
 
 /// PCM_Sink_CreateMIDIFileEx
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param filename [*:0]const u8
 ///-- @param cfg [*:0]const u8
 ///-- @param sz c_int
 ///-- @param bpm f64
 ///-- @param div c_int
-pub const PCM_Sink_CreateMIDIFileEx = function(&reaper.PCM_Sink_CreateMIDIFileEx, 6, &.{ *ReaProject, [*:0]const u8, [*:0]const u8, c_int, f64, c_int });
+pub const PCM_Sink_CreateMIDIFileEx = function(&reaper.PCM_Sink_CreateMIDIFileEx, 6, &.{ ?ReaProject, [*:0]const u8, [*:0]const u8, c_int, f64, c_int });
 
 /// PCM_Sink_Enum
 ///-- @param idx c_int
@@ -4462,17 +4462,17 @@ pub const PlayTrackPreview = function(&reaper.PlayTrackPreview, 1, &.{*preview_r
 
 /// PlayTrackPreview2
 /// return nonzero on success,in these,m_out_chan is a track index (0-n)
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param preview *preview_register_t
-pub const PlayTrackPreview2 = function(&reaper.PlayTrackPreview2, 2, &.{ *ReaProject, *preview_register_t });
+pub const PlayTrackPreview2 = function(&reaper.PlayTrackPreview2, 2, &.{ ?ReaProject, *preview_register_t });
 
 /// PlayTrackPreview2Ex
 /// return nonzero on success,in these,m_out_chan is a track index (0-n). see PlayPreviewEx
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param preview *preview_register_t
 ///-- @param flags c_int
 ///-- @param align f64
-pub const PlayTrackPreview2Ex = function(&reaper.PlayTrackPreview2Ex, 4, &.{ *ReaProject, *preview_register_t, c_int, f64 });
+pub const PlayTrackPreview2Ex = function(&reaper.PlayTrackPreview2Ex, 4, &.{ ?ReaProject, *preview_register_t, c_int, f64 });
 
 /// plugin_getapi
 // pub var plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) *void = undefined;
@@ -4499,9 +4499,9 @@ pub const PluginWantsAlwaysRunFx = function(&reaper.PluginWantsAlwaysRunFx, 1, &
 pub const PreventUIRefresh = function(&reaper.PreventUIRefresh, 1, &.{c_int});
 
 /// projectconfig_var_addr
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param idx c_int
-pub const projectconfig_var_addr = function(&reaper.projectconfig_var_addr, 2, &.{ *ReaProject, c_int });
+pub const projectconfig_var_addr = function(&reaper.projectconfig_var_addr, 2, &.{ ?ReaProject, c_int });
 
 /// projectconfig_var_getoffs
 /// returns offset to pass to projectconfig_var_addr() to get project-config var of name. szout gets size of object. can also query "__metronome_ptr" query project metronome *PCM_source* offset
@@ -4619,12 +4619,12 @@ pub const resolve_fn2 = function(&reaper.resolve_fn2, 4, &.{ [*:0]const u8, *c_c
 
 /// ResolveRenderPattern
 /// Resolve a wildcard pattern into a set of nul-separated, f64-nul terminated render target filenames. Returns the length of the string buffer needed for the returned file list. Call with path=NULL to suppress filtering out illegal pathnames, call with targets=NULL to get just the string buffer length.
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param path [*:0]const u8
 ///-- @param pattern [*:0]const u8
 ///-- @param targets *c_char
 ///-- @param sz c_int
-pub const ResolveRenderPattern = function(&reaper.ResolveRenderPattern, 5, &.{ *ReaProject, [*:0]const u8, [*:0]const u8, *c_char, c_int });
+pub const ResolveRenderPattern = function(&reaper.ResolveRenderPattern, 5, &.{ ?ReaProject, [*:0]const u8, [*:0]const u8, *c_char, c_int });
 
 /// ReverseNamedCommandLookup
 /// Get the named command for the given command ID. The returned string will not start with '_' (e.g. it will return "SWS_ABOUT"), it will be NULL if command_id is a native action.
@@ -4672,13 +4672,13 @@ pub const screenset_updateLastFocus = function(&reaper.screenset_updateLastFocus
 pub const SectionFromUniqueID = function(&reaper.SectionFromUniqueID, 1, &.{c_int});
 
 /// SelectAllMediaItems
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param selected bool
-pub const SelectAllMediaItems = function(&reaper.SelectAllMediaItems, 2, &.{ *ReaProject, bool });
+pub const SelectAllMediaItems = function(&reaper.SelectAllMediaItems, 2, &.{ ?ReaProject, bool });
 
 /// SelectProjectInstance
-///-- @param proj *ReaProject
-pub const SelectProjectInstance = function(&reaper.SelectProjectInstance, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const SelectProjectInstance = function(&reaper.SelectProjectInstance, 1, &.{?ReaProject});
 
 /// SendLocalOscMessage
 /// Send an OSC message to REAPER. See CreateLocalOscHandler, DestroyLocalOscHandler.
@@ -4710,10 +4710,10 @@ pub const SetAutomationMode = function(&reaper.SetAutomationMode, 2, &.{ c_int, 
 
 /// SetCurrentBPM
 /// set current BPM in project, set wantUndo=true to add undo point
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param bpm f64
 ///-- @param wantUndo bool
-pub const SetCurrentBPM = function(&reaper.SetCurrentBPM, 3, &.{ *ReaProject, f64, bool });
+pub const SetCurrentBPM = function(&reaper.SetCurrentBPM, 3, &.{ ?ReaProject, f64, bool });
 
 /// SetCursorContext
 /// You must use this to change the focus programmatically. mode=0 to focus track panels, 1 to focus the arrange window, 2 to focus the arrange window and select env (or env==NULL to clear the current track/take envelope selection)
@@ -4728,11 +4728,11 @@ pub const SetCursorContext = function(&reaper.SetCursorContext, 2, &.{ c_int, *T
 pub const SetEditCurPos = function(&reaper.SetEditCurPos, 3, &.{ f64, bool, bool });
 
 /// SetEditCurPos2
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param time f64
 ///-- @param moveview bool
 ///-- @param seekplay bool
-pub const SetEditCurPos2 = function(&reaper.SetEditCurPos2, 4, &.{ *ReaProject, f64, bool, bool });
+pub const SetEditCurPos2 = function(&reaper.SetEditCurPos2, 4, &.{ ?ReaProject, f64, bool, bool });
 
 /// SetEnvelopePoint
 /// Set attributes of an envelope point. Values that are not supplied will be ignored. If setting multiple points at once, set noSort=true, and call Envelope_SortPoints when done. See SetEnvelopePointEx.
@@ -4960,9 +4960,9 @@ pub const SetMediaTrackInfo_Value = function(&reaper.SetMediaTrackInfo_Value, 3,
 
 /// SetMIDIEditorGrid
 /// Set the MIDI editor grid division. 0.25=quarter note, 1.0/3.0=half note tripet, etc.
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param division f64
-pub const SetMIDIEditorGrid = function(&reaper.SetMIDIEditorGrid, 2, &.{ *ReaProject, f64 });
+pub const SetMIDIEditorGrid = function(&reaper.SetMIDIEditorGrid, 2, &.{ ?ReaProject, f64 });
 
 /// SetMixerScroll
 /// Scroll the mixer so that leftmosttrack is the leftmost visible track. Returns the leftmost track after scrolling, which may be different from the passed-in track if there are not enough tracks to its right.
@@ -4998,9 +4998,9 @@ pub const SetOnlyTrackSelected = function(&reaper.SetOnlyTrackSelected, 1, &.{Me
 
 /// SetProjectGrid
 /// Set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc.
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param division f64
-pub const SetProjectGrid = function(&reaper.SetProjectGrid, 2, &.{ *ReaProject, f64 });
+pub const SetProjectGrid = function(&reaper.SetProjectGrid, 2, &.{ ?ReaProject, f64 });
 
 /// SetProjectMarker
 /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
@@ -5013,28 +5013,28 @@ pub const SetProjectMarker = function(&reaper.SetProjectMarker, 5, &.{ c_int, bo
 
 /// SetProjectMarker2
 /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param markrgnindexnumber c_int
 ///-- @param isrgn bool
 ///-- @param pos f64
 ///-- @param rgnend f64
 ///-- @param name [*:0]const u8
-pub const SetProjectMarker2 = function(&reaper.SetProjectMarker2, 6, &.{ *ReaProject, c_int, bool, f64, f64, [*:0]const u8 });
+pub const SetProjectMarker2 = function(&reaper.SetProjectMarker2, 6, &.{ ?ReaProject, c_int, bool, f64, f64, [*:0]const u8 });
 
 /// SetProjectMarker3
 /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param markrgnindexnumber c_int
 ///-- @param isrgn bool
 ///-- @param pos f64
 ///-- @param rgnend f64
 ///-- @param name [*:0]const u8
 ///-- @param color c_int
-pub const SetProjectMarker3 = function(&reaper.SetProjectMarker3, 7, &.{ *ReaProject, c_int, bool, f64, f64, [*:0]const u8, c_int });
+pub const SetProjectMarker3 = function(&reaper.SetProjectMarker3, 7, &.{ ?ReaProject, c_int, bool, f64, f64, [*:0]const u8, c_int });
 
 /// SetProjectMarker4
 /// color should be 0 to not change, or ColorToNative(r,g,b)|0x1000000, flags&1 to clear name
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param markrgnindexnumber c_int
 ///-- @param isrgn bool
 ///-- @param pos f64
@@ -5042,11 +5042,11 @@ pub const SetProjectMarker3 = function(&reaper.SetProjectMarker3, 7, &.{ *ReaPro
 ///-- @param name [*:0]const u8
 ///-- @param color c_int
 ///-- @param flags c_int
-pub const SetProjectMarker4 = function(&reaper.SetProjectMarker4, 8, &.{ *ReaProject, c_int, bool, f64, f64, [*:0]const u8, c_int, c_int });
+pub const SetProjectMarker4 = function(&reaper.SetProjectMarker4, 8, &.{ ?ReaProject, c_int, bool, f64, f64, [*:0]const u8, c_int, c_int });
 
 /// SetProjectMarkerByIndex
 /// See SetProjectMarkerByIndex2.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param markrgnidx c_int
 ///-- @param isrgn bool
 ///-- @param pos f64
@@ -5054,11 +5054,11 @@ pub const SetProjectMarker4 = function(&reaper.SetProjectMarker4, 8, &.{ *ReaPro
 ///-- @param IDnumber c_int
 ///-- @param name [*:0]const u8
 ///-- @param color c_int
-pub const SetProjectMarkerByIndex = function(&reaper.SetProjectMarkerByIndex, 8, &.{ *ReaProject, c_int, bool, f64, f64, c_int, [*:0]const u8, c_int });
+pub const SetProjectMarkerByIndex = function(&reaper.SetProjectMarkerByIndex, 8, &.{ ?ReaProject, c_int, bool, f64, f64, c_int, [*:0]const u8, c_int });
 
 /// SetProjectMarkerByIndex2
 /// Differs from SetProjectMarker4 in that markrgnidx is 0 for the first marker/region, 1 for the next, etc (see EnumProjectMarkers3), rather than representing the displayed marker/region ID number (see SetProjectMarker3). Function will fail if attempting to set a duplicate ID number for a region (duplicate ID numbers for markers are OK). , flags&1 to clear name. If flags&2, markers will not be re-sorted, and after making updates, you MUST call SetProjectMarkerByIndex2 with markrgnidx=-1 and flags&2 to force re-sort/UI updates.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param markrgnidx c_int
 ///-- @param isrgn bool
 ///-- @param pos f64
@@ -5067,23 +5067,23 @@ pub const SetProjectMarkerByIndex = function(&reaper.SetProjectMarkerByIndex, 8,
 ///-- @param name [*:0]const u8
 ///-- @param color c_int
 ///-- @param flags c_int
-pub const SetProjectMarkerByIndex2 = function(&reaper.SetProjectMarkerByIndex2, 9, &.{ *ReaProject, c_int, bool, f64, f64, c_int, [*:0]const u8, c_int, c_int });
+pub const SetProjectMarkerByIndex2 = function(&reaper.SetProjectMarkerByIndex2, 9, &.{ ?ReaProject, c_int, bool, f64, f64, c_int, [*:0]const u8, c_int, c_int });
 
 /// SetProjExtState
 /// Save a key/value pair for a specific extension, to be restored the next time this specific project is loaded. Typically extname will be the name of a reascript or extension section. If key is NULL or "", all extended data for that extname will be deleted.  If val is NULL or "", the data previously associated with that key will be deleted. Returns the size of the state for this extname. See GetProjExtState, EnumProjExtState.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param extname [*:0]const u8
 ///-- @param key [*:0]const u8
 ///-- @param value [*:0]const u8
-pub const SetProjExtState = function(&reaper.SetProjExtState, 4, &.{ *ReaProject, [*:0]const u8, [*:0]const u8, [*:0]const u8 });
+pub const SetProjExtState = function(&reaper.SetProjExtState, 4, &.{ ?ReaProject, [*:0]const u8, [*:0]const u8, ?[*:0]const u8 });
 
 /// SetRegionRenderMatrix
 /// Add (flag > 0) or remove (flag < 0) a track from this region when using the region render matrix. If adding, flag==2 means force mono, flag==4 means force stereo, flag==N means force N/2 channels.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param regionindex c_int
 ///-- @param track MediaTrack
 ///-- @param flag c_int
-pub const SetRegionRenderMatrix = function(&reaper.SetRegionRenderMatrix, 4, &.{ *ReaProject, c_int, MediaTrack, c_int });
+pub const SetRegionRenderMatrix = function(&reaper.SetRegionRenderMatrix, 4, &.{ ?ReaProject, c_int, MediaTrack, c_int });
 
 /// SetRenderLastError
 /// Used by pcmsink objects to set an error to display while creating the pcmsink object.
@@ -5116,7 +5116,7 @@ pub const SetTakeStretchMarkerSlope = function(&reaper.SetTakeStretchMarkerSlope
 
 /// SetTempoTimeSigMarker
 /// Set parameters of a tempo/time signature marker. Provide either timepos (with measurepos=-1, beatpos=-1), or measurepos and beatpos (with timepos=-1). If timesig_num and timesig_denom are zero, the previous time signature will be used. ptidx=-1 will insert a new tempo/time signature marker. See CountTempoTimeSigMarkers, GetTempoTimeSigMarker, AddTempoTimeSigMarker.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param ptidx c_int
 ///-- @param timepos f64
 ///-- @param measurepos c_int
@@ -5125,7 +5125,7 @@ pub const SetTakeStretchMarkerSlope = function(&reaper.SetTakeStretchMarkerSlope
 ///-- @param num c_int
 ///-- @param denom c_int
 ///-- @param lineartempo bool
-pub const SetTempoTimeSigMarker = function(&reaper.SetTempoTimeSigMarker, 9, &.{ *ReaProject, c_int, f64, c_int, f64, f64, c_int, c_int, bool });
+pub const SetTempoTimeSigMarker = function(&reaper.SetTempoTimeSigMarker, 9, &.{ ?ReaProject, c_int, f64, c_int, f64, f64, c_int, c_int, bool });
 
 /// SetThemeColor
 /// Temporarily updates the theme color to the color specified (or the theme default color if -1 is specified). Returns -1 on failure, otherwise returns the color (or transformed-color). Note that the UI is not updated by this, the caller should call UpdateArrange() etc as necessary. If the low bit of flags is set, any color transformations are bypassed. To read a value see GetThemeColor.
@@ -5169,12 +5169,12 @@ pub const SetTrackMIDINoteName = function(&reaper.SetTrackMIDINoteName, 4, &.{ c
 
 /// SetTrackMIDINoteNameEx
 /// channel < 0 assigns note name to all channels. pitch 128 assigns name for CC0, pitch 129 for CC1, etc.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param track MediaTrack
 ///-- @param pitch c_int
 ///-- @param chan c_int
 ///-- @param name [*:0]const u8
-pub const SetTrackMIDINoteNameEx = function(&reaper.SetTrackMIDINoteNameEx, 5, &.{ *ReaProject, MediaTrack, c_int, c_int, [*:0]const u8 });
+pub const SetTrackMIDINoteNameEx = function(&reaper.SetTrackMIDINoteNameEx, 5, &.{ ?ReaProject, MediaTrack, c_int, c_int, [*:0]const u8 });
 
 /// SetTrackSelected
 ///-- @param track MediaTrack
@@ -5322,9 +5322,9 @@ pub const ShowPopupMenu = function(&reaper.ShowPopupMenu, 7, &.{ [*:0]const u8, 
 pub const SLIDER2DB = function(&reaper.SLIDER2DB, 1, &.{f64});
 
 /// SnapToGrid
-///-- @param project *ReaProject
+///-- @param project ?ReaProject
 ///-- @param pos f64
-pub const SnapToGrid = function(&reaper.SnapToGrid, 2, &.{ *ReaProject, f64 });
+pub const SnapToGrid = function(&reaper.SnapToGrid, 2, &.{ ?ReaProject, f64 });
 
 /// SoloAllTracks
 /// solo=2 for SIP
@@ -5353,9 +5353,9 @@ pub const StopTrackPreview = function(&reaper.StopTrackPreview, 1, &.{*preview_r
 
 /// StopTrackPreview2
 /// return nonzero on success
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param preview *preview_register_t
-pub const StopTrackPreview2 = function(&reaper.StopTrackPreview2, 2, &.{ *ReaProject, *preview_register_t });
+pub const StopTrackPreview2 = function(&reaper.StopTrackPreview2, 2, &.{ ?ReaProject, *preview_register_t });
 
 /// stringToGuid
 ///-- @param str [*:0]const u8
@@ -5738,28 +5738,28 @@ pub const time_precise = function(&reaper.time_precise, 0, &.{});
 
 /// TimeMap2_beatsToTime
 /// convert a beat position (or optionally a beats+measures if measures is non-NULL) to time.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param tpos f64
 ///-- @param measuresInOptional *const c_int
-pub const TimeMap2_beatsToTime = function(&reaper.TimeMap2_beatsToTime, 3, &.{ *ReaProject, f64, *const c_int });
+pub const TimeMap2_beatsToTime = function(&reaper.TimeMap2_beatsToTime, 3, &.{ ?ReaProject, f64, ?*const c_int });
 
 /// TimeMap2_GetDividedBpmAtTime
 /// get the effective BPM at the time (seconds) position (i.e. 2x in /8 signatures)
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param time f64
-pub const TimeMap2_GetDividedBpmAtTime = function(&reaper.TimeMap2_GetDividedBpmAtTime, 2, &.{ *ReaProject, f64 });
+pub const TimeMap2_GetDividedBpmAtTime = function(&reaper.TimeMap2_GetDividedBpmAtTime, 2, &.{ ?ReaProject, f64 });
 
 /// TimeMap2_GetNextChangeTime
 /// when does the next time map (tempo or time sig) change occur
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param time f64
-pub const TimeMap2_GetNextChangeTime = function(&reaper.TimeMap2_GetNextChangeTime, 2, &.{ *ReaProject, f64 });
+pub const TimeMap2_GetNextChangeTime = function(&reaper.TimeMap2_GetNextChangeTime, 2, &.{ ?ReaProject, f64 });
 
 /// TimeMap2_QNToTime
 /// converts project QN position to time.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param qn f64
-pub const TimeMap2_QNToTime = function(&reaper.TimeMap2_QNToTime, 2, &.{ *ReaProject, f64 });
+pub const TimeMap2_QNToTime = function(&reaper.TimeMap2_QNToTime, 2, &.{ ?ReaProject, f64 });
 
 /// TimeMap2_timeToBeats
 /// convert a time into beats.
@@ -5767,25 +5767,25 @@ pub const TimeMap2_QNToTime = function(&reaper.TimeMap2_QNToTime, 2, &.{ *ReaPro
 /// if cml is non-NULL, will be set to current measure length in beats (i.e. time signature numerator)
 /// if fullbeats is non-NULL, and measures is non-NULL, fullbeats will get the full beat count (same value returned if measures is NULL).
 /// if cdenom is non-NULL, will be set to the current time signature denominator.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param tpos f64
 ///-- @param measuresOutOptional *c_int
 ///-- @param cmlOutOptional *c_int
 ///-- @param fullbeatsOutOptional *f64
 ///-- @param cdenomOutOptional *c_int
-pub const TimeMap2_timeToBeats = function(&reaper.TimeMap2_timeToBeats, 6, &.{ *ReaProject, f64, *c_int, *c_int, *f64, *c_int });
+pub const TimeMap2_timeToBeats = function(&reaper.TimeMap2_timeToBeats, 6, &.{ ?ReaProject, f64, ?*c_int, ?*c_int, ?*f64, ?*c_int });
 
 /// TimeMap2_timeToQN
 /// converts project time position to QN position.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param tpos f64
-pub const TimeMap2_timeToQN = function(&reaper.TimeMap2_timeToQN, 2, &.{ *ReaProject, f64 });
+pub const TimeMap2_timeToQN = function(&reaper.TimeMap2_timeToQN, 2, &.{ ?ReaProject, f64 });
 
 /// TimeMap_curFrameRate
 /// Gets project framerate, and optionally whether it is drop-frame timecode
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param dropFrameOut *bool
-pub const TimeMap_curFrameRate = function(&reaper.TimeMap_curFrameRate, 2, &.{ *ReaProject, *bool });
+pub const TimeMap_curFrameRate = function(&reaper.TimeMap_curFrameRate, 2, &.{ ?ReaProject, *bool });
 
 /// TimeMap_GetDividedBpmAtTime
 /// get the effective BPM at the time (seconds) position (i.e. 2x in /8 signatures)
@@ -5794,39 +5794,39 @@ pub const TimeMap_GetDividedBpmAtTime = function(&reaper.TimeMap_GetDividedBpmAt
 
 /// TimeMap_GetMeasureInfo
 /// Get the QN position and time signature information for the start of a measure. Return the time in seconds of the measure start.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param measure c_int
 ///-- @param startOut *f64
 ///-- @param endOut *f64
 ///-- @param numOut *c_int
 ///-- @param denomOut *c_int
 ///-- @param tempoOut *f64
-pub const TimeMap_GetMeasureInfo = function(&reaper.TimeMap_GetMeasureInfo, 7, &.{ *ReaProject, c_int, *f64, *f64, *c_int, *c_int, *f64 });
+pub const TimeMap_GetMeasureInfo = function(&reaper.TimeMap_GetMeasureInfo, 7, &.{ ?ReaProject, c_int, *f64, *f64, *c_int, *c_int, *f64 });
 
 /// TimeMap_GetMetronomePattern
 /// Fills in a string representing the active metronome pattern. For example, in a 7/8 measure divided 3+4, the pattern might be "1221222". The length of the string is the time signature numerator, and the function returns the time signature denominator.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param time f64
 ///-- @param pattern *c_char
 ///-- @param sz c_int
-pub const TimeMap_GetMetronomePattern = function(&reaper.TimeMap_GetMetronomePattern, 4, &.{ *ReaProject, f64, *c_char, c_int });
+pub const TimeMap_GetMetronomePattern = function(&reaper.TimeMap_GetMetronomePattern, 4, &.{ ?ReaProject, f64, *c_char, c_int });
 
 /// TimeMap_GetTimeSigAtTime
 /// get the effective time signature and tempo
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param time f64
 ///-- @param numOut *c_int
 ///-- @param denomOut *c_int
 ///-- @param tempoOut *f64
-pub const TimeMap_GetTimeSigAtTime = function(&reaper.TimeMap_GetTimeSigAtTime, 5, &.{ *ReaProject, f64, *c_int, *c_int, *f64 });
+pub const TimeMap_GetTimeSigAtTime = function(&reaper.TimeMap_GetTimeSigAtTime, 5, &.{ ?ReaProject, f64, *c_int, *c_int, *f64 });
 
 /// TimeMap_QNToMeasures
 /// Find which measure the given QN position falls in.
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param qn f64
 ///-- @param qnMeasureStartOutOptional *f64
 ///-- @param qnMeasureEndOutOptional *f64
-pub const TimeMap_QNToMeasures = function(&reaper.TimeMap_QNToMeasures, 4, &.{ *ReaProject, f64, *f64, *f64 });
+pub const TimeMap_QNToMeasures = function(&reaper.TimeMap_QNToMeasures, 4, &.{ ?ReaProject, f64, ?*f64, ?*f64 });
 
 /// TimeMap_QNToTime
 /// converts project QN position to time.
@@ -5835,9 +5835,9 @@ pub const TimeMap_QNToTime = function(&reaper.TimeMap_QNToTime, 1, &.{f64});
 
 /// TimeMap_QNToTime_abs
 /// Converts project quarter note count (QN) to time. QN is counted from the start of the project, regardless of any partial measures. See TimeMap2_QNToTime
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param qn f64
-pub const TimeMap_QNToTime_abs = function(&reaper.TimeMap_QNToTime_abs, 2, &.{ *ReaProject, f64 });
+pub const TimeMap_QNToTime_abs = function(&reaper.TimeMap_QNToTime_abs, 2, &.{ ?ReaProject, f64 });
 
 /// TimeMap_timeToQN
 /// converts project QN position to time.
@@ -5846,9 +5846,9 @@ pub const TimeMap_timeToQN = function(&reaper.TimeMap_timeToQN, 1, &.{f64});
 
 /// TimeMap_timeToQN_abs
 /// Converts project time position to quarter note count (QN). QN is counted from the start of the project, regardless of any partial measures. See TimeMap2_timeToQN
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param tpos f64
-pub const TimeMap_timeToQN_abs = function(&reaper.TimeMap_timeToQN_abs, 2, &.{ *ReaProject, f64 });
+pub const TimeMap_timeToQN_abs = function(&reaper.TimeMap_timeToQN_abs, 2, &.{ ?ReaProject, f64 });
 
 /// ToggleTrackSendUIMute
 /// send_idx<0 for receives, >=0 for hw ouputs, >=nb_of_hw_ouputs for sends.
@@ -6378,28 +6378,28 @@ pub const Undo_BeginBlock = function(&reaper.Undo_BeginBlock, 0, &.{});
 
 /// Undo_BeginBlock2
 /// call to start a new block
-///-- @param proj *ReaProject
-pub const Undo_BeginBlock2 = function(&reaper.Undo_BeginBlock2, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const Undo_BeginBlock2 = function(&reaper.Undo_BeginBlock2, 1, &.{?ReaProject});
 
 /// Undo_CanRedo2
 /// returns string of next action,if able,NULL if not
-///-- @param proj *ReaProject
-pub const Undo_CanRedo2 = function(&reaper.Undo_CanRedo2, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const Undo_CanRedo2 = function(&reaper.Undo_CanRedo2, 1, &.{?ReaProject});
 
 /// Undo_CanUndo2
 /// returns string of last action,if able,NULL if not
-///-- @param proj *ReaProject
-pub const Undo_CanUndo2 = function(&reaper.Undo_CanUndo2, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const Undo_CanUndo2 = function(&reaper.Undo_CanUndo2, 1, &.{?ReaProject});
 
 /// Undo_DoRedo2
 /// nonzero if success
-///-- @param proj *ReaProject
-pub const Undo_DoRedo2 = function(&reaper.Undo_DoRedo2, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const Undo_DoRedo2 = function(&reaper.Undo_DoRedo2, 1, &.{?ReaProject});
 
 /// Undo_DoUndo2
 /// nonzero if success
-///-- @param proj *ReaProject
-pub const Undo_DoUndo2 = function(&reaper.Undo_DoUndo2, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const Undo_DoUndo2 = function(&reaper.Undo_DoUndo2, 1, &.{?ReaProject});
 
 /// Undo_EndBlock
 /// call to end the block,with extra flags if any,and a description
@@ -6409,10 +6409,10 @@ pub const Undo_EndBlock = function(&reaper.Undo_EndBlock, 2, &.{ [*:0]const u8, 
 
 /// Undo_EndBlock2
 /// call to end the block,with extra flags if any,and a description
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param descchange [*:0]const u8
 ///-- @param extraflags c_int
-pub const Undo_EndBlock2 = function(&reaper.Undo_EndBlock2, 3, &.{ *ReaProject, [*:0]const u8, c_int });
+pub const Undo_EndBlock2 = function(&reaper.Undo_EndBlock2, 3, &.{ ?ReaProject, [*:0]const u8, c_int });
 
 /// Undo_OnStateChange
 /// limited state change to items
@@ -6421,15 +6421,15 @@ pub const Undo_OnStateChange = function(&reaper.Undo_OnStateChange, 1, &.{[*:0]c
 
 /// Undo_OnStateChange2
 /// limited state change to items
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param descchange [*:0]const u8
-pub const Undo_OnStateChange2 = function(&reaper.Undo_OnStateChange2, 2, &.{ *ReaProject, [*:0]const u8 });
+pub const Undo_OnStateChange2 = function(&reaper.Undo_OnStateChange2, 2, &.{ ?ReaProject, [*:0]const u8 });
 
 /// Undo_OnStateChange_Item
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param name [*:0]const u8
 ///-- @param item *MediaItem
-pub const Undo_OnStateChange_Item = function(&reaper.Undo_OnStateChange_Item, 3, &.{ *ReaProject, [*:0]const u8, *MediaItem });
+pub const Undo_OnStateChange_Item = function(&reaper.Undo_OnStateChange_Item, 3, &.{ ?ReaProject, [*:0]const u8, *MediaItem });
 
 /// Undo_OnStateChangeEx
 /// trackparm=-1 by default,or if updating one fx chain,you can specify track index
@@ -6440,11 +6440,11 @@ pub const Undo_OnStateChangeEx = function(&reaper.Undo_OnStateChangeEx, 3, &.{ [
 
 /// Undo_OnStateChangeEx2
 /// trackparm=-1 by default,or if updating one fx chain,you can specify track index
-///-- @param proj *ReaProject
+///-- @param proj ?ReaProject
 ///-- @param descchange [*:0]const u8
 ///-- @param whichStates c_int
 ///-- @param trackparm c_int
-pub const Undo_OnStateChangeEx2 = function(&reaper.Undo_OnStateChangeEx2, 4, &.{ *ReaProject, [*:0]const u8, c_int, c_int });
+pub const Undo_OnStateChangeEx2 = function(&reaper.Undo_OnStateChangeEx2, 4, &.{ ?ReaProject, [*:0]const u8, c_int, c_int });
 
 /// update_disk_counters
 /// Updates disk I/O statistics with bytes transferred since last call. notify REAPER of a write error by calling with readamt=0, writeamt=-101010110 for unknown or -101010111 for disk full
@@ -6462,8 +6462,8 @@ pub const UpdateItemInProject = function(&reaper.UpdateItemInProject, 1, &.{*Med
 
 /// UpdateItemLanes
 /// Recalculate lane arrangement for fixed lane tracks, including auto-removing empty lanes at the bottom of the track
-///-- @param proj *ReaProject
-pub const UpdateItemLanes = function(&reaper.UpdateItemLanes, 1, &.{*ReaProject});
+///-- @param proj ?ReaProject
+pub const UpdateItemLanes = function(&reaper.UpdateItemLanes, 1, &.{?ReaProject});
 
 /// UpdateTimeline
 /// Redraw the arrange view and ruler
@@ -6476,11 +6476,11 @@ pub const UpdateTimeline = function(&reaper.UpdateTimeline, 0, &.{});
 pub const ValidatePtr = function(&reaper.ValidatePtr, 2, &.{ *void, [*:0]const u8 });
 
 /// ValidatePtr2
-/// Return true if the pointer is a valid object of the right type in proj (proj is ignored if pointer is itself a project). Supported types are: *ReaProject, *MediaTrack, *MediaItem, *MediaItem_Take, *TrackEnvelope and *PCM_source.
-///-- @param proj *ReaProject
+/// Return true if the pointer is a valid object of the right type in proj (proj is ignored if pointer is itself a project). Supported types are: ?ReaProject, *MediaTrack, *MediaItem, *MediaItem_Take, *TrackEnvelope and *PCM_source.
+///-- @param proj ?ReaProject
 ///-- @param pointer *void
 ///-- @param ctypename [*:0]const u8
-pub const ValidatePtr2 = function(&reaper.ValidatePtr2, 3, &.{ *ReaProject, *void, [*:0]const u8 });
+pub const ValidatePtr2 = function(&reaper.ValidatePtr2, 3, &.{ ?ReaProject, *anyopaque, [*:0]const u8 });
 
 /// ViewPrefs
 /// Opens the prefs to a page, use pageByName if page is 0.

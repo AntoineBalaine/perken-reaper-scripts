@@ -4,6 +4,7 @@
 const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
+const timemap = @import("timemap.zig");
 const helpers = @import("reaper_helpers");
 
 // ---- ABI shims (reaziglib types these returns as non-optional) ---------------
@@ -23,10 +24,10 @@ fn splitMediaItem(item: *Reaper.MediaItem, position: f64) ?*Reaper.MediaItem {
 // ---- 2 ms fades on selected items in selected tracks --------------------------
 
 fn set2msFades(_: *actions.RunCtx) void {
-    const n_tracks = Reaper.CountSelectedTracks(0);
+    const n_tracks = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n_tracks) : (i += 1) {
-        const track = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         const tp = helpers.trackPtr(track) orelse continue;
         const n_items = Reaper.GetTrackNumMediaItems(tp);
         var j: c_int = 0;
@@ -49,7 +50,7 @@ fn editItemFromMouse(kind: EditKind, edge: Edge) void {
     helpers.runNamedCommand("_XENAKIOS_DOSTORECURPOS"); // store edit cursor pos
     Reaper.Main_OnCommand(40514, 0); // move edit cursor to mouse cursor
     if (Reaper.GetToggleCommandStateEx(0, 1157) == 1) { // snap enabled?
-        const snapped = Reaper.SnapToGrid(0, Reaper.GetCursorPosition());
+        const snapped = Reaper.SnapToGrid(null, Reaper.GetCursorPosition());
         Reaper.MoveEditCursor(snapped - Reaper.GetCursorPosition(), false);
     }
     Reaper.Main_OnCommand(40528, 0); // select item under mouse cursor
@@ -91,12 +92,12 @@ fn splitItemsAtNoteStart(_: *actions.RunCtx) void {
     const editor = helpers.midiEditorActive() orelse return;
     _ = Reaper.MIDIEditor_OnCommand(editor, 40006); // Edit: Select all events
 
-    const n_sel = helpers.countSelectedMediaItems();
+    const n_sel = Reaper.CountSelectedMediaItems(null);
     if (n_sel == 0) return; // Lua bailed here too, leaving the editor open
 
     var i: c_int = n_sel - 1;
     while (i >= 0) : (i -= 1) {
-        const sel_item = helpers.getSelectedMediaItem(i) orelse continue;
+        const sel_item = Reaper.GetSelectedMediaItem(null, i) orelse continue;
         const take = getActiveTake(sel_item) orelse continue;
         if (!Reaper.TakeIsMIDI(take)) continue;
 
@@ -142,11 +143,11 @@ fn splitItemsAtNoteStart(_: *actions.RunCtx) void {
 // ---- time-stretch selected items to the edit cursor -----------------------------
 
 fn stretchItem(edge: Edge) void {
-    const n = helpers.countSelectedMediaItems();
+    const n = Reaper.CountSelectedMediaItems(null);
     const cur = Reaper.GetCursorPosition();
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const item = helpers.getSelectedMediaItem(i) orelse continue;
+        const item = Reaper.GetSelectedMediaItem(null, i) orelse continue;
         const pos = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
         const must_stretch = switch (edge) {
             .left => cur < pos,
@@ -184,11 +185,6 @@ fn stretchItemEndToCursor(_: *actions.RunCtx) void {
 
 // ---- conform items recorded at another tempo to the session tempo ----------------
 
-fn dividedBpmAtTime(time: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_GetDividedBpmAtTime);
-    return f(null, time);
-}
-
 const ConformCtx = struct {
     /// Start of the earliest selected item; the stretch scales around it.
     anchor: f64,
@@ -224,7 +220,7 @@ fn conformItem(ctx: *const ConformCtx, item: *Reaper.MediaItem) void {
 /// proportional.
 fn conformItemsToSessionTempo(_: *actions.RunCtx) void {
     const title = "Perken: conform items to session tempo";
-    const n = helpers.countSelectedMediaItems();
+    const n = Reaper.CountSelectedMediaItems(null);
     if (n == 0) {
         _ = Reaper.ShowMessageBox("Because no item is selected, there is nothing to conform.", title, 0);
         return;
@@ -241,14 +237,14 @@ fn conformItemsToSessionTempo(_: *actions.RunCtx) void {
     var anchor = std.math.inf(f64);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const item = helpers.getSelectedMediaItem(i) orelse continue;
+        const item = Reaper.GetSelectedMediaItem(null, i) orelse continue;
         anchor = @min(anchor, Reaper.GetMediaItemInfo_Value(item, "D_POSITION"));
     }
 
-    const ctx = ConformCtx{ .anchor = anchor, .factor = dividedBpmAtTime(anchor) / original };
+    const ctx = ConformCtx{ .anchor = anchor, .factor = timemap.dividedBpmAtTime(anchor) / original };
     i = 0;
     while (i < n) : (i += 1) {
-        const item = helpers.getSelectedMediaItem(i) orelse continue;
+        const item = Reaper.GetSelectedMediaItem(null, i) orelse continue;
         conformItem(&ctx, item);
     }
 }

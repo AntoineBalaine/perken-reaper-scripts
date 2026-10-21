@@ -41,7 +41,7 @@ fn setTimeSelectionToSelectedEnvelopePoints(_: *actions.RunCtx) void {
     const ts = helpers.getTimeSelection();
     if (ts.start != 0 and ts.end_ != 0) return;
 
-    const env = helpers.getSelectedEnvelope() orelse return;
+    const env = Reaper.GetSelectedEnvelope(null) orelse return;
     const count = Reaper.CountEnvelopePoints(env);
     var first: ?f64 = null;
     var last: f64 = 0;
@@ -64,7 +64,7 @@ fn selectPointsCrossingTimeSelection(_: *actions.RunCtx) void {
     const ts = helpers.getTimeSelection();
     if (ts.start == 0 and ts.end_ == 0) return;
 
-    const env = helpers.getSelectedEnvelope() orelse return;
+    const env = Reaper.GetSelectedEnvelope(null) orelse return;
     const count = Reaper.CountEnvelopePoints(env);
     var i: c_int = 0;
     while (i < count) : (i += 1) {
@@ -93,7 +93,7 @@ fn pegValue(peg: Peg, value: f64, range: helpers.EnvelopeRange) f64 {
 }
 
 fn pegPoint(peg: Peg) void {
-    const env = helpers.getSelectedEnvelope() orelse return;
+    const env = Reaper.GetSelectedEnvelope(null) orelse return;
     // The Lua error()'d on unknown envelope types (even for up/down); we
     // just bail (envelopeRange already logged a warning).
     const range = helpers.envelopeRange(env) orelse return;
@@ -136,7 +136,7 @@ fn insertToggleAtTimeSelection(_: *actions.RunCtx) void {
     const ts = helpers.getTimeSelection();
     if (ts.start == ts.end_) return;
 
-    const env = helpers.getSelectedEnvelope() orelse return;
+    const env = Reaper.GetSelectedEnvelope(null) orelse return;
     const range = helpers.envelopeRange(env);
     const min: f64 = if (range) |r| r.min else 0; // Lua: minValue or 0
     const max: f64 = if (range) |r| r.max else 100; // Lua: maxValue or 100
@@ -148,7 +148,7 @@ fn insertToggleAtTimeSelection(_: *actions.RunCtx) void {
 // ---- delete points -------------------------------------------------------------------
 
 fn deletePoints(_: *actions.RunCtx) void {
-    const env = helpers.getSelectedEnvelope() orelse return;
+    const env = Reaper.GetSelectedEnvelope(null) orelse return;
     const ts = helpers.getTimeSelection();
     const has_time_selection = ts.start != ts.end_;
     const count = Reaper.CountEnvelopePoints(env);

@@ -25,6 +25,7 @@ const auto_lane_watcher = @import("auto_lane_watcher.zig");
 const surface = @import("surface.zig");
 const tempo_window = @import("beat/tempo_window.zig");
 const abc_export = @import("abc_export.zig");
+const rhythm_action = @import("rhythm_action.zig");
 const terminal = @import("terminal.zig");
 
 pub const std_options = std.Options{
@@ -89,7 +90,8 @@ const reaper_api = [_][:0]const u8{
 pub const all_entries = drums.entries ++ kawa.entries ++ routing.entries ++ fx.entries ++
     items.entries ++ tracks.entries ++ envelope.entries ++ keysnap.entries ++ batch_rename.entries ++
     auto_lane_watcher.entries ++ tempo_window.entries ++ action_search.entries ++
-    action_palette.entries ++ abc_export.entries ++ terminal.entries;
+    action_palette.entries ++ abc_export.entries ++ terminal.entries ++
+    rhythm_action.entries;
 
 const main_section: c_int = 0;
 const midi_editor_section: c_int = 32060;
@@ -194,6 +196,13 @@ test {
     _ = @import("fuzzy.zig");
     _ = @import("abc_export.zig");
     _ = @import("terminal.zig");
+    _ = @import("rational.zig");
+    _ = @import("meter.zig");
+    _ = @import("rhythm_simplify.zig");
+    _ = @import("hegel.zig");
+    _ = @import("timemap.zig");
+    _ = @import("rhythm_action.zig");
+    _ = @import("rhythm_simplify_pbt.zig");
 }
 
 test "every action gets a unique command id string" {

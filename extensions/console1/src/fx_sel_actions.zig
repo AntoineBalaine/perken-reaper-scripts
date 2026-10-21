@@ -19,7 +19,7 @@ pub const FxSelActions = @import("action_types.zig").FxSelActions;
 pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
     switch (sel_action) {
         .fx_chain => |fx| {
-            const track = reaper.GetSelectedTrack(@as(c_int, 0), @as(c_int, 0));
+            const track = reaper.GetSelectedTrack(null, @as(c_int, 0));
             if (track) |tr| {
                 _ = reaper.TrackFX_AddByName(
                     tr,

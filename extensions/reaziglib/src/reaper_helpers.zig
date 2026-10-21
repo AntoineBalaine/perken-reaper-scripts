@@ -12,40 +12,19 @@ const log = std.log.scoped(.engine);
 /// Allocator for the short-lived per-action scratch lists.
 pub const allocator = std.heap.c_allocator;
 
-// ---- pointer-shape shims over the reaziglib bindings -----------------------
-// reaziglib binds some ReaProject* parameters as non-optional *c_int, but
-// REAPER expects NULL for "the current project". Re-typing the loaded function
-// pointer with an optional project argument keeps the ABI identical (one
-// pointer either way) while letting us pass null.
-
-pub fn getProjectLength() f64 {
-    const f: *const fn (proj: ?*Reaper.ReaProject) callconv(.C) f64 = @ptrCast(Reaper.GetProjectLength);
-    return f(null);
-}
-
-pub fn countSelectedMediaItems() c_int {
-    const f: *const fn (proj: ?*Reaper.ReaProject) callconv(.C) c_int = @ptrCast(Reaper.CountSelectedMediaItems);
-    return f(null);
-}
-
-pub fn getSelectedMediaItem(i: c_int) ?*Reaper.MediaItem {
-    const f: *const fn (proj: ?*Reaper.ReaProject, selitem: c_int) callconv(.C) ?*Reaper.MediaItem = @ptrCast(Reaper.GetSelectedMediaItem);
-    return f(null, i);
-}
+// ---- project-level helpers ----------------------------------------------------
 
 pub const MarkerRegion = struct { marker: c_int, region: c_int };
 
 pub fn getLastMarkerAndCurRegion(time: f64) MarkerRegion {
-    const f: *const fn (proj: ?*Reaper.ReaProject, time: f64, markeridxOut: ?*c_int, regionidxOut: ?*c_int) callconv(.C) void = @ptrCast(Reaper.GetLastMarkerAndCurRegion);
     var marker: c_int = -1;
     var region: c_int = -1;
-    f(null, time, &marker, &region);
+    Reaper.GetLastMarkerAndCurRegion(null, time, &marker, &region);
     return .{ .marker = marker, .region = region };
 }
 
 pub fn timeMap2BeatsToTime(tpos: f64, measures: c_int) f64 {
-    const f: *const fn (proj: ?*Reaper.ReaProject, tpos: f64, measuresIn: ?*const c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_beatsToTime);
-    return f(null, tpos, &measures);
+    return Reaper.TimeMap2_beatsToTime(null, tpos, &measures);
 }
 
 /// MIDIEditor_GetActive returns NULL when no editor is open; the binding's
@@ -152,16 +131,16 @@ fn leftLessThan(_: void, a: ItemPosition, b: ItemPosition) bool {
 /// utils.lua's k-way mergeItemPositionsLists over per-track lists (per-track
 /// item order is positional, so sorting the concatenation is equivalent).
 /// FIXED vs lua: the selected-track loop in getItemPositionsOnSelectedTracks
-/// ran 0..count writing GetSelectedTrack(0, i-1) — off by one that only
+/// ran 0..count writing GetSelectedTrack(null, i-1) — off by one that only
 /// worked through Lua's 1-based `#`; indexed cleanly here.
 pub fn getItemPositionsOnSelectedTracks(alloc: std.mem.Allocator) ![]ItemPosition {
     var list = std.ArrayList(ItemPosition).init(alloc);
     errdefer list.deinit();
 
-    const n_tracks = Reaper.CountSelectedTracks(0);
+    const n_tracks = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n_tracks) : (i += 1) {
-        const track = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         const tp = trackPtr(track) orelse continue;
         const n_items = Reaper.GetTrackNumMediaItems(tp);
         var j: c_int = 0;
@@ -288,13 +267,6 @@ pub fn popCursorPosition() ?f64 {
 
 // ---- envelopes ----------------------------------------------------------------
 
-/// GetSelectedEnvelope returns NULL when no envelope is selected and takes
-/// NULL for "current project"; the binding types both as non-optional.
-pub fn getSelectedEnvelope() ?*Reaper.TrackEnvelope {
-    const f: *const fn (proj: ?*Reaper.ReaProject) callconv(.C) ?*Reaper.TrackEnvelope = @ptrCast(Reaper.GetSelectedEnvelope);
-    return f(null);
-}
-
 /// Native replacement for SWS SNM_GetIntConfigVar: read an int-sized config
 /// variable via the raw get_config_var API (which Lua cannot dereference —
 /// the only reason the original needed SWS).
@@ -403,23 +375,11 @@ pub const Note = struct {
 
 /// Snapshot every note of a take — midi.listNotes plus the per-action
 /// MIDI_GetNote loops of midi.lua (and later kawa.lua/pasteRhythm.lua),
-/// ported once.
+/// ported once. Callers that need to write notes back want
+/// `collectPpqNotes` instead, because it carries each note's REAPER index,
+/// which this drops.
 pub fn collectNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) ![]Note {
-    var n_notes: c_int = 0;
-    var n_cc: c_int = 0;
-    var n_sysex: c_int = 0;
-    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
-
-    var list = std.ArrayList(Note).init(alloc);
-    errdefer list.deinit();
-    var i: c_int = 0;
-    while (i < n_notes) : (i += 1) {
-        var n: Note = undefined;
-        if (!Reaper.MIDI_GetNote(take, i, &n.selected, &n.muted, &n.start_ppq, &n.end_ppq, &n.chan, &n.pitch, &n.vel))
-            continue;
-        try list.append(n);
-    }
-    return list.toOwnedSlice();
+    return (try collectAs(Note, alloc, take)).notes;
 }
 
 /// GetActiveTake returns NULL for items without takes; the binding's return
@@ -443,6 +403,104 @@ pub const QnNote = struct {
     pitch: c_int,
     vel: c_int,
 };
+
+/// Note in take-PPQ domain carrying its REAPER note index — what an action
+/// that writes PPQ positions straight back needs.
+pub const PpqNote = struct {
+    idx: c_int,
+    selected: bool,
+    muted: bool,
+    start: f64,
+    end: f64,
+    chan: c_int,
+    pitch: c_int,
+    vel: c_int,
+};
+
+/// A snapshot plus whether anything in the take was selected, which is what
+/// decides whether an action works on the selection or on everything.
+pub fn Collected(comptime T: type) type {
+    return struct { notes: []T, any_selected: bool };
+}
+
+/// Keeps only the selected notes when any were selected, compacting in
+/// place; returns everything otherwise. Separate from the collectors
+/// because some callers need both views — Legato ends each target at the
+/// next *unselected* note, so it filters a copy and still reads the rest.
+pub fn keepSelected(comptime T: type, notes: []T, any_selected: bool) []T {
+    if (!any_selected) return notes;
+    var w: usize = 0;
+    for (notes) |n| {
+        if (n.selected) {
+            notes[w] = n;
+            w += 1;
+        }
+    }
+    return notes[0..w];
+}
+
+/// Snapshot a take's notes in take-PPQ domain, with their REAPER indices,
+/// in index order.
+pub fn collectPpqNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) !Collected(PpqNote) {
+    return collectAs(PpqNote, alloc, take);
+}
+
+/// Snapshot a take's notes in project-QN domain, with their REAPER indices,
+/// sorted into chord order.
+pub fn collectQnNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) !Collected(QnNote) {
+    return collectAs(QnNote, alloc, take);
+}
+
+/// Builds one note of type `T` from the values MIDI_GetNote returned. Because
+/// the three note types differ only in their index field and in how they name
+/// and measure their positions, we decide each of those at compile time from
+/// the fields `T` declares, so a single read loop can serve all of them.
+pub fn noteAs(comptime T: type, take: *Reaper.MediaItem_Take, idx: c_int, raw: PpqNote) T {
+    var out: T = undefined;
+    out.selected = raw.selected;
+    out.muted = raw.muted;
+    out.chan = raw.chan;
+    out.pitch = raw.pitch;
+    out.vel = raw.vel;
+    if (@hasField(T, "idx")) out.idx = idx;
+    if (@hasField(T, "start_qn")) {
+        out.start_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, raw.start);
+        out.end_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, raw.end);
+    } else if (@hasField(T, "start_ppq")) {
+        out.start_ppq = raw.start;
+        out.end_ppq = raw.end;
+    } else {
+        out.start = raw.start;
+        out.end = raw.end;
+    }
+    return out;
+}
+
+/// The one MIDI_GetNote read loop. Because each note is converted to `T` as it
+/// is read, no intermediate slice is needed. `T` must be `Note`, `PpqNote` or
+/// `QnNote`; the last one is also sorted into chord order, since its callers
+/// group the notes into chords.
+pub fn collectAs(comptime T: type, alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) !Collected(T) {
+    var n_notes: c_int = 0;
+    var n_cc: c_int = 0;
+    var n_sysex: c_int = 0;
+    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
+
+    var list = std.ArrayList(T).init(alloc);
+    errdefer list.deinit();
+    var any_selected = false;
+    var i: c_int = 0;
+    while (i < n_notes) : (i += 1) {
+        var raw = PpqNote{ .idx = i, .selected = false, .muted = false, .start = 0, .end = 0, .chan = 0, .pitch = 0, .vel = 0 };
+        if (!Reaper.MIDI_GetNote(take, i, &raw.selected, &raw.muted, &raw.start, &raw.end, &raw.chan, &raw.pitch, &raw.vel))
+            continue;
+        if (raw.selected) any_selected = true;
+        try list.append(noteAs(T, take, i, raw));
+    }
+    const notes = try list.toOwnedSlice();
+    if (T == QnNote) sortChordOrder(notes);
+    return .{ .notes = notes, .any_selected = any_selected };
+}
 
 fn chordLessThan(_: void, a: QnNote, b: QnNote) bool {
     if (a.start_qn == b.start_qn) return a.pitch > b.pitch;

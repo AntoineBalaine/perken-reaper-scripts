@@ -72,9 +72,21 @@ jobs:
             echo "version=dev" >> "$GITHUB_OUTPUT"
           fi
 
+      # The property-based tests link a pinned libhegel release, a static
+      # archive of tens of megabytes that the build downloads when it is
+      # missing. Caching that one directory keeps it off the wire on every
+      # run; the key follows build.zig, which is where the release tag is
+      # pinned, so bumping the tag misses the cache exactly once.
+      - name: Cache libhegel
+        if: ${{ !matrix.cross }}
+        uses: actions/cache@v4
+        with:
+          path: extensions/perken-utilities/.hegel-cache
+          key: hegel-${{ matrix.name }}-${{ hashFiles('extensions/perken-utilities/build.zig') }}
+
       - name: Test
         if: ${{ !matrix.cross }}
-        run: zig build test
+        run: zig build test -Dhegel-lib-dir=.hegel-cache
 
       - name: Build
         run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }}

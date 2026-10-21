@@ -18,6 +18,7 @@ const config = @import("config.zig");
 const commit = @import("beat/commit.zig");
 const batch_rename = @import("batch_rename.zig");
 const helpers = @import("reaper_helpers");
+const timemap = @import("timemap.zig");
 
 const log = std.log.scoped(.abc_export);
 
@@ -44,13 +45,23 @@ pub const Event = struct {
     }
 };
 
+/// A time signature taking effect at a tick. A meta event is written for
+/// each, so an item whose meter changes partway exports with the change
+/// rather than with its first signature applied throughout.
+pub const SigChange = struct {
+    tick: u32,
+    numerator: u8,
+    denominator: u8,
+};
+
 pub const Timing = struct {
     /// Ticks per quarter note, as the take reports them.
     ticks_per_qn: u16,
     /// Quarter notes per minute at the start of the item.
     bpm: f64,
-    numerator: u8,
-    denominator: u8,
+    /// Signatures in tick order, the first at tick 0. One entry is the
+    /// common case; more describe an item with meter changes in it.
+    sigs: []const SigChange,
 };
 
 /// Because a MIDI file stores delays as variable-length quantities, the value
@@ -72,8 +83,9 @@ pub fn writeVlq(w: anytype, value: u32) !void {
     }
 }
 
-/// Writes a format 0 standard MIDI file holding one track: the tempo, the
-/// time signature, then the sorted events. The caller sorts `events` first.
+/// Writes a format 0 standard MIDI file holding one track: the tempo, then
+/// the time signatures and note events interleaved in tick order. The
+/// caller sorts `events` first.
 pub fn writeSmf(w: anytype, alloc: std.mem.Allocator, timing: Timing, events: []const Event) !void {
     var track = std.ArrayList(u8).init(alloc);
     defer track.deinit();
@@ -83,16 +95,35 @@ pub fn writeSmf(w: anytype, alloc: std.mem.Allocator, timing: Timing, events: []
     try t.writeAll(&.{ 0x00, 0xFF, 0x51, 0x03 });
     try t.writeInt(u24, micros_per_qn, .big);
 
-    const denominator_power: u8 = @intCast(std.math.log2_int(u8, timing.denominator));
-    try t.writeAll(&.{ 0x00, 0xFF, 0x58, 0x04, timing.numerator, denominator_power, 24, 8 });
-
     var previous_tick: u32 = 0;
+    var next_sig: usize = 0;
+
+    // A signature meta event goes in before any note at its tick, so the
+    // notes of a bar are read under the signature that bar is in.
     for (events) |e| {
+        while (next_sig < timing.sigs.len and timing.sigs[next_sig].tick <= e.tick) {
+            const sig = timing.sigs[next_sig];
+            next_sig += 1;
+            try writeVlq(t, sig.tick - previous_tick);
+            previous_tick = sig.tick;
+            const denominator_power: u8 = @intCast(std.math.log2_int(u8, sig.denominator));
+            try t.writeAll(&.{ 0xFF, 0x58, 0x04, sig.numerator, denominator_power, 24, 8 });
+        }
         try writeVlq(t, e.tick - previous_tick);
         previous_tick = e.tick;
         try t.writeByte((if (e.is_on) @as(u8, 0x90) else 0x80) | (e.channel & 0x0F));
         try t.writeByte(e.pitch);
         try t.writeByte(if (e.is_on) e.velocity else 0);
+    }
+    // Any signature after the last note still belongs in the file: it says
+    // what meter the trailing bars are in.
+    while (next_sig < timing.sigs.len) {
+        const sig = timing.sigs[next_sig];
+        next_sig += 1;
+        try writeVlq(t, sig.tick - previous_tick);
+        previous_tick = sig.tick;
+        const denominator_power: u8 = @intCast(std.math.log2_int(u8, sig.denominator));
+        try t.writeAll(&.{ 0xFF, 0x58, 0x04, sig.numerator, denominator_power, 24, 8 });
     }
     try t.writeAll(&.{ 0x00, 0xFF, 0x2F, 0x00 });
 
@@ -368,15 +399,6 @@ pub fn showError(message: []const u8) void {
     _ = Reaper.ShowMessageBox(text, dialog_title, 0);
 }
 
-fn timeSigAt(t: f64) struct { num: c_int, denom: c_int } {
-    const f: *const fn (proj: ?*anyopaque, time: f64, num: *c_int, denom: *c_int, tempo: *f64) callconv(.C) void = @ptrCast(Reaper.TimeMap_GetTimeSigAtTime);
-    var num: c_int = 4;
-    var denom: c_int = 4;
-    var tempo: f64 = 120;
-    f(null, t, &num, &denom, &tempo);
-    return .{ .num = num, .denom = denom };
-}
-
 pub fn tempPath(buf: []u8, name: []const u8) ?[]const u8 {
     const dir = std.posix.getenv("TMPDIR") orelse "/tmp";
     const trimmed = std.mem.trimRight(u8, dir, "/");
@@ -395,10 +417,10 @@ pub fn conversionFileName(buf: []u8, millis: i64) ?[]const u8 {
 /// follow the order of the recordings.
 pub fn selectedMidiItems(buf: []*Reaper.MediaItem) []*Reaper.MediaItem {
     var n: usize = 0;
-    const count = helpers.countSelectedMediaItems();
+    const count = Reaper.CountSelectedMediaItems(null);
     var i: c_int = 0;
     while (i < count and n < buf.len) : (i += 1) {
-        const item = helpers.getSelectedMediaItem(i) orelse continue;
+        const item = Reaper.GetSelectedMediaItem(null, i) orelse continue;
         const take = helpers.getActiveTake(item) orelse continue;
         if (!Reaper.TakeIsMIDI(take)) continue;
         buf[n] = item;
@@ -416,6 +438,10 @@ pub fn itemStartsEarlier(_: void, a: *Reaper.MediaItem, b: *Reaper.MediaItem) bo
 /// sixteenth note and the sixteenth-note triplet. Because the two grids share
 /// the eighth-note triplet and every eighth note, straight and triplet
 /// rhythms both survive the snap.
+///
+/// rhythm_action snaps to a different grid (96ths of a whole note, exact
+/// rationals, no tuplets) because its tiling needs exact arithmetic. The
+/// difference is known and accepted — see the note on `snap_den` there.
 pub const straight_step_qn: f64 = 0.25;
 pub const triplet_step_qn: f64 = 1.0 / 6.0;
 
@@ -452,35 +478,82 @@ pub fn quantizeNotes(take: *Reaper.MediaItem_Take, notes: []helpers.Note) void {
     }
 }
 
+/// Converts a QN position to a tick relative to `base_ppq`, the same base
+/// `collectEvents` counts note ticks from.
+fn tickAtQn(take: *Reaper.MediaItem_Take, base_ppq: f64, qn: f64) u32 {
+    const ppq = Reaper.MIDI_GetPPQPosFromProjQN(take, qn);
+    if (ppq <= base_ppq) return 0;
+    return @intFromFloat(@round(ppq - base_ppq));
+}
+
+/// The signatures the item spans, as ticks into the exported file: one at
+/// tick 0 for the meter the item opens in, plus one wherever the meter
+/// changes before the item ends.
+///
+/// Reading a single signature at the item start — which is what this did
+/// before — silently exported every later bar of the item in the wrong
+/// meter whenever the project changed meter partway through.
+pub fn itemSignatures(
+    alloc: std.mem.Allocator,
+    take: *Reaper.MediaItem_Take,
+    src: timemap.BarSource,
+    from_qn: f64,
+    to_qn: f64,
+    base_ppq: f64,
+) ![]SigChange {
+    var out = std.ArrayList(SigChange).init(alloc);
+    errdefer out.deinit();
+
+    var it = timemap.walkBars(src, from_qn, to_qn);
+    var previous: ?timemap.Signature = null;
+    while (it.next()) |bar| {
+        if (previous) |p| {
+            if (p.num == bar.sig.num and p.denom == bar.sig.denom) continue;
+        }
+        previous = bar.sig;
+        try out.append(.{
+            // The opening signature belongs at tick 0 even when the item
+            // starts mid-bar, so the file never begins without one.
+            .tick = if (out.items.len == 0) 0 else tickAtQn(take, base_ppq, bar.start_qn),
+            .numerator = @intCast(std.math.clamp(bar.sig.num, 1, 255)),
+            .denominator = @intCast(std.math.clamp(bar.sig.denom, 1, 128)),
+        });
+    }
+    if (out.items.len == 0) try out.append(.{ .tick = 0, .numerator = 4, .denominator = 4 });
+    return out.toOwnedSlice();
+}
+
 /// Writes the item's notes to `path` as a standard MIDI file. Returns false
 /// when the item holds no audible note, so there is nothing to convert.
 pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []const u8, quantize: bool) !bool {
     const take = helpers.getActiveTake(item) orelse return false;
     const item_start = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
     const item_end = item_start + Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
-    const qn_start = commit.timeToQn(item_start);
+    const qn_start = timemap.timeToQn(item_start);
     const ppq_start = Reaper.MIDI_GetPPQPosFromProjQN(take, qn_start);
-    const ppq_end = Reaper.MIDI_GetPPQPosFromProjQN(take, commit.timeToQn(item_end));
+    const ppq_end = Reaper.MIDI_GetPPQPosFromProjQN(take, timemap.timeToQn(item_end));
     const ticks_per_qn = Reaper.MIDI_GetPPQPosFromProjQN(take, qn_start + 1) - ppq_start;
-    const sig = timeSigAt(item_start);
 
     const notes = try helpers.collectNotes(alloc, take);
     defer alloc.free(notes);
     if (quantize) quantizeNotes(take, notes);
     // Because the item can start in the middle of a bar, the ticks count from
     // the bar line before it, which keeps every note at its place in the bar.
-    const bar_start_ppq = Reaper.MIDI_GetPPQPos_StartOfMeasure(take, ppq_start + 0.5);
+    const bar_start_ppq = timemap.barStartPpq(take, ppq_start + 0.5);
     var events = try collectEvents(alloc, notes, ppq_start, ppq_end, @min(bar_start_ppq, ppq_start));
     defer events.deinit();
     if (events.items.len == 0) return false;
+
+    const base_ppq = @min(bar_start_ppq, ppq_start);
+    const sigs = try itemSignatures(alloc, take, timemap.reaperBarSource(), qn_start, timemap.timeToQn(item_end), base_ppq);
+    defer alloc.free(sigs);
 
     var bytes = std.ArrayList(u8).init(alloc);
     defer bytes.deinit();
     try writeSmf(bytes.writer(), alloc, .{
         .ticks_per_qn = @intFromFloat(@round(ticks_per_qn)),
         .bpm = commit.tempoAt(item_start),
-        .numerator = @intCast(std.math.clamp(sig.num, 1, 255)),
-        .denominator = @intCast(std.math.clamp(sig.denom, 1, 128)),
+        .sigs = sigs,
     }, events.items);
     try std.fs.cwd().writeFile(.{ .sub_path = path, .data = bytes.items });
     return true;
@@ -690,7 +763,11 @@ test "an item produces a one-track file with ordered events" {
 
     var out = std.ArrayList(u8).init(alloc);
     defer out.deinit();
-    try writeSmf(out.writer(), alloc, .{ .ticks_per_qn = 960, .bpm = 120, .numerator = 4, .denominator = 4 }, events.items);
+    try writeSmf(out.writer(), alloc, .{
+        .ticks_per_qn = 960,
+        .bpm = 120,
+        .sigs = &.{.{ .tick = 0, .numerator = 4, .denominator = 4 }},
+    }, events.items);
     try std.testing.expectEqualSlices(u8, "MThd", out.items[0..4]);
     try std.testing.expectEqual(@as(u16, 960), std.mem.readInt(u16, out.items[12..14], .big));
     try std.testing.expectEqualSlices(u8, "MTrk", out.items[14..18]);
@@ -795,4 +872,56 @@ test "each conversion gets its own file name" {
     const second = conversionFileName(&b, 1760000000001).?;
     try std.testing.expectEqualStrings("items_1760000000000.abc", first);
     try std.testing.expect(!std.mem.eql(u8, first, second));
+}
+
+test "a meter change inside the item is written as a second signature event" {
+    const alloc = std.testing.allocator;
+    // Two notes, one in each bar.
+    const events = [_]Event{
+        .{ .tick = 0, .is_on = true, .channel = 0, .pitch = 60, .velocity = 96 },
+        .{ .tick = 480, .is_on = false, .channel = 0, .pitch = 60, .velocity = 0 },
+        .{ .tick = 3840, .is_on = true, .channel = 0, .pitch = 62, .velocity = 96 },
+        .{ .tick = 4320, .is_on = false, .channel = 0, .pitch = 62, .velocity = 0 },
+    };
+    var out = std.ArrayList(u8).init(alloc);
+    defer out.deinit();
+    try writeSmf(out.writer(), alloc, .{
+        .ticks_per_qn = 960,
+        .bpm = 120,
+        .sigs = &.{
+            .{ .tick = 0, .numerator = 4, .denominator = 4 },
+            .{ .tick = 3840, .numerator = 3, .denominator = 4 },
+        },
+    }, &events);
+
+    // Both signature meta events are present: 4/4 (denominator power 2)
+    // and then 3/4 at the change.
+    const four_four = [_]u8{ 0xFF, 0x58, 0x04, 4, 2, 24, 8 };
+    const three_four = [_]u8{ 0xFF, 0x58, 0x04, 3, 2, 24, 8 };
+    try std.testing.expect(std.mem.indexOf(u8, out.items, &four_four) != null);
+    const at = std.mem.indexOf(u8, out.items, &three_four);
+    try std.testing.expect(at != null);
+    // And the second one comes after the first note, not bunched at the top.
+    try std.testing.expect(at.? > std.mem.indexOf(u8, out.items, &four_four).?);
+}
+
+test "a signature past the last note is still written, for the trailing bars" {
+    const alloc = std.testing.allocator;
+    const events = [_]Event{
+        .{ .tick = 0, .is_on = true, .channel = 0, .pitch = 60, .velocity = 96 },
+        .{ .tick = 480, .is_on = false, .channel = 0, .pitch = 60, .velocity = 0 },
+    };
+    var out = std.ArrayList(u8).init(alloc);
+    defer out.deinit();
+    try writeSmf(out.writer(), alloc, .{
+        .ticks_per_qn = 960,
+        .bpm = 120,
+        .sigs = &.{
+            .{ .tick = 0, .numerator = 4, .denominator = 4 },
+            .{ .tick = 3840, .numerator = 7, .denominator = 8 },
+        },
+    }, &events);
+
+    const seven_eight = [_]u8{ 0xFF, 0x58, 0x04, 7, 3, 24, 8 };
+    try std.testing.expect(std.mem.indexOf(u8, out.items, &seven_eight) != null);
 }
