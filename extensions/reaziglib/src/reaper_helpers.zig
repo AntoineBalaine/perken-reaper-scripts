@@ -404,23 +404,10 @@ pub const Note = struct {
 /// Snapshot every note of a take — midi.listNotes plus the per-action
 /// MIDI_GetNote loops of midi.lua (and later kawa.lua/pasteRhythm.lua),
 /// ported once. Callers that need to write notes back want
-/// `collectPpqNotes` instead, which carries each note's REAPER index; this
-/// drops it, and is built on that one so there is a single read loop.
+/// `collectPpqNotes` instead, because it carries each note's REAPER index,
+/// which this drops.
 pub fn collectNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) ![]Note {
-    const collected = try collectPpqNotes(alloc, take);
-    defer alloc.free(collected.notes);
-
-    const notes = try alloc.alloc(Note, collected.notes.len);
-    for (collected.notes, notes) |p, *n| n.* = .{
-        .selected = p.selected,
-        .muted = p.muted,
-        .start_ppq = p.start,
-        .end_ppq = p.end,
-        .chan = p.chan,
-        .pitch = p.pitch,
-        .vel = p.vel,
-    };
-    return notes;
+    return (try collectAs(Note, alloc, take)).notes;
 }
 
 /// GetActiveTake returns NULL for items without takes; the binding's return
@@ -483,45 +470,64 @@ pub fn keepSelected(comptime T: type, notes: []T, any_selected: bool) []T {
 /// Snapshot a take's notes in take-PPQ domain, with their REAPER indices,
 /// in index order.
 pub fn collectPpqNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) !Collected(PpqNote) {
-    var n_notes: c_int = 0;
-    var n_cc: c_int = 0;
-    var n_sysex: c_int = 0;
-    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
-
-    var list = std.ArrayList(PpqNote).init(alloc);
-    errdefer list.deinit();
-    var any_selected = false;
-    var i: c_int = 0;
-    while (i < n_notes) : (i += 1) {
-        var n = PpqNote{ .idx = i, .selected = false, .muted = false, .start = 0, .end = 0, .chan = 0, .pitch = 0, .vel = 0 };
-        if (!Reaper.MIDI_GetNote(take, i, &n.selected, &n.muted, &n.start, &n.end, &n.chan, &n.pitch, &n.vel))
-            continue;
-        if (n.selected) any_selected = true;
-        try list.append(n);
-    }
-    return .{ .notes = try list.toOwnedSlice(), .any_selected = any_selected };
+    return collectAs(PpqNote, alloc, take);
 }
 
 /// Snapshot a take's notes in project-QN domain, with their REAPER indices,
 /// sorted into chord order.
 pub fn collectQnNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) !Collected(QnNote) {
-    const ppq = try collectPpqNotes(alloc, take);
-    defer alloc.free(ppq.notes);
+    return collectAs(QnNote, alloc, take);
+}
 
-    const notes = try alloc.alloc(QnNote, ppq.notes.len);
-    errdefer alloc.free(notes);
-    for (ppq.notes, notes) |p, *q| q.* = .{
-        .idx = p.idx,
-        .selected = p.selected,
-        .muted = p.muted,
-        .start_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, p.start),
-        .end_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, p.end),
-        .chan = p.chan,
-        .pitch = p.pitch,
-        .vel = p.vel,
-    };
-    sortChordOrder(notes);
-    return .{ .notes = notes, .any_selected = ppq.any_selected };
+/// Builds one note of type `T` from the values MIDI_GetNote returned. Because
+/// the three note types differ only in their index field and in how they name
+/// and measure their positions, we decide each of those at compile time from
+/// the fields `T` declares, so a single read loop can serve all of them.
+pub fn noteAs(comptime T: type, take: *Reaper.MediaItem_Take, idx: c_int, raw: PpqNote) T {
+    var out: T = undefined;
+    out.selected = raw.selected;
+    out.muted = raw.muted;
+    out.chan = raw.chan;
+    out.pitch = raw.pitch;
+    out.vel = raw.vel;
+    if (@hasField(T, "idx")) out.idx = idx;
+    if (@hasField(T, "start_qn")) {
+        out.start_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, raw.start);
+        out.end_qn = Reaper.MIDI_GetProjQNFromPPQPos(take, raw.end);
+    } else if (@hasField(T, "start_ppq")) {
+        out.start_ppq = raw.start;
+        out.end_ppq = raw.end;
+    } else {
+        out.start = raw.start;
+        out.end = raw.end;
+    }
+    return out;
+}
+
+/// The one MIDI_GetNote read loop. Because each note is converted to `T` as it
+/// is read, no intermediate slice is needed. `T` must be `Note`, `PpqNote` or
+/// `QnNote`; the last one is also sorted into chord order, since its callers
+/// group the notes into chords.
+pub fn collectAs(comptime T: type, alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) !Collected(T) {
+    var n_notes: c_int = 0;
+    var n_cc: c_int = 0;
+    var n_sysex: c_int = 0;
+    _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
+
+    var list = std.ArrayList(T).init(alloc);
+    errdefer list.deinit();
+    var any_selected = false;
+    var i: c_int = 0;
+    while (i < n_notes) : (i += 1) {
+        var raw = PpqNote{ .idx = i, .selected = false, .muted = false, .start = 0, .end = 0, .chan = 0, .pitch = 0, .vel = 0 };
+        if (!Reaper.MIDI_GetNote(take, i, &raw.selected, &raw.muted, &raw.start, &raw.end, &raw.chan, &raw.pitch, &raw.vel))
+            continue;
+        if (raw.selected) any_selected = true;
+        try list.append(noteAs(T, take, i, raw));
+    }
+    const notes = try list.toOwnedSlice();
+    if (T == QnNote) sortChordOrder(notes);
+    return .{ .notes = notes, .any_selected = any_selected };
 }
 
 fn chordLessThan(_: void, a: QnNote, b: QnNote) bool {
