@@ -100,12 +100,41 @@ pub const Event = struct {
     /// caller can render it as a staccato notehead to preserve the
     /// original short articulation.
     staccato: bool = false,
+    /// Set on a note that is tied into the next event, which is also a
+    /// note — the two noteheads represent one continuous sound split only
+    /// because a single notehead cannot cross a beat boundary. Rests are
+    /// never tied (there is no such thing as a tied rest), so this is
+    /// always false on a rest.
+    tied_to_next: bool = false,
+};
+
+/// Standard note/rest values, in units of whole notes, descending. Dotted
+/// values included — a dot is "half again," always itself one borderline
+/// bigger than the next plain value down — so greedily taking the largest
+/// value that fits is always optimal (never leaves a remainder that needs
+/// more symbols than picking a smaller value first would have). Binary
+/// subdivision only for now, matching the common-meters-only scope — no
+/// tuplets.
+const standard_values = [_]Rational{
+    Rational{ .num = 1, .den = 1 }, // whole
+    Rational{ .num = 3, .den = 4 }, // dotted half
+    Rational{ .num = 1, .den = 2 }, // half
+    Rational{ .num = 3, .den = 8 }, // dotted quarter (a compound beat)
+    Rational{ .num = 1, .den = 4 }, // quarter
+    Rational{ .num = 3, .den = 16 }, // dotted eighth
+    Rational{ .num = 1, .den = 8 }, // eighth
+    Rational{ .num = 3, .den = 32 }, // dotted sixteenth
+    Rational{ .num = 1, .den = 16 }, // sixteenth
+    Rational{ .num = 3, .den = 64 }, // dotted thirty-second
+    Rational{ .num = 1, .den = 32 }, // thirty-second
 };
 
 /// True if a span starting at `onset` with length `dur` crosses any beat
 /// boundary strictly inside it (touching a boundary at either end is fine —
-/// that is what makes the span valid in the first place).
-fn crossesABeat(time_sig: TimeSig, onset: Rational, dur: Rational) bool {
+/// that is what makes the span valid in the first place). Exported for
+/// callers (tests included) that want to verify this externally rather
+/// than trust it was applied correctly inside this module.
+pub fn crossesABeat(time_sig: TimeSig, onset: Rational, dur: Rational) bool {
     var buf: [64]Rational = undefined;
     const boundaries = time_sig.beatBoundaries(&buf);
     const end = onset.add(dur);
@@ -148,17 +177,130 @@ fn collapsePass(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const
     return .{ .out = try out.toOwnedSlice(), .changed = changed };
 }
 
-/// Simplifies a bar's worth of events to a fixed point: repeatedly applies
-/// `collapsePass` until a full pass makes no further change. Total
+/// Re-tiles one maximal same-kind run — total length `len` starting at
+/// `onset`, all of kind `kind` — into standard values: mandatory splits at
+/// every beat boundary inside it (a single symbol never crosses one), then
+/// within each boundary-respecting stretch, greedily take the largest
+/// standard value that fits, repeatedly, which this candidate set makes
+/// optimal (see `standard_values`). Adjacent note pieces coming from the
+/// same original run are tied together, since they are one continuous
+/// sound notated as several noteheads only because of the beat-boundary
+/// rule; adjacent rest pieces are not tied (rests cannot be).
+fn retileRun(allocator: std.mem.Allocator, time_sig: TimeSig, onset: Rational, len: Rational, kind: Kind) ![]Event {
+    var out = std.ArrayList(Event).init(allocator);
+    errdefer out.deinit();
+
+    var buf: [64]Rational = undefined;
+    const boundaries = time_sig.beatBoundaries(&buf);
+    const run_end = onset.add(len);
+
+    // Index of the first beat boundary strictly after onset — boundaries
+    // at or before onset don't split anything, they're where we start.
+    var bi: usize = 0;
+    while (bi < boundaries.len and boundaries[bi].lte(onset)) : (bi += 1) {}
+
+    var seg_start = onset;
+    while (true) {
+        const seg_end = if (bi < boundaries.len and boundaries[bi].lt(run_end)) boundaries[bi] else run_end;
+
+        // Fill [seg_start, seg_end), the next beat-boundary-respecting
+        // stretch, greedily with the largest standard value that fits.
+        var p = seg_start;
+        while (p.lt(seg_end)) {
+            const left = seg_end.add(negate(p));
+            var step = left; // if nothing standard fits (shouldn't happen for dyadic inputs), take the whole remainder as one odd symbol.
+            for (standard_values) |v| {
+                if (v.lte(left)) {
+                    step = v;
+                    break;
+                }
+            }
+            try out.append(.{ .kind = kind, .dur = step });
+            p = p.add(step);
+        }
+        if (!seg_end.lt(run_end)) break;
+        seg_start = seg_end;
+        bi += 1;
+    }
+
+    // Tie every note piece to the next, except the last — adjacent pieces
+    // from the same run are one continuous sound split only by the beat
+    // boundary rule. Rests have no such concept.
+    if (kind == .note) {
+        for (out.items[0 .. out.items.len -| 1]) |*e| e.tied_to_next = true;
+    }
+    return out.toOwnedSlice();
+}
+
+fn negate(a: Rational) Rational {
+    return Rational.of(-a.num, a.den);
+}
+
+/// One fixed-point pass: re-tiles every maximal run of consecutive rests
+/// into the fewest standard-value symbols (see `retileRun`). Notes are
+/// left alone here — unlike rests, two adjacent note events are not
+/// safely mergeable without knowing they are the same pitch (one
+/// sustained sound quantization-split into pieces, versus two
+/// deliberately separate notes played back to back), and `Event` carries
+/// no pitch. Silence has no such ambiguity, so rest runs are always safe
+/// to re-tile.
+fn retilePass(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const Event) !struct { out: []Event, changed: bool } {
+    var out = std.ArrayList(Event).init(allocator);
+    errdefer out.deinit();
+    var onset = Rational.zero();
+    var changed = false;
+    var i: usize = 0;
+    while (i < events.len) {
+        const start = i;
+        const kind = events[i].kind;
+        const run_onset = onset;
+        var run_len = Rational.zero();
+        while (i < events.len and events[i].kind == kind and kind == .rest) {
+            run_len = run_len.add(events[i].dur);
+            onset = onset.add(events[i].dur);
+            i += 1;
+        }
+        if (i == start) {
+            // A note (not retiled here, see the doc comment above) passes
+            // through untouched, as its own run of one.
+            try out.append(events[i]);
+            onset = onset.add(events[i].dur);
+            i += 1;
+            continue;
+        }
+        const retiled = try retileRun(allocator, time_sig, run_onset, run_len, kind);
+        defer allocator.free(retiled);
+        if (retiled.len != i - start) changed = true else {
+            for (retiled, events[start..i]) |r, orig| {
+                if (!r.dur.eq(orig.dur)) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        try out.appendSlice(retiled);
+    }
+    return .{ .out = try out.toOwnedSlice(), .changed = changed };
+}
+
+/// Simplifies a bar's worth of events to a fixed point: repeatedly re-tiles
+/// same-kind runs into the fewest standard values (`retilePass`), then
+/// collapses equal-length note+rest pairs into a staccato note
+/// (`collapsePass`), until a full round makes no further change. Total
 /// duration and every onset position are preserved exactly — only the
-/// number of symbols used to represent them can shrink.
+/// number and shape of the symbols representing them can change.
 pub fn simplifyBar(allocator: std.mem.Allocator, time_sig: TimeSig, events: []const Event) ![]Event {
     var current = try allocator.dupe(Event, events);
     while (true) {
-        const pass = try collapsePass(allocator, time_sig, current);
+        const retiled = try retilePass(allocator, time_sig, current);
         allocator.free(current);
-        current = pass.out;
-        if (!pass.changed) break;
+        current = retiled.out;
+
+        const collapsed = try collapsePass(allocator, time_sig, current);
+        allocator.free(current);
+        current = collapsed.out;
+
+        if (!retiled.changed and !collapsed.changed) break;
     }
     return current;
 }
@@ -192,14 +334,17 @@ test "eighth note + eighth rest, twice, collapses to two staccato quarters" {
 
 test "a pair that would cross a beat boundary is left alone" {
     const allocator = std.testing.allocator;
-    // In 4/4, a dotted-eighth note followed by a dotted-eighth rest starting
-    // on beat 1 (offset 1/4) would end at 1/4 + 3/16 + 3/16 = 5/8, crossing
-    // the beat-3 boundary at 1/2 — must not be collapsed.
-    const d8 = Rational.of(3, 16);
+    // In 4/4: an eighth note at [0, 1/8), another at [1/8, 1/4) (so it ends
+    // exactly on the beat-2 boundary — fine on its own), then an eighth
+    // rest at [1/4, 3/8) (starts exactly on that boundary — also fine on
+    // its own). Merging the second note with the rest would span
+    // [1/8, 3/8), which strictly contains the 1/4 boundary — must not be
+    // collapsed, even though neither piece crosses it alone.
+    const e8 = Rational.of(1, 8);
     const events = [_]Event{
-        .{ .kind = .note, .dur = Rational.of(1, 4) }, // fills beat 1
-        .{ .kind = .note, .dur = d8 },
-        .{ .kind = .rest, .dur = d8 },
+        .{ .kind = .note, .dur = e8 },
+        .{ .kind = .note, .dur = e8 },
+        .{ .kind = .rest, .dur = e8 },
     };
     const out = try simplifyBar(allocator, TimeSig.four_four, &events);
     defer allocator.free(out);
@@ -219,6 +364,65 @@ test "nothing to collapse leaves the bar untouched" {
     const out = try simplifyBar(allocator, TimeSig.four_four, &events);
     defer allocator.free(out);
     try std.testing.expectEqual(@as(usize, 4), out.len);
+}
+
+test "four sixteenth rests on the beat collapse to one quarter rest" {
+    const allocator = std.testing.allocator;
+    const s16 = Rational.of(1, 16);
+    const events = [_]Event{
+        .{ .kind = .rest, .dur = s16 },
+        .{ .kind = .rest, .dur = s16 },
+        .{ .kind = .rest, .dur = s16 },
+        .{ .kind = .rest, .dur = s16 },
+    };
+    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    defer allocator.free(out);
+
+    try std.testing.expectEqual(@as(usize, 1), out.len);
+    try std.testing.expectEqual(Kind.rest, out[0].kind);
+    try std.testing.expect(out[0].dur.eq(Rational.of(1, 4)));
+}
+
+test "a rest run spanning a beat boundary retiles into two pieces, not one" {
+    const allocator = std.testing.allocator;
+    const s16 = Rational.of(1, 16);
+    // Six sixteenth rests starting at offset 3/16 (the fourth sixteenth of
+    // beat 1) span beats 1 and 2: 1/16 left in beat 1, then 5/16 of beat
+    // 2. A single rest symbol can't cross the beat-2 boundary at 1/4, so
+    // this must retile to (at least) two rests, never one.
+    var six: [6]Event = undefined;
+    for (&six) |*e| e.* = .{ .kind = .rest, .dur = s16 };
+    const lead_in = Event{ .kind = .note, .dur = Rational.of(3, 16) };
+    var full = [_]Event{lead_in} ++ six ++ [_]Event{Event{ .kind = .note, .dur = Rational.of(7, 16) }};
+    const out = try simplifyBar(allocator, TimeSig.four_four, &full);
+    defer allocator.free(out);
+
+    var rest_pieces: usize = 0;
+    for (out) |e| {
+        if (e.kind == .rest) rest_pieces += 1;
+    }
+    try std.testing.expect(rest_pieces >= 2);
+    try std.testing.expect(rest_pieces < 6);
+    try std.testing.expect(totalDur(&full).eq(totalDur(out)));
+}
+
+test "two adjacent note events are never merged — pitch is unknown" {
+    const allocator = std.testing.allocator;
+    const s16 = Rational.of(1, 16);
+    // Four consecutive sixteenth notes, same shape as the rest-merging
+    // test above, but as notes: must come out exactly as given, since
+    // nothing here says they are one sustained pitch rather than four
+    // separate ones.
+    const events = [_]Event{
+        .{ .kind = .note, .dur = s16 },
+        .{ .kind = .note, .dur = s16 },
+        .{ .kind = .note, .dur = s16 },
+        .{ .kind = .note, .dur = s16 },
+    };
+    const out = try simplifyBar(allocator, TimeSig.four_four, &events);
+    defer allocator.free(out);
+    try std.testing.expectEqual(@as(usize, 4), out.len);
+    for (out) |e| try std.testing.expect(e.dur.eq(s16));
 }
 
 test "6/8 beat boundaries are the dotted-quarter grouping, not every eighth" {
