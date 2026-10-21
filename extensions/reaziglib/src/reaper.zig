@@ -59,7 +59,7 @@ pub const reaper = struct { // @import("reaper");
     pub const REAPER_PeakGet_Interface = *opaque {};
     pub const REAPER_Resample_Interface = *opaque {};
     pub const RECT = *opaque {};
-    pub const ReaProject = c_int;
+    pub const ReaProject = *opaque {};
     pub const RprMidiNote = *opaque {};
     pub const RprMidiTake = *opaque {};
     pub const TrackEnvelope = *opaque {};
@@ -176,11 +176,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// AddProjectMarker
     /// Returns the index of the created marker/region, or -1 on failure. Supply wantidx>=0 if you want a particular index number, but you'll get a different index number a region and wantidx is already in use.
-    pub var AddProjectMarker: *fn (proj: *ReaProject, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, wantidx: c_int) callconv(.C) c_int = undefined;
+    pub var AddProjectMarker: *fn (proj: ?ReaProject, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, wantidx: c_int) callconv(.C) c_int = undefined;
 
     /// AddProjectMarker2
     /// Returns the index of the created marker/region, or -1 on failure. Supply wantidx>=0 if you want a particular index number, but you'll get a different index number a region and wantidx is already in use. color should be 0 (default color), or ColorToNative(r,g,b)|0x1000000
-    pub var AddProjectMarker2: *fn (proj: *ReaProject, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, wantidx: c_int, color: c_int) callconv(.C) c_int = undefined;
+    pub var AddProjectMarker2: *fn (proj: ?ReaProject, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, wantidx: c_int, color: c_int) callconv(.C) c_int = undefined;
 
     /// AddRemoveReaScript
     /// Add a ReaScript (return the new command ID, or 0 if failed) or remove a ReaScript (return >0 on success). Use commit==true when adding/removing a single script. When bulk adding/removing n scripts, you can optimize the n-1 first calls with commit==false and commit==true for the last call.
@@ -192,14 +192,14 @@ pub const reaper = struct { // @import("reaper");
 
     /// AddTempoTimeSigMarker
     /// Deprecated. Use SetTempoTimeSigMarker with ptidx=-1.
-    pub var AddTempoTimeSigMarker: *fn (proj: *ReaProject, timepos: f64, bpm: f64, timesig_num: c_int, timesig_denom: c_int, lineartempochange: bool) callconv(.C) bool = undefined;
+    pub var AddTempoTimeSigMarker: *fn (proj: ?ReaProject, timepos: f64, bpm: f64, timesig_num: c_int, timesig_denom: c_int, lineartempochange: bool) callconv(.C) bool = undefined;
 
     /// adjustZoom
     /// forceset=0,doupd=true,centermode=-1 for default
     pub var adjustZoom: *fn (amt: f64, forceset: c_int, doupd: bool, centermode: c_int) callconv(.C) void = undefined;
 
     /// AnyTrackSolo
-    pub var AnyTrackSolo: *fn (proj: *ReaProject) callconv(.C) bool = undefined;
+    pub var AnyTrackSolo: *fn (proj: ?ReaProject) callconv(.C) bool = undefined;
 
     /// APIExists
     /// Returns true if function_name exists in the REAPER API
@@ -216,7 +216,7 @@ pub const reaper = struct { // @import("reaper");
     /// value: amount to nudge by, or value to set to
     /// reverse: in nudge mode, nudges left (otherwise ignored)
     /// copies: in nudge duplicate mode, number of copies (otherwise ignored)
-    pub var ApplyNudge: *fn (project: *ReaProject, nudgeflag: c_int, nudgewhat: c_int, nudgeunits: c_int, value: f64, reverse: bool, copies: c_int) callconv(.C) bool = undefined;
+    pub var ApplyNudge: *fn (project: ?ReaProject, nudgeflag: c_int, nudgewhat: c_int, nudgeunits: c_int, value: f64, reverse: bool, copies: c_int) callconv(.C) bool = undefined;
 
     /// ArmCommand
     /// arms a command (or disarms if 0 passed) in section sectionname (empty string for main)
@@ -316,23 +316,23 @@ pub const reaper = struct { // @import("reaper");
 
     /// CountMediaItems
     /// count the number of items in the project (proj=0 for active project)
-    pub var CountMediaItems: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var CountMediaItems: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// CountProjectMarkers
     /// num_markersOut and num_regionsOut may be NULL.
-    pub var CountProjectMarkers: *fn (proj: *ReaProject, num_markersOut: *c_int, num_regionsOut: *c_int) callconv(.C) c_int = undefined;
+    pub var CountProjectMarkers: *fn (proj: ?ReaProject, num_markersOut: *c_int, num_regionsOut: *c_int) callconv(.C) c_int = undefined;
 
     /// CountSelectedMediaItems
     /// count the number of selected items in the project (proj=0 for active project)
-    pub var CountSelectedMediaItems: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var CountSelectedMediaItems: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// CountSelectedTracks
     /// Count the number of selected tracks in the project (proj=0 for active project). This function ignores the master track, see CountSelectedTracks2.
-    pub var CountSelectedTracks: *fn (proj: ReaProject) callconv(.C) c_int = undefined;
+    pub var CountSelectedTracks: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// CountSelectedTracks2
     /// Count the number of selected tracks in the project (proj=0 for active project).
-    pub var CountSelectedTracks2: *fn (proj: *ReaProject, wantmaster: bool) callconv(.C) c_int = undefined;
+    pub var CountSelectedTracks2: *fn (proj: ?ReaProject, wantmaster: bool) callconv(.C) c_int = undefined;
 
     /// CountTakeEnvelopes
     /// See GetTakeEnvelope
@@ -344,11 +344,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// CountTCPFXParms
     /// Count the number of FX parameter knobs displayed on the track control panel.
-    pub var CountTCPFXParms: *fn (project: *ReaProject, track: MediaTrack) callconv(.C) c_int = undefined;
+    pub var CountTCPFXParms: *fn (project: ?ReaProject, track: MediaTrack) callconv(.C) c_int = undefined;
 
     /// CountTempoTimeSigMarkers
     /// Count the number of tempo/time signature markers in the project. See GetTempoTimeSigMarker, SetTempoTimeSigMarker, AddTempoTimeSigMarker.
-    pub var CountTempoTimeSigMarkers: *fn (proj: ReaProject) callconv(.C) c_int = undefined;
+    pub var CountTempoTimeSigMarkers: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// CountTrackEnvelopes
     /// see GetTrackEnvelope
@@ -360,7 +360,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// CountTracks
     /// count the number of tracks in the project (proj=0 for active project)
-    pub var CountTracks: *fn (projOptional: ReaProject) callconv(.C) c_int = undefined;
+    pub var CountTracks: *fn (projOptional: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// CreateLocalOscHandler
     /// callback is a function pointer: void (*callback)(*void obj, [*:0]const u8 msg, c_int msglen), which handles OSC messages sent from REAPER. The function return is a local osc handler. See SendLocalOscMessage, DestroyOscHandler.
@@ -587,11 +587,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// DeleteProjectMarker
     /// Delete a marker.  proj==NULL for the active project.
-    pub var DeleteProjectMarker: *fn (proj: *ReaProject, markrgnindexnumber: c_int, isrgn: bool) callconv(.C) bool = undefined;
+    pub var DeleteProjectMarker: *fn (proj: ?ReaProject, markrgnindexnumber: c_int, isrgn: bool) callconv(.C) bool = undefined;
 
     /// DeleteProjectMarkerByIndex
     /// Differs from DeleteProjectMarker only in that markrgnidx is 0 for the first marker/region, 1 for the next, etc (see EnumProjectMarkers3), rather than representing the displayed marker/region ID number (see SetProjectMarker4).
-    pub var DeleteProjectMarkerByIndex: *fn (proj: *ReaProject, markrgnidx: c_int) callconv(.C) bool = undefined;
+    pub var DeleteProjectMarkerByIndex: *fn (proj: ?ReaProject, markrgnidx: c_int) callconv(.C) bool = undefined;
 
     /// DeleteTakeMarker
     /// Delete a take marker. Note that idx will change for all following take markers. See GetNumTakeMarkers, GetTakeMarker, SetTakeMarker
@@ -603,7 +603,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// DeleteTempoTimeSigMarker
     /// Delete a tempo/time signature marker.
-    pub var DeleteTempoTimeSigMarker: *fn (project: *ReaProject, markerindex: c_int) callconv(.C) bool = undefined;
+    pub var DeleteTempoTimeSigMarker: *fn (project: ?ReaProject, markerindex: c_int) callconv(.C) bool = undefined;
 
     /// DeleteTrack
     /// deletes a track
@@ -661,7 +661,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// EditTempoTimeSigMarker
     /// Open the tempo/time signature marker editor dialog.
-    pub var EditTempoTimeSigMarker: *fn (project: *ReaProject, markerindex: c_int) callconv(.C) bool = undefined;
+    pub var EditTempoTimeSigMarker: *fn (project: ?ReaProject, markerindex: c_int) callconv(.C) bool = undefined;
 
     /// EnsureNotCompletelyOffscreen
     /// call with a saved window rect for your window and it'll correct any positioning info.
@@ -691,22 +691,22 @@ pub const reaper = struct { // @import("reaper");
     pub var EnumProjectMarkers: *fn (idx: c_int, isrgnOut: *bool, posOut: *f64, rgnendOut: *f64, nameOut: [*:0]const u8, markrgnindexnumberOut: *c_int) callconv(.C) c_int = undefined;
 
     /// EnumProjectMarkers2
-    pub var EnumProjectMarkers2: *fn (proj: *ReaProject, idx: c_int, isrgnOut: *bool, posOut: *f64, rgnendOut: *f64, nameOut: [*:0]const u8, markrgnindexnumberOut: *c_int) callconv(.C) c_int = undefined;
+    pub var EnumProjectMarkers2: *fn (proj: ?ReaProject, idx: c_int, isrgnOut: *bool, posOut: *f64, rgnendOut: *f64, nameOut: [*:0]const u8, markrgnindexnumberOut: *c_int) callconv(.C) c_int = undefined;
 
     /// EnumProjectMarkers3
-    pub var EnumProjectMarkers3: *fn (proj: *ReaProject, idx: c_int, isrgnOut: *bool, posOut: *f64, rgnendOut: *f64, nameOut: [*:0]const u8, markrgnindexnumberOut: *c_int, colorOut: *c_int) callconv(.C) c_int = undefined;
+    pub var EnumProjectMarkers3: *fn (proj: ?ReaProject, idx: c_int, isrgnOut: *bool, posOut: *f64, rgnendOut: *f64, nameOut: [*:0]const u8, markrgnindexnumberOut: *c_int, colorOut: *c_int) callconv(.C) c_int = undefined;
 
     /// EnumProjects
     /// idx=-1 for current project,projfn can be NULL if not interested in filename. use idx 0x40000000 for currently rendering project, if any.
-    pub var EnumProjects: *fn (idx: c_int, projfnOutOptional: ?[*]u8, projfnOutOptional_sz: c_int) callconv(.C) ?*ReaProject = undefined;
+    pub var EnumProjects: *fn (idx: c_int, projfnOutOptional: ?[*]u8, projfnOutOptional_sz: c_int) callconv(.C) ?ReaProject = undefined;
 
     /// EnumProjExtState
     /// Enumerate the data stored with the project for a specific extname. Returns false when there is no more data. See SetProjExtState, GetProjExtState.
-    pub var EnumProjExtState: *fn (proj: *ReaProject, extname: [*:0]const u8, idx: c_int, keyOutOptional: *c_char, keyOutOptional_sz: c_int, valOutOptional: *c_char, valOutOptional_sz: c_int) callconv(.C) bool = undefined;
+    pub var EnumProjExtState: *fn (proj: ?ReaProject, extname: [*:0]const u8, idx: c_int, keyOutOptional: *c_char, keyOutOptional_sz: c_int, valOutOptional: *c_char, valOutOptional_sz: c_int) callconv(.C) bool = undefined;
 
     /// EnumRegionRenderMatrix
     /// Enumerate which tracks will be rendered within this region when using the region render matrix. When called with rendertrack==0, the function returns the first track that will be rendered (which may be the master track); rendertrack==1 will return the next track rendered, and so on. The function returns NULL when there are no more tracks that will be rendered within this region.
-    pub var EnumRegionRenderMatrix: *fn (proj: *ReaProject, regionindex: c_int, rendertrack: c_int) callconv(.C) *MediaTrack = undefined;
+    pub var EnumRegionRenderMatrix: *fn (proj: ?ReaProject, regionindex: c_int, rendertrack: c_int) callconv(.C) *MediaTrack = undefined;
 
     /// EnumTrackMIDIProgramNames
     /// returns false if there are no plugins on the track that support MIDI programs,or if all programs have been enumerated
@@ -714,7 +714,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// EnumTrackMIDIProgramNamesEx
     /// returns false if there are no plugins on the track that support MIDI programs,or if all programs have been enumerated
-    pub var EnumTrackMIDIProgramNamesEx: *fn (proj: *ReaProject, track: MediaTrack, programNumber: c_int, programName: *c_char, programName_sz: c_int) callconv(.C) bool = undefined;
+    pub var EnumTrackMIDIProgramNamesEx: *fn (proj: ?ReaProject, track: MediaTrack, programNumber: c_int, programName: *c_char, programName_sz: c_int) callconv(.C) bool = undefined;
 
     /// Envelope_Evaluate
     /// Get the effective envelope value at a given time position. samplesRequested is how long the caller expects until the next call to Envelope_Evaluate (often, the buffer block size). The return value is how many samples beyond that time position that the returned values are valid. dVdS is the change in value per sample (first derivative), ddVdS is the second derivative, dddVdS is the third derivative. See GetEnvelopeScalingMode.
@@ -750,7 +750,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// FindTempoTimeSigMarker
     /// Find the tempo/time signature marker that falls at or before this time position (the marker that is in effect as of this time position).
-    pub var FindTempoTimeSigMarker: *fn (project: ReaProject, time: f64) callconv(.C) c_int = undefined;
+    pub var FindTempoTimeSigMarker: *fn (project: ?ReaProject, time: f64) callconv(.C) c_int = undefined;
 
     /// format_timestr
     /// Format tpos (which is time in seconds) as hh:mm:ss.sss. See format_timestr_pos, format_timestr_len.
@@ -814,7 +814,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetAllProjectPlayStates
     /// returns the bitwise OR of all project play states (1=playing, 2=pause, 4=recording)
-    pub var GetAllProjectPlayStates: *fn (ignoreProject: *ReaProject) callconv(.C) c_int = undefined;
+    pub var GetAllProjectPlayStates: *fn (ignoreProject: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// GetAppVersion
     /// Returns app version which may include an OS/arch signifier, such as: "6.17" (windows 32-bit), "6.17/x64" (windows 64-bit), "6.17/OSX64" (macOS 64-bit Intel), "6.17/OSX" (macOS 32-bit), "6.17/macOS-arm64", "6.17/linux-x86_64", "6.17/linux-i686", "6.17/linux-aarch64", "6.17/linux-armv7l", etc
@@ -873,7 +873,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetCurrentProjectInLoadSave
     /// returns current project if in load/save (usually only used from project_config_extension_t)
-    pub var GetCurrentProjectInLoadSave: *fn () callconv(.C) *ReaProject = undefined;
+    pub var GetCurrentProjectInLoadSave: *fn () callconv(.C) ?ReaProject = undefined;
 
     /// GetCursorContext
     /// return the current cursor context: 0 if track panels, 1 if items, 2 if envelopes, otherwise unknown
@@ -889,7 +889,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetCursorPositionEx
     /// edit cursor position
-    pub var GetCursorPositionEx: *fn (proj: *ReaProject) callconv(.C) f64 = undefined;
+    pub var GetCursorPositionEx: *fn (proj: ?ReaProject) callconv(.C) f64 = undefined;
 
     /// GetDisplayedMediaItemColor
     /// see GetDisplayedMediaItemColor2.
@@ -974,7 +974,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetFreeDiskSpaceForRecordPath
     /// returns free disk space in megabytes, pathIdx 0 for normal, 1 for alternate.
-    pub var GetFreeDiskSpaceForRecordPath: *fn (proj: *ReaProject, pathidx: c_int) callconv(.C) c_int = undefined;
+    pub var GetFreeDiskSpaceForRecordPath: *fn (proj: ?ReaProject, pathidx: c_int) callconv(.C) c_int = undefined;
 
     /// GetFXEnvelope
     /// Returns the FX parameter envelope. If the envelope does not exist and create=true, the envelope will be created. If the envelope already exists and is bypassed and create=true, then the envelope will be unbypassed.
@@ -1020,7 +1020,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetItemFromPoint: *fn (screen_x: c_int, screen_y: c_int, allow_locked: bool, takeOutOptional: *MediaItem_Take) callconv(.C) *MediaItem = undefined;
 
     /// GetItemProjectContext
-    pub var GetItemProjectContext: *fn (item: *MediaItem) callconv(.C) *ReaProject = undefined;
+    pub var GetItemProjectContext: *fn (item: *MediaItem) callconv(.C) ?ReaProject = undefined;
 
     /// GetItemStateChunk
     /// Gets the RPPXML state of an item, returns true if successful. Undo flag is a performance/caching hint.
@@ -1031,7 +1031,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetLastMarkerAndCurRegion
     /// Get the last project marker before time, and/or the project region that includes time. markeridx and regionidx are returned not necessarily as the displayed marker/region index, but as the index that can be passed to EnumProjectMarkers. Either or both of markeridx and regionidx may be NULL. See EnumProjectMarkers.
-    pub var GetLastMarkerAndCurRegion: *fn (proj: *ReaProject, time: f64, markeridxOut: *c_int, regionidxOut: *c_int) callconv(.C) void = undefined;
+    pub var GetLastMarkerAndCurRegion: *fn (proj: ?ReaProject, time: f64, markeridxOut: *c_int, regionidxOut: *c_int) callconv(.C) void = undefined;
 
     /// GetLastTouchedFX
     /// Returns true if the last touched FX parameter is valid, false otherwise. The low word of tracknumber is the 1-based track index -- 0 means the master track, 1 means track 1, etc. If the high word of tracknumber is nonzero, it refers to the 1-based item index (1 is the first item on the track, etc). For track FX, the low 24 bits of fxnumber refer to the FX index in the chain, and if the next 8 bits are 01, then the FX is record FX. For item FX, the low word defines the FX index in the chain, and the high word defines the take number. Deprecated, see GetTouchedOrFocusedFX.
@@ -1048,7 +1048,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetMasterMuteSoloFlags: *fn () callconv(.C) c_int = undefined;
 
     /// GetMasterTrack
-    pub var GetMasterTrack: *fn (proj: ReaProject) callconv(.C) MediaTrack = undefined;
+    pub var GetMasterTrack: *fn (proj: ?ReaProject) callconv(.C) MediaTrack = undefined;
 
     /// GetMasterTrackVisibility
     /// returns &1 if the master track is visible in the TCP, &2 if NOT visible in the mixer. See SetMasterTrackVisibility.
@@ -1067,7 +1067,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetMediaItem
     /// get an item from a project by item count (zero-based) (proj=0 for active project)
-    pub var GetMediaItem: *fn (proj: *ReaProject, itemidx: c_int) callconv(.C) *MediaItem = undefined;
+    pub var GetMediaItem: *fn (proj: ?ReaProject, itemidx: c_int) callconv(.C) *MediaItem = undefined;
 
     /// GetMediaItem_Track
     /// Get parent track of media item
@@ -1134,7 +1134,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetMediaItemTake_Track: *fn (take: *MediaItem_Take) callconv(.C) *MediaTrack = undefined;
 
     /// GetMediaItemTakeByGUID
-    pub var GetMediaItemTakeByGUID: *fn (project: *ReaProject, guid: *const GUID) callconv(.C) *MediaItem_Take = undefined;
+    pub var GetMediaItemTakeByGUID: *fn (project: ?ReaProject, guid: *const GUID) callconv(.C) *MediaItem_Take = undefined;
 
     /// GetMediaItemTakeInfo_Value
     /// Get media item take numerical-value attributes.
@@ -1345,11 +1345,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetPlayPosition2Ex
     /// returns position of next audio block being processed
-    pub var GetPlayPosition2Ex: *fn (proj: *ReaProject) callconv(.C) f64 = undefined;
+    pub var GetPlayPosition2Ex: *fn (proj: ?ReaProject) callconv(.C) f64 = undefined;
 
     /// GetPlayPositionEx
     /// returns latency-compensated actual-what-you-hear position
-    pub var GetPlayPositionEx: *fn (proj: *ReaProject) callconv(.C) f64 = undefined;
+    pub var GetPlayPositionEx: *fn (proj: ?ReaProject) callconv(.C) f64 = undefined;
 
     /// GetPlayState
     /// &1=playing, &2=paused, &4=is recording
@@ -1357,7 +1357,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetPlayStateEx
     /// &1=playing, &2=paused, &4=is recording
-    pub var GetPlayStateEx: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var GetPlayStateEx: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// GetPreferredDiskReadMode
     /// Gets user configured preferred disk read mode. mode/nb/bs are all parameters that should be passed to WDL_FileRead, see for more information.
@@ -1373,10 +1373,10 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetProjectLength
     /// returns length of project (maximum of end of media item, markers, end of regions, tempo map
-    pub var GetProjectLength: *fn (proj: *ReaProject) callconv(.C) f64 = undefined;
+    pub var GetProjectLength: *fn (proj: ?ReaProject) callconv(.C) f64 = undefined;
 
     /// GetProjectName
-    pub var GetProjectName: *fn (proj: *ReaProject, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
+    pub var GetProjectName: *fn (proj: ?ReaProject, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetProjectPath
     /// Get the project recording path.
@@ -1384,15 +1384,15 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetProjectPathEx
     /// Get the project recording path.
-    pub var GetProjectPathEx: *fn (proj: *ReaProject, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
+    pub var GetProjectPathEx: *fn (proj: ?ReaProject, bufOut: *c_char, bufOut_sz: c_int) callconv(.C) void = undefined;
 
     /// GetProjectStateChangeCount
     /// returns an integer that changes when the project state changes
-    pub var GetProjectStateChangeCount: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var GetProjectStateChangeCount: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// GetProjectTimeOffset
     /// Gets project time offset in seconds (project settings - project start time). If rndframe is true, the offset is rounded to a multiple of the project frame size.
-    pub var GetProjectTimeOffset: *fn (proj: *ReaProject, rndframe: bool) callconv(.C) f64 = undefined;
+    pub var GetProjectTimeOffset: *fn (proj: ?ReaProject, rndframe: bool) callconv(.C) f64 = undefined;
 
     /// GetProjectTimeSignature
     /// deprecated
@@ -1401,11 +1401,11 @@ pub const reaper = struct { // @import("reaper");
     /// GetProjectTimeSignature2
     /// Gets basic time signature (beats per minute, numerator of time signature in bpi)
     /// this does not reflect tempo envelopes but is purely what is set in the project settings.
-    pub var GetProjectTimeSignature2: *fn (proj: *ReaProject, bpmOut: *f64, bpiOut: *f64) callconv(.C) void = undefined;
+    pub var GetProjectTimeSignature2: *fn (proj: ?ReaProject, bpmOut: *f64, bpiOut: *f64) callconv(.C) void = undefined;
 
     /// GetProjExtState
     /// Get the value previously associated with this extname and key, the last time the project was saved. See SetProjExtState, EnumProjExtState.
-    pub var GetProjExtState: *fn (proj: *ReaProject, extname: [*:0]const u8, key: [*:0]const u8, valOutNeedBig: *c_char, valOutNeedBig_sz: c_int) callconv(.C) c_int = undefined;
+    pub var GetProjExtState: *fn (proj: ?ReaProject, extname: [*:0]const u8, key: [*:0]const u8, valOutNeedBig: [*]u8, valOutNeedBig_sz: c_int) callconv(.C) c_int = undefined;
 
     /// GetResourcePath
     /// returns path where ini files are stored, other things are in subdirectories.
@@ -1413,33 +1413,33 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSelectedEnvelope
     /// get the currently selected envelope, returns NULL/nil if no envelope is selected
-    pub var GetSelectedEnvelope: *fn (proj: *ReaProject) callconv(.C) *TrackEnvelope = undefined;
+    pub var GetSelectedEnvelope: *fn (proj: ?ReaProject) callconv(.C) ?*TrackEnvelope = undefined;
 
     /// GetSelectedMediaItem
     /// get a selected item by selected item count (zero-based) (proj=0 for active project)
-    pub var GetSelectedMediaItem: *fn (proj: *ReaProject, selitem: c_int) callconv(.C) *MediaItem = undefined;
+    pub var GetSelectedMediaItem: *fn (proj: ?ReaProject, selitem: c_int) callconv(.C) ?*MediaItem = undefined;
 
     /// GetSelectedTrack
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based). This function ignores the master track, see GetSelectedTrack2.
-    pub var GetSelectedTrack: *fn (proj: ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack = undefined;
+    pub var GetSelectedTrack: *fn (proj: ?ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack = undefined;
 
     /// GetSelectedTrack2
     /// Get a selected track from a project (proj=0 for active project) by selected track count (zero-based).
-    pub var GetSelectedTrack2: *fn (proj: ReaProject, seltrackidx: c_int, wantmaster: bool) callconv(.C) MediaTrack = undefined;
+    pub var GetSelectedTrack2: *fn (proj: ?ReaProject, seltrackidx: c_int, wantmaster: bool) callconv(.C) MediaTrack = undefined;
 
     /// GetSelectedTrackEnvelope
     /// get the currently selected track envelope, returns NULL/nil if no envelope is selected
-    pub var GetSelectedTrackEnvelope: *fn (proj: *ReaProject) callconv(.C) *TrackEnvelope = undefined;
+    pub var GetSelectedTrackEnvelope: *fn (proj: ?ReaProject) callconv(.C) *TrackEnvelope = undefined;
 
     /// GetSet_ArrangeView2
     /// Gets or sets the arrange view start/end time for screen coordinates. use screen_x_start=screen_x_end=0 to use the full arrange view's start/end time
-    pub var GetSet_ArrangeView2: *fn (proj: ?*ReaProject, isSet: bool, screen_x_start: c_int, screen_x_end: c_int, start_timeInOut: *f64, end_timeInOut: *f64) callconv(.C) void = undefined;
+    pub var GetSet_ArrangeView2: *fn (proj: ?ReaProject, isSet: bool, screen_x_start: c_int, screen_x_end: c_int, start_timeInOut: *f64, end_timeInOut: *f64) callconv(.C) void = undefined;
 
     /// GetSet_LoopTimeRange
     pub var GetSet_LoopTimeRange: *fn (isSet: bool, isLoop: bool, startOut: *f64, endOut: *f64, allowautoseek: bool) callconv(.C) void = undefined;
 
     /// GetSet_LoopTimeRange2
-    pub var GetSet_LoopTimeRange2: *fn (proj: *ReaProject, isSet: bool, isLoop: bool, startOut: *f64, endOut: *f64, allowautoseek: bool) callconv(.C) void = undefined;
+    pub var GetSet_LoopTimeRange2: *fn (proj: ?ReaProject, isSet: bool, isLoop: bool, startOut: *f64, endOut: *f64, allowautoseek: bool) callconv(.C) void = undefined;
 
     /// GetSetAutomationItemInfo
     /// Get or set automation item information. autoitem_idx=0 for the first automation item on an envelope, 1 for the second item, etc. desc can be any of the following:
@@ -1682,11 +1682,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSetProjectAuthor
     /// deprecated, see GetSetProjectInfo_String with desc="PROJECT_AUTHOR"
-    pub var GetSetProjectAuthor: *fn (proj: *ReaProject, set: bool, author: *c_char, author_sz: c_int) callconv(.C) void = undefined;
+    pub var GetSetProjectAuthor: *fn (proj: ?ReaProject, set: bool, author: *c_char, author_sz: c_int) callconv(.C) void = undefined;
 
     /// GetSetProjectGrid
     /// Get or set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc. swingmode can be 1 for swing enabled, swingamt is -1..1. swingmode can be 3 for measure-grid. Returns grid configuration flags
-    pub var GetSetProjectGrid: *fn (project: ReaProject, set: bool, divisionInOutOptional: ?*f64, swingmodeInOutOptional: ?*c_int, swingamtInOutOptional: ?*f64) callconv(.C) c_int = undefined;
+    pub var GetSetProjectGrid: *fn (project: ?ReaProject, set: bool, divisionInOutOptional: ?*f64, swingmodeInOutOptional: ?*c_int, swingamtInOutOptional: ?*f64) callconv(.C) c_int = undefined;
 
     /// GetSetProjectInfo
     /// Get or set project information.
@@ -1710,7 +1710,7 @@ pub const reaper = struct { // @import("reaper");
     /// PROJECT_SRATE : samplerate (ignored unless PROJECT_SRATE_USE set)
     /// PROJECT_SRATE_USE : set to 1 if project samplerate is used
     ///
-    pub var GetSetProjectInfo: *fn (project: *ReaProject, desc: [*:0]const u8, value: f64, is_set: bool) callconv(.C) f64 = undefined;
+    pub var GetSetProjectInfo: *fn (project: ?ReaProject, desc: [*:0]const u8, value: f64, is_set: bool) callconv(.C) f64 = undefined;
 
     /// GetSetProjectInfo_String
     /// Get or set project information.
@@ -1733,11 +1733,11 @@ pub const reaper = struct { // @import("reaper");
     /// RENDER_FORMAT : base64-encoded sink configuration (see project files, etc). Callers can also pass a simple 4-byte string (non-base64-encoded), e.g. "evaw" or "l3pm", to use default settings for that sink type.
     /// RENDER_FORMAT2 : base64-encoded secondary sink configuration. Callers can also pass a simple 4-byte string (non-base64-encoded), e.g. "evaw" or "l3pm", to use default settings for that sink type, or "" to disable secondary render.
     ///
-    pub var GetSetProjectInfo_String: *fn (project: *ReaProject, desc: [*:0]const u8, valuestrNeedBig: *c_char, is_set: bool) callconv(.C) bool = undefined;
+    pub var GetSetProjectInfo_String: *fn (project: ?ReaProject, desc: [*:0]const u8, valuestrNeedBig: *c_char, is_set: bool) callconv(.C) bool = undefined;
 
     /// GetSetProjectNotes
     /// gets or sets project notes, notesNeedBig_sz is ignored when setting
-    pub var GetSetProjectNotes: *fn (proj: *ReaProject, set: bool, notesNeedBig: *c_char, notesNeedBig_sz: c_int) callconv(.C) void = undefined;
+    pub var GetSetProjectNotes: *fn (proj: ?ReaProject, set: bool, notesNeedBig: *c_char, notesNeedBig_sz: c_int) callconv(.C) void = undefined;
 
     /// GetSetRepeat
     /// -1 == query,0=clear,1=set,>1=toggle . returns new value
@@ -1745,7 +1745,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSetRepeatEx
     /// -1 == query,0=clear,1=set,>1=toggle . returns new value
-    pub var GetSetRepeatEx: *fn (proj: *ReaProject, val: c_int) callconv(.C) c_int = undefined;
+    pub var GetSetRepeatEx: *fn (proj: ?ReaProject, val: c_int) callconv(.C) c_int = undefined;
 
     /// GetSetTrackGroupMembership
     /// Gets or modifies the group membership for a track. Returns group state prior to call (each bit represents one of the 32 group numbers). if setmask has bits set, those bits in setvalue will be applied to group. Group can be one of:
@@ -1813,7 +1813,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetSetTrackMIDISupportFile
     /// Get or set the filename for storage of various track MIDI c_characteristics. 0=MIDI colormap image file, 1 or 2=MIDI bank/program select file (2=set new default). If fn != NULL, a new track MIDI storage file will be set; otherwise the existing track MIDI storage file will be returned.
-    pub var GetSetTrackMIDISupportFile: *fn (proj: *ReaProject, track: MediaTrack, which: c_int, filename: [*:0]const u8) callconv(.C) [*:0]const u8 = undefined;
+    pub var GetSetTrackMIDISupportFile: *fn (proj: ?ReaProject, track: MediaTrack, which: c_int, filename: [*:0]const u8) callconv(.C) [*:0]const u8 = undefined;
 
     /// GetSetTrackSendInfo
     /// Get or set send/receive/hardware output attributes.
@@ -1853,7 +1853,7 @@ pub const reaper = struct { // @import("reaper");
     pub var GetSetTrackState2: *fn (track: MediaTrack, str: *c_char, str_sz: c_int, isundo: bool) callconv(.C) bool = undefined;
 
     /// GetSubProjectFromSource
-    pub var GetSubProjectFromSource: *fn (src: *PCM_source) callconv(.C) *ReaProject = undefined;
+    pub var GetSubProjectFromSource: *fn (src: *PCM_source) callconv(.C) ?ReaProject = undefined;
 
     /// GetTake
     /// get a take from an item by take count (zero-based)
@@ -1887,7 +1887,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTCPFXParm
     /// Get information about a specific FX parameter knob (see CountTCPFXParms).
-    pub var GetTCPFXParm: *fn (project: *ReaProject, track: MediaTrack, index: c_int, fxindexOut: *c_int, parmidxOut: *c_int) callconv(.C) bool = undefined;
+    pub var GetTCPFXParm: *fn (project: ?ReaProject, track: MediaTrack, index: c_int, fxindexOut: *c_int, parmidxOut: *c_int) callconv(.C) bool = undefined;
 
     /// GetTempoMatchPlayRate
     /// finds the playrate and target length to insert this item stretched to a round power-of-2 number of bars, between 1/8 and 256
@@ -1895,7 +1895,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTempoTimeSigMarker
     /// Get information about a tempo/time signature marker. See CountTempoTimeSigMarkers, SetTempoTimeSigMarker, AddTempoTimeSigMarker.
-    pub var GetTempoTimeSigMarker: *fn (proj: ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.C) bool = undefined;
+    pub var GetTempoTimeSigMarker: *fn (proj: ?ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.C) bool = undefined;
 
     /// GetThemeColor
     /// Returns the theme color specified, or -1 on failure. If the low bit of flags is set, the color as originally specified by the theme (before any transformations) is returned, otherwise the current (possibly transformed and modified) color is returned. See SetThemeColor for a list of valid ini_key.
@@ -1931,7 +1931,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrack
     /// get a track from a project by track count (zero-based) (proj=0 for active project)
-    pub var GetTrack: *fn (proj: ReaProject, trackidx: c_int) callconv(.C) MediaTrack = undefined;
+    pub var GetTrack: *fn (proj: ?ReaProject, trackidx: c_int) callconv(.C) MediaTrack = undefined;
 
     /// GetTrackAutomationMode
     /// return the track mode, regardless of global override
@@ -1992,10 +1992,10 @@ pub const reaper = struct { // @import("reaper");
 
     /// GetTrackMIDINoteNameEx
     /// Get note/CC name. pitch 128 for CC0 name, 129 for CC1 name, etc. See SetTrackMIDINoteNameEx
-    pub var GetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: MediaTrack, pitch: c_int, chan: c_int) callconv(.C) [*:0]const u8 = undefined;
+    pub var GetTrackMIDINoteNameEx: *fn (proj: ?ReaProject, track: MediaTrack, pitch: c_int, chan: c_int) callconv(.C) [*:0]const u8 = undefined;
 
     /// GetTrackMIDINoteRange
-    pub var GetTrackMIDINoteRange: *fn (proj: *ReaProject, track: MediaTrack, note_loOut: *c_int, note_hiOut: *c_int) callconv(.C) void = undefined;
+    pub var GetTrackMIDINoteRange: *fn (proj: ?ReaProject, track: MediaTrack, note_loOut: *c_int, note_hiOut: *c_int) callconv(.C) void = undefined;
 
     /// GetTrackName
     /// Returns "MASTER" for master track, "Track N" if track has no name.
@@ -2098,11 +2098,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// GoToMarker
     /// Go to marker. If use_timeline_order==true, marker_index 1 refers to the first marker on the timeline.  If use_timeline_order==false, marker_index 1 refers to the first marker with the user-editable index of 1.
-    pub var GoToMarker: *fn (proj: *ReaProject, marker_index: c_int, use_timeline_order: bool) callconv(.C) void = undefined;
+    pub var GoToMarker: *fn (proj: ?ReaProject, marker_index: c_int, use_timeline_order: bool) callconv(.C) void = undefined;
 
     /// GoToRegion
     /// Seek to region after current region finishes playing (smooth seek). If use_timeline_order==true, region_index 1 refers to the first region on the timeline.  If use_timeline_order==false, region_index 1 refers to the first region with the user-editable index of 1.
-    pub var GoToRegion: *fn (proj: *ReaProject, region_index: c_int, use_timeline_order: bool) callconv(.C) void = undefined;
+    pub var GoToRegion: *fn (proj: ?ReaProject, region_index: c_int, use_timeline_order: bool) callconv(.C) void = undefined;
 
     /// GR_SelectColor
     /// Runs the system color chooser dialog.  Returns 0 if the user cancels the dialog.
@@ -2126,7 +2126,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// HasTrackMIDIProgramsEx
     /// returns name of track plugin that is supplying MIDI programs,or NULL if there is none
-    pub var HasTrackMIDIProgramsEx: *fn (proj: *ReaProject, track: MediaTrack) callconv(.C) [*:0]const u8 = undefined;
+    pub var HasTrackMIDIProgramsEx: *fn (proj: ?ReaProject, track: MediaTrack) callconv(.C) [*:0]const u8 = undefined;
 
     /// Help_Set
     pub var Help_Set: *fn (helpstring: [*:0]const u8, is_temporary_help: bool) callconv(.C) void = undefined;
@@ -2184,7 +2184,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// IsProjectDirty
     /// Is the project dirty (needing save)? Always returns 0 if 'undo/prompt to save' is disabled in preferences.
-    pub var IsProjectDirty: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var IsProjectDirty: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// IsREAPER
     /// Returns true if dealing with REAPER, returns false for ReaMote, etc
@@ -2248,7 +2248,7 @@ pub const reaper = struct { // @import("reaper");
     /// val=[0..127] and valhw=-1 (midi CC),
     /// valhw >=0 (midi pitch (valhw | val<<7)),
     /// relmode absolute (0) or 1/2/3 for relative adjust modes
-    pub var KBD_OnMainActionEx: *fn (cmd: c_int, val: c_int, valhw: c_int, relmode: c_int, hwnd: HWND, proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var KBD_OnMainActionEx: *fn (cmd: c_int, val: c_int, valhw: c_int, relmode: c_int, hwnd: HWND, proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// kbd_OnMidiEvent
     /// can be called from anywhere (threadsafe)
@@ -2442,7 +2442,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// Loop_OnArrow
     /// Move the loop selection left or right. Returns true if snap is enabled.
-    pub var Loop_OnArrow: *fn (project: *ReaProject, direction: c_int) callconv(.C) bool = undefined;
+    pub var Loop_OnArrow: *fn (project: ?ReaProject, direction: c_int) callconv(.C) bool = undefined;
 
     /// Main_OnCommand
     /// See Main_OnCommandEx.
@@ -2450,7 +2450,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// Main_OnCommandEx
     /// Performs an action belonging to the main action section. To perform non-native actions (ReaScripts, custom or extension plugins' actions) safely, see NamedCommandLookup().
-    pub var Main_OnCommandEx: *fn (command: c_int, flag: c_int, proj: *ReaProject) callconv(.C) void = undefined;
+    pub var Main_OnCommandEx: *fn (command: c_int, flag: c_int, proj: ?ReaProject) callconv(.C) void = undefined;
 
     /// Main_openProject
     /// opens a project. will prompt the user to save unless name is prefixed with 'noprompt:'. If name is prefixed with 'template:', project file will be loaded as a template.
@@ -2459,28 +2459,28 @@ pub const reaper = struct { // @import("reaper");
 
     /// Main_SaveProject
     /// Save the project.
-    pub var Main_SaveProject: *fn (proj: *ReaProject, forceSaveAsInOptional: bool) callconv(.C) void = undefined;
+    pub var Main_SaveProject: *fn (proj: ?ReaProject, forceSaveAsInOptional: bool) callconv(.C) void = undefined;
 
     /// Main_SaveProjectEx
     /// Save the project. options: &1=save selected tracks as track template, &2=include media with track template, &4=include envelopes with track template. See Main_openProject, Main_SaveProject.
-    pub var Main_SaveProjectEx: *fn (proj: *ReaProject, filename: [*:0]const u8, options: c_int) callconv(.C) void = undefined;
+    pub var Main_SaveProjectEx: *fn (proj: ?ReaProject, filename: [*:0]const u8, options: c_int) callconv(.C) void = undefined;
 
     /// Main_UpdateLoopInfo
     pub var Main_UpdateLoopInfo: *fn (ignoremask: c_int) callconv(.C) void = undefined;
 
     /// MarkProjectDirty
     /// Marks project as dirty (needing save) if 'undo/prompt to save' is enabled in preferences.
-    pub var MarkProjectDirty: *fn (proj: *ReaProject) callconv(.C) void = undefined;
+    pub var MarkProjectDirty: *fn (proj: ?ReaProject) callconv(.C) void = undefined;
 
     /// MarkTrackItemsDirty
     /// If track is supplied, item is ignored
     pub var MarkTrackItemsDirty: *fn (track: MediaTrack, item: *MediaItem) callconv(.C) void = undefined;
 
     /// Master_GetPlayRate
-    pub var Master_GetPlayRate: *fn (project: ReaProject) callconv(.C) f64 = undefined;
+    pub var Master_GetPlayRate: *fn (project: ?ReaProject) callconv(.C) f64 = undefined;
 
     /// Master_GetPlayRateAtTime
-    pub var Master_GetPlayRateAtTime: *fn (time_s: f64, proj: *ReaProject) callconv(.C) f64 = undefined;
+    pub var Master_GetPlayRateAtTime: *fn (time_s: f64, proj: ?ReaProject) callconv(.C) f64 = undefined;
 
     /// Master_GetTempo
     pub var Master_GetTempo: *fn () callconv(.C) f64 = undefined;
@@ -2792,7 +2792,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// OnPauseButtonEx
     /// direct way to simulate pause button hit
-    pub var OnPauseButtonEx: *fn (proj: *ReaProject) callconv(.C) void = undefined;
+    pub var OnPauseButtonEx: *fn (proj: ?ReaProject) callconv(.C) void = undefined;
 
     /// OnPlayButton
     /// direct way to simulate play button hit
@@ -2800,7 +2800,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// OnPlayButtonEx
     /// direct way to simulate play button hit
-    pub var OnPlayButtonEx: *fn (proj: *ReaProject) callconv(.C) void = undefined;
+    pub var OnPlayButtonEx: *fn (proj: ?ReaProject) callconv(.C) void = undefined;
 
     /// OnStopButton
     /// direct way to simulate stop button hit
@@ -2808,7 +2808,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// OnStopButtonEx
     /// direct way to simulate stop button hit
-    pub var OnStopButtonEx: *fn (proj: *ReaProject) callconv(.C) void = undefined;
+    pub var OnStopButtonEx: *fn (proj: ?ReaProject) callconv(.C) void = undefined;
 
     /// OpenColorThemeFile
     pub var OpenColorThemeFile: *fn (fn_: [*:0]const u8) callconv(.C) bool = undefined;
@@ -2854,13 +2854,13 @@ pub const reaper = struct { // @import("reaper");
     pub var PCM_Sink_Create: *fn (filename: [*:0]const u8, cfg: [*:0]const u8, cfg_sz: c_int, nch: c_int, srate: c_int, buildpeaks: bool) callconv(.C) *PCM_sink = undefined;
 
     /// PCM_Sink_CreateEx
-    pub var PCM_Sink_CreateEx: *fn (proj: *ReaProject, filename: [*:0]const u8, cfg: [*:0]const u8, cfg_sz: c_int, nch: c_int, srate: c_int, buildpeaks: bool) callconv(.C) *PCM_sink = undefined;
+    pub var PCM_Sink_CreateEx: *fn (proj: ?ReaProject, filename: [*:0]const u8, cfg: [*:0]const u8, cfg_sz: c_int, nch: c_int, srate: c_int, buildpeaks: bool) callconv(.C) *PCM_sink = undefined;
 
     /// PCM_Sink_CreateMIDIFile
     pub var PCM_Sink_CreateMIDIFile: *fn (filename: [*:0]const u8, cfg: [*:0]const u8, cfg_sz: c_int, bpm: f64, div: c_int) callconv(.C) *PCM_sink = undefined;
 
     /// PCM_Sink_CreateMIDIFileEx
-    pub var PCM_Sink_CreateMIDIFileEx: *fn (proj: *ReaProject, filename: [*:0]const u8, cfg: [*:0]const u8, cfg_sz: c_int, bpm: f64, div: c_int) callconv(.C) *PCM_sink = undefined;
+    pub var PCM_Sink_CreateMIDIFileEx: *fn (proj: ?ReaProject, filename: [*:0]const u8, cfg: [*:0]const u8, cfg_sz: c_int, bpm: f64, div: c_int) callconv(.C) *PCM_sink = undefined;
 
     /// PCM_Sink_Enum
     pub var PCM_Sink_Enum: *fn (idx: c_int, descstrOut: [*:0]const u8) callconv(.C) c_uint = undefined;
@@ -2933,11 +2933,11 @@ pub const reaper = struct { // @import("reaper");
 
     /// PlayTrackPreview2
     /// return nonzero on success,in these,m_out_chan is a track index (0-n)
-    pub var PlayTrackPreview2: *fn (proj: *ReaProject, preview: *preview_register_t) callconv(.C) c_int = undefined;
+    pub var PlayTrackPreview2: *fn (proj: ?ReaProject, preview: *preview_register_t) callconv(.C) c_int = undefined;
 
     /// PlayTrackPreview2Ex
     /// return nonzero on success,in these,m_out_chan is a track index (0-n). see PlayPreviewEx
-    pub var PlayTrackPreview2Ex: *fn (proj: *ReaProject, preview: *preview_register_t, flags: c_int, measure_align: f64) callconv(.C) c_int = undefined;
+    pub var PlayTrackPreview2Ex: *fn (proj: ?ReaProject, preview: *preview_register_t, flags: c_int, measure_align: f64) callconv(.C) c_int = undefined;
 
     /// plugin_getapi
     // pub var plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) *void = undefined;
@@ -2962,7 +2962,7 @@ pub const reaper = struct { // @import("reaper");
     pub var PreventUIRefresh: *fn (prevent_count: c_int) callconv(.C) void = undefined;
 
     /// projectconfig_var_addr
-    pub var projectconfig_var_addr: *fn (proj: *ReaProject, idx: c_int) callconv(.C) *void = undefined;
+    pub var projectconfig_var_addr: *fn (proj: ?ReaProject, idx: c_int) callconv(.C) *void = undefined;
 
     /// projectconfig_var_getoffs
     /// returns offset to pass to projectconfig_var_addr() to get project-config var of name. szout gets size of object. can also query "__metronome_ptr" query project metronome *PCM_source* offset
@@ -3040,7 +3040,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// ResolveRenderPattern
     /// Resolve a wildcard pattern into a set of nul-separated, f64-nul terminated render target filenames. Returns the length of the string buffer needed for the returned file list. Call with path=NULL to suppress filtering out illegal pathnames, call with targets=NULL to get just the string buffer length.
-    pub var ResolveRenderPattern: *fn (project: *ReaProject, path: [*:0]const u8, pattern: [*:0]const u8, targets: *c_char, targets_sz: c_int) callconv(.C) c_int = undefined;
+    pub var ResolveRenderPattern: *fn (project: ?ReaProject, path: [*:0]const u8, pattern: [*:0]const u8, targets: *c_char, targets_sz: c_int) callconv(.C) c_int = undefined;
 
     /// ReverseNamedCommandLookup
     /// Get the named command for the given command ID. The returned string will not start with '_' (e.g. it will return "SWS_ABOUT"), it will be NULL if command_id is a native action.
@@ -3073,10 +3073,10 @@ pub const reaper = struct { // @import("reaper");
     pub var SectionFromUniqueID: *fn (uniqueID: c_int) callconv(.C) ?KbdSectionInfo = undefined;
 
     /// SelectAllMediaItems
-    pub var SelectAllMediaItems: *fn (proj: *ReaProject, selected: bool) callconv(.C) void = undefined;
+    pub var SelectAllMediaItems: *fn (proj: ?ReaProject, selected: bool) callconv(.C) void = undefined;
 
     /// SelectProjectInstance
-    pub var SelectProjectInstance: *fn (proj: *ReaProject) callconv(.C) void = undefined;
+    pub var SelectProjectInstance: *fn (proj: ?ReaProject) callconv(.C) void = undefined;
 
     /// SendLocalOscMessage
     /// Send an OSC message to REAPER. See CreateLocalOscHandler, DestroyLocalOscHandler.
@@ -3099,7 +3099,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetCurrentBPM
     /// set current BPM in project, set wantUndo=true to add undo point
-    pub var SetCurrentBPM: *fn (__proj: *ReaProject, bpm: f64, wantUndo: bool) callconv(.C) void = undefined;
+    pub var SetCurrentBPM: *fn (__proj: ?ReaProject, bpm: f64, wantUndo: bool) callconv(.C) void = undefined;
 
     /// SetCursorContext
     /// You must use this to change the focus programmatically. mode=0 to focus track panels, 1 to focus the arrange window, 2 to focus the arrange window and select env (or env==NULL to clear the current track/take envelope selection)
@@ -3109,7 +3109,7 @@ pub const reaper = struct { // @import("reaper");
     pub var SetEditCurPos: *fn (time: f64, moveview: bool, seekplay: bool) callconv(.C) void = undefined;
 
     /// SetEditCurPos2
-    pub var SetEditCurPos2: *fn (proj: *ReaProject, time: f64, moveview: bool, seekplay: bool) callconv(.C) void = undefined;
+    pub var SetEditCurPos2: *fn (proj: ?ReaProject, time: f64, moveview: bool, seekplay: bool) callconv(.C) void = undefined;
 
     /// SetEnvelopePoint
     /// Set attributes of an envelope point. Values that are not supplied will be ignored. If setting multiple points at once, set noSort=true, and call Envelope_SortPoints when done. See SetEnvelopePointEx.
@@ -3289,7 +3289,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetMIDIEditorGrid
     /// Set the MIDI editor grid division. 0.25=quarter note, 1.0/3.0=half note tripet, etc.
-    pub var SetMIDIEditorGrid: *fn (project: *ReaProject, division: f64) callconv(.C) void = undefined;
+    pub var SetMIDIEditorGrid: *fn (project: ?ReaProject, division: f64) callconv(.C) void = undefined;
 
     /// SetMixerScroll
     /// Scroll the mixer so that leftmosttrack is the leftmost visible track. Returns the leftmost track after scrolling, which may be different from the passed-in track if there are not enough tracks to its right.
@@ -3320,7 +3320,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetProjectGrid
     /// Set the arrange view grid division. 0.25=quarter note, 1.0/3.0=half note triplet, etc.
-    pub var SetProjectGrid: *fn (project: *ReaProject, division: f64) callconv(.C) void = undefined;
+    pub var SetProjectGrid: *fn (project: ?ReaProject, division: f64) callconv(.C) void = undefined;
 
     /// SetProjectMarker
     /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
@@ -3328,31 +3328,31 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetProjectMarker2
     /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
-    pub var SetProjectMarker2: *fn (proj: *ReaProject, markrgnindexnumber: c_int, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8) callconv(.C) bool = undefined;
+    pub var SetProjectMarker2: *fn (proj: ?ReaProject, markrgnindexnumber: c_int, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// SetProjectMarker3
     /// Note: this function can't clear a marker's name (an empty string will leave the name unchanged), see SetProjectMarker4.
-    pub var SetProjectMarker3: *fn (proj: *ReaProject, markrgnindexnumber: c_int, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, color: c_int) callconv(.C) bool = undefined;
+    pub var SetProjectMarker3: *fn (proj: ?ReaProject, markrgnindexnumber: c_int, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, color: c_int) callconv(.C) bool = undefined;
 
     /// SetProjectMarker4
     /// color should be 0 to not change, or ColorToNative(r,g,b)|0x1000000, flags&1 to clear name
-    pub var SetProjectMarker4: *fn (proj: *ReaProject, markrgnindexnumber: c_int, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, color: c_int, flags: c_int) callconv(.C) bool = undefined;
+    pub var SetProjectMarker4: *fn (proj: ?ReaProject, markrgnindexnumber: c_int, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, color: c_int, flags: c_int) callconv(.C) bool = undefined;
 
     /// SetProjectMarkerByIndex
     /// See SetProjectMarkerByIndex2.
-    pub var SetProjectMarkerByIndex: *fn (proj: *ReaProject, markrgnidx: c_int, isrgn: bool, pos: f64, rgnend: f64, IDnumber: c_int, name: [*:0]const u8, color: c_int) callconv(.C) bool = undefined;
+    pub var SetProjectMarkerByIndex: *fn (proj: ?ReaProject, markrgnidx: c_int, isrgn: bool, pos: f64, rgnend: f64, IDnumber: c_int, name: [*:0]const u8, color: c_int) callconv(.C) bool = undefined;
 
     /// SetProjectMarkerByIndex2
     /// Differs from SetProjectMarker4 in that markrgnidx is 0 for the first marker/region, 1 for the next, etc (see EnumProjectMarkers3), rather than representing the displayed marker/region ID number (see SetProjectMarker3). Function will fail if attempting to set a duplicate ID number for a region (duplicate ID numbers for markers are OK). , flags&1 to clear name. If flags&2, markers will not be re-sorted, and after making updates, you MUST call SetProjectMarkerByIndex2 with markrgnidx=-1 and flags&2 to force re-sort/UI updates.
-    pub var SetProjectMarkerByIndex2: *fn (proj: *ReaProject, markrgnidx: c_int, isrgn: bool, pos: f64, rgnend: f64, IDnumber: c_int, name: [*:0]const u8, color: c_int, flags: c_int) callconv(.C) bool = undefined;
+    pub var SetProjectMarkerByIndex2: *fn (proj: ?ReaProject, markrgnidx: c_int, isrgn: bool, pos: f64, rgnend: f64, IDnumber: c_int, name: [*:0]const u8, color: c_int, flags: c_int) callconv(.C) bool = undefined;
 
     /// SetProjExtState
     /// Save a key/value pair for a specific extension, to be restored the next time this specific project is loaded. Typically extname will be the name of a reascript or extension section. If key is NULL or "", all extended data for that extname will be deleted.  If val is NULL or "", the data previously associated with that key will be deleted. Returns the size of the state for this extname. See GetProjExtState, EnumProjExtState.
-    pub var SetProjExtState: *fn (proj: *ReaProject, extname: [*:0]const u8, key: [*:0]const u8, value: [*:0]const u8) callconv(.C) c_int = undefined;
+    pub var SetProjExtState: *fn (proj: ?ReaProject, extname: [*:0]const u8, key: [*:0]const u8, value: ?[*:0]const u8) callconv(.C) c_int = undefined;
 
     /// SetRegionRenderMatrix
     /// Add (flag > 0) or remove (flag < 0) a track from this region when using the region render matrix. If adding, flag==2 means force mono, flag==4 means force stereo, flag==N means force N/2 channels.
-    pub var SetRegionRenderMatrix: *fn (proj: *ReaProject, regionindex: c_int, track: MediaTrack, flag: c_int) callconv(.C) void = undefined;
+    pub var SetRegionRenderMatrix: *fn (proj: ?ReaProject, regionindex: c_int, track: MediaTrack, flag: c_int) callconv(.C) void = undefined;
 
     /// SetRenderLastError
     /// Used by pcmsink objects to set an error to display while creating the pcmsink object.
@@ -3372,7 +3372,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetTempoTimeSigMarker
     /// Set parameters of a tempo/time signature marker. Provide either timepos (with measurepos=-1, beatpos=-1), or measurepos and beatpos (with timepos=-1). If timesig_num and timesig_denom are zero, the previous time signature will be used. ptidx=-1 will insert a new tempo/time signature marker. See CountTempoTimeSigMarkers, GetTempoTimeSigMarker, AddTempoTimeSigMarker.
-    pub var SetTempoTimeSigMarker: *fn (proj: *ReaProject, ptidx: c_int, timepos: f64, measurepos: c_int, beatpos: f64, bpm: f64, timesig_num: c_int, timesig_denom: c_int, lineartempo: bool) callconv(.C) bool = undefined;
+    pub var SetTempoTimeSigMarker: *fn (proj: ?ReaProject, ptidx: c_int, timepos: f64, measurepos: c_int, beatpos: f64, bpm: f64, timesig_num: c_int, timesig_denom: c_int, lineartempo: bool) callconv(.C) bool = undefined;
 
     /// SetThemeColor
     /// Temporarily updates the theme color to the color specified (or the theme default color if -1 is specified). Returns -1 on failure, otherwise returns the color (or transformed-color). Note that the UI is not updated by this, the caller should call UpdateArrange() etc as necessary. If the low bit of flags is set, any color transformations are bypassed. To read a value see GetThemeColor.
@@ -3399,7 +3399,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// SetTrackMIDINoteNameEx
     /// channel < 0 assigns note name to all channels. pitch 128 assigns name for CC0, pitch 129 for CC1, etc.
-    pub var SetTrackMIDINoteNameEx: *fn (proj: *ReaProject, track: MediaTrack, pitch: c_int, chan: c_int, name: [*:0]const u8) callconv(.C) bool = undefined;
+    pub var SetTrackMIDINoteNameEx: *fn (proj: ?ReaProject, track: MediaTrack, pitch: c_int, chan: c_int, name: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// SetTrackSelected
     pub var SetTrackSelected: *fn (track: MediaTrack, selected: bool) callconv(.C) void = undefined;
@@ -3485,7 +3485,7 @@ pub const reaper = struct { // @import("reaper");
     pub var SLIDER2DB: *fn (y: f64) callconv(.C) f64 = undefined;
 
     /// SnapToGrid
-    pub var SnapToGrid: *fn (project: ReaProject, time_pos: f64) callconv(.C) f64 = undefined;
+    pub var SnapToGrid: *fn (project: ?ReaProject, time_pos: f64) callconv(.C) f64 = undefined;
 
     /// SoloAllTracks
     /// solo=2 for SIP
@@ -3509,7 +3509,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// StopTrackPreview2
     /// return nonzero on success
-    pub var StopTrackPreview2: *fn (proj: *ReaProject, preview: *preview_register_t) callconv(.C) c_int = undefined;
+    pub var StopTrackPreview2: *fn (proj: ?ReaProject, preview: *preview_register_t) callconv(.C) c_int = undefined;
 
     /// stringToGuid
     pub var stringToGuid: *fn (str: [*:0]const u8, g: *GUID) callconv(.C) void = undefined;
@@ -3715,19 +3715,19 @@ pub const reaper = struct { // @import("reaper");
 
     /// TimeMap2_beatsToTime
     /// convert a beat position (or optionally a beats+measures if measures is non-NULL) to time.
-    pub var TimeMap2_beatsToTime: *fn (proj: *ReaProject, tpos: f64, measuresInOptional: *const c_int) callconv(.C) f64 = undefined;
+    pub var TimeMap2_beatsToTime: *fn (proj: ?ReaProject, tpos: f64, measuresInOptional: ?*const c_int) callconv(.C) f64 = undefined;
 
     /// TimeMap2_GetDividedBpmAtTime
     /// get the effective BPM at the time (seconds) position (i.e. 2x in /8 signatures)
-    pub var TimeMap2_GetDividedBpmAtTime: *fn (proj: *ReaProject, time: f64) callconv(.C) f64 = undefined;
+    pub var TimeMap2_GetDividedBpmAtTime: *fn (proj: ?ReaProject, time: f64) callconv(.C) f64 = undefined;
 
     /// TimeMap2_GetNextChangeTime
     /// when does the next time map (tempo or time sig) change occur
-    pub var TimeMap2_GetNextChangeTime: *fn (proj: *ReaProject, time: f64) callconv(.C) f64 = undefined;
+    pub var TimeMap2_GetNextChangeTime: *fn (proj: ?ReaProject, time: f64) callconv(.C) f64 = undefined;
 
     /// TimeMap2_QNToTime
     /// converts project QN position to time.
-    pub var TimeMap2_QNToTime: *fn (proj: *ReaProject, qn: f64) callconv(.C) f64 = undefined;
+    pub var TimeMap2_QNToTime: *fn (proj: ?ReaProject, qn: f64) callconv(.C) f64 = undefined;
 
     /// TimeMap2_timeToBeats
     /// convert a time into beats.
@@ -3735,15 +3735,15 @@ pub const reaper = struct { // @import("reaper");
     /// if cml is non-NULL, will be set to current measure length in beats (i.e. time signature numerator)
     /// if fullbeats is non-NULL, and measures is non-NULL, fullbeats will get the full beat count (same value returned if measures is NULL).
     /// if cdenom is non-NULL, will be set to the current time signature denominator.
-    pub var TimeMap2_timeToBeats: *fn (proj: *ReaProject, tpos: f64, measuresOutOptional: *c_int, cmlOutOptional: *c_int, fullbeatsOutOptional: *f64, cdenomOutOptional: *c_int) callconv(.C) f64 = undefined;
+    pub var TimeMap2_timeToBeats: *fn (proj: ?ReaProject, tpos: f64, measuresOutOptional: ?*c_int, cmlOutOptional: ?*c_int, fullbeatsOutOptional: ?*f64, cdenomOutOptional: ?*c_int) callconv(.C) f64 = undefined;
 
     /// TimeMap2_timeToQN
     /// converts project time position to QN position.
-    pub var TimeMap2_timeToQN: *fn (proj: *ReaProject, tpos: f64) callconv(.C) f64 = undefined;
+    pub var TimeMap2_timeToQN: *fn (proj: ?ReaProject, tpos: f64) callconv(.C) f64 = undefined;
 
     /// TimeMap_curFrameRate
     /// Gets project framerate, and optionally whether it is drop-frame timecode
-    pub var TimeMap_curFrameRate: *fn (proj: ReaProject, dropFrameOut: *bool) callconv(.C) f64 = undefined;
+    pub var TimeMap_curFrameRate: *fn (proj: ?ReaProject, dropFrameOut: *bool) callconv(.C) f64 = undefined;
 
     /// TimeMap_GetDividedBpmAtTime
     /// get the effective BPM at the time (seconds) position (i.e. 2x in /8 signatures)
@@ -3751,19 +3751,19 @@ pub const reaper = struct { // @import("reaper");
 
     /// TimeMap_GetMeasureInfo
     /// Get the QN position and time signature information for the start of a measure. Return the time in seconds of the measure start.
-    pub var TimeMap_GetMeasureInfo: *fn (proj: *ReaProject, measure: c_int, qn_startOut: *f64, qn_endOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, tempoOut: *f64) callconv(.C) f64 = undefined;
+    pub var TimeMap_GetMeasureInfo: *fn (proj: ?ReaProject, measure: c_int, qn_startOut: *f64, qn_endOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, tempoOut: *f64) callconv(.C) f64 = undefined;
 
     /// TimeMap_GetMetronomePattern
     /// Fills in a string representing the active metronome pattern. For example, in a 7/8 measure divided 3+4, the pattern might be "1221222". The length of the string is the time signature numerator, and the function returns the time signature denominator.
-    pub var TimeMap_GetMetronomePattern: *fn (proj: *ReaProject, time: f64, pattern: *c_char, pattern_sz: c_int) callconv(.C) c_int = undefined;
+    pub var TimeMap_GetMetronomePattern: *fn (proj: ?ReaProject, time: f64, pattern: *c_char, pattern_sz: c_int) callconv(.C) c_int = undefined;
 
     /// TimeMap_GetTimeSigAtTime
     /// get the effective time signature and tempo
-    pub var TimeMap_GetTimeSigAtTime: *fn (proj: *ReaProject, time: f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, tempoOut: *f64) callconv(.C) void = undefined;
+    pub var TimeMap_GetTimeSigAtTime: *fn (proj: ?ReaProject, time: f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, tempoOut: *f64) callconv(.C) void = undefined;
 
     /// TimeMap_QNToMeasures
     /// Find which measure the given QN position falls in.
-    pub var TimeMap_QNToMeasures: *fn (proj: *ReaProject, qn: f64, qnMeasureStartOutOptional: *f64, qnMeasureEndOutOptional: *f64) callconv(.C) c_int = undefined;
+    pub var TimeMap_QNToMeasures: *fn (proj: ?ReaProject, qn: f64, qnMeasureStartOutOptional: ?*f64, qnMeasureEndOutOptional: ?*f64) callconv(.C) c_int = undefined;
 
     /// TimeMap_QNToTime
     /// converts project QN position to time.
@@ -3771,7 +3771,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TimeMap_QNToTime_abs
     /// Converts project quarter note count (QN) to time. QN is counted from the start of the project, regardless of any partial measures. See TimeMap2_QNToTime
-    pub var TimeMap_QNToTime_abs: *fn (proj: *ReaProject, qn: f64) callconv(.C) f64 = undefined;
+    pub var TimeMap_QNToTime_abs: *fn (proj: ?ReaProject, qn: f64) callconv(.C) f64 = undefined;
 
     /// TimeMap_timeToQN
     /// converts project QN position to time.
@@ -3779,7 +3779,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// TimeMap_timeToQN_abs
     /// Converts project time position to quarter note count (QN). QN is counted from the start of the project, regardless of any partial measures. See TimeMap2_timeToQN
-    pub var TimeMap_timeToQN_abs: *fn (proj: *ReaProject, tpos: f64) callconv(.C) f64 = undefined;
+    pub var TimeMap_timeToQN_abs: *fn (proj: ?ReaProject, tpos: f64) callconv(.C) f64 = undefined;
 
     /// ToggleTrackSendUIMute
     /// send_idx<0 for receives, >=0 for hw ouputs, >=nb_of_hw_ouputs for sends.
@@ -4114,23 +4114,23 @@ pub const reaper = struct { // @import("reaper");
 
     /// Undo_BeginBlock2
     /// call to start a new block
-    pub var Undo_BeginBlock2: *fn (proj: *ReaProject) callconv(.C) void = undefined;
+    pub var Undo_BeginBlock2: *fn (proj: ?ReaProject) callconv(.C) void = undefined;
 
     /// Undo_CanRedo2
     /// returns string of next action,if able,NULL if not
-    pub var Undo_CanRedo2: *fn (proj: *ReaProject) callconv(.C) [*:0]const u8 = undefined;
+    pub var Undo_CanRedo2: *fn (proj: ?ReaProject) callconv(.C) [*:0]const u8 = undefined;
 
     /// Undo_CanUndo2
     /// returns string of last action,if able,NULL if not
-    pub var Undo_CanUndo2: *fn (proj: *ReaProject) callconv(.C) [*:0]const u8 = undefined;
+    pub var Undo_CanUndo2: *fn (proj: ?ReaProject) callconv(.C) [*:0]const u8 = undefined;
 
     /// Undo_DoRedo2
     /// nonzero if success
-    pub var Undo_DoRedo2: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var Undo_DoRedo2: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// Undo_DoUndo2
     /// nonzero if success
-    pub var Undo_DoUndo2: *fn (proj: *ReaProject) callconv(.C) c_int = undefined;
+    pub var Undo_DoUndo2: *fn (proj: ?ReaProject) callconv(.C) c_int = undefined;
 
     /// Undo_EndBlock
     /// call to end the block,with extra flags if any,and a description
@@ -4138,7 +4138,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// Undo_EndBlock2
     /// call to end the block,with extra flags if any,and a description
-    pub var Undo_EndBlock2: *fn (proj: *ReaProject, descchange: [*:0]const u8, extraflags: c_int) callconv(.C) void = undefined;
+    pub var Undo_EndBlock2: *fn (proj: ?ReaProject, descchange: [*:0]const u8, extraflags: c_int) callconv(.C) void = undefined;
 
     /// Undo_OnStateChange
     /// limited state change to items
@@ -4146,10 +4146,10 @@ pub const reaper = struct { // @import("reaper");
 
     /// Undo_OnStateChange2
     /// limited state change to items
-    pub var Undo_OnStateChange2: *fn (proj: *ReaProject, descchange: [*:0]const u8) callconv(.C) void = undefined;
+    pub var Undo_OnStateChange2: *fn (proj: ?ReaProject, descchange: [*:0]const u8) callconv(.C) void = undefined;
 
     /// Undo_OnStateChange_Item
-    pub var Undo_OnStateChange_Item: *fn (proj: *ReaProject, name: [*:0]const u8, item: *MediaItem) callconv(.C) void = undefined;
+    pub var Undo_OnStateChange_Item: *fn (proj: ?ReaProject, name: [*:0]const u8, item: *MediaItem) callconv(.C) void = undefined;
 
     /// Undo_OnStateChangeEx
     /// trackparm=-1 by default,or if updating one fx chain,you can specify track index
@@ -4157,7 +4157,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// Undo_OnStateChangeEx2
     /// trackparm=-1 by default,or if updating one fx chain,you can specify track index
-    pub var Undo_OnStateChangeEx2: *fn (proj: *ReaProject, descchange: [*:0]const u8, whichStates: c_int, trackparm: c_int) callconv(.C) void = undefined;
+    pub var Undo_OnStateChangeEx2: *fn (proj: ?ReaProject, descchange: [*:0]const u8, whichStates: c_int, trackparm: c_int) callconv(.C) void = undefined;
 
     /// update_disk_counters
     /// Updates disk I/O statistics with bytes transferred since last call. notify REAPER of a write error by calling with readamt=0, writeamt=-101010110 for unknown or -101010111 for disk full
@@ -4172,7 +4172,7 @@ pub const reaper = struct { // @import("reaper");
 
     /// UpdateItemLanes
     /// Recalculate lane arrangement for fixed lane tracks, including auto-removing empty lanes at the bottom of the track
-    pub var UpdateItemLanes: *fn (proj: *ReaProject) callconv(.C) bool = undefined;
+    pub var UpdateItemLanes: *fn (proj: ?ReaProject) callconv(.C) bool = undefined;
 
     /// UpdateTimeline
     /// Redraw the arrange view and ruler
@@ -4183,8 +4183,8 @@ pub const reaper = struct { // @import("reaper");
     pub var ValidatePtr: *fn (pointer: *void, ctypename: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// ValidatePtr2
-    /// Return true if the pointer is a valid object of the right type in proj (proj is ignored if pointer is itself a project). Supported types are: *ReaProject, *MediaTrack, *MediaItem, *MediaItem_Take, *TrackEnvelope and *PCM_source.
-    pub var ValidatePtr2: *fn (proj: *ReaProject, pointer: *void, ctypename: [*:0]const u8) callconv(.C) bool = undefined;
+    /// Return true if the pointer is a valid object of the right type in proj (proj is ignored if pointer is itself a project). Supported types are: ?ReaProject, *MediaTrack, *MediaItem, *MediaItem_Take, *TrackEnvelope and *PCM_source.
+    pub var ValidatePtr2: *fn (proj: ?ReaProject, pointer: *anyopaque, ctypename: [*:0]const u8) callconv(.C) bool = undefined;
 
     /// ViewPrefs
     /// Opens the prefs to a page, use pageByName if page is 0.

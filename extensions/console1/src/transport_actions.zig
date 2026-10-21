@@ -57,16 +57,16 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                     pReaper.Main_OnCommand(.{ RprCmds.OPT_TGL_SNAP, 0 });
                     var dropFrameOut: bool = false;
                     const grid_duration = if (reaper.GetToggleCommandState(41885) == 1)
-                        0.4 / reaper.TimeMap_curFrameRate(0, &dropFrameOut)
+                        0.4 / reaper.TimeMap_curFrameRate(null, &dropFrameOut)
                     else blk: {
                         var division: f64 = undefined;
-                        _ = reaper.GetSetProjectGrid(0, false, &division, null, null);
-                        const tmsgn_cnt = reaper.CountTempoTimeSigMarkers(0);
+                        _ = reaper.GetSetProjectGrid(null, false, &division, null, null);
+                        const tmsgn_cnt = reaper.CountTempoTimeSigMarkers(null);
                         var tempo: f64 = undefined;
                         if (tmsgn_cnt == 0) {
                             tempo = reaper.Master_GetTempo();
                         } else {
-                            const ptidx = reaper.FindTempoTimeSigMarker(0, cursor_pos);
+                            const ptidx = reaper.FindTempoTimeSigMarker(null, cursor_pos);
                             var timeposOut: f64 = undefined;
                             var measureposOut: c_int = undefined;
                             var beatposOut: f64 = undefined;
@@ -74,7 +74,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                             var timesig_denomOut: c_int = undefined;
                             var lineartempoOut: bool = undefined;
                             _ = reaper.GetTempoTimeSigMarker(
-                                0,
+                                null,
                                 ptidx,
                                 &timeposOut,
                                 &measureposOut,
@@ -88,16 +88,16 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                         break :blk 60.0 / tempo * division;
                     };
 
-                    const snapped = reaper.SnapToGrid(0, cursor_pos);
+                    const snapped = reaper.SnapToGrid(null, cursor_pos);
                     if (delta > 0) {
                         grid_pos = if (snapped > cursor_pos)
                             snapped
                         else blk: {
                             var next_pos = cursor_pos;
-                            while (reaper.SnapToGrid(0, next_pos) <= cursor_pos) {
+                            while (reaper.SnapToGrid(null, next_pos) <= cursor_pos) {
                                 next_pos += grid_duration;
                             }
-                            break :blk reaper.SnapToGrid(0, next_pos);
+                            break :blk reaper.SnapToGrid(null, next_pos);
                         };
                     } else if (cursor_pos > 0) {
                         grid_pos = if (snapped < cursor_pos)
@@ -107,7 +107,7 @@ pub fn transportAction(globals: *Globals, action: TransportAction) void {
                             while (pos >= cursor_pos) {
                                 pos -= grid_duration;
                                 if (pos >= grid_duration) {
-                                    const grid = reaper.SnapToGrid(0, pos);
+                                    const grid = reaper.SnapToGrid(null, pos);
                                     if (grid < cursor_pos) break :blk grid;
                                 } else {
                                     break :blk 0;

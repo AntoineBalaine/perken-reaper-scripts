@@ -33,30 +33,18 @@ const log = std.log.scoped(.engine);
 const ext_section = "reavim_marks";
 const payload_max = 8192;
 
-// ---- ABI shims (project-pointer params take NULL for "current project") -------
-
-fn addProjectMarker(isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8) c_int {
-    const f: *const fn (proj: ?*Reaper.ReaProject, isrgn: bool, pos: f64, rgnend: f64, name: [*:0]const u8, wantidx: c_int) callconv(.C) c_int = @ptrCast(Reaper.AddProjectMarker);
-    return f(null, isrgn, pos, rgnend, name, -1);
-}
-
-fn deleteProjectMarker(idx: c_int, isrgn: bool) void {
-    const f: *const fn (proj: ?*Reaper.ReaProject, markrgnindexnumber: c_int, isrgn: bool) callconv(.C) bool = @ptrCast(Reaper.DeleteProjectMarker);
-    _ = f(null, idx, isrgn);
-}
+// ---- mark payload storage ------------------------------------------------------
 
 /// value == null deletes the key.
 fn setMarkPayload(register: u8, value: ?[*:0]const u8) void {
-    const f: *const fn (proj: ?*Reaper.ReaProject, extname: [*:0]const u8, key: [*:0]const u8, value: ?[*:0]const u8) callconv(.C) c_int = @ptrCast(Reaper.SetProjExtState);
     var key = [_:0]u8{register};
-    _ = f(null, ext_section, &key, value);
+    _ = Reaper.SetProjExtState(null, ext_section, &key, value);
 }
 
 fn getMarkPayload(register: u8, buf: []u8) ?[]const u8 {
-    const f: *const fn (proj: ?*Reaper.ReaProject, extname: [*:0]const u8, key: [*:0]const u8, valOut: [*]u8, valOut_sz: c_int) callconv(.C) c_int = @ptrCast(Reaper.GetProjExtState);
     var key = [_:0]u8{register};
     buf[0] = 0;
-    if (f(null, ext_section, &key, buf.ptr, @intCast(buf.len)) == 0) return null;
+    if (Reaper.GetProjExtState(null, ext_section, &key, buf.ptr, @intCast(buf.len)) == 0) return null;
     return std.mem.sliceTo(buf, 0);
 }
 
@@ -128,10 +116,10 @@ fn registerChar(ctx: *actions.RunCtx) ?u8 {
 
 fn findTrackIndexByGuid(guid: []const u8) ?c_int {
     if (guid.len == 0) return null;
-    const n = Reaper.CountTracks(0);
+    const n = Reaper.CountTracks(null);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const track = Reaper.GetTrack(0, i) orelse continue;
+        const track = Reaper.GetTrack(null, i) orelse continue;
         var buf: [64]u8 = undefined;
         const g = helpers.getTrackString(track, "GUID", &buf) orelse continue;
         if (std.mem.eql(u8, g, guid)) return i;
@@ -140,10 +128,10 @@ fn findTrackIndexByGuid(guid: []const u8) ?c_int {
 }
 
 fn unselectAllTracks() void {
-    const n = Reaper.CountTracks(0);
+    const n = Reaper.CountTracks(null);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        if (Reaper.GetTrack(0, i)) |track| Reaper.SetTrackSelected(track, false);
+        if (Reaper.GetTrack(null, i)) |track| Reaper.SetTrackSelected(track, false);
     }
 }
 
@@ -168,10 +156,10 @@ fn mark(ctx: *actions.RunCtx) void {
 
     var guids = std.ArrayList(u8).init(helpers.allocator);
     defer guids.deinit();
-    const n_sel = Reaper.CountSelectedTracks(0);
+    const n_sel = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n_sel) : (i += 1) {
-        const track = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         var guid_buf: [64]u8 = undefined;
         const g = helpers.getTrackString(track, "GUID", &guid_buf) orelse continue;
         if (guids.items.len > 0) guids.append(',') catch return;
@@ -191,12 +179,12 @@ fn mark(ctx: *actions.RunCtx) void {
     switch (state.mode) {
         .visual_timeline => {
             new_mark.typ = .region;
-            new_mark.index = addProjectMarker(true, left, right, &marker_name);
+            new_mark.index = Reaper.AddProjectMarker(null, true, left, right, &marker_name, -1);
         },
         .visual_track => new_mark.typ = .tracks,
         else => {
             new_mark.typ = .position;
-            new_mark.index = addProjectMarker(false, position, position, &marker_name);
+            new_mark.index = Reaper.AddProjectMarker(null, false, position, position, &marker_name, -1);
         },
     }
 
@@ -217,8 +205,8 @@ fn mark(ctx: *actions.RunCtx) void {
 fn deleteMarkIndication(m: Mark) void {
     if (m.index < 0) return;
     switch (m.typ) {
-        .region => deleteProjectMarker(m.index, true),
-        .position => deleteProjectMarker(m.index, false),
+        .region => _ = Reaper.DeleteProjectMarker(null, m.index, true),
+        .position => _ = Reaper.DeleteProjectMarker(null, m.index, false),
         .tracks => {},
     }
 }
@@ -263,7 +251,7 @@ fn markedTracks(ctx: *actions.RunCtx) void {
     const m = loadMark(register, &buf) orelse return;
 
     if (findTrackIndexByGuid(m.last_guid)) |idx| {
-        if (Reaper.GetTrack(0, idx)) |track| {
+        if (Reaper.GetTrack(null, idx)) |track| {
             Reaper.SetOnlyTrackSelected(track);
             Reaper.Main_OnCommand(40914, 0); // set first selected track as last touched
         }
@@ -273,7 +261,7 @@ fn markedTracks(ctx: *actions.RunCtx) void {
     var it = std.mem.splitScalar(u8, m.guids, ',');
     while (it.next()) |guid| {
         if (findTrackIndexByGuid(guid)) |idx| {
-            if (Reaper.GetTrack(0, idx)) |track| Reaper.SetTrackSelected(track, true);
+            if (Reaper.GetTrack(null, idx)) |track| Reaper.SetTrackSelected(track, true);
         }
     }
     Reaper.Main_OnCommand(40913, 0); // scroll to selected tracks

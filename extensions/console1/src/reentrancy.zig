@@ -305,7 +305,7 @@ pub fn runAllTests() !void {
     var test_ = ApiTest.init(arena.allocator());
 
     // Get or create test_ tracks
-    const track_count = reaper.CountTracks(0);
+    const track_count = reaper.CountTracks(null);
     if (track_count < 2) {
         reaper.InsertTrackAtIndex(0, true);
         reaper.InsertTrackAtIndex(1, true);
@@ -380,10 +380,10 @@ fn generateReport(test_: *const ApiTest, filename: ?[]const u8) !void {
 
 fn setupTestEnvironment() !struct { test_track: reaper.MediaTrack, witness_track: reaper.MediaTrack } {
     // Clear existing tracks if any
-    const count = reaper.CountTracks(0);
+    const count = reaper.CountTracks(null);
     var idx: c_int = 0;
     while (idx < count - 1) : (idx += 1) {
-        const track = reaper.GetTrack(0, idx);
+        const track = reaper.GetTrack(null, idx);
         reaper.DeleteTrack(track);
     }
 
@@ -391,8 +391,8 @@ fn setupTestEnvironment() !struct { test_track: reaper.MediaTrack, witness_track
     reaper.InsertTrackAtIndex(0, true);
     reaper.InsertTrackAtIndex(1, true);
 
-    const test_track = reaper.GetTrack(0, 0);
-    const witness_track = reaper.GetTrack(0, 1);
+    const test_track = reaper.GetTrack(null, 0);
+    const witness_track = reaper.GetTrack(null, 1);
 
     return .{ .test_track = test_track, .witness_track = witness_track };
 }

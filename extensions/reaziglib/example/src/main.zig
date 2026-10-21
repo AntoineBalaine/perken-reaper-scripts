@@ -44,7 +44,7 @@ fn onTimer() callconv(.C) void {
     if (visible) {
         imgui.api.Text(ctx, "This window is rendered by a reaziglib-based extension.");
 
-        const track_count = Reaper.CountTracks(0);
+        const track_count = Reaper.CountTracks(null);
         var buf: [256]u8 = undefined;
         const label = std.fmt.bufPrintZ(&buf, "Track count: {d}", .{track_count}) catch "?";
         imgui.api.Text(ctx, label);

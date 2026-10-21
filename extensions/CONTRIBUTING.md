@@ -99,8 +99,10 @@ role decides how it combines with other keys, see the grammar summary in
   call is written `Reaper.Name` or `reaper.Name`.
 - **Some bindings in `reaziglib/src/reaper.zig` are mistyped.** The handle
   types (`MediaItem`, `MediaTrack`, …) are already pointers, yet functions
-  take `*MediaItem`; `ReaProject` is an alias for `c_int`; and functions that
-  return NULL are declared as returning a non-optional. Code works around it
+  take `*MediaItem`; and functions that return NULL are declared as
+  returning a non-optional. `ReaProject` is an opaque handle, and every
+  function that takes a project accepts `?ReaProject`, so `null` means the
+  active project. Code works around it
   with the casts and shims in `reaper_helpers.zig`. **When you need a binding
   that is wrong, fix the binding and its callers; do not add another shim.**
   The keyboard-section functions were fixed that way, as a model.

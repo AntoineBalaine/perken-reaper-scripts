@@ -12,7 +12,7 @@ fn projectStart(_: *actions.RunCtx) void {
 }
 
 fn projectEnd(_: *actions.RunCtx) void {
-    Reaper.SetEditCurPos(helpers.getProjectLength(), true, false);
+    Reaper.SetEditCurPos(Reaper.GetProjectLength(null), true, false);
 }
 
 // ---- first/last item on selected tracks --------------------------------------
@@ -146,12 +146,12 @@ fn nextItemEnd(_: *actions.RunCtx) void {
 // ---- track selection moves ----------------------------------------------------
 
 fn firstTrack(_: *actions.RunCtx) void {
-    const track = Reaper.GetTrack(0, 0) orelse return;
+    const track = Reaper.GetTrack(null, 0) orelse return;
     Reaper.SetOnlyTrackSelected(track);
 }
 
 fn lastTrack(_: *actions.RunCtx) void {
-    const track = Reaper.GetTrack(0, Reaper.GetNumTracks() - 1) orelse return;
+    const track = Reaper.GetTrack(null, Reaper.GetNumTracks() - 1) orelse return;
     Reaper.SetOnlyTrackSelected(track);
 }
 
@@ -160,7 +160,7 @@ fn trackWithNumber(_: *actions.RunCtx) void {
     const reply = helpers.getUserInput("Match Forward", "Track Number", &buf) orelse return;
     const number = std.fmt.parseFloat(f64, reply) catch return;
     if (!std.math.isFinite(number) or number < 1 or number > 1e9) return;
-    const track = Reaper.GetTrack(0, @as(c_int, @intFromFloat(number)) - 1) orelse return;
+    const track = Reaper.GetTrack(null, @as(c_int, @intFromFloat(number)) - 1) orelse return;
     Reaper.SetOnlyTrackSelected(track);
 }
 
@@ -168,7 +168,7 @@ fn firstTrackWithItem(_: *actions.RunCtx) void {
     const n = Reaper.GetNumTracks();
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const track = Reaper.GetTrack(0, i) orelse continue;
+        const track = Reaper.GetTrack(null, i) orelse continue;
         const tp = helpers.trackPtr(track) orelse continue;
         if (Reaper.GetTrackNumMediaItems(tp) > 0) {
             Reaper.SetOnlyTrackSelected(track);
@@ -181,7 +181,7 @@ fn firstTrackWithItem(_: *actions.RunCtx) void {
 
 fn snap(_: *actions.RunCtx) void {
     const pos = Reaper.GetCursorPosition();
-    Reaper.SetEditCurPos(Reaper.SnapToGrid(0, pos), false, false);
+    Reaper.SetEditCurPos(Reaper.SnapToGrid(null, pos), false, false);
 }
 
 fn storeCursorPosition(_: *actions.RunCtx) void {
@@ -208,10 +208,10 @@ fn jumpToBarNumber(_: *actions.RunCtx) void {
 const Direction = enum { up, down };
 
 fn moveItem(direction: Direction) void {
-    const n = helpers.countSelectedMediaItems();
+    const n = Reaper.CountSelectedMediaItems(null);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const item = helpers.getSelectedMediaItem(i) orelse continue;
+        const item = Reaper.GetSelectedMediaItem(null, i) orelse continue;
         const track_ptr = Reaper.GetMediaItem_Track(item);
         if (@intFromPtr(track_ptr) == 0) continue;
         const tracknumber = Reaper.GetMediaTrackInfo_Value(helpers.trackHandle(track_ptr), "IP_TRACKNUMBER");
@@ -222,7 +222,7 @@ fn moveItem(direction: Direction) void {
         };
         // FIXED vs lua: no bounds check at the first/last track — GetTrack
         // returned nil and MoveMediaItemToTrack(item, nil) errored at runtime.
-        const dest = Reaper.GetTrack(0, dest_index) orelse continue;
+        const dest = Reaper.GetTrack(null, dest_index) orelse continue;
         _ = Reaper.MoveMediaItemToTrack(item, helpers.trackPtr(dest).?);
         Reaper.SetOnlyTrackSelected(dest);
     }

@@ -57,7 +57,7 @@ fn detectTempoAction(_: *actions.RunCtx) void {
         _ = Reaper.ShowMessageBox("Tempo detection needs ReaImGui (install it with ReaPack).", "Perken: tempo detection", 0);
         return;
     }
-    const item = helpers.getSelectedMediaItem(0) orelse {
+    const item = Reaper.GetSelectedMediaItem(null, 0) orelse {
         _ = Reaper.ShowMessageBox("Select an audio item first.", "Perken: tempo detection", 0);
         return;
     };
@@ -304,8 +304,7 @@ pub fn fmtZ(buf: *[256:0]u8, comptime fmt: []const u8, args: anytype) [:0]const 
 /// True while `take` still exists in the current project (the user may
 /// delete the item during the analysis).
 pub fn takeIsValid(take: *Reaper.MediaItem_Take) bool {
-    const f: *const fn (proj: ?*anyopaque, pointer: ?*anyopaque, ctypename: [*:0]const u8) callconv(.C) bool = @ptrCast(Reaper.ValidatePtr2);
-    return f(null, @ptrCast(take), "MediaItem_Take*");
+    return Reaper.ValidatePtr2(null, @ptrCast(take), "MediaItem_Take*");
 }
 
 /// Adds one take marker per detected beat, named bar.beat with the preview

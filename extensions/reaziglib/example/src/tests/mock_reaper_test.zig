@@ -25,7 +25,7 @@ test "mock REAPER API returns track count" {
 
     // CountTracks includes the master track in the mock implementation.
     // 2 regular tracks + 1 master = 3.
-    const count = reaper.CountTracks(0);
+    const count = reaper.CountTracks(null);
     try testing.expectEqual(@as(c_int, 3), count);
 
     // GetNumTracks excludes the master track.
@@ -48,7 +48,7 @@ test "mock REAPER API can insert and delete tracks" {
     try testing.expectEqual(@as(c_int, 2), reaper.GetNumTracks());
 
     // Get the inserted track and delete it.
-    const track = reaper.GetTrack(0, 1);
+    const track = reaper.GetTrack(null, 1);
     try testing.expect(track != null);
     reaper.DeleteTrack(track.?);
     try testing.expectEqual(@as(c_int, 1), reaper.GetNumTracks());
@@ -62,10 +62,10 @@ test "mock GetTrack returns tracks by index" {
     defer env.teardown();
 
     // Track indices are 0-based into regular tracks only.
-    const track0 = reaper.GetTrack(0, 0);
-    const track1 = reaper.GetTrack(0, 1);
-    const track2 = reaper.GetTrack(0, 2);
-    const track3 = reaper.GetTrack(0, 3); // out of range
+    const track0 = reaper.GetTrack(null, 0);
+    const track1 = reaper.GetTrack(null, 1);
+    const track2 = reaper.GetTrack(null, 2);
+    const track3 = reaper.GetTrack(null, 3); // out of range
 
     try testing.expect(track0 != null);
     try testing.expect(track1 != null);
@@ -100,7 +100,7 @@ test "GetMediaTrackInfo_Value returns I_FXEN" {
     var env = reaper_mock.setupTestModel(arena.allocator(), 1, 4);
     defer env.teardown();
 
-    const track = reaper.GetTrack(0, 0).?;
+    const track = reaper.GetTrack(null, 0).?;
     try testing.expectEqual(@as(f64, 1.0), reaper.GetMediaTrackInfo_Value(track, "I_FXEN"));
 
     _ = reaper.SetMediaTrackInfo_Value(track, "I_FXEN", 0.0);
@@ -114,7 +114,7 @@ test "GetMediaTrackInfo_Value returns I_AUTOMODE" {
     var env = reaper_mock.setupTestModel(arena.allocator(), 1, 4);
     defer env.teardown();
 
-    const track = reaper.GetTrack(0, 0).?;
+    const track = reaper.GetTrack(null, 0).?;
     try testing.expectEqual(@as(f64, 1.0), reaper.GetMediaTrackInfo_Value(track, "I_AUTOMODE"));
 
     _ = reaper.SetMediaTrackInfo_Value(track, "I_AUTOMODE", 3.0);
@@ -128,7 +128,7 @@ test "TrackFX_GetNamedConfigParm returns parallel" {
     var env = reaper_mock.setupTestModel(arena.allocator(), 1, 4);
     defer env.teardown();
 
-    const track = reaper.GetTrack(0, 0).?;
+    const track = reaper.GetTrack(null, 0).?;
     _ = reaper.TrackFX_AddByName(track, "TestFX", false, -1);
 
     var buf: [64:0]u8 = undefined;
@@ -144,7 +144,7 @@ test "TrackFX_GetNamedConfigParm returns fx_type" {
     var env = reaper_mock.setupTestModel(arena.allocator(), 1, 4);
     defer env.teardown();
 
-    const track = reaper.GetTrack(0, 0).?;
+    const track = reaper.GetTrack(null, 0).?;
     _ = reaper.TrackFX_AddByName(track, "TestFX", false, -1);
 
     var buf: [64:0]u8 = undefined;
@@ -160,7 +160,7 @@ test "setFxParams populates FX params" {
     var env = reaper_mock.setupTestModel(arena.allocator(), 1, 4);
     defer env.teardown();
 
-    const track = reaper.GetTrack(0, 0).?;
+    const track = reaper.GetTrack(null, 0).?;
     _ = reaper.TrackFX_AddByName(track, "TestFX", false, -1);
 
     try testing.expectEqual(@as(c_int, 0), reaper.TrackFX_GetNumParams(track, 0));

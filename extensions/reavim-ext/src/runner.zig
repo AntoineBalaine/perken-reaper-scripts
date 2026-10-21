@@ -27,10 +27,10 @@ fn saveTrackSelection() void {
     // passed re-typed (helpers.getTrackString) — NOT as &handle, which would
     // hand REAPER a stack address to dereference as a track (segfault).
     saved_count = 0;
-    const n = Reaper.CountSelectedTracks(0);
+    const n = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n and saved_count < MAX_SAVED_TRACKS) : (i += 1) {
-        const tr = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const tr = Reaper.GetSelectedTrack(null, i) orelse continue;
         const guid = helpers.getTrackString(tr, "GUID", &saved_guids[saved_count]) orelse continue;
         if (guid.len < saved_guids[saved_count].len) saved_guids[saved_count][guid.len] = 0;
         saved_count += 1;
@@ -39,10 +39,10 @@ fn saveTrackSelection() void {
 
 fn restoreTrackSelection() void {
     unselectAllTracks();
-    const total = Reaper.CountTracks(0);
+    const total = Reaper.CountTracks(null);
     var i: c_int = 0;
     while (i < total) : (i += 1) {
-        const tr = Reaper.GetTrack(0, i) orelse continue;
+        const tr = Reaper.GetTrack(null, i) orelse continue;
         var guidbuf: [64]u8 = undefined;
         const guid = helpers.getTrackString(tr, "GUID", &guidbuf) orelse continue;
         for (saved_guids[0..saved_count]) |*g| {
@@ -55,10 +55,10 @@ fn restoreTrackSelection() void {
 }
 
 fn unselectAllTracks() void {
-    const n = Reaper.CountTracks(0);
+    const n = Reaper.CountTracks(null);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        if (Reaper.GetTrack(0, i)) |tr| Reaper.SetTrackSelected(tr, false);
+        if (Reaper.GetTrack(null, i)) |tr| Reaper.SetTrackSelected(tr, false);
     }
 }
 
@@ -214,9 +214,9 @@ pub fn execute(cmd: builder.Command, ctx: grammar.Context) void {
             var i = end_pos;
             const step: c_int = if (pivot > end_pos) 1 else -1;
             while (i != pivot) : (i += step) {
-                if (Reaper.GetTrack(0, i)) |tr| Reaper.SetTrackSelected(tr, true);
+                if (Reaper.GetTrack(null, i)) |tr| Reaper.SetTrackSelected(tr, true);
             }
-            if (Reaper.GetTrack(0, pivot)) |tr| Reaper.SetTrackSelected(tr, true);
+            if (Reaper.GetTrack(null, pivot)) |tr| Reaper.SetTrackSelected(tr, true);
         },
 
         .visual_timeline_operator => {
@@ -277,7 +277,7 @@ fn makeSelectionFromTimelineMotion(motion: builder.ActionKey, ctx: grammar.Conte
 fn makeSelectionFromTrackMotion(motion: builder.ActionKey, ctx: grammar.Context) bool {
     const first_index = getTrackPosition();
     runActionKey(motion, ctx);
-    const end_track = Reaper.GetSelectedTrack(0, 0) orelse return false;
+    const end_track = Reaper.GetSelectedTrack(null, 0) orelse return false;
     const second_index = @as(c_int, @intFromFloat(Reaper.GetMediaTrackInfo_Value(end_track, "IP_TRACKNUMBER"))) - 1;
 
     var lo = first_index;
@@ -285,7 +285,7 @@ fn makeSelectionFromTrackMotion(motion: builder.ActionKey, ctx: grammar.Context)
     if (lo > hi) std.mem.swap(c_int, &lo, &hi);
     var i = lo;
     while (i <= hi) : (i += 1) {
-        if (Reaper.GetTrack(0, i)) |tr| Reaper.SetTrackSelected(tr, true);
+        if (Reaper.GetTrack(null, i)) |tr| Reaper.SetTrackSelected(tr, true);
     }
     return true;
 }

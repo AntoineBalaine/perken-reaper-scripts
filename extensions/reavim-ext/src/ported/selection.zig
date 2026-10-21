@@ -6,7 +6,7 @@ const actions = @import("../actions.zig");
 const helpers = @import("reaper_helpers");
 
 fn innerProjectTimeline(_: *actions.RunCtx) void {
-    helpers.setTimeSelection(0, helpers.getProjectLength());
+    helpers.setTimeSelection(0, Reaper.GetProjectLength(null));
 }
 
 /// Backwards scan shared by innerItem/innerBigItem: select the last span in
@@ -37,7 +37,7 @@ fn innerBigItem(_: *actions.RunCtx) void {
 }
 
 fn onlyCurrentTrack(_: *actions.RunCtx) void {
-    const track = Reaper.GetSelectedTrack(0, 0) orelse return;
+    const track = Reaper.GetSelectedTrack(null, 0) orelse return;
     Reaper.SetOnlyTrackSelected(track);
 }
 
@@ -46,7 +46,7 @@ fn onlyCurrentTrack(_: *actions.RunCtx) void {
 /// only the last-touched track, so that the operator applies to that single
 /// track instead of to the whole existing selection.
 fn currentTrack(_: *actions.RunCtx) void {
-    const track = Reaper.GetLastTouchedTrack() orelse Reaper.GetSelectedTrack(0, 0) orelse return;
+    const track = Reaper.GetLastTouchedTrack() orelse Reaper.GetSelectedTrack(null, 0) orelse return;
     Reaper.SetOnlyTrackSelected(track);
 }
 

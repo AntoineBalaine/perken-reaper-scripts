@@ -1,11 +1,5 @@
-//! Null-safe wrappers over REAPER's time map.
-//!
-//! The generated bindings type `proj` and the optional out-parameters of
-//! these functions as non-null pointers, while the C API takes NULL for the
-//! active project and for every output a caller does not want. Each wrapper
-//! below re-types its function through the signature the C API actually
-//! has, which is the same trick abc_export.zig already uses for
-//! `TimeMap_GetTimeSigAtTime` — gathered here so there is one copy.
+//! The one home for the extension's time-map queries, all asked of the
+//! active project (the bindings take NULL for that).
 //!
 //! Positions are project quarter notes (QN) or project time in seconds, as
 //! named. QN is the domain to prefer: bars are defined in beats, so tempo
@@ -18,25 +12,21 @@ const Reaper = @import("reaper").reaper;
 const helpers = @import("reaper_helpers");
 
 pub fn qnToTime(qn: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, qn: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_QNToTime);
-    return f(null, qn);
+    return Reaper.TimeMap2_QNToTime(null, qn);
 }
 
 pub fn timeToQn(time: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToQN);
-    return f(null, time);
+    return Reaper.TimeMap2_timeToQN(null, time);
 }
 
 pub const Signature = struct { num: u32, denom: u32 };
 
 /// The time signature in force at `time`.
 pub fn sigAtTime(time: f64) Signature {
-    const f: *const fn (proj: ?*anyopaque, time: f64, num: *c_int, denom: *c_int, tempo: *f64) callconv(.C) void =
-        @ptrCast(Reaper.TimeMap_GetTimeSigAtTime);
     var num: c_int = 4;
     var denom: c_int = 4;
     var tempo: f64 = 120;
-    f(null, time, &num, &denom, &tempo);
+    Reaper.TimeMap_GetTimeSigAtTime(null, time, &num, &denom, &tempo);
     // A project always has a signature; clamp anyway so a surprising reply
     // cannot produce a zero-length bar and hang a caller walking bars.
     return .{
@@ -55,17 +45,9 @@ pub const BeatsInfo = struct {
 };
 
 pub fn beatsInfoAtTime(time: f64) BeatsInfo {
-    const f: *const fn (
-        proj: ?*anyopaque,
-        tpos: f64,
-        measures: ?*c_int,
-        cml: ?*c_int,
-        fullbeats: ?*f64,
-        cdenom: ?*c_int,
-    ) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_timeToBeats);
     var measure: c_int = 0;
     var denominator: c_int = 4;
-    _ = f(null, time, &measure, null, null, &denominator);
+    _ = Reaper.TimeMap2_timeToBeats(null, time, &measure, null, null, &denominator);
     return .{ .measure = measure, .denominator = if (denominator > 0) denominator else 4 };
 }
 
@@ -79,8 +61,6 @@ pub fn measureAtTime(time: f64) c_int {
 /// keeps partial bars (a time-signature marker placed off a barline)
 /// honest: REAPER's grid is what the user sees.
 ///
-/// reaziglib already wraps `TimeMap2_beatsToTime`, so this goes through
-/// that rather than re-casting it here.
 pub fn measureStartTime(measure: c_int) f64 {
     return helpers.timeMap2BeatsToTime(0.0, measure);
 }
@@ -89,9 +69,7 @@ pub fn measureStartTime(measure: c_int) f64 {
 /// time signature (doubled in /8 signatures, for instance). `tempoAt`
 /// converts it back; callers wanting the raw scaled figure use this.
 pub fn dividedBpmAtTime(time: f64) f64 {
-    const f: *const fn (proj: ?*anyopaque, time: f64) callconv(.C) f64 =
-        @ptrCast(Reaper.TimeMap2_GetDividedBpmAtTime);
-    return f(null, time);
+    return Reaper.TimeMap2_GetDividedBpmAtTime(null, time);
 }
 
 /// The tempo marker value in effect at `time`, undoing the division above

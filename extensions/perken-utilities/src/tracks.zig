@@ -9,10 +9,10 @@ const helpers = @import("reaper_helpers");
 
 fn nudgeSelectedTracksVolume(db: f64) void {
     const factor = std.math.pow(f64, 10.0, 0.05 * db);
-    const n = Reaper.CountSelectedTracks(0);
+    const n = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const track = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         const vol = Reaper.GetMediaTrackInfo_Value(track, "D_VOL");
         _ = Reaper.SetMediaTrackInfo_Value(track, "D_VOL", vol * factor);
     }
@@ -52,10 +52,10 @@ fn cleanFxName(in: []const u8, out: []u8) []const u8 {
 }
 
 fn renameTrackToVstiPresetName(_: *actions.RunCtx) void {
-    const n = Reaper.CountSelectedTracks(0);
+    const n = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const track = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         const vsti = Reaper.TrackFX_GetInstrument(track);
         if (vsti < 0) continue;
 
@@ -84,7 +84,7 @@ fn renameTrackToVstiPresetName(_: *actions.RunCtx) void {
 fn soloExclusive(_: *actions.RunCtx) void {
     // FIXED vs lua: no nil check — GetMediaTrackInfo_Value(nil) errored when
     // nothing was selected.
-    const track = Reaper.GetSelectedTrack(0, 0) orelse return;
+    const track = Reaper.GetSelectedTrack(null, 0) orelse return;
     const solo = Reaper.GetMediaTrackInfo_Value(track, "I_SOLO");
     Reaper.Main_OnCommand(40340, 0); // unsolo all tracks
     if (solo == 0)

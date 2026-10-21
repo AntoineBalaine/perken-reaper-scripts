@@ -125,10 +125,10 @@ fn createFlams(item: *Reaper.MediaItem, tp: *Reaper.MediaTrack, reps: u32) void 
 
 /// utils.cycleSelectedItemsInSelectedTracks(CreateFlams ...).
 fn flamSelectedItems(reps: u32) void {
-    const n_tracks = Reaper.CountSelectedTracks(0);
+    const n_tracks = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n_tracks) : (i += 1) {
-        const track = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         const tp = helpers.trackPtr(track) orelse continue;
         const items = selectedItemsInTrack(helpers.allocator, tp) catch return;
         defer helpers.allocator.free(items);
@@ -196,10 +196,10 @@ fn rampTrackItems(tp: *Reaper.MediaTrack, ramp: Ramp) void {
 }
 
 fn rampSelectedTracks(ramp: Ramp) void {
-    const n_tracks = Reaper.CountSelectedTracks(0);
+    const n_tracks = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n_tracks) : (i += 1) {
-        const track = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         const tp = helpers.trackPtr(track) orelse continue;
         rampTrackItems(tp, ramp);
     }

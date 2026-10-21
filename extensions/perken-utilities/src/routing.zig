@@ -26,10 +26,10 @@ fn sendColorToMatchingBus(bus: Reaper.MediaTrack) void {
     const bus_tp = helpers.trackPtr(bus) orelse return;
     const bus_color = Reaper.GetMediaTrackInfo_Value(bus, "I_CUSTOMCOLOR");
     const bus_number = Reaper.GetMediaTrackInfo_Value(bus, "IP_TRACKNUMBER");
-    const n = Reaper.CountTracks(0);
+    const n = Reaper.CountTracks(null);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const track = Reaper.GetTrack(0, i) orelse continue;
+        const track = Reaper.GetTrack(null, i) orelse continue;
         if (getParentTrack(track) != null) continue; // child tracks follow their folder
         const color = Reaper.GetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR");
         const number = Reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER");
@@ -45,10 +45,10 @@ fn routeTracksToBusses(_: *actions.RunCtx) void {
     var busses = std.ArrayList(Reaper.MediaTrack).init(helpers.allocator);
     defer busses.deinit();
 
-    const n = Reaper.CountTracks(0);
+    const n = Reaper.CountTracks(null);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
-        const track = Reaper.GetTrack(0, i) orelse continue;
+        const track = Reaper.GetTrack(null, i) orelse continue;
         var name_buf: [512]u8 = undefined;
         const name = helpers.getTrackString(track, "P_NAME", &name_buf) orelse continue;
         if (std.mem.indexOf(u8, name, "bus") != null)
@@ -65,7 +65,7 @@ fn routeTracksToBusses(_: *actions.RunCtx) void {
 fn buildBusses(_: *actions.RunCtx) void {
     for (bus_names) |name| {
         Reaper.InsertTrackAtIndex(0, true);
-        const bus = Reaper.GetTrack(0, 0) orelse continue;
+        const bus = Reaper.GetTrack(null, 0) orelse continue;
         _ = helpers.setTrackString(bus, "P_NAME", name);
         helpers.runNamedCommand("_SWSAUTOCOLOR_APPLY");
         sendColorToMatchingBus(bus);

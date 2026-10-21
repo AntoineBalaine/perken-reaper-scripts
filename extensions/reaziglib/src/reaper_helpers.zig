@@ -12,40 +12,19 @@ const log = std.log.scoped(.engine);
 /// Allocator for the short-lived per-action scratch lists.
 pub const allocator = std.heap.c_allocator;
 
-// ---- pointer-shape shims over the reaziglib bindings -----------------------
-// reaziglib binds some ReaProject* parameters as non-optional *c_int, but
-// REAPER expects NULL for "the current project". Re-typing the loaded function
-// pointer with an optional project argument keeps the ABI identical (one
-// pointer either way) while letting us pass null.
-
-pub fn getProjectLength() f64 {
-    const f: *const fn (proj: ?*Reaper.ReaProject) callconv(.C) f64 = @ptrCast(Reaper.GetProjectLength);
-    return f(null);
-}
-
-pub fn countSelectedMediaItems() c_int {
-    const f: *const fn (proj: ?*Reaper.ReaProject) callconv(.C) c_int = @ptrCast(Reaper.CountSelectedMediaItems);
-    return f(null);
-}
-
-pub fn getSelectedMediaItem(i: c_int) ?*Reaper.MediaItem {
-    const f: *const fn (proj: ?*Reaper.ReaProject, selitem: c_int) callconv(.C) ?*Reaper.MediaItem = @ptrCast(Reaper.GetSelectedMediaItem);
-    return f(null, i);
-}
+// ---- project-level helpers ----------------------------------------------------
 
 pub const MarkerRegion = struct { marker: c_int, region: c_int };
 
 pub fn getLastMarkerAndCurRegion(time: f64) MarkerRegion {
-    const f: *const fn (proj: ?*Reaper.ReaProject, time: f64, markeridxOut: ?*c_int, regionidxOut: ?*c_int) callconv(.C) void = @ptrCast(Reaper.GetLastMarkerAndCurRegion);
     var marker: c_int = -1;
     var region: c_int = -1;
-    f(null, time, &marker, &region);
+    Reaper.GetLastMarkerAndCurRegion(null, time, &marker, &region);
     return .{ .marker = marker, .region = region };
 }
 
 pub fn timeMap2BeatsToTime(tpos: f64, measures: c_int) f64 {
-    const f: *const fn (proj: ?*Reaper.ReaProject, tpos: f64, measuresIn: ?*const c_int) callconv(.C) f64 = @ptrCast(Reaper.TimeMap2_beatsToTime);
-    return f(null, tpos, &measures);
+    return Reaper.TimeMap2_beatsToTime(null, tpos, &measures);
 }
 
 /// MIDIEditor_GetActive returns NULL when no editor is open; the binding's
@@ -152,16 +131,16 @@ fn leftLessThan(_: void, a: ItemPosition, b: ItemPosition) bool {
 /// utils.lua's k-way mergeItemPositionsLists over per-track lists (per-track
 /// item order is positional, so sorting the concatenation is equivalent).
 /// FIXED vs lua: the selected-track loop in getItemPositionsOnSelectedTracks
-/// ran 0..count writing GetSelectedTrack(0, i-1) — off by one that only
+/// ran 0..count writing GetSelectedTrack(null, i-1) — off by one that only
 /// worked through Lua's 1-based `#`; indexed cleanly here.
 pub fn getItemPositionsOnSelectedTracks(alloc: std.mem.Allocator) ![]ItemPosition {
     var list = std.ArrayList(ItemPosition).init(alloc);
     errdefer list.deinit();
 
-    const n_tracks = Reaper.CountSelectedTracks(0);
+    const n_tracks = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n_tracks) : (i += 1) {
-        const track = Reaper.GetSelectedTrack(0, i) orelse continue;
+        const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         const tp = trackPtr(track) orelse continue;
         const n_items = Reaper.GetTrackNumMediaItems(tp);
         var j: c_int = 0;
@@ -287,13 +266,6 @@ pub fn popCursorPosition() ?f64 {
 }
 
 // ---- envelopes ----------------------------------------------------------------
-
-/// GetSelectedEnvelope returns NULL when no envelope is selected and takes
-/// NULL for "current project"; the binding types both as non-optional.
-pub fn getSelectedEnvelope() ?*Reaper.TrackEnvelope {
-    const f: *const fn (proj: ?*Reaper.ReaProject) callconv(.C) ?*Reaper.TrackEnvelope = @ptrCast(Reaper.GetSelectedEnvelope);
-    return f(null);
-}
 
 /// Native replacement for SWS SNM_GetIntConfigVar: read an int-sized config
 /// variable via the raw get_config_var API (which Lua cannot dereference —

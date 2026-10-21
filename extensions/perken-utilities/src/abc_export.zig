@@ -417,10 +417,10 @@ pub fn conversionFileName(buf: []u8, millis: i64) ?[]const u8 {
 /// follow the order of the recordings.
 pub fn selectedMidiItems(buf: []*Reaper.MediaItem) []*Reaper.MediaItem {
     var n: usize = 0;
-    const count = helpers.countSelectedMediaItems();
+    const count = Reaper.CountSelectedMediaItems(null);
     var i: c_int = 0;
     while (i < count and n < buf.len) : (i += 1) {
-        const item = helpers.getSelectedMediaItem(i) orelse continue;
+        const item = Reaper.GetSelectedMediaItem(null, i) orelse continue;
         const take = helpers.getActiveTake(item) orelse continue;
         if (!Reaper.TakeIsMIDI(take)) continue;
         buf[n] = item;

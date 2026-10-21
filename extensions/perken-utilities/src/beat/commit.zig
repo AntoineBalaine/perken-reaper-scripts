@@ -35,20 +35,6 @@ pub fn errorText(err: CommitError) [:0]const u8 {
     };
 }
 
-// ---- REAPER calls that take NULL for the current project ----
-// reaziglib binds these with a non-optional project pointer; re-typing the
-// loaded function pointer keeps the ABI and lets us pass null.
-
-pub fn countTempoMarkers() c_int {
-    const f: *const fn (proj: ?*anyopaque) callconv(.C) c_int = @ptrCast(Reaper.CountTempoTimeSigMarkers);
-    return f(null);
-}
-
-pub fn setCurrentBpm(bpm: f64) void {
-    const f: *const fn (proj: ?*anyopaque, bpm: f64, want_undo: bool) callconv(.C) void = @ptrCast(Reaper.SetCurrentBPM);
-    f(null, bpm, false);
-}
-
 /// The time of the project's bar line nearest to `t`.
 pub fn nearestBarLine(t: f64) f64 {
     const measure = timemap.measureAtTime(t);
@@ -64,8 +50,7 @@ pub const tempoAt = timemap.tempoAt;
 
 /// Inserts a tempo-only marker (the time signature is left unchanged).
 pub fn insertTempoMarker(t: f64, bpm: f64) void {
-    const f: *const fn (proj: ?*anyopaque, ptidx: c_int, timepos: f64, measurepos: c_int, beatpos: f64, bpm: f64, num: c_int, denom: c_int, linear: bool) callconv(.C) bool = @ptrCast(Reaper.SetTempoTimeSigMarker);
-    _ = f(null, -1, t, -1, -1, bpm, 0, 0, false);
+    _ = Reaper.SetTempoTimeSigMarker(null, -1, t, -1, -1, bpm, 0, 0, false);
 }
 
 /// The project time of an item-relative time of the analysed take.
@@ -93,12 +78,12 @@ pub fn takeTiming(take: *Reaper.MediaItem_Take) TakeTiming {
 /// restored afterwards, so that its audio neither moves nor stretches even
 /// when its timebase is beats.
 pub fn setProjectTempo(take: *Reaper.MediaItem_Take, bpm: f64) CommitError!void {
-    if (countTempoMarkers() > 0) return error.HasTempoMarkers;
+    if (Reaper.CountTempoTimeSigMarkers(null) > 0) return error.HasTempoMarkers;
     const item = Reaper.GetMediaItemTake_Item(take);
     Reaper.Undo_BeginBlock();
     const timebase = Reaper.GetMediaItemInfo_Value(item, "C_BEATATTACHMODE");
     _ = Reaper.SetMediaItemInfo_Value(item, "C_BEATATTACHMODE", 0); // time
-    setCurrentBpm(bpm);
+    Reaper.SetCurrentBPM(null, bpm, false);
     _ = Reaper.SetMediaItemInfo_Value(item, "C_BEATATTACHMODE", timebase);
     Reaper.Undo_EndBlock("Perken: set project tempo to the detected tempo", -1);
     Reaper.UpdateTimeline();
