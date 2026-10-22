@@ -137,5 +137,4 @@ local function poll()
 end
 
 reaper.atexit(function() pcall(server.close, server) end)
-reaper.ShowConsoleMsg("reaper_bridge listening on 127.0.0.1:" .. PORT .. "\n")
 poll()
