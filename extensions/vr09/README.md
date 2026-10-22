@@ -160,6 +160,8 @@ zig build test              # protocol, engine, audio loop, state and CLAP inter
 python3 tools/gen_catalog.py ~/projects/roland-vr09/web/public/maps/targets.json > src/catalog.zig
 ```
 
+The panel's look is worked on in a Lua design lab, `ui-lab/`, which reloads its files as they are saved and runs with a mock keyboard (see `ui-lab/README.md`). `python3 tools/gen_lua_catalog.py > ui-lab/catalog.lua` makes the lab's copy of the catalog.
+
 The committed catalog was generated from an older state of that catalog than the one in the roland-vr09 project today. Generating it again now would also drop the upper pan and the upper and piano reverb sends (marked unavailable since) and add seven controllers of the lower part, which changes what automation lanes in existing projects point to; it is a decision of its own, so the effects were added without regenerating the rest.
 
 `tools/fakevr09.swift` (macOS) creates a virtual MIDI device called "VR-09 Fake" that behaves like the keyboard in Mode 2. Build it with `swiftc -O tools/fakevr09.swift -o fakevr09`, start `./fakevr09 dump.json log.txt` before REAPER, and install the plugin in a scratch resource folder (`REAPER_RESOURCE_PATH`, and `CLAP_PATH` for the plugin) to try the whole path without the hardware.

@@ -10,6 +10,7 @@ First version.
 - Presets as the dump JSON of `vr09.py`, a preset folder under REAPER's resource folder, import and export, and a preset discovery factory.
 - A Registrations library in the Patches tab: the roland-vr09 dumps named `<bank>-<slot>_<Name>.json`, browsed by bank with a filter, and installed by `build-install.sh vr09` without overwriting existing files.
 - A ReaImGui panel with Controls, Patches, Audio loop and MIDI tabs.
+- A design lab for the panel in Lua (`ui-lab/`): the panel drawn with a mock keyboard, reloading its theme, components and layout as they are saved.
 - The effects as parameters: reverb (type, level, variation), vibrato / chorus type, MFX (type, level), delay (type, level) and the compressor level, with their type names shown in the panel. The reverb type and level are written together, as the unit requires.
 - The panel opens where it fits on the screen, and a closed panel's ImGui context is dropped to be collected, with a name of its own for each context. A panel that stuck out of the screen was moved by the window manager without ImGui knowing, which offset the mouse.
 - The track's MIDI passes to the keyboard by default, with the notes sent to the Upper part (channel 4), or split at middle C between the Lower (3) and Upper parts for the patches marked as split.
