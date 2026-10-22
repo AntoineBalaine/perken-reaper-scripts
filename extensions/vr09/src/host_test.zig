@@ -244,6 +244,72 @@ test "a host automation event becomes a DT1 for the right address" {
     try std.testing.expect(saw_dt1);
 }
 
+test "the reverb type and level are written together, as the unit requires" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+
+    const type_id = engine.hashId("reverb-type");
+    const level_id = engine.hashId("reverb-level");
+    host.process(p);
+    host.process(p);
+
+    // Both parameters change in one block: one message carries both bytes.
+    host.addParam(type_id, 5, 0);
+    host.addParam(level_id, 50, 0);
+    host.process(p);
+    var found: [16][]const u8 = undefined;
+    var n = host.sysexOutputs(&found);
+    var saw: usize = 0;
+    for (found[0..n]) |msg| {
+        const parsed = roland.parseDt1(msg) catch continue;
+        if (parsed.address != 0) continue;
+        saw += 1;
+        try std.testing.expectEqualSlices(u8, &.{ 5, 50 }, parsed.bytes());
+    }
+    try std.testing.expectEqual(@as(usize, 1), saw);
+
+    // Only the level changes: the type travels with it.
+    host.addParam(level_id, 60, 0);
+    host.process(p);
+    n = host.sysexOutputs(&found);
+    saw = 0;
+    for (found[0..n]) |msg| {
+        const parsed = roland.parseDt1(msg) catch continue;
+        if (parsed.address != 0) continue;
+        saw += 1;
+        try std.testing.expectEqualSlices(u8, &.{ 5, 60 }, parsed.bytes());
+    }
+    try std.testing.expectEqual(@as(usize, 1), saw);
+}
+
+test "a single-byte effect is written alone" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+
+    host.process(p);
+    host.process(p);
+    host.addParam(engine.hashId("mfx-type"), 6, 0);
+    host.process(p);
+    var found: [16][]const u8 = undefined;
+    const n = host.sysexOutputs(&found);
+    var saw = false;
+    for (found[0..n]) |msg| {
+        const parsed = roland.parseDt1(msg) catch continue;
+        if (parsed.address != 0x5D) continue;
+        saw = true;
+        try std.testing.expectEqualSlices(u8, &.{6}, parsed.bytes());
+    }
+    try std.testing.expect(saw);
+}
+
 test "notes pass through by default, in order, and are dropped when asked" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();

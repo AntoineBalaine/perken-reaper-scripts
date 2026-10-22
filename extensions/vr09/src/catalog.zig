@@ -15,6 +15,8 @@ pub const Param = struct {
     /// The MIDI channel (1 to 16) and controller number of a CC, zero for a DT1.
     channel: u8,
     cc: u8,
+    /// What the panel shows for each value from `low`, instead of the number.
+    names: []const []const u8 = &.{},
 };
 
 pub const params = [_]Param{
@@ -83,4 +85,13 @@ pub const params = [_]Param{
     .{ .id = "cc-piano-chorus", .label = "Piano (dual 2) chorus send (CC93)", .group = "Control change piano", .kind = .cc, .address = 0, .low = 0, .high = 127, .channel = 1, .cc = 93 },
     .{ .id = "cc-piano-expression", .label = "Piano (dual 2) expression (CC11)", .group = "Control change piano", .kind = .cc, .address = 0, .low = 0, .high = 127, .channel = 1, .cc = 11 },
     .{ .id = "cc-master-expression", .label = "Overall volume (CC11 on channel 16)", .group = "Control change master", .kind = .cc, .address = 0, .low = 0, .high = 127, .channel = 16, .cc = 11 },
+    .{ .id = "reverb-type", .label = "Reverb type", .group = "Effects", .kind = .dt1, .address = 0, .low = 2, .high = 7, .channel = 0, .cc = 0, .names = &.{ "Room", "Hall", "Stage", "Plate", "(unused)", "Spring" } },
+    .{ .id = "reverb-level", .label = "Reverb level", .group = "Effects", .kind = .dt1, .address = 1, .low = 0, .high = 127, .channel = 0, .cc = 0 },
+    .{ .id = "reverb-variation", .label = "Reverb variation", .group = "Effects", .kind = .dt1, .address = 42, .low = 0, .high = 1, .channel = 0, .cc = 0, .names = &.{ "Standard", "Cathedral / Stage" } },
+    .{ .id = "vibrato-chorus-type", .label = "Vibrato / chorus type", .group = "Effects", .kind = .dt1, .address = 56, .low = 0, .high = 5, .channel = 0, .cc = 0, .names = &.{ "V-1", "V-2", "V-3", "C-1", "C-2", "C-3" } },
+    .{ .id = "mfx-type", .label = "MFX type", .group = "Effects", .kind = .dt1, .address = 93, .low = 0, .high = 19, .channel = 0, .cc = 0, .names = &.{ "Twin rotary", "Small phaser 1", "Small phaser 2", "Phaser", "Step phaser", "Tempo step phaser", "Chorus", "Hexa-chorus", "Flanger", "Modulation D", "Tremolo 1", "Tremolo 2", "T.Wah 1", "T.Wah 2", "Ring modulator", "Bit crash", "Distortion", "Slicer", "Tempo slicer", "Pitch shifter" } },
+    .{ .id = "mfx-level", .label = "MFX level", .group = "Effects", .kind = .dt1, .address = 94, .low = 0, .high = 127, .channel = 0, .cc = 0 },
+    .{ .id = "delay-type", .label = "Delay type", .group = "Effects", .kind = .dt1, .address = 95, .low = 0, .high = 5, .channel = 0, .cc = 0, .names = &.{ "Delay", "Tape echo", "Reverse delay", "3-tap pan delay", "Tempo delay", "Tempo reverse delay" } },
+    .{ .id = "delay-level", .label = "Delay level", .group = "Effects", .kind = .dt1, .address = 96, .low = 0, .high = 127, .channel = 0, .cc = 0 },
+    .{ .id = "compressor-level", .label = "Compressor level", .group = "Effects", .kind = .dt1, .address = 98, .low = 0, .high = 127, .channel = 0, .cc = 0 },
 };

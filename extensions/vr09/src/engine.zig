@@ -74,13 +74,11 @@ pub fn paramIndexOfAddress(address: u32) ?usize {
 
 comptime {
     @setEvalBranchQuota(100_000);
-    // Parameters are written one byte at a time, so none of them may sit in a
-    // group that the unit only accepts as a whole.
+    // A parameter inside a group that the unit only accepts as a whole (the
+    // reverb type and level) is written with its group, see `nextMessage`.
     for (catalog.params) |p| {
         if (p.kind != .dt1) continue;
-        const slot = dump.locate(.kb, p.address) orelse @compileError("parameter outside the block table: " ++ p.id);
-        const group = dump.groupOf(slot.block, slot.offset);
-        if (group.len != 1) @compileError("parameter inside a write group: " ++ p.id);
+        _ = dump.locate(.kb, p.address) orelse @compileError("parameter outside the block table: " ++ p.id);
     }
     // The host identifies parameters by id, so two names must not collide.
     for (param_ids, 0..) |a, i| {
@@ -358,6 +356,11 @@ pub const Engine = struct {
     // What `nextMessage` built, which `afterSend` needs once the host took it.
     sent_kind: Sent = .none,
     sent_index: usize = 0,
+    /// The group that the parameter message just sent wrote: its address, its
+    /// length (1 for most parameters) and its bytes.
+    sent_group_address: u32 = 0,
+    sent_group_len: usize = 1,
+    sent_group_data: [3]u8 = .{ 0, 0, 0 },
 
     const Sent = enum { none, identity, rq1, dt1_param, dt1_op };
 
@@ -714,13 +717,31 @@ pub const Engine = struct {
             if (!self.dirty[i]) continue;
             const p = catalog.params[i];
             if (p.kind != .dt1) continue;
-            const value = self.shared.getDesired(.kb, p.address) orelse {
+            // The unit takes some parameters only together with their
+            // neighbours, so the whole group is sent, from the desired state.
+            const slot = dump.locate(.kb, p.address) orelse {
                 self.dirty[i] = false;
                 continue;
             };
-            const n = roland.encodeDt1(&self.tx, .kb, p.address, &.{value}) catch return null;
+            const group = dump.groupOf(slot.block, slot.offset);
+            const start = p.address - @as(u32, @intCast(slot.offset)) + @as(u32, @intCast(group.start));
+            var data: [3]u8 = .{ 0, 0, 0 };
+            var known = true;
+            for (0..group.len) |k| {
+                if (self.shared.getDesired(.kb, start + @as(u32, @intCast(k)))) |v| {
+                    data[k] = v;
+                } else known = false;
+            }
+            if (!known) {
+                self.dirty[i] = false;
+                continue;
+            }
+            const n = roland.encodeDt1(&self.tx, .kb, start, data[0..group.len]) catch return null;
             self.sent_kind = .dt1_param;
             self.sent_index = i;
+            self.sent_group_address = start;
+            self.sent_group_len = group.len;
+            self.sent_group_data = data;
             return self.tx[0..n];
         }
         if (self.job == .writing and self.op_idx < self.op_len) {
@@ -746,9 +767,13 @@ pub const Engine = struct {
                 self.read_deadline = at + self.seconds(reply_timeout_seconds);
             },
             .dt1_param => {
-                const p = catalog.params[self.sent_index];
+                // Every parameter of the group is now written.
+                for (0..self.sent_group_len) |k| {
+                    const address = self.sent_group_address + @as(u32, @intCast(k));
+                    _ = self.mirror.set(.kb, address, self.sent_group_data[k]);
+                    if (paramIndexOfAddress(address)) |pi| self.dirty[pi] = false;
+                }
                 self.dirty[self.sent_index] = false;
-                if (self.shared.getDesired(.kb, p.address)) |v| _ = self.mirror.set(.kb, p.address, v);
             },
             .dt1_op => {
                 const op = &self.ops[self.op_idx];
@@ -1144,5 +1169,52 @@ test "loading a preset from the interface recalls it at once" {
 test "parameter ids are stable hashes and unique" {
     try std.testing.expectEqual(hashId("organ-upper-d16"), param_ids[0]);
     try std.testing.expect(paramIndexOfId(0) == null);
-    try std.testing.expectEqual(@as(usize, 65), param_count);
+    try std.testing.expectEqual(@as(usize, 74), param_count);
+}
+
+/// What the panel shows for a value of a parameter: its name when the catalog
+/// has names, else the number.
+pub fn valueText(buf: []u8, p: catalog.Param, value: f64) ?[:0]const u8 {
+    const v: i64 = @intFromFloat(@round(value));
+    if (p.names.len > 0 and v >= p.low and v - p.low < @as(i64, @intCast(p.names.len))) {
+        return std.fmt.bufPrintZ(buf, "{s}", .{p.names[@intCast(v - p.low)]}) catch null;
+    }
+    return std.fmt.bufPrintZ(buf, "{d}", .{v}) catch null;
+}
+
+test "every list of names covers the range of its parameter" {
+    for (catalog.params) |p| {
+        if (p.names.len == 0) continue;
+        try std.testing.expectEqual(@as(usize, p.high) - p.low + 1, p.names.len);
+    }
+}
+
+test "a type shows its name, a level its number" {
+    var buf: [48]u8 = undefined;
+    const reverb = catalog.params[paramIndexOfId(hashId("reverb-type")).?];
+    try std.testing.expectEqualStrings("Plate", valueText(&buf, reverb, 5).?);
+    try std.testing.expectEqualStrings("Spring", valueText(&buf, reverb, 7).?);
+    const level = catalog.params[paramIndexOfId(hashId("reverb-level")).?];
+    try std.testing.expectEqualStrings("90", valueText(&buf, level, 90).?);
+    // A value outside the names falls back to the number.
+    try std.testing.expectEqualStrings("12", valueText(&buf, reverb, 12).?);
+}
+
+test "the effects are catalogued at the addresses of the spec" {
+    const expect = [_]struct { id: []const u8, address: u32 }{
+        .{ .id = "reverb-type", .address = 0x00 },
+        .{ .id = "reverb-level", .address = 0x01 },
+        .{ .id = "reverb-variation", .address = 0x2A },
+        .{ .id = "vibrato-chorus-type", .address = 0x38 },
+        .{ .id = "mfx-type", .address = 0x5D },
+        .{ .id = "mfx-level", .address = 0x5E },
+        .{ .id = "delay-type", .address = 0x5F },
+        .{ .id = "delay-level", .address = 0x60 },
+        .{ .id = "compressor-level", .address = 0x62 },
+    };
+    for (expect) |e| {
+        const p = catalog.params[paramIndexOfId(hashId(e.id)).?];
+        try std.testing.expectEqual(e.address, p.address);
+        try std.testing.expectEqualStrings("Effects", p.group);
+    }
 }

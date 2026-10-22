@@ -68,7 +68,7 @@ REAPER does not tell the notes you play from the notes a track plays back. On a 
 
 The panel opens at the mouse, moved to the nearest place where it fits on the screen's usable area. A window that sticks out of the screen is moved by the window manager without ImGui being told, and the mouse then lands a few dozen pixels away from where ImGui believes the window to be, which looked like a frozen window. For the first moments of each opening the plugin logs a line whenever what ImGui sees of the mouse changes, beside where REAPER says the mouse is, so that an offset shows in the log.
 
-- Controls: every parameter of the catalog, by group. The organ drawbars are drawn as drawbars.
+- Controls: every parameter of the catalog, by group. The organ drawbars are drawn as drawbars, and the type parameters of the Effects group show their name ("5  Plate") beside the number.
 - Patches: read the keyboard into the plugin, send the plugin's state to the keyboard, browse the Registrations library, save the state as a preset, load, delete, import and export files.
 - Audio loop: see below.
 - MIDI: the track's output and input devices, record arm and monitoring, the SysEx counters, and the behavior switches.
@@ -80,6 +80,14 @@ Presets are files named `<name>.vr09` in `<REAPER resource folder>/Data/Perken/v
 The Patches tab lists the dumps of the keyboard's 70 Registrations, by bank with four slots each, with a filter box (a name, or `bank-slot` such as `12-3`). A double click, or the "Load and send registration" button, loads the dump and writes it to the keyboard, the same way a preset is recalled. The files are named `<bank>-<slot>_<Name>.json`, as the roland-vr09 project stores them in its `dumps` folder; other JSON files there (scans, checks) are ignored.
 
 `extensions/build-install.sh vr09` copies them from `~/projects/roland-vr09/dumps` (or the folder in `VR09_REGISTRATIONS`) to `<REAPER resource folder>/Data/Perken/vr09/registrations`. A file already there is never overwritten, so your edits stay, and the roland-vr09 project is only read. The names are the ones the files carry: the keyboard's own names could not be read over MIDI. The tone list (`docs/tones.json`) is not used: the keyboard ignores Program Change and Bank Select, so a tone cannot be picked over MIDI.
+
+## The effects
+
+The Effects group of the Controls tab holds the keyboard's reverb (type, level and variation), vibrato or chorus type, MFX (type and level), delay (type and level) and compressor level. They are parameters of the keyboard's system block (`00 00 xx` of the keyboard model), so each one is automatable and is written with a DT1 message, like the others.
+
+- The reverb type and level are two bytes that the keyboard only accepts together, so changing either sends both, with the other one taken from the plugin's state. If the plugin has not read the keyboard yet (Patches tab, "Read the keyboard") it does not know the other byte and sends nothing.
+- The reverb variation picks between two sets of types: Standard has Room (2), Hall (3), Plate (5) and Spring (7), and Cathedral / Stage has Cathedral (3) and Stage (4).
+- The effects are not in the Touché remap catalog of the roland-vr09 project, so they are listed in `tools/effects.json`, which `tools/gen_catalog.py` appends to the catalog. Their addresses and ranges are those of Roland's MIDI implementation. The MFX and delay entries were verified by recalling dumps; the reverb, vibrato / chorus and compressor entries are documented in the implementation but have not been tried on the unit through the plugin.
 
 ## The audio loop
 
@@ -98,7 +106,7 @@ The unit's buffer overflows when messages come back to back, so the plugin space
 
 Checked in REAPER 7.69 on macOS arm64, with a stand-in for the keyboard (`tools/fakevr09.swift`, which loads a dump and answers like the unit):
 
-- the plugin is scanned, loaded, and shows its 68 parameters;
+- the plugin is scanned, loaded, and shows its 74 parameters;
 - SysEx goes out through the track's MIDI output and the replies come back through its input, with F0 and F7 included both ways;
 - the Identity exchange, the 22 block reads, a parameter write, the follow-the-panel path, and the automatic choice of the keyboard's device;
 - the project state is saved and restored;
@@ -152,6 +160,8 @@ zig build test              # protocol, engine, audio loop, state and CLAP inter
 python3 tools/gen_catalog.py ~/projects/roland-vr09/web/public/maps/targets.json > src/catalog.zig
 ```
 
+The committed catalog was generated from an older state of that catalog than the one in the roland-vr09 project today. Generating it again now would also drop the upper pan and the upper and piano reverb sends (marked unavailable since) and add seven controllers of the lower part, which changes what automation lanes in existing projects point to; it is a decision of its own, so the effects were added without regenerating the rest.
+
 `tools/fakevr09.swift` (macOS) creates a virtual MIDI device called "VR-09 Fake" that behaves like the keyboard in Mode 2. Build it with `swiftc -O tools/fakevr09.swift -o fakevr09`, start `./fakevr09 dump.json log.txt` before REAPER, and install the plugin in a scratch resource folder (`REAPER_RESOURCE_PATH`, and `CLAP_PATH` for the plugin) to try the whole path without the hardware.
 
 The source map:
@@ -160,7 +170,7 @@ The source map:
 |---|---|
 | `roland.zig` | DT1 and RQ1 messages, checksum, parsing |
 | `dump.zig` | the block table, dumps, the write grouping and the diff, the JSON format of `vr09.py` |
-| `catalog.zig` | the parameters (generated) |
+| `catalog.zig` | the parameters (generated; the effects come from `tools/effects.json`) |
 | `engine.zig` | the audio-thread engine: pacing, reads, recall, following the panel |
 | `audio.zig` | the audio loop: rings, the hardware hook bridge, the latency ping |
 | `plugin.zig`, `clap_entry.zig`, `discovery.zig` | the CLAP plugin, entry point and preset discovery |

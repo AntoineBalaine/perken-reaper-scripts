@@ -483,7 +483,15 @@ fn drawParam(p: *Plugin, ctx: imgui.ContextPtr, index: usize, as_drawbar: bool) 
         var label: [96:0]u8 = undefined;
         imgui.api.SetNextItemWidth(ctx, 260);
         const text = std.fmt.bufPrintZ(&label, "{s}", .{param.label}) catch "";
-        changed = imgui.api.SliderInt(ctx, text, &value, param.low, param.high, null, null);
+        // A type shows its name beside the number.
+        var shown: [64:0]u8 = undefined;
+        var format: [96:0]u8 = undefined;
+        const fmt_text: ?[*:0]const u8 = blk: {
+            if (param.names.len == 0) break :blk null;
+            const name = engine.valueText(&shown, param, @floatFromInt(value)) orelse break :blk null;
+            break :blk (std.fmt.bufPrintZ(&format, "%d  {s}", .{name}) catch break :blk null).ptr;
+        };
+        changed = imgui.api.SliderInt(ctx, text, &value, param.low, param.high, fmt_text, null);
     }
     imgui.api.PopID(ctx);
     if (changed) {

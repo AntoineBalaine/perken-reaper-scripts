@@ -907,8 +907,9 @@ fn paramsGetValue(p: P, id: c.clap_id, out: [*c]f64) callconv(.C) bool {
 fn paramsValueToText(p: P, id: c.clap_id, value: f64, out: [*c]u8, capacity: u32) callconv(.C) bool {
     _ = p;
     const buf = out[0..capacity];
-    if (engine.paramIndexOfId(id) != null) {
-        _ = std.fmt.bufPrintZ(buf, "{d}", .{@as(i64, @intFromFloat(@round(value)))}) catch return false;
+    if (engine.paramIndexOfId(id)) |index| {
+        const text = engine.valueText(buf, catalog.params[index], value) orelse return false;
+        _ = text;
         return true;
     }
     if (extraIndexOfId(id)) |extra| {
