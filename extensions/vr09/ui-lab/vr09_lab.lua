@@ -126,12 +126,52 @@ local contexts = 0
 local window = nil -- { x, y, w, h } of the last frame, to put the window back after an error
 local restore_window = false
 
+-- The fonts of the panel. A font must be attached to the context before the first frame, so that
+-- changing one here needs the lab to be closed and run again.
+--
+-- Because each system ships different fonts, the label font is the first family of the system's
+-- list that is installed. On macOS and Windows the system's family is used without a check, because
+-- DIN Alternate ships with every macOS and Bahnschrift with Windows 10 and later. On Linux, the
+-- families that fontconfig knows are read once with `fc-list`, and the last entry, the generic
+-- "sans-serif", is used when no other family is installed.
+local LABEL_FAMILIES = {
+  macos = { "DIN Alternate" },
+  windows = { "Bahnschrift" },
+  linux = { "Barlow Semi Condensed", "Roboto Condensed", "Liberation Sans Narrow", "DejaVu Sans Condensed", "Noto Sans", "sans-serif" },
+}
+local LABEL_SIZE = 14
+
+-- The names of the installed font families, in lower case, or nil when `fc-list` cannot be run.
+local function installed_families()
+  local ok, pipe = pcall(io.popen, "fc-list : family 2>/dev/null")
+  if not ok or not pipe then return nil end
+  local text = pipe:read("a")
+  pipe:close()
+  if not text or text == "" then return nil end
+  return text:lower()
+end
+
+local function label_family()
+  local os_name = reaper.GetOS()
+  if os_name:find("^OSX") or os_name:find("^macOS") then return LABEL_FAMILIES.macos[1] end
+  if os_name:find("^Win") then return LABEL_FAMILIES.windows[1] end
+  local installed = installed_families()
+  for _, family in ipairs(LABEL_FAMILIES.linux) do
+    if not installed or family == "sans-serif" or installed:find(family:lower(), 1, true) then return family end
+  end
+  return "sans-serif"
+end
+
+local LABEL_FAMILY = label_family()
+
 local function new_context()
   contexts = contexts + 1
   -- Each context has a name of its own, so that two never share a window.
   ctx = ImGui.CreateContext("VR-09 lab " .. contexts)
   font = ImGui.CreateFont("sans-serif", 15)
   ImGui.Attach(ctx, font)
+  env.fonts = { label = ImGui.CreateFont(LABEL_FAMILY, LABEL_SIZE) }
+  ImGui.Attach(ctx, env.fonts.label)
 end
 
 local function error_lines()

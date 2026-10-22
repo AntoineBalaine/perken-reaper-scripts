@@ -33,38 +33,181 @@ end
 
 -- ---- the controls ----
 
-local function controls(ctx, S)
-  -- EndChild only follows a BeginChild that returned true.
-  if not ImGui.BeginChild(ctx, "##controls") then return end
-  local widgets, catalog, values = env.widgets, S.model.catalog, S.model.values
-  local drawn = {}
-  for i, param in ipairs(catalog) do
-    if not drawn[i] then
-      -- One header per group, listing every parameter of the group once.
-      local open = ImGui.CollapsingHeader(ctx, param.group, nil, ImGui.TreeNodeFlags_DefaultOpen)
-      local as_drawbars = param.group:find("drawbars", 1, true) ~= nil
-      for j = i, #catalog do
-        local other = catalog[j]
-        if not drawn[j] and other.group == param.group then
-          drawn[j] = true
-          if open then
-            ImGui.PushID(ctx, other.id)
-            local changed, v
-            if as_drawbars then
-              changed, v = widgets.drawbar(ctx, other, values[other.id])
-            else
-              changed, v = widgets.param_slider(ctx, other, values[other.id])
-            end
-            ImGui.PopID(ctx)
-            if changed then values[other.id] = v end
-            if as_drawbars then ImGui.SameLine(ctx) end
-          end
-        end
-      end
-      if open and as_drawbars then ImGui.NewLine(ctx) end
+-- The groups of the catalog in the order they first appear, each with its parameters.
+local function groups_of(catalog)
+  local groups, by_name = {}, {}
+  for _, param in ipairs(catalog) do
+    local group = by_name[param.group]
+    if not group then
+      group = { name = param.group, params = {}, drawbars = param.group:find("drawbars", 1, true) ~= nil }
+      by_name[param.group] = group
+      groups[#groups + 1] = group
+    end
+    group.params[#group.params + 1] = param
+  end
+  return groups
+end
+
+local function card_of_drawbars(ctx, S, group)
+  local widgets, values = env.widgets, S.model.values
+  if not widgets.begin_card(ctx, group.name) then return end
+  for i, param in ipairs(group.params) do
+    ImGui.PushID(ctx, param.id)
+    local changed, v = widgets.drawbar(ctx, param, values[param.id])
+    ImGui.PopID(ctx)
+    if changed then values[param.id] = v end
+    if i < #group.params then ImGui.SameLine(ctx) end
+  end
+  widgets.end_card(ctx)
+end
+
+local function card_of_sliders(ctx, S, group)
+  local widgets, values = env.widgets, S.model.values
+  if not widgets.begin_card(ctx, group.name) then return end
+  for _, param in ipairs(group.params) do
+    ImGui.PushID(ctx, param.id)
+    local changed, v = widgets.param_slider(ctx, param, values[param.id])
+    ImGui.PopID(ctx)
+    if changed then values[param.id] = v end
+  end
+  widgets.end_card(ctx)
+end
+
+-- A card of knobs for the groups that hold levels, in one row. `strip` is what the labels start with
+-- that the card's title already says, `bipolar` is true for values that rest in the middle, and
+-- `brackets` lists the captions engraved over the knobs they group.
+local function card_of_knobs(ctx, S, group, strip, bipolar, brackets)
+  local widgets, values = env.widgets, S.model.values
+  if not widgets.begin_card(ctx, group.name) then return end
+  if brackets then widgets.bracket_row(ctx, brackets, #group.params) end
+  for i, param in ipairs(group.params) do
+    ImGui.PushID(ctx, param.id)
+    local label = widgets.short_label(param.label, strip or group.name)
+    local changed, v = widgets.knob(ctx, param, values[param.id], label, bipolar)
+    ImGui.PopID(ctx)
+    if changed then values[param.id] = v end
+    if i < #group.params then ImGui.SameLine(ctx) end
+  end
+  widgets.end_card(ctx)
+end
+
+-- The rotary speaker: its switch and the three knobs of the woofer on one row, and the three knobs
+-- of the tweeter under them. Because the catalog lists the switch first, then the woofer, then the
+-- tweeter, the parameters are taken by their position.
+local function card_of_rotary(ctx, S, group)
+  local widgets, values = env.widgets, S.model.values
+  if not widgets.begin_card(ctx, group.name) then return end
+  local params = group.params
+  for i, param in ipairs(params) do
+    ImGui.PushID(ctx, param.id)
+    local label = widgets.short_label(param.label, group.name)
+    local changed, v
+    if i == 1 then
+      changed, v = widgets.switch(ctx, param, values[param.id], "speaker speed", "FAST", "SLOW")
+    else
+      changed, v = widgets.knob(ctx, param, values[param.id], label)
+    end
+    ImGui.PopID(ctx)
+    if changed then values[param.id] = v end
+    if i == 1 or i == 2 or i == 3 or i == 5 or i == 6 then
+      ImGui.SameLine(ctx)
+    elseif i == 4 then
+      -- The second row starts under the switch, which is left empty.
+      ImGui.Dummy(ctx, 76, 1)
+      ImGui.SameLine(ctx)
     end
   end
+  widgets.end_card(ctx)
+end
+
+-- The synth's envelope and filter values rest in the middle of their range (64), so that their
+-- knobs are bipolar. The card's title says which part it is, and its labels do not repeat it.
+local function card_of_synth(ctx, S, group)
+  local strip = group.name == "Synth upper" and "Upper synth" or "Lower synth"
+  -- The catalog lists the resonance first, then the attack, the decay and the release.
+  local brackets = {
+    { label = "Filter", from = 1, to = 1 },
+    { label = "Envelope", from = 2, to = 4 },
+  }
+  card_of_knobs(ctx, S, group, strip, true, brackets)
+end
+
+-- The groups drawn as a row of knobs, and the function that draws each one.
+local CARDS_OF_KNOBS = {
+  ["Organ"] = card_of_knobs,
+  ["Rotary"] = card_of_rotary,
+  ["Synth upper"] = card_of_synth,
+  ["Synth lower"] = card_of_synth,
+}
+
+-- Because the synth's upper and lower parts are two panels of the same kind, their cards are put
+-- one under the other, while the other knob cards share a row.
+local STACKED = {
+  ["Synth upper"] = true,
+  ["Synth lower"] = true,
+}
+
+-- The instrument's sections, each one a tab, with the catalog's groups that it shows. Because the
+-- catalog has no group for drums, the rhythm and song levels stay in the Mixer, and the piano's
+-- volumes too.
+local SECTIONS = {
+  { name = "Organ", groups = { "Organ upper drawbars", "Organ lower drawbars", "Organ", "Rotary" } },
+  { name = "Synth", groups = { "Synth upper", "Synth lower" } },
+  { name = "Piano", groups = { "Control change piano" } },
+  { name = "Mixer", groups = { "Mixer" } },
+  { name = "FX", groups = { "Effects" } },
+  { name = "Controllers", groups = { "Control change upper", "Control change lower", "Control change master" } },
+}
+
+-- The groups of a section, in the order of the section's list.
+local function groups_named(all, names)
+  local found = {}
+  for _, name in ipairs(names) do
+    for _, group in ipairs(all) do
+      if group.name == name then found[#found + 1] = group end
+    end
+  end
+  return found
+end
+
+-- Draws the cards of one section: the drawbars side by side first, because an organ player looks at
+-- them first, then the organ's and the rotary speaker's knobs on one row, then every other group.
+local function section(ctx, S, names)
+  if not ImGui.BeginChild(ctx, "##section") then return end
+  local groups = groups_named(groups_of(S.model.catalog), names)
+  local drawbars_drawn = false
+  for _, group in ipairs(groups) do
+    if group.drawbars then
+      if drawbars_drawn then ImGui.SameLine(ctx) end
+      card_of_drawbars(ctx, S, group)
+      drawbars_drawn = true
+    end
+  end
+  local knobs_drawn = false
+  for _, group in ipairs(groups) do
+    local card = CARDS_OF_KNOBS[group.name]
+    if card then
+      if knobs_drawn and not STACKED[group.name] then ImGui.SameLine(ctx) end
+      card(ctx, S, group)
+      knobs_drawn = true
+    end
+  end
+  for _, group in ipairs(groups) do
+    if not group.drawbars and not CARDS_OF_KNOBS[group.name] then card_of_sliders(ctx, S, group) end
+  end
   ImGui.EndChild(ctx)
+end
+
+-- The Controls tab holds a tab bar of its own, with one tab for each section of the instrument.
+local function controls(ctx, S)
+  if not ImGui.BeginTabBar(ctx, "##sections") then return end
+  for _, s in ipairs(SECTIONS) do
+    if ImGui.BeginTabItem(ctx, s.name) then
+      section(ctx, S, s.groups)
+      ImGui.EndTabItem(ctx)
+    end
+  end
+  ImGui.EndTabBar(ctx)
 end
 
 -- ---- the patches ----
