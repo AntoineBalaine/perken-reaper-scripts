@@ -42,23 +42,42 @@ The plugin then asks the keyboard who it is and reads its 22 memory blocks. If y
 
 ## Where the notes go
 
-REAPER does not tell the notes you play from the notes a track plays back (live input events carry no flag), and the track must monitor its input for the keyboard's replies to arrive. If the plugin passed the track's MIDI to the keyboard, the keyboard would sound every note it plays twice. So the plugin drops the track's notes, controllers and pitch bend by default, and only handles SysEx.
+The plugin passes the track's MIDI to the keyboard by default, so the track's items play it. A REAPER track takes either audio or MIDI as its input, so the keyboard's sound goes to a second track, which records the keyboard's audio input.
 
-The layout that follows:
+In MIDI IN Mode 2 the keyboard plays its Lower part from channel 3 and its Upper part from channel 4. The plugin sends the notes of channels 1, 3 and 4 to those parts the way the keyboard's own keys would:
 
-- one track for the plugin (the controller track), with no items;
-- a normal MIDI track for the notes, which records from the keyboard and plays back to it as usual.
+- without a split, every note goes to the Upper part;
+- with "This patch splits at middle C" on (Patches tab), the notes below middle C go to the Lower part and the others to the Upper part; controllers and pitch bend reach both.
 
-To play items from the plugin's own track, turn on "Pass this track's MIDI through to the keyboard" in the MIDI tab, and switch the keyboard's Local Control off if you monitor while playing.
+The keyboard does not report its split: no readable address changes with its split buttons. So the setting is kept per patch, in `Data/Perken/vr09/splits.txt`, and comes back when the patch is loaded. Drums (channel 11) and the GM2 channels pass unchanged.
+
+## Changing patches from the session
+
+A Program Change on channel 16 in a track's item selects a registration of the library, in the keyboard's own order of four slots per bank: program 0 is 1-1, 1 is 1-2, 4 is 2-1, and 99 is 25-4. The Patches tab shows each registration's number (PC). The plugin does not pass that Program Change on; channel 16 is the keyboard's control channel, where it ignores Program Change anyway.
+
+The notes after the Program Change follow the registration's split at once. The registration's sound takes longer: the plugin loads it on REAPER's main thread, then writes it to the keyboard in about 0.15 s. Place the Program Change a little ahead of the first note it should play.
+
+Two parameters do the same from an envelope:
+
+- Registration: 0 is none, n selects program n - 1 (the value shows as `bank-slot`). Only a new value loads a registration, so a held envelope does not reload it.
+- Split at middle C: overrides the current patch's split until the next patch is loaded. Unlike the Patches tab's checkbox, it is not remembered for the patch.
+
+REAPER does not tell the notes you play from the notes a track plays back. On a track that records the keyboard's MIDI while monitoring it, turn off "Pass this track's MIDI through to the keyboard" in the MIDI tab, or switch the keyboard's Local Control off, so that the keyboard does not sound its notes twice.
 
 ## The panel
 
 - Controls: every parameter of the catalog, by group. The organ drawbars are drawn as drawbars.
-- Patches: read the keyboard into the plugin, send the plugin's state to the keyboard, save the state as a preset, load, delete, import and export files.
+- Patches: read the keyboard into the plugin, send the plugin's state to the keyboard, browse the Registrations library, save the state as a preset, load, delete, import and export files.
 - Audio loop: see below.
 - MIDI: the track's output and input devices, record arm and monitoring, the SysEx counters, and the behavior switches.
 
 Presets are files named `<name>.vr09` in `<REAPER resource folder>/Data/Perken/vr09/presets`. They hold the JSON that `vr09.py dump` writes, so the dumps in the roland-vr09 project load as they are (the panel lists `.json` files in that folder too).
+
+## The Registrations library
+
+The Patches tab lists the dumps of the keyboard's 70 Registrations, by bank with four slots each, with a filter box (a name, or `bank-slot` such as `12-3`). A double click, or the "Load and send registration" button, loads the dump and writes it to the keyboard, the same way a preset is recalled. The files are named `<bank>-<slot>_<Name>.json`, as the roland-vr09 project stores them in its `dumps` folder; other JSON files there (scans, checks) are ignored.
+
+`extensions/build-install.sh vr09` copies them from `~/projects/roland-vr09/dumps` (or the folder in `VR09_REGISTRATIONS`) to `<REAPER resource folder>/Data/Perken/vr09/registrations`. A file already there is never overwritten, so your edits stay, and the roland-vr09 project is only read. The names are the ones the files carry: the keyboard's own names could not be read over MIDI. The tone list (`docs/tones.json`) is not used: the keyboard ignores Program Change and Bank Select, so a tone cannot be picked over MIDI.
 
 ## The audio loop
 
@@ -95,6 +114,34 @@ Not checked, and worth trying first with the real hardware:
 The checklist for the untested parts is in [TESTING.md](TESTING.md).
 
 If the keyboard ignores the plugin's messages, try "Send SysEx without its F0 and F7 bytes" in the MIDI tab; the spec leaves the framing to the host, and REAPER 7.69 passes it through.
+
+## Debugging from a Lua script
+
+Because the plugin registers a ReaScript function when it loads, a script running in REAPER can query and drive it, for instance through the Lua bridge of `debug-bridge`:
+
+```
+reaper.VR09_Command(track, fxindex, command, arg)   -- returns a JSON string
+```
+
+REAPER builds the `reaper` table of a script when the script starts, so a script started before the plugin loaded does not see the function (`reaper.APIExists("VR09_Command")` tells); restart the bridge after loading the plugin. The instance is the one on `track` at `fxindex`, else the first on that track; a nil track chooses the first instance.
+
+Commands that read:
+
+- `state`: `track_found`, `I_MIDIHWOUT`, `I_RECINPUT`, `midi_out_device`, `midi_in_device`, `midi_in_is_midi`, `midi_in_all_devices`, `armed`, `monitoring`, `fx_index`, `pass_midi`, `split`, `sysex_bare`, `autoconnect_done`, `loop_enabled`, `loop_state`, `midi_dropped`, `tx`, `rx`, `bad_checksum`, `host_sysex_in`, `host_sysex_out`, `host_sysex_refused`, `connected`, `mode`, `known_bytes`, `blocks_failed`, `patch_name`, `program` (null when the patch is not a registration), `panel_open`, `frames_drawn`, `ticks`, `instances`, `devices_out`, `devices_in`, `device_names_out`, `device_names_in`.
+- `log`: the last lines the plugin logged (`arg` is how many, 50 by default, 256 at most), as `{"total":N,"lines":[...]}`.
+- `devices`: the MIDI output and input names as REAPER reports them (null for an absent device).
+
+Commands that act:
+
+- `set` with `arg` `name=value` for `pass_midi`, `sysex_bare`, `autoconnect_done` or `split` (1, 0, true, false, on, off). `split` is remembered for the current patch, like the Patches tab's checkbox.
+- `reconnect`: the panel's "Look for the keyboard again".
+- `load_registration` with a file name of `Data/Perken/vr09/registrations`.
+- `program` with a number from 0 to 127: loads the registration that a Program Change on channel 16 would.
+- `open_panel`.
+- `capture` reads the whole keyboard into the plugin, `job` reports the read's progress, and `export` with an absolute path writes the plugin's state as a `vr09.py` dump.
+- `tab` with `controls`, `patches`, `audio` or `midi`: brings that tab of the panel to the front, so that a script can drive the panel.
+
+An unknown command, or a bad argument, gives `{"ok":false,"error":"..."}`.
 
 ## Development
 

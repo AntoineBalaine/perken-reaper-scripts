@@ -14,6 +14,10 @@ set -euo pipefail
 # reavim-ext also installs its default keymap, through install-bindings.sh,
 # which keeps a keymap you have edited.
 #
+# vr09 also copies the Registration dumps of the roland-vr09 project (folder
+# VR09_REGISTRATIONS, default ~/projects/roland-vr09/dumps) into
+# <resource>/Data/Perken/vr09/registrations, keeping files already there.
+#
 # Set REAPER_RESOURCE_PATH to install somewhere other than REAPER's own
 # resource folder (the script then never launches REAPER).
 
@@ -144,6 +148,26 @@ for name in "$@"; do
       mkdir -p "$CLAP_DIR"
       rm -rf "$CLAP_DIR/vr09.clap"
       "$ZIG" build -Doptimize=ReleaseSafe --prefix "$CLAP_DIR"
+      # The keyboard's Registrations (dumps named <bank>-<slot>_<Name>.json)
+      # from the roland-vr09 project, copied read-only from its dumps folder.
+      # A file already in the destination is kept, so edits survive. Set
+      # VR09_REGISTRATIONS to another source folder.
+      REG_SRC="${VR09_REGISTRATIONS:-$HOME/projects/roland-vr09/dumps}"
+      REG_DST="$RESOURCE/Data/Perken/vr09/registrations"
+      if [ -d "$REG_SRC" ]; then
+        mkdir -p "$REG_DST"
+        count=0
+        for f in "$REG_SRC"/[0-9]*-[0-9]*_*.json; do
+          [ -e "$f" ] || continue
+          if [ ! -e "$REG_DST/$(basename "$f")" ]; then
+            cp "$f" "$REG_DST/"
+            count=$((count + 1))
+          fi
+        done
+        echo "Registrations: $count new file(s) copied to $REG_DST"
+      else
+        echo "No registrations source at $REG_SRC (set VR09_REGISTRATIONS): skipped"
+      fi
       if [ -n "${REAPER_RESOURCE_PATH:-}" ]; then
         echo "Installed in $CLAP_DIR: start REAPER with CLAP_PATH=$CLAP_DIR"
       fi

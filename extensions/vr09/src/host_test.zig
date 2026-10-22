@@ -244,7 +244,7 @@ test "a host automation event becomes a DT1 for the right address" {
     try std.testing.expect(saw_dt1);
 }
 
-test "notes are dropped by default and pass through, in order, when asked" {
+test "notes pass through by default, in order, and are dropped when asked" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -253,14 +253,6 @@ test "notes are dropped by default and pass through, in order, when asked" {
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
 
-    host.addNote(0x90, 60, 100, 5, false);
-    host.addNote(0x90, 64, 100, 6, true);
-    host.addNote(0x80, 60, 0, 300, false);
-    host.process(p);
-    for (host.output[0..host.output_count]) |*e| try std.testing.expect(e.header().type != c.CLAP_EVENT_MIDI);
-    try std.testing.expectEqual(@as(u32, 3), self.shared.midi_dropped.load(.monotonic));
-
-    self.settings.pass_midi.store(true, .monotonic);
     host.addNote(0x90, 60, 100, 5, false);
     host.addNote(0x90, 64, 100, 6, true);
     host.addNote(0xF8, 0, 0, 7, false);
@@ -276,8 +268,78 @@ test "notes are dropped by default and pass through, in order, when asked" {
         const ev: *const c.clap_event_midi_t = @ptrCast(@alignCast(&e.bytes));
         notes += 1;
         try std.testing.expect(ev.data[0] < 0xF8);
+        // Without a split, the notes of channel 1 go to the Upper part.
+        try std.testing.expectEqual(@as(u8, 3), ev.data[0] & 0x0F);
     }
     try std.testing.expectEqual(@as(usize, 3), notes);
+
+    self.settings.pass_midi.store(false, .monotonic);
+    host.addNote(0x90, 60, 100, 5, false);
+    host.addNote(0x90, 64, 100, 6, true);
+    host.addNote(0x80, 60, 0, 300, false);
+    host.process(p);
+    for (host.output[0..host.output_count]) |*e| try std.testing.expect(e.header().type != c.CLAP_EVENT_MIDI);
+    try std.testing.expectEqual(@as(u32, 3), self.shared.midi_dropped.load(.monotonic));
+}
+
+fn midiOutputs(host: *MockHost, buf: *[16][3]u8) usize {
+    var n: usize = 0;
+    for (host.output[0..host.output_count]) |*e| {
+        if (e.header().type != c.CLAP_EVENT_MIDI) continue;
+        const ev: *const c.clap_event_midi_t = @ptrCast(@alignCast(&e.bytes));
+        buf[n] = ev.data;
+        n += 1;
+    }
+    return n;
+}
+
+test "a Program Change on channel 16 selects a registration and its split at once" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    // Registration 2-1 (program 4) splits.
+    self.program_splits[4].store(true, .monotonic);
+
+    host.addNote(0xCF, 4, 0, 0, false);
+    host.addNote(0x90, 48, 100, 1, false);
+    host.addNote(0x90, 72, 100, 2, false);
+    host.process(p);
+    var found: [16][3]u8 = undefined;
+    const n = midiOutputs(&host, &found);
+    // The Program Change is not passed on, and the notes after it follow the split.
+    try std.testing.expectEqual(@as(usize, 2), n);
+    try std.testing.expectEqual([3]u8{ 0x92, 48, 100 }, found[0]);
+    try std.testing.expectEqual([3]u8{ 0x93, 72, 100 }, found[1]);
+    // The main thread loads the registration later.
+    try std.testing.expectEqual(@as(u8, 5), self.pending_program.load(.monotonic));
+
+    const params: *const c.clap_plugin_params_t = @ptrCast(@alignCast(p.*.get_extension.?(p, &c.CLAP_EXT_PARAMS)));
+    const patch_id = engine.hashId("patch");
+    const split_id = engine.hashId("split");
+    var value: f64 = 0;
+    try std.testing.expect(params.get_value.?(p, patch_id, &value));
+    try std.testing.expectEqual(@as(f64, 5), value);
+    var text: [32]u8 = undefined;
+    try std.testing.expect(params.value_to_text.?(p, patch_id, 5, &text, text.len));
+    try std.testing.expectEqualStrings("2-1", std.mem.sliceTo(&text, 0));
+
+    // The Split parameter overrides the split; the Registration parameter
+    // only acts on a new value.
+    self.pending_program.store(0, .monotonic);
+    host.addParam(split_id, 0, 0);
+    host.addParam(patch_id, 5, 0);
+    host.addNote(0x90, 50, 100, 1, false);
+    host.process(p);
+    try std.testing.expectEqual(@as(u8, 0), self.pending_program.load(.monotonic));
+    try std.testing.expectEqual(@as(usize, 1), midiOutputs(&host, &found));
+    try std.testing.expectEqual([3]u8{ 0x93, 50, 100 }, found[0]);
+    host.addParam(patch_id, 1, 0);
+    host.process(p);
+    try std.testing.expectEqual(@as(u8, 1), self.pending_program.load(.monotonic));
 }
 
 test "a control change parameter sends a CC and nothing else" {

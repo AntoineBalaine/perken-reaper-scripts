@@ -100,24 +100,38 @@ pub fn deviceCount(dir: Direction) usize {
     return if (n < 0) 0 else @intCast(n);
 }
 
-/// Copies the device's name into `buf` and returns it, or null when nothing
-/// is plugged in at that index.
+/// REAPER's documentation gives 5 bits to a track's output device and 6 to
+/// its input device, but REAPER itself stores larger indices (the ALSA
+/// bridge's entries sit around 90): its own menu stores the input device 86
+/// as 4096 | 86 << 5. So any index up to 127 can be written, except the
+/// input's 62 and 63, which mean the virtual keyboard and every device.
+pub fn addressable(dir: Direction, index: usize) bool {
+    return if (dir == .output) index < 128 else index < 62 or (index > 63 and index < 128);
+}
+
+/// Copies the device's name into `buf` and returns it, or null when REAPER
+/// has no name for that index. REAPER answers false for a device that is
+/// not currently open (a JACK port, for one) but still gives its name, and
+/// such a device is a valid target for a track.
 pub fn deviceName(dir: Direction, index: usize, buf: []u8) ?[]const u8 {
     if (buf.len < 2) return null;
     @memset(buf, 0);
     const ptr: [*]c_char = @ptrCast(buf.ptr);
-    const present = switch (dir) {
+    _ = switch (dir) {
         .output => Reaper.GetMIDIOutputName(@intCast(index), ptr, @intCast(buf.len - 1)),
         .input => Reaper.GetMIDIInputName(@intCast(index), ptr, @intCast(buf.len - 1)),
     };
-    if (!present) return null;
-    return std.mem.sliceTo(buf, 0);
+    const name = std.mem.sliceTo(buf, 0);
+    if (name.len == 0) return null;
+    return name;
 }
 
-/// The first device whose name looks like a VR-09 (VR-09, VR09, VR-09B).
+/// The first device a track can use whose name looks like a VR-09 (VR-09,
+/// VR09, VR-09B).
 pub fn findKeyboard(dir: Direction) ?usize {
     var buf: [128]u8 = undefined;
     for (0..deviceCount(dir)) |i| {
+        if (!addressable(dir, i)) continue;
         const name = deviceName(dir, i, &buf) orelse continue;
         if (looksLikeVr09(name)) return i;
     }
@@ -135,12 +149,12 @@ pub fn looksLikeVr09(name: []const u8) bool {
 
 /// The device a track sends MIDI to, or null when its hardware output is off.
 /// `I_MIDIHWOUT` holds the channel in the low five bits (0 for all) and the
-/// device index in the next five.
+/// device index above them.
 pub fn trackMidiOutput(track: Reaper.MediaTrack) ?usize {
     const v = Reaper.GetMediaTrackInfo_Value(track, "I_MIDIHWOUT");
     if (v < 0) return null;
     const bits: u32 = @intFromFloat(v);
-    return (bits >> 5) & 31;
+    return (bits >> 5) & 127;
 }
 
 pub fn setTrackMidiOutput(track: Reaper.MediaTrack, device: ?usize) void {
@@ -156,8 +170,8 @@ pub fn trackMidiInput(track: Reaper.MediaTrack) ?usize {
     if (v < 0) return null;
     const bits: u32 = @intFromFloat(v);
     if (bits & 4096 == 0) return null;
-    const dev = (bits >> 5) & 63;
-    if (dev >= 62) return null;
+    const dev = (bits >> 5) & 127;
+    if (dev == 62 or dev == 63) return null;
     return dev;
 }
 

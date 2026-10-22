@@ -18,13 +18,14 @@ const glue = @import("reaper_glue.zig");
 const fileio = @import("fileio.zig");
 const audio = @import("audio.zig");
 const roland = @import("roland.zig");
+const registrations = @import("registrations.zig");
 
 const Plugin = plugin.Plugin;
 const log = std.log.scoped(.ui);
 
 const font_size: c_int = 15;
 const name_cap = 64;
-const max_devices = 32;
+const max_devices = 256;
 const device_name_cap = 96;
 
 const ImguiState = enum { unchecked, present, missing };
@@ -50,11 +51,23 @@ pub const Window = struct {
     // The preset list.
     preset_names: ?std.ArrayList([]u8) = null,
     preset_refresh_at: u32 = 0,
+    // The window is placed at the mouse once per opening. ImGui's "appearing"
+    // condition also fires when the window's OS window is recreated, which
+    // made the window jump to the mouse on a click.
+    placed: bool = false,
+    // A tab to bring to the front on the next frame (0 for none, else the
+    // tab's number from 1), so that a script can drive the panel.
+    select_tab: u8 = 0,
     preset_selected: i32 = -1,
     preset_filter: [name_cap:0]u8 = [_:0]u8{0} ** name_cap,
     save_name: [name_cap:0]u8 = [_:0]u8{0} ** name_cap,
     export_path: [fileio.max_path:0]u8 = [_:0]u8{0} ** fileio.max_path,
     delete_armed: i32 = -1,
+
+    // The keyboard's Registrations library.
+    reg_library: ?registrations.Library = null,
+    reg_selected: i32 = -1,
+    reg_filter: [name_cap:0]u8 = [_:0]u8{0} ** name_cap,
 
     // The devices, refreshed a few times a second.
     device_refresh_at: u32 = 0,
@@ -78,8 +91,21 @@ pub fn open(p: *Plugin) void {
     log.info("opening the panel", .{});
     p.ui.open = true;
     p.ui.ctx = null;
+    p.ui.placed = false;
     p.ui.preset_refresh_at = 0;
     p.ui.device_refresh_at = 0;
+}
+
+/// Brings a tab to the front: "controls", "patches", "audio" or "midi".
+pub fn selectTab(p: *Plugin, name: []const u8) bool {
+    const names = [_][]const u8{ "controls", "patches", "audio", "midi" };
+    for (names, 1..) |n, i| {
+        if (std.mem.eql(u8, n, name)) {
+            p.ui.select_tab = @intCast(i);
+            return true;
+        }
+    }
+    return false;
 }
 
 pub fn close(p: *Plugin) void {
@@ -87,6 +113,7 @@ pub fn close(p: *Plugin) void {
     p.ui.ctx = null;
     p.ui.font = null;
     freePresets(&p.ui);
+    freeRegistrations(&p.ui);
 }
 
 pub fn shutdown() void {}
@@ -130,6 +157,22 @@ fn freePresets(w: *Window) void {
     }
 }
 
+fn freeRegistrations(w: *Window) void {
+    if (w.reg_library) |*lib| {
+        lib.deinit(plugin.allocator);
+        w.reg_library = null;
+    }
+    w.reg_selected = -1;
+}
+
+fn refreshRegistrations(w: *Window) void {
+    freeRegistrations(w);
+    if (!glue.ready) return;
+    var buf: [fileio.max_path]u8 = undefined;
+    const folder = state.registrationFolder(&buf, glue.resourcePath()) catch return;
+    w.reg_library = registrations.scan(plugin.allocator, folder) catch null;
+}
+
 fn presetFolder(buf: []u8) ?[]const u8 {
     if (!glue.ready) return null;
     return state.presetFolder(buf, glue.resourcePath()) catch null;
@@ -161,9 +204,14 @@ fn refreshDirection(w: *Window, dir: glue.Direction) void {
         present[i] = false;
         if (i >= count) continue;
         var buf: [device_name_cap]u8 = undefined;
-        const name = glue.deviceName(dir, i, &buf) orelse continue;
-        @memcpy(names[i][0..name.len], name);
-        names[i][name.len] = 0;
+        // Because REAPER reports the ports of a JACK setup as absent while
+        // they are unconnected, an absent device is listed too, by its number.
+        var fallback: [32]u8 = undefined;
+        const name = glue.deviceName(dir, i, &buf) orelse
+            (std.fmt.bufPrint(&fallback, "device {d} (not present)", .{i}) catch continue);
+        const len = @min(name.len, device_name_cap - 1);
+        @memcpy(names[i][0..len], name[0..len]);
+        names[i][len] = 0;
         present[i] = true;
     }
 }
@@ -173,6 +221,15 @@ fn refreshDirection(w: *Window, dir: glue.Direction) void {
 fn draw(p: *Plugin) void {
     const w = &p.ui;
     w.frame +%= 1;
+    // ReaImGui destroys a context after a failed assertion, or when a frame
+    // goes by without it. Drawing with the stale pointer leaves a frozen
+    // window, so a destroyed context is replaced.
+    if (w.ctx != null and !imgui.api.ValidatePtr(@ptrCast(w.ctx), "ImGui_Context*")) {
+        log.warn("the ImGui context was destroyed; creating a new one", .{});
+        w.placed = false;
+        w.ctx = null;
+        w.font = null;
+    }
     if (w.ctx == null) {
         var config: c_int = 0;
         var title_buf: [48:0]u8 = undefined;
@@ -189,6 +246,7 @@ fn draw(p: *Plugin) void {
     if (w.frame == 1) log.info("drawing the first frame", .{});
     if (w.frame >= w.preset_refresh_at) {
         refreshPresets(w);
+        refreshRegistrations(w);
         w.preset_refresh_at = w.frame +% 150;
     }
     if (w.frame >= w.device_refresh_at) {
@@ -199,7 +257,10 @@ fn draw(p: *Plugin) void {
     if (w.font != null) imgui.api.PushFont(ctx, w.font);
     palette.push(ctx, &palette.window_colors);
     const mouse = glue.mousePosition();
-    imgui.api.SetNextWindowPos(ctx, @floatFromInt(mouse.x), @floatFromInt(mouse.y), &imgui.Cond_Appearing, null, null);
+    if (!w.placed) {
+        w.placed = true;
+        imgui.api.SetNextWindowPos(ctx, @floatFromInt(mouse.x), @floatFromInt(mouse.y), &imgui.Cond_Always, null, null);
+    }
     imgui.api.SetNextWindowSize(ctx, 640, 560, &imgui.Cond_FirstUseEver);
     var is_open: bool = true;
     var flags: c_int = imgui.WindowFlags_NoSavedSettings | imgui.WindowFlags_NoCollapse;
@@ -220,11 +281,18 @@ fn draw(p: *Plugin) void {
 /// ReaImGui records an error instead of raising it when a call is misused, so
 /// the first few are written to the log.
 fn reportImguiError(w: *Window) void {
+    checkpoint(w, "end of frame");
+}
+
+/// Because ReaImGui keeps only the error of the last call, and a failed
+/// assertion destroys the context so that every later call fails too, the
+/// sections of the window check it as they go, to name the one that broke.
+fn checkpoint(w: *Window, section: []const u8) void {
     const get_error = imgui.getError orelse return;
     const message = get_error() orelse return;
     if (w.errors_logged < 5) {
         w.errors_logged += 1;
-        log.warn("ReaImGui reported: {s}", .{std.mem.span(message)});
+        log.warn("ReaImGui reported after {s}: {s}", .{ section, std.mem.span(message) });
     }
 }
 
@@ -232,19 +300,23 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
     drawHeader(p, ctx);
     imgui.api.Separator(ctx);
     if (imgui.api.BeginTabBar(ctx, "##tabs", null)) {
-        if (imgui.api.BeginTabItem(ctx, "Controls", null, null)) {
+        const select = p.ui.select_tab;
+        p.ui.select_tab = 0;
+        var flags = [4]c_int{ 0, 0, 0, 0 };
+        if (select >= 1 and select <= flags.len) flags[select - 1] = imgui.TabItemFlags_SetSelected;
+        if (imgui.api.BeginTabItem(ctx, "Controls", null, &flags[0])) {
             drawControls(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (imgui.api.BeginTabItem(ctx, "Patches", null, null)) {
+        if (imgui.api.BeginTabItem(ctx, "Patches", null, &flags[1])) {
             drawPatches(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (imgui.api.BeginTabItem(ctx, "Audio loop", null, null)) {
+        if (imgui.api.BeginTabItem(ctx, "Audio loop", null, &flags[2])) {
             drawAudioLoop(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (imgui.api.BeginTabItem(ctx, "MIDI", null, null)) {
+        if (imgui.api.BeginTabItem(ctx, "MIDI", null, &flags[3])) {
             drawMidi(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
@@ -299,8 +371,8 @@ fn shortDrawbarName(label: []const u8) []const u8 {
 }
 
 fn drawControls(p: *Plugin, ctx: imgui.ContextPtr) void {
+    // EndChild only follows a BeginChild that returned true (see drawPatches).
     if (!imgui.api.BeginChild(ctx, "##controls", null, null, null, null)) {
-        imgui.api.EndChild(ctx);
         return;
     }
     var shown = [_]bool{false} ** engine.param_count;
@@ -366,6 +438,10 @@ fn drawPatches(p: *Plugin, ctx: imgui.ContextPtr) void {
     }
     if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "Only what differs is written: about 0.15 seconds when the keyboard has been read, a few seconds otherwise.");
 
+    checkpoint(w, "patches: buttons");
+    var split_on = p.settings.split.load(.monotonic);
+    if (imgui.api.Checkbox(ctx, "This patch splits at middle C", &split_on)) plugin.setPatchSplit(p, split_on);
+    if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.");
     var follow = s.follow_panel.load(.monotonic);
     if (imgui.api.Checkbox(ctx, "Follow changes made on the keyboard's panel", &follow)) s.follow_panel.store(follow, .monotonic);
     var recall = s.recall_on_load.load(.monotonic);
@@ -377,6 +453,10 @@ fn drawPatches(p: *Plugin, ctx: imgui.ContextPtr) void {
     _ = imgui.api.InputTextWithHint(ctx, "##save", "patch name", &w.save_name, w.save_name.len, &input_flags, null);
     imgui.api.SameLine(ctx, null, null);
     if (imgui.api.Button(ctx, "Save as preset", null, null)) savePreset(p);
+    checkpoint(w, "patches: save");
+
+    drawRegistrations(p, ctx);
+    checkpoint(w, "patches: registrations");
 
     imgui.api.SeparatorText(ctx, "Presets");
     imgui.api.SetNextItemWidth(ctx, 280);
@@ -389,16 +469,89 @@ fn drawPatches(p: *Plugin, ctx: imgui.ContextPtr) void {
     var avail_h: f64 = 0;
     imgui.api.GetContentRegionAvail(ctx, &avail_w, &avail_h);
     var list_h: f64 = @max(avail_h - 150, 120);
+    // ReaImGui expects EndChild only when BeginChild returned true: a child
+    // pushed below the window's bottom returns false, and an extra EndChild
+    // fails an assertion that destroys the whole context.
     if (imgui.api.BeginChild(ctx, "##presets", null, &list_h, null, null)) {
         drawPresetRows(p, ctx);
+        imgui.api.EndChild(ctx);
     }
-    imgui.api.EndChild(ctx);
+    checkpoint(w, "patches: presets");
 
     imgui.api.SeparatorText(ctx, "Export");
     imgui.api.SetNextItemWidth(ctx, 420);
     _ = imgui.api.InputTextWithHint(ctx, "##export", "path of the file to write (a dump, as vr09.py reads it)", &w.export_path, w.export_path.len, &input_flags, null);
     imgui.api.SameLine(ctx, null, null);
     if (imgui.api.Button(ctx, "Export", null, null)) exportFile(p);
+}
+
+/// The Registrations by bank, four slots each. Because the keyboard cannot
+/// select its own Registrations over MIDI, a click on one loads the dump taken
+/// from it and writes it to the keyboard, like a preset.
+fn drawRegistrations(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const w = &p.ui;
+    imgui.api.SeparatorText(ctx, "Registrations");
+    const lib = w.reg_library orelse {
+        imgui.api.TextColored(ctx, grey, "No registrations folder: run build-install.sh vr09 to fill Data/Perken/vr09/registrations.");
+        return;
+    };
+    if (lib.entries.items.len == 0) {
+        imgui.api.TextColored(ctx, grey, "The registrations folder holds no <bank>-<slot>_<Name>.json file.");
+        return;
+    }
+    var input_flags: c_int = imgui.InputTextFlags_None;
+    imgui.api.SetNextItemWidth(ctx, 280);
+    _ = imgui.api.InputTextWithHint(ctx, "##regfilter", "filter by name or bank-slot", &w.reg_filter, w.reg_filter.len, &input_flags, null);
+    const filter = std.mem.sliceTo(&w.reg_filter, 0);
+    if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "Double click a registration to send it to the keyboard. A Program Change on channel 16 in the track's items does the same with the number shown (PC). The keyboard's display keeps showing the last registration chosen on its panel.");
+
+    var list_w: f64 = -1;
+    var list_h: f64 = 200;
+    if (imgui.api.BeginChild(ctx, "##registrations", &list_w, &list_h, null, null)) {
+        var i: usize = 0;
+        const items = lib.entries.items;
+        while (i < items.len) {
+            const bank = items[i].bank;
+            var end = i;
+            var any_match = false;
+            while (end < items.len and items[end].bank == bank) : (end += 1) {
+                if (registrations.matches(items[end], filter)) any_match = true;
+            }
+            defer i = end;
+            if (!any_match) continue;
+            var title: [32:0]u8 = undefined;
+            const text = std.fmt.bufPrintZ(&title, "Bank {d}##bank{d}", .{ bank, bank }) catch continue;
+            // A filter opens the banks that match, so the result is visible.
+            if (filter.len > 0) imgui.api.SetNextItemOpen(ctx, true, null);
+            if (!imgui.api.TreeNode(ctx, text, null)) continue;
+            for (items[i..end], i..) |entry, index| {
+                if (!registrations.matches(entry, filter)) continue;
+                var name_buf: [64]u8 = undefined;
+                var label: [128:0]u8 = undefined;
+                const program: i32 = if (registrations.programOf(entry.bank, entry.slot)) |n| n else -1;
+                const row = std.fmt.bufPrintZ(&label, "{d}-{d}  {s}  (PC {d})##reg{d}", .{ entry.bank, entry.slot, registrations.displayName(&name_buf, entry.name), program, index }) catch continue;
+                var selected = w.reg_selected == @as(i32, @intCast(index));
+                var sel_flags: c_int = imgui.SelectableFlags_AllowDoubleClick;
+                if (imgui.api.Selectable(ctx, row, &selected, &sel_flags, null, null)) {
+                    w.reg_selected = @intCast(index);
+                    if (imgui.api.IsMouseDoubleClicked(ctx, 0)) loadRegistration(p, entry);
+                }
+            }
+            imgui.api.TreePop(ctx);
+        }
+        imgui.api.EndChild(ctx);
+    }
+    if (w.reg_selected >= 0 and w.reg_selected < lib.entries.items.len) {
+        if (imgui.api.Button(ctx, "Load and send registration", null, null)) loadRegistration(p, lib.entries.items[@intCast(w.reg_selected)]);
+    }
+}
+
+fn loadRegistration(p: *Plugin, entry: registrations.Entry) void {
+    p.loadRegistration(entry) catch |err| {
+        notice(&p.ui, "Could not load registration {d}-{d}: {s}", .{ entry.bank, entry.slot, @errorName(err) }, true);
+        return;
+    };
+    notice(&p.ui, "Loaded registration {d}-{d}.", .{ entry.bank, entry.slot }, false);
 }
 
 fn drawPresetRows(p: *Plugin, ctx: imgui.ContextPtr) void {
@@ -653,7 +806,10 @@ fn drawDeviceCombo(w: *Window, ctx: imgui.ContextPtr, id: [*:0]const u8, dir: gl
             var label: [160:0]u8 = undefined;
             const text = std.fmt.bufPrintZ(&label, "{s}##{d}", .{ std.mem.sliceTo(&names[i], 0), i }) catch continue;
             var selected = current != null and current.? == i;
-            if (imgui.api.Selectable(ctx, text, &selected, null, null, null)) {
+            // Because a track's device field is too narrow for the later
+            // entries, they are shown but cannot be chosen.
+            var flags: c_int = if (glue.addressable(dir, i)) imgui.SelectableFlags_None else imgui.SelectableFlags_Disabled;
+            if (imgui.api.Selectable(ctx, text, &selected, &flags, null, null)) {
                 out.* = i;
                 changed = true;
             }

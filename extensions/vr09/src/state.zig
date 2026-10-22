@@ -40,10 +40,14 @@ pub const Settings = struct {
     /// adds them itself. The spec does not say, so the user can switch it.
     sysex_bare: Atomic(bool) = Atomic(bool).init(false),
     /// Whether the track's MIDI (notes, controllers, pitch bend) is passed on
-    /// to the keyboard. Off by default: the host does not tell live input from
-    /// playback, so with the track monitoring its input, which the keyboard's
-    /// replies require, the keyboard would sound its own notes twice.
-    pass_midi: Atomic(bool) = Atomic(bool).init(false),
+    /// to the keyboard. On by default, so that the track's items play the
+    /// keyboard. A track that records the keyboard's own MIDI while monitoring
+    /// it would make the keyboard sound its notes twice: the user turns it off
+    /// there, because the host does not tell live input from playback.
+    pass_midi: Atomic(bool) = Atomic(bool).init(true),
+    /// Whether the current patch splits the keyboard at middle C, which
+    /// decides the part each note goes to (see split.zig).
+    split: Atomic(bool) = Atomic(bool).init(false),
     preset_name: [64]u8 = [_]u8{0} ** 64,
 
     pub fn sendDb(self: *const Settings) f32 {
@@ -103,6 +107,10 @@ pub fn write(writer: anytype, shared: *const engine.Shared, settings: *const Set
     if (settings.autoconnect_done.load(.monotonic)) flags |= 8;
     if (settings.sysex_bare.load(.monotonic)) flags |= 16;
     if (settings.pass_midi.load(.monotonic)) flags |= 32;
+    if (settings.split.load(.monotonic)) flags |= 64;
+    // Projects saved before pass_midi defaulted to on lack this bit; they
+    // then get the new default instead of a stored "off".
+    flags |= 128;
     try writer.writeByte(flags);
     try writer.writeInt(u32, settings.send_db_bits.load(.monotonic), .little);
     try writer.writeInt(u32, settings.return_db_bits.load(.monotonic), .little);
@@ -152,7 +160,8 @@ pub fn read(reader: anytype, shared: *engine.Shared, settings: *Settings) !void 
     shared.recall_on_load.store(flags & 4 != 0, .monotonic);
     settings.autoconnect_done.store(flags & 8 != 0, .monotonic);
     settings.sysex_bare.store(flags & 16 != 0, .monotonic);
-    settings.pass_midi.store(flags & 32 != 0, .monotonic);
+    settings.pass_midi.store(flags & 128 == 0 or flags & 32 != 0, .monotonic);
+    settings.split.store(flags & 64 != 0, .monotonic);
     settings.send_db_bits.store(send_bits, .monotonic);
     settings.return_db_bits.store(return_bits, .monotonic);
     settings.out_channel.store(out_channel, .monotonic);
@@ -180,9 +189,19 @@ pub fn sanitizeName(out: []u8, name: []const u8) []const u8 {
     return trimmed;
 }
 
+/// The list of the patches that split the keyboard (see split.zig).
+pub fn splitsPath(buf: []u8, resource_path: []const u8) ![]const u8 {
+    return std.fmt.bufPrint(buf, "{s}{c}Data{c}Perken{c}vr09{c}splits.txt", .{ resource_path, std.fs.path.sep, std.fs.path.sep, std.fs.path.sep, std.fs.path.sep });
+}
+
 /// The preset folder inside REAPER's resource folder.
 pub fn presetFolder(buf: []u8, resource_path: []const u8) ![]const u8 {
     return std.fmt.bufPrint(buf, "{s}{c}Data{c}Perken{c}vr09{c}presets", .{ resource_path, std.fs.path.sep, std.fs.path.sep, std.fs.path.sep, std.fs.path.sep });
+}
+
+/// The folder of the keyboard's Registrations, which build-install.sh fills.
+pub fn registrationFolder(buf: []u8, resource_path: []const u8) ![]const u8 {
+    return std.fmt.bufPrint(buf, "{s}{c}Data{c}Perken{c}vr09{c}registrations", .{ resource_path, std.fs.path.sep, std.fs.path.sep, std.fs.path.sep, std.fs.path.sep });
 }
 
 /// The folder that REAPER uses when nothing says otherwise, for the preset

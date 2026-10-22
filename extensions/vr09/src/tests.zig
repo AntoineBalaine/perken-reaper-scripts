@@ -8,7 +8,10 @@ comptime {
     _ = @import("outbuf.zig");
     _ = @import("fileio.zig");
     _ = @import("state.zig");
+    _ = @import("registrations.zig");
+    _ = @import("split.zig");
     _ = @import("reaper_glue.zig");
     _ = @import("catalog.zig");
+    _ = @import("debug_api.zig");
     _ = @import("host_test.zig");
 }

@@ -20,6 +20,10 @@ const state = @import("state.zig");
 const glue = @import("reaper_glue.zig");
 const outbuf = @import("outbuf.zig");
 const ui = @import("ui.zig");
+const debug_api = @import("debug_api.zig");
+const split = @import("split.zig");
+const registrations = @import("registrations.zig");
+const fileio = @import("fileio.zig");
 
 const log = std.log.scoped(.plugin);
 
@@ -43,7 +47,18 @@ pub const extras = [_]Extra{
     .{ .id = "audio-loop-on", .name = "Audio loop", .module = "Audio", .min = 0, .max = 1, .default = 0, .stepped = true },
     .{ .id = "audio-send-db", .name = "Send level", .module = "Audio", .min = -60, .max = 12, .default = 0, .stepped = false },
     .{ .id = "audio-return-db", .name = "Return level", .module = "Audio", .min = -60, .max = 12, .default = 0, .stepped = false },
+    // 0 is no registration, n is program n - 1 (see registrations.programOf).
+    .{ .id = "patch", .name = "Registration", .module = "Patches", .min = 0, .max = 128, .default = 0, .stepped = true },
+    .{ .id = "split", .name = "Split at middle C", .module = "Patches", .min = 0, .max = 1, .default = 0, .stepped = true },
 };
+
+const extra_patch = 3;
+const extra_split = 4;
+
+/// A Program Change on this channel (16, the keyboard's control channel in
+/// MIDI IN Mode 2, where the keyboard ignores it) selects a registration; it
+/// is not passed on.
+pub const program_channel: u8 = 15;
 
 pub const total_params = engine.param_count + extras.len;
 
@@ -104,7 +119,18 @@ pub const Plugin = struct {
     // The block's output.
     engine_events: outbuf.List(512),
     forward_events: outbuf.List(4096),
+    router: split.Router,
     arena: outbuf.Arena(16384),
+
+    // Registrations selected by Program Change or automation. Both hold a
+    // program number plus one, zero meaning none.
+    program: std.atomic.Value(u8),
+    pending_program: std.atomic.Value(u8),
+    /// Whether each program's registration splits, so that the audio thread
+    /// routes the notes after a Program Change at once, before the main
+    /// thread loads the registration.
+    program_splits: [128]std.atomic.Value(bool),
+    programs_scanned: bool,
 
     ui: ui.Window,
 
@@ -157,6 +183,11 @@ pub const Plugin = struct {
         self.traces_logged_in = false;
         self.traces_logged_out = false;
         self.midi_logged = 0;
+        self.router = .{};
+        self.program = std.atomic.Value(u8).init(0);
+        self.pending_program = std.atomic.Value(u8).init(0);
+        self.program_splits = [_]std.atomic.Value(bool){std.atomic.Value(bool).init(false)} ** 128;
+        self.programs_scanned = false;
         self.loop_state_logged = @intFromEnum(audio.LoopState.off);
         self.engine_events = .{};
         self.forward_events = .{};
@@ -238,7 +269,74 @@ pub const Plugin = struct {
     pub fn loadScene(self: *Plugin, scene: *const dump.Dump, name: []const u8) void {
         self.shared.loadDesired(scene);
         self.settings.setPresetName(name);
+        self.settings.split.store(patchSplits(name), .monotonic);
+        self.program.store(0, .monotonic);
         _ = self.shared.scene_gen.fetchAdd(1, .release);
+    }
+
+    /// Loads a registration's dump and writes it to the keyboard.
+    pub fn loadRegistration(self: *Plugin, entry: registrations.Entry) !void {
+        var folder_buf: [fileio.max_path]u8 = undefined;
+        const folder = try state.registrationFolder(&folder_buf, glue.resourcePath());
+        var path_buf: [fileio.max_path]u8 = undefined;
+        const path = try std.fmt.bufPrint(&path_buf, "{s}{c}{s}", .{ folder, std.fs.path.sep, entry.file_name });
+        var name_buf: [96]u8 = undefined;
+        try self.loadPresetFile(path, registrations.patchName(&name_buf, entry));
+        const program = registrations.programOf(entry.bank, entry.slot);
+        self.program.store(if (program) |n| @as(u8, n) + 1 else 0, .monotonic);
+        self.rescanParamValues();
+    }
+
+    /// Loads the registration a program number selects.
+    pub fn loadProgram(self: *Plugin, program: u7) !void {
+        var folder_buf: [fileio.max_path]u8 = undefined;
+        const folder = try state.registrationFolder(&folder_buf, glue.resourcePath());
+        var lib = try registrations.scan(allocator, folder);
+        defer lib.deinit(allocator);
+        const entry = registrations.findProgram(&lib, program) orelse return error.NoSuchRegistration;
+        try self.loadRegistration(entry);
+    }
+
+    /// Called from the audio thread: routes the following notes with the
+    /// registration's split at once, and leaves the loading to the main
+    /// thread, because it reads files.
+    pub fn requestProgram(self: *Plugin, program: u7) void {
+        self.program.store(@as(u8, program) + 1, .monotonic);
+        self.settings.split.store(self.program_splits[program].load(.monotonic), .monotonic);
+        self.pending_program.store(@as(u8, program) + 1, .release);
+    }
+
+    fn applyPendingProgram(self: *Plugin) void {
+        const pending = self.pending_program.swap(0, .acq_rel);
+        if (pending == 0 or !glue.ready) return;
+        const program: u7 = @intCast(pending - 1);
+        self.loadProgram(program) catch |err| {
+            log.warn("program {d} (registration {d}-{d}) could not be loaded: {s}", .{ program, registrations.bankOfProgram(program), registrations.slotOfProgram(program), @errorName(err) });
+            return;
+        };
+        log.info("program {d}: registration {d}-{d} loaded", .{ program, registrations.bankOfProgram(program), registrations.slotOfProgram(program) });
+    }
+
+    /// Reads which registrations split, for `program_splits`.
+    pub fn scanProgramSplits(self: *Plugin) void {
+        if (!glue.ready) return;
+        self.programs_scanned = true;
+        var folder_buf: [fileio.max_path]u8 = undefined;
+        const folder = state.registrationFolder(&folder_buf, glue.resourcePath()) catch return;
+        var lib = registrations.scan(allocator, folder) catch return;
+        defer lib.deinit(allocator);
+        for (lib.entries.items) |e| {
+            const program = registrations.programOf(e.bank, e.slot) orelse continue;
+            var name_buf: [96]u8 = undefined;
+            self.program_splits[program].store(patchSplits(registrations.patchName(&name_buf, e)), .monotonic);
+        }
+    }
+
+    /// Tells the host that the Registration and Split parameters changed
+    /// without automation. Main thread only.
+    pub fn rescanParamValues(self: *Plugin) void {
+        if (self.host_params == null) return;
+        if (self.host_params.*.rescan) |rescan| rescan(self.host, c.CLAP_PARAM_RESCAN_VALUES);
     }
 
     pub fn loadPresetFile(self: *Plugin, path: []const u8, name: []const u8) !void {
@@ -253,6 +351,8 @@ pub const Plugin = struct {
 
     pub fn tickMain(self: *Plugin) void {
         self.ticks +%= 1;
+        if (!self.programs_scanned) self.scanProgramSplits();
+        self.applyPendingProgram();
         self.logTraces();
         self.logLoopState();
         self.findTrack();
@@ -380,6 +480,7 @@ fn pluginInit(p: P) callconv(.C) bool {
         glue.registerTimer(onTimer);
         timer_registered = true;
     }
+    debug_api.register();
     return true;
 }
 
@@ -518,6 +619,10 @@ fn handleInput(self: *Plugin, ev_header: [*c]const c.clap_event_header_t, sink: 
             // Realtime messages (clock, active sensing) are not for the
             // keyboard's input; the unit sends them constantly.
             if (ev.data[0] >= 0xF8) return;
+            if (ev.data[0] == 0xC0 | program_channel) {
+                self.requestProgram(@intCast(ev.data[1] & 0x7F));
+                return;
+            }
             // The host does not mark live input (its events carry no flags),
             // so the notes cannot be told from the track's own playback.
             // They pass only when the user asked for it.
@@ -525,10 +630,32 @@ fn handleInput(self: *Plugin, ev_header: [*c]const c.clap_event_header_t, sink: 
                 _ = self.shared.midi_dropped.fetchAdd(1, .monotonic);
                 return;
             }
-            _ = self.forward_events.push(.{ .time = time, .kind = .midi, .midi = .{ ev.data[0], ev.data[1], ev.data[2] } });
+            var out: [2][3]u8 = undefined;
+            const n = self.router.route(self.settings.split.load(.monotonic), .{ ev.data[0], ev.data[1], ev.data[2] }, &out);
+            for (out[0..n]) |m| _ = self.forward_events.push(.{ .time = time, .kind = .midi, .midi = m });
         },
         else => {},
     }
+}
+
+/// Whether the patch is in the list of split patches.
+pub fn patchSplits(name: []const u8) bool {
+    if (!glue.ready) return false;
+    var buf: [1024]u8 = undefined;
+    const path = state.splitsPath(&buf, glue.resourcePath()) catch return false;
+    return split.isSplit(allocator, path, name);
+}
+
+/// Sets the current patch's split and remembers it for that patch.
+pub fn setPatchSplit(self: *Plugin, on: bool) void {
+    self.settings.split.store(on, .monotonic);
+    const program = self.program.load(.monotonic);
+    if (program != 0) self.program_splits[program - 1].store(on, .monotonic);
+    self.rescanParamValues();
+    if (!glue.ready) return;
+    var buf: [1024]u8 = undefined;
+    const path = state.splitsPath(&buf, glue.resourcePath()) catch return;
+    split.setSplit(allocator, path, self.settings.presetName(), on) catch |err| log.warn("could not save the split list: {s}", .{@errorName(err)});
 }
 
 /// A parameter of the plugin itself changed, from automation.
@@ -537,6 +664,15 @@ pub fn applyExtra(self: *Plugin, extra: usize, value: f64) void {
         0 => self.setLoopEnabled(value >= 0.5),
         1 => self.settings.setSendDb(@floatCast(value)),
         2 => self.settings.setReturnDb(@floatCast(value)),
+        // Automation sends its value again while it holds still; only a new
+        // value loads a registration.
+        extra_patch => {
+            const v: u8 = @intFromFloat(std.math.clamp(@round(value), 0, 128));
+            if (v != 0 and v != self.program.load(.monotonic)) self.requestProgram(@intCast(v - 1));
+        },
+        // Automation overrides the split for the moment; only the Patches
+        // tab remembers it for the patch.
+        extra_split => self.settings.split.store(value >= 0.5, .monotonic),
         else => {},
     }
 }
@@ -759,7 +895,9 @@ fn paramsGetValue(p: P, id: c.clap_id, out: [*c]f64) callconv(.C) bool {
         out.* = switch (extra) {
             0 => if (self.settings.loop_enabled.load(.monotonic)) 1 else 0,
             1 => self.settings.sendDb(),
-            else => self.settings.returnDb(),
+            2 => self.settings.returnDb(),
+            extra_patch => @floatFromInt(self.program.load(.monotonic)),
+            else => if (self.settings.split.load(.monotonic)) 1 else 0,
         };
         return true;
     }
@@ -774,10 +912,18 @@ fn paramsValueToText(p: P, id: c.clap_id, value: f64, out: [*c]u8, capacity: u32
         return true;
     }
     if (extraIndexOfId(id)) |extra| {
-        if (extra == 0) {
-            _ = std.fmt.bufPrintZ(buf, "{s}", .{if (value >= 0.5) "On" else "Off"}) catch return false;
-        } else {
-            _ = std.fmt.bufPrintZ(buf, "{d:.1} dB", .{value}) catch return false;
+        switch (extra) {
+            0, extra_split => _ = std.fmt.bufPrintZ(buf, "{s}", .{if (value >= 0.5) "On" else "Off"}) catch return false,
+            extra_patch => {
+                const v: u8 = @intFromFloat(std.math.clamp(@round(value), 0, 128));
+                if (v == 0) {
+                    _ = std.fmt.bufPrintZ(buf, "None", .{}) catch return false;
+                } else {
+                    const program: u7 = @intCast(v - 1);
+                    _ = std.fmt.bufPrintZ(buf, "{d}-{d}", .{ registrations.bankOfProgram(program), registrations.slotOfProgram(program) }) catch return false;
+                }
+            },
+            else => _ = std.fmt.bufPrintZ(buf, "{d:.1} dB", .{value}) catch return false,
         }
         return true;
     }
@@ -1002,6 +1148,7 @@ pub fn shutdown() void {
         timer_registered = false;
     }
     glue.unregisterHook();
+    debug_api.unregister();
     ui.shutdown();
     if (shared_bridge) |b| {
         allocator.destroy(b);

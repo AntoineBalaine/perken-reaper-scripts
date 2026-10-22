@@ -33,13 +33,17 @@ The automated tests and the checks made in REAPER 7.69 on macOS arm64 with a sta
    - A file `<name>.vr09` appears in `<REAPER resource folder>/Data/Perken/vr09/presets`, and the list shows it.
 2. Recall a Registration on the keyboard's panel, read it, and save it under another name. Load the first preset again with a double click.
    - The keyboard sounds like the first Registration again within about a second. The display still shows the second Registration's title, which is expected.
-3. Copy a dump from the roland-vr09 project (`dumps/1-1_MassiveOrgDF.json`) into the preset folder, or use "Import a file".
+3. Run `extensions/build-install.sh vr09`, open the Patches tab, and look at the Registrations section.
+   - Banks 1 to 18 are listed (18 has two slots) with their names. Typing `12-3` or part of a name filters the list and opens the matching banks.
+   - A double click on one sends it: the keyboard sounds like that Registration within about a second, and the header reads `Patch: <bank>-<slot> <Name>`.
+   - Running the script again copies nothing, and a file you edited in the registrations folder stays as it is.
+4. Copy a dump from the roland-vr09 project (`dumps/1-1_MassiveOrgDF.json`) into the preset folder, or use "Import a file".
    - It loads and the keyboard follows.
-4. Type an absolute path in the Export field and press "Export".
+5. Type an absolute path in the Export field and press "Export".
    - The file exists, and `python3 vr09.py diff` against a dump of the same state shows no difference.
-5. Save the project, close it, and open it again with the keyboard on and set to a different patch.
+6. Save the project, close it, and open it again with the keyboard on and set to a different patch.
    - Within a few seconds of opening, the keyboard is back in the project's patch. Switch off "Send the patch to the keyboard when the project opens" and repeat: the keyboard is left alone.
-6. Open the project with the keyboard off, then switch it on a minute later.
+7. Open the project with the keyboard off, then switch it on a minute later.
    - The patch is sent once the keyboard answers.
 
 ## 3. Notes and the track layout
