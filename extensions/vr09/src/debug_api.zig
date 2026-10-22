@@ -240,7 +240,7 @@ fn cmdState(w: anytype, p: *Plugin) !void {
     const program = p.program.load(.monotonic);
     try w.writeAll(",\"program\":");
     if (program == 0) try w.writeAll("null") else try w.print("{d}", .{program - 1});
-    try w.print(",\"panel_open\":{},\"frames_drawn\":{d},\"ticks\":{d},", .{ p.ui.open, p.ui.frame, p.ticks });
+    try w.print(",\"panel_open\":{},\"frames_drawn\":{d},\"ui_contexts\":{d},\"ui_ctx_valid\":{},\"ticks\":{d},", .{ p.ui.open, p.ui.frame, p.ui.contexts_created, ui.contextValid(p), p.ticks });
     try w.print("\"instances\":{d},\"devices_out\":{d},\"devices_in\":{d},\"device_names_out\":", .{ instanceCount(), glue.deviceCount(.output), glue.deviceCount(.input) });
     try writeDeviceNames(w, .output);
     try w.writeAll(",\"device_names_in\":");

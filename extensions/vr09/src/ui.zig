@@ -14,6 +14,7 @@ const engine = @import("engine.zig");
 const catalog = @import("catalog.zig");
 const dump = @import("dump.zig");
 const state = @import("state.zig");
+const placement = @import("placement.zig");
 const glue = @import("reaper_glue.zig");
 const fileio = @import("fileio.zig");
 const audio = @import("audio.zig");
@@ -40,6 +41,10 @@ const grey = palette.rgba(0x818989FF);
 /// allocating.
 const DeviceName = [device_name_cap:0]u8;
 
+/// The panel's size when it first opens.
+const window_width = 640;
+const window_height = 560;
+
 /// The part of the plugin that belongs to its window.
 pub const Window = struct {
     open: bool = false,
@@ -47,6 +52,12 @@ pub const Window = struct {
     font: imgui.FontPtr = null,
     frame: u32 = 0,
     errors_logged: u32 = 0,
+    /// How many ImGui contexts this window has created, to tell a reopened
+    /// window from one that kept its context.
+    contexts_created: u32 = 0,
+    // The input probe (see `probeInput`).
+    probe_lines: u32 = 0,
+    probe_last: i64 = 0,
 
     // The preset list.
     preset_names: ?std.ArrayList([]u8) = null,
@@ -90,10 +101,17 @@ pub fn open(p: *Plugin) void {
     }
     log.info("opening the panel", .{});
     p.ui.open = true;
-    p.ui.ctx = null;
     p.ui.placed = false;
+    p.ui.probe_lines = 0;
+    p.ui.probe_last = 0;
     p.ui.preset_refresh_at = 0;
     p.ui.device_refresh_at = 0;
+}
+
+/// Whether the window's ImGui context still exists in ReaImGui.
+pub fn contextValid(p: *Plugin) bool {
+    if (imgui_state != .present or p.ui.ctx == null) return false;
+    return imgui.api.ValidatePtr(@ptrCast(p.ui.ctx), "ImGui_Context*");
 }
 
 /// Brings a tab to the front: "controls", "patches", "audio" or "midi".
@@ -110,6 +128,8 @@ pub fn selectTab(p: *Plugin, name: []const u8) bool {
 
 pub fn close(p: *Plugin) void {
     p.ui.open = false;
+    // The pointers are dropped, and ReaImGui destroys the context by itself
+    // once it has gone unused for a few frames.
     p.ui.ctx = null;
     p.ui.font = null;
     freePresets(&p.ui);
@@ -233,12 +253,17 @@ fn draw(p: *Plugin) void {
     if (w.ctx == null) {
         var config: c_int = 0;
         var title_buf: [48:0]u8 = undefined;
-        const title = std.fmt.bufPrintZ(&title_buf, "VR-09 {x}", .{@intFromPtr(p)}) catch "VR-09";
+        // The name is unique to each context: two contexts of the same name
+        // may share a native window, and the end of the old one would take
+        // the new one's window with it.
+        const title = std.fmt.bufPrintZ(&title_buf, "VR-09 {x}-{d}", .{ @intFromPtr(p), w.contexts_created + 1 }) catch "VR-09";
         w.ctx = imgui.api.CreateContext(title, &config);
         if (w.ctx == null) {
             w.open = false;
             return;
         }
+        w.contexts_created += 1;
+        log.info("ImGui context {d} created at frame {d}", .{ w.contexts_created, w.frame });
         w.font = imgui.api.CreateFont("sans-serif", font_size, null);
         if (w.font != null) imgui.api.Attach(w.ctx, @ptrCast(w.font));
     }
@@ -259,23 +284,70 @@ fn draw(p: *Plugin) void {
     const mouse = glue.mousePosition();
     if (!w.placed) {
         w.placed = true;
-        imgui.api.SetNextWindowPos(ctx, @floatFromInt(mouse.x), @floatFromInt(mouse.y), &imgui.Cond_Always, null, null);
+        // The window opens where it fits on the screen: a window that sticks
+        // out is moved by the window manager without ImGui being told, and
+        // the mouse then lands a few dozen pixels off.
+        var at = placement.Point{ .x = mouse.x, .y = mouse.y };
+        if (glue.workAreaAt(mouse.x, mouse.y)) |area| {
+            at = placement.fitInto(area, mouse.x, mouse.y, window_width, window_height);
+            if (at.x != mouse.x or at.y != mouse.y) log.info("the panel opens at {d},{d} instead of {d},{d}, to fit the screen ({d},{d} to {d},{d})", .{ at.x, at.y, mouse.x, mouse.y, area.left, area.top, area.right, area.bottom });
+        }
+        imgui.api.SetNextWindowPos(ctx, @floatFromInt(at.x), @floatFromInt(at.y), &imgui.Cond_Always, null, null);
     }
-    imgui.api.SetNextWindowSize(ctx, 640, 560, &imgui.Cond_FirstUseEver);
+    imgui.api.SetNextWindowSize(ctx, window_width, window_height, &imgui.Cond_FirstUseEver);
     var is_open: bool = true;
     var flags: c_int = imgui.WindowFlags_NoSavedSettings | imgui.WindowFlags_NoCollapse;
     var title: [80:0]u8 = undefined;
     const track_number: u32 = if (p.track != null) @intFromFloat(Reaper.GetMediaTrackInfo_Value(p.track, "IP_TRACKNUMBER")) else 0;
     const label = if (track_number > 0)
-        std.fmt.bufPrintZ(&title, "VR-09, track {d}##{x}", .{ track_number, @intFromPtr(p) }) catch "VR-09"
+        std.fmt.bufPrintZ(&title, "VR-09, track {d}##{x}-{d}", .{ track_number, @intFromPtr(p), w.contexts_created }) catch "VR-09"
     else
-        std.fmt.bufPrintZ(&title, "VR-09##{x}", .{@intFromPtr(p)}) catch "VR-09";
-    if (imgui.api.Begin(ctx, label, &is_open, &flags)) drawContent(p, ctx);
+        std.fmt.bufPrintZ(&title, "VR-09##{x}-{d}", .{ @intFromPtr(p), w.contexts_created }) catch "VR-09";
+    if (imgui.api.Begin(ctx, label, &is_open, &flags)) {
+        drawContent(p, ctx);
+        probeInput(w, ctx);
+    }
     imgui.api.End(ctx);
     palette.pop(ctx, palette.window_colors.len);
     if (w.font != null) imgui.api.PopFont(ctx);
-    if (!is_open) close(p);
+    if (!is_open) {
+        log.info("ImGui reported the panel closed (frame {d}, context {d})", .{ w.frame, w.contexts_created });
+        close(p);
+    }
     reportImguiError(w);
+}
+
+fn quantize(v: f64) i64 {
+    return @intFromFloat(std.math.clamp(@round(v), -100000, 100000));
+}
+
+/// The panel can come up deaf to the mouse. Each time what ImGui sees of the
+/// mouse changes, a line (at most 40 per opening) puts it beside where REAPER
+/// says the mouse is, so that a frozen panel shows whether ImGui sees the
+/// mouse in the wrong place, never hovered, or never focused.
+fn probeInput(w: *Window, ctx: imgui.ContextPtr) void {
+    if (w.probe_lines >= 40) return;
+    var mx: f64 = 0;
+    var my: f64 = 0;
+    imgui.api.GetMousePos(ctx, &mx, &my);
+    var wx: f64 = 0;
+    var wy: f64 = 0;
+    imgui.api.GetWindowPos(ctx, &wx, &wy);
+    var ww: f64 = 0;
+    var wh: f64 = 0;
+    imgui.api.GetWindowSize(ctx, &ww, &wh);
+    // Child windows count: the panel's lists are children.
+    var hover_flags: c_int = imgui.HoveredFlags_ChildWindows;
+    var focus_flags: c_int = imgui.FocusedFlags_ChildWindows;
+    const hovered = imgui.api.IsWindowHovered(ctx, &hover_flags);
+    const focused = imgui.api.IsWindowFocused(ctx, &focus_flags);
+    const down = imgui.api.IsMouseDown(ctx, 0);
+    const key = ((quantize(mx) *% 1_000_003 +% quantize(my)) *% 8 +% @as(i64, @intFromBool(hovered)) *% 4 +% @as(i64, @intFromBool(focused)) *% 2 +% @as(i64, @intFromBool(down)));
+    if (key == w.probe_last) return;
+    w.probe_last = key;
+    w.probe_lines += 1;
+    const os = glue.mousePosition();
+    log.info("input (context {d}, frame {d}): ImGui mouse {d:.0},{d:.0} down {} | window at {d:.0},{d:.0} size {d:.0}x{d:.0} hovered {} focused {} | REAPER mouse {d},{d}", .{ w.contexts_created, w.frame, mx, my, down, wx, wy, ww, wh, hovered, focused, os.x, os.y });
 }
 
 /// ReaImGui records an error instead of raising it when a call is misused, so

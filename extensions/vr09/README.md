@@ -66,6 +66,8 @@ REAPER does not tell the notes you play from the notes a track plays back. On a 
 
 ## The panel
 
+The panel opens at the mouse, moved to the nearest place where it fits on the screen's usable area. A window that sticks out of the screen is moved by the window manager without ImGui being told, and the mouse then lands a few dozen pixels away from where ImGui believes the window to be, which looked like a frozen window. For the first moments of each opening the plugin logs a line whenever what ImGui sees of the mouse changes, beside where REAPER says the mouse is, so that an offset shows in the log.
+
 - Controls: every parameter of the catalog, by group. The organ drawbars are drawn as drawbars.
 - Patches: read the keyboard into the plugin, send the plugin's state to the keyboard, browse the Registrations library, save the state as a preset, load, delete, import and export files.
 - Audio loop: see below.
@@ -127,7 +129,7 @@ REAPER builds the `reaper` table of a script when the script starts, so a script
 
 Commands that read:
 
-- `state`: `track_found`, `I_MIDIHWOUT`, `I_RECINPUT`, `midi_out_device`, `midi_in_device`, `midi_in_is_midi`, `midi_in_all_devices`, `armed`, `monitoring`, `fx_index`, `pass_midi`, `split`, `sysex_bare`, `autoconnect_done`, `loop_enabled`, `loop_state`, `midi_dropped`, `tx`, `rx`, `bad_checksum`, `host_sysex_in`, `host_sysex_out`, `host_sysex_refused`, `connected`, `mode`, `known_bytes`, `blocks_failed`, `patch_name`, `program` (null when the patch is not a registration), `panel_open`, `frames_drawn`, `ticks`, `instances`, `devices_out`, `devices_in`, `device_names_out`, `device_names_in`.
+- `state`: `track_found`, `I_MIDIHWOUT`, `I_RECINPUT`, `midi_out_device`, `midi_in_device`, `midi_in_is_midi`, `midi_in_all_devices`, `armed`, `monitoring`, `fx_index`, `pass_midi`, `split`, `sysex_bare`, `autoconnect_done`, `loop_enabled`, `loop_state`, `midi_dropped`, `tx`, `rx`, `bad_checksum`, `host_sysex_in`, `host_sysex_out`, `host_sysex_refused`, `connected`, `mode`, `known_bytes`, `blocks_failed`, `patch_name`, `program` (null when the patch is not a registration), `panel_open`, `frames_drawn`, `ui_contexts` (how many ImGui contexts the panel has created), `ui_ctx_valid`, `ticks`, `instances`, `devices_out`, `devices_in`, `device_names_out`, `device_names_in`.
 - `log`: the last lines the plugin logged (`arg` is how many, 50 by default, 256 at most), as `{"total":N,"lines":[...]}`.
 - `devices`: the MIDI output and input names as REAPER reports them (null for an absent device).
 

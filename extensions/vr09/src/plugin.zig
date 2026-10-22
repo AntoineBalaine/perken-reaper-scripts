@@ -1061,7 +1061,9 @@ fn guiCreate(p: P, api: [*c]const u8, is_floating: bool) callconv(.C) bool {
 }
 
 fn guiDestroy(p: P) callconv(.C) void {
-    ui.close(Plugin.from(p));
+    const self = Plugin.from(p);
+    log.info("gui destroy (tick {d}, panel open {})", .{ self.ticks, self.ui.open });
+    ui.close(self);
 }
 
 fn guiSetScale(p: P, scale: f64) callconv(.C) bool {
@@ -1103,8 +1105,8 @@ fn guiSetSize(p: P, width: u32, height: u32) callconv(.C) bool {
 }
 
 fn guiSetParent(p: P, window: [*c]const c.clap_window_t) callconv(.C) bool {
-    _ = p;
     _ = window;
+    log.info("gui set_parent (tick {d})", .{Plugin.from(p).ticks});
     return true;
 }
 
@@ -1120,13 +1122,16 @@ fn guiSuggestTitle(p: P, title: [*c]const u8) callconv(.C) void {
 }
 
 fn guiShow(p: P) callconv(.C) bool {
-    log.info("the host asked to show the interface", .{});
-    ui.open(Plugin.from(p));
+    const self = Plugin.from(p);
+    log.info("gui show (tick {d}, panel open {})", .{ self.ticks, self.ui.open });
+    ui.open(self);
     return true;
 }
 
 fn guiHide(p: P) callconv(.C) bool {
-    ui.close(Plugin.from(p));
+    const self = Plugin.from(p);
+    log.info("gui hide (tick {d}, panel open {})", .{ self.ticks, self.ui.open });
+    ui.close(self);
     return true;
 }
 

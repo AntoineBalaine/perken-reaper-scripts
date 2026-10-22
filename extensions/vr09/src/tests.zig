@@ -10,6 +10,7 @@ comptime {
     _ = @import("state.zig");
     _ = @import("registrations.zig");
     _ = @import("split.zig");
+    _ = @import("placement.zig");
     _ = @import("reaper_glue.zig");
     _ = @import("catalog.zig");
     _ = @import("debug_api.zig");

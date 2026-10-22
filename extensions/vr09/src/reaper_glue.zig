@@ -13,6 +13,7 @@ const Reaper = @import("reaper").reaper;
 const clap = @import("clap.zig");
 const c = clap.c;
 const audio = @import("audio.zig");
+const placement = @import("placement.zig");
 
 const log = std.log.scoped(.reaper);
 
@@ -20,6 +21,7 @@ const log = std.log.scoped(.reaper);
 /// unlisted function as a null pointer, a test in `tests.zig` scans the
 /// sources for names missing here.
 pub const reaper_api = [_][:0]const u8{
+    "my_getViewport",
     "plugin_register",
     "plugin_getapi",
     "GetResourcePath",
@@ -237,6 +239,18 @@ pub fn registerTimer(callback: *const fn () callconv(.C) void) void {
 pub fn unregisterTimer(callback: *const fn () callconv(.C) void) void {
     if (!ready) return;
     _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(callback)));
+}
+
+/// The usable area of the screen that holds the point (the screen without its
+/// taskbars), or null when REAPER does not give one.
+pub fn workAreaAt(x: i32, y: i32) ?placement.Rect {
+    if (!ready) return null;
+    // The binding types a RECT as a pointer to an opaque value, whose
+    // alignment is 8, so the two rectangles are aligned to match.
+    var area: placement.Rect align(8) = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 };
+    const around: placement.Rect align(8) = .{ .left = x, .top = y, .right = x + 1, .bottom = y + 1 };
+    Reaper.my_getViewport(@ptrCast(&area), @ptrCast(&around), true);
+    return if (placement.isUsable(area)) area else null;
 }
 
 pub fn mousePosition() struct { x: i32, y: i32 } {
