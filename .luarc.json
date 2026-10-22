@@ -1,12 +1,13 @@
 {
-    "runtime.version": "Lua 5.4",
-    "diagnostics.globals": [
-        "reaper",
-        "ultraschall"
-    ],
-    "workspace": {
-        "library": [
-            "/home/antoine/.vscode-oss/extensions/antoinebalaine.reascript-docs-0.1.2/resources/reaper-types.lua"
-        ]
-    }
+  "runtime.version": "Lua 5.4",
+  "diagnostics.globals": [
+    "reaper",
+    "ultraschall"
+  ],
+  "workspace": {
+    "library": [
+      "/home/antoine/Documents/Experiments/reaper_exp/vscode-reascript-extension/resources/imgui_defs_0.9.lua",
+      "/home/antoine/Documents/Experiments/reaper_exp/vscode-reascript-extension/resources/Sexan_reaper_defs.lua"
+    ]
+  }
 }

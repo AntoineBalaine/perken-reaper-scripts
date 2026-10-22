@@ -287,6 +287,7 @@ return {
 	DecreaseTransientDetectionSensitivity = { 41536, prefixRepetitionCount = true },
 	AdjustTransientDetection = 41208,
 	NoOp = 65535,
+	nvk_search = "_RS42ab70fd2ac65e9a003787709bb85f18c36dee52",
 	NudgeTrackPanLeft10Times = { "NudgeTrackPanLeft", repetitions = 10, prefixRepetitionCount = true },
 	NudgeTrackPanLeft = { 40283, prefixRepetitionCount = true },
 	NudgeTrackPanRight10Times = { "NudgeTrackPanRight", repetitions = 10, prefixRepetitionCount = true },

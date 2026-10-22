@@ -179,6 +179,7 @@ return {
 			{
 				["<SPC>"] = "ShowActionList",
 				["b"] = "MediaExplorer",
+				["s"] = "nvk_search",
 				["A"] = { "+arrange", {
 					["I"] = "ImplodeItemsOntoSingleTrack",
 					["i"] = "InsertSilence",
