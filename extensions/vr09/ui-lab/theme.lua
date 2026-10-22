@@ -14,6 +14,8 @@ M.panel_edge_light = 0x4A4A4EFF
 M.panel_edge_dark = 0x101011FF
 M.slot_bg = 0x0E0E0FFF
 M.slot_edge = 0x050505FF
+-- The faint grid on the screens that draw a curve.
+M.screen_grid = 0x1E1E21FF
 
 M.text = 0xD6D2C6FF
 M.text_dim = 0x8C8A82FF
@@ -37,7 +39,38 @@ M.cap_brown = 0x7B4B2CFF
 M.cap_black = 0x1C1C1EFF
 M.stem = 0xB8B4A8FF
 
+-- The surface of the cards: a gradient from a lit top to a shaded bottom, a fine brushed grain, a
+-- bevel on the edges, and screws in the corners.
+M.card_light = 0xFFFFFF0E
+M.card_shade = 0x00000028
+M.card_grain = 0xFFFFFF06
+M.card_bevel_light = 0xFFFFFF1C
+M.card_bevel_dark = 0x00000070
+M.screw_body = 0x5C5C62FF
+M.screw_light = 0x9A9AA2FF
+M.screw_slot = 0x1A1A1CFF
+
 -- The knobs and switches: a body of dark metal with a slightly lighter top and a thin edge.
+-- The accent of each effect's card. It takes the place of the amber on the lit parts of the controls
+-- inside the card.
+M.fx = {
+  reverb = 0x4FB0E8FF,
+  chorus = 0x4FD6A8FF,
+  mfx = 0xB67CF0FF,
+  delay = 0xF07A5AFF,
+  compressor = 0xE86AA8FF,
+}
+
+-- The accent of each part of the instrument, in the cards of the Synth, Mixer and Controllers tabs.
+M.part = {
+  upper = 0x5AC8F0FF,
+  lower = 0xF08C5AFF,
+  backing = 0xF0B840FF,
+  master = 0xC8C4B8FF,
+  -- The ivory of a piano's keys.
+  piano = 0xF2EBD3FF,
+}
+
 M.knob_body = 0x232326FF
 M.knob_top = 0x3A3A3FFF
 M.knob_edge = 0x56565BFF
