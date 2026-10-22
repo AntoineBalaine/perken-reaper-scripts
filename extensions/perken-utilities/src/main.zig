@@ -83,7 +83,8 @@ const reaper_api = [_][:0]const u8{
     "TimeMap2_timeToBeats",         "GetTakeNumStretchMarkers",         "SetTakeStretchMarker",
     "CountTempoTimeSigMarkers",     "GetMediaItemTake_Item",            "SetCurrentBPM",
     "TimeMap2_GetDividedBpmAtTime", "SetTempoTimeSigMarker",            "UpdateTimeline",
-    "TimeMap_GetTimeSigAtTime",
+    "TimeMap_GetTimeSigAtTime",     "AddProjectMarker2",                "SetProjectMarker",
+    "GetMediaSourceFileName",
 };
 
 /// Every action this extension provides.

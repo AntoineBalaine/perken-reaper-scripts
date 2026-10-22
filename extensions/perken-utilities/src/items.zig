@@ -21,6 +21,19 @@ fn splitMediaItem(item: *Reaper.MediaItem, position: f64) ?*Reaper.MediaItem {
     return f(item, position);
 }
 
+fn getTakeSource(take: *Reaper.MediaItem_Take) ?*Reaper.PCM_source {
+    const f: *const fn (take: *Reaper.MediaItem_Take) callconv(.C) ?*Reaper.PCM_source = @ptrCast(Reaper.GetMediaItemTake_Source);
+    return f(take);
+}
+
+/// Because the real ABI of EnumProjectMarkers takes a `const char **` for the
+/// name, and reaziglib types it as a plain string pointer, we re-type it here
+/// so that the unused outputs can be null.
+fn enumProjectMarkers(idx: c_int, is_region: *bool, pos: *f64, number: *c_int) bool {
+    const f: *const fn (idx: c_int, isrgnOut: ?*bool, posOut: ?*f64, rgnendOut: ?*f64, nameOut: ?*[*:0]const u8, markrgnindexnumberOut: ?*c_int) callconv(.C) c_int = @ptrCast(Reaper.EnumProjectMarkers);
+    return f(idx, is_region, pos, null, null, number) != 0;
+}
+
 // ---- 2 ms fades on selected items in selected tracks --------------------------
 
 fn set2msFades(_: *actions.RunCtx) void {
@@ -249,6 +262,76 @@ fn conformItemsToSessionTempo(_: *actions.RunCtx) void {
     }
 }
 
+// ---- one region per selected item on the first selected track ---------------------
+
+/// Because a region name should be the bare file name, we drop the folders
+/// (separated by either "/" or "\\") and the last extension from `path`, and
+/// we write the remaining name in upper case into `out`. Because an
+/// extension is only an extension when something precedes the dot, a name
+/// such as ".wav" stays whole. When no name remains, we return null.
+fn regionNameFromPath(path: []const u8, out: []u8) ?[]const u8 {
+    const sep = std.mem.lastIndexOfAny(u8, path, "/\\");
+    const file = if (sep) |i| path[i + 1 ..] else path;
+    const dot = std.mem.lastIndexOfScalar(u8, file, '.');
+    const stem = if (dot) |i| (if (i > 0) file[0..i] else file) else file;
+    const n = @min(stem.len, out.len);
+    if (n == 0) return null;
+    return std.ascii.upperString(out[0..n], stem[0..n]);
+}
+
+/// Because REAPER numbers a region differently from how it enumerates it, we
+/// return the number that SetProjectMarker expects for the region starting at
+/// `start`, or null when no region starts there.
+fn findRegionStartingAt(start: f64) ?c_int {
+    var idx: c_int = 0;
+    var is_region = false;
+    var pos: f64 = 0;
+    var number: c_int = 0;
+    while (enumProjectMarkers(idx, &is_region, &pos, &number)) : (idx += 1) {
+        if (is_region and pos == start) return number;
+    }
+    return null;
+}
+
+/// Because the file name of an item is a good label for the region that
+/// covers it, we give every selected item on the first selected track a
+/// region that spans the item and carries its source file name. When a region
+/// already starts where the item starts, we resize and rename that one
+/// instead of stacking a second region on top of it. Because an item without
+/// a source file has no name to give, we skip it.
+fn itemNamesToRegions(_: *actions.RunCtx) void {
+    const track = Reaper.GetSelectedTrack(null, 0) orelse return;
+    const tp = helpers.trackPtr(track) orelse return;
+    const n_items = Reaper.GetTrackNumMediaItems(tp);
+    var i: c_int = 0;
+    while (i < n_items) : (i += 1) {
+        const item = Reaper.GetTrackMediaItem(tp, i);
+        if (@intFromPtr(item) == 0) continue;
+        if (!Reaper.IsMediaItemSelected(item)) continue;
+        const take = getTake(item, 0) orelse continue;
+        const source = getTakeSource(take) orelse continue;
+
+        var path_buf: [1024]u8 = undefined;
+        path_buf[0] = 0;
+        Reaper.GetMediaSourceFileName(source, @ptrCast(&path_buf), path_buf.len);
+        const path = std.mem.sliceTo(&path_buf, 0);
+
+        // Because REAPER wants a null-terminated name, the buffer keeps one spare byte.
+        var name_buf: [513]u8 = undefined;
+        const name = regionNameFromPath(path, name_buf[0..512]) orelse continue;
+        name_buf[name.len] = 0;
+        const name_z: [*:0]const u8 = @ptrCast(&name_buf);
+
+        const start = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
+        const end_ = start + Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
+        if (findRegionStartingAt(start)) |number| {
+            _ = Reaper.SetProjectMarker(number, true, start, end_, name_z);
+        } else {
+            _ = Reaper.AddProjectMarker2(null, true, start, end_, name_z, -1, 0);
+        }
+    }
+}
+
 // ---- registry entries -------------------------------------------------------------
 
 pub const entries = [_]actions.Entry{
@@ -280,6 +363,10 @@ pub const entries = [_]actions.Entry{
     .{ .name = "StretchItemStartToCursor", .def = .{ .steps = &.{.{ .func = &stretchItemStartToCursor }} } },
     .{ .name = "StretchItemEndToCursor", .def = .{ .steps = &.{.{ .func = &stretchItemEndToCursor }} } },
     .{
+        .name = "ItemNamesToRegions",
+        .def = .{ .desc = "item names to regions", .steps = &.{.{ .func = &itemNamesToRegions }} },
+    },
+    .{
         .name = "ConformItemsToSessionTempo",
         .def = .{ .desc = "conform items to session tempo", .steps = &.{.{ .func = &conformItemsToSessionTempo }} },
     },
@@ -287,4 +374,15 @@ pub const entries = [_]actions.Entry{
 
 test {
     _ = helpers;
+}
+
+test "regionNameFromPath keeps the bare upper-case file name" {
+    var buf: [64]u8 = undefined;
+    try std.testing.expectEqualStrings("KICK_01", regionNameFromPath("/samples/drums/kick_01.wav", &buf).?);
+    try std.testing.expectEqualStrings("SNARE", regionNameFromPath("C:\\samples\\snare.flac", &buf).?);
+    try std.testing.expectEqualStrings("LOOP.V2", regionNameFromPath("loop.v2.wav", &buf).?);
+    try std.testing.expectEqualStrings("NOEXT", regionNameFromPath("/a/noext", &buf).?);
+    try std.testing.expectEqualStrings(".WAV", regionNameFromPath("/a/.wav", &buf).?);
+    try std.testing.expect(regionNameFromPath("", &buf) == null);
+    try std.testing.expect(regionNameFromPath("/a/", &buf) == null);
 }
