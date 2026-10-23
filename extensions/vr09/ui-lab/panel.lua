@@ -882,7 +882,7 @@ end
 -- one), and the tones take 101 and up, in the order of tones.lua, which only grows at its end. The
 -- value 0 means that no patch is asked for.
 
-local PATCH_TYPES = { "All", "Registration", "Tone" }
+local PATCH_TYPES = { "All", "Registration", "Tone", "Preset" }
 local FIRST_TONE_VALUE = 101
 
 -- The tone lists in table order, each with the part of the lab that loading one of its tones fills.
@@ -896,7 +896,48 @@ local function program_of(entry)
   return (entry.bank - 1) * 4 + entry.slot - 1
 end
 
--- Every patch of the table, registrations first and then the tones.
+-- ---- the player's own presets ----
+--
+-- A preset is a file of `Data/Perken/vr09/presets`, saved from the keyboard's state. A preset has no
+-- number in the library, so its patch ID comes from its name: the same name gives the same ID on every
+-- computer, and a template that holds it finds it again. The IDs run from 1000 up, past the
+-- registrations (1 to 100) and the tones (from 101).
+
+local PRESET_ID_FIRST = 1000
+local PRESET_ID_SPAN = 60000
+
+-- The patch ID of a preset: a hash of its name (FNV-1a), brought into the range of the IDs.
+local function preset_id(name)
+  local h = 2166136261
+  for i = 1, #name do
+    h = ((h ~ name:byte(i)) * 16777619) & 0xFFFFFFFF
+  end
+  return PRESET_ID_FIRST + h % PRESET_ID_SPAN
+end
+
+-- The presets of the folder, read again every second or so, and at once after the lab changes one.
+local function presets_of(S)
+  local ui = S.ui
+  if ui.presets and S.frame - (ui.presets_at or 0) < 60 then return ui.presets end
+  local list, i = {}, 0
+  local folder = S.model.data .. "/presets"
+  while true do
+    local file = reaper.EnumerateFiles(folder, i)
+    if not file then break end
+    i = i + 1
+    local name = file:match("^(.+)%.vr09$") or file:match("^(.+)%.json$")
+    if name then list[#list + 1] = { file = file, name = name } end
+  end
+  table.sort(list, module("scenes").preset_less)
+  ui.presets, ui.presets_at = list, S.frame
+  return list
+end
+
+local function presets_changed(S)
+  S.ui.presets = nil
+end
+
+-- Every patch of the table: the registrations, the tones, and then the player's presets.
 local function patch_rows(S)
   local rows = {}
   for k, e in ipairs(S.model.registrations) do
@@ -914,6 +955,12 @@ local function patch_rows(S)
       }
       position = position + 1
     end
+  end
+  for _, preset in ipairs(presets_of(S)) do
+    rows[#rows + 1] = {
+      key = "preset" .. preset.file, type = "Preset", number = "", name = preset.name, group = "USER",
+      value = preset_id(preset.name), preset = preset,
+    }
   end
   return rows
 end
@@ -958,6 +1005,9 @@ end
 local function load_patch(S, row)
   if row.registration then
     load_registration(S, row.registration)
+  elseif row.preset then
+    -- The lab's mock keyboard cannot read a preset file; the plugin has the real one.
+    return
   elseif row.tone.part then
     S.ui.tone[row.tone.part] = row.tone.index
     S.notice(("Loaded tone %s on the upper part (mock)."):format(row.name), false)
@@ -1082,6 +1132,8 @@ local function add_to_scenes(S, row, scene_name)
   local reply
   if row.registration then
     reply = link().command(target, "scene_add", ("registrations/%s|%s|%d|%s"):format(row.registration.file, name, row.value, field(row.name)))
+  elseif row.preset then
+    reply = link().command(target, "scene_add", ("presets/%s|%s|%d|%s"):format(row.preset.file, name, row.value, field(row.name)))
   elseif row.tone.part then
     local tone = S.tones[row.tone.list][row.tone.index]
     local part = (row.tone.part:gsub("-", "_"))
@@ -1109,6 +1161,8 @@ local function send_patch(S, row)
   local reply
   if row.registration then
     reply = link().command(target, "load_registration", row.registration.file)
+  elseif row.preset then
+    reply = link().command(target, "load_preset", row.preset.file)
   elseif row.tone.part then
     local tone = S.tones[row.tone.list][row.tone.index]
     local part = (row.tone.part:gsub("-", "_"))
@@ -1498,6 +1552,106 @@ local function scene_list(ctx, S)
   widgets.end_card(ctx)
 end
 
+-- Saves the keyboard as a preset, which then shows in the table. The plugin reads the keyboard first and
+-- writes the file when the read ends, which takes a moment, so the button only starts it and `poll_save`
+-- follows it.
+local function save_keyboard(S, name)
+  local target, reason = link().target()
+  if not target then
+    S.notice(reason, true)
+    return
+  end
+  local reply = link().command(target, "save_preset", field(name))
+  if not link().ok(reply) then
+    S.notice(link().error_of(reply), true)
+    return
+  end
+  S.ui.saving = true
+end
+
+-- Asks the plugin how the save is going, a few times a second, and reports when it ends.
+local function poll_save(S)
+  local ui = S.ui
+  if not ui.saving or S.frame % 5 ~= 0 then return end
+  local target = link().target()
+  if not target then
+    ui.saving = false
+    return
+  end
+  local reply = link().command(target, "save_status")
+  local state = reply and reply:match('"state":"(%a+)"')
+  if state == "reading" then return end
+  ui.saving = false
+  if state == "done" then
+    local file = reply:match('"file":"(.-)"') or "the preset"
+    local known = tonumber(reply:match('"known":(%d+)')) or 0
+    local total = tonumber(reply:match('"total":(%d+)')) or 0
+    presets_changed(S)
+    ui.patch_selected = "preset" .. file
+    ui.save_name = ""
+    -- A read that missed blocks gives a patch with gaps, which the notice must not hide.
+    if total > 0 and known < total // 2 then
+      S.notice(("Saved %s, but only %d of %d bytes of the keyboard were read."):format(file, known, total), true)
+    else
+      S.notice(("Read the keyboard and saved it as %s."):format(file), false)
+    end
+  else
+    S.notice("The keyboard was not saved: " .. (reply and reply:match('"error":"(.-)"') or "no answer from the plugin") .. ".", true)
+  end
+end
+
+-- Deletes the selected preset, after a second click. Registrations and tones cannot be deleted.
+local function delete_preset(S, row)
+  local target, reason = link().target()
+  if not target then
+    S.notice(reason, true)
+    return
+  end
+  local reply = link().command(target, "delete_preset", row.preset.file)
+  if not link().ok(reply) then
+    S.notice(link().error_of(reply), true)
+    return
+  end
+  presets_changed(S)
+  S.ui.patch_selected, S.ui.delete_armed = nil, nil
+  S.notice(("Deleted the preset %s."):format(row.name), false)
+end
+
+-- The row that is selected in the table, if it is one of the player's presets.
+local function selected_preset(S)
+  if not S.ui.patch_selected then return nil end
+  for _, row in ipairs(patch_rows(S)) do
+    if row.key == S.ui.patch_selected and row.preset then return row end
+  end
+  return nil
+end
+
+local function save_row(ctx, S)
+  local ui, widgets = S.ui, env.widgets
+  ui.save_name = ui.save_name or ""
+  poll_save(S)
+  ImGui.SetNextItemWidth(ctx, 280)
+  local _
+  _, ui.save_name = ImGui.InputTextWithHint(ctx, "##savename", "name of the new patch", ui.save_name)
+  ImGui.SameLine(ctx)
+  if ui.saving then
+    ImGui.TextColored(ctx, env.theme.amber, "Reading the keyboard...")
+  elseif widgets.push_button(ctx, "Save the keyboard as a patch") then
+    save_keyboard(S, ui.save_name)
+  end
+  widgets.tooltip(ctx, "Reads the keyboard, then saves what it holds as a preset under this name. The preset then appears in the table, where it can be sent to the keyboard or added to the scenes.")
+  local preset = selected_preset(S)
+  if preset then
+    ImGui.SameLine(ctx)
+    local armed = ui.delete_armed == preset.key
+    if widgets.push_button(ctx, armed and "Click again to delete" or "Delete the selected preset") then
+      if armed then delete_preset(S, preset) else ui.delete_armed = preset.key end
+    end
+  else
+    ui.delete_armed = nil
+  end
+end
+
 local function patch_list(ctx, S)
   local m, th, ui, widgets = S.model, env.theme, S.ui, env.widgets
   -- Because these fields keep their values between frames, they start here the first time.
@@ -1528,6 +1682,7 @@ local function patch_list(ctx, S)
     ImGui.EndCombo(ctx)
   end
   patch_table(ctx, S)
+  save_row(ctx, S)
   widgets.end_card(ctx)
 end
 

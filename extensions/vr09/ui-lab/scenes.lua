@@ -97,6 +97,11 @@ function M.remove(list, lane, at)
   return M.remap_lane(lane, map)
 end
 
+-- Orders presets by name without regard to case.
+function M.preset_less(a, b)
+  return a.name:lower() < b.name:lower()
+end
+
 -- Orders names without regard to case.
 function M.text_less(a, b)
   return a:lower() < b:lower()
