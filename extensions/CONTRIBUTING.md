@@ -30,6 +30,7 @@ Build and test each extension from its own folder:
 | `reavim-ext` | `zig build test` | `zig build` |
 | `perken-utilities` | `zig build test` | `zig build` |
 | `console1` | `zig build test -Dtest=true` and `zig build mft-test` | `zig build`, `zig build ui`, `zig build mft` |
+| `vr09` | `zig build test` | `zig build` |
 
 Because the other extensions use `reaziglib` from source, a change to it can
 break any of them. Run the tests of every extension that uses the file you

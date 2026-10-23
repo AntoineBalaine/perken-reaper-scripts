@@ -9,6 +9,7 @@ package with its own `build.zig`, `build.zig.zon`, CI workflow
 | [`reavim-ext`](reavim-ext) | Vim mode for REAPER |
 | [`perken-utilities`](perken-utilities) | Editing helpers (drums, chord voicings, item/track/envelope tools, batch rename, auto lane watcher, ...) |
 | [`console1`](console1) | Softube Console1 MKII and MIDI Fighter Twister integrations |
+| [`vr09`](vr09) | A CLAP plugin to control the Roland VR-09: parameters, patches, MIDI and an audio insert |
 | [`reaziglib`](reaziglib) | Shared Zig modules (REAPER API bindings, helpers, UI) used by the others |
 
 Extensions depend on `reaziglib` by path (`.path = "../reaziglib"`), so a
@@ -25,6 +26,7 @@ Each extension is versioned and released on its own, from its own tags:
 | Extension | Tag | Workflow |
 |---|---|---|
 | reavim-ext | `reavim-ext-v<version>` | `.github/workflows/reavim-ext.yml` |
+| vr09 | `vr09-v<version>` | `.github/workflows/vr09.yml` |
 | perken-utilities | `perken-utilities-v<version>` | `.github/workflows/perken-utilities.yml` |
 | Console1 (`reaper_c1`, `reaper_c1_ui`) | `console1-v<version>` | `.github/workflows/console1.yml` |
 | MIDI Fighter Twister (`reaper_mft`) | `mft-v<version>` | `.github/workflows/mft.yml` |
@@ -49,6 +51,7 @@ Each extension is versioned and released on its own, from its own tags:
 ```sh
 extensions/build-install.sh                          # reavim-ext and perken-utilities
 extensions/build-install.sh console1 mft             # the Console1 pair and MFT
+extensions/build-install.sh vr09                     # the VR-09 plugin, into the CLAP folder
 extensions/build-install.sh -z /path/to/zig -n reavim-ext
 ```
 

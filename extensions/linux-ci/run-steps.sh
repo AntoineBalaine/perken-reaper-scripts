@@ -20,6 +20,10 @@ echo "== reavim-ext.yml";       step reavim-ext test zig build test
 for t in x86_64-linux-gnu aarch64-linux-gnu x86_64-macos aarch64-macos x86_64-windows aarch64-windows; do
   step reavim-ext "build-$t" zig build -Dtarget=$t -Doptimize=ReleaseSafe -Dversion=dev -p /tmp/out/rv-$t
 done
+echo "== vr09.yml";             step vr09 test zig build test
+for t in x86_64-linux-gnu aarch64-linux-gnu x86_64-macos aarch64-macos x86_64-windows aarch64-windows; do
+  step vr09 "build-$t" zig build -Dtarget=$t -Doptimize=ReleaseSafe -Dversion=dev -p /tmp/out/vr09-$t
+done
 echo "== perken-utilities.yml"; step perken-utilities test zig build test
                                 step perken-utilities build zig build -Doptimize=ReleaseSafe -Dversion=dev -p /tmp/out/pu
 echo "== console1.yml";         step console1 test zig build test -Dtest=true -Dversion=dev

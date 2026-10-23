@@ -7,11 +7,16 @@ set -euo pipefail
 #   extensions/build-install.sh [-z /path/to/zig] [-n] [extension ...]
 #
 # Extensions: reavim-ext, perken-utilities, console1 (Console1 and its UI
-# library), mft (MIDI Fighter Twister). Without names, reavim-ext and
-# perken-utilities are installed.
+# library), mft (MIDI Fighter Twister), vr09 (the Roland VR-09 plugin, a CLAP
+# plugin that goes to the CLAP folder, not to UserPlugins). Without names,
+# reavim-ext and perken-utilities are installed.
 #
 # reavim-ext also installs its default keymap, through install-bindings.sh,
 # which keeps a keymap you have edited.
+#
+# vr09 also copies the Registration dumps of the roland-vr09 project (folder
+# VR09_REGISTRATIONS, default ~/projects/roland-vr09/dumps) into
+# <resource>/Data/Perken/vr09/registrations, keeping files already there.
 #
 # Set REAPER_RESOURCE_PATH to install somewhere other than REAPER's own
 # resource folder (the script then never launches REAPER).
@@ -19,7 +24,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ZIG="zig"
 LAUNCH=1
-ALL_EXTENSIONS="reavim-ext perken-utilities console1 mft"
+ALL_EXTENSIONS="reavim-ext perken-utilities console1 mft vr09"
 
 usage() {
   echo "Usage: $0 [-z /path/to/zig] [-n] [extension ...]" >&2
@@ -103,6 +108,16 @@ fi
 PREFIX="$RESOURCE/UserPlugins"
 mkdir -p "$PREFIX"
 
+# CLAP plugins live in their own folders. With REAPER_RESOURCE_PATH set, the
+# plugin goes under that folder instead, and REAPER finds it through CLAP_PATH.
+case "$(uname -s)" in
+  Darwin) CLAP_DIR="$HOME/Library/Audio/Plug-Ins/CLAP" ;;
+  *) CLAP_DIR="$HOME/.clap" ;;
+esac
+if [ -n "${REAPER_RESOURCE_PATH:-}" ]; then
+  CLAP_DIR="$RESOURCE/clap"
+fi
+
 # Because zig builds from the working directory, each extension is built from
 # its own folder.
 for name in "$@"; do
@@ -126,6 +141,36 @@ for name in "$@"; do
       ;;
     mft)
       "$ZIG" build mft --prefix "$PREFIX"
+      ;;
+    vr09)
+      # A CLAP plugin: a bundle on macOS, a file elsewhere. The old copy goes
+      # first, because a bundle is a folder and would not be replaced.
+      mkdir -p "$CLAP_DIR"
+      rm -rf "$CLAP_DIR/vr09.clap"
+      "$ZIG" build -Doptimize=ReleaseSafe --prefix "$CLAP_DIR"
+      # The keyboard's Registrations (dumps named <bank>-<slot>_<Name>.json)
+      # from the roland-vr09 project, copied read-only from its dumps folder.
+      # A file already in the destination is kept, so edits survive. Set
+      # VR09_REGISTRATIONS to another source folder.
+      REG_SRC="${VR09_REGISTRATIONS:-$HOME/projects/roland-vr09/dumps}"
+      REG_DST="$RESOURCE/Data/Perken/vr09/registrations"
+      if [ -d "$REG_SRC" ]; then
+        mkdir -p "$REG_DST"
+        count=0
+        for f in "$REG_SRC"/[0-9]*-[0-9]*_*.json; do
+          [ -e "$f" ] || continue
+          if [ ! -e "$REG_DST/$(basename "$f")" ]; then
+            cp "$f" "$REG_DST/"
+            count=$((count + 1))
+          fi
+        done
+        echo "Registrations: $count new file(s) copied to $REG_DST"
+      else
+        echo "No registrations source at $REG_SRC (set VR09_REGISTRATIONS): skipped"
+      fi
+      if [ -n "${REAPER_RESOURCE_PATH:-}" ]; then
+        echo "Installed in $CLAP_DIR: start REAPER with CLAP_PATH=$CLAP_DIR"
+      fi
       ;;
   esac
 done
