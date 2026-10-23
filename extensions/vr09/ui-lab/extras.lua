@@ -11,6 +11,12 @@
 -- Read once, when the lab starts.
 local extras = {}
 
+-- What a parameter's `disabled` says, when the unit does not take the parameter. Roland documents these
+-- addresses, but writing to them leaves the value at 0 (checked on 2026-10-11, see "Documented
+-- addresses that this unit refuses" in the roland-vr09 project's docs/midi-capabilities.md). They may
+-- exist only on the VR-730, which the same document covers.
+local REFUSED = "The unit refuses writes at this address, although Roland documents it. It may exist only on the VR-730."
+
 local function add(param)
   extras[#extras + 1] = param
 end
@@ -21,8 +27,8 @@ add { id = "organ-type", label = "Organ type", short = "type", low = 0, high = 2
 add { id = "rotary-type", label = "Rotary type", short = "rotary type", low = 0, high = 2, names = { "Type 1", "Type 2", "Type 3" } }
 add { id = "percussion", label = "Percussion", short = "percussion", low = 0, high = 66,
   values = { 0, 1, 2, 65, 66 }, names = { "Off", "2nd short", "3rd short", "2nd long", "3rd long" } }
-add { id = "organ-eq-high", label = "Organ EQ high", short = "EQ high", low = 52, high = 76, default = 64, shift = -64, signed = true, unit = " dB" }
-add { id = "organ-eq-low", label = "Organ EQ low", short = "EQ low", low = 52, high = 76, default = 64, shift = -64, signed = true, unit = " dB" }
+add { id = "organ-eq-high", label = "Organ EQ high", short = "EQ high", low = 52, high = 76, default = 64, shift = -64, signed = true, unit = " dB", disabled = REFUSED }
+add { id = "organ-eq-low", label = "Organ EQ low", short = "EQ low", low = 52, high = 76, default = 64, shift = -64, signed = true, unit = " dB", disabled = REFUSED }
 
 -- The vibrato / chorus is switched on for the upper part, the lower part, or both, by two switches.
 add { id = "vibrato-upper", label = "Vibrato / chorus on the upper part", low = 0, high = 1 }
@@ -47,7 +53,9 @@ for _, part in ipairs(tone_parts) do
     values = { 28, 40, 52, 64, 76, 88, 100 }, names = { "-3", "-2", "-1", "0", "+1", "+2", "+3" } }
   add { id = part .. "-portamento", label = "Portamento", short = "portamento", low = 0, high = 2, default = 2,
     names = { "Off", "On", "Default" } }
-  add { id = part .. "-portamento-time", label = "Portamento time", short = "porta time", low = 0, high = 127 }
+  -- The upper and the lower synth refuse their portamento time; the others were not tried.
+  local refused = (part == "upper-synth" or part == "lower-synth") and REFUSED or nil
+  add { id = part .. "-portamento-time", label = "Portamento time", short = "porta time", low = 0, high = 127, disabled = refused }
 end
 
 add { id = "drum-volume", label = "Drum volume", short = "volume", low = 0, high = 127, default = 100 }
@@ -78,6 +86,6 @@ add { id = "d-beam", label = "D-Beam", short = "D-Beam", low = 0, high = 34, val
 
 add { id = "wall-type", label = "Reverb wall type", short = "wall", low = 0, high = 7,
   names = { "Drapery", "Carpet", "Acoustic tile", "Wood", "Brick", "Plaster", "Concrete block", "Marble" } }
-add { id = "tone-level", label = "Tone level", short = "tone level", low = 0, high = 127, default = 127 }
+add { id = "tone-level", label = "Tone level", short = "tone level", low = 0, high = 127, default = 64, shift = -64, signed = true }
 
 return extras

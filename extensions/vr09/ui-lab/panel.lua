@@ -371,7 +371,8 @@ local function card_of_master_controller(ctx, S, group)
     params[2] = tone_level
     labels["tone-level"] = "tone level"
   end
-  card_of_knobs(ctx, S, { name = group.name, params = params }, { title = "Master", accent = env.theme.part.master, labels = labels })
+  card_of_knobs(ctx, S, { name = group.name, params = params },
+    { title = "Master", accent = env.theme.part.master, labels = labels, bipolar_ids = { ["tone-level"] = true } })
 end
 
 -- The effects, one card for each, in two rows. Each lists the ids of its parameters in the order

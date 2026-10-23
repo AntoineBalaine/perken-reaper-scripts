@@ -286,11 +286,11 @@ local function centered_label(ctx, text, width, reserved_lines)
   if pushed then ImGui.PopFont(ctx) end
 end
 
-local function centered_value(ctx, text, width)
+local function centered_value(ctx, text, width, color)
   local pushed = push_mono_font(ctx)
   local text_w = ImGui.CalcTextSize(ctx, text)
   ImGui.SetCursorPosX(ctx, ImGui.GetCursorPosX(ctx) + (width - text_w) / 2)
-  ImGui.TextColored(ctx, accent(), text)
+  ImGui.TextColored(ctx, color or accent(), text)
   if pushed then ImGui.PopFont(ctx) end
 end
 
@@ -301,15 +301,19 @@ end
 -- Returns true when the user changed the value, and the new value.
 function M.knob(ctx, param, value, label, bipolar)
   local th = env.theme
+  -- A parameter with a `disabled` reason is drawn dim and does not move: the unit does not take it.
+  local disabled = param.disabled ~= nil
+  local lit = disabled and th.text_dim or accent()
   ImGui.BeginGroup(ctx)
-  centered_value(ctx, shown_value(param, value), KNOB_W)
+  centered_value(ctx, shown_value(param, value), KNOB_W, lit)
 
   local x, y = ImGui.GetCursorScreenPos(ctx)
   ImGui.InvisibleButton(ctx, "##knob", KNOB_W, KNOB_D + 8)
+  if disabled then M.tooltip(ctx, param.disabled) end
   local range = param.high - param.low
   local result = value
   local fine = shift_is_down(ctx)
-  if ImGui.IsItemActivated(ctx) then
+  if not disabled and ImGui.IsItemActivated(ctx) then
     -- Because an alt-click sets the value, and the drag that follows must not move it again, the
     -- start of that drag is recorded as false. A drag records the value it started from, and the
     -- mouse position at which the speed last changed.
@@ -321,14 +325,14 @@ function M.knob(ctx, param, value, label, bipolar)
     end
   end
   local drag = drag_start[param.id]
-  if ImGui.IsItemActive(ctx) and drag then
+  if not disabled and ImGui.IsItemActive(ctx) and drag then
     local _, dy = ImGui.GetMouseDragDelta(ctx, nil, nil, ImGui.MouseButton_Left, 0)
     -- Because holding shift slows the drag, pressing or releasing it starts a new drag from the
     -- current value, so that the knob does not jump.
     if drag.fine ~= fine then drag.value, drag.dy0, drag.fine = value, dy, fine end
     local speed = fine and KNOB_DRAG_FINE or KNOB_DRAG
     result = math.floor(clamp(drag.value - (dy - drag.dy0) * range / speed, param.low, param.high) + 0.5)
-  elseif ImGui.IsItemHovered(ctx) then
+  elseif not disabled and ImGui.IsItemHovered(ctx) then
     local wheel = ImGui.GetMouseWheel(ctx)
     if wheel ~= 0 then
       local step = math.max(1, math.floor(range / 40))
@@ -347,7 +351,7 @@ function M.knob(ctx, param, value, label, bipolar)
   local fill_from = bipolar and (KNOB_FROM + KNOB_TO) / 2 or KNOB_FROM
   if angle ~= fill_from then
     ImGui.DrawList_PathArcTo(dl, cx, cy, r, math.min(fill_from, angle), math.max(fill_from, angle))
-    ImGui.DrawList_PathStroke(dl, accent(), ImGui.DrawFlags_None, 3)
+    ImGui.DrawList_PathStroke(dl, lit, ImGui.DrawFlags_None, 3)
   end
 
   -- The scale around the ring. A bipolar knob has a longer tick in the middle too.
@@ -364,7 +368,7 @@ function M.knob(ctx, param, value, label, bipolar)
   ImGui.DrawList_AddCircleFilled(dl, cx + 1, cy + 3, body + 1, 0x00000099)
   ImGui.DrawList_AddCircleFilled(dl, cx, cy, body, th.knob_body)
   ImGui.DrawList_AddCircleFilled(dl, cx - 1, cy - 1, body - 4, th.knob_top)
-  local hot = ImGui.IsItemHovered(ctx) or ImGui.IsItemActive(ctx)
+  local hot = not disabled and (ImGui.IsItemHovered(ctx) or ImGui.IsItemActive(ctx))
   ImGui.DrawList_AddCircle(dl, cx, cy, body, hot and accent() or th.knob_edge, 0, 1)
 
   -- The metal of the cap: two fine concentric grooves, a lit edge on its upper left, and a shine.
@@ -380,7 +384,7 @@ function M.knob(ctx, param, value, label, bipolar)
     cx + cos_a * body * 0.9, cy + sin_a * body * 0.9, th.text, 2)
 
   -- While the user drags the knob, its value is shown by the mouse, since the hand covers the knob.
-  if ImGui.IsItemActive(ctx) then
+  if not disabled and ImGui.IsItemActive(ctx) then
     ImGui.SetTooltip(ctx, label .. ": " .. shown_value(param, result))
   end
 
