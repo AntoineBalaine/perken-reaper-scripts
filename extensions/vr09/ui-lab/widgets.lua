@@ -125,16 +125,16 @@ local CAP_H = 20
 
 -- A drawbar pulled out of the panel: the value above it, a slot with eight ticks, a stem and a cap
 -- that slides down as the value rises, and the footage under it. The user drags the cap, or clicks
--- anywhere in the slot to bring the cap there.
+-- anywhere in the slot to bring the cap there. A disabled drawbar is drawn dim and does not move.
 -- Returns true when the user changed the value, and the new value.
-function M.drawbar(ctx, param, value)
+function M.drawbar(ctx, param, value, disabled)
   local th = env.theme
   ImGui.BeginGroup(ctx)
 
   local text = tostring(value)
   local text_w = ImGui.CalcTextSize(ctx, text)
   ImGui.SetCursorPosX(ctx, ImGui.GetCursorPosX(ctx) + (DRAWBAR_W - text_w) / 2)
-  ImGui.TextColored(ctx, accent(), text)
+  ImGui.TextColored(ctx, disabled and th.text_dim or accent(), text)
 
   local x, y = ImGui.GetCursorScreenPos(ctx)
   ImGui.InvisibleButton(ctx, "##drawbar", DRAWBAR_W, DRAWBAR_H)
@@ -142,7 +142,7 @@ function M.drawbar(ctx, param, value)
   local top = y + CAP_H / 2 + 2
   local bottom = y + DRAWBAR_H - CAP_H / 2 - 2
   local changed, result = false, value
-  if ImGui.IsItemActive(ctx) then
+  if not disabled and ImGui.IsItemActive(ctx) then
     local _, my = ImGui.GetMousePos(ctx)
     local t = clamp((my - top) / (bottom - top), 0, 1)
     result = math.floor(param.low + t * (param.high - param.low) + 0.5)
@@ -166,18 +166,19 @@ function M.drawbar(ctx, param, value)
 
   -- The stem runs from the top of the slot down to the cap.
   local pos = top + (bottom - top) * (result - param.low) / steps
-  ImGui.DrawList_AddRectFilled(dl, cx - 2, top - 4, cx + 2, pos, th.stem, 1)
+  ImGui.DrawList_AddRectFilled(dl, cx - 2, top - 4, cx + 2, pos, disabled and faded(th.stem, 0x55) or th.stem, 1)
 
   -- The cap, with a lit edge on its top and a dark line under it so that it stands out of the panel.
   local cap_x1, cap_x2 = x + 3, x + DRAWBAR_W - 3
   local cap_y1, cap_y2 = pos - CAP_H / 2, pos + CAP_H / 2
   ImGui.DrawList_AddRectFilled(dl, cap_x1, cap_y1 + 2, cap_x2, cap_y2 + 2, 0x00000099, 3)
   local body, edge = cap_colors(param)
+  if disabled then body, edge = faded(body, 0x55), faded(edge, 0x55) end
   ImGui.DrawList_AddRectFilled(dl, cap_x1, cap_y1, cap_x2, cap_y2, body, 3)
   ImGui.DrawList_AddRect(dl, cap_x1, cap_y1, cap_x2, cap_y2, edge, 3, 0, 1)
   ImGui.DrawList_AddLine(dl, cap_x1 + 3, cap_y1 + 2, cap_x2 - 3, cap_y1 + 2, 0xFFFFFF55, 1)
   ImGui.DrawList_AddLine(dl, cap_x1 + 3, pos, cap_x2 - 3, pos, edge, 1)
-  if ImGui.IsItemHovered(ctx) or ImGui.IsItemActive(ctx) then
+  if not disabled and (ImGui.IsItemHovered(ctx) or ImGui.IsItemActive(ctx)) then
     ImGui.DrawList_AddRect(dl, cap_x1, cap_y1, cap_x2, cap_y2, accent(), 3)
   end
 
@@ -185,7 +186,7 @@ function M.drawbar(ctx, param, value)
   local pushed = push_label_font(ctx)
   local name_w = ImGui.CalcTextSize(ctx, name)
   ImGui.SetCursorPosX(ctx, ImGui.GetCursorPosX(ctx) + (DRAWBAR_W - name_w) / 2)
-  ImGui.TextColored(ctx, th.label, name)
+  ImGui.TextColored(ctx, disabled and th.text_dim or th.label, name)
   if pushed then ImGui.PopFont(ctx) end
   ImGui.EndGroup(ctx)
   return changed, result
@@ -226,6 +227,14 @@ end
 
 local function shift_is_down(ctx)
   return (ImGui.GetKeyMods(ctx) & ImGui.Mod_Shift) ~= 0
+end
+
+-- The text of a knob's value: the value plus the parameter's `shift` (for a value that is stored
+-- as 52 to 76 and shown as -12 to +12), with a sign when the parameter is `signed`, and its unit.
+local function shown_value(param, value)
+  local shown = value + (param.shift or 0)
+  local text = param.signed and ("%+d"):format(shown) or tostring(shown)
+  return text .. (param.unit or "")
 end
 
 -- "Rotary woofer slow speed" is shown as "woofer slow speed" in the card of the group "Rotary".
@@ -293,7 +302,7 @@ end
 function M.knob(ctx, param, value, label, bipolar)
   local th = env.theme
   ImGui.BeginGroup(ctx)
-  centered_value(ctx, tostring(value) .. (param.unit or ""), KNOB_W)
+  centered_value(ctx, shown_value(param, value), KNOB_W)
 
   local x, y = ImGui.GetCursorScreenPos(ctx)
   ImGui.InvisibleButton(ctx, "##knob", KNOB_W, KNOB_D + 8)
@@ -372,7 +381,7 @@ function M.knob(ctx, param, value, label, bipolar)
 
   -- While the user drags the knob, its value is shown by the mouse, since the hand covers the knob.
   if ImGui.IsItemActive(ctx) then
-    ImGui.SetTooltip(ctx, label .. ": " .. result .. (param.unit or ""))
+    ImGui.SetTooltip(ctx, label .. ": " .. shown_value(param, result))
   end
 
   centered_label(ctx, label, KNOB_W, KNOB_LABEL_LINES)
@@ -430,7 +439,8 @@ local STOP_DRAG_LABELLED, STOP_DRAG_PLAIN = 18, 6
 local function stops_of(param)
   local stops = {}
   for i, name in ipairs(param.names) do
-    if name ~= "(unused)" then stops[#stops + 1] = { value = param.low + i - 1, name = name } end
+    -- A parameter whose values are not consecutive lists them in `values`, in the order of its names.
+    if name ~= "(unused)" then stops[#stops + 1] = { value = param.values and param.values[i] or (param.low + i - 1), name = name } end
   end
   return stops
 end
@@ -474,14 +484,16 @@ end
 
 -- A knob that turns between named stops: a dot on its ring at each stop, and the name of each stop
 -- written beside its dot, with the selected one lit. The user drags up or down, turns the mouse wheel,
--- or clicks a name. A knob with more stops than STOP_LABELS_MAX shows the selected name in a display
--- under it instead of a label at each stop.
+-- or clicks a name. A knob with more stops than STOP_LABELS_MAX, or one that the caller asks to be an
+-- `as_list`, shows the selected name in a display under it, that opens the list, instead of a label
+-- at each stop.
 -- Returns true when the user changed the value, and the new value.
-function M.stop_knob(ctx, param, value, label)
+function M.stop_knob(ctx, param, value, label, as_list)
   local th = env.theme
   local stops = stops_of(param)
   local count = #stops
-  local labelled = count <= STOP_LABELS_MAX
+  -- The caller may ask for the display and the list even with few stops, when the names are long.
+  local labelled = count <= STOP_LABELS_MAX and not as_list
   local index = stop_index(stops, value)
   local result = index
 
@@ -933,6 +945,86 @@ function M.toggle(ctx, label, value)
   ImGui.DrawList_AddCircleFilled(dl, thumb_x - 1.5, thumb_y - 1.5, 1.2, 0xFFFFFF66)
   ImGui.DrawList_AddText(dl, x + TOGGLE_W + 10, y + (height - line) / 2, th.text, label)
   return clicked, result
+end
+
+-- ---- the tone picker ----
+
+local TONE_W = 190
+
+-- The row of a tone in the list: its name, and its group in the list's own words.
+local function tone_matches(tone, filter)
+  if filter == "" then return true end
+  local f = filter:lower()
+  return tone.name:lower():find(f, 1, true) ~= nil or tone.group:lower():find(f, 1, true) ~= nil
+end
+
+-- Chooses one tone of a list of tones (`tones`, each with a name, a group and the three bytes that
+-- select it). It shows the chosen tone's name on a display, with a button on each side to step to the
+-- previous and the next tone, and the tone's bytes under it. A click on the display opens a list of
+-- every tone, grouped, with a field that filters it as the user types.
+-- `index` is the chosen tone's position and `filter` the text of the search field.
+-- Returns the new position and the new text of the search field.
+function M.tone_picker(ctx, id, tones, index, filter)
+  local th = env.theme
+  local tone = tones[index]
+  local result = index
+  ImGui.PushID(ctx, id)
+
+  if M.push_button(ctx, "<", 30) then result = clamp(index - 1, 1, #tones) end
+  ImGui.SameLine(ctx)
+
+  -- The display: a recessed screen with the name in the accent color, and a caret that says it opens a list.
+  local pushed = push_label_font(ctx)
+  local line = ImGui.GetTextLineHeight(ctx)
+  local x, y = ImGui.GetCursorScreenPos(ctx)
+  local height = line + 12
+  ImGui.InvisibleButton(ctx, "##tone", TONE_W, height)
+  local hot = ImGui.IsItemHovered(ctx)
+  if ImGui.IsItemClicked(ctx) then ImGui.OpenPopup(ctx, "##tonelist") end
+  local dl = ImGui.GetWindowDrawList(ctx)
+  ImGui.DrawList_AddRectFilled(dl, x, y, x + TONE_W, y + height, th.slot_bg, 3)
+  ImGui.DrawList_AddRect(dl, x, y, x + TONE_W, y + height, hot and accent() or th.slot_edge, 3)
+  ImGui.DrawList_AddText(dl, x + 10, y + 6, accent(), tone.name)
+  local cx, cy = x + TONE_W - 12, y + height / 2
+  ImGui.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, hot and accent() or th.text_dim)
+  draw_glass(dl, x, y, x + TONE_W, y + height)
+  if pushed then ImGui.PopFont(ctx) end
+  ImGui.SameLine(ctx)
+  if M.push_button(ctx, ">", 30) then result = clamp(index + 1, 1, #tones) end
+
+  -- The group and the three bytes that select the tone, in the monospaced font, as a service manual would
+  -- print them.
+  local mono = push_mono_font(ctx)
+  ImGui.TextColored(ctx, th.label, ("%s   tone %d   bank %d.%d"):format(tone.group, tone.number, tone.msb, tone.lsb))
+  if mono then ImGui.PopFont(ctx) end
+
+  -- The list of every tone, under the display.
+  local new_filter = filter
+  ImGui.SetNextWindowPos(ctx, x, y + height + 2, ImGui.Cond_Appearing)
+  if ImGui.BeginPopup(ctx, "##tonelist") then
+    if ImGui.IsWindowAppearing(ctx) then ImGui.SetKeyboardFocusHere(ctx) end
+    ImGui.SetNextItemWidth(ctx, 300)
+    local _
+    _, new_filter = ImGui.InputTextWithHint(ctx, "##search", "search by name or group", filter)
+    if ImGui.BeginChild(ctx, "##tonescroll", 300, 320) then
+      local group = nil
+      for i, t in ipairs(tones) do
+        if tone_matches(t, new_filter) then
+          -- A group's heading is drawn when its first tone that matches the search is.
+          if t.group ~= group then
+            group = t.group
+            ImGui.SeparatorText(ctx, group)
+          end
+          if ImGui.Selectable(ctx, t.name .. "##tone" .. i, i == index) then result = i end
+        end
+      end
+      ImGui.EndChild(ctx)
+    end
+    ImGui.EndPopup(ctx)
+  end
+
+  ImGui.PopID(ctx)
+  return result, new_filter
 end
 
 -- ---- the card ----

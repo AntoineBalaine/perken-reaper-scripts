@@ -23,7 +23,7 @@ The runner watches three files, and reloads one as soon as it changes:
 - `widgets.lua`: the components (the drawbar, the parameter slider). A new component starts here;
 - `panel.lua`: the header, the tabs and what they hold.
 
-`model.lua` (the mock keyboard) and `catalog.lua` are read once, when the lab starts: close and run the lab again after changing them.
+`model.lua` (the mock keyboard), `catalog.lua`, `tones.lua` and `extras.lua` are read once, when the lab starts: close and run the lab again after changing them.
 
 A module reads `env.theme`, `env.widgets` and `env.ImGui` when it runs, not when it loads, so that a reloaded theme reaches the components without reloading them.
 
@@ -43,12 +43,20 @@ The lab starts with registration 1-1 loaded: the dumps come from `Data/Perken/vr
 | `theme.lua`, `widgets.lua`, `panel.lua` | what we edit |
 | `model.lua` | the mock keyboard and the registrations |
 | `catalog.lua` | the plugin's parameters, generated |
+| `tones.lua` | the keyboard's 285 tones, generated from the roland-vr09 project |
+| `extras.lua` | the parameters that Roland's MIDI document has and the catalog does not (organ voicing, footswitches, D-Beam, octave shift, portamento, wall type, tone level), by hand: lab-only, nothing is sent |
 | `webview-spike.md` | the test that decides whether a webview can replace ReaImGui |
 
 Generate the catalog again after `src/catalog.zig` changes:
 
 ```
 python3 tools/gen_lua_catalog.py > ui-lab/catalog.lua
+```
+
+Generate the tone list again when the roland-vr09 project's `docs/tones.json` changes:
+
+```
+python3 tools/gen_lua_tones.py <path to roland-vr09>/docs/tones.json > ui-lab/tones.lua
 ```
 
 ## From the lab to the plugin

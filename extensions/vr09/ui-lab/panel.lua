@@ -80,9 +80,19 @@ local function row_height(titles)
   return tallest
 end
 
+-- The switch that says whether a part sounds. The lab keeps it by the part's id, and a part that is not
+-- in the table is on.
+local function part_toggle(ctx, S, key)
+  local on = S.ui.part_on[key]
+  if on == nil then on = true end
+  local changed, value = env.widgets.toggle(ctx, "Part on", on)
+  if changed then S.ui.part_on[key] = value end
+end
+
 local function card_of_drawbars(ctx, S, group, height)
   local widgets, values = env.widgets, S.model.values
   if not widgets.begin_card(ctx, group.name, nil, height, env.theme.part.organ) then return end
+  part_toggle(ctx, S, group.name)
   for i, param in ipairs(group.params) do
     ImGui.PushID(ctx, param.id)
     local changed, v = widgets.drawbar(ctx, param, values[param.id])
@@ -233,6 +243,55 @@ local function param_with_id(catalog, id)
   return nil
 end
 
+-- The parameter with this id: one of the extras that the documentation has and the catalog does not
+-- (when the lab has loaded them), or one of the catalog's.
+local function find_param(S, id)
+  local extra = S.extras_by_id and S.extras_by_id[id]
+  if extra then return extra end
+  return param_with_id(S.model.catalog, id)
+end
+
+-- The stop knobs that show their chosen name in a display that opens a list, even though they have
+-- eight stops or fewer, because their names are too long to be written around the knob.
+local AS_LIST = {
+  ["footswitch-left"] = true,
+  ["footswitch-right"] = true,
+}
+
+-- Draws the control of a parameter: a stop knob when its values have names, a knob otherwise, and
+-- writes the new value back. `bipolar` is true for a knob whose value rests in the middle.
+local function control_of(ctx, S, param, label, bipolar)
+  local widgets, values = env.widgets, S.model.values
+  ImGui.PushID(ctx, param.id)
+  local changed, v
+  if param.names then
+    changed, v = widgets.stop_knob(ctx, param, values[param.id], label, AS_LIST[param.id])
+  else
+    changed, v = widgets.knob(ctx, param, values[param.id], label, bipolar)
+  end
+  ImGui.PopID(ctx)
+  if changed then values[param.id] = v end
+end
+
+-- A card of the extras, in one row, each labelled with its short name.
+local function card_of_extras(ctx, S, title, ids, accent, height)
+  local widgets = env.widgets
+  if not widgets.begin_card(ctx, title, nil, height, accent) then return end
+  for i, id in ipairs(ids) do
+    local param = S.extras_by_id[id]
+    control_of(ctx, S, param, param.short, param.signed)
+    if i < #ids then ImGui.SameLine(ctx) end
+  end
+  widgets.end_card(ctx)
+end
+
+-- Tells the user that the lab has to be started again, when it was started before a data file existed.
+local function extras_missing(ctx, S)
+  if S.extras_by_id and S.tones then return false end
+  ImGui.TextColored(ctx, env.theme.amber, "The documented parameters are not loaded: close the lab and run it again.")
+  return true
+end
+
 -- The parameters of a list from the position `from` to the position `to`.
 local function slice(params, from, to)
   local found = {}
@@ -303,15 +362,23 @@ local function card_of_lower_controllers(ctx, S, group)
   card_of_knobs(ctx, S, group, { title = "Lower controllers", strip = "Lower", bipolar_ids = BIPOLAR_CONTROLLERS, accent = env.theme.part.lower })
 end
 
+-- The overall volume, and the tone level that the documentation has at the system address 61.
 local function card_of_master_controller(ctx, S, group)
-  card_of_knobs(ctx, S, group, { title = "Master", accent = env.theme.part.master, labels = { ["cc-master-expression"] = "overall volume" } })
+  local params = { group.params[1] }
+  local labels = { ["cc-master-expression"] = "overall volume" }
+  local tone_level = S.extras_by_id and S.extras_by_id["tone-level"]
+  if tone_level then
+    params[2] = tone_level
+    labels["tone-level"] = "tone level"
+  end
+  card_of_knobs(ctx, S, { name = group.name, params = params }, { title = "Master", accent = env.theme.part.master, labels = labels })
 end
 
 -- The effects, one card for each, in two rows. Each lists the ids of its parameters in the order
 -- they are shown. A parameter with named values is a stop knob, and a level is a knob.
 local EFFECT_ROWS = {
   {
-    { title = "Reverb", color = "reverb", ids = { "reverb-type", "reverb-variation", "reverb-level" } },
+    { title = "Reverb", color = "reverb", ids = { "reverb-type", "reverb-variation", "reverb-level", "wall-type" } },
     { title = "Vibrato / chorus", color = "chorus", ids = { "vibrato-chorus-type" } },
   },
   {
@@ -326,7 +393,7 @@ local function card_of_effect(ctx, S, effect, height)
   local widgets, values = env.widgets, S.model.values
   if not widgets.begin_card(ctx, effect.title, nil, height, env.theme.fx[effect.color]) then return end
   for i, id in ipairs(effect.ids) do
-    local param = param_with_id(S.model.catalog, id)
+    local param = find_param(S, id)
     if param then
       ImGui.PushID(ctx, param.id)
       local label = widgets.short_label(param.label, effect.title)
@@ -384,16 +451,163 @@ local STACKED = {
   ["Control change lower"] = true,
 }
 
+-- The organ's own settings in a card, and the pedal part beside it. The pedal is drawn disabled, with
+-- the drawbars its organ block would have: the plugin has no parameter for it yet.
+local function card_of_organ_voicing(ctx, S, height)
+  local widgets, values = env.widgets, S.model.values
+  if not widgets.begin_card(ctx, "Organ voicing", nil, height, env.theme.part.organ) then return end
+  local ids = { "organ-type", "rotary-type", "percussion", "organ-eq-high", "organ-eq-low" }
+  for i, id in ipairs(ids) do
+    local param = S.extras_by_id[id]
+    control_of(ctx, S, param, param.short, param.signed)
+    if i < #ids then ImGui.SameLine(ctx) end
+  end
+  local switches = {
+    { id = "vibrato-upper", label = "Vibrato / chorus, upper" },
+    { id = "vibrato-lower", label = "Vibrato / chorus, lower" },
+    { id = "rotary-on", label = "Rotary speaker" },
+  }
+  for i, switch in ipairs(switches) do
+    local changed, on = widgets.toggle(ctx, switch.label, values[switch.id] == 1)
+    if changed then values[switch.id] = on and 1 or 0 end
+    if i < #switches then ImGui.SameLine(ctx) end
+  end
+  widgets.end_card(ctx)
+end
+
+local function card_of_organ_pedal(ctx, S, height)
+  local widgets, values, th = env.widgets, S.model.values, env.theme
+  if not widgets.begin_card(ctx, "Organ pedal", nil, height) then return end
+  local first = true
+  for _, param in ipairs(S.extras) do
+    if param.id:sub(1, 12) == "organ-pedal-" then
+      if not first then ImGui.SameLine(ctx) end
+      first = false
+      ImGui.PushID(ctx, param.id)
+      widgets.drawbar(ctx, param, values[param.id], true)
+      ImGui.PopID(ctx)
+    end
+  end
+  ImGui.TextColored(ctx, th.text_dim, "Not in the plugin yet (MIDI channel 2).")
+  widgets.end_card(ctx)
+end
+
+local function organ_extras(ctx, S)
+  if not S.extras_by_id then return end
+  local height = row_height({ "Organ voicing", "Organ pedal" })
+  card_of_organ_voicing(ctx, S, height)
+  ImGui.SameLine(ctx)
+  card_of_organ_pedal(ctx, S, height)
+end
+
+-- The drum part: its kit from the tone list, its volume, and a switch. The document lists these at
+-- the drum block's offsets, but the unit's dumps do not match them, so the card says it is unconfirmed.
+local function drums_section(ctx, S)
+  if not ImGui.BeginChild(ctx, "##section") then return end
+  if extras_missing(ctx, S) then
+    ImGui.EndChild(ctx)
+    return
+  end
+  local widgets, ui = env.widgets, S.ui
+  if widgets.begin_card(ctx, "Drum kit", nil, nil, env.theme.part.master) then
+    local list = S.tones.drum
+    local index = ui.tone.drum or 1
+    local new_index, filter = widgets.tone_picker(ctx, "drum", list, index, ui.tone_filter.drum or "")
+    ui.tone.drum = new_index
+    ui.tone_filter.drum = filter
+    part_toggle(ctx, S, "drum")
+    control_of(ctx, S, S.extras_by_id["drum-volume"], "volume")
+    ImGui.PushTextWrapPos(ctx, 360)
+    ImGui.TextColored(ctx, env.theme.text_dim, "Roland documents the kit and the volume at the drum block's offsets, but the unit's dumps do not match them: unconfirmed. The drums play on MIDI channel 11.")
+    ImGui.PopTextWrapPos(ctx)
+    widgets.end_card(ctx)
+  end
+  ImGui.EndChild(ctx)
+end
+
+-- The keyboard's performance controls: what the two footswitches and the D-Beam do, and the
+-- transposition and the touch.
+local function performance_section(ctx, S)
+  if not ImGui.BeginChild(ctx, "##section") then return end
+  if extras_missing(ctx, S) then
+    ImGui.EndChild(ctx)
+    return
+  end
+  local accent = env.theme.part.master
+  local height = row_height({ "Footswitches", "D-Beam", "Keyboard" })
+  card_of_extras(ctx, S, "Footswitches", { "footswitch-left", "footswitch-right" }, accent, height)
+  ImGui.SameLine(ctx)
+  card_of_extras(ctx, S, "D-Beam", { "d-beam" }, accent, height)
+  ImGui.SameLine(ctx)
+  card_of_extras(ctx, S, "Keyboard", { "transpose", "initial-touch" }, accent, height)
+  ImGui.EndChild(ctx)
+end
+
+-- The parts that have a tone to choose, in two rows: the three pianos, then the three synths. Each has
+-- an id, the list of tones it chooses from, and the part of the instrument whose accent it takes.
+local TONE_PARTS = {
+  { id = "upper-piano", title = "Upper piano", list = "piano", part = "upper" },
+  { id = "upper-piano-dual2", title = "Upper piano dual 2", list = "piano", part = "upper" },
+  { id = "lower-piano", title = "Lower piano", list = "piano", part = "lower" },
+  { id = "upper-synth", title = "Upper synth", list = "synth", part = "upper" },
+  { id = "upper-synth-dual2", title = "Upper synth dual 2", list = "synth", part = "upper" },
+  { id = "lower-synth", title = "Lower synth", list = "synth", part = "lower" },
+}
+local TONE_PARTS_PER_ROW = 3
+
+-- The card of one part's tone. The lab keeps the choice as a position in the part's list, since the
+-- catalog has no tone parameters yet.
+local function card_of_tone(ctx, S, part)
+  local widgets, ui = env.widgets, S.ui
+  if not widgets.begin_card(ctx, part.title, nil, nil, env.theme.part[part.part]) then return end
+  local list = S.tones[part.list]
+  local index = ui.tone[part.id] or 1
+  local new_index, filter = widgets.tone_picker(ctx, part.id, list, index, ui.tone_filter[part.id] or "")
+  ui.tone[part.id] = new_index
+  ui.tone_filter[part.id] = filter
+  if new_index ~= index then S.notice(("%s: %s (mock)."):format(part.title, list[new_index].name), false) end
+  part_toggle(ctx, S, part.id)
+  if S.extras_by_id then
+    local ids = { part.id .. "-octave", part.id .. "-portamento", part.id .. "-portamento-time" }
+    for i, id in ipairs(ids) do
+      local param = S.extras_by_id[id]
+      control_of(ctx, S, param, param.short)
+      if i < #ids then ImGui.SameLine(ctx) end
+    end
+  end
+  widgets.end_card(ctx)
+end
+
+-- The Tones tab: a card for each part, in rows of three.
+local function tones_section(ctx, S)
+  if not ImGui.BeginChild(ctx, "##section") then return end
+  -- Because the runner reads tones.lua only when the lab starts, a lab that was started before the
+  -- file existed has no tones; the tab says so instead of failing.
+  if extras_missing(ctx, S) then
+    ImGui.EndChild(ctx)
+    return
+  end
+  for i, part in ipairs(TONE_PARTS) do
+    if (i - 1) % TONE_PARTS_PER_ROW ~= 0 then ImGui.SameLine(ctx) end
+    card_of_tone(ctx, S, part)
+  end
+  ImGui.EndChild(ctx)
+end
+
 -- The instrument's sections, each one a tab, with the catalog's groups that it shows. Because the
 -- catalog has no group for drums, the rhythm and song levels stay in the Mixer. The piano's volumes
 -- are in the Mixer, where the catalog lists them, and in the Piano tab as well.
 local SECTIONS = {
-  { name = "Organ", groups = { "Organ upper drawbars", "Organ lower drawbars", "Organ", "Rotary" } },
+  { name = "Organ", groups = { "Organ upper drawbars", "Organ lower drawbars", "Organ", "Rotary" }, after = organ_extras },
+  -- A section with a `draw` function draws itself, when it does not show the catalog's groups.
+  { name = "Tones", draw = tones_section },
   { name = "Synth", groups = { "Synth upper", "Synth lower" } },
   { name = "Piano", groups = { "Control change piano" } },
+  { name = "Drums", draw = drums_section },
   { name = "Mixer", groups = { "Mixer" } },
   { name = "FX", groups = { "Effects" } },
   { name = "Controllers", groups = { "Control change upper", "Control change lower", "Control change master" } },
+  { name = "Performance", draw = performance_section },
 }
 
 -- The groups of a section, in the order of the section's list.
@@ -409,7 +623,7 @@ end
 
 -- Draws the cards of one section: the drawbars side by side first, because an organ player looks at
 -- them first, then the organ's and the rotary speaker's knobs on one row, then every other group.
-local function section(ctx, S, names)
+local function section(ctx, S, names, after)
   if not ImGui.BeginChild(ctx, "##section") then return end
   local groups = groups_named(groups_of(S.model.catalog), names)
   -- The cards that share a row take the height of the tallest of them: the drawbars together, and the
@@ -444,6 +658,8 @@ local function section(ctx, S, names)
   for _, group in ipairs(groups) do
     if not group.drawbars and not CARDS_OF_KNOBS[group.name] then card_of_sliders(ctx, S, group) end
   end
+  -- Cards that the section draws after its groups, such as the organ's voicing and its pedal.
+  if after then after(ctx, S) end
   ImGui.EndChild(ctx)
 end
 
@@ -452,7 +668,7 @@ local function controls(ctx, S)
   if not ImGui.BeginTabBar(ctx, "##sections") then return end
   for _, s in ipairs(SECTIONS) do
     if begin_tab(ctx, s.name) then
-      section(ctx, S, s.groups)
+      if s.draw then s.draw(ctx, S) else section(ctx, S, s.groups, s.after) end
       ImGui.EndTabItem(ctx)
     end
   end

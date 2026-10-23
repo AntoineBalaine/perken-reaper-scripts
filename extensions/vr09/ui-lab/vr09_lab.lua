@@ -4,8 +4,8 @@
 --
 -- The runner watches theme.lua, widgets.lua and panel.lua. Saving one of them reloads it, and the
 -- open window changes at once. An error in a file is shown in the window instead of stopping the
--- script, and the window keeps its place; the next save loads the file again. model.lua and
--- catalog.lua are read once, when the lab starts.
+-- script, and the window keeps its place; the next save loads the file again. model.lua, catalog.lua,
+-- tones.lua and extras.lua are read once, when the lab starts.
 --
 -- It needs ReaImGui. It speaks the same ReaImGui API as the plugin (0.9.3), so that what is
 -- written here ports to Zig call for call.
@@ -92,12 +92,24 @@ end
 -- ---- the mock keyboard and the panel's state ----
 
 local catalog = dofile(dir .. "catalog.lua")
+S.tones = dofile(dir .. "tones.lua")
 local model_api = dofile(dir .. "model.lua")
 S.model_api = model_api
 S.model = model_api.new(catalog, reaper.GetResourcePath())
 if S.model.registrations[1] then model_api.load_registration(S.model, S.model.registrations[1]) end
+
+-- The parameters that the documentation has and the catalog does not: their values live with the
+-- catalog's, by id, and each starts at its default or its lowest value.
+S.extras = dofile(dir .. "extras.lua")
+S.extras_by_id = {}
+for _, param in ipairs(S.extras) do
+  S.extras_by_id[param.id] = param
+  S.model.values[param.id] = param.default or param.low
+end
 S.ui = {
   reg_filter = "", reg_selected = nil,
+  tone = {}, tone_filter = {}, -- the chosen tone of each part (a position in its list), and its search text
+  part_on = {}, -- whether each part sounds, by the part's id; a part that is not here is on
   loop_on = false, send_db = 0, return_db = 0,
   midi_out = 2, midi_in = 2, armed = true, monitor = true, pass = true, bare = false,
 }
