@@ -67,6 +67,8 @@ M.part = {
   lower = 0xF08C5AFF,
   backing = 0xF0B840FF,
   master = 0xC8C4B8FF,
+  -- The organ keeps the amber that the lit parts of the controls have by default.
+  organ = 0xF0B840FF,
   -- The ivory of a piano's keys.
   piano = 0xF2EBD3FF,
 }

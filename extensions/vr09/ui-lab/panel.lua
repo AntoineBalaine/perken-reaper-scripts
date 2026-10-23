@@ -11,24 +11,34 @@ local M = {}
 
 -- ---- the header ----
 
+-- The keyboard's state in a card: a lamp and a line saying whether it answers, the progress of a
+-- read or a write when there is one, and the patch's name on a display.
 local function header(ctx, S)
-  local m, th = S.model, env.theme
+  local m, th, widgets = S.model, env.theme, env.widgets
+  if not widgets.begin_card(ctx, "Status") then return end
+  local color, text
   if m.connected then
     if m.mode == "mode2" then
-      ImGui.TextColored(ctx, th.green, "Keyboard connected (MIDI IN mode 2)")
+      color, text = th.green, "Keyboard connected (MIDI IN mode 2)"
     elseif m.mode == "mode1" then
-      ImGui.TextColored(ctx, th.amber, "Keyboard connected, but in MIDI IN mode 1: switch it to mode 2")
+      color, text = th.amber, "Keyboard connected, but in MIDI IN mode 1: switch it to mode 2"
     else
-      ImGui.TextColored(ctx, th.amber, "Keyboard answers, mode unknown")
+      color, text = th.amber, "Keyboard answers, mode unknown"
     end
   else
-    ImGui.TextColored(ctx, th.red, "The keyboard does not answer: see the MIDI tab")
+    color, text = th.red, "The keyboard does not answer: see the MIDI tab"
   end
+  widgets.lamp(ctx, color, true)
+  ImGui.SameLine(ctx)
+  ImGui.TextColored(ctx, color, text)
   if m.job then
     local caption = ("%s %d/%d"):format(m.job.label, m.job.done, m.job.total)
-    ImGui.ProgressBar(ctx, m.job.done / m.job.total, -1, nil, caption)
+    ImGui.ProgressBar(ctx, m.job.done / m.job.total, 420, nil, caption)
   end
-  ImGui.Text(ctx, "Patch: " .. m.patch)
+  ImGui.TextColored(ctx, th.label, "Patch")
+  ImGui.SameLine(ctx)
+  widgets.display(ctx, m.patch, th.amber, 260)
+  widgets.end_card(ctx)
 end
 
 -- ---- the controls ----
@@ -50,7 +60,7 @@ end
 
 local function card_of_drawbars(ctx, S, group)
   local widgets, values = env.widgets, S.model.values
-  if not widgets.begin_card(ctx, group.name) then return end
+  if not widgets.begin_card(ctx, group.name, nil, nil, env.theme.part.organ) then return end
   for i, param in ipairs(group.params) do
     ImGui.PushID(ctx, param.id)
     local changed, v = widgets.drawbar(ctx, param, values[param.id])
@@ -115,7 +125,7 @@ end
 -- tweeter, the parameters are taken by their position.
 local function card_of_rotary(ctx, S, group)
   local widgets, values = env.widgets, S.model.values
-  if not widgets.begin_card(ctx, group.name) then return end
+  if not widgets.begin_card(ctx, group.name, nil, nil, env.theme.part.organ) then return end
   local params = group.params
   for i, param in ipairs(params) do
     ImGui.PushID(ctx, param.id)
@@ -165,6 +175,11 @@ local function card_of_envelope(ctx, S, group, title, width, height, accent)
   if not widgets.begin_card(ctx, title .. " " .. ENVELOPE_OF .. " envelope", width, height, accent) then return end
   for id, v in pairs(widgets.envelope(ctx, params, values)) do values[id] = v end
   widgets.end_card(ctx)
+end
+
+-- The organ's knobs take the organ's accent, the same as its drawbars and its rotary speaker.
+local function card_of_organ(ctx, S, group)
+  card_of_knobs(ctx, S, group, { accent = env.theme.part.organ })
 end
 
 -- The synth's envelope and filter values rest in the middle of their range (64), so that their
@@ -322,7 +337,7 @@ end
 
 -- The groups drawn as a row of knobs, and the function that draws each one.
 local CARDS_OF_KNOBS = {
-  ["Organ"] = card_of_knobs,
+  ["Organ"] = card_of_organ,
   ["Rotary"] = card_of_rotary,
   ["Synth upper"] = card_of_synth,
   ["Synth lower"] = card_of_synth,
@@ -428,17 +443,19 @@ local function load_registration(S, entry)
 end
 
 local function registrations(ctx, S)
-  local m, th, ui = S.model, env.theme, S.ui
-  ImGui.SeparatorText(ctx, "Registrations")
+  local m, th, ui, widgets = S.model, env.theme, S.ui, env.widgets
+  if not widgets.begin_card(ctx, "Registrations") then return end
   local regs = m.registrations
   if #regs == 0 then
     ImGui.TextColored(ctx, th.grey, "No registrations folder: run build-install.sh vr09 to fill Data/Perken/vr09/registrations.")
+    widgets.end_card(ctx)
     return
   end
   ImGui.SetNextItemWidth(ctx, 280)
   local _
   _, ui.reg_filter = ImGui.InputTextWithHint(ctx, "##regfilter", "filter by name or bank-slot", ui.reg_filter)
-  if ImGui.BeginChild(ctx, "##registrations", -1, 200) then
+  -- The list has a width of its own, because the card grows with what it holds.
+  if ImGui.BeginChild(ctx, "##registrations", 460, 200) then
     local i = 1
     while i <= #regs do
       local bank = regs[i].bank
@@ -472,52 +489,82 @@ local function registrations(ctx, S)
   if ui.reg_selected and regs[ui.reg_selected] then
     if ImGui.Button(ctx, "Load and send registration") then load_registration(S, regs[ui.reg_selected]) end
   end
+  widgets.end_card(ctx)
 end
 
 local function patches(ctx, S)
-  local m = S.model
-  if ImGui.Button(ctx, "Read the keyboard") then
-    S.start_job("Reading", 22)
-    S.notice("Reading the keyboard's state into this plugin.", false)
+  local m, widgets = S.model, env.widgets
+  if widgets.begin_card(ctx, "Keyboard") then
+    if ImGui.Button(ctx, "Read the keyboard") then
+      S.start_job("Reading", 22)
+      S.notice("Reading the keyboard's state into this plugin.", false)
+    end
+    if ImGui.Button(ctx, "Send to the keyboard") then
+      S.start_job("Writing", 66)
+      S.notice("Writing this plugin's state to the keyboard.", false)
+    end
+    if ImGui.IsItemHovered(ctx) then
+      ImGui.SetTooltip(ctx, "Only what differs is written: about 0.15 seconds when the keyboard has been read, a few seconds otherwise.")
+    end
+    widgets.end_card(ctx)
   end
   ImGui.SameLine(ctx)
-  if ImGui.Button(ctx, "Send to the keyboard") then
-    S.start_job("Writing", 66)
-    S.notice("Writing this plugin's state to the keyboard.", false)
+  if widgets.begin_card(ctx, "Options") then
+    local _
+    _, m.split = ImGui.Checkbox(ctx, "This patch splits at middle C", m.split)
+    if ImGui.IsItemHovered(ctx) then
+      ImGui.SetTooltip(ctx, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.")
+    end
+    _, m.follow_panel = ImGui.Checkbox(ctx, "Follow changes made on the keyboard's panel", m.follow_panel)
+    _, m.recall_on_load = ImGui.Checkbox(ctx, "Send the patch to the keyboard when the project opens", m.recall_on_load)
+    widgets.end_card(ctx)
   end
-  if ImGui.IsItemHovered(ctx) then
-    ImGui.SetTooltip(ctx, "Only what differs is written: about 0.15 seconds when the keyboard has been read, a few seconds otherwise.")
-  end
-
-  local _
-  _, m.split = ImGui.Checkbox(ctx, "This patch splits at middle C", m.split)
-  if ImGui.IsItemHovered(ctx) then
-    ImGui.SetTooltip(ctx, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.")
-  end
-  _, m.follow_panel = ImGui.Checkbox(ctx, "Follow changes made on the keyboard's panel", m.follow_panel)
-  _, m.recall_on_load = ImGui.Checkbox(ctx, "Send the patch to the keyboard when the project opens", m.recall_on_load)
 
   registrations(ctx, S)
 end
 
 -- ---- the audio loop and MIDI tabs (mock) ----
 
+-- The loop's settings are not parameters of the catalog, so the knobs and the switch get parameters
+-- of their own: the levels go from -60 to 12 dB and rest at 0 dB.
+local LOOP_SWITCH = { id = "loop-on", low = 0, high = 1 }
+local LOOP_SEND = { id = "loop-send", low = -60, high = 12, default = 0, unit = " dB" }
+local LOOP_RETURN = { id = "loop-return", low = -60, high = 12, default = 0, unit = " dB" }
+
 local function audio_loop(ctx, S)
-  local ui, th = S.ui, env.theme
-  ImGui.TextWrapped(ctx, "The loop sends this track's audio to the keyboard's audio input and takes the keyboard's output back, the way ReaInsert does for outboard gear. Wire the interface's output to the keyboard's input, and the keyboard's output to the interface's input.")
+  local ui, th, widgets = S.ui, env.theme, env.widgets
+  ImGui.PushTextWrapPos(ctx, ImGui.GetCursorPosX(ctx) + 560)
+  ImGui.TextColored(ctx, th.label, "The loop sends this track's audio to the keyboard's audio input and takes the keyboard's output back, the way ReaInsert does for outboard gear. Wire the interface's output to the keyboard's input, and the keyboard's output to the interface's input.")
+  ImGui.PopTextWrapPos(ctx)
   ImGui.Spacing(ctx)
-  local _
-  _, ui.loop_on = ImGui.Checkbox(ctx, "Use the audio loop", ui.loop_on)
-  ImGui.SetNextItemWidth(ctx, 320)
-  _, ui.send_db = ImGui.SliderInt(ctx, "Send level (dB)", ui.send_db, -60, 12)
-  ImGui.SetNextItemWidth(ctx, 320)
-  _, ui.return_db = ImGui.SliderInt(ctx, "Return level (dB)", ui.return_db, -60, 12)
-  ImGui.SeparatorText(ctx, "Latency")
-  if ImGui.Button(ctx, "Measure the round trip") then S.notice("Measuring (mock).", false) end
-  ImGui.SameLine(ctx)
-  ImGui.TextColored(ctx, th.grey, "not measured yet")
-  ImGui.SeparatorText(ctx, "Status")
-  ImGui.TextColored(ctx, ui.loop_on and th.green or th.amber, ui.loop_on and "The loop is running." or "The loop is off: the audio passes through.")
+
+  if widgets.begin_card(ctx, "Loop") then
+    widgets.bracket_row(ctx, { { label = "Levels", from = 2, to = 3 } }, 3)
+    local changed, v = widgets.switch(ctx, LOOP_SWITCH, ui.loop_on and 1 or 0, "audio loop", "ON", "OFF")
+    if changed then ui.loop_on = v == 1 end
+    -- Because the two knobs draw the same widgets, each one gets an id of its own.
+    ImGui.SameLine(ctx)
+    ImGui.PushID(ctx, LOOP_SEND.id)
+    changed, v = widgets.knob(ctx, LOOP_SEND, ui.send_db, "send level")
+    ImGui.PopID(ctx)
+    if changed then ui.send_db = v end
+    ImGui.SameLine(ctx)
+    ImGui.PushID(ctx, LOOP_RETURN.id)
+    changed, v = widgets.knob(ctx, LOOP_RETURN, ui.return_db, "return level")
+    ImGui.PopID(ctx)
+    if changed then ui.return_db = v end
+    widgets.lamp(ctx, ui.loop_on and th.green or th.amber, ui.loop_on)
+    ImGui.SameLine(ctx)
+    ImGui.TextColored(ctx, ui.loop_on and th.green or th.amber, ui.loop_on and "The loop is running." or "The loop is off: the audio passes through.")
+    widgets.end_card(ctx)
+  end
+
+  if widgets.begin_card(ctx, "Latency") then
+    if ImGui.Button(ctx, "Measure the round trip") then S.notice("Measuring (mock).", false) end
+    ImGui.SameLine(ctx)
+    widgets.display(ctx, "not measured yet", th.text_dim, 160)
+    widgets.end_card(ctx)
+  end
 end
 
 local DEVICES = { "none", "Roland VR-09 (mock)", "MIDI Output 2", "MIDI Output 3" }
@@ -535,29 +582,34 @@ local function device_combo(ctx, id, current)
 end
 
 local function midi(ctx, S)
-  local ui, th = S.ui, env.theme
-  ImGui.SeparatorText(ctx, "The track's MIDI devices")
-  ImGui.Text(ctx, "MIDI output (to the keyboard)")
-  ui.midi_out = device_combo(ctx, "##midiout", ui.midi_out)
-  ImGui.Text(ctx, "MIDI input (record from the keyboard)")
-  ui.midi_in = device_combo(ctx, "##midiin", ui.midi_in)
+  local ui, th, widgets = S.ui, env.theme, env.widgets
   local _
-  _, ui.armed = ImGui.Checkbox(ctx, "Record-arm the track", ui.armed)
-  _, ui.monitor = ImGui.Checkbox(ctx, "Monitor input", ui.monitor)
-  ImGui.SeparatorText(ctx, "Behavior")
-  _, ui.pass = ImGui.Checkbox(ctx, "Pass this track's MIDI through to the keyboard", ui.pass)
-  _, ui.bare = ImGui.Checkbox(ctx, "Send SysEx without its F0 and F7 bytes", ui.bare)
-  ImGui.SeparatorText(ctx, "Connection")
-  if ImGui.Button(ctx, "Look for the keyboard again") then S.notice("Asking the keyboard who it is.", false) end
-  ImGui.Text(ctx, "Messages: sent 137, received 654, bad checksums 0")
-  ImGui.TextColored(ctx, th.grey, "(mock values)")
+  if widgets.begin_card(ctx, "The track's MIDI devices") then
+    ImGui.TextColored(ctx, th.label, "MIDI output (to the keyboard)")
+    ui.midi_out = device_combo(ctx, "##midiout", ui.midi_out)
+    ImGui.TextColored(ctx, th.label, "MIDI input (record from the keyboard)")
+    ui.midi_in = device_combo(ctx, "##midiin", ui.midi_in)
+    _, ui.armed = ImGui.Checkbox(ctx, "Record-arm the track", ui.armed)
+    _, ui.monitor = ImGui.Checkbox(ctx, "Monitor input", ui.monitor)
+    widgets.end_card(ctx)
+  end
+  if widgets.begin_card(ctx, "Behavior") then
+    _, ui.pass = ImGui.Checkbox(ctx, "Pass this track's MIDI through to the keyboard", ui.pass)
+    _, ui.bare = ImGui.Checkbox(ctx, "Send SysEx without its F0 and F7 bytes", ui.bare)
+    widgets.end_card(ctx)
+  end
+  if widgets.begin_card(ctx, "Connection") then
+    if ImGui.Button(ctx, "Look for the keyboard again") then S.notice("Asking the keyboard who it is.", false) end
+    widgets.display(ctx, "sent 137   received 654   bad checksums 0", th.amber, 360)
+    ImGui.TextColored(ctx, th.grey, "(mock values)")
+    widgets.end_card(ctx)
+  end
 end
 
 -- ---- the window's content ----
 
 function M.draw(ctx, S)
   header(ctx, S)
-  ImGui.Separator(ctx)
   if ImGui.BeginTabBar(ctx, "##tabs") then
     if ImGui.BeginTabItem(ctx, "Controls") then
       controls(ctx, S)
@@ -578,8 +630,7 @@ function M.draw(ctx, S)
     ImGui.EndTabBar(ctx)
   end
   if S.frame < S.notice_until and S.notice_text ~= "" then
-    ImGui.Separator(ctx)
-    ImGui.TextColored(ctx, S.notice_is_error and env.theme.red or env.theme.green, S.notice_text)
+    env.widgets.display(ctx, S.notice_text, S.notice_is_error and env.theme.red or env.theme.green, 0)
   end
 end
 

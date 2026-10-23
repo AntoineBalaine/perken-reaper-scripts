@@ -96,7 +96,7 @@ function M.drawbar(ctx, param, value)
   local text = tostring(value)
   local text_w = ImGui.CalcTextSize(ctx, text)
   ImGui.SetCursorPosX(ctx, ImGui.GetCursorPosX(ctx) + (DRAWBAR_W - text_w) / 2)
-  ImGui.TextColored(ctx, th.amber, text)
+  ImGui.TextColored(ctx, accent(), text)
 
   local x, y = ImGui.GetCursorScreenPos(ctx)
   ImGui.InvisibleButton(ctx, "##drawbar", DRAWBAR_W, DRAWBAR_H)
@@ -140,7 +140,7 @@ function M.drawbar(ctx, param, value)
   ImGui.DrawList_AddLine(dl, cap_x1 + 3, cap_y1 + 2, cap_x2 - 3, cap_y1 + 2, 0xFFFFFF55, 1)
   ImGui.DrawList_AddLine(dl, cap_x1 + 3, pos, cap_x2 - 3, pos, edge, 1)
   if ImGui.IsItemHovered(ctx) or ImGui.IsItemActive(ctx) then
-    ImGui.DrawList_AddRect(dl, cap_x1, cap_y1, cap_x2, cap_y2, th.amber, 3)
+    ImGui.DrawList_AddRect(dl, cap_x1, cap_y1, cap_x2, cap_y2, accent(), 3)
   end
 
   local name = short_drawbar_name(param.label)
@@ -167,9 +167,11 @@ local KNOB_TO = math.pi * 2.25
 -- by the parameter's id.
 local drag_start = {}
 
--- The position a knob goes back to on an alt-click: the middle of the range for a value that rests
--- there, and the lowest value otherwise, because the catalog does not hold a default for each one.
+-- The position a knob goes back to on an alt-click: the parameter's own default when it has one, the
+-- middle of the range for a value that rests there, and the lowest value otherwise, because the
+-- catalog does not hold a default for each one.
 function M.default_value(param, bipolar)
+  if param.default then return param.default end
   if bipolar then return math.floor((param.low + param.high) / 2 + 0.5) end
   return param.low
 end
@@ -241,7 +243,7 @@ end
 function M.knob(ctx, param, value, label, bipolar)
   local th = env.theme
   ImGui.BeginGroup(ctx)
-  centered_value(ctx, tostring(value), KNOB_W)
+  centered_value(ctx, tostring(value) .. (param.unit or ""), KNOB_W)
 
   local x, y = ImGui.GetCursorScreenPos(ctx)
   ImGui.InvisibleButton(ctx, "##knob", KNOB_W, KNOB_D + 8)
@@ -327,13 +329,13 @@ function M.switch(ctx, param, value, label, on_text, off_text)
 
   -- The lamp: a glow around it when it is lit.
   local lx, ly = (x1 + x2) / 2, y1 + 14
-  if on then ImGui.DrawList_AddCircleFilled(dl, lx, ly, 9, 0xF0B84055) end
-  ImGui.DrawList_AddCircleFilled(dl, lx, ly, 5, on and th.amber or th.slot_bg)
+  if on then ImGui.DrawList_AddCircleFilled(dl, lx, ly, 9, faded(accent(), 0x55)) end
+  ImGui.DrawList_AddCircleFilled(dl, lx, ly, 5, on and accent() or th.slot_bg)
   ImGui.DrawList_AddCircle(dl, lx, ly, 5, th.slot_edge, 0, 1)
 
   local state = on and on_text or off_text
   local state_w = ImGui.CalcTextSize(ctx, state)
-  ImGui.DrawList_AddText(dl, lx - state_w / 2, y2 - 18, on and th.amber or th.text_dim, state)
+  ImGui.DrawList_AddText(dl, lx - state_w / 2, y2 - 18, accent(), state)
 
   centered_label(ctx, label, KNOB_W, KNOB_LABEL_LINES)
   ImGui.EndGroup(ctx)
@@ -742,6 +744,36 @@ function M.param_slider(ctx, param, value)
   local name = M.value_name(param, value)
   local format = name and ("%d  " .. name) or "%d"
   return ImGui.SliderInt(ctx, param.label, value, param.low, param.high, format)
+end
+
+-- ---- the lamp and the display ----
+
+-- A lamp, lit in the given color or dark, as big as a line of text, so that text can follow it.
+function M.lamp(ctx, color, lit)
+  local th = env.theme
+  local x, y = ImGui.GetCursorScreenPos(ctx)
+  local size = ImGui.GetTextLineHeight(ctx)
+  ImGui.Dummy(ctx, size, size)
+  local dl = ImGui.GetWindowDrawList(ctx)
+  local cx, cy = x + size / 2, y + size / 2
+  if lit then ImGui.DrawList_AddCircleFilled(dl, cx, cy, size / 2 + 1, faded(color, 0x44)) end
+  ImGui.DrawList_AddCircleFilled(dl, cx, cy, 5, lit and color or th.slot_bg)
+  ImGui.DrawList_AddCircle(dl, cx, cy, 5, th.slot_edge, 0, 1)
+  if lit then ImGui.DrawList_AddCircleFilled(dl, cx - 1.5, cy - 1.5, 1.2, 0xFFFFFF99) end
+end
+
+-- A small recessed screen with a line of text in it, at least `min_width` pixels wide.
+function M.display(ctx, text, color, min_width)
+  local th = env.theme
+  local x, y = ImGui.GetCursorScreenPos(ctx)
+  local text_w, text_h = ImGui.CalcTextSize(ctx, text)
+  local width, height = math.max(min_width or 0, text_w + 20), text_h + 10
+  ImGui.Dummy(ctx, width, height)
+  local dl = ImGui.GetWindowDrawList(ctx)
+  ImGui.DrawList_AddRectFilled(dl, x, y, x + width, y + height, th.slot_bg, 3)
+  ImGui.DrawList_AddRect(dl, x, y, x + width, y + height, th.slot_edge, 3)
+  ImGui.DrawList_AddLine(dl, x + 3, y + height + 1, x + width - 3, y + height + 1, th.panel_edge_light, 1)
+  ImGui.DrawList_AddText(dl, x + 10, y + 5, color or th.amber, text)
 end
 
 -- ---- the card ----
