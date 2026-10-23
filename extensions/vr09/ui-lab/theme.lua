@@ -23,6 +23,9 @@ M.text_dim = 0x8C8A82FF
 M.label = 0xBCB9AEFF
 M.text_engraved_shadow = 0x0A0A0BFF
 M.border = 0x3A3A3EFF
+-- The outline of the checkboxes, the combos and the other framed widgets, light enough to be seen on
+-- the dark frame.
+M.frame_border = 0x76767CFF
 M.title_bg = 0x2A2A2DFF
 M.title_bg_active = 0x36363AFF
 M.frame_bg = 0x151517FF
@@ -97,21 +100,21 @@ function M.push(ctx)
     { ImGui.Col_WindowBg, M.window_bg },
     { ImGui.Col_ChildBg, 0x00000000 },
     { ImGui.Col_Text, M.text },
-    { ImGui.Col_Border, M.border },
+    { ImGui.Col_Border, M.frame_border },
     { ImGui.Col_TitleBg, M.title_bg },
     { ImGui.Col_TitleBgActive, M.title_bg_active },
     { ImGui.Col_FrameBg, M.frame_bg },
-    { ImGui.Col_FrameBgHovered, M.frame_bg_hover },
-    { ImGui.Col_FrameBgActive, M.frame_bg_hover },
+    { ImGui.Col_FrameBgHovered, M.amber & 0xFFFFFF00 | 0x40 },
+    { ImGui.Col_FrameBgActive, M.amber },
     { ImGui.Col_SliderGrab, M.amber },
     { ImGui.Col_SliderGrabActive, 0xFFD060FF },
     { ImGui.Col_CheckMark, M.amber },
     { ImGui.Col_Button, 0x3A3A3EFF },
-    { ImGui.Col_ButtonHovered, 0x4A4A4EFF },
-    { ImGui.Col_ButtonActive, 0x5A5A5EFF },
+    { ImGui.Col_ButtonHovered, M.amber & 0xFFFFFF00 | 0x55 },
+    { ImGui.Col_ButtonActive, M.amber },
     { ImGui.Col_Header, 0x3A3A3EFF },
-    { ImGui.Col_HeaderHovered, 0x4A4A4EFF },
-    { ImGui.Col_HeaderActive, 0x5A5A5EFF },
+    { ImGui.Col_HeaderHovered, M.amber & 0xFFFFFF00 | 0x40 },
+    { ImGui.Col_HeaderActive, M.amber },
     { ImGui.Col_Separator, M.border },
     { ImGui.Col_Tab, M.panel_bg },
     { ImGui.Col_TabHovered, 0x4A4A4EFF },
@@ -129,6 +132,7 @@ function M.push(ctx)
   local vars = {
     { ImGui.StyleVar_WindowRounding, 0 },
     { ImGui.StyleVar_FrameRounding, 3 },
+    { ImGui.StyleVar_FrameBorderSize, 1 },
     { ImGui.StyleVar_ChildRounding, 6 },
     { ImGui.StyleVar_TabRounding, 3 },
     { ImGui.StyleVar_GrabRounding, 3 },

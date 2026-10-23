@@ -503,18 +503,14 @@ local function patches(ctx, S)
       S.start_job("Writing", 66)
       S.notice("Writing this plugin's state to the keyboard.", false)
     end
-    if ImGui.IsItemHovered(ctx) then
-      ImGui.SetTooltip(ctx, "Only what differs is written: about 0.15 seconds when the keyboard has been read, a few seconds otherwise.")
-    end
+    widgets.tooltip(ctx, "Only what differs is written: about 0.15 seconds when the keyboard has been read, a few seconds otherwise.")
     widgets.end_card(ctx)
   end
   ImGui.SameLine(ctx)
   if widgets.begin_card(ctx, "Options") then
     local _
     _, m.split = ImGui.Checkbox(ctx, "This patch splits at middle C", m.split)
-    if ImGui.IsItemHovered(ctx) then
-      ImGui.SetTooltip(ctx, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.")
-    end
+    widgets.tooltip(ctx, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.")
     _, m.follow_panel = ImGui.Checkbox(ctx, "Follow changes made on the keyboard's panel", m.follow_panel)
     _, m.recall_on_load = ImGui.Checkbox(ctx, "Send the patch to the keyboard when the project opens", m.recall_on_load)
     widgets.end_card(ctx)
@@ -555,7 +551,17 @@ local function audio_loop(ctx, S)
     if changed then ui.return_db = v end
     widgets.lamp(ctx, ui.loop_on and th.green or th.amber, ui.loop_on)
     ImGui.SameLine(ctx)
-    ImGui.TextColored(ctx, ui.loop_on and th.green or th.amber, ui.loop_on and "The loop is running." or "The loop is off: the audio passes through.")
+    -- Because the card grows with its widest line, the line is padded to the width of the longer of its
+    -- two texts, so that the card keeps its width when the loop is switched on and off.
+    local running, idle = "The loop is running.", "The loop is off: the audio passes through."
+    local status = ui.loop_on and running or idle
+    ImGui.TextColored(ctx, ui.loop_on and th.green or th.amber, status)
+    -- Because CalcTextSize returns a width and a height, each width is read into a variable of its own.
+    local running_w = ImGui.CalcTextSize(ctx, running)
+    local idle_w = ImGui.CalcTextSize(ctx, idle)
+    local status_w = ui.loop_on and running_w or idle_w
+    ImGui.SameLine(ctx, 0, 0)
+    ImGui.Dummy(ctx, math.max(running_w, idle_w) - status_w, 1)
     widgets.end_card(ctx)
   end
 

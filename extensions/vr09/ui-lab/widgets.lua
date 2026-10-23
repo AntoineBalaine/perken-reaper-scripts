@@ -31,6 +31,9 @@ end
 -- has none. `begin_card` sets it and `end_card` clears it.
 local current_accent = nil
 
+-- How many colors the card being drawn has pushed, which `end_card` pops.
+local card_colors = 2
+
 local function accent()
   return current_accent or env.theme.amber
 end
@@ -746,6 +749,23 @@ function M.param_slider(ctx, param, value)
   return ImGui.SliderInt(ctx, param.label, value, param.low, param.high, format)
 end
 
+-- ---- the tooltip ----
+
+-- The width at which a tooltip breaks its lines, so that a long text is read in a column and not
+-- along one endless line.
+local TOOLTIP_WIDTH = 320
+
+-- Shows the text in a tooltip while the mouse is over the last item.
+function M.tooltip(ctx, text)
+  if not ImGui.IsItemHovered(ctx) then return end
+  if ImGui.BeginTooltip(ctx) then
+    ImGui.PushTextWrapPos(ctx, TOOLTIP_WIDTH)
+    ImGui.Text(ctx, text)
+    ImGui.PopTextWrapPos(ctx)
+    ImGui.EndTooltip(ctx)
+  end
+end
+
 -- ---- the lamp and the display ----
 
 -- A lamp, lit in the given color or dark, as big as a line of text, so that text can follow it.
@@ -786,6 +806,19 @@ function M.begin_card(ctx, title, width, height, card_accent)
   current_accent = card_accent
   ImGui.PushStyleColor(ctx, ImGui.Col_ChildBg, th.panel_bg)
   ImGui.PushStyleColor(ctx, ImGui.Col_Border, th.panel_edge_dark)
+  -- In a card with an accent, the widgets that are not drawn by hand light up with the accent: a
+  -- light shade of it when the mouse is over them, and the accent itself while they are clicked.
+  card_colors = 2
+  if card_accent then
+    local hover = faded(card_accent, 0x40)
+    ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered, hover)
+    ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgActive, card_accent)
+    ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, faded(card_accent, 0x55))
+    ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, card_accent)
+    ImGui.PushStyleColor(ctx, ImGui.Col_HeaderHovered, hover)
+    ImGui.PushStyleColor(ctx, ImGui.Col_HeaderActive, card_accent)
+    card_colors = 8
+  end
   -- A card that is given a width or a height keeps it; otherwise it grows with what it holds.
   local flags = ImGui.ChildFlags_Border
   if not width then flags = flags | ImGui.ChildFlags_AutoResizeX end
@@ -796,7 +829,7 @@ function M.begin_card(ctx, title, width, height, card_accent)
     ImGui.Spacing(ctx)
   else
     -- Because `end_card` does not follow a card that is not drawn, its colors are popped here.
-    ImGui.PopStyleColor(ctx, 2)
+    ImGui.PopStyleColor(ctx, card_colors)
     current_accent = nil
   end
   return visible
@@ -849,7 +882,7 @@ function M.end_card(ctx)
   draw_card_surface(ctx, current_accent)
   current_accent = nil
   ImGui.EndChild(ctx)
-  ImGui.PopStyleColor(ctx, 2)
+  ImGui.PopStyleColor(ctx, card_colors)
 end
 
 return M
