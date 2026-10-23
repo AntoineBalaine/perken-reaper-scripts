@@ -117,7 +117,12 @@ These need a project with a VR-09 on a track and a few scenes (the lab's Scenes 
    - The Scene lane appears with a square point at each matching marker, and the console counts the markers that did not match, without a dialog that would stop REAPER. Hover a point: its text is the scene's name. Run the action again: no points are stacked.
 4. Look at the values of the lane's points.
    - A lane point holds the parameter's value in the units that REAPER reports for it. If a point reads `0`, or a fraction of the scene number, the scaling assumes the wrong unit: see `laneValue` in `src/actions.zig` and `value_of` in `ui-lab/scene_link.lua`.
-5. Drag a scene to another position in the lab with a lane in the project.
+5. With the keyboard connected, type a name in the lab's Scenes tab and press "Save the keyboard as a patch".
+   - The button shows "Reading the keyboard..." for a moment, and then a file `<name>.vr09` appears in `Data/Perken/vr09/presets` and a Preset row with that name shows in the table (filter by type Preset, or group USER). The preset is the keyboard as it was when you pressed the button, whatever the plugin knew before.
+   - Disconnect the keyboard and press it again: a notice says that the keyboard does not answer, and no file is written.
+   - Change the keyboard, double click the Preset row: the keyboard returns to the saved sound. Press Add on it: it becomes a scene.
+   - Select the row and press "Delete the selected preset" twice: the file and the row go.
+6. Drag a scene to another position in the lab with a lane in the project.
    - The lane's points move with it, so that the song still plays the same scenes; Cmd+Z undoes the points.
 
 ## 9. When something does not work

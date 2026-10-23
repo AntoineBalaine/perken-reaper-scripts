@@ -15,6 +15,7 @@ First version.
 - The panel opens where it fits on the screen, and a closed panel's ImGui context is dropped to be collected, with a name of its own for each context. A panel that stuck out of the screen was moved by the window manager without ImGui knowing, which offset the mouse.
 - The track's MIDI passes to the keyboard by default, with the notes sent to the Upper part (channel 4), or split at middle C between the Lower (3) and Upper parts for the patches marked as split.
 - Scenes: a list of named patches in the project state, a fixed-range Scene parameter that selects one by position (replacing the Registration parameter), and `VR09_Command` commands to add, list, move, rename, select and remove them.
+- `save_preset` (which reads the keyboard first, then writes the preset), `save_status`, `load_preset`, `delete_preset` and `load_tone` commands, so a script or the lab can save the keyboard as a patch and send patches to it.
 - Actions registered by the plugin: next scene, previous scene, and scene points from the project's markers.
 - A Split at middle C parameter, to override the current patch's split from automation.
 - Automatic choice of the keyboard's MIDI device for the track, with record arm and input monitoring.

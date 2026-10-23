@@ -549,6 +549,59 @@ test "the step actions move between the scenes of an instance and stop at the en
     try std.testing.expectEqual(@as(u8, 2), self.scene.load(.monotonic));
 }
 
+test "saving the keyboard reads it first and writes the preset when the read ends" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    // Nothing is read from a keyboard that does not answer, and a name is needed.
+    try std.testing.expectError(error.NotConnected, self.startSave("Warm pad"));
+    self.shared.connected.store(true, .release);
+    try std.testing.expectError(error.EmptyName, self.startSave(" . "));
+
+    // Starting asks for a read, and writes nothing yet.
+    try self.startSave("Warm pad");
+    try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
+    try std.testing.expectError(error.Busy, self.startSave("Another"));
+    self.advanceSave();
+    try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
+
+    // The read ends and the keyboard answered: the preset is written, from what the read gave.
+    _ = self.shared.setDesired(.kb, 0x02 << 14 | 5, 42);
+    _ = self.shared.captures_done.fetchAdd(1, .release);
+    self.shared.capture_answered.store(true, .monotonic);
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var root_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const root = try tmp.dir.realpath(".", &root_buf);
+    self.finishSave(root);
+    try std.testing.expectEqual(plugin.SaveState.done, self.save.state);
+    try std.testing.expectEqualStrings("Warm pad.vr09", self.save.fileName());
+    try std.testing.expect(self.save.known >= 1);
+    var back = try std.testing.allocator.create(dump.Dump);
+    defer std.testing.allocator.destroy(back);
+    back.* = .{};
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = try std.fmt.bufPrint(&path_buf, "{s}/Warm pad.vr09", .{root});
+    try @import("state.zig").loadPresetFile(std.testing.allocator, path, back);
+    try std.testing.expectEqual(@as(?u8, 42), back.get(.kb, 0x02 << 14 | 5));
+
+    // A read that the keyboard did not answer is a failed save, with the reason.
+    try self.startSave("Second");
+    _ = self.shared.captures_done.fetchAdd(1, .release);
+    self.shared.capture_answered.store(false, .monotonic);
+    self.advanceSave();
+    try std.testing.expectEqual(plugin.SaveState.failed, self.save.state);
+    try std.testing.expectEqualStrings("the keyboard did not answer", self.save.failure());
+    // A failed save can be tried again.
+    try self.startSave("Second");
+    try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
+}
+
 test "a control change parameter sends a CC and nothing else" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();

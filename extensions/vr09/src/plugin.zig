@@ -89,6 +89,43 @@ pub var instances: [max_instances]?*Plugin = [_]?*Plugin{null} ** max_instances;
 pub var shared_bridge: ?*audio.Bridge = null;
 var timer_registered: bool = false;
 
+pub const SaveState = enum { idle, reading, done, failed };
+
+/// A save of the keyboard as a preset. The keyboard is read first, which takes a moment, so the save has
+/// two parts: `startSave` asks for the read, and `advanceSave` writes the file once the read has ended.
+/// Only the main thread touches it.
+pub const SaveJob = struct {
+    state: SaveState = .idle,
+    name: [96]u8 = undefined,
+    name_len: usize = 0,
+    /// The number of finished captures when the save began, so that the end of this one is told apart.
+    baseline: u32 = 0,
+    started_ms: i64 = 0,
+    file: [128]u8 = undefined,
+    file_len: usize = 0,
+    known: usize = 0,
+    message: [96]u8 = undefined,
+    message_len: usize = 0,
+
+    pub fn fileName(self: *const SaveJob) []const u8 {
+        return self.file[0..self.file_len];
+    }
+
+    pub fn failure(self: *const SaveJob) []const u8 {
+        return self.message[0..self.message_len];
+    }
+
+    fn fail(self: *SaveJob, text: []const u8) void {
+        const n = @min(text.len, self.message.len);
+        @memcpy(self.message[0..n], text[0..n]);
+        self.message_len = n;
+        self.state = .failed;
+    }
+};
+
+/// A read that has not ended in this long is given up, whatever the keyboard does.
+const save_timeout_ms: i64 = 120_000;
+
 pub const Plugin = struct {
     clap: c.clap_plugin_t,
     host: [*c]const c.clap_host_t,
@@ -130,6 +167,7 @@ pub const Plugin = struct {
     // position in force (0 for none) and `pending_scene` is one that automation asked for and that the
     // main thread has not loaded yet.
     scene_list: *scenes.List,
+    save: SaveJob,
     scene: std.atomic.Value(u8),
     pending_scene: std.atomic.Value(u8),
 
@@ -193,6 +231,7 @@ pub const Plugin = struct {
         self.midi_logged = 0;
         self.router = .{};
         self.scene_list = scene_list;
+        self.save = .{};
         self.scene = std.atomic.Value(u8).init(0);
         self.pending_scene = std.atomic.Value(u8).init(0);
         self.loop_state_logged = @intFromEnum(audio.LoopState.off);
@@ -316,6 +355,52 @@ pub const Plugin = struct {
         self.rescanParamValues();
     }
 
+    pub const SaveError = error{ Busy, EmptyName, NameTooLong, NotConnected, QueueFull };
+
+    /// Begins saving the keyboard as a preset: it reads the keyboard first, so that the preset holds the
+    /// keyboard as it is and not what the plugin last knew. The file is written by `advanceSave`.
+    pub fn startSave(self: *Plugin, raw_name: []const u8) SaveError!void {
+        if (self.save.state == .reading) return error.Busy;
+        const trimmed = std.mem.trim(u8, raw_name, " ");
+        if (trimmed.len > self.save.name.len) return error.NameTooLong;
+        var clean: [96]u8 = undefined;
+        if (state.sanitizeName(&clean, trimmed).len == 0) return error.EmptyName;
+        if (!self.shared.connected.load(.acquire)) return error.NotConnected;
+        const baseline = self.shared.captures_done.load(.acquire);
+        if (!self.shared.sendCommand(.capture_keyboard)) return error.QueueFull;
+        @memcpy(self.save.name[0..trimmed.len], trimmed);
+        self.save.name_len = trimmed.len;
+        self.save.baseline = baseline;
+        self.save.started_ms = std.time.milliTimestamp();
+        self.save.state = .reading;
+    }
+
+    /// Writes the preset once the read has ended. Called once per tick, on the main thread.
+    pub fn advanceSave(self: *Plugin) void {
+        if (self.save.state != .reading) return;
+        if (self.shared.captures_done.load(.acquire) == self.save.baseline) {
+            if (std.time.milliTimestamp() - self.save.started_ms > save_timeout_ms) self.save.fail("the keyboard took too long to be read");
+            return;
+        }
+        if (!self.shared.capture_answered.load(.monotonic)) return self.save.fail("the keyboard did not answer");
+        if (!glue.ready) return self.save.fail("REAPER's API is not available");
+        var folder_buf: [fileio.max_path]u8 = undefined;
+        const folder = state.presetFolder(&folder_buf, glue.resourcePath()) catch return self.save.fail("the folder is too long");
+        self.finishSave(folder);
+    }
+
+    /// Writes what the keyboard read gave, as the preset of the save, in `folder`.
+    pub fn finishSave(self: *Plugin, folder: []const u8) void {
+        const patch = allocator.create(dump.Dump) catch return self.save.fail("out of memory");
+        defer allocator.destroy(patch);
+        self.shared.desiredSnapshot(patch);
+        const written = debug_api.writePreset(folder, self.save.name[0..self.save.name_len], patch, &self.save.file) catch |err| return self.save.fail(@errorName(err));
+        self.save.file_len = written.len;
+        self.save.known = patch.knownCount();
+        self.settings.setPresetName(state.displayName(written));
+        self.save.state = .done;
+    }
+
     /// Moves a scene, and the current scene with it. Fills `map` for the lane's points.
     pub fn moveScene(self: *Plugin, old_position: u8, new_position: u8, map: *scenes.Mapping) bool {
         const count = self.scene_list.count;
@@ -360,6 +445,7 @@ pub const Plugin = struct {
     pub fn tickMain(self: *Plugin) void {
         self.ticks +%= 1;
         self.applyPendingScene();
+        self.advanceSave();
         self.logTraces();
         self.logLoopState();
         self.findTrack();

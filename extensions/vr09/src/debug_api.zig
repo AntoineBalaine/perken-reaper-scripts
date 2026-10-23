@@ -329,6 +329,83 @@ fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
     try w.writeByte('}');
 }
 
+// ---- the preset files ----
+
+pub const PresetError = error{ EmptyName, NameTooLong };
+
+/// Writes a dump as the preset `raw_name` in `folder`, creating the folder. The name is cleaned for
+/// use as a file name. Gives the name of the file that was written, in `file_out`.
+pub fn writePreset(folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: []u8) ![]const u8 {
+    var clean: [96]u8 = undefined;
+    if (raw_name.len > clean.len) return error.NameTooLong;
+    const name = state.sanitizeName(&clean, raw_name);
+    if (name.len == 0) return error.EmptyName;
+    try fileio.makePath(folder);
+    var path_buf: [fileio.max_path]u8 = undefined;
+    const path = try state.presetPath(&path_buf, folder, name);
+    try state.savePresetFile(plugin.allocator, path, scene);
+    return std.fmt.bufPrint(file_out, "{s}{s}", .{ name, state.preset_extension });
+}
+
+/// `save_preset`: saves the keyboard as a preset of the same folder as the panel's Patches tab. The
+/// keyboard is read first, and the file is written when the read ends, so the reply only says that the
+/// save began; `save_status` says how it went.
+fn cmdSavePreset(w: anytype, p: *Plugin, arg: []const u8) !void {
+    p.startSave(arg) catch |err| return writeError(w, switch (err) {
+        error.Busy => "a save is already running",
+        error.EmptyName => "give the preset a name",
+        error.NameTooLong => "the name is too long",
+        error.NotConnected => "the keyboard does not answer: connect it, and look for it again from the MIDI tab",
+        error.QueueFull => "the plugin is busy; try again",
+    });
+    try w.writeAll("{\"ok\":true,\"pending\":true}");
+}
+
+/// `save_status`: how the last save went. The state is idle, reading, done (with the file and how many
+/// bytes of the keyboard it holds) or failed (with the reason).
+fn cmdSaveStatus(w: anytype, p: *Plugin) !void {
+    const job = &p.save;
+    try w.print("{{\"ok\":true,\"state\":\"{s}\"", .{@tagName(job.state)});
+    switch (job.state) {
+        .done => {
+            try w.writeAll(",\"file\":");
+            try jsonString(w, job.fileName());
+            try w.print(",\"known\":{d},\"total\":{d}", .{ job.known, dump.total_bytes });
+        },
+        .failed => {
+            try w.writeAll(",\"error\":");
+            try jsonString(w, job.failure());
+        },
+        else => {},
+    }
+    try w.writeByte('}');
+}
+
+/// `load_preset`: loads a preset file of the presets folder and has the engine write it to the keyboard.
+fn cmdLoadPreset(w: anytype, p: *Plugin, arg: []const u8) !void {
+    const name = checkFileName(std.mem.trim(u8, arg, " ")) catch return writeError(w, "load_preset takes a file name of Data/Perken/vr09/presets");
+    if (!glue.ready) return writeError(w, "REAPER's API is not available");
+    var folder_buf: [fileio.max_path]u8 = undefined;
+    const folder = state.presetFolder(&folder_buf, glue.resourcePath()) catch return writeError(w, "the folder is too long");
+    var path_buf: [fileio.max_path]u8 = undefined;
+    const path = state.presetPath(&path_buf, folder, name) catch return writeError(w, "the path is too long");
+    p.loadPresetFile(path, state.displayName(name)) catch |err| return writeError(w, @errorName(err));
+    try w.writeAll("{\"ok\":true,\"loaded\":");
+    try jsonString(w, name);
+    try w.writeByte('}');
+}
+
+fn cmdDeletePreset(w: anytype, arg: []const u8) !void {
+    const name = checkFileName(std.mem.trim(u8, arg, " ")) catch return writeError(w, "delete_preset takes a file name of Data/Perken/vr09/presets");
+    if (!glue.ready) return writeError(w, "REAPER's API is not available");
+    var folder_buf: [fileio.max_path]u8 = undefined;
+    const folder = state.presetFolder(&folder_buf, glue.resourcePath()) catch return writeError(w, "the folder is too long");
+    var path_buf: [fileio.max_path]u8 = undefined;
+    const path = state.presetPath(&path_buf, folder, name) catch return writeError(w, "the path is too long");
+    fileio.deleteFile(path) catch |err| return writeError(w, @errorName(err));
+    try w.writeAll("{\"ok\":true}");
+}
+
 // ---- the session's scenes ----
 
 fn writeSceneList(w: anytype, p: *Plugin) !void {
@@ -547,11 +624,11 @@ fn cmdLog(w: anytype, arg: []const u8) !void {
 pub fn dispatch(w: anytype, track: ?*anyopaque, fx_index: c_int, command: []const u8, arg: []const u8) !void {
     if (std.mem.eql(u8, command, "devices")) return cmdDevices(w);
     if (std.mem.eql(u8, command, "log")) return cmdLog(w, arg);
-    const known = [_][]const u8{ "state", "set", "reconnect", "load_registration", "open_panel", "tab", "capture", "job", "export", "load_tone", "scenes", "scene_add", "scene_add_tone", "scene_remove", "scene_move", "scene_rename", "scene_select", "scene_clear" };
+    const known = [_][]const u8{ "state", "set", "reconnect", "load_registration", "open_panel", "tab", "capture", "job", "export", "load_tone", "save_preset", "save_status", "load_preset", "delete_preset", "scenes", "scene_add", "scene_add_tone", "scene_remove", "scene_move", "scene_rename", "scene_select", "scene_clear" };
     for (known) |k| {
         if (std.mem.eql(u8, command, k)) break;
     } else {
-        try writeError(w, "unknown command: use state, log, devices, set, reconnect, load_registration, open_panel, tab, capture, job, export, load_tone, scenes, scene_add, scene_add_tone, scene_remove, scene_move, scene_rename, scene_select or scene_clear");
+        try writeError(w, "unknown command: use state, log, devices, set, reconnect, load_registration, open_panel, tab, capture, job, export, load_tone, save_preset, save_status, load_preset, delete_preset, scenes, scene_add, scene_add_tone, scene_remove, scene_move, scene_rename, scene_select or scene_clear");
         return;
     }
     const p = findInstance(track, fx_index) orelse return writeError(w, "no VR-09 instance on that track");
@@ -564,6 +641,10 @@ pub fn dispatch(w: anytype, track: ?*anyopaque, fx_index: c_int, command: []cons
     if (std.mem.eql(u8, command, "job")) return cmdJob(w, p);
     if (std.mem.eql(u8, command, "export")) return cmdExport(w, p, arg);
     if (std.mem.eql(u8, command, "load_tone")) return cmdLoadTone(w, p, arg);
+    if (std.mem.eql(u8, command, "save_preset")) return cmdSavePreset(w, p, arg);
+    if (std.mem.eql(u8, command, "save_status")) return cmdSaveStatus(w, p);
+    if (std.mem.eql(u8, command, "load_preset")) return cmdLoadPreset(w, p, arg);
+    if (std.mem.eql(u8, command, "delete_preset")) return cmdDeletePreset(w, arg);
     if (std.mem.eql(u8, command, "scenes")) return writeSceneList(w, p);
     if (std.mem.eql(u8, command, "scene_add")) return cmdSceneAdd(w, p, arg);
     if (std.mem.eql(u8, command, "scene_add_tone")) return cmdSceneAddTone(w, p, arg);
@@ -691,7 +772,7 @@ test "the log ring keeps the last lines in order" {
 }
 
 test "an unknown command gives a JSON error" {
-    var buf: [256]u8 = undefined;
+    var buf: [1024]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&buf);
     try dispatch(fbs.writer(), null, 0, "nonsense", "");
     try std.testing.expect(std.mem.startsWith(u8, fbs.getWritten(), "{\"ok\":false,\"error\":\"unknown command"));
@@ -703,4 +784,33 @@ test "the log command wraps the lines" {
     var fbs = std.io.fixedBufferStream(&buf);
     try dispatch(fbs.writer(), null, 0, "log", "1");
     try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"lines\":[\"hello\"]") != null);
+}
+
+test "a preset is written under a clean name, in a folder that is created" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var root_buf: [fileio.max_path]u8 = undefined;
+    const root = try tmp.dir.realpath(".", &root_buf);
+    var folder_buf: [fileio.max_path]u8 = undefined;
+    const folder = try std.fmt.bufPrint(&folder_buf, "{s}/a/b/presets", .{root});
+
+    const scene = try std.testing.allocator.create(dump.Dump);
+    defer std.testing.allocator.destroy(scene);
+    scene.* = .{};
+    _ = scene.set(.kb, 0x02 << 14 | 5, 7);
+    var file: [128]u8 = undefined;
+    const written = try writePreset(folder, "  My organ / take 2 ", scene, &file);
+    try std.testing.expectEqualStrings("My organ _ take 2.vr09", written);
+
+    // The file holds the dump, and reads back as it was.
+    var path_buf: [fileio.max_path]u8 = undefined;
+    const path = try state.presetPath(&path_buf, folder, written);
+    const back = try std.testing.allocator.create(dump.Dump);
+    defer std.testing.allocator.destroy(back);
+    back.* = .{};
+    try state.loadPresetFile(std.testing.allocator, path, back);
+    try std.testing.expectEqual(@as(?u8, 7), back.get(.kb, 0x02 << 14 | 5));
+    try std.testing.expectEqual(@as(usize, 1), back.knownCount());
+
+    try std.testing.expectError(error.EmptyName, writePreset(folder, " . ", scene, &file));
 }

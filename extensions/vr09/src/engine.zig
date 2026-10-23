@@ -172,6 +172,12 @@ pub const Shared = struct {
     follow_panel: Atomic(bool) = Atomic(bool).init(true),
     recall_on_load: Atomic(bool) = Atomic(bool).init(true),
 
+    /// How many reads started by `capture_keyboard` have finished, and whether the last one was answered
+    /// by the keyboard. A caller that wants the keyboard's state counts the reads before it asks, and
+    /// waits for the count to move.
+    captures_done: Atomic(u32) = Atomic(u32).init(0),
+    capture_answered: Atomic(bool) = Atomic(bool).init(false),
+
     commands: Spsc(Command, 16) = .{},
     ui_changes: Spsc(UiChange, 256) = .{},
 
@@ -665,6 +671,8 @@ pub const Engine = struct {
             .recall => self.recallNow(),
             .capture => {
                 if (answered) self.capture();
+                self.shared.capture_answered.store(answered, .monotonic);
+                _ = self.shared.captures_done.fetchAdd(1, .release);
             },
         }
         self.auto = .done;
@@ -1112,6 +1120,38 @@ test "capturing the keyboard replaces what the project wanted" {
     try std.testing.expect(shared.getDesired(.kb, 0x02 << 14 | 5).? != 1);
     try std.testing.expect(shared.sendCommand(.capture_keyboard));
     h.runSeconds(2.0);
+    try std.testing.expectEqual(@as(?u8, 1), shared.getDesired(.kb, 0x02 << 14 | 5));
+}
+
+test "a capture says when it is done, and whether the keyboard answered" {
+    const allocator = std.testing.allocator;
+    var shared = try allocator.create(Shared);
+    defer allocator.destroy(shared);
+    shared.* = .{};
+    var h = makeHarness(allocator, shared);
+    defer h.keyboard.deinit();
+    defer h.params_seen.deinit();
+    defer h.midi_seen.deinit();
+    fillKeyboard(&h.keyboard.state, 3);
+    h.runSeconds(2.0);
+
+    // The start-up read is not a capture, so the count has not moved.
+    try std.testing.expectEqual(@as(u32, 0), shared.captures_done.load(.acquire));
+    _ = h.keyboard.state.set(.kb, 0x02 << 14 | 5, 1);
+    try std.testing.expect(shared.sendCommand(.capture_keyboard));
+    h.runSeconds(2.0);
+    try std.testing.expectEqual(@as(u32, 1), shared.captures_done.load(.acquire));
+    try std.testing.expect(shared.capture_answered.load(.monotonic));
+    try std.testing.expectEqual(@as(?u8, 1), shared.getDesired(.kb, 0x02 << 14 | 5));
+
+    // A keyboard that stops answering still ends the capture, and says so.
+    h.keyboard.answers = false;
+    _ = h.keyboard.state.set(.kb, 0x02 << 14 | 5, 2);
+    try std.testing.expect(shared.sendCommand(.capture_keyboard));
+    h.runSeconds(60.0);
+    try std.testing.expectEqual(@as(u32, 2), shared.captures_done.load(.acquire));
+    try std.testing.expect(!shared.capture_answered.load(.monotonic));
+    // What the plugin knew is kept.
     try std.testing.expectEqual(@as(?u8, 1), shared.getDesired(.kb, 0x02 << 14 | 5));
 }
 

@@ -163,6 +163,8 @@ Commands that act:
 - `set` with `arg` `name=value` for `pass_midi`, `sysex_bare`, `autoconnect_done` or `split` (1, 0, true, false, on, off). `split` is remembered for the current patch, like the Patches tab's checkbox.
 - `reconnect`: the panel's "Look for the keyboard again".
 - `load_registration` with a file name of `Data/Perken/vr09/registrations`.
+- `save_preset` with a name: reads the keyboard first, and writes it as `<name>.vr09` in the presets folder (the same file the Patches tab's "Save as preset" writes) when the read ends. The reply only says that the save began (`pending`); `save_status` says how it went: `idle`, `reading`, `done` (with the `file`, and `known` and `total`, the bytes read and the bytes of a whole patch) or `failed` (with the `error`, such as the keyboard not answering). It refuses when the keyboard is not connected. `load_preset` and `delete_preset` take a file name of that folder.
+- `load_tone` with `<part> <tone number> <bank MSB> <bank LSB>|<name>`: writes that tone to the keyboard, as a tone scene does, without adding a scene.
 - `open_panel`.
 - `capture` reads the whole keyboard into the plugin, `job` reports the read's progress, and `export` with an absolute path writes the plugin's state as a `vr09.py` dump.
 - `tab` with `controls`, `patches`, `audio` or `midi`: brings that tab of the panel to the front, so that a script can drive the panel.
