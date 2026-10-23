@@ -141,6 +141,27 @@ local LABEL_FAMILIES = {
 }
 local LABEL_SIZE = 14
 
+-- The card titles are drawn in a heavier face than the controls' labels, so that the two levels of the
+-- panel's lettering are told apart: Arial Black where the system has it. The Lab window offers other
+-- faces for the titles, and remembers the choice.
+local TITLE_FAMILIES = {
+  macos = { "Arial Black" },
+  windows = { "Arial Black" },
+  linux = { "DejaVu Sans", "Noto Sans", "sans-serif" },
+}
+local TITLE_SIZE = 13
+
+-- The tabs have a face of their own, so that it can be changed apart from the card titles, and the
+-- choice is remembered like the titles'. It is Arial Black, the same as the titles, because the lab
+-- did not load Helvetica, which macOS keeps in a font collection (`Helvetica.ttc`), and plain Arial
+-- was not heavy enough next to the titles.
+local TAB_FAMILIES = {
+  macos = { "Arial Black" },
+  windows = { "Arial Black" },
+  linux = { "DejaVu Sans", "Noto Sans", "sans-serif" },
+}
+local TAB_SIZE = 13
+
 -- The numbers of the displays and of the knobs are drawn in a monospaced font, so that every digit has
 -- the same width and a value does not shift its neighbors as it changes.
 local MONO_FAMILIES = {
@@ -174,7 +195,45 @@ local function pick_family(families)
   return "sans-serif"
 end
 
+-- The families the Lab window offers for the card titles, so that a font can be judged by eye: the blocky
+-- and the squared ones of each system first. On Linux only the installed ones are offered.
+local FONT_CHOICES = {
+  macos = { "Arial", "DIN Alternate", "DIN Condensed", "Impact", "Krungthep", "Phosphate", "Monaco", "Arial Black",
+    "Rockwell", "Avenir Next Condensed Heavy", "Menlo", "Andale Mono", "PT Mono", "Courier New" },
+  windows = { "Arial", "Bahnschrift", "Impact", "Arial Black", "Consolas", "Lucida Console", "Courier New" },
+  linux = { "Liberation Sans", "DejaVu Sans", "Barlow Semi Condensed", "Roboto Condensed", "Liberation Sans Narrow",
+    "DejaVu Sans Condensed", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "Noto Sans", "sans-serif", "monospace" },
+}
+
+local function font_choices()
+  local os_name = reaper.GetOS()
+  if os_name:find("^OSX") or os_name:find("^macOS") then return FONT_CHOICES.macos end
+  if os_name:find("^Win") then return FONT_CHOICES.windows end
+  local installed = installed_families()
+  local found = {}
+  for _, family in ipairs(FONT_CHOICES.linux) do
+    local generic = family == "sans-serif" or family == "monospace"
+    if not installed or generic or installed:find(family:lower(), 1, true) then found[#found + 1] = family end
+  end
+  return found
+end
+
+local FONT_OPTIONS = font_choices()
+
 local LABEL_FAMILY = pick_family(LABEL_FAMILIES)
+
+-- The family chosen in the Lab window for the titles is remembered between runs; without one, the
+-- system's default.
+local function remembered_family(key, families)
+  local family = reaper.GetExtState(SECTION, key)
+  for _, option in ipairs(FONT_OPTIONS) do
+    if option == family then return family end
+  end
+  return pick_family(families)
+end
+
+local TITLE_FAMILY = remembered_family("title_font", TITLE_FAMILIES)
+local TAB_FAMILY = remembered_family("tab_font", TAB_FAMILIES)
 local MONO_FAMILY = pick_family(MONO_FAMILIES)
 
 local function new_context()
@@ -185,9 +244,13 @@ local function new_context()
   ImGui.Attach(ctx, font)
   env.fonts = {
     label = ImGui.CreateFont(LABEL_FAMILY, LABEL_SIZE),
+    title = ImGui.CreateFont(TITLE_FAMILY, TITLE_SIZE),
+    tab = ImGui.CreateFont(TAB_FAMILY, TAB_SIZE),
     mono = ImGui.CreateFont(MONO_FAMILY, MONO_SIZE),
   }
   ImGui.Attach(ctx, env.fonts.label)
+  ImGui.Attach(ctx, env.fonts.title)
+  ImGui.Attach(ctx, env.fonts.tab)
   ImGui.Attach(ctx, env.fonts.mono)
 end
 
@@ -204,8 +267,7 @@ local function draw_errors()
 end
 
 local function draw_lab_controls()
-  ImGui.SetNextWindowSize(ctx, 260, 210, ImGui.Cond_FirstUseEver)
-  local visible = ImGui.Begin(ctx, "Lab###vr09labctl", nil, ImGui.WindowFlags_NoCollapse)
+  local visible = ImGui.Begin(ctx, "Lab###vr09labctl", nil, ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_AlwaysAutoResize)
   if visible then
     local m = S.model
     local _
@@ -222,6 +284,32 @@ local function draw_lab_controls()
     end
     ImGui.SameLine(ctx)
     if ImGui.Button(ctx, "Error notice") then S.notice("Could not do that (mock error).", true) end
+    -- The title font is chosen by eye. A font is attached to a context, so that a new choice makes the
+    -- loop drop this context and start a new one, as it does after an error.
+    ImGui.Text(ctx, "Card title font")
+    ImGui.SetNextItemWidth(ctx, 240)
+    if ImGui.BeginCombo(ctx, "##titlefont", TITLE_FAMILY) then
+      for _, family in ipairs(FONT_OPTIONS) do
+        if ImGui.Selectable(ctx, family, family == TITLE_FAMILY) then
+          TITLE_FAMILY = family
+          reaper.SetExtState(SECTION, "title_font", family, true)
+          S.font_changed = true
+        end
+      end
+      ImGui.EndCombo(ctx)
+    end
+    ImGui.Text(ctx, "Tab font")
+    ImGui.SetNextItemWidth(ctx, 240)
+    if ImGui.BeginCombo(ctx, "##tabfont", TAB_FAMILY) then
+      for _, family in ipairs(FONT_OPTIONS) do
+        if ImGui.Selectable(ctx, family, family == TAB_FAMILY) then
+          TAB_FAMILY = family
+          reaper.SetExtState(SECTION, "tab_font", family, true)
+          S.font_changed = true
+        end
+      end
+      ImGui.EndCombo(ctx)
+    end
     ImGui.Text(ctx, ("Reloads: %d"):format(S.reloads))
     if S.reloaded_at and reaper.time_precise() - S.reloaded_at < 1.5 then
       ImGui.SameLine(ctx)
@@ -286,6 +374,11 @@ local function loop()
   local ok, result = xpcall(draw_frame, debug.traceback)
   if ok then
     consecutive_failures = 0
+    if S.font_changed then
+      S.font_changed = false
+      ctx = nil
+      restore_window = true
+    end
     if result then reaper.defer(loop) else cleanup() end
   else
     -- A failure inside a frame leaves ImGui's stacks unbalanced, so the context is dropped (ReaImGui

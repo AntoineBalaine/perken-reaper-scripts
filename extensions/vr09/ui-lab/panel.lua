@@ -9,6 +9,17 @@ local ImGui = env.ImGui
 
 local M = {}
 
+-- Begins a tab, with its name drawn in the tab font, or in the title font when the lab has none.
+-- Because ImGui draws the name when the tab begins, the font is popped at once, and the tab's content
+-- keeps the usual one.
+local function begin_tab(ctx, label)
+  local tab_font = env.fonts and (env.fonts.tab or env.fonts.title)
+  if tab_font then ImGui.PushFont(ctx, tab_font) end
+  local open = ImGui.BeginTabItem(ctx, label)
+  if tab_font then ImGui.PopFont(ctx) end
+  return open
+end
+
 -- ---- the header ----
 
 -- The keyboard's state in a card: a lamp and a line saying whether it answers, the progress of a
@@ -440,7 +451,7 @@ end
 local function controls(ctx, S)
   if not ImGui.BeginTabBar(ctx, "##sections") then return end
   for _, s in ipairs(SECTIONS) do
-    if ImGui.BeginTabItem(ctx, s.name) then
+    if begin_tab(ctx, s.name) then
       section(ctx, S, s.groups)
       ImGui.EndTabItem(ctx)
     end
@@ -633,7 +644,7 @@ local function midi(ctx, S)
   end
   if widgets.begin_card(ctx, "Connection") then
     if widgets.push_button(ctx, "Look for the keyboard again") then S.notice("Asking the keyboard who it is.", false) end
-    widgets.display(ctx, "sent 137   received 654   bad checksums 0", th.amber, 360)
+    widgets.display(ctx, "sent 137   received 654   bad checksums 0", th.amber, 360, true)
     ImGui.TextColored(ctx, th.grey, "(mock values)")
     widgets.end_card(ctx)
   end
@@ -644,19 +655,19 @@ end
 function M.draw(ctx, S)
   header(ctx, S)
   if ImGui.BeginTabBar(ctx, "##tabs") then
-    if ImGui.BeginTabItem(ctx, "Controls") then
+    if begin_tab(ctx, "Controls") then
       controls(ctx, S)
       ImGui.EndTabItem(ctx)
     end
-    if ImGui.BeginTabItem(ctx, "Patches") then
+    if begin_tab(ctx, "Patches") then
       patches(ctx, S)
       ImGui.EndTabItem(ctx)
     end
-    if ImGui.BeginTabItem(ctx, "Audio loop") then
+    if begin_tab(ctx, "Audio loop") then
       audio_loop(ctx, S)
       ImGui.EndTabItem(ctx)
     end
-    if ImGui.BeginTabItem(ctx, "MIDI") then
+    if begin_tab(ctx, "MIDI") then
       midi(ctx, S)
       ImGui.EndTabItem(ctx)
     end

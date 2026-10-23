@@ -87,6 +87,15 @@ local function push_label_font(ctx)
   return true
 end
 
+-- The card titles are drawn in a heavier face of their own, and in the label font when the lab has no
+-- title font. Returns true when a font was pushed, and then the caller pops it.
+local function push_title_font(ctx)
+  local title_font = env.fonts and (env.fonts.title or env.fonts.label)
+  if not title_font then return false end
+  ImGui.PushFont(ctx, title_font)
+  return true
+end
+
 -- The numbers are drawn in their own monospaced font, so that every digit has the same width. Returns
 -- true when the font was pushed, and then the caller pops it.
 local function push_mono_font(ctx)
@@ -99,7 +108,7 @@ end
 -- Text that looks cut into the panel: a dark copy one pixel below, the light text over it.
 function M.engraved_text(ctx, text, color)
   local th = env.theme
-  local pushed = push_label_font(ctx)
+  local pushed = push_title_font(ctx)
   local dl = ImGui.GetWindowDrawList(ctx)
   local x, y = ImGui.GetCursorScreenPos(ctx)
   ImGui.DrawList_AddText(dl, x, y + 1, th.text_engraved_shadow, text)
@@ -846,11 +855,14 @@ function M.lamp(ctx, color, lit)
   if lit then ImGui.DrawList_AddCircleFilled(dl, cx - 1.5, cy - 1.5, 1.2, 0xFFFFFF99) end
 end
 
--- A small recessed screen with a line of text in it, at least `min_width` pixels wide.
-function M.display(ctx, text, color, min_width)
+-- A small recessed screen with a line of text in it, at least `min_width` pixels wide. The text is in
+-- the label font, and in the monospaced font when `numbers` is true, for a display of counts or
+-- values, where every digit must have the same width.
+function M.display(ctx, text, color, min_width, numbers)
   local th = env.theme
   local x, y = ImGui.GetCursorScreenPos(ctx)
-  local pushed = push_mono_font(ctx)
+  local pushed
+  if numbers then pushed = push_mono_font(ctx) else pushed = push_label_font(ctx) end
   local text_w, text_h = ImGui.CalcTextSize(ctx, text)
   local width, height = math.max(min_width or 0, text_w + 20), text_h + 10
   ImGui.Dummy(ctx, width, height)
