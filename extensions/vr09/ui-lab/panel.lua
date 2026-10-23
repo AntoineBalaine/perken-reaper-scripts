@@ -643,6 +643,7 @@ local ENGINE_ROWS = {
   {
     { title = "Oscillator", ids = { "engine-osc-wave", "engine-osc-variation", "engine-osc-pitch", "engine-osc-detune", "engine-osc-pwm-depth", "engine-osc-pulse-width" } },
     { title = "Pitch envelope", ids = { "engine-pitch-env-attack", "engine-pitch-env-decay", "engine-pitch-env-depth" } },
+    { title = "PCM and super saw", ids = { "engine-wave-number", "engine-super-saw-detune" } },
   },
   {
     { title = "Filter", ids = { "engine-filter-mode", "engine-filter-slope", "engine-filter-cutoff", "engine-filter-keyfollow", "engine-filter-resonance" } },
@@ -655,10 +656,12 @@ local ENGINE_ROWS = {
   },
   {
     { title = "Synth tone", draw = "card_of_engine_tone" },
+    { title = "Portamento", ids = { "engine-porta-switch", "engine-porta-time", "engine-mono-poly" } },
     { title = "Partials", ids = { "engine-partial1-switch", "engine-partial2-switch", "engine-partial3-switch", "engine-partial1-select", "engine-partial2-select", "engine-partial3-select" } },
   },
   {
-    { title = "LFO", ids = { "engine-lfo-shape", "engine-lfo-rate", "engine-lfo-sync", "engine-lfo-sync-note", "engine-lfo-fade", "engine-lfo-pitch-depth", "engine-lfo-filter-depth" } },
+    { title = "LFO", ids = { "engine-lfo-shape", "engine-lfo-rate", "engine-lfo-sync", "engine-lfo-sync-note", "engine-lfo-fade", "engine-lfo-pitch-depth", "engine-lfo-filter-depth", "engine-lfo-amp-depth" } },
+    { title = "Modulation LFO", ids = { "engine-mod-lfo-shape", "engine-mod-lfo-rate", "engine-mod-lfo-sync", "engine-mod-lfo-sync-note", "engine-mod-lfo-pitch-depth", "engine-mod-lfo-filter-depth", "engine-mod-lfo-amp-depth", "engine-mod-lfo-rate-control" } },
   },
 }
 

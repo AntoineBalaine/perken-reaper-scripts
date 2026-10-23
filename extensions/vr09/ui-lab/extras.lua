@@ -216,6 +216,28 @@ engine("tone-level", "Synth tone level", "tone level", 0, 127, { default = 100 }
 engine("wave-shape", "Wave shape", "wave shape", 0, 127)
 engine("tone-category", "Tone category", "category", 0, 127)
 
+-- The rest of the synth tone: its portamento and its mono / poly setting (the document gives no names for
+-- the two values of the last), the PCM wave number and the super-saw detune of a partial, the LFO's
+-- amplitude depth, and the modulation LFO, which has the shape, the rate and the sync of the LFO and its
+-- own depths.
+engine("porta-switch", "Portamento switch", "portamento", 0, 1, { names = { "Off", "On" } })
+engine("porta-time", "Portamento time", "time", 0, 127)
+engine("mono-poly", "Mono / poly", "mono / poly", 0, 1, { names = { "0", "1" } })
+engine("wave-number", "PCM wave number", "wave number", 0, 16384)
+engine("super-saw-detune", "Super saw detune", "super saw", 0, 127)
+engine("lfo-amp-depth", "LFO amplitude depth", "amp", 1, 127, bipolar())
+
+local sync_notes = { "16", "12", "8", "4", "2", "1", "3/4", "2/3", "1/2", "3/8", "1/3", "1/4", "3/16", "1/6", "1/8",
+  "3/32", "1/12", "1/16", "1/24", "1/32" }
+engine("mod-lfo-shape", "Modulation LFO shape", "shape", 0, 5, { names = { "Tri", "Sin", "Saw", "Sqr", "S&H", "Rnd" } })
+engine("mod-lfo-rate", "Modulation LFO rate", "rate", 0, 127)
+engine("mod-lfo-sync", "Modulation LFO tempo sync", "tempo sync", 0, 1, { names = { "Off", "On" } })
+engine("mod-lfo-sync-note", "Modulation LFO tempo sync note", "sync note", 0, 19, { names = sync_notes })
+engine("mod-lfo-pitch-depth", "Modulation LFO pitch depth", "pitch", 1, 127, bipolar())
+engine("mod-lfo-filter-depth", "Modulation LFO filter depth", "filter", 1, 127, bipolar())
+engine("mod-lfo-amp-depth", "Modulation LFO amplitude depth", "amp", 1, 127, bipolar())
+engine("mod-lfo-rate-control", "Modulation LFO rate control", "rate control", 1, 127, bipolar())
+
 -- ---- the GM2 sounds ----
 
 -- The General MIDI 2 sound generator plays on the other channels, with Program Change and Bank Select.
