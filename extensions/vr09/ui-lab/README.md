@@ -17,10 +17,13 @@ It needs ReaImGui. It uses the same ReaImGui API version as the plugin (0.9.3), 
 
 ## What reloads
 
-The runner watches three files, and reloads one as soon as it changes:
+The runner watches these files, and reloads one as soon as it changes:
 
 - `theme.lua`: the colors and the styles pushed around the window;
 - `widgets.lua`: the components (the drawbar, the parameter slider). A new component starts here;
+- `scenes.lua`: the rules for the list of scenes (moving, removing, templates) and the points of a lane that follow;
+- `fuzzy.lua`: the fuzzy search of the patch table, with the same rules as the action palette of perken-utilities;
+- `scene_link.lua`: the link to the real plugin: the VR-09 on the selected track, its commands, and its Scene lane;
 - `panel.lua`: the header, the tabs and what they hold.
 
 `model.lua` (the mock keyboard), `catalog.lua` and `tones.lua` are read once, when the lab starts: close and run the lab again after changing them. `extras.lua` is read again when it changes.

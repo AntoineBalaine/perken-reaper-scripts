@@ -9,6 +9,21 @@ local ImGui = env.ImGui
 
 local M = {}
 
+-- Because the runner loads only the modules of its own list, a lab that was started before a module
+-- was added to that list has no such module in `env`. The panel then reads the file from its own
+-- folder, so that a new module works without starting the lab again (it reloads when the panel does).
+local SOURCE_DIR = debug.getinfo(1, "S").source:match("^@(.*[/\\])") or ""
+local loaded_here = {}
+
+local function module(name)
+  if env[name] then return env[name] end
+  if not loaded_here[name] then
+    local chunk = loadfile(SOURCE_DIR .. name .. ".lua")
+    loaded_here[name] = chunk and chunk(env)
+  end
+  return loaded_here[name]
+end
+
 -- Begins a tab, with its name drawn in the tab font, or in the title font when the lab has none.
 -- Because ImGui draws the name when the tab begins, the font is popped at once, and the tab's content
 -- keeps the usual one.
@@ -859,16 +874,75 @@ local function controls(ctx, S)
 end
 
 -- ---- the patches ----
+--
+-- Because a performer picks a sound by name, the registrations and the single tones share one table.
+-- The last column is the value of the plugin's Patch parameter that selects the row, so that an
+-- automation lane, a MIDI-learned control or the preset menu all reach the same row. A value never
+-- changes once given: the registrations take 1 to 100 (their number in the keyboard's own order, plus
+-- one), and the tones take 101 and up, in the order of tones.lua, which only grows at its end. The
+-- value 0 means that no patch is asked for.
 
-local function matches(entry, filter)
-  if filter == "" then return true end
-  local f = filter:lower()
-  if entry.name:lower():find(f, 1, true) then return true end
-  return ("%d-%d"):format(entry.bank, entry.slot):find(f, 1, true) ~= nil
-end
+local PATCH_TYPES = { "All", "Registration", "Tone" }
+local FIRST_TONE_VALUE = 101
+
+-- The tone lists in table order, each with the part of the lab that loading one of its tones fills.
+local TONE_LISTS = {
+  { list = "piano", part = "upper-piano" },
+  { list = "synth", part = "upper-synth" },
+  { list = "drum", part = nil },
+}
 
 local function program_of(entry)
   return (entry.bank - 1) * 4 + entry.slot - 1
+end
+
+-- Every patch of the table, registrations first and then the tones.
+local function patch_rows(S)
+  local rows = {}
+  for k, e in ipairs(S.model.registrations) do
+    rows[#rows + 1] = {
+      key = "reg" .. k, type = "Registration", number = ("%d-%d"):format(e.bank, e.slot),
+      name = (e.name:gsub("_", " ")), group = "", value = program_of(e) + 1, registration = e,
+    }
+  end
+  local position = 0
+  for _, source in ipairs(TONE_LISTS) do
+    for i, tone in ipairs(S.tones and S.tones[source.list] or {}) do
+      rows[#rows + 1] = {
+        key = "tone" .. source.list .. i, type = "Tone", number = "", name = tone.name, group = tone.group,
+        value = FIRST_TONE_VALUE + position, tone = { part = source.part, list = source.list, index = i },
+      }
+      position = position + 1
+    end
+  end
+  return rows
+end
+
+local ALL_GROUPS = "All groups"
+
+-- The groups of the table in the order that they first appear, after "All groups".
+local function group_names(rows)
+  local names, seen = { ALL_GROUPS }, {}
+  for _, row in ipairs(rows) do
+    if row.group ~= "" and not seen[row.group] then
+      seen[row.group] = true
+      names[#names + 1] = row.group
+    end
+  end
+  return names
+end
+
+-- Whether the type and the group filters let a row through. The search text is not part of it: it
+-- ranks the rows that remain, in `shown_rows`.
+local function matches(row, type_filter, group_filter)
+  if type_filter ~= "All" and row.type ~= type_filter then return false end
+  if group_filter ~= ALL_GROUPS and row.group ~= group_filter then return false end
+  return true
+end
+
+-- What the search is matched against: the name first, then the group, the number and the type.
+local function search_text(row)
+  return row.name .. " " .. row.group .. " " .. row.number .. " " .. row.type
 end
 
 local function load_registration(S, entry)
@@ -879,53 +953,581 @@ local function load_registration(S, entry)
   end
 end
 
-local function registrations(ctx, S)
-  local m, th, ui, widgets = S.model, env.theme, S.ui, env.widgets
-  if not widgets.begin_card(ctx, "Registrations") then return end
-  local regs = m.registrations
-  if #regs == 0 then
-    ImGui.TextColored(ctx, th.grey, "No registrations folder: run build-install.sh vr09 to fill Data/Perken/vr09/registrations.")
-    widgets.end_card(ctx)
+-- Because the lab has no tone parameters yet, a tone only moves the choice of the upper part (a
+-- position in its list), the same way the Tones tab does.
+local function load_patch(S, row)
+  if row.registration then
+    load_registration(S, row.registration)
+  elseif row.tone.part then
+    S.ui.tone[row.tone.part] = row.tone.index
+    S.notice(("Loaded tone %s on the upper part (mock)."):format(row.name), false)
+  else
+    S.notice("The lab does not load drum kits yet.", false)
+  end
+end
+
+local PATCH_TABLE_FLAGS = ImGui.TableFlags_RowBg | ImGui.TableFlags_Borders | ImGui.TableFlags_ScrollY
+  | ImGui.TableFlags_Sortable
+
+-- The text that a row is ordered by when the table is sorted by `column` (counted from 0). Because
+-- names and groups are compared in lower case, capitals do not sort apart from small letters. The
+-- patch ID is not part of the text; it only breaks ties, in `key_less`.
+local function sort_key(row, column)
+  if column == 0 then return row.type end
+  if column == 2 then return row.name:lower() end
+  if column == 3 then return row.group:lower() end
+  return ""
+end
+
+-- Because the text of two rows can be the same, or empty, the patch ID decides then, and the order is
+-- the same from one frame to the next. A sort by the ID itself compares the numbers.
+local function key_less(a, b)
+  if a.sort_key ~= b.sort_key then return a.sort_key < b.sort_key end
+  return a.value < b.value
+end
+
+local function sort_rows(rows, column, descending)
+  for _, row in ipairs(rows) do row.sort_key = sort_key(row, column) end
+  table.sort(rows, key_less)
+  if not descending then return end
+  local first, last = 1, #rows
+  while first < last do
+    rows[first], rows[last] = rows[last], rows[first]
+    first, last = first + 1, last - 1
+  end
+end
+
+-- The rows that the filters let through. A search ranks them by how well they match, best first.
+local function shown_rows(rows, ui)
+  local shown = {}
+  for _, row in ipairs(rows) do
+    if matches(row, ui.patch_type, ui.patch_group) then shown[#shown + 1] = row end
+  end
+  if ui.patch_filter == "" then return shown end
+  local texts = {}
+  for i, row in ipairs(shown) do texts[i] = search_text(row) end
+  local ranked = {}
+  for k, index in ipairs(module("fuzzy").rank(ui.patch_filter, texts)) do ranked[k] = shown[index] end
+  return ranked
+end
+
+local SORT_COLUMNS = { "Type", "No.", "Name", "Group", "Patch ID" }
+
+-- A small button, "Add" with an arrow pointing to the scenes. Because the font has no arrow, the arrow
+-- is drawn as a triangle on the right of the button, in the room that trailing spaces leave.
+local function add_button(ctx, th, id)
+  local clicked = ImGui.SmallButton(ctx, "Add    ##" .. id)
+  local left, top = ImGui.GetItemRectMin(ctx)
+  local right, bottom = ImGui.GetItemRectMax(ctx)
+  local x, y = right - 10, (top + bottom) / 2
+  ImGui.DrawList_AddTriangleFilled(ImGui.GetWindowDrawList(ctx), x - 3, y - 4, x - 3, y + 4, x + 3, y, th.text)
+  return clicked
+end
+
+-- The library's rows by patch ID.
+local function patches_by_id(S)
+  local by_id = {}
+  for _, row in ipairs(patch_rows(S)) do by_id[row.value] = row end
+  return by_id
+end
+
+-- ---- the link to the plugin ----
+--
+-- The scenes live in the plugin, which keeps them in the project. The lab asks the plugin to add, move
+-- or remove them, and shows the list that the plugin has, so what the panel shows is what a lane plays.
+
+local function link()
+  return module("scene_link")
+end
+
+-- The fields of a plugin command are separated by `|`, so a name must not hold one.
+local function field(text)
+  return (text:gsub("|", "/"))
+end
+
+-- Whether two lists of scenes say the same, so that a list that did not change keeps its rows' IDs.
+local function same_scenes(a, b)
+  if #a ~= #b then return false end
+  for i, scene in ipairs(a) do
+    if scene.name ~= b[i].name or scene.patch_id ~= b[i].patch_id or scene.label ~= b[i].label then return false end
+  end
+  return true
+end
+
+-- Makes the lab's list the plugin's. A list that did not change is left alone, because the rows are
+-- known by an ID while one of them is dragged.
+local function sync_scenes(S, target)
+  local reply = link().command(target, "scenes")
+  if not link().ok(reply) then return end
+  local list, current = link().read_scenes(reply)
+  S.ui.scene_current = current
+  if same_scenes(S.ui.scenes, list) then return end
+  for i, scene in ipairs(list) do
+    scene.patch = { name = scene.label ~= "" and scene.label or "(the plugin's state)", value = scene.patch_id }
+    local old = S.ui.scenes[i]
+    if old and old.name == scene.name and old.patch_id == scene.patch_id then scene.uid = old.uid end
+  end
+  S.ui.scenes = list
+  module("scenes").ensure_uids(list)
+end
+
+-- Puts a library row at the end of the session's scenes, as a scene of the given name.
+local function add_to_scenes(S, row, scene_name)
+  local target, reason = link().target()
+  if not target then
+    S.notice(reason, true)
     return
   end
-  ImGui.SetNextItemWidth(ctx, 280)
+  local name = field(scene_name or row.name)
+  local reply
+  if row.registration then
+    reply = link().command(target, "scene_add", ("registrations/%s|%s|%d|%s"):format(row.registration.file, name, row.value, field(row.name)))
+  elseif row.tone.part then
+    local tone = S.tones[row.tone.list][row.tone.index]
+    local part = (row.tone.part:gsub("-", "_"))
+    reply = link().command(target, "scene_add_tone", ("%s %d %d %d|%s|%d|%s"):format(part, tone.number, tone.msb, tone.lsb, name, row.value, field(row.name)))
+  else
+    S.notice("The lab does not make scenes of drum kits yet.", false)
+    return
+  end
+  if not link().ok(reply) then
+    S.notice(link().error_of(reply), true)
+    return
+  end
+  sync_scenes(S, target)
+  S.notice(("Added \"%s\" as scene %d."):format(name, #S.ui.scenes), false)
+end
+
+-- Sends a patch to the keyboard through the plugin: a registration is loaded from its file, and a tone
+-- is written to its part. The lab's own copy of the keyboard follows, so the Controls tab shows it.
+local function send_patch(S, row)
+  local target, reason = link().target()
+  if not target then
+    S.notice(reason, true)
+    return
+  end
+  local reply
+  if row.registration then
+    reply = link().command(target, "load_registration", row.registration.file)
+  elseif row.tone.part then
+    local tone = S.tones[row.tone.list][row.tone.index]
+    local part = (row.tone.part:gsub("-", "_"))
+    reply = link().command(target, "load_tone", ("%s %d %d %d|%s"):format(part, tone.number, tone.msb, tone.lsb, field(row.name)))
+  else
+    S.notice("The lab does not send drum kits yet.", false)
+    return
+  end
+  if not link().ok(reply) then
+    S.notice(link().error_of(reply), true)
+    return
+  end
+  load_patch(S, row)
+  S.notice(("Sent \"%s\" to the keyboard."):format(row.name), false)
+end
+
+local function patch_table(ctx, S)
+  local th, ui = env.theme, S.ui
+  local rows = patch_rows(S)
+  -- Because the theme's header color is nearly the table's own gray, the selected row takes the accent.
+  ImGui.PushStyleColor(ctx, ImGui.Col_Header, th.amber & 0xFFFFFF00 | 0x70)
+  if ImGui.BeginTable(ctx, "##patchtable", 6, PATCH_TABLE_FLAGS, 700, 360) then
+    ImGui.TableSetupScrollFreeze(ctx, 0, 1)
+    ImGui.TableSetupColumn(ctx, "Type", ImGui.TableColumnFlags_WidthFixed, 110)
+    ImGui.TableSetupColumn(ctx, "No.", ImGui.TableColumnFlags_WidthFixed, 50)
+    ImGui.TableSetupColumn(ctx, "Name", ImGui.TableColumnFlags_WidthStretch)
+    ImGui.TableSetupColumn(ctx, "Group", ImGui.TableColumnFlags_WidthFixed, 90)
+    ImGui.TableSetupColumn(ctx, "Patch ID", ImGui.TableColumnFlags_WidthFixed, 90)
+    ImGui.TableSetupColumn(ctx, "Scenes", ImGui.TableColumnFlags_WidthFixed | ImGui.TableColumnFlags_NoSort, 72)
+    ImGui.TableHeadersRow(ctx)
+    local shown = shown_rows(rows, ui)
+    -- The first sort spec is the column the player clicked last. Because the table may report it only
+    -- on the frame of the click, and the rows are rebuilt each frame, the choice is kept in `ui`;
+    -- without one, the table keeps the order of its list.
+    -- ReaImGui returns the column's index before the user id that TableSetupColumn can give it.
+    local has_spec, column, _, direction = ImGui.TableGetColumnSortSpecs(ctx, 0)
+    if has_spec then
+      ui.patch_sort = { column = column, descending = direction == ImGui.SortDirection_Descending }
+    end
+    -- While a search is typed, the rows stay in the order of their match.
+    if ui.patch_sort and ui.patch_filter == "" then
+      sort_rows(shown, ui.patch_sort.column, ui.patch_sort.descending)
+    end
+    for _, row in ipairs(shown) do
+      ImGui.TableNextRow(ctx)
+      ImGui.TableNextColumn(ctx)
+      -- One click selects the row; a double click sends it to the keyboard.
+      if ImGui.Selectable(ctx, row.type .. "##" .. row.key, ui.patch_selected == row.key, ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap | ImGui.SelectableFlags_AllowDoubleClick) then
+        ui.patch_selected = row.key
+        if ImGui.IsMouseDoubleClicked(ctx, 0) then send_patch(S, row) end
+      end
+      ImGui.TableNextColumn(ctx)
+      ImGui.Text(ctx, row.number)
+      ImGui.TableNextColumn(ctx)
+      ImGui.Text(ctx, row.name)
+      ImGui.TableNextColumn(ctx)
+      ImGui.TextColored(ctx, th.grey, row.group)
+      ImGui.TableNextColumn(ctx)
+      ImGui.Text(ctx, tostring(row.value))
+      ImGui.TableNextColumn(ctx)
+      if add_button(ctx, th, "add" .. row.key) then add_to_scenes(S, row) end
+    end
+    ImGui.EndTable(ctx)
+  end
+  ImGui.PopStyleColor(ctx)
+  if ui.patch_filter ~= "" then
+    ImGui.TextColored(ctx, th.grey, "Ranked by how well each patch matches the search. Clear the search to sort by a column.")
+  elseif ui.patch_sort then
+    ImGui.TextColored(ctx, th.grey, ("Sorted by %s, %s."):format(SORT_COLUMNS[ui.patch_sort.column + 1] or "?", ui.patch_sort.descending and "descending" or "ascending"))
+  else
+    ImGui.TextColored(ctx, th.grey, "In list order. Click a header to sort.")
+  end
+end
+
+-- ---- the session's scenes ----
+--
+-- The scenes are copies of patches that live in the plugin's saved state, and the Scene parameter holds
+-- a position in the list. The lab shows a mock lane of that parameter beside the list, to see that
+-- moving or removing a scene moves the lane's points with it.
+
+local function scene_label(scene)
+  return ("%s  (%s)"):format(scene.name, scene.patch.name)
+end
+
+-- Sets the Scene parameter: the plugin loads the scene's patch. The lab's own copy of the keyboard
+-- shows the patch too, when the library has it.
+local function select_scene(S, position)
+  local target, reason = link().target()
+  if not target then
+    S.notice(reason, true)
+    return
+  end
+  local reply = link().command(target, "scene_select", tostring(position))
+  if not link().ok(reply) then
+    S.notice(link().error_of(reply), true)
+    return
+  end
+  S.ui.scene_current = position
+  local scene = S.ui.scenes[position]
+  local row = scene and scene.patch_id > 0 and patches_by_id(S)[scene.patch_id]
+  if row then load_patch(S, row) end
+end
+
+-- Moves a scene. The plugin answers with where every position went, and the lane's points follow,
+-- so that the song keeps playing the same scenes. The list moves at once, so that a dragged row stays
+-- under the mouse.
+local function move_scene(S, from, to)
+  local target = link().target()
+  if not target then return end
+  local reply = link().command(target, "scene_move", ("%d,%d"):format(from, to))
+  if not link().ok(reply) then
+    S.notice(link().error_of(reply), true)
+    return
+  end
+  module("scenes").move(S.ui.scenes, {}, from, to)
+  local map = link().read_map(reply)
+  local changed = map and link().remap_lane(target, map) or 0
+  S.ui.scene_current = map and map[S.ui.scene_current] or S.ui.scene_current
+  if changed > 0 then S.notice(("Moved a scene; %d lane points moved with it."):format(changed), false) end
+end
+
+local function remove_scene(S, position)
+  local target = link().target()
+  if not target then return end
+  local reply = link().command(target, "scene_remove", tostring(position))
+  if not link().ok(reply) then
+    S.notice(link().error_of(reply), true)
+    return
+  end
+  module("scenes").remove(S.ui.scenes, {}, position)
+  local map = link().read_map(reply)
+  local changed = map and link().remap_lane(target, map) or 0
+  S.ui.scene_current = map and map[S.ui.scene_current] or 0
+  S.notice(("Removed scene %d; %d lane points moved with it."):format(position, changed), false)
+end
+
+local function rename_scene(S, position, name)
+  local target = link().target()
+  if not target then return end
+  link().command(target, "scene_rename", ("%d|%s"):format(position, field(name)))
+end
+
+local SCENE_TABLE_FLAGS = ImGui.TableFlags_RowBg | ImGui.TableFlags_Borders
+
+-- Whether the mouse has left the item above or below, which says to move the dragged scene one place.
+-- Returns -1, 1 or 0. Because the scene then sits under the mouse again, the next step needs the
+-- mouse to leave it again.
+local function drag_step(ctx)
+  if not ImGui.IsItemActive(ctx) or ImGui.IsItemHovered(ctx) then return 0 end
+  local _, mouse_y = ImGui.GetMousePos(ctx)
+  local _, top = ImGui.GetItemRectMin(ctx)
+  local _, bottom = ImGui.GetItemRectMax(ctx)
+  if mouse_y < top then return -1 end
+  if mouse_y > bottom then return 1 end
+  return 0
+end
+
+-- The scene's name: plain text, which becomes a text input on a double click and goes back to text when
+-- the player presses Enter or leaves the field. Because a name is read far more often than it is
+-- changed, it is not an input by default. Returns whether the name was clicked.
+local function scene_name_cell(ctx, S, scene, position)
+  local ui = S.ui
+  if ui.scene_editing ~= scene.uid then
+    local shown = scene.name ~= "" and scene.name or "(no name)"
+    local clicked = ImGui.Selectable(ctx, shown .. "##scenename", false, ImGui.SelectableFlags_AllowOverlap)
+    if ImGui.IsItemHovered(ctx) and ImGui.IsMouseDoubleClicked(ctx, 0) then
+      ui.scene_editing, ui.scene_focus = scene.uid, true
+    end
+    return clicked
+  end
+  ImGui.SetNextItemWidth(ctx, -1)
+  -- The field takes the keyboard on the frame that it appears, with its text selected.
+  if ui.scene_focus then
+    ImGui.SetKeyboardFocusHere(ctx)
+    ui.scene_focus = false
+  end
   local _
-  _, ui.reg_filter = ImGui.InputTextWithHint(ctx, "##regfilter", "filter by name or bank-slot", ui.reg_filter)
-  -- The list has a width of its own, because the card grows with what it holds.
-  if ImGui.BeginChild(ctx, "##registrations", 460, 200) then
-    local i = 1
-    while i <= #regs do
-      local bank = regs[i].bank
-      local j, any = i, false
-      while j <= #regs and regs[j].bank == bank do
-        if matches(regs[j], ui.reg_filter) then any = true end
-        j = j + 1
+  _, scene.name = ImGui.InputText(ctx, "##name", scene.name, ImGui.InputTextFlags_AutoSelectAll)
+  if ImGui.IsItemDeactivated(ctx) or ImGui.IsKeyPressed(ctx, ImGui.Key_Enter) or ImGui.IsKeyPressed(ctx, ImGui.Key_KeypadEnter) then
+    ui.scene_editing = nil
+    rename_scene(S, position, scene.name)
+  end
+  return false
+end
+
+local function scene_rows(ctx, S)
+  local th, ui, scenes = env.theme, S.ui, module("scenes")
+  local move_from, move_to, remove_at
+  scenes.ensure_uids(ui.scenes)
+  ImGui.PushStyleColor(ctx, ImGui.Col_Header, th.amber & 0xFFFFFF00 | 0x70)
+  if ImGui.BeginTable(ctx, "##scenetable", 4, SCENE_TABLE_FLAGS) then
+    ImGui.TableSetupColumn(ctx, "Param #", ImGui.TableColumnFlags_WidthFixed, 70)
+    ImGui.TableSetupColumn(ctx, "Scene", ImGui.TableColumnFlags_WidthFixed, 170)
+    ImGui.TableSetupColumn(ctx, "Patch", ImGui.TableColumnFlags_WidthStretch)
+    ImGui.TableSetupColumn(ctx, "##remove", ImGui.TableColumnFlags_WidthFixed | ImGui.TableColumnFlags_NoHeaderLabel, 70)
+    ImGui.TableHeadersRow(ctx)
+    for i, scene in ipairs(ui.scenes) do
+      -- Because the rows change places while one is dragged, each is known by the ID of its scene.
+      ImGui.PushID(ctx, scene.uid)
+      ImGui.TableNextRow(ctx)
+      ImGui.TableNextColumn(ctx)
+      -- Because ImGui knows an item by its label, the label must not hold the position: a row that
+      -- changes its label while it is dragged would lose the mouse, and the window would move instead.
+      -- The position is drawn over the item afterwards, with the draw list so that the cursor stays put.
+      local cell_x, cell_y = ImGui.GetCursorScreenPos(ctx)
+      -- The item spans the row, so that a click anywhere on it selects the scene and a drag from anywhere
+      -- on it moves the scene; the name and the Remove button are drawn over it and take their own clicks.
+      local clicked = ImGui.Selectable(ctx, "##grab", ui.scene_current == i, ImGui.SelectableFlags_SpanAllColumns | ImGui.SelectableFlags_AllowOverlap)
+      local step = drag_step(ctx)
+      ImGui.DrawList_AddText(ImGui.GetWindowDrawList(ctx), cell_x + 4, cell_y, th.text, tostring(i))
+      if step ~= 0 and i + step >= 1 and i + step <= #ui.scenes then
+        move_from, move_to = i, i + step
+        ui.scene_dragged = true
       end
-      if any then
-        -- A filter opens the banks that match, so the result is visible.
-        if ui.reg_filter ~= "" then ImGui.SetNextItemOpen(ctx, true) end
-        if ImGui.TreeNode(ctx, ("Bank %d##bank%d"):format(bank, bank)) then
-          for k = i, j - 1 do
-            local e = regs[k]
-            if matches(e, ui.reg_filter) then
-              local label = ("%d-%d  %s  (PC %d)##reg%d"):format(e.bank, e.slot, e.name:gsub("_", " "), program_of(e), k)
-              local clicked = ImGui.Selectable(ctx, label, ui.reg_selected == k, ImGui.SelectableFlags_AllowDoubleClick)
-              if clicked then
-                ui.reg_selected = k
-                if ImGui.IsMouseDoubleClicked(ctx, 0) then load_registration(S, e) end
-              end
-            end
-          end
-          ImGui.TreePop(ctx)
-        end
+      -- A click that ends a drag does not select the scene.
+      if clicked and not ui.scene_dragged then select_scene(S, i) end
+      ImGui.TableNextColumn(ctx)
+      -- A click on the name selects the scene too, and a double click edits the name.
+      if scene_name_cell(ctx, S, scene, i) and not ui.scene_dragged then select_scene(S, i) end
+      ImGui.TableNextColumn(ctx)
+      ImGui.TextColored(ctx, th.grey, scene.patch.name)
+      ImGui.TableNextColumn(ctx)
+      if ImGui.SmallButton(ctx, "Remove") then remove_at = i end
+      ImGui.PopID(ctx)
+    end
+    ImGui.EndTable(ctx)
+  end
+  ImGui.PopStyleColor(ctx)
+  if not ImGui.IsMouseDown(ctx, 0) then ui.scene_dragged = false end
+  -- Because a move changes the list that the loop above reads, it is applied after the loop.
+  if move_from then
+    move_scene(S, move_from, move_to)
+  elseif remove_at then
+    remove_scene(S, remove_at)
+  end
+end
+
+-- ---- the scene templates ----
+--
+-- A template is a file of `Data/Perken/vr09/scenes`: the session's scenes by name and patch ID, so
+-- that a set can be loaded into another session.
+
+local TEMPLATE_EXTENSION = ".scenes"
+
+local function templates_folder(S)
+  return S.model.data .. "/scenes"
+end
+
+-- Keeps the letters, digits, spaces, dashes and underscores, because the name becomes a file name.
+local function template_file_name(name)
+  local clean = name:gsub("[^%w _%-]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if clean == "" then return nil end
+  return clean
+end
+
+local function read_text(path)
+  local f = io.open(path, "rb")
+  if not f then return nil end
+  local text = f:read("a")
+  f:close()
+  return text
+end
+
+local function template_names(S)
+  local names, i = {}, 0
+  local folder = templates_folder(S)
+  while true do
+    local file = reaper.EnumerateFiles(folder, i)
+    if not file then break end
+    i = i + 1
+    local name = file:match("^(.+)" .. TEMPLATE_EXTENSION:gsub("%.", "%%.") .. "$")
+    if name then names[#names + 1] = name end
+  end
+  table.sort(names, module("scenes").text_less)
+  return names
+end
+
+local function save_template(S, name)
+  local clean = template_file_name(name)
+  if not clean then
+    S.notice("Give the template a name first.", true)
+    return
+  end
+  reaper.RecursiveCreateDirectory(templates_folder(S), 0)
+  local f = io.open(templates_folder(S) .. "/" .. clean .. TEMPLATE_EXTENSION, "wb")
+  if not f then
+    S.notice("Could not write the template.", true)
+    return
+  end
+  f:write(module("scenes").to_text(S.ui.scenes))
+  f:close()
+  S.notice(("Saved %d scenes as the template \"%s\"."):format(#S.ui.scenes, clean), false)
+end
+
+-- Loads a template: it replaces the session's scenes, or goes after them. The plugin gets each scene
+-- from the library, by the patch ID that the template holds.
+local function load_template(S, name, append)
+  local text = read_text(templates_folder(S) .. "/" .. name .. TEMPLATE_EXTENSION)
+  if not text then
+    S.notice("Could not read the template.", true)
+    return
+  end
+  local target, reason = link().target()
+  if not target then
+    S.notice(reason, true)
+    return
+  end
+  local list, missing = module("scenes").from_text(text, patches_by_id(S))
+  if not append then link().command(target, "scene_clear") end
+  for _, scene in ipairs(list) do add_to_scenes(S, scene.patch, scene.name) end
+  sync_scenes(S, target)
+  local note = missing > 0 and ("; %d scenes left out, their patches are not in the library"):format(missing) or ""
+  S.notice(("Loaded the template \"%s\"%s."):format(name, note), missing > 0)
+end
+
+local function templates(ctx, S)
+  local th, ui, widgets = env.theme, S.ui, env.widgets
+  ui.template_name = ui.template_name or ""
+  if not ImGui.CollapsingHeader(ctx, "Scene templates") then return end
+  ImGui.SetNextItemWidth(ctx, 240)
+  local _
+  _, ui.template_name = ImGui.InputTextWithHint(ctx, "##templatename", "name of the template", ui.template_name)
+  ImGui.SameLine(ctx)
+  if widgets.push_button(ctx, "Save the scenes as a template") then save_template(S, ui.template_name) end
+  local names = template_names(S)
+  if #names == 0 then ImGui.TextColored(ctx, th.grey, "No templates yet.") end
+  if ImGui.BeginChild(ctx, "##templates", 460, 110) then
+    for _, name in ipairs(names) do
+      if ImGui.Selectable(ctx, name .. "##tpl" .. name, ui.template_selected == name) then
+        ui.template_selected, ui.template_name = name, name
       end
-      i = j
     end
     ImGui.EndChild(ctx)
   end
-  if ui.reg_selected and regs[ui.reg_selected] then
-    if widgets.push_button(ctx, "Load and send registration") then load_registration(S, regs[ui.reg_selected]) end
+  local chosen = ui.template_selected
+  if chosen then
+    if widgets.push_button(ctx, "Load, replacing the scenes") then load_template(S, chosen, false) end
+    ImGui.SameLine(ctx)
+    if widgets.push_button(ctx, "Add to the scenes") then load_template(S, chosen, true) end
+    ImGui.SameLine(ctx)
+    if widgets.push_button(ctx, "Delete") then
+      os.remove(templates_folder(S) .. "/" .. chosen .. TEMPLATE_EXTENSION)
+      ui.template_selected = nil
+    end
   end
+end
+
+-- Puts a square point at the edit cursor on the lane of the Scene parameter, set to the selected scene.
+-- The lane is created when the track does not have one yet.
+local function insert_scene_point(S)
+  local target, reason = link().target()
+  if not target then
+    S.notice(reason, true)
+    return
+  end
+  if S.ui.scene_current < 1 then
+    S.notice("Select a scene first: click its row.", true)
+    return
+  end
+  local time, problem = link().insert_point(target, S.ui.scene_current)
+  if not time then
+    S.notice(problem, true)
+    return
+  end
+  S.notice(("Inserted scene %d at %.2f s."):format(S.ui.scene_current, time), false)
+end
+
+local function scene_list(ctx, S)
+  local th, ui, widgets = env.theme, S.ui, env.widgets
+  if not widgets.begin_card(ctx, "Scenes of this session") then return end
+  local target, reason = link().target()
+  -- The list follows the plugin a few times a second, except while a row is dragged or a name is edited.
+  if target and S.frame % 15 == 0 and not ui.scene_dragged and ui.scene_editing == nil then sync_scenes(S, target) end
+  if not target then
+    ImGui.TextColored(ctx, th.amber, reason)
+  elseif #ui.scenes == 0 then
+    ImGui.TextColored(ctx, th.grey, "No scenes yet. Press Add on a patch.")
+  else
+    scene_rows(ctx, S)
+  end
+  ImGui.Separator(ctx)
+  local current = ui.scenes[ui.scene_current]
+  ImGui.Text(ctx, ("Scene parameter: %d  %s"):format(ui.scene_current, current and current.name or "(no scene)"))
+  if widgets.push_button(ctx, "Insert a lane point at the cursor") then insert_scene_point(S) end
+  widgets.tooltip(ctx, "Puts a square point on the Scene parameter's lane at the edit cursor, set to the selected scene. The lane is created if the track does not have one yet.")
+  templates(ctx, S)
+  widgets.end_card(ctx)
+end
+
+local function patch_list(ctx, S)
+  local m, th, ui, widgets = S.model, env.theme, S.ui, env.widgets
+  -- Because these fields keep their values between frames, they start here the first time.
+  ui.patch_type = ui.patch_type or "All"
+  ui.patch_filter = ui.patch_filter or ""
+  ui.patch_group = ui.patch_group or ALL_GROUPS
+  if not widgets.begin_card(ctx, "Patches") then return end
+  if #m.registrations == 0 then
+    ImGui.TextColored(ctx, th.grey, "No registrations folder: run build-install.sh vr09 to fill Data/Perken/vr09/registrations.")
+  end
+  ImGui.SetNextItemWidth(ctx, 280)
+  local _
+  _, ui.patch_filter = ImGui.InputTextWithHint(ctx, "##patchfilter", "search: name, group, number (letters in order)", ui.patch_filter)
+  ImGui.SameLine(ctx)
+  ImGui.SetNextItemWidth(ctx, 140)
+  if ImGui.BeginCombo(ctx, "##patchtype", ui.patch_type) then
+    for _, kind in ipairs(PATCH_TYPES) do
+      if ImGui.Selectable(ctx, kind, ui.patch_type == kind) then ui.patch_type = kind end
+    end
+    ImGui.EndCombo(ctx)
+  end
+  ImGui.SameLine(ctx)
+  ImGui.SetNextItemWidth(ctx, 140)
+  if ImGui.BeginCombo(ctx, "##patchgroup", ui.patch_group) then
+    for _, name in ipairs(group_names(patch_rows(S))) do
+      if ImGui.Selectable(ctx, name, ui.patch_group == name) then ui.patch_group = name end
+    end
+    ImGui.EndCombo(ctx)
+  end
+  patch_table(ctx, S)
   widgets.end_card(ctx)
 end
 
@@ -952,8 +1554,13 @@ local function patches(ctx, S)
     _, m.recall_on_load = widgets.toggle(ctx, "Send the patch to the keyboard when the project opens", m.recall_on_load)
     widgets.end_card(ctx)
   end
+end
 
-  registrations(ctx, S)
+-- The Scenes tab: the library of patches, and beside it the session's scenes and the templates.
+local function scenes_tab(ctx, S)
+  patch_list(ctx, S)
+  ImGui.SameLine(ctx)
+  scene_list(ctx, S)
 end
 
 -- ---- the audio loop and MIDI tabs (mock) ----
@@ -1056,6 +1663,10 @@ function M.draw(ctx, S)
   if ImGui.BeginTabBar(ctx, "##tabs") then
     if begin_tab(ctx, "Controls") then
       controls(ctx, S)
+      ImGui.EndTabItem(ctx)
+    end
+    if begin_tab(ctx, "Scenes") then
+      scenes_tab(ctx, S)
       ImGui.EndTabItem(ctx)
     end
     if begin_tab(ctx, "Patches") then

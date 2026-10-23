@@ -41,7 +41,7 @@ local _, _, action_section, action_command = reaper.get_action_context()
 -- ---- the modules the lab reloads ----
 
 local env = { ImGui = ImGui }
-local MODULES = { "theme", "widgets", "panel" } -- in this order
+local MODULES = { "theme", "widgets", "scenes", "fuzzy", "scene_link", "panel" } -- in this order
 local sources = {}
 local S = { errors = {}, frame = 0, reloads = 0, notice_text = "", notice_until = 0, notice_is_error = false }
 
@@ -127,6 +127,7 @@ if S.model.registrations[1] then model_api.load_registration(S.model, S.model.re
 -- extras.lua is read by `check_reload`, now and each time the file changes.
 S.ui = {
   reg_filter = "", reg_selected = nil,
+  scenes = {}, lane = {}, scene_current = 0, -- the session's scenes, the mock automation lane, the Scene parameter's value
   tone = {}, tone_filter = {}, -- the chosen tone of each part (a position in its list), and its search text
   part_on = {}, -- whether each part sounds, by the part's id; a part that is not here is on
   loop_on = false, send_db = 0, return_db = 0,
