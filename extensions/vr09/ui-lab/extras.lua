@@ -185,4 +185,43 @@ engine("unison", "Unison", "unison", 0, 1, { names = { "Off", "On" } })
 engine("unison-size", "Unison size", "size", 0, 3, { names = { "2", "4", "6", "8" } })
 engine("ring", "Ring modulator", "ring", 0, 2, { names = { "Off", "---", "On" } })
 
+-- ---- the leftovers ----
+
+-- The volume of the upper piano's second layer, which the catalog's mixer does not have.
+add { id = "upper-piano-dual2-volume", label = "Upper piano (dual 2) volume", short = "volume", low = 0, high = 127, default = 100 }
+
+-- The sound shaping that every part's block has: the cutoff, the resonance, and the attack, decay and release.
+-- The catalog uses them for the synth parts only, and the synth's cutoff is refused by the unit.
+local shaping = { { "cutoff", "cutoff" }, { "resonance", "resonance" }, { "attack", "attack" }, { "decay", "decay" }, { "release", "release" } }
+for _, part in ipairs({ "upper-piano", "upper-piano-dual2", "lower-piano" }) do
+  for _, item in ipairs(shaping) do
+    add { id = part .. "-" .. item[1], label = part .. " " .. item[2], short = item[2], low = 0, high = 127, default = 64 }
+  end
+end
+
+-- The channel volume (CC 7) and the pan (CC 10) of the parts that the catalog does not have them for.
+add { id = "cc-upper-volume", label = "Upper volume (CC7)", short = "volume", low = 0, high = 127, default = 100 }
+add { id = "cc-lower-volume", label = "Lower volume (CC7)", short = "volume", low = 0, high = 127, default = 100 }
+add { id = "cc-lower-pan", label = "Lower pan (CC10)", short = "pan", low = 0, high = 127, default = 64 }
+add { id = "cc-piano-volume", label = "Piano (dual 2) volume (CC7)", short = "volume", low = 0, high = 127, default = 100 }
+add { id = "cc-piano-pan", label = "Piano (dual 2) pan (CC10)", short = "pan", low = 0, high = 127, default = 64 }
+
+-- The rest of the synth tone's common block: which partials sound and which are selected for editing, the
+-- tone's level, its wave shape and its category. The tone's name is a display in the lab.
+for partial = 1, 3 do
+  engine("partial" .. partial .. "-switch", "Partial " .. partial .. " switch", "partial " .. partial, 0, 1, { names = { "Off", "On" }, default = 1 })
+  engine("partial" .. partial .. "-select", "Partial " .. partial .. " select", "edit " .. partial, 0, 1, { names = { "Off", "On" }, default = partial == 1 and 1 or 0 })
+end
+engine("tone-level", "Synth tone level", "tone level", 0, 127, { default = 100 })
+engine("wave-shape", "Wave shape", "wave shape", 0, 127)
+engine("tone-category", "Tone category", "category", 0, 127)
+
+-- ---- the GM2 sounds ----
+
+-- The General MIDI 2 sound generator plays on the other channels, with Program Change and Bank Select.
+for _, channel in ipairs({ 5, 6, 7, 8, 9, 10, 12, 14, 15 }) do
+  add { id = "gm2-ch" .. channel .. "-program", label = "GM2 channel " .. channel .. " program", short = "ch " .. channel,
+    low = 0, high = 127, shift = 1 }
+end
+
 return extras

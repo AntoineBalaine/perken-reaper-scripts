@@ -49,6 +49,12 @@ local function header(ctx, S)
   ImGui.TextColored(ctx, th.label, "Patch")
   ImGui.SameLine(ctx)
   widgets.display(ctx, m.patch, th.amber, 260)
+  -- The keyboard sends a steady MIDI clock. Whether it follows the tempo setting is not known, so the
+  -- lab shows a mock value.
+  ImGui.SameLine(ctx)
+  ImGui.TextColored(ctx, th.label, "Clock")
+  ImGui.SameLine(ctx)
+  widgets.display(ctx, ("%d BPM"):format(S.ui.clock_bpm or 120), th.amber, 0, true)
   widgets.end_card(ctx)
 end
 
@@ -289,7 +295,7 @@ end
 -- Tells the user that the lab has to be started again, when it was started before a data file existed.
 local function extras_missing(ctx, S)
   -- The last parameter of extras.lua is the sign that the lab has read the whole file.
-  if S.extras_by_id and S.tones and S.extras_by_id["engine-ring"] then return false end
+  if S.extras_by_id and S.tones and S.extras_by_id["gm2-ch15-program"] then return false end
   ImGui.TextColored(ctx, env.theme.amber, "The documented parameters are not loaded: close the lab and run it again.")
   return true
 end
@@ -318,24 +324,61 @@ local function card_of_mixer(ctx, S, group)
     options.accent = env.theme.part[band.part]
     options.height = band.in_row and row or nil
     if band.beside_previous then ImGui.SameLine(ctx) end
-    card_of_knobs(ctx, S, { name = band.title, params = slice(group.params, band.from, band.to) }, options)
+    local params = slice(group.params, band.from, band.to)
+    -- The volume of the upper piano's second layer comes after the upper piano's.
+    local dual2 = band.title == "Upper" and S.extras_by_id and S.extras_by_id["upper-piano-dual2-volume"]
+    if dual2 then table.insert(params, 2, dual2) end
+    card_of_knobs(ctx, S, { name = band.title, params = params }, options)
   end
 end
 
--- The piano: the volumes of its upper and lower parts, then the controllers of the piano that is
--- the second layer of a dual patch.
-local function card_of_piano(ctx, S, group)
+-- The piano: the volumes of its upper, upper dual 2 and lower parts, then the controllers of the piano that
+-- is the second layer of a dual patch, with its channel volume and pan, which the catalog does not have.
+local function card_of_piano_main(ctx, S, group)
   local params = {}
-  for _, id in ipairs(PIANO_VOLUMES) do
-    params[#params + 1] = param_with_id(S.model.catalog, id)
+  for _, id in ipairs({ "upper-piano-volume", "upper-piano-dual2-volume", "lower-piano-volume" }) do
+    params[#params + 1] = find_param(S, id)
   end
   for _, param in ipairs(group.params) do params[#params + 1] = param end
+  for _, id in ipairs({ "cc-piano-volume", "cc-piano-pan" }) do
+    params[#params + 1] = find_param(S, id)
+  end
   local brackets = {
-    { label = "Volume", from = 1, to = 2 },
-    { label = "Dual 2", from = 3, to = 5 },
+    { label = "Volume", from = 1, to = #params - #group.params - 2 },
+    { label = "Dual 2", from = #params - #group.params - 1, to = #params },
   }
   card_of_knobs(ctx, S, { name = "Piano", params = params },
-    { strip = "Piano (dual 2)", suffixes = { " volume" }, brackets = brackets, accent = env.theme.part.piano })
+    { strip = "Piano (dual 2)", suffixes = { " volume" }, brackets = brackets, accent = env.theme.part.piano,
+      bipolar_ids = { ["cc-piano-pan"] = true } })
+end
+
+-- The sound shaping of each of the three piano parts, in a card of its own: the cutoff and the resonance
+-- under a filter bracket, and the attack, decay and release under an envelope bracket.
+local PIANO_SHAPING = {
+  { id = "upper-piano", title = "Upper piano shaping", part = "upper" },
+  { id = "upper-piano-dual2", title = "Upper piano dual 2 shaping", part = "upper" },
+  { id = "lower-piano", title = "Lower piano shaping", part = "lower" },
+}
+
+local function cards_of_piano_shaping(ctx, S)
+  for _, shaping in ipairs(PIANO_SHAPING) do
+    local params, labels = {}, {}
+    for _, name in ipairs({ "cutoff", "resonance", "attack", "decay", "release" }) do
+      local param = find_param(S, shaping.id .. "-" .. name)
+      params[#params + 1] = param
+      labels[param.id] = param.short
+    end
+    card_of_knobs(ctx, S, { name = shaping.title, params = params }, {
+      title = shaping.title, labels = labels, bipolar = true, accent = env.theme.part[shaping.part],
+      brackets = { { label = "Filter", from = 1, to = 2 }, { label = ENVELOPE_OF .. " envelope", from = 3, to = 5 } },
+    })
+  end
+end
+
+local function card_of_piano(ctx, S, group)
+  if extras_missing(ctx, S) then return end
+  card_of_piano_main(ctx, S, group)
+  cards_of_piano_shaping(ctx, S)
 end
 
 -- The controllers that rest in the middle of their range (64) are bipolar knobs: the vibrato, the pan,
@@ -344,14 +387,22 @@ local BIPOLAR_CONTROLLERS = {
   ["cc-upper-vibrato-depth"] = true, ["cc-upper-vibrato-rate"] = true, ["cc-upper-pan"] = true,
   ["cc-upper-cutoff"] = true, ["cc-upper-resonance"] = true, ["cc-upper-release"] = true,
   ["cc-upper-attack"] = true, ["cc-upper-decay"] = true, ["cc-lower-cutoff"] = true,
+  ["cc-lower-pan"] = true,
 }
 
 -- The upper part has twelve controllers, in two rows of six. Because the catalog lists them in this
 -- order, the brackets are placed by position: vibrato and sends over the first row, filter and
 -- envelope over the second.
 local function card_of_upper_controllers(ctx, S, group)
-  card_of_knobs(ctx, S, group, {
-    title = "Upper controllers", strip = "Upper", columns = 6, bipolar_ids = BIPOLAR_CONTROLLERS,
+  -- The channel volume (CC 7) goes after the expression, which makes seven knobs on the first row.
+  local params = {}
+  for _, param in ipairs(group.params) do
+    params[#params + 1] = param
+    local volume = S.extras_by_id and S.extras_by_id["cc-upper-volume"]
+    if param.id == "cc-upper-expression" and volume then params[#params + 1] = volume end
+  end
+  card_of_knobs(ctx, S, { name = group.name, params = params }, {
+    title = "Upper controllers", strip = "Upper", columns = 7, bipolar_ids = BIPOLAR_CONTROLLERS,
     accent = env.theme.part.upper,
     brackets_by_row = {
       { { label = "Vibrato", from = 1, to = 2 }, { label = "Sends", from = 3, to = 4 } },
@@ -361,7 +412,15 @@ local function card_of_upper_controllers(ctx, S, group)
 end
 
 local function card_of_lower_controllers(ctx, S, group)
-  card_of_knobs(ctx, S, group, { title = "Lower controllers", strip = "Lower", bipolar_ids = BIPOLAR_CONTROLLERS, accent = env.theme.part.lower })
+  -- The channel volume and the pan, which the catalog does not have for the lower part, come last.
+  local params = {}
+  for _, param in ipairs(group.params) do params[#params + 1] = param end
+  for _, id in ipairs({ "cc-lower-volume", "cc-lower-pan" }) do
+    local extra = S.extras_by_id and S.extras_by_id[id]
+    if extra then params[#params + 1] = extra end
+  end
+  card_of_knobs(ctx, S, { name = group.name, params = params },
+    { title = "Lower controllers", strip = "Lower", bipolar_ids = BIPOLAR_CONTROLLERS, accent = env.theme.part.lower })
 end
 
 -- The overall volume, and the tone level that the documentation has at the system address 61.
@@ -595,9 +654,26 @@ local ENGINE_ROWS = {
     { title = "Unison and ring", ids = { "engine-unison", "engine-unison-size", "engine-ring" } },
   },
   {
+    { title = "Synth tone", draw = "card_of_engine_tone" },
+    { title = "Partials", ids = { "engine-partial1-switch", "engine-partial2-switch", "engine-partial3-switch", "engine-partial1-select", "engine-partial2-select", "engine-partial3-select" } },
+  },
+  {
     { title = "LFO", ids = { "engine-lfo-shape", "engine-lfo-rate", "engine-lfo-sync", "engine-lfo-sync-note", "engine-lfo-fade", "engine-lfo-pitch-depth", "engine-lfo-filter-depth" } },
   },
 }
+
+-- The synth tone's own card: its name on a display, and its level, wave shape and category.
+local function card_of_engine_tone(ctx, S, height)
+  local widgets = env.widgets
+  if not widgets.begin_card(ctx, "Synth tone", nil, height) then return end
+  widgets.display(ctx, "Init Tone", env.theme.text_dim, 160)
+  for i, id in ipairs({ "engine-tone-level", "engine-wave-shape", "engine-tone-category" }) do
+    local param = S.extras_by_id[id]
+    control_of(ctx, S, param, param.short)
+    if i < 3 then ImGui.SameLine(ctx) end
+  end
+  widgets.end_card(ctx)
+end
 
 local function engine_section(ctx, S)
   if not ImGui.BeginChild(ctx, "##section") then return end
@@ -614,9 +690,25 @@ local function engine_section(ctx, S)
     local height = row_height(titles)
     for i, card in ipairs(row) do
       if i > 1 then ImGui.SameLine(ctx) end
-      card_of_extras(ctx, S, card.title, card.ids, nil, height)
+      if card.draw then card_of_engine_tone(ctx, S, height) else card_of_extras(ctx, S, card.title, card.ids, nil, height) end
     end
   end
+  ImGui.EndChild(ctx)
+end
+
+-- The General MIDI 2 sound generator: the program of each of the channels that it plays on.
+local function gm2_section(ctx, S)
+  if not ImGui.BeginChild(ctx, "##section") then return end
+  if extras_missing(ctx, S) then
+    ImGui.EndChild(ctx)
+    return
+  end
+  ImGui.PushTextWrapPos(ctx, 640)
+  ImGui.TextColored(ctx, env.theme.text_dim, "The GM2 sounds play on MIDI channels 5 to 10, 12, 14 and 15, chosen with Program Change and Bank Select. The names of the sounds are not in the lab yet.")
+  ImGui.PopTextWrapPos(ctx)
+  local ids = {}
+  for _, channel in ipairs({ 5, 6, 7, 8, 9, 10, 12, 14, 15 }) do ids[#ids + 1] = "gm2-ch" .. channel .. "-program" end
+  card_of_extras(ctx, S, "GM2 programs", ids, env.theme.part.master)
   ImGui.EndChild(ctx)
 end
 
@@ -686,6 +778,7 @@ local SECTIONS = {
   { name = "FX", groups = { "Effects" } },
   { name = "Controllers", groups = { "Control change upper", "Control change lower", "Control change master" } },
   { name = "Performance", draw = performance_section },
+  { name = "GM2", draw = gm2_section },
 }
 
 -- The groups of a section, in the order of the section's list.
