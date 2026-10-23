@@ -76,31 +76,6 @@ pub fn scan(allocator: std.mem.Allocator, folder: []const u8) !Library {
     return lib;
 }
 
-/// The Program Change number that selects a registration: the keyboard's own
-/// order, four slots per bank, so 0 is 1-1, 1 is 1-2 and 4 is 2-1. Banks past
-/// the 32nd have no number.
-pub fn programOf(bank: u8, slot: u8) ?u7 {
-    if (bank == 0 or slot == 0 or slot > slots_per_bank) return null;
-    const n = (@as(u16, bank) - 1) * slots_per_bank + slot - 1;
-    return if (n < 128) @intCast(n) else null;
-}
-
-pub fn bankOfProgram(program: u7) u8 {
-    return @as(u8, program) / slots_per_bank + 1;
-}
-
-pub fn slotOfProgram(program: u7) u8 {
-    return @as(u8, program) % slots_per_bank + 1;
-}
-
-/// The registration a Program Change selects, if the library has it.
-pub fn findProgram(lib: *const Library, program: u7) ?Entry {
-    for (lib.entries.items) |e| {
-        if (programOf(e.bank, e.slot) == program) return e;
-    }
-    return null;
-}
-
 /// The patch name of a registration, "<bank>-<slot> <Name>", under which its
 /// split is remembered.
 pub fn patchName(buf: []u8, entry: Entry) []const u8 {
@@ -154,30 +129,11 @@ test "the filter matches the name or the position" {
     try std.testing.expect(!matches(e, "organ"));
 }
 
-test "program numbers follow the keyboard's banks of four" {
-    try std.testing.expectEqual(@as(?u7, 0), programOf(1, 1));
-    try std.testing.expectEqual(@as(?u7, 3), programOf(1, 4));
-    try std.testing.expectEqual(@as(?u7, 4), programOf(2, 1));
-    try std.testing.expectEqual(@as(?u7, 127), programOf(32, 4));
-    try std.testing.expectEqual(@as(?u7, null), programOf(33, 1));
-    try std.testing.expectEqual(@as(u8, 2), bankOfProgram(4));
-    try std.testing.expectEqual(@as(u8, 1), slotOfProgram(4));
-    try std.testing.expectEqual(@as(u8, 25), bankOfProgram(99));
-    try std.testing.expectEqual(@as(u8, 4), slotOfProgram(99));
-}
-
-test "a registration is found by its program number and named for the split list" {
-    var file_a = "2-1_Sweet_Dream.json".*;
-    var file_b = "1-2_Jazz.json".*;
-    var lib = Library{ .entries = std.ArrayList(Entry).init(std.testing.allocator) };
-    defer lib.entries.deinit();
-    try lib.entries.append(.{ .bank = 1, .slot = 2, .file_name = &file_b, .name = "Jazz" });
-    try lib.entries.append(.{ .bank = 2, .slot = 1, .file_name = &file_a, .name = "Sweet_Dream" });
-    const found = findProgram(&lib, 4).?;
-    try std.testing.expectEqual(@as(u8, 2), found.bank);
-    try std.testing.expect(findProgram(&lib, 0) == null);
+test "a registration is named for the split list" {
+    var file = "2-1_Sweet_Dream.json".*;
+    const entry = Entry{ .bank = 2, .slot = 1, .file_name = &file, .name = "Sweet_Dream" };
     var buf: [96]u8 = undefined;
-    try std.testing.expectEqualStrings("2-1 Sweet_Dream", patchName(&buf, found));
+    try std.testing.expectEqualStrings("2-1 Sweet_Dream", patchName(&buf, entry));
 }
 
 test "display names read underscores as spaces" {

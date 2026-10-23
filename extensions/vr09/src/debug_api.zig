@@ -3,7 +3,7 @@
 //! `VR09_Command(track, fxindex, command, arg)` returns a JSON string, so a
 //! developer can read the plugin's state, and drive its settings, from a
 //! terminal through a Lua bridge. The commands are `state`, `log`, `devices`,
-//! `set`, `reconnect`, `load_registration`, `program` and `open_panel`. They run on
+//! `set`, `reconnect`, `load_registration` and `open_panel`. They run on
 //! REAPER's main thread, read atomics and shared state, and never wait for the
 //! audio thread.
 //!
@@ -22,6 +22,8 @@ const fileio = @import("fileio.zig");
 const glue = @import("reaper_glue.zig");
 const ui = @import("ui.zig");
 const registrations = @import("registrations.zig");
+const scenes = @import("scenes.zig");
+const dump = @import("dump.zig");
 
 const Plugin = plugin.Plugin;
 
@@ -167,7 +169,7 @@ fn contextFn(host: [*c]const c.clap_host_t) ?*const fn ([*c]const c.clap_host_t,
 /// The plugin's index in its track's FX chain, or null when REAPER does not
 /// say. REAPER answers with the index plus one, cast to a pointer, so that
 /// zero means unknown.
-fn fxIndexOf(p: *Plugin) ?u32 {
+pub fn fxIndexOf(p: *Plugin) ?u32 {
     const f = contextFn(p.host) orelse return null;
     const v = @intFromPtr(f(p.host, @intFromEnum(glue.Context.fx_index)));
     if (v == 0) return null;
@@ -237,9 +239,7 @@ fn cmdState(w: anytype, p: *Plugin) !void {
     });
     try w.writeAll("\"patch_name\":");
     try jsonString(w, st.presetName());
-    const program = p.program.load(.monotonic);
-    try w.writeAll(",\"program\":");
-    if (program == 0) try w.writeAll("null") else try w.print("{d}", .{program - 1});
+    try w.print(",\"scene\":{d},\"scenes\":{d}", .{ p.scene.load(.monotonic), p.scene_list.count });
     try w.print(",\"panel_open\":{},\"frames_drawn\":{d},\"ui_contexts\":{d},\"ui_ctx_valid\":{},\"ticks\":{d},", .{ p.ui.open, p.ui.frame, p.ui.contexts_created, ui.contextValid(p), p.ticks });
     try w.print("\"instances\":{d},\"devices_out\":{d},\"devices_in\":{d},\"device_names_out\":", .{ instanceCount(), glue.deviceCount(.output), glue.deviceCount(.input) });
     try writeDeviceNames(w, .output);
@@ -329,18 +329,178 @@ fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
     try w.writeByte('}');
 }
 
-/// Loads a registration by its Program Change number, as a Program Change on
-/// channel 16 does.
-fn cmdProgram(w: anytype, p: *Plugin, arg: []const u8) !void {
-    const n = std.fmt.parseInt(u7, std.mem.trim(u8, arg, " "), 10) catch return writeError(w, "program takes a number from 0 to 127");
-    if (!glue.ready) return writeError(w, "REAPER's API is not available");
-    p.loadProgram(n) catch |err| {
-        try w.writeAll("{\"ok\":false,\"error\":");
-        try jsonString(w, @errorName(err));
+// ---- the session's scenes ----
+
+fn writeSceneList(w: anytype, p: *Plugin) !void {
+    try w.print("{{\"ok\":true,\"count\":{d},\"current\":{d},\"scenes\":[", .{ p.scene_list.count, p.scene.load(.monotonic) });
+    var i: usize = 1;
+    while (i <= p.scene_list.count) : (i += 1) {
+        if (i > 1) try w.writeByte(',');
+        const scene = p.scene_list.get(i).?;
+        try w.print("{{\"position\":{d},\"patch_id\":{d},\"name\":", .{ i, scene.patch_id });
+        try jsonString(w, scene.name());
+        try w.writeAll(",\"label\":");
+        try jsonString(w, scene.label());
         try w.writeByte('}');
-        return;
-    };
-    try w.print("{{\"ok\":true,\"program\":{d},\"split\":{}}}", .{ n, p.settings.split.load(.monotonic) });
+    }
+    try w.writeAll("]}");
+}
+
+/// The text before and after the first `|`; the second is empty without one.
+const Pair = struct { head: []const u8, tail: []const u8 };
+
+/// Up to four fields separated by `|`, trimmed; missing ones are empty.
+fn splitFields(arg: []const u8) [4][]const u8 {
+    var fields = [_][]const u8{ "", "", "", "" };
+    var it = std.mem.splitScalar(u8, arg, '|');
+    var i: usize = 0;
+    while (it.next()) |field| : (i += 1) {
+        if (i == fields.len) break;
+        fields[i] = std.mem.trim(u8, field, " ");
+    }
+    return fields;
+}
+
+fn parsePatchId(text: []const u8) u16 {
+    return std.fmt.parseInt(u16, text, 10) catch 0;
+}
+
+fn splitPair(arg: []const u8) Pair {
+    const at = std.mem.indexOfScalar(u8, arg, '|') orelse return .{ .head = std.mem.trim(u8, arg, " "), .tail = "" };
+    return .{ .head = std.mem.trim(u8, arg[0..at], " "), .tail = std.mem.trim(u8, arg[at + 1 ..], " ") };
+}
+
+/// `scene_add`: `<patch>|<name>|<patch id>|<label>`, the last three optional (the ID and label say which
+/// patch of the library the scene came from, for the panel). The patch is `current` (the plugin's state now),
+/// or `registrations/<file>` or `presets/<file>` of the Data/Perken/vr09 folder.
+fn cmdSceneAdd(w: anytype, p: *Plugin, arg: []const u8) !void {
+    const fields = splitFields(arg);
+    const pair = Pair{ .head = fields[0], .tail = fields[1] };
+    const patch = try plugin.allocator.create(dump.Dump);
+    defer plugin.allocator.destroy(patch);
+    patch.* = .{};
+    var default_name: []const u8 = undefined;
+    if (std.mem.eql(u8, pair.head, "current")) {
+        p.shared.desiredSnapshot(patch);
+        default_name = p.settings.presetName();
+    } else {
+        if (!glue.ready) return writeError(w, "REAPER's API is not available");
+        const slash = std.mem.indexOfScalar(u8, pair.head, '/') orelse return writeError(w, "scene_add: use current, registrations/<file> or presets/<file>");
+        const file = checkFileName(pair.head[slash + 1 ..]) catch return writeError(w, "scene_add: the file name must not have a folder part");
+        var folder_buf: [fileio.max_path]u8 = undefined;
+        const folder_result = if (std.mem.eql(u8, pair.head[0..slash], "registrations"))
+            state.registrationFolder(&folder_buf, glue.resourcePath())
+        else if (std.mem.eql(u8, pair.head[0..slash], "presets"))
+            state.presetFolder(&folder_buf, glue.resourcePath())
+        else
+            return writeError(w, "scene_add: use current, registrations/<file> or presets/<file>");
+        const folder = folder_result catch return writeError(w, "the folder is too long");
+        var path_buf: [fileio.max_path]u8 = undefined;
+        const path = std.fmt.bufPrint(&path_buf, "{s}{c}{s}", .{ folder, std.fs.path.sep, file }) catch return writeError(w, "the path is too long");
+        state.loadPresetFile(plugin.allocator, path, patch) catch |err| return writeError(w, @errorName(err));
+        default_name = state.displayName(file);
+    }
+    const name = if (pair.tail.len > 0) pair.tail else default_name;
+    const position = p.scene_list.addFrom(name, patch, parsePatchId(fields[2]), fields[3]) catch return writeError(w, "the scene list is full");
+    try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
+}
+
+/// `scene_add_tone`: "<part> <tone number> <bank MSB> <bank LSB>|<name>|<patch id>|<label>". The scene holds
+/// only that tone.
+fn cmdSceneAddTone(w: anytype, p: *Plugin, arg: []const u8) !void {
+    const fields = splitFields(arg);
+    const pair = Pair{ .head = fields[0], .tail = fields[1] };
+    var words = std.mem.tokenizeScalar(u8, pair.head, ' ');
+    const part = words.next() orelse return writeError(w, "scene_add_tone takes <part> <number> <msb> <lsb>|<name>");
+    var numbers: [3]u8 = undefined;
+    for (&numbers) |*n| {
+        const word = words.next() orelse return writeError(w, "scene_add_tone takes <part> <number> <msb> <lsb>|<name>");
+        n.* = std.fmt.parseInt(u8, word, 10) catch return writeError(w, "the tone numbers must be from 0 to 127");
+    }
+    const patch = try plugin.allocator.create(dump.Dump);
+    defer plugin.allocator.destroy(patch);
+    patch.* = .{};
+    if (!scenes.toneDump(patch, part, numbers[0], numbers[1], numbers[2])) {
+        return writeError(w, "the part must be upper_piano, upper_piano_dual2, lower_piano, upper_synth, upper_synth_dual2 or lower_synth");
+    }
+    const name = if (pair.tail.len > 0) pair.tail else part;
+    const position = p.scene_list.addFrom(name, patch, parsePatchId(fields[2]), fields[3]) catch return writeError(w, "the scene list is full");
+    try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
+}
+
+/// `load_tone`: "<part> <tone number> <bank MSB> <bank LSB>". Writes that tone to the keyboard, as selecting a
+/// tone scene does, without adding a scene.
+fn cmdLoadTone(w: anytype, p: *Plugin, arg: []const u8) !void {
+    const fields = splitFields(arg);
+    var words = std.mem.tokenizeScalar(u8, fields[0], ' ');
+    const part = words.next() orelse return writeError(w, "load_tone takes <part> <number> <msb> <lsb>");
+    var numbers: [3]u8 = undefined;
+    for (&numbers) |*n| {
+        const word = words.next() orelse return writeError(w, "load_tone takes <part> <number> <msb> <lsb>");
+        n.* = std.fmt.parseInt(u8, word, 10) catch return writeError(w, "the tone numbers must be from 0 to 127");
+    }
+    const patch = try plugin.allocator.create(dump.Dump);
+    defer plugin.allocator.destroy(patch);
+    patch.* = .{};
+    if (!scenes.toneDump(patch, part, numbers[0], numbers[1], numbers[2])) {
+        return writeError(w, "the part must be upper_piano, upper_piano_dual2, lower_piano, upper_synth, upper_synth_dual2 or lower_synth");
+    }
+    p.loadScene(patch, if (fields[1].len > 0) fields[1] else part);
+    try w.writeAll("{\"ok\":true}");
+}
+
+fn writeMapping(w: anytype, count: usize, map: *const scenes.Mapping) !void {
+    try w.writeAll(",\"map\":[");
+    for (map[0..count], 0..) |m, i| {
+        if (i > 0) try w.writeByte(',');
+        try w.print("{d}", .{m});
+    }
+    try w.writeByte(']');
+}
+
+fn cmdSceneRemove(w: anytype, p: *Plugin, arg: []const u8) !void {
+    const position = std.fmt.parseInt(u8, std.mem.trim(u8, arg, " "), 10) catch return writeError(w, "scene_remove takes a position");
+    const count = p.scene_list.count;
+    var map: scenes.Mapping = undefined;
+    if (!p.removeScene(position, &map)) return writeError(w, "there is no scene at that position");
+    try w.writeAll("{\"ok\":true");
+    try writeMapping(w, count, &map);
+    try w.writeByte('}');
+}
+
+/// `scene_move`: "<from>,<to>".
+fn cmdSceneMove(w: anytype, p: *Plugin, arg: []const u8) !void {
+    const comma = std.mem.indexOfScalar(u8, arg, ',') orelse return writeError(w, "scene_move takes <from>,<to>");
+    const from = std.fmt.parseInt(u8, std.mem.trim(u8, arg[0..comma], " "), 10) catch return writeError(w, "scene_move takes <from>,<to>");
+    const to = std.fmt.parseInt(u8, std.mem.trim(u8, arg[comma + 1 ..], " "), 10) catch return writeError(w, "scene_move takes <from>,<to>");
+    const count = p.scene_list.count;
+    var map: scenes.Mapping = undefined;
+    if (!p.moveScene(from, to, &map)) return writeError(w, "both positions must hold a scene");
+    try w.writeAll("{\"ok\":true");
+    try writeMapping(w, count, &map);
+    try w.writeByte('}');
+}
+
+/// `scene_rename`: "<position>|<name>".
+fn cmdSceneRename(w: anytype, p: *Plugin, arg: []const u8) !void {
+    const pair = splitPair(arg);
+    const position = std.fmt.parseInt(u8, pair.head, 10) catch return writeError(w, "scene_rename takes <position>|<name>");
+    if (!p.scene_list.rename(position, pair.tail)) return writeError(w, "there is no scene at that position");
+    try w.writeAll("{\"ok\":true}");
+}
+
+/// `scene_select`: loads a scene, as the Scene parameter does.
+fn cmdSceneSelect(w: anytype, p: *Plugin, arg: []const u8) !void {
+    const position = std.fmt.parseInt(u8, std.mem.trim(u8, arg, " "), 10) catch return writeError(w, "scene_select takes a position");
+    p.selectScene(position) catch return writeError(w, "there is no scene at that position");
+    try w.print("{{\"ok\":true,\"scene\":{d}}}", .{position});
+}
+
+fn cmdSceneClear(w: anytype, p: *Plugin) !void {
+    p.scene_list.clear();
+    p.scene.store(0, .monotonic);
+    p.rescanParamValues();
+    try w.writeAll("{\"ok\":true}");
 }
 
 fn cmdOpenPanel(w: anytype, p: *Plugin) !void {
@@ -387,11 +547,11 @@ fn cmdLog(w: anytype, arg: []const u8) !void {
 pub fn dispatch(w: anytype, track: ?*anyopaque, fx_index: c_int, command: []const u8, arg: []const u8) !void {
     if (std.mem.eql(u8, command, "devices")) return cmdDevices(w);
     if (std.mem.eql(u8, command, "log")) return cmdLog(w, arg);
-    const known = [_][]const u8{ "state", "set", "reconnect", "load_registration", "program", "open_panel", "tab", "capture", "job", "export" };
+    const known = [_][]const u8{ "state", "set", "reconnect", "load_registration", "open_panel", "tab", "capture", "job", "export", "load_tone", "scenes", "scene_add", "scene_add_tone", "scene_remove", "scene_move", "scene_rename", "scene_select", "scene_clear" };
     for (known) |k| {
         if (std.mem.eql(u8, command, k)) break;
     } else {
-        try writeError(w, "unknown command: use state, log, devices, set, reconnect, load_registration, program, open_panel, tab, capture, job or export");
+        try writeError(w, "unknown command: use state, log, devices, set, reconnect, load_registration, open_panel, tab, capture, job, export, load_tone, scenes, scene_add, scene_add_tone, scene_remove, scene_move, scene_rename, scene_select or scene_clear");
         return;
     }
     const p = findInstance(track, fx_index) orelse return writeError(w, "no VR-09 instance on that track");
@@ -399,11 +559,19 @@ pub fn dispatch(w: anytype, track: ?*anyopaque, fx_index: c_int, command: []cons
     if (std.mem.eql(u8, command, "set")) return cmdSet(w, p, arg);
     if (std.mem.eql(u8, command, "reconnect")) return cmdReconnect(w, p);
     if (std.mem.eql(u8, command, "load_registration")) return cmdLoadRegistration(w, p, arg);
-    if (std.mem.eql(u8, command, "program")) return cmdProgram(w, p, arg);
     if (std.mem.eql(u8, command, "tab")) return cmdTab(w, p, arg);
     if (std.mem.eql(u8, command, "capture")) return cmdCapture(w, p);
     if (std.mem.eql(u8, command, "job")) return cmdJob(w, p);
     if (std.mem.eql(u8, command, "export")) return cmdExport(w, p, arg);
+    if (std.mem.eql(u8, command, "load_tone")) return cmdLoadTone(w, p, arg);
+    if (std.mem.eql(u8, command, "scenes")) return writeSceneList(w, p);
+    if (std.mem.eql(u8, command, "scene_add")) return cmdSceneAdd(w, p, arg);
+    if (std.mem.eql(u8, command, "scene_add_tone")) return cmdSceneAddTone(w, p, arg);
+    if (std.mem.eql(u8, command, "scene_remove")) return cmdSceneRemove(w, p, arg);
+    if (std.mem.eql(u8, command, "scene_move")) return cmdSceneMove(w, p, arg);
+    if (std.mem.eql(u8, command, "scene_rename")) return cmdSceneRename(w, p, arg);
+    if (std.mem.eql(u8, command, "scene_select")) return cmdSceneSelect(w, p, arg);
+    if (std.mem.eql(u8, command, "scene_clear")) return cmdSceneClear(w, p);
     return cmdOpenPanel(w, p);
 }
 

@@ -9,6 +9,8 @@ comptime {
     _ = @import("fileio.zig");
     _ = @import("state.zig");
     _ = @import("registrations.zig");
+    _ = @import("scenes.zig");
+    _ = @import("actions.zig");
     _ = @import("split.zig");
     _ = @import("placement.zig");
     _ = @import("reaper_glue.zig");

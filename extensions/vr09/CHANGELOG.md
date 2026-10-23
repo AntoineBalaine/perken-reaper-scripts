@@ -14,7 +14,9 @@ First version.
 - The effects as parameters: reverb (type, level, variation), vibrato / chorus type, MFX (type, level), delay (type, level) and the compressor level, with their type names shown in the panel. The reverb type and level are written together, as the unit requires.
 - The panel opens where it fits on the screen, and a closed panel's ImGui context is dropped to be collected, with a name of its own for each context. A panel that stuck out of the screen was moved by the window manager without ImGui knowing, which offset the mouse.
 - The track's MIDI passes to the keyboard by default, with the notes sent to the Upper part (channel 4), or split at middle C between the Lower (3) and Upper parts for the patches marked as split.
-- A Program Change on channel 16 selects a registration (program 0 is 1-1, four slots per bank), and the notes after it follow that registration's split at once. Registration and Split at middle C parameters do the same from automation.
+- Scenes: a list of named patches in the project state, a fixed-range Scene parameter that selects one by position (replacing the Registration parameter), and `VR09_Command` commands to add, list, move, rename, select and remove them.
+- Actions registered by the plugin: next scene, previous scene, and scene points from the project's markers.
+- A Split at middle C parameter, to override the current patch's split from automation.
 - Automatic choice of the keyboard's MIDI device for the track, with record arm and input monitoring.
 - An audio loop through the audio interface, with a latency ping reported to REAPER.
 - A ReaScript function, `VR09_Command`, that returns the plugin's state, log and devices as JSON and changes its settings, for debugging from a Lua script (see the README).

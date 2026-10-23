@@ -41,6 +41,18 @@ pub const reaper_api = [_][:0]const u8{
     "GetUserFileNameForRead",
     "GetProjectPath",
     "ShowConsoleMsg",
+    "ShowMessageBox",
+    "EnumProjectMarkers",
+    "GetFXEnvelope",
+    "CountEnvelopePoints",
+    "GetEnvelopePoint",
+    "SetEnvelopePoint",
+    "InsertEnvelopePoint",
+    "Envelope_SortPoints",
+    "TrackFX_GetParamEx",
+    "Undo_BeginBlock",
+    "Undo_EndBlock",
+    "UpdateArrange",
 };
 
 /// The context codes of `clap_get_reaper_context`.

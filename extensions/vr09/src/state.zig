@@ -10,6 +10,7 @@ const engine = @import("engine.zig");
 const dump = @import("dump.zig");
 const fileio = @import("fileio.zig");
 const catalog = @import("catalog.zig");
+const scenes = @import("scenes.zig");
 
 const Atomic = std.atomic.Value;
 
@@ -83,7 +84,7 @@ const version: u32 = 1;
 pub const StateError = error{ BadMagic, UnsupportedVersion, Truncated };
 
 /// Writes the project state: the scene, the CC values and the settings.
-pub fn write(writer: anytype, shared: *const engine.Shared, settings: *const Settings) !void {
+pub fn write(writer: anytype, shared: *const engine.Shared, settings: *const Settings, scene_list: *const scenes.List) !void {
     try writer.writeAll(magic);
     try writer.writeInt(u32, version, .little);
 
@@ -121,11 +122,12 @@ pub fn write(writer: anytype, shared: *const engine.Shared, settings: *const Set
     const name = settings.presetName();
     try writer.writeByte(@intCast(name.len));
     try writer.writeAll(name);
+    try scene_list.write(writer);
 }
 
 /// Reads what `write` wrote. The scene replaces the desired state and marks it
 /// restored, so that the engine recalls it once the keyboard answers.
-pub fn read(reader: anytype, shared: *engine.Shared, settings: *Settings) !void {
+pub fn read(reader: anytype, shared: *engine.Shared, settings: *Settings, scene_list: *scenes.List) !void {
     var head: [4]u8 = undefined;
     reader.readNoEof(&head) catch return error.Truncated;
     if (!std.mem.eql(u8, &head, magic)) return error.BadMagic;
@@ -152,6 +154,9 @@ pub fn read(reader: anytype, shared: *engine.Shared, settings: *Settings) !void 
     var name: [64]u8 = undefined;
     if (name_len >= name.len) return error.Truncated;
     reader.readNoEof(name[0..name_len]) catch return error.Truncated;
+    // Because the scenes come after everything a first version wrote, a state without them is still read.
+    // A cut or damaged scene section keeps the scenes read before it and must not cost the patch.
+    scene_list.read(reader) catch {};
 
     shared.loadDesired(&scene);
     for (cc, 0..) |value, i| shared.cc_values[i].store(value, .monotonic);
@@ -279,16 +284,29 @@ test "the project state survives a round trip" {
     settings.setPresetName("Jazz Roll");
     shared.recall_on_load.store(false, .monotonic);
 
+    const list = try allocator.create(scenes.List);
+    defer allocator.destroy(list);
+    list.* = .{};
+    var patch = dump.Dump{};
+    _ = patch.set(.kb, 0x02 << 14 | 5, 3);
+    _ = try list.add("Verse", &patch);
+
     var buf = std.ArrayList(u8).init(allocator);
     defer buf.deinit();
-    try write(buf.writer(), shared, &settings);
+    try write(buf.writer(), shared, &settings, list);
 
     const shared2 = try allocator.create(engine.Shared);
     defer allocator.destroy(shared2);
     shared2.* = .{};
     var settings2 = Settings{};
+    const list2 = try allocator.create(scenes.List);
+    defer allocator.destroy(list2);
+    list2.* = .{};
     var stream = std.io.fixedBufferStream(buf.items);
-    try read(stream.reader(), shared2, &settings2);
+    try read(stream.reader(), shared2, &settings2, list2);
+    try std.testing.expectEqual(@as(u8, 1), list2.count);
+    try std.testing.expectEqualStrings("Verse", list2.get(1).?.name());
+    try std.testing.expectEqual(@as(?u8, 3), list2.get(1).?.patch.get(.kb, 0x02 << 14 | 5));
 
     try std.testing.expectEqual(@as(?u8, 7), shared2.getDesired(.kb, 0x02 << 14 | 5));
     try std.testing.expectEqual(@as(?u8, 99), shared2.getDesired(.kb, 0x01 << 14 | 0x03 << 7 | 1));
@@ -309,10 +327,13 @@ test "a stream that is not ours or is cut short is refused" {
     defer allocator.destroy(shared);
     shared.* = .{};
     var settings = Settings{};
+    const list = try allocator.create(scenes.List);
+    defer allocator.destroy(list);
+    list.* = .{};
     var bad = std.io.fixedBufferStream("NOPE....");
-    try std.testing.expectError(error.BadMagic, read(bad.reader(), shared, &settings));
+    try std.testing.expectError(error.BadMagic, read(bad.reader(), shared, &settings, list));
     var short = std.io.fixedBufferStream("VR09\x01\x00\x00\x00abc");
-    try std.testing.expectError(error.Truncated, read(short.reader(), shared, &settings));
+    try std.testing.expectError(error.Truncated, read(short.reader(), shared, &settings, list));
 }
 
 test "names become safe file names" {

@@ -53,16 +53,33 @@ The keyboard does not report its split: no readable address changes with its spl
 
 ## Changing patches from the session
 
-A Program Change on channel 16 in a track's item selects a registration of the library, in the keyboard's own order of four slots per bank: program 0 is 1-1, 1 is 1-2, 4 is 2-1, and 99 is 25-4. The Patches tab shows each registration's number (PC). The plugin does not pass that Program Change on; channel 16 is the keyboard's control channel, where it ignores Program Change anyway.
+A scene is selected by the Scene parameter, from an automation lane (see "The session's scenes"). The plugin no longer reads Program Change: the keyboard ignores it, and one way to select a scene is easier to remember than two. A scene loads on REAPER's main thread and is then written to the keyboard in about 0.15 s, so place a scene's point a little ahead of the first note it should play.
 
-The notes after the Program Change follow the registration's split at once. The registration's sound takes longer: the plugin loads it on REAPER's main thread, then writes it to the keyboard in about 0.15 s. Place the Program Change a little ahead of the first note it should play.
+The Scene parameter and the Split parameter work from an envelope:
 
-Two parameters do the same from an envelope:
-
-- Registration: 0 is none, n selects program n - 1 (the value shows as `bank-slot`). Only a new value loads a registration, so a held envelope does not reload it.
+- Scene: 0 is none, n selects the session's scene n (see "The session's scenes"; the value shows as `n Name`). Only a new value loads a scene, so a held envelope does not reload it. The range is fixed at 0 to 127, so that adding a scene never rescales the points of a lane.
 - Split at middle C: overrides the current patch's split until the next patch is loaded. Unlike the Patches tab's checkbox, it is not remembered for the patch.
 
 REAPER does not tell the notes you play from the notes a track plays back. On a track that records the keyboard's MIDI while monitoring it, turn off "Pass this track's MIDI through to the keyboard" in the MIDI tab, or switch the keyboard's Local Control off, so that the keyboard does not sound its notes twice.
+
+## The session's scenes
+
+A scene is a named copy of a patch, kept in the plugin's state in the project. Because it is a copy, editing or deleting a preset or a registration afterwards cannot change what a project plays. The Scene parameter holds a position in the list (from 1), so an automation lane of that parameter, a MIDI-learned control or a script all select scenes the same way. Give the lane's points the square shape, so that no scene is selected on the way between two.
+
+`VR09_Command` manages the list (positions count from 1):
+
+- `scenes`: the list, and the current scene.
+- `scene_add` with `<patch>|<name>`, where the patch is `current` (the plugin's state now), `registrations/<file>` or `presets/<file>` of `Data/Perken/vr09`; the name is optional.
+- `scene_add_tone` with `<part> <tone number> <bank MSB> <bank LSB>|<name>`: a scene that holds only that tone, for `upper_piano`, `upper_piano_dual2`, `lower_piano`, `upper_synth`, `upper_synth_dual2` or `lower_synth`. Selecting it sends one three-byte message. This assumes that a tone replaces the whole sound of the keyboard, which has not been tried on the unit.
+- `scene_move` with `<from>,<to>` and `scene_remove` with `<position>`: the reply holds `map`, the new position of every old position (0 for the removed scene), which a lane needs for its points, so that the project keeps playing the same scenes.
+- `scene_rename` with `<position>|<name>`, `scene_select` with a position (loads it, as the parameter does), and `scene_clear`.
+
+## The actions
+
+The plugin registers three REAPER actions when its first instance loads, so they appear in the action list, and can be bound to keys, toolbars or a pedal, once a VR-09 has been added to a project. They act on the instance on a selected track, or else the first one.
+
+- `VR-09: next scene` (`_VR09_NEXT_SCENE`) and `VR-09: previous scene` (`_VR09_PREVIOUS_SCENE`): select the next or previous scene. They stop at the last and the first scene instead of wrapping, so that a page-turner pedal pressed once too often does not jump back to the start in the middle of a song. With no scene selected, both go to the first.
+- `VR-09: put a scene point at each marker named like a scene` (`_VR09_SCENE_POINTS_FROM_MARKERS`): puts a square point on the Scene lane at each marker, or region start, whose name is a scene's name (any case) or a scene's position as a number. It creates the lane if the track has none, and running it again moves the points that are already there. The markers that matched nothing are counted on REAPER's console.
 
 ## The panel
 
@@ -79,7 +96,7 @@ Presets are files named `<name>.vr09` in `<REAPER resource folder>/Data/Perken/v
 
 The Patches tab lists the dumps of the keyboard's 70 Registrations, by bank with four slots each, with a filter box (a name, or `bank-slot` such as `12-3`). A double click, or the "Load and send registration" button, loads the dump and writes it to the keyboard, the same way a preset is recalled. The files are named `<bank>-<slot>_<Name>.json`, as the roland-vr09 project stores them in its `dumps` folder; other JSON files there (scans, checks) are ignored.
 
-`extensions/build-install.sh vr09` copies them from `~/projects/roland-vr09/dumps` (or the folder in `VR09_REGISTRATIONS`) to `<REAPER resource folder>/Data/Perken/vr09/registrations`. A file already there is never overwritten, so your edits stay, and the roland-vr09 project is only read. The names are the ones the files carry: the keyboard's own names could not be read over MIDI. The tone list (`docs/tones.json`) is not used: the keyboard ignores Program Change and Bank Select, so a tone cannot be picked over MIDI.
+`extensions/build-install.sh vr09` copies them from `~/projects/roland-vr09/dumps` (or the folder in `VR09_REGISTRATIONS`) to `<REAPER resource folder>/Data/Perken/vr09/registrations`. A file already there is never overwritten, so your edits stay, and the roland-vr09 project is only read. The names are the ones the files carry: the keyboard's own names could not be read over MIDI. The tone list (`docs/tones.json`) is used by tone scenes (`scene_add_tone`), which write a part's tone bytes with a SysEx message: the keyboard ignores Program Change and Bank Select.
 
 ## The effects
 
@@ -137,7 +154,7 @@ REAPER builds the `reaper` table of a script when the script starts, so a script
 
 Commands that read:
 
-- `state`: `track_found`, `I_MIDIHWOUT`, `I_RECINPUT`, `midi_out_device`, `midi_in_device`, `midi_in_is_midi`, `midi_in_all_devices`, `armed`, `monitoring`, `fx_index`, `pass_midi`, `split`, `sysex_bare`, `autoconnect_done`, `loop_enabled`, `loop_state`, `midi_dropped`, `tx`, `rx`, `bad_checksum`, `host_sysex_in`, `host_sysex_out`, `host_sysex_refused`, `connected`, `mode`, `known_bytes`, `blocks_failed`, `patch_name`, `program` (null when the patch is not a registration), `panel_open`, `frames_drawn`, `ui_contexts` (how many ImGui contexts the panel has created), `ui_ctx_valid`, `ticks`, `instances`, `devices_out`, `devices_in`, `device_names_out`, `device_names_in`.
+- `state`: `track_found`, `I_MIDIHWOUT`, `I_RECINPUT`, `midi_out_device`, `midi_in_device`, `midi_in_is_midi`, `midi_in_all_devices`, `armed`, `monitoring`, `fx_index`, `pass_midi`, `split`, `sysex_bare`, `autoconnect_done`, `loop_enabled`, `loop_state`, `midi_dropped`, `tx`, `rx`, `bad_checksum`, `host_sysex_in`, `host_sysex_out`, `host_sysex_refused`, `connected`, `mode`, `known_bytes`, `blocks_failed`, `patch_name`, `scene` (the current scene, 0 for none), `scenes` (how many), `panel_open`, `frames_drawn`, `ui_contexts` (how many ImGui contexts the panel has created), `ui_ctx_valid`, `ticks`, `instances`, `devices_out`, `devices_in`, `device_names_out`, `device_names_in`.
 - `log`: the last lines the plugin logged (`arg` is how many, 50 by default, 256 at most), as `{"total":N,"lines":[...]}`.
 - `devices`: the MIDI output and input names as REAPER reports them (null for an absent device).
 
@@ -146,7 +163,6 @@ Commands that act:
 - `set` with `arg` `name=value` for `pass_midi`, `sysex_bare`, `autoconnect_done` or `split` (1, 0, true, false, on, off). `split` is remembered for the current patch, like the Patches tab's checkbox.
 - `reconnect`: the panel's "Look for the keyboard again".
 - `load_registration` with a file name of `Data/Perken/vr09/registrations`.
-- `program` with a number from 0 to 127: loads the registration that a Program Change on channel 16 would.
 - `open_panel`.
 - `capture` reads the whole keyboard into the plugin, `job` reports the read's progress, and `export` with an absolute path writes the plugin's state as a `vr09.py` dump.
 - `tab` with `controls`, `patches`, `audio` or `midi`: brings that tab of the panel to the front, so that a script can drive the panel.

@@ -105,7 +105,22 @@ Linux and Windows build but have not been run.
 2. On Windows, check that the preset folder is created under `%APPDATA%\REAPER\Data\Perken\vr09\presets` (it uses kernel32 calls directly, to avoid the stack overflow that `std.fs` caused in the other extensions).
 3. On Linux, check that the ReaImGui window opens next to the FX window, and that the keyboard shows up as a MIDI device named "VR-09".
 
-## 8. When something does not work
+## 8. Scenes and actions
+
+These need a project with a VR-09 on a track and a few scenes (the lab's Scenes tab adds them). `zig build test` covers the rules (stepping, marker matching, value scaling) and the scene commands, not REAPER itself.
+
+1. Load the plugin and open the action list.
+   - "VR-09: next scene", "VR-09: previous scene" and "VR-09: put a scene point at each marker named like a scene" are listed.
+2. Run "next scene" repeatedly with the track selected.
+   - The Scene parameter moves one scene each time, stops at the last scene, and "previous scene" stops at the first. Bind the two actions to the keys a page-turner pedal sends, and press them with REAPER in the background.
+3. Add markers named like some scenes, and one named something else, then run the markers action.
+   - The Scene lane appears with a square point at each matching marker, and the console counts the markers that did not match, without a dialog that would stop REAPER. Hover a point: its text is the scene's name. Run the action again: no points are stacked.
+4. Look at the values of the lane's points.
+   - A lane point holds the parameter's value in the units that REAPER reports for it. If a point reads `0`, or a fraction of the scene number, the scaling assumes the wrong unit: see `laneValue` in `src/actions.zig` and `value_of` in `ui-lab/scene_link.lua`.
+5. Drag a scene to another position in the lab with a lane in the project.
+   - The lane's points move with it, so that the song still plays the same scenes; Cmd+Z undoes the points.
+
+## 9. When something does not work
 
 - The keyboard ignores the plugin's messages: in the MIDI tab, try "Send SysEx without its F0 and F7 bytes".
 - Nothing arrives from the keyboard: the track must be record-armed and monitoring. The MIDI tab says which is missing.

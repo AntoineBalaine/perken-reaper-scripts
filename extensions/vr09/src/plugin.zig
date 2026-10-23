@@ -21,8 +21,10 @@ const glue = @import("reaper_glue.zig");
 const outbuf = @import("outbuf.zig");
 const ui = @import("ui.zig");
 const debug_api = @import("debug_api.zig");
+const actions = @import("actions.zig");
 const split = @import("split.zig");
 const registrations = @import("registrations.zig");
+const scenes = @import("scenes.zig");
 const fileio = @import("fileio.zig");
 
 const log = std.log.scoped(.plugin);
@@ -47,20 +49,22 @@ pub const extras = [_]Extra{
     .{ .id = "audio-loop-on", .name = "Audio loop", .module = "Audio", .min = 0, .max = 1, .default = 0, .stepped = true },
     .{ .id = "audio-send-db", .name = "Send level", .module = "Audio", .min = -60, .max = 12, .default = 0, .stepped = false },
     .{ .id = "audio-return-db", .name = "Return level", .module = "Audio", .min = -60, .max = 12, .default = 0, .stepped = false },
-    // 0 is no registration, n is program n - 1 (see registrations.programOf).
-    .{ .id = "patch", .name = "Registration", .module = "Patches", .min = 0, .max = 128, .default = 0, .stepped = true },
+    // 0 is no scene, n selects the session's scene n (see scenes.zig). Because the range is fixed, adding a
+    // scene never rescales the points of a lane that refers to the scenes by position.
+    .{ .id = "scene", .name = "Scene", .module = "Scenes", .min = 0, .max = scenes.max_scenes, .default = 0, .stepped = true },
     .{ .id = "split", .name = "Split at middle C", .module = "Patches", .min = 0, .max = 1, .default = 0, .stepped = true },
 };
 
-const extra_patch = 3;
+const extra_scene = 3;
 const extra_split = 4;
 
-/// A Program Change on this channel (16, the keyboard's control channel in
-/// MIDI IN Mode 2, where the keyboard ignores it) selects a registration; it
-/// is not passed on.
-pub const program_channel: u8 = 15;
-
 pub const total_params = engine.param_count + extras.len;
+
+/// Where the Scene parameter sits in the host's list of parameters: after the keyboard's, in the order of
+/// `extras`. REAPER numbers the parameters in that order.
+pub fn sceneParamIndex() usize {
+    return engine.param_count + extra_scene;
+}
 
 fn extraId(index: usize) u32 {
     return engine.hashId(extras[index].id);
@@ -122,15 +126,12 @@ pub const Plugin = struct {
     router: split.Router,
     arena: outbuf.Arena(16384),
 
-    // Registrations selected by Program Change or automation. Both hold a
-    // program number plus one, zero meaning none.
-    program: std.atomic.Value(u8),
-    pending_program: std.atomic.Value(u8),
-    /// Whether each program's registration splits, so that the audio thread
-    /// routes the notes after a Program Change at once, before the main
-    /// thread loads the registration.
-    program_splits: [128]std.atomic.Value(bool),
-    programs_scanned: bool,
+    // The session's scenes, which only the main thread touches, and the Scene parameter. `scene` is the
+    // position in force (0 for none) and `pending_scene` is one that automation asked for and that the
+    // main thread has not loaded yet.
+    scene_list: *scenes.List,
+    scene: std.atomic.Value(u8),
+    pending_scene: std.atomic.Value(u8),
 
     ui: ui.Window,
 
@@ -149,6 +150,13 @@ pub const Plugin = struct {
             return null;
         };
         eng.* = engine.Engine.init(shared, 48000);
+        const scene_list = allocator.create(scenes.List) catch {
+            allocator.destroy(eng);
+            allocator.destroy(shared);
+            allocator.destroy(self);
+            return null;
+        };
+        scene_list.* = .{};
 
         self.clap = .{
             .desc = &descriptor,
@@ -184,10 +192,9 @@ pub const Plugin = struct {
         self.traces_logged_out = false;
         self.midi_logged = 0;
         self.router = .{};
-        self.program = std.atomic.Value(u8).init(0);
-        self.pending_program = std.atomic.Value(u8).init(0);
-        self.program_splits = [_]std.atomic.Value(bool){std.atomic.Value(bool).init(false)} ** 128;
-        self.programs_scanned = false;
+        self.scene_list = scene_list;
+        self.scene = std.atomic.Value(u8).init(0);
+        self.pending_scene = std.atomic.Value(u8).init(0);
         self.loop_state_logged = @intFromEnum(audio.LoopState.off);
         self.engine_events = .{};
         self.forward_events = .{};
@@ -270,7 +277,6 @@ pub const Plugin = struct {
         self.shared.loadDesired(scene);
         self.settings.setPresetName(name);
         self.settings.split.store(patchSplits(name), .monotonic);
-        self.program.store(0, .monotonic);
         _ = self.shared.scene_gen.fetchAdd(1, .release);
     }
 
@@ -282,57 +288,59 @@ pub const Plugin = struct {
         const path = try std.fmt.bufPrint(&path_buf, "{s}{c}{s}", .{ folder, std.fs.path.sep, entry.file_name });
         var name_buf: [96]u8 = undefined;
         try self.loadPresetFile(path, registrations.patchName(&name_buf, entry));
-        const program = registrations.programOf(entry.bank, entry.slot);
-        self.program.store(if (program) |n| @as(u8, n) + 1 else 0, .monotonic);
         self.rescanParamValues();
     }
 
-    /// Loads the registration a program number selects.
-    pub fn loadProgram(self: *Plugin, program: u7) !void {
-        var folder_buf: [fileio.max_path]u8 = undefined;
-        const folder = try state.registrationFolder(&folder_buf, glue.resourcePath());
-        var lib = try registrations.scan(allocator, folder);
-        defer lib.deinit(allocator);
-        const entry = registrations.findProgram(&lib, program) orelse return error.NoSuchRegistration;
-        try self.loadRegistration(entry);
+    /// Called from the audio thread, when automation asks for a scene: the loading is left to the main
+    /// thread, which owns the list.
+    pub fn requestScene(self: *Plugin, position: u8) void {
+        self.scene.store(position, .monotonic);
+        self.pending_scene.store(position, .release);
     }
 
-    /// Called from the audio thread: routes the following notes with the
-    /// registration's split at once, and leaves the loading to the main
-    /// thread, because it reads files.
-    pub fn requestProgram(self: *Plugin, program: u7) void {
-        self.program.store(@as(u8, program) + 1, .monotonic);
-        self.settings.split.store(self.program_splits[program].load(.monotonic), .monotonic);
-        self.pending_program.store(@as(u8, program) + 1, .release);
-    }
-
-    fn applyPendingProgram(self: *Plugin) void {
-        const pending = self.pending_program.swap(0, .acq_rel);
-        if (pending == 0 or !glue.ready) return;
-        const program: u7 = @intCast(pending - 1);
-        self.loadProgram(program) catch |err| {
-            log.warn("program {d} (registration {d}-{d}) could not be loaded: {s}", .{ program, registrations.bankOfProgram(program), registrations.slotOfProgram(program), @errorName(err) });
+    fn applyPendingScene(self: *Plugin) void {
+        const pending = self.pending_scene.swap(0, .acq_rel);
+        if (pending == 0) return;
+        self.selectScene(pending) catch |err| {
+            log.warn("scene {d} could not be loaded: {s}", .{ pending, @errorName(err) });
             return;
         };
-        log.info("program {d}: registration {d}-{d} loaded", .{ program, registrations.bankOfProgram(program), registrations.slotOfProgram(program) });
+        log.info("scene {d} loaded", .{pending});
     }
 
-    /// Reads which registrations split, for `program_splits`.
-    pub fn scanProgramSplits(self: *Plugin) void {
-        if (!glue.ready) return;
-        self.programs_scanned = true;
-        var folder_buf: [fileio.max_path]u8 = undefined;
-        const folder = state.registrationFolder(&folder_buf, glue.resourcePath()) catch return;
-        var lib = registrations.scan(allocator, folder) catch return;
-        defer lib.deinit(allocator);
-        for (lib.entries.items) |e| {
-            const program = registrations.programOf(e.bank, e.slot) orelse continue;
-            var name_buf: [96]u8 = undefined;
-            self.program_splits[program].store(patchSplits(registrations.patchName(&name_buf, e)), .monotonic);
-        }
+    /// Makes a scene the current one and has the engine recall its patch. Main thread only.
+    pub fn selectScene(self: *Plugin, position: u8) error{NoSuchScene}!void {
+        const scene = self.scene_list.get(position) orelse return error.NoSuchScene;
+        self.scene.store(position, .monotonic);
+        self.loadScene(&scene.patch, scene.name());
+        self.rescanParamValues();
     }
 
-    /// Tells the host that the Registration and Split parameters changed
+    /// Moves a scene, and the current scene with it. Fills `map` for the lane's points.
+    pub fn moveScene(self: *Plugin, old_position: u8, new_position: u8, map: *scenes.Mapping) bool {
+        const count = self.scene_list.count;
+        if (!self.scene_list.move(old_position, new_position)) return false;
+        scenes.moveMapping(count, old_position, new_position, map);
+        self.followMapping(count, map);
+        return true;
+    }
+
+    /// Removes a scene; the current scene follows it, or becomes none if it was the removed one.
+    pub fn removeScene(self: *Plugin, position: u8, map: *scenes.Mapping) bool {
+        const count = self.scene_list.count;
+        if (!self.scene_list.remove(position)) return false;
+        scenes.removeMapping(count, position, map);
+        self.followMapping(count, map);
+        return true;
+    }
+
+    fn followMapping(self: *Plugin, count: usize, map: *const scenes.Mapping) void {
+        const current = self.scene.load(.monotonic);
+        if (current >= 1 and current <= count) self.scene.store(map[current - 1], .monotonic);
+        self.rescanParamValues();
+    }
+
+    /// Tells the host that the Scene and Split parameters changed
     /// without automation. Main thread only.
     pub fn rescanParamValues(self: *Plugin) void {
         if (self.host_params == null) return;
@@ -351,8 +359,7 @@ pub const Plugin = struct {
 
     pub fn tickMain(self: *Plugin) void {
         self.ticks +%= 1;
-        if (!self.programs_scanned) self.scanProgramSplits();
-        self.applyPendingProgram();
+        self.applyPendingScene();
         self.logTraces();
         self.logLoopState();
         self.findTrack();
@@ -481,6 +488,7 @@ fn pluginInit(p: P) callconv(.C) bool {
         timer_registered = true;
     }
     debug_api.register();
+    actions.register();
     return true;
 }
 
@@ -494,6 +502,7 @@ fn pluginDestroy(p: P) callconv(.C) void {
         if (shared_bridge) |b| b.release(slot);
     }
     if (self.loop) |l| allocator.destroy(l);
+    allocator.destroy(self.scene_list);
     allocator.destroy(self.eng);
     allocator.destroy(self.shared);
     allocator.destroy(self);
@@ -619,10 +628,6 @@ fn handleInput(self: *Plugin, ev_header: [*c]const c.clap_event_header_t, sink: 
             // Realtime messages (clock, active sensing) are not for the
             // keyboard's input; the unit sends them constantly.
             if (ev.data[0] >= 0xF8) return;
-            if (ev.data[0] == 0xC0 | program_channel) {
-                self.requestProgram(@intCast(ev.data[1] & 0x7F));
-                return;
-            }
             // The host does not mark live input (its events carry no flags),
             // so the notes cannot be told from the track's own playback.
             // They pass only when the user asked for it.
@@ -649,8 +654,6 @@ pub fn patchSplits(name: []const u8) bool {
 /// Sets the current patch's split and remembers it for that patch.
 pub fn setPatchSplit(self: *Plugin, on: bool) void {
     self.settings.split.store(on, .monotonic);
-    const program = self.program.load(.monotonic);
-    if (program != 0) self.program_splits[program - 1].store(on, .monotonic);
     self.rescanParamValues();
     if (!glue.ready) return;
     var buf: [1024]u8 = undefined;
@@ -665,10 +668,10 @@ pub fn applyExtra(self: *Plugin, extra: usize, value: f64) void {
         1 => self.settings.setSendDb(@floatCast(value)),
         2 => self.settings.setReturnDb(@floatCast(value)),
         // Automation sends its value again while it holds still; only a new
-        // value loads a registration.
-        extra_patch => {
-            const v: u8 = @intFromFloat(std.math.clamp(@round(value), 0, 128));
-            if (v != 0 and v != self.program.load(.monotonic)) self.requestProgram(@intCast(v - 1));
+        // value loads a scene.
+        extra_scene => {
+            const v: u8 = @intFromFloat(std.math.clamp(@round(value), 0, scenes.max_scenes));
+            if (v != 0 and v != self.scene.load(.monotonic)) self.requestScene(v);
         },
         // Automation overrides the split for the moment; only the Patches
         // tab remembers it for the patch.
@@ -896,7 +899,7 @@ fn paramsGetValue(p: P, id: c.clap_id, out: [*c]f64) callconv(.C) bool {
             0 => if (self.settings.loop_enabled.load(.monotonic)) 1 else 0,
             1 => self.settings.sendDb(),
             2 => self.settings.returnDb(),
-            extra_patch => @floatFromInt(self.program.load(.monotonic)),
+            extra_scene => @floatFromInt(self.scene.load(.monotonic)),
             else => if (self.settings.split.load(.monotonic)) 1 else 0,
         };
         return true;
@@ -905,7 +908,7 @@ fn paramsGetValue(p: P, id: c.clap_id, out: [*c]f64) callconv(.C) bool {
 }
 
 fn paramsValueToText(p: P, id: c.clap_id, value: f64, out: [*c]u8, capacity: u32) callconv(.C) bool {
-    _ = p;
+    const self = Plugin.from(p);
     const buf = out[0..capacity];
     if (engine.paramIndexOfId(id)) |index| {
         const text = engine.valueText(buf, catalog.params[index], value) orelse return false;
@@ -915,13 +918,14 @@ fn paramsValueToText(p: P, id: c.clap_id, value: f64, out: [*c]u8, capacity: u32
     if (extraIndexOfId(id)) |extra| {
         switch (extra) {
             0, extra_split => _ = std.fmt.bufPrintZ(buf, "{s}", .{if (value >= 0.5) "On" else "Off"}) catch return false,
-            extra_patch => {
-                const v: u8 = @intFromFloat(std.math.clamp(@round(value), 0, 128));
+            extra_scene => {
+                const v: u8 = @intFromFloat(std.math.clamp(@round(value), 0, scenes.max_scenes));
                 if (v == 0) {
                     _ = std.fmt.bufPrintZ(buf, "None", .{}) catch return false;
+                } else if (self.scene_list.get(v)) |scene| {
+                    _ = std.fmt.bufPrintZ(buf, "{d} {s}", .{ v, scene.name() }) catch return false;
                 } else {
-                    const program: u7 = @intCast(v - 1);
-                    _ = std.fmt.bufPrintZ(buf, "{d}-{d}", .{ registrations.bankOfProgram(program), registrations.slotOfProgram(program) }) catch return false;
+                    _ = std.fmt.bufPrintZ(buf, "{d} (empty)", .{v}) catch return false;
                 }
             },
             else => _ = std.fmt.bufPrintZ(buf, "{d:.1} dB", .{value}) catch return false,
@@ -985,7 +989,7 @@ fn stateSave(p: P, stream: [*c]const c.clap_ostream_t) callconv(.C) bool {
     const self = Plugin.from(p);
     var buf = std.ArrayList(u8).init(allocator);
     defer buf.deinit();
-    state.write(buf.writer(), self.shared, &self.settings) catch return false;
+    state.write(buf.writer(), self.shared, &self.settings, self.scene_list) catch return false;
     const write = stream.*.write orelse return false;
     var done: usize = 0;
     while (done < buf.items.len) {
@@ -1009,7 +1013,7 @@ fn stateLoad(p: P, stream: [*c]const c.clap_istream_t) callconv(.C) bool {
         buf.appendSlice(chunk[0..@intCast(n)]) catch return false;
     }
     var reader = std.io.fixedBufferStream(buf.items);
-    state.read(reader.reader(), self.shared, &self.settings) catch |err| {
+    state.read(reader.reader(), self.shared, &self.settings, self.scene_list) catch |err| {
         log.warn("the saved state could not be read: {s}", .{@errorName(err)});
         return false;
     };
@@ -1155,6 +1159,7 @@ pub fn shutdown() void {
     }
     glue.unregisterHook();
     debug_api.unregister();
+    actions.unregister();
     ui.shutdown();
     if (shared_bridge) |b| {
         allocator.destroy(b);

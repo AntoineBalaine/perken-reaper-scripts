@@ -583,7 +583,7 @@ fn drawRegistrations(p: *Plugin, ctx: imgui.ContextPtr) void {
     imgui.api.SetNextItemWidth(ctx, 280);
     _ = imgui.api.InputTextWithHint(ctx, "##regfilter", "filter by name or bank-slot", &w.reg_filter, w.reg_filter.len, &input_flags, null);
     const filter = std.mem.sliceTo(&w.reg_filter, 0);
-    if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "Double click a registration to send it to the keyboard. A Program Change on channel 16 in the track's items does the same with the number shown (PC). The keyboard's display keeps showing the last registration chosen on its panel.");
+    if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "Double click a registration to send it to the keyboard. The Scene parameter's lane selects scenes, which are copies of patches. The keyboard's display keeps showing the last registration chosen on its panel.");
 
     var list_w: f64 = -1;
     var list_h: f64 = 200;
@@ -608,8 +608,7 @@ fn drawRegistrations(p: *Plugin, ctx: imgui.ContextPtr) void {
                 if (!registrations.matches(entry, filter)) continue;
                 var name_buf: [64]u8 = undefined;
                 var label: [128:0]u8 = undefined;
-                const program: i32 = if (registrations.programOf(entry.bank, entry.slot)) |n| n else -1;
-                const row = std.fmt.bufPrintZ(&label, "{d}-{d}  {s}  (PC {d})##reg{d}", .{ entry.bank, entry.slot, registrations.displayName(&name_buf, entry.name), program, index }) catch continue;
+                const row = std.fmt.bufPrintZ(&label, "{d}-{d}  {s}##reg{d}", .{ entry.bank, entry.slot, registrations.displayName(&name_buf, entry.name), index }) catch continue;
                 var selected = w.reg_selected == @as(i32, @intCast(index));
                 var sel_flags: c_int = imgui.SelectableFlags_AllowDoubleClick;
                 if (imgui.api.Selectable(ctx, row, &selected, &sel_flags, null, null)) {

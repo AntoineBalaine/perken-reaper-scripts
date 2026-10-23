@@ -7,6 +7,9 @@ const plugin = @import("plugin.zig");
 const engine = @import("engine.zig");
 const catalog = @import("catalog.zig");
 const roland = @import("roland.zig");
+const dump = @import("dump.zig");
+const debug_api = @import("debug_api.zig");
+const actions = @import("actions.zig");
 
 const entry = @import("clap_entry.zig").clap_entry;
 
@@ -359,7 +362,24 @@ fn midiOutputs(host: *MockHost, buf: *[16][3]u8) usize {
     return n;
 }
 
-test "a Program Change on channel 16 selects a registration and its split at once" {
+test "a Program Change on channel 16 passes through like any other message" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+
+    // The plugin no longer reads it: scenes are selected by the Scene parameter.
+    host.addNote(0xCF, 4, 0, 0, false);
+    host.process(p);
+    var found: [16][3]u8 = undefined;
+    const n = midiOutputs(&host, &found);
+    try std.testing.expectEqual(@as(usize, 1), n);
+    try std.testing.expectEqual(@as(u8, 0xCF), found[0][0]);
+}
+
+test "the Split parameter overrides the split" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -367,45 +387,166 @@ test "a Program Change on channel 16 selects a registration and its split at onc
     const p = createPlugin(&host);
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
-    // Registration 2-1 (program 4) splits.
-    self.program_splits[4].store(true, .monotonic);
+    self.settings.split.store(true, .monotonic);
 
-    host.addNote(0xCF, 4, 0, 0, false);
-    host.addNote(0x90, 48, 100, 1, false);
-    host.addNote(0x90, 72, 100, 2, false);
-    host.process(p);
     var found: [16][3]u8 = undefined;
-    const n = midiOutputs(&host, &found);
-    // The Program Change is not passed on, and the notes after it follow the split.
-    try std.testing.expectEqual(@as(usize, 2), n);
-    try std.testing.expectEqual([3]u8{ 0x92, 48, 100 }, found[0]);
-    try std.testing.expectEqual([3]u8{ 0x93, 72, 100 }, found[1]);
-    // The main thread loads the registration later.
-    try std.testing.expectEqual(@as(u8, 5), self.pending_program.load(.monotonic));
-
-    const params: *const c.clap_plugin_params_t = @ptrCast(@alignCast(p.*.get_extension.?(p, &c.CLAP_EXT_PARAMS)));
-    const patch_id = engine.hashId("patch");
-    const split_id = engine.hashId("split");
-    var value: f64 = 0;
-    try std.testing.expect(params.get_value.?(p, patch_id, &value));
-    try std.testing.expectEqual(@as(f64, 5), value);
-    var text: [32]u8 = undefined;
-    try std.testing.expect(params.value_to_text.?(p, patch_id, 5, &text, text.len));
-    try std.testing.expectEqualStrings("2-1", std.mem.sliceTo(&text, 0));
-
-    // The Split parameter overrides the split; the Registration parameter
-    // only acts on a new value.
-    self.pending_program.store(0, .monotonic);
-    host.addParam(split_id, 0, 0);
-    host.addParam(patch_id, 5, 0);
+    host.addParam(engine.hashId("split"), 0, 0);
     host.addNote(0x90, 50, 100, 1, false);
     host.process(p);
-    try std.testing.expectEqual(@as(u8, 0), self.pending_program.load(.monotonic));
     try std.testing.expectEqual(@as(usize, 1), midiOutputs(&host, &found));
     try std.testing.expectEqual([3]u8{ 0x93, 50, 100 }, found[0]);
-    host.addParam(patch_id, 1, 0);
+}
+
+test "the Scene parameter asks for a scene once, and shows its name" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    var verse = dump.Dump{};
+    _ = verse.set(.kb, 0x02 << 14 | 5, 3);
+    var chorus = dump.Dump{};
+    _ = chorus.set(.kb, 0x02 << 14 | 5, 9);
+    _ = try self.scene_list.add("Verse", &verse);
+    _ = try self.scene_list.add("Chorus", &chorus);
+
+    const params: *const c.clap_plugin_params_t = @ptrCast(@alignCast(p.*.get_extension.?(p, &c.CLAP_EXT_PARAMS)));
+    const scene_id = engine.hashId("scene");
+    var text: [32]u8 = undefined;
+    try std.testing.expect(params.value_to_text.?(p, scene_id, 0, &text, text.len));
+    try std.testing.expectEqualStrings("None", std.mem.sliceTo(&text, 0));
+    try std.testing.expect(params.value_to_text.?(p, scene_id, 2, &text, text.len));
+    try std.testing.expectEqualStrings("2 Chorus", std.mem.sliceTo(&text, 0));
+    try std.testing.expect(params.value_to_text.?(p, scene_id, 3, &text, text.len));
+    try std.testing.expectEqualStrings("3 (empty)", std.mem.sliceTo(&text, 0));
+
+    // A new value asks for the scene; the same value again, as automation sends while it holds still, does not.
+    host.addParam(scene_id, 2, 0);
     host.process(p);
-    try std.testing.expectEqual(@as(u8, 1), self.pending_program.load(.monotonic));
+    try std.testing.expectEqual(@as(u8, 2), self.pending_scene.load(.monotonic));
+    var value: f64 = 0;
+    try std.testing.expect(params.get_value.?(p, scene_id, &value));
+    try std.testing.expectEqual(@as(f64, 2), value);
+    self.pending_scene.store(0, .monotonic);
+    host.addParam(scene_id, 2, 0);
+    host.process(p);
+    try std.testing.expectEqual(@as(u8, 0), self.pending_scene.load(.monotonic));
+    // Zero means no scene and asks for nothing.
+    host.addParam(scene_id, 0, 0);
+    host.process(p);
+    try std.testing.expectEqual(@as(u8, 0), self.pending_scene.load(.monotonic));
+
+    // The main thread loads the scene's patch and names it.
+    try self.selectScene(2);
+    try std.testing.expectEqual(@as(?u8, 9), self.shared.getDesired(.kb, 0x02 << 14 | 5));
+    try std.testing.expectEqualStrings("Chorus", self.settings.presetName());
+    try std.testing.expectError(error.NoSuchScene, self.selectScene(5));
+}
+
+test "the debug commands add, list, move, select and remove scenes" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    var out: [4096]u8 = undefined;
+    // Three scenes from the plugin's own state, each with its own byte.
+    for ([_][]const u8{ "A", "B", "C" }, 0..) |n, i| {
+        _ = self.shared.setDesired(.kb, 0x02 << 14 | 5, @intCast(i + 1));
+        var arg_buf: [16]u8 = undefined;
+        const arg = try std.fmt.bufPrint(&arg_buf, "current|{s}", .{n});
+        var fbs = std.io.fixedBufferStream(&out);
+        try debug_api.dispatch(fbs.writer(), null, -1, "scene_add", arg);
+        try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":true") != null);
+    }
+    try std.testing.expectEqual(@as(u8, 3), self.scene_list.count);
+
+    // Move A to the end: the others move up, and the reply says where every position went.
+    var fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scene_move", "1,3");
+    try std.testing.expectEqualStrings("{\"ok\":true,\"map\":[3,1,2]}", fbs.getWritten());
+    try std.testing.expectEqualStrings("B", self.scene_list.get(1).?.name());
+    try std.testing.expectEqualStrings("A", self.scene_list.get(3).?.name());
+
+    // Selecting loads that scene's patch and makes it current; the current scene follows a move.
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scene_select", "3");
+    try std.testing.expectEqual(@as(?u8, 1), self.shared.getDesired(.kb, 0x02 << 14 | 5));
+    try std.testing.expectEqual(@as(u8, 3), self.scene.load(.monotonic));
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scene_move", "3,1");
+    try std.testing.expectEqual(@as(u8, 1), self.scene.load(.monotonic));
+
+    // Removing the current scene leaves none selected, and the later positions shift down: the removed
+    // scene's points fall to 0, the second scene becomes the first and the third the second.
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scene_remove", "1");
+    try std.testing.expectEqualStrings("{\"ok\":true,\"map\":[0,1,2]}", fbs.getWritten());
+    try std.testing.expectEqual(@as(u8, 0), self.scene.load(.monotonic));
+    try std.testing.expectEqual(@as(u8, 2), self.scene_list.count);
+
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scenes", "");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"count\":2") != null);
+    // A tone scene knows only the three tone bytes, and keeps the library ID and label it came with.
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scene_add_tone", "upper_synth 12 3 1|Lead|205|Tone Lead");
+    try std.testing.expectEqualStrings("{\"ok\":true,\"position\":3}", fbs.getWritten());
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scenes", "");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "{\"position\":3,\"patch_id\":205,\"name\":\"Lead\",\"label\":\"Tone Lead\"}") != null);
+    try std.testing.expectEqual(@as(usize, 3), self.scene_list.get(3).?.patch.knownCount());
+    // load_tone writes a tone to the keyboard without adding a scene.
+    const count_before = self.scene_list.count;
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "load_tone", "upper_piano 58 6 0|Vintage EP");
+    try std.testing.expectEqualStrings("{\"ok\":true}", fbs.getWritten());
+    try std.testing.expectEqual(count_before, self.scene_list.count);
+    // The upper piano's tone bytes (01 01 01 to 03) are the only ones the state knows.
+    try std.testing.expectEqual(@as(?u8, 58), self.shared.getDesired(.kb, 1 << 14 | 1 << 7 | 1));
+    try std.testing.expectEqual(@as(?u8, 6), self.shared.getDesired(.kb, 1 << 14 | 1 << 7 | 2));
+    try std.testing.expectEqual(@as(?u8, null), self.shared.getDesired(.kb, 0x02 << 14 | 5));
+    try std.testing.expectEqualStrings("Vintage EP", self.settings.presetName());
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scene_add_tone", "drum 1 1 0");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
+
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "scene_select", "9");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
+}
+
+test "the step actions move between the scenes of an instance and stop at the ends" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    for ([_]u8{ 1, 2, 3 }) |value| {
+        var patch = dump.Dump{};
+        _ = patch.set(.kb, 0x02 << 14 | 5, value);
+        _ = try self.scene_list.add("Scene", &patch);
+    }
+
+    // With none selected, either direction goes to the first scene.
+    actions.step(-1);
+    try std.testing.expectEqual(@as(u8, 1), self.scene.load(.monotonic));
+    actions.step(1);
+    actions.step(1);
+    try std.testing.expectEqual(@as(u8, 3), self.scene.load(.monotonic));
+    try std.testing.expectEqual(@as(?u8, 3), self.shared.getDesired(.kb, 0x02 << 14 | 5));
+    // The last scene is the end: another step does not wrap round to the first.
+    actions.step(1);
+    try std.testing.expectEqual(@as(u8, 3), self.scene.load(.monotonic));
+    actions.step(-1);
+    try std.testing.expectEqual(@as(u8, 2), self.scene.load(.monotonic));
 }
 
 test "a control change parameter sends a CC and nothing else" {
