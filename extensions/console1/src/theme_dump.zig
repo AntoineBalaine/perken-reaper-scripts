@@ -1,0 +1,37 @@
+const std = @import("std");
+const reaper = @import("reaper").reaper;
+const c1_theme = @import("theme/c1_theme.zig");
+const WindowColors = c1_theme.WindowColors;
+
+pub fn saveThemeToFile() void {
+    const resource_path = std.mem.span(reaper.GetResourcePath());
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = std.fmt.bufPrint(&path_buf, "{s}/Data/Perken/Console1/theme.ini", .{resource_path}) catch {
+        _ = reaper.ShowMessageBox("Failed to build output path", "Theme Save", 0);
+        return;
+    };
+
+    const file = std.fs.createFileAbsolute(path, .{ .truncate = true }) catch {
+        _ = reaper.ShowMessageBox("Failed to create theme file", "Theme Save", 0);
+        return;
+    };
+    defer file.close();
+
+    var writer = file.writer();
+    writeWindowColors(&writer, "[config]", &c1_theme.theme.config) catch return;
+    writer.writeAll("\n") catch return;
+    writeWindowColors(&writer, "[main]", &c1_theme.theme.main) catch return;
+
+    var msg_buf: [512]u8 = undefined;
+    const msg = std.fmt.bufPrintZ(&msg_buf, "Theme saved to:\n{s}", .{path}) catch "Theme saved.";
+    _ = reaper.ShowMessageBox(msg, "Theme Save", 0);
+}
+
+fn writeWindowColors(writer: anytype, header: []const u8, colors: *const WindowColors) !void {
+    try writer.writeAll(header);
+    try writer.writeAll("\n");
+    inline for (std.meta.fields(WindowColors)) |field| {
+        const val: u32 = @bitCast(@field(colors, field.name));
+        try writer.print("{s} = {X:0>8}\n", .{ field.name, val });
+    }
+}

@@ -1,0 +1,334 @@
+//! reavim-ext: vim mode for REAPER as a compiled extension.
+//!
+//! Keystrokes are intercepted via the "<accelerator" hook (front of REAPER's
+//! keyboard processing queue — the undocumented prefix js_ReaScriptAPI uses;
+//! plain "accelerator" registers at the back and never sees MIDI editor keys).
+//! Vim off / insert mode passes everything through, so the user's native
+//! key bindings stay untouched. A "ReaVim: Toggle vim mode" action is
+//! registered in the main section to switch it on and off.
+const std = @import("std");
+const builtin = @import("builtin");
+const build_options = @import("build_options");
+const Reaper = @import("reaper").reaper;
+const accel = @import("accel.zig");
+const logger = @import("logger.zig");
+const vim = @import("vim.zig");
+const config = @import("config.zig");
+const ui = @import("ui.zig");
+const win_file = @import("win_file.zig");
+const runner = @import("runner.zig");
+const actions_mod = @import("actions.zig");
+const defaults_actions = @import("defaults_actions.zig");
+const lib_state = @import("lib_state.zig");
+const ported_movement = @import("ported/movement.zig");
+const ported_selection = @import("ported/selection.zig");
+const ported_marks = @import("ported/marks.zig");
+const ported_midi = @import("ported/midi.zig");
+const ported_misc = @import("ported/misc.zig");
+
+// REAPER API functions this extension uses — resolved selectively at load
+// (reaziglib.reaper.initSubset). Unlisted functions are never compiled in.
+// A call to a function not in this list is a load-time failure, not silent.
+const reaper_api = [_][:0]const u8{
+    "AddMediaItemToTrack",        "AddProjectMarker",          "CountEnvelopePoints",
+    "CountSelectedMediaItems",    "CountSelectedTracks",       "CountTakes",
+    "CountTracks",                "CreateTrackSend",           "DeleteEnvelopePointRange",
+    "DeleteProjectMarker",        "DeleteTrack",               "EnumProjectMarkers",
+    "GetActiveTake",              "GetCursorPosition",         "GetEnvelopePoint",
+    "GetEnvelopeScalingMode",     "GetEnvelopeStateChunk",     "GetExtState",
+    "GetItemStateChunk",          "GetLastMarkerAndCurRegion", "GetLastTouchedTrack",
+    "GetMainHwnd",                "GetMediaItemInfo_Value",    "GetMediaItemTakeInfo_Value",
+    "GetMediaItemTake_Item",      "GetMediaItem_Track",        "GetMediaTrackInfo_Value",
+    "GetNumTracks",               "GetParentTrack",            "GetProjExtState",
+    "GetProjectLength",           "GetResourcePath",           "GetSelectedEnvelope",
+    "GetSelectedMediaItem",       "GetSelectedTrack",          "GetSetMediaTrackInfo_String",
+    "GetSet_ArrangeView2",        "GetSet_LoopTimeRange",      "GetTake",
+    "GetToggleCommandStateEx",    "GetTrack",                  "GetTrackMediaItem",
+    "GetTrackNumMediaItems",      "GetTrackNumSends",          "GetUserInputs",
+    "InsertEnvelopePoint",        "InsertTrackAtIndex",        "IsMediaItemSelected",
+    "MIDIEditor_GetActive",       "MIDIEditor_GetTake",        "MIDIEditor_LastFocused_OnCommand",
+    "MIDIEditor_OnCommand",       "MIDIEditor_SetSetting_int", "MIDI_CountEvts",
+    "MIDI_GetNote",               "MIDI_GetPPQPosFromProjQN",  "MIDI_GetProjQNFromPPQPos",
+    "MIDI_GetProjTimeFromPPQPos", "MIDI_InsertNote",           "MIDI_SetNote",
+    "MIDI_Sort",                  "Main_OnCommand",            "MoveEditCursor",
+    "MoveMediaItemToTrack",       "NamedCommandLookup",        "PreventUIRefresh",
+    "ScaleToEnvelopeMode",        "SectionFromUniqueID",       "SetEditCurPos",
+    "SetEnvelopePoint",           "SetExtState",               "SetItemStateChunk",
+    "SetMIDIEditorGrid",          "SetMediaItemInfo_Value",    "SetMediaItemTakeInfo_Value",
+    "SetMediaTrackInfo_Value",    "SetOnlyTrackSelected",      "SetProjExtState",
+    "SetProjectGrid",             "SetTrackSelected",          "ShowMessageBox",
+    "SnapToGrid",                 "SplitMediaItem",            "TakeIsMIDI",
+    "TimeMap2_beatsToTime",       "TrackFX_GetFXName",         "TrackFX_GetInstrument",
+    "TrackFX_GetPreset",          "Undo_BeginBlock",           "Undo_EndBlock",
+    "UpdateArrange",              "UpdateItemInProject",       "get_config_var",
+    "kbd_getTextFromCmd",         "plugin_getapi",             "plugin_register",
+};
+
+pub const std_options = std.Options{
+    .log_level = switch (@import("builtin").mode) {
+        .Debug => .debug,
+        .ReleaseSafe => .info,
+        .ReleaseFast => .warn,
+        .ReleaseSmall => .err,
+    },
+    .logFn = logger.logFn,
+};
+
+const ext_log = std.log.scoped(.extension);
+
+var accel_reg = accel.accelerator_register_t{
+    .translateAccel = &translateAccel,
+    .isLocal = true,
+    .user = null,
+};
+
+var toggle_cmd_id: c_int = 0;
+var whichkey_cmd_id: c_int = 0;
+var edit_cmd_id: c_int = 0;
+var bindings: ?config.Bindings = null;
+var registry: ?actions_mod.Registry = null;
+
+/// User config beats the embedded defaults:
+/// <resource>/Data/Perken/bindings.ini
+fn loadBindings() void {
+    const alloc = std.heap.c_allocator;
+
+    registry = actions_mod.Registry.init(alloc, &.{
+        &defaults_actions.entries,
+        &lib_state.entries,
+        &ported_movement.entries,
+        &ported_selection.entries,
+        &ported_marks.entries,
+        &ported_midi.entries,
+        &ported_misc.entries,
+        &ui.entries,
+    }) catch |err| {
+        ext_log.err("action registry init failed: {s}", .{@errorName(err)});
+        return;
+    };
+    runner.registry = &registry.?;
+
+    const resource = std.mem.span(Reaper.GetResourcePath());
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = std.fmt.bufPrint(&path_buf, "{s}/Data/Perken/bindings.ini", .{resource}) catch "";
+
+    // std.fs.openFileAbsolute is avoided on Windows: its internal stack frame
+    // (UTF-16 conversion, long-path prefixing) is large enough to overflow
+    // the stack at the depth REAPER calls into this extension at, even
+    // though the identical call is fine in a standalone program. win_file
+    // uses raw CreateFileA/ReadFile instead, which have small enough frames
+    // to fit in the stack room actually left at that depth.
+    if (builtin.os.tag == .windows) {
+        if (win_file.readFile(alloc, path)) |content| {
+            defer alloc.free(content);
+            if (config.parseString(alloc, &registry.?, content)) |b| {
+                bindings = b;
+                ext_log.info("bindings loaded from {s}", .{path});
+            } else |err| {
+                ext_log.err("failed to parse {s}: {s} — falling back to defaults", .{ path, @errorName(err) });
+            }
+        } else {
+            ext_log.info("no user bindings at {s} — using built-in defaults", .{path});
+        }
+    } else if (std.fs.openFileAbsolute(path, .{})) |file| {
+        defer file.close();
+        if (config.parse(alloc, &registry.?, file.reader())) |b| {
+            bindings = b;
+            ext_log.info("bindings loaded from {s}", .{path});
+        } else |err| {
+            ext_log.err("failed to parse {s}: {s} — falling back to defaults", .{ path, @errorName(err) });
+        }
+    } else |_| {
+        ext_log.info("no user bindings at {s} — using built-in defaults", .{path});
+    }
+
+    if (bindings == null) {
+        bindings = config.parseString(alloc, &registry.?, lib_state.default_bindings) catch |err| {
+            ext_log.err("default bindings failed to parse: {s}", .{@errorName(err)});
+            return;
+        };
+    }
+    vim.setBindings(&bindings.?);
+}
+
+export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_info_t) c_int {
+    _ = instance;
+
+    if (rec == null)
+        return 0; // cleanup
+
+    if (!Reaper.initSubset(rec.?, &reaper_api))
+        return 0;
+
+    if (Reaper.plugin_register("<accelerator", @ptrCast(&accel_reg)) == 0) {
+        ext_log.err("failed to register accelerator hook", .{});
+        return 0;
+    }
+
+    const toggle_action: Reaper.custom_action_register_t = .{
+        .section = 0,
+        .id_str = "REAVIM_TOGGLE",
+        .name = "ReaVim: Toggle vim mode",
+    };
+    toggle_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&toggle_action)));
+    if (toggle_cmd_id == 0)
+        ext_log.err("failed to register toggle action", .{});
+
+    const whichkey_action: Reaper.custom_action_register_t = .{
+        .section = 0,
+        .id_str = "REAVIM_TOGGLE_WHICHKEY",
+        .name = "ReaVim: Toggle whichkey window",
+    };
+    whichkey_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&whichkey_action)));
+
+    const edit_action: Reaper.custom_action_register_t = .{
+        .section = 0,
+        .id_str = "REAVIM_EDIT_BINDINGS",
+        .name = "ReaVim: Edit bindings",
+    };
+    edit_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&edit_action)));
+
+    _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
+    _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
+
+    loadBindings();
+    vim.restoreState();
+    ui.register();
+
+    ext_log.info("v{s} loaded — bind \"ReaVim: Toggle vim mode\" to a key, or run it from the action list", .{build_options.version});
+    return 1;
+}
+
+fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: Reaper.HWND) callconv(.C) c_char {
+    _ = .{ sec, val, val2hw, relmode, hwnd };
+    if (toggle_cmd_id != 0 and command == toggle_cmd_id) {
+        vim.toggle();
+        return 1;
+    }
+    if (whichkey_cmd_id != 0 and command == whichkey_cmd_id) {
+        _ = ui.toggleVisible();
+        return 1;
+    }
+    if (edit_cmd_id != 0 and command == edit_cmd_id) {
+        lib_state.editBindings();
+        return 1;
+    }
+    return 0;
+}
+
+// -1 = not ours / doesn't toggle, 0 = ours and off, 1 = ours and on
+fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
+    if (toggle_cmd_id != 0 and command_id == toggle_cmd_id)
+        return if (vim.mode() != .off) 1 else 0;
+    if (whichkey_cmd_id != 0 and command_id == whichkey_cmd_id)
+        return if (ui.isVisible()) 1 else 0;
+    return -1;
+}
+
+fn translateAccel(msg: *accel.MSG, ctx: *accel.accelerator_register_t) callconv(.C) c_int {
+    _ = ctx;
+    return vim.onKey(msg);
+}
+
+// Force the SWELL_dllMain export into the shared library.
+comptime {
+    _ = @import("swell_win.zig");
+    _ = @import("keyboard.zig");
+}
+
+test {
+    _ = @import("accel.zig");
+    _ = @import("logger.zig");
+    _ = @import("vim.zig");
+    _ = @import("swell_win.zig");
+    _ = @import("key.zig");
+    _ = @import("trie.zig");
+    _ = @import("meta.zig");
+    _ = @import("reaper_helpers");
+    _ = @import("ported/movement.zig");
+    _ = @import("ported/selection.zig");
+    _ = @import("ported/marks.zig");
+    _ = @import("ported/midi.zig");
+    _ = @import("ported/misc.zig");
+    _ = @import("search.zig");
+}
+
+test "the MIDI editor keymap: note selection, quantize and note editing keys" {
+    var reg = try actions_mod.Registry.init(std.testing.allocator, &.{
+        &defaults_actions.entries, &lib_state.entries,   &ported_movement.entries, &ported_selection.entries,
+        &ported_marks.entries,     &ported_midi.entries, &ported_misc.entries,     &ui.entries,
+    });
+    defer reg.deinit();
+    const text = lib_state.default_bindings;
+    var b = try config.parseString(std.testing.allocator, &reg, text);
+    defer b.deinit();
+    const keymod = @import("key.zig");
+    const builder = @import("builder.zig");
+    const checks = [_]struct { ctx: @import("grammar.zig").Context, keys: []const u8, want: ?[]const u8 }{
+        .{ .ctx = .midi, .keys = "W", .want = "AddNextNoteToSelection" },
+        .{ .ctx = .midi, .keys = "B", .want = "AddPrevNoteToSelection" },
+        .{ .ctx = .midi, .keys = "w", .want = "NextNoteStart" },
+        .{ .ctx = .midi, .keys = "q", .want = "Quantize" },
+        // Plain arrows move: the cursor by the grid, the pitch row up and down.
+        .{ .ctx = .midi, .keys = "<right>", .want = "RightMidiGridDivision" },
+        .{ .ctx = .midi, .keys = "<left>", .want = "LeftMidiGridDivision" },
+        .{ .ctx = .midi, .keys = "<up>", .want = "PitchUp" },
+        .{ .ctx = .midi, .keys = "<down>", .want = "PitchDown" },
+        // h j k l are aliases of the arrows.
+        .{ .ctx = .midi, .keys = "h", .want = "LeftMidiGridDivision" },
+        .{ .ctx = .midi, .keys = "l", .want = "RightMidiGridDivision" },
+        .{ .ctx = .midi, .keys = "k", .want = "PitchUp" },
+        .{ .ctx = .midi, .keys = "j", .want = "PitchDown" },
+        // Shift extends the note selection.
+        .{ .ctx = .midi, .keys = "<S-right>", .want = "AddNextNoteToSelection" },
+        .{ .ctx = .midi, .keys = "<S-left>", .want = "AddPrevNoteToSelection" },
+        .{ .ctx = .midi, .keys = "L", .want = "AddNextNoteToSelection" },
+        .{ .ctx = .midi, .keys = "H", .want = "AddPrevNoteToSelection" },
+        // Ctrl edits the selected notes.
+        .{ .ctx = .midi, .keys = "<C-right>", .want = "MoveNoteRight" },
+        .{ .ctx = .midi, .keys = "<C-left>", .want = "MoveNoteLeft" },
+        .{ .ctx = .midi, .keys = "<C-up>", .want = "MoveNoteUpSemitone" },
+        .{ .ctx = .midi, .keys = "<C-down>", .want = "MoveNoteDownSemitone" },
+        .{ .ctx = .midi, .keys = "<C-S-up>", .want = "MoveNoteUpOctave" },
+        .{ .ctx = .midi, .keys = "<C-S-down>", .want = "MoveNoteDownOctave" },
+        .{ .ctx = .midi, .keys = "<C-S-right>", .want = "LengthenNotes" },
+        .{ .ctx = .midi, .keys = "<C-S-left>", .want = "ShortenNotes" },
+        .{ .ctx = .midi, .keys = "<C-l>", .want = "MoveNoteRight" },
+        .{ .ctx = .midi, .keys = "<C-k>", .want = "MoveNoteUpSemitone" },
+        .{ .ctx = .midi, .keys = "<C-L>", .want = "LengthenNotes" },
+        // g is Legato, which ships commented out; it must not fall back to the join operator.
+        .{ .ctx = .midi, .keys = "g", .want = null },
+        .{ .ctx = .midi, .keys = "<space>mj", .want = "JoinSelectedNotes" },
+        .{ .ctx = .midi, .keys = "n", .want = null },
+        .{ .ctx = .main, .keys = "<S-right>", .want = "NextMeasure" },
+        .{ .ctx = .main, .keys = "H", .want = "PrevMeasure" },
+        .{ .ctx = .main, .keys = "l", .want = "RightGridDivision" },
+        .{ .ctx = .main, .keys = "q", .want = "RecordMacro" },
+    };
+    for (checks) |c| {
+        var keys = std.ArrayList(keymod.Key).init(std.testing.allocator);
+        defer keys.deinit();
+        try keymod.parseSequence(c.keys, &keys);
+        const got = builder.build(&b.tables, c.ctx, .normal, keys.items);
+        if (c.want) |w| {
+            try std.testing.expect(got != null);
+            try std.testing.expectEqualStrings(w, got.?.keys[0].name);
+        } else {
+            try std.testing.expect(got == null);
+        }
+    }
+}
+
+test "every REAPER function the sources call is in reaper_api" {
+    // Because initSubset leaves an unlisted function as a null pointer, a
+    // forgotten name compiles fine and then crashes REAPER when the action
+    // runs. This test reads the sources and fails on such a name instead.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var unlisted = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer unlisted.deinit();
+    const api = @import("reaper");
+    try api.unlistedCallsInPaths(arena.allocator(), @import("test_paths").sources, &reaper_api, &unlisted);
+    for (unlisted.items) |name| std.debug.print("REAPER function used but missing from reaper_api: {s}\n", .{name});
+    try std.testing.expectEqual(@as(usize, 0), unlisted.items.len);
+}
