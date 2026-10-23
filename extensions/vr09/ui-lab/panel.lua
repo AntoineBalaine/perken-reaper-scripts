@@ -256,6 +256,7 @@ end
 local AS_LIST = {
   ["footswitch-left"] = true,
   ["footswitch-right"] = true,
+  ["engine-osc-wave"] = true,
 }
 
 -- Draws the control of a parameter: a stop knob when its values have names, a knob otherwise, and
@@ -287,7 +288,8 @@ end
 
 -- Tells the user that the lab has to be started again, when it was started before a data file existed.
 local function extras_missing(ctx, S)
-  if S.extras_by_id and S.tones then return false end
+  -- The last parameter of extras.lua is the sign that the lab has read the whole file.
+  if S.extras_by_id and S.tones and S.extras_by_id["engine-ring"] then return false end
   ImGui.TextColored(ctx, env.theme.amber, "The documented parameters are not loaded: close the lab and run it again.")
   return true
 end
@@ -457,11 +459,18 @@ local STACKED = {
 local function card_of_organ_voicing(ctx, S, height)
   local widgets, values = env.widgets, S.model.values
   if not widgets.begin_card(ctx, "Organ voicing", nil, height, env.theme.part.organ) then return end
-  local ids = { "organ-type", "rotary-type", "percussion", "organ-eq-high", "organ-eq-low" }
-  for i, id in ipairs(ids) do
-    local param = S.extras_by_id[id]
-    control_of(ctx, S, param, param.short, param.signed)
-    if i < #ids then ImGui.SameLine(ctx) end
+  -- The organ's character on the first row, and its levels on the second: the EQ and the overdrive's dry
+  -- mix, which the unit refuses and which are drawn disabled.
+  local rows = {
+    { "organ-type", "rotary-type", "percussion", "percussion-level" },
+    { "organ-eq-high", "organ-eq-low", "overdrive-dry" },
+  }
+  for _, ids in ipairs(rows) do
+    for i, id in ipairs(ids) do
+      local param = S.extras_by_id[id]
+      control_of(ctx, S, param, param.short, param.signed)
+      if i < #ids then ImGui.SameLine(ctx) end
+    end
   end
   local switches = {
     { id = "vibrato-upper", label = "Vibrato / chorus, upper" },
@@ -494,11 +503,14 @@ local function card_of_organ_pedal(ctx, S, height)
 end
 
 local function organ_extras(ctx, S)
-  if not S.extras_by_id then return end
+  if extras_missing(ctx, S) then return end
   local height = row_height({ "Organ voicing", "Organ pedal" })
   card_of_organ_voicing(ctx, S, height)
   ImGui.SameLine(ctx)
   card_of_organ_pedal(ctx, S, height)
+  -- The rotary speaker's times and its brake, which the unit refuses, under them.
+  card_of_extras(ctx, S, "Rotary times", { "woofer-rise", "woofer-fall", "tweeter-rise", "tweeter-fall", "rotary-brake" },
+    env.theme.part.organ)
 end
 
 -- The drum part: its kit from the tone list, its volume, and a switch. The document lists these at
@@ -526,6 +538,27 @@ local function drums_section(ctx, S)
   ImGui.EndChild(ctx)
 end
 
+-- The pedals' settings: the part the damper pedal acts on, the wheel brake, and the two N.control switches,
+-- which are the two bits of one value.
+local function card_of_pedals(ctx, S, accent)
+  local widgets, values = env.widgets, S.model.values
+  if not widgets.begin_card(ctx, "Pedals", nil, nil, accent) then return end
+  for i, id in ipairs({ "damper-part", "wheel-brake" }) do
+    local param = S.extras_by_id[id]
+    control_of(ctx, S, param, param.short)
+    ImGui.SameLine(ctx)
+  end
+  local n = values["n-control"]
+  local first, second = n & 1 == 1, n & 2 == 2
+  local changed_1, on_1 = widgets.toggle(ctx, "N.control 1", first)
+  ImGui.SameLine(ctx)
+  local changed_2, on_2 = widgets.toggle(ctx, "N.control 2", second)
+  if changed_1 then first = on_1 end
+  if changed_2 then second = on_2 end
+  values["n-control"] = (first and 1 or 0) | (second and 2 or 0)
+  widgets.end_card(ctx)
+end
+
 -- The keyboard's performance controls: what the two footswitches and the D-Beam do, and the
 -- transposition and the touch.
 local function performance_section(ctx, S)
@@ -540,7 +573,50 @@ local function performance_section(ctx, S)
   ImGui.SameLine(ctx)
   card_of_extras(ctx, S, "D-Beam", { "d-beam" }, accent, height)
   ImGui.SameLine(ctx)
-  card_of_extras(ctx, S, "Keyboard", { "transpose", "initial-touch" }, accent, height)
+  card_of_extras(ctx, S, "Keyboard", { "transpose", "initial-touch", "expression-curve" }, accent, height)
+  card_of_pedals(ctx, S, accent)
+  ImGui.EndChild(ctx)
+end
+
+-- The synth engine that Roland documents: one partial's oscillator, filter, amplifier and LFO, in rows of
+-- cards. The unit does not answer at its addresses, so every control is disabled.
+local ENGINE_ROWS = {
+  {
+    { title = "Oscillator", ids = { "engine-osc-wave", "engine-osc-variation", "engine-osc-pitch", "engine-osc-detune", "engine-osc-pwm-depth", "engine-osc-pulse-width" } },
+    { title = "Pitch envelope", ids = { "engine-pitch-env-attack", "engine-pitch-env-decay", "engine-pitch-env-depth" } },
+  },
+  {
+    { title = "Filter", ids = { "engine-filter-mode", "engine-filter-slope", "engine-filter-cutoff", "engine-filter-keyfollow", "engine-filter-resonance" } },
+    { title = "Filter envelope", ids = { "engine-filter-env-attack", "engine-filter-env-decay", "engine-filter-env-sustain", "engine-filter-env-release", "engine-filter-env-depth" } },
+  },
+  {
+    { title = "Amplifier", ids = { "engine-amp-level", "engine-amp-velocity", "engine-amp-pan" } },
+    { title = "Amplifier envelope", ids = { "engine-amp-env-attack", "engine-amp-env-decay", "engine-amp-env-sustain", "engine-amp-env-release" } },
+    { title = "Unison and ring", ids = { "engine-unison", "engine-unison-size", "engine-ring" } },
+  },
+  {
+    { title = "LFO", ids = { "engine-lfo-shape", "engine-lfo-rate", "engine-lfo-sync", "engine-lfo-sync-note", "engine-lfo-fade", "engine-lfo-pitch-depth", "engine-lfo-filter-depth" } },
+  },
+}
+
+local function engine_section(ctx, S)
+  if not ImGui.BeginChild(ctx, "##section") then return end
+  if extras_missing(ctx, S) then
+    ImGui.EndChild(ctx)
+    return
+  end
+  ImGui.PushTextWrapPos(ctx, 640)
+  ImGui.TextColored(ctx, env.theme.text_dim, "One partial of the synth tone, as Roland documents it. The unit does not answer at these addresses, so the controls are disabled.")
+  ImGui.PopTextWrapPos(ctx)
+  for _, row in ipairs(ENGINE_ROWS) do
+    local titles = {}
+    for _, card in ipairs(row) do titles[#titles + 1] = card.title end
+    local height = row_height(titles)
+    for i, card in ipairs(row) do
+      if i > 1 then ImGui.SameLine(ctx) end
+      card_of_extras(ctx, S, card.title, card.ids, nil, height)
+    end
+  end
   ImGui.EndChild(ctx)
 end
 
@@ -603,6 +679,7 @@ local SECTIONS = {
   -- A section with a `draw` function draws itself, when it does not show the catalog's groups.
   { name = "Tones", draw = tones_section },
   { name = "Synth", groups = { "Synth upper", "Synth lower" } },
+  { name = "Engine", draw = engine_section },
   { name = "Piano", groups = { "Control change piano" } },
   { name = "Drums", draw = drums_section },
   { name = "Mixer", groups = { "Mixer" } },

@@ -88,4 +88,101 @@ add { id = "wall-type", label = "Reverb wall type", short = "wall", low = 0, hig
   names = { "Drapery", "Carpet", "Acoustic tile", "Wood", "Brick", "Plaster", "Concrete block", "Marble" } }
 add { id = "tone-level", label = "Tone level", short = "tone level", low = 0, high = 127, default = 64, shift = -64, signed = true }
 
+-- ---- more of the system ----
+
+-- The rotary speaker's rise and fall times, for the woofer and the tweeter.
+add { id = "woofer-rise", label = "Rotary woofer rise time", short = "woofer rise", low = 0, high = 127 }
+add { id = "woofer-fall", label = "Rotary woofer fall time", short = "woofer fall", low = 0, high = 127 }
+add { id = "tweeter-rise", label = "Rotary tweeter rise time", short = "tweeter rise", low = 0, high = 127 }
+add { id = "tweeter-fall", label = "Rotary tweeter fall time", short = "tweeter fall", low = 0, high = 127 }
+add { id = "rotary-brake", label = "Rotary brake", short = "brake", low = 0, high = 1, names = { "Off", "On" }, disabled = REFUSED }
+add { id = "overdrive-dry", label = "Overdrive dry mix level", short = "dry mix", low = 0, high = 127, disabled = REFUSED }
+
+-- The percussion's soft level goes from 0 to 15, and its normal level is 18.
+local percussion_values, percussion_names = {}, {}
+for level = 0, 15 do
+  percussion_values[#percussion_values + 1] = level
+  percussion_names[#percussion_names + 1] = "Soft " .. level
+end
+percussion_values[#percussion_values + 1] = 18
+percussion_names[#percussion_names + 1] = "Normal"
+add { id = "percussion-level", label = "Percussion level", short = "perc. level", low = 0, high = 18, default = 18,
+  values = percussion_values, names = percussion_names }
+
+-- The document gives the expression curve a range of 0 to 3 and no names for it.
+add { id = "expression-curve", label = "Expression curve", short = "expr. curve", low = 0, high = 3,
+  names = { "1", "2", "3", "4" } }
+
+-- The two N.control switches are the two bits of one value, 0 to 3. The document does not say which bit
+-- is which, so the lab takes the first bit for N.control 1.
+add { id = "n-control", label = "N.control", low = 0, high = 3 }
+
+add { id = "damper-part", label = "Damper part", short = "damper", low = 0, high = 2, names = { "Upper", "Lower", "All" } }
+add { id = "wheel-brake", label = "Wheel brake", short = "wheel brake", low = 0, high = 1, names = { "Off", "On" } }
+
+-- ---- the synth engine ----
+
+-- Roland documents a whole synth, with an oscillator, a filter, an amplifier and an LFO for each of the
+-- three partials of a tone. Its addresses (19 21, 19 41 and 1A 21) stay silent on the unit, so that the
+-- lab shows one partial's controls disabled.
+local ENGINE_SILENT = "Roland documents the synth tone, but the unit does not answer at its addresses (19 21, 19 41 and 1A 21 read silent), so the controls are disabled."
+
+local function engine(id, label, short, low, high, more)
+  local param = { id = "engine-" .. id, label = label, short = short, low = low, high = high, disabled = ENGINE_SILENT }
+  for key, value in pairs(more or {}) do param[key] = value end
+  add(param)
+end
+
+local BIPOLAR = { default = 64, shift = -64, signed = true }
+
+local function bipolar(more)
+  local copy = {}
+  for key, value in pairs(BIPOLAR) do copy[key] = value end
+  for key, value in pairs(more or {}) do copy[key] = value end
+  return copy
+end
+
+engine("osc-wave", "Oscillator wave", "wave", 0, 7, { names = { "Saw", "Square", "PW square", "Triangle", "Sine", "Noise", "Super-saw", "PCM" } })
+engine("osc-variation", "Oscillator wave variation", "variation", 0, 2, { names = { "A", "B", "C" } })
+engine("osc-pitch", "Oscillator pitch", "pitch", 40, 88, bipolar { unit = " st" })
+engine("osc-detune", "Oscillator detune", "detune", 14, 114, bipolar { unit = " ct" })
+engine("osc-pwm-depth", "Oscillator pulse width mod depth", "PWM depth", 0, 127)
+engine("osc-pulse-width", "Oscillator pulse width", "pulse width", 0, 127)
+
+engine("pitch-env-attack", "Pitch envelope attack time", "attack", 0, 127)
+engine("pitch-env-decay", "Pitch envelope decay", "decay", 0, 127)
+engine("pitch-env-depth", "Pitch envelope depth", "depth", 1, 127, bipolar())
+
+engine("filter-mode", "Filter mode", "mode", 0, 4, { names = { "Bypass", "LPF", "HPF", "BPF", "PKG" } })
+engine("filter-slope", "Filter slope", "slope", 0, 1, { names = { "-12 dB", "-24 dB" } })
+engine("filter-cutoff", "Filter cutoff", "cutoff", 0, 127, { default = 127 })
+engine("filter-keyfollow", "Filter cutoff keyfollow", "keyfollow", 54, 74, bipolar { scale = 10, unit = "%" })
+engine("filter-resonance", "Filter resonance", "resonance", 0, 127)
+engine("filter-env-attack", "Filter envelope attack time", "attack", 0, 127)
+engine("filter-env-decay", "Filter envelope decay time", "decay", 0, 127)
+engine("filter-env-sustain", "Filter envelope sustain level", "sustain", 0, 127)
+engine("filter-env-release", "Filter envelope release time", "release", 0, 127)
+engine("filter-env-depth", "Filter envelope depth", "depth", 1, 127, bipolar())
+
+engine("amp-level", "Amplifier level", "level", 0, 127, { default = 127 })
+engine("amp-velocity", "Amplifier level velocity sensitivity", "velocity", 1, 127, bipolar())
+engine("amp-pan", "Amplifier pan", "pan", 0, 127, bipolar())
+engine("amp-env-attack", "Amplifier envelope attack time", "attack", 0, 127)
+engine("amp-env-decay", "Amplifier envelope decay time", "decay", 0, 127)
+engine("amp-env-sustain", "Amplifier envelope sustain level", "sustain", 0, 127, { default = 127 })
+engine("amp-env-release", "Amplifier envelope release time", "release", 0, 127)
+
+engine("lfo-shape", "LFO shape", "shape", 0, 5, { names = { "Tri", "Sin", "Saw", "Sqr", "S&H", "Rnd" } })
+engine("lfo-rate", "LFO rate", "rate", 0, 127)
+engine("lfo-sync", "LFO tempo sync", "tempo sync", 0, 1, { names = { "Off", "On" } })
+engine("lfo-sync-note", "LFO tempo sync note", "sync note", 0, 19, { names = { "16", "12", "8", "4", "2", "1", "3/4",
+  "2/3", "1/2", "3/8", "1/3", "1/4", "3/16", "1/6", "1/8", "3/32", "1/12", "1/16", "1/24", "1/32" } })
+engine("lfo-fade", "LFO fade time", "fade", 0, 127)
+engine("lfo-pitch-depth", "LFO pitch depth", "pitch", 1, 127, bipolar())
+engine("lfo-filter-depth", "LFO filter depth", "filter", 1, 127, bipolar())
+
+engine("unison", "Unison", "unison", 0, 1, { names = { "Off", "On" } })
+engine("unison-size", "Unison size", "size", 0, 3, { names = { "2", "4", "6", "8" } })
+engine("ring", "Ring modulator", "ring", 0, 2, { names = { "Off", "---", "On" } })
+
 return extras

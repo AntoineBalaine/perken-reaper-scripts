@@ -44,8 +44,9 @@ The lab starts with registration 1-1 loaded: the dumps come from `Data/Perken/vr
 | `model.lua` | the mock keyboard and the registrations |
 | `catalog.lua` | the plugin's parameters, generated |
 | `tones.lua` | the keyboard's 285 tones, generated from the roland-vr09 project |
-| `extras.lua` | the parameters that Roland's MIDI document has and the catalog does not (organ voicing, footswitches, D-Beam, octave shift, portamento, wall type, tone level), by hand: lab-only, nothing is sent |
+| `extras.lua` | the parameters that Roland's MIDI document has and the catalog does not (organ voicing, rotary times, footswitches, D-Beam, pedals, octave shift, portamento, wall type, tone level, and one partial of the synth engine), by hand: lab-only, nothing is sent; the ones the unit refuses or does not answer to are drawn disabled |
 | `webview-spike.md` | the test that decides whether a webview can replace ReaImGui |
+| `../docs/engine-investigation.md` | how the Engine tab could be made to work: a probe, and a capture of the iPad editor |
 
 Generate the catalog again after `src/catalog.zig` changes:
 

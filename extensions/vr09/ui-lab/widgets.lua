@@ -230,9 +230,10 @@ local function shift_is_down(ctx)
 end
 
 -- The text of a knob's value: the value plus the parameter's `shift` (for a value that is stored
--- as 52 to 76 and shown as -12 to +12), with a sign when the parameter is `signed`, and its unit.
+-- as 52 to 76 and shown as -12 to +12), times its `scale` (stored as 54 to 74 and shown as -100 to
+-- +100), with a sign when the parameter is `signed`, and its unit.
 local function shown_value(param, value)
-  local shown = value + (param.shift or 0)
+  local shown = (value + (param.shift or 0)) * (param.scale or 1)
   local text = param.signed and ("%+d"):format(shown) or tostring(shown)
   return text .. (param.unit or "")
 end
@@ -494,6 +495,9 @@ end
 -- Returns true when the user changed the value, and the new value.
 function M.stop_knob(ctx, param, value, label, as_list)
   local th = env.theme
+  -- A parameter with a `disabled` reason is drawn dim and does not move: the unit does not take it.
+  local disabled = param.disabled ~= nil
+  local tint = disabled and th.text_dim or accent()
   local stops = stops_of(param)
   local count = #stops
   -- The caller may ask for the display and the list even with few stops, when the names are long.
@@ -528,8 +532,9 @@ function M.stop_knob(ctx, param, value, label, as_list)
   ImGui.PushID(ctx, param.id)
   ImGui.SetCursorScreenPos(ctx, cx - r - 4, cy - r - 4)
   ImGui.InvisibleButton(ctx, "##stopknob", 2 * r + 8, 2 * r + 8)
-  local hot = ImGui.IsItemHovered(ctx) or ImGui.IsItemActive(ctx)
-  if ImGui.IsItemActivated(ctx) then
+  if disabled then M.tooltip(ctx, param.disabled) end
+  local hot = not disabled and (ImGui.IsItemHovered(ctx) or ImGui.IsItemActive(ctx))
+  if not disabled and ImGui.IsItemActivated(ctx) then
     if alt_is_down(ctx) then
       drag_start[param.id] = false
       result = stop_index(stops, M.default_value(param, false))
@@ -537,12 +542,12 @@ function M.stop_knob(ctx, param, value, label, as_list)
       drag_start[param.id] = index
     end
   end
-  if ImGui.IsItemActive(ctx) and drag_start[param.id] ~= false then
+  if not disabled and ImGui.IsItemActive(ctx) and drag_start[param.id] ~= false then
     local _, dy = ImGui.GetMouseDragDelta(ctx, nil, nil, ImGui.MouseButton_Left, 0)
     local per_stop = labelled and STOP_DRAG_LABELLED or STOP_DRAG_PLAIN
     local start = drag_start[param.id] or index
     result = clamp(start - math.floor(dy / per_stop + 0.5), 1, count)
-  elseif ImGui.IsItemHovered(ctx) then
+  elseif not disabled and ImGui.IsItemHovered(ctx) then
     local wheel = ImGui.GetMouseWheel(ctx)
     if wheel ~= 0 then result = clamp(index + (wheel > 0 and 1 or -1), 1, count) end
   end
@@ -553,8 +558,8 @@ function M.stop_knob(ctx, param, value, label, as_list)
   if not labelled then
     ImGui.SetCursorScreenPos(ctx, display_x, display_y)
     ImGui.InvisibleButton(ctx, "##stopcombo", display_w, display_h)
-    display_hot = ImGui.IsItemHovered(ctx)
-    if ImGui.IsItemClicked(ctx) then ImGui.OpenPopup(ctx, "##stoplist") end
+    display_hot = not disabled and ImGui.IsItemHovered(ctx)
+    if not disabled and ImGui.IsItemClicked(ctx) then ImGui.OpenPopup(ctx, "##stoplist") end
   end
 
   local label_boxes = {}
@@ -570,7 +575,7 @@ function M.stop_knob(ctx, param, value, label, as_list)
       label_boxes[i] = { x = bx, y = by, w = text_w }
       ImGui.SetCursorScreenPos(ctx, bx, by)
       ImGui.InvisibleButton(ctx, "##stop" .. i, text_w, line)
-      if ImGui.IsItemClicked(ctx) then clicked = i end
+      if not disabled and ImGui.IsItemClicked(ctx) then clicked = i end
     end
   end
   ImGui.PopID(ctx)
@@ -585,15 +590,15 @@ function M.stop_knob(ctx, param, value, label, as_list)
     local a = stop_angle(i, count)
     local lit = i == result
     local dx, dy = math.cos(a) * r, math.sin(a) * r
-    if lit then ImGui.DrawList_AddCircleFilled(dl, cx + dx, cy + dy, 5, faded(accent(), 0x55)) end
-    ImGui.DrawList_AddCircleFilled(dl, cx + dx, cy + dy, lit and 2.8 or 1.8, lit and accent() or th.text_dim)
+    if lit then ImGui.DrawList_AddCircleFilled(dl, cx + dx, cy + dy, 5, faded(tint, 0x55)) end
+    ImGui.DrawList_AddCircleFilled(dl, cx + dx, cy + dy, lit and 2.8 or 1.8, lit and tint or th.text_dim)
   end
 
   local body = r - 7
   ImGui.DrawList_AddCircleFilled(dl, cx + 1, cy + 3, body + 1, 0x00000099)
   ImGui.DrawList_AddCircleFilled(dl, cx, cy, body, th.knob_body)
   ImGui.DrawList_AddCircleFilled(dl, cx - 1, cy - 1, body - 4, th.knob_top)
-  ImGui.DrawList_AddCircle(dl, cx, cy, body, hot and accent() or th.knob_edge, 0, 1)
+  ImGui.DrawList_AddCircle(dl, cx, cy, body, hot and tint or th.knob_edge, 0, 1)
   local cos_a, sin_a = math.cos(angle), math.sin(angle)
   ImGui.DrawList_AddLine(dl, cx + cos_a * body * 0.25, cy + sin_a * body * 0.25,
     cx + cos_a * body * 0.9, cy + sin_a * body * 0.9, th.text, 2)
@@ -601,19 +606,19 @@ function M.stop_knob(ctx, param, value, label, as_list)
   if labelled then
     for i, stop in ipairs(stops) do
       local box = label_boxes[i]
-      ImGui.DrawList_AddText(dl, box.x, box.y, i == result and accent() or th.label, stop.name)
+      ImGui.DrawList_AddText(dl, box.x, box.y, i == result and tint or th.label, stop.name)
     end
   else
     -- The display under the knob: a recessed screen with the selected name in the accent color, and
     -- a caret that shows it opens a list.
     ImGui.DrawList_AddRectFilled(dl, display_x, display_y, display_x + display_w, display_y + display_h, th.slot_bg, 3)
     ImGui.DrawList_AddRect(dl, display_x, display_y, display_x + display_w, display_y + display_h,
-      display_hot and accent() or th.slot_edge, 3)
+      display_hot and tint or th.slot_edge, 3)
     local name = stops[result].name
-    ImGui.DrawList_AddText(dl, display_x + (display_w - 14) / 2 - ImGui.CalcTextSize(ctx, name) / 2, display_y + 3, accent(), name)
+    ImGui.DrawList_AddText(dl, display_x + (display_w - 14) / 2 - ImGui.CalcTextSize(ctx, name) / 2, display_y + 3, tint, name)
     draw_glass(dl, display_x, display_y, display_x + display_w, display_y + display_h)
     local tx, ty = display_x + display_w - 11, display_y + display_h / 2
-    ImGui.DrawList_AddTriangleFilled(dl, tx - 4, ty - 2, tx + 4, ty - 2, tx, ty + 3, display_hot and accent() or th.text_dim)
+    ImGui.DrawList_AddTriangleFilled(dl, tx - 4, ty - 2, tx + 4, ty - 2, tx, ty + 3, display_hot and tint or th.text_dim)
   end
 
   local caption_y = cy + r + 8 + (labelled and 0 or line + 12) - 2
@@ -629,7 +634,7 @@ function M.stop_knob(ctx, param, value, label, as_list)
         -- Because a click changes `result` in the middle of the loop, whether the item is the selected
         -- one is read once, so that the color pushed is the color popped.
         local selected = i == result
-        if selected then ImGui.PushStyleColor(ctx, ImGui.Col_Text, accent()) end
+        if selected then ImGui.PushStyleColor(ctx, ImGui.Col_Text, tint) end
         if ImGui.Selectable(ctx, stop.name, selected) then result = i end
         if selected then ImGui.PopStyleColor(ctx) end
       end
