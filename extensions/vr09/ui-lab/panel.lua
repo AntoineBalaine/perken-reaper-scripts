@@ -284,6 +284,15 @@ end
 local function card_of_extras(ctx, S, title, ids, accent, height)
   local widgets = env.widgets
   if not widgets.begin_card(ctx, title, nil, height, accent) then return end
+  -- Because a lab that was started before a parameter was added to extras.lua does not have it, the card
+  -- says which one is missing instead of failing.
+  for _, id in ipairs(ids) do
+    if not S.extras_by_id[id] then
+      ImGui.TextColored(ctx, env.theme.amber, "Not loaded: " .. id)
+      widgets.end_card(ctx)
+      return
+    end
+  end
   for i, id in ipairs(ids) do
     local param = S.extras_by_id[id]
     control_of(ctx, S, param, param.short, param.signed)

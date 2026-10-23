@@ -23,7 +23,7 @@ The runner watches three files, and reloads one as soon as it changes:
 - `widgets.lua`: the components (the drawbar, the parameter slider). A new component starts here;
 - `panel.lua`: the header, the tabs and what they hold.
 
-`model.lua` (the mock keyboard), `catalog.lua`, `tones.lua` and `extras.lua` are read once, when the lab starts: close and run the lab again after changing them.
+`model.lua` (the mock keyboard), `catalog.lua` and `tones.lua` are read once, when the lab starts: close and run the lab again after changing them. `extras.lua` is read again when it changes.
 
 A module reads `env.theme`, `env.widgets` and `env.ImGui` when it runs, not when it loads, so that a reloaded theme reaches the components without reloading them.
 

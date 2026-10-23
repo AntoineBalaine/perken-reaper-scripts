@@ -4,8 +4,8 @@
 --
 -- The runner watches theme.lua, widgets.lua and panel.lua. Saving one of them reloads it, and the
 -- open window changes at once. An error in a file is shown in the window instead of stopping the
--- script, and the window keeps its place; the next save loads the file again. model.lua, catalog.lua,
--- tones.lua and extras.lua are read once, when the lab starts.
+-- script, and the window keeps its place; the next save loads the file again. model.lua, catalog.lua and
+-- tones.lua are read once, when the lab starts; extras.lua is read again when it changes.
 --
 -- It needs ReaImGui. It speaks the same ReaImGui API as the plugin (0.9.3), so that what is
 -- written here ports to Zig call for call.
@@ -72,10 +72,34 @@ local function load_module(name, text)
 end
 
 local next_check = 0
+-- Reads extras.lua again when it changes, so that a parameter added to it appears without starting the lab
+-- again. A value that the lab already holds is kept.
+local extras_source = nil
+
+local function check_extras()
+  local text = read(dir .. "extras.lua")
+  if not text or text == extras_source then return end
+  extras_source = text
+  local chunk, err = load(text, "@" .. dir .. "extras.lua")
+  local ok, extras = false, err
+  if chunk then ok, extras = pcall(chunk) end
+  if not ok then
+    S.errors.extras = extras
+    return
+  end
+  S.errors.extras = nil
+  S.extras, S.extras_by_id = extras, {}
+  for _, param in ipairs(extras) do
+    S.extras_by_id[param.id] = param
+    if S.model.values[param.id] == nil then S.model.values[param.id] = param.default or param.low end
+  end
+end
+
 local function check_reload(force)
   local t = reaper.time_precise()
   if not force and t < next_check then return end
   next_check = t + 0.3
+  check_extras()
   for _, name in ipairs(MODULES) do
     local text = read(dir .. name .. ".lua")
     if text and text ~= sources[name] then
@@ -100,12 +124,7 @@ if S.model.registrations[1] then model_api.load_registration(S.model, S.model.re
 
 -- The parameters that the documentation has and the catalog does not: their values live with the
 -- catalog's, by id, and each starts at its default or its lowest value.
-S.extras = dofile(dir .. "extras.lua")
-S.extras_by_id = {}
-for _, param in ipairs(S.extras) do
-  S.extras_by_id[param.id] = param
-  S.model.values[param.id] = param.default or param.low
-end
+-- extras.lua is read by `check_reload`, now and each time the file changes.
 S.ui = {
   reg_filter = "", reg_selected = nil,
   tone = {}, tone_filter = {}, -- the chosen tone of each part (a position in its list), and its search text
