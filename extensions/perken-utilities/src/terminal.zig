@@ -14,7 +14,7 @@ const batch_rename = @import("batch_rename.zig");
 
 const log = std.log.scoped(.terminal);
 
-const dialog_title = "Perken: open a shell in the project folder";
+const dialog_title = "Perken: Open project path in terminal";
 
 /// The folder of the project file, or null when the project was not saved.
 pub fn projectFolder(path: []const u8) ?[]const u8 {
@@ -103,7 +103,7 @@ pub const entries = [_]actions.Entry{
         .name = "OpenTerminalInProjectDir",
         .def = .{
             .steps = &.{.{ .func = &openTerminal }},
-            .desc = "Open a shell in the project folder",
+            .desc = "Open project path in terminal",
         },
     },
 };
