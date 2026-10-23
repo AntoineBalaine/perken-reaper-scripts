@@ -34,6 +34,16 @@ local current_accent = nil
 -- How many colors the card being drawn has pushed, which `end_card` pops.
 local card_colors = 2
 
+-- The title of the card being drawn, and the height each card's content needs, by title, as it was
+-- measured when the card was last drawn. Cards that sit in a row take the tallest of these, so that
+-- the row has an even edge.
+local card_title = nil
+local natural_heights = {}
+
+function M.natural_height(title)
+  return natural_heights[title]
+end
+
 local function accent()
   return current_accent or env.theme.amber
 end
@@ -41,6 +51,13 @@ end
 -- The same color at a fraction of its strength, for a glow around a lit part.
 local function faded(color, alpha)
   return (color & 0xFFFFFF00) | alpha
+end
+
+-- The shine of a glass screen over its contents: a light gradient on its upper half, and faint
+-- scanlines. Both are drawn over the text, in colors faint enough to leave it readable.
+local function draw_glass(dl, x1, y1, x2, y2)
+  ImGui.DrawList_AddRectFilledMultiColor(dl, x1 + 2, y1 + 2, x2 - 2, (y1 + y2) / 2, 0xFFFFFF18, 0xFFFFFF18, 0xFFFFFF00, 0xFFFFFF00)
+  for ly = y1 + 3, y2 - 3, 3 do ImGui.DrawList_AddLine(dl, x1 + 2, ly, x2 - 2, ly, 0x00000028, 1) end
 end
 
 -- Because a tonewheel organ's drawbars come in three colors by footage, the cap's color is found
@@ -67,6 +84,15 @@ local function push_label_font(ctx)
   local label_font = env.fonts and env.fonts.label
   if not label_font then return false end
   ImGui.PushFont(ctx, label_font)
+  return true
+end
+
+-- The numbers are drawn in their own monospaced font, so that every digit has the same width. Returns
+-- true when the font was pushed, and then the caller pops it.
+local function push_mono_font(ctx)
+  local mono_font = env.fonts and env.fonts.mono
+  if not mono_font then return false end
+  ImGui.PushFont(ctx, mono_font)
   return true
 end
 
@@ -166,6 +192,12 @@ local KNOB_LABEL_LINES = 2
 local KNOB_FROM = math.pi * 0.75
 local KNOB_TO = math.pi * 2.25
 
+-- How far the mouse travels to sweep the whole range, and the same with shift held for fine steps.
+local KNOB_DRAG, KNOB_DRAG_FINE = 150, 600
+
+-- The scale printed around the knob: this many intervals, with a longer tick at each end.
+local KNOB_TICKS = 10
+
 -- Because a drag moves the value relative to where it started, the start of each drag is kept here
 -- by the parameter's id.
 local drag_start = {}
@@ -181,6 +213,10 @@ end
 
 local function alt_is_down(ctx)
   return (ImGui.GetKeyMods(ctx) & ImGui.Mod_Alt) ~= 0
+end
+
+local function shift_is_down(ctx)
+  return (ImGui.GetKeyMods(ctx) & ImGui.Mod_Shift) ~= 0
 end
 
 -- "Rotary woofer slow speed" is shown as "woofer slow speed" in the card of the group "Rotary".
@@ -233,9 +269,11 @@ local function centered_label(ctx, text, width, reserved_lines)
 end
 
 local function centered_value(ctx, text, width)
+  local pushed = push_mono_font(ctx)
   local text_w = ImGui.CalcTextSize(ctx, text)
   ImGui.SetCursorPosX(ctx, ImGui.GetCursorPosX(ctx) + (width - text_w) / 2)
   ImGui.TextColored(ctx, accent(), text)
+  if pushed then ImGui.PopFont(ctx) end
 end
 
 -- A rotary knob: the value above it, a ring that fills as the value rises, a pointer, and the label
@@ -252,20 +290,26 @@ function M.knob(ctx, param, value, label, bipolar)
   ImGui.InvisibleButton(ctx, "##knob", KNOB_W, KNOB_D + 8)
   local range = param.high - param.low
   local result = value
+  local fine = shift_is_down(ctx)
   if ImGui.IsItemActivated(ctx) then
     -- Because an alt-click sets the value, and the drag that follows must not move it again, the
-    -- start of that drag is recorded as false.
+    -- start of that drag is recorded as false. A drag records the value it started from, and the
+    -- mouse position at which the speed last changed.
     if alt_is_down(ctx) then
       drag_start[param.id] = false
       result = M.default_value(param, bipolar)
     else
-      drag_start[param.id] = value
+      drag_start[param.id] = { value = value, dy0 = 0, fine = fine }
     end
   end
-  if ImGui.IsItemActive(ctx) and drag_start[param.id] ~= false then
+  local drag = drag_start[param.id]
+  if ImGui.IsItemActive(ctx) and drag then
     local _, dy = ImGui.GetMouseDragDelta(ctx, nil, nil, ImGui.MouseButton_Left, 0)
-    local start = drag_start[param.id] or value
-    result = math.floor(clamp(start - dy * range / 150, param.low, param.high) + 0.5)
+    -- Because holding shift slows the drag, pressing or releasing it starts a new drag from the
+    -- current value, so that the knob does not jump.
+    if drag.fine ~= fine then drag.value, drag.dy0, drag.fine = value, dy, fine end
+    local speed = fine and KNOB_DRAG_FINE or KNOB_DRAG
+    result = math.floor(clamp(drag.value - (dy - drag.dy0) * range / speed, param.low, param.high) + 0.5)
   elseif ImGui.IsItemHovered(ctx) then
     local wheel = ImGui.GetMouseWheel(ctx)
     if wheel ~= 0 then
@@ -287,8 +331,14 @@ function M.knob(ctx, param, value, label, bipolar)
     ImGui.DrawList_PathArcTo(dl, cx, cy, r, math.min(fill_from, angle), math.max(fill_from, angle))
     ImGui.DrawList_PathStroke(dl, accent(), ImGui.DrawFlags_None, 3)
   end
-  if bipolar then
-    ImGui.DrawList_AddLine(dl, cx, cy - r - 5, cx, cy - r - 1, th.text_dim, 1)
+
+  -- The scale around the ring. A bipolar knob has a longer tick in the middle too.
+  for i = 0, KNOB_TICKS do
+    local a = KNOB_FROM + (KNOB_TO - KNOB_FROM) * i / KNOB_TICKS
+    local long = i == 0 or i == KNOB_TICKS or (bipolar and i == KNOB_TICKS // 2)
+    local inner, outer = r + 3, r + (long and 8 or 6)
+    ImGui.DrawList_AddLine(dl, cx + math.cos(a) * inner, cy + math.sin(a) * inner,
+      cx + math.cos(a) * outer, cy + math.sin(a) * outer, long and th.label or th.text_dim, 1)
   end
 
   -- The body stands out of the panel, with a shadow under it and a lit edge on its upper left.
@@ -299,10 +349,22 @@ function M.knob(ctx, param, value, label, bipolar)
   local hot = ImGui.IsItemHovered(ctx) or ImGui.IsItemActive(ctx)
   ImGui.DrawList_AddCircle(dl, cx, cy, body, hot and accent() or th.knob_edge, 0, 1)
 
+  -- The metal of the cap: two fine concentric grooves, a lit edge on its upper left, and a shine.
+  ImGui.DrawList_AddCircle(dl, cx, cy, body - 3, 0xFFFFFF14, 0, 1)
+  ImGui.DrawList_AddCircle(dl, cx, cy, body - 6, 0x00000040, 0, 1)
+  ImGui.DrawList_PathArcTo(dl, cx, cy, body - 0.5, math.pi, math.pi * 1.5)
+  ImGui.DrawList_PathStroke(dl, 0xFFFFFF40, ImGui.DrawFlags_None, 1.5)
+  ImGui.DrawList_AddCircleFilled(dl, cx - body * 0.35, cy - body * 0.4, body * 0.22, 0xFFFFFF1E)
+
   -- The pointer runs from near the center toward the ring.
   local cos_a, sin_a = math.cos(angle), math.sin(angle)
   ImGui.DrawList_AddLine(dl, cx + cos_a * body * 0.25, cy + sin_a * body * 0.25,
     cx + cos_a * body * 0.9, cy + sin_a * body * 0.9, th.text, 2)
+
+  -- While the user drags the knob, its value is shown by the mouse, since the hand covers the knob.
+  if ImGui.IsItemActive(ctx) then
+    ImGui.SetTooltip(ctx, label .. ": " .. result .. (param.unit or ""))
+  end
 
   centered_label(ctx, label, KNOB_W, KNOB_LABEL_LINES)
   ImGui.EndGroup(ctx)
@@ -524,6 +586,7 @@ function M.stop_knob(ctx, param, value, label)
       display_hot and accent() or th.slot_edge, 3)
     local name = stops[result].name
     ImGui.DrawList_AddText(dl, display_x + (display_w - 14) / 2 - ImGui.CalcTextSize(ctx, name) / 2, display_y + 3, accent(), name)
+    draw_glass(dl, display_x, display_y, display_x + display_w, display_y + display_h)
     local tx, ty = display_x + display_w - 11, display_y + display_h / 2
     ImGui.DrawList_AddTriangleFilled(dl, tx - 4, ty - 2, tx + 4, ty - 2, tx, ty + 3, display_hot and accent() or th.text_dim)
   end
@@ -732,10 +795,11 @@ function M.envelope(ctx, params, values)
   end
 
   -- The three values are read at the top of the screen, in the label font.
-  local pushed = push_label_font(ctx)
-  local readout = ("A %d    D %d    R %d"):format(a, d, r)
+  local pushed = push_mono_font(ctx)
+  local readout = ("A %3d  D %3d  R %3d"):format(a, d, r)
   ImGui.DrawList_AddText(dl, x + ENV_PAD_X, y + 5, accent(), readout)
   if pushed then ImGui.PopFont(ctx) end
+  draw_glass(dl, x, y, x + width, y + height)
   return changes
 end
 
@@ -786,6 +850,7 @@ end
 function M.display(ctx, text, color, min_width)
   local th = env.theme
   local x, y = ImGui.GetCursorScreenPos(ctx)
+  local pushed = push_mono_font(ctx)
   local text_w, text_h = ImGui.CalcTextSize(ctx, text)
   local width, height = math.max(min_width or 0, text_w + 20), text_h + 10
   ImGui.Dummy(ctx, width, height)
@@ -794,6 +859,68 @@ function M.display(ctx, text, color, min_width)
   ImGui.DrawList_AddRect(dl, x, y, x + width, y + height, th.slot_edge, 3)
   ImGui.DrawList_AddLine(dl, x + 3, y + height + 1, x + width - 3, y + height + 1, th.panel_edge_light, 1)
   ImGui.DrawList_AddText(dl, x + 10, y + 5, color or th.amber, text)
+  draw_glass(dl, x, y, x + width, y + height)
+  if pushed then ImGui.PopFont(ctx) end
+end
+
+-- ---- the push button and the toggle ----
+
+-- A push button: a raised key of dark metal with a lit upper edge, that sinks while it is held, with
+-- the accent over it when the mouse is on it or it is held. Returns true when it was clicked.
+function M.push_button(ctx, label, min_width)
+  local th = env.theme
+  local pushed = push_label_font(ctx)
+  local text_w, text_h = ImGui.CalcTextSize(ctx, label)
+  local width, height = math.max(min_width or 0, text_w + 28), text_h + 12
+  local x, y = ImGui.GetCursorScreenPos(ctx)
+  local clicked = ImGui.InvisibleButton(ctx, "##button" .. label, width, height)
+  local hovered, held = ImGui.IsItemHovered(ctx), ImGui.IsItemActive(ctx)
+
+  local dl = ImGui.GetWindowDrawList(ctx)
+  local sink = held and 1 or 0
+  local top, bottom = y + sink, y + height + sink
+  if not held then ImGui.DrawList_AddRectFilled(dl, x, top + 2, x + width, bottom + 2, 0x00000099, 4) end
+  ImGui.DrawList_AddRectFilled(dl, x, top, x + width, bottom, held and th.knob_body or th.knob_top, 4)
+  ImGui.DrawList_AddRectFilledMultiColor(dl, x + 2, top + 2, x + width - 2, top + height / 2, 0xFFFFFF18, 0xFFFFFF18, 0xFFFFFF00, 0xFFFFFF00)
+  if held then
+    ImGui.DrawList_AddRectFilled(dl, x, top, x + width, bottom, faded(accent(), 0x40), 4)
+  elseif hovered then
+    ImGui.DrawList_AddRectFilled(dl, x, top, x + width, bottom, faded(accent(), 0x22), 4)
+  end
+  ImGui.DrawList_AddRect(dl, x, top, x + width, bottom, (hovered or held) and accent() or th.knob_edge, 4, 0, 1)
+  ImGui.DrawList_AddLine(dl, x + 5, top + 1.5, x + width - 5, top + 1.5, 0xFFFFFF30, 1)
+  ImGui.DrawList_AddText(dl, x + (width - text_w) / 2, top + (height - text_h) / 2, held and accent() or th.text, label)
+  if pushed then ImGui.PopFont(ctx) end
+  return clicked
+end
+
+local TOGGLE_W, TOGGLE_H = 30, 16
+
+-- A toggle with a label: a rocker whose thumb slides to the right and lights up in the accent when
+-- the value is on. Returns true when the user changed the value, and the new value.
+function M.toggle(ctx, label, value)
+  local th = env.theme
+  local line = ImGui.GetTextLineHeight(ctx)
+  local text_w = ImGui.CalcTextSize(ctx, label)
+  local height = math.max(line, TOGGLE_H) + 4
+  local x, y = ImGui.GetCursorScreenPos(ctx)
+  local clicked = ImGui.InvisibleButton(ctx, "##toggle" .. label, TOGGLE_W + 10 + text_w, height)
+  local hot = ImGui.IsItemHovered(ctx)
+  local result = value
+  if clicked then result = not value end
+
+  local dl = ImGui.GetWindowDrawList(ctx)
+  local ty = y + (height - TOGGLE_H) / 2
+  ImGui.DrawList_AddRectFilled(dl, x, ty, x + TOGGLE_W, ty + TOGGLE_H, result and faded(accent(), 0x55) or th.slot_bg, TOGGLE_H / 2)
+  ImGui.DrawList_AddRect(dl, x, ty, x + TOGGLE_W, ty + TOGGLE_H, hot and accent() or th.knob_edge, TOGGLE_H / 2, 0, 1)
+  local thumb_x = result and (x + TOGGLE_W - TOGGLE_H / 2) or (x + TOGGLE_H / 2)
+  local thumb_y = ty + TOGGLE_H / 2
+  if result then ImGui.DrawList_AddCircleFilled(dl, thumb_x, thumb_y, TOGGLE_H / 2 + 1, faded(accent(), 0x44)) end
+  ImGui.DrawList_AddCircleFilled(dl, thumb_x + 0.5, thumb_y + 1.5, TOGGLE_H / 2 - 3, 0x00000099)
+  ImGui.DrawList_AddCircleFilled(dl, thumb_x, thumb_y, TOGGLE_H / 2 - 3, result and accent() or th.knob_top)
+  ImGui.DrawList_AddCircleFilled(dl, thumb_x - 1.5, thumb_y - 1.5, 1.2, 0xFFFFFF66)
+  ImGui.DrawList_AddText(dl, x + TOGGLE_W + 10, y + (height - line) / 2, th.text, label)
+  return clicked, result
 end
 
 -- ---- the card ----
@@ -824,6 +951,7 @@ function M.begin_card(ctx, title, width, height, card_accent)
   if not width then flags = flags | ImGui.ChildFlags_AutoResizeX end
   if not height then flags = flags | ImGui.ChildFlags_AutoResizeY end
   local visible = ImGui.BeginChild(ctx, "##card" .. title, width or 0, height or 0, flags, ImGui.WindowFlags_NoScrollbar)
+  card_title = title
   if visible then
     M.engraved_text(ctx, title:upper(), card_accent)
     ImGui.Spacing(ctx)
@@ -879,6 +1007,11 @@ local function draw_card_surface(ctx, card_accent)
 end
 
 function M.end_card(ctx)
+  -- The content ends where the cursor is, less the spacing that follows the last item, and the card's
+  -- bottom padding is added; the 2 pixels keep the card from cutting its last line.
+  local _, spacing = ImGui.GetStyleVar(ctx, ImGui.StyleVar_ItemSpacing)
+  local _, padding = ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding)
+  natural_heights[card_title] = ImGui.GetCursorPosY(ctx) - spacing + padding + 2
   draw_card_surface(ctx, current_accent)
   current_accent = nil
   ImGui.EndChild(ctx)

@@ -141,6 +141,15 @@ local LABEL_FAMILIES = {
 }
 local LABEL_SIZE = 14
 
+-- The numbers of the displays and of the knobs are drawn in a monospaced font, so that every digit has
+-- the same width and a value does not shift its neighbors as it changes.
+local MONO_FAMILIES = {
+  macos = { "Menlo" },
+  windows = { "Consolas" },
+  linux = { "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "monospace" },
+}
+local MONO_SIZE = 13
+
 -- The names of the installed font families, in lower case, or nil when `fc-list` cannot be run.
 local function installed_families()
   local ok, pipe = pcall(io.popen, "fc-list : family 2>/dev/null")
@@ -151,18 +160,22 @@ local function installed_families()
   return text:lower()
 end
 
-local function label_family()
+-- The first family of the system's list that is installed. The generic families ("sans-serif" and
+-- "monospace") always are.
+local function pick_family(families)
   local os_name = reaper.GetOS()
-  if os_name:find("^OSX") or os_name:find("^macOS") then return LABEL_FAMILIES.macos[1] end
-  if os_name:find("^Win") then return LABEL_FAMILIES.windows[1] end
+  if os_name:find("^OSX") or os_name:find("^macOS") then return families.macos[1] end
+  if os_name:find("^Win") then return families.windows[1] end
   local installed = installed_families()
-  for _, family in ipairs(LABEL_FAMILIES.linux) do
-    if not installed or family == "sans-serif" or installed:find(family:lower(), 1, true) then return family end
+  for _, family in ipairs(families.linux) do
+    local generic = family == "sans-serif" or family == "monospace"
+    if not installed or generic or installed:find(family:lower(), 1, true) then return family end
   end
   return "sans-serif"
 end
 
-local LABEL_FAMILY = label_family()
+local LABEL_FAMILY = pick_family(LABEL_FAMILIES)
+local MONO_FAMILY = pick_family(MONO_FAMILIES)
 
 local function new_context()
   contexts = contexts + 1
@@ -170,8 +183,12 @@ local function new_context()
   ctx = ImGui.CreateContext("VR-09 lab " .. contexts)
   font = ImGui.CreateFont("sans-serif", 15)
   ImGui.Attach(ctx, font)
-  env.fonts = { label = ImGui.CreateFont(LABEL_FAMILY, LABEL_SIZE) }
+  env.fonts = {
+    label = ImGui.CreateFont(LABEL_FAMILY, LABEL_SIZE),
+    mono = ImGui.CreateFont(MONO_FAMILY, MONO_SIZE),
+  }
   ImGui.Attach(ctx, env.fonts.label)
+  ImGui.Attach(ctx, env.fonts.mono)
 end
 
 local function error_lines()

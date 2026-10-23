@@ -58,9 +58,20 @@ local function groups_of(catalog)
   return groups
 end
 
-local function card_of_drawbars(ctx, S, group)
+-- The height the tallest card of a row needs, from the last time each was drawn, so that the cards
+-- of the row can all take it; nil the first time, when the cards size themselves.
+local function row_height(titles)
+  local tallest = nil
+  for _, title in ipairs(titles) do
+    local height = env.widgets.natural_height(title)
+    if height and (not tallest or height > tallest) then tallest = height end
+  end
+  return tallest
+end
+
+local function card_of_drawbars(ctx, S, group, height)
   local widgets, values = env.widgets, S.model.values
-  if not widgets.begin_card(ctx, group.name, nil, nil, env.theme.part.organ) then return end
+  if not widgets.begin_card(ctx, group.name, nil, height, env.theme.part.organ) then return end
   for i, param in ipairs(group.params) do
     ImGui.PushID(ctx, param.id)
     local changed, v = widgets.drawbar(ctx, param, values[param.id])
@@ -93,11 +104,12 @@ end
 --   columns:       how many knobs a row holds, when the card has more than one row;
 --   brackets:      the captions engraved over the knobs of the first row;
 --   brackets_by_row: the same, for each row, when the card has several;
---   accent:        the card's accent color.
+--   accent:        the card's accent color;
+--   height:        the card's height, when it takes the height of a row.
 local function card_of_knobs(ctx, S, group, options)
   options = options or {}
   local widgets, values = env.widgets, S.model.values
-  if not widgets.begin_card(ctx, options.title or group.name, nil, nil, options.accent) then return end
+  if not widgets.begin_card(ctx, options.title or group.name, nil, options.height, options.accent) then return end
   local count = #group.params
   local per_row = options.columns or count
   for i, param in ipairs(group.params) do
@@ -123,9 +135,9 @@ end
 -- The rotary speaker: its switch and the three knobs of the woofer on one row, and the three knobs
 -- of the tweeter under them. Because the catalog lists the switch first, then the woofer, then the
 -- tweeter, the parameters are taken by their position.
-local function card_of_rotary(ctx, S, group)
+local function card_of_rotary(ctx, S, group, height)
   local widgets, values = env.widgets, S.model.values
-  if not widgets.begin_card(ctx, group.name, nil, nil, env.theme.part.organ) then return end
+  if not widgets.begin_card(ctx, group.name, nil, height, env.theme.part.organ) then return end
   local params = group.params
   for i, param in ipairs(params) do
     ImGui.PushID(ctx, param.id)
@@ -178,8 +190,8 @@ local function card_of_envelope(ctx, S, group, title, width, height, accent)
 end
 
 -- The organ's knobs take the organ's accent, the same as its drawbars and its rotary speaker.
-local function card_of_organ(ctx, S, group)
-  card_of_knobs(ctx, S, group, { accent = env.theme.part.organ })
+local function card_of_organ(ctx, S, group, height)
+  card_of_knobs(ctx, S, group, { accent = env.theme.part.organ, height = height })
 end
 
 -- The synth's envelope and filter values rest in the middle of their range (64), so that their
@@ -224,13 +236,15 @@ end
 local function card_of_mixer(ctx, S, group)
   local options = { suffixes = { " volume", " level" } }
   local bands = {
-    { title = "Upper", from = 3, to = 5, part = "upper" },
-    { title = "Backing", from = 1, to = 2, part = "backing", beside_previous = true },
+    { title = "Upper", from = 3, to = 5, part = "upper", in_row = true },
+    { title = "Backing", from = 1, to = 2, part = "backing", beside_previous = true, in_row = true },
     { title = "Lower", from = 6, to = 7, part = "lower" },
   }
+  local row = row_height({ "Upper", "Backing" })
   for _, band in ipairs(bands) do
     options.title = band.title
     options.accent = env.theme.part[band.part]
+    options.height = band.in_row and row or nil
     if band.beside_previous then ImGui.SameLine(ctx) end
     card_of_knobs(ctx, S, { name = band.title, params = slice(group.params, band.from, band.to) }, options)
   end
@@ -321,16 +335,17 @@ local function card_of_effect(ctx, S, effect, height)
 end
 
 -- Draws the effects' cards. Because they come from several parameters of the catalog's Effects group,
--- each card looks its parameters up by id. Because the cards of a row sit side by side, the first card
--- of a row sets the height of the others, so that the row has an even edge: in the second row, the
--- MFX card, with its display, sets the height of the delay and the compressor.
+-- each card looks its parameters up by id. Because the cards of a row sit side by side, they all take
+-- the height of the tallest one, so that the row has an even edge: in the second row, the MFX card,
+-- with its display, sets the height of the delay and the compressor.
 local function card_of_effects(ctx, S, group)
   for _, row in ipairs(EFFECT_ROWS) do
-    local row_height = nil
+    local titles = {}
+    for _, effect in ipairs(row) do titles[#titles + 1] = effect.title end
+    local height = row_height(titles)
     for i, effect in ipairs(row) do
       if i > 1 then ImGui.SameLine(ctx) end
-      local _, height = card_of_effect(ctx, S, effect, row_height)
-      if i == 1 then row_height = height end
+      card_of_effect(ctx, S, effect, height)
     end
   end
 end
@@ -386,11 +401,23 @@ end
 local function section(ctx, S, names)
   if not ImGui.BeginChild(ctx, "##section") then return end
   local groups = groups_named(groups_of(S.model.catalog), names)
+  -- The cards that share a row take the height of the tallest of them: the drawbars together, and the
+  -- knob cards that are not stacked together.
+  local drawbar_names, row_names = {}, {}
+  for _, group in ipairs(groups) do
+    if group.drawbars then
+      drawbar_names[#drawbar_names + 1] = group.name
+    elseif CARDS_OF_KNOBS[group.name] and not STACKED[group.name] then
+      row_names[#row_names + 1] = group.name
+    end
+  end
+  local drawbar_height, knob_height = row_height(drawbar_names), row_height(row_names)
+
   local drawbars_drawn = false
   for _, group in ipairs(groups) do
     if group.drawbars then
       if drawbars_drawn then ImGui.SameLine(ctx) end
-      card_of_drawbars(ctx, S, group)
+      card_of_drawbars(ctx, S, group, drawbar_height)
       drawbars_drawn = true
     end
   end
@@ -399,7 +426,7 @@ local function section(ctx, S, names)
     local card = CARDS_OF_KNOBS[group.name]
     if card then
       if knobs_drawn and not STACKED[group.name] then ImGui.SameLine(ctx) end
-      card(ctx, S, group)
+      card(ctx, S, group, knob_height)
       knobs_drawn = true
     end
   end
@@ -487,7 +514,7 @@ local function registrations(ctx, S)
     ImGui.EndChild(ctx)
   end
   if ui.reg_selected and regs[ui.reg_selected] then
-    if ImGui.Button(ctx, "Load and send registration") then load_registration(S, regs[ui.reg_selected]) end
+    if widgets.push_button(ctx, "Load and send registration") then load_registration(S, regs[ui.reg_selected]) end
   end
   widgets.end_card(ctx)
 end
@@ -495,11 +522,11 @@ end
 local function patches(ctx, S)
   local m, widgets = S.model, env.widgets
   if widgets.begin_card(ctx, "Keyboard") then
-    if ImGui.Button(ctx, "Read the keyboard") then
+    if widgets.push_button(ctx, "Read the keyboard") then
       S.start_job("Reading", 22)
       S.notice("Reading the keyboard's state into this plugin.", false)
     end
-    if ImGui.Button(ctx, "Send to the keyboard") then
+    if widgets.push_button(ctx, "Send to the keyboard") then
       S.start_job("Writing", 66)
       S.notice("Writing this plugin's state to the keyboard.", false)
     end
@@ -509,10 +536,10 @@ local function patches(ctx, S)
   ImGui.SameLine(ctx)
   if widgets.begin_card(ctx, "Options") then
     local _
-    _, m.split = ImGui.Checkbox(ctx, "This patch splits at middle C", m.split)
+    _, m.split = widgets.toggle(ctx, "This patch splits at middle C", m.split)
     widgets.tooltip(ctx, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.")
-    _, m.follow_panel = ImGui.Checkbox(ctx, "Follow changes made on the keyboard's panel", m.follow_panel)
-    _, m.recall_on_load = ImGui.Checkbox(ctx, "Send the patch to the keyboard when the project opens", m.recall_on_load)
+    _, m.follow_panel = widgets.toggle(ctx, "Follow changes made on the keyboard's panel", m.follow_panel)
+    _, m.recall_on_load = widgets.toggle(ctx, "Send the patch to the keyboard when the project opens", m.recall_on_load)
     widgets.end_card(ctx)
   end
 
@@ -566,7 +593,7 @@ local function audio_loop(ctx, S)
   end
 
   if widgets.begin_card(ctx, "Latency") then
-    if ImGui.Button(ctx, "Measure the round trip") then S.notice("Measuring (mock).", false) end
+    if widgets.push_button(ctx, "Measure the round trip") then S.notice("Measuring (mock).", false) end
     ImGui.SameLine(ctx)
     widgets.display(ctx, "not measured yet", th.text_dim, 160)
     widgets.end_card(ctx)
@@ -595,17 +622,17 @@ local function midi(ctx, S)
     ui.midi_out = device_combo(ctx, "##midiout", ui.midi_out)
     ImGui.TextColored(ctx, th.label, "MIDI input (record from the keyboard)")
     ui.midi_in = device_combo(ctx, "##midiin", ui.midi_in)
-    _, ui.armed = ImGui.Checkbox(ctx, "Record-arm the track", ui.armed)
-    _, ui.monitor = ImGui.Checkbox(ctx, "Monitor input", ui.monitor)
+    _, ui.armed = widgets.toggle(ctx, "Record-arm the track", ui.armed)
+    _, ui.monitor = widgets.toggle(ctx, "Monitor input", ui.monitor)
     widgets.end_card(ctx)
   end
   if widgets.begin_card(ctx, "Behavior") then
-    _, ui.pass = ImGui.Checkbox(ctx, "Pass this track's MIDI through to the keyboard", ui.pass)
-    _, ui.bare = ImGui.Checkbox(ctx, "Send SysEx without its F0 and F7 bytes", ui.bare)
+    _, ui.pass = widgets.toggle(ctx, "Pass this track's MIDI through to the keyboard", ui.pass)
+    _, ui.bare = widgets.toggle(ctx, "Send SysEx without its F0 and F7 bytes", ui.bare)
     widgets.end_card(ctx)
   end
   if widgets.begin_card(ctx, "Connection") then
-    if ImGui.Button(ctx, "Look for the keyboard again") then S.notice("Asking the keyboard who it is.", false) end
+    if widgets.push_button(ctx, "Look for the keyboard again") then S.notice("Asking the keyboard who it is.", false) end
     widgets.display(ctx, "sent 137   received 654   bad checksums 0", th.amber, 360)
     ImGui.TextColored(ctx, th.grey, "(mock values)")
     widgets.end_card(ctx)

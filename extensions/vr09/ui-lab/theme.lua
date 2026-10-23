@@ -137,7 +137,8 @@ function M.push(ctx)
     { ImGui.StyleVar_TabRounding, 3 },
     { ImGui.StyleVar_GrabRounding, 3 },
     { ImGui.StyleVar_WindowPadding, 12, 12 },
-    { ImGui.StyleVar_ItemSpacing, 8, 7 },
+    { ImGui.StyleVar_ItemSpacing, 8, 8 },
+    { ImGui.StyleVar_FramePadding, 8, 4 },
   }
   for _, v in ipairs(vars) do ImGui.PushStyleVar(ctx, v[1], v[2], v[3]) end
   return { colors = pushed_colors, vars = #vars }
