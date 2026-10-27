@@ -23,6 +23,7 @@ const registrations = @import("registrations.zig");
 const panel_fonts = @import("fonts.zig");
 const theme = @import("theme.zig");
 const widgets = @import("widgets.zig");
+const controls_panel = @import("controls_panel.zig");
 
 const Plugin = plugin.Plugin;
 const log = std.log.scoped(.ui);
@@ -52,6 +53,8 @@ pub const Window = struct {
     open: bool = false,
     ctx: imgui.ContextPtr = null,
     fonts: panel_fonts.Fonts = .{},
+    /// What the Controls tab keeps between frames.
+    panel: controls_panel.State = .{},
     frame: u32 = 0,
     errors_logged: u32 = 0,
     /// How many ImGui contexts this window has created, to tell a reopened
@@ -370,20 +373,6 @@ fn checkpoint(w: *Window, section: []const u8) void {
     }
 }
 
-/// Begins a tab, with its name drawn in the tab font and the tab color. Because ImGui draws the name
-/// when the tab begins, the font and the color are popped at once, and the tab's content keeps the
-/// usual ones.
-fn beginTab(ctx: imgui.ContextPtr, label: [:0]const u8, flags: *c_int) bool {
-    const font = widgets.frame.fonts.tab;
-    if (font != null) imgui.api.PushFont(ctx, font);
-    imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.tab_text);
-    const is_open = imgui.api.BeginTabItem(ctx, label, null, flags);
-    var one: c_int = 1;
-    imgui.api.PopStyleColor(ctx, &one);
-    if (font != null) imgui.api.PopFont(ctx);
-    return is_open;
-}
-
 fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
     drawHeader(p, ctx);
     imgui.api.Separator(ctx);
@@ -392,19 +381,19 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
         p.ui.select_tab = 0;
         var flags = [4]c_int{ 0, 0, 0, 0 };
         if (select >= 1 and select <= flags.len) flags[select - 1] = imgui.TabItemFlags_SetSelected;
-        if (beginTab(ctx, "CONTROLS", &flags[0])) {
+        if (widgets.beginTab(ctx, "CONTROLS", &flags[0])) {
             drawControls(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (beginTab(ctx, "PATCHES", &flags[1])) {
+        if (widgets.beginTab(ctx, "PATCHES", &flags[1])) {
             drawPatches(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (beginTab(ctx, "AUDIO LOOP", &flags[2])) {
+        if (widgets.beginTab(ctx, "AUDIO LOOP", &flags[2])) {
             drawAudioLoop(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (beginTab(ctx, "MIDI", &flags[3])) {
+        if (widgets.beginTab(ctx, "MIDI", &flags[3])) {
             drawMidi(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
@@ -471,67 +460,16 @@ fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
 
 // ---- the controls ----
 
-/// How many knobs a card holds on one row before the next row starts.
-const knobs_per_row = 6;
-
 fn drawControls(p: *Plugin, ctx: imgui.ContextPtr) void {
-    // EndChild only follows a BeginChild that returned true (see drawPatches).
-    if (!imgui.api.BeginChild(ctx, "##controls", null, null, null, null)) {
-        return;
+    controls_panel.draw(p.shared, &p.ui.panel, ctx);
+    // The cards cannot reach the window's notice, so they leave theirs in the tab's state.
+    if (p.ui.panel.overflow) {
+        p.ui.panel.overflow = false;
+        notice(&p.ui, "Too many changes at once, the last one was dropped.", .{}, true);
     }
-    var shown = [_]bool{false} ** engine.param_count;
-    for (catalog.params, 0..) |param, i| {
-        if (shown[i]) continue;
-        // One card per group, listing every parameter of the group once.
-        var title_buf: [96]u8 = undefined;
-        const title = std.fmt.bufPrint(&title_buf, "{s}", .{param.group}) catch continue;
-        const is_drawbars = std.mem.indexOf(u8, param.group, "drawbars") != null;
-        const visible = widgets.beginCard(ctx, title, null, null, null);
-        var in_row: usize = 0;
-        for (catalog.params[i..], i..) |other, j| {
-            if (shown[j] or !std.mem.eql(u8, other.group, param.group)) continue;
-            shown[j] = true;
-            if (!visible) continue;
-            // A drawbar row stays on one line, and the knobs wrap after a few.
-            if (in_row > 0 and (is_drawbars or in_row % knobs_per_row != 0)) imgui.api.SameLine(ctx, null, null);
-            drawParam(p, ctx, j, is_drawbars);
-            in_row += 1;
-        }
-        if (visible) widgets.endCard(ctx);
-    }
-    imgui.api.EndChild(ctx);
-}
-
-fn controlOf(param: catalog.Param) widgets.Control {
-    return .{ .id = param.id, .low = param.low, .high = param.high, .names = param.names };
-}
-
-fn drawParam(p: *Plugin, ctx: imgui.ContextPtr, index: usize, as_drawbar: bool) void {
-    const param = catalog.params[index];
-    const value: c_int = p.shared.paramValue(index);
-    var id: [48:0]u8 = undefined;
-    imgui.api.PushID(ctx, std.fmt.bufPrintZ(&id, "{s}", .{param.id}) catch "p");
-    var changed = false;
-    var next: c_int = value;
-    if (as_drawbar) {
-        const result = widgets.drawbar(ctx, controlOf(param), value, param.label, false);
-        changed = result.changed;
-        next = result.value;
-    } else if (param.names.len == 0) {
-        const result = widgets.knob(ctx, controlOf(param), value, param.label, false);
-        changed = result.changed;
-        next = result.value;
-    } else {
-        // A type turns between named stops.
-        const result = widgets.stopKnob(ctx, controlOf(param), value, param.label, false);
-        changed = result.changed;
-        next = result.value;
-    }
-    imgui.api.PopID(ctx);
-    if (changed) {
-        if (!p.shared.changeParam(index, @intCast(std.math.clamp(next, 0, 255)))) {
-            notice(&p.ui, "Too many changes at once, the last one was dropped.", .{}, true);
-        }
+    if (p.ui.panel.notice[0] != 0) {
+        notice(&p.ui, "{s}", .{std.mem.sliceTo(&p.ui.panel.notice, 0)}, false);
+        p.ui.panel.notice[0] = 0;
     }
 }
 

@@ -10,6 +10,7 @@ const imgui = @import("reaper_imgui");
 const palette = @import("ui_palette");
 const theme = @import("theme.zig");
 const panel_fonts = @import("fonts.zig");
+const tones = @import("tones.zig");
 
 const rgba = palette.rgba;
 
@@ -1114,6 +1115,263 @@ pub fn bracketRow(ctx: imgui.ContextPtr, brackets: []const Bracket, count: usize
         imgui.api.DrawList_AddText(dl, text_x, ymid - size.h / 2 + 1, theme.text_engraved_shadow, text);
         imgui.api.DrawList_AddText(dl, text_x, ymid - size.h / 2, theme.text_dim, text);
     }
+}
+
+// ---- the envelope screen ----
+
+/// The screen is drawn for a plot this wide, and it is stretched when the card gives it more room.
+const env_w: f64 = 240;
+const env_h: f64 = 120;
+const env_pad_x: f64 = 14;
+const env_pad_top: f64 = 34;
+const env_pad_bottom: f64 = 14;
+
+/// Because the screen is a schematic of how the three values shape a note, a segment is drawn `env_min`
+/// pixels wide when its value is at its lowest, and `env_span` pixels wider when it is at its highest.
+/// The note's hold between the decay and the release has a width and a level of its own.
+const env_min: f64 = 6;
+const env_span: f64 = 48;
+const env_hold: f64 = 36;
+const env_sustain: f64 = 0.55;
+
+/// The strength of the curve's glow, a quarter of the accent's.
+const env_glow: u32 = 0x44;
+
+fn envelopeWidth(control: Control, value: i32, scale: f64) f64 {
+    const t = @as(f64, @floatFromInt(value - control.low)) / @as(f64, @floatFromInt(control.high - control.low));
+    return (env_min + t * env_span) * scale;
+}
+
+fn envelopeValue(control: Control, width: f64, scale: f64) i32 {
+    const t = std.math.clamp((width / scale - env_min) / env_span, 0, 1);
+    const span: f64 = @floatFromInt(control.high - control.low);
+    return @intFromFloat(@floor(@as(f64, @floatFromInt(control.low)) + t * span + 0.5));
+}
+
+const EnvGeom = struct { left: f64, right: f64, top: f64, bottom: f64, scale: f64 };
+
+/// The five corners of the curve: the start, the top of the attack, the end of the decay, the end of the
+/// hold, and the end of the release.
+fn envelopePoints(geom: EnvGeom, attack: f64, decay: f64, release: f64) [5]Point {
+    const top_x = geom.left + attack;
+    const decay_x = top_x + decay;
+    const hold_x = decay_x + env_hold * geom.scale;
+    const sustain_y = geom.bottom - (geom.bottom - geom.top) * env_sustain;
+    return .{
+        .{ .x = geom.left, .y = geom.bottom },
+        .{ .x = top_x, .y = geom.top },
+        .{ .x = decay_x, .y = sustain_y },
+        .{ .x = hold_x, .y = sustain_y },
+        .{ .x = hold_x + release, .y = geom.bottom },
+    };
+}
+
+/// The new values of an envelope screen. A value changed when its flag is set.
+pub const EnvelopeChange = struct { values: [3]i32, changed: [3]bool = .{ false, false, false } };
+
+/// The screen of an envelope: a dark recessed display that draws the attack, the decay and the release
+/// of a note as a glowing curve. Each of the three values has a handle on the curve, which the user drags
+/// sideways to change the value, or double-clicks or alt-clicks to bring back to the middle.
+/// `controls` holds the three parameters in the order attack, decay, release, and `values` their values.
+pub fn envelope(ctx: imgui.ContextPtr, controls: [3]Control, values: [3]i32) EnvelopeChange {
+    const at = cursorScreenPos(ctx);
+    // The screen takes the room the card leaves; the 2 pixels keep the card from showing a scrollbar.
+    var avail_w: f64 = 0;
+    var avail_h: f64 = 0;
+    imgui.api.GetContentRegionAvail(ctx, &avail_w, &avail_h);
+    const width = if (avail_w >= 120) avail_w else env_w;
+    const height = if (avail_h >= 60) avail_h - 2 else env_h;
+    var geom = EnvGeom{ .left = at.x + env_pad_x, .right = at.x + width - env_pad_x, .top = at.y + env_pad_top, .bottom = at.y + height - env_pad_bottom, .scale = 1 };
+    geom.scale = (geom.right - geom.left) / (env_w - 2 * env_pad_x);
+
+    var points = envelopePoints(geom, envelopeWidth(controls[0], values[0], geom.scale), envelopeWidth(controls[1], values[1], geom.scale), envelopeWidth(controls[2], values[2], geom.scale));
+
+    // Each handle sits on a corner of the curve, and its value is the distance from where its segment
+    // starts, which is the previous corner (or the previous segment's end for the release).
+    const corners = [3]usize{ 1, 2, 4 };
+    const origins = [3]f64{ points[0].x, points[1].x, points[3].x };
+    var result = EnvelopeChange{ .values = values };
+    var hot: ?usize = null;
+    var id: [64:0]u8 = undefined;
+    imgui.api.PushID(ctx, std.fmt.bufPrintZ(&id, "{s}", .{controls[0].id}) catch "envelope");
+    for (0..3) |i| {
+        imgui.api.SetCursorScreenPos(ctx, points[corners[i]].x - 9, points[corners[i]].y - 9);
+        var handle_id: [16:0]u8 = undefined;
+        _ = imgui.api.InvisibleButton(ctx, std.fmt.bufPrintZ(&handle_id, "##handle{d}", .{i}) catch "##handle", 18, 18, null);
+        const active = imgui.api.IsItemActive(ctx);
+        const hovered = imgui.api.IsItemHovered(ctx, null);
+        if (imgui.api.IsItemActivated(ctx) and altIsDown(ctx)) {
+            // An alt-click brings the handle back to the middle, as it does for a knob.
+            result.values[i] = defaultValue(controls[i], true);
+            result.changed[i] = true;
+        } else if (active and !altIsDown(ctx)) {
+            var mx: f64 = 0;
+            var my: f64 = 0;
+            imgui.api.GetMousePos(ctx, &mx, &my);
+            const v = envelopeValue(controls[i], mx - origins[i], geom.scale);
+            if (v != values[i]) {
+                result.values[i] = v;
+                result.changed[i] = true;
+            }
+        } else if (hovered and imgui.api.IsMouseDoubleClicked(ctx, imgui.MouseButton_Left)) {
+            result.values[i] = defaultValue(controls[i], true);
+            result.changed[i] = true;
+        }
+        if (active or hovered) {
+            hot = i;
+            imgui.api.SetMouseCursor(ctx, imgui.MouseCursor_ResizeEW);
+        }
+    }
+    imgui.api.PopID(ctx);
+    // Because ImGui wants an item after every move of the cursor, the screen's own space is taken last:
+    // the cursor goes back to the screen's corner, and a Dummy as large as the screen follows.
+    imgui.api.SetCursorScreenPos(ctx, at.x, at.y);
+    imgui.api.Dummy(ctx, width, height);
+
+    // The curve is drawn with the values this frame's drag has just set, so that it follows the mouse.
+    const a = result.values[0];
+    const d = result.values[1];
+    const r = result.values[2];
+    points = envelopePoints(geom, envelopeWidth(controls[0], a, geom.scale), envelopeWidth(controls[1], d, geom.scale), envelopeWidth(controls[2], r, geom.scale));
+
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    rectFilled(dl, at.x, at.y, at.x + width, at.y + height, theme.slot_bg, 5);
+    rect(dl, at.x, at.y, at.x + width, at.y + height, theme.slot_edge, 5, 1);
+    line(dl, at.x + 5, at.y + height + 1, at.x + width - 5, at.y + height + 1, theme.panel_edge_light, 1);
+
+    for (0..9) |i| {
+        const gx = geom.left + (geom.right - geom.left) * @as(f64, @floatFromInt(i)) / 8;
+        line(dl, gx, geom.top, gx, geom.bottom, theme.screen_grid, 1);
+    }
+    for (0..3) |i| {
+        const gy = geom.top + (geom.bottom - geom.top) * @as(f64, @floatFromInt(i)) / 2;
+        line(dl, geom.left, gy, geom.right, gy, theme.screen_grid, 1);
+    }
+
+    // The curve, drawn twice: a wide faint line for the glow, and the line itself over it.
+    var flags: c_int = imgui.DrawFlags_None;
+    for (0..2) |pass| {
+        for (points) |point| imgui.api.DrawList_PathLineTo(dl, point.x, point.y);
+        var thickness: f64 = if (pass == 0) 6 else 2;
+        imgui.api.DrawList_PathStroke(dl, if (pass == 0) faded(accent(), env_glow) else accent(), &flags, &thickness);
+    }
+
+    for (0..3) |i| {
+        const px = points[corners[i]].x;
+        const py = points[corners[i]].y;
+        if (hot != null and hot.? == i) {
+            circleFilled(dl, px, py, 6, accent());
+        } else {
+            circleFilled(dl, px, py, 5, theme.knob_top);
+            circle(dl, px, py, 5, accent(), 1.5);
+        }
+    }
+
+    // The three values are read at the top of the screen, in the label font.
+    const pushed = pushLabelFont(ctx);
+    var readout: [48:0]u8 = undefined;
+    const text = std.fmt.bufPrintZ(&readout, "A {d:>3}  D {d:>3}  R {d:>3}", .{ a, d, r }) catch "";
+    imgui.api.DrawList_AddText(dl, at.x + env_pad_x, at.y + 5, accent(), text);
+    popFont(ctx, pushed);
+    drawGlass(dl, at.x, at.y, at.x + width, at.y + height);
+    return result;
+}
+
+// ---- the tone picker ----
+
+const tone_w: f64 = 190;
+pub const tone_filter_cap = 64;
+
+fn toneMatches(tone: *const tones.Tone, filter: []const u8) bool {
+    if (filter.len == 0) return true;
+    return std.ascii.indexOfIgnoreCase(tone.name, filter) != null or std.ascii.indexOfIgnoreCase(tone.group, filter) != null;
+}
+
+/// Chooses one tone of a list. It shows the chosen tone's name on a display, with a button on each side to
+/// step to the previous and the next tone, and the tone's bytes under it. A click on the display opens a
+/// list of every tone, grouped, with a field that filters it as the user types. `index` is the chosen
+/// tone's position and `filter` the text of the search field. Returns the new position.
+pub fn tonePicker(ctx: imgui.ContextPtr, id: [:0]const u8, list: []const tones.Tone, index: usize, filter: *[tone_filter_cap:0]u8) usize {
+    const tone = &list[index];
+    var result = index;
+    imgui.api.PushID(ctx, id);
+    defer imgui.api.PopID(ctx);
+
+    if (pushButton(ctx, "<", 30) and index > 0) result = index - 1;
+    imgui.api.SameLine(ctx, null, null);
+
+    // The display: a recessed screen with the name in the accent color, and a caret that says it opens a list.
+    const pushed = pushLabelFont(ctx);
+    const text_line = imgui.api.GetTextLineHeight(ctx);
+    const at = cursorScreenPos(ctx);
+    const height = text_line + 12;
+    _ = imgui.api.InvisibleButton(ctx, "##tone", tone_w, height, null);
+    const hot = imgui.api.IsItemHovered(ctx, null);
+    if (imgui.api.IsItemClicked(ctx, null)) imgui.api.OpenPopup(ctx, "##tonelist", null);
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    rectFilled(dl, at.x, at.y, at.x + tone_w, at.y + height, theme.slot_bg, 3);
+    rect(dl, at.x, at.y, at.x + tone_w, at.y + height, if (hot) accent() else theme.slot_edge, 3, 1);
+    imgui.api.DrawList_AddText(dl, at.x + 10, at.y + 6, accent(), tone.name);
+    const cx = at.x + tone_w - 12;
+    const cy = at.y + height / 2;
+    imgui.api.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, if (hot) accent() else theme.text_dim);
+    drawGlass(dl, at.x, at.y, at.x + tone_w, at.y + height);
+    popFont(ctx, pushed);
+    imgui.api.SameLine(ctx, null, null);
+    if (pushButton(ctx, ">", 30) and index + 1 < list.len) result = index + 1;
+
+    // The group and the three bytes that select the tone, in the label font like the other numbers.
+    const line_font = pushLabelFont(ctx);
+    var info: [96:0]u8 = undefined;
+    const info_text = std.fmt.bufPrintZ(&info, "{s}   tone {d}   bank {d}.{d}", .{ tone.group, tone.number, tone.msb, tone.lsb }) catch "";
+    imgui.api.TextColored(ctx, theme.label, info_text);
+    popFont(ctx, line_font);
+
+    // The list of every tone, under the display.
+    var appearing: c_int = imgui.Cond_Appearing;
+    imgui.api.SetNextWindowPos(ctx, at.x, at.y + height + 2, &appearing, null, null);
+    if (imgui.api.BeginPopup(ctx, "##tonelist", null)) {
+        if (imgui.api.IsWindowAppearing(ctx)) imgui.api.SetKeyboardFocusHere(ctx, null);
+        imgui.api.SetNextItemWidth(ctx, 300);
+        var input_flags: c_int = imgui.InputTextFlags_None;
+        _ = imgui.api.InputTextWithHint(ctx, "##search", "search by name or group", filter, filter.len, &input_flags, null);
+        var list_w: f64 = 300;
+        var list_h: f64 = 320;
+        if (imgui.api.BeginChild(ctx, "##tonescroll", &list_w, &list_h, null, null)) {
+            const needle = std.mem.sliceTo(filter, 0);
+            var group: []const u8 = "";
+            for (list, 0..) |*t, i| {
+                if (!toneMatches(t, needle)) continue;
+                // A group's heading is drawn when its first tone that matches the search is.
+                if (!std.mem.eql(u8, t.group, group)) {
+                    group = t.group;
+                    imgui.api.SeparatorText(ctx, t.group);
+                }
+                var item: [96:0]u8 = undefined;
+                const label = std.fmt.bufPrintZ(&item, "{s}##tone{d}", .{ t.name, i }) catch "?";
+                var selected = i == index;
+                if (imgui.api.Selectable(ctx, label, &selected, null, null, null)) result = i;
+            }
+            imgui.api.EndChild(ctx);
+        }
+        imgui.api.EndPopup(ctx);
+    }
+    return result;
+}
+
+// ---- the tabs ----
+
+/// Begins a tab, with its name drawn in the tab font and the tab color. Because ImGui draws the name when the
+/// tab begins, the font and the color are popped at once, and the tab's content keeps the usual ones.
+pub fn beginTab(ctx: imgui.ContextPtr, label: [:0]const u8, flags: ?*c_int) bool {
+    const font = frame.fonts.tab;
+    if (font != null) imgui.api.PushFont(ctx, font);
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.tab_text);
+    const is_open = imgui.api.BeginTabItem(ctx, label, null, flags);
+    var one: c_int = 1;
+    imgui.api.PopStyleColor(ctx, &one);
+    if (font != null) imgui.api.PopFont(ctx);
+    return is_open;
 }
 
 // Because Zig only compiles the functions that something calls, this test makes the whole module compile,
