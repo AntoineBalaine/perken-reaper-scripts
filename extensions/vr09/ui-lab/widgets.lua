@@ -1068,6 +1068,48 @@ function M.tone_picker(ctx, id, tones, index, filter)
   return result, new_filter
 end
 
+-- ---- the picker ----
+
+-- Begins a picker: a recessed screen with the chosen text in the accent color and a caret, like the display of
+-- a knob with many stops and of the tone picker. A click on it opens a list. Returns true while the list is
+-- open, and then the caller draws its items with `pick_item` and ends it with `end_pick_list`. `id` must be
+-- unique in the window.
+function M.begin_pick_list(ctx, id, preview, width)
+  local th = env.theme
+  local pushed = push_label_font(ctx)
+  local line = ImGui.GetTextLineHeight(ctx)
+  local x, y = ImGui.GetCursorScreenPos(ctx)
+  local height = line + 12
+  ImGui.InvisibleButton(ctx, "##pick" .. id, width, height)
+  local hot = ImGui.IsItemHovered(ctx)
+  if ImGui.IsItemClicked(ctx) then ImGui.OpenPopup(ctx, "##picklist" .. id) end
+  local dl = ImGui.GetWindowDrawList(ctx)
+  ImGui.DrawList_AddRectFilled(dl, x, y, x + width, y + height, th.slot_bg, 3)
+  ImGui.DrawList_AddRect(dl, x, y, x + width, y + height, hot and accent() or th.slot_edge, 3)
+  ImGui.DrawList_AddText(dl, x + 10, y + 6, accent(), preview)
+  local cx, cy = x + width - 12, y + height / 2
+  ImGui.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, hot and accent() or th.text_dim)
+  draw_glass(dl, x, y, x + width, y + height)
+  if pushed then ImGui.PopFont(ctx) end
+  ImGui.SetNextWindowPos(ctx, x, y + height + 2, ImGui.Cond_Appearing)
+  return ImGui.BeginPopup(ctx, "##picklist" .. id)
+end
+
+-- One item of a picker's list. The chosen one is in the accent color, and an item that cannot be chosen is
+-- dim. Returns true when the item was clicked.
+function M.pick_item(ctx, label, selected, enabled)
+  if selected then ImGui.PushStyleColor(ctx, ImGui.Col_Text, accent()) end
+  if enabled == false then ImGui.BeginDisabled(ctx) end
+  local clicked = ImGui.Selectable(ctx, label)
+  if enabled == false then ImGui.EndDisabled(ctx) end
+  if selected then ImGui.PopStyleColor(ctx) end
+  return clicked and enabled ~= false
+end
+
+function M.end_pick_list(ctx)
+  ImGui.EndPopup(ctx)
+end
+
 -- ---- the card ----
 
 -- A framed section of the panel, with its title engraved on top. A card may have an accent color,

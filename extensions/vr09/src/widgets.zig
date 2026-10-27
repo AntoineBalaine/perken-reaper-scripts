@@ -1409,6 +1409,55 @@ pub fn beginTab(ctx: imgui.ContextPtr, label: [:0]const u8, flags: ?*c_int) bool
     return is_open;
 }
 
+// ---- the picker ----
+
+/// Begins a picker: a recessed screen with the chosen text in the accent color and a caret, like the display
+/// of a knob with many stops and of the tone picker. A click on it opens a list. Returns true while the list is
+/// open, and then the caller draws its items with `pickItem` and ends it with `endPickList`.
+/// `id` must be unique in the window.
+pub fn beginPickList(ctx: imgui.ContextPtr, id: [:0]const u8, preview: [:0]const u8, width: f64) bool {
+    const pushed = pushLabelFont(ctx);
+    const text_line = imgui.api.GetTextLineHeight(ctx);
+    const at = cursorScreenPos(ctx);
+    const height = text_line + 12;
+    var button_id: [96:0]u8 = undefined;
+    _ = imgui.api.InvisibleButton(ctx, std.fmt.bufPrintZ(&button_id, "##pick{s}", .{id}) catch "##pick", width, height, null);
+    const hot = imgui.api.IsItemHovered(ctx, null);
+    var popup_id: [96:0]u8 = undefined;
+    const popup = std.fmt.bufPrintZ(&popup_id, "##picklist{s}", .{id}) catch "##picklist";
+    if (imgui.api.IsItemClicked(ctx, null)) imgui.api.OpenPopup(ctx, popup, null);
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    rectFilled(dl, at.x, at.y, at.x + width, at.y + height, theme.slot_bg, 3);
+    rect(dl, at.x, at.y, at.x + width, at.y + height, if (hot) accent() else theme.slot_edge, 3, 1);
+    imgui.api.DrawList_AddText(dl, at.x + 10, at.y + 6, accent(), preview);
+    const cx = at.x + width - 12;
+    const cy = at.y + height / 2;
+    imgui.api.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, if (hot) accent() else theme.text_dim);
+    drawGlass(dl, at.x, at.y, at.x + width, at.y + height);
+    popFont(ctx, pushed);
+    var appearing: c_int = imgui.Cond_Appearing;
+    imgui.api.SetNextWindowPos(ctx, at.x, at.y + height + 2, &appearing, null, null);
+    return imgui.api.BeginPopup(ctx, popup, null);
+}
+
+/// One item of a picker's list. The chosen one is in the accent color, and an item that cannot be chosen is
+/// dim. Returns true when the item was clicked.
+pub fn pickItem(ctx: imgui.ContextPtr, label: [:0]const u8, selected: bool, enabled: bool) bool {
+    if (selected) imgui.api.PushStyleColor(ctx, imgui.Col_Text, accent());
+    if (!enabled) imgui.api.BeginDisabled(ctx, null);
+    const clicked = imgui.api.Selectable(ctx, label, null, null, null, null);
+    if (!enabled) imgui.api.EndDisabled(ctx);
+    if (selected) {
+        var one: c_int = 1;
+        imgui.api.PopStyleColor(ctx, &one);
+    }
+    return clicked and enabled;
+}
+
+pub fn endPickList(ctx: imgui.ContextPtr) void {
+    imgui.api.EndPopup(ctx);
+}
+
 // Because Zig only compiles the functions that something calls, this test makes the whole module compile,
 // including the components that the panel does not draw yet.
 test "every component compiles" {

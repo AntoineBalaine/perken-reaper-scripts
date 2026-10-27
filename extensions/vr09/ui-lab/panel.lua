@@ -1783,12 +1783,11 @@ local DEVICES = { "none", "Roland VR-09 (mock)", "MIDI Output 2", "MIDI Output 3
 
 local function device_combo(ctx, id, current)
   local result = current
-  ImGui.SetNextItemWidth(ctx, 360)
-  if ImGui.BeginCombo(ctx, id, DEVICES[current]) then
+  if env.widgets.begin_pick_list(ctx, id, DEVICES[current], 360) then
     for i, name in ipairs(DEVICES) do
-      if ImGui.Selectable(ctx, name, current == i) then result = i end
+      if env.widgets.pick_item(ctx, name .. "##" .. i, current == i) then result = i end
     end
-    ImGui.EndCombo(ctx)
+    env.widgets.end_pick_list(ctx)
   end
   return result
 end

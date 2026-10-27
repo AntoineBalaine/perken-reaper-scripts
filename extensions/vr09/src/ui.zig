@@ -575,7 +575,7 @@ pub fn exportFile(p: *Plugin) void {
 
 // ---- the audio loop ----
 
-fn drawChannelPairCombo(ctx: imgui.ContextPtr, id: [*:0]const u8, dir: glue.Direction, current: i32, out: *i32) bool {
+fn drawChannelPairCombo(ctx: imgui.ContextPtr, id: [:0]const u8, dir: glue.Direction, current: i32, out: *i32) bool {
     var preview: [96:0]u8 = undefined;
     const count = glue.audioChannelCount(dir);
     const preview_text = if (current < 0 or current + 1 >= count)
@@ -583,10 +583,8 @@ fn drawChannelPairCombo(ctx: imgui.ContextPtr, id: [*:0]const u8, dir: glue.Dire
     else
         std.fmt.bufPrintZ(&preview, "{s} + {s}", .{ glue.audioChannelName(dir, @intCast(current)), glue.audioChannelName(dir, @intCast(current + 1)) }) catch "?";
     var changed = false;
-    imgui.api.SetNextItemWidth(ctx, 320);
-    if (imgui.api.BeginCombo(ctx, id, preview_text, null)) {
-        var none_selected = current < 0;
-        if (imgui.api.Selectable(ctx, "none", &none_selected, null, null, null)) {
+    if (widgets.beginPickList(ctx, id, preview_text, 320)) {
+        if (widgets.pickItem(ctx, "none", current < 0, true)) {
             out.* = -1;
             changed = true;
         }
@@ -594,13 +592,12 @@ fn drawChannelPairCombo(ctx: imgui.ContextPtr, id: [*:0]const u8, dir: glue.Dire
         while (ch + 1 < count) : (ch += 2) {
             var label: [128:0]u8 = undefined;
             const text = std.fmt.bufPrintZ(&label, "{s} + {s}##{d}", .{ glue.audioChannelName(dir, ch), glue.audioChannelName(dir, ch + 1), ch }) catch continue;
-            var selected = current == @as(i32, @intCast(ch));
-            if (imgui.api.Selectable(ctx, text, &selected, null, null, null)) {
+            if (widgets.pickItem(ctx, text, current == @as(i32, @intCast(ch)), true)) {
                 out.* = @intCast(ch);
                 changed = true;
             }
         }
-        imgui.api.EndCombo(ctx);
+        widgets.endPickList(ctx);
     }
     return changed;
 }
@@ -719,7 +716,7 @@ fn latencyText(buf: []u8, frames: u32, rate: u32) [:0]const u8 {
 
 // ---- the MIDI tab ----
 
-fn drawDeviceCombo(w: *Window, ctx: imgui.ContextPtr, id: [*:0]const u8, dir: glue.Direction, current: ?usize, out: *?usize) bool {
+fn drawDeviceCombo(w: *Window, ctx: imgui.ContextPtr, id: [:0]const u8, dir: glue.Direction, current: ?usize, out: *?usize) bool {
     const names = if (dir == .output) &w.output_names else &w.input_names;
     const present = if (dir == .output) &w.output_present else &w.input_present;
     var preview: [128:0]u8 = undefined;
@@ -728,10 +725,8 @@ fn drawDeviceCombo(w: *Window, ctx: imgui.ContextPtr, id: [*:0]const u8, dir: gl
     else
         std.fmt.bufPrintZ(&preview, "none", .{}) catch "none";
     var changed = false;
-    imgui.api.SetNextItemWidth(ctx, 360);
-    if (imgui.api.BeginCombo(ctx, id, preview_text, null)) {
-        var none_selected = current == null;
-        if (dir == .output and imgui.api.Selectable(ctx, "none", &none_selected, null, null, null)) {
+    if (widgets.beginPickList(ctx, id, preview_text, 360)) {
+        if (dir == .output and widgets.pickItem(ctx, "none", current == null, true)) {
             out.* = null;
             changed = true;
         }
@@ -739,16 +734,13 @@ fn drawDeviceCombo(w: *Window, ctx: imgui.ContextPtr, id: [*:0]const u8, dir: gl
             if (!present[i]) continue;
             var label: [160:0]u8 = undefined;
             const text = std.fmt.bufPrintZ(&label, "{s}##{d}", .{ std.mem.sliceTo(&names[i], 0), i }) catch continue;
-            var selected = current != null and current.? == i;
-            // Because a track's device field is too narrow for the later
-            // entries, they are shown but cannot be chosen.
-            var flags: c_int = if (glue.addressable(dir, i)) imgui.SelectableFlags_None else imgui.SelectableFlags_Disabled;
-            if (imgui.api.Selectable(ctx, text, &selected, &flags, null, null)) {
+            // Because a track's device field is too narrow for the later entries, they are shown but cannot be chosen.
+            if (widgets.pickItem(ctx, text, current != null and current.? == i, glue.addressable(dir, i))) {
                 out.* = i;
                 changed = true;
             }
         }
-        imgui.api.EndCombo(ctx);
+        widgets.endPickList(ctx);
     }
     return changed;
 }
