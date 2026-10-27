@@ -58,3 +58,7 @@ pub fn create(ctx: imgui.ContextPtr) Fonts {
     attach(ctx, fonts.tab);
     return fonts;
 }
+
+test "every declaration compiles" {
+    @import("std").testing.refAllDecls(@This());
+}

@@ -22,6 +22,7 @@ const roland = @import("roland.zig");
 const registrations = @import("registrations.zig");
 const panel_fonts = @import("fonts.zig");
 const theme = @import("theme.zig");
+const widgets = @import("widgets.zig");
 
 const Plugin = plugin.Plugin;
 const log = std.log.scoped(.ui);
@@ -281,6 +282,7 @@ fn draw(p: *Plugin) void {
 
     if (w.fonts.text != null) imgui.api.PushFont(ctx, w.fonts.text);
     theme.push(ctx);
+    widgets.frame.fonts = w.fonts;
     const mouse = glue.mousePosition();
     if (!w.placed) {
         w.placed = true;
@@ -368,6 +370,20 @@ fn checkpoint(w: *Window, section: []const u8) void {
     }
 }
 
+/// Begins a tab, with its name drawn in the tab font and the tab color. Because ImGui draws the name
+/// when the tab begins, the font and the color are popped at once, and the tab's content keeps the
+/// usual ones.
+fn beginTab(ctx: imgui.ContextPtr, label: [:0]const u8, flags: *c_int) bool {
+    const font = widgets.frame.fonts.tab;
+    if (font != null) imgui.api.PushFont(ctx, font);
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.tab_text);
+    const is_open = imgui.api.BeginTabItem(ctx, label, null, flags);
+    var one: c_int = 1;
+    imgui.api.PopStyleColor(ctx, &one);
+    if (font != null) imgui.api.PopFont(ctx);
+    return is_open;
+}
+
 fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
     drawHeader(p, ctx);
     imgui.api.Separator(ctx);
@@ -376,19 +392,19 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
         p.ui.select_tab = 0;
         var flags = [4]c_int{ 0, 0, 0, 0 };
         if (select >= 1 and select <= flags.len) flags[select - 1] = imgui.TabItemFlags_SetSelected;
-        if (imgui.api.BeginTabItem(ctx, "Controls", null, &flags[0])) {
+        if (beginTab(ctx, "CONTROLS", &flags[0])) {
             drawControls(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (imgui.api.BeginTabItem(ctx, "Patches", null, &flags[1])) {
+        if (beginTab(ctx, "PATCHES", &flags[1])) {
             drawPatches(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (imgui.api.BeginTabItem(ctx, "Audio loop", null, &flags[2])) {
+        if (beginTab(ctx, "AUDIO LOOP", &flags[2])) {
             drawAudioLoop(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (imgui.api.BeginTabItem(ctx, "MIDI", null, &flags[3])) {
+        if (beginTab(ctx, "MIDI", &flags[3])) {
             drawMidi(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
@@ -402,36 +418,55 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
 
 // ---- the header ----
 
+/// The status of the keyboard, in a card: a lamp and a line saying whether it answers, the progress of a
+/// read or a write when there is one, and the patch's name on a display.
 fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
+    if (!widgets.beginCard(ctx, "Status", null, null, null)) return;
+    defer widgets.endCard(ctx);
     const s = p.shared;
     const connected = s.connected.load(.acquire);
     const mode: roland.MidiInMode = @enumFromInt(s.mode.load(.monotonic));
+    var color = theme.red;
+    var text: [:0]const u8 = "The keyboard does not answer: see the MIDI tab";
     if (connected) {
         switch (mode) {
-            .mode2 => imgui.api.TextColored(ctx, green, "Keyboard connected (MIDI IN mode 2)"),
-            .mode1 => imgui.api.TextColored(ctx, amber, "Keyboard connected, but in MIDI IN mode 1: switch it to mode 2"),
-            .unknown => imgui.api.TextColored(ctx, amber, "Keyboard answers, mode unknown"),
+            .mode2 => {
+                color = theme.green;
+                text = "Keyboard connected (MIDI IN mode 2)";
+            },
+            .mode1 => {
+                color = theme.amber;
+                text = "Keyboard connected, but in MIDI IN mode 1: switch it to mode 2";
+            },
+            .unknown => {
+                color = theme.amber;
+                text = "Keyboard answers, mode unknown";
+            },
         }
     } else if (!p.processing) {
-        imgui.api.TextColored(ctx, grey, "Waiting for the host to run the plugin (record-arm the track)");
-    } else {
-        imgui.api.TextColored(ctx, red, "The keyboard does not answer: see the MIDI tab");
+        color = theme.grey;
+        text = "Waiting for the host to run the plugin (record-arm the track)";
     }
+    widgets.lamp(ctx, color, connected);
+    imgui.api.SameLine(ctx, null, null);
+    imgui.api.TextColored(ctx, color, text);
 
     const job: engine.JobKind = @enumFromInt(s.job.load(.monotonic));
     if (job != .idle) {
         const done = s.progress_done.load(.monotonic);
         const total = s.progress_total.load(.monotonic);
-        var text: [64:0]u8 = undefined;
-        const caption = std.fmt.bufPrintZ(&text, "{s} {d}/{d}", .{ if (job == .reading) "Reading" else "Writing", done, total }) catch "";
+        var caption_buf: [64:0]u8 = undefined;
+        const caption = std.fmt.bufPrintZ(&caption_buf, "{s} {d}/{d}", .{ if (job == .reading) "Reading" else "Writing", done, total }) catch "";
         const fraction: f64 = if (total == 0) 0 else @as(f64, @floatFromInt(done)) / @as(f64, @floatFromInt(total));
-        var width: f64 = -1;
+        var width: f64 = 420;
         imgui.api.ProgressBar(ctx, fraction, &width, null, caption);
     }
     const preset = p.settings.presetName();
     var name: [96:0]u8 = undefined;
-    const shown = std.fmt.bufPrintZ(&name, "Patch: {s}", .{if (preset.len == 0) "(none)" else preset}) catch "Patch";
-    imgui.api.Text(ctx, shown);
+    const shown = std.fmt.bufPrintZ(&name, "{s}", .{if (preset.len == 0) "(none)" else preset}) catch "Patch";
+    imgui.api.TextColored(ctx, theme.label, "Patch");
+    imgui.api.SameLine(ctx, null, null);
+    widgets.display(ctx, shown, theme.amber, 260);
 }
 
 // ---- the controls ----

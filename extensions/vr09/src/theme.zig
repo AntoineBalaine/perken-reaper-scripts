@@ -156,3 +156,7 @@ pub fn pop(ctx: imgui.ContextPtr) void {
     imgui.api.PopStyleVar(ctx, &vars);
     palette.pop(ctx, window_colors.len);
 }
+
+test "every declaration compiles" {
+    @import("std").testing.refAllDecls(@This());
+}

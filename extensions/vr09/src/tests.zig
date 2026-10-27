@@ -17,4 +17,7 @@ comptime {
     _ = @import("catalog.zig");
     _ = @import("debug_api.zig");
     _ = @import("host_test.zig");
+    _ = @import("widgets.zig");
+    _ = @import("fonts.zig");
+    _ = @import("theme.zig");
 }
