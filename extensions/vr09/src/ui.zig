@@ -471,11 +471,8 @@ fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
 
 // ---- the controls ----
 
-fn shortDrawbarName(label: []const u8) []const u8 {
-    const marker = "drawbar ";
-    const at = std.mem.indexOf(u8, label, marker) orelse return label;
-    return label[at + marker.len ..];
-}
+/// How many knobs a card holds on one row before the next row starts.
+const knobs_per_row = 6;
 
 fn drawControls(p: *Plugin, ctx: imgui.ContextPtr) void {
     // EndChild only follows a BeginChild that returned true (see drawPatches).
@@ -485,52 +482,63 @@ fn drawControls(p: *Plugin, ctx: imgui.ContextPtr) void {
     var shown = [_]bool{false} ** engine.param_count;
     for (catalog.params, 0..) |param, i| {
         if (shown[i]) continue;
-        // One header per group, listing every parameter of the group once.
-        var header: [96:0]u8 = undefined;
-        const title = std.fmt.bufPrintZ(&header, "{s}", .{param.group}) catch continue;
-        var flags: c_int = imgui.TreeNodeFlags_DefaultOpen;
-        const open_group = imgui.api.CollapsingHeader(ctx, title, null, &flags);
+        // One card per group, listing every parameter of the group once.
+        var title_buf: [96]u8 = undefined;
+        const title = std.fmt.bufPrint(&title_buf, "{s}", .{param.group}) catch continue;
         const is_drawbars = std.mem.indexOf(u8, param.group, "drawbars") != null;
+        const visible = widgets.beginCard(ctx, title, null, null, null);
+        var in_row: usize = 0;
         for (catalog.params[i..], i..) |other, j| {
             if (shown[j] or !std.mem.eql(u8, other.group, param.group)) continue;
             shown[j] = true;
-            if (open_group) drawParam(p, ctx, j, is_drawbars);
-            if (open_group and is_drawbars) imgui.api.SameLine(ctx, null, null);
+            if (!visible) continue;
+            // A drawbar row stays on one line, and the knobs wrap after a few.
+            if (in_row > 0 and (is_drawbars or in_row % knobs_per_row != 0)) imgui.api.SameLine(ctx, null, null);
+            drawParam(p, ctx, j, is_drawbars);
+            in_row += 1;
         }
-        if (open_group and is_drawbars) imgui.api.NewLine(ctx);
+        if (visible) widgets.endCard(ctx);
     }
     imgui.api.EndChild(ctx);
 }
 
+fn controlOf(param: catalog.Param) widgets.Control {
+    return .{ .id = param.id, .low = param.low, .high = param.high };
+}
+
 fn drawParam(p: *Plugin, ctx: imgui.ContextPtr, index: usize, as_drawbar: bool) void {
     const param = catalog.params[index];
-    var value: c_int = p.shared.paramValue(index);
+    const value: c_int = p.shared.paramValue(index);
     var id: [48:0]u8 = undefined;
     imgui.api.PushID(ctx, std.fmt.bufPrintZ(&id, "{s}", .{param.id}) catch "p");
     var changed = false;
+    var next: c_int = value;
     if (as_drawbar) {
-        imgui.api.BeginGroup(ctx);
-        changed = imgui.api.VSliderInt(ctx, "##v", 34, 120, &value, param.low, param.high, null, null);
-        var name: [32:0]u8 = undefined;
-        imgui.api.Text(ctx, std.fmt.bufPrintZ(&name, "{s}", .{shortDrawbarName(param.label)}) catch "");
-        imgui.api.EndGroup(ctx);
+        const result = widgets.drawbar(ctx, controlOf(param), value, param.label, false);
+        changed = result.changed;
+        next = result.value;
+    } else if (param.names.len == 0) {
+        const result = widgets.knob(ctx, controlOf(param), value, param.label, false);
+        changed = result.changed;
+        next = result.value;
     } else {
+        // A type shows its name beside the number, on a slider until the panel has a knob that names its stops.
         var label: [96:0]u8 = undefined;
         imgui.api.SetNextItemWidth(ctx, 260);
         const text = std.fmt.bufPrintZ(&label, "{s}", .{param.label}) catch "";
-        // A type shows its name beside the number.
         var shown: [64:0]u8 = undefined;
         var format: [96:0]u8 = undefined;
         const fmt_text: ?[*:0]const u8 = blk: {
-            if (param.names.len == 0) break :blk null;
             const name = engine.valueText(&shown, param, @floatFromInt(value)) orelse break :blk null;
             break :blk (std.fmt.bufPrintZ(&format, "%d  {s}", .{name}) catch break :blk null).ptr;
         };
-        changed = imgui.api.SliderInt(ctx, text, &value, param.low, param.high, fmt_text, null);
+        var slider_value = value;
+        changed = imgui.api.SliderInt(ctx, text, &slider_value, param.low, param.high, fmt_text, null);
+        next = slider_value;
     }
     imgui.api.PopID(ctx);
     if (changed) {
-        if (!p.shared.changeParam(index, @intCast(std.math.clamp(value, 0, 255)))) {
+        if (!p.shared.changeParam(index, @intCast(std.math.clamp(next, 0, 255)))) {
             notice(&p.ui, "Too many changes at once, the last one was dropped.", .{}, true);
         }
     }

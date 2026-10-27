@@ -382,6 +382,417 @@ pub fn endCard(ctx: imgui.ContextPtr) void {
     imgui.api.PopStyleColor(ctx, &count);
 }
 
+// ---- what a control draws ----
+
+/// What a control needs to know about its parameter. The catalog's parameters and the extras that the
+/// panel adds both fill it in.
+pub const Control = struct {
+    id: []const u8,
+    low: i32,
+    high: i32,
+    /// A value stored as 52 to 76 and shown as -12 to +12 has a shift of -64.
+    shift: i32 = 0,
+    /// A value stored as 54 to 74 and shown as -100 to +100 has a scale of 10 and a shift of -64.
+    scale: i32 = 1,
+    /// Whether a sign is shown before the value.
+    signed: bool = false,
+    unit: []const u8 = "",
+    /// The position that an alt-click brings the control to, when the parameter has one of its own.
+    default: ?i32 = null,
+    /// The reason the unit does not take this parameter. A control that has one is drawn dim and does
+    /// not move.
+    disabled: ?[:0]const u8 = null,
+};
+
+/// The result of a control: whether the user changed the value, and the value after the change.
+pub const Change = struct { changed: bool, value: i32 };
+
+/// The position that a knob goes back to on an alt-click: the parameter's own default when it has one,
+/// the middle of the range for a value that rests there, and the lowest value otherwise, because the
+/// catalog does not hold a default for each one.
+pub fn defaultValue(control: Control, bipolar: bool) i32 {
+    if (control.default) |d| return d;
+    if (bipolar) return @divFloor(control.low + control.high + 1, 2);
+    return control.low;
+}
+
+fn altIsDown(ctx: imgui.ContextPtr) bool {
+    return (imgui.api.GetKeyMods(ctx) & imgui.Mod_Alt) != 0;
+}
+
+fn shiftIsDown(ctx: imgui.ContextPtr) bool {
+    return (imgui.api.GetKeyMods(ctx) & imgui.Mod_Shift) != 0;
+}
+
+/// The text of a control's value: the value plus the control's `shift`, times its `scale`, with a sign
+/// when the control is `signed`, and its unit.
+pub fn shownValue(buf: []u8, control: Control, value: i32) [:0]const u8 {
+    const shown = (value + control.shift) * control.scale;
+    const sign: []const u8 = if (control.signed and shown >= 0) "+" else "";
+    return std.fmt.bufPrintZ(buf, "{s}{d}{s}", .{ sign, shown, control.unit }) catch "?";
+}
+
+/// Shows the text in a tooltip while the mouse is over the last item.
+pub fn tooltip(ctx: imgui.ContextPtr, text: [:0]const u8) void {
+    if (!imgui.api.IsItemHovered(ctx, null)) return;
+    if (imgui.api.BeginTooltip(ctx)) {
+        var wrap: f64 = 320;
+        imgui.api.PushTextWrapPos(ctx, &wrap);
+        imgui.api.Text(ctx, text);
+        imgui.api.PopTextWrapPos(ctx);
+        imgui.api.EndTooltip(ctx);
+    }
+}
+
+// ---- the text under a control ----
+
+const label_lines_max = 4;
+const label_line_cap = 96;
+
+/// Draws a label centered under a control, on as many lines as the control reserves, so that the
+/// controls of one row keep the same height whatever their label. The label is broken into lines that
+/// fit the width.
+pub fn centeredLabel(ctx: imgui.ContextPtr, text: []const u8, width: f64, reserved_lines: usize) void {
+    const pushed = pushLabelFont(ctx);
+    defer popFont(ctx, pushed);
+
+    var lines: [label_lines_max][label_line_cap:0]u8 = undefined;
+    var count: usize = 0;
+    var current: [label_line_cap:0]u8 = undefined;
+    var current_len: usize = 0;
+    var words = std.mem.tokenizeAny(u8, text, " \t");
+    while (words.next()) |word| {
+        var candidate: [label_line_cap:0]u8 = undefined;
+        const joined = (if (current_len == 0)
+            std.fmt.bufPrintZ(&candidate, "{s}", .{word})
+        else
+            std.fmt.bufPrintZ(&candidate, "{s} {s}", .{ current[0..current_len], word })) catch continue;
+        if (current_len > 0 and textSize(ctx, joined).w > width) {
+            if (count < label_lines_max) {
+                @memcpy(lines[count][0..current_len], current[0..current_len]);
+                lines[count][current_len] = 0;
+                count += 1;
+            }
+            const first = std.fmt.bufPrintZ(&current, "{s}", .{word}) catch continue;
+            current_len = first.len;
+        } else {
+            @memcpy(current[0..joined.len], joined);
+            current[joined.len] = 0;
+            current_len = joined.len;
+        }
+    }
+    if (current_len > 0 and count < label_lines_max) {
+        @memcpy(lines[count][0..current_len], current[0..current_len]);
+        lines[count][current_len] = 0;
+        count += 1;
+    }
+
+    const base = imgui.api.GetCursorPosX(ctx);
+    var i: usize = 0;
+    while (i < reserved_lines) : (i += 1) {
+        if (i < count) {
+            const shown: [:0]const u8 = std.mem.sliceTo(&lines[i], 0);
+            imgui.api.SetCursorPosX(ctx, base + (width - textSize(ctx, shown).w) / 2);
+            imgui.api.TextColored(ctx, theme.label, shown);
+        } else {
+            imgui.api.Dummy(ctx, 1, imgui.api.GetTextLineHeight(ctx));
+        }
+    }
+}
+
+/// A value centered over a control, in the label font.
+pub fn centeredValue(ctx: imgui.ContextPtr, text: [:0]const u8, width: f64, color: ?c_int) void {
+    const pushed = pushLabelFont(ctx);
+    defer popFont(ctx, pushed);
+    imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (width - textSize(ctx, text).w) / 2);
+    imgui.api.TextColored(ctx, color orelse accent(), text);
+}
+
+// ---- the drawbar ----
+
+const drawbar_w: f64 = 40;
+const drawbar_h: f64 = 150;
+const cap_h: f64 = 20;
+
+const Cap = struct { body: c_int, edge: c_int };
+
+/// Because a tonewheel organ's drawbars come in three colors by footage, the cap's color is found from
+/// the end of the parameter's id ("organ-upper-d16" is "d16").
+fn capColors(id: []const u8) Cap {
+    const footage = if (std.mem.lastIndexOfScalar(u8, id, '-')) |at| id[at + 1 ..] else id;
+    const brown = [_][]const u8{ "d16", "d5f" };
+    const black = [_][]const u8{ "d2f", "d1f", "d1ff" };
+    for (brown) |name| {
+        if (std.mem.eql(u8, footage, name)) return .{ .body = theme.cap_brown, .edge = theme.cap_brown_edge };
+    }
+    for (black) |name| {
+        if (std.mem.eql(u8, footage, name)) return .{ .body = theme.cap_black, .edge = theme.cap_black_edge };
+    }
+    return .{ .body = theme.cap_white, .edge = theme.cap_white_edge };
+}
+
+/// "Upper organ drawbar 16'" is shown as "16'" under its drawbar.
+pub fn shortDrawbarName(label: []const u8) []const u8 {
+    const marker = "drawbar ";
+    const at = std.mem.indexOf(u8, label, marker) orelse return label;
+    return label[at + marker.len ..];
+}
+
+/// A drawbar pulled out of the panel: the value above it, a slot with a tick for each step, a stem and a
+/// cap that slides down as the value rises, and the footage under it. The user drags the cap, or clicks
+/// anywhere in the slot to bring the cap there. A disabled drawbar is drawn dim and does not move.
+pub fn drawbar(ctx: imgui.ContextPtr, control: Control, value: i32, label: []const u8, disabled: bool) Change {
+    imgui.api.BeginGroup(ctx);
+
+    // The value is drawn in the label font, like the numbers of the knobs.
+    var value_buf: [16]u8 = undefined;
+    const value_text = std.fmt.bufPrintZ(&value_buf, "{d}", .{value}) catch "?";
+    centeredValue(ctx, value_text, drawbar_w, if (disabled) theme.text_dim else accent());
+
+    const at = cursorScreenPos(ctx);
+    _ = imgui.api.InvisibleButton(ctx, "##drawbar", drawbar_w, drawbar_h, null);
+
+    const top = at.y + cap_h / 2 + 2;
+    const bottom = at.y + drawbar_h - cap_h / 2 - 2;
+    const low: f64 = @floatFromInt(control.low);
+    const span: f64 = @floatFromInt(control.high - control.low);
+    var result = value;
+    if (!disabled and imgui.api.IsItemActive(ctx)) {
+        var mx: f64 = 0;
+        var my: f64 = 0;
+        imgui.api.GetMousePos(ctx, &mx, &my);
+        const t = std.math.clamp((my - top) / (bottom - top), 0, 1);
+        result = @intFromFloat(@floor(low + t * span + 0.5));
+    }
+
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const cx = at.x + drawbar_w / 2;
+
+    // The slot, cut into the panel.
+    rectFilled(dl, cx - 5, top - 6, cx + 5, bottom + 6, theme.slot_bg, 4);
+    rect(dl, cx - 5, top - 6, cx + 5, bottom + 6, theme.slot_edge, 4, 1);
+
+    // The ticks, one for each step of the drawbar.
+    const steps: i32 = control.high - control.low;
+    var i: i32 = 0;
+    while (i <= steps) : (i += 1) {
+        const ty = top + (bottom - top) * @as(f64, @floatFromInt(i)) / span;
+        line(dl, at.x + 2, ty, cx - 8, ty, theme.text_dim, 1);
+        line(dl, cx + 8, ty, at.x + drawbar_w - 2, ty, theme.text_dim, 1);
+    }
+
+    // The stem runs from the top of the slot down to the cap.
+    const pos = top + (bottom - top) * @as(f64, @floatFromInt(result - control.low)) / span;
+    rectFilled(dl, cx - 2, top - 4, cx + 2, pos, if (disabled) faded(theme.stem, 0x55) else theme.stem, 1);
+
+    // The cap, with a lit edge on its top and a dark line under it so that it stands out of the panel.
+    const cap_x1 = at.x + 3;
+    const cap_x2 = at.x + drawbar_w - 3;
+    const cap_y1 = pos - cap_h / 2;
+    const cap_y2 = pos + cap_h / 2;
+    rectFilled(dl, cap_x1, cap_y1 + 2, cap_x2, cap_y2 + 2, rgba(0x00000099), 3);
+    var cap = capColors(control.id);
+    if (disabled) cap = .{ .body = faded(cap.body, 0x55), .edge = faded(cap.edge, 0x55) };
+    rectFilled(dl, cap_x1, cap_y1, cap_x2, cap_y2, cap.body, 3);
+    rect(dl, cap_x1, cap_y1, cap_x2, cap_y2, cap.edge, 3, 1);
+    line(dl, cap_x1 + 3, cap_y1 + 2, cap_x2 - 3, cap_y1 + 2, rgba(0xFFFFFF55), 1);
+    line(dl, cap_x1 + 3, pos, cap_x2 - 3, pos, cap.edge, 1);
+    if (!disabled and (imgui.api.IsItemHovered(ctx, null) or imgui.api.IsItemActive(ctx))) {
+        rect(dl, cap_x1, cap_y1, cap_x2, cap_y2, accent(), 3, 1);
+    }
+
+    var name_buf: [64:0]u8 = undefined;
+    const name = std.fmt.bufPrintZ(&name_buf, "{s}", .{shortDrawbarName(label)}) catch "";
+    const pushed = pushLabelFont(ctx);
+    imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (drawbar_w - textSize(ctx, name).w) / 2);
+    imgui.api.TextColored(ctx, if (disabled) theme.text_dim else theme.label, name);
+    popFont(ctx, pushed);
+    imgui.api.EndGroup(ctx);
+    return .{ .changed = result != value, .value = result };
+}
+
+// ---- the knob and the switch ----
+
+const knob_w: f64 = 76;
+const knob_d: f64 = 46;
+const knob_label_lines = 2;
+
+/// The knob sweeps 270 degrees, from the lower left through the top to the lower right. ImGui's angles
+/// start at the right and grow clockwise on screen.
+const knob_from: f64 = std.math.pi * 0.75;
+const knob_to: f64 = std.math.pi * 2.25;
+
+/// How far the mouse travels to sweep the whole range, and the same with shift held for fine steps.
+const knob_drag: f64 = 150;
+const knob_drag_fine: f64 = 600;
+
+/// The scale printed around the knob: this many intervals, with a longer tick at each end.
+const knob_ticks: i32 = 10;
+
+/// A drag moves the value relative to where it started, so the start of the drag is kept here. Only one
+/// control is dragged at a time, so one record is enough.
+const Drag = struct {
+    /// False after an alt-click, because the click sets the value and the drag that follows must not
+    /// move it again.
+    armed: bool = false,
+    /// The value that the drag started from, and the mouse position at which the speed last changed.
+    value: i32 = 0,
+    dy0: f64 = 0,
+    fine: bool = false,
+};
+
+var drag_state: Drag = .{};
+
+/// A rotary knob: the value above it, a ring that fills as the value rises, a pointer, and the label
+/// under it. The user drags up or down, or turns the mouse wheel over it. When `bipolar` is true, the
+/// value rests in the middle of the range, so that the ring fills from the top, to the left or to the
+/// right of it, and a tick marks the middle. The caller pushes an id for each knob.
+pub fn knob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []const u8, bipolar: bool) Change {
+    const disabled = control.disabled != null;
+    const lit = if (disabled) theme.text_dim else accent();
+    imgui.api.BeginGroup(ctx);
+    var value_buf: [48]u8 = undefined;
+    centeredValue(ctx, shownValue(&value_buf, control, value), knob_w, lit);
+
+    const at = cursorScreenPos(ctx);
+    _ = imgui.api.InvisibleButton(ctx, "##knob", knob_w, knob_d + 8, null);
+    if (control.disabled) |reason| tooltip(ctx, reason);
+    const range: f64 = @floatFromInt(control.high - control.low);
+    var result = value;
+    const fine = shiftIsDown(ctx);
+    if (!disabled and imgui.api.IsItemActivated(ctx)) {
+        if (altIsDown(ctx)) {
+            drag_state = .{};
+            result = defaultValue(control, bipolar);
+        } else {
+            drag_state = .{ .armed = true, .value = value, .dy0 = 0, .fine = fine };
+        }
+    }
+    if (!disabled and imgui.api.IsItemActive(ctx) and drag_state.armed) {
+        var dx: f64 = 0;
+        var dy: f64 = 0;
+        var button: c_int = imgui.MouseButton_Left;
+        var threshold: f64 = 0;
+        imgui.api.GetMouseDragDelta(ctx, &dx, &dy, &button, &threshold);
+        // Because holding shift slows the drag, pressing or releasing it starts a new drag from the
+        // current value, so that the knob does not jump.
+        if (drag_state.fine != fine) drag_state = .{ .armed = true, .value = value, .dy0 = dy, .fine = fine };
+        const speed = if (fine) knob_drag_fine else knob_drag;
+        const moved = @as(f64, @floatFromInt(drag_state.value)) - (dy - drag_state.dy0) * range / speed;
+        result = @intFromFloat(@floor(std.math.clamp(moved, @as(f64, @floatFromInt(control.low)), @as(f64, @floatFromInt(control.high))) + 0.5));
+    } else if (!disabled and imgui.api.IsItemHovered(ctx, null)) {
+        var wheel_x: f64 = 0;
+        var wheel_y: f64 = 0;
+        imgui.api.GetMouseWheel(ctx, &wheel_x, &wheel_y);
+        if (wheel_y != 0) {
+            const step: i32 = @max(1, @as(i32, @intFromFloat(@floor(range / 40))));
+            result = std.math.clamp(value + (if (wheel_y > 0) step else -step), control.low, control.high);
+        }
+    }
+
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const cx = at.x + knob_w / 2;
+    const cy = at.y + 4 + knob_d / 2;
+    const r = knob_d / 2;
+    const t = @as(f64, @floatFromInt(result - control.low)) / range;
+    const angle = knob_from + t * (knob_to - knob_from);
+
+    // The ring: a dark track cut into the panel, and the lit part up to the value.
+    var flags: c_int = imgui.DrawFlags_None;
+    var thickness: f64 = 5;
+    imgui.api.DrawList_PathArcTo(dl, cx, cy, r, knob_from, knob_to, null);
+    imgui.api.DrawList_PathStroke(dl, theme.slot_bg, &flags, &thickness);
+    const fill_from = if (bipolar) (knob_from + knob_to) / 2 else knob_from;
+    if (angle != fill_from) {
+        thickness = 3;
+        imgui.api.DrawList_PathArcTo(dl, cx, cy, r, @min(fill_from, angle), @max(fill_from, angle), null);
+        imgui.api.DrawList_PathStroke(dl, lit, &flags, &thickness);
+    }
+
+    // The scale around the ring. A bipolar knob has a longer tick in the middle too.
+    var i: i32 = 0;
+    while (i <= knob_ticks) : (i += 1) {
+        const a = knob_from + (knob_to - knob_from) * @as(f64, @floatFromInt(i)) / knob_ticks;
+        const long = i == 0 or i == knob_ticks or (bipolar and i == @divFloor(knob_ticks, 2));
+        const inner = r + 3;
+        const outer = r + (if (long) @as(f64, 8) else 6);
+        line(dl, cx + @cos(a) * inner, cy + @sin(a) * inner, cx + @cos(a) * outer, cy + @sin(a) * outer, if (long) theme.label else theme.text_dim, 1);
+    }
+
+    // The body stands out of the panel, with a shadow under it and a lit edge on its upper left.
+    const body = r - 7;
+    circleFilled(dl, cx + 1, cy + 3, body + 1, rgba(0x00000099));
+    circleFilled(dl, cx, cy, body, theme.knob_body);
+    circleFilled(dl, cx - 1, cy - 1, body - 4, theme.knob_top);
+    const hot = !disabled and (imgui.api.IsItemHovered(ctx, null) or imgui.api.IsItemActive(ctx));
+    circle(dl, cx, cy, body, if (hot) accent() else theme.knob_edge, 1);
+
+    // The metal of the cap: two fine concentric grooves, a lit edge on its upper left, and a shine.
+    circle(dl, cx, cy, body - 3, rgba(0xFFFFFF14), 1);
+    circle(dl, cx, cy, body - 6, rgba(0x00000040), 1);
+    thickness = 1.5;
+    imgui.api.DrawList_PathArcTo(dl, cx, cy, body - 0.5, std.math.pi, std.math.pi * 1.5, null);
+    imgui.api.DrawList_PathStroke(dl, rgba(0xFFFFFF40), &flags, &thickness);
+    circleFilled(dl, cx - body * 0.35, cy - body * 0.4, body * 0.22, rgba(0xFFFFFF1E));
+
+    // The pointer runs from near the center toward the ring.
+    const cos_a = @cos(angle);
+    const sin_a = @sin(angle);
+    line(dl, cx + cos_a * body * 0.25, cy + sin_a * body * 0.25, cx + cos_a * body * 0.9, cy + sin_a * body * 0.9, theme.text, 2);
+
+    // While the user drags the knob, its value is shown by the mouse, since the hand covers the knob.
+    if (!disabled and imgui.api.IsItemActive(ctx)) {
+        var tip_buf: [96:0]u8 = undefined;
+        var shown_buf: [48]u8 = undefined;
+        const tip = std.fmt.bufPrintZ(&tip_buf, "{s}: {s}", .{ label, shownValue(&shown_buf, control, result) }) catch "";
+        imgui.api.SetTooltip(ctx, tip);
+    }
+
+    var upper: [label_line_cap * 2]u8 = undefined;
+    const caption = std.ascii.upperString(&upper, label[0..@min(label.len, upper.len)]);
+    centeredLabel(ctx, caption, knob_w, knob_label_lines);
+    imgui.api.EndGroup(ctx);
+    return .{ .changed = result != value, .value = result };
+}
+
+/// A switch with a lamp, for a parameter that is either 0 or 1. The lamp is lit and the on text is shown
+/// when the value is 1.
+pub fn switchControl(ctx: imgui.ContextPtr, value: i32, label: []const u8, on_text: [:0]const u8, off_text: [:0]const u8) Change {
+    imgui.api.BeginGroup(ctx);
+    // An empty line takes the place of the knobs' value, so that both line up in a row.
+    imgui.api.Dummy(ctx, 1, imgui.api.GetTextLineHeight(ctx));
+
+    const at = cursorScreenPos(ctx);
+    _ = imgui.api.InvisibleButton(ctx, "##switch", knob_w, knob_d + 8, null);
+    var result = value;
+    if (imgui.api.IsItemClicked(ctx, null)) result = 1 - value;
+
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const on = result == 1;
+    const x1 = at.x + 6;
+    const y1 = at.y + 4;
+    const x2 = at.x + knob_w - 6;
+    const y2 = at.y + 4 + knob_d;
+    rectFilled(dl, x1, y1 + 2, x2, y2 + 2, rgba(0x00000099), 5);
+    rectFilled(dl, x1, y1, x2, y2, if (on) theme.knob_top else theme.knob_body, 5);
+    const hot = imgui.api.IsItemHovered(ctx, null);
+    rect(dl, x1, y1, x2, y2, if (hot) accent() else theme.knob_edge, 5, 1);
+
+    // The lamp: a glow around it when it is lit.
+    const lx = (x1 + x2) / 2;
+    const ly = y1 + 14;
+    if (on) circleFilled(dl, lx, ly, 9, faded(accent(), 0x55));
+    circleFilled(dl, lx, ly, 5, if (on) accent() else theme.slot_bg);
+    circle(dl, lx, ly, 5, theme.slot_edge, 1);
+
+    const state = if (on) on_text else off_text;
+    imgui.api.DrawList_AddText(dl, lx - textSize(ctx, state).w / 2, y2 - 18, accent(), state);
+
+    centeredLabel(ctx, label, knob_w, knob_label_lines);
+    imgui.api.EndGroup(ctx);
+    return .{ .changed = result != value, .value = result };
+}
+
 // Because Zig only compiles the functions that something calls, this test makes the whole module compile,
 // including the components that the panel does not draw yet.
 test "every component compiles" {
