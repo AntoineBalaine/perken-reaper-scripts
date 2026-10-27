@@ -1,5 +1,7 @@
 # Spike: a webview UI for the VR-09 plugin
 
+**Status: not done.** The ReaImGui look that the lab designed is the one that ships, so the webview was decided against. This file only records what the test would have been.
+
 ## Question
 
 Can the VR-09 CLAP plugin show its UI in a webview on Linux, macOS and Windows, inside REAPER, without embedding it in REAPER's FX window?

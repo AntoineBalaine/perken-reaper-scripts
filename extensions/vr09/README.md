@@ -85,8 +85,11 @@ The plugin registers three REAPER actions when its first instance loads, so they
 
 The panel opens at the mouse, moved to the nearest place where it fits on the screen's usable area. A window that sticks out of the screen is moved by the window manager without ImGui being told, and the mouse then lands a few dozen pixels away from where ImGui believes the window to be, which looked like a frozen window. For the first moments of each opening the plugin logs a line whenever what ImGui sees of the mouse changes, beside where REAPER says the mouse is, so that an offset shows in the log.
 
-- Controls: every parameter of the catalog, by group. The organ drawbars are drawn as drawbars, and the type parameters of the Effects group show their name ("5  Plate") beside the number.
-- Patches: read the keyboard into the plugin, send the plugin's state to the keyboard, browse the Registrations library, save the state as a preset, load, delete, import and export files.
+The panel opens at 1200 by 800 pixels, and its look is the one of the design lab (`ui-lab/`): cards, knobs, drawbars, screens and rocker switches on a dark metal face. Its tabs are:
+
+- Controls: a tab bar of its own with the sections of the instrument (organ, tones, synth, engine, piano, drums, mixer, FX, controllers, performance, GM2). The catalog's parameters are real controls: the organ drawbars are drawbars, a parameter with named values is a knob that turns between its names, and the rest are knobs. The parameters that Roland documents and the catalog does not have are drawn as in the lab: the ones that the unit refuses, or that the synth engine does not answer, are disabled with the reason in a tooltip, and the others move on the screen and send nothing.
+- Scenes: the library of patches, one table that holds the keyboard's Registrations, its single tones and your presets, with a fuzzy search, a type and a group filter and sorting by a column. A double click on a row sends it to the keyboard, and Add puts it at the end of the session's scenes. Beside it, the list of the scenes: a click selects one, a drag moves it (the points of the Scene lane follow), a double click renames it, and a button inserts a point of the lane at the edit cursor. The scenes can be saved as a template and loaded again.
+- Patches: read the keyboard into the plugin, send the plugin's state to the keyboard, the options, and import and export of files.
 - Audio loop: see below.
 - MIDI: the track's output and input devices, record arm and monitoring, the SysEx counters, and the behavior switches.
 

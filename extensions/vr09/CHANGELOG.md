@@ -8,8 +8,8 @@ First version.
 - Reading the keyboard (Identity Request, then RQ1 for the 22 memory blocks), following panel changes, and writing only what differs when a patch is recalled.
 - The patch saved in the REAPER project, and sent to the keyboard when the project opens.
 - Presets as the dump JSON of `vr09.py`, a preset folder under REAPER's resource folder, import and export, and a preset discovery factory.
-- A Registrations library in the Patches tab: the roland-vr09 dumps named `<bank>-<slot>_<Name>.json`, browsed by bank with a filter, and installed by `build-install.sh vr09` without overwriting existing files.
-- A ReaImGui panel with Controls, Patches, Audio loop and MIDI tabs.
+- A Registrations library, in the table of the Scenes tab: the roland-vr09 dumps named `<bank>-<slot>_<Name>.json`, browsed by bank with a filter, and installed by `build-install.sh vr09` without overwriting existing files.
+- A ReaImGui panel with Controls, Scenes, Patches, Audio loop and MIDI tabs, drawn with the look of the design lab: cards, knobs, drawbars and screens, in fonts that are embedded in the plugin.
 - A design lab for the panel in Lua (`ui-lab/`): the panel drawn with a mock keyboard, reloading its theme, components and layout as they are saved.
 - The effects as parameters: reverb (type, level, variation), vibrato / chorus type, MFX (type, level), delay (type, level) and the compressor level, with their type names shown in the panel. The reverb type and level are written together, as the unit requires.
 - The panel opens where it fits on the screen, and a closed panel's ImGui context is dropped to be collected, with a name of its own for each context. A panel that stuck out of the screen was moved by the window manager without ImGui knowing, which offset the mouse.

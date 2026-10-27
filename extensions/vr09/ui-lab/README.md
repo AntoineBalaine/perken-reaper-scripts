@@ -50,7 +50,7 @@ The lab starts with registration 1-1 loaded: the dumps come from `Data/Perken/vr
 | `catalog.lua` | the plugin's parameters, generated |
 | `tones.lua` | the keyboard's 285 tones, generated from the roland-vr09 project |
 | `extras.lua` | the parameters that Roland's MIDI document has and the catalog does not (organ voicing, rotary times, footswitches, D-Beam, pedals, octave shift, portamento, wall type, tone level, the piano parts' sound shaping, more channel volumes and pans, the GM2 programs, and one partial of the synth engine with its tone's common settings), by hand: lab-only, nothing is sent; the ones the unit refuses or does not answer to are drawn disabled |
-| `webview-spike.md` | the test that decides whether a webview can replace ReaImGui |
+| `webview-spike.md` | the test of a webview in place of ReaImGui, which was not made: the ReaImGui look is the one that ships |
 | `../docs/engine-investigation.md` | how the Engine tab could be made to work: a probe, and a capture of the iPad editor |
 
 Generate the catalog again after `src/catalog.zig` changes:
@@ -80,4 +80,4 @@ The tabs prefer OPTI Edgar Bold Extended when it is installed. Because no licens
 
 The plugin draws with Zig calls that mirror the Lua ones (`ImGui.SliderInt` here, `imgui.api.SliderInt` in `src/ui.zig`). A component that looks right here is then written in `src/ui.zig`, and the lab's `panel.lua` and the plugin stay alike.
 
-The other way to a better look, a webview in place of ReaImGui, is not built. `webview-spike.md` describes the test that would settle whether it can work, on Linux, macOS and Windows.
+The other way to a better look, a webview in place of ReaImGui, was decided against, because the ReaImGui look works and is the one that ships. `webview-spike.md` is kept as the record of what the test would have been.
