@@ -503,7 +503,7 @@ fn drawControls(p: *Plugin, ctx: imgui.ContextPtr) void {
 }
 
 fn controlOf(param: catalog.Param) widgets.Control {
-    return .{ .id = param.id, .low = param.low, .high = param.high };
+    return .{ .id = param.id, .low = param.low, .high = param.high, .names = param.names };
 }
 
 fn drawParam(p: *Plugin, ctx: imgui.ContextPtr, index: usize, as_drawbar: bool) void {
@@ -522,19 +522,10 @@ fn drawParam(p: *Plugin, ctx: imgui.ContextPtr, index: usize, as_drawbar: bool) 
         changed = result.changed;
         next = result.value;
     } else {
-        // A type shows its name beside the number, on a slider until the panel has a knob that names its stops.
-        var label: [96:0]u8 = undefined;
-        imgui.api.SetNextItemWidth(ctx, 260);
-        const text = std.fmt.bufPrintZ(&label, "{s}", .{param.label}) catch "";
-        var shown: [64:0]u8 = undefined;
-        var format: [96:0]u8 = undefined;
-        const fmt_text: ?[*:0]const u8 = blk: {
-            const name = engine.valueText(&shown, param, @floatFromInt(value)) orelse break :blk null;
-            break :blk (std.fmt.bufPrintZ(&format, "%d  {s}", .{name}) catch break :blk null).ptr;
-        };
-        var slider_value = value;
-        changed = imgui.api.SliderInt(ctx, text, &slider_value, param.low, param.high, fmt_text, null);
-        next = slider_value;
+        // A type turns between named stops.
+        const result = widgets.stopKnob(ctx, controlOf(param), value, param.label, false);
+        changed = result.changed;
+        next = result.value;
     }
     imgui.api.PopID(ctx);
     if (changed) {
