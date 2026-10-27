@@ -90,6 +90,8 @@ The panel opens at the mouse, moved to the nearest place where it fits on the sc
 - Audio loop: see below.
 - MIDI: the track's output and input devices, record arm and monitoring, the SysEx counters, and the behavior switches.
 
+Because the plugin is one file, the panel's fonts are embedded in it and nothing has to be installed beside it: Saira Condensed for the text and the labels, and Librestile Extended Bold for the tab names. Both are under the SIL Open Font License 1.1, and the release zips carry their license texts in `licenses/`. The font files and the licenses are in `fonts/`.
+
 Presets are files named `<name>.vr09` in `<REAPER resource folder>/Data/Perken/vr09/presets`. They hold the JSON that `vr09.py dump` writes, so the dumps in the roland-vr09 project load as they are (the panel lists `.json` files in that folder too).
 
 ## The Registrations library

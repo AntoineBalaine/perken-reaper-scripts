@@ -68,6 +68,9 @@ jobs:
             # macOS gets a bundle (a folder), the others a single file.
             cp -R zig-out/vr09.clap "$pkg/"
             cp README.md "$pkg/README.md"
+            # The fonts are embedded in the plugin, and their licenses must travel with it.
+            mkdir -p "$pkg/licenses"
+            cp fonts/*.txt "$pkg/licenses/"
             (cd dist && zip -qr "vr09-$name.zip" "vr09-$name")
             echo "::endgroup::"
           done

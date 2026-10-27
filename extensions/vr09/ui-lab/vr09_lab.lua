@@ -260,12 +260,12 @@ local function installed_families()
   return FONT_LISTING.text
 end
 
--- The font files that the lab ships in its `fonts` folder, by the family name that they answer to. A
+-- The font files that the lab ships, in the plugin's `fonts` folder next to the lab's, by the family name that they answer to. A
 -- family has a file for its regular weight and, when it has one, a file for its bold weight. Their
 -- licenses are in the same folder.
 local BUNDLED_FONTS = {
-  ["Saira Condensed"] = { regular = "fonts/SairaCondensed-Regular.ttf", bold = "fonts/SairaCondensed-Bold.ttf" },
-  ["Librestile Extended Bold"] = { regular = "fonts/LibrestileExtBold.ttf" },
+  ["Saira Condensed"] = { regular = "../fonts/SairaCondensed-Regular.ttf", bold = "../fonts/SairaCondensed-Bold.ttf" },
+  ["Librestile Extended Bold"] = { regular = "../fonts/LibrestileExtBold.ttf" },
 }
 
 -- The path of the shipped file of a family in a weight, or nil when the family has none or its file is

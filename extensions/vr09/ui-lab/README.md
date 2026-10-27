@@ -65,7 +65,7 @@ python3 tools/gen_lua_tones.py <path to roland-vr09>/docs/tones.json > ui-lab/to
 
 ## Fonts
 
-Because the panel's lettering has to look the same on every computer, the lab ships two open fonts in `fonts/`, each with its license file:
+Because the panel's lettering has to look the same on every computer, the lab ships two open fonts, in the plugin's `fonts/` folder (next to `ui-lab/`, because the plugin embeds the same files), each with its license file:
 
 - Saira Condensed (regular and bold), for the text, the labels, the numbers and the card titles. It is under the SIL Open Font License 1.1 (`Saira-OFL.txt`).
 - Librestile Extended Bold, for the tab names. It is under the same license (`Librestile-OFL.txt`, `Librestile-LICENSE.txt`).

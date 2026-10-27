@@ -20,11 +20,12 @@ const fileio = @import("fileio.zig");
 const audio = @import("audio.zig");
 const roland = @import("roland.zig");
 const registrations = @import("registrations.zig");
+const panel_fonts = @import("fonts.zig");
+const theme = @import("theme.zig");
 
 const Plugin = plugin.Plugin;
 const log = std.log.scoped(.ui);
 
-const font_size: c_int = 15;
 const name_cap = 64;
 const max_devices = 256;
 const device_name_cap = 96;
@@ -49,7 +50,7 @@ const window_height = 560;
 pub const Window = struct {
     open: bool = false,
     ctx: imgui.ContextPtr = null,
-    font: imgui.FontPtr = null,
+    fonts: panel_fonts.Fonts = .{},
     frame: u32 = 0,
     errors_logged: u32 = 0,
     /// How many ImGui contexts this window has created, to tell a reopened
@@ -131,7 +132,7 @@ pub fn close(p: *Plugin) void {
     // The pointers are dropped, and ReaImGui destroys the context by itself
     // once it has gone unused for a few frames.
     p.ui.ctx = null;
-    p.ui.font = null;
+    p.ui.fonts = .{};
     freePresets(&p.ui);
     freeRegistrations(&p.ui);
 }
@@ -248,7 +249,7 @@ fn draw(p: *Plugin) void {
         log.warn("the ImGui context was destroyed; creating a new one", .{});
         w.placed = false;
         w.ctx = null;
-        w.font = null;
+        w.fonts = .{};
     }
     if (w.ctx == null) {
         var config: c_int = 0;
@@ -264,8 +265,7 @@ fn draw(p: *Plugin) void {
         }
         w.contexts_created += 1;
         log.info("ImGui context {d} created at frame {d}", .{ w.contexts_created, w.frame });
-        w.font = imgui.api.CreateFont("sans-serif", font_size, null);
-        if (w.font != null) imgui.api.Attach(w.ctx, @ptrCast(w.font));
+        w.fonts = panel_fonts.create(w.ctx);
     }
     const ctx = w.ctx;
     if (w.frame == 1) log.info("drawing the first frame", .{});
@@ -279,8 +279,8 @@ fn draw(p: *Plugin) void {
         w.device_refresh_at = w.frame +% 30;
     }
 
-    if (w.font != null) imgui.api.PushFont(ctx, w.font);
-    palette.push(ctx, &palette.window_colors);
+    if (w.fonts.text != null) imgui.api.PushFont(ctx, w.fonts.text);
+    theme.push(ctx);
     const mouse = glue.mousePosition();
     if (!w.placed) {
         w.placed = true;
@@ -308,8 +308,8 @@ fn draw(p: *Plugin) void {
         probeInput(w, ctx);
     }
     imgui.api.End(ctx);
-    palette.pop(ctx, palette.window_colors.len);
-    if (w.font != null) imgui.api.PopFont(ctx);
+    theme.pop(ctx);
+    if (w.fonts.text != null) imgui.api.PopFont(ctx);
     if (!is_open) {
         log.info("ImGui reported the panel closed (frame {d}, context {d})", .{ w.frame, w.contexts_created });
         close(p);
