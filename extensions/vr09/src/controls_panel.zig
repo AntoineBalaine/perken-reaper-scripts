@@ -944,6 +944,8 @@ fn drawSection(ui: Ui, kind: Section) void {
         .controllers => {
             cardOfUpperControllers(ui);
             cardOfLowerControllers(ui);
+            // The master card is not stacked: it sits on the row of the lower controllers, as in the lab.
+            sameLine(ui.ctx);
             cardOfMasterController(ui);
         },
         .performance => performanceSection(ui),
