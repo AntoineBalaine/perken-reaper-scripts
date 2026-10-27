@@ -161,36 +161,38 @@ local restore_window = false
 -- The fonts of the panel. A font must be attached to the context before the first frame, so that
 -- changing one here needs the lab to be closed and run again.
 --
--- Because each system ships different fonts, the label font is the first family of the system's
--- list that is installed. On macOS and Windows the system's family is used without a check, because
--- DIN Alternate ships with every macOS and Bahnschrift with Windows 10 and later. On Linux, the
--- families that fontconfig knows are read once with `fc-list`, and the last entry, the generic
--- "sans-serif", is used when no other family is installed.
+-- Because the lab ships no font file, and because each system has different fonts, every role has an
+-- ordered list of families for each system. The first family of the list that is installed is used,
+-- and the last one, which is the system's own, is used without a check, so that a font that is missing
+-- on a computer never leaves the panel without one.
 local LABEL_FAMILIES = {
-  macos = { "DIN Alternate" },
-  windows = { "Bahnschrift" },
-  linux = { "Barlow Semi Condensed", "Roboto Condensed", "Liberation Sans Narrow", "DejaVu Sans Condensed", "Noto Sans", "sans-serif" },
+  macos = { "Saira Condensed", "DIN Alternate" },
+  windows = { "Saira Condensed", "Bahnschrift" },
+  linux = { "Saira Condensed", "Barlow Semi Condensed", "Roboto Condensed", "Liberation Sans Narrow", "DejaVu Sans Condensed", "Noto Sans", "sans-serif" },
 }
 local LABEL_SIZE = 14
 
 -- The card titles are drawn in a heavier face than the controls' labels, so that the two levels of the
--- panel's lettering are told apart: Arial Black where the system has it. The Lab window offers other
--- faces for the titles, and remembers the choice.
+-- panel's lettering are told apart: Saira Condensed in bold, a blocky face close to the heavy lettering
+-- of the VR-09's section headers. The families of this table are asked in bold, because their bold
+-- weight is a style of the family and not a family of its own. The Lab window offers other faces for
+-- the titles, and remembers the choice.
 local TITLE_FAMILIES = {
-  macos = { "Arial Black" },
-  windows = { "Arial Black" },
-  linux = { "DejaVu Sans", "Noto Sans", "sans-serif" },
+  macos = { "Saira Condensed", "Arial Black" },
+  windows = { "Saira Condensed", "Arial Black" },
+  linux = { "Saira Condensed", "DejaVu Sans", "Noto Sans", "sans-serif" },
 }
-local TITLE_SIZE = 13
+local TITLE_BOLD = { ["Saira Condensed"] = true }
+local TITLE_SIZE = 18
 
 -- The tabs have a face of their own, so that it can be changed apart from the card titles, and the
--- choice is remembered like the titles'. It is Arial Black, the same as the titles, because the lab
--- did not load Helvetica, which macOS keeps in a font collection (`Helvetica.ttc`), and plain Arial
--- was not heavy enough next to the titles.
+-- choice is remembered like the titles'. It is OPTIEdgarBold-Extended, because the wide, squared
+-- lettering of the VR-09's section headers is close to it. Because the font is not free to bundle, the
+-- lab does not ship it, and the tabs use the card titles' fallback when it is not installed.
 local TAB_FAMILIES = {
-  macos = { "Arial Black" },
-  windows = { "Arial Black" },
-  linux = { "DejaVu Sans", "Noto Sans", "sans-serif" },
+  macos = { "OPTIEdgarBold-Extended", "Arial Black" },
+  windows = { "OPTIEdgarBold-Extended", "Arial Black" },
+  linux = { "OPTIEdgarBold-Extended", "DejaVu Sans", "Noto Sans", "sans-serif" },
 }
 local TAB_SIZE = 13
 
@@ -203,49 +205,82 @@ local MONO_FAMILIES = {
 }
 local MONO_SIZE = 13
 
--- The names of the installed font families, in lower case, or nil when `fc-list` cannot be run.
+-- The key of the running system in the tables of families.
+local function system_key()
+  local os_name = reaper.GetOS()
+  if os_name:find("^OSX") or os_name:find("^macOS") then return "macos" end
+  if os_name:find("^Win") then return "windows" end
+  return "linux"
+end
+
+-- What lists the installed fonts on each system. Because macOS and Windows keep one file for each font
+-- and the lab cannot ask them for the family names, the file names of their font folders are listed
+-- instead, and Linux's fontconfig lists the family names.
+local LISTING_COMMANDS = {
+  macos = "ls ~/Library/Fonts /Library/Fonts /System/Library/Fonts /System/Library/Fonts/Supplemental 2>/dev/null",
+  windows = 'dir /b "%WINDIR%\\Fonts" "%LOCALAPPDATA%\\Microsoft\\Windows\\Fonts" 2>nul',
+  linux = "fc-list : family 2>/dev/null",
+}
+
+-- The listing is read once, and kept here.
+local FONT_LISTING = { read = false, text = nil }
+
+-- The text in lower case and without spaces, hyphens and underscores, so that the family
+-- "Saira Condensed" is found in the file name "SairaCondensed-Bold.ttf".
+local function squeeze(text)
+  return (text:lower():gsub("[ _%-]", ""))
+end
+
+-- The squeezed listing of the installed fonts, or nil when the system's command cannot be run.
 local function installed_families()
-  local ok, pipe = pcall(io.popen, "fc-list : family 2>/dev/null")
+  if FONT_LISTING.read then return FONT_LISTING.text end
+  FONT_LISTING.read = true
+  local ok, pipe = pcall(io.popen, LISTING_COMMANDS[system_key()])
   if not ok or not pipe then return nil end
   local text = pipe:read("a")
   pipe:close()
-  if not text or text == "" then return nil end
-  return text:lower()
+  if text and text ~= "" then FONT_LISTING.text = squeeze(text) end
+  return FONT_LISTING.text
 end
 
--- The first family of the system's list that is installed. The generic families ("sans-serif" and
--- "monospace") always are.
-local function pick_family(families)
-  local os_name = reaper.GetOS()
-  if os_name:find("^OSX") or os_name:find("^macOS") then return families.macos[1] end
-  if os_name:find("^Win") then return families.windows[1] end
+-- Whether a family is installed. The generic families ("sans-serif" and "monospace") always are, and
+-- every family is taken as installed when the listing could not be read.
+local function is_installed(family)
   local installed = installed_families()
-  for _, family in ipairs(families.linux) do
-    local generic = family == "sans-serif" or family == "monospace"
-    if not installed or generic or installed:find(family:lower(), 1, true) then return family end
+  if not installed or family == "sans-serif" or family == "monospace" then return true end
+  return installed:find(squeeze(family), 1, true) ~= nil
+end
+
+-- The first family of the system's list that is installed. The last family is the system's own, and
+-- it is returned without a check.
+local function pick_family(families)
+  local list = families[system_key()]
+  for index, family in ipairs(list) do
+    if index == #list or is_installed(family) then return family end
   end
-  return "sans-serif"
 end
 
 -- The families the Lab window offers for the card titles, so that a font can be judged by eye: the blocky
 -- and the squared ones of each system first. On Linux only the installed ones are offered.
 local FONT_CHOICES = {
   macos = { "Arial", "DIN Alternate", "DIN Condensed", "Impact", "Krungthep", "Phosphate", "Monaco", "Arial Black",
-    "Rockwell", "Avenir Next Condensed Heavy", "Menlo", "Andale Mono", "PT Mono", "Courier New" },
-  windows = { "Arial", "Bahnschrift", "Impact", "Arial Black", "Consolas", "Lucida Console", "Courier New" },
+    "Rockwell", "Avenir Next Condensed", "Menlo", "Andale Mono", "PT Mono", "Courier New",
+    "Helvetica Neue", "Helvetica", "Arial Narrow", "Futura",
+    "OPTIEdgarBold-Extended", "Big Shoulders Display Black", "Saira Condensed", "Michroma", "Barlow Condensed", "Barlow Condensed SemiBold", "Roboto Condensed", "Archivo Narrow" },
+  windows = { "Arial", "Bahnschrift", "Impact", "Arial Black", "Consolas", "Lucida Console", "Courier New",
+    "Arial Narrow" },
   linux = { "Liberation Sans", "DejaVu Sans", "Barlow Semi Condensed", "Roboto Condensed", "Liberation Sans Narrow",
     "DejaVu Sans Condensed", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "Noto Sans", "sans-serif", "monospace" },
 }
 
+-- The families that the Lab window offers: the installed ones. Because the font files of Windows are not
+-- named after their families, all of that system's list is offered.
 local function font_choices()
-  local os_name = reaper.GetOS()
-  if os_name:find("^OSX") or os_name:find("^macOS") then return FONT_CHOICES.macos end
-  if os_name:find("^Win") then return FONT_CHOICES.windows end
-  local installed = installed_families()
+  local key = system_key()
+  if key == "windows" then return FONT_CHOICES.windows end
   local found = {}
-  for _, family in ipairs(FONT_CHOICES.linux) do
-    local generic = family == "sans-serif" or family == "monospace"
-    if not installed or generic or installed:find(family:lower(), 1, true) then found[#found + 1] = family end
+  for _, family in ipairs(FONT_CHOICES[key]) do
+    if is_installed(family) then found[#found + 1] = family end
   end
   return found
 end
@@ -276,7 +311,7 @@ local function new_context()
   ImGui.Attach(ctx, font)
   env.fonts = {
     label = ImGui.CreateFont(LABEL_FAMILY, LABEL_SIZE),
-    title = ImGui.CreateFont(TITLE_FAMILY, TITLE_SIZE),
+    title = ImGui.CreateFont(TITLE_FAMILY, TITLE_SIZE, TITLE_BOLD[TITLE_FAMILY] and ImGui.FontFlags_Bold or ImGui.FontFlags_None),
     tab = ImGui.CreateFont(TAB_FAMILY, TAB_SIZE),
     mono = ImGui.CreateFont(MONO_FAMILY, MONO_SIZE),
   }

@@ -21,6 +21,8 @@ M.text = 0xD6D2C6FF
 M.text_dim = 0x8C8A82FF
 -- The labels under the knobs, which must be readable at a glance.
 M.label = 0xBCB9AEFF
+-- The names of the tabs, in the orange of the VR-09's panel lettering (R246 G170 B80).
+M.tab_text = 0xF6AA50FF
 M.text_engraved_shadow = 0x0A0A0BFF
 M.border = 0x3A3A3EFF
 -- The outline of the checkboxes, the combos and the other framed widgets, light enough to be seen on
