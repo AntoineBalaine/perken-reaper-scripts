@@ -23,6 +23,7 @@ def main():
     sections = {}
     for tone in tones:
         sections.setdefault(tone["section"], []).append(tone)
+    print("-- @noindex")
     print("-- The keyboard's tones, generated from roland-vr09's docs/tones.json by tools/gen_lua_tones.py. Do not edit by hand.")
     print("return {")
     for name, rows in sections.items():

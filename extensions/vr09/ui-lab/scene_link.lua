@@ -1,3 +1,4 @@
+-- @noindex
 -- The lab's link to the real plugin: the VR-09 on the selected track, its Scene parameter, the plugin's
 -- scene commands, and the automation lane of that parameter. Nothing here draws. Because the plugin
 -- owns the scenes, the lab asks it and shows what it answers.

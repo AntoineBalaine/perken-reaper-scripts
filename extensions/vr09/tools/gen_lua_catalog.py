@@ -36,6 +36,7 @@ def main():
             "  { id = %s, label = %s, group = %s, kind = \"%s\", address = %s, low = %s, high = %s, channel = %s, cc = %s, names = %s },"
             % (lua_string(ident), lua_string(label), lua_string(group), kind, address, low, high, channel, cc, names_lua)
         )
+    print("-- @noindex")
     print("-- The plugin's parameters, generated from src/catalog.zig by tools/gen_lua_catalog.py. Do not edit by hand.")
     print("return {")
     print("\n".join(rows))

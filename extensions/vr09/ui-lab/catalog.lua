@@ -1,3 +1,4 @@
+-- @noindex
 -- The plugin's parameters, generated from src/catalog.zig by tools/gen_lua_catalog.py. Do not edit by hand.
 return {
   { id = "organ-upper-d16", label = "Upper organ drawbar 16'", group = "Organ upper drawbars", kind = "dt1", address = 32771, low = 0, high = 8, channel = 0, cc = 0, names = nil },

@@ -1,3 +1,4 @@
+-- @noindex
 -- Fuzzy matching for the patch table, in the spirit of fzf and the same rules as the action palette
 -- of perken-utilities (src/fuzzy.zig): the letters of a query must appear in the text in order, not
 -- next to each other, and the score favours the matches that look intended.

@@ -2,6 +2,8 @@
 
 The plugin's panel drawn from Lua, with a mock keyboard, so that its look can be worked on without recompiling and without the keyboard. Saving a file changes the open window at once.
 
+The lab is a development tool, so every Lua file of this folder starts with `-- @noindex`: the repository's ReaPack index is built by scanning the whole repository, and without that line the lab would be published, and would show up in the Actions list of everyone who subscribes. A file added here needs the line too, and so do the generators in `tools/`.
+
 ## Running it
 
 Load `ui-lab/vr09_lab.lua` once with "ReaScript: Load" in REAPER's Actions list, which registers it as "Script: vr09_lab.lua". Run that action to open the lab, and run it again to close it.

@@ -1,3 +1,4 @@
+-- @noindex
 -- Generates src/tones.zig from the design lab's ui-lab/tones.lua, so that the plugin's panel lists the
 -- same tones as the lab does. The lab's file is itself generated from the roland-vr09 project.
 --

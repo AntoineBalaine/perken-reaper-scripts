@@ -1,3 +1,4 @@
+-- @noindex
 -- Generates src/extras.zig from the design lab's ui-lab/extras.lua, so that the plugin's panel draws the
 -- same documented parameters as the lab does, and the lab stays the place where they are edited.
 --

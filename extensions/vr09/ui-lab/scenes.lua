@@ -1,3 +1,4 @@
+-- @noindex
 -- The session's scene list and the moves that keep an automation lane right. Nothing here draws or
 -- talks to REAPER, so the same rules can be tested alone and then written in the plugin.
 --

@@ -1,3 +1,4 @@
+-- @noindex
 -- The VR-09 design lab: the plugin's panel drawn from Lua with a mock keyboard, so that the look can
 -- be worked on without recompiling and without the keyboard. Run it from REAPER's Actions list
 -- ("Script: vr09_lab.lua"); run it again to close it.

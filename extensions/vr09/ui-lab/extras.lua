@@ -1,3 +1,4 @@
+-- @noindex
 -- The parameters that Roland's MIDI Implementation documents for the VR-09 and that the plugin's catalog
 -- does not have yet, so that the lab can show where they would go. They have the shape of the catalog's
 -- entries (an id, a label, a range and the names of the values), and the lab keeps their values the way

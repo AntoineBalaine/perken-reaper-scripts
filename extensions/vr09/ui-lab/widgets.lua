@@ -1,3 +1,4 @@
+-- @noindex
 -- The panel's components: the drawbar, the slider of a parameter, the card that frames a group.
 -- A new component starts here, and the panel calls it. Saving this file redraws the window at once.
 --

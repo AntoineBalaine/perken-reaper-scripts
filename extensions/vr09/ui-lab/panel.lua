@@ -1,3 +1,4 @@
+-- @noindex
 -- The panel: header, tabs, notice. This is a port of what the plugin draws today (src/ui.zig), and
 -- the file we edit live. Saving it redraws the open window at once; an error shows in the window
 -- and the lab waits for the next save.

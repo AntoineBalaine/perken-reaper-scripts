@@ -1,3 +1,4 @@
+-- @noindex
 -- The panel's colors and styles. Saving this file restyles the open window at once.
 --
 -- Colors are 0xRRGGBBAA. The look imitates a hardware organ: a dark metal face, engraved labels,

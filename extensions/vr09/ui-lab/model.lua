@@ -1,3 +1,4 @@
+-- @noindex
 -- A mock keyboard for the lab: the plugin's parameters with values, a connection state, a patch,
 -- and the Registrations library read from REAPER's resource folder. Nothing here talks to MIDI.
 local M = {}

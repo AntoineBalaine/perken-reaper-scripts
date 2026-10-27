@@ -1,3 +1,4 @@
+-- @noindex
 -- The keyboard's tones, generated from roland-vr09's docs/tones.json by tools/gen_lua_tones.py. Do not edit by hand.
 return {
   piano = {
