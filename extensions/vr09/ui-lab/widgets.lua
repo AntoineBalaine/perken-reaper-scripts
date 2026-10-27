@@ -131,10 +131,13 @@ function M.drawbar(ctx, param, value, disabled)
   local th = env.theme
   ImGui.BeginGroup(ctx)
 
+  -- The value is drawn in the label font, like the numbers of the knobs.
+  local value_font = push_label_font(ctx)
   local text = tostring(value)
   local text_w = ImGui.CalcTextSize(ctx, text)
   ImGui.SetCursorPosX(ctx, ImGui.GetCursorPosX(ctx) + (DRAWBAR_W - text_w) / 2)
   ImGui.TextColored(ctx, disabled and th.text_dim or accent(), text)
+  if value_font then ImGui.PopFont(ctx) end
 
   local x, y = ImGui.GetCursorScreenPos(ctx)
   ImGui.InvisibleButton(ctx, "##drawbar", DRAWBAR_W, DRAWBAR_H)
@@ -288,7 +291,7 @@ local function centered_label(ctx, text, width, reserved_lines)
 end
 
 local function centered_value(ctx, text, width, color)
-  local pushed = push_mono_font(ctx)
+  local pushed = push_label_font(ctx)
   local text_w = ImGui.CalcTextSize(ctx, text)
   ImGui.SetCursorPosX(ctx, ImGui.GetCursorPosX(ctx) + (width - text_w) / 2)
   ImGui.TextColored(ctx, color or accent(), text)
@@ -389,7 +392,7 @@ function M.knob(ctx, param, value, label, bipolar)
     ImGui.SetTooltip(ctx, label .. ": " .. shown_value(param, result))
   end
 
-  centered_label(ctx, label, KNOB_W, KNOB_LABEL_LINES)
+  centered_label(ctx, label:upper(), KNOB_W, KNOB_LABEL_LINES)
   ImGui.EndGroup(ctx)
   return result ~= value, result
 end
@@ -518,7 +521,9 @@ function M.stop_knob(ctx, param, value, label, as_list)
   if not labelled then
     for _, stop in ipairs(stops) do display_w = math.max(display_w, ImGui.CalcTextSize(ctx, stop.name) + 32) end
   end
-  local label_w = ImGui.CalcTextSize(ctx, label)
+  -- The caption is in capitals, like the lettering of the panel.
+  local caption = label:upper()
+  local label_w = ImGui.CalcTextSize(ctx, caption)
   local width = math.max(left + 2 * r + 8 + right, display_w, label_w, KNOB_W)
   local height = top + 2 * r + 8 + (labelled and 0 or line + 12) + line + 8
 
@@ -622,7 +627,7 @@ function M.stop_knob(ctx, param, value, label, as_list)
   end
 
   local caption_y = cy + r + 8 + (labelled and 0 or line + 12) - 2
-  ImGui.DrawList_AddText(dl, cx - label_w / 2, caption_y, th.label, label)
+  ImGui.DrawList_AddText(dl, cx - label_w / 2, caption_y, th.label, caption)
 
   -- The list of every stop, under the display, with the selected one in the accent color. It must be
   -- begun under the same id as the click that opened it.
@@ -696,8 +701,8 @@ end
 -- ---- the envelope screen ----
 
 -- The screen is drawn for a plot this wide, and it is stretched when the card gives it more room.
-local ENV_W, ENV_H = 240, 110
-local ENV_PAD_X, ENV_PAD_TOP, ENV_PAD_BOTTOM = 14, 24, 14
+local ENV_W, ENV_H = 240, 120
+local ENV_PAD_X, ENV_PAD_TOP, ENV_PAD_BOTTOM = 14, 34, 14
 
 -- Because the screen is a schematic of how the three values shape a note, a segment is drawn ENV_MIN
 -- pixels wide when its value is at its lowest, and ENV_SPAN pixels wider when it is at its highest.
@@ -825,7 +830,7 @@ function M.envelope(ctx, params, values)
   end
 
   -- The three values are read at the top of the screen, in the label font.
-  local pushed = push_mono_font(ctx)
+  local pushed = push_label_font(ctx)
   local readout = ("A %3d  D %3d  R %3d"):format(a, d, r)
   ImGui.DrawList_AddText(dl, x + ENV_PAD_X, y + 5, accent(), readout)
   if pushed then ImGui.PopFont(ctx) end
@@ -1001,11 +1006,10 @@ function M.tone_picker(ctx, id, tones, index, filter)
   ImGui.SameLine(ctx)
   if M.push_button(ctx, ">", 30) then result = clamp(index + 1, 1, #tones) end
 
-  -- The group and the three bytes that select the tone, in the monospaced font, as a service manual would
-  -- print them.
-  local mono = push_mono_font(ctx)
+  -- The group and the three bytes that select the tone, in the label font like the other numbers.
+  local line_font = push_label_font(ctx)
   ImGui.TextColored(ctx, th.label, ("%s   tone %d   bank %d.%d"):format(tone.group, tone.number, tone.msb, tone.lsb))
-  if mono then ImGui.PopFont(ctx) end
+  if line_font then ImGui.PopFont(ctx) end
 
   -- The list of every tone, under the display.
   local new_filter = filter

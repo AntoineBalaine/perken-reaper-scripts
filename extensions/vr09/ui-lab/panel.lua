@@ -1186,6 +1186,10 @@ local function patch_table(ctx, S)
   local rows = patch_rows(S)
   -- Because the theme's header color is nearly the table's own gray, the selected row takes the accent.
   ImGui.PushStyleColor(ctx, ImGui.Col_Header, th.amber & 0xFFFFFF00 | 0x70)
+  -- The table is drawn in the label font, which is bold, and it is pushed before the table begins so
+  -- that the rows take their height from it.
+  local label_font = env.fonts and env.fonts.label
+  if label_font then ImGui.PushFont(ctx, label_font) end
   if ImGui.BeginTable(ctx, "##patchtable", 6, PATCH_TABLE_FLAGS, 700, 360) then
     ImGui.TableSetupScrollFreeze(ctx, 0, 1)
     ImGui.TableSetupColumn(ctx, "Type", ImGui.TableColumnFlags_WidthFixed, 110)
@@ -1229,6 +1233,7 @@ local function patch_table(ctx, S)
     end
     ImGui.EndTable(ctx)
   end
+  if label_font then ImGui.PopFont(ctx) end
   ImGui.PopStyleColor(ctx)
   if ui.patch_filter ~= "" then
     ImGui.TextColored(ctx, th.grey, "Ranked by how well each patch matches the search. Clear the search to sort by a column.")

@@ -165,6 +165,15 @@ local restore_window = false
 -- ordered list of families for each system. The first family of the list that is installed is used,
 -- and the last one, which is the system's own, is used without a check, so that a font that is missing
 -- on a computer never leaves the panel without one.
+-- The text that no role below claims, such as the notes, the buttons and the tables, is drawn in
+-- Saira Condensed in its regular weight, and in the system's sans-serif when it is not installed.
+local TEXT_FAMILIES = {
+  macos = { "Saira Condensed", "sans-serif" },
+  windows = { "Saira Condensed", "sans-serif" },
+  linux = { "Saira Condensed", "sans-serif" },
+}
+local TEXT_SIZE = 15
+
 local LABEL_FAMILIES = {
   macos = { "Saira Condensed", "DIN Alternate" },
   windows = { "Saira Condensed", "Bahnschrift" },
@@ -172,17 +181,24 @@ local LABEL_FAMILIES = {
 }
 local LABEL_SIZE = 14
 
+-- The families that the labels and the titles ask in bold, because the bold weight of such a family is a
+-- style of it and not a family of its own, and the regular weight is the one that the text uses.
+local BOLD_FAMILIES = { ["Saira Condensed"] = true }
+
+-- The flags of a font: bold for the families of the table above.
+local function font_flags(family)
+  return BOLD_FAMILIES[family] and ImGui.FontFlags_Bold or ImGui.FontFlags_None
+end
+
 -- The card titles are drawn in a heavier face than the controls' labels, so that the two levels of the
 -- panel's lettering are told apart: Saira Condensed in bold, a blocky face close to the heavy lettering
--- of the VR-09's section headers. The families of this table are asked in bold, because their bold
--- weight is a style of the family and not a family of its own. The Lab window offers other faces for
--- the titles, and remembers the choice.
+-- of the VR-09's section headers. The Lab window offers other faces for the titles, and remembers the
+-- choice.
 local TITLE_FAMILIES = {
   macos = { "Saira Condensed", "Arial Black" },
   windows = { "Saira Condensed", "Arial Black" },
   linux = { "Saira Condensed", "DejaVu Sans", "Noto Sans", "sans-serif" },
 }
-local TITLE_BOLD = { ["Saira Condensed"] = true }
 local TITLE_SIZE = 18
 
 -- The tabs have a face of their own, so that it can be changed apart from the card titles, and the
@@ -307,11 +323,11 @@ local function new_context()
   contexts = contexts + 1
   -- Each context has a name of its own, so that two never share a window.
   ctx = ImGui.CreateContext("VR-09 lab " .. contexts)
-  font = ImGui.CreateFont("sans-serif", 15)
+  font = ImGui.CreateFont(pick_family(TEXT_FAMILIES), TEXT_SIZE)
   ImGui.Attach(ctx, font)
   env.fonts = {
-    label = ImGui.CreateFont(LABEL_FAMILY, LABEL_SIZE),
-    title = ImGui.CreateFont(TITLE_FAMILY, TITLE_SIZE, TITLE_BOLD[TITLE_FAMILY] and ImGui.FontFlags_Bold or ImGui.FontFlags_None),
+    label = ImGui.CreateFont(LABEL_FAMILY, LABEL_SIZE, font_flags(LABEL_FAMILY)),
+    title = ImGui.CreateFont(TITLE_FAMILY, TITLE_SIZE, font_flags(TITLE_FAMILY)),
     tab = ImGui.CreateFont(TAB_FAMILY, TAB_SIZE),
     mono = ImGui.CreateFont(MONO_FAMILY, MONO_SIZE),
   }
