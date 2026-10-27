@@ -123,20 +123,20 @@ pub fn build(b: *std.Build) void {
     });
     fx_model_mod.addImport("utils", utils_mod);
 
-    // track_model depends on utils, fx_model, automation_mode
+    // track_model depends on string_pool, fx_model, automation_mode
     const track_model_mod = b.addModule("track_model", .{
         .root_source_file = b.path("src/models/track_model.zig"),
     });
-    track_model_mod.addImport("utils", utils_mod);
+    track_model_mod.addImport("string_pool", string_pool_mod);
     track_model_mod.addImport("fx_model", fx_model_mod);
     track_model_mod.addImport("automation_mode", automation_mode_mod);
 
-    // session depends on track_model, utils, automation_mode
+    // session depends on track_model, string_pool, automation_mode
     const session_mod = b.addModule("session", .{
         .root_source_file = b.path("src/models/session.zig"),
     });
     session_mod.addImport("track_model", track_model_mod);
-    session_mod.addImport("utils", utils_mod);
+    session_mod.addImport("string_pool", string_pool_mod);
     session_mod.addImport("automation_mode", automation_mode_mod);
     session_mod.addImport("fx_model", fx_model_mod);
 

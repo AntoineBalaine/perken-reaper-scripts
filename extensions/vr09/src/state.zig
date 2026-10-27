@@ -49,7 +49,7 @@ pub const Settings = struct {
     /// Whether the current patch splits the keyboard at middle C, which
     /// decides the part each note goes to (see split.zig).
     split: Atomic(bool) = Atomic(bool).init(false),
-    preset_name: [64]u8 = [_]u8{0} ** 64,
+    preset_name: [64:0]u8 = [_:0]u8{0} ** 64,
 
     pub fn sendDb(self: *const Settings) f32 {
         return @bitCast(self.send_db_bits.load(.monotonic));
@@ -73,7 +73,7 @@ pub const Settings = struct {
         @memcpy(self.preset_name[0..n], name[0..n]);
     }
 
-    pub fn presetName(self: *const Settings) []const u8 {
+    pub fn presetName(self: *const Settings) [:0]const u8 {
         return std.mem.sliceTo(&self.preset_name, 0);
     }
 };
@@ -181,17 +181,19 @@ pub fn read(reader: anytype, shared: *engine.Shared, settings: *Settings, scene_
 
 /// Keeps letters, digits, spaces, dashes, underscores and dots, because the
 /// name becomes a file name on every operating system.
-pub fn sanitizeName(out: []u8, name: []const u8) []const u8 {
+pub fn sanitizeName(out: []u8, name: []const u8) [:0]const u8 {
     var n: usize = 0;
     for (name) |c| {
-        if (n == out.len) break;
+        // The last byte is kept for the terminator.
+        if (n + 1 >= out.len) break;
         const ok = std.ascii.isAlphanumeric(c) or c == ' ' or c == '-' or c == '_' or c == '.' or c >= 0x80;
         out[n] = if (ok) c else '_';
         n += 1;
     }
-    var trimmed: []const u8 = out[0..n];
-    trimmed = std.mem.trim(u8, trimmed, " .");
-    return trimmed;
+    const trimmed = std.mem.trim(u8, out[0..n], " .");
+    const end = trimmed.ptr - out.ptr + trimmed.len;
+    out[end] = 0;
+    return out[end - trimmed.len .. end :0];
 }
 
 /// The list of the patches that split the keyboard (see split.zig).

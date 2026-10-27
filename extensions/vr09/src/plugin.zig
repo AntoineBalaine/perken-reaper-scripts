@@ -21,10 +21,13 @@ const glue = @import("reaper_glue.zig");
 const outbuf = @import("outbuf.zig");
 const ui = @import("ui.zig");
 const debug_api = @import("debug_api.zig");
+const dispatch = @import("dispatch.zig");
 const actions = @import("actions.zig");
 const split = @import("split.zig");
 const registrations = @import("registrations.zig");
 const scenes = @import("scenes.zig");
+const strings_mod = @import("strings.zig");
+const library = @import("library.zig");
 const fileio = @import("fileio.zig");
 
 const log = std.log.scoped(.plugin);
@@ -96,29 +99,33 @@ pub const SaveState = enum { idle, reading, done, failed };
 /// Only the main thread touches it.
 pub const SaveJob = struct {
     state: SaveState = .idle,
-    name: [96]u8 = undefined,
-    name_len: usize = 0,
+    /// The name to save under. Like the file and the message, it is null-terminated, so the length is not kept.
+    name: [96:0]u8 = [_:0]u8{0} ** 96,
     /// The number of finished captures when the save began, so that the end of this one is told apart.
     baseline: u32 = 0,
     started_ms: i64 = 0,
-    file: [128]u8 = undefined,
-    file_len: usize = 0,
+    file: [128:0]u8 = [_:0]u8{0} ** 128,
     known: usize = 0,
-    message: [96]u8 = undefined,
-    message_len: usize = 0,
+    message: [96:0]u8 = [_:0]u8{0} ** 96,
 
-    pub fn fileName(self: *const SaveJob) []const u8 {
-        return self.file[0..self.file_len];
+    /// The name to save under.
+    pub fn savedName(self: *const SaveJob) [:0]const u8 {
+        return std.mem.sliceTo(&self.name, 0);
     }
 
-    pub fn failure(self: *const SaveJob) []const u8 {
-        return self.message[0..self.message_len];
+    /// The file that was written.
+    pub fn fileName(self: *const SaveJob) [:0]const u8 {
+        return std.mem.sliceTo(&self.file, 0);
+    }
+
+    pub fn failure(self: *const SaveJob) [:0]const u8 {
+        return std.mem.sliceTo(&self.message, 0);
     }
 
     fn fail(self: *SaveJob, text: []const u8) void {
         const n = @min(text.len, self.message.len);
         @memcpy(self.message[0..n], text[0..n]);
-        self.message_len = n;
+        self.message[n] = 0;
         self.state = .failed;
     }
 };
@@ -167,6 +174,11 @@ pub const Plugin = struct {
     // position in force (0 for none) and `pending_scene` is one that automation asked for and that the
     // main thread has not loaded yet.
     scene_list: *scenes.List,
+    /// The strings of the panel and of the actions: the patches' names, the file names, the names that the
+    /// player types. They are stored once each, and freed with the plugin.
+    strings: strings_mod.Strings,
+    /// The rows of the patch table: the registrations, the tones and the presets, read when they are first needed.
+    library: library.Library,
     save: SaveJob,
     scene: std.atomic.Value(u8),
     pending_scene: std.atomic.Value(u8),
@@ -231,6 +243,8 @@ pub const Plugin = struct {
         self.midi_logged = 0;
         self.router = .{};
         self.scene_list = scene_list;
+        self.strings = strings_mod.Strings.init(allocator);
+        self.library = .{};
         self.save = .{};
         self.scene = std.atomic.Value(u8).init(0);
         self.pending_scene = std.atomic.Value(u8).init(0);
@@ -320,13 +334,14 @@ pub const Plugin = struct {
     }
 
     /// Loads a registration's dump and writes it to the keyboard.
-    pub fn loadRegistration(self: *Plugin, entry: registrations.Entry) !void {
+    pub fn loadRegistration(self: *Plugin, file_name: []const u8) !void {
+        const parsed = registrations.parseFileName(file_name) orelse return error.BadFileName;
         var folder_buf: [fileio.max_path]u8 = undefined;
         const folder = try state.registrationFolder(&folder_buf, glue.resourcePath());
         var path_buf: [fileio.max_path]u8 = undefined;
-        const path = try std.fmt.bufPrint(&path_buf, "{s}{c}{s}", .{ folder, std.fs.path.sep, entry.file_name });
+        const path = try std.fmt.bufPrint(&path_buf, "{s}{c}{s}", .{ folder, std.fs.path.sep, file_name });
         var name_buf: [96]u8 = undefined;
-        try self.loadPresetFile(path, registrations.patchName(&name_buf, entry));
+        try self.loadPresetFile(path, registrations.patchName(&name_buf, parsed));
         self.rescanParamValues();
     }
 
@@ -369,7 +384,7 @@ pub const Plugin = struct {
         const baseline = self.shared.captures_done.load(.acquire);
         if (!self.shared.sendCommand(.capture_keyboard)) return error.QueueFull;
         @memcpy(self.save.name[0..trimmed.len], trimmed);
-        self.save.name_len = trimmed.len;
+        self.save.name[trimmed.len] = 0;
         self.save.baseline = baseline;
         self.save.started_ms = std.time.milliTimestamp();
         self.save.state = .reading;
@@ -394,10 +409,8 @@ pub const Plugin = struct {
         const patch = allocator.create(dump.Dump) catch return self.save.fail("out of memory");
         defer allocator.destroy(patch);
         self.shared.desiredSnapshot(patch);
-        const written = debug_api.writePreset(folder, self.save.name[0..self.save.name_len], patch, &self.save.file) catch |err| return self.save.fail(@errorName(err));
-        self.save.file_len = written.len;
+        _ = dispatch.storePreset(self, folder, self.save.savedName(), patch, &self.save.file) catch |err| return self.save.fail(@errorName(err));
         self.save.known = patch.knownCount();
-        self.settings.setPresetName(state.displayName(written));
         self.save.state = .done;
     }
 
@@ -588,6 +601,8 @@ fn pluginDestroy(p: P) callconv(.C) void {
         if (shared_bridge) |b| b.release(slot);
     }
     if (self.loop) |l| allocator.destroy(l);
+    self.library.deinit(allocator);
+    self.strings.deinit();
     allocator.destroy(self.scene_list);
     allocator.destroy(self.eng);
     allocator.destroy(self.shared);

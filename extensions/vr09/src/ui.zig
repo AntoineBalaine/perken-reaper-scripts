@@ -19,7 +19,6 @@ const glue = @import("reaper_glue.zig");
 const fileio = @import("fileio.zig");
 const audio = @import("audio.zig");
 const roland = @import("roland.zig");
-const registrations = @import("registrations.zig");
 const panel_fonts = @import("panel_fonts");
 const theme = @import("panel_theme");
 const widgets = @import("panel_widgets");
@@ -77,9 +76,6 @@ pub const Window = struct {
     probe_lines: u32 = 0,
     probe_last: i64 = 0,
 
-    // The preset list.
-    preset_names: ?std.ArrayList([]u8) = null,
-    preset_refresh_at: u32 = 0,
     // The window is placed at the mouse once per opening. ImGui's "appearing"
     // condition also fires when the window's OS window is recreated, which
     // made the window jump to the mouse on a click.
@@ -89,9 +85,6 @@ pub const Window = struct {
     select_tab: u8 = 0,
     save_name: [name_cap:0]u8 = [_:0]u8{0} ** name_cap,
     export_path: [fileio.max_path:0]u8 = [_:0]u8{0} ** fileio.max_path,
-
-    // The keyboard's Registrations library.
-    reg_library: ?registrations.Library = null,
 
     // The devices, refreshed a few times a second.
     device_refresh_at: u32 = 0,
@@ -126,7 +119,6 @@ pub fn open(p: *Plugin) void {
     p.ui.placed = false;
     p.ui.probe_lines = 0;
     p.ui.probe_last = 0;
-    p.ui.preset_refresh_at = 0;
     p.ui.device_refresh_at = 0;
 }
 
@@ -154,8 +146,6 @@ pub fn close(p: *Plugin) void {
     // once it has gone unused for a few frames.
     p.ui.ctx = null;
     p.ui.fonts = .{};
-    freePresets(&p.ui);
-    freeRegistrations(&p.ui);
     scenes_panel.free(&p.ui.scenes_panel);
     patches_panel.free(&p.ui.patches);
 }
@@ -184,50 +174,6 @@ pub fn drawAll() void {
         if (!p.ui.open) continue;
         draw(p);
     }
-}
-
-fn freePresets(w: *Window) void {
-    if (w.preset_names) |*list| {
-        fileio.freeList(plugin.allocator, list);
-        w.preset_names = null;
-    }
-}
-
-fn freeRegistrations(w: *Window) void {
-    if (w.reg_library) |*lib| {
-        lib.deinit(plugin.allocator);
-        w.reg_library = null;
-    }
-}
-
-fn refreshRegistrations(w: *Window) void {
-    freeRegistrations(w);
-    if (!glue.ready) return;
-    var buf: [fileio.max_path]u8 = undefined;
-    const folder = state.registrationFolder(&buf, glue.resourcePath()) catch return;
-    w.reg_library = registrations.scan(plugin.allocator, folder) catch null;
-    // The rows of the patch table point into this list, so they are built again when the table is drawn.
-    if (w.patches.library) |rows| rows.stale = true;
-}
-
-fn presetFolder(buf: []u8) ?[]const u8 {
-    if (!glue.ready) return null;
-    return state.presetFolder(buf, glue.resourcePath()) catch null;
-}
-
-fn refreshPresets(w: *Window) void {
-    freePresets(w);
-    var buf: [fileio.max_path]u8 = undefined;
-    const folder = presetFolder(&buf) orelse return;
-    const list = fileio.listFiles(plugin.allocator, folder, &state.preset_extensions) catch return;
-    std.mem.sort([]u8, list.items, {}, lessName);
-    w.preset_names = list;
-    // The rows of the patch table point into this list, so they are built again when the table is drawn.
-    if (w.patches.library) |rows| rows.stale = true;
-}
-
-fn lessName(_: void, a: []u8, b: []u8) bool {
-    return std.ascii.lessThanIgnoreCase(a, b);
 }
 
 fn refreshDevices(w: *Window) void {
@@ -287,11 +233,6 @@ fn draw(p: *Plugin) void {
     }
     const ctx = w.ctx;
     if (w.frame == 1) log.info("drawing the first frame", .{});
-    if (w.frame >= w.preset_refresh_at) {
-        refreshPresets(w);
-        refreshRegistrations(w);
-        w.preset_refresh_at = w.frame +% 150;
-    }
     if (w.frame >= w.device_refresh_at) {
         if (glue.ready) refreshDevices(w);
         w.device_refresh_at = w.frame +% 30;

@@ -1,6 +1,6 @@
 const std = @import("std");
 const AutomationMode = @import("automation_mode").AutomationMode;
-const utils = @import("utils");
+const StringPool = @import("string_pool").StringPool;
 const fx_model = @import("fx_model");
 const FX = fx_model.FX;
 pub const TrackInfo = struct {
@@ -20,7 +20,7 @@ pub const PeakInfo = struct {
 
 pub const Track = struct {
     /// owned by its parent session
-    name: ?utils.StringPool.StringRef,
+    name: ?StringPool.StringRef,
     fx_list: std.ArrayListUnmanaged(FX),
     automation_mode: AutomationMode,
     info: TrackInfo,

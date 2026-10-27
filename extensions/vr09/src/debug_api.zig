@@ -25,6 +25,7 @@ const registrations = @import("registrations.zig");
 const scenes = @import("scenes.zig");
 const types = @import("action_types.zig");
 const effects = @import("dispatch.zig");
+const library = @import("library.zig");
 const dump = @import("dump.zig");
 
 const Plugin = plugin.Plugin;
@@ -314,7 +315,7 @@ fn cmdReconnect(w: anytype, p: *Plugin) !void {
 fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(arg) catch return writeError(w, "load_registration takes a file name of Data/Perken/vr09/registrations");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
-    const patch = types.Patch{ .source = .{ .registration = types.Text.of(name) }, .name = types.Text.of(name), .label = types.Text.of(name) };
+    const patch = types.Patch{ .source = .{ .registration = p.strings.internSlice(name) }, .name = p.strings.internSlice(name), .label = p.strings.internSlice(name) };
     effects.sendPatch(p, patch) catch |err| {
         if (err == error.BadFileName) return writeError(w, "the name must look like <bank>-<slot>_<Name>.json");
         try w.writeAll("{\"ok\":false,\"error\":");
@@ -325,18 +326,6 @@ fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
     try w.writeAll("{\"ok\":true,\"loaded\":");
     try jsonString(w, name);
     try w.writeByte('}');
-}
-
-pub fn writePreset(folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: []u8) ![]const u8 {
-    var clean: [96]u8 = undefined;
-    if (raw_name.len > clean.len) return error.NameTooLong;
-    const name = state.sanitizeName(&clean, raw_name);
-    if (name.len == 0) return error.EmptyName;
-    try fileio.makePath(folder);
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = try state.presetPath(&path_buf, folder, name);
-    try state.savePresetFile(plugin.allocator, path, scene);
-    return std.fmt.bufPrint(file_out, "{s}{s}", .{ name, state.preset_extension });
 }
 
 /// `save_preset`: saves the keyboard as a preset of the same folder as the panel's Patches tab. The
@@ -377,14 +366,14 @@ fn cmdSaveStatus(w: anytype, p: *Plugin) !void {
 fn cmdLoadPreset(w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(std.mem.trim(u8, arg, " ")) catch return writeError(w, "load_preset takes a file name of Data/Perken/vr09/presets");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
-    const patch = types.Patch{ .source = .{ .preset = types.Text.of(name) }, .name = types.Text.of(state.displayName(name)), .label = types.Text.of(name) };
+    const patch = types.Patch{ .source = .{ .preset = p.strings.internSlice(name) }, .name = p.strings.internSlice(state.displayName(name)), .label = p.strings.internSlice(name) };
     effects.sendPatch(p, patch) catch |err| return writeError(w, @errorName(err));
     try w.writeAll("{\"ok\":true,\"loaded\":");
     try jsonString(w, name);
     try w.writeByte('}');
 }
 
-fn cmdDeletePreset(w: anytype, arg: []const u8) !void {
+fn cmdDeletePreset(w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(std.mem.trim(u8, arg, " ")) catch return writeError(w, "delete_preset takes a file name of Data/Perken/vr09/presets");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
     var folder_buf: [fileio.max_path]u8 = undefined;
@@ -392,6 +381,7 @@ fn cmdDeletePreset(w: anytype, arg: []const u8) !void {
     var path_buf: [fileio.max_path]u8 = undefined;
     const path = state.presetPath(&path_buf, folder, name) catch return writeError(w, "the path is too long");
     fileio.deleteFile(path) catch |err| return writeError(w, @errorName(err));
+    library.removePreset(p, name);
     try w.writeAll("{\"ok\":true}");
 }
 
@@ -448,9 +438,9 @@ fn cmdSceneAdd(w: anytype, p: *Plugin, arg: []const u8) !void {
         const slash = std.mem.indexOfScalar(u8, fields[0], '/') orelse return writeError(w, "scene_add: use current, registrations/<file> or presets/<file>");
         const file = checkFileName(fields[0][slash + 1 ..]) catch return writeError(w, "scene_add: the file name must not have a folder part");
         if (std.mem.eql(u8, fields[0][0..slash], "registrations")) {
-            source = .{ .registration = types.Text.of(file) };
+            source = .{ .registration = p.strings.internSlice(file) };
         } else if (std.mem.eql(u8, fields[0][0..slash], "presets")) {
-            source = .{ .preset = types.Text.of(file) };
+            source = .{ .preset = p.strings.internSlice(file) };
         } else {
             return writeError(w, "scene_add: use current, registrations/<file> or presets/<file>");
         }
@@ -458,9 +448,9 @@ fn cmdSceneAdd(w: anytype, p: *Plugin, arg: []const u8) !void {
     }
     const patch = types.Patch{
         .source = source,
-        .name = types.Text.of(if (fields[1].len > 0) fields[1] else default_name),
+        .name = p.strings.internSlice(if (fields[1].len > 0) fields[1] else default_name),
         .id = parsePatchId(fields[2]),
-        .label = types.Text.of(fields[3]),
+        .label = p.strings.internSlice(fields[3]),
     };
     const position = effects.addScene(p, patch) catch |err| return writeError(w, effects.describe(err));
     try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
@@ -470,12 +460,12 @@ fn cmdSceneAdd(w: anytype, p: *Plugin, arg: []const u8) !void {
 /// only that tone.
 fn cmdSceneAddTone(w: anytype, p: *Plugin, arg: []const u8) !void {
     const fields = splitFields(arg);
-    const tone = parseTone(fields[0]) orelse return writeError(w, "scene_add_tone takes <part> <number> <msb> <lsb>|<name>");
+    const tone = parseTone(p, fields[0]) orelse return writeError(w, "scene_add_tone takes <part> <number> <msb> <lsb>|<name>");
     const patch = types.Patch{
         .source = tone,
-        .name = types.Text.of(if (fields[1].len > 0) fields[1] else tone.tone.part.slice()),
+        .name = p.strings.internSlice(if (fields[1].len > 0) fields[1] else p.strings.get(tone.tone.part)),
         .id = parsePatchId(fields[2]),
-        .label = types.Text.of(fields[3]),
+        .label = p.strings.internSlice(fields[3]),
     };
     const position = effects.addScene(p, patch) catch |err| return writeError(w, toneError(err));
     try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
@@ -483,7 +473,7 @@ fn cmdSceneAddTone(w: anytype, p: *Plugin, arg: []const u8) !void {
 
 /// The part and the three numbers of a tone, such as "upper_synth 12 3 1", or null when they are not there or
 /// are not numbers from 0 to 127.
-fn parseTone(text: []const u8) ?types.PatchSource {
+fn parseTone(p: *Plugin, text: []const u8) ?types.PatchSource {
     var words = std.mem.tokenizeScalar(u8, text, ' ');
     const part = words.next() orelse return null;
     var numbers: [3]u8 = undefined;
@@ -491,7 +481,7 @@ fn parseTone(text: []const u8) ?types.PatchSource {
         const word = words.next() orelse return null;
         n.* = std.fmt.parseInt(u8, word, 10) catch return null;
     }
-    return .{ .tone = .{ .part = types.Text.of(part), .number = numbers[0], .msb = numbers[1], .lsb = numbers[2] } };
+    return .{ .tone = .{ .part = p.strings.internSlice(part), .number = numbers[0], .msb = numbers[1], .lsb = numbers[2] } };
 }
 
 fn toneError(err: anyerror) []const u8 {
@@ -503,11 +493,11 @@ fn toneError(err: anyerror) []const u8 {
 /// tone scene does, without adding a scene.
 fn cmdLoadTone(w: anytype, p: *Plugin, arg: []const u8) !void {
     const fields = splitFields(arg);
-    const tone = parseTone(fields[0]) orelse return writeError(w, "load_tone takes <part> <number> <msb> <lsb>");
+    const tone = parseTone(p, fields[0]) orelse return writeError(w, "load_tone takes <part> <number> <msb> <lsb>");
     const patch = types.Patch{
         .source = tone,
-        .name = types.Text.of(if (fields[1].len > 0) fields[1] else tone.tone.part.slice()),
-        .label = types.Text.of(fields[1]),
+        .name = p.strings.internSlice(if (fields[1].len > 0) fields[1] else p.strings.get(tone.tone.part)),
+        .label = p.strings.internSlice(fields[1]),
     };
     effects.sendPatch(p, patch) catch |err| return writeError(w, toneError(err));
     try w.writeAll("{\"ok\":true}");
@@ -631,7 +621,7 @@ pub fn dispatch(w: anytype, track: ?*anyopaque, fx_index: c_int, command: []cons
     if (std.mem.eql(u8, command, "save_preset")) return cmdSavePreset(w, p, arg);
     if (std.mem.eql(u8, command, "save_status")) return cmdSaveStatus(w, p);
     if (std.mem.eql(u8, command, "load_preset")) return cmdLoadPreset(w, p, arg);
-    if (std.mem.eql(u8, command, "delete_preset")) return cmdDeletePreset(w, arg);
+    if (std.mem.eql(u8, command, "delete_preset")) return cmdDeletePreset(w, p, arg);
     if (std.mem.eql(u8, command, "scenes")) return writeSceneList(w, p);
     if (std.mem.eql(u8, command, "scene_add")) return cmdSceneAdd(w, p, arg);
     if (std.mem.eql(u8, command, "scene_add_tone")) return cmdSceneAddTone(w, p, arg);
@@ -771,33 +761,4 @@ test "the log command wraps the lines" {
     var fbs = std.io.fixedBufferStream(&buf);
     try dispatch(fbs.writer(), null, 0, "log", "1");
     try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"lines\":[\"hello\"]") != null);
-}
-
-test "a preset is written under a clean name, in a folder that is created" {
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    var root_buf: [fileio.max_path]u8 = undefined;
-    const root = try tmp.dir.realpath(".", &root_buf);
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = try std.fmt.bufPrint(&folder_buf, "{s}/a/b/presets", .{root});
-
-    const scene = try std.testing.allocator.create(dump.Dump);
-    defer std.testing.allocator.destroy(scene);
-    scene.* = .{};
-    _ = scene.set(.kb, 0x02 << 14 | 5, 7);
-    var file: [128]u8 = undefined;
-    const written = try writePreset(folder, "  My organ / take 2 ", scene, &file);
-    try std.testing.expectEqualStrings("My organ _ take 2.vr09", written);
-
-    // The file holds the dump, and reads back as it was.
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = try state.presetPath(&path_buf, folder, written);
-    const back = try std.testing.allocator.create(dump.Dump);
-    defer std.testing.allocator.destroy(back);
-    back.* = .{};
-    try state.loadPresetFile(std.testing.allocator, path, back);
-    try std.testing.expectEqual(@as(?u8, 7), back.get(.kb, 0x02 << 14 | 5));
-    try std.testing.expectEqual(@as(usize, 1), back.knownCount());
-
-    try std.testing.expectError(error.EmptyName, writePreset(folder, " . ", scene, &file));
 }

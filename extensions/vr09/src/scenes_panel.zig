@@ -13,6 +13,7 @@ const std = @import("std");
 const imgui = @import("reaper_imgui");
 const plugin = @import("plugin.zig");
 const types = @import("action_types.zig");
+const strings = @import("strings.zig");
 const dispatch = @import("dispatch.zig");
 const scenes = @import("scenes.zig");
 const fileio = @import("fileio.zig");
@@ -39,7 +40,7 @@ pub const State = struct {
     edit_text: [scenes.max_name:0]u8 = [_:0]u8{0} ** scenes.max_name,
     template_name: [template_name_cap:0]u8 = [_:0]u8{0} ** template_name_cap,
     template_selected: [template_name_cap:0]u8 = [_:0]u8{0} ** template_name_cap,
-    templates: ?std.ArrayList([]u8) = null,
+    templates: ?std.ArrayListUnmanaged(strings.Ref) = null,
     templates_at: u32 = 0,
 };
 
@@ -71,7 +72,7 @@ fn removeUid(w: *State, at: usize) void {
 
 /// Frees what the list holds. The window calls it when it closes.
 pub fn free(w: *State) void {
-    if (w.templates) |*list| fileio.freeList(plugin.allocator, list);
+    if (w.templates) |*list| list.deinit(plugin.allocator);
     w.templates = null;
 }
 
@@ -139,7 +140,7 @@ fn nameCell(p: *Plugin, ctx: imgui.ContextPtr, scene: *const scenes.Scene, posit
     _ = imgui.api.InputText(ctx, "##name", &w.edit_text, w.edit_text.len, &flags, null);
     if (imgui.api.IsItemDeactivated(ctx) or imgui.api.IsKeyPressed(ctx, imgui.Key_Enter, null) or imgui.api.IsKeyPressed(ctx, imgui.Key_KeypadEnter, null)) {
         w.editing = 0;
-        return .{ .rename = .{ .rename_scene = .{ .position = @intCast(position), .name = types.Text.of(std.mem.sliceTo(&w.edit_text, 0)) } } };
+        return .{ .rename = .{ .rename_scene = .{ .position = @intCast(position), .name = p.strings.intern(std.mem.sliceTo(&w.edit_text, 0)) } } };
     }
     return .{};
 }
@@ -234,20 +235,25 @@ fn templateFolder(buf: []u8) ?[]const u8 {
     return dispatch.templateFolder(buf);
 }
 
-fn lessName(_: void, a: []u8, b: []u8) bool {
+fn lessName(_: void, a: [:0]u8, b: [:0]u8) bool {
     return std.ascii.lessThanIgnoreCase(a, b);
 }
 
 /// The templates of the folder, read again every second or so.
-fn refreshTemplates(w: *State, frame: u32) void {
+fn refreshTemplates(p: *Plugin, w: *State, frame: u32) void {
     if (w.templates != null and frame -% w.templates_at < 60) return;
     free(w);
     w.templates_at = frame;
     var buf: [fileio.max_path]u8 = undefined;
     const folder = templateFolder(&buf) orelse return;
-    const list = fileio.listFiles(plugin.allocator, folder, &.{template_extension}) catch return;
-    std.mem.sort([]u8, list.items, {}, lessName);
-    w.templates = list;
+    var files = fileio.listFiles(plugin.allocator, folder, &.{template_extension}) catch return;
+    defer fileio.freeList(plugin.allocator, &files);
+    std.mem.sort([:0]u8, files.items, {}, lessName);
+    var refs: std.ArrayListUnmanaged(strings.Ref) = .empty;
+    for (files.items) |file_name| {
+        refs.append(plugin.allocator, p.strings.intern(file_name)) catch break;
+    }
+    w.templates = refs;
 }
 
 fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
@@ -259,15 +265,17 @@ fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     var input_flags: c_int = imgui.InputTextFlags_None;
     _ = imgui.api.InputTextWithHint(ctx, "##templatename", "name of the template", &w.template_name, w.template_name.len, &input_flags, null);
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(kit, "Save the scenes as a template", 0)) action = .{ .save_template = types.Text.of(std.mem.sliceTo(&w.template_name, 0)) };
-    refreshTemplates(w, p.ui.frame);
+    if (widgets.pushButton(kit, "Save the scenes as a template", 0)) action = .{ .save_template = p.strings.intern(std.mem.sliceTo(&w.template_name, 0)) };
+    refreshTemplates(p, w, p.ui.frame);
     const count = if (w.templates) |list| list.items.len else 0;
     if (count == 0) imgui.api.TextColored(ctx, theme.grey, "No templates yet.");
     var list_w: f64 = 460;
     var list_h: f64 = 110;
     if (imgui.api.BeginChild(ctx, "##templates", &list_w, &list_h, null, null)) {
         if (w.templates) |list| {
-            for (list.items) |file_name| {
+            for (list.items) |ref| {
+                // Because nothing is stored in the strings while the list is drawn, the slice stays valid.
+                const file_name = p.strings.get(ref);
                 const name = file_name[0 .. file_name.len - template_extension.len];
                 var label: [template_name_cap + 24:0]u8 = undefined;
                 var selected = std.mem.eql(u8, std.mem.sliceTo(&w.template_selected, 0), name);
@@ -281,12 +289,12 @@ fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     }
     const chosen = std.mem.sliceTo(&w.template_selected, 0);
     if (chosen.len == 0) return action;
-    if (widgets.pushButton(kit, "Load, replacing the scenes", 0)) action = .{ .load_template = .{ .name = types.Text.of(chosen), .append = false } };
+    if (widgets.pushButton(kit, "Load, replacing the scenes", 0)) action = .{ .load_template = .{ .name = p.strings.intern(chosen), .append = false } };
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(kit, "Add to the scenes", 0)) action = .{ .load_template = .{ .name = types.Text.of(chosen), .append = true } };
+    if (widgets.pushButton(kit, "Add to the scenes", 0)) action = .{ .load_template = .{ .name = p.strings.intern(chosen), .append = true } };
     imgui.api.SameLine(ctx, null, null);
     if (widgets.pushButton(kit, "Delete", 0)) {
-        action = .{ .delete_template = types.Text.of(chosen) };
+        action = .{ .delete_template = p.strings.intern(chosen) };
         w.template_selected[0] = 0;
         w.templates_at = 0;
         free(w);

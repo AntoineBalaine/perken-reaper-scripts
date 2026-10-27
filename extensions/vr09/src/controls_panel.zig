@@ -11,6 +11,7 @@ const std = @import("std");
 const imgui = @import("reaper_imgui");
 const engine = @import("engine.zig");
 const types = @import("action_types.zig");
+const scenes = @import("scenes.zig");
 const catalog = @import("catalog.zig");
 const extras = @import("extras.zig");
 const tones = @import("tones.zig");
@@ -777,7 +778,7 @@ fn toneChoice(ui: Ui, id: [:0]const u8, list: []const tones.Tone) bool {
     return chosen != before;
 }
 
-const TonePart = struct { id: [:0]const u8, title: []const u8, synth: bool, upper: bool };
+const TonePart = struct { id: [:0]const u8, title: [:0]const u8, synth: bool, upper: bool };
 const tone_parts = [_]TonePart{
     .{ .id = "upper-piano", .title = "Upper piano", .synth = false, .upper = true },
     .{ .id = "upper-piano-dual2", .title = "Upper piano dual 2", .synth = false, .upper = true },
@@ -788,14 +789,14 @@ const tone_parts = [_]TonePart{
 };
 const tone_parts_per_row = 3;
 
-/// The card of one part's tone. The plugin has no tone parameter yet, so the choice is only shown.
-fn cardOfTone(ui: Ui, part: TonePart) ?types.Action {
+/// The card of one part's tone. Choosing a tone asks for it to be written to the part.
+fn cardOfTone(ui: Ui, part: TonePart, position: u8) ?types.Action {
     var action: ?types.Action = null;
     if (!widgets.beginCard(ui.kit, part.title, null, null, if (part.upper) accents.part.upper else accents.part.lower)) return null;
     const list: []const tones.Tone = if (part.synth) &tones.synth else &tones.piano;
     if (toneChoice(ui, part.id, list)) {
         const slot = toneSlot(ui.state, part.id);
-        action = types.notice("{s}: {s} (shown only: the plugin does not send tones yet).", .{ part.title, list[ui.state.tone_index[slot]].name }, false);
+        action = .{ .choose_tone = .{ .part = position, .tone = &list[ui.state.tone_index[slot]] } };
     }
     partToggle(ui, part.id);
     var ids: [3][]const u8 = undefined;
@@ -817,7 +818,7 @@ fn tonesSection(ui: Ui) ?types.Action {
     var action: ?types.Action = null;
     for (tone_parts, 0..) |part, i| {
         if (i % tone_parts_per_row != 0) sameLine(ui.ctx);
-        action = types.first(action, cardOfTone(ui, part));
+        action = types.first(action, cardOfTone(ui, part, @intCast(i)));
     }
     return action;
 }
@@ -1045,4 +1046,14 @@ pub fn draw(shared: *engine.Shared, state: *State, kit: *widgets.Panel) ?types.A
 
 test "every card compiles" {
     std.testing.refAllDecls(@This());
+}
+
+test "the cards of the tones follow the parts that a tone scene can write" {
+    try std.testing.expectEqual(scenes.tone_parts.len, tone_parts.len);
+    for (tone_parts, scenes.tone_parts) |card, part| {
+        var id: [32]u8 = undefined;
+        const underscored = id[0..card.id.len];
+        for (card.id, 0..) |c, i| underscored[i] = if (c == '-') '_' else c;
+        try std.testing.expectEqualStrings(part, underscored);
+    }
 }

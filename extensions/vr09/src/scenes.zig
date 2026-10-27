@@ -15,35 +15,33 @@ pub const max_scenes = 127;
 pub const max_name = 48;
 
 pub const Scene = struct {
-    name_buf: [max_name]u8 = undefined,
-    name_len: u8 = 0,
+    name_buf: [max_name:0]u8 = [_:0]u8{0} ** max_name,
     /// Which patch of the library the scene was made from, and a short text for the panel to show. They
     /// let a panel list the scenes, and save them as a template, without reading the dump. A scene made
     /// from the plugin's own state has no patch ID (0).
     patch_id: u16 = 0,
-    label_buf: [max_name]u8 = undefined,
-    label_len: u8 = 0,
+    label_buf: [max_name:0]u8 = [_:0]u8{0} ** max_name,
     patch: dump.Dump = .{},
 
-    pub fn name(self: *const Scene) []const u8 {
-        return self.name_buf[0..self.name_len];
+    pub fn name(self: *const Scene) [:0]const u8 {
+        return std.mem.sliceTo(&self.name_buf, 0);
     }
 
-    pub fn label(self: *const Scene) []const u8 {
-        return self.label_buf[0..self.label_len];
+    pub fn label(self: *const Scene) [:0]const u8 {
+        return std.mem.sliceTo(&self.label_buf, 0);
     }
 
     /// Longer names are cut, because the list stores a fixed number of bytes for each.
     pub fn setName(self: *Scene, text: []const u8) void {
         const n = @min(text.len, max_name);
         @memcpy(self.name_buf[0..n], text[0..n]);
-        self.name_len = @intCast(n);
+        self.name_buf[n] = 0;
     }
 
     pub fn setLabel(self: *Scene, text: []const u8) void {
         const n = @min(text.len, max_name);
         @memcpy(self.label_buf[0..n], text[0..n]);
-        self.label_len = @intCast(n);
+        self.label_buf[n] = 0;
     }
 };
 
@@ -51,7 +49,7 @@ pub const Error = error{ Full, Truncated, BadCount };
 
 /// The parts that take a tone from the piano and synth lists. The drum kits are left out: the unit's
 /// drum block is not a plain tone triple (docs/midi-capabilities.md in the roland-vr09 project).
-pub const tone_parts = [_][]const u8{ "upper_piano", "upper_piano_dual2", "lower_piano", "upper_synth", "upper_synth_dual2", "lower_synth" };
+pub const tone_parts = [_][:0]const u8{ "upper_piano", "upper_piano_dual2", "lower_piano", "upper_synth", "upper_synth_dual2", "lower_synth" };
 
 /// Fills `out` with a patch that holds one part's tone and nothing else: the tone number, the bank MSB
 /// and the bank LSB, at offset 1 of the part's block. Because a recall writes only the bytes that its
@@ -174,10 +172,12 @@ pub const List = struct {
     pub fn write(self: *const List, writer: anytype) !void {
         try writer.writeByte(self.count);
         for (self.items[0..self.count]) |*scene| {
-            try writer.writeByte(scene.name_len);
+            // The saved state keeps the length of each text, so that a state saved before the texts were
+            // null-terminated is still read.
+            try writer.writeByte(@intCast(scene.name().len));
             try writer.writeAll(scene.name());
             try writer.writeInt(u16, scene.patch_id, .little);
-            try writer.writeByte(scene.label_len);
+            try writer.writeByte(@intCast(scene.label().len));
             try writer.writeAll(scene.label());
             var bits: [bitmap_bytes]u8 = [_]u8{0} ** bitmap_bytes;
             for (scene.patch.known, 0..) |k, i| {
@@ -201,12 +201,12 @@ pub const List = struct {
             const name_len = reader.readByte() catch return error.Truncated;
             if (name_len > max_name) return error.Truncated;
             reader.readNoEof(item.name_buf[0..name_len]) catch return error.Truncated;
-            item.name_len = name_len;
+            item.name_buf[name_len] = 0;
             item.patch_id = reader.readInt(u16, .little) catch return error.Truncated;
             const label_len = reader.readByte() catch return error.Truncated;
             if (label_len > max_name) return error.Truncated;
             reader.readNoEof(item.label_buf[0..label_len]) catch return error.Truncated;
-            item.label_len = label_len;
+            item.label_buf[label_len] = 0;
             var bits: [bitmap_bytes]u8 = undefined;
             reader.readNoEof(&bits) catch return error.Truncated;
             reader.readNoEof(&item.patch.values) catch return error.Truncated;

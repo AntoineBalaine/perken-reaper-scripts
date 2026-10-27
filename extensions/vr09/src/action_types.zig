@@ -10,39 +10,25 @@
 //! This file has no dependency on the plugin, so that the panels can name the actions without importing the code
 //! that carries them out.
 const std = @import("std");
+const strings = @import("strings.zig");
+const tones = @import("tones.zig");
 
-pub const text_cap = 96;
-
-/// A short text in a buffer of its own, so that an action can carry a name and be copied freely.
-pub const Text = struct {
-    buf: [text_cap]u8 = undefined,
-    len: u8 = 0,
-
-    /// The text, cut at `text_cap` bytes.
-    pub fn of(text: []const u8) Text {
-        var result = Text{};
-        const n = @min(text.len, text_cap);
-        @memcpy(result.buf[0..n], text[0..n]);
-        result.len = @intCast(n);
-        return result;
-    }
-
-    pub fn slice(self: *const Text) []const u8 {
-        return self.buf[0..self.len];
-    }
-};
+/// The ID of a text in the plugin's strings (see `strings.zig`). An action carries the IDs of the names that it
+/// needs, and the dispatcher reads their text from the pool: the name of a patch, a file name, a name that the
+/// player typed.
+pub const Ref = strings.Ref;
 
 /// Where the bytes of a patch come from.
 pub const PatchSource = union(enum) {
     /// The plugin's state now.
     current,
     /// A file of the registrations folder, by its file name.
-    registration: Text,
+    registration: Ref,
     /// A file of the presets folder, by its file name.
-    preset: Text,
+    preset: Ref,
     /// One tone of a part, which is a patch that holds only that tone. `part` is one of the names of
     /// `scenes.tone_parts` (such as "upper_piano").
-    tone: struct { part: Text, number: u8, msb: u8, lsb: u8 },
+    tone: struct { part: Ref, number: u8, msb: u8, lsb: u8 },
     /// A patch that the panel cannot send or make a scene of yet (a drum kit).
     unsupported,
 };
@@ -51,25 +37,27 @@ pub const PatchSource = union(enum) {
 pub const Patch = struct {
     source: PatchSource,
     /// The name that a scene made of it takes, and that a notice says.
-    name: Text,
+    name: Ref,
     /// The value of the Patch parameter that selects it in the library, or 0 for a patch that has none.
     id: u16 = 0,
     /// A short text for the scene list to show, which says which patch of the library the scene came from.
-    label: Text,
+    label: Ref,
 };
 
 /// A save of the keyboard that waits for the keyboard's read to end, and the name to save it under.
 pub const PendingSave = struct {
     phase: enum { idle, waiting_for_start, waiting_for_end } = .idle,
     since: u32 = 0,
-    name: Text = .{},
+    name: Ref = strings.empty,
 };
 
 pub const MoveScene = struct { from: u8, to: u8 };
-pub const RenameScene = struct { position: u8, name: Text };
-pub const LoadTemplate = struct { name: Text, append: bool };
+pub const RenameScene = struct { position: u8, name: Ref };
+pub const LoadTemplate = struct { name: Ref, append: bool };
 pub const SetParam = struct { index: usize, value: u8 };
-pub const Notify = struct { text: Text, is_error: bool };
+/// A tone chosen in the card of a part. `part` is the position of the part in `scenes.tone_parts`, and `tone`
+/// points to an entry of `tones.zig`, so the action carries no copy of a text.
+pub const ChooseTone = struct { part: u8, tone: *const tones.Tone };
 
 /// What the panel asks for.
 pub const Action = union(enum) {
@@ -81,14 +69,16 @@ pub const Action = union(enum) {
     read_keyboard,
     send_to_keyboard,
     /// Reads the keyboard, then saves what it holds as a preset of this name.
-    save_keyboard: Text,
+    save_keyboard: Ref,
     /// Sends a patch of the library to the keyboard.
     send_patch: Patch,
     /// Deletes a preset, by its file name.
-    delete_preset: Text,
+    delete_preset: Ref,
+    /// Reads the registrations and the presets folders again.
+    refresh_library,
     import_file,
     /// Writes the plugin's state to a file, by its full path.
-    export_file: Text,
+    export_file: Ref,
 
     // ---- scenes ----
     /// Puts a patch at the end of the session's scenes.
@@ -99,9 +89,9 @@ pub const Action = union(enum) {
     rename_scene: RenameScene,
     /// Puts a point of the Scene parameter at the edit cursor, set to the selected scene.
     insert_lane_point,
-    save_template: Text,
+    save_template: Ref,
     load_template: LoadTemplate,
-    delete_template: Text,
+    delete_template: Ref,
 
     // ---- options ----
     set_split: bool,
@@ -125,16 +115,10 @@ pub const Action = union(enum) {
     set_sysex_bare: bool,
     reconnect,
 
-    // ---- the panel's notice ----
-    notify: Notify,
+    // ---- the tones ----
+    /// A tone was chosen in the card of a part. It is carried out as the same patch as a tone of the library.
+    choose_tone: ChooseTone,
 };
-
-/// An action that tells the player something.
-pub fn notice(comptime fmt: []const u8, args: anytype, is_error: bool) Action {
-    var buf: [text_cap]u8 = undefined;
-    const text = std.fmt.bufPrint(&buf, fmt, args) catch buf[0..text_cap];
-    return .{ .notify = .{ .text = Text.of(text), .is_error = is_error } };
-}
 
 /// The action of a frame. A frame produces at most one, because the player works with one widget at a time, so
 /// the draw functions return it, and a function that draws several widgets returns the first action that they
@@ -143,20 +127,9 @@ pub fn first(a: ?Action, b: ?Action) ?Action {
     return a orelse b;
 }
 
-test "a text is cut at its capacity" {
-    const long = "x" ** (text_cap + 10);
-    try std.testing.expectEqual(@as(usize, text_cap), Text.of(long).slice().len);
-    try std.testing.expectEqualStrings("Warm Pad", Text.of("Warm Pad").slice());
-}
-
 test "a frame's action is the first one that its widgets returned" {
     const none: ?Action = null;
     try std.testing.expect(first(none, none) == null);
     try std.testing.expect(first(none, .read_keyboard).? == .read_keyboard);
     try std.testing.expect(first(.send_to_keyboard, .read_keyboard).? == .send_to_keyboard);
-}
-
-test "a notice carries its text" {
-    const action = Action{ .notify = .{ .text = Text.of("Moved 4 points."), .is_error = false } };
-    try std.testing.expectEqualStrings("Moved 4 points.", action.notify.text.slice());
 }

@@ -11,6 +11,7 @@ const std = @import("std");
 const Reaper = @import("reaper").reaper;
 const plugin = @import("plugin.zig");
 const types = @import("action_types.zig");
+const strings = @import("strings.zig");
 const library = @import("library.zig");
 const scene_lane = @import("scene_lane.zig");
 const scenes = @import("scenes.zig");
@@ -40,8 +41,8 @@ pub fn tick(p: *Plugin) void {
     if ((pending.phase == .waiting_for_end and job == .idle) or waited > 600) {
         const name = pending.name;
         pending.phase = .idle;
-        if (savePreset(p, name.slice())) |saved| {
-            say(p, "Read the keyboard and saved it as {s}.", .{saved.slice()}, false);
+        if (savePreset(p, p.strings.get(name))) |saved| {
+            say(p, "Read the keyboard and saved it as {s}.", .{state.displayName(p.strings.get(saved))}, false);
         } else |err| {
             say(p, "The keyboard was not saved: {s}.", .{describe(err)}, true);
         }
@@ -91,39 +92,40 @@ pub fn dispatch(p: *Plugin, action: Action) void {
         },
         .send_patch => |patch| {
             sendPatch(p, patch) catch |err| {
-                say(p, "Could not send \"{s}\": {s}.", .{ patch.name.slice(), describe(err) }, err != error.NotSupported);
+                say(p, "Could not send \"{s}\": {s}.", .{ p.strings.get(patch.name), describe(err) }, err != error.NotSupported);
                 return;
             };
-            say(p, "Sent \"{s}\" to the keyboard.", .{patch.name.slice()}, false);
+            say(p, "Sent \"{s}\" to the keyboard.", .{p.strings.get(patch.name)}, false);
         },
         .delete_preset => |file| {
-            deletePreset(p, file.slice()) catch |err| {
-                say(p, "Could not delete {s}: {s}.", .{ file.slice(), describe(err) }, true);
+            deletePreset(p, p.strings.get(file)) catch |err| {
+                say(p, "Could not delete {s}: {s}.", .{ p.strings.get(file), describe(err) }, true);
                 return;
             };
-            say(p, "Deleted {s}.", .{state.displayName(file.slice())}, false);
+            say(p, "Deleted {s}.", .{state.displayName(p.strings.get(file))}, false);
         },
+        .refresh_library => library.build(p, &p.library),
         .import_file => {
             const imported = importFile(p) catch |err| {
                 say(p, "Could not import the file: {s}.", .{describe(err)}, true);
                 return;
             };
-            if (imported) |name| say(p, "Imported {s}.", .{name.slice()}, false);
+            if (imported) |name| say(p, "Imported {s}.", .{p.strings.get(name)}, false);
         },
         .export_file => |path| {
-            exportFile(p, path.slice()) catch |err| {
+            exportFile(p, p.strings.get(path)) catch |err| {
                 say(p, "Could not write the file: {s}.", .{describe(err)}, true);
                 return;
             };
-            say(p, "Exported to {s}.", .{path.slice()}, false);
+            say(p, "Exported to {s}.", .{p.strings.get(path)}, false);
         },
 
         .add_scene => |patch| {
             const position = addScene(p, patch) catch |err| {
-                say(p, "Could not add \"{s}\" to the scenes: {s}.", .{ patch.name.slice(), describe(err) }, err != error.NotSupported);
+                say(p, "Could not add \"{s}\" to the scenes: {s}.", .{ p.strings.get(patch.name), describe(err) }, err != error.NotSupported);
                 return;
             };
-            say(p, "Added \"{s}\" as scene {d}.", .{ patch.name.slice(), position }, false);
+            say(p, "Added \"{s}\" as scene {d}.", .{ p.strings.get(patch.name), position }, false);
         },
         .select_scene => |position| {
             p.selectScene(position) catch {
@@ -145,7 +147,7 @@ pub fn dispatch(p: *Plugin, action: Action) void {
             say(p, "Removed scene {d}; {d} lane points moved with it.", .{ position, moved }, false);
         },
         .rename_scene => |r| {
-            _ = p.scene_list.rename(r.position, r.name.slice());
+            _ = p.scene_list.rename(r.position, p.strings.get(r.name));
         },
         .insert_lane_point => {
             const point = insertLanePoint(p) catch |err| {
@@ -155,25 +157,25 @@ pub fn dispatch(p: *Plugin, action: Action) void {
             say(p, "Inserted scene {d} at {d:.2} s.", .{ point.position, point.time }, false);
         },
         .save_template => |name| {
-            const saved = saveTemplate(p, name.slice()) catch |err| {
+            const saved = saveTemplate(p, p.strings.get(name)) catch |err| {
                 say(p, "Could not save the template: {s}.", .{describe(err)}, true);
                 return;
             };
-            say(p, "Saved {d} scenes as the template \"{s}\".", .{ saved.scenes, saved.name.slice() }, false);
+            say(p, "Saved {d} scenes as the template \"{s}\".", .{ saved.scenes, p.strings.get(saved.name) }, false);
         },
         .load_template => |t| {
-            const missing = loadTemplate(p, t.name.slice(), t.append) catch |err| {
+            const missing = loadTemplate(p, p.strings.get(t.name), t.append) catch |err| {
                 say(p, "Could not read the template: {s}.", .{describe(err)}, true);
                 return;
             };
             if (missing > 0) {
-                say(p, "Loaded the template \"{s}\"; {d} scenes left out, their patches are not in the library.", .{ t.name.slice(), missing }, true);
+                say(p, "Loaded the template \"{s}\"; {d} scenes left out, their patches are not in the library.", .{ p.strings.get(t.name), missing }, true);
             } else {
-                say(p, "Loaded the template \"{s}\".", .{t.name.slice()}, false);
+                say(p, "Loaded the template \"{s}\".", .{p.strings.get(t.name)}, false);
             }
         },
         .delete_template => |name| {
-            deleteTemplate(name.slice()) catch |err| say(p, "Could not delete the template: {s}.", .{describe(err)}, true);
+            deleteTemplate(p.strings.get(name)) catch |err| say(p, "Could not delete the template: {s}.", .{describe(err)}, true);
         },
 
         .set_split => |on| plugin.setPatchSplit(p, on),
@@ -209,7 +211,11 @@ pub fn dispatch(p: *Plugin, action: Action) void {
             say(p, "Asking the keyboard who it is.", .{}, false);
         },
 
-        .notify => |n| say(p, "{s}", .{n.text.slice()}, n.is_error),
+        .choose_tone => |c| dispatch(p, .{ .send_patch = .{
+            .source = .{ .tone = .{ .part = p.strings.intern(scenes.tone_parts[c.part]), .number = c.tone.number, .msb = c.tone.msb, .lsb = c.tone.lsb } },
+            .name = p.strings.intern(c.tone.name),
+            .label = p.strings.intern(c.tone.name),
+        } }),
     }
 }
 
@@ -241,10 +247,10 @@ fn pathIn(buf: []u8, folder: []const u8, file_name: []const u8) ![]const u8 {
 pub fn loadPatchDump(p: *Plugin, source: types.PatchSource, out: *dump.Dump) !void {
     switch (source) {
         .current => p.shared.desiredSnapshot(out),
-        .registration => |file| try readFile(.registrations, file.slice(), out),
-        .preset => |file| try readFile(.presets, file.slice(), out),
+        .registration => |file| try readFile(.registrations, p.strings.get(file), out),
+        .preset => |file| try readFile(.presets, p.strings.get(file), out),
         .tone => |t| {
-            if (!scenes.toneDump(out, t.part.slice(), t.number, t.msb, t.lsb)) return error.BadPart;
+            if (!scenes.toneDump(out, p.strings.get(t.part), t.number, t.msb, t.lsb)) return error.BadPart;
         },
         .unsupported => return error.NotSupported,
     }
@@ -262,25 +268,16 @@ fn readFile(which: Folder, file_name: []const u8, out: *dump.Dump) !void {
 pub fn sendPatch(p: *Plugin, patch: Patch) !void {
     switch (patch.source) {
         .registration => |file| {
-            const parsed = registrations.parseFileName(file.slice()) orelse return error.BadFileName;
-            var owned: [types.text_cap]u8 = undefined;
-            @memcpy(owned[0..file.len], file.slice());
-            const file_name = owned[0..file.len];
-            const entry = registrations.Entry{
-                .bank = parsed.bank,
-                .slot = parsed.slot,
-                .file_name = file_name,
-                .name = file_name[file_name.len - registrations.extension.len - parsed.name.len .. file_name.len - registrations.extension.len],
-            };
-            try p.loadRegistration(entry);
+            // Because the load stores no string, the name can stay in the pool.
+            try p.loadRegistration(p.strings.get(file));
         },
-        .preset => |file| try loadPreset(p, file.slice()),
+        .preset => |file| try loadPreset(p, p.strings.get(file)),
         .tone => {
             const patch_dump = try plugin.allocator.create(dump.Dump);
             defer plugin.allocator.destroy(patch_dump);
             patch_dump.* = .{};
             try loadPatchDump(p, patch.source, patch_dump);
-            p.loadScene(patch_dump, patch.name.slice());
+            p.loadScene(patch_dump, p.strings.get(patch.name));
         },
         .current, .unsupported => return error.NotSupported,
     }
@@ -292,7 +289,7 @@ pub fn addScene(p: *Plugin, patch: Patch) !u8 {
     defer plugin.allocator.destroy(patch_dump);
     patch_dump.* = .{};
     try loadPatchDump(p, patch.source, patch_dump);
-    return p.scene_list.addFrom(patch.name.slice(), patch_dump, patch.id, patch.label.slice()) catch error.SceneListFull;
+    return p.scene_list.addFrom(p.strings.get(patch.name), patch_dump, patch.id, p.strings.get(patch.label)) catch error.SceneListFull;
 }
 
 // ---- presets and files ----
@@ -310,37 +307,57 @@ fn deletePreset(p: *Plugin, file_name: []const u8) !void {
     const folder = try folderOf(&folder_buf, .presets);
     var path_buf: [fileio.max_path]u8 = undefined;
     try fileio.deleteFile(try state.presetPath(&path_buf, folder, file_name));
-    p.ui.preset_refresh_at = 0;
+    library.removePreset(p, file_name);
 }
 
-/// Writes what the plugin holds as a preset of this name. Returns the name that was used, which is the name
-/// cleaned of what a file name cannot hold.
-fn savePreset(p: *Plugin, wanted: []const u8) !types.Text {
-    var clean: [name_cap]u8 = undefined;
-    const name = state.sanitizeName(&clean, wanted);
+/// The room for the file name of a preset: the name, which is at most `preset_name_cap` bytes, and the extension.
+pub const preset_file_cap = 128;
+const preset_name_cap = 96;
+
+/// Writes a dump as a preset in `folder`, under a name cleaned of what a file name cannot hold. The folder is
+/// made when it is missing. Returns the file name, which is in `file_out`.
+pub fn writePreset(folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: [:0]u8) ![:0]const u8 {
+    var clean: [preset_name_cap]u8 = undefined;
+    if (raw_name.len > clean.len) return error.NameTooLong;
+    const name = state.sanitizeName(&clean, raw_name);
     if (name.len == 0) return error.EmptyName;
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = try folderOf(&folder_buf, .presets);
     try fileio.makePath(folder);
     var path_buf: [fileio.max_path]u8 = undefined;
     const path = try state.presetPath(&path_buf, folder, name);
+    try state.savePresetFile(plugin.allocator, path, scene);
+    return std.fmt.bufPrintZ(file_out, "{s}{s}", .{ name, state.preset_extension });
+}
+
+/// Saves a dump as a preset of the presets folder, and tells the rest of the plugin: the preset becomes the
+/// current patch's name, and the library gets its row. Both ways of saving the keyboard end here.
+pub fn storePreset(p: *Plugin, folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: [:0]u8) ![:0]const u8 {
+    const file = try writePreset(folder, raw_name, scene, file_out);
+    p.settings.setPresetName(state.displayName(file));
+    library.addPreset(p, file);
+    return file;
+}
+
+/// Saves what the plugin holds as a preset of this name. Returns the ID of the file name that was used, which is
+/// the name cleaned of what a file name cannot hold, with its extension.
+fn savePreset(p: *Plugin, wanted: []const u8) !strings.Ref {
+    var folder_buf: [fileio.max_path]u8 = undefined;
+    const folder = try folderOf(&folder_buf, .presets);
     const snapshot = try plugin.allocator.create(dump.Dump);
     defer plugin.allocator.destroy(snapshot);
     p.shared.desiredSnapshot(snapshot);
-    try state.savePresetFile(plugin.allocator, path, snapshot);
-    p.settings.setPresetName(name);
-    p.ui.preset_refresh_at = 0;
-    return types.Text.of(name);
+    var file: [preset_file_cap:0]u8 = undefined;
+    return p.strings.intern(try storePreset(p, folder, wanted, snapshot, &file));
 }
 
 /// Asks for a file with REAPER's dialog and loads it. Returns its name, or null when the player cancelled.
-fn importFile(p: *Plugin) !?types.Text {
+fn importFile(p: *Plugin) !?strings.Ref {
     if (!glue.ready) return error.NoResourceFolder;
-    var path: [4096]u8 = [_]u8{0} ** 4096;
+    var path: [4096:0]u8 = [_:0]u8{0} ** 4096;
     if (!Reaper.GetUserFileNameForRead(@ptrCast(&path), "Import a VR-09 dump or preset", "json")) return null;
     const chosen = std.mem.sliceTo(&path, 0);
-    try p.loadPresetFile(chosen, state.displayName(std.fs.path.basename(chosen)));
-    return types.Text.of(std.fs.path.basename(chosen));
+    const base = chosen[chosen.len - std.fs.path.basename(chosen).len ..];
+    try p.loadPresetFile(chosen, state.displayName(base));
+    return p.strings.intern(base);
 }
 
 fn exportFile(p: *Plugin, target: []const u8) !void {
@@ -385,24 +402,39 @@ pub fn insertLanePoint(p: *Plugin) !LanePoint {
 
 // ---- the scene templates ----
 
-/// Keeps the letters, digits, spaces, dashes and underscores, because the name becomes a file name.
-pub fn cleanTemplateName(buf: []u8, name: []const u8) []const u8 {
+/// Makes a name that a file can have. The letters, the digits, the spaces, the dashes, the underscores and the
+/// bytes of other alphabets are kept, and every other character becomes an underscore, as in the name of a
+/// preset, so that "AC/DC" is still told apart from "ACDC".
+pub fn cleanTemplateName(buf: []u8, name: []const u8) [:0]const u8 {
     var n: usize = 0;
     for (name) |c| {
-        if (n == buf.len) break;
-        if (std.ascii.isAlphanumeric(c) or c == ' ' or c == '-' or c == '_') {
-            buf[n] = c;
-            n += 1;
-        }
+        // The last byte is kept for the terminator.
+        if (n + 1 >= buf.len) break;
+        const kept = std.ascii.isAlphanumeric(c) or c == ' ' or c == '-' or c == '_' or c >= 0x80;
+        buf[n] = if (kept) c else '_';
+        n += 1;
     }
-    return std.mem.trim(u8, buf[0..n], " ");
+    const trimmed = std.mem.trim(u8, buf[0..n], " ");
+    const end = trimmed.ptr - buf.ptr + trimmed.len;
+    buf[end] = 0;
+    return buf[end - trimmed.len .. end :0];
 }
 
+/// Whether a name can only reach a file of the templates folder. Because a template can also be a file that
+/// the player copied in by hand, a dot is allowed, but nothing that names another folder or drive is.
+pub fn isTemplateName(name: []const u8) bool {
+    if (name.len == 0 or std.mem.eql(u8, name, ".") or std.mem.eql(u8, name, "..")) return false;
+    return std.mem.indexOfAny(u8, name, "/\\:\x00") == null;
+}
+
+/// The path of the template of this name. Every use of a template goes through it, so that none can leave the
+/// folder: saving, loading and deleting.
 fn templatePath(buf: []u8, folder: []const u8, name: []const u8) ![]const u8 {
+    if (!isTemplateName(name)) return error.BadName;
     return std.fmt.bufPrint(buf, "{s}{c}{s}{s}", .{ folder, std.fs.path.sep, name, template_extension });
 }
 
-pub const SavedTemplate = struct { name: types.Text, scenes: usize };
+pub const SavedTemplate = struct { name: strings.Ref, scenes: usize };
 
 /// The text of a template: a line for each scene that came from the library, the name and the patch ID
 /// separated by a tab. A scene made from the plugin's own state has no library patch, so a template cannot hold it.
@@ -431,7 +463,7 @@ fn saveTemplate(p: *Plugin, wanted: []const u8) !SavedTemplate {
     const written = try templateText(p.scene_list, &text);
     var path_buf: [fileio.max_path]u8 = undefined;
     try fileio.writeAll(try templatePath(&path_buf, folder, clean), text.items);
-    return .{ .name = types.Text.of(clean), .scenes = written };
+    return .{ .name = p.strings.intern(clean), .scenes = written };
 }
 
 /// Loads a template: it replaces the session's scenes, or goes after them. Each scene is taken from the
@@ -457,7 +489,8 @@ fn loadTemplate(p: *Plugin, name: []const u8, append: bool) !usize {
             missing += 1;
             continue;
         };
-        patch.name = types.Text.of(line[0..tab]);
+        // Because a line is a piece of the file, its name is not terminated, and is copied to be stored.
+        patch.name = p.strings.internSlice(line[0..tab]);
         _ = addScene(p, patch) catch continue;
     }
     return missing;
@@ -470,9 +503,51 @@ fn deleteTemplate(name: []const u8) !void {
     try fileio.deleteFile(try templatePath(&path_buf, folder, name));
 }
 
-test "a template name keeps only what a file name can hold" {
+test "a preset is written under a clean name, in a folder that is created" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var root_buf: [fileio.max_path]u8 = undefined;
+    const root = try tmp.dir.realpath(".", &root_buf);
+    var folder_buf: [fileio.max_path]u8 = undefined;
+    const folder = try std.fmt.bufPrint(&folder_buf, "{s}/a/b/presets", .{root});
+
+    const scene = try std.testing.allocator.create(dump.Dump);
+    defer std.testing.allocator.destroy(scene);
+    scene.* = .{};
+    _ = scene.set(.kb, 0x02 << 14 | 5, 7);
+    var file: [128:0]u8 = undefined;
+    const written = try writePreset(folder, "  My organ / take 2 ", scene, &file);
+    try std.testing.expectEqualStrings("My organ _ take 2.vr09", written);
+
+    // The file holds the dump, and reads back as it was.
+    var path_buf: [fileio.max_path]u8 = undefined;
+    const path = try state.presetPath(&path_buf, folder, written);
+    const back = try std.testing.allocator.create(dump.Dump);
+    defer std.testing.allocator.destroy(back);
+    back.* = .{};
+    try state.loadPresetFile(std.testing.allocator, path, back);
+    try std.testing.expectEqual(@as(?u8, 7), back.get(.kb, 0x02 << 14 | 5));
+    try std.testing.expectEqual(@as(usize, 1), back.knownCount());
+
+    try std.testing.expectError(error.EmptyName, writePreset(folder, " . ", scene, &file));
+}
+
+test "a template name keeps what a file name can hold, and replaces the rest" {
     var buf: [64]u8 = undefined;
-    try std.testing.expectEqualStrings("Sundayset 2", cleanTemplateName(&buf, "  Sunday/set: 2 "));
+    try std.testing.expectEqualStrings("Sunday_set_ 2", cleanTemplateName(&buf, "  Sunday/set: 2 "));
+    try std.testing.expectEqualStrings("AC_DC", cleanTemplateName(&buf, "AC/DC"));
+    try std.testing.expectEqualStrings("___x", cleanTemplateName(&buf, "../x"));
+    try std.testing.expectEqualStrings("Été", cleanTemplateName(&buf, "Été"));
+    try std.testing.expectEqualStrings("", cleanTemplateName(&buf, "   "));
+}
+
+test "a template path never leaves the templates folder" {
+    var buf: [128]u8 = undefined;
+    try std.testing.expectEqualStrings("/t/Sunday set 2.scenes", try templatePath(&buf, "/t", "Sunday set 2"));
+    try std.testing.expectEqualStrings("/t/my.set.scenes", try templatePath(&buf, "/t", "my.set"));
+    for ([_][]const u8{ "", ".", "..", "../x", "a/b", "a\\b", "C:x", "a\x00b" }) |bad| {
+        try std.testing.expectError(error.BadName, templatePath(&buf, "/t", bad));
+    }
 }
 
 test "every declaration compiles" {

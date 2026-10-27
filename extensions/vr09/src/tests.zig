@@ -26,5 +26,6 @@ comptime {
     _ = @import("scene_lane.zig");
     _ = @import("action_types.zig");
     _ = @import("library.zig");
+    _ = @import("strings.zig");
     _ = @import("dispatch.zig");
 }

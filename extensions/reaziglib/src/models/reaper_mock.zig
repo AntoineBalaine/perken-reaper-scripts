@@ -962,11 +962,11 @@ test "mock reaper API track operations" {
     // Test track retrieval via mock API
     const track1 = @as(?*Track, @ptrCast(@alignCast(GetTrack(null, 0))));
     try testing.expect(track1 != null);
-    try testing.expectEqualStrings("Track 1", model.string_pool.getString(track1.?.name.?));
+    try testing.expectEqualStrings("Track 1", model.string_pool.get(track1.?.name.?));
 
     const master = @as(?*Track, @ptrCast(@alignCast(GetMasterTrack(null))));
     try testing.expect(master != null);
-    try testing.expectEqualStrings("Master", model.string_pool.getString(master.?.name.?));
+    try testing.expectEqualStrings("Master", model.string_pool.get(master.?.name.?));
 
     // Test track selection via mock API
     SetTrackSelected(@ptrCast(track1), true);
@@ -974,7 +974,7 @@ test "mock reaper API track operations" {
 
     const selected = @as(?*Track, @ptrCast(@alignCast(GetSelectedTrack(null, 0))));
     try testing.expect(selected != null);
-    try testing.expectEqualStrings("Track 1", model.string_pool.getString(selected.?.name.?));
+    try testing.expectEqualStrings("Track 1", model.string_pool.get(selected.?.name.?));
 
     // Test track parameters via mock API
     _ = SetMediaTrackInfo_Value(@ptrCast(track1), "D_VOL", 0.5);

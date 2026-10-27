@@ -22,15 +22,15 @@ pub fn init(gpa: std.mem.Allocator, track_count: usize, max_tracks: usize) !@Thi
     // Create a master track
 
     var master_tr: Track.Track = .default;
-    master_tr.name = try self.string_pool.add(gpa, "Master");
+    master_tr.name = try self.string_pool.intern(gpa, "Master");
     try self.tracks.append(gpa, master_tr);
 
     // Create a few regular tracks
     for (0..track_count) |i| {
         var track: Track.Track = .default;
-        var buf: [1024]u8 = undefined;
-        const track_name = std.fmt.bufPrint(&buf, "Track {d}", .{i + 1}) catch unreachable;
-        track.name = try self.string_pool.add(gpa, track_name);
+        var buf: [1024:0]u8 = undefined;
+        const track_name = std.fmt.bufPrintZ(&buf, "Track {d}", .{i + 1}) catch unreachable;
+        track.name = try self.string_pool.intern(gpa, track_name);
         try self.tracks.append(gpa, track);
     }
 
@@ -39,7 +39,7 @@ pub fn init(gpa: std.mem.Allocator, track_count: usize, max_tracks: usize) !@Thi
 
 pub fn getTrackName(self: @This(), track: Track.Track) ?[:0]const u8 {
     if (track.name) |name| {
-        return self.string_pool.getString(name);
+        return self.string_pool.get(name);
     }
     return null;
 }
@@ -50,9 +50,9 @@ pub fn setFxParams(self: *@This(), track_idx: usize, fx_idx: usize, params: []co
     self.tracks.items[track_idx].fx_list.items[fx_idx].params = new_params;
 }
 
-pub fn setTrackName(self: *@This(), track_index: usize, name: []const u8) !void {
+pub fn setTrackName(self: *@This(), track_index: usize, name: [:0]const u8) !void {
     if (track_index >= self.tracks.items.len) return error.InvalidTrackIndex;
-    const interned_name = try self.string_pool.add(self.arena_alloc, name);
+    const interned_name = try self.string_pool.intern(self.arena_alloc, name);
     self.tracks.items[track_index].name = interned_name;
 }
 
@@ -60,4 +60,4 @@ const std = @import("std");
 const AutomationMode = @import("automation_mode").AutomationMode;
 const Track = @import("track_model");
 const fx_model = @import("fx_model");
-const StringPool = @import("utils").StringPool;
+const StringPool = @import("string_pool").StringPool;

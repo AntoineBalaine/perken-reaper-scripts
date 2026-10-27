@@ -6,32 +6,30 @@
 //! scenes. Beside it is the list of the session's scenes. The Patches tab has the keyboard's read and write
 //! buttons and the options.
 //!
-//! Because a performer picks a sound by name, the registrations and the single tones share one table. The last
-//! column is the value of the plugin's Patch parameter that would select the row, and a value never changes
-//! once given: the registrations take 1 to 100, the tones take 101 and up in the order of `tones.zig`, which
-//! only grows at its end, and the presets take an ID that comes from their name.
+//! The rows are in `library.zig` and hold string IDs, not text: the table reads each name, group and number from
+//! the plugin's strings when it draws the row. Because a patch is carried out after the frame, the actions that
+//! the table returns carry the IDs of what they need.
 const std = @import("std");
 const imgui = @import("reaper_imgui");
 const plugin = @import("plugin.zig");
 const library = @import("library.zig");
 const types = @import("action_types.zig");
+const strings = @import("strings.zig");
 const fuzzy = @import("fuzzy");
 const theme = @import("panel_theme");
 const widgets = @import("panel_widgets");
 
 const Plugin = plugin.Plugin;
 const Row = library.Row;
-const nameOf = library.nameOf;
-const groupOf = library.groupOf;
-const numberOf = library.numberOf;
-const typeOf = library.typeOf;
+const Strings = strings.Strings;
 
-const group_cap = library.group_cap;
+const group_cap = 24;
 const search_cap = 64;
-const rows_cap = library.rows_cap;
 
 const all_groups = "All groups";
 const type_names = [_][:0]const u8{ "All", "Registration", "Tone", "Preset" };
+
+const Ranked = struct { index: u32, score: i32, len: u32 };
 
 /// What the library keeps between frames.
 pub const State = struct {
@@ -39,36 +37,26 @@ pub const State = struct {
     /// The chosen entry of `type_names`.
     type_index: usize = 0,
     group: [group_cap:0]u8 = initialGroup(),
-    /// The hash of the key of the selected row, or 0.
-    selected: u64 = 0,
+    /// The value of the selected row, or 0.
+    selected: u32 = 0,
     /// The column the player clicked last, counted from 0, or -1 for the table's own order.
     sort_column: i32 = -1,
     sort_descending: bool = false,
-    /// The hash of the key of the preset whose deletion is armed, or 0.
-    delete_armed: u64 = 0,
-    /// The rows of the table, which are rebuilt when the registrations or the presets have changed. They take
-    /// about 120 KB, so they are allocated when the table is first drawn, and freed when the panel closes.
-    library: ?*library.Library = null,
-    /// The rows of the library that the filters let through, in the order they are shown, as positions in
-    /// the library's rows.
-    shown: [rows_cap]u32 = undefined,
-    shown_count: usize = 0,
+    /// The value of the preset whose deletion is armed, or 0.
+    delete_armed: u32 = 0,
+    /// The rows of the library that the filters let through, in the order they are shown, as positions in the
+    /// library's rows. The list keeps its room from one frame to the next.
+    shown: std.ArrayListUnmanaged(u32) = .empty,
+    /// The scores of the rows that match a search.
+    ranked: std.ArrayListUnmanaged(Ranked) = .empty,
 };
-
-/// The rows of the table, allocated the first time. Null when there is no memory for them.
-fn libraryOf(w: *State) ?*library.Library {
-    if (w.library == null) {
-        const rows = plugin.allocator.create(library.Library) catch return null;
-        rows.* = .{};
-        w.library = rows;
-    }
-    return w.library;
-}
 
 /// Frees what the panel holds. The window calls it when it closes.
 pub fn free(w: *State) void {
-    if (w.library) |rows| plugin.allocator.destroy(rows);
-    w.library = null;
+    w.shown.deinit(plugin.allocator);
+    w.shown = .empty;
+    w.ranked.deinit(plugin.allocator);
+    w.ranked = .empty;
 }
 
 fn copyName(dest: *[group_cap:0]u8, text: []const u8) void {
@@ -87,78 +75,72 @@ fn initialGroup() [group_cap:0]u8 {
 
 /// Whether the type and the group filters let a row through. The search text is not part of it: it ranks the
 /// rows that remain.
-fn matchesFilters(w: *const State, row: *const Row) bool {
+fn matchesFilters(w: *const State, pool: *const Strings, row: Row) bool {
     if (w.type_index != 0 and row.kind != @as(library.Kind, @enumFromInt(w.type_index - 1))) return false;
     const group = std.mem.sliceTo(&w.group, 0);
-    if (!std.mem.eql(u8, group, all_groups) and !std.mem.eql(u8, groupOf(row), group)) return false;
+    if (!std.mem.eql(u8, group, all_groups) and !std.mem.eql(u8, pool.get(row.group), group)) return false;
     return true;
 }
-
-const Ranked = struct { index: u32, score: i32, len: u32 };
 
 fn rankedBefore(_: void, a: Ranked, b: Ranked) bool {
     return fuzzy.rankedBefore(.{ .index = a.index, .score = a.score, .len = a.len }, .{ .index = b.index, .score = b.score, .len = b.len });
 }
 
 /// What the search is matched against: the name first, then the group, the number and the type.
-fn searchText(buf: []u8, row: *const Row) []const u8 {
-    return std.fmt.bufPrint(buf, "{s} {s} {s} {s}", .{ nameOf(row), groupOf(row), numberOf(row), typeOf(row) }) catch "";
+fn searchText(buf: []u8, pool: *const Strings, row: Row) []const u8 {
+    return std.fmt.bufPrint(buf, "{s} {s} {s} {s}", .{ pool.get(row.name), pool.get(row.group), pool.get(row.number), library.typeName(row) }) catch "";
 }
 
-const SortContext = struct { column: i32, rows: *const [rows_cap]Row };
+const SortContext = struct { column: i32, rows: []const Row, pool: *const Strings };
 
 /// The text that a row is ordered by when the table is sorted by a column. Because names and groups are
-/// compared in lower case, capitals do not sort apart from small letters. The patch ID is not part of the
-/// text; it only breaks ties.
-fn sortText(row: *const Row, column: i32) []const u8 {
-    return switch (column) {
-        0 => typeOf(row),
-        2 => nameOf(row),
-        3 => groupOf(row),
+/// compared in lower case, capitals do not sort apart from small letters. The patch ID is not part of the text;
+/// it only breaks ties.
+fn sortText(context: SortContext, row: Row) []const u8 {
+    return switch (context.column) {
+        0 => library.typeName(row),
+        2 => context.pool.get(row.name),
+        3 => context.pool.get(row.group),
         else => "",
     };
 }
 
 fn sortLess(context: SortContext, a: u32, b: u32) bool {
-    const left = &context.rows[a];
-    const right = &context.rows[b];
-    const ta = sortText(left, context.column);
-    const tb = sortText(right, context.column);
+    const left = context.rows[a];
+    const right = context.rows[b];
+    const ta = sortText(context, left);
+    const tb = sortText(context, right);
     if (!std.ascii.eqlIgnoreCase(ta, tb)) return std.ascii.lessThanIgnoreCase(ta, tb);
     return left.value < right.value;
 }
 
 /// The rows that the filters let through. A search ranks them by how well they match, best first.
-fn buildShown(w: *State, lib: *const library.Library) void {
-    w.shown_count = 0;
-    for (lib.rows[0..lib.count], 0..) |*row, i| {
-        if (matchesFilters(w, row)) {
-            w.shown[w.shown_count] = @intCast(i);
-            w.shown_count += 1;
-        }
+fn buildShown(w: *State, pool: *const Strings, rows: []const Row) void {
+    const allocator = plugin.allocator;
+    w.shown.clearRetainingCapacity();
+    for (rows, 0..) |row, i| {
+        if (matchesFilters(w, pool, row)) w.shown.append(allocator, @intCast(i)) catch return;
     }
     const query = std.mem.sliceTo(&w.search, 0);
     if (query.len == 0) return;
-    var ranked: [rows_cap]Ranked = undefined;
-    var count: usize = 0;
+    w.ranked.clearRetainingCapacity();
     var text_buf: [160]u8 = undefined;
-    for (w.shown[0..w.shown_count]) |index| {
-        const text = searchText(&text_buf, &lib.rows[index]);
+    for (w.shown.items) |index| {
+        const text = searchText(&text_buf, pool, rows[index]);
         if (fuzzy.score(query, text)) |score| {
-            ranked[count] = .{ .index = index, .score = score, .len = @intCast(text.len) };
-            count += 1;
+            w.ranked.append(allocator, .{ .index = index, .score = score, .len = @intCast(text.len) }) catch return;
         }
     }
-    std.mem.sort(Ranked, ranked[0..count], {}, rankedBefore);
-    for (ranked[0..count], 0..) |entry, k| w.shown[k] = entry.index;
-    w.shown_count = count;
+    std.mem.sort(Ranked, w.ranked.items, {}, rankedBefore);
+    w.shown.clearRetainingCapacity();
+    for (w.ranked.items) |entry| w.shown.append(allocator, entry.index) catch return;
 }
 
 // ---- the table ----
 
 /// A small button, "Add" with an arrow pointing to the scenes. Because the font has no arrow, the arrow is
 /// drawn as a triangle on the right of the button, in the room that trailing spaces leave.
-fn addButton(ctx: imgui.ContextPtr, id: u64) bool {
+fn addButton(ctx: imgui.ContextPtr, id: u32) bool {
     var label: [48:0]u8 = undefined;
     const clicked = imgui.api.SmallButton(ctx, std.fmt.bufPrintZ(&label, "Add    ##{x}", .{id}) catch "Add");
     var left: f64 = 0;
@@ -205,16 +187,8 @@ fn patchTable(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
         imgui.api.TableSetupColumn(ctx, "Scenes", &fixed_no_sort, &w_scenes, null);
         imgui.api.TableHeadersRow(ctx);
 
-        const rows = libraryOf(w) orelse {
-            imgui.api.EndTable(ctx);
-            imgui.api.TextColored(ctx, theme.red, "There is no memory for the table.");
-            widgets.popFont(kit, pushed);
-            var one: c_int = 1;
-            imgui.api.PopStyleColor(ctx, &one);
-            return null;
-        };
-        library.ensure(p, rows);
-        buildShown(w, rows);
+        const rows = library.rows(p);
+        buildShown(w, &p.strings, rows);
         // The first sort spec is the column the player clicked last. Because the table may report it only on
         // the frame of the click, and the rows are rebuilt each frame, the choice is kept in the state.
         var column: c_int = 0;
@@ -226,11 +200,12 @@ fn patchTable(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
         }
         // While a search is typed, the rows stay in the order of their match.
         if (w.sort_column >= 0 and w.search[0] == 0) {
-            std.mem.sort(u32, w.shown[0..w.shown_count], SortContext{ .column = w.sort_column, .rows = &rows.rows }, sortLess);
-            if (w.sort_descending) std.mem.reverse(u32, w.shown[0..w.shown_count]);
+            const context = SortContext{ .column = w.sort_column, .rows = rows, .pool = &p.strings };
+            std.mem.sort(u32, w.shown.items, context, sortLess);
+            if (w.sort_descending) std.mem.reverse(u32, w.shown.items);
         }
-        for (w.shown[0..w.shown_count]) |index| {
-            action = types.first(action, drawRow(p, ctx, &rows.rows[index]));
+        for (w.shown.items) |index| {
+            action = types.first(action, drawRow(p, ctx, rows[index]));
         }
         imgui.api.EndTable(ctx);
     }
@@ -248,67 +223,69 @@ fn patchTable(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     return action;
 }
 
-fn drawRow(p: *Plugin, ctx: imgui.ContextPtr, row: *const Row) ?types.Action {
+fn drawRow(p: *Plugin, ctx: imgui.ContextPtr, row: Row) ?types.Action {
     const w = &p.ui.patches;
     var action: ?types.Action = null;
     imgui.api.TableNextRow(ctx, null, null);
     _ = imgui.api.TableNextColumn(ctx);
     // One click selects the row; a double click sends it to the keyboard.
     var label: [64:0]u8 = undefined;
-    const text = std.fmt.bufPrintZ(&label, "{s}##{x}", .{ typeOf(row), row.key }) catch "?";
-    var selected = w.selected == row.key;
+    const text = std.fmt.bufPrintZ(&label, "{s}##{x}", .{ library.typeName(row), row.value }) catch "?";
+    var selected = w.selected == row.value;
     var flags: c_int = imgui.SelectableFlags_SpanAllColumns | imgui.SelectableFlags_AllowOverlap | imgui.SelectableFlags_AllowDoubleClick;
     if (imgui.api.Selectable(ctx, text, &selected, &flags, null, null)) {
-        w.selected = row.key;
+        w.selected = row.value;
         w.delete_armed = 0;
         if (imgui.api.IsMouseDoubleClicked(ctx, 0)) action = .{ .send_patch = library.patchOf(p, row) };
     }
     _ = imgui.api.TableNextColumn(ctx);
-    imgui.api.Text(ctx, &row.number);
+    imgui.api.Text(ctx, p.strings.get(row.number));
     _ = imgui.api.TableNextColumn(ctx);
-    imgui.api.Text(ctx, &row.name);
+    imgui.api.Text(ctx, p.strings.get(row.name));
     _ = imgui.api.TableNextColumn(ctx);
-    imgui.api.TextColored(ctx, theme.grey, &row.group);
+    imgui.api.TextColored(ctx, theme.grey, p.strings.get(row.group));
     _ = imgui.api.TableNextColumn(ctx);
     var value: [16:0]u8 = undefined;
     imgui.api.Text(ctx, std.fmt.bufPrintZ(&value, "{d}", .{row.value}) catch "");
     _ = imgui.api.TableNextColumn(ctx);
-    if (addButton(ctx, row.key)) action = .{ .add_scene = library.patchOf(p, row) };
+    if (addButton(ctx, row.value)) action = .{ .add_scene = library.patchOf(p, row) };
     return action;
 }
 
 // ---- the library card ----
 
-/// The groups of the table in the order that they first appear, after "All groups".
-fn drawGroupCombo(ctx: imgui.ContextPtr, w: *State, lib: *const library.Library) void {
+/// The groups of the table in the order that they first appear, after "All groups". Because a text is stored
+/// once in the strings, two rows of the same group have the same ID, and the groups are told apart by it.
+fn drawGroupCombo(ctx: imgui.ContextPtr, w: *State, pool: *const Strings, rows: []const Row) void {
     var width: f64 = 140;
     imgui.api.SetNextItemWidth(ctx, width);
     width = 0;
     if (!imgui.api.BeginCombo(ctx, "##patchgroup", &w.group, null)) return;
-    var seen: [32][group_cap:0]u8 = undefined;
+    var seen: [32]strings.Ref = undefined;
     var seen_count: usize = 0;
     if (imgui.api.Selectable(ctx, all_groups, null, null, null, null)) w.group = initialGroup();
-    for (lib.rows[0..lib.count]) |*row| {
-        const group = groupOf(row);
-        if (group.len == 0) continue;
+    for (rows) |row| {
+        if (row.group == strings.empty) continue;
         var known = false;
-        for (seen[0..seen_count]) |*existing| {
-            if (std.mem.eql(u8, std.mem.sliceTo(existing, 0), group)) known = true;
+        for (seen[0..seen_count]) |existing| {
+            if (existing == row.group) known = true;
         }
         if (known or seen_count == seen.len) continue;
-        copyName(&seen[seen_count], group);
+        seen[seen_count] = row.group;
         seen_count += 1;
+        const group = pool.get(row.group);
         var selected = std.mem.eql(u8, std.mem.sliceTo(&w.group, 0), group);
-        if (imgui.api.Selectable(ctx, &row.group, &selected, null, null, null)) copyName(&w.group, group);
+        if (imgui.api.Selectable(ctx, group, &selected, null, null, null)) copyName(&w.group, group);
     }
     imgui.api.EndCombo(ctx);
 }
 
-fn selectedPreset(p: *Plugin) ?[]u8 {
+/// The file name of the selected row, when it is a preset.
+fn selectedPreset(p: *Plugin) ?strings.Ref {
     const w = &p.ui.patches;
-    const list = p.ui.preset_names orelse return null;
-    for (list.items) |file_name| {
-        if (std.hash.Wyhash.hash(0, file_name) == w.selected) return file_name;
+    if (w.selected == 0) return null;
+    for (library.rows(p)) |row| {
+        if (row.kind == .preset and row.value == w.selected) return row.file;
     }
     return null;
 }
@@ -324,15 +301,15 @@ fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     if (p.ui.pending_save.phase != .idle) {
         imgui.api.TextColored(ctx, theme.amber, "Reading the keyboard...");
     } else if (widgets.pushButton(kit, "Save the keyboard as a patch", 0)) {
-        action = .{ .save_keyboard = types.Text.of(std.mem.sliceTo(&p.ui.save_name, 0)) };
+        action = .{ .save_keyboard = p.strings.intern(std.mem.sliceTo(&p.ui.save_name, 0)) };
     }
     widgets.tooltip(kit, "Reads the keyboard, then saves what it holds as a preset under this name. The preset then appears in the table, where it can be sent to the keyboard or added to the scenes.");
-    if (selectedPreset(p)) |file_name| {
+    if (selectedPreset(p)) |file| {
         imgui.api.SameLine(ctx, null, null);
         const armed = w.delete_armed == w.selected;
         if (widgets.pushButton(kit, if (armed) "Click again to delete" else "Delete the selected preset", 0)) {
             if (armed) {
-                action = .{ .delete_preset = types.Text.of(file_name) };
+                action = .{ .delete_preset = file };
                 w.selected = 0;
                 w.delete_armed = 0;
             } else {
@@ -351,7 +328,8 @@ pub fn drawLibrary(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const w = &p.ui.patches;
     if (!widgets.beginCard(kit, "Patches", null, null, null)) return null;
     defer widgets.endCard(kit);
-    if (p.ui.reg_library == null) {
+    const rows = library.rows(p);
+    if (p.library.registration_count == 0) {
         imgui.api.TextColored(ctx, theme.grey, "No registrations folder: run build-install.sh vr09 to fill Data/Perken/vr09/registrations.");
     }
     imgui.api.SetNextItemWidth(ctx, 280);
@@ -367,10 +345,15 @@ pub fn drawLibrary(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
         imgui.api.EndCombo(ctx);
     }
     imgui.api.SameLine(ctx, null, null);
-    // The groups come from the rows of the last frame.
-    if (w.library) |rows| drawGroupCombo(ctx, w, rows);
+    drawGroupCombo(ctx, w, &p.strings, rows);
+    imgui.api.SameLine(ctx, null, null);
+    var refresh = false;
+    if (widgets.pushButton(kit, "Refresh", 0)) refresh = true;
+    widgets.tooltip(kit, "Reads the registrations and the presets folders again, after files were added or removed by hand. Saving or deleting a preset here needs no refresh.");
     const from_table = patchTable(p, ctx);
-    return types.first(from_table, saveRow(p, ctx));
+    const from_save = saveRow(p, ctx);
+    if (refresh) return .refresh_library;
+    return types.first(from_table, from_save);
 }
 
 // ---- the Patches tab ----
@@ -406,7 +389,7 @@ pub fn drawPatches(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
         var input_flags: c_int = imgui.InputTextFlags_None;
         _ = imgui.api.InputTextWithHint(ctx, "##export", "path of the file to write (a dump, as vr09.py reads it)", &p.ui.export_path, p.ui.export_path.len, &input_flags, null);
         imgui.api.SameLine(ctx, null, null);
-        if (widgets.pushButton(kit, "Export", 0)) action = .{ .export_file = types.Text.of(std.mem.sliceTo(&p.ui.export_path, 0)) };
+        if (widgets.pushButton(kit, "Export", 0)) action = .{ .export_file = p.strings.intern(std.mem.sliceTo(&p.ui.export_path, 0)) };
         widgets.endCard(kit);
     }
     return action;

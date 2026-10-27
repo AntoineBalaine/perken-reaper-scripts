@@ -12,6 +12,8 @@ const debug_api = @import("debug_api.zig");
 const actions = @import("actions.zig");
 const types = @import("action_types.zig");
 const dispatch = @import("dispatch.zig");
+const library = @import("library.zig");
+const strings = @import("strings.zig");
 
 const entry = @import("clap_entry.zig").clap_entry;
 
@@ -523,11 +525,11 @@ test "the debug commands add, list, move, select and remove scenes" {
     try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
 }
 
-fn tonePatch(part: []const u8, number: u8, msb: u8, lsb: u8, name: []const u8) types.Patch {
+fn tonePatch(self: *plugin.Plugin, part: [:0]const u8, number: u8, msb: u8, lsb: u8, name: [:0]const u8) types.Patch {
     return .{
-        .source = .{ .tone = .{ .part = types.Text.of(part), .number = number, .msb = msb, .lsb = lsb } },
-        .name = types.Text.of(name),
-        .label = types.Text.of(name),
+        .source = .{ .tone = .{ .part = self.strings.intern(part), .number = number, .msb = msb, .lsb = lsb } },
+        .name = self.strings.intern(name),
+        .label = self.strings.intern(name),
     };
 }
 
@@ -541,11 +543,11 @@ test "the dispatcher carries out the actions that the panel returned, one after 
     const self = plugin.Plugin.from(p);
 
     const asked = [_]types.Action{
-        .{ .add_scene = tonePatch("upper_synth", 12, 3, 1, "Lead") },
-        .{ .add_scene = tonePatch("upper_piano", 58, 6, 0, "Vintage EP") },
-        .{ .add_scene = tonePatch("lower_piano", 56, 2, 0, "Grand") },
+        .{ .add_scene = tonePatch(self, "upper_synth", 12, 3, 1, "Lead") },
+        .{ .add_scene = tonePatch(self, "upper_piano", 58, 6, 0, "Vintage EP") },
+        .{ .add_scene = tonePatch(self, "lower_piano", 56, 2, 0, "Grand") },
         .{ .select_scene = 2 },
-        .{ .rename_scene = .{ .position = 3, .name = types.Text.of("Pad") } },
+        .{ .rename_scene = .{ .position = 3, .name = self.strings.intern("Pad") } },
     };
     for (asked) |action| dispatch.dispatch(self, action);
 
@@ -565,8 +567,8 @@ test "the dispatcher moves and removes scenes, and the current scene follows" {
     const p = createPlugin(&host);
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
-    for ([_][]const u8{ "A", "B", "C" }, 0..) |name, i| {
-        _ = try dispatch.addScene(self, tonePatch("upper_piano", @intCast(i + 1), 0, 0, name));
+    for ([_][:0]const u8{ "A", "B", "C" }, 0..) |name, i| {
+        _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", @intCast(i + 1), 0, 0, name));
     }
     try std.testing.expectEqual(@as(u8, 3), self.scene_list.count);
 
@@ -595,7 +597,7 @@ test "the dispatcher says what went wrong, and a change of the engine goes throu
     try std.testing.expectEqualStrings("There is no scene 9.", std.mem.sliceTo(&self.ui.notice_text, 0));
 
     // A patch that the panel cannot send is said, and it is not an error of the player's.
-    dispatch.dispatch(self, .{ .send_patch = .{ .source = .unsupported, .name = types.Text.of("Hip Hop"), .label = types.Text.of("Hip Hop") } });
+    dispatch.dispatch(self, .{ .send_patch = .{ .source = .unsupported, .name = self.strings.intern("Hip Hop"), .label = self.strings.intern("Hip Hop") } });
     try std.testing.expect(!self.ui.notice_is_error);
     try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "Hip Hop") != null);
 
@@ -611,6 +613,160 @@ test "the dispatcher says what went wrong, and a change of the engine goes throu
     try std.testing.expect(self.settings.sysex_bare.load(.monotonic));
 }
 
+test "a patch is found by its ID in the sources, and its text is stored once" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    const tones_mod = @import("tones.zig");
+
+    // The first tone has the ID 101 and goes to the upper piano part.
+    const first = library.patchById(self, 101).?;
+    try std.testing.expectEqualStrings(tones_mod.piano[0].name, self.strings.get(first.name));
+    try std.testing.expectEqualStrings("upper_piano", self.strings.get(first.source.tone.part));
+    try std.testing.expectEqual(@as(u16, 101), first.id);
+    // The first synth follows the last piano.
+    const synth = library.patchById(self, @intCast(101 + tones_mod.piano.len)).?;
+    try std.testing.expectEqualStrings("upper_synth", self.strings.get(synth.source.tone.part));
+    // A drum kit has a name and no source that the panel can send.
+    const kit = library.patchById(self, @intCast(101 + tones_mod.piano.len + tones_mod.synth.len)).?;
+    try std.testing.expectEqualStrings(tones_mod.drum[0].name, self.strings.get(kit.name));
+    try std.testing.expect(kit.source == .unsupported);
+    try std.testing.expect(library.patchById(self, 100) == null);
+    try std.testing.expect(library.patchById(self, @intCast(101 + tones_mod.piano.len + tones_mod.synth.len + tones_mod.drum.len)) == null);
+
+    // Finding the same patch again stores no new text: the IDs are the same.
+    const again = library.patchById(self, 101).?;
+    try std.testing.expectEqual(first.name, again.name);
+    try std.testing.expectEqual(first.source.tone.part, again.source.tone.part);
+}
+
+fn presetNames(self: *plugin.Plugin, out: *std.ArrayList([]const u8)) !void {
+    for (library.rows(self)) |row| {
+        if (row.kind == .preset) try out.append(self.strings.get(row.name));
+    }
+}
+
+test "a registration or a preset is found by its ID in the rows of the table" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    // Nothing is read before the rows are asked for, and nothing lists the registrations or the presets here.
+    try std.testing.expect(!self.library.built);
+    try std.testing.expect(library.patchById(self, 5) == null);
+    try std.testing.expect(self.library.built);
+    library.addPreset(self, "Warm Pad.vr09");
+    const found = library.patchById(self, library.presetId("Warm Pad")).?;
+    try std.testing.expectEqualStrings("Warm Pad", self.strings.get(found.name));
+    try std.testing.expectEqualStrings("Warm Pad.vr09", self.strings.get(found.source.preset));
+    try std.testing.expect(library.patchById(self, library.presetId("Other")) == null);
+}
+
+test "saving and deleting a preset adds and removes its row, in the order of the names" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    // Before the first read, a saved preset has no row to add: the read finds the file by itself.
+    library.addPreset(self, "Early.vr09");
+    try std.testing.expect(!self.library.built);
+
+    const tone_rows = library.rows(self).len;
+    library.addPreset(self, "Pad.vr09");
+    library.addPreset(self, "organ.vr09");
+    library.addPreset(self, "Zed.vr09");
+    library.addPreset(self, "Pad.vr09");
+    var names = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer names.deinit();
+    try presetNames(self, &names);
+    try std.testing.expectEqual(@as(usize, 3), names.items.len);
+    try std.testing.expectEqualStrings("organ", names.items[0]);
+    try std.testing.expectEqualStrings("Pad", names.items[1]);
+    try std.testing.expectEqualStrings("Zed", names.items[2]);
+    try std.testing.expectEqual(tone_rows + 3, library.rows(self).len);
+
+    library.removePreset(self, "Pad.vr09");
+    library.removePreset(self, "Missing.vr09");
+    names.clearRetainingCapacity();
+    try presetNames(self, &names);
+    try std.testing.expectEqual(@as(usize, 2), names.items.len);
+    try std.testing.expectEqualStrings("Zed", names.items[1]);
+    try std.testing.expect(library.patchById(self, library.presetId("Pad")) == null);
+}
+
+test "the folders are read into rows: the registrations by bank and slot, the presets by name" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    var registration_dir = std.testing.tmpDir(.{});
+    defer registration_dir.cleanup();
+    for ([_][]const u8{ "10-1_B.json", "2-1_Sweet_Dream.json", "verify.json", "2-2_C.vr09" }) |n| {
+        try registration_dir.dir.writeFile(.{ .sub_path = n, .data = "{}" });
+    }
+    var preset_dir = std.testing.tmpDir(.{});
+    defer preset_dir.cleanup();
+    for ([_][]const u8{ "b.vr09", "A.vr09" }) |n| {
+        try preset_dir.dir.writeFile(.{ .sub_path = n, .data = "{}" });
+    }
+    var registration_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const registration_folder = try registration_dir.dir.realpath(".", &registration_buf);
+    var preset_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const preset_folder = try preset_dir.dir.realpath(".", &preset_buf);
+
+    var found = library.Library{};
+    defer found.deinit(plugin.allocator);
+    library.appendRegistrations(self, &found, registration_folder);
+    try std.testing.expectEqual(@as(u32, 2), found.registration_count);
+    try std.testing.expectEqualStrings("Sweet Dream", self.strings.get(found.rows.items[0].name));
+    try std.testing.expectEqualStrings("2-1", self.strings.get(found.rows.items[0].number));
+    try std.testing.expectEqual(@as(u32, 5), found.rows.items[0].value);
+    try std.testing.expectEqualStrings("10-1_B.json", self.strings.get(found.rows.items[1].file));
+    library.appendPresets(self, &found, preset_folder);
+    try std.testing.expectEqual(@as(usize, 4), found.rows.items.len);
+    try std.testing.expectEqualStrings("A", self.strings.get(found.rows.items[2].name));
+    try std.testing.expectEqualStrings("b", self.strings.get(found.rows.items[3].name));
+}
+
+test "choosing a tone in a card writes it to that part, the same as a tone of the library" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    const tones_mod = @import("tones.zig");
+
+    // The card of the lower synth is the sixth part.
+    const tone = &tones_mod.synth[3];
+    dispatch.dispatch(self, .{ .choose_tone = .{ .part = 5, .tone = tone } });
+    var written = dump.Dump{};
+    self.shared.desiredSnapshot(&written);
+    try std.testing.expectEqual(@as(usize, 3), written.knownCount());
+    const block = dump.blockByName("lower_synth").?;
+    const base = dump.block_offsets[block] + 1;
+    try std.testing.expectEqual(tone.number, written.values[base]);
+    try std.testing.expectEqual(tone.msb, written.values[base + 1]);
+    try std.testing.expectEqual(tone.lsb, written.values[base + 2]);
+}
+
 test "a tone patch becomes a scene that holds only its three bytes, and an unsupported one is refused" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
@@ -620,10 +776,10 @@ test "a tone patch becomes a scene that holds only its three bytes, and an unsup
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
 
-    const position = try dispatch.addScene(self, tonePatch("upper_synth", 12, 3, 1, "Lead"));
+    const position = try dispatch.addScene(self, tonePatch(self, "upper_synth", 12, 3, 1, "Lead"));
     try std.testing.expectEqual(@as(u8, 1), position);
-    try std.testing.expectError(error.NotSupported, dispatch.addScene(self, .{ .source = .unsupported, .name = types.Text.of("Kit"), .label = types.Text.of("Kit") }));
-    try std.testing.expectError(error.BadPart, dispatch.addScene(self, tonePatch("drum", 1, 1, 0, "Kit")));
+    try std.testing.expectError(error.NotSupported, dispatch.addScene(self, .{ .source = .unsupported, .name = self.strings.intern("Kit"), .label = self.strings.intern("Kit") }));
+    try std.testing.expectError(error.BadPart, dispatch.addScene(self, tonePatch(self, "drum", 1, 1, 0, "Kit")));
     try std.testing.expectEqual(@as(u8, 1), self.scene_list.count);
 }
 

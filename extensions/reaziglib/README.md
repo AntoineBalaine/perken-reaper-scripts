@@ -14,7 +14,7 @@ surface shim) must be compiled with REAPER's own toolchain; see the
 |----------------|------------------------------------------------------------------|
 | `reaper`       | REAPER C API bindings (function pointers, opaque types)          |
 | `reaper_imgui` | ReaImGui bindings                                                |
-| `utils`        | Volume/pan conversion, GUID handling, CC delta helpers, StringPool |
+| `utils`        | Volume/pan conversion, GUID handling, CC delta helpers           |
 
 ### FX
 

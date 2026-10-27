@@ -53,9 +53,9 @@ pub fn exists(path: []const u8) bool {
 }
 
 /// The names (without folder) of the files in `dir` whose name ends with one
-/// of `extensions`. The caller owns the list and the names.
-pub fn listFiles(allocator: std.mem.Allocator, dir: []const u8, extensions: []const []const u8) !std.ArrayList([]u8) {
-    var names = std.ArrayList([]u8).init(allocator);
+/// of `extensions`. The names are null-terminated. The caller owns the list and the names.
+pub fn listFiles(allocator: std.mem.Allocator, dir: []const u8, extensions: []const []const u8) !std.ArrayList([:0]u8) {
+    var names = std.ArrayList([:0]u8).init(allocator);
     errdefer freeList(allocator, &names);
     if (is_windows) {
         try win.listFilesWin(allocator, dir, extensions, &names);
@@ -67,12 +67,12 @@ pub fn listFiles(allocator: std.mem.Allocator, dir: []const u8, extensions: []co
     while (try it.next()) |entry| {
         if (entry.kind != .file) continue;
         if (!hasExtension(entry.name, extensions)) continue;
-        try names.append(try allocator.dupe(u8, entry.name));
+        try names.append(try allocator.dupeZ(u8, entry.name));
     }
     return names;
 }
 
-pub fn freeList(allocator: std.mem.Allocator, list: *std.ArrayList([]u8)) void {
+pub fn freeList(allocator: std.mem.Allocator, list: *std.ArrayList([:0]u8)) void {
     for (list.items) |n| allocator.free(n);
     list.deinit();
 }
@@ -202,7 +202,7 @@ const win = if (is_windows) struct {
         if (DeleteFileA(p) == 0) return error.FileNotFound;
     }
 
-    pub fn listFilesWin(allocator: std.mem.Allocator, dir: []const u8, extensions: []const []const u8, names: *std.ArrayList([]u8)) !void {
+    pub fn listFilesWin(allocator: std.mem.Allocator, dir: []const u8, extensions: []const []const u8, names: *std.ArrayList([:0]u8)) !void {
         var pb: [max_path]u8 = undefined;
         const pattern = std.fmt.bufPrintZ(&pb, "{s}\\*", .{dir}) catch return error.NameTooLong;
         var data: WIN32_FIND_DATAA = undefined;
@@ -212,7 +212,7 @@ const win = if (is_windows) struct {
         while (true) {
             if (data.attributes & FILE_ATTRIBUTE_DIRECTORY == 0) {
                 const name = std.mem.sliceTo(&data.file_name, 0);
-                if (hasExtension(name, extensions)) try names.append(try allocator.dupe(u8, name));
+                if (hasExtension(name, extensions)) try names.append(try allocator.dupeZ(u8, name));
             }
             if (FindNextFileA(h, &data) == 0) break;
         }
