@@ -25,4 +25,6 @@ comptime {
     _ = @import("controls_panel.zig");
     _ = @import("fuzzy.zig");
     _ = @import("patches_panel.zig");
+    _ = @import("scenes_panel.zig");
+    _ = @import("scene_lane.zig");
 }

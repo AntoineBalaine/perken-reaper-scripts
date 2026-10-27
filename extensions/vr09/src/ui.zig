@@ -25,6 +25,7 @@ const theme = @import("theme.zig");
 const widgets = @import("widgets.zig");
 const controls_panel = @import("controls_panel.zig");
 const patches_panel = @import("patches_panel.zig");
+const scenes_panel = @import("scenes_panel.zig");
 
 const Plugin = plugin.Plugin;
 const log = std.log.scoped(.ui);
@@ -58,6 +59,8 @@ pub const Window = struct {
     panel: controls_panel.State = .{},
     /// What the library of patches keeps between frames.
     patches: patches_panel.State = .{},
+    /// What the list of the session's scenes keeps between frames.
+    scenes_panel: scenes_panel.State = .{},
     frame: u32 = 0,
     errors_logged: u32 = 0,
     /// How many ImGui contexts this window has created, to tell a reopened
@@ -137,6 +140,7 @@ pub fn close(p: *Plugin) void {
     p.ui.fonts = .{};
     freePresets(&p.ui);
     freeRegistrations(&p.ui);
+    scenes_panel.free(&p.ui.scenes_panel);
 }
 
 pub fn shutdown() void {}
@@ -383,7 +387,9 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
             imgui.api.EndTabItem(ctx);
         }
         if (widgets.beginTab(ctx, "SCENES", &flags[1])) {
-            patches_panel.drawScenes(p, ctx);
+            patches_panel.drawLibrary(p, ctx);
+            imgui.api.SameLine(ctx, null, null);
+            scenes_panel.draw(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
         if (widgets.beginTab(ctx, "PATCHES", &flags[2])) {

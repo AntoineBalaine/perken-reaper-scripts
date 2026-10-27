@@ -67,7 +67,7 @@ fn initialGroup() [group_cap:0]u8 {
 
 const Kind = enum { registration, tone, preset };
 
-const Row = struct {
+pub const Row = struct {
     kind: Kind,
     key: u64,
     number: [8:0]u8,
@@ -113,7 +113,7 @@ fn addRow(row: Row) void {
 }
 
 /// Every patch of the table: the registrations, the tones, and then the player's presets.
-fn buildRows(p: *Plugin) void {
+pub fn buildRows(p: *Plugin) void {
     row_count = 0;
     const w = &p.ui;
     if (w.reg_library) |lib| {
@@ -166,6 +166,14 @@ fn buildRows(p: *Plugin) void {
             addRow(row);
         }
     }
+}
+
+/// The row of the table with this patch ID, from the last time the rows were built.
+pub fn rowByValue(value: u32) ?*const Row {
+    for (rows[0..row_count]) |*row| {
+        if (row.value == value) return row;
+    }
+    return null;
 }
 
 fn typeOf(row: *const Row) [:0]const u8 {
@@ -324,34 +332,38 @@ fn readLibraryFile(p: *Plugin, folder_of: enum { registrations, presets }, file_
     return true;
 }
 
-/// Puts a library row at the end of the session's scenes, as a scene of its name.
-fn addToScenes(p: *Plugin, row: *const Row) void {
-    const patch = plugin.allocator.create(dump.Dump) catch return;
+/// Puts a library row at the end of the session's scenes, as a scene of the given name, or of its own name.
+/// Returns whether the scene was added. A scene that a template adds says nothing, because the template says
+/// it once for all of them.
+pub fn addToScenes(p: *Plugin, row: *const Row, scene_name: ?[]const u8) bool {
+    const patch = plugin.allocator.create(dump.Dump) catch return false;
     defer plugin.allocator.destroy(patch);
     patch.* = .{};
     switch (row.kind) {
         .registration => {
-            const lib = p.ui.reg_library orelse return;
-            if (!readLibraryFile(p, .registrations, lib.entries.items[row.source].file_name, patch)) return;
+            const lib = p.ui.reg_library orelse return false;
+            if (!readLibraryFile(p, .registrations, lib.entries.items[row.source].file_name, patch)) return false;
         },
         .preset => {
-            const list = p.ui.preset_names orelse return;
-            if (!readLibraryFile(p, .presets, list.items[row.source], patch)) return;
+            const list = p.ui.preset_names orelse return false;
+            if (!readLibraryFile(p, .presets, list.items[row.source], patch)) return false;
         },
         .tone => {
             const part = partOfTone(row) orelse {
                 ui.notice(&p.ui, "The panel does not make scenes of drum kits yet.", .{}, false);
-                return;
+                return false;
             };
             const tone = toneOf(row);
-            if (!scenes.toneDump(patch, part, tone.number, tone.msb, tone.lsb)) return;
+            if (!scenes.toneDump(patch, part, tone.number, tone.msb, tone.lsb)) return false;
         },
     }
-    const position = p.scene_list.addFrom(nameOf(row), patch, @intCast(row.value), nameOf(row)) catch {
+    const name = scene_name orelse nameOf(row);
+    const position = p.scene_list.addFrom(name, patch, @intCast(row.value), nameOf(row)) catch {
         ui.notice(&p.ui, "The scene list is full.", .{}, true);
-        return;
+        return false;
     };
-    ui.notice(&p.ui, "Added \"{s}\" as scene {d}.", .{ nameOf(row), position }, false);
+    if (scene_name == null) ui.notice(&p.ui, "Added \"{s}\" as scene {d}.", .{ name, position }, false);
+    return true;
 }
 
 // ---- the table ----
@@ -461,7 +473,7 @@ fn drawRow(p: *Plugin, ctx: imgui.ContextPtr, row: *const Row) void {
     var value: [16:0]u8 = undefined;
     imgui.api.Text(ctx, std.fmt.bufPrintZ(&value, "{d}", .{row.value}) catch "");
     _ = imgui.api.TableNextColumn(ctx);
-    if (addButton(ctx, row.key)) addToScenes(p, row);
+    if (addButton(ctx, row.key)) _ = addToScenes(p, row, null);
 }
 
 // ---- the library card ----
@@ -545,7 +557,8 @@ fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) void {
     }
 }
 
-fn patchList(p: *Plugin, ctx: imgui.ContextPtr) void {
+/// The card of the library: the search, the filters, the table, and the row that saves the keyboard.
+pub fn drawLibrary(p: *Plugin, ctx: imgui.ContextPtr) void {
     const w = &p.ui.patches;
     if (!widgets.beginCard(ctx, "Patches", null, null, null)) return;
     defer widgets.endCard(ctx);
@@ -569,52 +582,6 @@ fn patchList(p: *Plugin, ctx: imgui.ContextPtr) void {
     drawGroupCombo(ctx, w);
     patchTable(p, ctx);
     saveRow(p, ctx);
-}
-
-// ---- the session's scenes ----
-
-/// The list of the session's scenes: a row for each, with its name and the patch it came from. A click
-/// selects the scene, which has the plugin recall its patch, and the button on its right removes it.
-fn sceneList(p: *Plugin, ctx: imgui.ContextPtr) void {
-    if (!widgets.beginCard(ctx, "Scenes of this session", null, null, null)) return;
-    defer widgets.endCard(ctx);
-    const list = p.scene_list;
-    if (list.count == 0) {
-        imgui.api.TextColored(ctx, theme.grey, "No scenes yet. Press Add on a patch.");
-        return;
-    }
-    const current = p.scene.load(.monotonic);
-    const pushed = widgets.pushLabelFont(ctx);
-    defer widgets.popFont(ctx, pushed);
-    var remove_at: ?u8 = null;
-    var position: u8 = 1;
-    while (position <= list.count) : (position += 1) {
-        const scene = list.get(position) orelse break;
-        var label: [160:0]u8 = undefined;
-        const text = std.fmt.bufPrintZ(&label, "{d}  {s}  ({s})##scene{d}", .{ position, scene.name(), scene.label(), position }) catch "?";
-        var selected = current == position;
-        if (imgui.api.Selectable(ctx, text, &selected, null, null, null)) {
-            p.selectScene(position) catch {};
-        }
-        imgui.api.SameLine(ctx, null, null);
-        var button: [24:0]u8 = undefined;
-        if (imgui.api.SmallButton(ctx, std.fmt.bufPrintZ(&button, "Remove##r{d}", .{position}) catch "Remove")) remove_at = position;
-    }
-    if (remove_at) |at| {
-        var map: scenes.Mapping = undefined;
-        _ = p.removeScene(at, &map);
-    }
-    imgui.api.Separator(ctx);
-    var line: [96:0]u8 = undefined;
-    const scene = list.get(current);
-    imgui.api.Text(ctx, std.fmt.bufPrintZ(&line, "Scene parameter: {d}  {s}", .{ current, if (scene) |s| s.name() else "(no scene)" }) catch "");
-}
-
-/// The Scenes tab: the library of patches, and beside it the session's scenes.
-pub fn drawScenes(p: *Plugin, ctx: imgui.ContextPtr) void {
-    patchList(p, ctx);
-    imgui.api.SameLine(ctx, null, null);
-    sceneList(p, ctx);
 }
 
 // ---- the Patches tab ----
