@@ -63,6 +63,17 @@ Generate the tone list again when the roland-vr09 project's `docs/tones.json` ch
 python3 tools/gen_lua_tones.py <path to roland-vr09>/docs/tones.json > ui-lab/tones.lua
 ```
 
+## Fonts
+
+Because the panel's lettering has to look the same on every computer, the lab ships two open fonts in `fonts/`, each with its license file:
+
+- Saira Condensed (regular and bold), for the text, the labels, the numbers and the card titles. It is under the SIL Open Font License 1.1 (`Saira-OFL.txt`).
+- Librestile Extended Bold, for the tab names. It is under the same license (`Librestile-OFL.txt`, `Librestile-LICENSE.txt`).
+
+The lab loads these files by their path, so that nothing has to be installed. Because the fonts are not changed, their reserved names are kept.
+
+The tabs prefer OPTI Edgar Bold Extended when it is installed. Because no license lets anyone share that font, the lab does not ship it: each person who wants it installs it on their own computer. Without it, the tabs use Librestile. When a shipped file is missing or cannot be loaded, the lab uses the system's fonts: see `LABEL_FAMILIES`, `TITLE_FAMILIES` and `TAB_FAMILIES` in `vr09_lab.lua` for the order that each role follows.
+
 ## From the lab to the plugin
 
 The plugin draws with Zig calls that mirror the Lua ones (`ImGui.SliderInt` here, `imgui.api.SliderInt` in `src/ui.zig`). A component that looks right here is then written in `src/ui.zig`, and the lab's `panel.lua` and the plugin stay alike.

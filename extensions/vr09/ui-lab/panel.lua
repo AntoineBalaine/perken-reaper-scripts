@@ -24,14 +24,14 @@ local function module(name)
   return loaded_here[name]
 end
 
--- Begins a tab, with its name drawn in the tab font, or in the title font when the lab has none.
+-- Begins a tab, with its name in capitals, drawn in the tab font, or in the title font when the lab has none.
 -- Because ImGui draws the name when the tab begins, the font and the color are popped at once, and the
 -- tab's content keeps the usual ones.
 local function begin_tab(ctx, label)
   local tab_font = env.fonts and (env.fonts.tab or env.fonts.title)
   if tab_font then ImGui.PushFont(ctx, tab_font) end
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, env.theme.tab_text)
-  local open = ImGui.BeginTabItem(ctx, label)
+  local open = ImGui.BeginTabItem(ctx, label:upper())
   ImGui.PopStyleColor(ctx)
   if tab_font then ImGui.PopFont(ctx) end
   return open

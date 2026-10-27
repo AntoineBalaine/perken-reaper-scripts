@@ -161,12 +161,12 @@ local restore_window = false
 -- The fonts of the panel. A font must be attached to the context before the first frame, so that
 -- changing one here needs the lab to be closed and run again.
 --
--- Because the lab ships no font file, and because each system has different fonts, every role has an
--- ordered list of families for each system. The first family of the list that is installed is used,
--- and the last one, which is the system's own, is used without a check, so that a font that is missing
--- on a computer never leaves the panel without one.
+-- Because each system has different fonts, every role has an ordered list of families for each system.
+-- The first family of the list that is installed, or that the lab ships, is used, and the last one,
+-- which is the system's own, is used without a check, so that a font that is missing on a computer
+-- never leaves the panel without one.
 -- The text that no role below claims, such as the notes, the buttons and the tables, is drawn in
--- Saira Condensed in its regular weight, and in the system's sans-serif when it is not installed.
+-- Saira Condensed in its regular weight, and in the system's sans-serif if its files are missing.
 local TEXT_FAMILIES = {
   macos = { "Saira Condensed", "sans-serif" },
   windows = { "Saira Condensed", "sans-serif" },
@@ -202,13 +202,14 @@ local TITLE_FAMILIES = {
 local TITLE_SIZE = 18
 
 -- The tabs have a face of their own, so that it can be changed apart from the card titles, and the
--- choice is remembered like the titles'. It is OPTIEdgarBold-Extended, because the wide, squared
--- lettering of the VR-09's section headers is close to it. Because the font is not free to bundle, the
--- lab does not ship it, and the tabs use the card titles' fallback when it is not installed.
+-- choice is remembered like the titles'. It is OPTIEdgarBold-Extended when it is installed, because the
+-- wide, squared lettering of the VR-09's section headers is close to it. Because that font has no
+-- license that allows sharing it, the lab does not ship it. The lab ships Librestile Extended Bold
+-- instead, an open font of the same kind, and the tabs use it when Edgar is not installed.
 local TAB_FAMILIES = {
-  macos = { "OPTIEdgarBold-Extended", "Arial Black" },
-  windows = { "OPTIEdgarBold-Extended", "Arial Black" },
-  linux = { "OPTIEdgarBold-Extended", "DejaVu Sans", "Noto Sans", "sans-serif" },
+  macos = { "OPTIEdgarBold-Extended", "Librestile Extended Bold", "Arial Black" },
+  windows = { "OPTIEdgarBold-Extended", "Librestile Extended Bold", "Arial Black" },
+  linux = { "OPTIEdgarBold-Extended", "Librestile Extended Bold", "DejaVu Sans", "Noto Sans", "sans-serif" },
 }
 local TAB_SIZE = 13
 
@@ -259,9 +260,45 @@ local function installed_families()
   return FONT_LISTING.text
 end
 
--- Whether a family is installed. The generic families ("sans-serif" and "monospace") always are, and
--- every family is taken as installed when the listing could not be read.
+-- The font files that the lab ships in its `fonts` folder, by the family name that they answer to. A
+-- family has a file for its regular weight and, when it has one, a file for its bold weight. Their
+-- licenses are in the same folder.
+local BUNDLED_FONTS = {
+  ["Saira Condensed"] = { regular = "fonts/SairaCondensed-Regular.ttf", bold = "fonts/SairaCondensed-Bold.ttf" },
+  ["Librestile Extended Bold"] = { regular = "fonts/LibrestileExtBold.ttf" },
+}
+
+-- The path of the shipped file of a family in a weight, or nil when the family has none or its file is
+-- missing. A family without a bold file gives its regular one.
+local function bundled_path(family, bold)
+  local files = BUNDLED_FONTS[family]
+  if not files then return nil end
+  local file = bold and files.bold or files.regular
+  local handle = io.open(dir .. file, "rb")
+  if not handle then return nil end
+  handle:close()
+  return dir .. file
+end
+
+-- Makes a font of a family. A family that the lab ships is loaded from its file, so that it needs no
+-- installation, and the family name is used when the file cannot be loaded. Because the bold weight
+-- of a shipped family is a file of its own, the bold flag is asked of the system's fonts only.
+local function create_font(family, size, flags)
+  local bold = flags ~= nil and ImGui.FontFlags_Bold ~= nil and (flags & ImGui.FontFlags_Bold) ~= 0
+  local path = bundled_path(family, bold)
+  if path then
+    local has_bold_file = BUNDLED_FONTS[family].bold ~= nil
+    local ok, font = pcall(ImGui.CreateFont, path, size, has_bold_file and ImGui.FontFlags_None or flags)
+    if ok and font then return font end
+  end
+  return ImGui.CreateFont(family, size, flags)
+end
+
+-- Whether a family can be used: the family that the lab ships, the generic families ("sans-serif" and
+-- "monospace"), and the installed ones. Every family is taken as installed when the listing could
+-- not be read.
 local function is_installed(family)
+  if bundled_path(family) then return true end
   local installed = installed_families()
   if not installed or family == "sans-serif" or family == "monospace" then return true end
   return installed:find(squeeze(family), 1, true) ~= nil
@@ -282,10 +319,10 @@ local FONT_CHOICES = {
   macos = { "Arial", "DIN Alternate", "DIN Condensed", "Impact", "Krungthep", "Phosphate", "Monaco", "Arial Black",
     "Rockwell", "Avenir Next Condensed", "Menlo", "Andale Mono", "PT Mono", "Courier New",
     "Helvetica Neue", "Helvetica", "Arial Narrow", "Futura",
-    "OPTIEdgarBold-Extended", "Big Shoulders Display Black", "Saira Condensed", "Michroma", "Barlow Condensed", "Barlow Condensed SemiBold", "Roboto Condensed", "Archivo Narrow" },
+    "OPTIEdgarBold-Extended", "Librestile Extended Bold", "Big Shoulders Display Black", "Saira Condensed", "Michroma", "Barlow Condensed", "Barlow Condensed SemiBold", "Roboto Condensed", "Archivo Narrow" },
   windows = { "Arial", "Bahnschrift", "Impact", "Arial Black", "Consolas", "Lucida Console", "Courier New",
-    "Arial Narrow" },
-  linux = { "Liberation Sans", "DejaVu Sans", "Barlow Semi Condensed", "Roboto Condensed", "Liberation Sans Narrow",
+    "Arial Narrow", "Librestile Extended Bold" },
+  linux = { "Librestile Extended Bold", "Liberation Sans", "DejaVu Sans", "Barlow Semi Condensed", "Roboto Condensed", "Liberation Sans Narrow",
     "DejaVu Sans Condensed", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "Noto Sans", "sans-serif", "monospace" },
 }
 
@@ -323,13 +360,13 @@ local function new_context()
   contexts = contexts + 1
   -- Each context has a name of its own, so that two never share a window.
   ctx = ImGui.CreateContext("VR-09 lab " .. contexts)
-  font = ImGui.CreateFont(pick_family(TEXT_FAMILIES), TEXT_SIZE)
+  font = create_font(pick_family(TEXT_FAMILIES), TEXT_SIZE)
   ImGui.Attach(ctx, font)
   env.fonts = {
-    label = ImGui.CreateFont(LABEL_FAMILY, LABEL_SIZE, font_flags(LABEL_FAMILY)),
-    title = ImGui.CreateFont(TITLE_FAMILY, TITLE_SIZE, font_flags(TITLE_FAMILY)),
-    tab = ImGui.CreateFont(TAB_FAMILY, TAB_SIZE),
-    mono = ImGui.CreateFont(MONO_FAMILY, MONO_SIZE),
+    label = create_font(LABEL_FAMILY, LABEL_SIZE, font_flags(LABEL_FAMILY)),
+    title = create_font(TITLE_FAMILY, TITLE_SIZE, font_flags(TITLE_FAMILY)),
+    tab = create_font(TAB_FAMILY, TAB_SIZE),
+    mono = create_font(MONO_FAMILY, MONO_SIZE),
   }
   ImGui.Attach(ctx, env.fonts.label)
   ImGui.Attach(ctx, env.fonts.title)
