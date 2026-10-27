@@ -3,7 +3,8 @@
 //! Because the plugin is a single file that users install, the fonts are embedded in it and loaded
 //! from memory, so that nothing has to be installed beside it. Saira Condensed draws the text, the
 //! labels and the card titles, and Librestile Extended Bold draws the tab names. Both are under the
-//! SIL Open Font License, whose texts are in the `fonts` folder and in the release.
+//! SIL Open Font License, whose texts are in reaziglib's `assets/fonts` folder: an extension that ships
+//! these fonts inside its binary must ship the license texts with it.
 const imgui = @import("reaper_imgui");
 
 const saira_regular: [:0]const u8 = @embedFile("font_saira_regular");

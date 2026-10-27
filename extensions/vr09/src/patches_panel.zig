@@ -19,12 +19,12 @@ const registrations = @import("registrations.zig");
 const tones = @import("tones.zig");
 const scenes = @import("scenes.zig");
 const dump = @import("dump.zig");
-const fuzzy = @import("fuzzy.zig");
+const fuzzy = @import("fuzzy");
 const fileio = @import("fileio.zig");
 const glue = @import("reaper_glue.zig");
 const engine = @import("engine.zig");
-const theme = @import("theme.zig");
-const widgets = @import("widgets.zig");
+const theme = @import("panel_theme");
+const widgets = @import("panel_widgets");
 
 const Plugin = plugin.Plugin;
 

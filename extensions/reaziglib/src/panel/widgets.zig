@@ -1,5 +1,6 @@
-//! The panel's components, ported from the design lab's `widgets.lua`: the card that frames a group,
-//! the engraved title, the lamp, the display, the push button and the toggle.
+//! The components of a hardware-style panel, ported from the VR-09 design lab's `widgets.lua`: the card that
+//! frames a group, the engraved title, the lamp, the display, the push button, the toggle, the knobs, the
+//! drawbar, the envelope screen, the picker and the tabs.
 //!
 //! The Zig calls mirror the Lua ones (`ImGui.DrawList_AddLine` there, `imgui.api.DrawList_AddLine`
 //! here), so that a component that looks right in the lab is copied here call by call. Because a
@@ -8,9 +9,8 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
 const palette = @import("ui_palette");
-const theme = @import("theme.zig");
-const panel_fonts = @import("fonts.zig");
-const tones = @import("tones.zig");
+const theme = @import("panel_theme");
+const panel_fonts = @import("panel_fonts");
 
 const rgba = palette.rgba;
 
@@ -520,34 +520,14 @@ const drawbar_w: f64 = 40;
 const drawbar_h: f64 = 150;
 const cap_h: f64 = 20;
 
-const Cap = struct { body: c_int, edge: c_int };
-
-/// Because a tonewheel organ's drawbars come in three colors by footage, the cap's color is found from
-/// the end of the parameter's id ("organ-upper-d16" is "d16").
-fn capColors(id: []const u8) Cap {
-    const footage = if (std.mem.lastIndexOfScalar(u8, id, '-')) |at| id[at + 1 ..] else id;
-    const brown = [_][]const u8{ "d16", "d5f" };
-    const black = [_][]const u8{ "d2f", "d1f", "d1ff" };
-    for (brown) |name| {
-        if (std.mem.eql(u8, footage, name)) return .{ .body = theme.cap_brown, .edge = theme.cap_brown_edge };
-    }
-    for (black) |name| {
-        if (std.mem.eql(u8, footage, name)) return .{ .body = theme.cap_black, .edge = theme.cap_black_edge };
-    }
-    return .{ .body = theme.cap_white, .edge = theme.cap_white_edge };
-}
-
-/// "Upper organ drawbar 16'" is shown as "16'" under its drawbar.
-pub fn shortDrawbarName(label: []const u8) []const u8 {
-    const marker = "drawbar ";
-    const at = std.mem.indexOf(u8, label, marker) orelse return label;
-    return label[at + marker.len ..];
-}
+/// The color of a drawbar's cap and of its contour. Because a tonewheel organ's drawbars come in three colors,
+/// the caller says which one a drawbar has.
+pub const Cap = struct { body: c_int, edge: c_int };
 
 /// A drawbar pulled out of the panel: the value above it, a slot with a tick for each step, a stem and a
 /// cap that slides down as the value rises, and the footage under it. The user drags the cap, or clicks
 /// anywhere in the slot to bring the cap there. A disabled drawbar is drawn dim and does not move.
-pub fn drawbar(ctx: imgui.ContextPtr, control: Control, value: i32, label: []const u8, disabled: bool) Change {
+pub fn drawbar(ctx: imgui.ContextPtr, control: Control, value: i32, name: []const u8, cap_colors: Cap, disabled: bool) Change {
     imgui.api.BeginGroup(ctx);
 
     // The value is drawn in the label font, like the numbers of the knobs.
@@ -597,7 +577,7 @@ pub fn drawbar(ctx: imgui.ContextPtr, control: Control, value: i32, label: []con
     const cap_y1 = pos - cap_h / 2;
     const cap_y2 = pos + cap_h / 2;
     rectFilled(dl, cap_x1, cap_y1 + 2, cap_x2, cap_y2 + 2, rgba(0x00000099), 3);
-    var cap = capColors(control.id);
+    var cap = cap_colors;
     if (disabled) cap = .{ .body = faded(cap.body, 0x55), .edge = faded(cap.edge, 0x55) };
     rectFilled(dl, cap_x1, cap_y1, cap_x2, cap_y2, cap.body, 3);
     rect(dl, cap_x1, cap_y1, cap_x2, cap_y2, cap.edge, 3, 1);
@@ -608,10 +588,10 @@ pub fn drawbar(ctx: imgui.ContextPtr, control: Control, value: i32, label: []con
     }
 
     var name_buf: [64:0]u8 = undefined;
-    const name = std.fmt.bufPrintZ(&name_buf, "{s}", .{shortDrawbarName(label)}) catch "";
+    const shown_name = std.fmt.bufPrintZ(&name_buf, "{s}", .{name}) catch "";
     const pushed = pushLabelFont(ctx);
-    imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (drawbar_w - textSize(ctx, name).w) / 2);
-    imgui.api.TextColored(ctx, if (disabled) theme.text_dim else theme.label, name);
+    imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (drawbar_w - textSize(ctx, shown_name).w) / 2);
+    imgui.api.TextColored(ctx, if (disabled) theme.text_dim else theme.label, shown_name);
     popFont(ctx, pushed);
     imgui.api.EndGroup(ctx);
     return .{ .changed = result != value, .value = result };
@@ -1312,103 +1292,6 @@ pub fn envelope(ctx: imgui.ContextPtr, controls: [3]Control, values: [3]i32) Env
     return result;
 }
 
-// ---- the tone picker ----
-
-const tone_w: f64 = 190;
-pub const tone_filter_cap = 64;
-
-fn toneMatches(tone: *const tones.Tone, filter: []const u8) bool {
-    if (filter.len == 0) return true;
-    return std.ascii.indexOfIgnoreCase(tone.name, filter) != null or std.ascii.indexOfIgnoreCase(tone.group, filter) != null;
-}
-
-/// Chooses one tone of a list. It shows the chosen tone's name on a display, with a button on each side to
-/// step to the previous and the next tone, and the tone's bytes under it. A click on the display opens a
-/// list of every tone, grouped, with a field that filters it as the user types. `index` is the chosen
-/// tone's position and `filter` the text of the search field. Returns the new position.
-pub fn tonePicker(ctx: imgui.ContextPtr, id: [:0]const u8, list: []const tones.Tone, index: usize, filter: *[tone_filter_cap:0]u8) usize {
-    const tone = &list[index];
-    var result = index;
-    imgui.api.PushID(ctx, id);
-    defer imgui.api.PopID(ctx);
-
-    if (pushButton(ctx, "<", 30) and index > 0) result = index - 1;
-    imgui.api.SameLine(ctx, null, null);
-
-    // The display: a recessed screen with the name in the accent color, and a caret that says it opens a list.
-    const pushed = pushLabelFont(ctx);
-    const text_line = imgui.api.GetTextLineHeight(ctx);
-    const at = cursorScreenPos(ctx);
-    const height = text_line + 12;
-    _ = imgui.api.InvisibleButton(ctx, "##tone", tone_w, height, null);
-    const hot = imgui.api.IsItemHovered(ctx, null);
-    if (imgui.api.IsItemClicked(ctx, null)) imgui.api.OpenPopup(ctx, "##tonelist", null);
-    const dl = imgui.api.GetWindowDrawList(ctx);
-    rectFilled(dl, at.x, at.y, at.x + tone_w, at.y + height, theme.slot_bg, 3);
-    rect(dl, at.x, at.y, at.x + tone_w, at.y + height, if (hot) accent() else theme.slot_edge, 3, 1);
-    imgui.api.DrawList_AddText(dl, at.x + 10, at.y + 6, accent(), tone.name);
-    const cx = at.x + tone_w - 12;
-    const cy = at.y + height / 2;
-    imgui.api.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, if (hot) accent() else theme.text_dim);
-    drawGlass(dl, at.x, at.y, at.x + tone_w, at.y + height);
-    popFont(ctx, pushed);
-    imgui.api.SameLine(ctx, null, null);
-    if (pushButton(ctx, ">", 30) and index + 1 < list.len) result = index + 1;
-
-    // The group and the three bytes that select the tone, in the label font like the other numbers.
-    const line_font = pushLabelFont(ctx);
-    var info: [96:0]u8 = undefined;
-    const info_text = std.fmt.bufPrintZ(&info, "{s}   tone {d}   bank {d}.{d}", .{ tone.group, tone.number, tone.msb, tone.lsb }) catch "";
-    imgui.api.TextColored(ctx, theme.label, info_text);
-    popFont(ctx, line_font);
-
-    // The list of every tone, under the display.
-    var appearing: c_int = imgui.Cond_Appearing;
-    imgui.api.SetNextWindowPos(ctx, at.x, at.y + height + 2, &appearing, null, null);
-    if (imgui.api.BeginPopup(ctx, "##tonelist", null)) {
-        if (imgui.api.IsWindowAppearing(ctx)) imgui.api.SetKeyboardFocusHere(ctx, null);
-        imgui.api.SetNextItemWidth(ctx, 300);
-        var input_flags: c_int = imgui.InputTextFlags_None;
-        _ = imgui.api.InputTextWithHint(ctx, "##search", "search by name or group", filter, filter.len, &input_flags, null);
-        var list_w: f64 = 300;
-        var list_h: f64 = 320;
-        if (imgui.api.BeginChild(ctx, "##tonescroll", &list_w, &list_h, null, null)) {
-            const needle = std.mem.sliceTo(filter, 0);
-            var group: []const u8 = "";
-            for (list, 0..) |*t, i| {
-                if (!toneMatches(t, needle)) continue;
-                // A group's heading is drawn when its first tone that matches the search is.
-                if (!std.mem.eql(u8, t.group, group)) {
-                    group = t.group;
-                    imgui.api.SeparatorText(ctx, t.group);
-                }
-                var item: [96:0]u8 = undefined;
-                const label = std.fmt.bufPrintZ(&item, "{s}##tone{d}", .{ t.name, i }) catch "?";
-                var selected = i == index;
-                if (imgui.api.Selectable(ctx, label, &selected, null, null, null)) result = i;
-            }
-            imgui.api.EndChild(ctx);
-        }
-        imgui.api.EndPopup(ctx);
-    }
-    return result;
-}
-
-// ---- the tabs ----
-
-/// Begins a tab, with its name drawn in the tab font and the tab color. Because ImGui draws the name when the
-/// tab begins, the font and the color are popped at once, and the tab's content keeps the usual ones.
-pub fn beginTab(ctx: imgui.ContextPtr, label: [:0]const u8, flags: ?*c_int) bool {
-    const font = frame.fonts.tab;
-    if (font != null) imgui.api.PushFont(ctx, font);
-    imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.tab_text);
-    const is_open = imgui.api.BeginTabItem(ctx, label, null, flags);
-    var one: c_int = 1;
-    imgui.api.PopStyleColor(ctx, &one);
-    if (font != null) imgui.api.PopFont(ctx);
-    return is_open;
-}
-
 // ---- the picker ----
 
 /// Begins a picker: a recessed screen with the chosen text in the accent color and a caret, like the display
@@ -1456,6 +1339,21 @@ pub fn pickItem(ctx: imgui.ContextPtr, label: [:0]const u8, selected: bool, enab
 
 pub fn endPickList(ctx: imgui.ContextPtr) void {
     imgui.api.EndPopup(ctx);
+}
+
+// ---- the tabs ----
+
+/// Begins a tab, with its name drawn in the tab font and the tab color. Because ImGui draws the name when the
+/// tab begins, the font and the color are popped at once, and the tab's content keeps the usual ones.
+pub fn beginTab(ctx: imgui.ContextPtr, label: [:0]const u8, flags: ?*c_int) bool {
+    const font = frame.fonts.tab;
+    if (font != null) imgui.api.PushFont(ctx, font);
+    imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.tab_text);
+    const is_open = imgui.api.BeginTabItem(ctx, label, null, flags);
+    var one: c_int = 1;
+    imgui.api.PopStyleColor(ctx, &one);
+    if (font != null) imgui.api.PopFont(ctx);
+    return is_open;
 }
 
 // Because Zig only compiles the functions that something calls, this test makes the whole module compile,

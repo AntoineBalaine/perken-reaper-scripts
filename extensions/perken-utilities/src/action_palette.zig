@@ -13,7 +13,7 @@ const Reaper = @import("reaper").reaper;
 const imgui = @import("reaper_imgui");
 const palette = @import("ui_palette");
 const actions = @import("actions.zig");
-const fuzzy = @import("fuzzy.zig");
+const fuzzy = @import("fuzzy");
 
 const log = std.log.scoped(.action_palette);
 

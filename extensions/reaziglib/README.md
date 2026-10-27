@@ -31,6 +31,10 @@ surface shim) must be compiled with REAPER's own toolchain; see the
 | `knob`         | Knob widget for ReaImGui                  |
 | `colorHelpers` | Color utilities (HSV, contrast, blending) |
 | `ui_palette`   | The whichkey window's colors (Console1's main palette) and the color sets for windows, text fields and lists, shared by reavim-ext and Perken Utilities |
+| `panel_widgets` | The components of a hardware-style panel, ported from the VR-09 design lab: cards with an accent, the engraved title, the lamp, the display, buttons, toggles, knobs (with named stops), the drawbar, the envelope screen, the picker, the brackets over a row of knobs and the tabs. They draw with `panel_theme` and `panel_fonts` |
+| `panel_theme`  | The colors and styles of that panel look (a dark metal face, engraved labels, recessed slots). An extension keeps the accents of its own parts |
+| `panel_fonts`  | Saira Condensed and Librestile Extended Bold, embedded in the binary and loaded from memory, with the system's sans-serif as the fallback. Both are under the SIL Open Font License; their texts are in `assets/fonts`, and an extension that embeds them must ship the texts |
+| `fuzzy`        | The fzf-style matcher of the action palettes and of the VR-09 patch table (the letters of a query in order, scored for runs and word starts) |
 
 ### Helpers
 

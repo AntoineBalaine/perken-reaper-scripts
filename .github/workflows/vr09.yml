@@ -70,7 +70,7 @@ jobs:
             cp README.md "$pkg/README.md"
             # The fonts are embedded in the plugin, and their licenses must travel with it.
             mkdir -p "$pkg/licenses"
-            cp fonts/*.txt "$pkg/licenses/"
+            cp ../reaziglib/assets/fonts/*.txt "$pkg/licenses/"
             (cd dist && zip -qr "vr09-$name.zip" "vr09-$name")
             echo "::endgroup::"
           done

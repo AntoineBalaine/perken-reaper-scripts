@@ -13,8 +13,10 @@ const engine = @import("engine.zig");
 const catalog = @import("catalog.zig");
 const extras = @import("extras.zig");
 const tones = @import("tones.zig");
-const theme = @import("theme.zig");
-const widgets = @import("widgets.zig");
+const theme = @import("panel_theme");
+const widgets = @import("panel_widgets");
+const accents = @import("accents.zig");
+const tone_picker = @import("tone_picker.zig");
 
 /// What the tab keeps between frames, besides the plugin's own values.
 pub const State = struct {
@@ -22,7 +24,7 @@ pub const State = struct {
     /// yet, so the choice is only shown.
     tone_keys: [8]u64 = [_]u64{0} ** 8,
     tone_index: [8]usize = [_]usize{0} ** 8,
-    tone_filter: [8][widgets.tone_filter_cap:0]u8 = [_][widgets.tone_filter_cap:0]u8{[_:0]u8{0} ** widgets.tone_filter_cap} ** 8,
+    tone_filter: [8][tone_picker.tone_filter_cap:0]u8 = [_][tone_picker.tone_filter_cap:0]u8{[_:0]u8{0} ** tone_picker.tone_filter_cap} ** 8,
     /// The values that the user gave to the extras, which only the screen keeps. An extra that was not
     /// touched shows its default.
     extra_values: [extras.params.len]i32 = [_]i32{0} ** extras.params.len,
@@ -313,15 +315,37 @@ fn cardOfIds(ui: Ui, title: []const u8, ids: []const []const u8, card_accent: ?c
     widgets.endCard(ui.ctx);
 }
 
+/// Because a tonewheel organ's drawbars come in three colors by footage, the cap's color is found from the end
+/// of the parameter's id ("organ-upper-d16" is "d16").
+fn capColors(id: []const u8) widgets.Cap {
+    const footage = if (std.mem.lastIndexOfScalar(u8, id, '-')) |at| id[at + 1 ..] else id;
+    const brown = [_][]const u8{ "d16", "d5f" };
+    const black = [_][]const u8{ "d2f", "d1f", "d1ff" };
+    for (brown) |name| {
+        if (std.mem.eql(u8, footage, name)) return .{ .body = theme.cap_brown, .edge = theme.cap_brown_edge };
+    }
+    for (black) |name| {
+        if (std.mem.eql(u8, footage, name)) return .{ .body = theme.cap_black, .edge = theme.cap_black_edge };
+    }
+    return .{ .body = theme.cap_white, .edge = theme.cap_white_edge };
+}
+
+/// "Upper organ drawbar 16'" is shown as "16'" under its drawbar.
+fn shortDrawbarName(label: []const u8) []const u8 {
+    const marker = "drawbar ";
+    const at = std.mem.indexOf(u8, label, marker) orelse return label;
+    return label[at + marker.len ..];
+}
+
 fn cardOfDrawbars(ui: Ui, group: []const u8, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, group, null, height, theme.part.organ)) return;
+    if (!widgets.beginCard(ui.ctx, group, null, height, accents.part.organ)) return;
     partToggle(ui, group);
     var refs: [refs_cap]Ref = undefined;
     const count = collectGroup(group, &refs);
     for (refs[0..count], 0..) |ref, i| {
         var id: [64:0]u8 = undefined;
         imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "bar");
-        const change = widgets.drawbar(ui.ctx, ref.control, valueOf(ui, ref), ref.label, false);
+        const change = widgets.drawbar(ui.ctx, ref.control, valueOf(ui, ref), shortDrawbarName(ref.label), capColors(ref.control.id), false);
         imgui.api.PopID(ui.ctx);
         if (change.changed) setValue(ui, ref, change.value);
         if (i + 1 < count) sameLine(ui.ctx);
@@ -333,7 +357,7 @@ fn cardOfDrawbars(ui: Ui, group: []const u8, height: ?f64) void {
 /// tweeter under them. Because the catalog lists the switch first, then the woofer, then the tweeter, the
 /// parameters are taken by their position.
 fn cardOfRotary(ui: Ui, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, "Rotary", null, height, theme.part.organ)) return;
+    if (!widgets.beginCard(ui.ctx, "Rotary", null, height, accents.part.organ)) return;
     var refs: [refs_cap]Ref = undefined;
     const count = collectGroup("Rotary", &refs);
     for (refs[0..count], 0..) |ref, i| {
@@ -400,7 +424,7 @@ fn cardOfSynth(ui: Ui, group: []const u8) void {
         .{ .label = "Filter", .from = 1, .to = 1 },
         .{ .label = envelope_of ++ " envelope", .from = 2, .to = 4 },
     };
-    const tint = if (upper) theme.part.upper else theme.part.lower;
+    const tint = if (upper) accents.part.upper else accents.part.lower;
     var refs: [refs_cap]Ref = undefined;
     const count = collectGroup(group, &refs);
     const size = cardOfKnobs(ui, refs[0..count], .{ .title = group, .strip = strip, .bipolar = true, .brackets = &brackets, .accent = tint }) orelse return;
@@ -432,13 +456,13 @@ fn cardOfMixer(ui: Ui) void {
             band[n] = ref;
             n += 1;
         }
-        _ = cardOfKnobs(ui, band[0..n], .{ .title = "Upper", .suffixes = &suffixes, .accent = theme.part.upper, .height = row });
+        _ = cardOfKnobs(ui, band[0..n], .{ .title = "Upper", .suffixes = &suffixes, .accent = accents.part.upper, .height = row });
     }
     if (total >= 2) {
         sameLine(ui.ctx);
-        _ = cardOfKnobs(ui, all[0..2], .{ .title = "Backing", .suffixes = &suffixes, .accent = theme.part.backing, .height = row });
+        _ = cardOfKnobs(ui, all[0..2], .{ .title = "Backing", .suffixes = &suffixes, .accent = accents.part.backing, .height = row });
     }
-    if (total >= 7) _ = cardOfKnobs(ui, all[5..7], .{ .title = "Lower", .suffixes = &suffixes, .accent = theme.part.lower });
+    if (total >= 7) _ = cardOfKnobs(ui, all[5..7], .{ .title = "Lower", .suffixes = &suffixes, .accent = accents.part.lower });
 }
 
 /// The piano's volumes of its upper, upper dual 2 and lower parts, then the controllers of the piano that is
@@ -474,7 +498,7 @@ fn cardOfPianoMain(ui: Ui) void {
         .strip = "Piano (dual 2)",
         .suffixes = &.{" volume"},
         .brackets = &brackets,
-        .accent = theme.part.piano,
+        .accent = accents.part.piano,
         .bipolar_ids = &.{"cc-piano-pan"},
     });
 }
@@ -510,7 +534,7 @@ fn cardsOfPianoShaping(ui: Ui) void {
             .labels = labels[0..n],
             .bipolar = true,
             .brackets = &brackets,
-            .accent = if (shaping.upper) theme.part.upper else theme.part.lower,
+            .accent = if (shaping.upper) accents.part.upper else accents.part.lower,
         });
     }
 }
@@ -548,7 +572,7 @@ fn cardOfUpperControllers(ui: Ui) void {
         .strip = "Upper",
         .columns = 7,
         .bipolar_ids = &bipolar_controllers,
-        .accent = theme.part.upper,
+        .accent = accents.part.upper,
         .brackets_by_row = &rows,
     });
 }
@@ -567,7 +591,7 @@ fn cardOfLowerControllers(ui: Ui) void {
         .title = "Lower controllers",
         .strip = "Lower",
         .bipolar_ids = &bipolar_controllers,
-        .accent = theme.part.lower,
+        .accent = accents.part.lower,
     });
 }
 
@@ -584,7 +608,7 @@ fn cardOfMasterController(ui: Ui) void {
         n = 2;
     }
     const labels = [_]IdText{ .{ .id = "cc-master-expression", .text = "overall volume" }, .{ .id = "tone-level", .text = "tone level" } };
-    _ = cardOfKnobs(ui, refs[0..n], .{ .title = "Master", .accent = theme.part.master, .labels = &labels, .bipolar_ids = &.{"tone-level"} });
+    _ = cardOfKnobs(ui, refs[0..n], .{ .title = "Master", .accent = accents.part.master, .labels = &labels, .bipolar_ids = &.{"tone-level"} });
 }
 
 // ---- the effects ----
@@ -595,13 +619,13 @@ const Effect = struct { title: []const u8, tint: c_int, ids: []const []const u8 
 /// shown. A parameter with named values is a knob with stops, and a level is a knob.
 const effect_rows = [_][]const Effect{
     &.{
-        .{ .title = "Reverb", .tint = theme.fx.reverb, .ids = &.{ "reverb-type", "reverb-variation", "reverb-level", "wall-type" } },
-        .{ .title = "Vibrato / chorus", .tint = theme.fx.chorus, .ids = &.{"vibrato-chorus-type"} },
+        .{ .title = "Reverb", .tint = accents.fx.reverb, .ids = &.{ "reverb-type", "reverb-variation", "reverb-level", "wall-type" } },
+        .{ .title = "Vibrato / chorus", .tint = accents.fx.chorus, .ids = &.{"vibrato-chorus-type"} },
     },
     &.{
-        .{ .title = "MFX", .tint = theme.fx.mfx, .ids = &.{ "mfx-type", "mfx-level" } },
-        .{ .title = "Delay", .tint = theme.fx.delay, .ids = &.{ "delay-type", "delay-level" } },
-        .{ .title = "Compressor", .tint = theme.fx.compressor, .ids = &.{"compressor-level"} },
+        .{ .title = "MFX", .tint = accents.fx.mfx, .ids = &.{ "mfx-type", "mfx-level" } },
+        .{ .title = "Delay", .tint = accents.fx.delay, .ids = &.{ "delay-type", "delay-level" } },
+        .{ .title = "Compressor", .tint = accents.fx.compressor, .ids = &.{"compressor-level"} },
     },
 };
 
@@ -632,7 +656,7 @@ fn cardOfEffects(ui: Ui) void {
 /// the switches. The unit refuses the EQ and the overdrive's dry mix, and the rest the plugin does not have,
 /// so that all of it is drawn disabled.
 fn cardOfOrganVoicing(ui: Ui, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, "Organ voicing", null, height, theme.part.organ)) return;
+    if (!widgets.beginCard(ui.ctx, "Organ voicing", null, height, accents.part.organ)) return;
     const rows = [_][]const []const u8{
         &.{ "organ-type", "rotary-type", "percussion", "percussion-level" },
         &.{ "organ-eq-high", "organ-eq-low", "overdrive-dry" },
@@ -670,7 +694,7 @@ fn cardOfOrganPedal(ui: Ui, height: ?f64) void {
         const ref = refOfExtra(extra);
         var id: [64:0]u8 = undefined;
         imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "pedal");
-        _ = widgets.drawbar(ui.ctx, ref.control, valueOf(ui, ref), ref.label, true);
+        _ = widgets.drawbar(ui.ctx, ref.control, valueOf(ui, ref), shortDrawbarName(ref.label), capColors(ref.control.id), true);
         imgui.api.PopID(ui.ctx);
     }
     imgui.api.TextColored(ui.ctx, theme.text_dim, "Not in the plugin yet (MIDI channel 2).");
@@ -683,7 +707,7 @@ fn organExtras(ui: Ui) void {
     sameLine(ui.ctx);
     cardOfOrganPedal(ui, height);
     // The rotary speaker's times and its brake, which the unit refuses, under them.
-    cardOfIds(ui, "Rotary times", &.{ "woofer-rise", "woofer-fall", "tweeter-rise", "tweeter-fall", "rotary-brake" }, theme.part.organ, null);
+    cardOfIds(ui, "Rotary times", &.{ "woofer-rise", "woofer-fall", "tweeter-rise", "tweeter-fall", "rotary-brake" }, accents.part.organ, null);
 }
 
 // ---- the tones, the drums and the performance ----
@@ -712,7 +736,7 @@ fn toneSlot(state: *State, id: []const u8) usize {
 fn toneChoice(ui: Ui, id: [:0]const u8, list: []const tones.Tone) bool {
     const slot = toneSlot(ui.state, id);
     const before = ui.state.tone_index[slot];
-    const chosen = widgets.tonePicker(ui.ctx, id, list, before, &ui.state.tone_filter[slot]);
+    const chosen = tone_picker.tonePicker(ui.ctx, id, list, before, &ui.state.tone_filter[slot]);
     ui.state.tone_index[slot] = chosen;
     return chosen != before;
 }
@@ -736,7 +760,7 @@ fn setNotice(state: *State, comptime fmt: []const u8, args: anytype) void {
 
 /// The card of one part's tone. The plugin has no tone parameter yet, so the choice is only shown.
 fn cardOfTone(ui: Ui, part: TonePart) void {
-    if (!widgets.beginCard(ui.ctx, part.title, null, null, if (part.upper) theme.part.upper else theme.part.lower)) return;
+    if (!widgets.beginCard(ui.ctx, part.title, null, null, if (part.upper) accents.part.upper else accents.part.lower)) return;
     const list: []const tones.Tone = if (part.synth) &tones.synth else &tones.piano;
     if (toneChoice(ui, part.id, list)) {
         const slot = toneSlot(ui.state, part.id);
@@ -767,7 +791,7 @@ fn tonesSection(ui: Ui) void {
 /// The drum part: its kit from the tone list, its volume, and a switch. The document lists these at the drum
 /// block's offsets, but the unit's dumps do not match them, so the card says it is unconfirmed.
 fn drumsSection(ui: Ui) void {
-    if (!widgets.beginCard(ui.ctx, "Drum kit", null, null, theme.part.master)) return;
+    if (!widgets.beginCard(ui.ctx, "Drum kit", null, null, accents.part.master)) return;
     _ = toneChoice(ui, "drum", &tones.drum);
     partToggle(ui, "drum");
     if (findRef("drum-volume")) |ref| drawRef(ui, ref, "volume", false);
@@ -802,12 +826,12 @@ fn cardOfPedals(ui: Ui, tint: c_int) void {
 /// and the touch.
 fn performanceSection(ui: Ui) void {
     const height = rowHeight(&.{ "Footswitches", "D-Beam", "Keyboard" });
-    cardOfIds(ui, "Footswitches", &.{ "footswitch-left", "footswitch-right" }, theme.part.master, height);
+    cardOfIds(ui, "Footswitches", &.{ "footswitch-left", "footswitch-right" }, accents.part.master, height);
     sameLine(ui.ctx);
-    cardOfIds(ui, "D-Beam", &.{"d-beam"}, theme.part.master, height);
+    cardOfIds(ui, "D-Beam", &.{"d-beam"}, accents.part.master, height);
     sameLine(ui.ctx);
-    cardOfIds(ui, "Keyboard", &.{ "transpose", "initial-touch", "expression-curve" }, theme.part.master, height);
-    cardOfPedals(ui, theme.part.master);
+    cardOfIds(ui, "Keyboard", &.{ "transpose", "initial-touch", "expression-curve" }, accents.part.master, height);
+    cardOfPedals(ui, accents.part.master);
 }
 
 // ---- the synth engine ----
@@ -881,7 +905,7 @@ fn gm2Section(ui: Ui) void {
     for ([_]u8{ 5, 6, 7, 8, 9, 10, 12, 14, 15 }, 0..) |channel, i| {
         ids[i] = std.fmt.bufPrint(&buffers[i], "gm2-ch{d}-program", .{channel}) catch "";
     }
-    cardOfIds(ui, "GM2 programs", &ids, theme.part.master, null);
+    cardOfIds(ui, "GM2 programs", &ids, accents.part.master, null);
 }
 
 // ---- the sections ----
@@ -919,7 +943,7 @@ fn organSection(ui: Ui) void {
     const knob_height = rowHeight(&.{ "Organ", "Rotary" });
     var refs: [refs_cap]Ref = undefined;
     const count = collectGroup("Organ", &refs);
-    _ = cardOfKnobs(ui, refs[0..count], .{ .title = "Organ", .accent = theme.part.organ, .height = knob_height });
+    _ = cardOfKnobs(ui, refs[0..count], .{ .title = "Organ", .accent = accents.part.organ, .height = knob_height });
     sameLine(ui.ctx);
     cardOfRotary(ui, knob_height);
     organExtras(ui);

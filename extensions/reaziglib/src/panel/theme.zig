@@ -1,8 +1,9 @@
-//! The panel's colors and styles, ported from the design lab's `theme.lua`.
+//! The colors and styles of a hardware-style panel, ported from the VR-09 design lab's `theme.lua`.
 //!
 //! The look imitates a hardware organ: a dark metal face, engraved labels, recessed slots, and caps in
-//! the colors of a tonewheel organ's drawbars. Colors are 0xRRGGBBAA. Because the lab is where the
-//! look is designed, a change of color is made there first and copied here.
+//! the colors of a tonewheel organ's drawbars. Colors are 0xRRGGBBAA. The accents of an extension's own
+//! parts and effects are not here: each extension keeps its own. Because the VR-09 lab is where the look
+//! is designed, a change of color is made there first and copied here.
 const imgui = @import("reaper_imgui");
 const palette = @import("ui_palette");
 
@@ -61,28 +62,6 @@ pub const card_bevel_dark = rgba(0x00000070);
 pub const screw_body = rgba(0x5C5C62FF);
 pub const screw_light = rgba(0x9A9AA2FF);
 pub const screw_slot = rgba(0x1A1A1CFF);
-
-/// The accent of each effect's card. It takes the place of the amber on the lit parts of the controls
-/// inside the card.
-pub const fx = struct {
-    pub const reverb = rgba(0x4FB0E8FF);
-    pub const chorus = rgba(0x4FD6A8FF);
-    pub const mfx = rgba(0xB67CF0FF);
-    pub const delay = rgba(0xF07A5AFF);
-    pub const compressor = rgba(0xE86AA8FF);
-};
-
-/// The accent of each part of the instrument, in the cards of the Synth, Mixer and Controllers tabs.
-pub const part = struct {
-    pub const upper = rgba(0x5AC8F0FF);
-    pub const lower = rgba(0xF08C5AFF);
-    pub const backing = rgba(0xF0B840FF);
-    pub const master = rgba(0xC8C4B8FF);
-    /// The organ keeps the amber that the lit parts of the controls have by default.
-    pub const organ = rgba(0xF0B840FF);
-    /// The ivory of a piano's keys.
-    pub const piano = rgba(0xF2EBD3FF);
-};
 
 /// The knobs and switches: a body of dark metal with a slightly lighter top and a thin edge.
 pub const knob_body = rgba(0x232326FF);

@@ -1,20 +1,6 @@
 const std = @import("std");
 const reaziglib = @import("reaziglib");
 
-/// The font files that the panel embeds, with the names that `@embedFile` takes. Because the lab reads the
-/// same files from the same folder, they are shared and not copied into `src`.
-const embedded_fonts = [_]struct { name: []const u8, path: []const u8 }{
-    .{ .name = "font_saira_regular", .path = "fonts/SairaCondensed-Regular.ttf" },
-    .{ .name = "font_saira_bold", .path = "fonts/SairaCondensed-Bold.ttf" },
-    .{ .name = "font_librestile", .path = "fonts/LibrestileExtBold.ttf" },
-};
-
-fn addFonts(b: *std.Build, module: *std.Build.Module) void {
-    for (embedded_fonts) |font| {
-        module.addAnonymousImport(font.name, .{ .root_source_file = b.path(font.path) });
-    }
-}
-
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -39,7 +25,6 @@ pub fn build(b: *std.Build) void {
     lib.linkLibC();
     lib.addIncludePath(clap_dep.path("include"));
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
-    addFonts(b, lib.root_module);
     lib.root_module.addOptions("build_options", build_options);
 
     // A CLAP plugin is a shared library whose file name ends in .clap. On
@@ -71,7 +56,6 @@ pub fn build(b: *std.Build) void {
     test_exe.linkLibC();
     test_exe.addIncludePath(clap_dep.path("include"));
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
-    addFonts(b, test_exe.root_module);
     test_exe.root_module.addOptions("build_options", build_options);
     // The sources that the API-list test scans.
     const test_paths = b.addOptions();

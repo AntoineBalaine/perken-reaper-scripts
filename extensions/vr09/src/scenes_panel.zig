@@ -16,8 +16,8 @@ const ui = @import("ui.zig");
 const scenes = @import("scenes.zig");
 const fileio = @import("fileio.zig");
 const glue = @import("reaper_glue.zig");
-const theme = @import("theme.zig");
-const widgets = @import("widgets.zig");
+const theme = @import("panel_theme");
+const widgets = @import("panel_widgets");
 const patches_panel = @import("patches_panel.zig");
 const scene_lane = @import("scene_lane.zig");
 

@@ -77,6 +77,35 @@ pub fn build(b: *std.Build) void {
     });
     knob_mod.addImport("reaper_imgui", reaper_imgui_mod);
 
+    // fuzzy (no deps): the fzf-style matcher of the action palettes and the patch table
+    const fuzzy_mod = b.addModule("fuzzy", .{
+        .root_source_file = b.path("src/fuzzy.zig"),
+    });
+    _ = fuzzy_mod;
+
+    // The hardware-style panel kit. panel_theme depends on reaper_imgui and ui_palette
+    const panel_theme_mod = b.addModule("panel_theme", .{
+        .root_source_file = b.path("src/panel/theme.zig"),
+    });
+    panel_theme_mod.addImport("reaper_imgui", reaper_imgui_mod);
+    panel_theme_mod.addImport("ui_palette", ui_palette_mod);
+
+    // panel_fonts depends on reaper_imgui, and embeds the font files of assets/fonts
+    const panel_fonts_mod = b.addModule("panel_fonts", .{
+        .root_source_file = b.path("src/panel/fonts.zig"),
+    });
+    panel_fonts_mod.addImport("reaper_imgui", reaper_imgui_mod);
+    addPanelFonts(b, panel_fonts_mod);
+
+    // panel_widgets depends on reaper_imgui, ui_palette, panel_theme and panel_fonts
+    const panel_widgets_mod = b.addModule("panel_widgets", .{
+        .root_source_file = b.path("src/panel/widgets.zig"),
+    });
+    panel_widgets_mod.addImport("reaper_imgui", reaper_imgui_mod);
+    panel_widgets_mod.addImport("ui_palette", ui_palette_mod);
+    panel_widgets_mod.addImport("panel_theme", panel_theme_mod);
+    panel_widgets_mod.addImport("panel_fonts", panel_fonts_mod);
+
     // mock_imgui depends on reaper_imgui
     const mock_imgui_mod = b.addModule("mock_imgui", .{
         .root_source_file = b.path("src/models/mock_imgui.zig"),
@@ -166,6 +195,10 @@ pub fn build(b: *std.Build) void {
         "src/swell.zig",
         "src/models/reaper_mock.zig",
         "src/reaper_helpers.zig",
+        "src/fuzzy.zig",
+        "src/panel/theme.zig",
+        "src/panel/fonts.zig",
+        "src/panel/widgets.zig",
     };
     const test_imports = [_]struct { name: []const u8, mod: *std.Build.Module }{
         .{ .name = "reaper", .mod = reaper_mod },
@@ -176,6 +209,10 @@ pub fn build(b: *std.Build) void {
         .{ .name = "track_model", .mod = track_model_mod },
         .{ .name = "session", .mod = session_mod },
         .{ .name = "automation_mode", .mod = automation_mode_mod },
+        .{ .name = "reaper_imgui", .mod = reaper_imgui_mod },
+        .{ .name = "ui_palette", .mod = ui_palette_mod },
+        .{ .name = "panel_theme", .mod = panel_theme_mod },
+        .{ .name = "panel_fonts", .mod = panel_fonts_mod },
     };
     for (test_files) |file| {
         const t = b.addTest(.{
@@ -185,6 +222,8 @@ pub fn build(b: *std.Build) void {
         });
         t.linkLibC();
         for (test_imports) |imp| t.root_module.addImport(imp.name, imp.mod);
+        // The fonts' own test embeds the same files as the module does.
+        if (std.mem.eql(u8, file, "src/panel/fonts.zig")) addPanelFonts(b, t.root_module);
         test_step.dependOn(&b.addRunArtifact(t).step);
     }
 
@@ -207,6 +246,21 @@ pub fn build(b: *std.Build) void {
         csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim"));
         csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim_test.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim_test"));
         test_step.dependOn(&b.addRunArtifact(csurf_test).step);
+    }
+}
+
+/// The font files that `panel_fonts` embeds, with the names that its `@embedFile` takes. They are imported by
+/// name, and not by path, because a module can only embed files inside its own folder. Their licenses are
+/// in the same folder, and an extension that ships them in its binary ships the licenses too.
+const panel_font_files = [_]struct { name: []const u8, path: []const u8 }{
+    .{ .name = "font_saira_regular", .path = "assets/fonts/SairaCondensed-Regular.ttf" },
+    .{ .name = "font_saira_bold", .path = "assets/fonts/SairaCondensed-Bold.ttf" },
+    .{ .name = "font_librestile", .path = "assets/fonts/LibrestileExtBold.ttf" },
+};
+
+fn addPanelFonts(b: *std.Build, module: *std.Build.Module) void {
+    for (panel_font_files) |font| {
+        module.addAnonymousImport(font.name, .{ .root_source_file = b.path(font.path) });
     }
 }
 
@@ -404,6 +458,10 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "ui_palette",
         "preset_file_reader",
         "knob",
+        "fuzzy",
+        "panel_theme",
+        "panel_fonts",
+        "panel_widgets",
         "mock_imgui",
         "reaper_mock",
         "automation_mode",

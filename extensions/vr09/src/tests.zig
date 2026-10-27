@@ -17,13 +17,10 @@ comptime {
     _ = @import("catalog.zig");
     _ = @import("debug_api.zig");
     _ = @import("host_test.zig");
-    _ = @import("widgets.zig");
-    _ = @import("fonts.zig");
-    _ = @import("theme.zig");
     _ = @import("extras.zig");
     _ = @import("tones.zig");
     _ = @import("controls_panel.zig");
-    _ = @import("fuzzy.zig");
+    _ = @import("tone_picker.zig");
     _ = @import("patches_panel.zig");
     _ = @import("scenes_panel.zig");
     _ = @import("scene_lane.zig");

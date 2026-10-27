@@ -194,7 +194,6 @@ test {
     _ = @import("batch_rename.zig");
     _ = @import("action_search.zig");
     _ = @import("action_palette.zig");
-    _ = @import("fuzzy.zig");
     _ = @import("abc_export.zig");
     _ = @import("terminal.zig");
     _ = @import("rational.zig");
