@@ -4,8 +4,8 @@
 //!
 //! The Zig calls mirror the Lua ones (`ImGui.DrawList_AddLine` there, `imgui.api.DrawList_AddLine`
 //! here), so that a component that looks right in the lab is copied here call by call. Because a
-//! frame is drawn by one thread, one window at a time, the few things that a card shares with its
-//! content live in `frame`, and `ui.zig` fills the fonts in before it draws.
+//! frame is drawn by one thread, the few things that a card shares with its content live in a `Panel`,
+//! the context object that every component takes as its first argument.
 const std = @import("std");
 const imgui = @import("reaper_imgui");
 const palette = @import("ui_palette");
@@ -14,57 +14,64 @@ const panel_fonts = @import("panel_fonts");
 
 const rgba = palette.rgba;
 
-/// What the components of one frame share.
-pub const Frame = struct {
+/// The height that each card's content needs, as it was measured when the card was last drawn. Cards that
+/// sit in a row take the tallest of these, so that the row has an even edge. The titles are kept as hashes,
+/// because the table has a fixed size and the titles are short.
+const natural_capacity = 64;
+const NaturalHeight = struct { key: u64 = 0, height: f64 = 0 };
+
+/// A panel being drawn: the context that every component takes as its first argument. It holds the ImGui
+/// context, the fonts, what a card shares with the components inside it (its accent, the colors it pushed and
+/// its title), the knob drag that is going on and the heights that the cards measured. Because the state is
+/// in the object and not in the module, each window has its own, and a window can be drawn at any time
+/// without disturbing another. The window makes one, and sets `ctx` and `fonts` before it draws a panel.
+pub const Panel = struct {
+    /// The ReaImGui context of the window being drawn.
+    ctx: imgui.ContextPtr = null,
     /// The fonts of the window being drawn.
     fonts: panel_fonts.Fonts = .{},
-    /// The accent of the card being drawn, which the lit parts of its controls take, or null when
-    /// the card has none. `beginCard` sets it and `endCard` clears it.
+    /// The accent of the card being drawn, which the lit parts of its controls take, or null when the card has
+    /// none. `beginCard` sets it and `endCard` clears it.
     accent: ?c_int = null,
     /// How many colors the card being drawn has pushed, which `endCard` pops.
     card_colors: c_int = 2,
     /// The title of the card being drawn.
     card_title: [96:0]u8 = [_:0]u8{0} ** 96,
+    /// The knob drag that is going on: a drag moves the value relative to where it started.
+    drag: Drag = .{},
+    /// The heights that the cards needed when they were last drawn.
+    heights: [natural_capacity]NaturalHeight = [_]NaturalHeight{.{}} ** natural_capacity,
 };
-
-pub var frame: Frame = .{};
-
-/// The height that each card's content needs, as it was measured when the card was last drawn. Cards
-/// that sit in a row take the tallest of these, so that the row has an even edge. The titles are kept
-/// as hashes, because the table has a fixed size and the titles are short.
-const natural_capacity = 64;
-const NaturalHeight = struct { key: u64 = 0, height: f64 = 0 };
-var natural_heights: [natural_capacity]NaturalHeight = [_]NaturalHeight{.{}} ** natural_capacity;
 
 fn titleKey(title: []const u8) u64 {
     return std.hash.Wyhash.hash(0, title);
 }
 
 /// The height that the card with this title needed when it was last drawn, or null before that.
-pub fn naturalHeight(title: []const u8) ?f64 {
+pub fn naturalHeight(panel: *const Panel, title: []const u8) ?f64 {
     const key = titleKey(title);
-    for (natural_heights) |entry| {
+    for (panel.heights) |entry| {
         if (entry.key == key) return entry.height;
     }
     return null;
 }
 
-fn rememberHeight(title: []const u8, height: f64) void {
+fn rememberHeight(panel: *Panel, title: []const u8, height: f64) void {
     const key = titleKey(title);
     var free: ?usize = null;
-    for (&natural_heights, 0..) |*entry, i| {
+    for (&panel.heights, 0..) |*entry, i| {
         if (entry.key == key) {
             entry.height = height;
             return;
         }
         if (entry.key == 0 and free == null) free = i;
     }
-    if (free) |i| natural_heights[i] = .{ .key = key, .height = height };
+    if (free) |i| panel.heights[i] = .{ .key = key, .height = height };
 }
 
 /// The accent of the card being drawn, or the amber when it has none.
-pub fn accent() c_int {
-    return frame.accent orelse theme.amber;
+pub fn accent(panel: *const Panel) c_int {
+    return panel.accent orelse theme.amber;
 }
 
 /// The same color at a fraction of its strength, for a glow around a lit part.
@@ -103,7 +110,8 @@ pub fn circle(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, color: c_int
 /// The size of a text in the current font.
 pub const TextSize = struct { w: f64, h: f64 };
 
-pub fn textSize(ctx: imgui.ContextPtr, text: [:0]const u8) TextSize {
+pub fn textSize(panel: *Panel, text: [:0]const u8) TextSize {
+    const ctx = panel.ctx;
     var w: f64 = 0;
     var h: f64 = 0;
     imgui.api.CalcTextSize(ctx, text, &w, &h, null, null);
@@ -112,7 +120,8 @@ pub fn textSize(ctx: imgui.ContextPtr, text: [:0]const u8) TextSize {
 
 pub const Point = struct { x: f64, y: f64 };
 
-pub fn cursorScreenPos(ctx: imgui.ContextPtr) Point {
+pub fn cursorScreenPos(panel: *Panel) Point {
+    const ctx = panel.ctx;
     var x: f64 = 0;
     var y: f64 = 0;
     imgui.api.GetCursorScreenPos(ctx, &x, &y);
@@ -123,22 +132,25 @@ pub fn cursorScreenPos(ctx: imgui.ContextPtr) Point {
 
 /// The labels are drawn in their own font. Returns true when the font was pushed, and then the caller
 /// pops it with `popFont`.
-pub fn pushLabelFont(ctx: imgui.ContextPtr) bool {
-    if (frame.fonts.label == null) return false;
-    imgui.api.PushFont(ctx, frame.fonts.label);
+pub fn pushLabelFont(panel: *Panel) bool {
+    const ctx = panel.ctx;
+    if (panel.fonts.label == null) return false;
+    imgui.api.PushFont(ctx, panel.fonts.label);
     return true;
 }
 
 /// The card titles are drawn in a heavier face of their own, and in the label font when there is no
 /// title font.
-pub fn pushTitleFont(ctx: imgui.ContextPtr) bool {
-    const font = if (frame.fonts.title != null) frame.fonts.title else frame.fonts.label;
+pub fn pushTitleFont(panel: *Panel) bool {
+    const ctx = panel.ctx;
+    const font = if (panel.fonts.title != null) panel.fonts.title else panel.fonts.label;
     if (font == null) return false;
     imgui.api.PushFont(ctx, font);
     return true;
 }
 
-pub fn popFont(ctx: imgui.ContextPtr, pushed: bool) void {
+pub fn popFont(panel: *Panel, pushed: bool) void {
+    const ctx = panel.ctx;
     if (pushed) imgui.api.PopFont(ctx);
 }
 
@@ -153,22 +165,24 @@ pub fn drawGlass(dl: imgui.DrawListPtr, x1: f64, y1: f64, x2: f64, y2: f64) void
 }
 
 /// Text that looks cut into the panel: a dark copy one pixel below, the light text over it.
-pub fn engravedText(ctx: imgui.ContextPtr, text: [:0]const u8, color: ?c_int) void {
-    const pushed = pushTitleFont(ctx);
+pub fn engravedText(panel: *Panel, text: [:0]const u8, color: ?c_int) void {
+    const ctx = panel.ctx;
+    const pushed = pushTitleFont(panel);
     const dl = imgui.api.GetWindowDrawList(ctx);
-    const at = cursorScreenPos(ctx);
+    const at = cursorScreenPos(panel);
     imgui.api.DrawList_AddText(dl, at.x, at.y + 1, theme.text_engraved_shadow, text);
     imgui.api.DrawList_AddText(dl, at.x, at.y, color orelse theme.text_dim, text);
-    const size = textSize(ctx, text);
+    const size = textSize(panel, text);
     imgui.api.Dummy(ctx, size.w, size.h + 1);
-    popFont(ctx, pushed);
+    popFont(panel, pushed);
 }
 
 // ---- the lamp and the display ----
 
 /// A lamp, lit in the given color or dark, as big as a line of text, so that text can follow it.
-pub fn lamp(ctx: imgui.ContextPtr, color: c_int, lit: bool) void {
-    const at = cursorScreenPos(ctx);
+pub fn lamp(panel: *Panel, color: c_int, lit: bool) void {
+    const ctx = panel.ctx;
+    const at = cursorScreenPos(panel);
     const size = imgui.api.GetTextLineHeight(ctx);
     imgui.api.Dummy(ctx, size, size);
     const dl = imgui.api.GetWindowDrawList(ctx);
@@ -182,10 +196,11 @@ pub fn lamp(ctx: imgui.ContextPtr, color: c_int, lit: bool) void {
 
 /// A small recessed screen with a line of text in it, at least `min_width` pixels wide. The text is in
 /// the label font.
-pub fn display(ctx: imgui.ContextPtr, text: [:0]const u8, color: c_int, min_width: f64) void {
-    const at = cursorScreenPos(ctx);
-    const pushed = pushLabelFont(ctx);
-    const size = textSize(ctx, text);
+pub fn display(panel: *Panel, text: [:0]const u8, color: c_int, min_width: f64) void {
+    const ctx = panel.ctx;
+    const at = cursorScreenPos(panel);
+    const pushed = pushLabelFont(panel);
+    const size = textSize(panel, text);
     const width = @max(min_width, size.w + 20);
     const height = size.h + 10;
     imgui.api.Dummy(ctx, width, height);
@@ -195,7 +210,7 @@ pub fn display(ctx: imgui.ContextPtr, text: [:0]const u8, color: c_int, min_widt
     line(dl, at.x + 3, at.y + height + 1, at.x + width - 3, at.y + height + 1, theme.panel_edge_light, 1);
     imgui.api.DrawList_AddText(dl, at.x + 10, at.y + 5, color, text);
     drawGlass(dl, at.x, at.y, at.x + width, at.y + height);
-    popFont(ctx, pushed);
+    popFont(panel, pushed);
 }
 
 // ---- the push button and the toggle ----
@@ -207,13 +222,14 @@ fn widgetId(buf: []u8, prefix: []const u8, label: []const u8) [:0]const u8 {
 
 /// A push button: a raised key of dark metal with a lit upper edge, that sinks while it is held, with
 /// the accent over it when the mouse is on it or it is held. Returns true when it was clicked.
-pub fn pushButton(ctx: imgui.ContextPtr, label: [:0]const u8, min_width: f64) bool {
-    const pushed = pushLabelFont(ctx);
-    defer popFont(ctx, pushed);
-    const size = textSize(ctx, label);
+pub fn pushButton(panel: *Panel, label: [:0]const u8, min_width: f64) bool {
+    const ctx = panel.ctx;
+    const pushed = pushLabelFont(panel);
+    defer popFont(panel, pushed);
+    const size = textSize(panel, label);
     const width = @max(min_width, size.w + 28);
     const height = size.h + 12;
-    const at = cursorScreenPos(ctx);
+    const at = cursorScreenPos(panel);
     var id: [128]u8 = undefined;
     const clicked = imgui.api.InvisibleButton(ctx, widgetId(&id, "button", label), width, height, null);
     const hovered = imgui.api.IsItemHovered(ctx, null);
@@ -227,13 +243,13 @@ pub fn pushButton(ctx: imgui.ContextPtr, label: [:0]const u8, min_width: f64) bo
     rectFilled(dl, at.x, top, at.x + width, bottom, if (held) theme.knob_body else theme.knob_top, 4);
     imgui.api.DrawList_AddRectFilledMultiColor(dl, at.x + 2, top + 2, at.x + width - 2, top + height / 2, rgba(0xFFFFFF18), rgba(0xFFFFFF18), rgba(0xFFFFFF00), rgba(0xFFFFFF00));
     if (held) {
-        rectFilled(dl, at.x, top, at.x + width, bottom, faded(accent(), 0x40), 4);
+        rectFilled(dl, at.x, top, at.x + width, bottom, faded(accent(panel), 0x40), 4);
     } else if (hovered) {
-        rectFilled(dl, at.x, top, at.x + width, bottom, faded(accent(), 0x22), 4);
+        rectFilled(dl, at.x, top, at.x + width, bottom, faded(accent(panel), 0x22), 4);
     }
-    rect(dl, at.x, top, at.x + width, bottom, if (hovered or held) accent() else theme.knob_edge, 4, 1);
+    rect(dl, at.x, top, at.x + width, bottom, if (hovered or held) accent(panel) else theme.knob_edge, 4, 1);
     line(dl, at.x + 5, top + 1.5, at.x + width - 5, top + 1.5, rgba(0xFFFFFF30), 1);
-    imgui.api.DrawList_AddText(dl, at.x + (width - size.w) / 2, top + (height - size.h) / 2, if (held) accent() else theme.text, label);
+    imgui.api.DrawList_AddText(dl, at.x + (width - size.w) / 2, top + (height - size.h) / 2, if (held) accent(panel) else theme.text, label);
     return clicked;
 }
 
@@ -242,11 +258,12 @@ const toggle_h: f64 = 16;
 
 /// A toggle with a label: a rocker whose thumb slides to the right and lights up in the accent when
 /// the value is on. Returns true when the user changed the value, and `value` then holds the new one.
-pub fn toggle(ctx: imgui.ContextPtr, label: [:0]const u8, value: *bool) bool {
+pub fn toggle(panel: *Panel, label: [:0]const u8, value: *bool) bool {
+    const ctx = panel.ctx;
     const text_line = imgui.api.GetTextLineHeight(ctx);
-    const text_w = textSize(ctx, label).w;
+    const text_w = textSize(panel, label).w;
     const height = @max(text_line, toggle_h) + 4;
-    const at = cursorScreenPos(ctx);
+    const at = cursorScreenPos(panel);
     var id: [128]u8 = undefined;
     const clicked = imgui.api.InvisibleButton(ctx, widgetId(&id, "toggle", label), toggle_w + 10 + text_w, height, null);
     const hot = imgui.api.IsItemHovered(ctx, null);
@@ -255,13 +272,13 @@ pub fn toggle(ctx: imgui.ContextPtr, label: [:0]const u8, value: *bool) bool {
 
     const dl = imgui.api.GetWindowDrawList(ctx);
     const ty = at.y + (height - toggle_h) / 2;
-    rectFilled(dl, at.x, ty, at.x + toggle_w, ty + toggle_h, if (on) faded(accent(), 0x55) else theme.slot_bg, toggle_h / 2);
-    rect(dl, at.x, ty, at.x + toggle_w, ty + toggle_h, if (hot) accent() else theme.knob_edge, toggle_h / 2, 1);
+    rectFilled(dl, at.x, ty, at.x + toggle_w, ty + toggle_h, if (on) faded(accent(panel), 0x55) else theme.slot_bg, toggle_h / 2);
+    rect(dl, at.x, ty, at.x + toggle_w, ty + toggle_h, if (hot) accent(panel) else theme.knob_edge, toggle_h / 2, 1);
     const thumb_x = if (on) at.x + toggle_w - toggle_h / 2 else at.x + toggle_h / 2;
     const thumb_y = ty + toggle_h / 2;
-    if (on) circleFilled(dl, thumb_x, thumb_y, toggle_h / 2 + 1, faded(accent(), 0x44));
+    if (on) circleFilled(dl, thumb_x, thumb_y, toggle_h / 2 + 1, faded(accent(panel), 0x44));
     circleFilled(dl, thumb_x + 0.5, thumb_y + 1.5, toggle_h / 2 - 3, rgba(0x00000099));
-    circleFilled(dl, thumb_x, thumb_y, toggle_h / 2 - 3, if (on) accent() else theme.knob_top);
+    circleFilled(dl, thumb_x, thumb_y, toggle_h / 2 - 3, if (on) accent(panel) else theme.knob_top);
     circleFilled(dl, thumb_x - 1.5, thumb_y - 1.5, 1.2, rgba(0xFFFFFF66));
     imgui.api.DrawList_AddText(dl, at.x + toggle_w + 10, at.y + (height - text_line) / 2, theme.text, label);
     return clicked;
@@ -273,13 +290,14 @@ pub fn toggle(ctx: imgui.ContextPtr, label: [:0]const u8, value: *bool) bool {
 /// which tints its top and its title and is taken by the lit parts of the controls it holds. A card
 /// that is given a width or a height keeps it, and otherwise it grows with what it holds. Returns true
 /// when the card is drawn, and then `endCard` must follow.
-pub fn beginCard(ctx: imgui.ContextPtr, title: []const u8, width: ?f64, height: ?f64, card_accent: ?c_int) bool {
-    frame.accent = card_accent;
+pub fn beginCard(panel: *Panel, title: []const u8, width: ?f64, height: ?f64, card_accent: ?c_int) bool {
+    const ctx = panel.ctx;
+    panel.accent = card_accent;
     imgui.api.PushStyleColor(ctx, imgui.Col_ChildBg, theme.panel_bg);
     imgui.api.PushStyleColor(ctx, imgui.Col_Border, theme.panel_edge_dark);
     // In a card with an accent, the widgets that are not drawn by hand light up with the accent: a
     // light shade of it when the mouse is over them, and the accent itself while they are clicked.
-    frame.card_colors = 2;
+    panel.card_colors = 2;
     if (card_accent) |tint| {
         const hover = faded(tint, 0x40);
         imgui.api.PushStyleColor(ctx, imgui.Col_FrameBgHovered, hover);
@@ -288,7 +306,7 @@ pub fn beginCard(ctx: imgui.ContextPtr, title: []const u8, width: ?f64, height: 
         imgui.api.PushStyleColor(ctx, imgui.Col_ButtonActive, tint);
         imgui.api.PushStyleColor(ctx, imgui.Col_HeaderHovered, hover);
         imgui.api.PushStyleColor(ctx, imgui.Col_HeaderActive, tint);
-        frame.card_colors = 8;
+        panel.card_colors = 8;
     }
     var flags: c_int = imgui.ChildFlags_Border;
     if (width == null) flags |= imgui.ChildFlags_AutoResizeX;
@@ -298,20 +316,20 @@ pub fn beginCard(ctx: imgui.ContextPtr, title: []const u8, width: ?f64, height: 
     var h: f64 = height orelse 0;
     var id: [128:0]u8 = undefined;
     const visible = imgui.api.BeginChild(ctx, widgetId(&id, "card", title), &w, &h, &flags, &window_flags);
-    const kept = @min(title.len, frame.card_title.len - 1);
-    @memcpy(frame.card_title[0..kept], title[0..kept]);
-    frame.card_title[kept] = 0;
+    const kept = @min(title.len, panel.card_title.len - 1);
+    @memcpy(panel.card_title[0..kept], title[0..kept]);
+    panel.card_title[kept] = 0;
     if (visible) {
         var upper: [96:0]u8 = undefined;
         const shown = std.ascii.upperString(upper[0..kept], title[0..kept]);
         upper[shown.len] = 0;
-        engravedText(ctx, upper[0..shown.len :0], card_accent);
+        engravedText(panel, upper[0..shown.len :0], card_accent);
         imgui.api.Spacing(ctx);
     } else {
         // Because `endCard` does not follow a card that is not drawn, its colors are popped here.
-        var count = frame.card_colors;
+        var count = panel.card_colors;
         imgui.api.PopStyleColor(ctx, &count);
-        frame.accent = null;
+        panel.accent = null;
     }
     return visible;
 }
@@ -332,7 +350,8 @@ fn drawScrew(dl: imgui.DrawListPtr, x: f64, y: f64, angle: f64) void {
 /// Draws the surface of the card over its background: a gradient, a brushed grain, a bevel on its
 /// edges, and a screw in each corner. Because the card grows with what it holds, this is drawn when it
 /// ends, and the colors are so faint that what they cover stays readable.
-fn drawCardSurface(ctx: imgui.ContextPtr, card_accent: ?c_int) void {
+fn drawCardSurface(panel: *Panel, card_accent: ?c_int) void {
+    const ctx = panel.ctx;
     const dl = imgui.api.GetWindowDrawList(ctx);
     var x: f64 = 0;
     var y: f64 = 0;
@@ -366,7 +385,8 @@ fn drawCardSurface(ctx: imgui.ContextPtr, card_accent: ?c_int) void {
     drawScrew(dl, x + w - 8, y + h - 8, screw_angles[3]);
 }
 
-pub fn endCard(ctx: imgui.ContextPtr) void {
+pub fn endCard(panel: *Panel) void {
+    const ctx = panel.ctx;
     // The content ends where the cursor is, less the spacing that follows the last item, and the card's
     // bottom padding is added; the 2 pixels keep the card from cutting its last line.
     var spacing_x: f64 = 0;
@@ -375,11 +395,11 @@ pub fn endCard(ctx: imgui.ContextPtr) void {
     var padding_x: f64 = 0;
     var padding_y: f64 = 0;
     imgui.api.GetStyleVar(ctx, imgui.StyleVar_WindowPadding, &padding_x, &padding_y);
-    rememberHeight(std.mem.sliceTo(&frame.card_title, 0), imgui.api.GetCursorPosY(ctx) - spacing_y + padding_y + 2);
-    drawCardSurface(ctx, frame.accent);
-    frame.accent = null;
+    rememberHeight(panel, std.mem.sliceTo(&panel.card_title, 0), imgui.api.GetCursorPosY(ctx) - spacing_y + padding_y + 2);
+    drawCardSurface(panel, panel.accent);
+    panel.accent = null;
     imgui.api.EndChild(ctx);
-    var count = frame.card_colors;
+    var count = panel.card_colors;
     imgui.api.PopStyleColor(ctx, &count);
 }
 
@@ -422,11 +442,13 @@ pub fn defaultValue(control: Control, bipolar: bool) i32 {
     return control.low;
 }
 
-fn altIsDown(ctx: imgui.ContextPtr) bool {
+fn altIsDown(panel: *Panel) bool {
+    const ctx = panel.ctx;
     return (imgui.api.GetKeyMods(ctx) & imgui.Mod_Alt) != 0;
 }
 
-fn shiftIsDown(ctx: imgui.ContextPtr) bool {
+fn shiftIsDown(panel: *Panel) bool {
+    const ctx = panel.ctx;
     return (imgui.api.GetKeyMods(ctx) & imgui.Mod_Shift) != 0;
 }
 
@@ -439,7 +461,8 @@ pub fn shownValue(buf: []u8, control: Control, value: i32) [:0]const u8 {
 }
 
 /// Shows the text in a tooltip while the mouse is over the last item.
-pub fn tooltip(ctx: imgui.ContextPtr, text: [:0]const u8) void {
+pub fn tooltip(panel: *Panel, text: [:0]const u8) void {
+    const ctx = panel.ctx;
     if (!imgui.api.IsItemHovered(ctx, null)) return;
     if (imgui.api.BeginTooltip(ctx)) {
         var wrap: f64 = 320;
@@ -458,9 +481,10 @@ const label_line_cap = 96;
 /// Draws a label centered under a control, on as many lines as the control reserves, so that the
 /// controls of one row keep the same height whatever their label. The label is broken into lines that
 /// fit the width.
-pub fn centeredLabel(ctx: imgui.ContextPtr, text: []const u8, width: f64, reserved_lines: usize) void {
-    const pushed = pushLabelFont(ctx);
-    defer popFont(ctx, pushed);
+pub fn centeredLabel(panel: *Panel, text: []const u8, width: f64, reserved_lines: usize) void {
+    const ctx = panel.ctx;
+    const pushed = pushLabelFont(panel);
+    defer popFont(panel, pushed);
 
     var lines: [label_lines_max][label_line_cap:0]u8 = undefined;
     var count: usize = 0;
@@ -473,7 +497,7 @@ pub fn centeredLabel(ctx: imgui.ContextPtr, text: []const u8, width: f64, reserv
             std.fmt.bufPrintZ(&candidate, "{s}", .{word})
         else
             std.fmt.bufPrintZ(&candidate, "{s} {s}", .{ current[0..current_len], word })) catch continue;
-        if (current_len > 0 and textSize(ctx, joined).w > width) {
+        if (current_len > 0 and textSize(panel, joined).w > width) {
             if (count < label_lines_max) {
                 @memcpy(lines[count][0..current_len], current[0..current_len]);
                 lines[count][current_len] = 0;
@@ -498,7 +522,7 @@ pub fn centeredLabel(ctx: imgui.ContextPtr, text: []const u8, width: f64, reserv
     while (i < reserved_lines) : (i += 1) {
         if (i < count) {
             const shown: [:0]const u8 = std.mem.sliceTo(&lines[i], 0);
-            imgui.api.SetCursorPosX(ctx, base + (width - textSize(ctx, shown).w) / 2);
+            imgui.api.SetCursorPosX(ctx, base + (width - textSize(panel, shown).w) / 2);
             imgui.api.TextColored(ctx, theme.label, shown);
         } else {
             imgui.api.Dummy(ctx, 1, imgui.api.GetTextLineHeight(ctx));
@@ -507,11 +531,12 @@ pub fn centeredLabel(ctx: imgui.ContextPtr, text: []const u8, width: f64, reserv
 }
 
 /// A value centered over a control, in the label font.
-pub fn centeredValue(ctx: imgui.ContextPtr, text: [:0]const u8, width: f64, color: ?c_int) void {
-    const pushed = pushLabelFont(ctx);
-    defer popFont(ctx, pushed);
-    imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (width - textSize(ctx, text).w) / 2);
-    imgui.api.TextColored(ctx, color orelse accent(), text);
+pub fn centeredValue(panel: *Panel, text: [:0]const u8, width: f64, color: ?c_int) void {
+    const ctx = panel.ctx;
+    const pushed = pushLabelFont(panel);
+    defer popFont(panel, pushed);
+    imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (width - textSize(panel, text).w) / 2);
+    imgui.api.TextColored(ctx, color orelse accent(panel), text);
 }
 
 // ---- the drawbar ----
@@ -527,15 +552,16 @@ pub const Cap = struct { body: c_int, edge: c_int };
 /// A drawbar pulled out of the panel: the value above it, a slot with a tick for each step, a stem and a
 /// cap that slides down as the value rises, and the footage under it. The user drags the cap, or clicks
 /// anywhere in the slot to bring the cap there. A disabled drawbar is drawn dim and does not move.
-pub fn drawbar(ctx: imgui.ContextPtr, control: Control, value: i32, name: []const u8, cap_colors: Cap, disabled: bool) Change {
+pub fn drawbar(panel: *Panel, control: Control, value: i32, name: []const u8, cap_colors: Cap, disabled: bool) Change {
+    const ctx = panel.ctx;
     imgui.api.BeginGroup(ctx);
 
     // The value is drawn in the label font, like the numbers of the knobs.
     var value_buf: [16]u8 = undefined;
     const value_text = std.fmt.bufPrintZ(&value_buf, "{d}", .{value}) catch "?";
-    centeredValue(ctx, value_text, drawbar_w, if (disabled) theme.text_dim else accent());
+    centeredValue(panel, value_text, drawbar_w, if (disabled) theme.text_dim else accent(panel));
 
-    const at = cursorScreenPos(ctx);
+    const at = cursorScreenPos(panel);
     _ = imgui.api.InvisibleButton(ctx, "##drawbar", drawbar_w, drawbar_h, null);
 
     const top = at.y + cap_h / 2 + 2;
@@ -584,15 +610,15 @@ pub fn drawbar(ctx: imgui.ContextPtr, control: Control, value: i32, name: []cons
     line(dl, cap_x1 + 3, cap_y1 + 2, cap_x2 - 3, cap_y1 + 2, rgba(0xFFFFFF55), 1);
     line(dl, cap_x1 + 3, pos, cap_x2 - 3, pos, cap.edge, 1);
     if (!disabled and (imgui.api.IsItemHovered(ctx, null) or imgui.api.IsItemActive(ctx))) {
-        rect(dl, cap_x1, cap_y1, cap_x2, cap_y2, accent(), 3, 1);
+        rect(dl, cap_x1, cap_y1, cap_x2, cap_y2, accent(panel), 3, 1);
     }
 
     var name_buf: [64:0]u8 = undefined;
     const shown_name = std.fmt.bufPrintZ(&name_buf, "{s}", .{name}) catch "";
-    const pushed = pushLabelFont(ctx);
-    imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (drawbar_w - textSize(ctx, shown_name).w) / 2);
+    const pushed = pushLabelFont(panel);
+    imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (drawbar_w - textSize(panel, shown_name).w) / 2);
     imgui.api.TextColored(ctx, if (disabled) theme.text_dim else theme.label, shown_name);
-    popFont(ctx, pushed);
+    popFont(panel, pushed);
     imgui.api.EndGroup(ctx);
     return .{ .changed = result != value, .value = result };
 }
@@ -617,7 +643,7 @@ const knob_ticks: i32 = 10;
 
 /// A drag moves the value relative to where it started, so the start of the drag is kept here. Only one
 /// control is dragged at a time, so one record is enough.
-const Drag = struct {
+pub const Drag = struct {
     /// False after an alt-click, because the click sets the value and the drag that follows must not
     /// move it again.
     armed: bool = false,
@@ -627,34 +653,33 @@ const Drag = struct {
     fine: bool = false,
 };
 
-var drag_state: Drag = .{};
-
 /// A rotary knob: the value above it, a ring that fills as the value rises, a pointer, and the label
 /// under it. The user drags up or down, or turns the mouse wheel over it. When `bipolar` is true, the
 /// value rests in the middle of the range, so that the ring fills from the top, to the left or to the
 /// right of it, and a tick marks the middle. The caller pushes an id for each knob.
-pub fn knob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []const u8, bipolar: bool) Change {
+pub fn knob(panel: *Panel, control: Control, value: i32, label: []const u8, bipolar: bool) Change {
+    const ctx = panel.ctx;
     const disabled = control.disabled != null;
-    const lit = if (disabled) theme.text_dim else accent();
+    const lit = if (disabled) theme.text_dim else accent(panel);
     imgui.api.BeginGroup(ctx);
     var value_buf: [48]u8 = undefined;
-    centeredValue(ctx, shownValue(&value_buf, control, value), knob_w, lit);
+    centeredValue(panel, shownValue(&value_buf, control, value), knob_w, lit);
 
-    const at = cursorScreenPos(ctx);
+    const at = cursorScreenPos(panel);
     _ = imgui.api.InvisibleButton(ctx, "##knob", knob_w, knob_d + 8, null);
-    if (control.disabled) |reason| tooltip(ctx, reason);
+    if (control.disabled) |reason| tooltip(panel, reason);
     const range: f64 = @floatFromInt(control.high - control.low);
     var result = value;
-    const fine = shiftIsDown(ctx);
+    const fine = shiftIsDown(panel);
     if (!disabled and imgui.api.IsItemActivated(ctx)) {
-        if (altIsDown(ctx)) {
-            drag_state = .{};
+        if (altIsDown(panel)) {
+            panel.drag = .{};
             result = defaultValue(control, bipolar);
         } else {
-            drag_state = .{ .armed = true, .value = value, .dy0 = 0, .fine = fine };
+            panel.drag = .{ .armed = true, .value = value, .dy0 = 0, .fine = fine };
         }
     }
-    if (!disabled and imgui.api.IsItemActive(ctx) and drag_state.armed) {
+    if (!disabled and imgui.api.IsItemActive(ctx) and panel.drag.armed) {
         var dx: f64 = 0;
         var dy: f64 = 0;
         var button: c_int = imgui.MouseButton_Left;
@@ -662,9 +687,9 @@ pub fn knob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []const 
         imgui.api.GetMouseDragDelta(ctx, &dx, &dy, &button, &threshold);
         // Because holding shift slows the drag, pressing or releasing it starts a new drag from the
         // current value, so that the knob does not jump.
-        if (drag_state.fine != fine) drag_state = .{ .armed = true, .value = value, .dy0 = dy, .fine = fine };
+        if (panel.drag.fine != fine) panel.drag = .{ .armed = true, .value = value, .dy0 = dy, .fine = fine };
         const speed = if (fine) knob_drag_fine else knob_drag;
-        const moved = @as(f64, @floatFromInt(drag_state.value)) - (dy - drag_state.dy0) * range / speed;
+        const moved = @as(f64, @floatFromInt(panel.drag.value)) - (dy - panel.drag.dy0) * range / speed;
         result = @intFromFloat(@floor(std.math.clamp(moved, @as(f64, @floatFromInt(control.low)), @as(f64, @floatFromInt(control.high))) + 0.5));
     } else if (!disabled and imgui.api.IsItemHovered(ctx, null)) {
         var wheel_x: f64 = 0;
@@ -711,7 +736,7 @@ pub fn knob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []const 
     circleFilled(dl, cx, cy, body, theme.knob_body);
     circleFilled(dl, cx - 1, cy - 1, body - 4, theme.knob_top);
     const hot = !disabled and (imgui.api.IsItemHovered(ctx, null) or imgui.api.IsItemActive(ctx));
-    circle(dl, cx, cy, body, if (hot) accent() else theme.knob_edge, 1);
+    circle(dl, cx, cy, body, if (hot) accent(panel) else theme.knob_edge, 1);
 
     // The metal of the cap: two fine concentric grooves, a lit edge on its upper left, and a shine.
     circle(dl, cx, cy, body - 3, rgba(0xFFFFFF14), 1);
@@ -736,19 +761,20 @@ pub fn knob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []const 
 
     var upper: [label_line_cap * 2]u8 = undefined;
     const caption = std.ascii.upperString(&upper, label[0..@min(label.len, upper.len)]);
-    centeredLabel(ctx, caption, knob_w, knob_label_lines);
+    centeredLabel(panel, caption, knob_w, knob_label_lines);
     imgui.api.EndGroup(ctx);
     return .{ .changed = result != value, .value = result };
 }
 
 /// A switch with a lamp, for a parameter that is either 0 or 1. The lamp is lit and the on text is shown
 /// when the value is 1.
-pub fn switchControl(ctx: imgui.ContextPtr, value: i32, label: []const u8, on_text: [:0]const u8, off_text: [:0]const u8) Change {
+pub fn switchControl(panel: *Panel, value: i32, label: []const u8, on_text: [:0]const u8, off_text: [:0]const u8) Change {
+    const ctx = panel.ctx;
     imgui.api.BeginGroup(ctx);
     // An empty line takes the place of the knobs' value, so that both line up in a row.
     imgui.api.Dummy(ctx, 1, imgui.api.GetTextLineHeight(ctx));
 
-    const at = cursorScreenPos(ctx);
+    const at = cursorScreenPos(panel);
     _ = imgui.api.InvisibleButton(ctx, "##switch", knob_w, knob_d + 8, null);
     var result = value;
     if (imgui.api.IsItemClicked(ctx, null)) result = 1 - value;
@@ -762,19 +788,19 @@ pub fn switchControl(ctx: imgui.ContextPtr, value: i32, label: []const u8, on_te
     rectFilled(dl, x1, y1 + 2, x2, y2 + 2, rgba(0x00000099), 5);
     rectFilled(dl, x1, y1, x2, y2, if (on) theme.knob_top else theme.knob_body, 5);
     const hot = imgui.api.IsItemHovered(ctx, null);
-    rect(dl, x1, y1, x2, y2, if (hot) accent() else theme.knob_edge, 5, 1);
+    rect(dl, x1, y1, x2, y2, if (hot) accent(panel) else theme.knob_edge, 5, 1);
 
     // The lamp: a glow around it when it is lit.
     const lx = (x1 + x2) / 2;
     const ly = y1 + 14;
-    if (on) circleFilled(dl, lx, ly, 9, faded(accent(), 0x55));
-    circleFilled(dl, lx, ly, 5, if (on) accent() else theme.slot_bg);
+    if (on) circleFilled(dl, lx, ly, 9, faded(accent(panel), 0x55));
+    circleFilled(dl, lx, ly, 5, if (on) accent(panel) else theme.slot_bg);
     circle(dl, lx, ly, 5, theme.slot_edge, 1);
 
     const state = if (on) on_text else off_text;
-    imgui.api.DrawList_AddText(dl, lx - textSize(ctx, state).w / 2, y2 - 18, accent(), state);
+    imgui.api.DrawList_AddText(dl, lx - textSize(panel, state).w / 2, y2 - 18, accent(panel), state);
 
-    centeredLabel(ctx, label, knob_w, knob_label_lines);
+    centeredLabel(panel, label, knob_w, knob_label_lines);
     imgui.api.EndGroup(ctx);
     return .{ .changed = result != value, .value = result };
 }
@@ -843,12 +869,13 @@ const StopMargins = struct { left: f64 = 0, right: f64 = 0, top: f64 = 0 };
 
 /// Measures what the stop knob needs around the knob for its labels, in the label font: the width on its
 /// left and its right, and the height above it.
-fn stopMargins(ctx: imgui.ContextPtr, stops: []const Stop, labelled: bool) StopMargins {
+fn stopMargins(panel: *Panel, stops: []const Stop, labelled: bool) StopMargins {
+    const ctx = panel.ctx;
     var margins = StopMargins{};
     if (!labelled) return margins;
     const text_line = imgui.api.GetTextLineHeight(ctx);
     for (stops, 0..) |*stop, i| {
-        const text_w = textSize(ctx, stopName(stop)).w;
+        const text_w = textSize(panel, stopName(stop)).w;
         switch (stopSide(stopAngle(i, stops.len))) {
             .left => margins.left = @max(margins.left, text_w + 8),
             .right => margins.right = @max(margins.right, text_w + 8),
@@ -861,10 +888,10 @@ fn stopMargins(ctx: imgui.ContextPtr, stops: []const Stop, labelled: bool) StopM
 const LabelBox = struct { x1: f64, y1: f64, x2: f64, y2: f64 };
 
 /// Where the label of a stop sits, relative to the center of the knob.
-fn stopLabelBox(ctx: imgui.ContextPtr, stop: *const Stop, index: usize, count: usize, text_line: f64) LabelBox {
+fn stopLabelBox(panel: *Panel, stop: *const Stop, index: usize, count: usize, text_line: f64) LabelBox {
     const r = knob_d / 2;
     const angle = stopAngle(index, count);
-    const text_w = textSize(ctx, stopName(stop)).w;
+    const text_w = textSize(panel, stopName(stop)).w;
     const ax = @cos(angle) * (r + 9);
     const ay = @sin(angle) * (r + 9);
     const side = stopSide(angle);
@@ -879,9 +906,9 @@ fn stopLabelBox(ctx: imgui.ContextPtr, stop: *const Stop, index: usize, count: u
 
 /// Whether two labels of the stops would be drawn over each other. Because the names are written around
 /// the knob, a knob with long names crowds them on one side, and then its names go in a list instead.
-fn labelsOverlap(ctx: imgui.ContextPtr, stops: []const Stop, text_line: f64) bool {
+fn labelsOverlap(panel: *Panel, stops: []const Stop, text_line: f64) bool {
     var boxes: [stops_cap]LabelBox = undefined;
-    for (stops, 0..) |*stop, i| boxes[i] = stopLabelBox(ctx, stop, i, stops.len, text_line);
+    for (stops, 0..) |*stop, i| boxes[i] = stopLabelBox(panel, stop, i, stops.len, text_line);
     for (0..stops.len) |i| {
         for (i + 1..stops.len) |j| {
             const a = boxes[i];
@@ -897,9 +924,10 @@ fn labelsOverlap(ctx: imgui.ContextPtr, stops: []const Stop, text_line: f64) boo
 /// or clicks a name. A knob with more stops than `stop_labels_max`, or one that the caller asks to be an
 /// `as_list`, shows the selected name in a display under it, that opens the list, instead of a label at
 /// each stop. The value in the result is the value of the selected stop.
-pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []const u8, as_list: bool) Change {
+pub fn stopKnob(panel: *Panel, control: Control, value: i32, label: []const u8, as_list: bool) Change {
+    const ctx = panel.ctx;
     const disabled = control.disabled != null;
-    const tint = if (disabled) theme.text_dim else accent();
+    const tint = if (disabled) theme.text_dim else accent(panel);
     var stops: [stops_cap]Stop = undefined;
     const count = stopsOf(control, &stops);
     if (count == 0) return .{ .changed = false, .value = value };
@@ -909,18 +937,18 @@ pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []co
     imgui.api.BeginGroup(ctx);
     // A normal knob has its value above it; the stop knob leaves the same room, so that both line up.
     const room_above = imgui.api.GetTextLineHeightWithSpacing(ctx);
-    const pushed = pushLabelFont(ctx);
+    const pushed = pushLabelFont(panel);
     const text_line = imgui.api.GetTextLineHeight(ctx);
     // The caller may ask for the display and the list even with few stops, when the names are long, and a
     // knob whose names would overlap takes them too.
-    const labelled = count <= stop_labels_max and !as_list and !labelsOverlap(ctx, stops[0..count], text_line);
-    const margins = stopMargins(ctx, stops[0..count], labelled);
+    const labelled = count <= stop_labels_max and !as_list and !labelsOverlap(panel, stops[0..count], text_line);
+    const margins = stopMargins(panel, stops[0..count], labelled);
     const top = @max(margins.top, room_above);
 
     const r = knob_d / 2;
     var display_w: f64 = 0;
     if (!labelled) {
-        for (stops[0..count]) |*stop| display_w = @max(display_w, textSize(ctx, stopName(stop)).w + 32);
+        for (stops[0..count]) |*stop| display_w = @max(display_w, textSize(panel, stopName(stop)).w + 32);
     }
     // The caption is in capitals, like the lettering of the panel.
     var caption_buf: [label_line_cap:0]u8 = undefined;
@@ -928,11 +956,11 @@ pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []co
     _ = std.ascii.upperString(caption_buf[0..caption_len], label[0..caption_len]);
     caption_buf[caption_len] = 0;
     const caption: [:0]const u8 = caption_buf[0..caption_len :0];
-    const label_w = textSize(ctx, caption).w;
+    const label_w = textSize(panel, caption).w;
     const width = @max(@max(margins.left + 2 * r + 8 + margins.right, display_w), @max(label_w, knob_w));
     const height = top + 2 * r + 8 + (if (labelled) @as(f64, 0) else text_line + 12) + text_line + 8;
 
-    const origin = cursorScreenPos(ctx);
+    const origin = cursorScreenPos(panel);
     const cx = if (labelled) origin.x + width / 2 + (margins.left - margins.right) / 2 else origin.x + width / 2;
     const cy = origin.y + top + r + 4;
 
@@ -942,24 +970,24 @@ pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []co
     imgui.api.PushID(ctx, std.fmt.bufPrintZ(&id, "{s}", .{control.id}) catch "stop");
     imgui.api.SetCursorScreenPos(ctx, cx - r - 4, cy - r - 4);
     _ = imgui.api.InvisibleButton(ctx, "##stopknob", 2 * r + 8, 2 * r + 8, null);
-    if (control.disabled) |reason| tooltip(ctx, reason);
+    if (control.disabled) |reason| tooltip(panel, reason);
     const hot = !disabled and (imgui.api.IsItemHovered(ctx, null) or imgui.api.IsItemActive(ctx));
     if (!disabled and imgui.api.IsItemActivated(ctx)) {
-        if (altIsDown(ctx)) {
-            drag_state = .{};
+        if (altIsDown(panel)) {
+            panel.drag = .{};
             result = stopIndex(stops[0..count], defaultValue(control, false));
         } else {
-            drag_state = .{ .armed = true, .value = @intCast(index) };
+            panel.drag = .{ .armed = true, .value = @intCast(index) };
         }
     }
-    if (!disabled and imgui.api.IsItemActive(ctx) and drag_state.armed) {
+    if (!disabled and imgui.api.IsItemActive(ctx) and panel.drag.armed) {
         var dx: f64 = 0;
         var dy: f64 = 0;
         var button: c_int = imgui.MouseButton_Left;
         var threshold: f64 = 0;
         imgui.api.GetMouseDragDelta(ctx, &dx, &dy, &button, &threshold);
         const per_stop = if (labelled) stop_drag_labelled else stop_drag_plain;
-        const moved = @as(f64, @floatFromInt(drag_state.value)) - @floor(dy / per_stop + 0.5);
+        const moved = @as(f64, @floatFromInt(panel.drag.value)) - @floor(dy / per_stop + 0.5);
         result = @intFromFloat(std.math.clamp(moved, 0, @as(f64, @floatFromInt(count - 1))));
     } else if (!disabled and imgui.api.IsItemHovered(ctx, null)) {
         var wheel_x: f64 = 0;
@@ -986,7 +1014,7 @@ pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []co
         for (stops[0..count], 0..) |*stop, i| {
             const angle = stopAngle(i, count);
             const side = stopSide(angle);
-            const text_w = textSize(ctx, stopName(stop)).w;
+            const text_w = textSize(panel, stopName(stop)).w;
             const ax = cx + @cos(angle) * (r + 9);
             const ay = cy + @sin(angle) * (r + 9);
             const bx = switch (side) {
@@ -1040,7 +1068,7 @@ pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []co
         rectFilled(dl, display_x, display_y, display_x + display_w, display_y + display_h, theme.slot_bg, 3);
         rect(dl, display_x, display_y, display_x + display_w, display_y + display_h, if (display_hot) tint else theme.slot_edge, 3, 1);
         const name = stopName(&stops[result]);
-        imgui.api.DrawList_AddText(dl, display_x + (display_w - 14) / 2 - textSize(ctx, name).w / 2, display_y + 3, tint, name);
+        imgui.api.DrawList_AddText(dl, display_x + (display_w - 14) / 2 - textSize(panel, name).w / 2, display_y + 3, tint, name);
         drawGlass(dl, display_x, display_y, display_x + display_w, display_y + display_h);
         const tx = display_x + display_w - 11;
         const ty = display_y + display_h / 2;
@@ -1074,7 +1102,7 @@ pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []co
         }
         imgui.api.PopID(ctx);
     }
-    popFont(ctx, pushed);
+    popFont(panel, pushed);
 
     // Because ImGui wants an item after every move of the cursor, the control's own space is taken last.
     imgui.api.SetCursorScreenPos(ctx, origin.x, origin.y);
@@ -1097,14 +1125,15 @@ pub const Bracket = struct { label: []const u8, from: usize, to: usize };
 /// A row above a row of `count` knobs, with one bracket for each entry of `brackets`: a line that spans
 /// the knobs from the entry's `from` to its `to`, with its caption engraved in the line, as the
 /// silkscreen of a hardware panel groups its knobs.
-pub fn bracketRow(ctx: imgui.ContextPtr, brackets: []const Bracket, count: usize) void {
-    const pushed = pushLabelFont(ctx);
-    defer popFont(ctx, pushed);
+pub fn bracketRow(panel: *Panel, brackets: []const Bracket, count: usize) void {
+    const ctx = panel.ctx;
+    const pushed = pushLabelFont(panel);
+    defer popFont(panel, pushed);
     var spacing: f64 = 0;
     var spacing_y: f64 = 0;
     imgui.api.GetStyleVar(ctx, imgui.StyleVar_ItemSpacing, &spacing, &spacing_y);
     const pitch = knob_w + spacing;
-    const origin = cursorScreenPos(ctx);
+    const origin = cursorScreenPos(panel);
     const height = imgui.api.GetTextLineHeight(ctx) + 4;
     imgui.api.Dummy(ctx, @as(f64, @floatFromInt(count)) * pitch - spacing, height);
 
@@ -1118,7 +1147,7 @@ pub fn bracketRow(ctx: imgui.ContextPtr, brackets: []const Bracket, count: usize
         _ = std.ascii.upperString(text_buf[0..n], b.label[0..n]);
         text_buf[n] = 0;
         const text: [:0]const u8 = text_buf[0..n :0];
-        const size = textSize(ctx, text);
+        const size = textSize(panel, text);
         const text_x = (x1 + x2) / 2 - size.w / 2;
         // The line is broken around the caption, unless the caption fills the whole bracket.
         if (text_x - 6 > x1) {
@@ -1188,8 +1217,9 @@ pub const EnvelopeChange = struct { values: [3]i32, changed: [3]bool = .{ false,
 /// of a note as a glowing curve. Each of the three values has a handle on the curve, which the user drags
 /// sideways to change the value, or double-clicks or alt-clicks to bring back to the middle.
 /// `controls` holds the three parameters in the order attack, decay, release, and `values` their values.
-pub fn envelope(ctx: imgui.ContextPtr, controls: [3]Control, values: [3]i32) EnvelopeChange {
-    const at = cursorScreenPos(ctx);
+pub fn envelope(panel: *Panel, controls: [3]Control, values: [3]i32) EnvelopeChange {
+    const ctx = panel.ctx;
+    const at = cursorScreenPos(panel);
     // The screen takes the room the card leaves; the 2 pixels keep the card from showing a scrollbar.
     var avail_w: f64 = 0;
     var avail_h: f64 = 0;
@@ -1215,11 +1245,11 @@ pub fn envelope(ctx: imgui.ContextPtr, controls: [3]Control, values: [3]i32) Env
         _ = imgui.api.InvisibleButton(ctx, std.fmt.bufPrintZ(&handle_id, "##handle{d}", .{i}) catch "##handle", 18, 18, null);
         const active = imgui.api.IsItemActive(ctx);
         const hovered = imgui.api.IsItemHovered(ctx, null);
-        if (imgui.api.IsItemActivated(ctx) and altIsDown(ctx)) {
+        if (imgui.api.IsItemActivated(ctx) and altIsDown(panel)) {
             // An alt-click brings the handle back to the middle, as it does for a knob.
             result.values[i] = defaultValue(controls[i], true);
             result.changed[i] = true;
-        } else if (active and !altIsDown(ctx)) {
+        } else if (active and !altIsDown(panel)) {
             var mx: f64 = 0;
             var my: f64 = 0;
             imgui.api.GetMousePos(ctx, &mx, &my);
@@ -1268,26 +1298,26 @@ pub fn envelope(ctx: imgui.ContextPtr, controls: [3]Control, values: [3]i32) Env
     for (0..2) |pass| {
         for (points) |point| imgui.api.DrawList_PathLineTo(dl, point.x, point.y);
         var thickness: f64 = if (pass == 0) 6 else 2;
-        imgui.api.DrawList_PathStroke(dl, if (pass == 0) faded(accent(), env_glow) else accent(), &flags, &thickness);
+        imgui.api.DrawList_PathStroke(dl, if (pass == 0) faded(accent(panel), env_glow) else accent(panel), &flags, &thickness);
     }
 
     for (0..3) |i| {
         const px = points[corners[i]].x;
         const py = points[corners[i]].y;
         if (hot != null and hot.? == i) {
-            circleFilled(dl, px, py, 6, accent());
+            circleFilled(dl, px, py, 6, accent(panel));
         } else {
             circleFilled(dl, px, py, 5, theme.knob_top);
-            circle(dl, px, py, 5, accent(), 1.5);
+            circle(dl, px, py, 5, accent(panel), 1.5);
         }
     }
 
     // The three values are read at the top of the screen, in the label font.
-    const pushed = pushLabelFont(ctx);
+    const pushed = pushLabelFont(panel);
     var readout: [48:0]u8 = undefined;
     const text = std.fmt.bufPrintZ(&readout, "A {d:>3}  D {d:>3}  R {d:>3}", .{ a, d, r }) catch "";
-    imgui.api.DrawList_AddText(dl, at.x + env_pad_x, at.y + 5, accent(), text);
-    popFont(ctx, pushed);
+    imgui.api.DrawList_AddText(dl, at.x + env_pad_x, at.y + 5, accent(panel), text);
+    popFont(panel, pushed);
     drawGlass(dl, at.x, at.y, at.x + width, at.y + height);
     return result;
 }
@@ -1298,10 +1328,11 @@ pub fn envelope(ctx: imgui.ContextPtr, controls: [3]Control, values: [3]i32) Env
 /// of a knob with many stops and of the tone picker. A click on it opens a list. Returns true while the list is
 /// open, and then the caller draws its items with `pickItem` and ends it with `endPickList`.
 /// `id` must be unique in the window.
-pub fn beginPickList(ctx: imgui.ContextPtr, id: [:0]const u8, preview: [:0]const u8, width: f64) bool {
-    const pushed = pushLabelFont(ctx);
+pub fn beginPickList(panel: *Panel, id: [:0]const u8, preview: [:0]const u8, width: f64) bool {
+    const ctx = panel.ctx;
+    const pushed = pushLabelFont(panel);
     const text_line = imgui.api.GetTextLineHeight(ctx);
-    const at = cursorScreenPos(ctx);
+    const at = cursorScreenPos(panel);
     const height = text_line + 12;
     var button_id: [96:0]u8 = undefined;
     _ = imgui.api.InvisibleButton(ctx, std.fmt.bufPrintZ(&button_id, "##pick{s}", .{id}) catch "##pick", width, height, null);
@@ -1311,13 +1342,13 @@ pub fn beginPickList(ctx: imgui.ContextPtr, id: [:0]const u8, preview: [:0]const
     if (imgui.api.IsItemClicked(ctx, null)) imgui.api.OpenPopup(ctx, popup, null);
     const dl = imgui.api.GetWindowDrawList(ctx);
     rectFilled(dl, at.x, at.y, at.x + width, at.y + height, theme.slot_bg, 3);
-    rect(dl, at.x, at.y, at.x + width, at.y + height, if (hot) accent() else theme.slot_edge, 3, 1);
-    imgui.api.DrawList_AddText(dl, at.x + 10, at.y + 6, accent(), preview);
+    rect(dl, at.x, at.y, at.x + width, at.y + height, if (hot) accent(panel) else theme.slot_edge, 3, 1);
+    imgui.api.DrawList_AddText(dl, at.x + 10, at.y + 6, accent(panel), preview);
     const cx = at.x + width - 12;
     const cy = at.y + height / 2;
-    imgui.api.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, if (hot) accent() else theme.text_dim);
+    imgui.api.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, if (hot) accent(panel) else theme.text_dim);
     drawGlass(dl, at.x, at.y, at.x + width, at.y + height);
-    popFont(ctx, pushed);
+    popFont(panel, pushed);
     var appearing: c_int = imgui.Cond_Appearing;
     imgui.api.SetNextWindowPos(ctx, at.x, at.y + height + 2, &appearing, null, null);
     return imgui.api.BeginPopup(ctx, popup, null);
@@ -1325,8 +1356,9 @@ pub fn beginPickList(ctx: imgui.ContextPtr, id: [:0]const u8, preview: [:0]const
 
 /// One item of a picker's list. The chosen one is in the accent color, and an item that cannot be chosen is
 /// dim. Returns true when the item was clicked.
-pub fn pickItem(ctx: imgui.ContextPtr, label: [:0]const u8, selected: bool, enabled: bool) bool {
-    if (selected) imgui.api.PushStyleColor(ctx, imgui.Col_Text, accent());
+pub fn pickItem(panel: *Panel, label: [:0]const u8, selected: bool, enabled: bool) bool {
+    const ctx = panel.ctx;
+    if (selected) imgui.api.PushStyleColor(ctx, imgui.Col_Text, accent(panel));
     if (!enabled) imgui.api.BeginDisabled(ctx, null);
     const clicked = imgui.api.Selectable(ctx, label, null, null, null, null);
     if (!enabled) imgui.api.EndDisabled(ctx);
@@ -1337,7 +1369,8 @@ pub fn pickItem(ctx: imgui.ContextPtr, label: [:0]const u8, selected: bool, enab
     return clicked and enabled;
 }
 
-pub fn endPickList(ctx: imgui.ContextPtr) void {
+pub fn endPickList(panel: *Panel) void {
+    const ctx = panel.ctx;
     imgui.api.EndPopup(ctx);
 }
 
@@ -1345,8 +1378,9 @@ pub fn endPickList(ctx: imgui.ContextPtr) void {
 
 /// Begins a tab, with its name drawn in the tab font and the tab color. Because ImGui draws the name when the
 /// tab begins, the font and the color are popped at once, and the tab's content keeps the usual ones.
-pub fn beginTab(ctx: imgui.ContextPtr, label: [:0]const u8, flags: ?*c_int) bool {
-    const font = frame.fonts.tab;
+pub fn beginTab(panel: *Panel, label: [:0]const u8, flags: ?*c_int) bool {
+    const ctx = panel.ctx;
+    const font = panel.fonts.tab;
     if (font != null) imgui.api.PushFont(ctx, font);
     imgui.api.PushStyleColor(ctx, imgui.Col_Text, theme.tab_text);
     const is_open = imgui.api.BeginTabItem(ctx, label, null, flags);
@@ -1358,6 +1392,24 @@ pub fn beginTab(ctx: imgui.ContextPtr, label: [:0]const u8, flags: ?*c_int) bool
 
 // Because Zig only compiles the functions that something calls, this test makes the whole module compile,
 // including the components that the panel does not draw yet.
+test "two panels do not share what a card measured" {
+    var first = Panel{};
+    var second = Panel{};
+    rememberHeight(&first, "Reverb", 120);
+    try std.testing.expectEqual(@as(?f64, 120), naturalHeight(&first, "Reverb"));
+    try std.testing.expectEqual(@as(?f64, null), naturalHeight(&second, "Reverb"));
+    rememberHeight(&second, "Reverb", 90);
+    try std.testing.expectEqual(@as(?f64, 120), naturalHeight(&first, "Reverb"));
+}
+
+test "a card's accent belongs to its panel" {
+    var first = Panel{};
+    const second = Panel{};
+    first.accent = 0x11223344;
+    try std.testing.expectEqual(@as(c_int, 0x11223344), accent(&first));
+    try std.testing.expectEqual(theme.amber, accent(&second));
+}
+
 test "every component compiles" {
     std.testing.refAllDecls(@This());
 }

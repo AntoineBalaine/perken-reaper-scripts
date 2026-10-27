@@ -55,6 +55,8 @@ pub const Window = struct {
     open: bool = false,
     ctx: imgui.ContextPtr = null,
     fonts: panel_fonts.Fonts = .{},
+    /// The panel that the components of reaziglib draw with: this window's own context object.
+    kit: widgets.Panel = .{},
     /// What the Controls tab keeps between frames.
     panel: controls_panel.State = .{},
     /// What the library of patches keeps between frames.
@@ -286,7 +288,8 @@ fn draw(p: *Plugin) void {
 
     if (w.fonts.text != null) imgui.api.PushFont(ctx, w.fonts.text);
     theme.push(ctx);
-    widgets.frame.fonts = w.fonts;
+    w.kit.ctx = ctx;
+    w.kit.fonts = w.fonts;
     const mouse = glue.mousePosition();
     if (!w.placed) {
         w.placed = true;
@@ -375,6 +378,7 @@ fn checkpoint(w: *Window, section: []const u8) void {
 }
 
 fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     drawHeader(p, ctx);
     imgui.api.Separator(ctx);
     if (imgui.api.BeginTabBar(ctx, "##tabs", null)) {
@@ -382,25 +386,25 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
         p.ui.select_tab = 0;
         var flags = [5]c_int{ 0, 0, 0, 0, 0 };
         if (select >= 1 and select <= flags.len) flags[select - 1] = imgui.TabItemFlags_SetSelected;
-        if (widgets.beginTab(ctx, "CONTROLS", &flags[0])) {
-            drawControls(p, ctx);
+        if (widgets.beginTab(kit, "CONTROLS", &flags[0])) {
+            drawControls(p);
             imgui.api.EndTabItem(ctx);
         }
-        if (widgets.beginTab(ctx, "SCENES", &flags[1])) {
+        if (widgets.beginTab(kit, "SCENES", &flags[1])) {
             patches_panel.drawLibrary(p, ctx);
             imgui.api.SameLine(ctx, null, null);
             scenes_panel.draw(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (widgets.beginTab(ctx, "PATCHES", &flags[2])) {
+        if (widgets.beginTab(kit, "PATCHES", &flags[2])) {
             patches_panel.drawPatches(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (widgets.beginTab(ctx, "AUDIO LOOP", &flags[3])) {
+        if (widgets.beginTab(kit, "AUDIO LOOP", &flags[3])) {
             drawAudioLoop(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (widgets.beginTab(ctx, "MIDI", &flags[4])) {
+        if (widgets.beginTab(kit, "MIDI", &flags[4])) {
             drawMidi(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
@@ -417,8 +421,9 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
 /// The status of the keyboard, in a card: a lamp and a line saying whether it answers, the progress of a
 /// read or a write when there is one, and the patch's name on a display.
 fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
-    if (!widgets.beginCard(ctx, "Status", null, null, null)) return;
-    defer widgets.endCard(ctx);
+    const kit = &p.ui.kit;
+    if (!widgets.beginCard(kit, "Status", null, null, null)) return;
+    defer widgets.endCard(kit);
     const s = p.shared;
     const connected = s.connected.load(.acquire);
     const mode: roland.MidiInMode = @enumFromInt(s.mode.load(.monotonic));
@@ -443,7 +448,7 @@ fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
         color = theme.grey;
         text = "Waiting for the host to run the plugin (record-arm the track)";
     }
-    widgets.lamp(ctx, color, connected);
+    widgets.lamp(kit, color, connected);
     imgui.api.SameLine(ctx, null, null);
     imgui.api.TextColored(ctx, color, text);
 
@@ -462,13 +467,13 @@ fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
     const shown = std.fmt.bufPrintZ(&name, "{s}", .{if (preset.len == 0) "(none)" else preset}) catch "Patch";
     imgui.api.TextColored(ctx, theme.label, "Patch");
     imgui.api.SameLine(ctx, null, null);
-    widgets.display(ctx, shown, theme.amber, 260);
+    widgets.display(kit, shown, theme.amber, 260);
 }
 
 // ---- the controls ----
 
-fn drawControls(p: *Plugin, ctx: imgui.ContextPtr) void {
-    controls_panel.draw(p.shared, &p.ui.panel, ctx);
+fn drawControls(p: *Plugin) void {
+    controls_panel.draw(p.shared, &p.ui.panel, &p.ui.kit);
     // The cards cannot reach the window's notice, so they leave theirs in the tab's state.
     if (p.ui.panel.overflow) {
         p.ui.panel.overflow = false;
@@ -575,7 +580,8 @@ pub fn exportFile(p: *Plugin) void {
 
 // ---- the audio loop ----
 
-fn drawChannelPairCombo(ctx: imgui.ContextPtr, id: [:0]const u8, dir: glue.Direction, current: i32, out: *i32) bool {
+fn drawChannelPairCombo(kit: *widgets.Panel, id: [:0]const u8, dir: glue.Direction, current: i32, out: *i32) bool {
+
     var preview: [96:0]u8 = undefined;
     const count = glue.audioChannelCount(dir);
     const preview_text = if (current < 0 or current + 1 >= count)
@@ -583,8 +589,8 @@ fn drawChannelPairCombo(ctx: imgui.ContextPtr, id: [:0]const u8, dir: glue.Direc
     else
         std.fmt.bufPrintZ(&preview, "{s} + {s}", .{ glue.audioChannelName(dir, @intCast(current)), glue.audioChannelName(dir, @intCast(current + 1)) }) catch "?";
     var changed = false;
-    if (widgets.beginPickList(ctx, id, preview_text, 320)) {
-        if (widgets.pickItem(ctx, "none", current < 0, true)) {
+    if (widgets.beginPickList(kit, id, preview_text, 320)) {
+        if (widgets.pickItem(kit, "none", current < 0, true)) {
             out.* = -1;
             changed = true;
         }
@@ -592,12 +598,12 @@ fn drawChannelPairCombo(ctx: imgui.ContextPtr, id: [:0]const u8, dir: glue.Direc
         while (ch + 1 < count) : (ch += 2) {
             var label: [128:0]u8 = undefined;
             const text = std.fmt.bufPrintZ(&label, "{s} + {s}##{d}", .{ glue.audioChannelName(dir, ch), glue.audioChannelName(dir, ch + 1), ch }) catch continue;
-            if (widgets.pickItem(ctx, text, current == @as(i32, @intCast(ch)), true)) {
+            if (widgets.pickItem(kit, text, current == @as(i32, @intCast(ch)), true)) {
                 out.* = @intCast(ch);
                 changed = true;
             }
         }
-        widgets.endPickList(ctx);
+        widgets.endPickList(kit);
     }
     return changed;
 }
@@ -607,7 +613,8 @@ const loop_send = widgets.Control{ .id = "loop-send", .low = -60, .high = 12, .d
 const loop_return = widgets.Control{ .id = "loop-return", .low = -60, .high = 12, .default = 0, .unit = " dB" };
 
 /// A paragraph in the label color, broken at `width` pixels from where it starts.
-fn labelNote(ctx: imgui.ContextPtr, text: [:0]const u8, width: f64) void {
+fn labelNote(kit: *widgets.Panel, text: [:0]const u8, width: f64) void {
+    const ctx = kit.ctx;
     var wrap = imgui.api.GetCursorPosX(ctx) + width;
     imgui.api.PushTextWrapPos(ctx, &wrap);
     imgui.api.TextColored(ctx, theme.label, text);
@@ -615,44 +622,46 @@ fn labelNote(ctx: imgui.ContextPtr, text: [:0]const u8, width: f64) void {
 }
 
 /// A line of text in the label font, for what stands beside a combo.
-fn labelLine(ctx: imgui.ContextPtr, text: [:0]const u8) void {
-    const pushed = widgets.pushLabelFont(ctx);
+fn labelLine(kit: *widgets.Panel, text: [:0]const u8) void {
+    const ctx = kit.ctx;
+    const pushed = widgets.pushLabelFont(kit);
     imgui.api.TextColored(ctx, theme.label, text);
-    widgets.popFont(ctx, pushed);
+    widgets.popFont(kit, pushed);
 }
 
 fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     if (!glue.ready) {
-        labelNote(ctx, "The audio loop needs REAPER. In another host the plugin only passes the audio through.", 560);
+        labelNote(kit, "The audio loop needs REAPER. In another host the plugin only passes the audio through.", 560);
         return;
     }
-    labelNote(ctx, "The loop sends this track's audio to the keyboard's audio input and takes the keyboard's output back, the way ReaInsert does for outboard gear. Wire the interface's output to the keyboard's input, and the keyboard's output to the interface's input.", 560);
+    labelNote(kit, "The loop sends this track's audio to the keyboard's audio input and takes the keyboard's output back, the way ReaInsert does for outboard gear. Wire the interface's output to the keyboard's input, and the keyboard's output to the interface's input.", 560);
     imgui.api.Spacing(ctx);
 
     const loop_state: audio.LoopState = @enumFromInt(p.loop_state.load(.monotonic));
-    if (widgets.beginCard(ctx, "Loop", null, null, null)) {
+    if (widgets.beginCard(kit, "Loop", null, null, null)) {
         const brackets = [_]widgets.Bracket{.{ .label = "Levels", .from = 2, .to = 3 }};
-        widgets.bracketRow(ctx, &brackets, 3);
+        widgets.bracketRow(kit, &brackets, 3);
         const enabled = p.settings.loop_enabled.load(.monotonic);
         imgui.api.PushID(ctx, "loop-on");
-        const switched = widgets.switchControl(ctx, if (enabled) 1 else 0, "audio loop", "ON", "OFF");
+        const switched = widgets.switchControl(kit, if (enabled) 1 else 0, "audio loop", "ON", "OFF");
         imgui.api.PopID(ctx);
         if (switched.changed) p.setLoopEnabled(switched.value == 1);
         // Because the two knobs draw the same widgets, each one gets an id of its own.
         imgui.api.SameLine(ctx, null, null);
         imgui.api.PushID(ctx, "loop-send");
-        const send = widgets.knob(ctx, loop_send, @intFromFloat(@round(p.settings.sendDb())), "send level", false);
+        const send = widgets.knob(kit, loop_send, @intFromFloat(@round(p.settings.sendDb())), "send level", false);
         imgui.api.PopID(ctx);
         if (send.changed) p.settings.setSendDb(@floatFromInt(send.value));
         imgui.api.SameLine(ctx, null, null);
         imgui.api.PushID(ctx, "loop-return");
-        const back = widgets.knob(ctx, loop_return, @intFromFloat(@round(p.settings.returnDb())), "return level", false);
+        const back = widgets.knob(kit, loop_return, @intFromFloat(@round(p.settings.returnDb())), "return level", false);
         imgui.api.PopID(ctx);
         if (back.changed) p.settings.setReturnDb(@floatFromInt(back.value));
 
         const running = loop_state == .running;
         const tint = if (running) theme.green else theme.amber;
-        widgets.lamp(ctx, tint, running);
+        widgets.lamp(kit, tint, running);
         imgui.api.SameLine(ctx, null, null);
         imgui.api.TextColored(ctx, tint, switch (loop_state) {
             .off => "The loop is off: the audio passes through.",
@@ -666,46 +675,46 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) void {
         } else {
             imgui.api.TextColored(ctx, theme.grey, "The plugin is not active yet.");
         }
-        widgets.endCard(ctx);
+        widgets.endCard(kit);
     }
 
-    if (widgets.beginCard(ctx, "Channels", null, null, null)) {
+    if (widgets.beginCard(kit, "Channels", null, null, null)) {
         var out_channel = p.settings.out_channel.load(.monotonic);
-        labelLine(ctx, "Send to (interface outputs)");
-        if (drawChannelPairCombo(ctx, "##send", .output, out_channel, &out_channel)) {
+        labelLine(kit, "Send to (interface outputs)");
+        if (drawChannelPairCombo(kit, "##send", .output, out_channel, &out_channel)) {
             p.settings.out_channel.store(out_channel, .monotonic);
             p.applyLoopSettings();
         }
         var in_channel = p.settings.in_channel.load(.monotonic);
-        labelLine(ctx, "Return from (interface inputs)");
-        if (drawChannelPairCombo(ctx, "##return", .input, in_channel, &in_channel)) {
+        labelLine(kit, "Return from (interface inputs)");
+        if (drawChannelPairCombo(kit, "##return", .input, in_channel, &in_channel)) {
             p.settings.in_channel.store(in_channel, .monotonic);
             p.applyLoopSettings();
         }
-        widgets.endCard(ctx);
+        widgets.endCard(kit);
     }
 
-    if (widgets.beginCard(ctx, "Latency", null, null, null)) {
-        labelNote(ctx, "The plugin tells REAPER how long the round trip takes, and REAPER's delay compensation lines the track up. Measuring sends a short click to the keyboard's audio input, so turn the keyboard's volume down first.", 420);
+    if (widgets.beginCard(kit, "Latency", null, null, null)) {
+        labelNote(kit, "The plugin tells REAPER how long the round trip takes, and REAPER's delay compensation lines the track up. Measuring sends a short click to the keyboard's audio input, so turn the keyboard's volume down first.", 420);
         const ping: audio.PingState = @enumFromInt(p.ping_state.load(.acquire));
         const busy = ping == .listening_noise or ping == .sending or ping == .listening;
         if (busy) imgui.api.BeginDisabled(ctx, null);
-        if (widgets.pushButton(ctx, "Measure the round trip", 0)) p.startPing();
+        if (widgets.pushButton(kit, "Measure the round trip", 0)) p.startPing();
         if (busy) imgui.api.EndDisabled(ctx);
         imgui.api.SameLine(ctx, null, null);
         var text: [128:0]u8 = undefined;
         const frames = p.settings.latency_frames.load(.monotonic);
         const rate = p.settings.latency_rate.load(.monotonic);
         switch (ping) {
-            .idle => if (frames == 0) widgets.display(ctx, "not measured yet", theme.text_dim, 160) else widgets.display(ctx, latencyText(&text, frames, rate), theme.amber, 160),
-            .listening_noise, .sending, .listening => widgets.display(ctx, "measuring...", theme.amber, 160),
-            .done => widgets.display(ctx, latencyText(&text, frames, rate), theme.green, 160),
+            .idle => if (frames == 0) widgets.display(kit, "not measured yet", theme.text_dim, 160) else widgets.display(kit, latencyText(&text, frames, rate), theme.amber, 160),
+            .listening_noise, .sending, .listening => widgets.display(kit, "measuring...", theme.amber, 160),
+            .done => widgets.display(kit, latencyText(&text, frames, rate), theme.green, 160),
             .failed => {
-                widgets.display(ctx, "no click came back", theme.red, 160);
+                widgets.display(kit, "no click came back", theme.red, 160);
                 imgui.api.TextColored(ctx, theme.red, "Check the cables, the channels and that the track is processing.");
             },
         }
-        widgets.endCard(ctx);
+        widgets.endCard(kit);
     }
 }
 
@@ -716,7 +725,8 @@ fn latencyText(buf: []u8, frames: u32, rate: u32) [:0]const u8 {
 
 // ---- the MIDI tab ----
 
-fn drawDeviceCombo(w: *Window, ctx: imgui.ContextPtr, id: [:0]const u8, dir: glue.Direction, current: ?usize, out: *?usize) bool {
+fn drawDeviceCombo(w: *Window, id: [:0]const u8, dir: glue.Direction, current: ?usize, out: *?usize) bool {
+    const kit = &w.kit;
     const names = if (dir == .output) &w.output_names else &w.input_names;
     const present = if (dir == .output) &w.output_present else &w.input_present;
     var preview: [128:0]u8 = undefined;
@@ -725,8 +735,8 @@ fn drawDeviceCombo(w: *Window, ctx: imgui.ContextPtr, id: [:0]const u8, dir: glu
     else
         std.fmt.bufPrintZ(&preview, "none", .{}) catch "none";
     var changed = false;
-    if (widgets.beginPickList(ctx, id, preview_text, 360)) {
-        if (dir == .output and widgets.pickItem(ctx, "none", current == null, true)) {
+    if (widgets.beginPickList(kit, id, preview_text, 360)) {
+        if (dir == .output and widgets.pickItem(kit, "none", current == null, true)) {
             out.* = null;
             changed = true;
         }
@@ -735,83 +745,84 @@ fn drawDeviceCombo(w: *Window, ctx: imgui.ContextPtr, id: [:0]const u8, dir: glu
             var label: [160:0]u8 = undefined;
             const text = std.fmt.bufPrintZ(&label, "{s}##{d}", .{ std.mem.sliceTo(&names[i], 0), i }) catch continue;
             // Because a track's device field is too narrow for the later entries, they are shown but cannot be chosen.
-            if (widgets.pickItem(ctx, text, current != null and current.? == i, glue.addressable(dir, i))) {
+            if (widgets.pickItem(kit, text, current != null and current.? == i, glue.addressable(dir, i))) {
                 out.* = i;
                 changed = true;
             }
         }
-        widgets.endPickList(ctx);
+        widgets.endPickList(kit);
     }
     return changed;
 }
 
 fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     const w = &p.ui;
     const s = p.shared;
-    if (widgets.beginCard(ctx, "The track's MIDI devices", null, null, null)) {
+    if (widgets.beginCard(kit, "The track's MIDI devices", null, null, null)) {
         if (!glue.ready or p.track == null) {
-            labelNote(ctx, "The MIDI routing can only be set from a track's FX chain in REAPER. In another host, or on a take or the monitoring chain, route the plugin's MIDI yourself.", 460);
+            labelNote(kit, "The MIDI routing can only be set from a track's FX chain in REAPER. In another host, or on a take or the monitoring chain, route the plugin's MIDI yourself.", 460);
         } else {
             if (glue.findKeyboard(.output) == null) {
                 imgui.api.TextColored(ctx, theme.amber, "No VR-09 found among REAPER's MIDI outputs: plug it in (USB), or choose its device below.");
             }
-            labelLine(ctx, "MIDI output (to the keyboard)");
+            labelLine(kit, "MIDI output (to the keyboard)");
             var out_dev = glue.trackMidiOutput(p.track);
-            if (drawDeviceCombo(w, ctx, "##midiout", .output, out_dev, &out_dev)) {
+            if (drawDeviceCombo(w, "##midiout", .output, out_dev, &out_dev)) {
                 glue.setTrackMidiOutput(p.track, out_dev);
                 p.settings.autoconnect_done.store(true, .monotonic);
             }
-            labelLine(ctx, "MIDI input (record from the keyboard)");
+            labelLine(kit, "MIDI input (record from the keyboard)");
             var in_dev = glue.trackMidiInput(p.track);
-            if (drawDeviceCombo(w, ctx, "##midiin", .input, in_dev, &in_dev)) {
+            if (drawDeviceCombo(w, "##midiin", .input, in_dev, &in_dev)) {
                 if (in_dev) |d| glue.setTrackMidiInput(p.track, d);
             }
             if (in_dev == null) imgui.api.TextColored(ctx, theme.grey, "The track's input is not a single MIDI device.");
 
             const monitoring = glue.trackMonitoring(p.track);
             var armed = glue.trackArmed(p.track);
-            if (widgets.toggle(ctx, "Record-arm the track", &armed)) glue.setTrackArmed(p.track, armed);
-            widgets.tooltip(ctx, "REAPER only delivers MIDI input to a track's plugins while the track is armed. The keyboard's replies are MIDI input.");
+            if (widgets.toggle(kit, "Record-arm the track", &armed)) glue.setTrackArmed(p.track, armed);
+            widgets.tooltip(kit, "REAPER only delivers MIDI input to a track's plugins while the track is armed. The keyboard's replies are MIDI input.");
             var monitor_on = monitoring == 1;
-            if (widgets.toggle(ctx, "Monitor input", &monitor_on)) glue.setTrackMonitoring(p.track, if (monitor_on) 1 else 0);
+            if (widgets.toggle(kit, "Monitor input", &monitor_on)) glue.setTrackMonitoring(p.track, if (monitor_on) 1 else 0);
             if (!armed) {
                 imgui.api.TextColored(ctx, theme.amber, "The track is not armed: the keyboard's replies cannot reach the plugin.");
             } else if (monitoring == 0) {
                 imgui.api.TextColored(ctx, theme.amber, "The track does not monitor its input: the keyboard's replies cannot reach the plugin.");
             }
         }
-        widgets.endCard(ctx);
+        widgets.endCard(kit);
     }
 
-    if (widgets.beginCard(ctx, "Behavior", null, null, null)) {
+    if (widgets.beginCard(kit, "Behavior", null, null, null)) {
         var pass = p.settings.pass_midi.load(.monotonic);
-        if (widgets.toggle(ctx, "Pass this track's MIDI through to the keyboard", &pass)) p.settings.pass_midi.store(pass, .monotonic);
-        widgets.tooltip(ctx, "Off by default. REAPER does not tell the notes you play from the notes the track plays back, and the track must monitor its input for the keyboard's replies to arrive, so the keyboard would sound its own notes twice. Keep the notes on a separate MIDI track, or turn this on and switch the keyboard's Local Control off.");
+        if (widgets.toggle(kit, "Pass this track's MIDI through to the keyboard", &pass)) p.settings.pass_midi.store(pass, .monotonic);
+        widgets.tooltip(kit, "Off by default. REAPER does not tell the notes you play from the notes the track plays back, and the track must monitor its input for the keyboard's replies to arrive, so the keyboard would sound its own notes twice. Keep the notes on a separate MIDI track, or turn this on and switch the keyboard's Local Control off.");
         const dropped = s.midi_dropped.load(.monotonic);
         if (!pass and dropped > 0) {
             var note: [128:0]u8 = undefined;
             imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&note, "{d} MIDI messages on this track were not passed on.", .{dropped}) catch "");
         }
         var bare = p.settings.sysex_bare.load(.monotonic);
-        if (widgets.toggle(ctx, "Send SysEx without its F0 and F7 bytes", &bare)) p.settings.sysex_bare.store(bare, .monotonic);
-        widgets.tooltip(ctx, "Switch this on if the keyboard ignores the plugin's messages: hosts differ on whether they add the framing bytes themselves.");
-        widgets.endCard(ctx);
+        if (widgets.toggle(kit, "Send SysEx without its F0 and F7 bytes", &bare)) p.settings.sysex_bare.store(bare, .monotonic);
+        widgets.tooltip(kit, "Switch this on if the keyboard ignores the plugin's messages: hosts differ on whether they add the framing bytes themselves.");
+        widgets.endCard(kit);
     }
 
-    if (widgets.beginCard(ctx, "Connection", null, null, null)) {
-        if (widgets.pushButton(ctx, "Look for the keyboard again", 0)) {
+    if (widgets.beginCard(kit, "Connection", null, null, null)) {
+        if (widgets.pushButton(kit, "Look for the keyboard again", 0)) {
             _ = s.sendCommand(.reconnect);
             p.settings.autoconnect_done.store(false, .monotonic);
             p.ticks = 0;
             notice(w, "Asking the keyboard who it is.", .{}, false);
         }
         var text: [160:0]u8 = undefined;
-        widgets.display(ctx, std.fmt.bufPrintZ(&text, "sent {d}   received {d}   bad checksums {d}", .{ s.tx_count.load(.monotonic), s.rx_count.load(.monotonic), s.bad_count.load(.monotonic) }) catch "", theme.amber, 360);
+        widgets.display(kit, std.fmt.bufPrintZ(&text, "sent {d}   received {d}   bad checksums {d}", .{ s.tx_count.load(.monotonic), s.rx_count.load(.monotonic), s.bad_count.load(.monotonic) }) catch "", theme.amber, 360);
         imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "SysEx events: from the host {d}, accepted by the host {d}, refused {d}", .{ s.host_sysex_in.load(.monotonic), s.host_sysex_out.load(.monotonic), s.host_sysex_refused.load(.monotonic) }) catch "");
         var trace: [96]u8 = undefined;
         imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "First received: {s}", .{s.trace_in.format(&trace)}) catch "");
         imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "First sent: {s}", .{s.trace_out.format(&trace)}) catch "");
         imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "Known keyboard bytes: {d} of {d}, blocks that never answered: {d}", .{ s.mirror_known.load(.monotonic), dump.total_bytes, s.blocks_failed.load(.monotonic) }) catch "");
-        widgets.endCard(ctx);
+        widgets.endCard(kit);
     }
 }

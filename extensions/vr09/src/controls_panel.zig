@@ -41,6 +41,8 @@ pub const State = struct {
 /// What every card draws with.
 const Ui = struct {
     ctx: imgui.ContextPtr,
+    /// The panel that the components draw with.
+    kit: *widgets.Panel,
     shared: *engine.Shared,
     state: *State,
 };
@@ -179,9 +181,9 @@ fn drawRef(ui: Ui, ref: Ref, label: []const u8, bipolar: bool) void {
     imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "ref");
     const value = valueOf(ui, ref);
     const change = if (ref.control.names.len > 0)
-        widgets.stopKnob(ui.ctx, ref.control, value, label, idIn(&as_list_ids, ref.control.id))
+        widgets.stopKnob(ui.kit, ref.control, value, label, idIn(&as_list_ids, ref.control.id))
     else
-        widgets.knob(ui.ctx, ref.control, value, label, bipolar);
+        widgets.knob(ui.kit, ref.control, value, label, bipolar);
     imgui.api.PopID(ui.ctx);
     if (change.changed) setValue(ui, ref, change.value);
 }
@@ -190,10 +192,10 @@ fn drawRef(ui: Ui, ref: Ref, label: []const u8, bipolar: bool) void {
 
 /// The height the tallest card of a row needs, from the last time each was drawn, so that the cards of the
 /// row can all take it; null the first time, when the cards size themselves.
-fn rowHeight(titles: []const []const u8) ?f64 {
+fn rowHeight(kit: *const widgets.Panel, titles: []const []const u8) ?f64 {
     var tallest: ?f64 = null;
     for (titles) |title| {
-        if (widgets.naturalHeight(title)) |height| {
+        if (widgets.naturalHeight(kit, title)) |height| {
             if (tallest == null or height > tallest.?) tallest = height;
         }
     }
@@ -228,14 +230,14 @@ fn partToggle(ui: Ui, key: []const u8) void {
         }
     }
     var on = !ui.state.part_off[slot];
-    if (widgets.toggle(ui.ctx, "Part on", &on)) ui.state.part_off[slot] = !on;
+    if (widgets.toggle(ui.kit, "Part on", &on)) ui.state.part_off[slot] = !on;
 }
 
 /// A switch for an extra that is either 0 or 1.
 fn extraToggle(ui: Ui, id: []const u8, label: [:0]const u8) void {
     const ref = findRef(id) orelse return;
     var on = valueOf(ui, ref) == 1;
-    if (widgets.toggle(ui.ctx, label, &on)) setValue(ui, ref, if (on) 1 else 0);
+    if (widgets.toggle(ui.kit, label, &on)) setValue(ui, ref, if (on) 1 else 0);
 }
 
 const IdText = struct { id: []const u8, text: []const u8 };
@@ -276,7 +278,7 @@ fn labelFor(card: KnobCard, ref: Ref) []const u8 {
 /// A card of knobs. Returns the size of the card, so that a card beside it can match it, or null when the
 /// card is not drawn.
 fn cardOfKnobs(ui: Ui, refs: []const Ref, card: KnobCard) ?Size {
-    if (!widgets.beginCard(ui.ctx, card.title, null, card.height, card.accent)) return null;
+    if (!widgets.beginCard(ui.kit, card.title, null, card.height, card.accent)) return null;
     const count = refs.len;
     const per_row = if (card.columns > 0) card.columns else count;
     for (refs, 0..) |ref, i| {
@@ -288,13 +290,13 @@ fn cardOfKnobs(ui: Ui, refs: []const Ref, card: KnobCard) ?Size {
                 card.brackets
             else
                 &.{};
-            if (brackets.len > 0) widgets.bracketRow(ui.ctx, brackets, @min(per_row, count - i));
+            if (brackets.len > 0) widgets.bracketRow(ui.kit, brackets, @min(per_row, count - i));
         }
         const bipolar = card.bipolar or idIn(card.bipolar_ids, ref.control.id);
         drawRef(ui, ref, labelFor(card, ref), bipolar);
         if (i + 1 < count and (i + 1) % per_row != 0) sameLine(ui.ctx);
     }
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
     var w: f64 = 0;
     var h: f64 = 0;
     imgui.api.GetItemRectSize(ui.ctx, &w, &h);
@@ -304,7 +306,7 @@ fn cardOfKnobs(ui: Ui, refs: []const Ref, card: KnobCard) ?Size {
 /// A card of controls drawn one beside the other, each labelled with its short name: the card of the
 /// extras, and of the parts of a section whose parameters are looked up by id.
 fn cardOfIds(ui: Ui, title: []const u8, ids: []const []const u8, card_accent: ?c_int, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, title, null, height, card_accent)) return;
+    if (!widgets.beginCard(ui.kit, title, null, height, card_accent)) return;
     var refs: [refs_cap]Ref = undefined;
     const count = collect(ids, &refs);
     for (refs[0..count], 0..) |ref, i| {
@@ -312,7 +314,7 @@ fn cardOfIds(ui: Ui, title: []const u8, ids: []const []const u8, card_accent: ?c
         drawRef(ui, ref, label, ref.control.signed);
         if (i + 1 < count) sameLine(ui.ctx);
     }
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 /// Because a tonewheel organ's drawbars come in three colors by footage, the cap's color is found from the end
@@ -338,33 +340,33 @@ fn shortDrawbarName(label: []const u8) []const u8 {
 }
 
 fn cardOfDrawbars(ui: Ui, group: []const u8, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, group, null, height, accents.part.organ)) return;
+    if (!widgets.beginCard(ui.kit, group, null, height, accents.part.organ)) return;
     partToggle(ui, group);
     var refs: [refs_cap]Ref = undefined;
     const count = collectGroup(group, &refs);
     for (refs[0..count], 0..) |ref, i| {
         var id: [64:0]u8 = undefined;
         imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "bar");
-        const change = widgets.drawbar(ui.ctx, ref.control, valueOf(ui, ref), shortDrawbarName(ref.label), capColors(ref.control.id), false);
+        const change = widgets.drawbar(ui.kit, ref.control, valueOf(ui, ref), shortDrawbarName(ref.label), capColors(ref.control.id), false);
         imgui.api.PopID(ui.ctx);
         if (change.changed) setValue(ui, ref, change.value);
         if (i + 1 < count) sameLine(ui.ctx);
     }
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 /// The rotary speaker: its switch and the three knobs of the woofer on one row, and the three knobs of the
 /// tweeter under them. Because the catalog lists the switch first, then the woofer, then the tweeter, the
 /// parameters are taken by their position.
 fn cardOfRotary(ui: Ui, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, "Rotary", null, height, accents.part.organ)) return;
+    if (!widgets.beginCard(ui.kit, "Rotary", null, height, accents.part.organ)) return;
     var refs: [refs_cap]Ref = undefined;
     const count = collectGroup("Rotary", &refs);
     for (refs[0..count], 0..) |ref, i| {
         if (i == 0) {
             var id: [64:0]u8 = undefined;
             imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "rotary");
-            const change = widgets.switchControl(ui.ctx, valueOf(ui, ref), "speaker speed", "FAST", "SLOW");
+            const change = widgets.switchControl(ui.kit, valueOf(ui, ref), "speaker speed", "FAST", "SLOW");
             imgui.api.PopID(ui.ctx);
             if (change.changed) setValue(ui, ref, change.value);
         } else {
@@ -378,7 +380,7 @@ fn cardOfRotary(ui: Ui, height: ?f64) void {
             sameLine(ui.ctx);
         }
     }
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 /// What the synth's attack, decay and release shape. The catalog does not say, so this is the part of the
@@ -403,17 +405,17 @@ fn cardOfEnvelope(ui: Ui, group: []const u8, title: []const u8, size: Size, card
     const release = refEnding(refs[0..count], "-release") orelse return;
     var heading: [96]u8 = undefined;
     const text = std.fmt.bufPrint(&heading, "{s} {s} envelope", .{ title, envelope_of }) catch title;
-    if (!widgets.beginCard(ui.ctx, text, size.w, size.h, card_accent)) return;
+    if (!widgets.beginCard(ui.kit, text, size.w, size.h, card_accent)) return;
     const three = [3]Ref{ attack, decay, release };
     const change = widgets.envelope(
-        ui.ctx,
+        ui.kit,
         .{ attack.control, decay.control, release.control },
         .{ valueOf(ui, attack), valueOf(ui, decay), valueOf(ui, release) },
     );
     for (three, 0..) |ref, i| {
         if (change.changed[i]) setValue(ui, ref, change.values[i]);
     }
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 fn cardOfSynth(ui: Ui, group: []const u8) void {
@@ -440,7 +442,7 @@ fn cardOfMixer(ui: Ui) void {
     var all: [refs_cap]Ref = undefined;
     const total = collectGroup("Mixer", &all);
     const suffixes = [_][]const u8{ " volume", " level" };
-    const row = rowHeight(&.{ "Upper", "Backing" });
+    const row = rowHeight(ui.kit, &.{ "Upper", "Backing" });
     var band: [refs_cap]Ref = undefined;
 
     // The volume of the upper piano's second layer comes after the upper piano's.
@@ -642,7 +644,7 @@ fn cardOfEffects(ui: Ui) void {
     for (effect_rows) |row| {
         var titles: [4][]const u8 = undefined;
         for (row, 0..) |effect, i| titles[i] = effect.title;
-        const height = rowHeight(titles[0..row.len]);
+        const height = rowHeight(ui.kit, titles[0..row.len]);
         for (row, 0..) |effect, i| {
             if (i > 0) sameLine(ui.ctx);
             cardOfEffect(ui, effect, height);
@@ -656,7 +658,7 @@ fn cardOfEffects(ui: Ui) void {
 /// the switches. The unit refuses the EQ and the overdrive's dry mix, and the rest the plugin does not have,
 /// so that all of it is drawn disabled.
 fn cardOfOrganVoicing(ui: Ui, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, "Organ voicing", null, height, accents.part.organ)) return;
+    if (!widgets.beginCard(ui.kit, "Organ voicing", null, height, accents.part.organ)) return;
     const rows = [_][]const []const u8{
         &.{ "organ-type", "rotary-type", "percussion", "percussion-level" },
         &.{ "organ-eq-high", "organ-eq-low", "overdrive-dry" },
@@ -679,13 +681,13 @@ fn cardOfOrganVoicing(ui: Ui, height: ?f64) void {
         extraToggle(ui, item.id, std.fmt.bufPrintZ(&label, "{s}", .{item.text}) catch "");
         if (i + 1 < switches.len) sameLine(ui.ctx);
     }
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 /// The pedal part, drawn disabled, with the drawbars its organ block would have: the plugin has no parameter
 /// for it yet.
 fn cardOfOrganPedal(ui: Ui, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, "Organ pedal", null, height, null)) return;
+    if (!widgets.beginCard(ui.kit, "Organ pedal", null, height, null)) return;
     var first = true;
     for (&extras.params) |*extra| {
         if (!std.mem.startsWith(u8, extra.id, "organ-pedal-")) continue;
@@ -694,15 +696,15 @@ fn cardOfOrganPedal(ui: Ui, height: ?f64) void {
         const ref = refOfExtra(extra);
         var id: [64:0]u8 = undefined;
         imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "pedal");
-        _ = widgets.drawbar(ui.ctx, ref.control, valueOf(ui, ref), shortDrawbarName(ref.label), capColors(ref.control.id), true);
+        _ = widgets.drawbar(ui.kit, ref.control, valueOf(ui, ref), shortDrawbarName(ref.label), capColors(ref.control.id), true);
         imgui.api.PopID(ui.ctx);
     }
     imgui.api.TextColored(ui.ctx, theme.text_dim, "Not in the plugin yet (MIDI channel 2).");
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 fn organExtras(ui: Ui) void {
-    const height = rowHeight(&.{ "Organ voicing", "Organ pedal" });
+    const height = rowHeight(ui.kit, &.{ "Organ voicing", "Organ pedal" });
     cardOfOrganVoicing(ui, height);
     sameLine(ui.ctx);
     cardOfOrganPedal(ui, height);
@@ -736,7 +738,7 @@ fn toneSlot(state: *State, id: []const u8) usize {
 fn toneChoice(ui: Ui, id: [:0]const u8, list: []const tones.Tone) bool {
     const slot = toneSlot(ui.state, id);
     const before = ui.state.tone_index[slot];
-    const chosen = tone_picker.tonePicker(ui.ctx, id, list, before, &ui.state.tone_filter[slot]);
+    const chosen = tone_picker.tonePicker(ui.kit, id, list, before, &ui.state.tone_filter[slot]);
     ui.state.tone_index[slot] = chosen;
     return chosen != before;
 }
@@ -760,7 +762,7 @@ fn setNotice(state: *State, comptime fmt: []const u8, args: anytype) void {
 
 /// The card of one part's tone. The plugin has no tone parameter yet, so the choice is only shown.
 fn cardOfTone(ui: Ui, part: TonePart) void {
-    if (!widgets.beginCard(ui.ctx, part.title, null, null, if (part.upper) accents.part.upper else accents.part.lower)) return;
+    if (!widgets.beginCard(ui.kit, part.title, null, null, if (part.upper) accents.part.upper else accents.part.lower)) return;
     const list: []const tones.Tone = if (part.synth) &tones.synth else &tones.piano;
     if (toneChoice(ui, part.id, list)) {
         const slot = toneSlot(ui.state, part.id);
@@ -778,7 +780,7 @@ fn cardOfTone(ui: Ui, part: TonePart) void {
         drawRef(ui, ref, ref.short, false);
         if (i + 1 < count) sameLine(ui.ctx);
     }
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 fn tonesSection(ui: Ui) void {
@@ -791,18 +793,18 @@ fn tonesSection(ui: Ui) void {
 /// The drum part: its kit from the tone list, its volume, and a switch. The document lists these at the drum
 /// block's offsets, but the unit's dumps do not match them, so the card says it is unconfirmed.
 fn drumsSection(ui: Ui) void {
-    if (!widgets.beginCard(ui.ctx, "Drum kit", null, null, accents.part.master)) return;
+    if (!widgets.beginCard(ui.kit, "Drum kit", null, null, accents.part.master)) return;
     _ = toneChoice(ui, "drum", &tones.drum);
     partToggle(ui, "drum");
     if (findRef("drum-volume")) |ref| drawRef(ui, ref, "volume", false);
     wrappedNote(ui.ctx, "Roland documents the kit and the volume at the drum block's offsets, but the unit's dumps do not match them: unconfirmed. The drums play on MIDI channel 11.", 360);
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 /// The pedals' settings: the part the damper pedal acts on, the wheel brake, and the two N.control switches,
 /// which are the two bits of one value.
 fn cardOfPedals(ui: Ui, tint: c_int) void {
-    if (!widgets.beginCard(ui.ctx, "Pedals", null, null, tint)) return;
+    if (!widgets.beginCard(ui.kit, "Pedals", null, null, tint)) return;
     for ([_][]const u8{ "damper-part", "wheel-brake" }) |id| {
         if (findRef(id)) |ref| {
             drawRef(ui, ref, ref.short, false);
@@ -814,18 +816,18 @@ fn cardOfPedals(ui: Ui, tint: c_int) void {
         const n = valueOf(ui, ref);
         var first = n & 1 == 1;
         var second = n & 2 == 2;
-        const changed_first = widgets.toggle(ui.ctx, "N.control 1", &first);
+        const changed_first = widgets.toggle(ui.kit, "N.control 1", &first);
         sameLine(ui.ctx);
-        const changed_second = widgets.toggle(ui.ctx, "N.control 2", &second);
+        const changed_second = widgets.toggle(ui.kit, "N.control 2", &second);
         if (changed_first or changed_second) setValue(ui, ref, (if (first) @as(i32, 1) else 0) | (if (second) @as(i32, 2) else 0));
     }
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 /// The keyboard's performance controls: what the two footswitches and the D-Beam do, and the transposition
 /// and the touch.
 fn performanceSection(ui: Ui) void {
-    const height = rowHeight(&.{ "Footswitches", "D-Beam", "Keyboard" });
+    const height = rowHeight(ui.kit, &.{ "Footswitches", "D-Beam", "Keyboard" });
     cardOfIds(ui, "Footswitches", &.{ "footswitch-left", "footswitch-right" }, accents.part.master, height);
     sameLine(ui.ctx);
     cardOfIds(ui, "D-Beam", &.{"d-beam"}, accents.part.master, height);
@@ -868,10 +870,10 @@ const engine_rows = [_][]const EngineCard{
 
 /// The synth tone's own card: its name on a display, and its level, wave shape and category.
 fn cardOfEngineTone(ui: Ui, height: ?f64) void {
-    if (!widgets.beginCard(ui.ctx, "Synth tone", null, height, null)) return;
-    widgets.display(ui.ctx, "Init Tone", theme.text_dim, 160);
+    if (!widgets.beginCard(ui.kit, "Synth tone", null, height, null)) return;
+    widgets.display(ui.kit, "Init Tone", theme.text_dim, 160);
     cardRow(ui, &.{ "engine-tone-level", "engine-wave-shape", "engine-tone-category" });
-    widgets.endCard(ui.ctx);
+    widgets.endCard(ui.kit);
 }
 
 /// The controls of some ids on one row, each under its short name.
@@ -889,7 +891,7 @@ fn engineSection(ui: Ui) void {
     for (engine_rows) |row| {
         var titles: [4][]const u8 = undefined;
         for (row, 0..) |card, i| titles[i] = card.title;
-        const height = rowHeight(titles[0..row.len]);
+        const height = rowHeight(ui.kit, titles[0..row.len]);
         for (row, 0..) |card, i| {
             if (i > 0) sameLine(ui.ctx);
             if (card.tone_card) cardOfEngineTone(ui, height) else cardOfIds(ui, card.title, card.ids, null, height);
@@ -935,12 +937,12 @@ const section_tabs = [_]SectionTab{
 /// organ's and the rotary speaker's knobs on one row, then the cards that the organ adds.
 fn organSection(ui: Ui) void {
     const drawbar_groups = [_][]const u8{ "Organ upper drawbars", "Organ lower drawbars" };
-    const drawbar_height = rowHeight(&drawbar_groups);
+    const drawbar_height = rowHeight(ui.kit, &drawbar_groups);
     for (drawbar_groups, 0..) |group, i| {
         if (i > 0) sameLine(ui.ctx);
         cardOfDrawbars(ui, group, drawbar_height);
     }
-    const knob_height = rowHeight(&.{ "Organ", "Rotary" });
+    const knob_height = rowHeight(ui.kit, &.{ "Organ", "Rotary" });
     var refs: [refs_cap]Ref = undefined;
     const count = collectGroup("Organ", &refs);
     _ = cardOfKnobs(ui, refs[0..count], .{ .title = "Organ", .accent = accents.part.organ, .height = knob_height });
@@ -978,11 +980,12 @@ fn drawSection(ui: Ui, kind: Section) void {
 }
 
 /// The Controls tab holds a tab bar of its own, with one tab for each section of the instrument.
-pub fn draw(shared: *engine.Shared, state: *State, ctx: imgui.ContextPtr) void {
-    const ui = Ui{ .ctx = ctx, .shared = shared, .state = state };
+pub fn draw(shared: *engine.Shared, state: *State, kit: *widgets.Panel) void {
+    const ctx = kit.ctx;
+    const ui = Ui{ .ctx = ctx, .kit = kit, .shared = shared, .state = state };
     if (!imgui.api.BeginTabBar(ctx, "##sections", null)) return;
     for (section_tabs) |tab| {
-        if (!widgets.beginTab(ctx, tab.name, null)) continue;
+        if (!widgets.beginTab(kit, tab.name, null)) continue;
         // EndChild only follows a BeginChild that returned true.
         if (imgui.api.BeginChild(ctx, "##section", null, null, null, null)) {
             drawSection(ui, tab.kind);

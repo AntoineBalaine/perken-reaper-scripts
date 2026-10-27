@@ -55,6 +55,12 @@ pub const State = struct {
     /// Where the "save the keyboard" button is: 0 when idle, 1 until the read starts, 2 until it ends.
     saving: u8 = 0,
     saving_since: u32 = 0,
+    /// The rows of the table, rebuilt each frame, in storage of their own because there are several hundred.
+    rows: [rows_cap]Row = undefined,
+    row_count: usize = 0,
+    /// The rows that the filters let through, in the order they are shown.
+    shown: [rows_cap]u32 = undefined,
+    shown_count: usize = 0,
 };
 
 fn initialGroup() [group_cap:0]u8 {
@@ -81,13 +87,6 @@ pub const Row = struct {
     list: u8 = 0,
 };
 
-/// The rows are rebuilt each frame, in storage of their own because there are several hundred.
-var rows: [rows_cap]Row = undefined;
-var row_count: usize = 0;
-/// The rows that the filters let through, in the order they are shown.
-var shown: [rows_cap]u32 = undefined;
-var shown_count: usize = 0;
-
 fn copyZ(dest: anytype, text: []const u8) void {
     const n = @min(text.len, dest.len);
     @memcpy(dest[0..n], text[0..n]);
@@ -106,15 +105,16 @@ pub fn presetId(name: []const u8) u32 {
     return preset_id_first + h % preset_id_span;
 }
 
-fn addRow(row: Row) void {
-    if (row_count == rows_cap) return;
-    rows[row_count] = row;
-    row_count += 1;
+fn addRow(state: *State, row: Row) void {
+    if (state.row_count == rows_cap) return;
+    state.rows[state.row_count] = row;
+    state.row_count += 1;
 }
 
 /// Every patch of the table: the registrations, the tones, and then the player's presets.
 pub fn buildRows(p: *Plugin) void {
-    row_count = 0;
+    const state = &p.ui.patches;
+    state.row_count = 0;
     const w = &p.ui;
     if (w.reg_library) |lib| {
         for (lib.entries.items, 0..) |entry, i| {
@@ -130,7 +130,7 @@ pub fn buildRows(p: *Plugin) void {
             row.value = (@as(u32, entry.bank) - 1) * 4 + entry.slot;
             var key: [24]u8 = undefined;
             row.key = hashOf(std.fmt.bufPrint(&key, "reg{d}", .{i}) catch "reg");
-            addRow(row);
+            addRow(state, row);
         }
     }
     var position: u32 = 0;
@@ -147,7 +147,7 @@ pub fn buildRows(p: *Plugin) void {
             row.value = first_tone_value + position;
             var key: [24]u8 = undefined;
             row.key = hashOf(std.fmt.bufPrint(&key, "tone{d}-{d}", .{ list_index, i }) catch "tone");
-            addRow(row);
+            addRow(state, row);
             position += 1;
         }
     }
@@ -163,14 +163,15 @@ pub fn buildRows(p: *Plugin) void {
             copyZ(&row.group, "USER");
             row.value = presetId(display);
             row.key = hashOf(file_name);
-            addRow(row);
+            addRow(state, row);
         }
     }
 }
 
 /// The row of the table with this patch ID, from the last time the rows were built.
-pub fn rowByValue(value: u32) ?*const Row {
-    for (rows[0..row_count]) |*row| {
+pub fn rowByValue(p: *Plugin, value: u32) ?*const Row {
+    const state = &p.ui.patches;
+    for (state.rows[0..state.row_count]) |*row| {
         if (row.value == value) return row;
     }
     return null;
@@ -214,7 +215,7 @@ fn searchText(buf: []u8, row: *const Row) []const u8 {
     return std.fmt.bufPrint(buf, "{s} {s} {s} {s}", .{ nameOf(row), groupOf(row), numberOf(row), typeOf(row) }) catch "";
 }
 
-const SortContext = struct { column: i32 };
+const SortContext = struct { column: i32, rows: *const [rows_cap]Row };
 
 /// The text that a row is ordered by when the table is sorted by a column. Because names and groups are
 /// compared in lower case, capitals do not sort apart from small letters. The patch ID is not part of the
@@ -229,8 +230,8 @@ fn sortText(row: *const Row, column: i32) []const u8 {
 }
 
 fn sortLess(context: SortContext, a: u32, b: u32) bool {
-    const left = &rows[a];
-    const right = &rows[b];
+    const left = &context.rows[a];
+    const right = &context.rows[b];
     const ta = sortText(left, context.column);
     const tb = sortText(right, context.column);
     if (!std.ascii.eqlIgnoreCase(ta, tb)) return std.ascii.lessThanIgnoreCase(ta, tb);
@@ -238,12 +239,12 @@ fn sortLess(context: SortContext, a: u32, b: u32) bool {
 }
 
 /// The rows that the filters let through. A search ranks them by how well they match, best first.
-fn buildShown(w: *const State) void {
-    shown_count = 0;
-    for (rows[0..row_count], 0..) |*row, i| {
+fn buildShown(w: *State) void {
+    w.shown_count = 0;
+    for (w.rows[0..w.row_count], 0..) |*row, i| {
         if (matchesFilters(w, row)) {
-            shown[shown_count] = @intCast(i);
-            shown_count += 1;
+            w.shown[w.shown_count] = @intCast(i);
+            w.shown_count += 1;
         }
     }
     const query = std.mem.sliceTo(&w.search, 0);
@@ -251,16 +252,16 @@ fn buildShown(w: *const State) void {
     var ranked: [rows_cap]Ranked = undefined;
     var count: usize = 0;
     var text_buf: [160]u8 = undefined;
-    for (shown[0..shown_count]) |index| {
-        const text = searchText(&text_buf, &rows[index]);
+    for (w.shown[0..w.shown_count]) |index| {
+        const text = searchText(&text_buf, &w.rows[index]);
         if (fuzzy.score(query, text)) |score| {
             ranked[count] = .{ .index = index, .score = score, .len = @intCast(text.len) };
             count += 1;
         }
     }
     std.mem.sort(Ranked, ranked[0..count], {}, rankedBefore);
-    for (ranked[0..count], 0..) |entry, k| shown[k] = entry.index;
-    shown_count = count;
+    for (ranked[0..count], 0..) |entry, k| w.shown[k] = entry.index;
+    w.shown_count = count;
 }
 
 // ---- what a row does ----
@@ -388,12 +389,13 @@ fn addButton(ctx: imgui.ContextPtr, id: u64) bool {
 const sort_names = [_][]const u8{ "Type", "No.", "Name", "Group", "Patch ID" };
 
 fn patchTable(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     const w = &p.ui.patches;
     // Because the theme's header color is nearly the table's own gray, the selected row takes the accent.
     imgui.api.PushStyleColor(ctx, imgui.Col_Header, widgets.faded(theme.amber, 0x70));
     // The table is drawn in the label font, which is bold, and it is pushed before the table begins so that
     // the rows take their height from it.
-    const pushed = widgets.pushLabelFont(ctx);
+    const pushed = widgets.pushLabelFont(kit);
     var flags: c_int = imgui.TableFlags_RowBg | imgui.TableFlags_Borders | imgui.TableFlags_ScrollY | imgui.TableFlags_Sortable;
     var width: f64 = 700;
     var height: f64 = 360;
@@ -428,15 +430,15 @@ fn patchTable(p: *Plugin, ctx: imgui.ContextPtr) void {
         }
         // While a search is typed, the rows stay in the order of their match.
         if (w.sort_column >= 0 and w.search[0] == 0) {
-            std.mem.sort(u32, shown[0..shown_count], SortContext{ .column = w.sort_column }, sortLess);
-            if (w.sort_descending) std.mem.reverse(u32, shown[0..shown_count]);
+            std.mem.sort(u32, w.shown[0..w.shown_count], SortContext{ .column = w.sort_column, .rows = &w.rows }, sortLess);
+            if (w.sort_descending) std.mem.reverse(u32, w.shown[0..w.shown_count]);
         }
-        for (shown[0..shown_count]) |index| {
-            drawRow(p, ctx, &rows[index]);
+        for (w.shown[0..w.shown_count]) |index| {
+            drawRow(p, ctx, &w.rows[index]);
         }
         imgui.api.EndTable(ctx);
     }
-    widgets.popFont(ctx, pushed);
+    widgets.popFont(kit, pushed);
     var one: c_int = 1;
     imgui.api.PopStyleColor(ctx, &one);
     if (w.search[0] != 0) {
@@ -487,7 +489,7 @@ fn drawGroupCombo(ctx: imgui.ContextPtr, w: *State) void {
     var seen: [32][group_cap:0]u8 = undefined;
     var seen_count: usize = 0;
     if (imgui.api.Selectable(ctx, all_groups, null, null, null, null)) w.group = initialGroup();
-    for (rows[0..row_count]) |*row| {
+    for (w.rows[0..w.row_count]) |*row| {
         const group = groupOf(row);
         if (group.len == 0) continue;
         var known = false;
@@ -526,6 +528,7 @@ fn selectedPreset(p: *Plugin) ?[]u8 {
 }
 
 fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     const w = &p.ui.patches;
     pollSave(p);
     imgui.api.SetNextItemWidth(ctx, 280);
@@ -534,16 +537,16 @@ fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) void {
     imgui.api.SameLine(ctx, null, null);
     if (w.saving != 0) {
         imgui.api.TextColored(ctx, theme.amber, "Reading the keyboard...");
-    } else if (widgets.pushButton(ctx, "Save the keyboard as a patch", 0)) {
+    } else if (widgets.pushButton(kit, "Save the keyboard as a patch", 0)) {
         _ = p.shared.sendCommand(.capture_keyboard);
         w.saving = 1;
         w.saving_since = p.ui.frame;
     }
-    widgets.tooltip(ctx, "Reads the keyboard, then saves what it holds as a preset under this name. The preset then appears in the table, where it can be sent to the keyboard or added to the scenes.");
+    widgets.tooltip(kit, "Reads the keyboard, then saves what it holds as a preset under this name. The preset then appears in the table, where it can be sent to the keyboard or added to the scenes.");
     if (selectedPreset(p)) |file_name| {
         imgui.api.SameLine(ctx, null, null);
         const armed = w.delete_armed == w.selected;
-        if (widgets.pushButton(ctx, if (armed) "Click again to delete" else "Delete the selected preset", 0)) {
+        if (widgets.pushButton(kit, if (armed) "Click again to delete" else "Delete the selected preset", 0)) {
             if (armed) {
                 ui.deletePreset(p, file_name);
                 w.selected = 0;
@@ -559,9 +562,10 @@ fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) void {
 
 /// The card of the library: the search, the filters, the table, and the row that saves the keyboard.
 pub fn drawLibrary(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     const w = &p.ui.patches;
-    if (!widgets.beginCard(ctx, "Patches", null, null, null)) return;
-    defer widgets.endCard(ctx);
+    if (!widgets.beginCard(kit, "Patches", null, null, null)) return;
+    defer widgets.endCard(kit);
     if (p.ui.reg_library == null) {
         imgui.api.TextColored(ctx, theme.grey, "No registrations folder: run build-install.sh vr09 to fill Data/Perken/vr09/registrations.");
     }
@@ -588,41 +592,42 @@ pub fn drawLibrary(p: *Plugin, ctx: imgui.ContextPtr) void {
 
 /// The keyboard's read and write buttons, and the options.
 pub fn drawPatches(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     const s = p.shared;
-    if (widgets.beginCard(ctx, "Keyboard", null, null, null)) {
-        if (widgets.pushButton(ctx, "Read the keyboard", 0)) {
+    if (widgets.beginCard(kit, "Keyboard", null, null, null)) {
+        if (widgets.pushButton(kit, "Read the keyboard", 0)) {
             _ = s.sendCommand(.capture_keyboard);
             ui.notice(&p.ui, "Reading the keyboard's state into this plugin.", .{}, false);
         }
-        if (widgets.pushButton(ctx, "Send to the keyboard", 0)) {
+        if (widgets.pushButton(kit, "Send to the keyboard", 0)) {
             _ = s.sendCommand(.recall);
             ui.notice(&p.ui, "Writing this plugin's state to the keyboard.", .{}, false);
         }
-        widgets.tooltip(ctx, "Only what differs is written: about 0.15 seconds when the keyboard has been read, a few seconds otherwise.");
-        widgets.endCard(ctx);
+        widgets.tooltip(kit, "Only what differs is written: about 0.15 seconds when the keyboard has been read, a few seconds otherwise.");
+        widgets.endCard(kit);
     }
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.beginCard(ctx, "Options", null, null, null)) {
+    if (widgets.beginCard(kit, "Options", null, null, null)) {
         var split_on = p.settings.split.load(.monotonic);
-        if (widgets.toggle(ctx, "This patch splits at middle C", &split_on)) plugin.setPatchSplit(p, split_on);
-        widgets.tooltip(ctx, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.");
+        if (widgets.toggle(kit, "This patch splits at middle C", &split_on)) plugin.setPatchSplit(p, split_on);
+        widgets.tooltip(kit, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.");
         var follow = s.follow_panel.load(.monotonic);
-        if (widgets.toggle(ctx, "Follow changes made on the keyboard's panel", &follow)) s.follow_panel.store(follow, .monotonic);
+        if (widgets.toggle(kit, "Follow changes made on the keyboard's panel", &follow)) s.follow_panel.store(follow, .monotonic);
         var recall = s.recall_on_load.load(.monotonic);
-        if (widgets.toggle(ctx, "Send the patch to the keyboard when the project opens", &recall)) s.recall_on_load.store(recall, .monotonic);
-        widgets.endCard(ctx);
+        if (widgets.toggle(kit, "Send the patch to the keyboard when the project opens", &recall)) s.recall_on_load.store(recall, .monotonic);
+        widgets.endCard(kit);
     }
     // The files card is the plugin's own: the lab has no import or export, but the plugin had them, and a
     // feature is not dropped without saying so.
-    if (widgets.beginCard(ctx, "Files", null, null, null)) {
-        if (widgets.pushButton(ctx, "Import a file", 0)) ui.importFile(p);
-        widgets.tooltip(ctx, "Loads a dump made by vr09.py, or a preset file from elsewhere.");
+    if (widgets.beginCard(kit, "Files", null, null, null)) {
+        if (widgets.pushButton(kit, "Import a file", 0)) ui.importFile(p);
+        widgets.tooltip(kit, "Loads a dump made by vr09.py, or a preset file from elsewhere.");
         imgui.api.SetNextItemWidth(ctx, 420);
         var input_flags: c_int = imgui.InputTextFlags_None;
         _ = imgui.api.InputTextWithHint(ctx, "##export", "path of the file to write (a dump, as vr09.py reads it)", &p.ui.export_path, p.ui.export_path.len, &input_flags, null);
         imgui.api.SameLine(ctx, null, null);
-        if (widgets.pushButton(ctx, "Export", 0)) ui.exportFile(p);
-        widgets.endCard(ctx);
+        if (widgets.pushButton(kit, "Export", 0)) ui.exportFile(p);
+        widgets.endCard(kit);
     }
 }
 

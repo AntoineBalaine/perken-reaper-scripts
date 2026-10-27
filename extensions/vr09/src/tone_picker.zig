@@ -18,41 +18,42 @@ fn toneMatches(tone: *const tones.Tone, filter: []const u8) bool {
 /// step to the previous and the next tone, and the tone's bytes under it. A click on the display opens a
 /// list of every tone, grouped, with a field that filters it as the user types. `index` is the chosen
 /// tone's position and `filter` the text of the search field. Returns the new position.
-pub fn tonePicker(ctx: imgui.ContextPtr, id: [:0]const u8, list: []const tones.Tone, index: usize, filter: *[tone_filter_cap:0]u8) usize {
+pub fn tonePicker(kit: *widgets.Panel, id: [:0]const u8, list: []const tones.Tone, index: usize, filter: *[tone_filter_cap:0]u8) usize {
+    const ctx = kit.ctx;
     const tone = &list[index];
     var result = index;
     imgui.api.PushID(ctx, id);
     defer imgui.api.PopID(ctx);
 
-    if (widgets.pushButton(ctx, "<", 30) and index > 0) result = index - 1;
+    if (widgets.pushButton(kit, "<", 30) and index > 0) result = index - 1;
     imgui.api.SameLine(ctx, null, null);
 
     // The display: a recessed screen with the name in the accent color, and a caret that says it opens a list.
-    const pushed = widgets.pushLabelFont(ctx);
+    const pushed = widgets.pushLabelFont(kit);
     const text_line = imgui.api.GetTextLineHeight(ctx);
-    const at = widgets.cursorScreenPos(ctx);
+    const at = widgets.cursorScreenPos(kit);
     const height = text_line + 12;
     _ = imgui.api.InvisibleButton(ctx, "##tone", tone_w, height, null);
     const hot = imgui.api.IsItemHovered(ctx, null);
     if (imgui.api.IsItemClicked(ctx, null)) imgui.api.OpenPopup(ctx, "##tonelist", null);
     const dl = imgui.api.GetWindowDrawList(ctx);
     widgets.rectFilled(dl, at.x, at.y, at.x + tone_w, at.y + height, theme.slot_bg, 3);
-    widgets.rect(dl, at.x, at.y, at.x + tone_w, at.y + height, if (hot) widgets.accent() else theme.slot_edge, 3, 1);
-    imgui.api.DrawList_AddText(dl, at.x + 10, at.y + 6, widgets.accent(), tone.name);
+    widgets.rect(dl, at.x, at.y, at.x + tone_w, at.y + height, if (hot) widgets.accent(kit) else theme.slot_edge, 3, 1);
+    imgui.api.DrawList_AddText(dl, at.x + 10, at.y + 6, widgets.accent(kit), tone.name);
     const cx = at.x + tone_w - 12;
     const cy = at.y + height / 2;
-    imgui.api.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, if (hot) widgets.accent() else theme.text_dim);
+    imgui.api.DrawList_AddTriangleFilled(dl, cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3, if (hot) widgets.accent(kit) else theme.text_dim);
     widgets.drawGlass(dl, at.x, at.y, at.x + tone_w, at.y + height);
-    widgets.popFont(ctx, pushed);
+    widgets.popFont(kit, pushed);
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(ctx, ">", 30) and index + 1 < list.len) result = index + 1;
+    if (widgets.pushButton(kit, ">", 30) and index + 1 < list.len) result = index + 1;
 
     // The group and the three bytes that select the tone, in the label font like the other numbers.
-    const line_font = widgets.pushLabelFont(ctx);
+    const line_font = widgets.pushLabelFont(kit);
     var info: [96:0]u8 = undefined;
     const info_text = std.fmt.bufPrintZ(&info, "{s}   tone {d}   bank {d}.{d}", .{ tone.group, tone.number, tone.msb, tone.lsb }) catch "";
     imgui.api.TextColored(ctx, theme.label, info_text);
-    widgets.popFont(ctx, line_font);
+    widgets.popFont(kit, line_font);
 
     // The list of every tone, under the display.
     var appearing: c_int = imgui.Cond_Appearing;

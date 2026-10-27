@@ -158,6 +158,7 @@ fn nameCell(p: *Plugin, ctx: imgui.ContextPtr, scene: *const scenes.Scene, posit
 }
 
 fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     const w = &p.ui.scenes_panel;
     const list = p.scene_list;
     const count: usize = list.count;
@@ -167,7 +168,7 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) void {
     var move_to: usize = 0;
     var remove_at: usize = 0;
     imgui.api.PushStyleColor(ctx, imgui.Col_Header, widgets.faded(theme.amber, 0x70));
-    const pushed = widgets.pushLabelFont(ctx);
+    const pushed = widgets.pushLabelFont(kit);
     var table_flags: c_int = imgui.TableFlags_RowBg | imgui.TableFlags_Borders;
     if (imgui.api.BeginTable(ctx, "##scenetable", 4, &table_flags, null, null, null)) {
         var fixed: c_int = imgui.TableColumnFlags_WidthFixed;
@@ -193,7 +194,7 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) void {
             // Because ImGui knows an item by its label, the label must not hold the position: a row that
             // changes its label while it is dragged would lose the mouse, and the window would move instead.
             // The position is drawn over the item afterwards, with the draw list so that the cursor stays put.
-            const cell = widgets.cursorScreenPos(ctx);
+            const cell = widgets.cursorScreenPos(kit);
             // The item spans the row, so that a click anywhere on it selects the scene and a drag from anywhere
             // on it moves the scene; the name and the Remove button are drawn over it and take their own clicks.
             var selected = current == position;
@@ -223,7 +224,7 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) void {
         }
         imgui.api.EndTable(ctx);
     }
-    widgets.popFont(ctx, pushed);
+    widgets.popFont(kit, pushed);
     var one: c_int = 1;
     imgui.api.PopStyleColor(ctx, &one);
     if (!imgui.api.IsMouseDown(ctx, 0)) w.dragged = false;
@@ -339,7 +340,7 @@ fn loadTemplate(p: *Plugin, name: []const u8, append: bool) void {
     while (lines.next()) |line| {
         const tab = std.mem.lastIndexOfScalar(u8, line, '\t') orelse continue;
         const id = std.fmt.parseInt(u32, std.mem.trim(u8, line[tab + 1 ..], " \r"), 10) catch continue;
-        const row = patches_panel.rowByValue(id) orelse {
+        const row = patches_panel.rowByValue(p, id) orelse {
             missing += 1;
             continue;
         };
@@ -353,13 +354,14 @@ fn loadTemplate(p: *Plugin, name: []const u8, append: bool) void {
 }
 
 fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) void {
+    const kit = &p.ui.kit;
     const w = &p.ui.scenes_panel;
     if (!imgui.api.CollapsingHeader(ctx, "Scene templates", null, null)) return;
     imgui.api.SetNextItemWidth(ctx, 240);
     var input_flags: c_int = imgui.InputTextFlags_None;
     _ = imgui.api.InputTextWithHint(ctx, "##templatename", "name of the template", &w.template_name, w.template_name.len, &input_flags, null);
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(ctx, "Save the scenes as a template", 0)) saveTemplate(p);
+    if (widgets.pushButton(kit, "Save the scenes as a template", 0)) saveTemplate(p);
     refreshTemplates(w, p.ui.frame);
     const count = if (w.templates) |list| list.items.len else 0;
     if (count == 0) imgui.api.TextColored(ctx, theme.grey, "No templates yet.");
@@ -381,11 +383,11 @@ fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) void {
     }
     const chosen = std.mem.sliceTo(&w.template_selected, 0);
     if (chosen.len == 0) return;
-    if (widgets.pushButton(ctx, "Load, replacing the scenes", 0)) loadTemplate(p, chosen, false);
+    if (widgets.pushButton(kit, "Load, replacing the scenes", 0)) loadTemplate(p, chosen, false);
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(ctx, "Add to the scenes", 0)) loadTemplate(p, chosen, true);
+    if (widgets.pushButton(kit, "Add to the scenes", 0)) loadTemplate(p, chosen, true);
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(ctx, "Delete", 0)) {
+    if (widgets.pushButton(kit, "Delete", 0)) {
         var folder_buf: [fileio.max_path]u8 = undefined;
         if (templateFolder(&folder_buf)) |folder| {
             var path_buf: [fileio.max_path]u8 = undefined;
@@ -420,8 +422,9 @@ fn insertScenePoint(p: *Plugin) void {
 
 /// The card of the session's scenes.
 pub fn draw(p: *Plugin, ctx: imgui.ContextPtr) void {
-    if (!widgets.beginCard(ctx, "Scenes of this session", null, null, null)) return;
-    defer widgets.endCard(ctx);
+    const kit = &p.ui.kit;
+    if (!widgets.beginCard(kit, "Scenes of this session", null, null, null)) return;
+    defer widgets.endCard(kit);
     if (p.scene_list.count == 0) {
         imgui.api.TextColored(ctx, theme.grey, "No scenes yet. Press Add on a patch.");
         p.ui.scenes_panel.uid_count = 0;
@@ -433,8 +436,8 @@ pub fn draw(p: *Plugin, ctx: imgui.ContextPtr) void {
     const scene = p.scene_list.get(current);
     var line: [96:0]u8 = undefined;
     imgui.api.Text(ctx, std.fmt.bufPrintZ(&line, "Scene parameter: {d}  {s}", .{ current, if (scene) |s| s.name() else "(no scene)" }) catch "");
-    if (widgets.pushButton(ctx, "Insert a lane point at the cursor", 0)) insertScenePoint(p);
-    widgets.tooltip(ctx, "Puts a square point on the Scene parameter's lane at the edit cursor, set to the selected scene. The lane is created if the track does not have one yet.");
+    if (widgets.pushButton(kit, "Insert a lane point at the cursor", 0)) insertScenePoint(p);
+    widgets.tooltip(kit, "Puts a square point on the Scene parameter's lane at the edit cursor, set to the selected scene. The lane is created if the track does not have one yet.");
     drawTemplates(p, ctx);
 }
 
