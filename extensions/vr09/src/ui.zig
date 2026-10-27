@@ -26,6 +26,8 @@ const widgets = @import("panel_widgets");
 const controls_panel = @import("controls_panel.zig");
 const patches_panel = @import("patches_panel.zig");
 const scenes_panel = @import("scenes_panel.zig");
+const dispatch = @import("dispatch.zig");
+const action_types = @import("action_types.zig");
 
 const Plugin = plugin.Plugin;
 const log = std.log.scoped(.ui);
@@ -57,6 +59,9 @@ pub const Window = struct {
     fonts: panel_fonts.Fonts = .{},
     /// The panel that the components of reaziglib draw with: this window's own context object.
     kit: widgets.Panel = .{},
+    /// A save of the keyboard that waits for the keyboard's read to end (see `dispatch.tick`).
+    pending_save: action_types.PendingSave = .{},
+
     /// What the Controls tab keeps between frames.
     panel: controls_panel.State = .{},
     /// What the library of patches keeps between frames.
@@ -96,9 +101,18 @@ pub const Window = struct {
     input_present: [max_devices]bool = [_]bool{false} ** max_devices,
 
     // The last notice to the user.
-    notice: [160:0]u8 = [_:0]u8{0} ** 160,
+    notice_text: [160:0]u8 = [_:0]u8{0} ** 160,
     notice_until: u32 = 0,
     notice_is_error: bool = false,
+
+    /// Says something to the player, in the line under the tabs, for a few seconds.
+    pub fn notice(self: *Window, comptime fmt: []const u8, args: anytype, is_error: bool) void {
+        _ = std.fmt.bufPrintZ(&self.notice_text, fmt, args) catch {
+            self.notice_text[0] = 0;
+        };
+        self.notice_until = self.frame + 240;
+        self.notice_is_error = is_error;
+    }
 };
 
 pub fn open(p: *Plugin) void {
@@ -143,6 +157,7 @@ pub fn close(p: *Plugin) void {
     freePresets(&p.ui);
     freeRegistrations(&p.ui);
     scenes_panel.free(&p.ui.scenes_panel);
+    patches_panel.free(&p.ui.patches);
 }
 
 pub fn shutdown() void {}
@@ -171,14 +186,6 @@ pub fn drawAll() void {
     }
 }
 
-pub fn notice(w: *Window, comptime fmt: []const u8, args: anytype, is_error: bool) void {
-    _ = std.fmt.bufPrintZ(&w.notice, fmt, args) catch {
-        w.notice[0] = 0;
-    };
-    w.notice_until = w.frame + 240;
-    w.notice_is_error = is_error;
-}
-
 fn freePresets(w: *Window) void {
     if (w.preset_names) |*list| {
         fileio.freeList(plugin.allocator, list);
@@ -199,6 +206,8 @@ fn refreshRegistrations(w: *Window) void {
     var buf: [fileio.max_path]u8 = undefined;
     const folder = state.registrationFolder(&buf, glue.resourcePath()) catch return;
     w.reg_library = registrations.scan(plugin.allocator, folder) catch null;
+    // The rows of the patch table point into this list, so they are built again when the table is drawn.
+    if (w.patches.library) |rows| rows.stale = true;
 }
 
 fn presetFolder(buf: []u8) ?[]const u8 {
@@ -213,6 +222,8 @@ fn refreshPresets(w: *Window) void {
     const list = fileio.listFiles(plugin.allocator, folder, &state.preset_extensions) catch return;
     std.mem.sort([]u8, list.items, {}, lessName);
     w.preset_names = list;
+    // The rows of the patch table point into this list, so they are built again when the table is drawn.
+    if (w.patches.library) |rows| rows.stale = true;
 }
 
 fn lessName(_: void, a: []u8, b: []u8) bool {
@@ -312,11 +323,15 @@ fn draw(p: *Plugin) void {
         std.fmt.bufPrintZ(&title, "VR-09, track {d}##{x}-{d}", .{ track_number, @intFromPtr(p), w.contexts_created }) catch "VR-09"
     else
         std.fmt.bufPrintZ(&title, "VR-09##{x}-{d}", .{ @intFromPtr(p), w.contexts_created }) catch "VR-09";
+    var action: ?action_types.Action = null;
     if (imgui.api.Begin(ctx, label, &is_open, &flags)) {
-        drawContent(p, ctx);
+        action = drawContent(p, ctx);
         probeInput(w, ctx);
     }
     imgui.api.End(ctx);
+    // What the player did during the frame, if anything, is carried out now, and a save that waits is followed.
+    if (action) |a| dispatch.dispatch(p, a);
+    dispatch.tick(p);
     theme.pop(ctx);
     if (w.fonts.text != null) imgui.api.PopFont(ctx);
     if (!is_open) {
@@ -377,8 +392,11 @@ fn checkpoint(w: *Window, section: []const u8) void {
     }
 }
 
-fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
+/// Draws the panel, and returns the action that the player asked for in this frame, if any. Only the tab that is
+/// open draws its widgets, and the player works with one widget at a time, so there is at most one.
+fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
     const kit = &p.ui.kit;
+    var action: ?action_types.Action = null;
     drawHeader(p, ctx);
     imgui.api.Separator(ctx);
     if (imgui.api.BeginTabBar(ctx, "##tabs", null)) {
@@ -387,33 +405,34 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
         var flags = [5]c_int{ 0, 0, 0, 0, 0 };
         if (select >= 1 and select <= flags.len) flags[select - 1] = imgui.TabItemFlags_SetSelected;
         if (widgets.beginTab(kit, "CONTROLS", &flags[0])) {
-            drawControls(p);
+            action = drawControls(p);
             imgui.api.EndTabItem(ctx);
         }
         if (widgets.beginTab(kit, "SCENES", &flags[1])) {
-            patches_panel.drawLibrary(p, ctx);
+            const from_library = patches_panel.drawLibrary(p, ctx);
             imgui.api.SameLine(ctx, null, null);
-            scenes_panel.draw(p, ctx);
+            action = action_types.first(from_library, scenes_panel.draw(p, ctx));
             imgui.api.EndTabItem(ctx);
         }
         if (widgets.beginTab(kit, "PATCHES", &flags[2])) {
-            patches_panel.drawPatches(p, ctx);
+            action = patches_panel.drawPatches(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
         if (widgets.beginTab(kit, "AUDIO LOOP", &flags[3])) {
-            drawAudioLoop(p, ctx);
+            action = drawAudioLoop(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
         if (widgets.beginTab(kit, "MIDI", &flags[4])) {
-            drawMidi(p, ctx);
+            action = drawMidi(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
         imgui.api.EndTabBar(ctx);
     }
-    if (p.ui.frame < p.ui.notice_until and p.ui.notice[0] != 0) {
+    if (p.ui.frame < p.ui.notice_until and p.ui.notice_text[0] != 0) {
         imgui.api.Separator(ctx);
-        imgui.api.TextColored(ctx, if (p.ui.notice_is_error) red else green, &p.ui.notice);
+        imgui.api.TextColored(ctx, if (p.ui.notice_is_error) red else green, &p.ui.notice_text);
     }
+    return action;
 }
 
 // ---- the header ----
@@ -472,110 +491,8 @@ fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
 
 // ---- the controls ----
 
-fn drawControls(p: *Plugin) void {
-    controls_panel.draw(p.shared, &p.ui.panel, &p.ui.kit);
-    // The cards cannot reach the window's notice, so they leave theirs in the tab's state.
-    if (p.ui.panel.overflow) {
-        p.ui.panel.overflow = false;
-        notice(&p.ui, "Too many changes at once, the last one was dropped.", .{}, true);
-    }
-    if (p.ui.panel.notice[0] != 0) {
-        notice(&p.ui, "{s}", .{std.mem.sliceTo(&p.ui.panel.notice, 0)}, false);
-        p.ui.panel.notice[0] = 0;
-    }
-}
-
-// ---- the patches ----
-
-pub fn loadRegistration(p: *Plugin, entry: registrations.Entry) void {
-    p.loadRegistration(entry) catch |err| {
-        notice(&p.ui, "Could not load registration {d}-{d}: {s}", .{ entry.bank, entry.slot, @errorName(err) }, true);
-        return;
-    };
-    notice(&p.ui, "Loaded registration {d}-{d}.", .{ entry.bank, entry.slot }, false);
-}
-
-pub fn loadPreset(p: *Plugin, file_name: []const u8) void {
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = presetFolder(&folder_buf) orelse return;
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = state.presetPath(&path_buf, folder, file_name) catch return;
-    p.loadPresetFile(path, state.displayName(file_name)) catch |err| {
-        notice(&p.ui, "Could not load {s}: {s}", .{ file_name, @errorName(err) }, true);
-        return;
-    };
-    notice(&p.ui, "Loaded {s}.", .{state.displayName(file_name)}, false);
-}
-
-pub fn deletePreset(p: *Plugin, file_name: []const u8) void {
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = presetFolder(&folder_buf) orelse return;
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = state.presetPath(&path_buf, folder, file_name) catch return;
-    fileio.deleteFile(path) catch |err| {
-        notice(&p.ui, "Could not delete {s}: {s}", .{ file_name, @errorName(err) }, true);
-        return;
-    };
-    p.ui.preset_refresh_at = 0;
-    notice(&p.ui, "Deleted {s}.", .{state.displayName(file_name)}, false);
-}
-
-pub fn savePreset(p: *Plugin) void {
-    var clean: [name_cap]u8 = undefined;
-    const name = state.sanitizeName(&clean, std.mem.sliceTo(&p.ui.save_name, 0));
-    if (name.len == 0) {
-        notice(&p.ui, "Type a name for the preset first.", .{}, true);
-        return;
-    }
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = presetFolder(&folder_buf) orelse {
-        notice(&p.ui, "REAPER's resource folder is not known.", .{}, true);
-        return;
-    };
-    fileio.makePath(folder) catch |err| {
-        notice(&p.ui, "Could not create the preset folder: {s}", .{@errorName(err)}, true);
-        return;
-    };
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = state.presetPath(&path_buf, folder, name) catch return;
-    const scene = plugin.allocator.create(dump.Dump) catch return;
-    defer plugin.allocator.destroy(scene);
-    p.shared.desiredSnapshot(scene);
-    state.savePresetFile(plugin.allocator, path, scene) catch |err| {
-        notice(&p.ui, "Could not write {s}: {s}", .{ name, @errorName(err) }, true);
-        return;
-    };
-    p.settings.setPresetName(name);
-    p.ui.preset_refresh_at = 0;
-    notice(&p.ui, "Saved {s}.", .{name}, false);
-}
-
-pub fn importFile(p: *Plugin) void {
-    if (!glue.ready) return;
-    var path: [4096]u8 = [_]u8{0} ** 4096;
-    if (!Reaper.GetUserFileNameForRead(@ptrCast(&path), "Import a VR-09 dump or preset", "json")) return;
-    const chosen = std.mem.sliceTo(&path, 0);
-    p.loadPresetFile(chosen, state.displayName(std.fs.path.basename(chosen))) catch |err| {
-        notice(&p.ui, "Could not import the file: {s}", .{@errorName(err)}, true);
-        return;
-    };
-    notice(&p.ui, "Imported {s}.", .{std.fs.path.basename(chosen)}, false);
-}
-
-pub fn exportFile(p: *Plugin) void {
-    const target = std.mem.sliceTo(&p.ui.export_path, 0);
-    if (target.len == 0 or !std.fs.path.isAbsolute(target)) {
-        notice(&p.ui, "Type the full path of the file to write.", .{}, true);
-        return;
-    }
-    const scene = plugin.allocator.create(dump.Dump) catch return;
-    defer plugin.allocator.destroy(scene);
-    p.shared.desiredSnapshot(scene);
-    state.savePresetFile(plugin.allocator, target, scene) catch |err| {
-        notice(&p.ui, "Could not write the file: {s}", .{@errorName(err)}, true);
-        return;
-    };
-    notice(&p.ui, "Exported to {s}.", .{target}, false);
+fn drawControls(p: *Plugin) ?action_types.Action {
+    return controls_panel.draw(p.shared, &p.ui.panel, &p.ui.kit);
 }
 
 // ---- the audio loop ----
@@ -629,11 +546,12 @@ fn labelLine(kit: *widgets.Panel, text: [:0]const u8) void {
     widgets.popFont(kit, pushed);
 }
 
-fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) void {
+fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
+    var action: ?action_types.Action = null;
     const kit = &p.ui.kit;
     if (!glue.ready) {
         labelNote(kit, "The audio loop needs REAPER. In another host the plugin only passes the audio through.", 560);
-        return;
+        return null;
     }
     labelNote(kit, "The loop sends this track's audio to the keyboard's audio input and takes the keyboard's output back, the way ReaInsert does for outboard gear. Wire the interface's output to the keyboard's input, and the keyboard's output to the interface's input.", 560);
     imgui.api.Spacing(ctx);
@@ -646,18 +564,18 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) void {
         imgui.api.PushID(ctx, "loop-on");
         const switched = widgets.switchControl(kit, if (enabled) 1 else 0, "audio loop", "ON", "OFF");
         imgui.api.PopID(ctx);
-        if (switched.changed) p.setLoopEnabled(switched.value == 1);
+        if (switched.changed) action = .{ .set_loop_enabled = switched.value == 1 };
         // Because the two knobs draw the same widgets, each one gets an id of its own.
         imgui.api.SameLine(ctx, null, null);
         imgui.api.PushID(ctx, "loop-send");
         const send = widgets.knob(kit, loop_send, @intFromFloat(@round(p.settings.sendDb())), "send level", false);
         imgui.api.PopID(ctx);
-        if (send.changed) p.settings.setSendDb(@floatFromInt(send.value));
+        if (send.changed) action = .{ .set_send_db = send.value };
         imgui.api.SameLine(ctx, null, null);
         imgui.api.PushID(ctx, "loop-return");
         const back = widgets.knob(kit, loop_return, @intFromFloat(@round(p.settings.returnDb())), "return level", false);
         imgui.api.PopID(ctx);
-        if (back.changed) p.settings.setReturnDb(@floatFromInt(back.value));
+        if (back.changed) action = .{ .set_return_db = back.value };
 
         const running = loop_state == .running;
         const tint = if (running) theme.green else theme.amber;
@@ -681,16 +599,10 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) void {
     if (widgets.beginCard(kit, "Channels", null, null, null)) {
         var out_channel = p.settings.out_channel.load(.monotonic);
         labelLine(kit, "Send to (interface outputs)");
-        if (drawChannelPairCombo(kit, "##send", .output, out_channel, &out_channel)) {
-            p.settings.out_channel.store(out_channel, .monotonic);
-            p.applyLoopSettings();
-        }
+        if (drawChannelPairCombo(kit, "##send", .output, out_channel, &out_channel)) action = .{ .set_out_channel = out_channel };
         var in_channel = p.settings.in_channel.load(.monotonic);
         labelLine(kit, "Return from (interface inputs)");
-        if (drawChannelPairCombo(kit, "##return", .input, in_channel, &in_channel)) {
-            p.settings.in_channel.store(in_channel, .monotonic);
-            p.applyLoopSettings();
-        }
+        if (drawChannelPairCombo(kit, "##return", .input, in_channel, &in_channel)) action = .{ .set_in_channel = in_channel };
         widgets.endCard(kit);
     }
 
@@ -699,7 +611,7 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) void {
         const ping: audio.PingState = @enumFromInt(p.ping_state.load(.acquire));
         const busy = ping == .listening_noise or ping == .sending or ping == .listening;
         if (busy) imgui.api.BeginDisabled(ctx, null);
-        if (widgets.pushButton(kit, "Measure the round trip", 0)) p.startPing();
+        if (widgets.pushButton(kit, "Measure the round trip", 0)) action = .measure_latency;
         if (busy) imgui.api.EndDisabled(ctx);
         imgui.api.SameLine(ctx, null, null);
         var text: [128:0]u8 = undefined;
@@ -716,6 +628,7 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) void {
         }
         widgets.endCard(kit);
     }
+    return action;
 }
 
 fn latencyText(buf: []u8, frames: u32, rate: u32) [:0]const u8 {
@@ -755,7 +668,8 @@ fn drawDeviceCombo(w: *Window, id: [:0]const u8, dir: glue.Direction, current: ?
     return changed;
 }
 
-fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) void {
+fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
+    var action: ?action_types.Action = null;
     const kit = &p.ui.kit;
     const w = &p.ui;
     const s = p.shared;
@@ -768,23 +682,20 @@ fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) void {
             }
             labelLine(kit, "MIDI output (to the keyboard)");
             var out_dev = glue.trackMidiOutput(p.track);
-            if (drawDeviceCombo(w, "##midiout", .output, out_dev, &out_dev)) {
-                glue.setTrackMidiOutput(p.track, out_dev);
-                p.settings.autoconnect_done.store(true, .monotonic);
-            }
+            if (drawDeviceCombo(w, "##midiout", .output, out_dev, &out_dev)) action = .{ .set_midi_output = out_dev };
             labelLine(kit, "MIDI input (record from the keyboard)");
             var in_dev = glue.trackMidiInput(p.track);
             if (drawDeviceCombo(w, "##midiin", .input, in_dev, &in_dev)) {
-                if (in_dev) |d| glue.setTrackMidiInput(p.track, d);
+                if (in_dev) |d| action = .{ .set_midi_input = d };
             }
             if (in_dev == null) imgui.api.TextColored(ctx, theme.grey, "The track's input is not a single MIDI device.");
 
             const monitoring = glue.trackMonitoring(p.track);
             var armed = glue.trackArmed(p.track);
-            if (widgets.toggle(kit, "Record-arm the track", &armed)) glue.setTrackArmed(p.track, armed);
+            if (widgets.toggle(kit, "Record-arm the track", &armed)) action = .{ .set_armed = armed };
             widgets.tooltip(kit, "REAPER only delivers MIDI input to a track's plugins while the track is armed. The keyboard's replies are MIDI input.");
             var monitor_on = monitoring == 1;
-            if (widgets.toggle(kit, "Monitor input", &monitor_on)) glue.setTrackMonitoring(p.track, if (monitor_on) 1 else 0);
+            if (widgets.toggle(kit, "Monitor input", &monitor_on)) action = .{ .set_monitoring = monitor_on };
             if (!armed) {
                 imgui.api.TextColored(ctx, theme.amber, "The track is not armed: the keyboard's replies cannot reach the plugin.");
             } else if (monitoring == 0) {
@@ -796,7 +707,7 @@ fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) void {
 
     if (widgets.beginCard(kit, "Behavior", null, null, null)) {
         var pass = p.settings.pass_midi.load(.monotonic);
-        if (widgets.toggle(kit, "Pass this track's MIDI through to the keyboard", &pass)) p.settings.pass_midi.store(pass, .monotonic);
+        if (widgets.toggle(kit, "Pass this track's MIDI through to the keyboard", &pass)) action = .{ .set_pass_midi = pass };
         widgets.tooltip(kit, "Off by default. REAPER does not tell the notes you play from the notes the track plays back, and the track must monitor its input for the keyboard's replies to arrive, so the keyboard would sound its own notes twice. Keep the notes on a separate MIDI track, or turn this on and switch the keyboard's Local Control off.");
         const dropped = s.midi_dropped.load(.monotonic);
         if (!pass and dropped > 0) {
@@ -804,18 +715,13 @@ fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) void {
             imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&note, "{d} MIDI messages on this track were not passed on.", .{dropped}) catch "");
         }
         var bare = p.settings.sysex_bare.load(.monotonic);
-        if (widgets.toggle(kit, "Send SysEx without its F0 and F7 bytes", &bare)) p.settings.sysex_bare.store(bare, .monotonic);
+        if (widgets.toggle(kit, "Send SysEx without its F0 and F7 bytes", &bare)) action = .{ .set_sysex_bare = bare };
         widgets.tooltip(kit, "Switch this on if the keyboard ignores the plugin's messages: hosts differ on whether they add the framing bytes themselves.");
         widgets.endCard(kit);
     }
 
     if (widgets.beginCard(kit, "Connection", null, null, null)) {
-        if (widgets.pushButton(kit, "Look for the keyboard again", 0)) {
-            _ = s.sendCommand(.reconnect);
-            p.settings.autoconnect_done.store(false, .monotonic);
-            p.ticks = 0;
-            notice(w, "Asking the keyboard who it is.", .{}, false);
-        }
+        if (widgets.pushButton(kit, "Look for the keyboard again", 0)) action = .reconnect;
         var text: [160:0]u8 = undefined;
         widgets.display(kit, std.fmt.bufPrintZ(&text, "sent {d}   received {d}   bad checksums {d}", .{ s.tx_count.load(.monotonic), s.rx_count.load(.monotonic), s.bad_count.load(.monotonic) }) catch "", theme.amber, 360);
         imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "SysEx events: from the host {d}, accepted by the host {d}, refused {d}", .{ s.host_sysex_in.load(.monotonic), s.host_sysex_out.load(.monotonic), s.host_sysex_refused.load(.monotonic) }) catch "");
@@ -825,4 +731,5 @@ fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) void {
         imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "Known keyboard bytes: {d} of {d}, blocks that never answered: {d}", .{ s.mirror_known.load(.monotonic), dump.total_bytes, s.blocks_failed.load(.monotonic) }) catch "");
         widgets.endCard(kit);
     }
+    return action;
 }

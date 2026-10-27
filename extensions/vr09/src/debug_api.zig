@@ -23,6 +23,8 @@ const glue = @import("reaper_glue.zig");
 const ui = @import("ui.zig");
 const registrations = @import("registrations.zig");
 const scenes = @import("scenes.zig");
+const types = @import("action_types.zig");
+const effects = @import("dispatch.zig");
 const dump = @import("dump.zig");
 
 const Plugin = plugin.Plugin;
@@ -312,13 +314,9 @@ fn cmdReconnect(w: anytype, p: *Plugin) !void {
 fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(arg) catch return writeError(w, "load_registration takes a file name of Data/Perken/vr09/registrations");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
-    const parsed = registrations.parseFileName(name) orelse return writeError(w, "the name must look like <bank>-<slot>_<Name>.json");
-    var owned: [fileio.max_path]u8 = undefined;
-    if (name.len > owned.len) return writeError(w, "the name is too long");
-    @memcpy(owned[0..name.len], name);
-    const file_name = owned[0..name.len];
-    const entry = registrations.Entry{ .bank = parsed.bank, .slot = parsed.slot, .file_name = file_name, .name = file_name[file_name.len - registrations.extension.len - parsed.name.len .. file_name.len - registrations.extension.len] };
-    p.loadRegistration(entry) catch |err| {
+    const patch = types.Patch{ .source = .{ .registration = types.Text.of(name) }, .name = types.Text.of(name), .label = types.Text.of(name) };
+    effects.sendPatch(p, patch) catch |err| {
+        if (err == error.BadFileName) return writeError(w, "the name must look like <bank>-<slot>_<Name>.json");
         try w.writeAll("{\"ok\":false,\"error\":");
         try jsonString(w, @errorName(err));
         try w.writeByte('}');
@@ -329,12 +327,6 @@ fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
     try w.writeByte('}');
 }
 
-// ---- the preset files ----
-
-pub const PresetError = error{ EmptyName, NameTooLong };
-
-/// Writes a dump as the preset `raw_name` in `folder`, creating the folder. The name is cleaned for
-/// use as a file name. Gives the name of the file that was written, in `file_out`.
 pub fn writePreset(folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: []u8) ![]const u8 {
     var clean: [96]u8 = undefined;
     if (raw_name.len > clean.len) return error.NameTooLong;
@@ -385,11 +377,8 @@ fn cmdSaveStatus(w: anytype, p: *Plugin) !void {
 fn cmdLoadPreset(w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(std.mem.trim(u8, arg, " ")) catch return writeError(w, "load_preset takes a file name of Data/Perken/vr09/presets");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = state.presetFolder(&folder_buf, glue.resourcePath()) catch return writeError(w, "the folder is too long");
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = state.presetPath(&path_buf, folder, name) catch return writeError(w, "the path is too long");
-    p.loadPresetFile(path, state.displayName(name)) catch |err| return writeError(w, @errorName(err));
+    const patch = types.Patch{ .source = .{ .preset = types.Text.of(name) }, .name = types.Text.of(state.displayName(name)), .label = types.Text.of(name) };
+    effects.sendPatch(p, patch) catch |err| return writeError(w, @errorName(err));
     try w.writeAll("{\"ok\":true,\"loaded\":");
     try jsonString(w, name);
     try w.writeByte('}');
@@ -452,33 +441,28 @@ fn splitPair(arg: []const u8) Pair {
 /// or `registrations/<file>` or `presets/<file>` of the Data/Perken/vr09 folder.
 fn cmdSceneAdd(w: anytype, p: *Plugin, arg: []const u8) !void {
     const fields = splitFields(arg);
-    const pair = Pair{ .head = fields[0], .tail = fields[1] };
-    const patch = try plugin.allocator.create(dump.Dump);
-    defer plugin.allocator.destroy(patch);
-    patch.* = .{};
-    var default_name: []const u8 = undefined;
-    if (std.mem.eql(u8, pair.head, "current")) {
-        p.shared.desiredSnapshot(patch);
-        default_name = p.settings.presetName();
-    } else {
+    var source: types.PatchSource = .current;
+    var default_name: []const u8 = p.settings.presetName();
+    if (!std.mem.eql(u8, fields[0], "current")) {
         if (!glue.ready) return writeError(w, "REAPER's API is not available");
-        const slash = std.mem.indexOfScalar(u8, pair.head, '/') orelse return writeError(w, "scene_add: use current, registrations/<file> or presets/<file>");
-        const file = checkFileName(pair.head[slash + 1 ..]) catch return writeError(w, "scene_add: the file name must not have a folder part");
-        var folder_buf: [fileio.max_path]u8 = undefined;
-        const folder_result = if (std.mem.eql(u8, pair.head[0..slash], "registrations"))
-            state.registrationFolder(&folder_buf, glue.resourcePath())
-        else if (std.mem.eql(u8, pair.head[0..slash], "presets"))
-            state.presetFolder(&folder_buf, glue.resourcePath())
-        else
+        const slash = std.mem.indexOfScalar(u8, fields[0], '/') orelse return writeError(w, "scene_add: use current, registrations/<file> or presets/<file>");
+        const file = checkFileName(fields[0][slash + 1 ..]) catch return writeError(w, "scene_add: the file name must not have a folder part");
+        if (std.mem.eql(u8, fields[0][0..slash], "registrations")) {
+            source = .{ .registration = types.Text.of(file) };
+        } else if (std.mem.eql(u8, fields[0][0..slash], "presets")) {
+            source = .{ .preset = types.Text.of(file) };
+        } else {
             return writeError(w, "scene_add: use current, registrations/<file> or presets/<file>");
-        const folder = folder_result catch return writeError(w, "the folder is too long");
-        var path_buf: [fileio.max_path]u8 = undefined;
-        const path = std.fmt.bufPrint(&path_buf, "{s}{c}{s}", .{ folder, std.fs.path.sep, file }) catch return writeError(w, "the path is too long");
-        state.loadPresetFile(plugin.allocator, path, patch) catch |err| return writeError(w, @errorName(err));
+        }
         default_name = state.displayName(file);
     }
-    const name = if (pair.tail.len > 0) pair.tail else default_name;
-    const position = p.scene_list.addFrom(name, patch, parsePatchId(fields[2]), fields[3]) catch return writeError(w, "the scene list is full");
+    const patch = types.Patch{
+        .source = source,
+        .name = types.Text.of(if (fields[1].len > 0) fields[1] else default_name),
+        .id = parsePatchId(fields[2]),
+        .label = types.Text.of(fields[3]),
+    };
+    const position = effects.addScene(p, patch) catch |err| return writeError(w, effects.describe(err));
     try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
 }
 
@@ -486,43 +470,46 @@ fn cmdSceneAdd(w: anytype, p: *Plugin, arg: []const u8) !void {
 /// only that tone.
 fn cmdSceneAddTone(w: anytype, p: *Plugin, arg: []const u8) !void {
     const fields = splitFields(arg);
-    const pair = Pair{ .head = fields[0], .tail = fields[1] };
-    var words = std.mem.tokenizeScalar(u8, pair.head, ' ');
-    const part = words.next() orelse return writeError(w, "scene_add_tone takes <part> <number> <msb> <lsb>|<name>");
+    const tone = parseTone(fields[0]) orelse return writeError(w, "scene_add_tone takes <part> <number> <msb> <lsb>|<name>");
+    const patch = types.Patch{
+        .source = tone,
+        .name = types.Text.of(if (fields[1].len > 0) fields[1] else tone.tone.part.slice()),
+        .id = parsePatchId(fields[2]),
+        .label = types.Text.of(fields[3]),
+    };
+    const position = effects.addScene(p, patch) catch |err| return writeError(w, toneError(err));
+    try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
+}
+
+/// The part and the three numbers of a tone, such as "upper_synth 12 3 1", or null when they are not there or
+/// are not numbers from 0 to 127.
+fn parseTone(text: []const u8) ?types.PatchSource {
+    var words = std.mem.tokenizeScalar(u8, text, ' ');
+    const part = words.next() orelse return null;
     var numbers: [3]u8 = undefined;
     for (&numbers) |*n| {
-        const word = words.next() orelse return writeError(w, "scene_add_tone takes <part> <number> <msb> <lsb>|<name>");
-        n.* = std.fmt.parseInt(u8, word, 10) catch return writeError(w, "the tone numbers must be from 0 to 127");
+        const word = words.next() orelse return null;
+        n.* = std.fmt.parseInt(u8, word, 10) catch return null;
     }
-    const patch = try plugin.allocator.create(dump.Dump);
-    defer plugin.allocator.destroy(patch);
-    patch.* = .{};
-    if (!scenes.toneDump(patch, part, numbers[0], numbers[1], numbers[2])) {
-        return writeError(w, "the part must be upper_piano, upper_piano_dual2, lower_piano, upper_synth, upper_synth_dual2 or lower_synth");
-    }
-    const name = if (pair.tail.len > 0) pair.tail else part;
-    const position = p.scene_list.addFrom(name, patch, parsePatchId(fields[2]), fields[3]) catch return writeError(w, "the scene list is full");
-    try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
+    return .{ .tone = .{ .part = types.Text.of(part), .number = numbers[0], .msb = numbers[1], .lsb = numbers[2] } };
+}
+
+fn toneError(err: anyerror) []const u8 {
+    if (err == error.BadPart) return "the part must be upper_piano, upper_piano_dual2, lower_piano, upper_synth, upper_synth_dual2 or lower_synth";
+    return effects.describe(err);
 }
 
 /// `load_tone`: "<part> <tone number> <bank MSB> <bank LSB>". Writes that tone to the keyboard, as selecting a
 /// tone scene does, without adding a scene.
 fn cmdLoadTone(w: anytype, p: *Plugin, arg: []const u8) !void {
     const fields = splitFields(arg);
-    var words = std.mem.tokenizeScalar(u8, fields[0], ' ');
-    const part = words.next() orelse return writeError(w, "load_tone takes <part> <number> <msb> <lsb>");
-    var numbers: [3]u8 = undefined;
-    for (&numbers) |*n| {
-        const word = words.next() orelse return writeError(w, "load_tone takes <part> <number> <msb> <lsb>");
-        n.* = std.fmt.parseInt(u8, word, 10) catch return writeError(w, "the tone numbers must be from 0 to 127");
-    }
-    const patch = try plugin.allocator.create(dump.Dump);
-    defer plugin.allocator.destroy(patch);
-    patch.* = .{};
-    if (!scenes.toneDump(patch, part, numbers[0], numbers[1], numbers[2])) {
-        return writeError(w, "the part must be upper_piano, upper_piano_dual2, lower_piano, upper_synth, upper_synth_dual2 or lower_synth");
-    }
-    p.loadScene(patch, if (fields[1].len > 0) fields[1] else part);
+    const tone = parseTone(fields[0]) orelse return writeError(w, "load_tone takes <part> <number> <msb> <lsb>");
+    const patch = types.Patch{
+        .source = tone,
+        .name = types.Text.of(if (fields[1].len > 0) fields[1] else tone.tone.part.slice()),
+        .label = types.Text.of(fields[1]),
+    };
+    effects.sendPatch(p, patch) catch |err| return writeError(w, toneError(err));
     try w.writeAll("{\"ok\":true}");
 }
 

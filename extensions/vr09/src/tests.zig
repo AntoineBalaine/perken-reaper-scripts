@@ -24,4 +24,7 @@ comptime {
     _ = @import("patches_panel.zig");
     _ = @import("scenes_panel.zig");
     _ = @import("scene_lane.zig");
+    _ = @import("action_types.zig");
+    _ = @import("library.zig");
+    _ = @import("dispatch.zig");
 }

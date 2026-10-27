@@ -10,6 +10,8 @@ const roland = @import("roland.zig");
 const dump = @import("dump.zig");
 const debug_api = @import("debug_api.zig");
 const actions = @import("actions.zig");
+const types = @import("action_types.zig");
+const dispatch = @import("dispatch.zig");
 
 const entry = @import("clap_entry.zig").clap_entry;
 
@@ -519,6 +521,110 @@ test "the debug commands add, list, move, select and remove scenes" {
     fbs = std.io.fixedBufferStream(&out);
     try debug_api.dispatch(fbs.writer(), null, -1, "scene_select", "9");
     try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
+}
+
+fn tonePatch(part: []const u8, number: u8, msb: u8, lsb: u8, name: []const u8) types.Patch {
+    return .{
+        .source = .{ .tone = .{ .part = types.Text.of(part), .number = number, .msb = msb, .lsb = lsb } },
+        .name = types.Text.of(name),
+        .label = types.Text.of(name),
+    };
+}
+
+test "the dispatcher carries out the actions that the panel returned, one after the other" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    const asked = [_]types.Action{
+        .{ .add_scene = tonePatch("upper_synth", 12, 3, 1, "Lead") },
+        .{ .add_scene = tonePatch("upper_piano", 58, 6, 0, "Vintage EP") },
+        .{ .add_scene = tonePatch("lower_piano", 56, 2, 0, "Grand") },
+        .{ .select_scene = 2 },
+        .{ .rename_scene = .{ .position = 3, .name = types.Text.of("Pad") } },
+    };
+    for (asked) |action| dispatch.dispatch(self, action);
+
+    try std.testing.expectEqual(@as(u8, 3), self.scene_list.count);
+    try std.testing.expectEqualStrings("Lead", self.scene_list.get(1).?.name());
+    try std.testing.expectEqualStrings("Pad", self.scene_list.get(3).?.name());
+    try std.testing.expectEqual(@as(u8, 2), self.scene.load(.monotonic));
+    // The last action that said something is the one the player reads.
+    try std.testing.expect(!self.ui.notice_is_error);
+}
+
+test "the dispatcher moves and removes scenes, and the current scene follows" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    for ([_][]const u8{ "A", "B", "C" }, 0..) |name, i| {
+        _ = try dispatch.addScene(self, tonePatch("upper_piano", @intCast(i + 1), 0, 0, name));
+    }
+    try std.testing.expectEqual(@as(u8, 3), self.scene_list.count);
+
+    dispatch.dispatch(self, .{ .select_scene = 1 });
+    dispatch.dispatch(self, .{ .move_scene = .{ .from = 1, .to = 3 } });
+    try std.testing.expectEqualStrings("B", self.scene_list.get(1).?.name());
+    try std.testing.expectEqualStrings("A", self.scene_list.get(3).?.name());
+    try std.testing.expectEqual(@as(u8, 3), self.scene.load(.monotonic));
+
+    dispatch.dispatch(self, .{ .remove_scene = 3 });
+    try std.testing.expectEqual(@as(u8, 2), self.scene_list.count);
+    try std.testing.expectEqual(@as(u8, 0), self.scene.load(.monotonic));
+}
+
+test "the dispatcher says what went wrong, and a change of the engine goes through" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    dispatch.dispatch(self, .{ .select_scene = 9 });
+    try std.testing.expect(self.ui.notice_is_error);
+    try std.testing.expectEqualStrings("There is no scene 9.", std.mem.sliceTo(&self.ui.notice_text, 0));
+
+    // A patch that the panel cannot send is said, and it is not an error of the player's.
+    dispatch.dispatch(self, .{ .send_patch = .{ .source = .unsupported, .name = types.Text.of("Hip Hop"), .label = types.Text.of("Hip Hop") } });
+    try std.testing.expect(!self.ui.notice_is_error);
+    try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "Hip Hop") != null);
+
+    // A change of a parameter waits in the engine's queue for the main thread to take.
+    dispatch.dispatch(self, .{ .set_param = .{ .index = 0, .value = 6 } });
+    const change = self.shared.ui_changes.pop() orelse return error.TestExpectedAChange;
+    try std.testing.expectEqual(@as(usize, 0), change.index);
+    try std.testing.expectEqual(@as(u8, 6), change.value);
+
+    dispatch.dispatch(self, .{ .set_pass_midi = true });
+    try std.testing.expect(self.settings.pass_midi.load(.monotonic));
+    dispatch.dispatch(self, .{ .set_sysex_bare = true });
+    try std.testing.expect(self.settings.sysex_bare.load(.monotonic));
+}
+
+test "a tone patch becomes a scene that holds only its three bytes, and an unsupported one is refused" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    const position = try dispatch.addScene(self, tonePatch("upper_synth", 12, 3, 1, "Lead"));
+    try std.testing.expectEqual(@as(u8, 1), position);
+    try std.testing.expectError(error.NotSupported, dispatch.addScene(self, .{ .source = .unsupported, .name = types.Text.of("Kit"), .label = types.Text.of("Kit") }));
+    try std.testing.expectError(error.BadPart, dispatch.addScene(self, tonePatch("drum", 1, 1, 0, "Kit")));
+    try std.testing.expectEqual(@as(u8, 1), self.scene_list.count);
 }
 
 test "the step actions move between the scenes of an instance and stop at the ends" {

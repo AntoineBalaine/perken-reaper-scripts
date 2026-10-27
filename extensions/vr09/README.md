@@ -183,6 +183,8 @@ zig build test              # protocol, engine, audio loop, state and CLAP inter
 python3 tools/gen_catalog.py ~/projects/roland-vr09/web/public/maps/targets.json > src/catalog.zig
 ```
 
+The panel and the plugin's state are kept apart, as Console1 keeps them. The panel reads the plugin's state and draws it; when the player does something, the function that drew the widget returns an action (`action_types.zig`), the functions that drew the cards and the tabs pass it up, and after the frame `dispatch.zig` carries it out and says what happened in the panel's notice. A frame returns at most one action, because the player works with one widget at a time. Because the effects are in one place and the panel names them without doing them, they are tested without ImGui (see the dispatcher tests in `host_test.zig`), and the debug API uses the same functions as the panel. A new control of the panel therefore needs an action for what it does, and a case for it in `dispatch.zig`.
+
 The panel's look is worked on in a Lua design lab, `ui-lab/`, which reloads its files as they are saved and runs with a mock keyboard (see `ui-lab/README.md`). `python3 tools/gen_lua_catalog.py > ui-lab/catalog.lua` makes the lab's copy of the catalog.
 
 The committed catalog was generated from an older state of that catalog than the one in the roland-vr09 project today. Generating it again now would also drop the upper pan and the upper and piano reverb sends (marked unavailable since) and add seven controllers of the lower part, which changes what automation lanes in existing projects point to; it is a decision of its own, so the effects were added without regenerating the rest.
@@ -200,5 +202,10 @@ The source map:
 | `audio.zig` | the audio loop: rings, the hardware hook bridge, the latency ping |
 | `plugin.zig`, `clap_entry.zig`, `discovery.zig` | the CLAP plugin, entry point and preset discovery |
 | `reaper_glue.zig` | REAPER's API through the host extension: track, MIDI devices, hook, timer |
-| `ui.zig` | the ReaImGui panel |
+| `ui.zig` | the ReaImGui panel: the window, the tabs, the header, the Audio loop and MIDI tabs |
+| `controls_panel.zig`, `patches_panel.zig`, `scenes_panel.zig`, `tone_picker.zig` | the other tabs of the panel. They only draw and read: what the player does is returned as an action |
+| `action_types.zig` | the actions that the panel can ask for (a parameter written, a scene moved, a patch sent). It does not depend on the plugin |
+| `dispatch.zig` | where an action becomes an effect, after the frame. Its functions return errors, and the debug API calls the same ones, so that an operation is written once |
+| `library.zig` | the rows of the patch table (registrations, tones, presets) and how a row becomes a patch |
+| `scene_lane.zig` | the points of the Scene parameter's lane, which follow a scene that moves or goes |
 | `state.zig`, `fileio.zig` | the project state, presets, file access |

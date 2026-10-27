@@ -2,9 +2,9 @@
 //! moves a row, a double click that renames it and a button that removes it; the button that puts a point of
 //! the Scene parameter at the edit cursor; and the scene templates.
 //!
-//! The scenes are copies of patches that live in the plugin's saved state, and the Scene parameter holds a
-//! position in the list. When a scene moves or goes, the points of the parameter's lane follow, so that the
-//! song keeps playing the same scenes (see `scene_lane.zig`).
+//! The panel only draws and asks: a click, a drag or a button adds an action to the list, and `dispatch.zig`
+//! carries it out, with the points of the Scene lane following a scene that moves or goes (see
+//! `scene_lane.zig`).
 //!
 //! A template is a file of `Data/Perken/vr09/scenes`: the scenes' names and the IDs of their patches, one scene
 //! to a line, the two separated by a tab. Because it holds an ID and not the patch, a template follows the
@@ -12,18 +12,16 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
 const plugin = @import("plugin.zig");
-const ui = @import("ui.zig");
+const types = @import("action_types.zig");
+const dispatch = @import("dispatch.zig");
 const scenes = @import("scenes.zig");
 const fileio = @import("fileio.zig");
-const glue = @import("reaper_glue.zig");
 const theme = @import("panel_theme");
 const widgets = @import("panel_widgets");
-const patches_panel = @import("patches_panel.zig");
-const scene_lane = @import("scene_lane.zig");
 
 const Plugin = plugin.Plugin;
 
-const template_extension = ".scenes";
+const template_extension = dispatch.template_extension;
 const template_name_cap = 64;
 
 /// What the scene list keeps between frames.
@@ -98,36 +96,25 @@ fn dragStep(ctx: imgui.ContextPtr) i32 {
     return 0;
 }
 
-fn selectScene(p: *Plugin, position: usize) void {
-    p.selectScene(@intCast(position)) catch {
-        ui.notice(&p.ui, "There is no scene {d}.", .{position}, true);
-    };
-}
-
-/// Moves a scene. The lane's points follow, so that the song keeps playing the same scenes. The list moves at
-/// once, so that a dragged row stays under the mouse.
-fn moveScene(p: *Plugin, from: usize, to: usize) void {
-    const count = p.scene_list.count;
-    var map: scenes.Mapping = undefined;
-    if (!p.moveScene(@intCast(from), @intCast(to), &map)) return;
+/// The action that moves a scene. The list of row IDs moves at once, so that a dragged row stays under the
+/// mouse.
+fn moveAction(p: *Plugin, from: usize, to: usize) types.Action {
     moveUid(&p.ui.scenes_panel, from, to);
-    const changed = if (scene_lane.target(p)) |t| scene_lane.remapLane(t, count, &map) else 0;
-    if (changed > 0) ui.notice(&p.ui, "Moved a scene; {d} lane points moved with it.", .{changed}, false);
+    return .{ .move_scene = .{ .from = @intCast(from), .to = @intCast(to) } };
 }
 
-fn removeScene(p: *Plugin, position: usize) void {
-    const count = p.scene_list.count;
-    var map: scenes.Mapping = undefined;
-    if (!p.removeScene(@intCast(position), &map)) return;
+fn removeAction(p: *Plugin, position: usize) types.Action {
     removeUid(&p.ui.scenes_panel, position);
-    const changed = if (scene_lane.target(p)) |t| scene_lane.remapLane(t, count, &map) else 0;
-    ui.notice(&p.ui, "Removed scene {d}; {d} lane points moved with it.", .{ position, changed }, false);
+    return .{ .remove_scene = @intCast(position) };
 }
+
+/// What a name cell gives back: whether the name was clicked, and the rename that the player has just made.
+const NameCell = struct { clicked: bool = false, rename: ?types.Action = null };
 
 /// The scene's name: plain text, which becomes a text input on a double click and goes back to text when the
 /// player presses Enter or leaves the field. Because a name is read far more often than it is changed, it is
 /// not an input by default. Returns whether the name was clicked.
-fn nameCell(p: *Plugin, ctx: imgui.ContextPtr, scene: *const scenes.Scene, position: usize, uid: u32) bool {
+fn nameCell(p: *Plugin, ctx: imgui.ContextPtr, scene: *const scenes.Scene, position: usize, uid: u32) NameCell {
     const w = &p.ui.scenes_panel;
     if (w.editing != uid) {
         var shown_buf: [scenes.max_name + 16:0]u8 = undefined;
@@ -140,7 +127,7 @@ fn nameCell(p: *Plugin, ctx: imgui.ContextPtr, scene: *const scenes.Scene, posit
             w.focus = true;
             _ = std.fmt.bufPrintZ(&w.edit_text, "{s}", .{scene.name()}) catch {};
         }
-        return clicked;
+        return .{ .clicked = clicked };
     }
     imgui.api.SetNextItemWidth(ctx, -1);
     // The field takes the keyboard on the frame that it appears, with its text selected.
@@ -152,12 +139,12 @@ fn nameCell(p: *Plugin, ctx: imgui.ContextPtr, scene: *const scenes.Scene, posit
     _ = imgui.api.InputText(ctx, "##name", &w.edit_text, w.edit_text.len, &flags, null);
     if (imgui.api.IsItemDeactivated(ctx) or imgui.api.IsKeyPressed(ctx, imgui.Key_Enter, null) or imgui.api.IsKeyPressed(ctx, imgui.Key_KeypadEnter, null)) {
         w.editing = 0;
-        _ = p.scene_list.rename(position, std.mem.sliceTo(&w.edit_text, 0));
+        return .{ .rename = .{ .rename_scene = .{ .position = @intCast(position), .name = types.Text.of(std.mem.sliceTo(&w.edit_text, 0)) } } };
     }
-    return false;
+    return .{};
 }
 
-fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) void {
+fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const kit = &p.ui.kit;
     const w = &p.ui.scenes_panel;
     const list = p.scene_list;
@@ -167,6 +154,8 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) void {
     var move_from: usize = 0;
     var move_to: usize = 0;
     var remove_at: usize = 0;
+    var select_at: usize = 0;
+    var rename: ?types.Action = null;
     imgui.api.PushStyleColor(ctx, imgui.Col_Header, widgets.faded(theme.amber, 0x70));
     const pushed = widgets.pushLabelFont(kit);
     var table_flags: c_int = imgui.TableFlags_RowBg | imgui.TableFlags_Borders;
@@ -210,10 +199,12 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) void {
                 w.dragged = true;
             }
             // A click that ends a drag does not select the scene.
-            if (clicked and !w.dragged) selectScene(p, position);
+            if (clicked and !w.dragged) select_at = position;
             _ = imgui.api.TableNextColumn(ctx);
             // A click on the name selects the scene too, and a double click edits the name.
-            if (nameCell(p, ctx, scene, position, uid) and !w.dragged) selectScene(p, position);
+            const name_cell = nameCell(p, ctx, scene, position, uid);
+            if (name_cell.clicked and !w.dragged) select_at = position;
+            rename = types.first(rename, name_cell.rename);
             _ = imgui.api.TableNextColumn(ctx);
             var label: [scenes.max_name + 1:0]u8 = undefined;
             const patch_name = if (scene.label().len > 0) scene.label() else "(the plugin's state)";
@@ -228,37 +219,19 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) void {
     var one: c_int = 1;
     imgui.api.PopStyleColor(ctx, &one);
     if (!imgui.api.IsMouseDown(ctx, 0)) w.dragged = false;
-    // Because a move changes the list that the loop above reads, it is applied after the loop.
-    if (move_from != 0) {
-        moveScene(p, move_from, move_to);
-    } else if (remove_at != 0) {
-        removeScene(p, remove_at);
-    }
+    // Because a move changes the list that the loop above reads, it is asked for after the loop. The player
+    // does one thing at a time, and when a click and a drag meet, the drag is the one that counts.
+    if (remove_at != 0) return removeAction(p, remove_at);
+    if (move_from != 0) return moveAction(p, move_from, move_to);
+    if (rename != null) return rename;
+    if (select_at != 0) return .{ .select_scene = @intCast(select_at) };
+    return null;
 }
 
 // ---- the templates ----
 
-/// Keeps the letters, digits, spaces, dashes and underscores, because the name becomes a file name.
-fn cleanTemplateName(buf: []u8, name: []const u8) []const u8 {
-    var n: usize = 0;
-    for (name) |c| {
-        if (n == buf.len) break;
-        if (std.ascii.isAlphanumeric(c) or c == ' ' or c == '-' or c == '_') {
-            buf[n] = c;
-            n += 1;
-        }
-    }
-    return std.mem.trim(u8, buf[0..n], " ");
-}
-
 fn templateFolder(buf: []u8) ?[]const u8 {
-    if (!glue.ready) return null;
-    const sep = std.fs.path.sep;
-    return std.fmt.bufPrint(buf, "{s}{c}Data{c}Perken{c}vr09{c}scenes", .{ glue.resourcePath(), sep, sep, sep, sep }) catch null;
-}
-
-fn templatePath(buf: []u8, folder: []const u8, name: []const u8) ?[]const u8 {
-    return std.fmt.bufPrint(buf, "{s}{c}{s}{s}", .{ folder, std.fs.path.sep, name, template_extension }) catch null;
+    return dispatch.templateFolder(buf);
 }
 
 fn lessName(_: void, a: []u8, b: []u8) bool {
@@ -277,91 +250,16 @@ fn refreshTemplates(w: *State, frame: u32) void {
     w.templates = list;
 }
 
-fn saveTemplate(p: *Plugin) void {
-    const w = &p.ui.scenes_panel;
-    var clean_buf: [template_name_cap]u8 = undefined;
-    const clean = cleanTemplateName(&clean_buf, std.mem.sliceTo(&w.template_name, 0));
-    if (clean.len == 0) {
-        ui.notice(&p.ui, "Give the template a name first.", .{}, true);
-        return;
-    }
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = templateFolder(&folder_buf) orelse {
-        ui.notice(&p.ui, "REAPER's resource folder is not known.", .{}, true);
-        return;
-    };
-    fileio.makePath(folder) catch {
-        ui.notice(&p.ui, "Could not make the templates folder.", .{}, true);
-        return;
-    };
-    var text = std.ArrayList(u8).init(plugin.allocator);
-    defer text.deinit();
-    var saved: usize = 0;
-    var position: usize = 1;
-    while (position <= p.scene_list.count) : (position += 1) {
-        const scene = p.scene_list.get(position) orelse break;
-        // A scene made from the plugin's own state has no library patch, so a template cannot hold it.
-        if (scene.patch_id == 0) continue;
-        for (scene.name()) |c| text.append(if (c == '\t' or c == '\r' or c == '\n') ' ' else c) catch return;
-        text.writer().print("\t{d}\n", .{scene.patch_id}) catch return;
-        saved += 1;
-    }
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = templatePath(&path_buf, folder, clean) orelse return;
-    fileio.writeAll(path, text.items) catch {
-        ui.notice(&p.ui, "Could not write the template.", .{}, true);
-        return;
-    };
-    w.templates_at = 0;
-    free(w);
-    ui.notice(&p.ui, "Saved {d} scenes as the template \"{s}\".", .{ saved, clean }, false);
-}
-
-/// Loads a template: it replaces the session's scenes, or goes after them. Each scene is taken from the
-/// library, by the patch ID that the template holds.
-fn loadTemplate(p: *Plugin, name: []const u8, append: bool) void {
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = templateFolder(&folder_buf) orelse return;
-    var path_buf: [fileio.max_path]u8 = undefined;
-    const path = templatePath(&path_buf, folder, name) orelse return;
-    const text = fileio.readAll(plugin.allocator, path) catch {
-        ui.notice(&p.ui, "Could not read the template.", .{}, true);
-        return;
-    };
-    defer plugin.allocator.free(text);
-    patches_panel.buildRows(p);
-    if (!append) {
-        p.scene_list.clear();
-        p.scene.store(0, .monotonic);
-        p.rescanParamValues();
-    }
-    var missing: usize = 0;
-    var lines = std.mem.tokenizeScalar(u8, text, '\n');
-    while (lines.next()) |line| {
-        const tab = std.mem.lastIndexOfScalar(u8, line, '\t') orelse continue;
-        const id = std.fmt.parseInt(u32, std.mem.trim(u8, line[tab + 1 ..], " \r"), 10) catch continue;
-        const row = patches_panel.rowByValue(p, id) orelse {
-            missing += 1;
-            continue;
-        };
-        _ = patches_panel.addToScenes(p, row, line[0..tab]);
-    }
-    if (missing > 0) {
-        ui.notice(&p.ui, "Loaded the template \"{s}\"; {d} scenes left out, their patches are not in the library.", .{ name, missing }, true);
-    } else {
-        ui.notice(&p.ui, "Loaded the template \"{s}\".", .{name}, false);
-    }
-}
-
-fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) void {
+fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const kit = &p.ui.kit;
     const w = &p.ui.scenes_panel;
-    if (!imgui.api.CollapsingHeader(ctx, "Scene templates", null, null)) return;
+    var action: ?types.Action = null;
+    if (!imgui.api.CollapsingHeader(ctx, "Scene templates", null, null)) return null;
     imgui.api.SetNextItemWidth(ctx, 240);
     var input_flags: c_int = imgui.InputTextFlags_None;
     _ = imgui.api.InputTextWithHint(ctx, "##templatename", "name of the template", &w.template_name, w.template_name.len, &input_flags, null);
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(kit, "Save the scenes as a template", 0)) saveTemplate(p);
+    if (widgets.pushButton(kit, "Save the scenes as a template", 0)) action = .{ .save_template = types.Text.of(std.mem.sliceTo(&w.template_name, 0)) };
     refreshTemplates(w, p.ui.frame);
     const count = if (w.templates) |list| list.items.len else 0;
     if (count == 0) imgui.api.TextColored(ctx, theme.grey, "No templates yet.");
@@ -382,63 +280,43 @@ fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) void {
         imgui.api.EndChild(ctx);
     }
     const chosen = std.mem.sliceTo(&w.template_selected, 0);
-    if (chosen.len == 0) return;
-    if (widgets.pushButton(kit, "Load, replacing the scenes", 0)) loadTemplate(p, chosen, false);
+    if (chosen.len == 0) return action;
+    if (widgets.pushButton(kit, "Load, replacing the scenes", 0)) action = .{ .load_template = .{ .name = types.Text.of(chosen), .append = false } };
     imgui.api.SameLine(ctx, null, null);
-    if (widgets.pushButton(kit, "Add to the scenes", 0)) loadTemplate(p, chosen, true);
+    if (widgets.pushButton(kit, "Add to the scenes", 0)) action = .{ .load_template = .{ .name = types.Text.of(chosen), .append = true } };
     imgui.api.SameLine(ctx, null, null);
     if (widgets.pushButton(kit, "Delete", 0)) {
-        var folder_buf: [fileio.max_path]u8 = undefined;
-        if (templateFolder(&folder_buf)) |folder| {
-            var path_buf: [fileio.max_path]u8 = undefined;
-            if (templatePath(&path_buf, folder, chosen)) |path| fileio.deleteFile(path) catch {};
-        }
+        action = .{ .delete_template = types.Text.of(chosen) };
         w.template_selected[0] = 0;
         w.templates_at = 0;
         free(w);
     }
+    return action;
 }
 
 // ---- the card ----
 
-/// Puts a square point at the edit cursor on the lane of the Scene parameter, set to the selected scene. The
-/// lane is created when the track does not have one yet.
-fn insertScenePoint(p: *Plugin) void {
-    const current = p.scene.load(.monotonic);
-    if (current < 1) {
-        ui.notice(&p.ui, "Select a scene first: click its row.", .{}, true);
-        return;
-    }
-    const t = scene_lane.target(p) orelse {
-        ui.notice(&p.ui, "REAPER has not said where the plugin is on its track yet.", .{}, true);
-        return;
-    };
-    const time = scene_lane.insertPoint(t, current) orelse {
-        ui.notice(&p.ui, "REAPER could not create the lane.", .{}, true);
-        return;
-    };
-    ui.notice(&p.ui, "Inserted scene {d} at {d:.2} s.", .{ current, time }, false);
-}
-
 /// The card of the session's scenes.
-pub fn draw(p: *Plugin, ctx: imgui.ContextPtr) void {
+pub fn draw(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const kit = &p.ui.kit;
-    if (!widgets.beginCard(kit, "Scenes of this session", null, null, null)) return;
+    var action: ?types.Action = null;
+    if (!widgets.beginCard(kit, "Scenes of this session", null, null, null)) return null;
     defer widgets.endCard(kit);
     if (p.scene_list.count == 0) {
         imgui.api.TextColored(ctx, theme.grey, "No scenes yet. Press Add on a patch.");
         p.ui.scenes_panel.uid_count = 0;
     } else {
-        sceneRows(p, ctx);
+        action = sceneRows(p, ctx);
     }
     imgui.api.Separator(ctx);
     const current = p.scene.load(.monotonic);
     const scene = p.scene_list.get(current);
     var line: [96:0]u8 = undefined;
     imgui.api.Text(ctx, std.fmt.bufPrintZ(&line, "Scene parameter: {d}  {s}", .{ current, if (scene) |s| s.name() else "(no scene)" }) catch "");
-    if (widgets.pushButton(kit, "Insert a lane point at the cursor", 0)) insertScenePoint(p);
+    if (widgets.pushButton(kit, "Insert a lane point at the cursor", 0)) action = types.first(action, .insert_lane_point);
     widgets.tooltip(kit, "Puts a square point on the Scene parameter's lane at the edit cursor, set to the selected scene. The lane is created if the track does not have one yet.");
-    drawTemplates(p, ctx);
+    action = types.first(action, drawTemplates(p, ctx));
+    return action;
 }
 
 test "the IDs of the rows follow a move" {
@@ -452,11 +330,6 @@ test "the IDs of the rows follow a move" {
     removeUid(&w, 2);
     try std.testing.expectEqualSlices(u32, &.{ 2, 3, 1 }, w.uids[0..3]);
     try std.testing.expectEqual(@as(usize, 3), w.uid_count);
-}
-
-test "a template name keeps only what a file name can hold" {
-    var buf: [64]u8 = undefined;
-    try std.testing.expectEqualStrings("Sundayset 2", cleanTemplateName(&buf, "  Sunday/set: 2 "));
 }
 
 test "every declaration compiles" {
