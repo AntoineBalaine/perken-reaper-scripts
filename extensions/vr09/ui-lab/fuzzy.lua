@@ -1,6 +1,6 @@
 -- @noindex
 -- Fuzzy matching for the patch table, in the spirit of fzf and the same rules as the action palette
--- of perken-utilities (src/fuzzy.zig): the letters of a query must appear in the text in order, not
+-- of reaziglib's `fuzzy` module (src/fuzzy.zig): the letters of a query must appear in the text in order, not
 -- next to each other, and the score favours the matches that look intended.
 --
 -- A query is split into words on whitespace, and every word must match (so "org dec" finds "Decibel
