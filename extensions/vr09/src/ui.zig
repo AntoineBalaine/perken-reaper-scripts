@@ -47,8 +47,12 @@ const grey = palette.rgba(0x818989FF);
 const DeviceName = [device_name_cap:0]u8;
 
 /// The panel's size when it first opens.
-const window_width = 640;
-const window_height = 560;
+const window_width = 1200;
+const window_height = 800;
+
+/// Whether a small floating window shows the panel's size and the frame count, to choose the size that the
+/// panel opens at.
+const show_debug_window = true;
 
 /// The part of the plugin that belongs to its window.
 pub const Window = struct {
@@ -59,6 +63,9 @@ pub const Window = struct {
     panel: controls_panel.State = .{},
     /// What the library of patches keeps between frames.
     patches: patches_panel.State = .{},
+    /// The size and the position of the panel's window, as of the last frame, for the debug window.
+    debug_size: [2]f64 = .{ 0, 0 },
+    debug_pos: [2]f64 = .{ 0, 0 },
     /// What the list of the session's scenes keeps between frames.
     scenes_panel: scenes_panel.State = .{},
     frame: u32 = 0,
@@ -310,10 +317,13 @@ fn draw(p: *Plugin) void {
     else
         std.fmt.bufPrintZ(&title, "VR-09##{x}-{d}", .{ @intFromPtr(p), w.contexts_created }) catch "VR-09";
     if (imgui.api.Begin(ctx, label, &is_open, &flags)) {
+        imgui.api.GetWindowSize(ctx, &w.debug_size[0], &w.debug_size[1]);
+        imgui.api.GetWindowPos(ctx, &w.debug_pos[0], &w.debug_pos[1]);
         drawContent(p, ctx);
         probeInput(w, ctx);
     }
     imgui.api.End(ctx);
+    if (show_debug_window) drawDebugWindow(w, ctx);
     theme.pop(ctx);
     if (w.fonts.text != null) imgui.api.PopFont(ctx);
     if (!is_open) {
@@ -321,6 +331,24 @@ fn draw(p: *Plugin) void {
         close(p);
     }
     reportImguiError(w);
+}
+
+/// A small floating window with the size and the position of the panel and the frame count. It opens near the
+/// panel's top left corner, and the player can drag it away.
+fn drawDebugWindow(w: *Window, ctx: imgui.ContextPtr) void {
+    const at_x = w.debug_pos[0] + 24;
+    const at_y = w.debug_pos[1] + 64;
+    imgui.api.SetNextWindowPos(ctx, at_x, at_y, &imgui.Cond_FirstUseEver, null, null);
+    var flags: c_int = imgui.WindowFlags_AlwaysAutoResize | imgui.WindowFlags_NoSavedSettings | imgui.WindowFlags_NoCollapse;
+    var title: [48:0]u8 = undefined;
+    const label = std.fmt.bufPrintZ(&title, "VR-09 debug##debug-{d}", .{w.contexts_created}) catch "VR-09 debug";
+    if (imgui.api.Begin(ctx, label, null, &flags)) {
+        var line: [96:0]u8 = undefined;
+        imgui.api.Text(ctx, std.fmt.bufPrintZ(&line, "Window: {d:.0} x {d:.0}", .{ w.debug_size[0], w.debug_size[1] }) catch "");
+        imgui.api.Text(ctx, std.fmt.bufPrintZ(&line, "Position: {d:.0}, {d:.0}", .{ w.debug_pos[0], w.debug_pos[1] }) catch "");
+        imgui.api.Text(ctx, std.fmt.bufPrintZ(&line, "Frame: {d}", .{w.frame}) catch "");
+    }
+    imgui.api.End(ctx);
 }
 
 fn quantize(v: f64) i64 {
