@@ -610,7 +610,7 @@ fn cmdExport(w: anytype, p: *Plugin, arg: []const u8) !void {
 }
 
 fn cmdTab(w: anytype, p: *Plugin, arg: []const u8) !void {
-    if (!ui.selectTab(p, arg)) return writeError(w, "tab: use controls, patches, audio or midi");
+    if (!ui.selectTab(p, arg)) return writeError(w, "tab: use controls, scenes, patches, audio or midi");
     try w.writeAll("{\"ok\":true}");
 }
 

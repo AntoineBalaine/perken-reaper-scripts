@@ -23,4 +23,6 @@ comptime {
     _ = @import("extras.zig");
     _ = @import("tones.zig");
     _ = @import("controls_panel.zig");
+    _ = @import("fuzzy.zig");
+    _ = @import("patches_panel.zig");
 }

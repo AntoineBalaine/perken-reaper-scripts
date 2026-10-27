@@ -16,6 +16,8 @@
 //!
 //! The letters are compared ignoring case. Only the first `MAX_TEXT` bytes of
 //! the text and `MAX_WORD` bytes of a word take part.
+//!
+//! The VR-09 plugin keeps a copy of this file (vr09/src/fuzzy.zig); a change to the rules is made in both.
 const std = @import("std");
 
 pub const MAX_TEXT = 256;

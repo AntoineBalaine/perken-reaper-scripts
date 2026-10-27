@@ -24,6 +24,7 @@ const panel_fonts = @import("fonts.zig");
 const theme = @import("theme.zig");
 const widgets = @import("widgets.zig");
 const controls_panel = @import("controls_panel.zig");
+const patches_panel = @import("patches_panel.zig");
 
 const Plugin = plugin.Plugin;
 const log = std.log.scoped(.ui);
@@ -55,6 +56,8 @@ pub const Window = struct {
     fonts: panel_fonts.Fonts = .{},
     /// What the Controls tab keeps between frames.
     panel: controls_panel.State = .{},
+    /// What the library of patches keeps between frames.
+    patches: patches_panel.State = .{},
     frame: u32 = 0,
     errors_logged: u32 = 0,
     /// How many ImGui contexts this window has created, to tell a reopened
@@ -74,16 +77,11 @@ pub const Window = struct {
     // A tab to bring to the front on the next frame (0 for none, else the
     // tab's number from 1), so that a script can drive the panel.
     select_tab: u8 = 0,
-    preset_selected: i32 = -1,
-    preset_filter: [name_cap:0]u8 = [_:0]u8{0} ** name_cap,
     save_name: [name_cap:0]u8 = [_:0]u8{0} ** name_cap,
     export_path: [fileio.max_path:0]u8 = [_:0]u8{0} ** fileio.max_path,
-    delete_armed: i32 = -1,
 
     // The keyboard's Registrations library.
     reg_library: ?registrations.Library = null,
-    reg_selected: i32 = -1,
-    reg_filter: [name_cap:0]u8 = [_:0]u8{0} ** name_cap,
 
     // The devices, refreshed a few times a second.
     device_refresh_at: u32 = 0,
@@ -119,9 +117,9 @@ pub fn contextValid(p: *Plugin) bool {
     return imgui.api.ValidatePtr(@ptrCast(p.ui.ctx), "ImGui_Context*");
 }
 
-/// Brings a tab to the front: "controls", "patches", "audio" or "midi".
+/// Brings a tab to the front: "controls", "scenes", "patches", "audio" or "midi".
 pub fn selectTab(p: *Plugin, name: []const u8) bool {
-    const names = [_][]const u8{ "controls", "patches", "audio", "midi" };
+    const names = [_][]const u8{ "controls", "scenes", "patches", "audio", "midi" };
     for (names, 1..) |n, i| {
         if (std.mem.eql(u8, n, name)) {
             p.ui.select_tab = @intCast(i);
@@ -167,7 +165,7 @@ pub fn drawAll() void {
     }
 }
 
-fn notice(w: *Window, comptime fmt: []const u8, args: anytype, is_error: bool) void {
+pub fn notice(w: *Window, comptime fmt: []const u8, args: anytype, is_error: bool) void {
     _ = std.fmt.bufPrintZ(&w.notice, fmt, args) catch {
         w.notice[0] = 0;
     };
@@ -187,7 +185,6 @@ fn freeRegistrations(w: *Window) void {
         lib.deinit(plugin.allocator);
         w.reg_library = null;
     }
-    w.reg_selected = -1;
 }
 
 fn refreshRegistrations(w: *Window) void {
@@ -379,21 +376,25 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) void {
     if (imgui.api.BeginTabBar(ctx, "##tabs", null)) {
         const select = p.ui.select_tab;
         p.ui.select_tab = 0;
-        var flags = [4]c_int{ 0, 0, 0, 0 };
+        var flags = [5]c_int{ 0, 0, 0, 0, 0 };
         if (select >= 1 and select <= flags.len) flags[select - 1] = imgui.TabItemFlags_SetSelected;
         if (widgets.beginTab(ctx, "CONTROLS", &flags[0])) {
             drawControls(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (widgets.beginTab(ctx, "PATCHES", &flags[1])) {
-            drawPatches(p, ctx);
+        if (widgets.beginTab(ctx, "SCENES", &flags[1])) {
+            patches_panel.drawScenes(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (widgets.beginTab(ctx, "AUDIO LOOP", &flags[2])) {
+        if (widgets.beginTab(ctx, "PATCHES", &flags[2])) {
+            patches_panel.drawPatches(p, ctx);
+            imgui.api.EndTabItem(ctx);
+        }
+        if (widgets.beginTab(ctx, "AUDIO LOOP", &flags[3])) {
             drawAudioLoop(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
-        if (widgets.beginTab(ctx, "MIDI", &flags[3])) {
+        if (widgets.beginTab(ctx, "MIDI", &flags[4])) {
             drawMidi(p, ctx);
             imgui.api.EndTabItem(ctx);
         }
@@ -475,129 +476,7 @@ fn drawControls(p: *Plugin, ctx: imgui.ContextPtr) void {
 
 // ---- the patches ----
 
-fn drawPatches(p: *Plugin, ctx: imgui.ContextPtr) void {
-    const w = &p.ui;
-    const s = p.shared;
-
-    if (imgui.api.Button(ctx, "Read the keyboard", null, null)) {
-        _ = s.sendCommand(.capture_keyboard);
-        notice(w, "Reading the keyboard's state into this plugin.", .{}, false);
-    }
-    imgui.api.SameLine(ctx, null, null);
-    if (imgui.api.Button(ctx, "Send to the keyboard", null, null)) {
-        _ = s.sendCommand(.recall);
-        notice(w, "Writing this plugin's state to the keyboard.", .{}, false);
-    }
-    if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "Only what differs is written: about 0.15 seconds when the keyboard has been read, a few seconds otherwise.");
-
-    checkpoint(w, "patches: buttons");
-    var split_on = p.settings.split.load(.monotonic);
-    if (imgui.api.Checkbox(ctx, "This patch splits at middle C", &split_on)) plugin.setPatchSplit(p, split_on);
-    if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "The keyboard cannot report its split. When this is on, the track's notes below middle C go to the Lower part (channel 3) and the others to the Upper part (channel 4); when off, every note goes to the Upper part. The setting is remembered for this patch.");
-    var follow = s.follow_panel.load(.monotonic);
-    if (imgui.api.Checkbox(ctx, "Follow changes made on the keyboard's panel", &follow)) s.follow_panel.store(follow, .monotonic);
-    var recall = s.recall_on_load.load(.monotonic);
-    if (imgui.api.Checkbox(ctx, "Send the patch to the keyboard when the project opens", &recall)) s.recall_on_load.store(recall, .monotonic);
-
-    imgui.api.SeparatorText(ctx, "Save");
-    imgui.api.SetNextItemWidth(ctx, 280);
-    var input_flags: c_int = imgui.InputTextFlags_None;
-    _ = imgui.api.InputTextWithHint(ctx, "##save", "patch name", &w.save_name, w.save_name.len, &input_flags, null);
-    imgui.api.SameLine(ctx, null, null);
-    if (imgui.api.Button(ctx, "Save as preset", null, null)) savePreset(p);
-    checkpoint(w, "patches: save");
-
-    drawRegistrations(p, ctx);
-    checkpoint(w, "patches: registrations");
-
-    imgui.api.SeparatorText(ctx, "Presets");
-    imgui.api.SetNextItemWidth(ctx, 280);
-    _ = imgui.api.InputTextWithHint(ctx, "##filter", "filter", &w.preset_filter, w.preset_filter.len, &input_flags, null);
-    imgui.api.SameLine(ctx, null, null);
-    if (imgui.api.Button(ctx, "Import a file", null, null)) importFile(p);
-    if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "Loads a dump made by vr09.py, or a preset file from elsewhere.");
-
-    var avail_w: f64 = 0;
-    var avail_h: f64 = 0;
-    imgui.api.GetContentRegionAvail(ctx, &avail_w, &avail_h);
-    var list_h: f64 = @max(avail_h - 150, 120);
-    // ReaImGui expects EndChild only when BeginChild returned true: a child
-    // pushed below the window's bottom returns false, and an extra EndChild
-    // fails an assertion that destroys the whole context.
-    if (imgui.api.BeginChild(ctx, "##presets", null, &list_h, null, null)) {
-        drawPresetRows(p, ctx);
-        imgui.api.EndChild(ctx);
-    }
-    checkpoint(w, "patches: presets");
-
-    imgui.api.SeparatorText(ctx, "Export");
-    imgui.api.SetNextItemWidth(ctx, 420);
-    _ = imgui.api.InputTextWithHint(ctx, "##export", "path of the file to write (a dump, as vr09.py reads it)", &w.export_path, w.export_path.len, &input_flags, null);
-    imgui.api.SameLine(ctx, null, null);
-    if (imgui.api.Button(ctx, "Export", null, null)) exportFile(p);
-}
-
-/// The Registrations by bank, four slots each. Because the keyboard cannot
-/// select its own Registrations over MIDI, a click on one loads the dump taken
-/// from it and writes it to the keyboard, like a preset.
-fn drawRegistrations(p: *Plugin, ctx: imgui.ContextPtr) void {
-    const w = &p.ui;
-    imgui.api.SeparatorText(ctx, "Registrations");
-    const lib = w.reg_library orelse {
-        imgui.api.TextColored(ctx, grey, "No registrations folder: run build-install.sh vr09 to fill Data/Perken/vr09/registrations.");
-        return;
-    };
-    if (lib.entries.items.len == 0) {
-        imgui.api.TextColored(ctx, grey, "The registrations folder holds no <bank>-<slot>_<Name>.json file.");
-        return;
-    }
-    var input_flags: c_int = imgui.InputTextFlags_None;
-    imgui.api.SetNextItemWidth(ctx, 280);
-    _ = imgui.api.InputTextWithHint(ctx, "##regfilter", "filter by name or bank-slot", &w.reg_filter, w.reg_filter.len, &input_flags, null);
-    const filter = std.mem.sliceTo(&w.reg_filter, 0);
-    if (imgui.api.IsItemHovered(ctx, null)) imgui.api.SetTooltip(ctx, "Double click a registration to send it to the keyboard. The Scene parameter's lane selects scenes, which are copies of patches. The keyboard's display keeps showing the last registration chosen on its panel.");
-
-    var list_w: f64 = -1;
-    var list_h: f64 = 200;
-    if (imgui.api.BeginChild(ctx, "##registrations", &list_w, &list_h, null, null)) {
-        var i: usize = 0;
-        const items = lib.entries.items;
-        while (i < items.len) {
-            const bank = items[i].bank;
-            var end = i;
-            var any_match = false;
-            while (end < items.len and items[end].bank == bank) : (end += 1) {
-                if (registrations.matches(items[end], filter)) any_match = true;
-            }
-            defer i = end;
-            if (!any_match) continue;
-            var title: [32:0]u8 = undefined;
-            const text = std.fmt.bufPrintZ(&title, "Bank {d}##bank{d}", .{ bank, bank }) catch continue;
-            // A filter opens the banks that match, so the result is visible.
-            if (filter.len > 0) imgui.api.SetNextItemOpen(ctx, true, null);
-            if (!imgui.api.TreeNode(ctx, text, null)) continue;
-            for (items[i..end], i..) |entry, index| {
-                if (!registrations.matches(entry, filter)) continue;
-                var name_buf: [64]u8 = undefined;
-                var label: [128:0]u8 = undefined;
-                const row = std.fmt.bufPrintZ(&label, "{d}-{d}  {s}##reg{d}", .{ entry.bank, entry.slot, registrations.displayName(&name_buf, entry.name), index }) catch continue;
-                var selected = w.reg_selected == @as(i32, @intCast(index));
-                var sel_flags: c_int = imgui.SelectableFlags_AllowDoubleClick;
-                if (imgui.api.Selectable(ctx, row, &selected, &sel_flags, null, null)) {
-                    w.reg_selected = @intCast(index);
-                    if (imgui.api.IsMouseDoubleClicked(ctx, 0)) loadRegistration(p, entry);
-                }
-            }
-            imgui.api.TreePop(ctx);
-        }
-        imgui.api.EndChild(ctx);
-    }
-    if (w.reg_selected >= 0 and w.reg_selected < lib.entries.items.len) {
-        if (imgui.api.Button(ctx, "Load and send registration", null, null)) loadRegistration(p, lib.entries.items[@intCast(w.reg_selected)]);
-    }
-}
-
-fn loadRegistration(p: *Plugin, entry: registrations.Entry) void {
+pub fn loadRegistration(p: *Plugin, entry: registrations.Entry) void {
     p.loadRegistration(entry) catch |err| {
         notice(&p.ui, "Could not load registration {d}-{d}: {s}", .{ entry.bank, entry.slot, @errorName(err) }, true);
         return;
@@ -605,44 +484,7 @@ fn loadRegistration(p: *Plugin, entry: registrations.Entry) void {
     notice(&p.ui, "Loaded registration {d}-{d}.", .{ entry.bank, entry.slot }, false);
 }
 
-fn drawPresetRows(p: *Plugin, ctx: imgui.ContextPtr) void {
-    const w = &p.ui;
-    const list = w.preset_names orelse {
-        imgui.api.TextColored(ctx, grey, "No preset folder yet: save a patch to create it.");
-        return;
-    };
-    const filter = std.mem.sliceTo(&w.preset_filter, 0);
-    for (list.items, 0..) |file_name, i| {
-        const display = state.displayName(file_name);
-        if (filter.len > 0 and std.ascii.indexOfIgnoreCase(display, filter) == null) continue;
-        var label: [160:0]u8 = undefined;
-        const text = std.fmt.bufPrintZ(&label, "{s}##{d}", .{ display, i }) catch continue;
-        var selected = w.preset_selected == @as(i32, @intCast(i));
-        var sel_flags: c_int = imgui.SelectableFlags_AllowDoubleClick;
-        if (imgui.api.Selectable(ctx, text, &selected, &sel_flags, null, null)) {
-            w.preset_selected = @intCast(i);
-            w.delete_armed = -1;
-            // A double click loads, a single click only selects.
-            if (imgui.api.IsMouseDoubleClicked(ctx, 0)) loadPreset(p, file_name);
-        }
-    }
-    if (w.preset_selected >= 0 and w.preset_selected < list.items.len) {
-        imgui.api.Separator(ctx);
-        const file_name = list.items[@intCast(w.preset_selected)];
-        if (imgui.api.Button(ctx, "Load and send", null, null)) loadPreset(p, file_name);
-        imgui.api.SameLine(ctx, null, null);
-        const armed = w.delete_armed == w.preset_selected;
-        if (imgui.api.Button(ctx, if (armed) "Click again to delete" else "Delete", null, null)) {
-            if (armed) {
-                deletePreset(p, file_name);
-            } else {
-                w.delete_armed = w.preset_selected;
-            }
-        }
-    }
-}
-
-fn loadPreset(p: *Plugin, file_name: []const u8) void {
+pub fn loadPreset(p: *Plugin, file_name: []const u8) void {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = presetFolder(&folder_buf) orelse return;
     var path_buf: [fileio.max_path]u8 = undefined;
@@ -654,7 +496,7 @@ fn loadPreset(p: *Plugin, file_name: []const u8) void {
     notice(&p.ui, "Loaded {s}.", .{state.displayName(file_name)}, false);
 }
 
-fn deletePreset(p: *Plugin, file_name: []const u8) void {
+pub fn deletePreset(p: *Plugin, file_name: []const u8) void {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = presetFolder(&folder_buf) orelse return;
     var path_buf: [fileio.max_path]u8 = undefined;
@@ -663,13 +505,11 @@ fn deletePreset(p: *Plugin, file_name: []const u8) void {
         notice(&p.ui, "Could not delete {s}: {s}", .{ file_name, @errorName(err) }, true);
         return;
     };
-    p.ui.preset_selected = -1;
-    p.ui.delete_armed = -1;
     p.ui.preset_refresh_at = 0;
     notice(&p.ui, "Deleted {s}.", .{state.displayName(file_name)}, false);
 }
 
-fn savePreset(p: *Plugin) void {
+pub fn savePreset(p: *Plugin) void {
     var clean: [name_cap]u8 = undefined;
     const name = state.sanitizeName(&clean, std.mem.sliceTo(&p.ui.save_name, 0));
     if (name.len == 0) {
@@ -699,7 +539,7 @@ fn savePreset(p: *Plugin) void {
     notice(&p.ui, "Saved {s}.", .{name}, false);
 }
 
-fn importFile(p: *Plugin) void {
+pub fn importFile(p: *Plugin) void {
     if (!glue.ready) return;
     var path: [4096]u8 = [_]u8{0} ** 4096;
     if (!Reaper.GetUserFileNameForRead(@ptrCast(&path), "Import a VR-09 dump or preset", "json")) return;
@@ -711,7 +551,7 @@ fn importFile(p: *Plugin) void {
     notice(&p.ui, "Imported {s}.", .{std.fs.path.basename(chosen)}, false);
 }
 
-fn exportFile(p: *Plugin) void {
+pub fn exportFile(p: *Plugin) void {
     const target = std.mem.sliceTo(&p.ui.export_path, 0);
     if (target.len == 0 or !std.fs.path.isAbsolute(target)) {
         notice(&p.ui, "Type the full path of the file to write.", .{}, true);
