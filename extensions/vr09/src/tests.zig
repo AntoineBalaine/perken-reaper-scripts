@@ -20,4 +20,5 @@ comptime {
     _ = @import("widgets.zig");
     _ = @import("fonts.zig");
     _ = @import("theme.zig");
+    _ = @import("extras.zig");
 }
