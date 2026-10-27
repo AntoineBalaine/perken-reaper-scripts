@@ -1,3 +1,4 @@
+-- @noindex
 -- Lets a terminal session run Lua inside the running REAPER, to inspect its
 -- state and call its API while developing. Run it once from the Actions list
 -- ("Load ReaScript"), or start it from Scripts/__startup.lua. It keeps
