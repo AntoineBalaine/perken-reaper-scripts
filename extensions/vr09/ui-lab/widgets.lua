@@ -473,6 +473,33 @@ local function stop_side(angle)
   return "top"
 end
 
+-- Where the label of a stop sits, relative to the center of the knob.
+local function stop_label_box(ctx, name, index, count, line)
+  local r = KNOB_D / 2
+  local angle = stop_angle(index, count)
+  local text_w = ImGui.CalcTextSize(ctx, name)
+  local ax, ay = math.cos(angle) * (r + 9), math.sin(angle) * (r + 9)
+  local side = stop_side(angle)
+  local bx = ax
+  if side == "left" then bx = ax - text_w elseif side == "top" then bx = ax - text_w / 2 end
+  local by = side == "top" and (ay - line - 1) or (ay - line / 2)
+  return { x1 = bx, y1 = by, x2 = bx + text_w, y2 = by + line }
+end
+
+-- Whether two labels of the stops would be drawn over each other. Because the names are written around the
+-- knob, a knob with long names crowds them on one side, and then its names go in a list instead.
+local function labels_overlap(ctx, stops, line)
+  local boxes = {}
+  for i, stop in ipairs(stops) do boxes[i] = stop_label_box(ctx, stop.name, i, #stops, line) end
+  for i = 1, #boxes do
+    for j = i + 1, #boxes do
+      local a, b = boxes[i], boxes[j]
+      if a.x1 < b.x2 + 2 and b.x1 < a.x2 + 2 and a.y1 < b.y2 + 1 and b.y1 < a.y2 + 1 then return true end
+    end
+  end
+  return false
+end
+
 -- Measures what the stop knob needs around the knob for its labels, in the label font: the width on
 -- its left and its right, and the height above it.
 local function stop_margins(ctx, stops, labelled)
@@ -503,8 +530,6 @@ function M.stop_knob(ctx, param, value, label, as_list)
   local tint = disabled and th.text_dim or accent()
   local stops = stops_of(param)
   local count = #stops
-  -- The caller may ask for the display and the list even with few stops, when the names are long.
-  local labelled = count <= STOP_LABELS_MAX and not as_list
   local index = stop_index(stops, value)
   local result = index
 
@@ -513,6 +538,9 @@ function M.stop_knob(ctx, param, value, label, as_list)
   local room_above = ImGui.GetTextLineHeightWithSpacing(ctx)
   local pushed = push_label_font(ctx)
   local line = ImGui.GetTextLineHeight(ctx)
+  -- The caller may ask for the display and the list even with few stops, when the names are long, and a
+  -- knob whose names would overlap takes them too.
+  local labelled = count <= STOP_LABELS_MAX and not as_list and not labels_overlap(ctx, stops, line)
   local left, right, top = stop_margins(ctx, stops, labelled)
   top = math.max(top, room_above)
 

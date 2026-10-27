@@ -3,9 +3,10 @@
 //! that a section that looks right in the lab is copied here card by card.
 //!
 //! A parameter that the catalog has is a real control: it reads and writes the plugin's value. A parameter
-//! that Roland documents and the catalog does not have (see `extras.zig`) is drawn disabled, with the reason
-//! in a tooltip, as the lab does. The choice of a tone and the switches that have no parameter yet only
-//! move on the screen.
+//! that Roland documents and the catalog does not have (see `extras.zig`) is drawn as the lab draws it: when
+//! it has a reason (the unit refuses it, or the synth engine does not answer), it is disabled and the reason
+//! is in a tooltip, and otherwise it moves on the screen and nothing is sent to the keyboard. The choice of
+//! a tone and the "Part on" switches move on the screen in the same way.
 const std = @import("std");
 const imgui = @import("reaper_imgui");
 const engine = @import("engine.zig");
@@ -22,6 +23,13 @@ pub const State = struct {
     tone_keys: [8]u64 = [_]u64{0} ** 8,
     tone_index: [8]usize = [_]usize{0} ** 8,
     tone_filter: [8][widgets.tone_filter_cap:0]u8 = [_][widgets.tone_filter_cap:0]u8{[_:0]u8{0} ** widgets.tone_filter_cap} ** 8,
+    /// The values that the user gave to the extras, which only the screen keeps. An extra that was not
+    /// touched shows its default.
+    extra_values: [extras.params.len]i32 = [_]i32{0} ** extras.params.len,
+    extra_touched: [extras.params.len]bool = [_]bool{false} ** extras.params.len,
+    /// The parts whose "Part on" switch was turned off, by the hash of the part's name.
+    part_keys: [16]u64 = [_]u64{0} ** 16,
+    part_off: [16]bool = [_]bool{false} ** 16,
     /// Set when the engine's queue of changes was full, and a change was dropped.
     overflow: bool = false,
     /// A notice that the panel shows, set by a card. Empty when there is none.
@@ -45,6 +53,8 @@ const Ref = struct {
     short: []const u8,
     /// The position in the catalog of a real parameter, or null for an extra.
     index: ?usize,
+    /// The position among the extras of an extra, or null for a real parameter.
+    extra: ?usize = null,
 };
 
 fn refOfParam(param: catalog.Param, index: usize) Ref {
@@ -57,7 +67,9 @@ fn refOfParam(param: catalog.Param, index: usize) Ref {
 }
 
 fn refOfExtra(extra: *const extras.Extra) Ref {
+    const position = @divExact(@intFromPtr(extra) - @intFromPtr(&extras.params[0]), @sizeOf(extras.Extra));
     return .{
+        .extra = position,
         .control = .{
             .id = extra.id,
             .low = extra.low,
@@ -115,12 +127,22 @@ fn collectGroup(group: []const u8, out: *[refs_cap]Ref) usize {
 
 fn valueOf(ui: Ui, ref: Ref) i32 {
     if (ref.index) |i| return ui.shared.paramValue(i);
+    if (ref.extra) |e| {
+        if (ui.state.extra_touched[e]) return ui.state.extra_values[e];
+    }
     return ref.control.default orelse ref.control.low;
 }
 
+/// A real parameter goes to the engine. An extra is kept by the panel, so that it moves on the screen.
 fn setValue(ui: Ui, ref: Ref, value: i32) void {
-    const i = ref.index orelse return;
-    if (!ui.shared.changeParam(i, @intCast(std.math.clamp(value, 0, 255)))) ui.state.overflow = true;
+    if (ref.index) |i| {
+        if (!ui.shared.changeParam(i, @intCast(std.math.clamp(value, 0, 255)))) ui.state.overflow = true;
+        return;
+    }
+    if (ref.extra) |e| {
+        ui.state.extra_values[e] = value;
+        ui.state.extra_touched[e] = true;
+    }
 }
 
 fn idIn(list: []const []const u8, id: []const u8) bool {
@@ -187,14 +209,31 @@ fn wrappedNote(ctx: imgui.ContextPtr, text: [:0]const u8, width: f64) void {
     imgui.api.PopTextWrapPos(ctx);
 }
 
-/// The switch that says whether a part sounds. The plugin has no such parameter yet, so it is drawn
-/// disabled.
-fn partToggle(ui: Ui) void {
-    imgui.api.BeginDisabled(ui.ctx, null);
-    var on = true;
-    _ = widgets.toggle(ui.ctx, "Part on", &on);
-    imgui.api.EndDisabled(ui.ctx);
-    widgets.tooltip(ui.ctx, "The plugin does not have this parameter yet.");
+/// The switch that says whether a part sounds. The plugin has no such parameter yet, so the panel keeps it by
+/// the part's name, and a part that is not in the table is on.
+fn partToggle(ui: Ui, key: []const u8) void {
+    const hash = hashOf(key);
+    var slot: usize = ui.state.part_keys.len - 1;
+    for (ui.state.part_keys, 0..) |existing, i| {
+        if (existing == hash) {
+            slot = i;
+            break;
+        }
+        if (existing == 0) {
+            ui.state.part_keys[i] = hash;
+            slot = i;
+            break;
+        }
+    }
+    var on = !ui.state.part_off[slot];
+    if (widgets.toggle(ui.ctx, "Part on", &on)) ui.state.part_off[slot] = !on;
+}
+
+/// A switch for an extra that is either 0 or 1.
+fn extraToggle(ui: Ui, id: []const u8, label: [:0]const u8) void {
+    const ref = findRef(id) orelse return;
+    var on = valueOf(ui, ref) == 1;
+    if (widgets.toggle(ui.ctx, label, &on)) setValue(ui, ref, if (on) 1 else 0);
 }
 
 const IdText = struct { id: []const u8, text: []const u8 };
@@ -276,7 +315,7 @@ fn cardOfIds(ui: Ui, title: []const u8, ids: []const []const u8, card_accent: ?c
 
 fn cardOfDrawbars(ui: Ui, group: []const u8, height: ?f64) void {
     if (!widgets.beginCard(ui.ctx, group, null, height, theme.part.organ)) return;
-    partToggle(ui);
+    partToggle(ui, group);
     var refs: [refs_cap]Ref = undefined;
     const count = collectGroup(group, &refs);
     for (refs[0..count], 0..) |ref, i| {
@@ -611,14 +650,11 @@ fn cardOfOrganVoicing(ui: Ui, height: ?f64) void {
         .{ .id = "vibrato-lower", .text = "Vibrato / chorus, lower" },
         .{ .id = "rotary-on", .text = "Rotary speaker" },
     };
-    imgui.api.BeginDisabled(ui.ctx, null);
     for (switches, 0..) |item, i| {
-        var on = false;
         var label: [64:0]u8 = undefined;
-        _ = widgets.toggle(ui.ctx, std.fmt.bufPrintZ(&label, "{s}", .{item.text}) catch "", &on);
+        extraToggle(ui, item.id, std.fmt.bufPrintZ(&label, "{s}", .{item.text}) catch "");
         if (i + 1 < switches.len) sameLine(ui.ctx);
     }
-    imgui.api.EndDisabled(ui.ctx);
     widgets.endCard(ui.ctx);
 }
 
@@ -706,7 +742,7 @@ fn cardOfTone(ui: Ui, part: TonePart) void {
         const slot = toneSlot(ui.state, part.id);
         setNotice(ui.state, "{s}: {s} (shown only: the plugin does not send tones yet).", .{ part.title, list[ui.state.tone_index[slot]].name });
     }
-    partToggle(ui);
+    partToggle(ui, part.id);
     var ids: [3][]const u8 = undefined;
     var buffers: [3][64]u8 = undefined;
     for ([_][]const u8{ "octave", "portamento", "portamento-time" }, 0..) |name, i| {
@@ -733,7 +769,7 @@ fn tonesSection(ui: Ui) void {
 fn drumsSection(ui: Ui) void {
     if (!widgets.beginCard(ui.ctx, "Drum kit", null, null, theme.part.master)) return;
     _ = toneChoice(ui, "drum", &tones.drum);
-    partToggle(ui);
+    partToggle(ui, "drum");
     if (findRef("drum-volume")) |ref| drawRef(ui, ref, "volume", false);
     wrappedNote(ui.ctx, "Roland documents the kit and the volume at the drum block's offsets, but the unit's dumps do not match them: unconfirmed. The drums play on MIDI channel 11.", 360);
     widgets.endCard(ui.ctx);
@@ -749,13 +785,16 @@ fn cardOfPedals(ui: Ui, tint: c_int) void {
             sameLine(ui.ctx);
         }
     }
-    imgui.api.BeginDisabled(ui.ctx, null);
-    var first = false;
-    var second = false;
-    _ = widgets.toggle(ui.ctx, "N.control 1", &first);
-    sameLine(ui.ctx);
-    _ = widgets.toggle(ui.ctx, "N.control 2", &second);
-    imgui.api.EndDisabled(ui.ctx);
+    // The two N.control switches are the two bits of one value, 0 to 3.
+    if (findRef("n-control")) |ref| {
+        const n = valueOf(ui, ref);
+        var first = n & 1 == 1;
+        var second = n & 2 == 2;
+        const changed_first = widgets.toggle(ui.ctx, "N.control 1", &first);
+        sameLine(ui.ctx);
+        const changed_second = widgets.toggle(ui.ctx, "N.control 2", &second);
+        if (changed_first or changed_second) setValue(ui, ref, (if (first) @as(i32, 1) else 0) | (if (second) @as(i32, 2) else 0));
+    }
     widgets.endCard(ui.ctx);
 }
 

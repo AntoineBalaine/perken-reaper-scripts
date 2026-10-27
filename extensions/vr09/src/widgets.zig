@@ -878,6 +878,40 @@ fn stopMargins(ctx: imgui.ContextPtr, stops: []const Stop, labelled: bool) StopM
     return margins;
 }
 
+const LabelBox = struct { x1: f64, y1: f64, x2: f64, y2: f64 };
+
+/// Where the label of a stop sits, relative to the center of the knob.
+fn stopLabelBox(ctx: imgui.ContextPtr, stop: *const Stop, index: usize, count: usize, text_line: f64) LabelBox {
+    const r = knob_d / 2;
+    const angle = stopAngle(index, count);
+    const text_w = textSize(ctx, stopName(stop)).w;
+    const ax = @cos(angle) * (r + 9);
+    const ay = @sin(angle) * (r + 9);
+    const side = stopSide(angle);
+    const bx = switch (side) {
+        .left => ax - text_w,
+        .top => ax - text_w / 2,
+        .right => ax,
+    };
+    const by = if (side == .top) ay - text_line - 1 else ay - text_line / 2;
+    return .{ .x1 = bx, .y1 = by, .x2 = bx + text_w, .y2 = by + text_line };
+}
+
+/// Whether two labels of the stops would be drawn over each other. Because the names are written around
+/// the knob, a knob with long names crowds them on one side, and then its names go in a list instead.
+fn labelsOverlap(ctx: imgui.ContextPtr, stops: []const Stop, text_line: f64) bool {
+    var boxes: [stops_cap]LabelBox = undefined;
+    for (stops, 0..) |*stop, i| boxes[i] = stopLabelBox(ctx, stop, i, stops.len, text_line);
+    for (0..stops.len) |i| {
+        for (i + 1..stops.len) |j| {
+            const a = boxes[i];
+            const b = boxes[j];
+            if (a.x1 < b.x2 + 2 and b.x1 < a.x2 + 2 and a.y1 < b.y2 + 1 and b.y1 < a.y2 + 1) return true;
+        }
+    }
+    return false;
+}
+
 /// A knob that turns between named stops: a dot on its ring at each stop, and the name of each stop
 /// written beside its dot, with the selected one lit. The user drags up or down, turns the mouse wheel,
 /// or clicks a name. A knob with more stops than `stop_labels_max`, or one that the caller asks to be an
@@ -889,8 +923,6 @@ pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []co
     var stops: [stops_cap]Stop = undefined;
     const count = stopsOf(control, &stops);
     if (count == 0) return .{ .changed = false, .value = value };
-    // The caller may ask for the display and the list even with few stops, when the names are long.
-    const labelled = count <= stop_labels_max and !as_list;
     const index = stopIndex(stops[0..count], value);
     var result = index;
 
@@ -899,6 +931,9 @@ pub fn stopKnob(ctx: imgui.ContextPtr, control: Control, value: i32, label: []co
     const room_above = imgui.api.GetTextLineHeightWithSpacing(ctx);
     const pushed = pushLabelFont(ctx);
     const text_line = imgui.api.GetTextLineHeight(ctx);
+    // The caller may ask for the display and the list even with few stops, when the names are long, and a
+    // knob whose names would overlap takes them too.
+    const labelled = count <= stop_labels_max and !as_list and !labelsOverlap(ctx, stops[0..count], text_line);
     const margins = stopMargins(ctx, stops[0..count], labelled);
     const top = @max(margins.top, room_above);
 
