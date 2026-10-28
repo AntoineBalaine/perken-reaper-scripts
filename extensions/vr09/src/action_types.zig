@@ -44,13 +44,6 @@ pub const Patch = struct {
     label: Ref,
 };
 
-/// A save of the keyboard that waits for the keyboard's read to end, and the name to save it under.
-pub const PendingSave = struct {
-    phase: enum { idle, waiting_for_start, waiting_for_end } = .idle,
-    since: u32 = 0,
-    name: Ref = strings.empty,
-};
-
 pub const MoveScene = struct { from: u8, to: u8 };
 pub const RenameScene = struct { position: u8, name: Ref };
 pub const LoadTemplate = struct { name: Ref, append: bool };
@@ -68,7 +61,7 @@ pub const Action = union(enum) {
     // ---- the keyboard ----
     read_keyboard,
     send_to_keyboard,
-    /// Reads the keyboard, then saves what it holds as a preset of this name.
+    /// Reads the keyboard, then saves what it holds as a preset of this name. The plugin's save job does it.
     save_keyboard: Ref,
     /// Sends a patch of the library to the keyboard.
     send_patch: Patch,

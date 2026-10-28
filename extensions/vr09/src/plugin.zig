@@ -99,6 +99,8 @@ pub const SaveState = enum { idle, reading, done, failed };
 /// Only the main thread touches it.
 pub const SaveJob = struct {
     state: SaveState = .idle,
+    /// How many saves have begun. The panel tells the result of a save once, by this number.
+    serial: u32 = 0,
     /// The name to save under. Like the file and the message, it is null-terminated, so the length is not kept.
     name: [96:0]u8 = [_:0]u8{0} ** 96,
     /// The number of finished captures when the save began, so that the end of this one is told apart.
@@ -387,6 +389,7 @@ pub const Plugin = struct {
         self.save.name[trimmed.len] = 0;
         self.save.baseline = baseline;
         self.save.started_ms = std.time.milliTimestamp();
+        self.save.serial +%= 1;
         self.save.state = .reading;
     }
 

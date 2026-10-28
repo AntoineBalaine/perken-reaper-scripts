@@ -298,7 +298,7 @@ fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     var input_flags: c_int = imgui.InputTextFlags_None;
     _ = imgui.api.InputTextWithHint(ctx, "##savename", "name of the new patch", &p.ui.save_name, p.ui.save_name.len, &input_flags, null);
     imgui.api.SameLine(ctx, null, null);
-    if (p.ui.pending_save.phase != .idle) {
+    if (p.save.state == .reading) {
         imgui.api.TextColored(ctx, theme.amber, "Reading the keyboard...");
     } else if (widgets.pushButton(kit, "Save the keyboard as a patch", 0)) {
         action = .{ .save_keyboard = p.strings.intern(std.mem.sliceTo(&p.ui.save_name, 0)) };

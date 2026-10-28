@@ -864,6 +864,46 @@ test "saving the keyboard reads it first and writes the preset when the read end
     try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
 }
 
+test "the panel's save starts the plugin's save job, and its result is told once" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    const asked = self.strings.intern("Warm pad");
+
+    // A keyboard that does not answer is told at once, and nothing starts.
+    dispatch.dispatch(self, .{ .save_keyboard = asked });
+    try std.testing.expectEqual(plugin.SaveState.idle, self.save.state);
+    try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "does not answer") != null);
+
+    // The save runs on the plugin's job, and the panel only looks at it.
+    self.shared.connected.store(true, .release);
+    dispatch.dispatch(self, .{ .save_keyboard = asked });
+    try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
+    self.ui.notice_text[0] = 0;
+    dispatch.reportSave(self);
+    try std.testing.expectEqual(@as(u8, 0), self.ui.notice_text[0]);
+
+    _ = self.shared.setDesired(.kb, 0x02 << 14 | 5, 42);
+    _ = self.shared.captures_done.fetchAdd(1, .release);
+    self.shared.capture_answered.store(true, .monotonic);
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var root_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const root = try tmp.dir.realpath(".", &root_buf);
+    self.finishSave(root);
+    dispatch.reportSave(self);
+    try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "saved it as Warm pad") != null);
+
+    // The result is told once: the next frame says nothing more.
+    self.ui.notice_text[0] = 0;
+    dispatch.reportSave(self);
+    try std.testing.expectEqual(@as(u8, 0), self.ui.notice_text[0]);
+}
+
 test "a control change parameter sends a CC and nothing else" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();

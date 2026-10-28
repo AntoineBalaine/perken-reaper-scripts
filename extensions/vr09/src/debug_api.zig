@@ -332,13 +332,7 @@ fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
 /// keyboard is read first, and the file is written when the read ends, so the reply only says that the
 /// save began; `save_status` says how it went.
 fn cmdSavePreset(w: anytype, p: *Plugin, arg: []const u8) !void {
-    p.startSave(arg) catch |err| return writeError(w, switch (err) {
-        error.Busy => "a save is already running",
-        error.EmptyName => "give the preset a name",
-        error.NameTooLong => "the name is too long",
-        error.NotConnected => "the keyboard does not answer: connect it, and look for it again from the MIDI tab",
-        error.QueueFull => "the plugin is busy; try again",
-    });
+    p.startSave(arg) catch |err| return writeError(w, effects.saveErrorText(err));
     try w.writeAll("{\"ok\":true,\"pending\":true}");
 }
 

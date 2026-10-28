@@ -58,8 +58,8 @@ pub const Window = struct {
     fonts: panel_fonts.Fonts = .{},
     /// The panel that the components of reaziglib draw with: this window's own context object.
     kit: widgets.Panel = .{},
-    /// A save of the keyboard that waits for the keyboard's read to end (see `dispatch.tick`).
-    pending_save: action_types.PendingSave = .{},
+    /// The number of the last save whose result the panel has told (see `dispatch.reportSave`).
+    save_reported: u32 = 0,
 
     /// What the Controls tab keeps between frames.
     panel: controls_panel.State = .{},
@@ -116,6 +116,8 @@ pub fn open(p: *Plugin) void {
     }
     log.info("opening the panel", .{});
     p.ui.open = true;
+    // A save that ended while the panel was closed is not told when it opens, but one still reading is.
+    p.ui.save_reported = if (p.save.state == .reading) p.save.serial -% 1 else p.save.serial;
     p.ui.placed = false;
     p.ui.probe_lines = 0;
     p.ui.probe_last = 0;
@@ -270,9 +272,9 @@ fn draw(p: *Plugin) void {
         probeInput(w, ctx);
     }
     imgui.api.End(ctx);
-    // What the player did during the frame, if anything, is carried out now, and a save that waits is followed.
+    // What the player did during the frame, if anything, is carried out now, and the result of a save is told.
     if (action) |a| dispatch.dispatch(p, a);
-    dispatch.tick(p);
+    dispatch.reportSave(p);
     theme.pop(ctx);
     if (w.fonts.text != null) imgui.api.PopFont(ctx);
     if (!is_open) {

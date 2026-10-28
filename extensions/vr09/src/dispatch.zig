@@ -31,22 +31,29 @@ const name_cap = 64;
 
 // ---- carrying out an action ----
 
-/// What has to happen every frame, whatever the player did: a save that waits for the keyboard's read to end.
-pub fn tick(p: *Plugin) void {
-    const pending = &p.ui.pending_save;
-    if (pending.phase == .idle) return;
-    const job: engine.JobKind = @enumFromInt(p.shared.job.load(.monotonic));
-    if (pending.phase == .waiting_for_start and job != .idle) pending.phase = .waiting_for_end;
-    const waited = p.ui.frame -% pending.since;
-    if ((pending.phase == .waiting_for_end and job == .idle) or waited > 600) {
-        const name = pending.name;
-        pending.phase = .idle;
-        if (savePreset(p, p.strings.get(name))) |saved| {
-            say(p, "Read the keyboard and saved it as {s}.", .{state.displayName(p.strings.get(saved))}, false);
-        } else |err| {
-            say(p, "The keyboard was not saved: {s}.", .{describe(err)}, true);
-        }
+/// Tells the player how the last save of the keyboard went, once. The plugin's save job reads the keyboard and
+/// writes the file on the plugin's timer, whether or not the panel is open, so the panel only looks at its state.
+pub fn reportSave(p: *Plugin) void {
+    const job = &p.save;
+    if (job.state != .done and job.state != .failed) return;
+    if (p.ui.save_reported == job.serial) return;
+    p.ui.save_reported = job.serial;
+    if (job.state == .done) {
+        say(p, "Read the keyboard and saved it as {s}.", .{state.displayName(job.fileName())}, false);
+    } else {
+        say(p, "The keyboard was not saved: {s}.", .{job.failure()}, true);
     }
+}
+
+/// What a save that could not begin says to the player.
+pub fn saveErrorText(err: Plugin.SaveError) []const u8 {
+    return switch (err) {
+        error.Busy => "a save is already running",
+        error.EmptyName => "give the preset a name",
+        error.NameTooLong => "the name is too long",
+        error.NotConnected => "the keyboard does not answer: connect it, and look for it again from the MIDI tab",
+        error.QueueFull => "the plugin is busy; try again",
+    };
 }
 
 fn say(p: *Plugin, comptime fmt: []const u8, args: anytype, is_error: bool) void {
@@ -86,10 +93,7 @@ pub fn dispatch(p: *Plugin, action: Action) void {
             _ = p.shared.sendCommand(.recall);
             say(p, "Writing this plugin's state to the keyboard.", .{}, false);
         },
-        .save_keyboard => |name| {
-            _ = p.shared.sendCommand(.capture_keyboard);
-            p.ui.pending_save = .{ .phase = .waiting_for_start, .since = p.ui.frame, .name = name };
-        },
+        .save_keyboard => |name| p.startSave(p.strings.get(name)) catch |err| say(p, "The keyboard was not saved: {s}.", .{saveErrorText(err)}, true),
         .send_patch => |patch| {
             sendPatch(p, patch) catch |err| {
                 say(p, "Could not send \"{s}\": {s}.", .{ p.strings.get(patch.name), describe(err) }, err != error.NotSupported);
@@ -335,18 +339,6 @@ pub fn storePreset(p: *Plugin, folder: []const u8, raw_name: []const u8, scene: 
     p.settings.setPresetName(state.displayName(file));
     library.addPreset(p, file);
     return file;
-}
-
-/// Saves what the plugin holds as a preset of this name. Returns the ID of the file name that was used, which is
-/// the name cleaned of what a file name cannot hold, with its extension.
-fn savePreset(p: *Plugin, wanted: []const u8) !strings.Ref {
-    var folder_buf: [fileio.max_path]u8 = undefined;
-    const folder = try folderOf(&folder_buf, .presets);
-    const snapshot = try plugin.allocator.create(dump.Dump);
-    defer plugin.allocator.destroy(snapshot);
-    p.shared.desiredSnapshot(snapshot);
-    var file: [preset_file_cap:0]u8 = undefined;
-    return p.strings.intern(try storePreset(p, folder, wanted, snapshot, &file));
 }
 
 /// Asks for a file with REAPER's dialog and loads it. Returns its name, or null when the player cancelled.
