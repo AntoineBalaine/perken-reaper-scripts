@@ -95,17 +95,17 @@ pub const reaper = struct { // @import("reaper");
         }
 
         const getFunc = rec.getFunc.?;
-        inline for (@typeInfo(@This()).@"struct".decls) |decl| {
-            comptime var decl_type = @typeInfo(@TypeOf(@field(@This(), decl.name)));
+        inline for (@typeInfo(@This()).@"struct".decl_names) |decl_name| {
+            comptime var decl_type = @typeInfo(@TypeOf(@field(@This(), decl_name)));
             const is_optional = decl_type == .optional;
             if (is_optional)
                 decl_type = @typeInfo(decl_type.optional.child);
             if (decl_type != .pointer or @typeInfo(decl_type.pointer.child) != .@"fn")
                 continue;
-            if (getFunc(decl.name)) |func|
-                @field(@This(), decl.name) = @ptrCast(@alignCast(func))
+            if (getFunc(decl_name)) |func|
+                @field(@This(), decl_name) = @ptrCast(@alignCast(func))
             else if (is_optional)
-                @field(@This(), decl.name) = null
+                @field(@This(), decl_name) = null
             else {
                 return false;
             }
@@ -4201,11 +4201,11 @@ const std = @import("std");
 /// nothing in a binary that never calls this.
 pub fn isApiFunction(name: []const u8) bool {
     @setEvalBranchQuota(200_000);
-    inline for (@typeInfo(reaper).@"struct".decls) |decl| {
-        comptime var info = @typeInfo(@TypeOf(@field(reaper, decl.name)));
+    inline for (@typeInfo(reaper).@"struct".decl_names) |decl_name| {
+        comptime var info = @typeInfo(@TypeOf(@field(reaper, decl_name)));
         if (comptime info == .optional) info = @typeInfo(info.optional.child);
         if (comptime info == .pointer and @typeInfo(info.pointer.child) == .@"fn") {
-            if (std.mem.eql(u8, name, decl.name)) return true;
+            if (std.mem.eql(u8, name, decl_name)) return true;
         }
     }
     return false;
@@ -4251,23 +4251,24 @@ pub fn unlistedCalls(
 /// into `arena`, which must outlive `out`, since the names point into them.
 pub fn unlistedCallsInPaths(
     arena: std.mem.Allocator,
+    io: std.Io,
     paths: []const []const u8,
     listed: []const [:0]const u8,
     out: *std.ArrayList([]const u8),
 ) !void {
     for (paths) |path| {
         if (std.mem.endsWith(u8, path, ".zig")) {
-            const source = try std.fs.cwd().readFileAlloc(arena, path, 1 << 24);
+            const source = try std.Io.Dir.cwd().readFileAlloc(io, path, arena, .limited(1 << 24));
             try unlistedCalls(source, listed, out);
             continue;
         }
-        var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
-        defer dir.close();
+        var dir = try std.Io.Dir.cwd().openDir(io, path, .{ .iterate = true });
+        defer dir.close(io);
         var walker = try dir.walk(arena);
         defer walker.deinit();
-        while (try walker.next()) |entry| {
+        while (try walker.next(io)) |entry| {
             if (entry.kind != .file or !std.mem.endsWith(u8, entry.basename, ".zig")) continue;
-            const source = try entry.dir.readFileAlloc(arena, entry.basename, 1 << 24);
+            const source = try entry.dir.readFileAlloc(io, entry.basename, arena, .limited(1 << 24));
             try unlistedCalls(source, listed, out);
         }
     }

@@ -313,7 +313,7 @@ pub const MockImGui = struct {
     combo_open_targets: std.StringHashMapUnmanaged(void),
     double_click_targets: std.StringHashMapUnmanaged(void),
     drag_targets: std.StringHashMapUnmanaged(f64),
-    key_press_targets: std.AutoArrayHashMap(c_int, void),
+    key_press_targets: std.AutoArrayHashMapUnmanaged(c_int, void),
     input_text_enter: std.StringHashMapUnmanaged(void),
     last_invisible_button_label: []const u8 = "",
     /// Where the mouse is, which a test moves to hover over a part of the panel. It starts far from every widget.
@@ -325,16 +325,16 @@ pub const MockImGui = struct {
 
     pub fn init(allocator: std.mem.Allocator) MockImGui {
         return .{
-            .trace_list = .{},
+            .trace_list = .empty,
             .frame_arena = std.heap.ArenaAllocator.init(allocator),
             .pair_depths = std.EnumArray(PairCategory, i32).initFill(0),
-            .click_targets = .{},
-            .checkbox_overrides = .{},
-            .selectable_targets = .{},
-            .combo_open_targets = .{},
-            .double_click_targets = .{},
-            .drag_targets = .{},
-            .key_press_targets = std.AutoArrayHashMap(c_int, void).init(allocator),
+            .click_targets = .empty,
+            .checkbox_overrides = .empty,
+            .selectable_targets = .empty,
+            .combo_open_targets = .empty,
+            .double_click_targets = .empty,
+            .drag_targets = .empty,
+            .key_press_targets = .empty,
             .input_text_enter = .{},
             .allocator = allocator,
             .orig_funcs = undefined,
@@ -351,7 +351,7 @@ pub const MockImGui = struct {
         self.combo_open_targets.deinit(self.allocator);
         self.double_click_targets.deinit(self.allocator);
         self.drag_targets.deinit(self.allocator);
-        self.key_press_targets.deinit();
+        self.key_press_targets.deinit(self.allocator);
         self.input_text_enter.deinit(self.allocator);
     }
 
@@ -369,9 +369,9 @@ pub const MockImGui = struct {
         }
 
         // Second pass: set all enum/constant decl vars to 0
-        inline for (@typeInfo(imgui.API).@"struct".decls) |decl| {
-            if (@TypeOf(@field(imgui.API, decl.name)) == c_int) {
-                @field(imgui.API, decl.name) = 0;
+        inline for (@typeInfo(imgui.API).@"struct".decl_names) |decl_name| {
+            if (@TypeOf(@field(imgui.API, decl_name)) == c_int) {
+                @field(imgui.API, decl_name) = 0;
             }
         }
 
@@ -417,7 +417,7 @@ pub const MockImGui = struct {
     }
 
     pub fn pressKey(self: *MockImGui, key: c_int) void {
-        self.key_press_targets.put(key, {}) catch @panic("key_press_targets put OOM");
+        self.key_press_targets.put(self.allocator, key, {}) catch @panic("key_press_targets put OOM");
     }
 
     pub fn setInputTextEnter(self: *MockImGui, label: []const u8) void {

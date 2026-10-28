@@ -10,56 +10,64 @@ const log = std.log.scoped(.fs_helpers);
 pub const FileSystemOps = struct {
     ptr: *anyopaque,
     vtable: *const VTable,
+    /// The std.Io that the files returned by createFileAbsolute belong to. Because a std.Io.File is
+    /// written and closed through a std.Io, callers write and close those files with this one.
+    io: std.Io,
 
     pub const VTable = struct {
         makeDirAbsolute: *const fn (ptr: *anyopaque, path: []const u8) anyerror!void,
-        createFileAbsolute: *const fn (ptr: *anyopaque, path: []const u8, flags: std.fs.File.CreateFlags) anyerror!std.fs.File,
-        access: *const fn (ptr: *anyopaque, path: []const u8, flags: std.fs.File.OpenFlags) anyerror!void,
+        createFileAbsolute: *const fn (ptr: *anyopaque, path: []const u8, flags: std.Io.Dir.CreateFileOptions) anyerror!std.Io.File,
+        access: *const fn (ptr: *anyopaque, path: []const u8, options: std.Io.Dir.AccessOptions) anyerror!void,
     };
 
     pub fn makeDirAbsolute(self: FileSystemOps, path: []const u8) !void {
         return self.vtable.makeDirAbsolute(self.ptr, path);
     }
 
-    pub fn createFileAbsolute(self: FileSystemOps, path: []const u8, flags: std.fs.File.CreateFlags) !std.fs.File {
+    pub fn createFileAbsolute(self: FileSystemOps, path: []const u8, flags: std.Io.Dir.CreateFileOptions) !std.Io.File {
         return self.vtable.createFileAbsolute(self.ptr, path, flags);
     }
 
-    pub fn access(self: FileSystemOps, path: []const u8, flags: std.fs.File.OpenFlags) !void {
-        return self.vtable.access(self.ptr, path, flags);
+    pub fn access(self: FileSystemOps, path: []const u8, options: std.Io.Dir.AccessOptions) !void {
+        return self.vtable.access(self.ptr, path, options);
     }
 };
 
 /// RealFileSystem provides actual filesystem operations.
-/// Because real filesystem operations are stateless, we use a static instance.
+/// Because real filesystem operations only need the std.Io that performs them, we use a static instance
+/// that holds it.
 pub const RealFileSystem = struct {
-    fn makeDirAbsolute(ptr: *anyopaque, path: []const u8) !void {
-        _ = ptr;
-        return std.fs.makeDirAbsolute(path);
+    io: std.Io = undefined,
+
+    pub fn makeDirAbsolute(ptr: *anyopaque, path: []const u8) !void {
+        const self: *RealFileSystem = @ptrCast(@alignCast(ptr));
+        return std.Io.Dir.createDirAbsolute(self.io, path, .default_dir);
     }
 
-    fn createFileAbsolute(ptr: *anyopaque, path: []const u8, flags: std.fs.File.CreateFlags) !std.fs.File {
-        _ = ptr;
-        return std.fs.createFileAbsolute(path, flags);
+    pub fn createFileAbsolute(ptr: *anyopaque, path: []const u8, flags: std.Io.Dir.CreateFileOptions) !std.Io.File {
+        const self: *RealFileSystem = @ptrCast(@alignCast(ptr));
+        return std.Io.Dir.createFileAbsolute(self.io, path, flags);
     }
 
-    fn access(ptr: *anyopaque, path: []const u8, flags: std.fs.File.OpenFlags) !void {
-        _ = ptr;
-        return std.fs.cwd().access(path, flags);
+    pub fn access(ptr: *anyopaque, path: []const u8, options: std.Io.Dir.AccessOptions) !void {
+        const self: *RealFileSystem = @ptrCast(@alignCast(ptr));
+        return std.Io.Dir.cwd().access(self.io, path, options);
     }
 
-    const vtable = FileSystemOps.VTable{
+    pub const vtable = FileSystemOps.VTable{
         .makeDirAbsolute = makeDirAbsolute,
         .createFileAbsolute = createFileAbsolute,
         .access = access,
     };
 
-    var instance: RealFileSystem = .{};
+    pub var instance: RealFileSystem = .{};
 
-    pub fn fileSystemOps() FileSystemOps {
+    pub fn fileSystemOps(io: std.Io) FileSystemOps {
+        instance.io = io;
         return .{
             .ptr = &instance,
             .vtable = &vtable,
+            .io = io,
         };
     }
 };
@@ -136,8 +144,8 @@ pub fn ensureFile(fs_ops: FileSystemOps, path: []const u8, contents: []const u8)
         }
         return err;
     };
-    defer file.close();
-    try file.writeAll(contents);
+    defer file.close(fs_ops.io);
+    try file.writeStreamingAll(fs_ops.io, contents);
 }
 
 /// Characters that Windows forbids in file and folder names. Because GitHub's
@@ -175,12 +183,12 @@ pub fn sanitizeFxName(buf: *[512:0]u8, fx_name: []const u8) ![:0]const u8 {
 /// let lookups create empty ones next to them, because users may have edited
 /// the maps inside. A folder is left alone when the sanitized name already
 /// exists, and a missing `parent_dir` is not an error.
-pub fn migrateFolderNames(parent_dir: []const u8) !void {
-    var dir = std.fs.openDirAbsolute(parent_dir, .{ .iterate = true }) catch |err| switch (err) {
+pub fn migrateFolderNames(io: std.Io, parent_dir: []const u8) !void {
+    var dir = std.Io.Dir.openDirAbsolute(io, parent_dir, .{ .iterate = true }) catch |err| switch (err) {
         error.FileNotFound => return,
         else => return err,
     };
-    defer dir.close();
+    defer dir.close(io);
 
     // Because renaming while iterating can skip or repeat entries, we collect
     // the names first.
@@ -188,7 +196,7 @@ pub fn migrateFolderNames(parent_dir: []const u8) !void {
     defer arena.deinit();
     var names: std.ArrayList([]const u8) = .empty;
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(io)) |entry| {
         if (entry.kind != .directory) continue;
         try names.append(arena.allocator(), try arena.allocator().dupe(u8, entry.name));
     }
@@ -197,32 +205,32 @@ pub fn migrateFolderNames(parent_dir: []const u8) !void {
     for (names.items) |name| {
         const sanitized = try sanitizeFxName(&buf, name);
         if (std.mem.eql(u8, name, sanitized)) continue;
-        if (dir.access(sanitized, .{})) |_| continue else |_| {}
-        try dir.rename(name, sanitized);
+        if (dir.access(io, sanitized, .{})) |_| continue else |_| {}
+        try dir.rename(name, dir, sanitized, io);
     }
 }
 
 /// Applies migrateFolderNames to `root_dir` and every folder below it.
 /// Because Console1's maps nest FX folders at several depths
 /// (maps/<source>/<MODULE>/<fx>/ and maps/STRIP/<fx>/), we walk the whole tree.
-pub fn migrateFolderNamesRecursive(root_dir: []const u8) !void {
-    try migrateFolderNames(root_dir);
+pub fn migrateFolderNamesRecursive(io: std.Io, root_dir: []const u8) !void {
+    try migrateFolderNames(io, root_dir);
 
-    var dir = std.fs.openDirAbsolute(root_dir, .{ .iterate = true }) catch |err| switch (err) {
+    var dir = std.Io.Dir.openDirAbsolute(io, root_dir, .{ .iterate = true }) catch |err| switch (err) {
         error.FileNotFound => return,
         else => return err,
     };
-    defer dir.close();
+    defer dir.close(io);
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     var children: std.ArrayList([]const u8) = .empty;
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(io)) |entry| {
         if (entry.kind != .directory) continue;
         try children.append(arena.allocator(), try std.fs.path.join(arena.allocator(), &.{ root_dir, entry.name }));
     }
-    for (children.items) |child| try migrateFolderNamesRecursive(child);
+    for (children.items) |child| try migrateFolderNamesRecursive(io, child);
 }
 
 test "sanitizeFxName" {
@@ -262,43 +270,45 @@ test "sanitizeFxName rejects names longer than the buffer" {
 
 test "migrateFolderNames renames legacy folders once" {
     const testing = std.testing;
+    const io = testing.io;
     var tmp = testing.tmpDir(.{});
     defer tmp.cleanup();
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const parent = try tmp.dir.realpath(".", &path_buf);
+    const parent = path_buf[0..try tmp.dir.realPath(io, &path_buf)];
 
-    try tmp.dir.makePath("JS: Volume_Pan Smoother v5");
-    try tmp.dir.writeFile(.{ .sub_path = "JS: Volume_Pan Smoother v5/default.ini", .data = "edited" });
-    try tmp.dir.makePath("reacomp");
+    try tmp.dir.createDirPath(io, "JS: Volume_Pan Smoother v5");
+    try tmp.dir.writeFile(io, .{ .sub_path = "JS: Volume_Pan Smoother v5/default.ini", .data = "edited" });
+    try tmp.dir.createDirPath(io, "reacomp");
     // Because the sanitized name of this one already exists, it stays put.
-    try tmp.dir.makePath("JS: Taken");
-    try tmp.dir.makePath("JS_ Taken");
+    try tmp.dir.createDirPath(io, "JS: Taken");
+    try tmp.dir.createDirPath(io, "JS_ Taken");
 
-    try migrateFolderNames(parent);
-    const content = try tmp.dir.readFileAlloc(testing.allocator, "JS_ Volume_Pan Smoother v5/default.ini", 64);
+    try migrateFolderNames(io, parent);
+    const content = try tmp.dir.readFileAlloc(io, "JS_ Volume_Pan Smoother v5/default.ini", testing.allocator, .limited(64));
     defer testing.allocator.free(content);
     try testing.expectEqualStrings("edited", content);
-    try testing.expectError(error.FileNotFound, tmp.dir.access("JS: Volume_Pan Smoother v5", .{}));
-    try tmp.dir.access("reacomp", .{});
-    try tmp.dir.access("JS: Taken", .{});
+    try testing.expectError(error.FileNotFound, tmp.dir.access(io, "JS: Volume_Pan Smoother v5", .{}));
+    try tmp.dir.access(io, "reacomp", .{});
+    try tmp.dir.access(io, "JS: Taken", .{});
 
     // Because nothing is left to rename, a second run changes nothing.
-    try migrateFolderNames(parent);
-    try migrateFolderNames("/nonexistent-perken-test-dir");
+    try migrateFolderNames(io, parent);
+    try migrateFolderNames(io, "/nonexistent-perken-test-dir");
 }
 
 test "migrateFolderNamesRecursive renames nested folders" {
     const testing = std.testing;
+    const io = testing.io;
     var tmp = testing.tmpDir(.{});
     defer tmp.cleanup();
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const root = try tmp.dir.realpath(".", &path_buf);
+    const root = path_buf[0..try tmp.dir.realPath(io, &path_buf)];
 
-    try tmp.dir.makePath("chmaha/COMP/JS: Amphitrite Compressor (chmaha)");
-    try tmp.dir.makePath("STRIP/JS: Evolution Channel Strip (chmaha)");
-    try migrateFolderNamesRecursive(root);
-    try tmp.dir.access("chmaha/COMP/JS_ Amphitrite Compressor (chmaha)", .{});
-    try tmp.dir.access("STRIP/JS_ Evolution Channel Strip (chmaha)", .{});
+    try tmp.dir.createDirPath(io, "chmaha/COMP/JS: Amphitrite Compressor (chmaha)");
+    try tmp.dir.createDirPath(io, "STRIP/JS: Evolution Channel Strip (chmaha)");
+    try migrateFolderNamesRecursive(io, root);
+    try tmp.dir.access(io, "chmaha/COMP/JS_ Amphitrite Compressor (chmaha)", .{});
+    try tmp.dir.access(io, "STRIP/JS_ Evolution Channel Strip (chmaha)", .{});
 }
 
 /// MockFileSystem for testing - tracks operations and uses temp directory
@@ -311,8 +321,8 @@ pub const MockFileSystem = struct {
     pub fn init(allocator: std.mem.Allocator) !MockFileSystem {
         return MockFileSystem{
             .allocator = allocator,
-            .dirs_created = std.ArrayList([]const u8).init(allocator),
-            .files_created = std.ArrayList([]const u8).init(allocator),
+            .dirs_created = .empty,
+            .files_created = .empty,
             .temp_dir = std.testing.tmpDir(.{}),
         };
     }
@@ -321,38 +331,38 @@ pub const MockFileSystem = struct {
         for (self.dirs_created.items) |dir| {
             self.allocator.free(dir);
         }
-        self.dirs_created.deinit();
+        self.dirs_created.deinit(self.allocator);
 
         for (self.files_created.items) |file| {
             self.allocator.free(file);
         }
-        self.files_created.deinit();
+        self.files_created.deinit(self.allocator);
 
         self.temp_dir.cleanup();
     }
 
-    fn makeDirAbsolute(ptr: *anyopaque, path: []const u8) !void {
+    pub fn makeDirAbsolute(ptr: *anyopaque, path: []const u8) !void {
         const self: *MockFileSystem = @ptrCast(@alignCast(ptr));
         const owned = try self.allocator.dupe(u8, path);
-        try self.dirs_created.append(owned);
+        try self.dirs_created.append(self.allocator, owned);
     }
 
-    fn createFileAbsolute(ptr: *anyopaque, path: []const u8, flags: std.fs.File.CreateFlags) !std.fs.File {
+    pub fn createFileAbsolute(ptr: *anyopaque, path: []const u8, flags: std.Io.Dir.CreateFileOptions) !std.Io.File {
         const self: *MockFileSystem = @ptrCast(@alignCast(ptr));
         const owned_path = try self.allocator.dupe(u8, path);
-        try self.files_created.append(owned_path);
+        try self.files_created.append(self.allocator, owned_path);
 
-        const file = try self.temp_dir.dir.createFile("test_file", flags);
+        const file = try self.temp_dir.dir.createFile(std.testing.io, "test_file", flags);
         return file;
     }
 
-    fn access(ptr: *anyopaque, path: []const u8, flags: std.fs.File.OpenFlags) !void {
+    pub fn access(ptr: *anyopaque, path: []const u8, options: std.Io.Dir.AccessOptions) !void {
         _ = ptr;
         _ = path;
-        _ = flags;
+        _ = options;
     }
 
-    const vtable = FileSystemOps.VTable{
+    pub const vtable = FileSystemOps.VTable{
         .makeDirAbsolute = makeDirAbsolute,
         .createFileAbsolute = createFileAbsolute,
         .access = access,
@@ -362,6 +372,7 @@ pub const MockFileSystem = struct {
         return .{
             .ptr = self,
             .vtable = &vtable,
+            .io = std.testing.io,
         };
     }
 };

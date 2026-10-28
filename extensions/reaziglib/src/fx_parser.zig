@@ -132,7 +132,7 @@ fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) 
                         var tagList = if (isCategory) &fxtags.category else &fxtags.developer;
                         // NOTE: this does have the disadvantage of duplicating fx names across developers and categories;
                         // maybe in the future it would be an option to store pointers instead.
-                        const plugin = try allocator.dupeZ(u8, kv.key);
+                        const plugin = try allocator.dupeSentinel(u8, kv.key, 0);
 
                         var pluginslist = tagList.getPtr(tag); // does this category already exist?
                         if (pluginslist) |*pluginsList| {
@@ -143,7 +143,7 @@ fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) 
                             var newPluginslist: ?FxList = FxList{};
                             try newPluginslist.?.put(allocator, plugin, {});
                             // if the entry's not in yet, create its key by allocating a copy
-                            try tagList.put(allocator, try allocator.dupeZ(u8, tag), newPluginslist.?);
+                            try tagList.put(allocator, try allocator.dupeSentinel(u8, tag, 0), newPluginslist.?);
                         }
                     }
                     categoryNames.clearRetainingCapacity();
@@ -163,12 +163,14 @@ fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
         "reaper-fxtags.ini",
     });
 
-    const file = try std.fs.openFileAbsolute(path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
+    defer file.close(io);
 
     var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer temp_arena.deinit();
-    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    var file_buffer: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &file_buffer);
+    var parser = ini.parse(temp_arena.allocator(), &file_reader.interface, ";#");
     defer parser.deinit(); // doesn’t actually do anything because of arena
 
     var fxtags = FxTags{
@@ -224,7 +226,7 @@ fn initPluginList(allocator: std.mem.Allocator) !PluginsList {
     while (reaper.EnumInstalledFX(index, &nameOut, &identOut)) : (index += 1) {
         const fxtype = parseFX(std.mem.span(nameOut));
         if (fxtype) |fxType| {
-            const namecopy = try allocator.dupeZ(u8, std.mem.span(nameOut));
+            const namecopy = try allocator.dupeSentinel(u8, std.mem.span(nameOut), 0);
             try plugin_list.put(allocator, namecopy, fxType);
         }
     }
@@ -250,7 +252,7 @@ fn deinitPluginList(plugList: *PluginsList, fxbytype: *FxByType, allocator: std.
 fn directoryInit(allocator: std.mem.Allocator, path: [:0]const u8, fileExtension: [:0]const u8) !Directory {
     var dir: Directory = .{
         .path = path,
-        .name = try allocator.dupeZ(u8, std.fs.path.basename(path)),
+        .name = try allocator.dupeSentinel(u8, std.fs.path.basename(path), 0),
         .subdirs = null,
         .files = null,
     };
@@ -277,7 +279,7 @@ fn directoryInit(allocator: std.mem.Allocator, path: [:0]const u8, fileExtension
     while (reaper.EnumerateFiles(path, fileIdx)) |file| : (fileIdx += 1) {
         const fileSpan = std.mem.span(file);
         if (std.mem.eql(u8, std.fs.path.extension(fileSpan), fileExtension)) {
-            const fileSlice: [:0]const u8 = try allocator.dupeZ(u8, fileSpan);
+            const fileSlice: [:0]const u8 = try allocator.dupeSentinel(u8, fileSpan, 0);
             if (dir.files == null) {
                 dir.files = std.StringArrayHashMapUnmanaged(void){};
             }

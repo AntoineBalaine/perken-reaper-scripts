@@ -30,6 +30,11 @@ pub fn build(b: *std.Build) void {
     });
     utils_mod.addImport("reaper", reaper_mod);
 
+    // host_io (no deps): builds the std.Io that each extension owns, since REAPER gives it no main()
+    _ = b.addModule("host_io", .{
+        .root_source_file = b.path("src/host_io.zig"),
+    });
+
     // fs_helpers depends on reaper
     const fs_helpers_mod = b.addModule("fs_helpers", .{
         .root_source_file = b.path("src/fs_helpers.zig"),
@@ -189,6 +194,7 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run reaziglib unit tests");
     const test_files = [_][]const u8{
         "src/utils.zig",
+        "src/host_io.zig",
         "src/slotted_buffer.zig",
         "src/preset_file_reader.zig",
         "src/fs_helpers.zig",
@@ -217,12 +223,12 @@ pub fn build(b: *std.Build) void {
         .{ .name = "panel_fonts", .mod = panel_fonts_mod },
     };
     for (test_files) |file| {
-        const t = b.addTest(.{
+        const t = b.addTest(.{ .root_module = b.createModule(.{
             .root_source_file = b.path(file),
             .target = target,
             .optimize = optimize,
-        });
-        t.linkLibC();
+            .link_libc = true,
+        }) });
         for (test_imports) |imp| t.root_module.addImport(imp.name, imp.mod);
         // The fonts' own test embeds the same files as the module does.
         if (std.mem.eql(u8, file, "src/panel/fonts.zig")) addPanelFonts(b, t.root_module);
@@ -235,18 +241,18 @@ pub fn build(b: *std.Build) void {
     // host OS. This build function also runs when an extension that does not
     // use the shim (reavim-ext) cross-compiles reaziglib for another OS, so
     // the test is only set up when building for the host.
-    if (target.result.os.tag == builtin.os.tag) {
-        const csurf_test = b.addTest(.{
+    if (target.result.os.tag == builtin.target.os.tag) {
+        const csurf_test = b.addTest(.{ .root_module = b.createModule(.{
             .root_source_file = b.path("src/csurf/csurf.zig"),
             .target = target,
             .optimize = optimize,
-        });
-        csurf_test.linkLibC();
+            .link_libc = true,
+        }) });
         csurf_test.root_module.addImport("reaper", reaper_mod);
         const csurf_dir = b.path("src/csurf");
         const tt = csurf_test.rootModuleTarget();
-        csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim"));
-        csurf_test.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim_test.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim_test"));
+        csurf_test.root_module.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim"));
+        csurf_test.root_module.addObjectFile(reaperCxxObject(b, tt, b.path("src/csurf/csurf_shim_test.cpp"), &.{csurf_dir}, csurf_cxx_flags, "csurf_shim_test"));
         test_step.dependOn(&b.addRunArtifact(csurf_test).step);
     }
 }
@@ -297,11 +303,11 @@ pub fn reaperCxxObject(
     flags: CxxFlags,
     out_basename: []const u8,
 ) std.Build.LazyPath {
-    if (target.os.tag != builtin.os.tag) {
+    if (target.os.tag != builtin.target.os.tag) {
         std.debug.panic(
             "C++ that REAPER calls must be compiled with REAPER's toolchain on the target OS; " ++
                 "building for {s} on {s} is not possible (see extensions/README.md)",
-            .{ @tagName(target.os.tag), @tagName(builtin.os.tag) },
+            .{ @tagName(target.os.tag), @tagName(builtin.target.os.tag) },
         );
     }
     // A .c file is compiled as C (e.g. a C library bundled with C++ code),
@@ -357,6 +363,7 @@ pub fn lazyPathName(file: std.Build.LazyPath) []const u8 {
         .dependency => |d| d.sub_path,
         .cwd_relative => |p| p,
         .generated => |g| g.sub_path,
+        .relative => |r| r.sub_path,
     };
 }
 
@@ -377,11 +384,11 @@ pub fn lazyPathName(file: std.Build.LazyPath) []const u8 {
 /// - Windows (MSVC's runtime) is not handled yet.
 pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) void {
     switch (compile.rootModuleTarget().os.tag) {
-        .macos => compile.linkLibCpp(),
+        .macos => compile.root_module.link_libcpp = true,
         .linux => {
             for ([_][]const u8{ "libstdc++.so", "libgcc_s.so.1" }) |lib| {
                 const path = std.mem.trim(u8, b.run(&.{ "gcc", b.fmt("-print-file-name={s}", .{lib}) }), " \n\r\t");
-                compile.addObjectFile(.{ .cwd_relative = path });
+                compile.root_module.addObjectFile(.{ .cwd_relative = path });
             }
         },
         // Because Zig links an msvc-ABI binary against msvcrt.lib only, and
@@ -391,7 +398,7 @@ pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) voi
         // (msvcrt's __vcrt_* startup) and msvcprt (the C++ standard library).
         .windows => {
             requireMsvcAbi(compile.rootModuleTarget());
-            for ([_][]const u8{ "ucrt", "vcruntime", "msvcprt" }) |lib| compile.linkSystemLibrary(lib);
+            for ([_][]const u8{ "ucrt", "vcruntime", "msvcprt" }) |lib| compile.root_module.linkSystemLibrary(lib, .{});
         },
         else => {},
     }
@@ -405,7 +412,7 @@ pub fn linkReaperCxxRuntime(b: *std.Build, compile: *std.Build.Step.Compile) voi
 /// usual native target. Pass it as `standardTargetOptions(.{ .default_target
 /// = reaziglib.reaperDefaultTarget() })`.
 pub fn reaperDefaultTarget() std.Target.Query {
-    return if (builtin.os.tag == .windows) .{ .abi = .msvc } else .{};
+    return if (builtin.target.os.tag == .windows) .{ .abi = .msvc } else .{};
 }
 
 /// Because cl's objects can only be linked into an msvc-ABI binary (see
@@ -424,8 +431,8 @@ pub fn requireMsvcAbi(target: std.Target) void {
 /// nothing for other targets or a native build.
 pub fn addMacosSdk(b: *std.Build, compile: *std.Build.Step.Compile) void {
     const target = compile.rootModuleTarget();
-    if (target.os.tag != .macos or builtin.os.tag != .macos) return;
-    if (target.cpu.arch == builtin.cpu.arch) return;
+    if (target.os.tag != .macos or builtin.target.os.tag != .macos) return;
+    if (target.cpu.arch == builtin.target.cpu.arch) return;
     const sdk = std.mem.trim(u8, b.run(&.{ "xcrun", "--show-sdk-path" }), " \n\r\t");
     compile.root_module.addFrameworkPath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "System/Library/Frameworks" }) });
     compile.root_module.addSystemIncludePath(.{ .cwd_relative = b.pathJoin(&.{ sdk, "usr/include" }) });
@@ -437,7 +444,7 @@ pub fn addMacosSdk(b: *std.Build, compile: *std.Build.Step.Compile) void {
 /// It is opt-in because it compiles C++.
 pub fn addCsurf(b: *std.Build, dep: *std.Build.Dependency, compile: *std.Build.Step.Compile) void {
     compile.root_module.addImport("csurf", dep.module("csurf"));
-    compile.addObjectFile(reaperCxxObject(
+    compile.root_module.addObjectFile(reaperCxxObject(
         b,
         compile.rootModuleTarget(),
         dep.path("src/csurf/csurf_shim.cpp"),
@@ -475,6 +482,7 @@ pub fn addSharedModules(dep: *std.Build.Dependency, consumer: *std.Build.Module)
         "swell",
         "reaper_theme",
         "reaper_helpers",
+        "host_io",
     };
     for (module_names) |name| {
         consumer.addImport(name, dep.module(name));

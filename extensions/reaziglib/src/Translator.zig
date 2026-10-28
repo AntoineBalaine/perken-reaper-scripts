@@ -25,14 +25,16 @@ pub fn substituteFirst(buf: [:0]u8, template: [:0]const u8, replacement: []const
     return buf[0..total :0];
 }
 
-fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.fs.Dir, filename: []const u8) ![:0]const u8 {
-    const file = try dir.openFile(filename, .{});
-    defer file.close();
+fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.Io.Dir, filename: []const u8) ![:0]const u8 {
+    const file = try dir.openFile(io, filename, .{});
+    defer file.close(io);
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    var parser = ini.parse(arena.allocator(), file.reader());
+    var file_buffer: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &file_buffer);
+    var parser = ini.parse(arena.allocator(), &file_reader.interface, ";#");
     defer parser.deinit();
 
     while (try parser.next()) |record| {
@@ -43,7 +45,7 @@ fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.fs.Dir,
                         switch (meta_record) {
                             .property => |kv| {
                                 if (std.mem.eql(u8, kv.key, "language_name")) {
-                                    return allocator.dupeZ(u8, kv.value);
+                                    return allocator.dupeSentinel(u8, kv.value, 0);
                                 }
                             },
                             .section => break,
@@ -58,7 +60,7 @@ fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.fs.Dir,
 
     // Fallback to using the code if no display name found
     const code = filename[0 .. filename.len - 4];
-    return allocator.dupeZ(u8, code);
+    return allocator.dupeSentinel(u8, code, 0);
 }
 
 pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const u8) ![]LanguageInfo {
@@ -71,9 +73,9 @@ pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const 
         "langPacks",
     });
 
-    var dir = std.fs.openDirAbsolute(lang_dir, .{ .iterate = true }) catch |err| {
+    var dir = std.Io.Dir.openDirAbsolute(io, lang_dir, .{ .iterate = true }) catch |err| {
         if (err == error.FileNotFound) {
-            std.fs.makeDirAbsolute(lang_dir) catch |make_err| {
+            std.Io.Dir.createDirAbsolute(io, lang_dir, .default_dir) catch |make_err| {
                 log.warn("Failed to create language directory: {s}, error: {s}", .{ lang_dir, @errorName(make_err) });
             };
             return try languages.toOwnedSlice(g_arena);
@@ -81,11 +83,11 @@ pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const 
         log.warn("Failed to open language directory: {s}, error: {s}", .{ lang_dir, @errorName(err) });
         return try languages.toOwnedSlice(g_arena);
     };
-    defer dir.close();
+    defer dir.close(io);
 
     var iter = dir.iterate();
     iter_blk: {
-        while (iter.next() catch |err| {
+        while (iter.next(io) catch |err| {
             log.warn("Error during directory iteration: {s}", .{@errorName(err)});
             break :iter_blk;
         }) |entry| {
@@ -93,7 +95,7 @@ pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const 
             if (!std.mem.endsWith(u8, entry.name, ".ini")) continue;
 
             const display_name = getLanguageDisplayNameFromFile(g_arena, dir, entry.name) catch continue;
-            const code = g_arena.dupeZ(u8, entry.name[0 .. entry.name.len - 4]) catch {
+            const code = g_arena.dupeSentinel(u8, entry.name[0 .. entry.name.len - 4], 0) catch {
                 log.warn("Failed to allocate memory for language code: {s}", .{entry.name});
                 continue;
             };
@@ -163,13 +165,15 @@ pub fn TranslationEngine(
             pub fn loadFromFile(self: *StringStore, g_arena: std.mem.Allocator, path: []const u8) !void {
                 var loaded_keys = std.enums.EnumArray(Key, bool).initFill(false);
 
-                const file = try std.fs.openFileAbsolute(path, .{});
-                defer file.close();
+                const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
+                defer file.close(io);
 
                 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
                 defer arena.deinit();
 
-                var parser = ini.parse(arena.allocator(), file.reader());
+                var file_buffer: [4096]u8 = undefined;
+                var file_reader = file.reader(io, &file_buffer);
+                var parser = ini.parse(arena.allocator(), &file_reader.interface, ";#");
                 defer parser.deinit();
 
                 var current_section: ?[]const u8 = null;
@@ -310,8 +314,8 @@ pub fn TranslationEngine(
             var store = StringStore.init();
             try store.loadDefaults(allocator);
 
-            const file = try std.fs.createFileAbsolute(path, .{});
-            defer file.close();
+            const file = try std.Io.Dir.createFileAbsolute(io, path, .{});
+            defer file.close(io);
 
             try file.writer().writeAll("[metadata]\nlanguage_name=Default\n\n");
             try store.writeToFile(file.writer());
