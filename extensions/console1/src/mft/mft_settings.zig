@@ -1,4 +1,5 @@
 const std = @import("std");
+const mft_globals = @import("mft_globals.zig");
 const imgui = @import("reaper_imgui");
 const theme = @import("panel_theme");
 const widgets = @import("panel_widgets");
@@ -101,6 +102,7 @@ fn ensureSynced(globals: *MftGlobals) void {
 }
 
 fn save(globals: *MftGlobals) void {
+    const io = mft_globals.hostIo();
     const p = &globals.preferences;
     // Point the preference strings at the (static) edit buffers, then persist.
     p.default_input = bufSlice(0);
@@ -108,14 +110,15 @@ fn save(globals: *MftGlobals) void {
     p.default_eq = bufSlice(2);
     p.default_comp = bufSlice(3);
     p.default_output = bufSlice(4);
-    p.saveToDisk(globals.resource_path) catch |err| {
+    p.saveToDisk(io, globals.resource_path) catch |err| {
         log.err("failed to save preferences: {s}", .{@errorName(err)});
     };
 }
 
 fn cancel(globals: *MftGlobals) void {
+    const io = mft_globals.hostIo();
     // Reload from disk, discarding edits (numeric and text).
-    if (MftPreferences.load(globals.arena.allocator(), globals.resource_path)) |reloaded| {
+    if (MftPreferences.load(globals.arena.allocator(), io, globals.resource_path)) |reloaded| {
         globals.preferences = reloaded;
     } else |_| {}
     synced = false;
@@ -258,7 +261,7 @@ fn testSource(index: usize) ?[:0]const u8 {
 
 fn chosenLabels(mock: *const MockImGui, out: *std.ArrayList([]const u8)) !void {
     for (mock.trace_list.items) |entry| {
-        if (entry.kind == .selectable) try out.append(entry.label);
+        if (entry.kind == .selectable) try out.append(std.testing.allocator, entry.label);
     }
 }
 

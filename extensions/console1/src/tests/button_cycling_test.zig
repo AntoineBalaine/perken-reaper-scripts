@@ -224,7 +224,7 @@ test "cycleDiscreteParam: continuous param on button toggles around midpoint" {
 
 test "mappable button CCs are stored as .param, hardcoded buttons as .button" {
     var state = FxCtrlState.init(testing.allocator);
-    defer state.values.deinit();
+    defer state.deinit();
 
     // Mappable buttons should be .param
     try testing.expect(state.values.get(.Comp_comp).? == .param);

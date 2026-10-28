@@ -52,17 +52,17 @@ const System = struct {
     mock_fs: *MockFileSystem,
     resource_path: [:0]const u8,
 
-    pub fn init(allocator: std.mem.Allocator) !System {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !System {
         const mock_fs = try allocator.create(MockFileSystem);
         mock_fs.* = try MockFileSystem.init(allocator);
 
         var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        const temp_path = try mock_fs.temp_dir.dir.realpath(".", &path_buffer);
-        const temp_path_owned = try allocator.dupeZ(u8, temp_path);
+        const temp_path = path_buffer[0..try mock_fs.temp_dir.dir.realPathFile(io, ".", &path_buffer)];
+        const temp_path_owned = try allocator.dupeSentinel(u8, temp_path, 0);
         defer allocator.free(temp_path_owned);
 
-        const real_fs = fs_helpers.RealFileSystem.fileSystemOps();
-        try defaults.copyEmbeddedFilesToDir(real_fs, temp_path_owned);
+        const real_fs = fs_helpers.RealFileSystem.fileSystemOps(io);
+        try defaults.copyEmbeddedFilesToDir(io, real_fs, temp_path_owned);
 
         const resource_path = try std.fs.path.joinZ(allocator, &.{
             temp_path_owned, "Data", "Perken", "Console1",
@@ -260,9 +260,10 @@ const FxParamChanged = struct {
 // ============================================================================
 
 test "midi_learn - stateful property test" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
     var model = Model{};
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     var toggle_cmd = ToggleMidiLearn{};
@@ -289,7 +290,7 @@ test "midi_learn - stateful property test" {
     };
 
     var bytes: [128 * 1024]u8 = undefined;
-    const seed: u64 = @intCast(std.time.milliTimestamp());
+    const seed: u64 = @intCast(std.Io.Timestamp.now(std.testing.io, .real).toMilliseconds());
     var prng = std.Random.DefaultPrng.init(seed);
     prng.random().bytes(&bytes);
     var finite_prng = FinitePrng.init(&bytes);
@@ -312,8 +313,9 @@ test "midi_learn - stateful property test" {
 // ============================================================================
 
 test "midi_learn - CC first then param creates assignment" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -333,8 +335,9 @@ test "midi_learn - CC first then param creates assignment" {
 }
 
 test "midi_learn - param first then CC creates assignment" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -352,8 +355,9 @@ test "midi_learn - param first then CC creates assignment" {
 }
 
 test "midi_learn - toggle off clears both CC and param" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -368,8 +372,9 @@ test "midi_learn - toggle off clears both CC and param" {
 }
 
 test "midi_learn - module change clears both CC and param" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -384,8 +389,9 @@ test "midi_learn - module change clears both CC and param" {
 }
 
 test "midi_learn - multiple assignments in sequence" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -407,8 +413,9 @@ test "midi_learn - multiple assignments in sequence" {
 }
 
 test "midi_learn - param ignored when learn inactive" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -419,8 +426,9 @@ test "midi_learn - param ignored when learn inactive" {
 }
 
 test "midi_learn - param index above 255 is accepted with u16 storage" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -432,8 +440,9 @@ test "midi_learn - param index above 255 is accepted with u16 storage" {
 }
 
 test "midi_learn - fx_param_changed captures param on correct FX" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -452,8 +461,9 @@ test "midi_learn - fx_param_changed captures param on correct FX" {
 }
 
 test "midi_learn - fx_param_changed rejects param from wrong FX" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();
@@ -473,8 +483,9 @@ test "midi_learn - fx_param_changed rejects param from wrong FX" {
 }
 
 test "midi_learn - fx_param_changed with null assign_fx_index rejects all" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
-    var sut = try System.init(allocator);
+    var sut = try System.init(allocator, io);
     defer sut.deinit();
 
     const assign = sut.getAssign();

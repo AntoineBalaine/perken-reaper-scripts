@@ -32,9 +32,9 @@ pub fn drawDebugPanel(ctx: imgui.ContextPtr, state: *State) !void {
         }
 
         if (try imgui.CollapsingHeader(.{ ctx, "Track State" })) {
-            const track_text = utils.safePrint(&buf, "Last Touched Track: {?}", .{state.current_tr_id});
+            const track_text = utils.safePrint(&buf, "Last Touched Track: {?d}", .{state.current_tr_id});
             try imgui.Text(.{ ctx, track_text });
-            const sel_count = utils.safePrint(&buf, "Selected tracks: {?}", .{state.selectedTracks.count()});
+            const sel_count = utils.safePrint(&buf, "Selected tracks: {d}", .{state.selectedTracks.count()});
             try imgui.Text(.{ ctx, sel_count });
 
             var it = state.selectedTracks.iterator();

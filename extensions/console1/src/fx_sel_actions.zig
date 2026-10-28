@@ -17,6 +17,7 @@ const MapStore = @import("mappings.zig");
 pub const FxSelActions = @import("action_types.zig").FxSelActions;
 
 pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
+    const io = Globals.hostIo();
     switch (sel_action) {
         .fx_chain => |fx| {
             const track = reaper.GetSelectedTrack(null, @as(c_int, 0));
@@ -66,9 +67,9 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
 
             var loaded_mapping: ?MapStore.TaggedMapping = null;
             if (plugin.mapping_name) |map_name| {
-                loaded_mapping = globals.map_store.getMap(plugin.name, current_module, map_name, &globals.mappings_list) catch null;
+                loaded_mapping = globals.map_store.getMap(io, plugin.name, current_module, map_name, &globals.mappings_list) catch null;
             } else {
-                loaded_mapping = globals.map_store.get(plugin.name, current_module, &globals.mappings_list);
+                loaded_mapping = globals.map_store.get(io, plugin.name, current_module, &globals.mappings_list);
             }
 
             // Add new FX
@@ -136,6 +137,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 &globals.map_store,
                 globals.preferences,
                 globals.arena_int.allocator(),
+                io,
                 &globals.mappings_list,
             );
             track_state.getLabels(track);
@@ -154,7 +156,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
         .rescan => {
             const fxp = @import("fx_parser");
             fxp.deinit(globals.arena_int.allocator());
-            fxp.init(globals.arena_int.allocator()) catch {};
+            fxp.init(globals.arena_int.allocator(), io) catch {};
         },
         .toggle_module_browser => |module| {
             if (globals.state.current_mode == .fx_sel and module == globals.state.fx_sel.current_category) {
@@ -237,6 +239,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
 }
 
 fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]const u8) void {
+    const io = Globals.hostIo();
     const track = reaper.CSurf_TrackFromID(globals.state.current_tr_id.?, constants.g_csurf_mcpmode);
     const track_state = &globals.state.fx_ctrl.track_state;
 
@@ -290,7 +293,7 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
 
     // Load the mapping first so that fx_preset is available for preset application
     if (mapping_name) |map_name| {
-        _ = globals.map_store.getMap(name, .STRIP, map_name, &globals.mappings_list) catch {};
+        _ = globals.map_store.getMap(io, name, .STRIP, map_name, &globals.mappings_list) catch {};
     }
 
     // Apply associated preset after the mapping has been loaded
@@ -298,10 +301,10 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
         _ = pReaper.TrackFX_SetPreset(.{ track, new_fx_index, preset_name });
     }
 
-    _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences, globals.arena_int.allocator(), &globals.mappings_list);
+    _ = track_state.validateTrack(track, globals.preferences.default_fx, &globals.map_store, globals.preferences, globals.arena_int.allocator(), io, &globals.mappings_list);
     track_state.getLabels(track);
 
-    const needs_mapping = (globals.map_store.get(name, .STRIP, &globals.mappings_list) == null);
+    const needs_mapping = (globals.map_store.get(io, name, .STRIP, &globals.mappings_list) == null);
     if (needs_mapping) {
         dispatch(globals, .{ .change_mode = .mapping_panel });
     } else {

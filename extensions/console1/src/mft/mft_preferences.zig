@@ -49,16 +49,18 @@ pub const MftPreferences = struct {
     // Load preferences from <dir>/preferences.ini. Returns an error if the file
     // is absent so the caller can write the defaults. Plugin-name strings are
     // duped into the allocator.
-    pub fn load(allocator: std.mem.Allocator, dir: [:0]const u8) !MftPreferences {
+    pub fn load(allocator: std.mem.Allocator, io: std.Io, dir: [:0]const u8) !MftPreferences {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         const path = fs_helpers.joinStrings(&path_buf, &.{ dir, std.fs.path.sep_str, "preferences.ini" });
 
-        const file = try std.fs.openFileAbsolute(path, .{});
-        defer file.close();
+        const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
+        defer file.close(io);
 
         var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer temp_arena.deinit();
-        var parser = ini.parse(temp_arena.allocator(), file.reader());
+        var file_buffer: [4096]u8 = undefined;
+        var file_reader = file.reader(io, &file_buffer);
+        var parser = ini.parse(temp_arena.allocator(), &file_reader.interface, ";#");
         defer parser.deinit();
 
         var self = MftPreferences{};
@@ -66,13 +68,16 @@ pub const MftPreferences = struct {
         return self;
     }
 
-    pub fn saveToDisk(self: *const MftPreferences, dir: [:0]const u8) !void {
+    pub fn saveToDisk(self: *const MftPreferences, io: std.Io, dir: [:0]const u8) !void {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         const path = fs_helpers.joinStrings(&path_buf, &.{ dir, std.fs.path.sep_str, "preferences.ini" });
 
-        const file = try std.fs.createFileAbsolute(path, .{ .truncate = true });
-        defer file.close();
-        var w = file.writer();
+        const file = try std.Io.Dir.createFileAbsolute(io, path, .{ .truncate = true });
+        defer file.close(io);
+        // Because file writers are buffered since Zig 0.15, the writer is flushed before the file closes.
+        var w_buffer: [4096]u8 = undefined;
+        var w_file_writer = file.writer(io, &w_buffer);
+        const w = &w_file_writer.interface;
 
         try w.writeAll("; MFT preferences\n");
         try w.print("sensitivity = {d:.2}\n", .{self.sensitivity});
@@ -87,6 +92,7 @@ pub const MftPreferences = struct {
         try w.print("[eq]\n{s}\n\n", .{self.default_eq});
         try w.print("[comp]\n{s}\n\n", .{self.default_comp});
         try w.print("[output]\n{s}\n\n", .{self.default_output});
+        try w.flush();
     }
 };
 
@@ -119,7 +125,7 @@ fn parse(self: *MftPreferences, parser: anytype, allocator: std.mem.Allocator) !
             // Plugin names appear as bare lines under a module section.
             .enumeration => |value| {
                 if (value.len == 0) continue;
-                const owned = allocator.dupeZ(u8, value) catch continue;
+                const owned = allocator.dupeSentinel(u8, value, 0) catch continue;
                 switch (section) {
                     .input => self.default_input = owned,
                     .gate => self.default_gate = owned,
@@ -146,8 +152,8 @@ test "MftPreferences: parse round-trip fields" {
         \\[eq]
         \\VST: My EQ
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(t.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(t.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var prefs = MftPreferences{};

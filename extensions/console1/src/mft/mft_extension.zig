@@ -1,4 +1,6 @@
 const std = @import("std");
+const host_io = @import("host_io");
+const mft_globals = @import("mft_globals.zig");
 const Reaper = @import("reaper");
 const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface_mft.zig");
@@ -10,10 +12,10 @@ const midi_events = @import("csurf/midi_events_mft.zig");
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
-        .Debug => .debug,
-        .ReleaseSafe => .info,
-        .ReleaseFast => .warn,
-        .ReleaseSmall => .err,
+        .debug => .debug,
+        .safe => .info,
+        .fast => .warn,
+        .small => .err,
     },
 };
 
@@ -50,7 +52,9 @@ fn registerActions() void {
 }
 
 fn init() !void {
-    defaults_mft.ensureConfigPath(fs_helpers.RealFileSystem.fileSystemOps()) catch {};
+    mft_globals.io_threaded = host_io.create();
+    const io = mft_globals.hostIo();
+    defaults_mft.ensureConfigPath(io, fs_helpers.RealFileSystem.fileSystemOps(mft_globals.hostIo())) catch {};
     MftGlobals.get().init();
     midi_events.installSettingsHook();
 }

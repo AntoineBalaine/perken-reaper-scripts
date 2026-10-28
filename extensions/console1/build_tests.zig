@@ -13,15 +13,15 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     ) orelse &.{};
     const test_exe = b.addTest(.{
         .name = "reaper_zig_tests",
-        .target = target,
-        .optimize = .Debug,
-        .root_source_file = entry_point_path,
-        .filters = test_filters, // Add this line
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = .debug,
+            .root_source_file = entry_point_path,
+            .link_libc = true,
+        }),
+        .filters = test_filters,
     });
-
-    test_exe.addIncludePath(b.path("./src/"));
-    test_exe.addIncludePath(dependencies.wdl.path("")); // Root of WDL
-    test_exe.addIncludePath(dependencies.reaper_sdk.path("")); // Root of reaper-sdk
+    test_exe.root_module.addImport("c", root.cBindings(b, target, .debug, dependencies.wdl, dependencies.reaper_sdk));
 
     // Add the config options module
     const options = b.addOptions();
@@ -36,7 +36,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     // On macOS/Linux, SWELL requires PHP to generate dialog/menu resources from .rc files.
     // On Windows, resources are compiled natively, so PHP is not needed.
     if (!is_windows) {
-        if (b.findProgram(&.{"php"}, &.{})) |_| {
+        if (b.findProgram(.{ .names = &.{"php"} }) != null) {
             const php_script = dependencies.wdl.path("WDL/swell/swell_resgen.php");
             const resource_rc = b.path("src/csurf/resource.rc");
 
@@ -44,7 +44,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
             php_cmd.addFileArg(php_script);
             php_cmd.addFileArg(resource_rc);
             test_exe.step.dependOn(&php_cmd.step);
-        } else |_| {}
+        }
     }
 
     // Exclude midi_wrapper.cpp since we are using our mock implementation.
@@ -71,7 +71,7 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     };
     for (cppfiles) |cppfile| {
         const name = b.fmt("{s}", .{std.fs.path.basename(reaziglib.lazyPathName(cppfile))});
-        test_exe.addObjectFile(reaziglib.reaperCxxObject(b, test_exe.rootModuleTarget(), cppfile, &.{dependencies.wdl.path("")}, cxx_flags, name));
+        test_exe.root_module.addObjectFile(reaziglib.reaperCxxObject(b, test_exe.rootModuleTarget(), cppfile, &.{dependencies.wdl.path("")}, cxx_flags, name));
     }
 
     // Add dependencies
@@ -81,11 +81,9 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
     // Register shared modules from reaziglib
     reaziglib.addSharedModules(dependencies.reaziglib, test_exe.root_module);
 
-    // Link required libraries
-    test_exe.linkLibC();
     // Because cl's objects need MSVC's C++ runtime, not Zig's libc++,
     // Windows links the runtime that matches them.
-    if (is_windows) reaziglib.linkReaperCxxRuntime(b, test_exe) else test_exe.linkLibCpp();
+    if (is_windows) reaziglib.linkReaperCxxRuntime(b, test_exe) else test_exe.root_module.link_libcpp = true;
     if (target.result.isDarwinLibC()) {
         test_exe.root_module.linkFramework("AppKit", .{});
     }
@@ -105,11 +103,11 @@ pub fn addTests(b: *std.Build, target: std.Build.ResolvedTarget, dependencies: D
         // Only run tests if no-run is not specified
         test_step.dependOn(&run_test.step);
     } else {
-        // When no-run is specified, add a step to print the test executable path
-        const print_path = b.addSystemCommand(&[_][]const u8{
-            "echo",
-            b.fmt("Test executable path: {s}", .{b.getInstallPath(.bin, test_exe.name)}),
-        });
+        // When no-run is specified, add a step to print the test executable path.
+        // Because the build script no longer resolves install paths since Zig
+        // 0.17, the path is passed to echo as the installed artifact.
+        const print_path = b.addSystemCommand(&.{ "echo", "Test executable path:" });
+        print_path.addArtifactArg(test_exe);
         test_step.dependOn(&print_path.step);
     }
 }

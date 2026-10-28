@@ -37,96 +37,45 @@ pub const XYStruct = struct { x: f64, y: f64 };
 
 pub fn usestruct() type {
     const stylevarEnumArr = std.EnumArray(StyleVarsEnum, XYStruct);
-    const style_var_field = std.builtin.Type.StructField{
-        .name = "style_vars",
-        .type = stylevarEnumArr,
-        .is_comptime = false,
-        .alignment = @alignOf(stylevarEnumArr),
-        .default_value_ptr = null,
-    };
-
     const colorEnumArr = std.EnumArray(ColorsEnum, c_int);
-
-    const color_field = std.builtin.Type.StructField{
-        .name = "colors",
-        .type = colorEnumArr,
-        .is_comptime = false,
-        .alignment = @alignOf(colorEnumArr),
-        .default_value_ptr = null,
-    };
-    return @Type(.{ .@"struct" = .{
-        .layout = .auto,
-        .fields = &[2]std.builtin.Type.StructField{ style_var_field, color_field },
-        .decls = &[_]std.builtin.Type.Declaration{},
-        .is_tuple = false,
-    } });
+    // Because @Type is gone since Zig 0.16, the struct is reified with @Struct.
+    return @Struct(.auto, null, &.{ "style_vars", "colors" }, &.{ stylevarEnumArr, colorEnumArr }, &@splat(.{}));
 }
 
 pub fn createstruct() struct { stylevars_enum: type, colors_enum: type } {
     var style_var_count = 0;
     var color_count = 0;
     @setEvalBranchQuota(10000);
-    inline for (@typeInfo(imgui).@"struct".decls) |field| {
-        if (isStyleVar(field.name)) {
+    inline for (@typeInfo(imgui).@"struct".decl_names) |field_name| {
+        if (isStyleVar(field_name)) {
             style_var_count += 1;
-        } else if (isColor(field.name)) {
+        } else if (isColor(field_name)) {
             color_count += 1;
         }
     }
 
-    var style_var_enum_fields: [style_var_count]std.builtin.Type.EnumField = undefined;
-    var color_enum_fields: [color_count]std.builtin.Type.EnumField = undefined;
-
-    var style_var_fields: [style_var_count]std.builtin.Type.StructField = undefined;
-    var color_fields: [color_count]std.builtin.Type.StructField = undefined;
-    var style_var_idx = -1;
-    var color_idx = -1;
-    for (@typeInfo(imgui).@"struct".decls) |decl| {
-        const tag_name = decl.name;
+    var style_var_names: [style_var_count][]const u8 = undefined;
+    var style_var_values: [style_var_count]i16 = undefined;
+    var color_names: [color_count][]const u8 = undefined;
+    var color_values: [color_count]i16 = undefined;
+    var style_var_idx = 0;
+    var color_idx = 0;
+    for (@typeInfo(imgui).@"struct".decl_names) |decl_name| {
         @setEvalBranchQuota(20_000);
-        if (isStyleVar(tag_name)) {
-            const m_struct = std.builtin.Type.StructField{
-                .name = tag_name,
-                .type = XYStruct,
-                .is_comptime = false,
-                .alignment = @alignOf(XYStruct),
-                .default_value_ptr = null,
-            };
+        if (isStyleVar(decl_name)) {
+            style_var_names[style_var_idx] = decl_name;
+            style_var_values[style_var_idx] = style_var_idx;
             style_var_idx += 1;
-            style_var_fields[style_var_idx] = m_struct;
-            style_var_enum_fields[style_var_idx] = .{
-                .name = tag_name,
-                .value = style_var_idx,
-            };
-        } else if (isColor(tag_name)) {
-            const m_struct = std.builtin.Type.StructField{
-                .name = tag_name,
-                .type = c_int,
-                .is_comptime = false,
-                .alignment = @alignOf(c_int),
-                .default_value_ptr = null,
-            };
+        } else if (isColor(decl_name)) {
+            color_names[color_idx] = decl_name;
+            color_values[color_idx] = color_idx;
             color_idx += 1;
-            color_fields[color_idx] = m_struct;
-            color_enum_fields[color_idx] = .{
-                .name = tag_name,
-                .value = color_idx,
-            };
         }
     }
 
-    const stylevars_enum = @Type(.{ .@"enum" = .{
-        .tag_type = i16,
-        .fields = style_var_enum_fields[0..],
-        .decls = &[_]std.builtin.Type.Declaration{},
-        .is_exhaustive = true,
-    } });
-    const colors_enum = @Type(.{ .@"enum" = .{
-        .tag_type = i16,
-        .fields = color_enum_fields[0..],
-        .decls = &[_]std.builtin.Type.Declaration{},
-        .is_exhaustive = true,
-    } });
+    // Because @Type is gone since Zig 0.16, the enums are reified with @Enum.
+    const stylevars_enum = @Enum(i16, .exhaustive, &style_var_names, &style_var_values);
+    const colors_enum = @Enum(i16, .exhaustive, &color_names, &color_values);
     return .{ .stylevars_enum = stylevars_enum, .colors_enum = colors_enum };
 }
 const T = createstruct();

@@ -20,11 +20,11 @@ const MapStore = @import("../mappings.zig");
 const Guid = @import("utils").Guid;
 
 /// used in tests
-pub fn getTestConfigPath(allocator: std.mem.Allocator) ![*:0]const u8 {
+pub fn getTestConfigPath(allocator: std.mem.Allocator, io: std.Io) ![*:0]const u8 {
     var path_mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &path_mem);
+    const pth = path_mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &path_mem)];
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    return try allocator.dupeZ(u8, config_path);
+    return try allocator.dupeSentinel(u8, config_path, 0);
 }
 
 // Model tracks the expected state of FX chain
@@ -43,7 +43,7 @@ const Model = struct {
 
     pub fn init(allocator: std.mem.Allocator) !@This() {
         return .{
-            .fx_chain = std.ArrayListUnmanaged(FxEntry){},
+            .fx_chain = .empty,
             .default_fx = DefaultFx.init(.{
                 .INPUT = "VST: ReaComp (Cockos)",
                 .GATE = "VST: ReaGate (Cockos)",
@@ -141,7 +141,7 @@ const AddFxCmd = struct {
         const media_track: reaper.MediaTrack = @ptrCast(sut.track);
 
         // Add FX to system
-        const fx_name_z = testing.allocator.dupeZ(u8, self.fx_name) catch return false;
+        const fx_name_z = testing.allocator.dupeSentinel(u8, self.fx_name, 0) catch return false;
         defer testing.allocator.free(fx_name_z);
 
         const fx_idx = reaper.TrackFX_AddByName(media_track, fx_name_z.ptr, false, -1);
@@ -150,7 +150,7 @@ const AddFxCmd = struct {
         // Set renamed name if module suffix specified
         if (self.module_suffix) |module| {
             const suffix = moduleToSuffix(module);
-            const renamed = std.fmt.allocPrintZ(testing.allocator, "{s} (C1-{s})", .{ self.fx_name, suffix }) catch return false;
+            const renamed = std.fmt.allocPrintSentinel(testing.allocator, "{s} (C1-{s})", .{ self.fx_name, suffix }, 0) catch return false;
             defer testing.allocator.free(renamed);
 
             _ = reaper.TrackFX_SetNamedConfigParm(media_track, fx_idx, "renamed_name", renamed.ptr);
@@ -243,7 +243,7 @@ const RenameFxCmd = struct {
         const media_track: reaper.MediaTrack = @ptrCast(sut.track);
 
         // Rename in system
-        const new_name_z = testing.allocator.dupeZ(u8, self.new_name) catch return false;
+        const new_name_z = testing.allocator.dupeSentinel(u8, self.new_name, 0) catch return false;
         defer testing.allocator.free(new_name_z);
 
         _ = reaper.TrackFX_SetNamedConfigParm(media_track, @intCast(self.fx_index), "renamed_name", new_name_z.ptr);
@@ -303,12 +303,13 @@ const ValidateTrackCmd = struct {
     }
 
     pub fn onPair(self: *@This(), model: *Model, sut: *System) !bool {
+        const io = std.testing.io;
         _ = self;
         const media_track: reaper.MediaTrack = @ptrCast(sut.track);
 
         var track_state: TrackState = .{};
         defer track_state.deinitMaps(std.testing.allocator);
-        _ = track_state.validateTrack(media_track, model.default_fx, &sut.map_store, .empty, std.testing.allocator, sut.ml);
+        _ = track_state.validateTrack(media_track, model.default_fx, &sut.map_store, .empty, std.testing.allocator, io, sut.ml);
 
         // Verify all 5 modules exist after validation
         const fx_count = reaper.TrackFX_GetCount(media_track);
@@ -320,6 +321,7 @@ const ValidateTrackCmd = struct {
 };
 
 test "track validation - empty track gets all modules" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
@@ -328,8 +330,8 @@ test "track validation - empty track gets all modules" {
     const track = &reaper_teardown.model_ptr.tracks.items[1];
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
-    const config_path = try getTestConfigPath(arena.allocator());
-    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    const config_path = try getTestConfigPath(arena.allocator(), io);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), io, std.mem.span(config_path));
     var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
@@ -344,7 +346,7 @@ test "track validation - empty track gets all modules" {
 
     var track_state: TrackState = .{};
     defer track_state.deinitMaps(std.testing.allocator);
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, &ml);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, io, &ml);
 
     // Verify all modules were added
     try testing.expect(coverage.INPUT != null);
@@ -366,6 +368,7 @@ test "track validation - empty track gets all modules" {
 }
 
 test "track validation - duplicate module suffixes removed" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
@@ -381,8 +384,8 @@ test "track validation - duplicate module suffixes removed" {
     _ = reaper.TrackFX_AddByName(media_track, "VST: ReaEQ (Cockos)", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(media_track, 1, "renamed_name", "VST: ReaEQ (Cockos) (C1-I)");
 
-    const config_path = try getTestConfigPath(arena.allocator());
-    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    const config_path = try getTestConfigPath(arena.allocator(), io);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), io, std.mem.span(config_path));
     var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
@@ -397,7 +400,7 @@ test "track validation - duplicate module suffixes removed" {
 
     var track_state: TrackState = .{};
     defer track_state.deinitMaps(std.testing.allocator);
-    _ = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, &ml);
+    _ = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, io, &ml);
 
     const fx_count = reaper.TrackFX_GetCount(media_track);
 
@@ -422,6 +425,7 @@ test "track validation - duplicate module suffixes removed" {
 }
 
 test "track validation - missing modules inserted in correct positions" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     var reaper_teardown = models.reaper.setupTestModel(arena.allocator(), 1, 4);
@@ -437,8 +441,8 @@ test "track validation - missing modules inserted in correct positions" {
     _ = reaper.TrackFX_AddByName(media_track, "JS: Volume Adjustment", false, -1);
     _ = reaper.TrackFX_SetNamedConfigParm(media_track, 1, "renamed_name", "JS: Volume Adjustment (C1-O)");
 
-    const config_path = try getTestConfigPath(arena.allocator());
-    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    const config_path = try getTestConfigPath(arena.allocator(), io);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), io, std.mem.span(config_path));
     var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
@@ -453,7 +457,7 @@ test "track validation - missing modules inserted in correct positions" {
 
     var track_state: TrackState = .{};
     defer track_state.deinitMaps(std.testing.allocator);
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, &ml);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, .empty, std.testing.allocator, io, &ml);
 
     // Verify all modules exist and are in correct order
     try testing.expectEqual(@as(i32, 0), coverage.INPUT.?.index);
@@ -518,6 +522,7 @@ test "track validation property-based test" {
 }
 
 test "auto_insert_modules disabled prevents module insertion" {
+    const io = std.testing.io;
     // Because auto_insert_modules is disabled, validateTrack should not insert missing modules
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -527,8 +532,8 @@ test "auto_insert_modules disabled prevents module insertion" {
     const track = &reaper_teardown.model_ptr.tracks.items[1];
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
-    const config_path = try getTestConfigPath(arena.allocator());
-    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    const config_path = try getTestConfigPath(arena.allocator(), io);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), io, std.mem.span(config_path));
     var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
@@ -539,7 +544,7 @@ test "auto_insert_modules disabled prevents module insertion" {
 
     var track_state: TrackState = .{};
     defer track_state.deinitMaps(std.testing.allocator);
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, &ml);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, io, &ml);
 
     // Because no modules were present initially and insertion is disabled, all modules should be null
     try testing.expect(coverage.INPUT == null);
@@ -550,6 +555,7 @@ test "auto_insert_modules disabled prevents module insertion" {
 }
 
 test "auto_insert_bypassed causes new modules to be bypassed" {
+    const io = std.testing.io;
     // Because auto_insert_bypassed is enabled, newly inserted modules should have bypass state set
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -559,8 +565,8 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
     const track = &reaper_teardown.model_ptr.tracks.items[1];
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
-    const config_path = try getTestConfigPath(arena.allocator());
-    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    const config_path = try getTestConfigPath(arena.allocator(), io);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), io, std.mem.span(config_path));
     var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
@@ -577,7 +583,7 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
 
     var track_state: TrackState = .{};
     defer track_state.deinitMaps(std.testing.allocator);
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, &ml);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, io, &ml);
 
     try testing.expect(coverage.INPUT != null);
     try testing.expect(coverage.GATE != null);
@@ -599,6 +605,7 @@ test "auto_insert_bypassed causes new modules to be bypassed" {
 }
 
 test "auto_reorder_modules disabled preserves existing module positions" {
+    const io = std.testing.io;
     // Because auto_reorder_modules is disabled, existing modules should not be moved
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -608,8 +615,8 @@ test "auto_reorder_modules disabled preserves existing module positions" {
     const track = &reaper_teardown.model_ptr.tracks.items[1];
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
-    const config_path = try getTestConfigPath(arena.allocator());
-    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    const config_path = try getTestConfigPath(arena.allocator(), io);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), io, std.mem.span(config_path));
     var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
@@ -643,7 +650,7 @@ test "auto_reorder_modules disabled preserves existing module positions" {
 
     var track_state: TrackState = .{};
     defer track_state.deinitMaps(std.testing.allocator);
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, &ml);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, io, &ml);
 
     // Because reordering is disabled, modules should remain in their original positions
     try testing.expect(coverage.OUTPT.?.index == 0);
@@ -654,6 +661,7 @@ test "auto_reorder_modules disabled preserves existing module positions" {
 }
 
 test "preferred_module_order affects insertion positions" {
+    const io = std.testing.io;
     // Because preferred_module_order is set to EQ-S-C, modules should be inserted in that order
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -663,8 +671,8 @@ test "preferred_module_order affects insertion positions" {
     const track = &reaper_teardown.model_ptr.tracks.items[1];
     const media_track: reaper.MediaTrack = @ptrCast(track);
 
-    const config_path = try getTestConfigPath(arena.allocator());
-    var ml = @import("../mappings_list.zig").init(arena.allocator(), std.mem.span(config_path));
+    const config_path = try getTestConfigPath(arena.allocator(), io);
+    var ml = @import("../mappings_list.zig").init(arena.allocator(), io, std.mem.span(config_path));
     var map_store: MapStore = .empty(arena.allocator(), config_path);
     defer map_store.deinit();
 
@@ -680,7 +688,7 @@ test "preferred_module_order affects insertion positions" {
 
     var track_state: TrackState = .{};
     defer track_state.deinitMaps(std.testing.allocator);
-    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, &ml);
+    const coverage = track_state.validateTrack(media_track, default_fx, &map_store, prefs, std.testing.allocator, io, &ml);
 
     // Because modules are inserted in EQ-S-C order, verify the final order is INPUT, EQ, GATE, COMP, OUTPT
     try testing.expect(coverage.INPUT != null);

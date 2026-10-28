@@ -173,7 +173,7 @@ pub const ParamStore = struct {
     pub fn init(gpa: std.mem.Allocator) ParamStore {
         return .{
             .strings = .empty,
-            .params = .{},
+            .params = .empty,
             .allocator = gpa,
         };
     }
@@ -182,7 +182,7 @@ pub const ParamStore = struct {
         self.strings.deinit(self.allocator);
         self.params.deinit(self.allocator);
         self.strings = .empty;
-        self.params = .{};
+        self.params = .empty;
     }
 
     pub fn clear(self: *ParamStore) void {
@@ -292,7 +292,7 @@ pub const MapSubMode = union(enum) {
 
 pub const MappingPanelState = struct {
     mode: MapSubMode,
-    gpa_int: std.heap.GeneralPurposeAllocator(.{}),
+    gpa_int: std.heap.DebugAllocator(.{}),
 
     pub fn init() MappingPanelState {
         var self = MappingPanelState{

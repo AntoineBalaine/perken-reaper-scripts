@@ -208,7 +208,7 @@ pub fn empty(allocator: std.mem.Allocator, controller_dir: [*:0]const u8) @This(
     return self;
 }
 
-pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *MappingsList, defaults: *settings.DefaultFx) !MapStore {
+pub fn init(allocator: std.mem.Allocator, io: std.Io, controller_dir: [*:0]const u8, ml: *MappingsList, defaults: *settings.DefaultFx) !MapStore {
     var self: MapStore = .empty(allocator, controller_dir);
     // find the mappings for the defaults
     var iterator = defaults.iterator();
@@ -218,7 +218,7 @@ pub fn init(allocator: std.mem.Allocator, controller_dir: [*:0]const u8, ml: *Ma
         if (fxName) |fx_name| {
             // use self.getMap() only for its side-effect: storing into the map.
             // Its return value is only meant to be used by self.get()
-            _ = self.getMap(fx_name, defaultsEntry.key, "default", ml) catch {
+            _ = self.getMap(io, fx_name, defaultsEntry.key, "default", ml) catch {
                 continue;
             };
         }
@@ -285,6 +285,7 @@ pub fn getModuleByName(self: *MapStore, fx_name: [:0]const u8) ?ModulesList {
 /// Saves a channel strip mapping to disk at `maps/STRIP/<fx_name>/<mapping_name>.ini`
 pub fn saveStripToFile(
     self: *MapStore,
+    io: std.Io,
     fs_ops: fs_helpers.FileSystemOps,
     fx_name: [:0]const u8,
     mapping: ChannelStripMapping,
@@ -330,9 +331,12 @@ pub fn saveStripToFile(
         .read = true,
         .truncate = true,
     });
-    defer file.close();
+    defer file.close(io);
 
-    var writer = file.writer();
+    // Because file writers are buffered since Zig 0.15, the writer is flushed before the file closes.
+    var writer_buffer: [4096]u8 = undefined;
+    var writer_file_writer = file.writer(io, &writer_buffer);
+    const writer = &writer_file_writer.interface;
 
     // Because fx_preset is a StringPool offset (not a raw integer),
     // we write it as a string before the generic field loop
@@ -354,11 +358,12 @@ pub fn saveStripToFile(
         try writer.print("fx_preset_data={s}\n", .{ep.data});
         try writer.print("fx_preset_len={d}\n", .{ep.len});
     }
+    try writer.flush();
 }
 
 /// find fx mapping in storage. If unfound, search it from disk. If still unfound, return null.
 /// Because we now store multiple mappings per FX, we return the preferred mapping.
-pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList, ml: *MappingsList) ?TaggedMapping {
+pub fn get(self: *MapStore, io: std.Io, fxName: [:0]const u8, module: ModulesList, ml: *MappingsList) ?TaggedMapping {
     switch (module) {
         .COMP => {
             if (self.COMP.get(fxName)) |mappings_list| {
@@ -371,7 +376,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList, ml: *Mapp
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default", ml) catch null;
+                return self.getMap(io, fxName, module, "default", ml) catch null;
             }
         },
         .EQ => {
@@ -384,7 +389,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList, ml: *Mapp
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default", ml) catch null;
+                return self.getMap(io, fxName, module, "default", ml) catch null;
             }
         },
         .INPUT => {
@@ -397,7 +402,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList, ml: *Mapp
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default", ml) catch null;
+                return self.getMap(io, fxName, module, "default", ml) catch null;
             }
         },
         .OUTPT => {
@@ -410,7 +415,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList, ml: *Mapp
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default", ml) catch null;
+                return self.getMap(io, fxName, module, "default", ml) catch null;
             }
         },
         .GATE => {
@@ -423,7 +428,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList, ml: *Mapp
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default", ml) catch null;
+                return self.getMap(io, fxName, module, "default", ml) catch null;
             }
         },
         .STRIP => {
@@ -436,7 +441,7 @@ pub fn get(self: *MapStore, fxName: [:0]const u8, module: ModulesList, ml: *Mapp
                 return null;
             } else {
                 log.debug("mapping {s} unfound", .{fxName});
-                return self.getMap(fxName, module, "default", ml) catch null;
+                return self.getMap(io, fxName, module, "default", ml) catch null;
             }
         },
     }
@@ -570,7 +575,7 @@ pub fn getPresetName(self: *MapStore, fxName: [:0]const u8, module: ModulesList)
 /// fetch mapping from disk, parse it, store it, and return it.
 /// Because the mappings_list index knows the absolute path for each mapping,
 /// we look up the path there instead of constructing it ourselves.
-pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8, ml: *MappingsList) !TaggedMapping {
+pub fn getMap(self: *MapStore, io: std.Io, fxName: [:0]const u8, module: ModulesList, mapping_name: [:0]const u8, ml: *MappingsList) !TaggedMapping {
     const filePath_z = ml.lookupPath(module, fxName, mapping_name) orelse return error.FileNotFound;
     const filePath: []const u8 = filePath_z;
 
@@ -586,12 +591,14 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
         return error.InvalidPath;
     }
 
-    const file = try std.fs.openFileAbsolute(filePath, .{});
-    defer file.close();
+    const file = try std.Io.Dir.openFileAbsolute(io, filePath, .{});
+    defer file.close(io);
 
     var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer temp_arena.deinit();
-    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    var file_buffer: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &file_buffer);
+    var parser = ini.parse(temp_arena.allocator(), &file_reader.interface, ";#");
     defer parser.deinit(); // doesn’t actually do anything because of arena
 
     var found_module: ?ModulesList = null;
@@ -606,7 +613,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
             }
 
             const entry = self.COMP.getPtr(fxName) orelse blk: {
-                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                const owned_key = try self.allocator.dupeSentinel(u8, fxName, 0);
                 try self.COMP.put(self.allocator, owned_key, FxMaps(Comp){
                     .mappings = std.StringArrayHashMapUnmanaged(?Comp){},
                     .preferred_mapping = filePath_z,
@@ -627,7 +634,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
             }
 
             const entry = self.EQ.getPtr(fxName) orelse blk: {
-                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                const owned_key = try self.allocator.dupeSentinel(u8, fxName, 0);
                 try self.EQ.put(self.allocator, owned_key, FxMaps(Eq){
                     .mappings = std.StringArrayHashMapUnmanaged(?Eq){},
                     .preferred_mapping = filePath_z,
@@ -648,7 +655,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
             }
 
             const entry = self.INPUT.getPtr(fxName) orelse blk: {
-                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                const owned_key = try self.allocator.dupeSentinel(u8, fxName, 0);
                 try self.INPUT.put(self.allocator, owned_key, FxMaps(Inpt){
                     .mappings = std.StringArrayHashMapUnmanaged(?Inpt){},
                     .preferred_mapping = filePath_z,
@@ -669,7 +676,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
             }
 
             const entry = self.OUTPT.getPtr(fxName) orelse blk: {
-                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                const owned_key = try self.allocator.dupeSentinel(u8, fxName, 0);
                 try self.OUTPT.put(self.allocator, owned_key, FxMaps(Outpt){
                     .mappings = std.StringArrayHashMapUnmanaged(?Outpt){},
                     .preferred_mapping = filePath_z,
@@ -690,7 +697,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
             }
 
             const entry = self.GATE.getPtr(fxName) orelse blk: {
-                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                const owned_key = try self.allocator.dupeSentinel(u8, fxName, 0);
                 try self.GATE.put(self.allocator, owned_key, FxMaps(Shp){
                     .mappings = std.StringArrayHashMapUnmanaged(?Shp){},
                     .preferred_mapping = filePath_z,
@@ -711,7 +718,7 @@ pub fn getMap(self: *MapStore, fxName: [:0]const u8, module: ModulesList, mappin
             }
 
             const entry = self.STRIP.getPtr(fxName) orelse blk: {
-                const owned_key = try self.allocator.dupeZ(u8, fxName);
+                const owned_key = try self.allocator.dupeSentinel(u8, fxName, 0);
                 try self.STRIP.put(self.allocator, owned_key, FxMaps(ChannelStripMapping){
                     .mappings = std.StringArrayHashMapUnmanaged(?ChannelStripMapping){},
                     .preferred_mapping = filePath_z,
@@ -842,6 +849,7 @@ fn formatOptionalU8(value: anytype, writer: anytype) !void {
 /// for overwrites, or a default location for new maps).
 pub fn saveToFile(
     self: *MapStore,
+    io: std.Io,
     fs_ops: fs_helpers.FileSystemOps,
     module: ModulesList,
     fx_name: [:0]const u8,
@@ -864,10 +872,13 @@ pub fn saveToFile(
         .read = true,
         .truncate = true,
     });
-    defer file.close();
+    defer file.close(io);
 
     // Write mappings
-    var writer = file.writer();
+    // Because file writers are buffered since Zig 0.15, the writer is flushed before the file closes.
+    var writer_buffer: [4096]u8 = undefined;
+    var writer_file_writer = file.writer(io, &writer_buffer);
+    const writer = &writer_file_writer.interface;
 
     // Write header fields that are not part of the mapping structs
     try writer.print("module={s}\n", .{@tagName(module)});
@@ -898,6 +909,7 @@ pub fn saveToFile(
         try writer.print("fx_preset_data={s}\n", .{ep.data});
         try writer.print("fx_preset_len={d}\n", .{ep.len});
     }
+    try writer.flush();
 }
 
 test readToU8Struct {
@@ -908,8 +920,8 @@ test readToU8Struct {
     const example =
         \\ repositoryformatversion=8
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var found_module: ?ModulesList = null;
@@ -930,8 +942,8 @@ test "readToU8Struct: module field is parsed correctly" {
         \\ Comp_Thresh=0
         \\ Comp_Ratio=1
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(testing.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var found_module: ?ModulesList = null;
@@ -945,7 +957,8 @@ test "readToU8Struct: module field is parsed correctly" {
 }
 
 test init {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     // Verify initialization with default mappings loaded
@@ -957,18 +970,19 @@ test init {
 }
 
 test "MapStore - get: lazy loading and caching" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
     // First access should load from disk
-    const first_result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
+    const first_result = ctx.store.get(io, test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(first_result != null);
     try std.testing.expect(ctx.store.COMP.count() == 1);
 
     // Second access should use cache
-    const second_result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
+    const second_result = ctx.store.get(io, test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(second_result != null);
     try std.testing.expect(ctx.store.COMP.count() == 1);
 
@@ -987,24 +1001,26 @@ test "MapStore - get: lazy loading and caching" {
 }
 
 test "MapStore - invalid fx name" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const nonexistent_fx = "VST: NonexistentPlugin";
 
     try std.testing.expect(ctx.store.COMP.count() == 1);
-    const result = ctx.store.get(nonexistent_fx, .COMP, ctx.mappings_list);
+    const result = ctx.store.get(io, nonexistent_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(result == null);
     try std.testing.expect(ctx.store.COMP.count() == 1); // Should not cache failed attempts
 }
 
 test "MapStore - all values are within MIDI range (0-127)" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
-    const result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
+    const result = ctx.store.get(io, test_fx, .COMP, ctx.mappings_list);
     if (result) |COMP| {
         const comp = COMP.COMP;
         // Test that all values are within MIDI range (0-127)
@@ -1025,26 +1041,26 @@ const TestContext = struct {
     mappings_list: *MappingsList,
     store: MapStore,
 
-    pub fn init() !TestContext {
+    pub fn init(io: std.Io) !TestContext {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
         errdefer arena.deinit();
         const allocator = arena.allocator();
 
         var mem: [std.fs.max_path_bytes]u8 = undefined;
-        const pth = try std.fs.cwd().realpath(".", &mem);
+        const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
         const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-        const config_path_z = try allocator.dupeZ(u8, config_path);
+        const config_path_z = try allocator.dupeSentinel(u8, config_path, 0);
 
-        var config = try settings.init(allocator, config_path_z);
+        var config = try settings.init(allocator, io, config_path_z);
 
         // Because the MapStore stores a pointer to the MappingsList, we need to
         // heap-allocate it so that the pointer remains stable when TestContext is
         // returned by value (returning by value moves the struct, which would
         // invalidate any internal pointer).
         const ml = try allocator.create(MappingsList);
-        ml.* = MappingsList.init(allocator, config_path_z);
+        ml.* = MappingsList.init(allocator, io, config_path_z);
 
-        const store = try MapStore.init(allocator, config_path_z, ml, &config.default_fx);
+        const store = try MapStore.init(allocator, io, config_path_z, ml, &config.default_fx);
 
         return TestContext{
             .arena = arena,
@@ -1061,12 +1077,13 @@ const TestContext = struct {
 };
 
 test getPreferredMapping {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
-    const result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
+    const result = ctx.store.get(io, test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(result != null);
 
     // Verify that the preferred mapping is set
@@ -1076,23 +1093,25 @@ test getPreferredMapping {
 }
 
 test "MapStore: get - returns null for missing maps" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const nonexistent_fx = "VST: BogusPlugin";
 
-    const result = ctx.store.get(nonexistent_fx, .COMP, ctx.mappings_list);
+    const result = ctx.store.get(io, nonexistent_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(result == null);
 }
 
 test "MapStore - get: basic" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
     // First access loads default mapping
-    const first_result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
+    const first_result = ctx.store.get(io, test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(first_result != null);
 
     // Verify FxMaps exists for this FX
@@ -1103,18 +1122,19 @@ test "MapStore - get: basic" {
     try std.testing.expectEqual(@as(usize, 1), fx_maps.?.mappings.count());
 
     // Second access uses cache
-    const second_result = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
+    const second_result = ctx.store.get(io, test_fx, .COMP, ctx.mappings_list);
     try std.testing.expect(second_result != null);
 }
 
 test "MapStore - get: handling FX with zero mappings" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const nonexistent_fx = "VST: BrandNewPlugin";
 
     // Because no mappings exist for this FX, get should return null
-    const result = ctx.store.get(nonexistent_fx, .EQ, ctx.mappings_list);
+    const result = ctx.store.get(io, nonexistent_fx, .EQ, ctx.mappings_list);
     try std.testing.expect(result == null);
 }
 
@@ -1129,14 +1149,15 @@ test "MapStore - get: handling FX with zero mappings" {
 
 //     // Because we try to set a non-existent mapping as preferred, we should get an error
 //     const bogus_path = "/nonexistent/path/to/mapping.ini";
-//     const bogus_path_z = try ctx.allocator.dupeZ(u8, bogus_path);
+//     const bogus_path_z = try ctx.allocator.dupeSentinel(u8, bogus_path, 0);
 //     const result = ctx.store.setPreferredMapping(test_fx, .COMP, bogus_path_z);
 
 //     try std.testing.expectError(error.MappingNotFound, result);
 // }
 
 test "MapStore: setPreferredMapping - returns error for unfound FX" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const nonexistent_fx = "VST: NonexistentPlugin";
@@ -1156,8 +1177,8 @@ test "readToU8Struct: fx_preset field is parsed correctly" {
         \\ Comp_Thresh=0
         \\ fx_preset=My Custom Preset
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(testing.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var preset_strings: StringPool = .empty;
@@ -1181,8 +1202,8 @@ test "readToU8Struct: missing fx_preset remains null" {
         \\ module=COMP
         \\ Comp_Thresh=0
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(testing.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var preset_strings: StringPool = .empty;
@@ -1203,8 +1224,8 @@ test "readToU8Struct: fx_preset with null preset_strings parameter is ignored" {
         \\ fx_preset=Some Preset
         \\ Comp_Thresh=5
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(testing.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var found_module: ?ModulesList = null;
@@ -1218,13 +1239,14 @@ test "readToU8Struct: fx_preset with null preset_strings parameter is ignored" {
 }
 
 test "MapStore: getPresetName returns null when no preset is set" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const test_fx = "VST: ReaComp (Cockos)";
 
     // Load the mapping first
-    _ = ctx.store.get(test_fx, .COMP, ctx.mappings_list);
+    _ = ctx.store.get(io, test_fx, .COMP, ctx.mappings_list);
 
     // Because the default mapping files have no fx_preset field,
     // getPresetName should return null
@@ -1233,7 +1255,8 @@ test "MapStore: getPresetName returns null when no preset is set" {
 }
 
 test "MapStore: getPresetName returns null for unknown FX" {
-    var ctx = try TestContext.init();
+    const io = std.testing.io;
+    var ctx = try TestContext.init(io);
     defer ctx.deinit();
 
     const preset = ctx.store.getPresetName("VST: NonexistentPlugin", .COMP);
@@ -1246,8 +1269,8 @@ test "readToU8Struct: version 1 parses successfully" {
         \\ module=COMP
         \\ Comp_Thresh=10
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var found_module: ?ModulesList = null;
@@ -1261,8 +1284,8 @@ test "readToU8Struct: missing version field returns error.MissingVersion" {
         \\ module=COMP
         \\ Comp_Thresh=10
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var found_module: ?ModulesList = null;
@@ -1277,8 +1300,8 @@ test "readToU8Struct: version 2 returns error.UnsupportedMapVersion" {
         \\ module=COMP
         \\ Comp_Thresh=10
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
     defer parser.deinit();
 
     var found_module: ?ModulesList = null;

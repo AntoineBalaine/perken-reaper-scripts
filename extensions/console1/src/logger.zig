@@ -4,10 +4,10 @@ const Mode = statemachine.Mode;
 const ModulesList = statemachine.ModulesList;
 const c1 = @import("c1.zig");
 const reentrancy = @import("reentrancy.zig");
-pub const debug_window_active = @import("builtin").mode == .Debug;
+pub const debug_window_active = @import("builtin").mode == .debug;
 
 // pub var debug_window_active = debugconfig.@"test";
-pub var log_file: ?*std.fs.File = null; // Just need the file handle
+pub var log_file: ?*std.Io.File = null; // Just need the file handle
 
 pub const EventType = enum {
     state_change,
@@ -89,11 +89,11 @@ pub fn logFn(
             const Args = @TypeOf(args);
             const args_type_info = @typeInfo(Args);
             if (args_type_info == .@"struct") {
-                inline for (args_type_info.@"struct".fields) |field| {
-                    if (field.type == reentrancy.ReentrancyMessage) {
+                inline for (args_type_info.@"struct".field_names, args_type_info.@"struct".field_types) |field_name, field_type| {
+                    if (field_type == reentrancy.ReentrancyMessage) {
                         if (reentrancy.current_test) |test_| {
-                            switch (@field(args, field.name)) {
-                                .notification => |notif| test_.notifications.append(notif) catch return,
+                            switch (@field(args, field_name)) {
+                                .notification => |notif| test_.notifications.append(test_.allocator, notif) catch return,
                                 .api_call => {
                                     // Optionally handle logging of API calls
                                     // This might be useful for debugging/verification
@@ -108,6 +108,7 @@ pub fn logFn(
 
     const scope_prefix = "(" ++ switch (scope) {
         .gpa, // general purpose allocator
+        .DebugAllocator, // the debug allocator's own scope since Zig 0.14
         .csurf,
         .dispatch,
         .extension,
@@ -151,10 +152,12 @@ pub fn logFn(
     const prefix = color ++ "[" ++ @tagName(level) ++ "] " ++ scope_prefix;
 
     // Print the message to stderr, silently ignoring any errors
-    std.debug.lockStdErr();
-    defer std.debug.unlockStdErr();
-    const stderr = std.io.getStdErr().writer();
-    nosuspend stderr.print(prefix ++ format ++ Color.reset ++ "\n", args) catch return;
+    // Because the locked stderr writer is buffered, unlockStderr flushes what the print left in the buffer.
+    var buffer: [256]u8 = undefined;
+    const locked = std.debug.lockStderr(&buffer);
+    defer std.debug.unlockStderr();
+    const stderr = &locked.file_writer.interface;
+    stderr.print(prefix ++ format ++ Color.reset ++ "\n", args) catch return;
 
     // File logging
     if (log_file) |file| {
@@ -164,7 +167,8 @@ pub fn logFn(
             .{ @tagName(level), scope_prefix } ++ args,
         ) catch return;
         defer logging_allocator.free(message);
-        file.writeAll(message) catch {};
+        // Because the log function has no io parameter, it writes with the extension's.
+        file.writeStreamingAll(@import("globals.zig").hostIo(), message) catch {};
     }
 }
 

@@ -20,6 +20,7 @@ const preset_file_reader = @import("preset_file_reader");
 pub const MappingPanelAction = @import("action_types.zig").MappingPanelAction;
 
 pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
+    const io = Globals.hostIo();
     switch (action) {
         // Sub-mode transitions
         .enter_browse => {
@@ -29,7 +30,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             var browse_state = statemachine.BrowseState.init(globals.state.mapping_panel.gpa_int.allocator());
             const browse_allocator = browse_state.arena.allocator();
 
-            inline for (@typeInfo(ModulesList).@"struct".field_names, 0..) |field_name, i| {
+            inline for (@typeInfo(ModulesList).@"enum".field_names, 0..) |field_name, i| {
                 const module = @field(ModulesList, field_name);
                 const module_name = @tagName(module);
 
@@ -55,7 +56,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                         var fx_name_buf: [512:0]u8 = undefined;
                         if (reaper.TrackFX_GetFXName(track, fx_index, &fx_name_buf, fx_name_buf.len)) {
                             const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                            browse_state.available_modules[i] = std.fmt.allocPrintZ(browse_allocator, "{s}    [{s}]", .{ module_name, fx_name }) catch null;
+                            browse_state.available_modules[i] = std.fmt.allocPrintSentinel(browse_allocator, "{s}    [{s}]", .{ module_name, fx_name }, 0) catch null;
                         } else {
                             browse_state.available_modules[i] = null;
                         }
@@ -122,7 +123,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     var fx_name_buf: [512:0]u8 = undefined;
                     if (reaper.TrackFX_GetNamedConfigParm(track, fxi, "original_name", &fx_name_buf, fx_name_buf.len)) {
                         const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                        assign_state.target_fx = assign_allocator.dupeZ(u8, fx_name) catch return;
+                        assign_state.target_fx = assign_allocator.dupeSentinel(u8, fx_name, 0) catch return;
                     }
                 }
 
@@ -158,7 +159,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             if (module != .STRIP) {
                 const phys: PhysicalModule = @fromBackingInt(@intCast(@backingInt(module)));
                 if (assign_state.module_fx_names.get(phys)) |name| {
-                    assign_state.target_fx = assign_allocator.dupeZ(u8, name) catch return;
+                    assign_state.target_fx = assign_allocator.dupeSentinel(u8, name, 0) catch return;
                 }
             }
 
@@ -177,6 +178,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     if (preset_path.len > 0) {
                         assignState.preset_name_offsets = preset_file_reader.readPresetNames(
                             assignState.arena.allocator(),
+                            io,
                             &assignState.preset_strings,
                             preset_path,
                         ) catch &.{};
@@ -417,7 +419,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 assign_state.target_fx = "";
             } else if (assign_state.module_fx_names.get(@as(PhysicalModule, @fromBackingInt(@intCast(@backingInt(new_module)))))) |name| {
                 const alloc = assign_state.arena.allocator();
-                assign_state.target_fx = alloc.dupeZ(u8, name) catch return;
+                assign_state.target_fx = alloc.dupeSentinel(u8, name, 0) catch return;
             } else {
                 assign_state.target_fx = "";
             }
@@ -506,18 +508,19 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
                 const basename = std.fs.path.basename(path);
                 const alloc = assign_state.arena.allocator();
-                const mapping_name: [:0]const u8 = alloc.dupeZ(u8, std.fs.path.stem(basename)) catch return;
-                const fx_name_z: [:0]const u8 = alloc.dupeZ(u8, fx_name) catch return;
+                const mapping_name: [:0]const u8 = alloc.dupeSentinel(u8, std.fs.path.stem(basename), 0) catch return;
+                const fx_name_z: [:0]const u8 = alloc.dupeSentinel(u8, fx_name, 0) catch return;
 
                 const embedded_preset = resolveEmbeddedPreset(
                     alloc,
+                    io,
                     assign_state,
                     module,
                     &globals.state.fx_ctrl.track_state,
                     globals.state.current_tr_id,
                 );
 
-                globals.map_store.saveToFile(globals.fs_ops, module, fx_name_z, tagged_mapping, save_path, embedded_preset) catch {
+                globals.map_store.saveToFile(io, globals.fs_ops, module, fx_name_z, tagged_mapping, save_path, embedded_preset) catch {
                     assign_state.save_error = .save_error_write_failed;
                     return;
                 };
@@ -525,7 +528,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 globals.mappings_list.registerPath(module, fx_name_z, mapping_name, save_path) catch |err| {
                     log.warn("Failed to register saved mapping path: {}", .{err});
                 };
-                _ = globals.map_store.getMap(fx_name_z, module, mapping_name, &globals.mappings_list) catch |err| {
+                _ = globals.map_store.getMap(io, fx_name_z, module, mapping_name, &globals.mappings_list) catch |err| {
                     log.warn("Failed to load saved mapping into cache: {}", .{err});
                 };
 
@@ -580,7 +583,7 @@ fn populateModuleFxNames(
             var fx_name_buf: [256:0]u8 = undefined;
             if (reaper.TrackFX_GetNamedConfigParm(track, location.fx_index, "original_name", &fx_name_buf, fx_name_buf.len)) {
                 const fx_name = std.mem.span(@as([*:0]const u8, &fx_name_buf));
-                assign_state.module_fx_names.set(module, allocator.dupeZ(u8, fx_name) catch null);
+                assign_state.module_fx_names.set(module, allocator.dupeSentinel(u8, fx_name, 0) catch null);
             } else {
                 assign_state.module_fx_names.set(module, null);
             }
@@ -640,6 +643,7 @@ fn populateKnobValues(
 /// checkbox is unchecked, no preset is selected, or the preset data can't be read.
 fn resolveEmbeddedPreset(
     allocator: std.mem.Allocator,
+    io: std.Io,
     assign_state: *const statemachine.AssignState,
     module: statemachine.ModulesList,
     track_state: *const TrackState,
@@ -671,9 +675,9 @@ fn resolveEmbeddedPreset(
     if (preset_full_path.len == 0) return null;
 
     const preset_filename = std.fs.path.basename(preset_full_path);
-    const preset_filename_z: [:0]const u8 = allocator.dupeZ(u8, preset_filename) catch return null;
+    const preset_filename_z: [:0]const u8 = allocator.dupeSentinel(u8, preset_filename, 0) catch return null;
 
-    const maybe_pd = preset_file_reader.readPresetData(allocator, preset_full_path, preset_name) catch return null;
+    const maybe_pd = preset_file_reader.readPresetData(allocator, io, preset_full_path, preset_name) catch return null;
     const pd = maybe_pd orelse return null;
     return preset_file_reader.EmbeddedPreset{
         .file = preset_filename_z,

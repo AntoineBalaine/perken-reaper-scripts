@@ -12,6 +12,7 @@
 // It unpacks the arglist and calls the real function.
 
 const std = @import("std");
+const Globals = @import("globals.zig");
 const reaper = @import("reaper").reaper;
 const actions = @import("actions.zig");
 const statemachine = @import("statemachine.zig");
@@ -298,6 +299,7 @@ const apidef_PanelInput: [*:0]const u8 = "bool\x00const char*,double*\x00cc_name
 // -- C1_InstallPresets: runs the preset installer and returns result counts --
 
 fn apiInstallPresets() callconv(.c) [*:0]const u8 {
+    const io = Globals.hostIo();
     const globals = getGlobals();
 
     var preset_dir_buf: [std.fs.max_path_bytes:0]u8 = undefined;
@@ -305,7 +307,7 @@ fn apiInstallPresets() callconv(.c) [*:0]const u8 {
     const preset_dir = std.mem.printSentinel(&preset_dir_buf, "{s}/presets", .{resource_path}, 0) catch return "error: bufPrintZ failed";
 
     const preset_installer = @import("preset_installer.zig");
-    const result = preset_installer.installPresets(&globals.mappings_list, preset_dir) catch |err| {
+    const result = preset_installer.installPresets(io, &globals.mappings_list, preset_dir) catch |err| {
         log.err("C1_InstallPresets failed: {}", .{err});
         return "error";
     };

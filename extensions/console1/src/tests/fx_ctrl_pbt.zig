@@ -172,10 +172,10 @@ const SetTrackCmd = struct {
 
         // Initialize fx_ctrl.values for these CCs
         for (testable_param_ccs) |cc| {
-            sut.globals.state.fx_ctrl.values.put(cc, .{ .param = .{ .normalized = 0.5 } }) catch unreachable;
+            sut.globals.state.fx_ctrl.values.put(sut.globals.state.fx_ctrl.values_allocator, cc, .{ .param = .{ .normalized = 0.5 } }) catch unreachable;
         }
         for (testable_button_ccs) |cc| {
-            sut.globals.state.fx_ctrl.values.put(cc, .{ .param = .{ .normalized = 0.0 } }) catch unreachable;
+            sut.globals.state.fx_ctrl.values.put(sut.globals.state.fx_ctrl.values_allocator, cc, .{ .param = .{ .normalized = 0.0 } }) catch unreachable;
         }
 
         // Populate the label pool from forward map + REAPER mock

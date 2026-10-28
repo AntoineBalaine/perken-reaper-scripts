@@ -1,4 +1,5 @@
 const std = @import("std");
+const mft_globals = @import("mft_globals.zig");
 const reaper = @import("reaper").reaper;
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
 const mappings = @import("mft_mappings.zig");
@@ -245,6 +246,7 @@ pub fn ensureModuleFx(globals: *MftGlobals, track: reaper.MediaTrack, module: Ma
 // slots its map defines; the first FX to define a knob wins. For IO the input
 // plugin (knobs 1-4) and the output plugin (knobs 5-8) merge onto one surface.
 pub fn resolveModule(globals: *MftGlobals, track: reaper.MediaTrack, module: MappableModule) SlotRouting {
+    const io = mft_globals.hostIo();
     var routing = SlotRouting{};
     const slots = slotsFor(module);
     const count = reaper.TrackFX_GetCount(track);
@@ -254,7 +256,7 @@ pub fn resolveModule(globals: *MftGlobals, track: reaper.MediaTrack, module: Map
         if (!slotsContain(slots, slot)) continue;
         var name_buf: [512:0]u8 = undefined;
         const base = fxBaseName(track, i, &name_buf) orelse continue;
-        const mapping = globals.map_store.get(module, base) orelse continue;
+        const mapping = globals.map_store.get(io, module, base) orelse continue;
         routing.merge(i, mapping);
     }
     return routing;

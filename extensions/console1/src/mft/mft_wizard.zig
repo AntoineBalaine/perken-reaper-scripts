@@ -152,13 +152,16 @@ pub fn observedText(r: Result, buf: [:0]u8) [:0]const u8 {
 }
 
 // Write a markdown report of the run to <dir>/wizard_report.md.
-pub fn writeReport(self: *const WizardState, dir: [:0]const u8) !void {
+pub fn writeReport(self: *const WizardState, io: std.Io, dir: [:0]const u8) !void {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = try std.fmt.bufPrint(&path_buf, "{s}{s}wizard_report.md", .{ dir, std.fs.path.sep_str });
 
-    const file = try std.fs.createFileAbsolute(path, .{ .truncate = true });
-    defer file.close();
-    var w = file.writer();
+    const file = try std.Io.Dir.createFileAbsolute(io, path, .{ .truncate = true });
+    defer file.close(io);
+    // Because file writers are buffered since Zig 0.15, the writer is flushed before the file closes.
+    var w_buffer: [4096]u8 = undefined;
+    var w_file_writer = file.writer(io, &w_buffer);
+    const w = &w_file_writer.interface;
 
     try w.writeAll("# MFT calibration report\n\n");
     try w.writeAll("| step | instruction | expected | observed | result |\n");
@@ -177,6 +180,7 @@ pub fn writeReport(self: *const WizardState, dir: [:0]const u8) !void {
         });
     }
     log.info("calibration report written to {s}", .{path});
+    try w.flush();
 }
 
 test "wizard: steps cover all controls" {

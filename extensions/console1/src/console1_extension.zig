@@ -4,11 +4,8 @@ const std = @import("std");
 const Reaper = @import("reaper");
 const reaper = Reaper.reaper;
 const control_surface = @import("csurf/control_surface.zig");
-const c = @cImport({
-    // ARM64 has unsigned char by default, skip WDL's signedness assertion
-    @cDefine("WDL_ALLOW_UNSIGNED_DEFAULT_CHAR", "1");
-    @cInclude("csurf/control_surface_wrapper.h");
-});
+// The C declarations, translated by the build from src/csurf/c_bindings.h.
+const c = @import("c");
 const ImGuiLoop = @import("imgui_loop.zig");
 const Globals = @import("globals.zig");
 
@@ -25,10 +22,10 @@ pub const std_options = blk: {
 
     break :blk std.Options{
         .log_level = if (is_test) .err else switch (@import("builtin").mode) {
-            .Debug => .debug,
-            .ReleaseSafe => .info,
-            .ReleaseFast => .warn,
-            .ReleaseSmall => .err,
+            .debug => .debug,
+            .safe => .info,
+            .fast => .warn,
+            .small => .err,
         },
         .logFn = logger.logFn,
     };

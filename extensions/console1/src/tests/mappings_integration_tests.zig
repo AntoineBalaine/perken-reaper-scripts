@@ -13,18 +13,20 @@ const PhysicalModule = @import("../statemachine.zig").PhysicalModule;
 const c1 = @import("../c1.zig");
 
 test "Integration - loading default mapping for new FX" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator));
+    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator, io));
 
-    var cur_config = try settings.init(allocator, config_path_z);
+    var cur_config = try settings.init(allocator, io, config_path_z);
 
-    var ml = MappingsList.init(allocator, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
 
     var store = try MapStore.init(
         allocator,
+        io,
         config_path_z,
         &ml,
         &cur_config.default_fx,
@@ -34,7 +36,7 @@ test "Integration - loading default mapping for new FX" {
     const test_fx = "VST: ReaComp (Cockos)";
 
     // Because this is a new FX (first access), we should load the default mapping from disk
-    const result = store.get(test_fx, .COMP, &ml);
+    const result = store.get(io, test_fx, .COMP, &ml);
 
     // Verify the mapping was loaded
     try testing.expect(result != null);
@@ -55,18 +57,20 @@ test "Integration - loading default mapping for new FX" {
 }
 
 test "Integration - loading a saved mapping reads the correct data" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator));
+    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator, io));
 
-    var cur_config = try settings.init(allocator, config_path_z);
+    var cur_config = try settings.init(allocator, io, config_path_z);
 
-    var ml = MappingsList.init(allocator, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
 
     var store = try MapStore.init(
         allocator,
+        io,
         config_path_z,
         &ml,
         &cur_config.default_fx,
@@ -89,14 +93,14 @@ test "Integration - loading a saved mapping reads the correct data" {
 
     const test_mapping = TaggedMapping{ .COMP = test_comp };
 
-    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
+    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps(io);
 
     // Construct save path
     var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
     const save_path = try std.mem.printSentinel(&save_path_buf, "{s}/maps/test_plugin/{s}.ini", .{ config_path_z, test_mapping_name }, 0);
 
     // Save the mapping to disk
-    try store.saveToFile(fs_ops, .COMP, test_fx, test_mapping, save_path, null);
+    try store.saveToFile(io, fs_ops, .COMP, test_fx, test_mapping, save_path, null);
 
     // Register the saved path in the mappings_list so getMap can look it up
     try ml.registerPath(.COMP, test_fx, test_mapping_name, save_path);
@@ -106,7 +110,7 @@ test "Integration - loading a saved mapping reads the correct data" {
     defer store2.deinit();
 
     // Because we saved a mapping, we should be able to load it
-    const loaded = try store2.getMap(test_fx, .COMP, test_mapping_name, &ml);
+    const loaded = try store2.getMap(io, test_fx, .COMP, test_mapping_name, &ml);
 
     try testing.expect(std.meta.activeTag(loaded) == .COMP);
 
@@ -120,25 +124,27 @@ test "Integration - loading a saved mapping reads the correct data" {
     try testing.expectEqual(test_comp.Comp_comp, loaded_comp.Comp_comp);
 
     // Clean up
-    std.fs.deleteFileAbsolute(save_path) catch {};
+    std.Io.Dir.deleteFileAbsolute(io, save_path) catch {};
     var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
     const dir_path = try std.fmt.bufPrint(&dir_buf, "{s}/maps/test_plugin", .{config_path_z});
-    std.fs.deleteDirAbsolute(dir_path) catch {};
+    std.Io.Dir.deleteDirAbsolute(io, dir_path) catch {};
 }
 
 test "Integration - the preferred mapping is used when loading an FX" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator));
+    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator, io));
 
-    var cur_config = try settings.init(allocator, config_path_z);
+    var cur_config = try settings.init(allocator, io, config_path_z);
 
-    var ml = MappingsList.init(allocator, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
 
     var store = try MapStore.init(
         allocator,
+        io,
         config_path_z,
         &ml,
         &cur_config.default_fx,
@@ -147,7 +153,7 @@ test "Integration - the preferred mapping is used when loading an FX" {
 
     const test_fx = "VST: TestPlugin2";
 
-    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
+    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps(io);
 
     // Construct save paths
     var default_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
@@ -178,8 +184,8 @@ test "Integration - the preferred mapping is used when loading an FX" {
     };
 
     // Save both mappings
-    try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = default_comp }, default_path, null);
-    try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = custom_comp }, custom_path, null);
+    try store.saveToFile(io, fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = default_comp }, default_path, null);
+    try store.saveToFile(io, fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = custom_comp }, custom_path, null);
 
     // Register paths
     try ml.registerPath(.COMP, test_fx, "default", default_path);
@@ -190,7 +196,7 @@ test "Integration - the preferred mapping is used when loading an FX" {
     defer store2.deinit();
 
     // Load the default mapping first (this sets it as preferred)
-    const loaded_default = try store2.getMap(test_fx, .COMP, "default", &ml);
+    const loaded_default = try store2.getMap(io, test_fx, .COMP, "default", &ml);
     try testing.expect(std.meta.activeTag(loaded_default) == .COMP);
 
     // Verify the preferred mapping is set to default
@@ -199,7 +205,7 @@ test "Integration - the preferred mapping is used when loading an FX" {
     try testing.expect(std.mem.endsWith(u8, preferred.?, "default.ini"));
 
     // Because get() uses the preferred mapping, we should get the default values
-    const result = store2.get(test_fx, .COMP, &ml);
+    const result = store2.get(io, test_fx, .COMP, &ml);
     try testing.expect(result != null);
 
     if (result) |tagged| {
@@ -209,7 +215,7 @@ test "Integration - the preferred mapping is used when loading an FX" {
     }
 
     // Load the custom mapping (this should NOT change the preferred)
-    _ = try store2.getMap(test_fx, .COMP, "custom", &ml);
+    _ = try store2.getMap(io, test_fx, .COMP, "custom", &ml);
 
     // Verify preferred is still default
     const preferred_after = store2.getPreferredMapping(test_fx, .COMP);
@@ -220,7 +226,7 @@ test "Integration - the preferred mapping is used when loading an FX" {
     try store2.setPreferredMapping(test_fx, .COMP, custom_path);
 
     // Verify get() now returns the custom mapping
-    const result_custom = store2.get(test_fx, .COMP, &ml);
+    const result_custom = store2.get(io, test_fx, .COMP, &ml);
     try testing.expect(result_custom != null);
 
     if (result_custom) |tagged| {
@@ -230,26 +236,28 @@ test "Integration - the preferred mapping is used when loading an FX" {
     }
 
     // Clean up test files
-    std.fs.deleteFileAbsolute(default_path) catch {};
-    std.fs.deleteFileAbsolute(custom_path) catch {};
+    std.Io.Dir.deleteFileAbsolute(io, default_path) catch {};
+    std.Io.Dir.deleteFileAbsolute(io, custom_path) catch {};
     var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
     const dir_path = try std.fmt.bufPrint(&dir_buf, "{s}/maps/test_plugin2", .{config_path_z});
-    std.fs.deleteDirAbsolute(dir_path) catch {};
+    std.Io.Dir.deleteDirAbsolute(io, dir_path) catch {};
 }
 
 test "Integration - multiple mappings per FX workflow" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator));
+    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator, io));
 
-    var cur_config = try settings.init(allocator, config_path_z);
+    var cur_config = try settings.init(allocator, io, config_path_z);
 
-    var ml = MappingsList.init(allocator, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
 
     var store = try MapStore.init(
         allocator,
+        io,
         config_path_z,
         &ml,
         &cur_config.default_fx,
@@ -280,7 +288,7 @@ test "Integration - multiple mappings per FX workflow" {
 
     const comps = [_]MapStore.Comp{ comp1, comp2, comp3 };
 
-    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps();
+    const fs_ops = fs_helpers.RealFileSystem.fileSystemOps(io);
 
     // Save all three mappings and register paths
     var path_bufs: [3][std.fs.max_path_bytes:0]u8 = undefined;
@@ -288,7 +296,7 @@ test "Integration - multiple mappings per FX workflow" {
 
     for (mapping_names, 0..) |mname, i| {
         save_paths[i] = try std.mem.printSentinel(&path_bufs[i], "{s}/maps/multi_test/{s}.ini", .{ config_path_z, mname }, 0);
-        try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = comps[i] }, save_paths[i], null);
+        try store.saveToFile(io, fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = comps[i] }, save_paths[i], null);
         try ml.registerPath(.COMP, test_fx, mname, save_paths[i]);
     }
 
@@ -308,38 +316,39 @@ test "Integration - multiple mappings per FX workflow" {
     try testing.expectEqual(@as(usize, 3), names.len);
 
     // Load each mapping and verify correct data
-    const loaded1 = try store2.getMap(test_fx, .COMP, "gentle", &ml);
+    const loaded1 = try store2.getMap(io, test_fx, .COMP, "gentle", &ml);
     try testing.expectEqual(comp1.Comp_Ratio, loaded1.COMP.Comp_Ratio);
     try testing.expectEqual(comp1.Comp_Attack, loaded1.COMP.Comp_Attack);
 
-    const loaded2 = try store2.getMap(test_fx, .COMP, "aggressive", &ml);
+    const loaded2 = try store2.getMap(io, test_fx, .COMP, "aggressive", &ml);
     try testing.expectEqual(comp2.Comp_Ratio, loaded2.COMP.Comp_Ratio);
     try testing.expectEqual(comp2.Comp_Attack, loaded2.COMP.Comp_Attack);
 
-    const loaded3 = try store2.getMap(test_fx, .COMP, "extreme", &ml);
+    const loaded3 = try store2.getMap(io, test_fx, .COMP, "extreme", &ml);
     try testing.expectEqual(comp3.Comp_Ratio, loaded3.COMP.Comp_Ratio);
     try testing.expectEqual(comp3.Comp_Attack, loaded3.COMP.Comp_Attack);
 
     // Clean up
     for (save_paths) |p| {
-        std.fs.deleteFileAbsolute(p) catch {};
+        std.Io.Dir.deleteFileAbsolute(io, p) catch {};
     }
     var dir_buf: [std.fs.max_path_bytes]u8 = undefined;
     const dir_path = try std.fmt.bufPrint(&dir_buf, "{s}/maps/multi_test", .{config_path_z});
-    std.fs.deleteDirAbsolute(dir_path) catch {};
+    std.Io.Dir.deleteDirAbsolute(io, dir_path) catch {};
 }
 
 test "mappings_list scans STRIP directories and populates list.get(.STRIP)" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
+    const config_path_z = try allocator.dupeSentinel(u8, config_path, 0);
 
-    var ml = MappingsList.init(allocator, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
 
     // Because the walkDir scanner reads module=STRIP from INI headers, any
     // strip mapping files in the maps/ tree should be indexed under list.get(.STRIP).
@@ -350,17 +359,19 @@ test "mappings_list scans STRIP directories and populates list.get(.STRIP)" {
 }
 
 test "getMap with .STRIP loads a ChannelStripMapping" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator));
+    const config_path_z: [:0]const u8 = std.mem.span(try getTestConfigPath(allocator, io));
 
-    var cur_config = try settings.init(allocator, config_path_z);
-    var ml = MappingsList.init(allocator, config_path_z);
+    var cur_config = try settings.init(allocator, io, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
 
     var store = try MapStore.init(
         allocator,
+        io,
         config_path_z,
         &ml,
         &cur_config.default_fx,
@@ -371,7 +382,7 @@ test "getMap with .STRIP loads a ChannelStripMapping" {
     // the same getMap path as other modules, calling get with .STRIP should
     // either return a TaggedMapping with .STRIP active or null if no strip
     // mappings exist in the test resources.
-    const result = store.get("JS: Evolution Channel Strip (chmaha)", .STRIP, &ml);
+    const result = store.get(io, "JS: Evolution Channel Strip (chmaha)", .STRIP, &ml);
     if (result) |tagged| {
         try testing.expect(std.meta.activeTag(tagged) == .STRIP);
     }

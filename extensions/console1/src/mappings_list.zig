@@ -39,7 +39,7 @@ pub fn empty(arena: std.mem.Allocator) @This() {
     };
 }
 
-pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
+pub fn init(arena: std.mem.Allocator, io: std.Io, resource_path: [:0]const u8) @This() {
     var strings: StringPool = .empty;
     var list = std.EnumArray(ModulesList, ModuleMap).initUndefined();
 
@@ -54,14 +54,14 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
         "maps",
     });
 
-    var maps_dir = std.fs.openDirAbsolute(maps_path, .{ .iterate = true }) catch {
+    var maps_dir = std.Io.Dir.openDirAbsolute(io, maps_path, .{ .iterate = true }) catch {
         return .{
             .list = list,
             .strings = strings,
             .allocator = arena,
         };
     };
-    defer maps_dir.close();
+    defer maps_dir.close(io);
 
     var walk_ctx = WalkContext{
         .strings = &strings,
@@ -72,7 +72,7 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) @This() {
     };
     @memcpy(walk_ctx.base_path_buf[0..maps_path.len], maps_path);
 
-    walkDir(&walk_ctx, maps_dir);
+    walkDir(&walk_ctx, io, maps_dir);
 
     return .{
         .list = list,
@@ -86,7 +86,7 @@ pub fn deinit(self: *@This()) void {
         var mod_map = self.list.getPtr(module);
         var iter = mod_map.iterator();
         while (iter.next()) |entry| {
-            entry.value_ptr.deinit();
+            entry.value_ptr.deinit(self.allocator);
         }
         mod_map.deinit(self.allocator);
     }
@@ -123,7 +123,7 @@ pub fn registerPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, 
     const mod_map = self.list.getPtr(module);
     const gop = try mod_map.getOrPut(self.allocator, fx_offset);
     if (!gop.found_existing) {
-        gop.value_ptr.* = std.ArrayList(MapEntry).init(self.allocator);
+        gop.value_ptr.* = .empty;
     }
 
     // Check if an entry with the same mapping name already exists
@@ -134,7 +134,7 @@ pub fn registerPath(self: *@This(), module: ModulesList, fx_name: [:0]const u8, 
         }
     }
 
-    try gop.value_ptr.append(.{
+    try gop.value_ptr.append(self.allocator, .{
         .name_offset = name_offset,
         .path_offset = path_offset,
     });
@@ -148,12 +148,12 @@ const WalkContext = struct {
     base_path_len: usize,
 };
 
-fn walkDir(ctx: *WalkContext, dir: std.fs.Dir) void {
+fn walkDir(ctx: *WalkContext, io: std.Io, dir: std.Io.Dir) void {
     var iter = dir.iterate();
-    while (iter.next() catch null) |entry| {
+    while (iter.next(io) catch null) |entry| {
         if (entry.kind == .directory) {
-            var sub_dir = dir.openDir(entry.name, .{ .iterate = true }) catch continue;
-            defer sub_dir.close();
+            var sub_dir = dir.openDir(io, entry.name, .{ .iterate = true }) catch continue;
+            defer sub_dir.close(io);
 
             // Extend path: current_path / entry.name
             const old_len = ctx.base_path_len;
@@ -163,18 +163,18 @@ fn walkDir(ctx: *WalkContext, dir: std.fs.Dir) void {
             @memcpy(ctx.base_path_buf[old_len + sep.len .. old_len + sep.len + entry.name.len], entry.name);
             ctx.base_path_len = old_len + sep.len + entry.name.len;
 
-            walkDir(ctx, sub_dir);
+            walkDir(ctx, io, sub_dir);
 
             // Restore path length
             ctx.base_path_len = old_len;
         } else if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".ini")) {
-            processIniFile(ctx, dir, entry.name);
+            processIniFile(ctx, io, dir, entry.name);
         }
     }
 }
 
-fn processIniFile(ctx: *WalkContext, dir: std.fs.Dir, file_name: []const u8) void {
-    const header = readIniHeader(ctx.arena, dir, file_name) orelse return;
+fn processIniFile(ctx: *WalkContext, io: std.Io, dir: std.Io.Dir, file_name: []const u8) void {
+    const header = readIniHeader(ctx.arena, io, dir, file_name) orelse return;
 
     // Extract mapping name (filename without .ini extension)
     const mapping_name_slice = file_name[0 .. file_name.len - 4];
@@ -202,23 +202,25 @@ fn processIniFile(ctx: *WalkContext, dir: std.fs.Dir, file_name: []const u8) voi
     const mod_map = ctx.list.getPtr(header.module);
     const gop = mod_map.getOrPut(ctx.arena, fx_offset) catch return;
     if (!gop.found_existing) {
-        gop.value_ptr.* = std.ArrayList(MapEntry).init(ctx.arena);
+        gop.value_ptr.* = .empty;
     }
 
-    gop.value_ptr.append(.{
+    gop.value_ptr.append(ctx.arena, .{
         .name_offset = name_offset,
         .path_offset = path_offset,
     }) catch return;
 }
 
-fn readIniHeader(arena: std.mem.Allocator, dir: std.fs.Dir, file_name: []const u8) ?IniHeader {
-    const file = dir.openFile(file_name, .{}) catch return null;
-    defer file.close();
+fn readIniHeader(arena: std.mem.Allocator, io: std.Io, dir: std.Io.Dir, file_name: []const u8) ?IniHeader {
+    const file = dir.openFile(io, file_name, .{}) catch return null;
+    defer file.close(io);
 
     var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer temp_arena.deinit();
 
-    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    var file_buffer: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &file_buffer);
+    var parser = ini.parse(temp_arena.allocator(), &file_reader.interface, ";#");
     defer parser.deinit();
 
     var module: ?ModulesList = null;
@@ -233,7 +235,7 @@ fn readIniHeader(arena: std.mem.Allocator, dir: std.fs.Dir, file_name: []const u
                     }
                 }
             } else if (std.mem.eql(u8, record.property.key, "fx_name")) {
-                fx_name = arena.dupeZ(u8, record.property.value) catch return null;
+                fx_name = arena.dupeSentinel(u8, record.property.value, 0) catch return null;
             }
         }
         if (module != null and fx_name != null) break;
@@ -249,17 +251,18 @@ fn readIniHeader(arena: std.mem.Allocator, dir: std.fs.Dir, file_name: []const u
 }
 
 test "init scans resources/maps/defaults and finds default mappings" {
+    const io = std.testing.io;
     const testing = std.testing;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
+    const config_path_z = try allocator.dupeSentinel(u8, config_path, 0);
 
-    var ml = init(allocator, config_path_z);
+    var ml = init(allocator, io, config_path_z);
     _ = &ml;
 
     try testing.expect(ml.list.getPtr(.COMP).count() >= 1);
@@ -319,7 +322,7 @@ test "mappings_list stores FX names with slashes correctly" {
     defer {
         var iter = list.iterator();
         while (iter.next()) |entry| {
-            entry.value_ptr.deinit();
+            entry.value_ptr.deinit(allocator);
         }
         list.deinit(allocator);
     }
@@ -364,6 +367,7 @@ test "mappings_list stores FX names with slashes correctly" {
 }
 
 test "multiple maps for the same FX are grouped under one key" {
+    const io = std.testing.io;
     const testing = std.testing;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -375,23 +379,23 @@ test "multiple maps for the same FX are grouped under one key" {
     var tmp_dir = testing.tmpDir(.{});
     defer tmp_dir.cleanup();
 
-    try tmp_dir.dir.makePath("maps/EQ/reaeq");
+    try tmp_dir.dir.createDirPath(io, "maps/EQ/reaeq");
     {
-        const f = try tmp_dir.dir.createFile("maps/EQ/reaeq/default.ini", .{});
-        defer f.close();
-        try f.writeAll("version=1\nmodule=EQ\nfx_name=VST: ReaEQ (Cockos)\nEq_HiFrq=0\n");
+        const f = try tmp_dir.dir.createFile(io, "maps/EQ/reaeq/default.ini", .{});
+        defer f.close(io);
+        try f.writeStreamingAll(io, "version=1\nmodule=EQ\nfx_name=VST: ReaEQ (Cockos)\nEq_HiFrq=0\n");
     }
     {
-        const f = try tmp_dir.dir.createFile("maps/EQ/reaeq/alternate.ini", .{});
-        defer f.close();
-        try f.writeAll("version=1\nmodule=EQ\nfx_name=VST: ReaEQ (Cockos)\nEq_HiFrq=9\n");
+        const f = try tmp_dir.dir.createFile(io, "maps/EQ/reaeq/alternate.ini", .{});
+        defer f.close(io);
+        try f.writeStreamingAll(io, "version=1\nmodule=EQ\nfx_name=VST: ReaEQ (Cockos)\nEq_HiFrq=9\n");
     }
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const tmp_path = try tmp_dir.dir.realpath(".", &path_buf);
-    const config_path_z = try allocator.dupeZ(u8, tmp_path);
+    const tmp_path = path_buf[0..try tmp_dir.dir.realPathFile(io, ".", &path_buf)];
+    const config_path_z = try allocator.dupeSentinel(u8, tmp_path, 0);
 
-    var ml = init(allocator, config_path_z);
+    var ml = init(allocator, io, config_path_z);
     _ = &ml;
 
     const eq_map = ml.list.getPtr(.EQ);

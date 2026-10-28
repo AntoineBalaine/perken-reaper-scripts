@@ -72,7 +72,9 @@ track_state: TrackState = .{},
 ///
 /// Unfortunately, I can’t use an enum map
 /// because of the eval branch quota limitations on large enums.
-values: std.AutoArrayHashMap(c1.CCs, ControlValue),
+values: std.AutoArrayHashMapUnmanaged(c1.CCs, ControlValue),
+/// The allocator of `values`, which is unmanaged.
+values_allocator: std.mem.Allocator,
 scRouting: SCRouting = .off,
 filter_to_comp: bool = false,
 
@@ -91,11 +93,11 @@ current_page: u8 = 0,
 track_list: TrackList,
 
 pub fn init(gpa: std.mem.Allocator) FxControlState {
-    var values = std.AutoArrayHashMap(c1.CCs, ControlValue).init(gpa);
+    var values: std.AutoArrayHashMapUnmanaged(c1.CCs, ControlValue) = .empty;
 
     // Initialize with appropriate types and labels
     inline for (comptime std.enums.values(c1.CCs)) |cc| {
-        values.put(cc, switch (cc) {
+        values.put(gpa, cc, switch (cc) {
             // Track selection buttons
             .Tr_tr1, .Tr_tr10, .Tr_tr11, .Tr_tr12, .Tr_tr13, .Tr_tr14, .Tr_tr15, .Tr_tr16, .Tr_tr17, .Tr_tr18, .Tr_tr19, .Tr_tr2, .Tr_tr20, .Tr_tr3, .Tr_tr4, .Tr_tr5, .Tr_tr6, .Tr_tr7, .Tr_tr8, .Tr_tr9 => .{ .track = .{} },
             // Meters
@@ -119,12 +121,13 @@ pub fn init(gpa: std.mem.Allocator) FxControlState {
 
     return .{
         .values = values,
+        .values_allocator = gpa,
         .track_list = TrackList.init(),
     };
 }
 
 pub fn deinit(self: *@This()) void {
-    self.values.deinit();
+    self.values.deinit(self.values_allocator);
 }
 
 // Tuple contains: isLoaded, idxInContainer
@@ -155,9 +158,10 @@ pub fn validateTrack(
     map_store: *MapStore,
     preferences: *const Preferences,
     allocator: std.mem.Allocator,
+    io: std.Io,
     mappings_list: *MappingsList,
 ) !void {
-    const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store, preferences.*, allocator, mappings_list);
+    const coverage = self.track_state.validateTrack(mediaTrack, default_fx, map_store, preferences.*, allocator, io, mappings_list);
     self.track_state.getLabels(mediaTrack);
 
     if (!manual_routing) {

@@ -25,13 +25,14 @@ pub const WidgetInput = @import("action_types.zig").WidgetInput;
 pub const FxCtrlAction = @import("action_types.zig").FxCtrlAction;
 
 pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
+    const io = Globals.hostIo();
     switch (fx_action) {
         .midi_input => |input| {
             log.debug(
                 "MIDI input: {s} -> {d} evt: {}",
                 .{ @tagName(input.cc), input.value, logger.Event{ .midi_input = .{ .cc = input.cc, .value = input.value } } },
             );
-            onMidiEvent_FxCtrl(input.cc, input.value, globals);
+            onMidiEvent_FxCtrl(io, input.cc, input.value, globals);
         },
         .panel_input => |input| {
             // Special handling for our three controls
@@ -107,6 +108,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                             &globals.map_store,
                             &globals.preferences,
                             globals.arena_int.allocator(),
+                            io,
                             &globals.mappings_list,
                         ) catch {};
                     }
@@ -128,6 +130,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                             &globals.map_store,
                             &globals.preferences,
                             globals.arena_int.allocator(),
+                            io,
                             &globals.mappings_list,
                         ) catch {};
                     }
@@ -274,6 +277,7 @@ fn handleFxWindowDisplay(globals: *Globals, media_track: MediaTrack) void {
 }
 
 fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
+    const io = Globals.hostIo();
     log.debug("track entry", .{});
     const id = reaper.CSurf_TrackToID(media_track, constants.g_csurf_mcpmode);
 
@@ -286,6 +290,7 @@ fn onTrackEntry(globals: *Globals, media_track: MediaTrack) void {
         &globals.map_store,
         &globals.preferences,
         globals.arena_int.allocator(),
+        io,
         &globals.mappings_list,
     ) catch {
         log.err("track validation failed: track {d}", .{id});

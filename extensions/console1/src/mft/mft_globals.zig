@@ -6,6 +6,15 @@ const MftMapStore = @import("mft_map_store.zig").MftMapStore;
 const WizardState = @import("mft_wizard.zig").WizardState;
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
 
+/// The std.Io that the MFT extension does its file work with. Because REAPER loads the extension as a
+/// library, there is no main() to receive one from, so the extension owns it here. The extension's init
+/// replaces this single-threaded default with host_io.create(); tests keep the default.
+pub var io_threaded: std.Io.Threaded = .init_single_threaded;
+
+pub fn hostIo() std.Io {
+    return io_threaded.io();
+}
+
 pub const MftGlobals = struct {
     m_midi_in: ?*reaper.midi_Input = null,
     m_midi_out: ?reaper.midi_Output = null,
@@ -29,6 +38,7 @@ pub const MftGlobals = struct {
     }
 
     pub fn init(self: *MftGlobals) void {
+        const io = hostIo();
         self.arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         const alloc = self.arena.allocator();
 
@@ -37,13 +47,13 @@ pub const MftGlobals = struct {
         const joined = fs_helpers.joinStrings(&path_buf, &.{
             reaper_path, std.fs.path.sep_str, "Data", std.fs.path.sep_str, "Perken", std.fs.path.sep_str, "MFT",
         });
-        self.resource_path = alloc.dupeZ(u8, joined) catch "";
+        self.resource_path = alloc.dupeSentinel(u8, joined, 0) catch "";
         self.map_store = MftMapStore.init(alloc, self.resource_path);
 
         // Load preferences, writing the defaults on first run.
-        self.preferences = MftPreferences.load(alloc, self.resource_path) catch blk: {
+        self.preferences = MftPreferences.load(alloc, io, self.resource_path) catch blk: {
             const defaults = MftPreferences{};
-            defaults.saveToDisk(self.resource_path) catch {};
+            defaults.saveToDisk(io, self.resource_path) catch {};
             break :blk defaults;
         };
     }

@@ -158,7 +158,7 @@ pub fn ensureConfigPath(fs_ops: FileSystemOps) !void {
 
 /// Copy embedded default files to a target directory for testing.
 /// Tests need actual mapping files in the temp directory.
-pub fn copyEmbeddedFilesToDir(fs_ops: FileSystemOps, target_path: []const u8) !void {
+pub fn copyEmbeddedFilesToDir(io: std.Io, fs_ops: FileSystemOps, target_path: []const u8) !void {
     var buf1: [std.fs.max_path_bytes]u8 = undefined;
     var buf2: [std.fs.max_path_bytes]u8 = undefined;
     var buf3: [std.fs.max_path_bytes]u8 = undefined;
@@ -187,7 +187,7 @@ pub fn copyEmbeddedFilesToDir(fs_ops: FileSystemOps, target_path: []const u8) !v
     // forbids (such as "JS: ReaComp"), and saving now uses the Windows-safe
     // name, we rename existing folders once so that an edited map is not left
     // next to a newer copy of itself.
-    fs_helpers.migrateFolderNamesRecursive(maps_path) catch |err| {
+    fs_helpers.migrateFolderNamesRecursive(io, maps_path) catch |err| {
         std.log.err("Failed to rename legacy map folders in {s}: {s}", .{ maps_path, @errorName(err) });
     };
 

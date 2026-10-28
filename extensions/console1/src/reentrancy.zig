@@ -133,6 +133,8 @@ pub const Notification = struct {
 pub const ApiTestResult = struct {
     api_call: TestApiCall,
     notifications: std.ArrayList(Notification),
+    /// The allocator of `notifications`, which is unmanaged.
+    allocator: std.mem.Allocator,
     start_time: i64,
     end_time: i64,
 };
@@ -142,7 +144,7 @@ pub const ApiTest = struct {
 
     pub fn init(allocator: std.mem.Allocator) ApiTest {
         return .{
-            .results = std.ArrayList(ApiTestResult).init(allocator),
+            .results = .empty,
             .allocator = allocator,
         };
     }
@@ -208,11 +210,12 @@ pub const ApiTest = struct {
         }
     }
 
-    pub fn runTest(self: *ApiTest, api_call: TestApiCall, test_track: reaper.MediaTrack, witness_track: reaper.MediaTrack) !void {
+    pub fn runTest(self: *ApiTest, io: std.Io, api_call: TestApiCall, test_track: reaper.MediaTrack, witness_track: reaper.MediaTrack) !void {
         var test_result = ApiTestResult{
             .api_call = api_call,
-            .notifications = std.ArrayList(Notification).init(self.allocator),
-            .start_time = std.time.milliTimestamp(),
+            .notifications = .empty,
+            .allocator = self.allocator,
+            .start_time = std.Io.Timestamp.now(io, .real).toMilliseconds(),
             .end_time = undefined,
         };
 
@@ -279,13 +282,13 @@ pub const ApiTest = struct {
                 else => {},
             }
 
-            test_result.end_time = std.time.milliTimestamp();
+            test_result.end_time = std.Io.Timestamp.now(io, .real).toMilliseconds();
         }
 
         // Tear down the test
         tearDown(api_call, test_track, witness_track);
 
-        try self.results.append(test_result);
+        try self.results.append(self.allocator, test_result);
     }
 };
 
@@ -296,8 +299,8 @@ fn isFXRelatedTest(api_call: TestApiCall) bool {
     };
 }
 
-pub fn runAllTests() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+pub fn runAllTests(io: std.Io) !void {
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     var arena = std.heap.ArenaAllocator.init(gpa.allocator());
     defer arena.deinit(); // This will free all allocations
@@ -314,39 +317,42 @@ pub fn runAllTests() !void {
     const tracks = try setupTestEnvironment();
 
     // Run test_s for each API call
-    inline for (comptime std.meta.fields(TestApiCall)) |field| {
-        const api_call = @field(TestApiCall, field.name);
+    inline for (@typeInfo(TestApiCall).@"enum".field_names) |field_name| {
+        const api_call = @field(TestApiCall, field_name);
         if (!isFXRelatedTest(api_call)) {
-            try test_.runTest(api_call, tracks.test_track, tracks.witness_track);
-            std.time.sleep(50 * std.time.ns_per_ms);
+            try test_.runTest(io, api_call, tracks.test_track, tracks.witness_track);
+            io.sleep(.fromMilliseconds(50), .awake) catch {};
         }
     }
 
     // Then run FX tests with more delay
-    inline for (@typeInfo(TestApiCall).@"struct".field_names) |field_name| {
+    inline for (@typeInfo(TestApiCall).@"enum".field_names) |field_name| {
         const api_call = @field(TestApiCall, field_name);
         if (isFXRelatedTest(api_call)) {
-            try test_.runTest(api_call, tracks.test_track, tracks.witness_track);
-            std.time.sleep(100 * std.time.ns_per_ms);
+            try test_.runTest(io, api_call, tracks.test_track, tracks.witness_track);
+            io.sleep(.fromMilliseconds(100), .awake) catch {};
         }
     }
 
     // Generate report
-    try generateReport(&test_, null);
+    try generateReport(io, &test_, null);
 }
 
-fn generateReport(test_: *const ApiTest, filename: ?[]const u8) !void {
+fn generateReport(io: std.Io, test_: *const ApiTest, filename: ?[]const u8) !void {
     const path = if (filename) |name| name else "reentrancy_report.txt";
 
     // Try to open existing file, create if doesn't exist
-    var file = std.fs.cwd().openFile(path, .{ .mode = .read_write }) catch std.fs.cwd().createFile(path, .{}) catch return;
-    defer file.close();
+    var file = std.Io.Dir.cwd().openFile(io, path, .{ .mode = .read_write }) catch std.Io.Dir.cwd().createFile(io, path, .{}) catch return;
+    defer file.close(io);
 
-    // Seek to end of file
-    const stat = try file.stat();
-    try file.seekTo(stat.size);
+    // Because file writers are buffered since Zig 0.15, the writer is flushed before the file closes.
+    var writer_buffer: [4096]u8 = undefined;
+    var writer_file_writer = file.writer(io, &writer_buffer);
+    const writer = &writer_file_writer.interface;
 
-    const writer = file.writer();
+    // Seek to end of file. Because the position belongs to the writer since Zig 0.16, the writer seeks.
+    const stat = try file.stat(io);
+    try writer_file_writer.seekTo(stat.size);
 
     // Add separator between test runs
     try writer.writeAll("\n=================================\n");
@@ -376,6 +382,7 @@ fn generateReport(test_: *const ApiTest, filename: ?[]const u8) !void {
 
         try writer.writeAll("\n");
     }
+    try writer.flush();
 }
 
 fn setupTestEnvironment() !struct { test_track: reaper.MediaTrack, witness_track: reaper.MediaTrack } {
@@ -400,7 +407,7 @@ fn setupTestEnvironment() !struct { test_track: reaper.MediaTrack, witness_track
 pub fn runInitialTest() !void {
     const tracks = try setupTestEnvironment();
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     var arena = std.heap.ArenaAllocator.init(gpa.allocator());
     defer arena.deinit(); // This will free all allocations
@@ -414,21 +421,21 @@ pub fn runInitialTest() !void {
     try generateReport(&test_, null);
 }
 
-pub fn runSingleTest(api_call: TestApiCall) !void {
+pub fn runSingleTest(io: std.Io, api_call: TestApiCall) !void {
     const tracks = try setupTestEnvironment();
 
     var test_ = ApiTest.init(std.heap.page_allocator);
     defer {
         for (test_.results.items) |*result| {
-            result.notifications.deinit();
+            result.notifications.deinit(result.allocator);
         }
-        test_.results.deinit();
+        test_.results.deinit(test_.allocator);
     }
 
-    try test_.runTest(api_call, tracks.test_track, tracks.witness_track);
+    try test_.runTest(io, api_call, tracks.test_track, tracks.witness_track);
 
     // Generate report with specific name for this test
     // var buf: [256]u8 = undefined;
     // const report_name = try std.fmt.bufPrint(&buf, "reentrancy_report_{s}.txt", .{@tagName(api_call)});
-    try generateReport(&test_, null);
+    try generateReport(io, &test_, null);
 }

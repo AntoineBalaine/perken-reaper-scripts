@@ -1,22 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const c = @cImport({
-    @cDefine("WDL_ALLOW_UNSIGNED_DEFAULT_CHAR", "1");
-    if (builtin.os.tag != .windows) {
-        @cDefine("SWELL_PROVIDED_BY_APP", "");
-    }
-    @cInclude("csurf/control_surface_wrapper.h");
-    if (builtin.os.tag == .windows) {
-        @cInclude("windows.h");
-    } else {
-        @cInclude("WDL/swell/swell-types.h");
-        @cInclude("WDL/swell/swell-functions.h");
-    }
-    @cInclude("WDL/win32_utf8.h");
-    @cInclude("WDL/wdltypes.h");
-    @cInclude("resource.h");
-    @cInclude("csurf/midi_wrapper.h");
-});
+// The C declarations, translated by the build from src/csurf/c_bindings.h.
+const c = @import("c");
 const c1 = @import("../c1.zig");
 const Globals = @import("../globals.zig").Globals;
 const actions = @import("../actions.zig");
@@ -42,7 +27,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
     const status = msg[0] & 0xf0;
     const chan = msg[0] & 0x0f;
     _ = chan;
-    const cc_enum: ?c1.CCs = std.meta.intToEnum(c1.CCs, if (status == 0xb0) msg[1] else msg[0]) catch null;
+    const cc_enum: ?c1.CCs = std.enums.fromInt(c1.CCs, if (status == 0xb0) msg[1] else msg[0]);
     const val = if (status == 0xb0) msg[2] else msg[1];
 
     if (cc_enum) |cc| {

@@ -275,6 +275,7 @@ pub fn validateTrack(
     map_store: *MapStore,
     preferences: Preferences,
     allocator: std.mem.Allocator,
+    io: std.Io,
     mappings_list: *MappingsList,
 ) ModuleCoverage {
     track_state.fx_states = undefined;
@@ -313,7 +314,7 @@ pub fn validateTrack(
     }
 
     if (parsed_fx.items.len == 0) {
-        if (tryInsertDefaultStrip(track_state, mediaTrack, preferences, map_store, allocator, mappings_list)) {
+        if (tryInsertDefaultStrip(track_state, mediaTrack, preferences, map_store, allocator, io, mappings_list)) {
             return ModuleCoverage{};
         }
     }
@@ -329,7 +330,7 @@ pub fn validateTrack(
                     if (reaper.TrackFX_GetNamedConfigParm(mediaTrack, fx.index, "original_name", &buf, buf.len)) {
                         const fx_name = std.mem.span(@as([*:0]const u8, &buf));
                         const fx_name_z: [:0]const u8 = @ptrCast(fx_name);
-                        const mapping = if (map_store.get(fx_name_z, .STRIP, mappings_list)) |tagged|
+                        const mapping = if (map_store.get(io, fx_name_z, .STRIP, mappings_list)) |tagged|
                             tagged.STRIP
                         else
                             MapStore.ChannelStripMapping{};
@@ -352,7 +353,7 @@ pub fn validateTrack(
 
     var coverage = analyzeCoverage(&parsed_fx, mediaTrack);
     coverage = reorderFx2(coverage, mediaTrack, default_fx, preferences);
-    updateTrackState(track_state, coverage, mediaTrack, &buf, map_store, allocator, mappings_list);
+    updateTrackState(track_state, coverage, mediaTrack, &buf, map_store, allocator, io, mappings_list);
     return coverage;
 }
 
@@ -388,6 +389,7 @@ fn tryInsertDefaultStrip(
     preferences: Preferences,
     map_store: *MapStore,
     allocator: std.mem.Allocator,
+    io: std.Io,
     mappings_list: *MappingsList,
 ) bool {
     const strip_fx_name = preferences.default_fx.get(.STRIP) orelse return false;
@@ -401,7 +403,7 @@ fn tryInsertDefaultStrip(
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, new_idx, "renamed_name", new_name });
 
     const strip_name_z: [:0]const u8 = strip_fx_name;
-    const mapping = if (map_store.get(strip_name_z, .STRIP, mappings_list)) |tagged|
+    const mapping = if (map_store.get(io, strip_name_z, .STRIP, mappings_list)) |tagged|
         tagged.STRIP
     else
         MapStore.ChannelStripMapping{};
@@ -1059,6 +1061,7 @@ test "reorderFx2 - wrong order needs reordering" {
 }
 
 test "updateTrackState - module_locations populated correctly" {
+    const io = std.testing.io;
     const testing = std.testing;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -1100,11 +1103,11 @@ test "updateTrackState - module_locations populated correctly" {
 
     // proper absolute path for MapStore
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
-    const config_path_z = try arena.allocator().dupeZ(u8, config_path);
+    const config_path_z = try arena.allocator().dupeSentinel(u8, config_path, 0);
 
-    var ml = MappingsList.init(arena.allocator(), config_path_z);
+    var ml = MappingsList.init(arena.allocator(), io, config_path_z);
     var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
@@ -1112,7 +1115,7 @@ test "updateTrackState - module_locations populated correctly" {
     defer track_state.deinitMaps(std.testing.allocator);
     var buf: [512:0]u8 = undefined;
 
-    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, &ml);
+    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, io, &ml);
 
     // Because module_locations should be populated for INPUT, GATE, EQ
     try testing.expect(track_state.mode.multi_fx.get(.INPUT) != null);
@@ -1130,6 +1133,7 @@ test "updateTrackState - module_locations populated correctly" {
 }
 
 test "updateTrackState - fx_count matches module count" {
+    const io = std.testing.io;
     const testing = std.testing;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -1176,11 +1180,11 @@ test "updateTrackState - fx_count matches module count" {
 
     // Setup proper absolute path for MapStore
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
-    const config_path_z = try arena.allocator().dupeZ(u8, config_path);
+    const config_path_z = try arena.allocator().dupeSentinel(u8, config_path, 0);
 
-    var ml = MappingsList.init(arena.allocator(), config_path_z);
+    var ml = MappingsList.init(arena.allocator(), io, config_path_z);
     var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
@@ -1188,13 +1192,14 @@ test "updateTrackState - fx_count matches module count" {
     defer track_state.deinitMaps(std.testing.allocator);
     var buf: [512:0]u8 = undefined;
 
-    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, &ml);
+    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, io, &ml);
 
     // Because fx_count should equal the number of modules
     try testing.expectEqual(@as(usize, 5), track_state.fx_count);
 }
 
 test "updateTrackState - missing mapping handled gracefully" {
+    const io = std.testing.io;
     const testing = std.testing;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -1216,11 +1221,11 @@ test "updateTrackState - missing mapping handled gracefully" {
 
     // Setup proper absolute path for MapStore
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
     const config_path = try std.fs.path.resolve(arena.allocator(), &.{ pth, "src/resources/" });
-    const config_path_z = try arena.allocator().dupeZ(u8, config_path);
+    const config_path_z = try arena.allocator().dupeSentinel(u8, config_path, 0);
 
-    var ml = MappingsList.init(arena.allocator(), config_path_z);
+    var ml = MappingsList.init(arena.allocator(), io, config_path_z);
     var map_store = MapStore.empty(arena.allocator(), config_path_z);
     defer map_store.deinit();
 
@@ -1228,7 +1233,7 @@ test "updateTrackState - missing mapping handled gracefully" {
     defer track_state.deinitMaps(std.testing.allocator);
     var buf: [512:0]u8 = undefined;
 
-    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, &ml);
+    updateTrackState(&track_state, coverage, track, &buf, &map_store, std.testing.allocator, io, &ml);
 
     // Because module_locations should still record the FX index even with null mapping
     try testing.expect(track_state.mode.multi_fx.get(.COMP) != null);
@@ -1344,6 +1349,7 @@ pub fn updateTrackState(
     buf: *[512:0]u8,
     map_store: *MapStore,
     allocator: std.mem.Allocator,
+    io: std.Io,
     mappings_list: *MappingsList,
 ) void {
     track_state.fx_count = 0;
@@ -1361,7 +1367,7 @@ pub fn updateTrackState(
 
             const phys_module = @field(PhysicalModule, field_name);
             const module = @field(ModulesList, field_name);
-            const tagged_mapping = map_store.get(std.mem.span(@as([*:0]const u8, buf)), module, mappings_list);
+            const tagged_mapping = map_store.get(io, std.mem.span(@as([*:0]const u8, buf)), module, mappings_list);
             locs.set(phys_module, .{
                 .fx_index = location.index,
                 .mapping = tagged_mapping,
@@ -1863,7 +1869,7 @@ test "reorderFx2 - property-based ordering validation" {
 
         // Generate random bytes for this iteration
         var random_bytes: [64]u8 = undefined;
-        std.crypto.random.bytes(&random_bytes);
+        std.testing.io.random(&random_bytes);
         var prng = std.Random.DefaultPrng.init(@as(u64, @bitCast(random_bytes[0..8].*)));
         var random = prng.random();
 

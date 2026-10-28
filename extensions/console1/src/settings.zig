@@ -39,7 +39,7 @@ pub const SettingsFields = enum {
     default_OUTPT,
 
     pub fn fromIndex(index: u8) ?SettingsFields {
-        return std.meta.intToEnum(SettingsFields, index) catch null;
+        return std.enums.fromInt(SettingsFields, index);
     }
 };
 
@@ -82,7 +82,7 @@ pub fn defaults(arena: std.mem.Allocator) !@This() {
     // Copy fallback defaults for preferences
     inline for (comptime std.enums.values(ModulesList)) |module| {
         if (fallback_defaults.get(module)) |fallback| {
-            const owned_copy = try arena.dupeZ(u8, fallback);
+            const owned_copy = try arena.dupeSentinel(u8, fallback, 0);
             self.default_fx.set(module, owned_copy);
         } else {
             self.default_fx.set(module, null);
@@ -91,14 +91,14 @@ pub fn defaults(arena: std.mem.Allocator) !@This() {
     return self;
 }
 
-pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences {
+pub fn init(arena: std.mem.Allocator, io: std.Io, resource_path: [:0]const u8) !Preferences {
     var self: @This() = .empty;
     self.default_fx = DefaultFx.initUndefined();
 
     // Always start by copying fallback defaults
     inline for (comptime std.enums.values(ModulesList)) |module| {
         if (fallback_defaults.get(module)) |fallback| {
-            const owned_copy = try arena.dupeZ(u8, fallback);
+            const owned_copy = try arena.dupeSentinel(u8, fallback, 0);
             self.default_fx.set(module, owned_copy);
         } else {
             self.default_fx.set(module, null);
@@ -108,13 +108,13 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences 
     // Try to load preferences from disk. If the file is missing, we silently
     // create it with the fallback defaults so the user does not have to deal
     // with missing-file errors.
-    self.load(resource_path, arena) catch |err| {
+    self.load(resource_path, arena, io) catch |err| {
         const config = @import("config");
         if (@hasDecl(config, "test") and @field(config, "test")) {
             log.debug("Mapping path is not absolute: {s}", .{resource_path});
         } else {
             log.warn("Failed to load preferences: {s} at {s}, creating default file", .{ @errorName(err), resource_path });
-            self.saveToDisk(resource_path) catch |save_err| {
+            self.saveToDisk(io, resource_path) catch |save_err| {
                 log.warn("Failed to create default preferences file: {}", .{save_err});
             };
         }
@@ -123,7 +123,7 @@ pub fn init(arena: std.mem.Allocator, resource_path: [:0]const u8) !Preferences 
     return self;
 }
 
-fn load(self: *Preferences, resource_path: [:0]const u8, arena: std.mem.Allocator) !void {
+fn load(self: *Preferences, resource_path: [:0]const u8, arena: std.mem.Allocator, io: std.Io) !void {
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
         resource_path,
@@ -131,16 +131,18 @@ fn load(self: *Preferences, resource_path: [:0]const u8, arena: std.mem.Allocato
         "preferences.ini",
     });
 
-    const file = try std.fs.openFileAbsolute(path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
+    defer file.close(io);
 
     var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer temp_arena.deinit();
-    var parser = ini.parse(temp_arena.allocator(), file.reader());
+    var file_buffer: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &file_buffer);
+    var parser = ini.parse(temp_arena.allocator(), &file_reader.interface, ";#");
     try self.parsePreferences(&parser, arena);
 }
 
-pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
+pub fn saveToDisk(self: *Preferences, io: std.Io, resource_path: [:0]const u8) !void {
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const path = fs_helpers.joinStrings(&path_buffer, &.{
         resource_path,
@@ -148,13 +150,16 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
         "preferences.ini",
     });
 
-    const file = try std.fs.createFileAbsolute(path, .{
+    const file = try std.Io.Dir.createFileAbsolute(io, path, .{
         .read = true,
         .truncate = true,
     });
-    defer file.close();
+    defer file.close(io);
 
-    var writer = file.writer();
+    // Because file writers are buffered since Zig 0.15, the writer is flushed before the file closes.
+    var writer_buffer: [4096]u8 = undefined;
+    var writer_file_writer = file.writer(io, &writer_buffer);
+    const writer = &writer_file_writer.interface;
 
     // Write top-level preferences first
     try writer.writeAll("; Console1 Preferences\n");
@@ -199,6 +204,7 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
             if (self.default_fx.get(module)) |module_fx| module_fx else "",
         });
     }
+    try writer.flush();
 }
 
 pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Allocator) !void {
@@ -232,7 +238,7 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Al
                                 },
                                 [:0]const u8 => {
                                     if (std.mem.eql(u8, field_name, "language")) {
-                                        @field(self, field_name) = try g_arena.dupeZ(u8, prop.value);
+                                        @field(self, field_name) = try g_arena.dupeSentinel(u8, prop.value, 0);
                                     }
                                 },
                                 ModulesOrder => {
@@ -256,7 +262,7 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Al
                             if (std.mem.eql(u8, value, "")) {
                                 self.default_fx.set(module, null);
                             } else {
-                                const value_copy = try g_arena.dupeZ(u8, value);
+                                const value_copy = try g_arena.dupeSentinel(u8, value, 0);
                                 self.default_fx.set(module, value_copy);
                             }
                         }
@@ -291,6 +297,7 @@ test {
 }
 
 test "preferences - fallback defaults when file not found" {
+    const io = std.testing.io;
     const testing = std.testing;
 
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
@@ -298,7 +305,7 @@ test "preferences - fallback defaults when file not found" {
     const allocator = arena.allocator();
 
     // Initialize with non-existent path
-    var prefs = try Preferences.init(allocator, "/path/that/does/not/exist");
+    var prefs = try Preferences.init(allocator, io, "/path/that/does/not/exist");
 
     // Test that fallback values are used
     try testing.expect(prefs.show_startup_message == false);
@@ -316,6 +323,7 @@ test "preferences - fallback defaults when file not found" {
 }
 
 test "preferences - load from current directory" {
+    const io = std.testing.io;
     const testing = std.testing;
 
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
@@ -324,13 +332,13 @@ test "preferences - load from current directory" {
 
     // Get current directory path
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
 
     const path_z = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const path = try allocator.dupeZ(u8, path_z);
+    const path = try allocator.dupeSentinel(u8, path_z, 0);
 
     // Initialize preferences with current directory
-    var prefs = try Preferences.init(allocator, path);
+    var prefs = try Preferences.init(allocator, io, path);
 
     // Test loaded values
     // Note: These values should match what's in your preferences.ini
@@ -350,6 +358,7 @@ test "preferences - load from current directory" {
 }
 
 test "preferences - save and restore" {
+    const io = std.testing.io;
     const testing = std.testing;
 
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
@@ -358,29 +367,29 @@ test "preferences - save and restore" {
 
     // Get current directory path
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
 
     const path_z = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const path = try allocator.dupeZ(u8, path_z);
+    const path = try allocator.dupeSentinel(u8, path_z, 0);
 
     // First load current preferences to save them
-    var original_prefs = try Preferences.init(allocator, path);
+    var original_prefs = try Preferences.init(allocator, io, path);
 
     // Create new preferences with different values
-    var test_prefs = try Preferences.init(allocator, path);
+    var test_prefs = try Preferences.init(allocator, io, path);
 
     // Modify all boolean values to their opposite and change language
     test_prefs.show_startup_message = !original_prefs.show_startup_message;
     test_prefs.show_feedback_window = !original_prefs.show_feedback_window;
     test_prefs.show_plugin_ui = !original_prefs.show_plugin_ui;
     test_prefs.manual_routing = !original_prefs.manual_routing;
-    test_prefs.language = try allocator.dupeZ(u8, "fr");
+    test_prefs.language = try allocator.dupeSentinel(u8, "fr", 0);
 
     // Save modified preferences
-    try test_prefs.saveToDisk(path);
+    try test_prefs.saveToDisk(io, path);
 
     // Load preferences again to verify changes
-    var verify_prefs = try Preferences.init(allocator, path);
+    var verify_prefs = try Preferences.init(allocator, io, path);
 
     // Verify that values were changed
     try testing.expect(std.mem.eql(u8, verify_prefs.language, "fr"));
@@ -401,10 +410,10 @@ test "preferences - save and restore" {
     }
 
     // Restore original preferences
-    try original_prefs.saveToDisk(path);
+    try original_prefs.saveToDisk(io, path);
 
     // Verify restoration
-    const final_verify = try Preferences.init(allocator, path);
+    const final_verify = try Preferences.init(allocator, io, path);
 
     try testing.expect(std.mem.eql(u8, final_verify.language, original_prefs.language));
     try testing.expect(final_verify.show_startup_message == original_prefs.show_startup_message);

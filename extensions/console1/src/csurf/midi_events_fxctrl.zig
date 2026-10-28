@@ -24,7 +24,7 @@ fn getTrack(current_tr_id: ?c_int) ?MediaTrack {
         null;
 }
 
-pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
+pub fn onMidiEvent_FxCtrl(io: std.Io, cc: c1.CCs, val: u8, globals: *Globals) void {
     switch (cc) {
         .Inpt_disp_mode => {
             actions.dispatch(globals, .{ .change_mode = .transport });
@@ -92,6 +92,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
                         &globals.map_store,
                         &globals.preferences,
                         globals.arena_int.allocator(),
+                        io,
                         &globals.mappings_list,
                     ) catch {},
                     else => {},
@@ -116,6 +117,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
                         &globals.map_store,
                         &globals.preferences,
                         globals.arena_int.allocator(),
+                        io,
                         &globals.mappings_list,
                     ) catch {},
                     else => {},
@@ -163,7 +165,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
         },
         .Inpt_HiCut, .Inpt_LoCut => {
             if (globals.state.fx_ctrl.filter_to_comp) {
-                onMidiEvent_FxCtrl(if (cc == .Inpt_HiCut) .Comp_HiCut else .Comp_LoCut, val, globals);
+                onMidiEvent_FxCtrl(io, if (cc == .Inpt_HiCut) .Comp_HiCut else .Comp_LoCut, val, globals);
             } else {
                 if (getTrack(globals.state.current_tr_id)) |tr| {
                     if (cc == .Inpt_HiCut) {

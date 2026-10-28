@@ -31,7 +31,7 @@ const factory_maps = [_]FactoryMap{
     .{ .module_dir = "IO", .fx_name = "JS: Saturation", .content = @embedFile("resources/maps/factory/IO/saturation/default.ini") },
 };
 
-pub fn ensureConfigPath(fs_ops: FileSystemOps) !void {
+pub fn ensureConfigPath(io: std.Io, fs_ops: FileSystemOps) !void {
     const reaper_path = reaper.GetResourcePath();
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
 
@@ -62,7 +62,7 @@ pub fn ensureConfigPath(fs_ops: FileSystemOps) !void {
     var module_buf: [std.fs.max_path_bytes]u8 = undefined;
     inline for (comptime std.enums.values(MappableModule)) |module| {
         const module_dir = joinStrings(&module_buf, &.{ factory_path, std.fs.path.sep_str, module.dirName() });
-        fs_helpers.migrateFolderNames(module_dir) catch |err| {
+        fs_helpers.migrateFolderNames(io, module_dir) catch |err| {
             std.log.scoped(.mft_maps).err("Failed to rename legacy map folders in {s}: {s}", .{ module_dir, @errorName(err) });
         };
     }

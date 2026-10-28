@@ -1,4 +1,5 @@
 const std = @import("std");
+const mft_globals = @import("mft_globals.zig");
 const builtin = @import("builtin");
 const imgui = @import("reaper_imgui");
 const reaper = @import("reaper").reaper;
@@ -315,6 +316,7 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
 // The calibration wizard is a card of its own: the LED test is a toggle, the step's status is a lamp and a screen in
 // the color of the result, and the steps are pushed with buttons.
 fn drawWizard(globals: *MftGlobals) void {
+    const io = mft_globals.hostIo();
     const w = &globals.wizard;
     if (!widgets.beginCard(&kit, "Calibration", null, null, theme.amber)) return;
     defer widgets.endCard(&kit);
@@ -356,7 +358,7 @@ fn drawWizard(globals: *MftGlobals) void {
     imgui.api.SameLine(ctx, null, null);
     if (w.isLast()) {
         if (widgets.pushButton(&kit, "Finish", 0)) {
-            wizard.writeReport(w, globals.resource_path) catch |err| log.err("report write failed: {s}", .{@errorName(err)});
+            wizard.writeReport(w, io, globals.resource_path) catch |err| log.err("report write failed: {s}", .{@errorName(err)});
             w.stop();
         }
     } else {
@@ -364,7 +366,7 @@ fn drawWizard(globals: *MftGlobals) void {
     }
     imgui.api.SameLine(ctx, null, null);
     if (widgets.pushButton(&kit, "Stop", 0)) {
-        wizard.writeReport(w, globals.resource_path) catch {};
+        wizard.writeReport(w, io, globals.resource_path) catch {};
         w.stop();
     }
 }

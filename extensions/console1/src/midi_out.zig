@@ -8,23 +8,8 @@ const constants = @import("constants.zig");
 const log = std.log.scoped(.midi_output);
 const utils = @import("utils");
 const builtin = @import("builtin");
-const c = @cImport({
-    @cDefine("WDL_ALLOW_UNSIGNED_DEFAULT_CHAR", "1");
-    if (builtin.os.tag != .windows) {
-        @cDefine("SWELL_PROVIDED_BY_APP", "");
-    }
-    @cInclude("csurf/control_surface_wrapper.h");
-    if (builtin.os.tag == .windows) {
-        @cInclude("windows.h");
-    } else {
-        @cInclude("WDL/swell/swell-types.h");
-        @cInclude("WDL/swell/swell-functions.h");
-    }
-    @cInclude("WDL/win32_utf8.h");
-    @cInclude("WDL/wdltypes.h");
-    @cInclude("resource.h");
-    @cInclude("csurf/midi_wrapper.h");
-});
+// The C declarations, translated by the build from src/csurf/c_bindings.h.
+const c = @import("c");
 const SettingsValUpdate = @import("action_types.zig").SettingsValUpdate;
 pub const MidiOutAction = @import("action_types.zig").MidiOutAction;
 

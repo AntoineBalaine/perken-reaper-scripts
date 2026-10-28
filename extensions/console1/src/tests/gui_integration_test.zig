@@ -38,7 +38,7 @@ const GuiTestHarness = struct {
     track_templates: fx_types.Directory,
     fx_tags: fx_types.FxTags,
 
-    fn init(allocator: std.mem.Allocator) !GuiTestHarness {
+    fn init(allocator: std.mem.Allocator, io: std.Io) !GuiTestHarness {
         var mock = try allocator.create(MockImGui);
         mock.* = MockImGui.init(allocator);
         mock.install();
@@ -55,7 +55,7 @@ const GuiTestHarness = struct {
         globals.* = .{};
         globals.arena_int = std.heap.ArenaAllocator.init(allocator);
         const arena = globals.arena_int.allocator();
-        globals.fs_ops = @import("fs_helpers").RealFileSystem.fileSystemOps();
+        globals.fs_ops = @import("fs_helpers").RealFileSystem.fileSystemOps(io);
         globals.resource_path = "";
         globals.preferences = try .defaults(arena);
         globals.mappings_list = .empty(arena);
@@ -148,7 +148,8 @@ const GuiTestHarness = struct {
 // -- Example-based integration tests --
 
 test "integration: fx_ctrl mode renders and stays in fx_ctrl" {
-    var harness = try GuiTestHarness.init(testing.allocator);
+    const io = std.testing.io;
+    var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
     try harness.step();
@@ -157,7 +158,8 @@ test "integration: fx_ctrl mode renders and stays in fx_ctrl" {
 }
 
 test "integration: clicking settings button transitions to settings mode" {
-    var harness = try GuiTestHarness.init(testing.allocator);
+    const io = std.testing.io;
+    var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
     // The settings button in ButtonsBar has the "wrench" icon label "k"
@@ -171,7 +173,8 @@ test "integration: clicking settings button transitions to settings mode" {
 }
 
 test "integration: settings save returns to fx_ctrl" {
-    var harness = try GuiTestHarness.init(testing.allocator);
+    const io = std.testing.io;
+    var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
     // Enter settings mode
@@ -189,7 +192,8 @@ test "integration: settings save returns to fx_ctrl" {
 }
 
 test "integration: settings cancel returns to fx_ctrl" {
-    var harness = try GuiTestHarness.init(testing.allocator);
+    const io = std.testing.io;
+    var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
     // Enter settings mode
@@ -206,7 +210,8 @@ test "integration: settings cancel returns to fx_ctrl" {
 }
 
 test "integration: clicking mapping panel button from fx_ctrl" {
-    var harness = try GuiTestHarness.init(testing.allocator);
+    const io = std.testing.io;
+    var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
     // The mapping panel button in ButtonsBar has the "plus" icon label "B"
@@ -217,7 +222,8 @@ test "integration: clicking mapping panel button from fx_ctrl" {
 }
 
 test "integration: mode transition validity across multiple frames" {
-    var harness = try GuiTestHarness.init(testing.allocator);
+    const io = std.testing.io;
+    var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
     // Frame 1: fx_ctrl -> settings (via button click)
@@ -237,7 +243,8 @@ test "integration: mode transition validity across multiple frames" {
 }
 
 test "integration: rendering multiple frames without interaction stays in mode" {
-    var harness = try GuiTestHarness.init(testing.allocator);
+    const io = std.testing.io;
+    var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
     // Render 5 frames with no interactions
@@ -385,7 +392,8 @@ const ClickMappingPanelCmd = struct {
 };
 
 test "integration: mode transitions stateful property test" {
-    var harness = try GuiTestHarness.init(testing.allocator);
+    const io = std.testing.io;
+    var harness = try GuiTestHarness.init(testing.allocator, io);
     defer harness.deinit();
 
     var noop_cmd = NoopCmd{};
@@ -406,7 +414,7 @@ test "integration: mode transitions stateful property test" {
     var sut = GuiSystem.init(&harness);
 
     var bytes: [4096]u8 = undefined;
-    std.crypto.random.bytes(&bytes);
+    std.testing.io.random(&bytes);
     var prng = zlowcheck.FinitePrng.init(&bytes);
     var random = prng.random();
 

@@ -45,6 +45,7 @@ fn getFullModuleOrder(order: ModulesOrder) [5]ModulesList {
 // Because we want to test different module orderings, this helper
 // inserts FX in the given order and runs validateTrack.
 fn setupChainInOrder(globals: *Globals, order: []const ModulesList) reaper.MediaTrack {
+    const io = Globals.hostIo();
     reaper.InsertTrackAtIndex(0, false);
     const track = reaper.CSurf_TrackFromID(1, false).?;
     reaper.SetTrackSelected(track, true);
@@ -67,6 +68,7 @@ fn setupChainInOrder(globals: *Globals, order: []const ModulesList) reaper.Media
         &globals.map_store,
         globals.preferences,
         globals.arena_int.allocator(),
+        io,
         &globals.mappings_list,
     );
 

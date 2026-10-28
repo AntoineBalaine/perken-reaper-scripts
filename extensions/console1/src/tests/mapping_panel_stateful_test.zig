@@ -67,19 +67,19 @@ const System = struct {
     mock_fs: *MockFileSystem,
     resource_path: [:0]const u8,
 
-    pub fn init(allocator: std.mem.Allocator) !System {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io) !System {
         const mock_fs = try allocator.create(MockFileSystem);
         mock_fs.* = try MockFileSystem.init(allocator);
 
         // Get temp directory absolute path
         var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        const temp_path = try mock_fs.temp_dir.dir.realpath(".", &path_buffer);
-        const temp_path_owned = try allocator.dupeZ(u8, temp_path);
+        const temp_path = path_buffer[0..try mock_fs.temp_dir.dir.realPathFile(io, ".", &path_buffer)];
+        const temp_path_owned = try allocator.dupeSentinel(u8, temp_path, 0);
         defer allocator.free(temp_path_owned);
 
         // Use real filesystem to copy embedded files to temp dir
-        const real_fs = fs_helpers.RealFileSystem.fileSystemOps();
-        try defaults.copyEmbeddedFilesToDir(real_fs, temp_path_owned);
+        const real_fs = fs_helpers.RealFileSystem.fileSystemOps(io);
+        try defaults.copyEmbeddedFilesToDir(io, real_fs, temp_path_owned);
 
         // Build resource_path pointing to temp Console1 directory
         const resource_path = try std.fs.path.joinZ(allocator, &.{
@@ -106,8 +106,8 @@ const System = struct {
     // init completes. Internal pointers that captured the address of arena_int
     // (via .allocator()) are now dangling. This method must be called once the
     // System is at its final memory location to reinitialize those pointers.
-    pub fn fixupAfterMove(self: *System) void {
-        self.globals.mappings_list = MappingsList.init(self.globals.arena_int.allocator(), self.globals.resource_path);
+    pub fn fixupAfterMove(self: *System, io: std.Io) void {
+        self.globals.mappings_list = MappingsList.init(self.globals.arena_int.allocator(), io, self.globals.resource_path);
         self.globals.map_store = .empty(self.globals.arena_int.allocator(), self.globals.resource_path);
     }
 
@@ -654,12 +654,13 @@ const CancelAssign = struct {
 };
 
 test "mapping panel hierarchical state machine" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
 
     // Initialize model and system
     var model = Model.init();
-    var sut = try System.init(allocator);
-    sut.fixupAfterMove();
+    var sut = try System.init(allocator, io);
+    sut.fixupAfterMove(io);
     defer sut.deinit();
 
     // Create command instances
@@ -710,7 +711,7 @@ test "mapping panel hierarchical state machine" {
     };
 
     var bytes: [128 * 1024]u8 = undefined;
-    const seed: u64 = @intCast(std.time.milliTimestamp());
+    const seed: u64 = @intCast(std.Io.Timestamp.now(std.testing.io, .real).toMilliseconds());
     var prng = std.Random.DefaultPrng.init(seed);
     prng.random().bytes(&bytes);
     var finite_prng = FinitePrng.init(&bytes);

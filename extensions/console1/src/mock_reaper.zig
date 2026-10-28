@@ -100,7 +100,7 @@ pub fn mockTrackFX_SetNamedConfigParm(
     if (idx >= fx_chain.items.len) return false;
 
     if (std.mem.eql(u8, std.mem.span(parm_name), "renamed_name")) {
-        const new_renamed = arena.allocator().dupeZ(u8, std.mem.span(parm_value)) catch return false;
+        const new_renamed = arena.allocator().dupeSentinel(u8, std.mem.span(parm_value), 0) catch return false;
         fx_chain.items[idx].renamed_name = new_renamed;
         fx_chain_changed = true;
         return true;
@@ -159,7 +159,7 @@ pub fn mockTrackFX_AddByName(
     const insert_pos = if (pos == -1) @as(i32, @intCast(fx_chain.items.len)) else if (pos < -999) -(pos + 1000) else pos;
 
     const name = std.mem.span(fx_name);
-    const original_name = arena.allocator().dupeZ(u8, name) catch return -1;
+    const original_name = arena.allocator().dupeSentinel(u8, name, 0) catch return -1;
 
     // Insert at position, shifting other FX up
     fx_chain.insert(@intCast(insert_pos), .{

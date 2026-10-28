@@ -89,8 +89,8 @@ pub var theme: C1Theme = .{};
 const embedded_ini = @embedFile("../resources/default_reaper_theme.ini");
 
 pub fn init() void {
-    var fbs = std.io.fixedBufferStream(embedded_ini);
-    var parser = ini.parse(std.heap.page_allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(embedded_ini);
+    var parser = ini.parse(std.heap.page_allocator, &fbs, ";#");
     defer parser.deinit();
     theme = parseTheme(&parser);
 }
@@ -164,8 +164,8 @@ test "parseTheme loads a complete INI" {
         \\ActiveToggle = FF00A5FF
     ;
 
-    var fbs = std.io.fixedBufferStream(ini_content);
-    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(ini_content);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
     defer parser.deinit();
     const result = parseTheme(&parser);
 
@@ -192,8 +192,8 @@ test "parseTheme ignores unknown sections and keys" {
         \\Text = 898981FF
     ;
 
-    var fbs = std.io.fixedBufferStream(ini_content);
-    var parser = ini.parse(std.testing.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(ini_content);
+    var parser = ini.parse(std.testing.allocator, &fbs, ";#");
     defer parser.deinit();
     const result = parseTheme(&parser);
 

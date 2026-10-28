@@ -4,7 +4,7 @@ const StringPool = @import("string_pool").StringPool;
 const ParamStore = @import("../statemachine.zig").ParamStore;
 
 test "StringPool - basic operations" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -26,7 +26,7 @@ test "StringPool - basic operations" {
 }
 
 test "StringPool - clear retains capacity" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -52,7 +52,7 @@ test "StringPool - clear retains capacity" {
 }
 
 test "ParamStore - basic operations" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -78,7 +78,7 @@ test "ParamStore - basic operations" {
 }
 
 test "ParamStore - clear resets both strings and params" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -112,7 +112,7 @@ test "ParamStore - clear resets both strings and params" {
 }
 
 test "ParamStore - memory efficiency with multiple loads" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -124,7 +124,7 @@ test "ParamStore - memory efficiency with multiple loads" {
         store.clear();
 
         for (0..10) |i| {
-            const param_name = try std.fmt.allocPrintZ(allocator, "Param{d}_{d}", .{ iteration, i });
+            const param_name = try std.fmt.allocPrintSentinel(allocator, "Param{d}_{d}", .{ iteration, i }, 0);
             defer allocator.free(param_name);
             try store.addParam(@intCast(i), param_name);
         }
@@ -140,7 +140,7 @@ test "ParamStore - memory efficiency with multiple loads" {
 }
 
 test "StringPool - handles empty strings" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -152,7 +152,7 @@ test "StringPool - handles empty strings" {
 }
 
 test "ParamStore - handles parameters with long names" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 

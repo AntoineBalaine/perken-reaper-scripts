@@ -3,7 +3,7 @@ const reaper = @import("reaper").reaper;
 const c1_theme = @import("theme/c1_theme.zig");
 const WindowColors = c1_theme.WindowColors;
 
-pub fn saveThemeToFile() void {
+pub fn saveThemeToFile(io: std.Io) void {
     const resource_path = std.mem.span(reaper.GetResourcePath());
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = std.fmt.bufPrint(&path_buf, "{s}/Data/Perken/Console1/theme.ini", .{resource_path}) catch {
@@ -11,16 +11,20 @@ pub fn saveThemeToFile() void {
         return;
     };
 
-    const file = std.fs.createFileAbsolute(path, .{ .truncate = true }) catch {
+    const file = std.Io.Dir.createFileAbsolute(io, path, .{ .truncate = true }) catch {
         _ = reaper.ShowMessageBox("Failed to create theme file", "Theme Save", 0);
         return;
     };
-    defer file.close();
+    defer file.close(io);
 
-    var writer = file.writer();
-    writeWindowColors(&writer, "[config]", &c1_theme.theme.config) catch return;
+    // Because file writers are buffered since Zig 0.15, the writer is flushed before the file closes.
+    var writer_buffer: [4096]u8 = undefined;
+    var writer_file_writer = file.writer(io, &writer_buffer);
+    const writer = &writer_file_writer.interface;
+    defer writer.flush() catch {};
+    writeWindowColors(writer, "[config]", &c1_theme.theme.config) catch return;
     writer.writeAll("\n") catch return;
-    writeWindowColors(&writer, "[main]", &c1_theme.theme.main) catch return;
+    writeWindowColors(writer, "[main]", &c1_theme.theme.main) catch return;
 
     var msg_buf: [512]u8 = undefined;
     const msg = std.mem.printSentinel(&msg_buf, "Theme saved to:\n{s}", .{path}, 0) catch "Theme saved.";

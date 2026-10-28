@@ -34,7 +34,7 @@ pub fn refresh() void {
     clear();
     var index: usize = 0;
     while (source(index)) |name| : (index += 1) {
-        const copy = allocator.dupeZ(u8, name) catch break;
+        const copy = allocator.dupeSentinel(u8, name, 0) catch break;
         names.append(allocator, copy) catch {
             allocator.free(copy);
             break;

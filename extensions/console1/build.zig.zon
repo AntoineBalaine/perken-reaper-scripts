@@ -17,20 +17,20 @@
     // internet connectivity.
     .dependencies = .{
         .ini = .{
-            .url = "https://github.com/AntoineBalaine/ini/archive/d5d1130062e3.tar.gz",
-            .hash = "N-V-__8AAMaXAADBd3SZZVoq54wmI0VjlyYcXXh98BCdpCBF",
+            .url = "https://github.com/AntoineBalaine/ini/archive/626b556a189d734ce59f6d0b71b8fab80282d1a8.tar.gz",
+            .hash = "ini-0.1.0-YCQ9YgKxAAB2BkUapcIR0EpePH6eEt4tLwa-ZHn7fAaL",
         },
         .WDL = .{
             .url = "https://github.com/justinfrankel/WDL/archive/dda0d7519ee9d50d59a39fc1b1a82001416a3dff.tar.gz",
-            .hash = "122026ee38b3ef9cbb44a2cf8f1735ba5dbaef29975560ad3e2f78b43437707a8b9a",
+            .hash = "N-V-__8AABIRpgAm7jiz75y7RKLPjxc1ul267ymXVWCtPi94",
         },
         .@"reaper-sdk" = .{
             .url = "https://github.com/justinfrankel/reaper-sdk/archive/6c755b2696ff02a2f5d15d685712d6f2b7e4ed6d.tar.gz",
-            .hash = "12209fb480875e353b1f8a4d0c03ffb84046340adf32f4205dffbf77f82543e2e2fa",
+            .hash = "N-V-__8AACCpGACftICHXjU7H4pNDAP_uEBGNArfMvQgXf-_",
         },
         .zlowcheck = .{
-            .url = "https://github.com/AntoineBalaine/zlowcheck/archive/44d1a1726ee1dabe22c9e75b7948993cef3409be.tar.gz",
-            .hash = "zlowcheck-0.0.0-upaXybSvAwBYDrxmhs05Jba16Hrgjvtg0GSU5Y2zF_sk",
+            .url = "https://github.com/AntoineBalaine/zlowcheck/archive/9e4055fcd1fe9d9f87d97dc7dcfcf2d133808e61.tar.gz",
+            .hash = "zlowcheck-0.0.0-upaXydGyAwD9-nAAbe3ynJGrbKc0aUxYZIdQCRkljub6",
         },
         // reaziglib lives in the same monorepo, so that a change to it and
         // the extension code using it can land in one commit.

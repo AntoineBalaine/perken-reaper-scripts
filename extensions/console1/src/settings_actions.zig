@@ -9,6 +9,8 @@ const log = std.log.scoped(.settings);
 pub const SettingsActions = @import("action_types.zig").SettingsActions;
 
 pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
+    const io = Globals.hostIo();
+
     switch (set_action) {
         .open => {
             if (globals.settings_panel == null) {
@@ -27,7 +29,7 @@ pub fn settingsActions(globals: *Globals, set_action: SettingsActions) void {
             if (globals.settings_panel) |*panel| {
                 globals.preferences = panel.temp_settings;
                 if (!comptime @import("builtin").is_test) {
-                    globals.preferences.saveToDisk(globals.resource_path) catch {
+                    globals.preferences.saveToDisk(io, globals.resource_path) catch {
                         log.err("save settings to disk failed", .{});
                     };
                     if (panel.temp_settings.log_to_file != globals.preferences.log_to_file) {
@@ -157,19 +159,19 @@ fn countFields(comptime T: type) comptime_int {
     return switch (type_info) {
         .@"struct" => blk: {
             var count = 0;
-            inline for (type_info.@"struct".fields) |field| {
+            inline for (type_info.@"struct".field_names, type_info.@"struct".field_types) |field_name, field_type| {
                 // If it's an EnumArray, count the enum variants
-                if (std.mem.eql(u8, field.name, "default_fx")) {
+                if (std.mem.eql(u8, field_name, "default_fx")) {
                     const enum_type = @import("statemachine.zig").ModulesList;
                     count += @typeInfo(enum_type).@"enum".field_names.len;
                 } else {
                     // Recursively count fields for nested structs
-                    count += countFields(field.type);
+                    count += countFields(field_type);
                 }
             }
             break :blk count;
         },
-        .@"enum" => type_info.@"enum".fields.len,
+        .@"enum" => type_info.@"enum".field_names.len,
         // Scalar types count as 1
         .bool, .int, .float, .pointer => 1,
         .optional => 1,

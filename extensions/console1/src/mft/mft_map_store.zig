@@ -33,22 +33,22 @@ pub const MftMapStore = struct {
     // Return the cached mapping for (module, fx_name), loading it from disk on
     // the first request. A null cache entry records a prior failed load so we
     // do not retry the disk read on every knob turn.
-    pub fn get(self: *MftMapStore, module: MappableModule, fx_name: [:0]const u8) ?MftModuleMapping {
+    pub fn get(self: *MftMapStore, io: std.Io, module: MappableModule, fx_name: [:0]const u8) ?MftModuleMapping {
         const cache = self.cacheFor(module);
         if (cache.get(fx_name)) |cached| return cached;
 
-        const loaded = self.loadFromDisk(module, fx_name) catch |err| {
+        const loaded = self.loadFromDisk(io, module, fx_name) catch |err| {
             log.debug("mft mapping load failed for {s}: {s}", .{ fx_name, @errorName(err) });
-            const owned = self.allocator.dupeZ(u8, fx_name) catch return null;
+            const owned = self.allocator.dupeSentinel(u8, fx_name, 0) catch return null;
             cache.put(self.allocator, owned, null) catch {};
             return null;
         };
-        const owned = self.allocator.dupeZ(u8, fx_name) catch return loaded;
+        const owned = self.allocator.dupeSentinel(u8, fx_name, 0) catch return loaded;
         cache.put(self.allocator, owned, loaded) catch {};
         return loaded;
     }
 
-    fn loadFromDisk(self: *MftMapStore, module: MappableModule, fx_name: [:0]const u8) !MftModuleMapping {
+    fn loadFromDisk(self: *MftMapStore, io: std.Io, module: MappableModule, fx_name: [:0]const u8) !MftModuleMapping {
         var name_buf: [512:0]u8 = undefined;
         const sanitized = try fs_helpers.sanitizeFxName(&name_buf, fx_name);
 
@@ -59,12 +59,14 @@ pub const MftMapStore = struct {
             sanitized,           std.fs.path.sep_str, "default.ini",
         });
 
-        const file = try std.fs.openFileAbsolute(path, .{});
-        defer file.close();
+        const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
+        defer file.close(io);
 
         var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer temp_arena.deinit();
-        var parser = ini.parse(temp_arena.allocator(), file.reader());
+        var file_buffer: [4096]u8 = undefined;
+        var file_reader = file.reader(io, &file_buffer);
+        var parser = ini.parse(temp_arena.allocator(), &file_reader.interface, ";#");
         defer parser.deinit();
 
         return try parseMapping(&parser);
@@ -134,8 +136,8 @@ test "parseMapping: reads knobs and version" {
         \\knob_1 = 9
         \\knob_3 = 6
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(t.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(t.allocator, &fbs, ";#");
     defer parser.deinit();
 
     const m = try parseMapping(&parser);
@@ -150,8 +152,8 @@ test "parseMapping: missing version errors" {
         \\module = EQ
         \\knob_1 = 9
     ;
-    var fbs = std.io.fixedBufferStream(example);
-    var parser = ini.parse(t.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(example);
+    var parser = ini.parse(t.allocator, &fbs, ";#");
     defer parser.deinit();
 
     try t.expectError(error.MissingVersion, parseMapping(&parser));
@@ -160,8 +162,8 @@ test "parseMapping: missing version errors" {
 test "parseMapping: shipped EQ factory map matches expected slots" {
     const t = std.testing;
     const content = @embedFile("resources/maps/factory/EQ/reaeq/default.ini");
-    var fbs = std.io.fixedBufferStream(content);
-    var parser = ini.parse(t.allocator, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(content);
+    var parser = ini.parse(t.allocator, &fbs, ";#");
     defer parser.deinit();
 
     const m = try parseMapping(&parser);

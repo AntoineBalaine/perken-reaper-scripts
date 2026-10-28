@@ -10,6 +10,7 @@ const fx_sel_actions = @import("../fx_sel_actions.zig");
 // Populates a track with 5 FX assigned to all Console1 modules in canonical order,
 // then runs validateTrack so that module_locations are populated.
 fn setupFullChain(globals: *Globals) reaper.MediaTrack {
+    const io = Globals.hostIo();
     // Create and select a track in the mock session
     reaper.InsertTrackAtIndex(0, false);
     const track = reaper.CSurf_TrackFromID(1, false).?;
@@ -38,6 +39,7 @@ fn setupFullChain(globals: *Globals) reaper.MediaTrack {
         &globals.map_store,
         globals.preferences,
         globals.arena_int.allocator(),
+        io,
         &globals.mappings_list,
     );
 

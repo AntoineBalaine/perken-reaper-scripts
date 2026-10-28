@@ -1,5 +1,6 @@
 const builtin = @import("builtin");
 const std = @import("std");
+const Globals = @import("globals.zig");
 const imgui = @import("reaper_imgui");
 const Reaper = @import("reaper");
 const reaper = Reaper.reaper;
@@ -19,7 +20,7 @@ pub var ctx: imgui.ContextPtr = null;
 var win_flags: c_int = undefined;
 var hot_reloader: ?HotReloader = null;
 
-fn init() !void {
+fn init(io: std.Io) !void {
     // try imgui.init(reaper.plugin_getapi);
     imgui.init(reaper.plugin_getapi) catch |err| {
         log.err("Failed to initialize ImGui: {s}\n", .{@errorName(err)});
@@ -41,7 +42,7 @@ fn init() !void {
     if (!builtin.is_test) {
         buildUiLibPath();
         const path: [:0]const u8 = std.mem.sliceTo(&ui_lib_path_buf, 0);
-        hot_reloader = HotReloader.init(path, @ptrCast(reaper.plugin_getapi));
+        hot_reloader = HotReloader.init(io, path, @ptrCast(reaper.plugin_getapi));
     }
 }
 
@@ -114,6 +115,7 @@ fn handleGuiError(err: anyerror) void {
 var ready = false;
 
 fn onTimer() callconv(.c) void {
+    const io = Globals.hostIo();
     if (!ready) {
         ready = true;
         return;
@@ -121,7 +123,7 @@ fn onTimer() callconv(.c) void {
     var globals = extension.getGlobals();
     _ = &globals;
     if (ctx == null) {
-        init() catch |err| handleGuiError(err);
+        init(io) catch |err| handleGuiError(err);
     }
     var style_manager: styles.StyleManager = .{
         .config_style_open = &styles.config_style_open,
@@ -149,7 +151,7 @@ fn onTimer() callconv(.c) void {
     };
 
     if (hot_reloader) |*reloader| {
-        const result = reloader.render(ctx, win_flags, &ui_state, &style_manager);
+        const result = reloader.render(io, ctx, win_flags, &ui_state, &style_manager);
         switch (result) {
             .action => |action| actions.dispatch(globals, action),
             .render_error => handleGuiError(error.WindowClosed),

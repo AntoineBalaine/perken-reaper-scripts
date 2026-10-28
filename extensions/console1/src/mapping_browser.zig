@@ -23,7 +23,7 @@ pub fn getMappingNames(
 
             for (map_entry.value_ptr.items) |entry| {
                 const name = mappings_list.strings.get(entry.name_offset);
-                const owned_name = try allocator.dupeZ(u8, name);
+                const owned_name = try allocator.dupeSentinel(u8, name, 0);
                 try list.append(allocator, owned_name);
             }
 
@@ -35,16 +35,17 @@ pub fn getMappingNames(
 }
 
 test "getMappingNames - returns empty list for FX with no mappings" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
+    const config_path_z = try allocator.dupeSentinel(u8, config_path, 0);
 
-    var ml = MappingsList.init(allocator, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
     _ = &ml;
 
     const nonexistent_fx = "VST: NonexistentPlugin";
@@ -55,16 +56,17 @@ test "getMappingNames - returns empty list for FX with no mappings" {
 }
 
 test "getMappingNames - returns correct list of mapping files" {
+    const io = std.testing.io;
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     var mem: [std.fs.max_path_bytes]u8 = undefined;
-    const pth = try std.fs.cwd().realpath(".", &mem);
+    const pth = mem[0..try std.Io.Dir.cwd().realPathFile(io, ".", &mem)];
     const config_path = try std.fs.path.resolve(allocator, &.{ pth, "src/resources/" });
-    const config_path_z = try allocator.dupeZ(u8, config_path);
+    const config_path_z = try allocator.dupeSentinel(u8, config_path, 0);
 
-    var ml = MappingsList.init(allocator, config_path_z);
+    var ml = MappingsList.init(allocator, io, config_path_z);
     _ = &ml;
 
     const test_fx = "VST: ReaComp (Cockos)";

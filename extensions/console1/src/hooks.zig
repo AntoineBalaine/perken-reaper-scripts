@@ -27,7 +27,7 @@ const TestCommandIds = struct {
     pub fn init() @This() {
         var self: @This() = .{ .map = std.EnumMap(reentrancy.TestApiCall, ?c_int).init(.{}) };
         // Initialize all entries as null
-        inline for (@typeInfo(reentrancy.TestApiCall).@"struct".field_names) |field_name| {
+        inline for (@typeInfo(reentrancy.TestApiCall).@"enum".field_names) |field_name| {
             const variant = @field(reentrancy.TestApiCall, field_name);
             self.map.put(variant, null);
         }
@@ -45,6 +45,7 @@ const TestCommandIds = struct {
 
 // Command handler
 pub fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.c) c_char {
+    const io = Globals.hostIo();
     _ = .{ sec, val, val2hw, relmode, hwnd };
 
     if (command == suspend_cmd_id) {
@@ -69,10 +70,10 @@ pub fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
         runInstallPresets(globals);
         return 1;
     } else if (command == save_theme_cmd_id) {
-        theme_dump.saveThemeToFile();
+        theme_dump.saveThemeToFile(io);
         return 1;
     } else if (debugconfig.@"test" and command == reentrancy_test_cmd_id) {
-        reentrancy.runAllTests() catch |err| {
+        reentrancy.runAllTests(io) catch |err| {
             log.err("Failed to run reentrancy tests: {}", .{err});
         };
         // reentrancy.runInitialTest() catch |err| {
@@ -81,11 +82,11 @@ pub fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
         return 1;
     } else if (debugconfig.@"test") {
         // Check if command matches any of our test command IDs
-        inline for (@typeInfo(reentrancy.TestApiCall).@"struct".field_names) |field_name| {
+        inline for (@typeInfo(reentrancy.TestApiCall).@"enum".field_names) |field_name| {
             const variant = @field(reentrancy.TestApiCall, field_name);
             if (testCommandIds.get(variant)) |cmd_id| {
                 if (command == cmd_id) {
-                    reentrancy.runSingleTest(variant) catch |err| {
+                    reentrancy.runSingleTest(io, variant) catch |err| {
                         log.err("Failed to run reentrancy test for {s}: {}", .{ @tagName(variant), err });
                     };
                     return 1;
@@ -97,6 +98,7 @@ pub fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
 }
 
 pub fn runInstallPresets(globals: *Globals) void {
+    const io = Globals.hostIo();
     const title = tr(&globals.translations, .install_presets_title);
 
     // Because the user needs to confirm before we modify their preset files,
@@ -113,6 +115,7 @@ pub fn runInstallPresets(globals: *Globals) void {
     const preset_dir = std.mem.printSentinel(&preset_dir_buf, "{s}/presets", .{resource_path}, 0) catch return;
 
     const result = preset_installer.installPresets(
+        io,
         &globals.mappings_list,
         preset_dir,
     ) catch |err| {
@@ -165,8 +168,8 @@ pub fn registerCommands() void {
 
     if (debugconfig.@"test") {
         testCommandIds = TestCommandIds.init();
-        inline for (comptime std.meta.fields(reentrancy.TestApiCall)) |field| {
-            const variant = @field(reentrancy.TestApiCall, field.name);
+        inline for (@typeInfo(reentrancy.TestApiCall).@"enum".field_names) |field_name| {
+            const variant = @field(reentrancy.TestApiCall, field_name);
             const id_str = std.fmt.comptimePrint("C1_REENTRANCE_TEST_{s}", .{@tagName(variant)});
             const name = std.fmt.comptimePrint("Console1: Run Reentrancy test {s}", .{@tagName(variant)});
             const action = reaper.custom_action_register_t{

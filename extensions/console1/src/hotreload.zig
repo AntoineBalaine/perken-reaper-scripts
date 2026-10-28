@@ -32,6 +32,7 @@ pub const HotReloader = struct {
     reload_counter: u32 = 0,
 
     pub fn init(
+        io: std.Io,
         lib_path: [:0]const u8,
         plugin_getapi: *anyopaque,
     ) HotReloader {
@@ -39,7 +40,7 @@ pub const HotReloader = struct {
             .lib_path = lib_path,
             .plugin_getapi = plugin_getapi,
         };
-        self.tryLoad();
+        self.tryLoad(io);
         return self;
     }
 
@@ -51,6 +52,7 @@ pub const HotReloader = struct {
     /// and reloads if needed. Then calls the UI render function.
     pub fn render(
         self: *HotReloader,
+        io: std.Io,
         ctx: imgui.ContextPtr,
         win_flags: c_int,
         globals: *UiState,
@@ -59,7 +61,7 @@ pub const HotReloader = struct {
         self.frame_counter += 1;
         if (self.frame_counter >= 60) {
             self.frame_counter = 0;
-            self.checkAndReload();
+            self.checkAndReload(io);
         }
 
         if (self.ui_render) |render_fn| {
@@ -80,17 +82,17 @@ pub const HotReloader = struct {
         return .no_action;
     }
 
-    fn checkAndReload(self: *HotReloader) void {
-        const mtime = getFileMtime(self.lib_path) orelse return;
+    fn checkAndReload(self: *HotReloader, io: std.Io) void {
+        const mtime = getFileMtime(io, self.lib_path) orelse return;
         if (mtime != self.last_mtime and self.last_mtime != 0) {
             log.info("UI lib changed on disk, reloading...", .{});
             self.unload();
-            self.tryLoad();
+            self.tryLoad(io);
         }
     }
 
-    fn tryLoad(self: *HotReloader) void {
-        self.last_mtime = getFileMtime(self.lib_path) orelse {
+    fn tryLoad(self: *HotReloader, io: std.Io) void {
+        self.last_mtime = getFileMtime(io, self.lib_path) orelse {
             log.warn("UI lib not found at {s}", .{self.lib_path});
             return;
         };
@@ -98,24 +100,24 @@ pub const HotReloader = struct {
         // Because macOS caches shared libraries by path, we copy to a temp
         // file with a unique name so dlopen loads the fresh binary.
         self.reload_counter += 1;
-        const temp_path = self.copyToTemp() orelse {
+        const temp_path = self.copyToTemp(io) orelse {
             log.err("Failed to copy UI lib to temp path", .{});
             return;
         };
 
         // Because macOS kills processes that dlopen unsigned binaries,
         // we ad-hoc sign the temp copy before loading it.
-        if (comptime @import("builtin").os.tag == .macos and @import("builtin").mode == .Debug) {
-            var codesign = std.process.Child.init(
-                &.{ "codesign", "-s", "-", temp_path },
-                std.heap.page_allocator,
-            );
-            const term = codesign.spawnAndWait() catch |err| {
+        if (comptime @import("builtin").os.tag == .macos and @import("builtin").mode == .debug) {
+            var codesign = std.process.spawn(io, .{ .argv = &.{ "codesign", "-s", "-", temp_path } }) catch |err| {
                 log.err("Failed to codesign temp UI lib: {s}", .{@errorName(err)});
                 return;
             };
-            if (term.Exited != 0) {
-                log.err("codesign exited with code {d}", .{term.Exited});
+            const term = codesign.wait(io) catch |err| {
+                log.err("Failed to codesign temp UI lib: {s}", .{@errorName(err)});
+                return;
+            };
+            if (!term.success()) {
+                log.err("codesign failed: {f}", .{term});
                 return;
             }
         }
@@ -158,7 +160,7 @@ pub const HotReloader = struct {
         log.info("UI lib loaded successfully (reload #{d})", .{self.reload_counter});
     }
 
-    fn copyToTemp(self: *HotReloader) ?[:0]const u8 {
+    fn copyToTemp(self: *HotReloader, io: std.Io) ?[:0]const u8 {
         const result = std.fmt.bufPrint(&self.temp_path_buf, "/tmp/reaper_ui_reload_{d}.dylib", .{
             self.reload_counter,
         }) catch return null;
@@ -172,22 +174,12 @@ pub const HotReloader = struct {
                 self.reload_counter - 1,
             }) catch null;
             if (prev) |prev_path| {
-                std.fs.deleteFileAbsolute(prev_path) catch {};
+                std.Io.Dir.deleteFileAbsolute(io, prev_path) catch {};
             }
         }
 
-        const src = std.fs.openFileAbsoluteZ(self.lib_path, .{}) catch return null;
-        defer src.close();
-        const dst = std.fs.createFileAbsoluteZ(dest, .{}) catch return null;
-        defer dst.close();
-
         // Copy contents.
-        var copy_buf: [8192]u8 = undefined;
-        while (true) {
-            const n = src.read(&copy_buf) catch return null;
-            if (n == 0) break;
-            dst.writeAll(copy_buf[0..n]) catch return null;
-        }
+        std.Io.Dir.copyFileAbsolute(self.lib_path, dest, io, .{}) catch return null;
 
         return dest;
     }
@@ -202,10 +194,10 @@ pub const HotReloader = struct {
         self.ui_get_last_action = null;
     }
 
-    fn getFileMtime(path: [:0]const u8) ?i128 {
-        const file = std.fs.openFileAbsoluteZ(path, .{}) catch return null;
-        defer file.close();
-        const stat = file.stat() catch return null;
-        return stat.mtime;
+    fn getFileMtime(io: std.Io, path: [:0]const u8) ?i128 {
+        const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return null;
+        defer file.close(io);
+        const stat = file.stat(io) catch return null;
+        return stat.mtime.nanoseconds;
     }
 };
