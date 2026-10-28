@@ -9,7 +9,9 @@ const MappableModule = mappings.MappableModule;
 const mft_fx = @import("mft_fx.zig");
 const mft_transport = @import("mft_transport.zig");
 const mft_settings = @import("mft_settings.zig");
-const mft_theme = @import("mft_theme.zig");
+const theme = @import("panel_theme");
+const panel_fonts = @import("panel_fonts");
+const widgets = @import("panel_widgets");
 const wizard = @import("mft_wizard.zig");
 const log = std.log.scoped(.mft_imgui);
 
@@ -18,14 +20,26 @@ const color_fail: c_int = @bitCast(@as(u32, 0xFF5555FF));
 const color_muted: c_int = @bitCast(@as(u32, 0x999999FF));
 
 const plugin_name = "MFT";
+// The width of a cell's screen, and the distance from one column of cells to the next.
 const CELL_W: f64 = 96.0;
-const CELL_H: f64 = 80.0;
+const CELL_PITCH: f64 = 108.0;
 const SIDE_W: f64 = 72.0;
-const SIDE_H: f64 = 26.0;
+const WINDOW_W: f64 = 640.0;
+const WINDOW_H: f64 = 620.0;
+
+// A dial shows a normalized parameter as a percentage.
+const dial_control = widgets.Control{ .id = "mft-dial", .low = 0, .high = 100, .unit = "%" };
+
+const left_labels = [3][:0]const u8{ "L1 Chain", "L2 Hide", "L3 FXsel" };
+const right_labels = [3][:0]const u8{ "R1 Mute", "R2 Solo", "R3 Phase" };
 
 var ctx: imgui.ContextPtr = null;
 var disabled = false;
 var ready = false;
+// The fonts belong to the ReaImGui context, and the kit's state (the heights its cards measured) to the window drawn
+// in it, so both are made and dropped with the context.
+var fonts: panel_fonts.Fonts = .{};
+var kit: widgets.Panel = .{};
 
 // Short module names shown on the bottom-row selector cells.
 const module_labels = [6][:0]const u8{ "IO", "GATE", "EQ", "COMP", "SETTINGS", "TRANSPORT" };
@@ -90,15 +104,6 @@ const KnobInfo = struct {
     }
 };
 
-// Render a normalized value as an eight-segment bar like "[####----]".
-fn gauge(value: f64, buf: *[16:0]u8) [:0]const u8 {
-    const clamped = std.math.clamp(value, 0.0, 1.0);
-    const filled: usize = @intFromFloat(@round(clamped * 8.0));
-    var tmp: [8]u8 = undefined;
-    for (0..8) |i| tmp[i] = if (i < filled) '#' else '-';
-    return std.fmt.bufPrintZ(buf, "[{s}]", .{tmp[0..8]}) catch buf[0..0 :0];
-}
-
 // The module a bottom-row encoder selects, or null for the two reserved cells.
 fn moduleForCell(idx: usize) ?MftActiveModule {
     return switch (idx) {
@@ -133,7 +138,7 @@ fn onTimer() callconv(.C) void {
     // context, so the next Begin on re-show errors on every frame. So we drop our
     // handle while hidden and let onTimer recreate a fresh context on re-show.
     if (!globals.mft.panel_visible) {
-        ctx = null;
+        dropContext();
         return;
     }
 
@@ -148,6 +153,9 @@ fn onTimer() callconv(.C) void {
             disabled = true;
             return;
         };
+        // ReaImGui needs every font attached before the context's first frame.
+        fonts = panel_fonts.create(ctx);
+        kit = .{};
     }
     draw(globals) catch |err| {
         log.err("MFT panel draw error: {s}", .{@errorName(err)});
@@ -155,162 +163,161 @@ fn onTimer() callconv(.C) void {
         // Because ReaImGui destroys a context after an ImGui assertion fails, our
         // handle may now be dangling. We drop it so that the next tick creates a
         // fresh context instead of failing on every frame.
-        ctx = null;
+        dropContext();
     };
+}
+
+// Forgets the context and what was made in it: the fonts and the kit's state belong to it.
+fn dropContext() void {
+    ctx = null;
+    fonts = .{};
+    kit = .{};
 }
 
 fn draw(globals: *MftGlobals) !void {
     // Only called while the panel is visible: onTimer owns the hide/show cycle by
     // dropping the context when hidden, so draw always submits the window.
+    kit.ctx = ctx;
+    kit.fonts = fonts;
 
-    // Match the Console One palette and style around the whole window.
-    const style = mft_theme.pushStyle(ctx);
-    defer mft_theme.popStyle(ctx, style);
+    // The palette and style of the shared panel kit go around the whole window, and so does the text font.
+    theme.push(ctx);
+    defer theme.pop(ctx);
+    if (fonts.text != null) imgui.api.PushFont(ctx, fonts.text);
+    defer if (fonts.text != null) imgui.api.PopFont(ctx);
 
+    imgui.api.SetNextWindowSize(ctx, WINDOW_W, WINDOW_H, &imgui.Cond_FirstUseEver);
     if (try imgui.Begin(.{ ctx, plugin_name })) {
         defer imgui.End(.{ctx}) catch {};
 
         const active = globals.mft.active_module;
-        try imgui.TextColored(.{ ctx, moduleColor(globals, active), @tagName(active) });
-        try imgui.Separator(.{ctx});
+        const accent = moduleColor(globals, active);
+        std.debug.assert(accent != 0);
+
+        // Because a card that is not drawn is not followed by `endCard`, each card is closed by a defer inside the
+        // branch that opened it.
+        if (widgets.beginCard(&kit, plugin_name, null, null, accent)) {
+            defer widgets.endCard(&kit);
+            widgets.display(&kit, @tagName(active), accent, 160);
+        }
 
         // Settings mode draws its form above the grid; otherwise the buffers stay
         // synced from preferences for the next time it is opened.
         if (active == .SETTINGS) {
             try mft_settings.drawForm(ctx, globals);
-            try imgui.Separator(.{ctx});
         } else {
             mft_settings.markUnsynced();
         }
 
-        // Read the eight top-row parameter values and names for the active module.
-        var info = KnobInfo{};
-        if (MappableModule.fromActive(active)) |module| {
-            if (globals.current_track) |track| {
-                const routing = mft_fx.resolveModule(globals, track, module);
-                for (routing.targets, 0..) |maybe_target, slot| {
-                    if (maybe_target) |target| {
-                        info.vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
-                        info.mapped[slot] = true;
-                        if (reaper.TrackFX_GetParamName(track, target.fx_index, @intCast(target.param), @ptrCast(&info.name_bufs[slot]), 64)) {
-                            info.has_name[slot] = true;
-                        }
-                    }
-                }
-            }
-        }
+        const info = readKnobInfo(globals, active);
 
-        // Each group result is captured before the defer so EndGroup is always called
-        // even if BeginGroup errors, keeping the ImGui group stack balanced.
-        // Left side buttons, labeled with their function.
-        {
-            try imgui.BeginGroup(.{ctx});
-            defer imgui.EndGroup(.{ctx}) catch {};
-            _ = try imgui.Button(.{ ctx, "L1 Chain", SIDE_W, SIDE_H });
-            _ = try imgui.Button(.{ ctx, "L2 Hide", SIDE_W, SIDE_H });
-            _ = try imgui.Button(.{ ctx, "L3 FXsel", SIDE_W, SIDE_H });
-        }
-        try imgui.SameLine(.{ctx});
-
-        // 4x4 encoder grid.
-        {
-            try imgui.BeginGroup(.{ctx});
-            defer imgui.EndGroup(.{ctx}) catch {};
-            var row: usize = 0;
-            while (row < 4) : (row += 1) {
-                var col: usize = 0;
-                while (col < 4) : (col += 1) {
-                    const idx = row * 4 + col;
-                    if (col > 0) try imgui.SameLine(.{ctx});
-                    try drawCell(globals, idx, &info, active);
-                }
-            }
-        }
-        try imgui.SameLine(.{ctx});
-
-        // Right side buttons, labeled with their function.
-        {
-            try imgui.BeginGroup(.{ctx});
-            defer imgui.EndGroup(.{ctx}) catch {};
-            _ = try imgui.Button(.{ ctx, "R1 Mute", SIDE_W, SIDE_H });
-            _ = try imgui.Button(.{ ctx, "R2 Solo", SIDE_W, SIDE_H });
-            _ = try imgui.Button(.{ ctx, "R3 Phase", SIDE_W, SIDE_H });
+        if (widgets.beginCard(&kit, "Encoders", null, null, accent)) {
+            defer widgets.endCard(&kit);
+            drawSideColumn(&left_labels);
+            imgui.api.SameLine(ctx, null, null);
+            drawGrid(globals, &info, active, accent);
+            imgui.api.SameLine(ctx, null, null);
+            drawSideColumn(&right_labels);
         }
 
         try drawWizard(globals);
     }
 }
 
-// Draw one knob or module-selector cell as a bordered box holding its label and,
-// depending on the mode, its value and press action. Module cells carry the
-// module's color on the border and show the mode name under the knob label.
-fn drawCell(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: MftActiveModule) !void {
-    var id_buf: [12:0]u8 = undefined;
-    const cell_id = std.fmt.bufPrintZ(&id_buf, "##c{d}", .{idx}) catch "##c";
+// Reads the eight top-row parameter values and names for the active module.
+fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
+    var info = KnobInfo{};
+    const module = MappableModule.fromActive(active) orelse return info;
+    const track = globals.current_track orelse return info;
+    const routing = mft_fx.resolveModule(globals, track, module);
+    for (routing.targets, 0..) |maybe_target, slot| {
+        const target = maybe_target orelse continue;
+        info.vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
+        info.mapped[slot] = true;
+        if (reaper.TrackFX_GetParamName(track, target.fx_index, @intCast(target.param), @ptrCast(&info.name_bufs[slot]), 64)) {
+            info.has_name[slot] = true;
+        }
+    }
+    return info;
+}
 
-    const border_color: ?c_int = if (moduleForCell(idx)) |m| moduleColor(globals, m) else null;
-    if (border_color) |bc| try imgui.PushStyleColor(.{ ctx, imgui.Col_Border, bc });
-    defer if (border_color != null) imgui.PopStyleColor(.{ ctx, 1 }) catch {};
+// A column of the side buttons, each shown on a recessed screen with the function it has. Because the panel mirrors
+// the controller, they are screens and not buttons: a button that answers the mouse and does nothing would mislead.
+fn drawSideColumn(labels: *const [3][:0]const u8) void {
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
+    for (labels) |label| widgets.display(&kit, label, theme.text, SIDE_W);
+}
 
-    // NoScrollbar prevents a too-tight box from spawning a scrollbar; the box is
-    // sized to fit its lines. Because ReaImGui expects EndChild only when
-    // BeginChild returned true, a clipped cell (for instance when the window is
-    // shrunk) must skip EndChild: an extra EndChild trips an ImGui assertion, and
-    // ReaImGui then destroys the whole context.
-    if (try imgui.BeginChild(.{ ctx, cell_id, CELL_W, CELL_H, imgui.ChildFlags_Border, imgui.WindowFlags_NoScrollbar })) {
-        defer imgui.EndChild(.{ctx}) catch {};
-        try drawCellContents(globals, idx, info, active);
+// The 4x4 grid of the encoders. Each column starts at a fixed distance from the first, so that the cells line up
+// whatever the width of their text.
+fn drawGrid(globals: *MftGlobals, info: *const KnobInfo, active: MftActiveModule, accent: c_int) void {
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
+    for (0..4) |row| {
+        for (0..4) |col| {
+            if (col > 0) {
+                var offset = @as(f64, @floatFromInt(col)) * CELL_PITCH;
+                imgui.api.SameLine(ctx, &offset, null);
+            }
+            drawCell(globals, row * 4 + col, info, active, accent);
+        }
     }
 }
 
-// Draw the lines inside one cell's child window. The caller owns the
-// BeginChild/EndChild pair.
-fn drawCellContents(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: MftActiveModule) !void {
+// Draws one cell of the grid: a dial or the transport functions for the top eight encoders, and the module selector
+// for the bottom eight.
+fn drawCell(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: MftActiveModule, accent: c_int) void {
+    imgui.api.BeginGroup(ctx);
+    defer imgui.api.EndGroup(ctx);
     var lbl_buf: [8:0]u8 = undefined;
     const klabel = std.fmt.bufPrintZ(&lbl_buf, "K{d}", .{idx + 1}) catch "K";
-
     if (idx < 8) {
-        switch (active) {
-            // Transport mode shows each encoder's rotation and press function.
-            .TRANSPORT => {
-                try imgui.Text(.{ ctx, klabel });
-                try imgui.Text(.{ ctx, mft_transport.rotationLabel(idx) });
-                try imgui.Text(.{ ctx, mft_transport.pressLabel(idx) });
-            },
-            .SETTINGS => {
-                try imgui.Text(.{ ctx, klabel });
-                try imgui.Text(.{ ctx, "-" });
-            },
-            // A mappable module: the mapped parameter's name is the knob label,
-            // shown above the value gauge and the press action.
-            else => {
-                if (info.has_name[idx]) {
-                    try imgui.Text(.{ ctx, info.name(idx) });
-                } else {
-                    try imgui.Text(.{ ctx, klabel });
-                }
-                var gauge_buf: [16:0]u8 = undefined;
-                try imgui.Text(.{ ctx, gauge(if (info.mapped[idx]) info.vals[idx] else 0.0, &gauge_buf) });
-                try imgui.Text(.{ ctx, "hold:fine" });
-            },
-        }
-        return;
-    }
-
-    // Module selector cells: label above the mode it selects, on its own line.
-    if (moduleForCell(idx)) |module| {
-        var txt_buf: [24:0]u8 = undefined;
-        const txt = std.fmt.bufPrintZ(&txt_buf, "{s}\n{s}", .{ klabel, module_labels[idx - 8] }) catch klabel;
-        if (module == active) {
-            try imgui.TextColored(.{ ctx, moduleColor(globals, module), txt });
-        } else {
-            try imgui.Text(.{ ctx, txt });
-        }
+        drawKnobCell(idx, info, active, accent, klabel);
     } else {
-        var txt_buf: [12:0]u8 = undefined;
-        const txt = std.fmt.bufPrintZ(&txt_buf, "{s}\n-", .{klabel}) catch klabel;
-        try imgui.Text(.{ ctx, txt });
+        drawModuleCell(globals, idx, active, klabel);
     }
+}
+
+// One of the top eight encoders.
+fn drawKnobCell(idx: usize, info: *const KnobInfo, active: MftActiveModule, accent: c_int, klabel: [:0]const u8) void {
+    switch (active) {
+        // Transport mode shows each encoder's rotation and press function.
+        .TRANSPORT => {
+            widgets.centeredValue(&kit, klabel, CELL_W, theme.label);
+            widgets.centeredValue(&kit, mft_transport.rotationLabel(idx), CELL_W, theme.text);
+            widgets.centeredValue(&kit, mft_transport.pressLabel(idx), CELL_W, theme.text_dim);
+        },
+        .SETTINGS => {
+            widgets.centeredValue(&kit, klabel, CELL_W, theme.label);
+            widgets.centeredValue(&kit, "-", CELL_W, theme.text_dim);
+        },
+        // A mappable module: the mapped parameter's name is the dial's label. An encoder with nothing mapped shows
+        // a dim dial at zero under its own number.
+        else => {
+            const name: []const u8 = if (info.has_name[idx]) info.name(idx) else klabel;
+            const normalized = std.math.clamp(info.vals[idx], 0.0, 1.0);
+            const percent: i32 = @intFromFloat(@round(normalized * 100.0));
+            widgets.dial(&kit, dial_control, if (info.mapped[idx]) percent else 0, name, if (info.mapped[idx]) accent else theme.text_dim);
+            widgets.tooltip(&kit, "Hold the encoder while turning for fine adjustment");
+        },
+    }
+}
+
+// One of the bottom eight encoders: a module selector, with a lamp in the module's color that is lit for the active
+// module, or a reserved cell.
+fn drawModuleCell(globals: *MftGlobals, idx: usize, active: MftActiveModule, klabel: [:0]const u8) void {
+    const module = moduleForCell(idx) orelse {
+        widgets.centeredValue(&kit, klabel, CELL_W, theme.label);
+        widgets.display(&kit, "-", theme.text_dim, CELL_W);
+        return;
+    };
+    const color = moduleColor(globals, module);
+    const lit = module == active;
+    widgets.lamp(&kit, color, lit);
+    imgui.api.SameLine(ctx, null, null);
+    widgets.centeredValue(&kit, klabel, CELL_W - 24, theme.label);
+    widgets.display(&kit, module_labels[idx - 8], if (lit) color else theme.text_dim, CELL_W);
 }
 
 fn drawWizard(globals: *MftGlobals) !void {
@@ -389,4 +396,37 @@ test "panel balanced across modes" {
     try assertPanelBalanced(.TRANSPORT, false);
     try assertPanelBalanced(.SETTINGS, false);
     try assertPanelBalanced(.IO, true);
+}
+
+test "every cell of the grid leaves the stacks balanced, mapped or not, in every kind of mode" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    var info = KnobInfo{};
+    // The first encoder has a parameter mapped, with a name, and the second has one without a name.
+    info.mapped[0] = true;
+    info.vals[0] = 0.5;
+    info.has_name[0] = true;
+    @memcpy(info.name_bufs[0][0..4], "Gain");
+    info.name_bufs[0][4] = 0;
+    info.mapped[1] = true;
+    info.vals[1] = 2.0;
+
+    for ([_]MftActiveModule{ .IO, .TRANSPORT, .SETTINGS }) |module| {
+        const accent = moduleColor(&globals, module);
+        for (0..16) |idx| drawCell(&globals, idx, &info, module, accent);
+    }
+    try mock.assertBalanced();
+}
+
+test "dropping the context takes the fonts and the kit's state with it" {
+    kit.accent = theme.green;
+    fonts.text = @ptrFromInt(0x10);
+    dropContext();
+    try std.testing.expect(ctx == null);
+    try std.testing.expect(kit.accent == null);
+    try std.testing.expect(fonts.text == null);
 }

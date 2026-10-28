@@ -143,21 +143,23 @@ default plugin per slot.
 ## On-screen panel
 
 When ReaImGui is present, a panel mirrors the hardware: a 4x4 grid of encoders
-with three labeled side buttons on each edge (L1 chain, R1 mute, R2 solo, R3
-phase). Each encoder is drawn as a bordered box holding its label and, for the top
-eight, the value gauge and the press action (in transport mode the rotation and
-press functions). In an FX-control mode a mapped knob shows the mapped
-parameter's name as its label. The bottom eight cells are the module selectors:
-each shows its knob label above the mode it selects, with the module's border and
-the active module's text drawn in that module's color.
+with three labeled side screens on each edge (L1 chain, L2 hide, L3 FX select,
+R1 mute, R2 solo, R3 phase). The top eight encoders are rotary dials. In an
+FX-control mode a mapped dial shows the mapped parameter's name as its label and
+its value as a percentage, and an encoder with nothing mapped shows a dim dial.
+In transport mode the top eight cells show the rotation and press functions. The
+bottom eight cells are the module selectors: each has a lamp in the module's
+color, lit for the active module, and a screen with the mode it selects.
 
-The active-mode text and each module cell's border use the controller's own color
+The active-mode card, the dials and the lamps use the controller's own color
 code for that mode (the LED hue converted to RGB), so the panel matches the
 hardware colors.
 
-The rest of the panel uses the same color palette and style as the Console One
-UI, a copy of the Console One theme INI (`resources/default_reaper_theme.ini`)
-pushed as ImGui colors and style vars around the window each frame.
+The look comes from the shared panel kit of `reaziglib` (`panel_theme`,
+`panel_fonts` and `panel_widgets`), the same one that the VR-09 plugin uses:
+engraved cards, dials, lamps and recessed screens, in the embedded Saira
+Condensed and Librestile fonts. The panel only mirrors the controller, so none of
+the dials or the side screens answers the mouse.
 
 ## Calibration
 
