@@ -5,6 +5,9 @@ const fileio = @import("fileio.zig");
 
 pub const extension = ".json";
 pub const slots_per_bank = 4;
+/// The keyboard has 25 banks of 4 registrations. A file of a higher bank would have a patch value that belongs
+/// to the tones, so it is not a registration.
+pub const max_banks = 25;
 
 pub const Parsed = struct { bank: u8, slot: u8, name: []const u8 };
 
@@ -18,7 +21,7 @@ pub fn parseFileName(file_name: []const u8) ?Parsed {
     const under = std.mem.indexOfScalarPos(u8, stem, dash, '_') orelse return null;
     const bank = std.fmt.parseInt(u8, stem[0..dash], 10) catch return null;
     const slot = std.fmt.parseInt(u8, stem[dash + 1 .. under], 10) catch return null;
-    if (bank == 0 or slot == 0 or slot > slots_per_bank) return null;
+    if (bank == 0 or bank > max_banks or slot == 0 or slot > slots_per_bank) return null;
     return .{ .bank = bank, .slot = slot, .name = stem[under + 1 ..] };
 }
 
@@ -53,6 +56,8 @@ test "registration file names are parsed" {
     try std.testing.expect(parseFileName("reg1.json") == null);
     try std.testing.expect(parseFileName("1-5_TooHigh.json") == null);
     try std.testing.expect(parseFileName("0-1_Zero.json") == null);
+    try std.testing.expect(parseFileName("26-1_TooHigh.json") == null);
+    try std.testing.expect(parseFileName("25-4_Last.json") != null);
     try std.testing.expect(parseFileName("1-1_Name.vr09") == null);
     try std.testing.expect(parseFileName("x-1_Name.json") == null);
 }

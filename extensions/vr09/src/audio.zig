@@ -167,7 +167,16 @@ pub const Bridge = struct {
     pub fn onBuffer(self: *Bridge, is_post: bool, len: usize, host: HostBuffers) void {
         if (len == 0 or len > self.scratch_l.len) return;
         for (&self.slots, 0..) |*slot, i| {
-            if (!self.claimed[i].load(.acquire) or !slot.active.load(.acquire)) continue;
+            if (!self.claimed[i].load(.acquire)) continue;
+            if (!slot.active.load(.acquire)) {
+                // The hook is the consumer of `out_ring` and owns `out_primed`, so it is the one that forgets what
+                // the plugin pushed before it stopped, which would otherwise play late when the loop starts again.
+                if (is_post) {
+                    slot.out_primed = false;
+                    slot.out_ring.clear();
+                }
+                continue;
+            }
             if (is_post) {
                 self.sendToDevice(slot, len, host);
             } else {
@@ -266,6 +275,8 @@ pub const Loop = struct {
     last_tick: u32 = 0,
     stalled_blocks: u32 = 0,
     ping: Ping = .{},
+    /// Set by `startPing`; the next block starts the measurement.
+    ping_requested: Atomic(bool) = Atomic(bool).init(false),
     state: LoopState = .off,
     /// Counts the blocks that could not keep lockstep, which invalidates a
     /// measurement made across them.
@@ -278,8 +289,10 @@ pub const Loop = struct {
         return .{ .slot = slot, .bridge = bridge, .last_tick = bridge.ticks.load(.acquire) };
     }
 
+    /// Asks for a measurement. Any thread may call it: the measurement begins at the start of the next block,
+    /// because only the audio thread may write `ping`.
     pub fn startPing(self: *Loop) void {
-        self.ping = .{ .state = .listening_noise };
+        self.ping_requested.store(true, .release);
     }
 
     /// Whether the audio device is running: the hook's tick advances with it.
@@ -305,12 +318,14 @@ pub const Loop = struct {
         const has_channels = self.slot.out_channel.load(.monotonic) >= 0 and self.slot.in_channel.load(.monotonic) >= 0;
         self.state = if (!enabled) .off else if (!running) .no_device else if (!has_channels) .no_channels else .running;
         const bypass = self.state != .running or n > self.scratch_l.len;
+        if (self.ping_requested.swap(false, .acq_rel)) self.ping = .{ .state = .listening_noise };
         if (bypass) {
+            // The plugin is the consumer of `in_ring` and the producer of `out_ring`. It clears the first, and tells
+            // the hook to drop the second by deactivating the slot: `out_primed` and the consumer's end of
+            // `out_ring` belong to the hook.
             self.slot.active.store(false, .release);
-            self.slot.out_primed = false;
             self.in_primed = false;
             self.slot.in_ring.clear();
-            self.slot.out_ring.clear();
             // The host may hand over the same buffer for input and output.
             if (out_l.ptr != in_l.ptr) @memcpy(out_l[0..n], in_l);
             if (out_r.ptr != in_r.ptr) @memcpy(out_r[0..n], in_r);
@@ -544,6 +559,53 @@ test "without a running device or channels the audio passes through" {
     try std.testing.expectEqualSlices(f32, &in_l, &out_l);
     try std.testing.expectEqualSlices(f32, &in_r, &out_r);
     try std.testing.expect(!slot.active.load(.acquire));
+}
+
+fn noBuffers(_: *anyopaque, _: bool, _: usize) ?[*]f64 {
+    return null;
+}
+
+test "turning the loop off leaves the hook's side of the ring to the hook" {
+    const allocator = std.testing.allocator;
+    const bridge = try Bridge.create(allocator);
+    defer allocator.destroy(bridge);
+    const slot = bridge.claim().?;
+    var loop = Loop.init(bridge, slot);
+    // The loop was running: the plugin pushed a block, and the hook had started taking from the ring.
+    const block = [_]f32{0.25} ** 64;
+    slot.active.store(true, .release);
+    try std.testing.expect(slot.out_ring.push(&block, &block));
+    slot.out_primed = true;
+
+    var out_l: [64]f32 = undefined;
+    var out_r: [64]f32 = undefined;
+    loop.process(false, &block, &block, &out_l, &out_r);
+    // The plugin only says that the slot is not active: it does not take from the producer's ring, or the hook's flag.
+    try std.testing.expect(!slot.active.load(.acquire));
+    try std.testing.expectEqual(@as(usize, 64), slot.out_ring.available());
+    try std.testing.expect(slot.out_primed);
+
+    // The hook drops them at its next callback, so that they do not play late when the loop starts again.
+    var unused: u8 = 0;
+    bridge.onBuffer(true, 64, .{ .ctx = &unused, .input_nch = 0, .output_nch = 0, .get = noBuffers });
+    try std.testing.expectEqual(@as(usize, 0), slot.out_ring.available());
+    try std.testing.expect(!slot.out_primed);
+}
+
+test "a measurement is asked for by any thread and begins in the audio thread" {
+    const allocator = std.testing.allocator;
+    const bridge = try Bridge.create(allocator);
+    defer allocator.destroy(bridge);
+    const slot = bridge.claim().?;
+    var loop = Loop.init(bridge, slot);
+    loop.startPing();
+    try std.testing.expectEqual(PingState.idle, loop.ping.state);
+    try std.testing.expect(loop.ping_requested.load(.acquire));
+    const block = [_]f32{0} ** 16;
+    var out_l: [16]f32 = undefined;
+    var out_r: [16]f32 = undefined;
+    loop.process(true, &block, &block, &out_l, &out_r);
+    try std.testing.expect(!loop.ping_requested.load(.acquire));
 }
 
 test "slots are claimed and released" {

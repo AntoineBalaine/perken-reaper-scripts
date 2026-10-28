@@ -162,13 +162,38 @@ pub fn appendRegistrations(p: *Plugin, library: *Library, folder: []const u8) vo
     library.registration_count = @intCast(library.rows.items.len - first);
 }
 
+/// A value for a preset that no other preset has. The value that comes from the name is taken as it is, unless
+/// another preset already has it, as two files of the same name do (`Pad.vr09` and `Pad.json`), or as two names
+/// that hash to the same number do. Then the next free value of the presets' range is used. Because a value
+/// identifies its row, in the table and in a scene template, two rows must never share one.
+fn uniquePresetValue(others: []const Row, wanted: u32) u32 {
+    var value = wanted;
+    var tries: u32 = 0;
+    while (tries < preset_id_span) : (tries += 1) {
+        var taken = false;
+        for (others) |row| {
+            if (row.kind == .preset and row.value == value) {
+                taken = true;
+                break;
+            }
+        }
+        if (!taken) return value;
+        value = preset_id_first + (value - preset_id_first + 1) % preset_id_span;
+    }
+    return value;
+}
+
 /// Adds a row for each preset file of `folder`, in the order of their names. Because the rows keep the file names
 /// as IDs in the strings, the list of the files is freed as soon as the rows are made.
 pub fn appendPresets(p: *Plugin, library: *Library, folder: []const u8) void {
     var files = fileio.listFiles(plugin.allocator, folder, &state_files.preset_extensions) catch return;
     defer fileio.freeList(plugin.allocator, &files);
     std.mem.sort([:0]u8, files.items, {}, lessName);
-    for (files.items) |file_name| library.rows.append(plugin.allocator, presetRow(p, file_name)) catch return;
+    for (files.items) |file_name| {
+        var row = presetRow(p, file_name);
+        row.value = uniquePresetValue(library.rows.items, row.value);
+        library.rows.append(plugin.allocator, row) catch return;
+    }
 }
 
 /// Reads the registrations and the presets, and makes every row of the table: the registrations, the tones, and
@@ -202,12 +227,18 @@ pub fn rows(p: *Plugin) []const Row {
 pub fn addPreset(p: *Plugin, file_name: [:0]const u8) void {
     const library = &p.library;
     if (!library.built) return;
-    const row = presetRow(p, file_name);
+    var row = presetRow(p, file_name);
+    for (library.rows.items) |existing| {
+        if (existing.kind == .preset and existing.file == row.file) return;
+    }
+    row.value = uniquePresetValue(library.rows.items, row.value);
     var at = library.rows.items.len;
     for (library.rows.items, 0..) |existing, i| {
         if (existing.kind != .preset) continue;
-        if (existing.file == row.file) return;
-        if (at == library.rows.items.len and std.ascii.lessThanIgnoreCase(p.strings.get(row.name), p.strings.get(existing.name))) at = i;
+        if (std.ascii.lessThanIgnoreCase(p.strings.get(row.name), p.strings.get(existing.name))) {
+            at = i;
+            break;
+        }
     }
     library.rows.insert(plugin.allocator, at, row) catch {};
 }

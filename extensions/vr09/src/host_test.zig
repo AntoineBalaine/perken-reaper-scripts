@@ -516,6 +516,11 @@ test "the debug commands add, list, move, select and remove scenes" {
     try std.testing.expectEqual(@as(?u8, 6), self.shared.getDesired(.kb, 1 << 14 | 1 << 7 | 2));
     try std.testing.expectEqual(@as(?u8, null), self.shared.getDesired(.kb, 0x02 << 14 | 5));
     try std.testing.expectEqualStrings("Vintage EP", self.settings.presetName());
+    // A byte above 127 would end the SysEx message, so a tone with one is refused.
+    fbs = std.io.fixedBufferStream(&out);
+    try debug_api.dispatch(fbs.writer(), null, -1, "load_tone", "upper_piano 200 6 0|Too high");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
+    try std.testing.expectEqual(@as(?u8, 58), self.shared.getDesired(.kb, 1 << 14 | 1 << 7 | 1));
     fbs = std.io.fixedBufferStream(&out);
     try debug_api.dispatch(fbs.writer(), null, -1, "scene_add_tone", "drum 1 1 0");
     try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
@@ -670,6 +675,35 @@ test "a registration or a preset is found by its ID in the rows of the table" {
     try std.testing.expect(library.patchById(self, library.presetId("Other")) == null);
 }
 
+test "two presets never share a patch ID, so a template finds the right one" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    _ = library.rows(self);
+    // The same name in two files has the same hash, and so has to be told apart.
+    library.addPreset(self, "foo.vr09");
+    library.addPreset(self, "foo.json");
+    var values: [2]u32 = undefined;
+    var found: usize = 0;
+    for (library.rows(self)) |row| {
+        if (row.kind != .preset) continue;
+        values[found] = row.value;
+        found += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 2), found);
+    try std.testing.expect(values[0] != values[1]);
+    const first = library.patchById(self, values[0]).?;
+    const second = library.patchById(self, values[1]).?;
+    try std.testing.expect(first.source.preset != second.source.preset);
+    // A value that a tone has is not a preset's.
+    try std.testing.expect(values[0] >= 1000 and values[1] >= 1000);
+}
+
 test "saving and deleting a preset adds and removes its row, in the order of the names" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
@@ -744,7 +778,7 @@ test "the folders are read into rows: the registrations by bank and slot, the pr
     try std.testing.expectEqualStrings("b", self.strings.get(found.rows.items[3].name));
 }
 
-test "choosing a tone in a card writes it to that part, the same as a tone of the library" {
+test "choosing a tone in a card writes only the tone, and the knobs, the name and the split stay" {
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -756,10 +790,15 @@ test "choosing a tone in a card writes it to that part, the same as a tone of th
 
     // The card of the lower synth is the sixth part.
     const tone = &tones_mod.synth[3];
+    // A knob and a name that the player has set before the card is used.
+    _ = self.shared.setDesired(.kb, 0x02 << 14 | 5, 42);
+    self.settings.setPresetName("My patch");
     dispatch.dispatch(self, .{ .choose_tone = .{ .part = 5, .tone = tone } });
     var written = dump.Dump{};
     self.shared.desiredSnapshot(&written);
-    try std.testing.expectEqual(@as(usize, 3), written.knownCount());
+    try std.testing.expectEqual(@as(usize, 4), written.knownCount());
+    try std.testing.expectEqual(@as(?u8, 42), written.get(.kb, 0x02 << 14 | 5));
+    try std.testing.expectEqualStrings("My patch", self.settings.presetName());
     const block = dump.blockByName("lower_synth").?;
     const base = dump.block_offsets[block] + 1;
     try std.testing.expectEqual(tone.number, written.values[base]);
@@ -902,6 +941,66 @@ test "the panel's save starts the plugin's save job, and its result is told once
     self.ui.notice_text[0] = 0;
     dispatch.reportSave(self);
     try std.testing.expectEqual(@as(u8, 0), self.ui.notice_text[0]);
+}
+
+test "a scene number that does not exist goes back to the loaded scene" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 1, 0, 0, "A"));
+    try self.selectScene(1);
+
+    // Automation asks for a scene that the list does not have: the number is shown at once, then taken back.
+    self.requestScene(9);
+    try std.testing.expectEqual(@as(u8, 9), self.scene.load(.monotonic));
+    self.applyPendingScene();
+    try std.testing.expectEqual(@as(u8, 1), self.scene.load(.monotonic));
+
+    // Once the scene exists, the same value loads it, because it is a new value again.
+    var i: usize = 0;
+    while (i < 8) : (i += 1) _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 2, 0, 0, "More"));
+    self.requestScene(9);
+    self.applyPendingScene();
+    try std.testing.expectEqual(@as(u8, 9), self.scene.load(.monotonic));
+}
+
+test "a notice that is too long keeps its beginning" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+    const long = "x" ** 400;
+    self.ui.notice("Exported to {s}.", .{long}, false);
+    try std.testing.expect(std.mem.startsWith(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "Exported to xxx"));
+    try std.testing.expectEqual(self.ui.notice_text.len, std.mem.sliceTo(&self.ui.notice_text, 0).len);
+}
+
+test "automation of the loop leaves the track's flag to the main thread" {
+    try std.testing.expect(entry.init.?("test"));
+    defer entry.deinit.?();
+    var host: MockHost = undefined;
+    host.init();
+    const p = createPlugin(&host);
+    defer destroyPlugin(p);
+    const self = plugin.Plugin.from(p);
+
+    // The audio thread's side: the setting is stored and the flag is marked, and nothing calls REAPER.
+    plugin.applyExtra(self, 0, 1.0);
+    try std.testing.expect(self.settings.loop_enabled.load(.monotonic));
+    try std.testing.expect(self.loop_flag_dirty.load(.acquire));
+    // The main thread's tick takes the mark.
+    self.tickMain();
+    try std.testing.expect(!self.loop_flag_dirty.load(.acquire));
+    // The same value again changes nothing.
+    plugin.applyExtra(self, 0, 1.0);
+    try std.testing.expect(!self.loop_flag_dirty.load(.acquire));
 }
 
 test "a control change parameter sends a CC and nothing else" {

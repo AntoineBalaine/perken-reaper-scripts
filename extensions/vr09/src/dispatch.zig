@@ -45,6 +45,24 @@ pub fn reportSave(p: *Plugin) void {
     }
 }
 
+/// Writes a tone chosen in the card of a part. Unlike a tone of the library, which is a patch of its own, the card
+/// changes one part of the patch that the player is shaping, so only the three bytes of the tone are written and
+/// every knob, the name and the split stay as they are.
+fn chooseTone(p: *Plugin, c: types.ChooseTone) void {
+    const tone_dump = plugin.allocator.create(dump.Dump) catch {
+        say(p, "Could not send \"{s}\": out of memory.", .{c.tone.name}, true);
+        return;
+    };
+    defer plugin.allocator.destroy(tone_dump);
+    tone_dump.* = .{};
+    if (!scenes.toneDump(tone_dump, scenes.tone_parts[c.part], c.tone.number, c.tone.msb, c.tone.lsb)) {
+        say(p, "Could not send \"{s}\": {s}.", .{ c.tone.name, describe(error.BadPart) }, true);
+        return;
+    }
+    p.mergeScene(tone_dump);
+    say(p, "Sent \"{s}\" to the keyboard.", .{c.tone.name}, false);
+}
+
 /// What a save that could not begin says to the player.
 pub fn saveErrorText(err: Plugin.SaveError) []const u8 {
     return switch (err) {
@@ -168,12 +186,12 @@ pub fn dispatch(p: *Plugin, action: Action) void {
             say(p, "Saved {d} scenes as the template \"{s}\".", .{ saved.scenes, p.strings.get(saved.name) }, false);
         },
         .load_template => |t| {
-            const missing = loadTemplate(p, p.strings.get(t.name), t.append) catch |err| {
+            const result = loadTemplate(p, p.strings.get(t.name), t.append) catch |err| {
                 say(p, "Could not read the template: {s}.", .{describe(err)}, true);
                 return;
             };
-            if (missing > 0) {
-                say(p, "Loaded the template \"{s}\"; {d} scenes left out, their patches are not in the library.", .{ p.strings.get(t.name), missing }, true);
+            if (result.missing > 0 or result.failed > 0) {
+                say(p, "Loaded the template \"{s}\"; {d} scenes left out because their patches are not in the library, and {d} that could not be added.", .{ p.strings.get(t.name), result.missing, result.failed }, true);
             } else {
                 say(p, "Loaded the template \"{s}\".", .{p.strings.get(t.name)}, false);
             }
@@ -215,11 +233,7 @@ pub fn dispatch(p: *Plugin, action: Action) void {
             say(p, "Asking the keyboard who it is.", .{}, false);
         },
 
-        .choose_tone => |c| dispatch(p, .{ .send_patch = .{
-            .source = .{ .tone = .{ .part = p.strings.intern(scenes.tone_parts[c.part]), .number = c.tone.number, .msb = c.tone.msb, .lsb = c.tone.lsb } },
-            .name = p.strings.intern(c.tone.name),
-            .label = p.strings.intern(c.tone.name),
-        } }),
+        .choose_tone => |c| chooseTone(p, c),
     }
 }
 
@@ -461,7 +475,13 @@ fn saveTemplate(p: *Plugin, wanted: []const u8) !SavedTemplate {
 /// Loads a template: it replaces the session's scenes, or goes after them. Each scene is taken from the
 /// library, by the patch ID that the template holds. Returns how many lines were left out because their patch
 /// is not in the library.
-fn loadTemplate(p: *Plugin, name: []const u8, append: bool) !usize {
+/// What a template could not give back: the scenes whose patch is not in the library any more, and the lines
+/// that did not become a scene for another reason (the list was full, a preset file was gone, a line was damaged).
+pub const TemplateResult = struct { missing: usize = 0, failed: usize = 0 };
+
+/// Loads a template: it replaces the session's scenes, or goes after them. Each scene is taken from the
+/// library, by the patch ID that the template holds.
+fn loadTemplate(p: *Plugin, name: []const u8, append: bool) !TemplateResult {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try folderOf(&folder_buf, .templates);
     var path_buf: [fileio.max_path]u8 = undefined;
@@ -469,23 +489,32 @@ fn loadTemplate(p: *Plugin, name: []const u8, append: bool) !usize {
     defer plugin.allocator.free(text);
     if (!append) {
         p.scene_list.clear();
-        p.scene.store(0, .monotonic);
+        p.setScene(0);
         p.rescanParamValues();
     }
-    var missing: usize = 0;
+    var result = TemplateResult{};
     var lines = std.mem.tokenizeScalar(u8, text, '\n');
     while (lines.next()) |line| {
-        const tab = std.mem.lastIndexOfScalar(u8, line, '\t') orelse continue;
-        const id = std.fmt.parseInt(u32, std.mem.trim(u8, line[tab + 1 ..], " \r"), 10) catch continue;
+        const tab = std.mem.lastIndexOfScalar(u8, line, '\t') orelse {
+            result.failed += 1;
+            continue;
+        };
+        const id = std.fmt.parseInt(u32, std.mem.trim(u8, line[tab + 1 ..], " \r"), 10) catch {
+            result.failed += 1;
+            continue;
+        };
         var patch = library.patchById(p, id) orelse {
-            missing += 1;
+            result.missing += 1;
             continue;
         };
         // Because a line is a piece of the file, its name is not terminated, and is copied to be stored.
         patch.name = p.strings.internSlice(line[0..tab]);
-        _ = addScene(p, patch) catch continue;
+        _ = addScene(p, patch) catch {
+            result.failed += 1;
+            continue;
+        };
     }
-    return missing;
+    return result;
 }
 
 fn deleteTemplate(name: []const u8) !void {

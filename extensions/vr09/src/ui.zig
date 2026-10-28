@@ -100,8 +100,10 @@ pub const Window = struct {
 
     /// Says something to the player, in the line under the tabs, for a few seconds.
     pub fn notice(self: *Window, comptime fmt: []const u8, args: anytype, is_error: bool) void {
+        // A text that does not fit keeps its beginning, which says what happened: the buffer is filled to its end,
+        // and the terminator that comes after it is put back.
         _ = std.fmt.bufPrintZ(&self.notice_text, fmt, args) catch {
-            self.notice_text[0] = 0;
+            self.notice_text[self.notice_text.len] = 0;
         };
         self.notice_until = self.frame + 240;
         self.notice_is_error = is_error;

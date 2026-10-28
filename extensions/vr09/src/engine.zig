@@ -249,6 +249,16 @@ pub const Shared = struct {
         }
     }
 
+    /// Writes the bytes that `from` knows into the desired state, and leaves every other byte as it was. The
+    /// caller then bumps `scene_gen`, as it does after `loadDesired`.
+    pub fn mergeDesired(self: *Shared, from: *const dump.Dump) void {
+        for (0..dump.total_bytes) |i| {
+            if (!from.known[i]) continue;
+            self.desired[i].store(from.values[i], .monotonic);
+            self.desired_known[i].store(true, .release);
+        }
+    }
+
     pub fn desiredKnownCount(self: *const Shared) usize {
         var n: usize = 0;
         for (&self.desired_known) |*k| {

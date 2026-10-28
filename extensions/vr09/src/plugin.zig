@@ -124,7 +124,7 @@ pub const SaveJob = struct {
         return std.mem.sliceTo(&self.message, 0);
     }
 
-    fn fail(self: *SaveJob, text: []const u8) void {
+    pub fn fail(self: *SaveJob, text: []const u8) void {
         const n = @min(text.len, self.message.len);
         @memcpy(self.message[0..n], text[0..n]);
         self.message[n] = 0;
@@ -183,6 +183,10 @@ pub const Plugin = struct {
     library: library.Library,
     save: SaveJob,
     scene: std.atomic.Value(u8),
+    /// The last scene that the main thread loaded, or 0. Only the main thread reads and writes it.
+    scene_confirmed: u8,
+    /// Set when the loop setting changed and the track's flag has not followed yet.
+    loop_flag_dirty: std.atomic.Value(bool),
     pending_scene: std.atomic.Value(u8),
 
     ui: ui.Window,
@@ -249,6 +253,8 @@ pub const Plugin = struct {
         self.library = .{};
         self.save = .{};
         self.scene = std.atomic.Value(u8).init(0);
+        self.scene_confirmed = 0;
+        self.loop_flag_dirty = std.atomic.Value(bool).init(false);
         self.pending_scene = std.atomic.Value(u8).init(0);
         self.loop_state_logged = @intFromEnum(audio.LoopState.off);
         self.engine_events = .{};
@@ -312,10 +318,20 @@ pub const Plugin = struct {
         if (self.host.*.request_callback) |f| f(self.host);
     }
 
+    /// Turns the audio loop on or off. Any thread may call it, the audio thread for one, when automation moves the
+    /// parameter: it stores the setting and asks the host for the new latency, and leaves REAPER's track API to
+    /// `syncLoopFlag`, which the main thread runs.
     pub fn setLoopEnabled(self: *Plugin, enabled: bool) void {
         if (self.settings.loop_enabled.swap(enabled, .monotonic) == enabled) return;
-        if (self.track != null) glue.setNoAnticipativeFx(self.track, enabled);
+        self.loop_flag_dirty.store(true, .release);
         self.requestLatencyUpdate();
+    }
+
+    /// Sets the track's "no anticipative FX" flag to the loop's setting, when the setting has changed. Only the
+    /// main thread calls it, because REAPER's track API is not for the audio thread.
+    pub fn syncLoopFlag(self: *Plugin) void {
+        if (!self.loop_flag_dirty.swap(false, .acq_rel)) return;
+        if (self.track != null) glue.setNoAnticipativeFx(self.track, self.settings.loop_enabled.load(.monotonic));
     }
 
     pub fn startPing(self: *Plugin) void {
@@ -335,6 +351,13 @@ pub const Plugin = struct {
         _ = self.shared.scene_gen.fetchAdd(1, .release);
     }
 
+    /// Writes the bytes that a dump knows (a tone's three, for one) and has the engine recall them, without
+    /// touching the rest of the patch, its name or its split.
+    pub fn mergeScene(self: *Plugin, scene: *const dump.Dump) void {
+        self.shared.mergeDesired(scene);
+        _ = self.shared.scene_gen.fetchAdd(1, .release);
+    }
+
     /// Loads a registration's dump and writes it to the keyboard.
     pub fn loadRegistration(self: *Plugin, file_name: []const u8) !void {
         const parsed = registrations.parseFileName(file_name) orelse return error.BadFileName;
@@ -347,6 +370,13 @@ pub const Plugin = struct {
         self.rescanParamValues();
     }
 
+    /// Makes a position the current scene. Only the main thread calls it, so `scene_confirmed` is always a
+    /// scene that exists, which `applyPendingScene` goes back to when the audio thread asked for one that does not.
+    pub fn setScene(self: *Plugin, position: u8) void {
+        self.scene.store(position, .monotonic);
+        self.scene_confirmed = position;
+    }
+
     /// Called from the audio thread, when automation asks for a scene: the loading is left to the main
     /// thread, which owns the list.
     pub fn requestScene(self: *Plugin, position: u8) void {
@@ -354,11 +384,15 @@ pub const Plugin = struct {
         self.pending_scene.store(position, .release);
     }
 
-    fn applyPendingScene(self: *Plugin) void {
+    pub fn applyPendingScene(self: *Plugin) void {
         const pending = self.pending_scene.swap(0, .acq_rel);
         if (pending == 0) return;
         self.selectScene(pending) catch |err| {
             log.warn("scene {d} could not be loaded: {s}", .{ pending, @errorName(err) });
+            // Because `requestScene` showed the number before the list was asked, the number goes back to the
+            // scene that is really loaded, and the same value can be asked for again once the scene exists.
+            self.scene.store(self.scene_confirmed, .monotonic);
+            self.rescanParamValues();
             return;
         };
         log.info("scene {d} loaded", .{pending});
@@ -367,7 +401,7 @@ pub const Plugin = struct {
     /// Makes a scene the current one and has the engine recall its patch. Main thread only.
     pub fn selectScene(self: *Plugin, position: u8) error{NoSuchScene}!void {
         const scene = self.scene_list.get(position) orelse return error.NoSuchScene;
-        self.scene.store(position, .monotonic);
+        self.setScene(position);
         self.loadScene(&scene.patch, scene.name());
         self.rescanParamValues();
     }
@@ -435,9 +469,9 @@ pub const Plugin = struct {
         return true;
     }
 
-    fn followMapping(self: *Plugin, count: usize, map: *const scenes.Mapping) void {
+    pub fn followMapping(self: *Plugin, count: usize, map: *const scenes.Mapping) void {
         const current = self.scene.load(.monotonic);
-        if (current >= 1 and current <= count) self.scene.store(map[current - 1], .monotonic);
+        if (current >= 1 and current <= count) self.setScene(map[current - 1]);
         self.rescanParamValues();
     }
 
@@ -461,6 +495,7 @@ pub const Plugin = struct {
     pub fn tickMain(self: *Plugin) void {
         self.ticks +%= 1;
         self.applyPendingScene();
+        self.syncLoopFlag();
         self.advanceSave();
         self.logTraces();
         self.logLoopState();
@@ -677,7 +712,9 @@ fn pluginOnMainThread(p: P) callconv(.C) void {
 fn isKeyboardMessage(bytes: []const u8) bool {
     const body = roland.stripFraming(bytes);
     if (body.len < 2) return false;
-    return body[0] == roland.roland_id or (body[0] == 0x7E and body[2] == 0x06);
+    if (body[0] == roland.roland_id) return true;
+    // A universal non-realtime message has its sub-ID in the third byte, so a shorter one cannot be the reply.
+    return body.len >= 3 and body[0] == 0x7E and body[2] == 0x06;
 }
 
 fn pluginProcess(p: P, proc: [*c]const c.clap_process_t) callconv(.C) c.clap_process_status {
@@ -1269,4 +1306,11 @@ pub fn shutdown() void {
         allocator.destroy(b);
         shared_bridge = null;
     }
+}
+
+test "a short universal message is not taken for the keyboard's reply" {
+    try std.testing.expect(!isKeyboardMessage(&.{ 0xF0, 0x7E, 0x7F, 0xF7 }));
+    try std.testing.expect(!isKeyboardMessage(&.{ 0xF0, 0x7E, 0xF7 }));
+    try std.testing.expect(isKeyboardMessage(&.{ 0xF0, 0x7E, 0x7F, 0x06, 0x02, 0xF7 }));
+    try std.testing.expect(isKeyboardMessage(&.{ 0xF0, 0x41, 0x10, 0xF7 }));
 }

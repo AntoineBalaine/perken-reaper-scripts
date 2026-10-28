@@ -474,6 +474,8 @@ fn parseTone(p: *Plugin, text: []const u8) ?types.PatchSource {
     for (&numbers) |*n| {
         const word = words.next() orelse return null;
         n.* = std.fmt.parseInt(u8, word, 10) catch return null;
+        // Because these bytes go into a SysEx message, a byte with the high bit set would end it.
+        if (n.* > 127) return null;
     }
     return .{ .tone = .{ .part = p.strings.internSlice(part), .number = numbers[0], .msb = numbers[1], .lsb = numbers[2] } };
 }
