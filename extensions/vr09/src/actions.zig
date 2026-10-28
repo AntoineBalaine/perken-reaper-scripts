@@ -68,22 +68,24 @@ fn pickInstance() ?*plugin.Plugin {
 
 // ---- stepping between scenes -----------------------------------------------------------
 
-pub fn step(delta: i32) void {
+pub fn step(io: std.Io, delta: i32) void {
     const p = pickInstance() orelse {
         log.warn("scene step: there is no VR-09 plugin", .{});
         return;
     };
     const next = stepPosition(p.scene.load(.monotonic), p.scene_list.count, delta);
     if (next == 0 or next == p.scene.load(.monotonic)) return;
-    p.selectScene(next) catch |err| log.warn("scene {d} could not be selected: {s}", .{ next, @errorName(err) });
+    p.selectScene(io, next) catch |err| log.warn("scene {d} could not be selected: {s}", .{ next, @errorName(err) });
 }
 
 fn nextScene() void {
-    step(1);
+    const io = plugin.hostIo();
+    step(io, 1);
 }
 
 fn previousScene() void {
-    step(-1);
+    const io = plugin.hostIo();
+    step(io, -1);
 }
 
 // ---- scene points from the project's markers ------------------------------------------

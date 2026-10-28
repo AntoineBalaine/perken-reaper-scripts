@@ -858,18 +858,20 @@ const FakeKeyboard = struct {
     writes: usize = 0,
     reads: usize = 0,
     identity_requests: usize = 0,
+    /// The allocator of the outbox and of its messages.
+    allocator: std.mem.Allocator,
     /// Messages the keyboard wants to send to the engine in the next block.
-    outbox: std.ArrayList([]u8),
+    outbox: std.ArrayList([]u8) = .empty,
     last_write_time: u64 = 0,
     min_gap: u64 = std.math.maxInt(u64),
 
     pub fn init(allocator: std.mem.Allocator) FakeKeyboard {
-        return .{ .state = .{}, .outbox = std.ArrayList([]u8).init(allocator) };
+        return .{ .state = .{}, .allocator = allocator };
     }
 
     pub fn deinit(self: *FakeKeyboard) void {
-        for (self.outbox.items) |m| self.outbox.allocator.free(m);
-        self.outbox.deinit();
+        for (self.outbox.items) |m| self.allocator.free(m);
+        self.outbox.deinit(self.allocator);
     }
 
     pub fn receive(self: *FakeKeyboard, bytes: []const u8, at: u64) !void {
@@ -877,7 +879,7 @@ const FakeKeyboard = struct {
             self.identity_requests += 1;
             if (!self.answers) return;
             const reply = [_]u8{ 0xF0, 0x7E, 0x10, 0x06, 0x02, 0x41, 0x62, 0x00, 0x00, 0x06, 0x00, 0x01, 0x00, 0x00, 0xF7 };
-            try self.outbox.append(try self.outbox.allocator.dupe(u8, &reply));
+            try self.outbox.append(self.allocator, try self.allocator.dupe(u8, &reply));
             return;
         }
         const body = roland.stripFraming(bytes);
@@ -901,7 +903,7 @@ const FakeKeyboard = struct {
             for (0..size) |i| data[i] = self.state.get(kind, address + @as(u32, @intCast(i))) orelse 0;
             var out: [roland.max_message]u8 = undefined;
             const n = try roland.encodeDt1(&out, kind, address, data[0..size]);
-            try self.outbox.append(try self.outbox.allocator.dupe(u8, out[0..n]));
+            try self.outbox.append(self.allocator, try self.allocator.dupe(u8, out[0..n]));
         }
     }
 };
@@ -912,8 +914,10 @@ const Harness = struct {
     shared: *Shared,
     engine: Engine,
     keyboard: FakeKeyboard,
-    params_seen: std.ArrayList(ParamSeen),
-    midi_seen: std.ArrayList([3]u8),
+    /// The allocator of the lists below.
+    allocator: std.mem.Allocator,
+    params_seen: std.ArrayList(ParamSeen) = .empty,
+    midi_seen: std.ArrayList([3]u8) = .empty,
     block_start: u64 = 0,
     frames: u32 = 512,
     /// The time of the last message of the block, and how many parameter events came before it.
@@ -930,7 +934,7 @@ const Harness = struct {
     pub fn sinkMidi(ctx: *anyopaque, time: u32, status: u8, d1: u8, d2: u8) bool {
         _ = time;
         const self: *Harness = @ptrCast(@alignCast(ctx));
-        self.midi_seen.append(.{ status, d1, d2 }) catch unreachable;
+        self.midi_seen.append(self.allocator, .{ status, d1, d2 }) catch unreachable;
         return true;
     }
 
@@ -938,7 +942,7 @@ const Harness = struct {
         _ = gesture;
         const self: *Harness = @ptrCast(@alignCast(ctx));
         if (time < self.block_last_sysex) self.out_of_order += 1;
-        self.params_seen.append(.{ .index = index, .value = value }) catch unreachable;
+        self.params_seen.append(self.allocator, .{ .index = index, .value = value }) catch unreachable;
     }
 
     pub fn sink(self: *Harness) Sink {
@@ -950,7 +954,7 @@ const Harness = struct {
         // The keyboard's answers to the last block reach the engine first.
         for (self.keyboard.outbox.items) |m| {
             self.engine.onSysex(m);
-            self.keyboard.outbox.allocator.free(m);
+            self.keyboard.allocator.free(m);
         }
         self.keyboard.outbox.clearRetainingCapacity();
         self.engine.run(self.frames, self.sink());
@@ -968,8 +972,7 @@ fn makeHarness(allocator: std.mem.Allocator, shared: *Shared) Harness {
         .shared = shared,
         .engine = Engine.init(shared, 48000),
         .keyboard = FakeKeyboard.init(allocator),
-        .params_seen = std.ArrayList(ParamSeen).init(allocator),
-        .midi_seen = std.ArrayList([3]u8).init(allocator),
+        .allocator = allocator,
     };
 }
 
@@ -989,8 +992,8 @@ test "start-up reads the keyboard and adopts it when nothing is desired" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
 
     h.runSeconds(2.0);
@@ -1011,8 +1014,8 @@ test "a restored scene is recalled with only the groups that differ" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
 
     var scene = h.keyboard.state;
@@ -1036,8 +1039,8 @@ test "a silent keyboard gets a blind recall of the restored scene" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     h.keyboard.answers = false;
 
     var scene = Dump0.make();
@@ -1065,8 +1068,8 @@ test "turning a knob writes one byte and the panel can move it back" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.runSeconds(2.0);
     const writes_before = h.keyboard.writes;
@@ -1100,8 +1103,8 @@ test "a control change parameter sends a CC and writes no SysEx" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.runSeconds(2.0);
     const writes_before = h.keyboard.writes;
@@ -1122,8 +1125,8 @@ test "the interface's knob move reaches the keyboard and the host" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.runSeconds(2.0);
     h.params_seen.clearRetainingCapacity();
@@ -1142,8 +1145,8 @@ test "capturing the keyboard replaces what the project wanted" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.runSeconds(2.0);
 
@@ -1162,8 +1165,8 @@ test "a capture says when it is done, and whether the keyboard answered" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.runSeconds(2.0);
 
@@ -1194,8 +1197,8 @@ test "a keyboard that shows up late is found, read and given the restored patch"
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.keyboard.answers = false;
 
@@ -1224,8 +1227,8 @@ test "loading a preset from the interface recalls it at once" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.runSeconds(2.0);
 
@@ -1245,8 +1248,8 @@ test "the host's events come in the order of their time, with the notifications 
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.runSeconds(2.0);
 
@@ -1272,8 +1275,8 @@ test "a scene change during a read waits for the read, which still ends" {
     shared.* = .{};
     var h = makeHarness(allocator, shared);
     defer h.keyboard.deinit();
-    defer h.params_seen.deinit();
-    defer h.midi_seen.deinit();
+    defer h.params_seen.deinit(allocator);
+    defer h.midi_seen.deinit(allocator);
     fillKeyboard(&h.keyboard.state, 3);
     h.runSeconds(2.0);
 

@@ -67,21 +67,21 @@ fn partFor(split: bool, pitch: u8) u8 {
 
 // ---- the list of split patches ----
 
-pub fn isSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8) bool {
+pub fn isSplit(allocator: std.mem.Allocator, io: std.Io, path: []const u8, name: []const u8) bool {
     if (name.len == 0) return false;
-    const text = fileio.readAll(allocator, path) catch return false;
+    const text = fileio.readAll(allocator, io, path) catch return false;
     defer allocator.free(text);
     var lines = std.mem.splitScalar(u8, text, '\n');
     while (lines.next()) |line| {
-        if (std.mem.eql(u8, std.mem.trimRight(u8, line, "\r"), name)) return true;
+        if (std.mem.eql(u8, std.mem.trimEnd(u8, line, "\r"), name)) return true;
     }
     return false;
 }
 
 /// Adds the patch to the list, or removes it, rewriting the file.
-pub fn setSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8, on: bool) !void {
+pub fn setSplit(allocator: std.mem.Allocator, io: std.Io, path: []const u8, name: []const u8, on: bool) !void {
     if (name.len == 0) return;
-    const old = fileio.readAll(allocator, path) catch |err| switch (err) {
+    const old = fileio.readAll(allocator, io, path) catch |err| switch (err) {
         error.FileNotFound => try allocator.dupe(u8, ""),
         else => return err,
     };
@@ -90,7 +90,7 @@ pub fn setSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8
     defer out.deinit(allocator);
     var lines = std.mem.splitScalar(u8, old, '\n');
     while (lines.next()) |raw| {
-        const line = std.mem.trimRight(u8, raw, "\r");
+        const line = std.mem.trimEnd(u8, raw, "\r");
         if (line.len == 0 or std.mem.eql(u8, line, name)) continue;
         try out.appendSlice(allocator, line);
         try out.append(allocator, '\n');
@@ -99,8 +99,8 @@ pub fn setSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8
         try out.appendSlice(allocator, name);
         try out.append(allocator, '\n');
     }
-    if (std.fs.path.dirname(path)) |dir| try fileio.makePath(dir);
-    try fileio.writeAll(path, out.items);
+    if (std.fs.path.dirname(path)) |dir| try fileio.makePath(io, dir);
+    try fileio.writeAll(io, path, out.items);
 }
 
 test "without a split every note goes to the upper part" {
@@ -140,18 +140,19 @@ test "controllers reach both parts of a split, other channels pass unchanged" {
 }
 
 test "the list of split patches is kept in a file" {
+    const io = std.testing.io;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    const dir = try tmp.dir.realpathAlloc(std.testing.allocator, ".");
+    const dir = try tmp.dir.realPathFileAlloc(io, ".", std.testing.allocator);
     defer std.testing.allocator.free(dir);
     const path = try std.fs.path.join(std.testing.allocator, &.{ dir, "splits.txt" });
     defer std.testing.allocator.free(path);
     const a = std.testing.allocator;
-    try std.testing.expect(!isSplit(a, path, "1-2 JazzRoll OF"));
-    try setSplit(a, path, "1-2 JazzRoll OF", true);
-    try setSplit(a, path, "3-1 Other", true);
-    try std.testing.expect(isSplit(a, path, "1-2 JazzRoll OF"));
-    try setSplit(a, path, "1-2 JazzRoll OF", false);
-    try std.testing.expect(!isSplit(a, path, "1-2 JazzRoll OF"));
-    try std.testing.expect(isSplit(a, path, "3-1 Other"));
+    try std.testing.expect(!isSplit(a, io, path, "1-2 JazzRoll OF"));
+    try setSplit(a, io, path, "1-2 JazzRoll OF", true);
+    try setSplit(a, io, path, "3-1 Other", true);
+    try std.testing.expect(isSplit(a, io, path, "1-2 JazzRoll OF"));
+    try setSplit(a, io, path, "1-2 JazzRoll OF", false);
+    try std.testing.expect(!isSplit(a, io, path, "1-2 JazzRoll OF"));
+    try std.testing.expect(isSplit(a, io, path, "3-1 Other"));
 }

@@ -171,12 +171,12 @@ fn ensureImgui() void {
 }
 
 /// Draws every open window. REAPER's timer calls it.
-pub fn drawAll() void {
+pub fn drawAll(io: std.Io) void {
     if (imgui_state != .present) return;
     for (plugin.instances) |maybe| {
         const p = maybe orelse continue;
         if (!p.ui.open) continue;
-        draw(p);
+        draw(io, p);
     }
 }
 
@@ -207,7 +207,7 @@ fn refreshDirection(w: *Window, dir: glue.Direction) void {
 
 // ---- the window ----
 
-fn draw(p: *Plugin) void {
+fn draw(io: std.Io, p: *Plugin) void {
     const w = &p.ui;
     w.frame +%= 1;
     // ReaImGui destroys a context after a failed assertion, or when a frame
@@ -270,12 +270,12 @@ fn draw(p: *Plugin) void {
         std.mem.printSentinel(&title, "VR-09##{x}-{d}", .{ @intFromPtr(p), w.contexts_created }, 0) catch "VR-09";
     var action: ?action_types.Action = null;
     if (imgui.api.Begin(ctx, label, &is_open, &flags)) {
-        action = drawContent(p, ctx);
+        action = drawContent(io, p, ctx);
         probeInput(w, ctx);
     }
     imgui.api.End(ctx);
     // What the player did during the frame, if anything, is carried out now, and the result of a save is told.
-    if (action) |a| dispatch.dispatch(p, a);
+    if (action) |a| dispatch.dispatch(io, p, a);
     dispatch.reportSave(p);
     theme.pop(ctx);
     if (w.fonts.text != null) imgui.api.PopFont(ctx);
@@ -339,7 +339,7 @@ fn checkpoint(w: *Window, section: []const u8) void {
 
 /// Draws the panel, and returns the action that the player asked for in this frame, if any. Only the tab that is
 /// open draws its widgets, and the player works with one widget at a time, so there is at most one.
-fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
+fn drawContent(io: std.Io, p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
     const kit = &p.ui.kit;
     var action: ?action_types.Action = null;
     drawHeader(p, ctx);
@@ -354,9 +354,9 @@ fn drawContent(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
             imgui.api.EndTabItem(ctx);
         }
         if (widgets.beginTab(kit, "SCENES", &flags[1])) {
-            const from_library = patches_panel.drawLibrary(p, ctx);
+            const from_library = patches_panel.drawLibrary(io, p, ctx);
             imgui.api.SameLine(ctx, null, null);
-            action = action_types.first(from_library, scenes_panel.draw(p, ctx));
+            action = action_types.first(from_library, scenes_panel.draw(io, p, ctx));
             imgui.api.EndTabItem(ctx);
         }
         if (widgets.beginTab(kit, "PATCHES", &flags[2])) {

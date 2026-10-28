@@ -157,7 +157,7 @@ fn addButton(ctx: imgui.ContextPtr, id: u32) bool {
 
 const sort_names = [_][]const u8{ "Type", "No.", "Name", "Group", "Patch ID" };
 
-fn patchTable(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
+fn patchTable(io: std.Io, p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const kit = &p.ui.kit;
     const w = &p.ui.patches;
     var action: ?types.Action = null;
@@ -187,7 +187,7 @@ fn patchTable(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
         imgui.api.TableSetupColumn(ctx, "Scenes", &fixed_no_sort, &w_scenes, null);
         imgui.api.TableHeadersRow(ctx);
 
-        const rows = library.rows(p);
+        const rows = library.rows(io, p);
         buildShown(w, &p.strings, rows);
         // The first sort spec is the column the player clicked last. Because the table may report it only on
         // the frame of the click, and the rows are rebuilt each frame, the choice is kept in the state.
@@ -281,16 +281,16 @@ fn drawGroupCombo(ctx: imgui.ContextPtr, w: *State, pool: *const Strings, rows: 
 }
 
 /// The file name of the selected row, when it is a preset.
-fn selectedPreset(p: *Plugin) ?strings.Ref {
+fn selectedPreset(io: std.Io, p: *Plugin) ?strings.Ref {
     const w = &p.ui.patches;
     if (w.selected == 0) return null;
-    for (library.rows(p)) |row| {
+    for (library.rows(io, p)) |row| {
         if (row.kind == .preset and row.value == w.selected) return row.file;
     }
     return null;
 }
 
-fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
+fn saveRow(io: std.Io, p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const kit = &p.ui.kit;
     const w = &p.ui.patches;
     var action: ?types.Action = null;
@@ -304,7 +304,7 @@ fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
         action = .{ .save_keyboard = p.strings.intern(std.mem.sliceTo(&p.ui.save_name, 0)) };
     }
     widgets.tooltip(kit, "Reads the keyboard, then saves what it holds as a preset under this name. The preset then appears in the table, where it can be sent to the keyboard or added to the scenes.");
-    if (selectedPreset(p)) |file| {
+    if (selectedPreset(io, p)) |file| {
         imgui.api.SameLine(ctx, null, null);
         const armed = w.delete_armed == w.selected;
         if (widgets.pushButton(kit, if (armed) "Click again to delete" else "Delete the selected preset", 0)) {
@@ -323,12 +323,12 @@ fn saveRow(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
 }
 
 /// The card of the library: the search, the filters, the table, and the row that saves the keyboard.
-pub fn drawLibrary(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
+pub fn drawLibrary(io: std.Io, p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const kit = &p.ui.kit;
     const w = &p.ui.patches;
     if (!widgets.beginCard(kit, "Patches", null, null, null)) return null;
     defer widgets.endCard(kit);
-    const rows = library.rows(p);
+    const rows = library.rows(io, p);
     if (p.library.registration_count == 0) {
         imgui.api.TextColored(ctx, theme.grey, "No registrations folder: run build-install.sh vr09 to fill Data/Perken/vr09/registrations.");
     }
@@ -350,8 +350,8 @@ pub fn drawLibrary(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     var refresh = false;
     if (widgets.pushButton(kit, "Refresh", 0)) refresh = true;
     widgets.tooltip(kit, "Reads the registrations and the presets folders again, after files were added or removed by hand. Saving or deleting a preset here needs no refresh.");
-    const from_table = patchTable(p, ctx);
-    const from_save = saveRow(p, ctx);
+    const from_table = patchTable(io, p, ctx);
+    const from_save = saveRow(io, p, ctx);
     if (refresh) return .refresh_library;
     return types.first(from_table, from_save);
 }

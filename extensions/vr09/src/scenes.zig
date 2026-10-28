@@ -190,26 +190,26 @@ pub const List = struct {
 
     /// Reads what `write` wrote. A state saved before scenes existed ends where the count would be, and
     /// gives an empty list. A state that ends in the middle of a scene keeps the scenes read before it.
-    pub fn read(self: *List, reader: anytype) Error!void {
+    pub fn read(self: *List, reader: *std.Io.Reader) Error!void {
         self.count = 0;
-        const count = reader.readByte() catch return;
+        const count = reader.takeByte() catch return;
         if (count > max_scenes) return error.BadCount;
         var i: usize = 0;
         while (i < count) : (i += 1) {
             const item = &self.items[i];
             item.* = .{};
-            const name_len = reader.readByte() catch return error.Truncated;
+            const name_len = reader.takeByte() catch return error.Truncated;
             if (name_len > max_name) return error.Truncated;
-            reader.readNoEof(item.name_buf[0..name_len]) catch return error.Truncated;
+            reader.readSliceAll(item.name_buf[0..name_len]) catch return error.Truncated;
             item.name_buf[name_len] = 0;
-            item.patch_id = reader.readInt(u16, .little) catch return error.Truncated;
-            const label_len = reader.readByte() catch return error.Truncated;
+            item.patch_id = reader.takeInt(u16, .little) catch return error.Truncated;
+            const label_len = reader.takeByte() catch return error.Truncated;
             if (label_len > max_name) return error.Truncated;
-            reader.readNoEof(item.label_buf[0..label_len]) catch return error.Truncated;
+            reader.readSliceAll(item.label_buf[0..label_len]) catch return error.Truncated;
             item.label_buf[label_len] = 0;
             var bits: [bitmap_bytes]u8 = undefined;
-            reader.readNoEof(&bits) catch return error.Truncated;
-            reader.readNoEof(&item.patch.values) catch return error.Truncated;
+            reader.readSliceAll(&bits) catch return error.Truncated;
+            reader.readSliceAll(&item.patch.values) catch return error.Truncated;
             for (&item.patch.known, 0..) |*k, b| k.* = bits[b / 8] & (@as(u8, 1) << @intCast(b % 8)) != 0;
             self.count = @intCast(i + 1);
         }
@@ -315,14 +315,14 @@ test "the list survives the saved state, and an old state gives none" {
     const b = testPatch(6);
     _ = try list.addFrom("Verse", &a, 12, "Registration 1-2");
     _ = try list.add("Chorus", &b);
-    var buf: std.ArrayList(u8) = .empty;
-    defer buf.deinit(std.testing.allocator);
-    try list.write(buf.writer());
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    try list.write(&buf.writer);
 
     const back = try testList();
     defer std.testing.allocator.destroy(back);
-    var stream = std.io.fixedBufferStream(buf.items);
-    try back.read(stream.reader());
+    var stream: std.Io.Reader = .fixed(buf.written());
+    try back.read(&stream);
     try std.testing.expectEqual(@as(u8, 2), back.count);
     try std.testing.expectEqualStrings("Chorus", back.get(2).?.name());
     try std.testing.expectEqual(@as(u16, 12), back.get(1).?.patch_id);
@@ -333,13 +333,13 @@ test "the list survives the saved state, and an old state gives none" {
     try std.testing.expect(!back.get(2).?.patch.known[1]);
 
     // A state from before the scenes ends where the count would be.
-    var empty = std.io.fixedBufferStream(buf.items[0..0]);
-    try back.read(empty.reader());
+    var empty: std.Io.Reader = .fixed(buf.written()[0..0]);
+    try back.read(&empty);
     try std.testing.expectEqual(@as(u8, 0), back.count);
 
     // A state cut in the middle of a scene is refused.
-    var cut = std.io.fixedBufferStream(buf.items[0 .. buf.items.len - 10]);
-    try std.testing.expectError(error.Truncated, back.read(cut.reader()));
+    var cut: std.Io.Reader = .fixed(buf.written()[0 .. buf.written().len - 10]);
+    try std.testing.expectError(error.Truncated, back.read(&cut));
 }
 
 test "the mappings say where every position goes" {

@@ -150,8 +150,8 @@ fn lessValue(_: void, a: Row, b: Row) bool {
 /// Adds a row for each registration file of `folder`, in the order of the keyboard's banks. Because "10-1" comes
 /// after "9-4", the order is the one of the values, and not the one of the file names. The files that do not have
 /// the shape of a registration (the scans and the checks) are left out.
-pub fn appendRegistrations(p: *Plugin, library: *Library, folder: []const u8) void {
-    var files = fileio.listFiles(plugin.allocator, folder, &.{registrations.extension}) catch return;
+pub fn appendRegistrations(io: std.Io, p: *Plugin, library: *Library, folder: []const u8) void {
+    var files = fileio.listFiles(plugin.allocator, io, folder, &.{registrations.extension}) catch return;
     defer fileio.freeList(plugin.allocator, &files);
     const first = library.rows.items.len;
     for (files.items) |file_name| {
@@ -185,8 +185,8 @@ fn uniquePresetValue(others: []const Row, wanted: u32) u32 {
 
 /// Adds a row for each preset file of `folder`, in the order of their names. Because the rows keep the file names
 /// as IDs in the strings, the list of the files is freed as soon as the rows are made.
-pub fn appendPresets(p: *Plugin, library: *Library, folder: []const u8) void {
-    var files = fileio.listFiles(plugin.allocator, folder, &state_files.preset_extensions) catch return;
+pub fn appendPresets(io: std.Io, p: *Plugin, library: *Library, folder: []const u8) void {
+    var files = fileio.listFiles(plugin.allocator, io, folder, &state_files.preset_extensions) catch return;
     defer fileio.freeList(plugin.allocator, &files);
     std.mem.sort([:0]u8, files.items, {}, lessName);
     for (files.items) |file_name| {
@@ -198,26 +198,26 @@ pub fn appendPresets(p: *Plugin, library: *Library, folder: []const u8) void {
 
 /// Reads the registrations and the presets, and makes every row of the table: the registrations, the tones, and
 /// then the player's presets. `rows` calls it the first time, and the Refresh button calls it again.
-pub fn build(p: *Plugin, library: *Library) void {
+pub fn build(io: std.Io, p: *Plugin, library: *Library) void {
     library.rows.clearRetainingCapacity();
     library.registration_count = 0;
     library.built = true;
     var buf: [fileio.max_path]u8 = undefined;
     if (glue.ready) {
-        if (state_files.registrationFolder(&buf, glue.resourcePath())) |folder| appendRegistrations(p, library, folder) else |_| {}
+        if (state_files.registrationFolder(&buf, glue.resourcePath())) |folder| appendRegistrations(io, p, library, folder) else |_| {}
     }
     const lists = [_][]const tones.Tone{ &tones.piano, &tones.synth, &tones.drum };
     for (lists, 0..) |list, list_index| {
         for (0..list.len) |i| library.rows.append(plugin.allocator, toneRow(p, @intCast(list_index), i)) catch return;
     }
     if (glue.ready) {
-        if (state_files.presetFolder(&buf, glue.resourcePath())) |folder| appendPresets(p, library, folder) else |_| {}
+        if (state_files.presetFolder(&buf, glue.resourcePath())) |folder| appendPresets(io, p, library, folder) else |_| {}
     }
 }
 
 /// The rows of the table, which are read from the folders the first time they are asked for.
-pub fn rows(p: *Plugin) []const Row {
-    if (!p.library.built) build(p, &p.library);
+pub fn rows(io: std.Io, p: *Plugin) []const Row {
+    if (!p.library.built) build(io, p, &p.library);
     return p.library.rows.items;
 }
 
@@ -286,16 +286,16 @@ fn labelOf(p: *Plugin, row: Row) strings.Ref {
 
 /// The row with this patch ID, found in the rows of the table, or null when there is none. A scene template
 /// names its patches by these IDs.
-pub fn rowById(p: *Plugin, id: u32) ?Row {
-    for (rows(p)) |row| {
+pub fn rowById(io: std.Io, p: *Plugin, id: u32) ?Row {
+    for (rows(io, p)) |row| {
         if (row.value == id) return row;
     }
     return null;
 }
 
 /// The patch with this ID, or null.
-pub fn patchById(p: *Plugin, id: u32) ?types.Patch {
-    const row = rowById(p, id) orelse return null;
+pub fn patchById(io: std.Io, p: *Plugin, id: u32) ?types.Patch {
+    const row = rowById(io, p, id) orelse return null;
     return patchOf(p, row);
 }
 

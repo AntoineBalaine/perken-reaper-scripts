@@ -364,6 +364,7 @@ test "the hook register has the layout REAPER expects" {
 }
 
 test "every REAPER function the sources call is in reaper_api" {
+    const io = std.testing.io;
     // Because initSubset leaves an unlisted function as a null pointer, a
     // forgotten name compiles fine and then crashes REAPER when it is
     // called. This test reads the sources and fails on such a name instead.
@@ -372,7 +373,7 @@ test "every REAPER function the sources call is in reaper_api" {
     var unlisted: std.ArrayList([]const u8) = .empty;
     defer unlisted.deinit(std.testing.allocator);
     const api = @import("reaper");
-    try api.unlistedCallsInPaths(arena.allocator(), @import("test_paths").sources, &reaper_api, &unlisted);
+    try api.unlistedCallsInPaths(arena.allocator(), std.testing.allocator, io, &.{@import("test_paths").src_dir}, &reaper_api, &unlisted);
     for (unlisted.items) |name| std.debug.print("REAPER function used but missing from reaper_api: {s}\n", .{name});
     try std.testing.expectEqual(@as(usize, 0), unlisted.items.len);
 }

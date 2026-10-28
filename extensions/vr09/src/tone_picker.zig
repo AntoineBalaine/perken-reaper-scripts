@@ -11,7 +11,7 @@ pub const tone_filter_cap = 64;
 
 fn toneMatches(tone: *const tones.Tone, filter: []const u8) bool {
     if (filter.len == 0) return true;
-    return std.ascii.indexOfIgnoreCase(tone.name, filter) != null or std.ascii.indexOfIgnoreCase(tone.group, filter) != null;
+    return std.ascii.findIgnoreCase(tone.name, filter) != null or std.ascii.findIgnoreCase(tone.group, filter) != null;
 }
 
 /// Chooses one tone of a list. It shows the chosen tone's name on a display, with a button on each side to

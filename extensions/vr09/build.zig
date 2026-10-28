@@ -8,7 +8,7 @@ pub fn build(b: *std.Build) void {
     const reazig_dep = b.dependency("reaziglib", .{ .target = target, .optimize = optimize });
     const clap_dep = b.dependency("clap", .{});
 
-    const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .Debug);
+    const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .debug);
     // The release version, baked into the binary so that it knows which
     // release it came from. CI passes it from the <name>-v<version> tag.
     const version = b.option([]const u8, "version", "Version string baked into the binary") orelse "dev";
@@ -24,15 +24,29 @@ pub fn build(b: *std.Build) void {
     test_build_options.addOption([]const u8, "version", version);
     test_build_options.addOption(bool, "debug_api", true);
 
-    const lib = b.addSharedLibrary(.{
-        .name = "vr09",
-        .root_source_file = b.path("src/clap_entry.zig"),
+    // The CLAP headers, translated to Zig. Because @cImport is gone since
+    // Zig 0.17, the build translates them and the sources import the result
+    // as the "clap_c" module.
+    const clap_c = b.addTranslateC(.{
+        .root_source_file = clap_dep.path("include/clap/clap.h"),
         .target = target,
         .optimize = optimize,
-        .strip = strip,
     });
-    lib.linkLibC();
-    lib.addIncludePath(clap_dep.path("include"));
+    clap_c.addIncludePath(clap_dep.path("include"));
+    const clap_c_mod = clap_c.createModule();
+
+    const lib = b.addLibrary(.{
+        .linkage = .dynamic,
+        .name = "vr09",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/clap_entry.zig"),
+            .target = target,
+            .optimize = optimize,
+            .strip = strip,
+            .link_libc = true,
+        }),
+    });
+    lib.root_module.addImport("clap_c", clap_c_mod);
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
     lib.root_module.addOptions("build_options", build_options);
 
@@ -58,17 +72,21 @@ pub fn build(b: *std.Build) void {
 
     const test_exe = b.addTest(.{
         .name = "vr09_tests",
-        .root_source_file = b.path("src/tests.zig"),
-        .target = target,
-        .optimize = .Debug,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests.zig"),
+            .target = target,
+            .optimize = .debug,
+            .link_libc = true,
+        }),
     });
-    test_exe.linkLibC();
-    test_exe.addIncludePath(clap_dep.path("include"));
+    test_exe.root_module.addImport("clap_c", clap_c_mod);
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
     test_exe.root_module.addOptions("build_options", test_build_options);
-    // The sources that the API-list test scans.
+    // The sources that the API-list test scans. Because the build script no
+    // longer resolves paths itself since Zig 0.17, the options receive the
+    // folder as a tracked path.
     const test_paths = b.addOptions();
-    test_paths.addOption([]const []const u8, "sources", &.{b.pathFromRoot("src")});
+    test_paths.addOptionPathDirectory("src_dir", b.path("src"));
     test_exe.root_module.addOptions("test_paths", test_paths);
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&b.addRunArtifact(test_exe).step);

@@ -402,6 +402,7 @@ test "the Split parameter overrides the split" {
 }
 
 test "the Scene parameter asks for a scene once, and shows its name" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -443,13 +444,14 @@ test "the Scene parameter asks for a scene once, and shows its name" {
     try std.testing.expectEqual(@as(u8, 0), self.pending_scene.load(.monotonic));
 
     // The main thread loads the scene's patch and names it.
-    try self.selectScene(2);
+    try self.selectScene(io, 2);
     try std.testing.expectEqual(@as(?u8, 9), self.shared.getDesired(.kb, 0x02 << 14 | 5));
     try std.testing.expectEqualStrings("Chorus", self.settings.presetName());
-    try std.testing.expectError(error.NoSuchScene, self.selectScene(5));
+    try std.testing.expectError(error.NoSuchScene, self.selectScene(io, 5));
 }
 
 test "the debug commands add, list, move, select and remove scenes" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -464,52 +466,52 @@ test "the debug commands add, list, move, select and remove scenes" {
         _ = self.shared.setDesired(.kb, 0x02 << 14 | 5, @intCast(i + 1));
         var arg_buf: [16]u8 = undefined;
         const arg = try std.fmt.bufPrint(&arg_buf, "current|{s}", .{n});
-        var fbs = std.io.fixedBufferStream(&out);
-        try debug_api.dispatch(fbs.writer(), null, -1, "scene_add", arg);
-        try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":true") != null);
+        var fbs: std.Io.Writer = .fixed(&out);
+        try debug_api.dispatch(io, &fbs, null, -1, "scene_add", arg);
+        try std.testing.expect(std.mem.indexOf(u8, fbs.buffered(), "\"ok\":true") != null);
     }
     try std.testing.expectEqual(@as(u8, 3), self.scene_list.count);
 
     // Move A to the end: the others move up, and the reply says where every position went.
-    var fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scene_move", "1,3");
-    try std.testing.expectEqualStrings("{\"ok\":true,\"map\":[3,1,2]}", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scene_move", "1,3");
+    try std.testing.expectEqualStrings("{\"ok\":true,\"map\":[3,1,2]}", fbs.buffered());
     try std.testing.expectEqualStrings("B", self.scene_list.get(1).?.name());
     try std.testing.expectEqualStrings("A", self.scene_list.get(3).?.name());
 
     // Selecting loads that scene's patch and makes it current; the current scene follows a move.
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scene_select", "3");
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scene_select", "3");
     try std.testing.expectEqual(@as(?u8, 1), self.shared.getDesired(.kb, 0x02 << 14 | 5));
     try std.testing.expectEqual(@as(u8, 3), self.scene.load(.monotonic));
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scene_move", "3,1");
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scene_move", "3,1");
     try std.testing.expectEqual(@as(u8, 1), self.scene.load(.monotonic));
 
     // Removing the current scene leaves none selected, and the later positions shift down: the removed
     // scene's points fall to 0, the second scene becomes the first and the third the second.
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scene_remove", "1");
-    try std.testing.expectEqualStrings("{\"ok\":true,\"map\":[0,1,2]}", fbs.getWritten());
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scene_remove", "1");
+    try std.testing.expectEqualStrings("{\"ok\":true,\"map\":[0,1,2]}", fbs.buffered());
     try std.testing.expectEqual(@as(u8, 0), self.scene.load(.monotonic));
     try std.testing.expectEqual(@as(u8, 2), self.scene_list.count);
 
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scenes", "");
-    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"count\":2") != null);
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scenes", "");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.buffered(), "\"count\":2") != null);
     // A tone scene knows only the three tone bytes, and keeps the library ID and label it came with.
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scene_add_tone", "upper_synth 12 3 1|Lead|205|Tone Lead");
-    try std.testing.expectEqualStrings("{\"ok\":true,\"position\":3}", fbs.getWritten());
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scenes", "");
-    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "{\"position\":3,\"patch_id\":205,\"name\":\"Lead\",\"label\":\"Tone Lead\"}") != null);
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scene_add_tone", "upper_synth 12 3 1|Lead|205|Tone Lead");
+    try std.testing.expectEqualStrings("{\"ok\":true,\"position\":3}", fbs.buffered());
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scenes", "");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.buffered(), "{\"position\":3,\"patch_id\":205,\"name\":\"Lead\",\"label\":\"Tone Lead\"}") != null);
     try std.testing.expectEqual(@as(usize, 3), self.scene_list.get(3).?.patch.knownCount());
     // load_tone writes a tone to the keyboard without adding a scene.
     const count_before = self.scene_list.count;
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "load_tone", "upper_piano 58 6 0|Vintage EP");
-    try std.testing.expectEqualStrings("{\"ok\":true}", fbs.getWritten());
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "load_tone", "upper_piano 58 6 0|Vintage EP");
+    try std.testing.expectEqualStrings("{\"ok\":true}", fbs.buffered());
     try std.testing.expectEqual(count_before, self.scene_list.count);
     // The upper piano's tone bytes (01 01 01 to 03) are the only ones the state knows.
     try std.testing.expectEqual(@as(?u8, 58), self.shared.getDesired(.kb, 1 << 14 | 1 << 7 | 1));
@@ -517,17 +519,17 @@ test "the debug commands add, list, move, select and remove scenes" {
     try std.testing.expectEqual(@as(?u8, null), self.shared.getDesired(.kb, 0x02 << 14 | 5));
     try std.testing.expectEqualStrings("Vintage EP", self.settings.presetName());
     // A byte above 127 would end the SysEx message, so a tone with one is refused.
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "load_tone", "upper_piano 200 6 0|Too high");
-    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "load_tone", "upper_piano 200 6 0|Too high");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.buffered(), "\"ok\":false") != null);
     try std.testing.expectEqual(@as(?u8, 58), self.shared.getDesired(.kb, 1 << 14 | 1 << 7 | 1));
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scene_add_tone", "drum 1 1 0");
-    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scene_add_tone", "drum 1 1 0");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.buffered(), "\"ok\":false") != null);
 
-    fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scene_select", "9");
-    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"ok\":false") != null);
+    fbs = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scene_select", "9");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.buffered(), "\"ok\":false") != null);
 }
 
 fn tonePatch(self: *plugin.Plugin, part: [:0]const u8, number: u8, msb: u8, lsb: u8, name: [:0]const u8) types.Patch {
@@ -539,6 +541,7 @@ fn tonePatch(self: *plugin.Plugin, part: [:0]const u8, number: u8, msb: u8, lsb:
 }
 
 test "the dispatcher carries out the actions that the panel returned, one after the other" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -554,7 +557,7 @@ test "the dispatcher carries out the actions that the panel returned, one after 
         .{ .select_scene = 2 },
         .{ .rename_scene = .{ .position = 3, .name = self.strings.intern("Pad") } },
     };
-    for (asked) |action| dispatch.dispatch(self, action);
+    for (asked) |action| dispatch.dispatch(io, self, action);
 
     try std.testing.expectEqual(@as(u8, 3), self.scene_list.count);
     try std.testing.expectEqualStrings("Lead", self.scene_list.get(1).?.name());
@@ -565,6 +568,7 @@ test "the dispatcher carries out the actions that the panel returned, one after 
 }
 
 test "the dispatcher moves and removes scenes, and the current scene follows" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -573,22 +577,23 @@ test "the dispatcher moves and removes scenes, and the current scene follows" {
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
     for ([_][:0]const u8{ "A", "B", "C" }, 0..) |name, i| {
-        _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", @intCast(i + 1), 0, 0, name));
+        _ = try dispatch.addScene(io, self, tonePatch(self, "upper_piano", @intCast(i + 1), 0, 0, name));
     }
     try std.testing.expectEqual(@as(u8, 3), self.scene_list.count);
 
-    dispatch.dispatch(self, .{ .select_scene = 1 });
-    dispatch.dispatch(self, .{ .move_scene = .{ .from = 1, .to = 3 } });
+    dispatch.dispatch(io, self, .{ .select_scene = 1 });
+    dispatch.dispatch(io, self, .{ .move_scene = .{ .from = 1, .to = 3 } });
     try std.testing.expectEqualStrings("B", self.scene_list.get(1).?.name());
     try std.testing.expectEqualStrings("A", self.scene_list.get(3).?.name());
     try std.testing.expectEqual(@as(u8, 3), self.scene.load(.monotonic));
 
-    dispatch.dispatch(self, .{ .remove_scene = 3 });
+    dispatch.dispatch(io, self, .{ .remove_scene = 3 });
     try std.testing.expectEqual(@as(u8, 2), self.scene_list.count);
     try std.testing.expectEqual(@as(u8, 0), self.scene.load(.monotonic));
 }
 
 test "the dispatcher says what went wrong, and a change of the engine goes through" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -597,28 +602,29 @@ test "the dispatcher says what went wrong, and a change of the engine goes throu
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
 
-    dispatch.dispatch(self, .{ .select_scene = 9 });
+    dispatch.dispatch(io, self, .{ .select_scene = 9 });
     try std.testing.expect(self.ui.notice_is_error);
     try std.testing.expectEqualStrings("There is no scene 9.", std.mem.sliceTo(&self.ui.notice_text, 0));
 
     // A patch that the panel cannot send is said, and it is not an error of the player's.
-    dispatch.dispatch(self, .{ .send_patch = .{ .source = .unsupported, .name = self.strings.intern("Hip Hop"), .label = self.strings.intern("Hip Hop") } });
+    dispatch.dispatch(io, self, .{ .send_patch = .{ .source = .unsupported, .name = self.strings.intern("Hip Hop"), .label = self.strings.intern("Hip Hop") } });
     try std.testing.expect(!self.ui.notice_is_error);
     try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "Hip Hop") != null);
 
     // A change of a parameter waits in the engine's queue for the main thread to take.
-    dispatch.dispatch(self, .{ .set_param = .{ .index = 0, .value = 6 } });
+    dispatch.dispatch(io, self, .{ .set_param = .{ .index = 0, .value = 6 } });
     const change = self.shared.ui_changes.pop() orelse return error.TestExpectedAChange;
     try std.testing.expectEqual(@as(usize, 0), change.index);
     try std.testing.expectEqual(@as(u8, 6), change.value);
 
-    dispatch.dispatch(self, .{ .set_pass_midi = true });
+    dispatch.dispatch(io, self, .{ .set_pass_midi = true });
     try std.testing.expect(self.settings.pass_midi.load(.monotonic));
-    dispatch.dispatch(self, .{ .set_sysex_bare = true });
+    dispatch.dispatch(io, self, .{ .set_sysex_bare = true });
     try std.testing.expect(self.settings.sysex_bare.load(.monotonic));
 }
 
 test "a patch is found by its ID in the sources, and its text is stored once" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -629,33 +635,34 @@ test "a patch is found by its ID in the sources, and its text is stored once" {
     const tones_mod = @import("tones.zig");
 
     // The first tone has the ID 101 and goes to the upper piano part.
-    const first = library.patchById(self, 101).?;
+    const first = library.patchById(io, self, 101).?;
     try std.testing.expectEqualStrings(tones_mod.piano[0].name, self.strings.get(first.name));
     try std.testing.expectEqualStrings("upper_piano", self.strings.get(first.source.tone.part));
     try std.testing.expectEqual(@as(u16, 101), first.id);
     // The first synth follows the last piano.
-    const synth = library.patchById(self, @intCast(101 + tones_mod.piano.len)).?;
+    const synth = library.patchById(io, self, @intCast(101 + tones_mod.piano.len)).?;
     try std.testing.expectEqualStrings("upper_synth", self.strings.get(synth.source.tone.part));
     // A drum kit has a name and no source that the panel can send.
-    const kit = library.patchById(self, @intCast(101 + tones_mod.piano.len + tones_mod.synth.len)).?;
+    const kit = library.patchById(io, self, @intCast(101 + tones_mod.piano.len + tones_mod.synth.len)).?;
     try std.testing.expectEqualStrings(tones_mod.drum[0].name, self.strings.get(kit.name));
     try std.testing.expect(kit.source == .unsupported);
-    try std.testing.expect(library.patchById(self, 100) == null);
-    try std.testing.expect(library.patchById(self, @intCast(101 + tones_mod.piano.len + tones_mod.synth.len + tones_mod.drum.len)) == null);
+    try std.testing.expect(library.patchById(io, self, 100) == null);
+    try std.testing.expect(library.patchById(io, self, @intCast(101 + tones_mod.piano.len + tones_mod.synth.len + tones_mod.drum.len)) == null);
 
     // Finding the same patch again stores no new text: the IDs are the same.
-    const again = library.patchById(self, 101).?;
+    const again = library.patchById(io, self, 101).?;
     try std.testing.expectEqual(first.name, again.name);
     try std.testing.expectEqual(first.source.tone.part, again.source.tone.part);
 }
 
-fn presetNames(self: *plugin.Plugin, out: *std.ArrayList([]const u8)) !void {
-    for (library.rows(self)) |row| {
-        if (row.kind == .preset) try out.append(self.strings.get(row.name));
+fn presetNames(self: *plugin.Plugin, io: std.Io, out: *std.ArrayList([]const u8)) !void {
+    for (library.rows(io, self)) |row| {
+        if (row.kind == .preset) try out.append(std.testing.allocator, self.strings.get(row.name));
     }
 }
 
 test "a registration or a preset is found by its ID in the rows of the table" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -666,16 +673,17 @@ test "a registration or a preset is found by its ID in the rows of the table" {
 
     // Nothing is read before the rows are asked for, and nothing lists the registrations or the presets here.
     try std.testing.expect(!self.library.built);
-    try std.testing.expect(library.patchById(self, 5) == null);
+    try std.testing.expect(library.patchById(io, self, 5) == null);
     try std.testing.expect(self.library.built);
     library.addPreset(self, "Warm Pad.vr09");
-    const found = library.patchById(self, library.presetId("Warm Pad")).?;
+    const found = library.patchById(io, self, library.presetId("Warm Pad")).?;
     try std.testing.expectEqualStrings("Warm Pad", self.strings.get(found.name));
     try std.testing.expectEqualStrings("Warm Pad.vr09", self.strings.get(found.source.preset));
-    try std.testing.expect(library.patchById(self, library.presetId("Other")) == null);
+    try std.testing.expect(library.patchById(io, self, library.presetId("Other")) == null);
 }
 
 test "two presets never share a patch ID, so a template finds the right one" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -684,27 +692,28 @@ test "two presets never share a patch ID, so a template finds the right one" {
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
 
-    _ = library.rows(self);
+    _ = library.rows(io, self);
     // The same name in two files has the same hash, and so has to be told apart.
     library.addPreset(self, "foo.vr09");
     library.addPreset(self, "foo.json");
     var values: [2]u32 = undefined;
     var found: usize = 0;
-    for (library.rows(self)) |row| {
+    for (library.rows(io, self)) |row| {
         if (row.kind != .preset) continue;
         values[found] = row.value;
         found += 1;
     }
     try std.testing.expectEqual(@as(usize, 2), found);
     try std.testing.expect(values[0] != values[1]);
-    const first = library.patchById(self, values[0]).?;
-    const second = library.patchById(self, values[1]).?;
+    const first = library.patchById(io, self, values[0]).?;
+    const second = library.patchById(io, self, values[1]).?;
     try std.testing.expect(first.source.preset != second.source.preset);
     // A value that a tone has is not a preset's.
     try std.testing.expect(values[0] >= 1000 and values[1] >= 1000);
 }
 
 test "saving and deleting a preset adds and removes its row, in the order of the names" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -717,30 +726,31 @@ test "saving and deleting a preset adds and removes its row, in the order of the
     library.addPreset(self, "Early.vr09");
     try std.testing.expect(!self.library.built);
 
-    const tone_rows = library.rows(self).len;
+    const tone_rows = library.rows(io, self).len;
     library.addPreset(self, "Pad.vr09");
     library.addPreset(self, "organ.vr09");
     library.addPreset(self, "Zed.vr09");
     library.addPreset(self, "Pad.vr09");
     var names: std.ArrayList([]const u8) = .empty;
     defer names.deinit(std.testing.allocator);
-    try presetNames(self, &names);
+    try presetNames(self, io, &names);
     try std.testing.expectEqual(@as(usize, 3), names.items.len);
     try std.testing.expectEqualStrings("organ", names.items[0]);
     try std.testing.expectEqualStrings("Pad", names.items[1]);
     try std.testing.expectEqualStrings("Zed", names.items[2]);
-    try std.testing.expectEqual(tone_rows + 3, library.rows(self).len);
+    try std.testing.expectEqual(tone_rows + 3, library.rows(io, self).len);
 
     library.removePreset(self, "Pad.vr09");
     library.removePreset(self, "Missing.vr09");
     names.clearRetainingCapacity();
-    try presetNames(self, &names);
+    try presetNames(self, io, &names);
     try std.testing.expectEqual(@as(usize, 2), names.items.len);
     try std.testing.expectEqualStrings("Zed", names.items[1]);
-    try std.testing.expect(library.patchById(self, library.presetId("Pad")) == null);
+    try std.testing.expect(library.patchById(io, self, library.presetId("Pad")) == null);
 }
 
 test "the folders are read into rows: the registrations by bank and slot, the presets by name" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -752,33 +762,34 @@ test "the folders are read into rows: the registrations by bank and slot, the pr
     var registration_dir = std.testing.tmpDir(.{});
     defer registration_dir.cleanup();
     for ([_][]const u8{ "10-1_B.json", "2-1_Sweet_Dream.json", "verify.json", "2-2_C.vr09" }) |n| {
-        try registration_dir.dir.writeFile(.{ .sub_path = n, .data = "{}" });
+        try registration_dir.dir.writeFile(io, .{ .sub_path = n, .data = "{}" });
     }
     var preset_dir = std.testing.tmpDir(.{});
     defer preset_dir.cleanup();
     for ([_][]const u8{ "b.vr09", "A.vr09" }) |n| {
-        try preset_dir.dir.writeFile(.{ .sub_path = n, .data = "{}" });
+        try preset_dir.dir.writeFile(io, .{ .sub_path = n, .data = "{}" });
     }
     var registration_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const registration_folder = try registration_dir.dir.realpath(".", &registration_buf);
+    const registration_folder = registration_buf[0..try registration_dir.dir.realPathFile(io, ".", &registration_buf)];
     var preset_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const preset_folder = try preset_dir.dir.realpath(".", &preset_buf);
+    const preset_folder = preset_buf[0..try preset_dir.dir.realPathFile(io, ".", &preset_buf)];
 
     var found = library.Library{};
     defer found.deinit(plugin.allocator);
-    library.appendRegistrations(self, &found, registration_folder);
+    library.appendRegistrations(io, self, &found, registration_folder);
     try std.testing.expectEqual(@as(u32, 2), found.registration_count);
     try std.testing.expectEqualStrings("Sweet Dream", self.strings.get(found.rows.items[0].name));
     try std.testing.expectEqualStrings("2-1", self.strings.get(found.rows.items[0].number));
     try std.testing.expectEqual(@as(u32, 5), found.rows.items[0].value);
     try std.testing.expectEqualStrings("10-1_B.json", self.strings.get(found.rows.items[1].file));
-    library.appendPresets(self, &found, preset_folder);
+    library.appendPresets(io, self, &found, preset_folder);
     try std.testing.expectEqual(@as(usize, 4), found.rows.items.len);
     try std.testing.expectEqualStrings("A", self.strings.get(found.rows.items[2].name));
     try std.testing.expectEqualStrings("b", self.strings.get(found.rows.items[3].name));
 }
 
 test "choosing a tone in a card writes only the tone, and the knobs, the name and the split stay" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -793,7 +804,7 @@ test "choosing a tone in a card writes only the tone, and the knobs, the name an
     // A knob and a name that the player has set before the card is used.
     _ = self.shared.setDesired(.kb, 0x02 << 14 | 5, 42);
     self.settings.setPresetName("My patch");
-    dispatch.dispatch(self, .{ .choose_tone = .{ .part = 5, .tone = tone } });
+    dispatch.dispatch(io, self, .{ .choose_tone = .{ .part = 5, .tone = tone } });
     var written = dump.Dump{};
     self.shared.desiredSnapshot(&written);
     try std.testing.expectEqual(@as(usize, 4), written.knownCount());
@@ -807,6 +818,7 @@ test "choosing a tone in a card writes only the tone, and the knobs, the name an
 }
 
 test "a tone patch becomes a scene that holds only its three bytes, and an unsupported one is refused" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -815,14 +827,15 @@ test "a tone patch becomes a scene that holds only its three bytes, and an unsup
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
 
-    const position = try dispatch.addScene(self, tonePatch(self, "upper_synth", 12, 3, 1, "Lead"));
+    const position = try dispatch.addScene(io, self, tonePatch(self, "upper_synth", 12, 3, 1, "Lead"));
     try std.testing.expectEqual(@as(u8, 1), position);
-    try std.testing.expectError(error.NotSupported, dispatch.addScene(self, .{ .source = .unsupported, .name = self.strings.intern("Kit"), .label = self.strings.intern("Kit") }));
-    try std.testing.expectError(error.BadPart, dispatch.addScene(self, tonePatch(self, "drum", 1, 1, 0, "Kit")));
+    try std.testing.expectError(error.NotSupported, dispatch.addScene(io, self, .{ .source = .unsupported, .name = self.strings.intern("Kit"), .label = self.strings.intern("Kit") }));
+    try std.testing.expectError(error.BadPart, dispatch.addScene(io, self, tonePatch(self, "drum", 1, 1, 0, "Kit")));
     try std.testing.expectEqual(@as(u8, 1), self.scene_list.count);
 }
 
 test "the step actions move between the scenes of an instance and stop at the ends" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -837,20 +850,21 @@ test "the step actions move between the scenes of an instance and stop at the en
     }
 
     // With none selected, either direction goes to the first scene.
-    actions.step(-1);
+    actions.step(io, -1);
     try std.testing.expectEqual(@as(u8, 1), self.scene.load(.monotonic));
-    actions.step(1);
-    actions.step(1);
+    actions.step(io, 1);
+    actions.step(io, 1);
     try std.testing.expectEqual(@as(u8, 3), self.scene.load(.monotonic));
     try std.testing.expectEqual(@as(?u8, 3), self.shared.getDesired(.kb, 0x02 << 14 | 5));
     // The last scene is the end: another step does not wrap round to the first.
-    actions.step(1);
+    actions.step(io, 1);
     try std.testing.expectEqual(@as(u8, 3), self.scene.load(.monotonic));
-    actions.step(-1);
+    actions.step(io, -1);
     try std.testing.expectEqual(@as(u8, 2), self.scene.load(.monotonic));
 }
 
 test "saving the keyboard reads it first and writes the preset when the read ends" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -860,15 +874,15 @@ test "saving the keyboard reads it first and writes the preset when the read end
     const self = plugin.Plugin.from(p);
 
     // Nothing is read from a keyboard that does not answer, and a name is needed.
-    try std.testing.expectError(error.NotConnected, self.startSave("Warm pad"));
+    try std.testing.expectError(error.NotConnected, self.startSave(io, "Warm pad"));
     self.shared.connected.store(true, .release);
-    try std.testing.expectError(error.EmptyName, self.startSave(" . "));
+    try std.testing.expectError(error.EmptyName, self.startSave(io, " . "));
 
     // Starting asks for a read, and writes nothing yet.
-    try self.startSave("Warm pad");
+    try self.startSave(io, "Warm pad");
     try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
-    try std.testing.expectError(error.Busy, self.startSave("Another"));
-    self.advanceSave();
+    try std.testing.expectError(error.Busy, self.startSave(io, "Another"));
+    self.advanceSave(io);
     try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
 
     // The read ends and the keyboard answered: the preset is written, from what the read gave.
@@ -878,8 +892,8 @@ test "saving the keyboard reads it first and writes the preset when the read end
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     var root_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const root = try tmp.dir.realpath(".", &root_buf);
-    self.finishSave(root);
+    const root = root_buf[0..try tmp.dir.realPathFile(io, ".", &root_buf)];
+    self.finishSave(io, root);
     try std.testing.expectEqual(plugin.SaveState.done, self.save.state);
     try std.testing.expectEqualStrings("Warm pad.vr09", self.save.fileName());
     try std.testing.expect(self.save.known >= 1);
@@ -888,22 +902,23 @@ test "saving the keyboard reads it first and writes the preset when the read end
     back.* = .{};
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = try std.fmt.bufPrint(&path_buf, "{s}/Warm pad.vr09", .{root});
-    try @import("state.zig").loadPresetFile(std.testing.allocator, path, back);
+    try @import("state.zig").loadPresetFile(std.testing.allocator, io, path, back);
     try std.testing.expectEqual(@as(?u8, 42), back.get(.kb, 0x02 << 14 | 5));
 
     // A read that the keyboard did not answer is a failed save, with the reason.
-    try self.startSave("Second");
+    try self.startSave(io, "Second");
     _ = self.shared.captures_done.fetchAdd(1, .release);
     self.shared.capture_answered.store(false, .monotonic);
-    self.advanceSave();
+    self.advanceSave(io);
     try std.testing.expectEqual(plugin.SaveState.failed, self.save.state);
     try std.testing.expectEqualStrings("the keyboard did not answer", self.save.failure());
     // A failed save can be tried again.
-    try self.startSave("Second");
+    try self.startSave(io, "Second");
     try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
 }
 
 test "the panel's save starts the plugin's save job, and its result is told once" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -914,13 +929,13 @@ test "the panel's save starts the plugin's save job, and its result is told once
     const asked = self.strings.intern("Warm pad");
 
     // A keyboard that does not answer is told at once, and nothing starts.
-    dispatch.dispatch(self, .{ .save_keyboard = asked });
+    dispatch.dispatch(io, self, .{ .save_keyboard = asked });
     try std.testing.expectEqual(plugin.SaveState.idle, self.save.state);
     try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "does not answer") != null);
 
     // The save runs on the plugin's job, and the panel only looks at it.
     self.shared.connected.store(true, .release);
-    dispatch.dispatch(self, .{ .save_keyboard = asked });
+    dispatch.dispatch(io, self, .{ .save_keyboard = asked });
     try std.testing.expectEqual(plugin.SaveState.reading, self.save.state);
     self.ui.notice_text[0] = 0;
     dispatch.reportSave(self);
@@ -932,8 +947,8 @@ test "the panel's save starts the plugin's save job, and its result is told once
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     var root_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const root = try tmp.dir.realpath(".", &root_buf);
-    self.finishSave(root);
+    const root = root_buf[0..try tmp.dir.realPathFile(io, ".", &root_buf)];
+    self.finishSave(io, root);
     dispatch.reportSave(self);
     try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "saved it as Warm pad") != null);
 
@@ -944,6 +959,7 @@ test "the panel's save starts the plugin's save job, and its result is told once
 }
 
 test "a scene number that does not exist goes back to the loaded scene" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -951,20 +967,20 @@ test "a scene number that does not exist goes back to the loaded scene" {
     const p = createPlugin(&host);
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
-    _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 1, 0, 0, "A"));
-    try self.selectScene(1);
+    _ = try dispatch.addScene(io, self, tonePatch(self, "upper_piano", 1, 0, 0, "A"));
+    try self.selectScene(io, 1);
 
     // Automation asks for a scene that the list does not have: the number is shown at once, then taken back.
     self.requestScene(9);
     try std.testing.expectEqual(@as(u8, 9), self.scene.load(.monotonic));
-    self.applyPendingScene();
+    self.applyPendingScene(io);
     try std.testing.expectEqual(@as(u8, 1), self.scene.load(.monotonic));
 
     // Once the scene exists, the same value loads it, because it is a new value again.
     var i: usize = 0;
-    while (i < 8) : (i += 1) _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 2, 0, 0, "More"));
+    while (i < 8) : (i += 1) _ = try dispatch.addScene(io, self, tonePatch(self, "upper_piano", 2, 0, 0, "More"));
     self.requestScene(9);
-    self.applyPendingScene();
+    self.applyPendingScene(io);
     try std.testing.expectEqual(@as(u8, 9), self.scene.load(.monotonic));
 }
 
@@ -983,6 +999,7 @@ test "a notice that is too long keeps its beginning" {
 }
 
 test "automation of the loop leaves the track's flag to the main thread" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -996,7 +1013,7 @@ test "automation of the loop leaves the track's flag to the main thread" {
     try std.testing.expect(self.settings.loop_enabled.load(.monotonic));
     try std.testing.expect(self.loop_flag_dirty.load(.acquire));
     // The main thread's tick takes the mark.
-    self.tickMain();
+    self.tickMain(io);
     try std.testing.expect(!self.loop_flag_dirty.load(.acquire));
     // The same value again changes nothing.
     plugin.applyExtra(self, 0, 1.0);
@@ -1009,21 +1026,22 @@ fn newTestPlugin(host: *MockHost) *plugin.Plugin {
 }
 
 test "a template gives back what it can and says what it could not" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
     const self = newTestPlugin(&host);
     defer destroyPlugin(@ptrCast(&self.clap));
-    _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 1, 0, 0, "Kept 1"));
-    _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 2, 0, 0, "Kept 2"));
+    _ = try dispatch.addScene(io, self, tonePatch(self, "upper_piano", 1, 0, 0, "Kept 1"));
+    _ = try dispatch.addScene(io, self, tonePatch(self, "upper_piano", 2, 0, 0, "Kept 2"));
 
     // A template whose patches are all gone does not take the session's scenes away.
-    try std.testing.expectError(error.EmptyTemplate, dispatch.loadTemplateText(self, "Gone\t99999\nDamaged\n", false));
+    try std.testing.expectError(error.EmptyTemplate, dispatch.loadTemplateText(io, self, "Gone\t99999\nDamaged\n", false));
     try std.testing.expectEqual(@as(u8, 2), self.scene_list.count);
     try std.testing.expectEqualStrings("Kept 1", self.scene_list.get(1).?.name());
 
     // One that gives some back replaces the scenes, and counts what it left out: a patch that is gone, a damaged line.
-    const result = try dispatch.loadTemplateText(self, "Pad A\t101\nGone\t99999\nDamaged\nSynth B\t300\n", false);
+    const result = try dispatch.loadTemplateText(io, self, "Pad A\t101\nGone\t99999\nDamaged\nSynth B\t300\n", false);
     try std.testing.expectEqual(@as(u8, 2), self.scene_list.count);
     try std.testing.expectEqualStrings("Pad A", self.scene_list.get(1).?.name());
     try std.testing.expectEqualStrings("Synth B", self.scene_list.get(2).?.name());
@@ -1031,13 +1049,14 @@ test "a template gives back what it can and says what it could not" {
     try std.testing.expectEqual(@as(usize, 1), result.failed);
 
     // Added to a full list, the lines that do not fit are counted as not added.
-    while (self.scene_list.count < 127) _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 3, 0, 0, "Fill"));
-    const full = try dispatch.loadTemplateText(self, "More\t101\nMore\t102\n", true);
+    while (self.scene_list.count < 127) _ = try dispatch.addScene(io, self, tonePatch(self, "upper_piano", 3, 0, 0, "Fill"));
+    const full = try dispatch.loadTemplateText(io, self, "More\t101\nMore\t102\n", true);
     try std.testing.expectEqual(@as(usize, 2), full.failed);
     try std.testing.expectEqual(@as(u8, 127), self.scene_list.count);
 }
 
 test "loading a patch that is not a scene sets the Scene parameter to none, and a scene keeps its split under its patch" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
@@ -1048,37 +1067,38 @@ test "loading a patch that is not a scene sets the Scene parameter to none, and 
     const patch = tonePatch(self, "upper_piano", 1, 0, 0, "Intro");
     var scene_patch = patch;
     scene_patch.label = self.strings.intern("2-1 Sweet_Dream");
-    _ = try dispatch.addScene(self, scene_patch);
-    try self.selectScene(1);
+    _ = try dispatch.addScene(io, self, scene_patch);
+    try self.selectScene(io, 1);
     try std.testing.expectEqual(@as(u8, 1), self.scene.load(.monotonic));
     try std.testing.expectEqualStrings("Intro", self.settings.presetName());
     try std.testing.expectEqualStrings("2-1 Sweet_Dream", self.settings.splitKey());
 
     // A patch of the library is not a scene: the parameter goes to none, and the split key is the patch's name.
-    dispatch.dispatch(self, .{ .send_patch = tonePatch(self, "upper_piano", 5, 0, 0, "Grand") });
+    dispatch.dispatch(io, self, .{ .send_patch = tonePatch(self, "upper_piano", 5, 0, 0, "Grand") });
     try std.testing.expectEqual(@as(u8, 0), self.scene.load(.monotonic));
     try std.testing.expectEqualStrings("Grand", self.settings.splitKey());
 }
 
 test "a scene clear leaves no scene to go back to, and a full command queue is told" {
+    const io = std.testing.io;
     try std.testing.expect(entry.init.?("test"));
     defer entry.deinit.?();
     var host: MockHost = undefined;
     const self = newTestPlugin(&host);
     defer destroyPlugin(@ptrCast(&self.clap));
-    _ = try dispatch.addScene(self, tonePatch(self, "upper_piano", 1, 0, 0, "A"));
-    try self.selectScene(1);
+    _ = try dispatch.addScene(io, self, tonePatch(self, "upper_piano", 1, 0, 0, "A"));
+    try self.selectScene(io, 1);
     var out: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&out);
-    try debug_api.dispatch(fbs.writer(), null, -1, "scene_clear", "");
+    var fbs: std.Io.Writer = .fixed(&out);
+    try debug_api.dispatch(io, &fbs, null, -1, "scene_clear", "");
     // Automation asks for a scene that does not exist: the number goes back to none, and not to the cleared scene.
     self.requestScene(9);
-    self.applyPendingScene();
+    self.applyPendingScene(io);
     try std.testing.expectEqual(@as(u8, 0), self.scene.load(.monotonic));
 
     // The engine's queue takes a few commands, and the panel says so when it is full.
     while (self.shared.sendCommand(.read_all)) {}
-    dispatch.dispatch(self, .read_keyboard);
+    dispatch.dispatch(io, self, .read_keyboard);
     try std.testing.expect(std.mem.indexOf(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "busy") != null);
     try std.testing.expect(self.ui.notice_is_error);
 }
@@ -1105,13 +1125,14 @@ test "a control change parameter sends a CC and nothing else" {
 
 /// An in-memory stream for the state extension's save and load.
 const TestStream = struct {
-    bytes: std.ArrayList(u8),
+    /// Grows with std.testing.allocator, since the stream only exists in the tests.
+    bytes: std.ArrayList(u8) = .empty,
     pos: usize = 0,
 
     pub fn write(s: [*c]const c.clap_ostream_t, buffer: ?*const anyopaque, size: u64) callconv(.c) i64 {
         const self_: *TestStream = @ptrCast(@alignCast(s.*.ctx));
         const b: [*]const u8 = @ptrCast(buffer.?);
-        self_.bytes.appendSlice(b[0..size]) catch return -1;
+        self_.bytes.appendSlice(std.testing.allocator, b[0..size]) catch return -1;
         return @intCast(size);
     }
 
@@ -1138,8 +1159,8 @@ test "the state survives a save and a load into another instance" {
     host.process(p);
     self.settings.setPresetName("Test pad");
 
-    var stream = TestStream{ .bytes = std.ArrayList(u8).init(std.testing.allocator) };
-    defer stream.bytes.deinit();
+    var stream = TestStream{};
+    defer stream.bytes.deinit(std.testing.allocator);
     const state_ext: *const c.clap_plugin_state_t = @ptrCast(@alignCast(p.*.get_extension.?(p, &c.CLAP_EXT_STATE)));
     const out_stream = c.clap_ostream_t{ .ctx = &stream, .write = TestStream.write };
     try std.testing.expect(state_ext.save.?(p, &out_stream));

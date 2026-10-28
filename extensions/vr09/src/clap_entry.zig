@@ -4,6 +4,7 @@ const std = @import("std");
 const clap = @import("clap.zig");
 const c = clap.c;
 const plugin = @import("plugin.zig");
+const host_io = @import("host_io");
 const discovery = @import("discovery.zig");
 const build_options = @import("build_options");
 const debug_api = if (build_options.debug_api) @import("debug_api.zig") else @import("debug_api_off.zig");
@@ -16,6 +17,7 @@ var init_count: u32 = 0;
 
 fn entryInit(path: [*c]const u8) callconv(.c) bool {
     _ = path;
+    if (init_count == 0) plugin.io_threaded = host_io.create();
     init_count += 1;
     return true;
 }
@@ -23,7 +25,10 @@ fn entryInit(path: [*c]const u8) callconv(.c) bool {
 fn entryDeinit() callconv(.c) void {
     if (init_count == 0) return;
     init_count -= 1;
-    if (init_count == 0) plugin.shutdown();
+    if (init_count == 0) {
+        plugin.shutdown();
+        plugin.io_threaded.deinit();
+    }
 }
 
 fn factoryCount(factory: [*c]const c.clap_plugin_factory_t) callconv(.c) u32 {

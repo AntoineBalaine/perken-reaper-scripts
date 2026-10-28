@@ -38,6 +38,15 @@ const P = [*c]const c.clap_plugin_t;
 
 pub const allocator = std.heap.c_allocator;
 
+/// The std.Io that the plugin does its file work with. Because the host loads the plugin as a library, there
+/// is no main() to receive one from, so the plugin owns it here. The CLAP entry's init replaces this
+/// single-threaded default with host_io.create(); tests keep the default.
+pub var io_threaded: std.Io.Threaded = .init_single_threaded;
+
+pub fn hostIo() std.Io {
+    return io_threaded.io();
+}
+
 /// Parameters of the plugin itself, after the keyboard's.
 pub const Extra = struct {
     id: []const u8,
@@ -345,19 +354,19 @@ pub const Plugin = struct {
     // ---- presets ----
 
     /// Replaces the scene with a dump and has the engine recall it.
-    pub fn loadScene(self: *Plugin, scene: *const dump.Dump, name: []const u8, split_key: []const u8) void {
+    pub fn loadScene(self: *Plugin, io: std.Io, scene: *const dump.Dump, name: []const u8, split_key: []const u8) void {
         self.shared.loadDesired(scene);
         self.settings.setPresetName(name);
         self.settings.setSplitKey(split_key);
-        self.settings.split.store(patchSplits(split_key), .monotonic);
+        self.settings.split.store(patchSplits(io, split_key), .monotonic);
         _ = self.shared.scene_gen.fetchAdd(1, .release);
     }
 
     /// Loads a patch that is not one of the session's scenes (a registration, a preset, a tone of the library).
     /// Because the keyboard then plays something that no scene stands for, the Scene parameter goes to none, and the
     /// host is told, with the Split parameter, which the patch may have changed.
-    pub fn loadPatch(self: *Plugin, patch: *const dump.Dump, name: []const u8) void {
-        self.loadScene(patch, name, name);
+    pub fn loadPatch(self: *Plugin, io: std.Io, patch: *const dump.Dump, name: []const u8) void {
+        self.loadScene(io, patch, name, name);
         self.setScene(0);
         self.rescanParamValues();
     }
@@ -370,14 +379,14 @@ pub const Plugin = struct {
     }
 
     /// Loads a registration's dump and writes it to the keyboard.
-    pub fn loadRegistration(self: *Plugin, file_name: []const u8) !void {
+    pub fn loadRegistration(self: *Plugin, io: std.Io, file_name: []const u8) !void {
         const parsed = registrations.parseFileName(file_name) orelse return error.BadFileName;
         var folder_buf: [fileio.max_path]u8 = undefined;
         const folder = try state.registrationFolder(&folder_buf, glue.resourcePath());
         var path_buf: [fileio.max_path]u8 = undefined;
         const path = try std.fmt.bufPrint(&path_buf, "{s}{c}{s}", .{ folder, std.fs.path.sep, file_name });
         var name_buf: [96]u8 = undefined;
-        try self.loadPresetFile(path, registrations.patchName(&name_buf, parsed));
+        try self.loadPresetFile(io, path, registrations.patchName(&name_buf, parsed));
         self.rescanParamValues();
     }
 
@@ -395,10 +404,10 @@ pub const Plugin = struct {
         self.pending_scene.store(position, .release);
     }
 
-    pub fn applyPendingScene(self: *Plugin) void {
+    pub fn applyPendingScene(self: *Plugin, io: std.Io) void {
         const pending = self.pending_scene.swap(0, .acq_rel);
         if (pending == 0) return;
-        self.selectScene(pending) catch |err| {
+        self.selectScene(io, pending) catch |err| {
             log.warn("scene {d} could not be loaded: {s}", .{ pending, @errorName(err) });
             // Because `requestScene` showed the number before the list was asked, the number goes back to the
             // scene that is really loaded, and the same value can be asked for again once the scene exists.
@@ -410,13 +419,13 @@ pub const Plugin = struct {
     }
 
     /// Makes a scene the current one and has the engine recall its patch. Main thread only.
-    pub fn selectScene(self: *Plugin, position: u8) error{NoSuchScene}!void {
+    pub fn selectScene(self: *Plugin, io: std.Io, position: u8) error{NoSuchScene}!void {
         const scene = self.scene_list.get(position) orelse return error.NoSuchScene;
         self.setScene(position);
         // A scene of the library remembers its split under the name of its patch, which is its label. The name is the
         // player's, and may have been changed.
         const key = if (scene.label().len > 0) scene.label() else scene.name();
-        self.loadScene(&scene.patch, scene.name(), key);
+        self.loadScene(io, &scene.patch, scene.name(), key);
         self.rescanParamValues();
     }
 
@@ -424,7 +433,7 @@ pub const Plugin = struct {
 
     /// Begins saving the keyboard as a preset: it reads the keyboard first, so that the preset holds the
     /// keyboard as it is and not what the plugin last knew. The file is written by `advanceSave`.
-    pub fn startSave(self: *Plugin, raw_name: []const u8) SaveError!void {
+    pub fn startSave(self: *Plugin, io: std.Io, raw_name: []const u8) SaveError!void {
         if (self.save.state == .reading) return error.Busy;
         const trimmed = std.mem.trim(u8, raw_name, " ");
         if (trimmed.len > self.save.name.len) return error.NameTooLong;
@@ -436,31 +445,31 @@ pub const Plugin = struct {
         @memcpy(self.save.name[0..trimmed.len], trimmed);
         self.save.name[trimmed.len] = 0;
         self.save.baseline = baseline;
-        self.save.started_ms = std.time.milliTimestamp();
+        self.save.started_ms = std.Io.Timestamp.now(io, .real).toMilliseconds();
         self.save.serial +%= 1;
         self.save.state = .reading;
     }
 
     /// Writes the preset once the read has ended. Called once per tick, on the main thread.
-    pub fn advanceSave(self: *Plugin) void {
+    pub fn advanceSave(self: *Plugin, io: std.Io) void {
         if (self.save.state != .reading) return;
         if (self.shared.captures_done.load(.acquire) == self.save.baseline) {
-            if (std.time.milliTimestamp() - self.save.started_ms > save_timeout_ms) self.save.fail("the keyboard took too long to be read");
+            if (std.Io.Timestamp.now(io, .real).toMilliseconds() - self.save.started_ms > save_timeout_ms) self.save.fail("the keyboard took too long to be read");
             return;
         }
         if (!self.shared.capture_answered.load(.monotonic)) return self.save.fail("the keyboard did not answer");
         if (!glue.ready) return self.save.fail("REAPER's API is not available");
         var folder_buf: [fileio.max_path]u8 = undefined;
         const folder = state.presetFolder(&folder_buf, glue.resourcePath()) catch return self.save.fail("the folder is too long");
-        self.finishSave(folder);
+        self.finishSave(io, folder);
     }
 
     /// Writes what the keyboard read gave, as the preset of the save, in `folder`.
-    pub fn finishSave(self: *Plugin, folder: []const u8) void {
+    pub fn finishSave(self: *Plugin, io: std.Io, folder: []const u8) void {
         const patch = allocator.create(dump.Dump) catch return self.save.fail("out of memory");
         defer allocator.destroy(patch);
         self.shared.desiredSnapshot(patch);
-        _ = dispatch.storePreset(self, folder, self.save.savedName(), patch, &self.save.file) catch |err| return self.save.fail(@errorName(err));
+        _ = dispatch.storePreset(io, self, folder, self.save.savedName(), patch, &self.save.file) catch |err| return self.save.fail(@errorName(err));
         self.save.known = patch.knownCount();
         self.save.state = .done;
     }
@@ -496,21 +505,21 @@ pub const Plugin = struct {
         if (self.host_params.*.rescan) |rescan| rescan(self.host, c.CLAP_PARAM_RESCAN_VALUES);
     }
 
-    pub fn loadPresetFile(self: *Plugin, path: []const u8, name: []const u8) !void {
+    pub fn loadPresetFile(self: *Plugin, io: std.Io, path: []const u8, name: []const u8) !void {
         const scene = try allocator.create(dump.Dump);
         defer allocator.destroy(scene);
         scene.* = .{};
-        try state.loadPresetFile(allocator, path, scene);
-        self.loadPatch(scene, name);
+        try state.loadPresetFile(allocator, io, path, scene);
+        self.loadPatch(io, scene, name);
     }
 
     // ---- once per timer tick, on the main thread ----
 
-    pub fn tickMain(self: *Plugin) void {
+    pub fn tickMain(self: *Plugin, io: std.Io) void {
         self.ticks +%= 1;
-        self.applyPendingScene();
+        self.applyPendingScene(io);
         self.syncLoopFlag();
-        self.advanceSave();
+        self.advanceSave(io);
         self.logTraces();
         self.logLoopState();
         self.findTrack();
@@ -799,21 +808,21 @@ fn handleInput(self: *Plugin, ev_header: [*c]const c.clap_event_header_t, sink: 
 }
 
 /// Whether the patch is in the list of split patches.
-pub fn patchSplits(name: []const u8) bool {
+pub fn patchSplits(io: std.Io, name: []const u8) bool {
     if (!glue.ready) return false;
     var buf: [1024]u8 = undefined;
     const path = state.splitsPath(&buf, glue.resourcePath()) catch return false;
-    return split.isSplit(allocator, path, name);
+    return split.isSplit(allocator, io, path, name);
 }
 
 /// Sets the current patch's split and remembers it for that patch.
-pub fn setPatchSplit(self: *Plugin, on: bool) void {
+pub fn setPatchSplit(self: *Plugin, io: std.Io, on: bool) void {
     self.settings.split.store(on, .monotonic);
     self.rescanParamValues();
     if (!glue.ready) return;
     var buf: [1024]u8 = undefined;
     const path = state.splitsPath(&buf, glue.resourcePath()) catch return;
-    split.setSplit(allocator, path, self.settings.splitKey(), on) catch |err| log.warn("could not save the split list: {s}", .{@errorName(err)});
+    split.setSplit(allocator, io, path, self.settings.splitKey(), on) catch |err| log.warn("could not save the split list: {s}", .{@errorName(err)});
 }
 
 /// A parameter of the plugin itself changed, from automation.
@@ -1142,13 +1151,13 @@ fn latencyGet(p: P) callconv(.c) u32 {
 
 fn stateSave(p: P, stream: [*c]const c.clap_ostream_t) callconv(.c) bool {
     const self = Plugin.from(p);
-    var buf: std.ArrayList(u8) = .empty;
-    defer buf.deinit(allocator);
-    state.write(buf.writer(), self.shared, &self.settings, self.scene_list) catch return false;
+    var buf: std.Io.Writer.Allocating = .init(allocator);
+    defer buf.deinit();
+    state.write(&buf.writer, self.shared, &self.settings, self.scene_list) catch return false;
     const write = stream.*.write orelse return false;
     var done: usize = 0;
-    while (done < buf.items.len) {
-        const n = write(stream, buf.items[done..].ptr, buf.items.len - done);
+    while (done < buf.written().len) {
+        const n = write(stream, buf.written()[done..].ptr, buf.written().len - done);
         if (n <= 0) return false;
         done += @intCast(n);
     }
@@ -1167,8 +1176,8 @@ fn stateLoad(p: P, stream: [*c]const c.clap_istream_t) callconv(.c) bool {
         if (n == 0) break;
         buf.appendSlice(allocator, chunk[0..@intCast(n)]) catch return false;
     }
-    var reader = std.io.fixedBufferStream(buf.items);
-    state.read(reader.reader(), self.shared, &self.settings, self.scene_list) catch |err| {
+    var reader: std.Io.Reader = .fixed(buf.items);
+    state.read(&reader, self.shared, &self.settings, self.scene_list) catch |err| {
         log.warn("the saved state could not be read: {s}", .{@errorName(err)});
         return false;
     };
@@ -1181,12 +1190,13 @@ fn stateLoad(p: P, stream: [*c]const c.clap_istream_t) callconv(.c) bool {
 }
 
 fn presetFromLocation(p: P, kind: u32, location: [*c]const u8, load_key: [*c]const u8) callconv(.c) bool {
+    const io = hostIo();
     _ = load_key;
     if (kind != c.CLAP_PRESET_DISCOVERY_LOCATION_FILE) return false;
     const self = Plugin.from(p);
     const path = std.mem.span(location);
     const base = std.fs.path.basename(path);
-    self.loadPresetFile(path, state.displayName(base)) catch |err| {
+    self.loadPresetFile(io, path, state.displayName(base)) catch |err| {
         log.warn("preset {s} could not be loaded: {s}", .{ path, @errorName(err) });
         return false;
     };
@@ -1303,11 +1313,12 @@ fn guiHide(p: P) callconv(.c) bool {
 
 /// Runs on REAPER's main thread about thirty times a second.
 pub fn onTimer() callconv(.c) void {
+    const io = hostIo();
     for (instances) |maybe| {
         const self = maybe orelse continue;
-        self.tickMain();
+        self.tickMain(io);
     }
-    ui.drawAll();
+    ui.drawAll(io);
 }
 
 /// Called when the library unloads.

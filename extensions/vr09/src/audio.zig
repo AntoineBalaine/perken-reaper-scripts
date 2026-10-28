@@ -457,8 +457,10 @@ const FakeDevice = struct {
     const channels = 4;
 
     delay: usize,
+    /// The allocator of `history`, which is unmanaged.
+    allocator: std.mem.Allocator,
     /// Everything the device has output on the returning channel, by frame.
-    history: std.ArrayList(f64),
+    history: std.ArrayList(f64) = .empty,
     time: usize = 0,
     out_bufs: [channels][block]f64 = undefined,
     in_bufs: [channels][block]f64 = undefined,
@@ -488,7 +490,7 @@ const FakeDevice = struct {
 
     pub fn after(self: *FakeDevice, bridge: *Bridge) !void {
         bridge.onBuffer(true, block, self.host());
-        for (0..block) |i| try self.history.append(self.out_bufs[self.channel][i]);
+        for (0..block) |i| try self.history.append(self.allocator, self.out_bufs[self.channel][i]);
         self.time += block;
     }
 };
@@ -501,8 +503,8 @@ test "the loop measures the true round trip and returns the audio with that dela
     slot.out_channel.store(2, .monotonic);
     slot.in_channel.store(2, .monotonic);
     var loop = Loop.init(bridge, slot);
-    var device = FakeDevice{ .delay = 300, .history = std.ArrayList(f64).init(allocator) };
-    defer device.history.deinit();
+    var device = FakeDevice{ .delay = 300, .allocator = allocator };
+    defer device.history.deinit(allocator);
 
     const B = FakeDevice.block;
     var in_l: [B]f32 = @splat(0);

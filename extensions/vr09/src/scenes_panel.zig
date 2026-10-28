@@ -240,13 +240,13 @@ fn lessName(_: void, a: [:0]u8, b: [:0]u8) bool {
 }
 
 /// The templates of the folder, read again every second or so.
-fn refreshTemplates(p: *Plugin, w: *State, frame: u32) void {
+fn refreshTemplates(io: std.Io, p: *Plugin, w: *State, frame: u32) void {
     if (w.templates != null and frame -% w.templates_at < 60) return;
     free(w);
     w.templates_at = frame;
     var buf: [fileio.max_path]u8 = undefined;
     const folder = templateFolder(&buf) orelse return;
-    var files = fileio.listFiles(plugin.allocator, folder, &.{template_extension}) catch return;
+    var files = fileio.listFiles(plugin.allocator, io, folder, &.{template_extension}) catch return;
     defer fileio.freeList(plugin.allocator, &files);
     std.mem.sort([:0]u8, files.items, {}, lessName);
     var refs: std.ArrayListUnmanaged(strings.Ref) = .empty;
@@ -256,7 +256,7 @@ fn refreshTemplates(p: *Plugin, w: *State, frame: u32) void {
     w.templates = refs;
 }
 
-fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
+fn drawTemplates(io: std.Io, p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const kit = &p.ui.kit;
     const w = &p.ui.scenes_panel;
     var action: ?types.Action = null;
@@ -266,7 +266,7 @@ fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     _ = imgui.api.InputTextWithHint(ctx, "##templatename", "name of the template", &w.template_name, w.template_name.len, &input_flags, null);
     imgui.api.SameLine(ctx, null, null);
     if (widgets.pushButton(kit, "Save the scenes as a template", 0)) action = .{ .save_template = p.strings.intern(std.mem.sliceTo(&w.template_name, 0)) };
-    refreshTemplates(p, w, p.ui.frame);
+    refreshTemplates(io, p, w, p.ui.frame);
     const count = if (w.templates) |list| list.items.len else 0;
     if (count == 0) imgui.api.TextColored(ctx, theme.grey, "No templates yet.");
     var list_w: f64 = 460;
@@ -305,7 +305,7 @@ fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
 // ---- the card ----
 
 /// The card of the session's scenes.
-pub fn draw(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
+pub fn draw(io: std.Io, p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const kit = &p.ui.kit;
     var action: ?types.Action = null;
     if (!widgets.beginCard(kit, "Scenes of this session", null, null, null)) return null;
@@ -323,7 +323,7 @@ pub fn draw(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     imgui.api.Text(ctx, std.mem.printSentinel(&line, "Scene parameter: {d}  {s}", .{ current, if (scene) |s| s.name() else "(no scene)" }, 0) catch "");
     if (widgets.pushButton(kit, "Insert a lane point at the cursor", 0)) action = types.first(action, .insert_lane_point);
     widgets.tooltip(kit, "Puts a square point on the Scene parameter's lane at the edit cursor, set to the selected scene. The lane is created if the track does not have one yet.");
-    action = types.first(action, drawTemplates(p, ctx));
+    action = types.first(action, drawTemplates(io, p, ctx));
     return action;
 }
 

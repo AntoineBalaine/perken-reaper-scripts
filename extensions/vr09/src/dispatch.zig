@@ -119,7 +119,7 @@ pub fn describe(err: anyerror) []const u8 {
 }
 
 /// Carries out one action.
-pub fn dispatch(p: *Plugin, action: Action) void {
+pub fn dispatch(io: std.Io, p: *Plugin, action: Action) void {
     switch (action) {
         .set_param => |s| {
             if (!p.shared.changeParam(s.index, s.value)) say(p, "Too many changes at once, the last one was dropped.", .{}, true);
@@ -139,31 +139,31 @@ pub fn dispatch(p: *Plugin, action: Action) void {
                 say(p, "The keyboard was not written: {s}.", .{busy_text}, true);
             }
         },
-        .save_keyboard => |name| p.startSave(p.strings.get(name)) catch |err| say(p, "The keyboard was not saved: {s}.", .{saveErrorText(err)}, true),
+        .save_keyboard => |name| p.startSave(io, p.strings.get(name)) catch |err| say(p, "The keyboard was not saved: {s}.", .{saveErrorText(err)}, true),
         .send_patch => |patch| {
-            sendPatch(p, patch) catch |err| {
+            sendPatch(io, p, patch) catch |err| {
                 say(p, "Could not send \"{s}\": {s}.", .{ p.strings.get(patch.name), describe(err) }, err != error.NotSupported);
                 return;
             };
             say(p, "Sent \"{s}\" to the keyboard.", .{p.strings.get(patch.name)}, false);
         },
         .delete_preset => |file| {
-            deletePreset(p, p.strings.get(file)) catch |err| {
+            deletePreset(io, p, p.strings.get(file)) catch |err| {
                 say(p, "Could not delete {s}: {s}.", .{ p.strings.get(file), describe(err) }, true);
                 return;
             };
             say(p, "Deleted {s}.", .{state.displayName(p.strings.get(file))}, false);
         },
-        .refresh_library => library.build(p, &p.library),
+        .refresh_library => library.build(io, p, &p.library),
         .import_file => {
-            const imported = importFile(p) catch |err| {
+            const imported = importFile(io, p) catch |err| {
                 say(p, "Could not import the file: {s}.", .{describe(err)}, true);
                 return;
             };
             if (imported) |name| say(p, "Imported {s}.", .{p.strings.get(name)}, false);
         },
         .export_file => |path| {
-            exportFile(p, p.strings.get(path)) catch |err| {
+            exportFile(io, p, p.strings.get(path)) catch |err| {
                 say(p, "Could not write the file: {s}.", .{describe(err)}, true);
                 return;
             };
@@ -171,14 +171,14 @@ pub fn dispatch(p: *Plugin, action: Action) void {
         },
 
         .add_scene => |patch| {
-            const position = addScene(p, patch) catch |err| {
+            const position = addScene(io, p, patch) catch |err| {
                 say(p, "Could not add \"{s}\" to the scenes: {s}.", .{ p.strings.get(patch.name), describe(err) }, err != error.NotSupported);
                 return;
             };
             say(p, "Added \"{s}\" as scene {d}.", .{ p.strings.get(patch.name), position }, false);
         },
         .select_scene => |position| {
-            p.selectScene(position) catch {
+            p.selectScene(io, position) catch {
                 say(p, "There is no scene {d}.", .{position}, true);
             };
         },
@@ -207,14 +207,14 @@ pub fn dispatch(p: *Plugin, action: Action) void {
             say(p, "Inserted scene {d} at {d:.2} s.", .{ point.position, point.time }, false);
         },
         .save_template => |name| {
-            const saved = saveTemplate(p, p.strings.get(name)) catch |err| {
+            const saved = saveTemplate(io, p, p.strings.get(name)) catch |err| {
                 say(p, "Could not save the template: {s}.", .{describe(err)}, true);
                 return;
             };
             say(p, "Saved {d} scenes as the template \"{s}\".", .{ saved.scenes, p.strings.get(saved.name) }, false);
         },
         .load_template => |t| {
-            const result = loadTemplate(p, p.strings.get(t.name), t.append) catch |err| {
+            const result = loadTemplate(io, p, p.strings.get(t.name), t.append) catch |err| {
                 say(p, "Could not read the template: {s}.", .{describe(err)}, true);
                 return;
             };
@@ -225,10 +225,10 @@ pub fn dispatch(p: *Plugin, action: Action) void {
             }
         },
         .delete_template => |name| {
-            deleteTemplate(p.strings.get(name)) catch |err| say(p, "Could not delete the template: {s}.", .{describe(err)}, true);
+            deleteTemplate(io, p.strings.get(name)) catch |err| say(p, "Could not delete the template: {s}.", .{describe(err)}, true);
         },
 
-        .set_split => |on| plugin.setPatchSplit(p, on),
+        .set_split => |on| plugin.setPatchSplit(p, io, on),
         .set_follow_panel => |on| p.shared.follow_panel.store(on, .monotonic),
         .set_recall_on_load => |on| p.shared.recall_on_load.store(on, .monotonic),
 
@@ -291,11 +291,11 @@ fn pathIn(buf: []u8, folder: []const u8, file_name: []const u8) ![]const u8 {
 // ---- patches ----
 
 /// Reads the bytes of a patch into `out`.
-pub fn loadPatchDump(p: *Plugin, source: types.PatchSource, out: *dump.Dump) !void {
+pub fn loadPatchDump(io: std.Io, p: *Plugin, source: types.PatchSource, out: *dump.Dump) !void {
     switch (source) {
         .current => p.shared.desiredSnapshot(out),
-        .registration => |file| try readFile(.registrations, p.strings.get(file), out),
-        .preset => |file| try readFile(.presets, p.strings.get(file), out),
+        .registration => |file| try readFile(io, .registrations, p.strings.get(file), out),
+        .preset => |file| try readFile(io, .presets, p.strings.get(file), out),
         .tone => |t| {
             if (!scenes.toneDump(out, p.strings.get(t.part), t.number, t.msb, t.lsb)) return error.BadPart;
         },
@@ -303,57 +303,57 @@ pub fn loadPatchDump(p: *Plugin, source: types.PatchSource, out: *dump.Dump) !vo
     }
 }
 
-fn readFile(which: Folder, file_name: []const u8, out: *dump.Dump) !void {
+fn readFile(io: std.Io, which: Folder, file_name: []const u8, out: *dump.Dump) !void {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try folderOf(&folder_buf, which);
     var path_buf: [fileio.max_path]u8 = undefined;
-    try state.loadPresetFile(plugin.allocator, try pathIn(&path_buf, folder, file_name), out);
+    try state.loadPresetFile(plugin.allocator, io, try pathIn(&path_buf, folder, file_name), out);
 }
 
 /// Sends a patch to the keyboard: a registration or a preset is loaded from its file, and a tone is written to
 /// its part.
-pub fn sendPatch(p: *Plugin, patch: Patch) !void {
+pub fn sendPatch(io: std.Io, p: *Plugin, patch: Patch) !void {
     switch (patch.source) {
         .registration => |file| {
             // Because the load stores no string, the name can stay in the pool.
-            try p.loadRegistration(p.strings.get(file));
+            try p.loadRegistration(io, p.strings.get(file));
         },
-        .preset => |file| try loadPreset(p, p.strings.get(file)),
+        .preset => |file| try loadPreset(io, p, p.strings.get(file)),
         .tone => {
             const patch_dump = try plugin.allocator.create(dump.Dump);
             defer plugin.allocator.destroy(patch_dump);
             patch_dump.* = .{};
-            try loadPatchDump(p, patch.source, patch_dump);
-            p.loadPatch(patch_dump, p.strings.get(patch.name));
+            try loadPatchDump(io, p, patch.source, patch_dump);
+            p.loadPatch(io, patch_dump, p.strings.get(patch.name));
         },
         .current, .unsupported => return error.NotSupported,
     }
 }
 
 /// Puts a patch at the end of the session's scenes. Returns the scene's position.
-pub fn addScene(p: *Plugin, patch: Patch) !u8 {
+pub fn addScene(io: std.Io, p: *Plugin, patch: Patch) !u8 {
     const patch_dump = try plugin.allocator.create(dump.Dump);
     defer plugin.allocator.destroy(patch_dump);
     patch_dump.* = .{};
-    try loadPatchDump(p, patch.source, patch_dump);
+    try loadPatchDump(io, p, patch.source, patch_dump);
     return p.scene_list.addFrom(p.strings.get(patch.name), patch_dump, patch.id, p.strings.get(patch.label)) catch error.SceneListFull;
 }
 
 // ---- presets and files ----
 
-fn loadPreset(p: *Plugin, file_name: []const u8) !void {
+fn loadPreset(io: std.Io, p: *Plugin, file_name: []const u8) !void {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try folderOf(&folder_buf, .presets);
     var path_buf: [fileio.max_path]u8 = undefined;
     const path = try state.presetPath(&path_buf, folder, file_name);
-    try p.loadPresetFile(path, state.displayName(file_name));
+    try p.loadPresetFile(io, path, state.displayName(file_name));
 }
 
-pub fn deletePreset(p: *Plugin, file_name: []const u8) !void {
+pub fn deletePreset(io: std.Io, p: *Plugin, file_name: []const u8) !void {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try folderOf(&folder_buf, .presets);
     var path_buf: [fileio.max_path]u8 = undefined;
-    try fileio.deleteFile(try state.presetPath(&path_buf, folder, file_name));
+    try fileio.deleteFile(io, try state.presetPath(&path_buf, folder, file_name));
     library.removePreset(p, file_name);
 }
 
@@ -363,44 +363,44 @@ const preset_name_cap = 96;
 
 /// Writes a dump as a preset in `folder`, under a name cleaned of what a file name cannot hold. The folder is
 /// made when it is missing. Returns the file name, which is in `file_out`.
-pub fn writePreset(folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: [:0]u8) ![:0]const u8 {
+pub fn writePreset(io: std.Io, folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: [:0]u8) ![:0]const u8 {
     var clean: [preset_name_cap]u8 = undefined;
     if (raw_name.len > clean.len) return error.NameTooLong;
     const name = state.sanitizeName(&clean, raw_name);
     if (name.len == 0) return error.EmptyName;
-    try fileio.makePath(folder);
+    try fileio.makePath(io, folder);
     var path_buf: [fileio.max_path]u8 = undefined;
     const path = try state.presetPath(&path_buf, folder, name);
-    try state.savePresetFile(plugin.allocator, path, scene);
+    try state.savePresetFile(plugin.allocator, io, path, scene);
     return std.mem.printSentinel(file_out, "{s}{s}", .{ name, state.preset_extension }, 0);
 }
 
 /// Saves a dump as a preset of the presets folder, and tells the rest of the plugin: the preset becomes the
 /// current patch's name, and the library gets its row. Both ways of saving the keyboard end here.
-pub fn storePreset(p: *Plugin, folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: [:0]u8) ![:0]const u8 {
-    const file = try writePreset(folder, raw_name, scene, file_out);
+pub fn storePreset(io: std.Io, p: *Plugin, folder: []const u8, raw_name: []const u8, scene: *const dump.Dump, file_out: [:0]u8) ![:0]const u8 {
+    const file = try writePreset(io, folder, raw_name, scene, file_out);
     p.settings.setPresetName(state.displayName(file));
     library.addPreset(p, file);
     return file;
 }
 
 /// Asks for a file with REAPER's dialog and loads it. Returns its name, or null when the player cancelled.
-fn importFile(p: *Plugin) !?strings.Ref {
+fn importFile(io: std.Io, p: *Plugin) !?strings.Ref {
     if (!glue.ready) return error.NoResourceFolder;
     var path: [4096:0]u8 = @splat(0);
     if (!Reaper.GetUserFileNameForRead(@ptrCast(&path), "Import a VR-09 dump or preset", "json")) return null;
     const chosen = std.mem.sliceTo(&path, 0);
     const base = chosen[chosen.len - std.fs.path.basename(chosen).len ..];
-    try p.loadPresetFile(chosen, state.displayName(base));
+    try p.loadPresetFile(io, chosen, state.displayName(base));
     return p.strings.intern(base);
 }
 
-pub fn exportFile(p: *Plugin, target: []const u8) !void {
+pub fn exportFile(io: std.Io, p: *Plugin, target: []const u8) !void {
     if (target.len == 0 or !std.fs.path.isAbsolute(target)) return error.NeedFullPath;
     const snapshot = try plugin.allocator.create(dump.Dump);
     defer plugin.allocator.destroy(snapshot);
     p.shared.desiredSnapshot(snapshot);
-    try state.savePresetFile(plugin.allocator, target, snapshot);
+    try state.savePresetFile(plugin.allocator, io, target, snapshot);
 }
 
 // ---- scenes ----
@@ -473,33 +473,33 @@ pub const SavedTemplate = struct { name: strings.Ref, scenes: usize };
 
 /// The text of a template: a line for each scene that came from the library, the name and the patch ID
 /// separated by a tab. A scene made from the plugin's own state has no library patch, so a template cannot hold it.
-pub fn templateText(list: *const scenes.List, out: *std.ArrayList(u8)) !usize {
+pub fn templateText(gpa: std.mem.Allocator, list: *const scenes.List, out: *std.ArrayList(u8)) !usize {
     var written: usize = 0;
     var position: usize = 1;
     while (position <= list.count) : (position += 1) {
         const scene = list.get(position) orelse break;
         if (scene.patch_id == 0) continue;
-        for (scene.name()) |c| try out.append(if (c == '\t' or c == '\r' or c == '\n') ' ' else c);
-        try out.writer().print("\t{d}\n", .{scene.patch_id});
+        for (scene.name()) |c| try out.append(gpa, if (c == '\t' or c == '\r' or c == '\n') ' ' else c);
+        try out.print(gpa, "\t{d}\n", .{scene.patch_id});
         written += 1;
     }
     return written;
 }
 
-fn saveTemplate(p: *Plugin, wanted: []const u8) !SavedTemplate {
+fn saveTemplate(io: std.Io, p: *Plugin, wanted: []const u8) !SavedTemplate {
     var clean_buf: [name_cap]u8 = undefined;
     const clean = cleanTemplateName(&clean_buf, wanted);
     if (clean.len == 0) return error.EmptyName;
     var text: std.ArrayList(u8) = .empty;
     defer text.deinit(plugin.allocator);
-    const written = try templateText(p.scene_list, &text);
+    const written = try templateText(plugin.allocator, p.scene_list, &text);
     // Because a template of no scenes would replace a good one of the same name, it is not written.
     if (written == 0) return error.NothingToSave;
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try folderOf(&folder_buf, .templates);
-    try fileio.makePath(folder);
+    try fileio.makePath(io, folder);
     var path_buf: [fileio.max_path]u8 = undefined;
-    try fileio.writeAll(try templatePath(&path_buf, folder, clean), text.items);
+    try fileio.writeAll(io, try templatePath(&path_buf, folder, clean), text.items);
     return .{ .name = p.strings.intern(clean), .scenes = written };
 }
 
@@ -509,18 +509,18 @@ pub const TemplateResult = struct { missing: usize = 0, failed: usize = 0 };
 
 /// Loads a template: it replaces the session's scenes, or goes after them. Each scene is taken from the
 /// library, by the patch ID that the template holds.
-fn loadTemplate(p: *Plugin, name: []const u8, append: bool) !TemplateResult {
+fn loadTemplate(io: std.Io, p: *Plugin, name: []const u8, append: bool) !TemplateResult {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try folderOf(&folder_buf, .templates);
     var path_buf: [fileio.max_path]u8 = undefined;
-    const text = try fileio.readAll(plugin.allocator, try templatePath(&path_buf, folder, name));
+    const text = try fileio.readAll(plugin.allocator, io, try templatePath(&path_buf, folder, name));
     defer plugin.allocator.free(text);
-    return loadTemplateText(p, text, append);
+    return loadTemplateText(io, p, text, append);
 }
 
 /// Makes the scenes of a template's text. Every line is looked up first, so that a template that gives nothing
 /// back does not take the scenes away.
-pub fn loadTemplateText(p: *Plugin, text: []const u8, append: bool) !TemplateResult {
+pub fn loadTemplateText(io: std.Io, p: *Plugin, text: []const u8, append: bool) !TemplateResult {
     var patches: std.ArrayList(Patch) = .empty;
     defer patches.deinit(plugin.allocator);
     var result = TemplateResult{};
@@ -534,7 +534,7 @@ pub fn loadTemplateText(p: *Plugin, text: []const u8, append: bool) !TemplateRes
             result.failed += 1;
             continue;
         };
-        var patch = library.patchById(p, id) orelse {
+        var patch = library.patchById(io, p, id) orelse {
             result.missing += 1;
             continue;
         };
@@ -552,7 +552,7 @@ pub fn loadTemplateText(p: *Plugin, text: []const u8, append: bool) !TemplateRes
         p.rescanParamValues();
     }
     for (patches.items) |patch| {
-        _ = addScene(p, patch) catch {
+        _ = addScene(io, p, patch) catch {
             result.failed += 1;
             continue;
         };
@@ -560,18 +560,19 @@ pub fn loadTemplateText(p: *Plugin, text: []const u8, append: bool) !TemplateRes
     return result;
 }
 
-fn deleteTemplate(name: []const u8) !void {
+fn deleteTemplate(io: std.Io, name: []const u8) !void {
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try folderOf(&folder_buf, .templates);
     var path_buf: [fileio.max_path]u8 = undefined;
-    try fileio.deleteFile(try templatePath(&path_buf, folder, name));
+    try fileio.deleteFile(io, try templatePath(&path_buf, folder, name));
 }
 
 test "a preset is written under a clean name, in a folder that is created" {
+    const io = std.testing.io;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     var root_buf: [fileio.max_path]u8 = undefined;
-    const root = try tmp.dir.realpath(".", &root_buf);
+    const root = root_buf[0..try tmp.dir.realPathFile(io, ".", &root_buf)];
     var folder_buf: [fileio.max_path]u8 = undefined;
     const folder = try std.fmt.bufPrint(&folder_buf, "{s}/a/b/presets", .{root});
 
@@ -580,7 +581,7 @@ test "a preset is written under a clean name, in a folder that is created" {
     scene.* = .{};
     _ = scene.set(.kb, 0x02 << 14 | 5, 7);
     var file: [128:0]u8 = undefined;
-    const written = try writePreset(folder, "  My organ / take 2 ", scene, &file);
+    const written = try writePreset(io, folder, "  My organ / take 2 ", scene, &file);
     try std.testing.expectEqualStrings("My organ _ take 2.vr09", written);
 
     // The file holds the dump, and reads back as it was.
@@ -589,11 +590,11 @@ test "a preset is written under a clean name, in a folder that is created" {
     const back = try std.testing.allocator.create(dump.Dump);
     defer std.testing.allocator.destroy(back);
     back.* = .{};
-    try state.loadPresetFile(std.testing.allocator, path, back);
+    try state.loadPresetFile(std.testing.allocator, io, path, back);
     try std.testing.expectEqual(@as(?u8, 7), back.get(.kb, 0x02 << 14 | 5));
     try std.testing.expectEqual(@as(usize, 1), back.knownCount());
 
-    try std.testing.expectError(error.EmptyName, writePreset(folder, " . ", scene, &file));
+    try std.testing.expectError(error.EmptyName, writePreset(io, folder, " . ", scene, &file));
 }
 
 test "a template name keeps what a file name can hold, and replaces the rest" {

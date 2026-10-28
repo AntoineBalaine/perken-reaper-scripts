@@ -3,8 +3,9 @@
 //! Because REAPER calls into the plugin from deep in its own stack, and
 //! `std.fs`'s absolute-path functions on Windows do enough work internally
 //! to overflow what is left of it (see `reavim-ext/src/win_file.zig`), the
-//! Windows branch calls kernel32 directly. On macOS and Linux `std.fs` is
-//! known to work at that depth.
+//! Windows branch calls kernel32 directly. On macOS and Linux `std.Io.Dir` is
+//! known to work at that depth. The functions take the plugin's `io`, which
+//! the Windows branch does not need.
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -13,68 +14,66 @@ pub const is_windows = builtin.os.tag == .windows;
 pub const max_path = 1024;
 
 /// Reads a whole file. The caller owns the returned slice.
-pub fn readAll(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+pub fn readAll(allocator: std.mem.Allocator, io: std.Io, path: []const u8) ![]u8 {
     if (is_windows) return win.readAllWin(allocator, path);
-    const file = try std.fs.openFileAbsolute(path, .{});
-    defer file.close();
-    return file.readToEndAlloc(allocator, 16 * 1024 * 1024);
+    return std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(16 * 1024 * 1024));
 }
 
-pub fn writeAll(path: []const u8, bytes: []const u8) !void {
+pub fn writeAll(io: std.Io, path: []const u8, bytes: []const u8) !void {
     if (is_windows) return win.writeAllWin(path, bytes);
-    const file = try std.fs.createFileAbsolute(path, .{});
-    defer file.close();
-    try file.writeAll(bytes);
+    const file = try std.Io.Dir.createFileAbsolute(io, path, .{});
+    defer file.close(io);
+    try file.writeStreamingAll(io, bytes);
 }
 
 /// Creates the folder and every missing parent.
-pub fn makePath(path: []const u8) !void {
+pub fn makePath(io: std.Io, path: []const u8) !void {
     if (is_windows) return win.makePathWin(path);
-    std.fs.makeDirAbsolute(path) catch |err| switch (err) {
+    std.Io.Dir.createDirAbsolute(io, path, .default_dir) catch |err| switch (err) {
         error.PathAlreadyExists => return,
         error.FileNotFound => {
             const parent = std.fs.path.dirname(path) orelse return err;
-            try makePath(parent);
-            std.fs.makeDirAbsolute(path) catch |e| if (e != error.PathAlreadyExists) return e;
+            try makePath(io, parent);
+            std.Io.Dir.createDirAbsolute(io, path, .default_dir) catch |e| if (e != error.PathAlreadyExists) return e;
         },
         else => return err,
     };
 }
 
-pub fn deleteFile(path: []const u8) !void {
+pub fn deleteFile(io: std.Io, path: []const u8) !void {
     if (is_windows) return win.deleteFileWin(path);
-    try std.fs.deleteFileAbsolute(path);
+    try std.Io.Dir.deleteFileAbsolute(io, path);
 }
 
-pub fn exists(path: []const u8) bool {
+pub fn exists(io: std.Io, path: []const u8) bool {
     if (is_windows) return win.existsWin(path);
-    std.fs.accessAbsolute(path, .{}) catch return false;
+    std.Io.Dir.accessAbsolute(io, path, .{}) catch return false;
     return true;
 }
 
 /// The names (without folder) of the files in `dir` whose name ends with one
 /// of `extensions`. The names are null-terminated. The caller owns the list and the names.
-pub fn listFiles(allocator: std.mem.Allocator, dir: []const u8, extensions: []const []const u8) !std.ArrayList([:0]u8) {
+pub fn listFiles(allocator: std.mem.Allocator, io: std.Io, dir: []const u8, extensions: []const []const u8) !std.ArrayList([:0]u8) {
     var names: std.ArrayList([:0]u8) = .empty;
     errdefer freeList(allocator, &names);
     if (is_windows) {
         try win.listFilesWin(allocator, dir, extensions, &names);
         return names;
     }
-    var d = std.fs.openDirAbsolute(dir, .{ .iterate = true }) catch return names;
-    defer d.close();
+    var d = std.Io.Dir.openDirAbsolute(io, dir, .{ .iterate = true }) catch return names;
+    defer d.close(io);
     var it = d.iterate();
-    while (try it.next()) |entry| {
+    while (try it.next(io)) |entry| {
         if (entry.kind != .file) continue;
         if (!hasExtension(entry.name, extensions)) continue;
-        try names.append(allocator, try allocator.dupeZ(u8, entry.name));
+        try names.append(allocator, try allocator.dupeSentinel(u8, entry.name, 0));
     }
     return names;
 }
 
 pub fn freeList(allocator: std.mem.Allocator, list: *std.ArrayList([:0]u8)) void {
     for (list.items) |n| allocator.free(n);
-    list.deinit();
+    list.deinit(allocator);
 }
 
 pub fn hasExtension(name: []const u8, extensions: []const []const u8) bool {
@@ -84,11 +83,13 @@ pub fn hasExtension(name: []const u8, extensions: []const []const u8) bool {
     return false;
 }
 
-/// An environment variable, copied into `buf`. `std.posix.getenv` does not
-/// exist on Windows, where the variables are UTF-16.
+/// An environment variable, copied into `buf`. Because the host loads the
+/// plugin as a library, the environment that std.process.Init gives a program
+/// never reaches it, so the variable is read through libc; on Windows the
+/// variables are UTF-16 and come from kernel32.
 pub fn getenv(name: [:0]const u8, buf: []u8) ?[]const u8 {
     if (is_windows) return win.getenvWin(name, buf);
-    const value = std.posix.getenv(name) orelse return null;
+    const value = std.mem.span(std.c.getenv(name) orelse return null);
     if (value.len > buf.len) return null;
     @memcpy(buf[0..value.len], value);
     return buf[0..value.len];
@@ -212,7 +213,7 @@ const win = if (is_windows) struct {
         while (true) {
             if (data.attributes & FILE_ATTRIBUTE_DIRECTORY == 0) {
                 const name = std.mem.sliceTo(&data.file_name, 0);
-                if (hasExtension(name, extensions)) try names.append(allocator, try allocator.dupeZ(u8, name));
+                if (hasExtension(name, extensions)) try names.append(allocator, try allocator.dupeSentinel(u8, name, 0));
             }
             if (FindNextFileA(h, &data) == 0) break;
         }
@@ -220,32 +221,33 @@ const win = if (is_windows) struct {
 } else struct {};
 
 test "files are written, listed, read back and deleted" {
+    const io = std.testing.io;
     if (is_windows) return error.SkipZigTest;
     const allocator = std.testing.allocator;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    const base = try tmp.dir.realpathAlloc(allocator, ".");
+    const base = try tmp.dir.realPathFileAlloc(io, ".", allocator);
     defer allocator.free(base);
     const dir = try std.fmt.allocPrint(allocator, "{s}/a/b", .{base});
     defer allocator.free(dir);
-    try makePath(dir);
-    try makePath(dir);
+    try makePath(io, dir);
+    try makePath(io, dir);
     const file = try std.fmt.allocPrint(allocator, "{s}/one.vr09", .{dir});
     defer allocator.free(file);
-    try writeAll(file, "hello");
+    try writeAll(io, file, "hello");
     const other = try std.fmt.allocPrint(allocator, "{s}/two.txt", .{dir});
     defer allocator.free(other);
-    try writeAll(other, "x");
-    var names = try listFiles(allocator, dir, &.{ ".vr09", ".json" });
+    try writeAll(io, other, "x");
+    var names = try listFiles(allocator, io, dir, &.{ ".vr09", ".json" });
     defer freeList(allocator, &names);
     try std.testing.expectEqual(@as(usize, 1), names.items.len);
     try std.testing.expectEqualStrings("one.vr09", names.items[0]);
-    const bytes = try readAll(allocator, file);
+    const bytes = try readAll(allocator, io, file);
     defer allocator.free(bytes);
     try std.testing.expectEqualStrings("hello", bytes);
-    try std.testing.expect(exists(file));
-    try deleteFile(file);
-    try std.testing.expect(!exists(file));
+    try std.testing.expect(exists(io, file));
+    try deleteFile(io, file);
+    try std.testing.expect(!exists(io, file));
 }
 
 test "extensions are matched without regard to case" {

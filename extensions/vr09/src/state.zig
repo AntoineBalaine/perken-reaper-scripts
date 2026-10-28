@@ -142,33 +142,33 @@ pub fn write(writer: anytype, shared: *const engine.Shared, settings: *const Set
 
 /// Reads what `write` wrote. The scene replaces the desired state and marks it
 /// restored, so that the engine recalls it once the keyboard answers.
-pub fn read(reader: anytype, shared: *engine.Shared, settings: *Settings, scene_list: *scenes.List) !void {
+pub fn read(reader: *std.Io.Reader, shared: *engine.Shared, settings: *Settings, scene_list: *scenes.List) !void {
     var head: [4]u8 = undefined;
-    reader.readNoEof(&head) catch return error.Truncated;
+    reader.readSliceAll(&head) catch return error.Truncated;
     if (!std.mem.eql(u8, &head, magic)) return error.BadMagic;
-    const v = reader.readInt(u32, .little) catch return error.Truncated;
+    const v = reader.takeInt(u32, .little) catch return error.Truncated;
     if (v != version) return error.UnsupportedVersion;
 
     var scene = dump.Dump{};
     var bits: [(dump.total_bytes + 7) / 8]u8 = undefined;
-    reader.readNoEof(&bits) catch return error.Truncated;
-    reader.readNoEof(&scene.values) catch return error.Truncated;
+    reader.readSliceAll(&bits) catch return error.Truncated;
+    reader.readSliceAll(&scene.values) catch return error.Truncated;
     for (&scene.known, 0..) |*k, i| k.* = bits[i / 8] & (@as(u8, 1) << @intCast(i % 8)) != 0;
 
     var cc: [engine.param_count]u8 = undefined;
-    reader.readNoEof(&cc) catch return error.Truncated;
+    reader.readSliceAll(&cc) catch return error.Truncated;
 
-    const flags = reader.readByte() catch return error.Truncated;
-    const send_bits = reader.readInt(u32, .little) catch return error.Truncated;
-    const return_bits = reader.readInt(u32, .little) catch return error.Truncated;
-    const out_channel = reader.readInt(i32, .little) catch return error.Truncated;
-    const in_channel = reader.readInt(i32, .little) catch return error.Truncated;
-    const latency = reader.readInt(u32, .little) catch return error.Truncated;
-    const rate = reader.readInt(u32, .little) catch return error.Truncated;
-    const name_len = reader.readByte() catch return error.Truncated;
+    const flags = reader.takeByte() catch return error.Truncated;
+    const send_bits = reader.takeInt(u32, .little) catch return error.Truncated;
+    const return_bits = reader.takeInt(u32, .little) catch return error.Truncated;
+    const out_channel = reader.takeInt(i32, .little) catch return error.Truncated;
+    const in_channel = reader.takeInt(i32, .little) catch return error.Truncated;
+    const latency = reader.takeInt(u32, .little) catch return error.Truncated;
+    const rate = reader.takeInt(u32, .little) catch return error.Truncated;
+    const name_len = reader.takeByte() catch return error.Truncated;
     var name: [64]u8 = undefined;
     if (name_len >= name.len) return error.Truncated;
-    reader.readNoEof(name[0..name_len]) catch return error.Truncated;
+    reader.readSliceAll(name[0..name_len]) catch return error.Truncated;
     // Because the scenes come after everything a first version wrote, a state without them is still read.
     // A cut or damaged scene section keeps the scenes read before it and must not cost the patch.
     scene_list.read(reader) catch {};
@@ -250,18 +250,18 @@ pub fn defaultResourcePath(buf: []u8) ?[]const u8 {
 
 pub const PresetError = error{ NotADump, InvalidJson, OutOfMemory, FileNotFound, NameTooLong };
 
-pub fn loadPresetFile(allocator: std.mem.Allocator, path: []const u8, out: *dump.Dump) !void {
-    const bytes = try fileio.readAll(allocator, path);
+pub fn loadPresetFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8, out: *dump.Dump) !void {
+    const bytes = try fileio.readAll(allocator, io, path);
     defer allocator.free(bytes);
     try dump.parseJson(allocator, bytes, out);
 }
 
-pub fn savePresetFile(allocator: std.mem.Allocator, path: []const u8, scene: *const dump.Dump) !void {
-    var buf: std.ArrayList(u8) = .empty;
-    defer buf.deinit(allocator);
-    try dump.writeJson(allocator, scene, buf.writer());
-    try buf.append(allocator, '\n');
-    try fileio.writeAll(path, buf.items);
+pub fn savePresetFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8, scene: *const dump.Dump) !void {
+    var buf: std.Io.Writer.Allocating = .init(allocator);
+    defer buf.deinit();
+    try dump.writeJson(allocator, scene, &buf.writer);
+    try buf.writer.writeByte('\n');
+    try fileio.writeAll(io, path, buf.written());
 }
 
 /// The path of the preset `name` in `folder`, trying the extensions in turn
@@ -308,9 +308,9 @@ test "the project state survives a round trip" {
     _ = patch.set(.kb, 0x02 << 14 | 5, 3);
     _ = try list.add("Verse", &patch);
 
-    var buf: std.ArrayList(u8) = .empty;
-    defer buf.deinit(allocator);
-    try write(buf.writer(), shared, &settings, list);
+    var buf: std.Io.Writer.Allocating = .init(allocator);
+    defer buf.deinit();
+    try write(&buf.writer, shared, &settings, list);
 
     const shared2 = try allocator.create(engine.Shared);
     defer allocator.destroy(shared2);
@@ -319,8 +319,8 @@ test "the project state survives a round trip" {
     const list2 = try allocator.create(scenes.List);
     defer allocator.destroy(list2);
     list2.* = .{};
-    var stream = std.io.fixedBufferStream(buf.items);
-    try read(stream.reader(), shared2, &settings2, list2);
+    var stream: std.Io.Reader = .fixed(buf.written());
+    try read(&stream, shared2, &settings2, list2);
     try std.testing.expectEqual(@as(u8, 1), list2.count);
     try std.testing.expectEqualStrings("Verse", list2.get(1).?.name());
     try std.testing.expectEqual(@as(?u8, 3), list2.get(1).?.patch.get(.kb, 0x02 << 14 | 5));
@@ -347,10 +347,10 @@ test "a stream that is not ours or is cut short is refused" {
     const list = try allocator.create(scenes.List);
     defer allocator.destroy(list);
     list.* = .{};
-    var bad = std.io.fixedBufferStream("NOPE....");
-    try std.testing.expectError(error.BadMagic, read(bad.reader(), shared, &settings, list));
-    var short = std.io.fixedBufferStream("VR09\x01\x00\x00\x00abc");
-    try std.testing.expectError(error.Truncated, read(short.reader(), shared, &settings, list));
+    var bad: std.Io.Reader = .fixed("NOPE....");
+    try std.testing.expectError(error.BadMagic, read(&bad, shared, &settings, list));
+    var short: std.Io.Reader = .fixed("VR09\x01\x00\x00\x00abc");
+    try std.testing.expectError(error.Truncated, read(&short, shared, &settings, list));
 }
 
 test "names become safe file names" {
@@ -363,18 +363,19 @@ test "names become safe file names" {
 }
 
 test "a preset file round trips through the dump format" {
+    const io = std.testing.io;
     const allocator = std.testing.allocator;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    const base = try tmp.dir.realpathAlloc(allocator, ".");
+    const base = try tmp.dir.realPathFileAlloc(io, ".", allocator);
     defer allocator.free(base);
     var path_buf: [fileio.max_path]u8 = undefined;
     const path = try presetPath(&path_buf, base, "Test");
     var scene = dump.Dump{};
     _ = scene.set(.kb, 0x02 << 14 | 5, 7);
-    try savePresetFile(allocator, path, &scene);
+    try savePresetFile(allocator, io, path, &scene);
     var loaded = dump.Dump{};
-    try loadPresetFile(allocator, path, &loaded);
+    try loadPresetFile(allocator, io, path, &loaded);
     try std.testing.expectEqual(@as(?u8, 7), loaded.get(.kb, 0x02 << 14 | 5));
 }
 

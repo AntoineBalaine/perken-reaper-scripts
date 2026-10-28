@@ -2,9 +2,7 @@
 //! fill their fixed-size string fields.
 const std = @import("std");
 
-pub const c = @cImport({
-    @cInclude("clap/clap.h");
-});
+pub const c = @import("clap_c");
 
 /// Copies `text` into a fixed-size C character array, cut to fit and always
 /// ending in a zero.

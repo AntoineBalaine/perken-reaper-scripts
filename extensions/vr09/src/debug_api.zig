@@ -40,11 +40,13 @@ pub const LogRing = struct {
     lines: [log_lines][log_line_cap]u8 = undefined,
     lens: [log_lines]u8 = @splat(0),
     total: u64 = 0,
-    mutex: std.Thread.Mutex = .{},
+    mutex: std.Io.Mutex = .init,
 
     pub fn push(self: *LogRing, text: []const u8) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        // Because the mutex of Zig 0.16+ waits through a std.Io, it uses the plugin's; a log line must not
+        // be lost to a cancelation, so the lock is uncancelable.
+        self.mutex.lockUncancelable(plugin.hostIo());
+        defer self.mutex.unlock(plugin.hostIo());
         const slot: usize = @intCast(self.total % log_lines);
         const n = @min(text.len, log_line_cap);
         @memcpy(self.lines[slot][0..n], text[0..n]);
@@ -54,8 +56,8 @@ pub const LogRing = struct {
 
     /// Writes the last `count` lines, oldest first, as a JSON array.
     pub fn writeLast(self: *LogRing, w: anytype, count: usize) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lockUncancelable(plugin.hostIo());
+        defer self.mutex.unlock(plugin.hostIo());
         const have: usize = @intCast(@min(self.total, log_lines));
         const n = @min(count, have);
         try w.writeByte('[');
@@ -89,7 +91,7 @@ pub fn logFn(
 // ---- JSON and argument helpers ----
 
 pub fn jsonString(w: anytype, s: []const u8) !void {
-    try std.json.encodeJsonString(s, .{}, w);
+    try std.json.Stringify.encodeJsonString(s, .{}, w);
 }
 
 pub const Setting = enum { pass_midi, sysex_bare, autoconnect_done, split };
@@ -241,7 +243,7 @@ fn instanceCount() usize {
 
 fn loopStateName(value: u8) []const u8 {
     const audio = @import("audio.zig");
-    const e = std.meta.intToEnum(audio.LoopState, value) catch return "unknown";
+    const e = std.enums.fromInt(audio.LoopState, value) orelse return "unknown";
     return @tagName(e);
 }
 
@@ -269,7 +271,7 @@ fn cmdDevices(w: anytype) !void {
     try w.writeByte('}');
 }
 
-fn cmdSet(w: anytype, p: *Plugin, arg: []const u8) !void {
+fn cmdSet(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
     const a = parseSet(arg) catch |err| return writeError(w, switch (err) {
         error.BadSetting => "set takes name=value with name pass_midi, sysex_bare, autoconnect_done or split",
         else => "the value must be 1, 0, true, false, on or off",
@@ -279,7 +281,7 @@ fn cmdSet(w: anytype, p: *Plugin, arg: []const u8) !void {
         .pass_midi => st.pass_midi.store(a.value, .monotonic),
         .sysex_bare => st.sysex_bare.store(a.value, .monotonic),
         .autoconnect_done => st.autoconnect_done.store(a.value, .monotonic),
-        .split => plugin.setPatchSplit(p, a.value),
+        .split => plugin.setPatchSplit(p, io, a.value),
     }
     try w.print("{{\"ok\":true,\"{s}\":{}}}", .{ @tagName(a.setting), a.value });
 }
@@ -290,11 +292,11 @@ fn cmdReconnect(w: anytype, p: *Plugin) !void {
     try w.print("{{\"ok\":true,\"queued\":{}}}", .{queued});
 }
 
-fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
+fn cmdLoadRegistration(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(arg) catch return writeError(w, "load_registration takes a file name of Data/Perken/vr09/registrations");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
     const patch = types.Patch{ .source = .{ .registration = p.strings.internSlice(name) }, .name = p.strings.internSlice(name), .label = p.strings.internSlice(name) };
-    effects.sendPatch(p, patch) catch |err| {
+    effects.sendPatch(io, p, patch) catch |err| {
         if (err == error.BadFileName) return writeError(w, "the name must look like <bank>-<slot>_<Name>.json");
         try w.writeAll("{\"ok\":false,\"error\":");
         try jsonString(w, @errorName(err));
@@ -309,8 +311,8 @@ fn cmdLoadRegistration(w: anytype, p: *Plugin, arg: []const u8) !void {
 /// `save_preset`: saves the keyboard as a preset of the same folder as the panel's Patches tab. The
 /// keyboard is read first, and the file is written when the read ends, so the reply only says that the
 /// save began; `save_status` says how it went.
-fn cmdSavePreset(w: anytype, p: *Plugin, arg: []const u8) !void {
-    p.startSave(arg) catch |err| return writeError(w, effects.saveErrorText(err));
+fn cmdSavePreset(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
+    p.startSave(io, arg) catch |err| return writeError(w, effects.saveErrorText(err));
     try w.writeAll("{\"ok\":true,\"pending\":true}");
 }
 
@@ -335,20 +337,20 @@ fn cmdSaveStatus(w: anytype, p: *Plugin) !void {
 }
 
 /// `load_preset`: loads a preset file of the presets folder and has the engine write it to the keyboard.
-fn cmdLoadPreset(w: anytype, p: *Plugin, arg: []const u8) !void {
+fn cmdLoadPreset(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(std.mem.trim(u8, arg, " ")) catch return writeError(w, "load_preset takes a file name of Data/Perken/vr09/presets");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
     const patch = types.Patch{ .source = .{ .preset = p.strings.internSlice(name) }, .name = p.strings.internSlice(state.displayName(name)), .label = p.strings.internSlice(name) };
-    effects.sendPatch(p, patch) catch |err| return writeError(w, @errorName(err));
+    effects.sendPatch(io, p, patch) catch |err| return writeError(w, @errorName(err));
     try w.writeAll("{\"ok\":true,\"loaded\":");
     try jsonString(w, name);
     try w.writeByte('}');
 }
 
-fn cmdDeletePreset(w: anytype, p: *Plugin, arg: []const u8) !void {
+fn cmdDeletePreset(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
     const name = checkFileName(std.mem.trim(u8, arg, " ")) catch return writeError(w, "delete_preset takes a file name of Data/Perken/vr09/presets");
     if (!glue.ready) return writeError(w, "REAPER's API is not available");
-    effects.deletePreset(p, name) catch |err| return writeError(w, effects.describe(err));
+    effects.deletePreset(io, p, name) catch |err| return writeError(w, effects.describe(err));
     try w.writeAll("{\"ok\":true}");
 }
 
@@ -396,7 +398,7 @@ fn splitPair(arg: []const u8) Pair {
 /// `scene_add`: `<patch>|<name>|<patch id>|<label>`, the last three optional (the ID and label say which
 /// patch of the library the scene came from, for the panel). The patch is `current` (the plugin's state now),
 /// or `registrations/<file>` or `presets/<file>` of the Data/Perken/vr09 folder.
-fn cmdSceneAdd(w: anytype, p: *Plugin, arg: []const u8) !void {
+fn cmdSceneAdd(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
     const fields = splitFields(arg);
     var source: types.PatchSource = .current;
     var default_name: []const u8 = p.settings.presetName();
@@ -419,13 +421,13 @@ fn cmdSceneAdd(w: anytype, p: *Plugin, arg: []const u8) !void {
         .id = parsePatchId(fields[2]),
         .label = p.strings.internSlice(fields[3]),
     };
-    const position = effects.addScene(p, patch) catch |err| return writeError(w, effects.describe(err));
+    const position = effects.addScene(io, p, patch) catch |err| return writeError(w, effects.describe(err));
     try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
 }
 
 /// `scene_add_tone`: "<part> <tone number> <bank MSB> <bank LSB>|<name>|<patch id>|<label>". The scene holds
 /// only that tone.
-fn cmdSceneAddTone(w: anytype, p: *Plugin, arg: []const u8) !void {
+fn cmdSceneAddTone(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
     const fields = splitFields(arg);
     const tone = parseTone(p, fields[0]) orelse return writeError(w, "scene_add_tone takes <part> <number> <msb> <lsb>|<name>");
     const patch = types.Patch{
@@ -434,7 +436,7 @@ fn cmdSceneAddTone(w: anytype, p: *Plugin, arg: []const u8) !void {
         .id = parsePatchId(fields[2]),
         .label = p.strings.internSlice(fields[3]),
     };
-    const position = effects.addScene(p, patch) catch |err| return writeError(w, toneError(err));
+    const position = effects.addScene(io, p, patch) catch |err| return writeError(w, toneError(err));
     try w.print("{{\"ok\":true,\"position\":{d}}}", .{position});
 }
 
@@ -460,7 +462,7 @@ fn toneError(err: anyerror) []const u8 {
 
 /// `load_tone`: "<part> <tone number> <bank MSB> <bank LSB>". Writes that tone to the keyboard, as selecting a
 /// tone scene does, without adding a scene.
-fn cmdLoadTone(w: anytype, p: *Plugin, arg: []const u8) !void {
+fn cmdLoadTone(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
     const fields = splitFields(arg);
     const tone = parseTone(p, fields[0]) orelse return writeError(w, "load_tone takes <part> <number> <msb> <lsb>");
     const patch = types.Patch{
@@ -468,7 +470,7 @@ fn cmdLoadTone(w: anytype, p: *Plugin, arg: []const u8) !void {
         .name = p.strings.internSlice(if (fields[1].len > 0) fields[1] else p.strings.get(tone.tone.part)),
         .label = p.strings.internSlice(fields[1]),
     };
-    effects.sendPatch(p, patch) catch |err| return writeError(w, toneError(err));
+    effects.sendPatch(io, p, patch) catch |err| return writeError(w, toneError(err));
     try w.writeAll("{\"ok\":true}");
 }
 
@@ -513,9 +515,9 @@ fn cmdSceneRename(w: anytype, p: *Plugin, arg: []const u8) !void {
 }
 
 /// `scene_select`: loads a scene, as the Scene parameter does.
-fn cmdSceneSelect(w: anytype, p: *Plugin, arg: []const u8) !void {
+fn cmdSceneSelect(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
     const position = std.fmt.parseInt(u8, std.mem.trim(u8, arg, " "), 10) catch return writeError(w, "scene_select takes a position");
-    p.selectScene(position) catch return writeError(w, "there is no scene at that position");
+    p.selectScene(io, position) catch return writeError(w, "there is no scene at that position");
     try w.print("{{\"ok\":true,\"scene\":{d}}}", .{position});
 }
 
@@ -546,8 +548,8 @@ fn cmdJob(w: anytype, p: *Plugin) !void {
 
 /// Writes the plugin's state to an absolute path, in the JSON of vr09.py, so
 /// that the research repo's `vr09.py diff` can compare two of them.
-fn cmdExport(w: anytype, p: *Plugin, arg: []const u8) !void {
-    effects.exportFile(p, arg) catch |err| return writeError(w, effects.describe(err));
+fn cmdExport(io: std.Io, w: anytype, p: *Plugin, arg: []const u8) !void {
+    effects.exportFile(io, p, arg) catch |err| return writeError(w, effects.describe(err));
     try w.writeAll("{\"ok\":true}");
 }
 
@@ -563,7 +565,7 @@ fn cmdLog(w: anytype, arg: []const u8) !void {
 }
 
 /// Runs a command and writes its JSON.
-pub fn dispatch(w: anytype, track: ?*anyopaque, fx_index: c_int, command: []const u8, arg: []const u8) !void {
+pub fn dispatch(io: std.Io, w: anytype, track: ?*anyopaque, fx_index: c_int, command: []const u8, arg: []const u8) !void {
     if (std.mem.eql(u8, command, "devices")) return cmdDevices(w);
     if (std.mem.eql(u8, command, "log")) return cmdLog(w, arg);
     const known = [_][]const u8{ "state", "set", "reconnect", "load_registration", "open_panel", "tab", "capture", "job", "export", "load_tone", "save_preset", "save_status", "load_preset", "delete_preset", "scenes", "scene_add", "scene_add_tone", "scene_remove", "scene_move", "scene_rename", "scene_select", "scene_clear" };
@@ -575,25 +577,25 @@ pub fn dispatch(w: anytype, track: ?*anyopaque, fx_index: c_int, command: []cons
     }
     const p = findInstance(track, fx_index) orelse return writeError(w, "no VR-09 instance on that track");
     if (std.mem.eql(u8, command, "state")) return cmdState(w, p);
-    if (std.mem.eql(u8, command, "set")) return cmdSet(w, p, arg);
+    if (std.mem.eql(u8, command, "set")) return cmdSet(io, w, p, arg);
     if (std.mem.eql(u8, command, "reconnect")) return cmdReconnect(w, p);
-    if (std.mem.eql(u8, command, "load_registration")) return cmdLoadRegistration(w, p, arg);
+    if (std.mem.eql(u8, command, "load_registration")) return cmdLoadRegistration(io, w, p, arg);
     if (std.mem.eql(u8, command, "tab")) return cmdTab(w, p, arg);
     if (std.mem.eql(u8, command, "capture")) return cmdCapture(w, p);
     if (std.mem.eql(u8, command, "job")) return cmdJob(w, p);
-    if (std.mem.eql(u8, command, "export")) return cmdExport(w, p, arg);
-    if (std.mem.eql(u8, command, "load_tone")) return cmdLoadTone(w, p, arg);
-    if (std.mem.eql(u8, command, "save_preset")) return cmdSavePreset(w, p, arg);
+    if (std.mem.eql(u8, command, "export")) return cmdExport(io, w, p, arg);
+    if (std.mem.eql(u8, command, "load_tone")) return cmdLoadTone(io, w, p, arg);
+    if (std.mem.eql(u8, command, "save_preset")) return cmdSavePreset(io, w, p, arg);
     if (std.mem.eql(u8, command, "save_status")) return cmdSaveStatus(w, p);
-    if (std.mem.eql(u8, command, "load_preset")) return cmdLoadPreset(w, p, arg);
-    if (std.mem.eql(u8, command, "delete_preset")) return cmdDeletePreset(w, p, arg);
+    if (std.mem.eql(u8, command, "load_preset")) return cmdLoadPreset(io, w, p, arg);
+    if (std.mem.eql(u8, command, "delete_preset")) return cmdDeletePreset(io, w, p, arg);
     if (std.mem.eql(u8, command, "scenes")) return writeSceneList(w, p);
-    if (std.mem.eql(u8, command, "scene_add")) return cmdSceneAdd(w, p, arg);
-    if (std.mem.eql(u8, command, "scene_add_tone")) return cmdSceneAddTone(w, p, arg);
+    if (std.mem.eql(u8, command, "scene_add")) return cmdSceneAdd(io, w, p, arg);
+    if (std.mem.eql(u8, command, "scene_add_tone")) return cmdSceneAddTone(io, w, p, arg);
     if (std.mem.eql(u8, command, "scene_remove")) return cmdSceneRemove(w, p, arg);
     if (std.mem.eql(u8, command, "scene_move")) return cmdSceneMove(w, p, arg);
     if (std.mem.eql(u8, command, "scene_rename")) return cmdSceneRename(w, p, arg);
-    if (std.mem.eql(u8, command, "scene_select")) return cmdSceneSelect(w, p, arg);
+    if (std.mem.eql(u8, command, "scene_select")) return cmdSceneSelect(io, w, p, arg);
     if (std.mem.eql(u8, command, "scene_clear")) return cmdSceneClear(w, p);
     return cmdOpenPanel(w, p);
 }
@@ -610,12 +612,13 @@ fn cstr(p: ?[*:0]const u8) []const u8 {
 
 /// The C function: `const char* VR09_Command(MediaTrack*, int, const char*, const char*)`.
 fn apiCommand(track: ?*anyopaque, fx_index: c_int, command: ?[*:0]const u8, arg: ?[*:0]const u8) callconv(.c) [*:0]const u8 {
-    var fbs = std.io.fixedBufferStream(out[0 .. out.len - 1]);
-    dispatch(fbs.writer(), track, fx_index, cstr(command), cstr(arg)) catch {
-        fbs.reset();
-        writeError(fbs.writer(), "the reply is too long") catch {};
+    const io = plugin.hostIo();
+    var fbs: std.Io.Writer = .fixed(out[0 .. out.len - 1]);
+    dispatch(io, &fbs, track, fx_index, cstr(command), cstr(arg)) catch {
+        fbs.end = 0;
+        writeError(&fbs, "the reply is too long") catch {};
     };
-    out[fbs.pos] = 0;
+    out[fbs.end] = 0;
     return @ptrCast(&out);
 }
 
@@ -696,9 +699,9 @@ test "the track's routing fields are decoded" {
 
 test "strings are escaped in the JSON" {
     var buf: [64]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try jsonString(fbs.writer(), "a\"b\\c\n");
-    try std.testing.expectEqualStrings("\"a\\\"b\\\\c\\n\"", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try jsonString(&fbs, "a\"b\\c\n");
+    try std.testing.expectEqualStrings("\"a\\\"b\\\\c\\n\"", fbs.buffered());
 }
 
 test "the log ring keeps the last lines in order" {
@@ -708,22 +711,24 @@ test "the log ring keeps the last lines in order" {
         r.push(std.fmt.bufPrint(&b, "line {d}", .{i}) catch unreachable);
     }
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try r.writeLast(fbs.writer(), 2);
-    try std.testing.expectEqualStrings("[\"line 259\",\"line 260\"]", fbs.getWritten());
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try r.writeLast(&fbs, 2);
+    try std.testing.expectEqualStrings("[\"line 259\",\"line 260\"]", fbs.buffered());
 }
 
 test "an unknown command gives a JSON error" {
+    const io = std.testing.io;
     var buf: [1024]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try dispatch(fbs.writer(), null, 0, "nonsense", "");
-    try std.testing.expect(std.mem.startsWith(u8, fbs.getWritten(), "{\"ok\":false,\"error\":\"unknown command"));
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try dispatch(io, &fbs, null, 0, "nonsense", "");
+    try std.testing.expect(std.mem.startsWith(u8, fbs.buffered(), "{\"ok\":false,\"error\":\"unknown command"));
 }
 
 test "the log command wraps the lines" {
+    const io = std.testing.io;
     ring.push("hello");
     var buf: [1024]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try dispatch(fbs.writer(), null, 0, "log", "1");
-    try std.testing.expect(std.mem.indexOf(u8, fbs.getWritten(), "\"lines\":[\"hello\"]") != null);
+    var fbs: std.Io.Writer = .fixed(&buf);
+    try dispatch(io, &fbs, null, 0, "log", "1");
+    try std.testing.expect(std.mem.indexOf(u8, fbs.buffered(), "\"lines\":[\"hello\"]") != null);
 }

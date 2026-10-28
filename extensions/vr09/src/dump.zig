@@ -390,12 +390,12 @@ test "diff skips a group that is not fully known" {
 test "json round trip keeps every byte and the python key format" {
     var dump = Dump{};
     fillDump(&dump, 5);
-    var buf: std.ArrayList(u8) = .empty;
-    defer buf.deinit(std.testing.allocator);
-    try writeJson(std.testing.allocator, &dump, buf.writer());
-    try std.testing.expect(std.mem.indexOf(u8, buf.items, "\"organ_upper:00008000\": 5") != null);
+    var buf: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer buf.deinit();
+    try writeJson(std.testing.allocator, &dump, &buf.writer);
+    try std.testing.expect(std.mem.indexOf(u8, buf.written(), "\"organ_upper:00008000\": 5") != null);
     var loaded = Dump{};
-    try parseJson(std.testing.allocator, buf.items, &loaded);
+    try parseJson(std.testing.allocator, buf.written(), &loaded);
     try std.testing.expect(loaded.isComplete());
     try std.testing.expectEqualSlices(u8, &dump.values, &loaded.values);
 }
