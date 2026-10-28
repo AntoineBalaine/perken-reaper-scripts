@@ -1,5 +1,7 @@
 const std = @import("std");
 const imgui = @import("reaper_imgui");
+const theme = @import("panel_theme");
+const widgets = @import("panel_widgets");
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
 const MftPreferences = @import("mft_preferences.zig").MftPreferences;
 const log = std.log.scoped(.mft_settings);
@@ -15,8 +17,6 @@ var synced = false;
 
 // The number of selectable rows: six colors, sensitivity, five plugin names.
 pub const ITEM_COUNT: i16 = 12;
-// Highlight for the selected row (the Console One teal accent).
-const HIGHLIGHT: c_int = @bitCast(@as(u32, 0x13BD99FF));
 
 const SLOT_LABELS = [5][:0]const u8{ "Input", "Gate", "EQ", "Comp", "Output" };
 const NAME_IDS = [5][:0]const u8{ "##in", "##gt", "##eq", "##cp", "##out" };
@@ -69,40 +69,45 @@ fn cancel(globals: *MftGlobals) void {
     synced = false;
 }
 
-// Draw text as a row, colored as the highlight when it is the selected row.
-fn row(ctx: imgui.ContextPtr, selected: bool, text: [:0]const u8) !void {
-    if (selected) {
-        try imgui.TextColored(.{ ctx, HIGHLIGHT, text });
-    } else {
-        try imgui.Text(.{ ctx, text });
-    }
+// The width of the screen of a row of the form.
+const ROW_W: f64 = 240.0;
+
+// Draws a row of the form on a recessed screen, lit with the card's accent when it is the selected row.
+fn row(kit: *widgets.Panel, selected: bool, text: [:0]const u8) void {
+    widgets.display(kit, text, if (selected) widgets.accent(kit) else theme.text_dim, ROW_W);
 }
 
-pub fn drawForm(ctx: imgui.ContextPtr, globals: *MftGlobals) !void {
+// The form is a card with the accent of the settings module. The kit has no text input, so the plugin names are the
+// raw ReaImGui inputs, which take their colors from the panel's theme.
+pub fn drawForm(kit: *widgets.Panel, globals: *MftGlobals, accent: c_int) !void {
     ensureSynced(globals);
+    const ctx = kit.ctx;
     const p = &globals.preferences;
     const cursor = globals.mft.settings_cursor;
     var buf: [96:0]u8 = undefined;
 
-    try imgui.Text(.{ ctx, "Settings — encoder 1 scrolls, encoder 2 adjusts" });
-    try row(ctx, cursor == 0, std.fmt.bufPrintZ(&buf, "IO color: {d}", .{p.color_io}) catch "IO color");
-    try row(ctx, cursor == 1, std.fmt.bufPrintZ(&buf, "GATE color: {d}", .{p.color_gate}) catch "GATE color");
-    try row(ctx, cursor == 2, std.fmt.bufPrintZ(&buf, "EQ color: {d}", .{p.color_eq}) catch "EQ color");
-    try row(ctx, cursor == 3, std.fmt.bufPrintZ(&buf, "COMP color: {d}", .{p.color_comp}) catch "COMP color");
-    try row(ctx, cursor == 4, std.fmt.bufPrintZ(&buf, "SETTINGS color: {d}", .{p.color_settings}) catch "SETTINGS color");
-    try row(ctx, cursor == 5, std.fmt.bufPrintZ(&buf, "TRANSPORT color: {d}", .{p.color_transport}) catch "TRANSPORT color");
-    try row(ctx, cursor == 6, std.fmt.bufPrintZ(&buf, "Sensitivity: {d:.2}", .{p.sensitivity}) catch "Sensitivity");
+    if (!widgets.beginCard(kit, "Settings", null, null, accent)) return;
+    defer widgets.endCard(kit);
 
-    try imgui.Separator(.{ctx});
-    try imgui.Text(.{ ctx, "Default plugin per slot (keyboard):" });
+    imgui.api.TextColored(ctx, theme.grey, "Encoder 1 scrolls, encoder 2 adjusts");
+    row(kit, cursor == 0, std.fmt.bufPrintZ(&buf, "IO color: {d}", .{p.color_io}) catch "IO color");
+    row(kit, cursor == 1, std.fmt.bufPrintZ(&buf, "GATE color: {d}", .{p.color_gate}) catch "GATE color");
+    row(kit, cursor == 2, std.fmt.bufPrintZ(&buf, "EQ color: {d}", .{p.color_eq}) catch "EQ color");
+    row(kit, cursor == 3, std.fmt.bufPrintZ(&buf, "COMP color: {d}", .{p.color_comp}) catch "COMP color");
+    row(kit, cursor == 4, std.fmt.bufPrintZ(&buf, "SETTINGS color: {d}", .{p.color_settings}) catch "SETTINGS color");
+    row(kit, cursor == 5, std.fmt.bufPrintZ(&buf, "TRANSPORT color: {d}", .{p.color_transport}) catch "TRANSPORT color");
+    row(kit, cursor == 6, std.fmt.bufPrintZ(&buf, "Sensitivity: {d:.2}", .{p.sensitivity}) catch "Sensitivity");
+
+    imgui.api.Spacing(ctx);
+    imgui.api.TextColored(ctx, theme.grey, "Default plugin per slot (keyboard):");
     for (0..5) |i| {
-        try row(ctx, cursor == 7 + i, SLOT_LABELS[i]);
-        try imgui.SameLine(.{ctx});
+        row(kit, cursor == 7 + i, SLOT_LABELS[i]);
+        imgui.api.SameLine(ctx, null, null);
         _ = try imgui.InputText(.{ ctx, NAME_IDS[i], @as([*]u8, @ptrCast(&buffers[i])), NAME_LEN, null, null });
     }
 
-    try imgui.Separator(.{ctx});
-    if (try imgui.Button(.{ ctx, "Save settings" })) save(globals);
-    try imgui.SameLine(.{ctx});
-    if (try imgui.Button(.{ ctx, "Cancel" })) cancel(globals);
+    imgui.api.Spacing(ctx);
+    if (widgets.pushButton(kit, "Save settings", 0)) save(globals);
+    imgui.api.SameLine(ctx, null, null);
+    if (widgets.pushButton(kit, "Cancel", 0)) cancel(globals);
 }

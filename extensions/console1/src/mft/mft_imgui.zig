@@ -15,10 +15,6 @@ const widgets = @import("panel_widgets");
 const wizard = @import("mft_wizard.zig");
 const log = std.log.scoped(.mft_imgui);
 
-const color_pass: c_int = @bitCast(@as(u32, 0x66CC66FF));
-const color_fail: c_int = @bitCast(@as(u32, 0xFF5555FF));
-const color_muted: c_int = @bitCast(@as(u32, 0x999999FF));
-
 const plugin_name = "MFT";
 // The width of a cell's screen, and the distance from one column of cells to the next.
 const CELL_W: f64 = 96.0;
@@ -204,7 +200,7 @@ fn draw(globals: *MftGlobals) !void {
         // Settings mode draws its form above the grid; otherwise the buffers stay
         // synced from preferences for the next time it is opened.
         if (active == .SETTINGS) {
-            try mft_settings.drawForm(ctx, globals);
+            try mft_settings.drawForm(&kit, globals, accent);
         } else {
             mft_settings.markUnsynced();
         }
@@ -220,7 +216,7 @@ fn draw(globals: *MftGlobals) !void {
             drawSideColumn(&right_labels);
         }
 
-        try drawWizard(globals);
+        drawWizard(globals);
     }
 }
 
@@ -320,22 +316,23 @@ fn drawModuleCell(globals: *MftGlobals, idx: usize, active: MftActiveModule, kla
     widgets.display(&kit, module_labels[idx - 8], if (lit) color else theme.text_dim, CELL_W);
 }
 
-fn drawWizard(globals: *MftGlobals) !void {
+// The calibration wizard is a card of its own: the LED test is a toggle, the step's status is a lamp and a screen in
+// the color of the result, and the steps are pushed with buttons.
+fn drawWizard(globals: *MftGlobals) void {
     const w = &globals.wizard;
-    try imgui.Separator(.{ctx});
+    if (!widgets.beginCard(&kit, "Calibration", null, null, theme.amber)) return;
+    defer widgets.endCard(&kit);
 
-    // LED test toggle. The actual color/ring sweep is driven from the control
-    // surface's run loop; here the panel only flips the flag so it stays free of
-    // the MIDI-out cImport and remains unit-testable.
-    if (w.led_test_active) {
-        if (try imgui.Button(.{ ctx, "Stop LED test" })) w.led_test_active = false;
-    } else if (try imgui.Button(.{ ctx, "LED test" })) {
-        w.led_test_active = true;
-        w.led_frame = 0;
+    // The actual color/ring sweep is driven from the control surface's run loop; here the panel only flips the flag
+    // so it stays free of the MIDI-out cImport and remains unit-testable.
+    var led_test = w.led_test_active;
+    if (widgets.toggle(&kit, "LED test", &led_test)) {
+        w.led_test_active = led_test;
+        if (led_test) w.led_frame = 0;
     }
 
     if (!w.active) {
-        if (try imgui.Button(.{ ctx, "Start calibration" })) w.start();
+        if (widgets.pushButton(&kit, "Start calibration", 0)) w.start();
         return;
     }
 
@@ -343,32 +340,34 @@ fn drawWizard(globals: *MftGlobals) !void {
     const result = w.results[w.current];
 
     var buf: [128:0]u8 = undefined;
-    try imgui.Text(.{ ctx, std.fmt.bufPrintZ(&buf, "Calibration {d}/{d}", .{ w.current + 1, wizard.STEP_COUNT }) catch "Calibration" });
-    try imgui.Text(.{ ctx, wizard.describe(step, &buf) });
-    try imgui.TextColored(.{ ctx, color_muted, wizard.expectedText(step, &buf) });
-    try imgui.Text(.{ ctx, wizard.observedText(result, &buf) });
+    widgets.display(&kit, std.fmt.bufPrintZ(&buf, "Calibration {d}/{d}", .{ w.current + 1, wizard.STEP_COUNT }) catch "Calibration", theme.amber, 200);
+    imgui.api.Text(ctx, wizard.describe(step, &buf));
+    imgui.api.TextColored(ctx, theme.grey, wizard.expectedText(step, &buf));
+    imgui.api.Text(ctx, wizard.observedText(result, &buf));
 
     const status_color = switch (result.status) {
-        .pass => color_pass,
-        .fail => color_fail,
-        .pending, .skipped => color_muted,
+        .pass => theme.green,
+        .fail => theme.red,
+        .pending, .skipped => theme.grey,
     };
-    try imgui.TextColored(.{ ctx, status_color, @tagName(result.status) });
+    widgets.lamp(&kit, status_color, result.status == .pass or result.status == .fail);
+    imgui.api.SameLine(ctx, null, null);
+    widgets.display(&kit, @tagName(result.status), status_color, 90);
 
-    if (try imgui.Button(.{ ctx, "Retry" })) w.retry();
-    try imgui.SameLine(.{ctx});
-    if (try imgui.Button(.{ ctx, "Skip" })) w.skip();
-    try imgui.SameLine(.{ctx});
+    if (widgets.pushButton(&kit, "Retry", 0)) w.retry();
+    imgui.api.SameLine(ctx, null, null);
+    if (widgets.pushButton(&kit, "Skip", 0)) w.skip();
+    imgui.api.SameLine(ctx, null, null);
     if (w.isLast()) {
-        if (try imgui.Button(.{ ctx, "Finish" })) {
+        if (widgets.pushButton(&kit, "Finish", 0)) {
             wizard.writeReport(w, globals.resource_path) catch |err| log.err("report write failed: {s}", .{@errorName(err)});
             w.stop();
         }
     } else {
-        if (try imgui.Button(.{ ctx, "Next" })) w.next();
+        if (widgets.pushButton(&kit, "Next", 0)) w.next();
     }
-    try imgui.SameLine(.{ctx});
-    if (try imgui.Button(.{ ctx, "Stop" })) {
+    imgui.api.SameLine(ctx, null, null);
+    if (widgets.pushButton(&kit, "Stop", 0)) {
         wizard.writeReport(w, globals.resource_path) catch {};
         w.stop();
     }
@@ -429,4 +428,20 @@ test "dropping the context takes the fonts and the kit's state with it" {
     try std.testing.expect(ctx == null);
     try std.testing.expect(kit.accent == null);
     try std.testing.expect(fonts.text == null);
+}
+
+test "the settings form leaves the stacks balanced wherever the cursor is" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.active_module = .SETTINGS;
+    // A color row, the sensitivity, the first and the last plugin name.
+    for ([_]u8{ 0, 6, 7, 11 }) |cursor| {
+        globals.mft.settings_cursor = @intCast(cursor);
+        try draw(&globals);
+    }
+    try mock.assertBalanced();
 }
