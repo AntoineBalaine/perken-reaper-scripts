@@ -13,4 +13,5 @@ test {
     _ = @import("mft_transport.zig");
     _ = @import("mft_preferences.zig");
     _ = @import("mft_settings.zig");
+    _ = @import("mft_plugin_list.zig");
 }

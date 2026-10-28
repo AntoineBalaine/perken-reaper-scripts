@@ -80,8 +80,8 @@ Selecting SETTINGS edits the preferences, persisted to
 `Data/Perken/MFT/preferences.ini`. Encoder 1 scrolls a highlight through the
 settings list; encoder 2 adjusts the highlighted value. The numeric settings are
 the four module LED hues (previewed live on every knob as you adjust) and the
-encoder sensitivity. The five default plugin names are edited with the keyboard
-in their text fields. Save writes the ini; Cancel reloads it, discarding edits.
+encoder sensitivity. The five default plugins are chosen from drop-downs that list the
+plugins installed in REAPER, with a filter at the top of each list. Save writes the ini; Cancel reloads it, discarding edits.
 
 ## LED feedback
 
