@@ -14,10 +14,15 @@ local M = {}
 
 -- ---- the sizes of the device, in pixels ----
 
-local PITCH, ROW_H = 118, 136 -- the distance from one encoder to the next, across and down
+local PITCH = 118 -- the distance from one encoder to the next, across
+-- The distance from one row to the next, and from the top of a row to the center of its encoder. Both depend on where
+-- the values are printed, and `M.draw` sets them at the start of each frame.
+local ROW_H, TOP = 136, 14
 local RING_R, WELL_R, CAP_R = 36, 30, 23 -- the ring of LEDs, the well that the cap sits in, and the cap
 local SIDE_W, SIDE_H, SIDE_GAP = 76, 34, 14
-local PAD, HEADER_H, FOOTER_H = 22, 46, 40
+-- HEADER_ROW_H is the height of the card of the mode, which sets the height of the row; HEADER_H is the room from the top
+-- of the device to the first row of encoders.
+local PAD, HEADER_H, FOOTER_H, HEADER_ROW_H = 22, 46, 8, 26
 local LEDS = 11
 local SWEEP_FROM, SWEEP_TO = math.pi * 0.75, math.pi * 2.25 -- the ring starts at the lower left and ends at the lower right
 
@@ -57,6 +62,11 @@ end
 -- hue moves toward purple.
 local function hue_to_rgba(hue)
   return hsv_to_rgba(((86 - hue) * 360 / 128) % 360, 1, 1)
+end
+
+-- The color of a mode, from the hue that the settings form holds.
+local function mode_rgba(S, index)
+  return hue_to_rgba(S.mft.hues[index])
 end
 
 -- ---- text ----
@@ -112,12 +122,16 @@ end
 
 -- ---- an encoder ----
 
-local WHITE = 0xF2F2F2FF
+-- The white of the LEDs is soft, and not as bright as the lettering.
+local WHITE = 0xBFBFBFFF
+-- The radius of a white LED of the ring, in pixels, and the radius of the circle that the LEDs sit on: just outside
+-- the well of the cap. `RING_R` is the room that the ring takes in the layout, and stays a little larger.
+local LED_R = 2.4
+local LED_RING_R = 34
 
--- Draws one encoder around (cx, cy): a ring of eleven white LEDs around a round rubber cap that sits in a well. `e`
--- says what it shows:
+-- Draws one encoder around (cx, cy): a ring of eleven white LEDs around a round rubber cap that sits in a well. The
+-- LEDs light up to the value, and only a value lights them. `e` says what it shows:
 --   value     0 to 1, where the ring ends and the pointer points; nil for a ring that shows nothing
---   lit_all   every LED of the ring is lit (the selected mode)
 --   color     the color of the mode's LED, which is the accent of the cap's details
 --   pressed   the cap is held down
 --   hot       the mouse is over the cap
@@ -128,14 +142,14 @@ local function draw_encoder(dl, cx, cy, e)
   -- The ring: the LEDs are white, and lit up to the value.
   for i = 0, LEDS - 1 do
     local a = SWEEP_FROM + (SWEEP_TO - SWEEP_FROM) * i / (LEDS - 1)
-    local x, y = cx + math.cos(a) * RING_R, cy + math.sin(a) * RING_R
-    local lit = e.lit_all or (e.value ~= nil and i / (LEDS - 1) <= e.value + 0.001)
+    local x, y = cx + math.cos(a) * LED_RING_R, cy + math.sin(a) * LED_RING_R
+    local lit = e.value ~= nil and i / (LEDS - 1) <= e.value + 0.001
     if lit then
-      ImGui.DrawList_AddCircleFilled(dl, x, y, 7, faded(WHITE, 0x30))
-      ImGui.DrawList_AddCircleFilled(dl, x, y, 3.5, WHITE)
+      ImGui.DrawList_AddCircleFilled(dl, x, y, LED_R + 2.5, faded(WHITE, 0x1C))
+      ImGui.DrawList_AddCircleFilled(dl, x, y, LED_R, WHITE)
     else
-      ImGui.DrawList_AddCircleFilled(dl, x, y, 3.2, 0x060607FF)
-      ImGui.DrawList_AddCircle(dl, x, y, 3.2, 0xFFFFFF14, 0, 1)
+      ImGui.DrawList_AddCircleFilled(dl, x, y, LED_R - 0.4, 0x060607FF)
+      ImGui.DrawList_AddCircle(dl, x, y, LED_R - 0.4, 0xFFFFFF14, 0, 1)
     end
   end
 
@@ -162,7 +176,8 @@ local function draw_encoder(dl, cx, cy, e)
 
   if e.icon then
     -- The cap carries the icon of the function.
-    env.mft_icons.draw(dl, e.icon, cx, y, r * 0.62, 0xE6E6E6FF, color)
+    -- The icon is the off-white of the labels, and stands out of the rubber; its shadow is the color of the mode.
+    env.mft_icons.draw(dl, e.icon, cx, y, r * 0.62, env.theme.text, env.theme.text, true, color)
   elseif e.value ~= nil then
     -- The pointer is a white line from near the center toward the ring, with the LED's color on its tip.
     local a = SWEEP_FROM + (SWEEP_TO - SWEEP_FROM) * e.value
@@ -215,13 +230,17 @@ local function side_key(ctx, dl, x, y, label, on)
   ImGui.DrawList_AddRect(dl, x, y + sink, x + SIDE_W, y + SIDE_H + sink, lit and color or (hovered and faded(color, 0xAA) or th.knob_edge), 6, 0, 1)
   ImGui.DrawList_AddLine(dl, x + 6, y + sink + 1.5, x + SIDE_W - 6, y + sink + 1.5, 0xFFFFFF30, 1)
 
-  -- The icon on the left, and the label on the right: the key's name on the first line, its function on the second.
+  -- The icon on the left, and the function of the key on the right. The number of the key (L1, R2) is not printed,
+  -- because the position of the key already says it. Because the words differ in width, the icon and the word are
+  -- centered together in the key, and the word is centered in the height of the key by the size of its text.
   local tone = lit and color or faded(color, 0x99)
-  env.mft_icons.draw(dl, scheme.icon, x + 16, y + sink + SIDE_H / 2, 7, tone, tone)
   local pushed = push_font(ctx, "label")
-  local name, function_name = label:match("^(%S+)%s+(.*)$")
-  printed_text(ctx, dl, x + 49, y + sink + 3, name, lit and color or th.label)
-  printed_text(ctx, dl, x + 49, y + sink + 17, function_name:upper(), lit and color or faded(color, 0xB0))
+  local function_name = label:match("^%S+%s+(.*)$"):upper()
+  local text_w, text_h = ImGui.CalcTextSize(ctx, function_name)
+  local icon_w, gap = 14, 7
+  local left = x + (SIDE_W - (icon_w + gap + text_w)) / 2
+  env.mft_icons.draw(dl, scheme.icon, left + icon_w / 2, y + sink + SIDE_H / 2, 7, tone, tone)
+  printed_text(ctx, dl, left + icon_w + gap + text_w / 2, y + sink + (SIDE_H - text_h) / 2, function_name, lit and color or th.label)
   if pushed then ImGui.PopFont(ctx) end
   return clicked
 end
@@ -229,12 +248,16 @@ end
 -- ---- the cells ----
 
 local LABEL_W, LABEL_H = 94, 36
+-- How many pixels the lettering of the encoders is lifted from where it would be centered, in the window under a knob and
+-- above it.
+local TEXT_UP = 2
 
 -- The lettering under an encoder, where the controller's color LED is. The LED lights a small window in the color of
 -- the mode, `strength` being how bright it is (0 for an LED that is off), and the lettering is printed over it: the
 -- name of the parameter, and under it its value or its press function.
-local function led_label(ctx, dl, cx, y, first, second, color, strength, second_color)
-  local th = env.theme
+-- The window of the color LED under an encoder: dark glass that the LED lights in `color`, as much as `strength` (0 for an
+-- LED that is off).
+local function led_window(dl, cx, y, color, strength)
   local x1, x2 = cx - LABEL_W / 2, cx + LABEL_W / 2
   ImGui.DrawList_AddRectFilled(dl, x1, y, x2, y + LABEL_H, 0x08080AFF, 5)
   if strength > 0 then
@@ -244,12 +267,103 @@ local function led_label(ctx, dl, cx, y, first, second, color, strength, second_
   end
   ImGui.DrawList_AddRect(dl, x1, y, x2, y + LABEL_H, 0x000000DD, 5, 0, 1)
   ImGui.DrawList_AddLine(dl, x1 + 5, y + LABEL_H + 1, x2 - 5, y + LABEL_H + 1, 0xFFFFFF1E, 1)
+end
+
+local function led_label(ctx, dl, cx, y, first, second, color, strength, second_color)
+  local th = env.theme
+  led_window(dl, cx, y, color, strength)
   local pushed = push_font(ctx, "label")
   if first then
-    local line_y = second and y + 3 or y + (LABEL_H - 16) / 2
-    printed_text(ctx, dl, cx, line_y, first:upper(), strength > 0 and th.text or th.text_dim)
+    -- The name is always on the top line, as the turn is in the two-zone window, with a thin line under it. When the
+    -- knob has no second line, the bottom half is left empty: it is the place of the press, and of the mapping.
+    printed_text(ctx, dl, cx, y + 3 - TEXT_UP, first:upper(), strength > 0 and th.text or th.text_dim)
+    ImGui.DrawList_AddLine(dl, cx - LABEL_W / 2 + 6, y + LABEL_H / 2, cx + LABEL_W / 2 - 6, y + LABEL_H / 2, 0xFFFFFF22, 1)
   end
-  if second then printed_text(ctx, dl, cx, y + 18, second, second_color or (strength > 0 and color or th.text_dim)) end
+  if second then printed_text(ctx, dl, cx, y + 18 - TEXT_UP, second, second_color or (strength > 0 and color or th.text_dim)) end
+  if pushed then ImGui.PopFont(ctx) end
+end
+
+-- ---- the labels of what a knob does when it is turned and when it is pressed ----
+
+local GLYPH_W, GLYPH_GAP = 10, 5
+
+-- The sign of a press: a ring with a dot in it, which reads as a button.
+local function press_glyph(dl, x, y, color)
+  ImGui.DrawList_AddCircle(dl, x, y, 4.4, color, 0, 1.4)
+  ImGui.DrawList_AddCircleFilled(dl, x, y, 1.8, color)
+end
+
+-- The sign of a turn: an arc with an arrowhead at its end.
+local function turn_glyph(dl, x, y, color)
+  local from, to, radius = math.pi * 0.15, math.pi * 1.65, 4.4
+  ImGui.DrawList_PathArcTo(dl, x, y, radius, from, to)
+  ImGui.DrawList_PathStroke(dl, color, ImGui.DrawFlags_None, 1.4)
+  -- The arrowhead sits on the end of the arc and points along it, clockwise on the screen.
+  local ex, ey = x + math.cos(to) * radius, y + math.sin(to) * radius
+  local tx, ty = -math.sin(to), math.cos(to)
+  local nx, ny = math.cos(to), math.sin(to)
+  ImGui.DrawList_AddTriangleFilled(dl, ex + tx * 3.6, ey + ty * 3.6, ex + nx * 2.8 - tx * 0.4, ey + ny * 2.8 - ty * 0.4,
+    ex - nx * 2.8 - tx * 0.4, ey - ny * 2.8 - ty * 0.4, color)
+end
+
+-- Tells what the player is doing with a knob that is held: a drag of more than a few pixels is a turn, and holding it
+-- still is a press. Returns "turn", "press" or nil when the knob is not held.
+local function interaction(ctx, held)
+  if not held then return nil end
+  local _, dy = ImGui.GetMouseDragDelta(ctx, nil, nil, ImGui.MouseButton_Left, 0)
+  if math.abs(dy) > 3 then return "turn" end
+  return "press"
+end
+
+-- One line of the two-zone window: a glyph, then the word, centered together on `cx`. A line that `lit` is washed with the
+-- color of the mode, and its word is bright.
+local function zone_line(ctx, dl, cx, top, bottom, glyph, text, color, lit, text_color)
+  local th = env.theme
+  local text_w = ImGui.CalcTextSize(ctx, text)
+  if lit then
+    ImGui.DrawList_AddRectFilled(dl, cx - LABEL_W / 2 + 3, top, cx + LABEL_W / 2 - 3, bottom, faded(color, 0x55), 3)
+  end
+  local left = cx - (GLYPH_W + GLYPH_GAP + text_w) / 2
+  glyph(dl, left + GLYPH_W / 2, (top + bottom) / 2, lit and color or faded(color, 0xB0))
+  printed_text(ctx, dl, left + GLYPH_W + GLYPH_GAP + text_w / 2, (top + bottom) / 2 - 8 - TEXT_UP, text, lit and th.text or text_color)
+end
+
+-- The window under a knob that does two things: what a turn does on the top line, with the sign of a turn, and what a
+-- press does under it, with the sign of a press, the two separated by a thin line. `state` is "turn", "press" or nil
+-- (see `interaction`), and lights the line of what is being done. A knob that only has a press (a mode button) has the
+-- press line alone, still in the bottom half, and the top half empty; `strength` is how bright the LED is.
+local function dual_label(ctx, dl, cx, y, turn_text, press_text, color, strength, state, press_color)
+  local th = env.theme
+  led_window(dl, cx, y, color, strength)
+  local pushed = push_font(ctx, "label")
+  local x1, x2 = cx - LABEL_W / 2, cx + LABEL_W / 2
+  -- The top half is the place of what a turn does, which is also where the mapping of the knob is shown; it stays empty for a
+  -- knob that is only pressed. The press is always in the bottom half, under the line.
+  if turn_text then
+    zone_line(ctx, dl, cx, y + 2, y + LABEL_H / 2, turn_glyph, turn_text:upper(), color, state == "turn", th.text)
+  end
+  ImGui.DrawList_AddLine(dl, x1 + 6, y + LABEL_H / 2, x2 - 6, y + LABEL_H / 2, 0xFFFFFF22, 1)
+  zone_line(ctx, dl, cx, y + LABEL_H / 2, y + LABEL_H - 2, press_glyph, press_text, color, state == "press", press_color or th.text_dim)
+  if pushed then ImGui.PopFont(ctx) end
+end
+
+-- How many pixels the bottom of a pop-up is above the circle that the LEDs sit on. A negative number puts it over the
+-- LEDs: -8 puts it over the top of the ring and of the well, and stops it 3 pixels above the cap.
+local BUBBLE_GAP = -8
+
+-- The pop-up of a value: a small dark rounded box, outlined and lettered in the color of the mode. `top` is where its
+-- bottom edge is.
+local function draw_bubble(ctx, dl, bubble)
+  local pushed = push_font(ctx, "label")
+  local text_w, text_h = ImGui.CalcTextSize(ctx, bubble.text)
+  local w, h = text_w + 22, text_h + 10
+  local x1, y2 = bubble.cx - w / 2, bubble.top
+  local y1 = y2 - h
+  ImGui.DrawList_AddRectFilled(dl, x1 + 1, y1 + 3, x1 + w + 1, y2 + 3, 0x00000099, 6)
+  ImGui.DrawList_AddRectFilled(dl, x1, y1, x1 + w, y2, 0x0B0B0DF2, 6)
+  ImGui.DrawList_AddRectFilled(dl, x1, y1, x1 + w, y2, faded(bubble.color, 0x22), 6)
+  ImGui.DrawList_AddRect(dl, x1, y1, x1 + w, y2, bubble.color, 6, 0, 1.2)
+  ImGui.DrawList_AddText(dl, bubble.cx - text_w / 2, y1 + 5, bubble.color, bubble.text)
   if pushed then ImGui.PopFont(ctx) end
 end
 
@@ -259,11 +373,12 @@ local function draw_cells(ctx, dl, S, gx, gy)
   local th = env.theme
   local m = S.mft
   local mode = S.model.modes[m.mode]
-  local mode_color = hue_to_rgba(mode.hue)
+  local mode_color = mode_rgba(S, m.mode)
+  local bubbles = {}
   for idx = 1, 16 do
     local col, row = (idx - 1) % 4, (idx - 1) // 4
     local cx = gx + PITCH * (col + 0.5)
-    local cy = gy + ROW_H * row + RING_R + 14
+    local cy = gy + ROW_H * row + RING_R + TOP
     local label_y = cy + RING_R + 6
     local reach = RING_R + 6
     ImGui.SetCursorScreenPos(ctx, cx - reach, cy - reach)
@@ -275,7 +390,7 @@ local function draw_cells(ctx, dl, S, gx, gy)
       local transport = mode.id == "TRANSPORT" and S.model.transport[idx]
       if transport then
         draw_encoder(dl, cx, cy, { value = 0.5, color = mode_color, pressed = held, hot = hot, icon = transport.icon })
-        led_label(ctx, dl, cx, label_y, transport.rotation, transport.press, mode_color, 1, th.text_dim)
+        dual_label(ctx, dl, cx, label_y, transport.rotation, transport.press, mode_color, 1, interaction(ctx, held), th.text_dim)
       elseif param then
         local mapped = m.mapped[m.mode][idx]
         local value = m.values[m.mode][idx]
@@ -287,7 +402,22 @@ local function draw_cells(ctx, dl, S, gx, gy)
         end
         draw_encoder(dl, cx, cy, { value = mapped and value or nil, color = mode_color, pressed = held, hot = hot })
         if mapped then
-          led_label(ctx, dl, cx, label_y, param, ("%d%%"):format(math.floor(value * 100 + 0.5)), mode_color, 1)
+          local value_text = ("%d%%"):format(math.floor(value * 100 + 0.5))
+          if S.value_mode == "above" then
+            -- The value is printed over the ring, in the color of the mode, and the window under the knob keeps the name.
+            local pushed = push_font(ctx, "label")
+            printed_text(ctx, dl, cx, cy - LED_RING_R - 22 - TEXT_UP, value_text, mode_color)
+            if pushed then ImGui.PopFont(ctx) end
+            led_label(ctx, dl, cx, label_y, param, nil, mode_color, 1)
+          elseif S.value_mode == "popup" then
+            -- The value shows in a bubble over the knob for as long as the knob is held, and not a moment more.
+            if held then
+              bubbles[#bubbles + 1] = { cx = cx, top = cy - LED_RING_R - BUBBLE_GAP, text = value_text, color = mode_color }
+            end
+            led_label(ctx, dl, cx, label_y, param, nil, mode_color, 1)
+          else
+            led_label(ctx, dl, cx, label_y, param, value_text, mode_color, 1)
+          end
         else
           led_label(ctx, dl, cx, label_y, nil, nil, mode_color, 0)
         end
@@ -301,24 +431,29 @@ local function draw_cells(ctx, dl, S, gx, gy)
       -- use. The last two are reserved.
       local selected_mode = S.model.modes[idx - 8]
       if selected_mode then
-        local color = hue_to_rgba(selected_mode.hue)
+        local color = mode_rgba(S, idx - 8)
         local active = (idx - 8) == m.mode
         if hot and ImGui.IsItemClicked(ctx) then m.mode = idx - 8 end
-        draw_encoder(dl, cx, cy, { color = color, lit_all = active, pressed = held or active, hot = hot })
-        led_label(ctx, dl, cx, label_y, selected_mode.id, nil, color, active and 1 or 0.4)
+        -- The ring stays dark: its LEDs are for showing a value. The mode in use is shown by the sunk cap, the lit window
+        -- and the color of its word.
+        draw_encoder(dl, cx, cy, { color = color, pressed = held or active, hot = hot })
+        -- The word under a mode button says what a click does, so it is written as a press: with the sign of a press, and
+        -- lit while the button is held. The mode in use is in the color of the mode.
+        dual_label(ctx, dl, cx, label_y, nil, selected_mode.id, color, active and 1 or 0.4, held and "press" or nil, active and color or th.text_dim)
       else
         draw_encoder(dl, cx, cy, { color = th.text_dim, pressed = held, hot = hot })
         led_label(ctx, dl, cx, label_y, nil, nil, th.text_dim, 0)
       end
     end
   end
+  for _, bubble in ipairs(bubbles) do draw_bubble(ctx, dl, bubble) end
 end
 
 -- Draws the six side keys. The mute, solo and phase keys stay lit once pressed.
 local function draw_side_keys(ctx, dl, S, x0, x1, gy)
   local m = S.mft
   for row = 0, 2 do
-    local cy = gy + ROW_H * row + RING_R + 14
+    local cy = gy + ROW_H * row + RING_R + TOP
     local y = cy - SIDE_H / 2
     local left, right = S.model.side_left[row + 1], S.model.side_right[row + 1]
     side_key(ctx, dl, x0, y, left, false)
@@ -326,52 +461,147 @@ local function draw_side_keys(ctx, dl, S, x0, x1, gy)
   end
 end
 
--- ---- the header and the footer ----
+-- ---- the buttons of the corner ----
 
-local function draw_header(ctx, S, x, y)
-  local th = env.theme
-  local mode = S.model.modes[S.mft.mode]
-  ImGui.SetCursorScreenPos(ctx, x, y)
-  env.widgets.display(ctx, mode.id, hue_to_rgba(mode.hue), 190)
-  ImGui.SameLine(ctx)
-  env.widgets.lamp(ctx, th.green, true)
-  ImGui.SameLine(ctx)
-  ImGui.TextColored(ctx, th.text_dim, "mirror of the controller")
+local CORNER = 24
+
+-- The glyphs of the corner buttons, drawn with lines around (cx, cy).
+local function close_glyph(dl, cx, cy, color)
+  ImGui.DrawList_AddLine(dl, cx - 4, cy - 4, cx + 4, cy + 4, color, 1.9)
+  ImGui.DrawList_AddLine(dl, cx - 4, cy + 4, cx + 4, cy - 4, color, 1.9)
 end
 
-local function draw_footer(ctx, dl, cx, y)
+-- A chevron: it points up when the device is open (a click folds it), and down when it is folded (a click opens it).
+local function chevron_glyph(dl, cx, cy, color, pointing_up)
+  local tip, side = pointing_up and -2.5 or 2.5, pointing_up and 2.5 or -2.5
+  ImGui.DrawList_AddLine(dl, cx - 5, cy + side, cx, cy + tip, color, 1.9)
+  ImGui.DrawList_AddLine(dl, cx, cy + tip, cx + 5, cy + side, color, 1.9)
+end
+
+local function chevron_up_glyph(dl, cx, cy, color)
+  chevron_glyph(dl, cx, cy, color, true)
+end
+
+local function chevron_down_glyph(dl, cx, cy, color)
+  chevron_glyph(dl, cx, cy, color, false)
+end
+
+-- A small raised key with a glyph on it. The close key turns red under the mouse. Returns true when it was clicked.
+local function corner_button(ctx, dl, id, x, y, glyph, hover_color)
   local th = env.theme
+  ImGui.SetCursorScreenPos(ctx, x, y)
+  local clicked = ImGui.InvisibleButton(ctx, "##corner" .. id, CORNER, CORNER)
+  local hovered, held = ImGui.IsItemHovered(ctx), ImGui.IsItemActive(ctx)
+  local sink = held and 1 or 0
+  if not held then ImGui.DrawList_AddRectFilled(dl, x, y + 2, x + CORNER, y + CORNER + 2, 0x000000AA, 5) end
+  ImGui.DrawList_AddRectFilled(dl, x, y + sink, x + CORNER, y + CORNER + sink, held and th.knob_body or th.knob_top, 5)
+  ImGui.DrawList_AddRectFilledMultiColor(dl, x + 2, y + sink + 2, x + CORNER - 2, y + sink + CORNER / 2, 0xFFFFFF18, 0xFFFFFF18, 0xFFFFFF00, 0xFFFFFF00)
+  ImGui.DrawList_AddRect(dl, x, y + sink, x + CORNER, y + CORNER + sink, hovered and hover_color or th.knob_edge, 5, 0, 1)
+  glyph(dl, x + CORNER / 2, y + CORNER / 2 + sink, hovered and hover_color or th.label)
+  return clicked
+end
+
+-- ---- the header and the footer ----
+
+local TITLE = "MIDI FIGHTER TWISTER"
+
+-- The header row. On the left, the card of the mode in use, as wide as the longest name of a mode (TRANSPORT), so that it
+-- keeps its width when the mode changes. In the middle, the name of the controller, centered on the device, with the green
+-- lamp next to it; the lamp tells in a pop-up what the panel is. The buttons of the corner are on the right. `x` and `y`
+-- are the top left of the device.
+local function draw_header(ctx, dl, S, x, y, body_w)
+  local th = env.theme
+  local mode = S.model.modes[S.mft.mode]
+  local pushed = push_font(ctx, "label")
+  local widest = 0
+  for _, each in ipairs(S.model.modes) do widest = math.max(widest, (ImGui.CalcTextSize(ctx, each.id))) end
+  if pushed then ImGui.PopFont(ctx) end
+  ImGui.SetCursorScreenPos(ctx, x + PAD, y + PAD)
+  env.widgets.display(ctx, mode.id, mode_rgba(S, S.mft.mode), widest + 20)
+
+  local cx = x + body_w / 2
   local font = env.fonts and env.fonts.tab
   if font then ImGui.PushFont(ctx, font) end
-  printed_text(ctx, dl, cx, y, "MIDI FIGHTER TWISTER", th.text_dim)
+  local title_w, title_h = ImGui.CalcTextSize(ctx, TITLE)
+  printed_text(ctx, dl, cx, y + PAD + (HEADER_ROW_H - title_h) / 2, TITLE, th.text_dim)
   if font then ImGui.PopFont(ctx) end
+  local lamp = ImGui.GetTextLineHeight(ctx)
+  ImGui.SetCursorScreenPos(ctx, cx - title_w / 2 - 8 - lamp, y + PAD + (HEADER_ROW_H - lamp) / 2)
+  env.widgets.lamp(ctx, th.green, true)
+  env.widgets.tooltip(ctx, "online, mirroring the controller")
 end
 
 -- ---- under the device ----
 
--- The settings form: the colors of the modes and the sensitivity, which the real panel moves with the encoders, and
--- the five default plugins, which are chosen in drop-downs.
+-- The color of the hue wheel at a position of a bar, from 0 to 1.
+local function hue_wheel_color(fraction)
+  return hue_to_rgba(fraction * 127)
+end
+
+-- A bar that the mouse sets: a click or a drag puts the thumb where the mouse is. `fraction` is the position, from 0 to 1,
+-- and `color_at` gives the color of the bar at a position (the hue wheel, for a hue), or is nil for a plain bar that fills
+-- up to the thumb in `fill`. Returns the position after the mouse.
+local function slider(ctx, id, fraction, width, color_at, fill)
+  local th = env.theme
+  local dl = ImGui.GetWindowDrawList(ctx)
+  local x, y = ImGui.GetCursorScreenPos(ctx)
+  local h = 22
+  ImGui.InvisibleButton(ctx, "##slider" .. id, width, h)
+  if ImGui.IsItemActive(ctx) then
+    local mouse_x = ImGui.GetMousePos(ctx)
+    fraction = math.max(0, math.min(1, (mouse_x - x) / width))
+  end
+  ImGui.DrawList_AddRectFilled(dl, x, y + 6, x + width, y + h - 6, th.slot_bg, 3)
+  if color_at then
+    local segments = 64
+    for i = 0, segments - 1 do
+      local x1, x2 = x + width * i / segments, x + width * (i + 1) / segments
+      ImGui.DrawList_AddRectFilled(dl, x1, y + 7, x2 + 0.5, y + h - 7, color_at((i + 0.5) / segments), 0)
+    end
+  else
+    ImGui.DrawList_AddRectFilled(dl, x, y + 6, x + width * fraction, y + h - 6, faded(fill, 0xCC), 3)
+  end
+  ImGui.DrawList_AddRect(dl, x, y + 6, x + width, y + h - 6, th.slot_edge, 3, 0, 1)
+  local thumb = x + width * fraction
+  ImGui.DrawList_AddRectFilled(dl, thumb - 3, y + 2, thumb + 3, y + h - 2, th.knob_top, 2)
+  ImGui.DrawList_AddRect(dl, thumb - 3, y + 2, thumb + 3, y + h - 2, ImGui.IsItemHovered(ctx) and 0xFFFFFFFF or th.knob_edge, 2, 0, 1)
+  return fraction
+end
+
+-- The settings form. A hue is set on a bar that shows the wheel of the controller's LEDs, the sensitivity on a plain bar,
+-- and the five default plugins in drop-downs. All of them answer the mouse: a click or a drag on a bar sets it, and the
+-- colors of the device change as the bar moves. (On the controller, the same rows are scrolled with encoder 1 and
+-- adjusted with encoder 2.)
 local function draw_settings(ctx, S)
   local th = env.theme
   local w = env.widgets
   local m = S.mft
-  local mode = S.model.modes[m.mode]
-  local color = hue_to_rgba(mode.hue)
+  local color = mode_rgba(S, m.mode)
   if not w.begin_card(ctx, "Settings", nil, nil, color) then return end
-  ImGui.TextColored(ctx, th.grey, "Encoder 1 scrolls, encoder 2 adjusts")
-  local rows = { "IO color: 15", "GATE color: 94", "EQ color: 60", "COMP color: 86", "SETTINGS color: 73", "TRANSPORT color: 107", "Sensitivity: 1.00" }
-  for i, text in ipairs(rows) do
-    ImGui.SetNextItemAllowOverlap(ctx)
-    w.display(ctx, text, m.settings_cursor == i and color or th.text_dim, 260)
-    if ImGui.IsItemClicked(ctx) then m.settings_cursor = i end
+  ImGui.TextColored(ctx, th.grey, "Click or drag a bar to change a value")
+  for i, mode in ipairs(S.model.modes) do
+    w.display(ctx, mode.id .. " color", th.text_dim, 150)
+    ImGui.SameLine(ctx)
+    local fraction = slider(ctx, "hue" .. i, m.hues[i] / 127, 280, hue_wheel_color)
+    m.hues[i] = math.floor(fraction * 127 + 0.5)
+    ImGui.SameLine(ctx)
+    ImGui.TextColored(ctx, hue_to_rgba(m.hues[i]), ("%3d"):format(m.hues[i]))
   end
+  w.display(ctx, "Sensitivity", th.text_dim, 150)
+  ImGui.SameLine(ctx)
+  local fraction = slider(ctx, "sensitivity", (m.sensitivity - 0.1) / 3.9, 280, nil, color)
+  m.sensitivity = math.floor((0.1 + fraction * 3.9) * 20 + 0.5) / 20
+  ImGui.SameLine(ctx)
+  ImGui.TextColored(ctx, color, ("%.2f"):format(m.sensitivity))
   ImGui.Spacing(ctx)
   ImGui.TextColored(ctx, th.grey, "Default plugin per slot (keyboard):")
   for i, slot in ipairs(S.model.slots) do
-    w.display(ctx, slot, m.settings_cursor == 7 + i and color or th.text_dim, 110)
+    w.display(ctx, slot, th.text_dim, 150)
     ImGui.SameLine(ctx)
     if w.begin_pick_list(ctx, "slot" .. i, m.slot_plugin[i], 400) then
-      if ImGui.BeginChild(ctx, "##plugins" .. i, 0, 200) then
+      -- The list has a width of its own: a pop-up grows to fit what it holds, and a child that asks for the rest of the
+      -- width of one gets none, so that the list would stay empty.
+      if ImGui.BeginChild(ctx, "##plugins" .. i, 440, 220) then
         for _, plugin in ipairs(S.model.plugins) do
           if w.pick_item(ctx, plugin, plugin == m.slot_plugin[i], true) then m.slot_plugin[i] = plugin end
         end
@@ -383,7 +613,11 @@ local function draw_settings(ctx, S)
   ImGui.Spacing(ctx)
   w.push_button(ctx, "Save settings", 0)
   ImGui.SameLine(ctx)
-  w.push_button(ctx, "Cancel", 0)
+  if w.push_button(ctx, "Cancel", 0) then
+    -- Cancel puts the form back as it was when the lab started.
+    for i, mode in ipairs(S.model.modes) do m.hues[i] = mode.hue end
+    m.sensitivity = 1.0
+  end
   w.end_card(ctx)
 end
 
@@ -419,22 +653,39 @@ end
 -- ---- the whole panel ----
 
 function M.draw(ctx, S)
+  S.model.upgrade(S.mft)
   local mode = S.model.modes[S.mft.mode]
+  -- A value printed over the knob needs a line of room above the ring, and leaves a line under it.
+  if S.value_mode == "above" then
+    ROW_H, TOP = 128, 30
+  else
+    ROW_H, TOP = 136, 14
+  end
   local x, y = ImGui.GetCursorScreenPos(ctx)
   local grid_w = 4 * PITCH
   local body_w = PAD * 2 + (SIDE_W + SIDE_GAP) * 2 + grid_w
-  local body_h = PAD + HEADER_H + 4 * ROW_H + FOOTER_H + PAD
+  -- A folded device is its header row alone.
+  local body_h = S.collapsed and (PAD * 2 + HEADER_ROW_H) or (PAD + HEADER_H + 4 * ROW_H + FOOTER_H + PAD)
   ImGui.Dummy(ctx, body_w, body_h)
   local dl = ImGui.GetWindowDrawList(ctx)
+  draw_body(dl, x, y, body_w, body_h)
+  draw_header(ctx, dl, S, x, y, body_w)
+
+  -- The buttons of the top right corner: fold or open the device, and close the lab.
+  local close_x = x + body_w - PAD - CORNER
+  local corner_y = y + PAD + 1
+  if corner_button(ctx, dl, "close", close_x, corner_y, close_glyph, env.theme.red) then S.close_requested = true end
+  local chevron = S.collapsed and chevron_down_glyph or chevron_up_glyph
+  if corner_button(ctx, dl, "fold", close_x - 6 - CORNER, corner_y, chevron, env.theme.amber) then S.collapsed = not S.collapsed end
+
+  -- A folded device ends here, and nothing is under it: the window shrinks to the height of the header row.
+  if S.collapsed then return end
 
   local gx = x + PAD + SIDE_W + SIDE_GAP
   local gy = y + PAD + HEADER_H
-  draw_body(dl, x, y, body_w, body_h)
   draw_faceplate(dl, gx - 4, gy - 4, grid_w + 8, 4 * ROW_H + 2)
-  draw_header(ctx, S, x + PAD, y + PAD)
   draw_side_keys(ctx, dl, S, x + PAD, x + body_w - PAD - SIDE_W, gy)
   draw_cells(ctx, dl, S, gx, gy)
-  draw_footer(ctx, dl, x + body_w / 2, y + body_h - PAD - FOOTER_H + 12)
 
   -- What follows the device starts under it.
   ImGui.SetCursorScreenPos(ctx, x, y + body_h + 10)

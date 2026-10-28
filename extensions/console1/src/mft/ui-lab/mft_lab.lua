@@ -4,10 +4,11 @@
 -- REAPER's Actions list ("Script: mft_lab.lua"); run it again to close it. Click the encoders of the bottom two rows
 -- to switch modes, and drag the others to turn them.
 --
--- The runner watches `mft_panel.lua` and `mft_icons.lua`, and the theme and the widgets of the VR-09 lab, which the
--- MFT panel shares. Saving one of them reloads it, and the open window changes at once. An error in a file is shown in
--- the window instead of stopping the script; the next save loads the file again. `mft_model.lua` is read once, when
--- the lab starts.
+-- The runner watches `mft_panel.lua`, `mft_icons.lua` and `mft_model.lua`, and the theme and the widgets of the VR-09
+-- lab, which the MFT panel shares. Saving one of them reloads it, and the open window changes at once. An error in a
+-- file is shown in the window instead of stopping the script; the next save loads the file again. When the model is
+-- reloaded, the values that the encoders hold are kept; the "Reset the mock" button starts them again. The runner
+-- itself (this file) is read when the script starts, so a change to it needs the lab to be closed and run again.
 --
 -- It needs ReaImGui. It speaks the same ReaImGui API as the plugin (0.9.3), so that what is written here ports to Zig
 -- call for call.
@@ -53,7 +54,7 @@ local MODULES = { -- in this order
   { name = "mft_panel", path = dir .. "mft_panel.lua" },
 }
 local sources = {}
-local S = { errors = {}, frame = 0, reloads = 0, animate = false }
+local S = { errors = {}, frame = 0, reloads = 0, animate = false, value_mode = "popup" }
 
 local function read(path)
   local f = io.open(path, "rb")
@@ -81,11 +82,34 @@ local function load_module(module, text)
 end
 
 local next_check = 0
+local model_source = nil
+
+-- Reads the mock controller again when its file changes: the names, the icons and the hues, which the panel reads
+-- from `S.model`. The first time, it also makes the state of the controller; after that the state is kept.
+local function check_model(t)
+  local path = dir .. "mft_model.lua"
+  local text = read(path)
+  if not text or text == model_source then return end
+  model_source = text
+  local chunk, err = load(text, "@" .. path)
+  local ok, model = false, err
+  if chunk then ok, model = pcall(chunk) end
+  if not ok then
+    S.errors.mft_model = model
+    return
+  end
+  S.errors.mft_model = nil
+  S.model = model
+  if not S.mft then S.mft = model.new() end
+  S.reloads = S.reloads + 1
+  S.reloaded_at = t
+end
 
 local function check_reload(force)
   local t = reaper.time_precise()
   if not force and t < next_check then return end
   next_check = t + 0.3
+  check_model(t)
   for _, module in ipairs(MODULES) do
     local text = read(module.path)
     if text and text ~= sources[module.name] then
@@ -98,11 +122,6 @@ local function check_reload(force)
     end
   end
 end
-
--- ---- the mock controller ----
-
-S.model = dofile(dir .. "mft_model.lua")
-S.mft = S.model.new()
 
 -- ---- the window ----
 
@@ -155,12 +174,17 @@ local function draw_lab_controls()
   if visible then
     local _
     _, S.animate = ImGui.Checkbox(ctx, "Turn the encoders by themselves", S.animate)
+    -- Where the value of a knob is shown.
+    ImGui.Text(ctx, "Value of a knob")
+    if ImGui.RadioButton(ctx, "in the label", S.value_mode == "label") then S.value_mode = "label" end
+    if ImGui.RadioButton(ctx, "above the knob", S.value_mode == "above") then S.value_mode = "above" end
+    if ImGui.RadioButton(ctx, "in a pop-up while turning", S.value_mode == "popup") then S.value_mode = "popup" end
     if ImGui.Button(ctx, "Reload now") then
       for _, module in ipairs(MODULES) do sources[module.name] = nil end
       check_reload(true)
     end
     ImGui.SameLine(ctx)
-    if ImGui.Button(ctx, "Reset the mock") then S.mft = S.model.new() end
+    if ImGui.Button(ctx, "Reset the mock") and S.model then S.mft = S.model.new() end
     ImGui.Text(ctx, ("Reloads: %d"):format(S.reloads))
     if S.reloaded_at and reaper.time_precise() - S.reloaded_at < 1.5 then
       ImGui.SameLine(ctx)
@@ -184,18 +208,22 @@ local function draw_frame()
     ImGui.SetNextWindowPos(ctx, 80, 60, ImGui.Cond_FirstUseEver)
     ImGui.SetNextWindowSize(ctx, 760, 800, ImGui.Cond_FirstUseEver)
   end
-  local flags = ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_NoSavedSettings
+  -- The window has no title bar: the panel has its own close and fold buttons, and the window moves when the mouse drags
+  -- an empty part of it. It sizes itself to what the panel shows, so that folding the panel shrinks the window.
+  local flags = ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_NoSavedSettings | ImGui.WindowFlags_NoTitleBar | ImGui.WindowFlags_AlwaysAutoResize
   local visible, open = ImGui.Begin(ctx, "MFT design lab###mftlab", true, flags)
   if visible then
     local x, y = ImGui.GetWindowPos(ctx)
     local w, h = ImGui.GetWindowSize(ctx)
     window = { x = x, y = y, w = w, h = h }
-    if failed then draw_errors() else env.mft_panel.draw(ctx, S) end
+    if failed or not S.model then draw_errors() else env.mft_panel.draw(ctx, S) end
     ImGui.End(ctx)
   end
   ImGui.PopFont(ctx)
   if pushed then env.theme.pop(ctx, pushed) end
   draw_lab_controls()
+  -- The close button of the panel ends the lab.
+  if S.close_requested then return false end
   return open
 end
 
@@ -219,7 +247,7 @@ local function loop()
   reaper.SetExtState(SECTION, "heartbeat", tostring(reaper.time_precise()), false)
   S.frame = S.frame + 1
   check_reload(false)
-  if S.animate then S.model.animate(S.mft, S.frame) end
+  if S.animate and S.model and S.mft then S.model.animate(S.mft, S.frame) end
   if not ctx then new_context() end
 
   local ok, result = xpcall(draw_frame, debug.traceback)

@@ -28,11 +28,12 @@ local function jog(dl, cx, cy, r, color, accent)
   triangle(dl, cx + r, cy, cx + r * 0.66, cy - r * 0.3, cx + r * 0.66, cy + r * 0.3, accent)
 end
 
--- The next item: a bar, an arrow that goes to the right, and the item.
-local function item(dl, cx, cy, r, color, accent)
-  line(dl, cx - r * 0.95, cy - r * 0.55, cx - r * 0.95, cy + r * 0.55, color, 2)
-  triangle(dl, cx - r * 0.6, cy - r * 0.4, cx - r * 0.6, cy + r * 0.4, cx - r * 0.05, cy, accent)
-  ImGui.DrawList_AddRect(dl, cx + r * 0.2, cy - r * 0.45, cx + r * 0.95, cy + r * 0.45, color, 2, 0, 2)
+-- Play and pause: the play triangle, and the two bars of the pause. Nothing else is drawn, so that it cannot be read as
+-- a stop.
+local function play_pause(dl, cx, cy, r, color, accent)
+  triangle(dl, cx - r * 0.95, cy - r * 0.6, cx - r * 0.95, cy + r * 0.6, cx - r * 0.05, cy, accent)
+  ImGui.DrawList_AddRectFilled(dl, cx + r * 0.3, cy - r * 0.6, cx + r * 0.55, cy + r * 0.6, color, 1)
+  ImGui.DrawList_AddRectFilled(dl, cx + r * 0.75, cy - r * 0.6, cx + r * 1.0, cy + r * 0.6, color, 1)
 end
 
 -- A magnifying glass: the lens, and its handle.
@@ -93,10 +94,15 @@ local function track(dl, cx, cy, r, color, accent)
   triangle(dl, cx + r * 0.7, cy + r * 0.95, cx + r * 0.45, cy + r * 0.45, cx + r * 0.95, cy + r * 0.45, color)
 end
 
--- The marker: a pole, and a flag.
+-- The marker jog: a flag on a pole, and under it a double arrow that points left and right, the directions in which the
+-- jog moves from marker to marker.
 local function marker(dl, cx, cy, r, color, accent)
-  line(dl, cx - r * 0.55, cy - r * 0.95, cx - r * 0.55, cy + r * 0.95, color, 2)
-  triangle(dl, cx - r * 0.55, cy - r * 0.95, cx + r * 0.9, cy - r * 0.45, cx - r * 0.55, cy + r * 0.05, accent)
+  line(dl, cx - r * 0.3, cy - r * 0.95, cx - r * 0.3, cy + r * 0.4, color, 2)
+  triangle(dl, cx - r * 0.3, cy - r * 0.95, cx + r * 0.9, cy - r * 0.55, cx - r * 0.3, cy - r * 0.1, accent)
+  local y = cy + r * 0.85
+  line(dl, cx - r * 0.7, y, cx + r * 0.7, y, color, 2)
+  triangle(dl, cx - r * 0.95, y, cx - r * 0.65, y - r * 0.2, cx - r * 0.65, y + r * 0.2, color)
+  triangle(dl, cx + r * 0.95, y, cx + r * 0.65, y - r * 0.2, cx + r * 0.65, y + r * 0.2, color)
 end
 
 -- ---- the icons of the side keys, small ones ----
@@ -148,13 +154,58 @@ local function phase(dl, cx, cy, r, color)
   line(dl, cx - r * 0.95, cy + r * 0.95, cx + r * 0.95, cy - r * 0.95, color, 1.7)
 end
 
-local ICONS = { jog = jog, chain = chain, hide = hide, fxsel = fxsel, mute = mute, solo = solo, phase = phase, item = item, zoom_h = zoom_h, zoom_v = zoom_v, rate = rate, grid = grid, track = track, marker = marker }
+local ICONS = { jog = jog, chain = chain, hide = hide, fxsel = fxsel, mute = mute, solo = solo, phase = phase, play_pause = play_pause, zoom_h = zoom_h, zoom_v = zoom_v, rate = rate, grid = grid, track = track, marker = marker }
+
+-- ---- the volume of an icon ----
+
+-- The tone of a color made darker: each channel is multiplied by `factor`, and the opacity is kept.
+local function shade(color, factor)
+  local r = math.floor(((color >> 24) & 0xFF) * factor)
+  local g = math.floor(((color >> 16) & 0xFF) * factor)
+  local b = math.floor(((color >> 8) & 0xFF) * factor)
+  return (r << 24) | (g << 16) | (b << 8) | (color & 0xFF)
+end
+
+-- How far the icon is extruded: the number of stacked copies that make its side, and the offset of the farthest one,
+-- down and to the right, in pixels. The side is darker the farther it is from the face.
+local WALL_LAYERS = 4
+local WALL_DX, WALL_DY = 1.1, 1.7
+local WALL_NEAR, WALL_FAR = 0.62, 0.30 -- how much of the face's brightness the nearest and the farthest copy keep
+-- The soft shadow that the icon throws on the surface, as two copies farther than the wall: their offsets and opacities.
+-- A shadow in a color is more opaque than a black one by this factor, because a color on a dark surface is fainter.
+local SHADOWS = { { 2.1, 3.0, 0x2A }, { 1.5, 2.3, 0x44 } }
+local TINTED_SHADOW_BOOST = 1.0
+-- The light edge on the upper left of the face.
+local RIM = 0xFFFFFF58
+local RIM_DX, RIM_DY = -0.55, -0.7
 
 -- Draws the icon of that name around the center (cx, cy), `r` pixels from the center to the edge of its square. A
--- name that has no icon draws nothing.
-function M.draw(dl, name, cx, cy, r, color, accent)
+-- name that has no icon draws nothing. With `depth`, the icon has volume, as if it were cut out of a thick piece of
+-- material and stood on the surface: from the back to the front, it is drawn as two soft shadows, then as a stack of
+-- copies that grow brighter toward the face and form its side wall, then as a light edge that shows on the upper left of
+-- the face, and then as the face itself. The shadows are black, or a faded `shadow_color` when it is given, such as the
+-- accent of the mode in use.
+function M.draw(dl, name, cx, cy, r, color, accent, depth, shadow_color)
   local draw = ICONS[name]
-  if draw then draw(dl, cx, cy, r, color, accent) end
+  if not draw then return end
+  if depth then
+    for _, shadow in ipairs(SHADOWS) do
+      local tone
+      if shadow_color then
+        tone = (shadow_color & 0xFFFFFF00) | math.min(0xFF, math.floor(shadow[3] * TINTED_SHADOW_BOOST))
+      else
+        tone = shadow[3] -- black, with that opacity
+      end
+      draw(dl, cx + shadow[1], cy + shadow[2], r, tone, tone)
+    end
+    for layer = WALL_LAYERS, 1, -1 do
+      local t = layer / WALL_LAYERS
+      local factor = WALL_NEAR + (WALL_FAR - WALL_NEAR) * t
+      draw(dl, cx + WALL_DX * t, cy + WALL_DY * t, r, shade(color, factor), shade(accent, factor))
+    end
+    draw(dl, cx + RIM_DX, cy + RIM_DY, r, RIM, RIM)
+  end
+  draw(dl, cx, cy, r, color, accent)
 end
 
 return M
