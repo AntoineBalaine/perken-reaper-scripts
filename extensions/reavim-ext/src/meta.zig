@@ -54,7 +54,7 @@ pub fn afterExecute(cmd: builder.Command) void {
 
 fn appendToMacro(register: u16, cmd: builder.Command) void {
     const gop = macros.getOrPut(gpa, register) catch return;
-    if (!gop.found_existing) gop.value_ptr.* = .{};
+    if (!gop.found_existing) gop.value_ptr.* = .empty;
     gop.value_ptr.append(gpa, cmd) catch {};
 }
 

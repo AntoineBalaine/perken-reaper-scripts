@@ -69,6 +69,7 @@ fn persistPath(buf: []u8) ?[]const u8 {
 }
 
 fn persistEnabled(on: bool) void {
+    const io = state.io();
     const resource = std.mem.span(Reaper.GetResourcePath());
     var dbuf: [std.fs.max_path_bytes]u8 = undefined;
     const dir = std.fmt.bufPrint(&dbuf, "{s}/Data/Perken", .{resource}) catch return;
@@ -83,10 +84,10 @@ fn persistEnabled(on: bool) void {
         _ = win_file.writeFile(path, content);
         return;
     }
-    std.fs.makeDirAbsolute(dir) catch {}; // ok if it already exists (Data/ always does)
-    const file = std.fs.createFileAbsolute(path, .{}) catch return;
-    defer file.close();
-    file.writeAll(content) catch {};
+    std.Io.Dir.createDirAbsolute(io, dir, .default_dir) catch {}; // ok if it already exists (Data/ always does)
+    const file = std.Io.Dir.createFileAbsolute(io, path, .{}) catch return;
+    defer file.close(io);
+    file.writeStreamingAll(io, content) catch {};
 }
 
 pub fn toggle() void {
@@ -100,15 +101,16 @@ pub fn toggle() void {
 /// Restore the on/off state persisted by a previous session.
 /// Call once at load, after bindings are set.
 pub fn restoreState() void {
+    const io = state.io();
     var pbuf: [std.fs.max_path_bytes]u8 = undefined;
     const path = persistPath(&pbuf) orelse return;
     var content: [64]u8 = undefined;
     const read: []const u8 = if (builtin.os.tag == .windows)
         win_file.readFileInto(path, &content) orelse return
     else got: {
-        const file = std.fs.openFileAbsolute(path, .{}) catch return;
-        defer file.close();
-        const n = file.readAll(&content) catch return;
+        const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return;
+        defer file.close(io);
+        const n = file.readPositionalAll(io, &content, 0) catch return;
         break :got content[0..n];
     };
     if (std.mem.indexOf(u8, read, "enabled=1") != null) {
@@ -175,8 +177,8 @@ fn clearPending() void {
 }
 
 fn setLastAction(cmd: builder.Command) void {
-    var fbs = std.io.fixedBufferStream(&last_action_buf);
-    const w = fbs.writer();
+    var fbs: std.Io.Writer = .fixed(&last_action_buf);
+    const w = &fbs;
     var i: usize = 0;
     while (i < cmd.n()) : (i += 1) {
         if (i > 0) w.writeAll(" + ") catch break;
@@ -184,7 +186,7 @@ fn setLastAction(cmd: builder.Command) void {
         if (k.prefixed_repetitions > 1) w.print("{d}x ", .{k.prefixed_repetitions}) catch break;
         w.writeAll(k.name) catch break;
     }
-    last_action_len = fbs.getWritten().len;
+    last_action_len = fbs.buffered().len;
 }
 
 fn contextOf(msg: *accel.MSG) Context {

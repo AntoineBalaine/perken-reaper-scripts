@@ -192,10 +192,10 @@ fn mark(ctx: *actions.RunCtx) void {
     var old_buf: [payload_max]u8 = undefined;
     if (loadMark(register, &old_buf)) |old| deleteMarkIndication(old);
 
-    var payload: std.ArrayList(u8) = .empty;
-    defer payload.deinit(helpers.allocator);
-    writePayload(payload.writer(), new_mark) catch return;
-    const z = payload.toOwnedSliceSentinel(helpers.allocator, 0) catch return;
+    var payload: std.Io.Writer.Allocating = .init(helpers.allocator);
+    defer payload.deinit();
+    writePayload(&payload.writer, new_mark) catch return;
+    const z = payload.toOwnedSliceSentinel(0) catch return;
     defer helpers.allocator.free(z);
     setMarkPayload(register, z.ptr);
 
@@ -291,11 +291,11 @@ test "mark payload round-trips" {
         .last_guid = "{01234567-89AB-CDEF-0123-456789ABCDEF}",
         .guids = "{A},{B},{C}",
     };
-    var list: std.ArrayList(u8) = .empty;
-    defer list.deinit(std.testing.allocator);
-    try writePayload(list.writer(), original);
+    var list: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer list.deinit();
+    try writePayload(&list.writer, original);
 
-    const parsed = parseMark(list.items).?;
+    const parsed = parseMark(list.written()).?;
     try std.testing.expectEqual(original.typ, parsed.typ);
     try std.testing.expectEqual(original.index, parsed.index);
     try std.testing.expectEqual(original.left, parsed.left);

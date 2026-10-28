@@ -4213,13 +4213,14 @@ pub fn isApiFunction(name: []const u8) bool {
 
 /// Finds the REAPER functions that `source` uses through a `Reaper.` or
 /// `reaper.` prefix but that `listed` does not name, and appends each one to
-/// `out` once.
+/// `out`, which grows with `gpa`, once.
 ///
 /// Because an extension that loads its API with `reaper.initSubset` leaves an
 /// unlisted function as a null pointer, calling it crashes REAPER, and nothing
 /// fails at compile time. Each extension runs this over its sources in a unit
 /// test, so that a forgotten name fails the tests instead of crashing REAPER.
 pub fn unlistedCalls(
+    gpa: std.mem.Allocator,
     source: []const u8,
     listed: []const [:0]const u8,
     out: *std.ArrayList([]const u8),
@@ -4242,15 +4243,17 @@ pub fn unlistedCalls(
         if (name.len == 0 or !isApiFunction(name)) continue;
         if (isListed(name, listed)) continue;
         if (isListed(name, out.items)) continue;
-        try out.append(name);
+        try out.append(gpa, name);
     }
 }
 
 /// Runs unlistedCalls over every .zig file in `paths`, where a path is either
 /// a source file or a folder that is searched recursively. The files are read
-/// into `arena`, which must outlive `out`, since the names point into them.
+/// into `arena`, which must outlive `out`, since the names point into them;
+/// `out` grows with `gpa`.
 pub fn unlistedCallsInPaths(
     arena: std.mem.Allocator,
+    gpa: std.mem.Allocator,
     io: std.Io,
     paths: []const []const u8,
     listed: []const [:0]const u8,
@@ -4259,7 +4262,7 @@ pub fn unlistedCallsInPaths(
     for (paths) |path| {
         if (std.mem.endsWith(u8, path, ".zig")) {
             const source = try std.Io.Dir.cwd().readFileAlloc(io, path, arena, .limited(1 << 24));
-            try unlistedCalls(source, listed, out);
+            try unlistedCalls(gpa, source, listed, out);
             continue;
         }
         var dir = try std.Io.Dir.cwd().openDir(io, path, .{ .iterate = true });
@@ -4269,7 +4272,7 @@ pub fn unlistedCallsInPaths(
         while (try walker.next(io)) |entry| {
             if (entry.kind != .file or !std.mem.endsWith(u8, entry.basename, ".zig")) continue;
             const source = try entry.dir.readFileAlloc(io, entry.basename, arena, .limited(1 << 24));
-            try unlistedCalls(source, listed, out);
+            try unlistedCalls(gpa, source, listed, out);
         }
     }
 }
@@ -4284,7 +4287,7 @@ fn isListed(name: []const u8, names: anytype) bool {
 test "unlistedCalls reports each unlisted API function once" {
     var out: std.ArrayList([]const u8) = .empty;
     defer out.deinit(std.testing.allocator);
-    try unlistedCalls(
+    try unlistedCalls(std.testing.allocator,
         \\_ = Reaper.CountTracks(null);
         \\_ = reaper.MIDI_GetGrid(take, &a, &b);
         \\_ = Reaper.MIDI_GetGrid(take, &a, &b);

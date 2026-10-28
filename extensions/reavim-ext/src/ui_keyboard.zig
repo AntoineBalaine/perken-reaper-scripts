@@ -94,7 +94,7 @@ pub const Frame = struct {
     unit: f64,
     cap_h: f64,
     line_h: f64,
-    used: [@typeInfo(keyboard.Category).@"struct".field_names.len]bool = @splat(false),
+    used: [@typeInfo(keyboard.Category).@"enum".field_names.len]bool = @splat(false),
     label_buf: [192:0]u8 = undefined,
 };
 
@@ -309,7 +309,7 @@ fn drawLabel(frame: *Frame, text: []const u8, x: f64, y: f64, max_w: f64, color:
         const shown = if (last) ui.fitDesc(frame.ctx, rest, max_w, &trim_buf) else utils.safePrint(&line_buf, "{s}", .{rest[0..cut]});
         var z_buf: [256:0]u8 = undefined;
         imgui.api.DrawList_AddText(frame.draw_list, x, line_y, color, utils.safePrint(&z_buf, "{s}", .{shown}));
-        rest = std.mem.trimLeft(u8, rest[cut..], " ");
+        rest = std.mem.trimStart(u8, rest[cut..], " ");
         line_y += frame.line_h;
     }
 }

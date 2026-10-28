@@ -17,6 +17,7 @@ pub const default_bindings = @embedFile("default_bindings.ini");
 /// embedded defaults first if it does not exist yet. Reachable both as the
 /// "EditBindings" binding action and the REAPER "ReaVim: Edit bindings" action.
 pub fn editBindings() void {
+    const io = state.io();
     const resource = std.mem.span(Reaper.GetResourcePath());
     var dbuf: [std.fs.max_path_bytes]u8 = undefined;
     const dir = std.fmt.bufPrint(&dbuf, "{s}/Data/Perken", .{resource}) catch return;
@@ -31,11 +32,11 @@ pub fn editBindings() void {
             _ = win_file.writeFile(path, default_bindings);
         }
     } else {
-        std.fs.makeDirAbsolute(dir) catch {};
-        std.fs.accessAbsolute(path, .{}) catch {
-            const f = std.fs.createFileAbsolute(path, .{}) catch return;
-            defer f.close();
-            f.writeAll(default_bindings) catch {};
+        std.Io.Dir.createDirAbsolute(io, dir, .default_dir) catch {};
+        std.Io.Dir.accessAbsolute(io, path, .{}) catch {
+            const f = std.Io.Dir.createFileAbsolute(io, path, .{}) catch return;
+            defer f.close(io);
+            f.writeStreamingAll(io, default_bindings) catch {};
         };
     }
     const argv: []const []const u8 = switch (builtin.os.tag) {
@@ -43,12 +44,11 @@ pub fn editBindings() void {
         .windows => &.{ "cmd", "/c", "start", "", path },
         else => &.{ "xdg-open", path },
     };
-    var child = std.process.Child.init(argv, std.heap.c_allocator);
-    child.spawn() catch |err| {
+    var child = std.process.spawn(io, .{ .argv = argv }) catch |err| {
         log.warn("could not open bindings editor: {s}", .{@errorName(err)});
         return;
     };
-    _ = child.wait() catch {};
+    _ = child.wait(io) catch {};
 }
 
 fn editBindingsAction(_: *actions.RunCtx) void {

@@ -10,6 +10,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const build_options = @import("build_options");
 const Reaper = @import("reaper").reaper;
+const host_io = @import("host_io");
+const state = @import("state.zig");
 const accel = @import("accel.zig");
 const logger = @import("logger.zig");
 const vim = @import("vim.zig");
@@ -130,9 +132,11 @@ fn loadBindings() void {
         } else {
             ext_log.info("no user bindings at {s} — using built-in defaults", .{path});
         }
-    } else if (std.fs.openFileAbsolute(path, .{})) |file| {
-        defer file.close();
-        if (config.parse(alloc, &registry.?, file.reader())) |b| {
+    } else if (std.Io.Dir.openFileAbsolute(state.io(), path, .{})) |file| {
+        defer file.close(state.io());
+        var file_buffer: [4096]u8 = undefined;
+        var file_reader = file.reader(state.io(), &file_buffer);
+        if (config.parse(alloc, &registry.?, &file_reader.interface)) |b| {
             bindings = b;
             ext_log.info("bindings loaded from {s}", .{path});
         } else |err| {
@@ -154,8 +158,12 @@ fn loadBindings() void {
 export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_info_t) c_int {
     _ = instance;
 
-    if (rec == null)
+    if (rec == null) {
+        state.io_threaded.deinit();
         return 0; // cleanup
+    }
+
+    state.io_threaded = host_io.create();
 
     if (!Reaper.initSubset(rec.?, &reaper_api))
         return 0;
@@ -308,7 +316,7 @@ test "the MIDI editor keymap: note selection, quantize and note editing keys" {
     for (checks) |c| {
         var keys: std.ArrayList(keymod.Key) = .empty;
         defer keys.deinit(std.testing.allocator);
-        try keymod.parseSequence(c.keys, &keys);
+        try keymod.parseSequence(std.testing.allocator, c.keys, &keys);
         const got = builder.build(&b.tables, c.ctx, .normal, keys.items);
         if (c.want) |w| {
             try std.testing.expect(got != null);
@@ -320,6 +328,7 @@ test "the MIDI editor keymap: note selection, quantize and note editing keys" {
 }
 
 test "every REAPER function the sources call is in reaper_api" {
+    const io = std.testing.io;
     // Because initSubset leaves an unlisted function as a null pointer, a
     // forgotten name compiles fine and then crashes REAPER when the action
     // runs. This test reads the sources and fails on such a name instead.
@@ -328,7 +337,7 @@ test "every REAPER function the sources call is in reaper_api" {
     var unlisted: std.ArrayList([]const u8) = .empty;
     defer unlisted.deinit(std.testing.allocator);
     const api = @import("reaper");
-    try api.unlistedCallsInPaths(arena.allocator(), @import("test_paths").sources, &reaper_api, &unlisted);
+    try api.unlistedCallsInPaths(arena.allocator(), std.testing.allocator, io, &.{ @import("test_paths").src_dir, @import("test_paths").reaper_helpers }, &reaper_api, &unlisted);
     for (unlisted.items) |name| std.debug.print("REAPER function used but missing from reaper_api: {s}\n", .{name});
     try std.testing.expectEqual(@as(usize, 0), unlisted.items.len);
 }

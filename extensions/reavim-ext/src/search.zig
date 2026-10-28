@@ -34,7 +34,7 @@ pub const MAX_DEPTH = 16;
 
 pub const Index = struct {
     arena: std.heap.ArenaAllocator,
-    entries: std.ArrayListUnmanaged(Entry) = .{},
+    entries: std.ArrayListUnmanaged(Entry) = .empty,
     ctx: grammar.Context = .main,
     mode: grammar.Mode = .normal,
 
@@ -68,11 +68,11 @@ pub fn rebuild(
     desc_fn: DescFn,
 ) !void {
     _ = index.arena.reset(.retain_capacity);
-    index.entries = .{};
+    index.entries = .empty;
     index.ctx = ctx;
     index.mode = mode;
 
-    var seen: [@typeInfo(grammar.ActionType).@"struct".field_names.len]bool = @splat(false);
+    var seen: [@typeInfo(grammar.ActionType).@"enum".field_names.len]bool = @splat(false);
     for (grammar.candidatesFor(ctx, mode)) |cand| {
         const t = cand.types[0];
         if (seen[@backingInt(t)]) continue;
@@ -219,7 +219,7 @@ const test_defs = [_]actions.Entry{
 fn bindTest(reg: *const actions.Registry, tables: *builder.BindingTables, t: grammar.ActionType, seq: []const u8, name: []const u8) !void {
     var keys: std.ArrayList(Key) = .empty;
     defer keys.deinit(std.testing.allocator);
-    try keymod.parseSequence(seq, &keys);
+    try keymod.parseSequence(std.testing.allocator, seq, &keys);
     try tables.getMut(.main, t).insert(keys.items, .{ .name = name, .def = reg.get(name).? });
 }
 

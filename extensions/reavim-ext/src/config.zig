@@ -139,14 +139,14 @@ fn parseValue(raw: []const u8, arena: std.mem.Allocator) !Value {
     if (v[0] == '+') return .{ .label = try arena.dupe(u8, v[1..]) };
     if (std.mem.eql(u8, v, "@unbind")) return .unbind;
     if (v[0] == '@') {
-        inline for (@typeInfo(lib_state.builtin_defs).@"struct".decls) |d| {
-            if (std.mem.eql(u8, v[1..], d.name))
-                return .{ .builtin = &@field(lib_state.builtin_defs, d.name) };
+        inline for (@typeInfo(lib_state.builtin_defs).@"struct".decl_names) |d_name| {
+            if (std.mem.eql(u8, v[1..], d_name))
+                return .{ .builtin = &@field(lib_state.builtin_defs, d_name) };
         }
         return error.UnknownBuiltin;
     }
     if (std.fmt.parseInt(c_int, v, 10)) |id| return .{ .cmd = id } else |_| {}
-    if (v[0] == '_') return .{ .named = try arena.dupeZ(u8, v) };
+    if (v[0] == '_') return .{ .named = try arena.dupeSentinel(u8, v, 0) };
     return .{ .name = try arena.dupe(u8, v) };
 }
 
@@ -199,7 +199,7 @@ fn toBindingValue(
 pub fn parse(
     gpa: std.mem.Allocator,
     registry: *const actions.Registry,
-    reader: anytype,
+    reader: *std.Io.Reader,
 ) !Bindings {
     var b = Bindings{
         .arena = std.heap.ArenaAllocator.init(gpa),
@@ -218,7 +218,7 @@ pub fn parse(
     var entries: std.ArrayList(RawEntry) = .empty;
     defer entries.deinit(gpa);
 
-    var parser = ini.parse(gpa, reader);
+    var parser = ini.parse(gpa, reader, ";#");
     defer parser.deinit();
 
     var section: CurSection = .unknown;
@@ -268,7 +268,7 @@ pub fn parse(
                 },
                 .binding => |sec| {
                     keybuf.clearRetainingCapacity();
-                    keymod.parseSequence(kv.key, &keybuf) catch |err| {
+                    keymod.parseSequence(gpa, kv.key, &keybuf) catch |err| {
                         log.warn("bad key sequence '{s}': {s} — skipped", .{ kv.key, @errorName(err) });
                         continue;
                     };
@@ -320,8 +320,8 @@ pub fn parse(
 }
 
 pub fn parseString(gpa: std.mem.Allocator, registry: *const actions.Registry, text: []const u8) !Bindings {
-    var fbs = std.io.fixedBufferStream(text);
-    return parse(gpa, registry, fbs.reader());
+    var fbs: std.Io.Reader = .fixed(text);
+    return parse(gpa, registry, &fbs);
 }
 
 // ---- tests ----
@@ -421,12 +421,12 @@ test "quoted keys with comment chars bind" {
     var keys: std.ArrayList(keymod.Key) = .empty;
     defer keys.deinit(std.testing.allocator);
 
-    try keymod.parseSequence(";", &keys);
+    try keymod.parseSequence(std.testing.allocator, ";", &keys);
     const semi = builder.build(&b.tables, .main, .normal, keys.items).?;
     try std.testing.expectEqual(@as(c_int, 40912), semi.keys[0].def.steps[0].cmd);
 
     keys.clearRetainingCapacity();
-    try keymod.parseSequence("x#1", &keys);
+    try keymod.parseSequence(std.testing.allocator, "x#1", &keys);
     const hash = builder.build(&b.tables, .main, .normal, keys.items).?;
     try std.testing.expectEqual(@as(c_int, 40913), hash.keys[0].def.steps[0].cmd);
 }
@@ -445,7 +445,7 @@ test "unbind drops a global binding in one context only" {
     defer b.deinit();
     var keys: std.ArrayList(keymod.Key) = .empty;
     defer keys.deinit(std.testing.allocator);
-    try keymod.parseSequence("j", &keys);
+    try keymod.parseSequence(std.testing.allocator, "j", &keys);
     try std.testing.expect(builder.build(&b.tables, .main, .normal, keys.items) != null);
     try std.testing.expect(builder.build(&b.tables, .midi, .normal, keys.items) == null);
 }
@@ -478,20 +478,20 @@ test "parse new format with registry names, raw ids, global merge and shadowing"
     defer keys.deinit(std.testing.allocator);
 
     // dj builds as track_op_motion through the grammar
-    try keymod.parseSequence("dj", &keys);
+    try keymod.parseSequence(std.testing.allocator, "dj", &keys);
     const cmd = builder.build(&b.tables, .main, .normal, keys.items).?;
     try std.testing.expectEqual(grammar.Composition.track_op_motion, cmd.comp);
     try std.testing.expectEqualStrings("RemoveTracks", cmd.keys[0].name);
 
     // global u reaches both contexts
     keys.clearRetainingCapacity();
-    try keymod.parseSequence("u", &keys);
+    try keymod.parseSequence(std.testing.allocator, "u", &keys);
     try std.testing.expect(builder.build(&b.tables, .main, .normal, keys.items) != null);
     try std.testing.expect(builder.build(&b.tables, .midi, .normal, keys.items) != null);
 
     // midi x shadows global x
     keys.clearRetainingCapacity();
-    try keymod.parseSequence("x", &keys);
+    try keymod.parseSequence(std.testing.allocator, "x", &keys);
     const mx = builder.build(&b.tables, .midi, .normal, keys.items).?;
     try std.testing.expectEqual(@as(c_int, 40002), mx.keys[0].def.steps[0].cmd);
     try std.testing.expect(mx.keys[0].def.midi_command);
@@ -500,7 +500,7 @@ test "parse new format with registry names, raw ids, global merge and shadowing"
 
     // builtin
     keys.clearRetainingCapacity();
-    try keymod.parseSequence("i", &keys);
+    try keymod.parseSequence(std.testing.allocator, "i", &keys);
     const bi = builder.build(&b.tables, .main, .normal, keys.items).?;
     try std.testing.expectEqualStrings("Enter insert mode", bi.keys[0].name);
 }

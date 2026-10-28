@@ -3,3 +3,4 @@ zig-out/
 reaper-license.rk
 dist/
 *.tar.gz
+zig-pkg/

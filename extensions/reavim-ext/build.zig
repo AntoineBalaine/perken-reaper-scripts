@@ -9,21 +9,24 @@ pub fn build(b: *std.Build) void {
     const ini_dep = b.dependency("ini", .{ .target = target, .optimize = optimize });
     const wdl_dep = b.dependency("WDL", .{ .target = target, .optimize = optimize });
 
-    const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .Debug);
+    const strip = b.option(bool, "strip", "strip debug info") orelse (optimize != .debug);
     // The release version, baked into the binary so that it knows which
     // release it came from. CI passes it from the <name>-v<version> tag.
     const version = b.option([]const u8, "version", "Version string baked into the binary") orelse "dev";
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", version);
 
-    const lib = b.addSharedLibrary(.{
+    const lib = b.addLibrary(.{
+        .linkage = .dynamic,
         .name = "reaper_reavim",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .strip = strip,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .strip = strip,
+            .link_libc = true,
+        }),
     });
-    lib.linkLibC();
     reaziglib.addSharedModules(reazig_dep, lib.root_module);
     lib.root_module.addImport("ini", ini_dep.module("ini"));
     lib.root_module.addOptions("build_options", build_options);
@@ -50,21 +53,23 @@ pub fn build(b: *std.Build) void {
 
     const test_exe = b.addTest(.{
         .name = "reavim_tests",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = .Debug,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = .debug,
+            .link_libc = true,
+        }),
     });
-    test_exe.linkLibC();
     reaziglib.addSharedModules(reazig_dep, test_exe.root_module);
     test_exe.root_module.addImport("ini", ini_dep.module("ini"));
     test_exe.root_module.addOptions("build_options", build_options);
     // The sources that the API-list test scans: this extension's own, and
     // the shared reaper_helpers module it compiles in from reaziglib.
+    // Because the build script no longer resolves paths itself since Zig
+    // 0.17, the options receive them as tracked paths.
     const test_paths = b.addOptions();
-    test_paths.addOption([]const []const u8, "sources", &.{
-        b.pathFromRoot("src"),
-        reazig_dep.path("src/reaper_helpers.zig").getPath(b),
-    });
+    test_paths.addOptionPathDirectory("src_dir", b.path("src"));
+    test_paths.addOptionPath("reaper_helpers", reazig_dep.path("src/reaper_helpers.zig"));
     test_exe.root_module.addOptions("test_paths", test_paths);
 
     const run_test = b.addRunArtifact(test_exe);

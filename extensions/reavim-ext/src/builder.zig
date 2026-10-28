@@ -26,7 +26,7 @@ pub const KeyTrie = trie_mod.Trie(BindingValue);
 
 /// Per-(context, action_type) tries with global already merged underneath.
 pub const BindingTables = struct {
-    tries: [@typeInfo(grammar.Context).@"struct".field_names.len][@typeInfo(grammar.ActionType).@"struct".field_names.len]KeyTrie,
+    tries: [@typeInfo(grammar.Context).@"enum".field_names.len][@typeInfo(grammar.ActionType).@"enum".field_names.len]KeyTrie,
     /// The motion that a doubled track operator ("dd", "MM") composes with.
     /// It is resolved from the registry at config load; when it is null,
     /// doubled operators are not recognized.
@@ -371,7 +371,7 @@ const TestEnv = struct {
     fn bind(env: *TestEnv, ctx: grammar.Context, t: grammar.ActionType, seq: []const u8, name: []const u8) !void {
         var keys: std.ArrayList(Key) = .empty;
         defer keys.deinit(env.alloc);
-        try keymod.parseSequence(seq, &keys);
+        try keymod.parseSequence(env.alloc, seq, &keys);
         const def = env.reg.get(name).?;
         try env.tables.getMut(ctx, t).insert(keys.items, .{ .name = name, .def = def });
     }
@@ -383,7 +383,7 @@ const TestEnv = struct {
     fn parseIn(env: *const TestEnv, mode: grammar.Mode, seq: []const u8) !?Command {
         var keys: std.ArrayList(Key) = .empty;
         defer keys.deinit(std.testing.allocator);
-        try keymod.parseSequence(seq, &keys);
+        try keymod.parseSequence(std.testing.allocator, seq, &keys);
         return build(&env.tables, .main, mode, keys.items);
     }
 };
@@ -477,12 +477,12 @@ test "completions: pending prefix and next chunk" {
 
     var keys: std.ArrayList(Key) = .empty;
     defer keys.deinit(std.testing.allocator);
-    try keymod.parseSequence("g", &keys);
+    try keymod.parseSequence(std.testing.allocator, "g", &keys);
     const after_g = completions(&env.tables, .main, .normal, keys.items, &buf);
     try std.testing.expectEqual(@as(usize, 1), after_g.len); // 'g' -> gg
 
     keys.clearRetainingCapacity();
-    try keymod.parseSequence("d", &keys);
+    try keymod.parseSequence(std.testing.allocator, "d", &keys);
     const after_d = completions(&env.tables, .main, .normal, keys.items, &buf);
     // after the operator chunk 'd', the motion roots are offered: j, g
     try std.testing.expect(after_d.len >= 2);
@@ -517,7 +517,7 @@ test "completions: a lone operator offers itself again" {
     var buf: [16]Completion = undefined;
     var keys: std.ArrayList(Key) = .empty;
     defer keys.deinit(std.testing.allocator);
-    try keymod.parseSequence("M", &keys);
+    try keymod.parseSequence(std.testing.allocator, "M", &keys);
     const after_m = completions(&env.tables, .main, .normal, keys.items, &buf);
     var found = false;
     for (after_m) |c| {

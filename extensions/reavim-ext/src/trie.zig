@@ -17,7 +17,7 @@ pub fn Trie(comptime V: type) type {
             label: ?[]const u8 = null,
         };
 
-        nodes: std.ArrayListUnmanaged(Node) = .{},
+        nodes: std.ArrayListUnmanaged(Node) = .empty,
         allocator: std.mem.Allocator,
 
         pub fn init(allocator: std.mem.Allocator) !Self {

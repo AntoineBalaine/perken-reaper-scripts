@@ -133,11 +133,11 @@ pub fn parseToken(input: []const u8) ParseError!struct { key: Key, len: usize } 
 }
 
 /// Parses a full sequence like "gg" or "<C-w>j" into keys appended to `out`.
-pub fn parseSequence(input: []const u8, out: *std.ArrayList(Key)) ParseError!void {
+pub fn parseSequence(gpa: std.mem.Allocator, input: []const u8, out: *std.ArrayList(Key)) ParseError!void {
     var rest = input;
     while (rest.len > 0) {
         const tok = try parseToken(rest);
-        out.append(tok.key) catch return error.EmptyToken;
+        out.append(gpa, tok.key) catch return error.EmptyToken;
         rest = rest[tok.len..];
     }
 }
@@ -204,8 +204,8 @@ fn parseBracketGroup(inner: []const u8) ParseError!Key {
 
 /// Formats a key back to vim notation (for the feedback UI / logs).
 pub fn format(key: Key, buf: []u8) []const u8 {
-    var fbs = std.io.fixedBufferStream(buf);
-    const w = fbs.writer();
+    var fbs: std.Io.Writer = .fixed(buf);
+    const w = &fbs;
 
     const name: ?[]const u8 = switch (key.vk) {
         VK.SPACE => "space",
@@ -234,31 +234,31 @@ pub fn format(key: Key, buf: []u8) []const u8 {
 
     if (!needs_bracket) {
         const c: u8 = if (is_letter and !key.shift) std.ascii.toLower(key.vk) else key.vk;
-        w.writeByte(c) catch return fbs.getWritten();
-        return fbs.getWritten();
+        w.writeByte(c) catch return fbs.buffered();
+        return fbs.buffered();
     }
 
-    w.writeByte('<') catch return fbs.getWritten();
-    if (key.ctrl) w.writeAll("C-") catch return fbs.getWritten();
-    if (key.alt) w.writeAll("M-") catch return fbs.getWritten();
-    if (key.shift and !is_letter) w.writeAll("S-") catch return fbs.getWritten();
+    w.writeByte('<') catch return fbs.buffered();
+    if (key.ctrl) w.writeAll("C-") catch return fbs.buffered();
+    if (key.alt) w.writeAll("M-") catch return fbs.buffered();
+    if (key.shift and !is_letter) w.writeAll("S-") catch return fbs.buffered();
     if (key.is_char) {
         if (key.vk == '<') {
-            w.writeAll("lt") catch return fbs.getWritten();
+            w.writeAll("lt") catch return fbs.buffered();
         } else {
-            w.writeByte(key.vk) catch return fbs.getWritten();
+            w.writeByte(key.vk) catch return fbs.buffered();
         }
     } else if (name) |n| {
-        w.writeAll(n) catch return fbs.getWritten();
+        w.writeAll(n) catch return fbs.buffered();
     } else if (is_letter) {
-        w.writeByte(if (key.shift) key.vk else std.ascii.toLower(key.vk)) catch return fbs.getWritten();
+        w.writeByte(if (key.shift) key.vk else std.ascii.toLower(key.vk)) catch return fbs.buffered();
     } else if (key.vk >= VK.F1 and key.vk < VK.F1 + 12) {
-        w.print("F{d}", .{key.vk - VK.F1 + 1}) catch return fbs.getWritten();
+        w.print("F{d}", .{key.vk - VK.F1 + 1}) catch return fbs.buffered();
     } else {
-        w.print("vk=0x{x:0>2}", .{key.vk}) catch return fbs.getWritten();
+        w.print("vk=0x{x:0>2}", .{key.vk}) catch return fbs.buffered();
     }
-    w.writeByte('>') catch return fbs.getWritten();
-    return fbs.getWritten();
+    w.writeByte('>') catch return fbs.buffered();
+    return fbs.buffered();
 }
 
 test "parse bare letters and shift" {
@@ -295,7 +295,7 @@ test "parse named keys and escapes" {
 test "parse sequence" {
     var keys: std.ArrayList(Key) = .empty;
     defer keys.deinit(std.testing.allocator);
-    try parseSequence("g<C-w>5J", &keys);
+    try parseSequence(std.testing.allocator, "g<C-w>5J", &keys);
     try std.testing.expectEqual(@as(usize, 4), keys.items.len);
     try std.testing.expectEqual(@as(u8, 'G'), keys.items[0].vk);
     try std.testing.expect(keys.items[1].ctrl);

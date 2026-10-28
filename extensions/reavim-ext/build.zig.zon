@@ -7,12 +7,12 @@
         // the extension code using it can land in one commit.
         .reaziglib = .{ .path = "../reaziglib" },
         .ini = .{
-            .url = "https://github.com/AntoineBalaine/ini/archive/5b75cfec6ef76dd563c373bd5aae1ca96fd54fb8.tar.gz",
-            .hash = "N-V-__8AAJDsawBiTNjNT9xhCw08Kw-RongN_n7OdAnOykS9",
+            .url = "https://github.com/AntoineBalaine/ini/archive/626b556a189d734ce59f6d0b71b8fab80282d1a8.tar.gz",
+            .hash = "ini-0.1.0-YCQ9YgKxAAB2BkUapcIR0EpePH6eEt4tLwa-ZHn7fAaL",
         },
         .WDL = .{
             .url = "https://github.com/justinfrankel/WDL/archive/dda0d7519ee9d50d59a39fc1b1a82001416a3dff.tar.gz",
-            .hash = "122026ee38b3ef9cbb44a2cf8f1735ba5dbaef29975560ad3e2f78b43437707a8b9a",
+            .hash = "N-V-__8AABIRpgAm7jiz75y7RKLPjxc1ul267ymXVWCtPi94",
         },
     },
     .paths = .{
