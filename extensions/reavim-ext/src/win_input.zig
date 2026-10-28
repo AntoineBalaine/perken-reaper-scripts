@@ -21,7 +21,7 @@
 const std = @import("std");
 
 const user32 = struct {
-    extern "user32" fn GetKeyState(nVirtKey: c_int) callconv(.C) i16;
+    extern "user32" fn GetKeyState(nVirtKey: c_int) callconv(.c) i16;
 };
 
 /// True if the given win32 virtual-key code is currently held down.

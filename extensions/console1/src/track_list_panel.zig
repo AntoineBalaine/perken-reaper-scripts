@@ -111,7 +111,8 @@ pub fn drawTrackListTwoColumns(ctx: imgui.ContextPtr, state: *State, style_manag
     var rv: ?c1.CCs = null;
     var buf: [TrackList.TrackNameSize + 4:0]u8 = undefined;
 
-    const max_label = safePrint(&buf, "{d:>2}. {s}", .{ 20, "X" ** (TrackList.TrackNameSize - 1) });
+    const widest_name: [TrackList.TrackNameSize - 1]u8 = @splat('X');
+    const max_label = safePrint(&buf, "{d:>2}. {s}", .{ 20, &widest_name });
     var max_label_width: f64 = undefined;
     var max_label_height: f64 = undefined;
     try imgui.CalcTextSize(.{ ctx, max_label, &max_label_width, &max_label_height, false, -1.0 });

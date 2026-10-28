@@ -50,26 +50,33 @@ pub fn RingBufferType(
         /// The number of items in the buffer.
         count: usize = 0,
 
-        pub usingnamespace switch (buffer_type) {
-            .array => struct {
-                pub fn init() RingBuffer {
-                    return .{ .buffer = undefined };
-                }
-            },
-            .slice => struct {
-                pub fn init(allocator: mem.Allocator, capacity: usize) !RingBuffer {
-                    assert(capacity > 0);
-
-                    const buffer = try allocator.alloc(T, capacity);
-                    errdefer allocator.free(buffer);
-                    return RingBuffer{ .buffer = buffer };
-                }
-
-                pub fn deinit(self: *RingBuffer, allocator: mem.Allocator) void {
-                    allocator.free(self.buffer);
-                }
-            },
+        // Because `usingnamespace` is gone since Zig 0.15, each declaration that depends on the buffer type
+        // switches on it.
+        pub const init = switch (buffer_type) {
+            .array => initArray,
+            .slice => initSlice,
         };
+
+        pub const deinit = switch (buffer_type) {
+            .array => @compileError("an array RingBuffer owns no memory to free"),
+            .slice => deinitSlice,
+        };
+
+        pub fn initArray() RingBuffer {
+            return .{ .buffer = undefined };
+        }
+
+        pub fn initSlice(allocator: mem.Allocator, capacity: usize) !RingBuffer {
+            assert(capacity > 0);
+
+            const buffer = try allocator.alloc(T, capacity);
+            errdefer allocator.free(buffer);
+            return RingBuffer{ .buffer = buffer };
+        }
+
+        pub fn deinitSlice(self: *RingBuffer, allocator: mem.Allocator) void {
+            allocator.free(self.buffer);
+        }
 
         pub inline fn clear(self: *RingBuffer) void {
             self.index = 0;

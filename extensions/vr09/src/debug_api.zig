@@ -38,7 +38,7 @@ pub const log_line_cap = 200;
 /// mutex guards it; the critical sections copy a few hundred bytes.
 pub const LogRing = struct {
     lines: [log_lines][log_line_cap]u8 = undefined,
-    lens: [log_lines]u8 = [_]u8{0} ** log_lines,
+    lens: [log_lines]u8 = @splat(0),
     total: u64 = 0,
     mutex: std.Thread.Mutex = .{},
 
@@ -213,7 +213,7 @@ fn cmdState(w: anytype, p: *Plugin) !void {
         s.host_sysex_out.load(.monotonic),
         s.host_sysex_refused.load(.monotonic),
     });
-    const mode: @import("roland.zig").MidiInMode = @enumFromInt(s.mode.load(.monotonic));
+    const mode: @import("roland.zig").MidiInMode = @fromBackingInt(@intCast(s.mode.load(.monotonic)));
     try w.print("\"connected\":{},\"mode\":\"{s}\",\"known_bytes\":{d},\"blocks_failed\":{d},", .{
         s.connected.load(.monotonic),
         @tagName(mode),
@@ -540,7 +540,7 @@ fn cmdCapture(w: anytype, p: *Plugin) !void {
 
 fn cmdJob(w: anytype, p: *Plugin) !void {
     const s = p.shared;
-    const job: @import("engine.zig").JobKind = @enumFromInt(s.job.load(.monotonic));
+    const job: @import("engine.zig").JobKind = @fromBackingInt(@intCast(s.job.load(.monotonic)));
     try w.print("{{\"ok\":true,\"job\":\"{s}\",\"done\":{d},\"total\":{d}}}", .{ @tagName(job), s.progress_done.load(.monotonic), s.progress_total.load(.monotonic) });
 }
 
@@ -609,7 +609,7 @@ fn cstr(p: ?[*:0]const u8) []const u8 {
 }
 
 /// The C function: `const char* VR09_Command(MediaTrack*, int, const char*, const char*)`.
-fn apiCommand(track: ?*anyopaque, fx_index: c_int, command: ?[*:0]const u8, arg: ?[*:0]const u8) callconv(.C) [*:0]const u8 {
+fn apiCommand(track: ?*anyopaque, fx_index: c_int, command: ?[*:0]const u8, arg: ?[*:0]const u8) callconv(.c) [*:0]const u8 {
     var fbs = std.io.fixedBufferStream(out[0 .. out.len - 1]);
     dispatch(fbs.writer(), track, fx_index, cstr(command), cstr(arg)) catch {
         fbs.reset();
@@ -620,13 +620,13 @@ fn apiCommand(track: ?*anyopaque, fx_index: c_int, command: ?[*:0]const u8, arg:
 }
 
 /// The wrapper the scripting languages call, with the arguments in an array.
-fn apiVararg(args: [*c]?*anyopaque, count: c_int) callconv(.C) ?*anyopaque {
+fn apiVararg(args: [*c]?*anyopaque, count: c_int) callconv(.c) ?*anyopaque {
     const n: usize = if (count < 0) 0 else @intCast(count);
     const track = if (n > 0) args[0] else null;
     const fx: c_int = if (n > 1) @intCast(@as(isize, @bitCast(@intFromPtr(args[1])))) else 0;
     const command: ?[*:0]const u8 = if (n > 2) @ptrCast(args[2]) else null;
     const arg: ?[*:0]const u8 = if (n > 3) @ptrCast(args[3]) else null;
-    return @constCast(@ptrCast(apiCommand(track, fx, command, arg)));
+    return @ptrCast(@constCast(apiCommand(track, fx, command, arg)));
 }
 
 const api_def: [:0]const u8 = "const char*\x00MediaTrack*,int,const char*,const char*\x00track,fxindex,command,arg\x00" ++
@@ -640,17 +640,17 @@ var registered = false;
 pub fn register() void {
     if (registered or !glue.ready) return;
     registered = true;
-    _ = Reaper.plugin_register("API_VR09_Command", @constCast(@ptrCast(&apiCommand)));
-    _ = Reaper.plugin_register("APIdef_VR09_Command", @constCast(@ptrCast(api_def.ptr)));
-    _ = Reaper.plugin_register("APIvararg_VR09_Command", @constCast(@ptrCast(&apiVararg)));
+    _ = Reaper.plugin_register("API_VR09_Command", @ptrCast(@constCast(&apiCommand)));
+    _ = Reaper.plugin_register("APIdef_VR09_Command", @ptrCast(@constCast(api_def.ptr)));
+    _ = Reaper.plugin_register("APIvararg_VR09_Command", @ptrCast(@constCast(&apiVararg)));
 }
 
 pub fn unregister() void {
     if (!registered) return;
     registered = false;
-    _ = Reaper.plugin_register("-API_VR09_Command", @constCast(@ptrCast(&apiCommand)));
-    _ = Reaper.plugin_register("-APIdef_VR09_Command", @constCast(@ptrCast(api_def.ptr)));
-    _ = Reaper.plugin_register("-APIvararg_VR09_Command", @constCast(@ptrCast(&apiVararg)));
+    _ = Reaper.plugin_register("-API_VR09_Command", @ptrCast(@constCast(&apiCommand)));
+    _ = Reaper.plugin_register("-APIdef_VR09_Command", @ptrCast(@constCast(api_def.ptr)));
+    _ = Reaper.plugin_register("-APIvararg_VR09_Command", @ptrCast(@constCast(&apiVararg)));
 }
 
 // ---- tests ----

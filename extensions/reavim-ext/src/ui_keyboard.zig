@@ -94,7 +94,7 @@ pub const Frame = struct {
     unit: f64,
     cap_h: f64,
     line_h: f64,
-    used: [std.meta.fields(keyboard.Category).len]bool = [_]bool{false} ** std.meta.fields(keyboard.Category).len,
+    used: [@typeInfo(keyboard.Category).@"struct".field_names.len]bool = @splat(false),
     label_buf: [192:0]u8 = undefined,
 };
 
@@ -287,7 +287,7 @@ fn drawCap(frame: *Frame, cap: keyboard.Cap, x: f64, y: f64, id: usize) void {
     imgui.api.DrawList_AddText(frame.draw_list, x + PAD, y + PAD - 1, if (bound) char_color else char_color_unbound, utils.safePrint(&char_buf, "{s}", .{glyph}));
 
     if (bound) {
-        frame.used[@intFromEnum(info.category)] = true;
+        frame.used[@backingInt(info.category)] = true;
         drawLabel(frame, info.text, x + PAD, y + PAD + frame.line_h, w - 2 * PAD, color);
     }
 
@@ -361,7 +361,7 @@ fn renderLegend(frame: *Frame) void {
     var line: [48:0]u8 = undefined;
     for (frame.used, 0..) |used, i| {
         if (!used) continue;
-        const cat: keyboard.Category = @enumFromInt(i);
+        const cat: keyboard.Category = @fromBackingInt(@intCast(i));
         if (!first) imgui.api.SameLine(ctx, null, null);
         first = false;
         ui.textColored(ctx, categoryColor(cat), utils.safePrint(&line, "{s}", .{cat.title()}));

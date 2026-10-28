@@ -63,7 +63,7 @@ extern fn hegel_settings_set_test_cases(ctx: ?*Context, s: ?*Settings, n: u64) R
 extern fn hegel_run_start(
     ctx: ?*Context,
     settings: ?*const Settings,
-    callback: ?*const fn (?*anyopaque, [*c]const u8, usize) callconv(.C) void,
+    callback: ?*const fn (?*anyopaque, [*c]const u8, usize) callconv(.c) void,
     user_data: ?*anyopaque,
     out_run: **Run,
 ) Result;

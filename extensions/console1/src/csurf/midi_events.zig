@@ -167,7 +167,7 @@ pub fn OnMidiEvent(evt: *c.MIDI_event_t, globals: *Globals) void {
                             const module_matches = if (current_module == .STRIP)
                                 cc.isFxAssignable() or cc == .Tr_order or cc == .Tr_ext_sidechain
                             else if (cc.toModule()) |mod|
-                                @intFromEnum(mod) == @intFromEnum(current_module)
+                                @backingInt(mod) == @backingInt(current_module)
                             else
                                 false;
                             if (module_matches) {

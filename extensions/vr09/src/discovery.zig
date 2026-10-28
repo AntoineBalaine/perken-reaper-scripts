@@ -26,27 +26,27 @@ const provider_descriptor = c.clap_preset_discovery_provider_descriptor_t{
 
 /// Lives as long as the library, because the host keeps the pointer to the
 /// location string it was given.
-var folder_storage: [fileio.max_path:0]u8 = [_:0]u8{0} ** fileio.max_path;
+var folder_storage: [fileio.max_path:0]u8 = @splat(0);
 
-fn count(_: [*c]const c.clap_preset_discovery_factory_t) callconv(.C) u32 {
+fn count(_: [*c]const c.clap_preset_discovery_factory_t) callconv(.c) u32 {
     log.info("the host counts the providers", .{});
     return 1;
 }
 
-fn getDescriptor(_: [*c]const c.clap_preset_discovery_factory_t, index: u32) callconv(.C) [*c]const c.clap_preset_discovery_provider_descriptor_t {
+fn getDescriptor(_: [*c]const c.clap_preset_discovery_factory_t, index: u32) callconv(.c) [*c]const c.clap_preset_discovery_provider_descriptor_t {
     log.info("the host asks for the descriptor {d}", .{index});
     if (index != 0) return null;
     return &provider_descriptor;
 }
 
-fn create(_: [*c]const c.clap_preset_discovery_factory_t, indexer: [*c]const c.clap_preset_discovery_indexer_t, id: [*c]const u8) callconv(.C) [*c]const c.clap_preset_discovery_provider_t {
+fn create(_: [*c]const c.clap_preset_discovery_factory_t, indexer: [*c]const c.clap_preset_discovery_indexer_t, id: [*c]const u8) callconv(.c) [*c]const c.clap_preset_discovery_provider_t {
     log.info("the host creates the provider {s}", .{std.mem.span(id)});
     if (!std.mem.eql(u8, std.mem.span(id), provider_id)) return null;
-    provider.provider_data = @constCast(@ptrCast(indexer));
+    provider.provider_data = @ptrCast(@constCast(indexer));
     return &provider;
 }
 
-fn providerInit(p: [*c]const c.clap_preset_discovery_provider_t) callconv(.C) bool {
+fn providerInit(p: [*c]const c.clap_preset_discovery_provider_t) callconv(.c) bool {
     const indexer: [*c]const c.clap_preset_discovery_indexer_t = @ptrCast(@alignCast(p.*.provider_data));
     var resource_buf: [fileio.max_path]u8 = undefined;
     const resource = state.defaultResourcePath(&resource_buf) orelse return false;
@@ -72,7 +72,7 @@ fn providerInit(p: [*c]const c.clap_preset_discovery_provider_t) callconv(.C) bo
     return declare_location(indexer, &location);
 }
 
-fn providerDestroy(p: [*c]const c.clap_preset_discovery_provider_t) callconv(.C) void {
+fn providerDestroy(p: [*c]const c.clap_preset_discovery_provider_t) callconv(.c) void {
     _ = p;
 }
 
@@ -81,13 +81,13 @@ fn providerGetMetadata(
     kind: u32,
     location: [*c]const u8,
     receiver: [*c]const c.clap_preset_discovery_metadata_receiver_t,
-) callconv(.C) bool {
+) callconv(.c) bool {
     _ = p;
     if (kind != c.CLAP_PRESET_DISCOVERY_LOCATION_FILE) return false;
     const path = std.mem.span(location);
     log.info("metadata asked for {s}", .{path});
     const name = state.displayName(std.fs.path.basename(path));
-    var name_buf: [128:0]u8 = [_:0]u8{0} ** 128;
+    var name_buf: [128:0]u8 = @splat(0);
     const n = @min(name.len, name_buf.len - 1);
     @memcpy(name_buf[0..n], name[0..n]);
 
@@ -101,7 +101,7 @@ fn providerGetMetadata(
     return true;
 }
 
-fn providerGetExtension(p: [*c]const c.clap_preset_discovery_provider_t, id: [*c]const u8) callconv(.C) ?*const anyopaque {
+fn providerGetExtension(p: [*c]const c.clap_preset_discovery_provider_t, id: [*c]const u8) callconv(.c) ?*const anyopaque {
     _ = p;
     _ = id;
     return null;

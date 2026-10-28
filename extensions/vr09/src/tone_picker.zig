@@ -51,7 +51,7 @@ pub fn tonePicker(kit: *widgets.Panel, id: [:0]const u8, list: []const tones.Ton
     // The group and the three bytes that select the tone, in the label font like the other numbers.
     const line_font = widgets.pushLabelFont(kit);
     var info: [96:0]u8 = undefined;
-    const info_text = std.fmt.bufPrintZ(&info, "{s}   tone {d}   bank {d}.{d}", .{ tone.group, tone.number, tone.msb, tone.lsb }) catch "";
+    const info_text = std.mem.printSentinel(&info, "{s}   tone {d}   bank {d}.{d}", .{ tone.group, tone.number, tone.msb, tone.lsb }, 0) catch "";
     imgui.api.TextColored(ctx, theme.label, info_text);
     widgets.popFont(kit, line_font);
 
@@ -76,7 +76,7 @@ pub fn tonePicker(kit: *widgets.Panel, id: [:0]const u8, list: []const tones.Ton
                     imgui.api.SeparatorText(ctx, t.group);
                 }
                 var item: [96:0]u8 = undefined;
-                const label = std.fmt.bufPrintZ(&item, "{s}##tone{d}", .{ t.name, i }) catch "?";
+                const label = std.mem.printSentinel(&item, "{s}##tone{d}", .{ t.name, i }, 0) catch "?";
                 var selected = i == index;
                 if (imgui.api.Selectable(ctx, label, &selected, null, null, null)) result = i;
             }

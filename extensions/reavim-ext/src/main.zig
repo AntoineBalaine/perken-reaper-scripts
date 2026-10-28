@@ -170,7 +170,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
         .id_str = "REAVIM_TOGGLE",
         .name = "ReaVim: Toggle vim mode",
     };
-    toggle_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&toggle_action)));
+    toggle_cmd_id = Reaper.plugin_register("custom_action", @ptrCast(@constCast(&toggle_action)));
     if (toggle_cmd_id == 0)
         ext_log.err("failed to register toggle action", .{});
 
@@ -179,17 +179,17 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
         .id_str = "REAVIM_TOGGLE_WHICHKEY",
         .name = "ReaVim: Toggle whichkey window",
     };
-    whichkey_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&whichkey_action)));
+    whichkey_cmd_id = Reaper.plugin_register("custom_action", @ptrCast(@constCast(&whichkey_action)));
 
     const edit_action: Reaper.custom_action_register_t = .{
         .section = 0,
         .id_str = "REAVIM_EDIT_BINDINGS",
         .name = "ReaVim: Edit bindings",
     };
-    edit_cmd_id = Reaper.plugin_register("custom_action", @constCast(@ptrCast(&edit_action)));
+    edit_cmd_id = Reaper.plugin_register("custom_action", @ptrCast(@constCast(&edit_action)));
 
-    _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
-    _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
+    _ = Reaper.plugin_register("hookcommand2", @ptrCast(@constCast(&onCommand)));
+    _ = Reaper.plugin_register("toggleaction", @ptrCast(@constCast(&toggleActionHook)));
 
     loadBindings();
     vim.restoreState();
@@ -199,7 +199,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     return 1;
 }
 
-fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: Reaper.HWND) callconv(.C) c_char {
+fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: Reaper.HWND) callconv(.c) c_char {
     _ = .{ sec, val, val2hw, relmode, hwnd };
     if (toggle_cmd_id != 0 and command == toggle_cmd_id) {
         vim.toggle();
@@ -217,7 +217,7 @@ fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
 }
 
 // -1 = not ours / doesn't toggle, 0 = ours and off, 1 = ours and on
-fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
+fn toggleActionHook(command_id: c_int) callconv(.c) c_int {
     if (toggle_cmd_id != 0 and command_id == toggle_cmd_id)
         return if (vim.mode() != .off) 1 else 0;
     if (whichkey_cmd_id != 0 and command_id == whichkey_cmd_id)
@@ -225,7 +225,7 @@ fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
     return -1;
 }
 
-fn translateAccel(msg: *accel.MSG, ctx: *accel.accelerator_register_t) callconv(.C) c_int {
+fn translateAccel(msg: *accel.MSG, ctx: *accel.accelerator_register_t) callconv(.c) c_int {
     _ = ctx;
     return vim.onKey(msg);
 }
@@ -306,8 +306,8 @@ test "the MIDI editor keymap: note selection, quantize and note editing keys" {
         .{ .ctx = .main, .keys = "q", .want = "RecordMacro" },
     };
     for (checks) |c| {
-        var keys = std.ArrayList(keymod.Key).init(std.testing.allocator);
-        defer keys.deinit();
+        var keys: std.ArrayList(keymod.Key) = .empty;
+        defer keys.deinit(std.testing.allocator);
         try keymod.parseSequence(c.keys, &keys);
         const got = builder.build(&b.tables, c.ctx, .normal, keys.items);
         if (c.want) |w| {
@@ -325,8 +325,8 @@ test "every REAPER function the sources call is in reaper_api" {
     // runs. This test reads the sources and fails on such a name instead.
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
-    var unlisted = std.ArrayList([]const u8).init(std.testing.allocator);
-    defer unlisted.deinit();
+    var unlisted: std.ArrayList([]const u8) = .empty;
+    defer unlisted.deinit(std.testing.allocator);
     const api = @import("reaper");
     try api.unlistedCallsInPaths(arena.allocator(), @import("test_paths").sources, &reaper_api, &unlisted);
     for (unlisted.items) |name| std.debug.print("REAPER function used but missing from reaper_api: {s}\n", .{name});

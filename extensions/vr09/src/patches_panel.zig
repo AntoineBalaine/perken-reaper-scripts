@@ -33,7 +33,7 @@ const Ranked = struct { index: u32, score: i32, len: u32 };
 
 /// What the library keeps between frames.
 pub const State = struct {
-    search: [search_cap:0]u8 = [_:0]u8{0} ** search_cap,
+    search: [search_cap:0]u8 = @splat(0),
     /// The chosen entry of `type_names`.
     type_index: usize = 0,
     group: [group_cap:0]u8 = initialGroup(),
@@ -66,7 +66,7 @@ fn copyName(dest: *[group_cap:0]u8, text: []const u8) void {
 }
 
 fn initialGroup() [group_cap:0]u8 {
-    var group = [_:0]u8{0} ** group_cap;
+    var group: [group_cap:0]u8 = @splat(0);
     @memcpy(group[0..all_groups.len], all_groups);
     return group;
 }
@@ -76,7 +76,7 @@ fn initialGroup() [group_cap:0]u8 {
 /// Whether the type and the group filters let a row through. The search text is not part of it: it ranks the
 /// rows that remain.
 fn matchesFilters(w: *const State, pool: *const Strings, row: Row) bool {
-    if (w.type_index != 0 and row.kind != @as(library.Kind, @enumFromInt(w.type_index - 1))) return false;
+    if (w.type_index != 0 and row.kind != @as(library.Kind, @fromBackingInt(@intCast(w.type_index - 1)))) return false;
     const group = std.mem.sliceTo(&w.group, 0);
     if (!std.mem.eql(u8, group, all_groups) and !std.mem.eql(u8, pool.get(row.group), group)) return false;
     return true;
@@ -142,7 +142,7 @@ fn buildShown(w: *State, pool: *const Strings, rows: []const Row) void {
 /// drawn as a triangle on the right of the button, in the room that trailing spaces leave.
 fn addButton(ctx: imgui.ContextPtr, id: u32) bool {
     var label: [48:0]u8 = undefined;
-    const clicked = imgui.api.SmallButton(ctx, std.fmt.bufPrintZ(&label, "Add    ##{x}", .{id}) catch "Add");
+    const clicked = imgui.api.SmallButton(ctx, std.mem.printSentinel(&label, "Add    ##{x}", .{id}, 0) catch "Add");
     var left: f64 = 0;
     var top: f64 = 0;
     imgui.api.GetItemRectMin(ctx, &left, &top);
@@ -216,7 +216,7 @@ fn patchTable(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
         imgui.api.TextColored(ctx, theme.grey, "Ranked by how well each patch matches the search. Clear the search to sort by a column.");
     } else if (w.sort_column >= 0) {
         var text: [96:0]u8 = undefined;
-        imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "Sorted by {s}, {s}.", .{ sort_names[@intCast(w.sort_column)], if (w.sort_descending) "descending" else "ascending" }) catch "");
+        imgui.api.TextColored(ctx, theme.grey, std.mem.printSentinel(&text, "Sorted by {s}, {s}.", .{ sort_names[@intCast(w.sort_column)], if (w.sort_descending) "descending" else "ascending" }, 0) catch "");
     } else {
         imgui.api.TextColored(ctx, theme.grey, "In list order. Click a header to sort.");
     }
@@ -230,7 +230,7 @@ fn drawRow(p: *Plugin, ctx: imgui.ContextPtr, row: Row) ?types.Action {
     _ = imgui.api.TableNextColumn(ctx);
     // One click selects the row; a double click sends it to the keyboard.
     var label: [64:0]u8 = undefined;
-    const text = std.fmt.bufPrintZ(&label, "{s}##{x}", .{ library.typeName(row), row.value }) catch "?";
+    const text = std.mem.printSentinel(&label, "{s}##{x}", .{ library.typeName(row), row.value }, 0) catch "?";
     var selected = w.selected == row.value;
     var flags: c_int = imgui.SelectableFlags_SpanAllColumns | imgui.SelectableFlags_AllowOverlap | imgui.SelectableFlags_AllowDoubleClick;
     if (imgui.api.Selectable(ctx, text, &selected, &flags, null, null)) {
@@ -246,7 +246,7 @@ fn drawRow(p: *Plugin, ctx: imgui.ContextPtr, row: Row) ?types.Action {
     imgui.api.TextColored(ctx, theme.grey, p.strings.get(row.group));
     _ = imgui.api.TableNextColumn(ctx);
     var value: [16:0]u8 = undefined;
-    imgui.api.Text(ctx, std.fmt.bufPrintZ(&value, "{d}", .{row.value}) catch "");
+    imgui.api.Text(ctx, std.mem.printSentinel(&value, "{d}", .{row.value}, 0) catch "");
     _ = imgui.api.TableNextColumn(ctx);
     if (addButton(ctx, row.value)) action = .{ .add_scene = library.patchOf(p, row) };
     return action;

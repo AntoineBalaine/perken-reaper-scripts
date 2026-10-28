@@ -80,11 +80,11 @@ const col_accent_dim = palette.accent_dim;
 /// loading and the main loop is running, which makes the first onTimer call
 /// a reliable, order-independent "boot is done" signal.
 pub fn register() void {
-    _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    _ = Reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
 }
 
 pub fn unregister() void {
-    _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+    _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
 }
 
 pub fn available() bool {
@@ -104,7 +104,7 @@ pub const SearchState = struct {
     /// Whether the ImGui text field itself is being edited (after a mouse
     /// click). The engine must then let keys reach the field.
     input_active: bool = false,
-    query: [QUERY_LEN:0]u8 = [_:0]u8{0} ** QUERY_LEN,
+    query: [QUERY_LEN:0]u8 = @splat(0),
     selected: usize = 0,
     index: ?search.Index = null,
     results: [MAX_RESULTS]usize = undefined,
@@ -352,7 +352,7 @@ pub fn textWidth(c: imgui.ContextPtr, ztext: [*:0]const u8) f64 {
 /// the longest prefix that fits with a trailing "..." appended. This fills the
 /// actual (stretch-sized) column width instead of a fixed character count.
 pub fn fitDesc(c: imgui.ContextPtr, desc: []const u8, max_w: f64, buf: []u8) [:0]const u8 {
-    const full = std.fmt.bufPrintZ(buf, "{s}", .{desc}) catch return buf[0..0 :0];
+    const full = std.mem.printSentinel(buf, "{s}", .{desc}, 0) catch return buf[0..0 :0];
     if (max_w <= 0 or textWidth(c, full) <= max_w) return full;
 
     // Largest n such that desc[0..n] + "..." still fits.
@@ -361,7 +361,7 @@ pub fn fitDesc(c: imgui.ContextPtr, desc: []const u8, max_w: f64, buf: []u8) [:0
     var best: usize = 0;
     while (lo <= hi) {
         const mid = lo + (hi - lo) / 2;
-        const cand = std.fmt.bufPrintZ(buf, "{s}...", .{desc[0..mid]}) catch {
+        const cand = std.mem.printSentinel(buf, "{s}...", .{desc[0..mid]}, 0) catch {
             if (mid == 0) break;
             hi = mid - 1;
             continue;
@@ -374,7 +374,7 @@ pub fn fitDesc(c: imgui.ContextPtr, desc: []const u8, max_w: f64, buf: []u8) [:0
             hi = mid - 1;
         }
     }
-    return std.fmt.bufPrintZ(buf, "{s}...", .{desc[0..best]}) catch buf[0..0 :0];
+    return std.mem.printSentinel(buf, "{s}...", .{desc[0..best]}, 0) catch buf[0..0 :0];
 }
 
 fn keyLessThan(_: void, a: vim.Completion, b: vim.Completion) bool {
@@ -385,7 +385,7 @@ fn keyLessThan(_: void, a: vim.Completion, b: vim.Completion) bool {
     return std.ascii.lessThanIgnoreCase(ka, kb);
 }
 
-fn onTimer() callconv(.C) void {
+fn onTimer() callconv(.c) void {
     ensureImguiChecked();
     if (imgui_state != .present) return;
 
@@ -452,7 +452,7 @@ fn ensureImguiChecked() void {
     imgui.init(Reaper.plugin_getapi) catch {
         log.warn("ReaImGui not available — feedback window disabled (install via ReaPack)", .{});
         imgui_state = .absent;
-        _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+        _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
         return;
     };
     imgui_state = .present;

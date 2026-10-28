@@ -304,4 +304,3 @@ pub const drum = [_]Tone{
     .{ .name = "Jazz Kit", .group = "drum", .number = 32, .msb = 0, .lsb = 0, .program = 33 },
     .{ .name = "Sound Effect", .group = "drum", .number = 56, .msb = 0, .lsb = 0, .program = 57 },
 };
-

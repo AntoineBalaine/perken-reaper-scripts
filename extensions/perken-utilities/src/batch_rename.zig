@@ -193,7 +193,7 @@ pub fn start() void {
     session.phase = .editing;
     session.ticks = 0;
     if (!session.timer_registered) {
-        _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+        _ = Reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
         session.timer_registered = true;
     }
     log.info("batch rename: editing {d} track names", .{session.count});
@@ -274,12 +274,12 @@ pub fn launchTerminal() bool {
 pub fn stopTimer() void {
     session.phase = .idle;
     if (session.timer_registered) {
-        _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+        _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
         session.timer_registered = false;
     }
 }
 
-pub fn onTimer() callconv(.C) void {
+pub fn onTimer() callconv(.c) void {
     session.ticks += 1;
     switch (session.phase) {
         .idle => {},
@@ -380,7 +380,7 @@ pub fn applyNames() void {
     const n = splitNames(content, &names) orelse MAX_TRACKS + 1;
     if (n != session.count) {
         var msg_buf: [256:0]u8 = undefined;
-        const msg = std.fmt.bufPrintZ(&msg_buf, "The edited list has {d} lines but {d} tracks were selected.\nNo track was renamed.", .{ n, session.count }) catch return;
+        const msg = std.mem.printSentinel(&msg_buf, "The edited list has {d} lines but {d} tracks were selected.\nNo track was renamed.", .{ n, session.count }, 0) catch return;
         _ = Reaper.ShowMessageBox(msg, "ReaVim: batch rename", 0);
         return;
     }

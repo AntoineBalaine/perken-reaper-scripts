@@ -15,8 +15,8 @@ pub var clrs: ThemeClrs = undefined;
 pub fn init(ctx: ImGui.ContextPtr, convert_colors: bool) !void {
     _ = ctx;
     clrs = std.EnumArray(std.meta.FieldEnum(ThemeTypes.ColorTable), ThemeTypes.ThemeColor).initUndefined();
-    inline for (@typeInfo(ThemeTypes.ThemeVars).@"struct".fields) |themeVar| {
-        const varName: [:0]const u8 = themeVar.name;
+    inline for (@typeInfo(ThemeTypes.ThemeVars).@"struct".field_names) |themeVar_name| {
+        const varName: [:0]const u8 = themeVar_name;
         const description = @field(ThemeTypes.themeVars, varName);
         var col = reaper.GetThemeColor(@as([*:0]const u8, varName), 0);
         if (convert_colors) {

@@ -180,10 +180,10 @@ pub const CCs = enum(u8) {
         const mappings = @import("mappings.zig");
         const cc_name = @tagName(self);
         inline for (.{ mappings.Comp, mappings.Eq, mappings.Inpt, mappings.Outpt, mappings.Shp }) |MappingStruct| {
-            inline for (std.meta.fields(MappingStruct)) |field| {
-                if (comptime std.mem.eql(u8, field.name, "version")) continue;
-                if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
-                if (std.mem.eql(u8, cc_name, field.name)) return true;
+            inline for (@typeInfo(MappingStruct).@"struct".field_names) |field_name| {
+                if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                if (std.mem.eql(u8, cc_name, field_name)) return true;
             }
         }
         return false;

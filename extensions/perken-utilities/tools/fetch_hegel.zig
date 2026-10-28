@@ -49,15 +49,15 @@ pub fn main() !void {
 }
 
 fn fetchAll(allocator: std.mem.Allocator, client: *std.http.Client, url: []const u8, max_size: usize) ![]u8 {
-    var body = std.ArrayList(u8).init(allocator);
+    var body: std.ArrayList(u8) = .empty;
     const result = try client.fetch(.{
         .location = .{ .url = url },
         .response_storage = .{ .dynamic = &body },
         .max_append_size = max_size,
     });
     if (result.status != .ok) {
-        std.debug.print("GET {s} -> {d}\n", .{ url, @intFromEnum(result.status) });
+        std.debug.print("GET {s} -> {d}\n", .{ url, @backingInt(result.status) });
         return error.FetchFailed;
     }
-    return body.toOwnedSlice();
+    return body.toOwnedSlice(allocator);
 }

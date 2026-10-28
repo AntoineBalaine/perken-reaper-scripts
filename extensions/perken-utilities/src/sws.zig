@@ -14,19 +14,19 @@ pub const FastString = *anyopaque;
 
 pub var available: bool = false;
 
-pub var SNM_CreateFastString: *fn (str: [*:0]const u8) callconv(.C) FastString = undefined;
-pub var SNM_GetSetObjectState: *fn (obj: *anyopaque, state: FastString, setnewvalue: bool, wantminimalstate: bool) callconv(.C) bool = undefined;
-pub var SNM_GetFastString: *fn (str: FastString) callconv(.C) [*:0]const u8 = undefined;
-pub var SNM_SetFastString: *fn (str: FastString, newstr: [*:0]const u8) callconv(.C) FastString = undefined;
-pub var SNM_DeleteFastString: *fn (str: FastString) callconv(.C) void = undefined;
+pub var SNM_CreateFastString: *fn (str: [*:0]const u8) callconv(.c) FastString = undefined;
+pub var SNM_GetSetObjectState: *fn (obj: *anyopaque, state: FastString, setnewvalue: bool, wantminimalstate: bool) callconv(.c) bool = undefined;
+pub var SNM_GetFastString: *fn (str: FastString) callconv(.c) [*:0]const u8 = undefined;
+pub var SNM_SetFastString: *fn (str: FastString, newstr: [*:0]const u8) callconv(.c) FastString = undefined;
+pub var SNM_DeleteFastString: *fn (str: FastString) callconv(.c) void = undefined;
 
 /// Resolves the SNM functions. Leaves `available` false if any are missing.
 pub fn init() void {
     const get_func = reaper.plugin_getapi;
-    SNM_CreateFastString = @alignCast(@ptrCast(get_func("SNM_CreateFastString") orelse return));
-    SNM_GetSetObjectState = @alignCast(@ptrCast(get_func("SNM_GetSetObjectState") orelse return));
-    SNM_GetFastString = @alignCast(@ptrCast(get_func("SNM_GetFastString") orelse return));
-    SNM_SetFastString = @alignCast(@ptrCast(get_func("SNM_SetFastString") orelse return));
-    SNM_DeleteFastString = @alignCast(@ptrCast(get_func("SNM_DeleteFastString") orelse return));
+    SNM_CreateFastString = @ptrCast(@alignCast(get_func("SNM_CreateFastString") orelse return));
+    SNM_GetSetObjectState = @ptrCast(@alignCast(get_func("SNM_GetSetObjectState") orelse return));
+    SNM_GetFastString = @ptrCast(@alignCast(get_func("SNM_GetFastString") orelse return));
+    SNM_SetFastString = @ptrCast(@alignCast(get_func("SNM_SetFastString") orelse return));
+    SNM_DeleteFastString = @ptrCast(@alignCast(get_func("SNM_DeleteFastString") orelse return));
     available = true;
 }

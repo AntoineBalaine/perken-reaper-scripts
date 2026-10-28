@@ -50,7 +50,7 @@ fn returnType(comptime func: anytype) type {
 fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: []const type) fn (args: anytype) callconv(.Inline) returnType(func) {
     return struct {
         inline fn wrapper(args: anytype) returnType(func) {
-            var cast_args: std.meta.Tuple(arg_types) = undefined;
+            var cast_args: @Tuple(arg_types) = undefined;
             if (args.len < min_argc) {
                 @compileError(std.fmt.comptimePrint("{s}: expected {}..{} arguments, got {}", .{ @typeName(@TypeOf(func.*)), min_argc, cast_args.len, args.len }));
             }

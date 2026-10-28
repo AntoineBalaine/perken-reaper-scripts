@@ -98,31 +98,31 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     c.ControlSurface_Destroy(csurf);
 }
 
-export fn zGetTypeString() callconv(.C) [*]const u8 {
+export fn zGetTypeString() callconv(.c) [*]const u8 {
     return "Console1";
 }
 
-export fn zGetDescString() callconv(.C) [*]const u8 {
+export fn zGetDescString() callconv(.c) [*]const u8 {
     return reaper.LocalizeString("Perken C1", "csurf", 1);
 }
 
 var config_buf: [512:0]u8 = undefined;
-export fn zGetConfigString() callconv(.C) [*]const u8 {
+export fn zGetConfigString() callconv(.c) [*]const u8 {
     const buffer: []u8 = &config_buf;
     var globals = getGlobals();
     _ = &globals;
-    _ = std.fmt.bufPrintZ(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
+    _ = std.mem.printSentinel(buffer, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }, 0) catch {
         log.err("csurf console1 config string format", .{});
         return "0 0 0 0";
     };
     return &config_buf;
 }
 
-export fn zCloseNoReset() callconv(.C) void {
+export fn zCloseNoReset() callconv(.c) void {
     deinit(my_csurf);
 }
 
-export fn zRun() callconv(.C) void {
+export fn zRun() callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
     if (globals.m_midi_in) |midi_in| {
@@ -142,12 +142,12 @@ export fn zRun() callconv(.C) void {
     }
 }
 
-export fn zSetTrackListChange() callconv(.C) void {
+export fn zSetTrackListChange() callconv(.c) void {
     if (ignore_notifications) return;
     actions.dispatch(getGlobals(), .{ .track_list = .refresh });
 }
 
-export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
+export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
@@ -163,7 +163,7 @@ export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void 
 }
 
 // pan is btw -1.0 and 1.0
-export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
+export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.c) void {
     if (ignore_notifications) return;
     const globals = getGlobals();
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
@@ -171,21 +171,21 @@ export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
     actions.dispatch(globals, .{ .fx_ctrl = .{ .set_pan = pan } });
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_Pan, .value = @intFromFloat((pan + 1) / 2 * 127) } } });
 }
-export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
+export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
     _ = &globals;
     if (reaper.CSurf_TrackToID(trackid, constants.g_csurf_mcpmode) != globals.state.current_tr_id) return;
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_mute, .value = if (mute) 0x7f else 0x0 } } });
 }
-export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) void {
+export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.c) void {
     if (ignore_notifications) return;
     log.debug("set surface selected", .{});
     var globals = getGlobals();
     _ = &globals;
     actions.dispatch(globals, .{ .Csurf = .{ .track_selected = .{ .tr = trackid, .selected = selected } } });
 }
-export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
+export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
     _ = &globals;
@@ -193,13 +193,13 @@ export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
     actions.dispatch(globals, .{ .midi_out = .{ .set_param = .{ .cc = c1.CCs.Out_solo, .value = if (solo) 0x7f else 0x0 } } });
 }
 
-export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.C) void {
+export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.c) void {
     _ = trackid; // autofix
     if (ignore_notifications) return;
     _ = recarm;
 }
 
-export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
+export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.c) void {
     if (ignore_notifications) return;
     _ = rec;
     var globals = getGlobals();
@@ -210,39 +210,39 @@ export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
         actions.dispatch(globals, .{ .midi_out = .reset_meters });
     }
 }
-export fn zSetRepeatState(rep: bool) callconv(.C) void {
+export fn zSetRepeatState(rep: bool) callconv(.c) void {
     if (ignore_notifications) return;
     _ = rep;
 }
-export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.C) void {
+export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.c) void {
     _ = trackid; // autofix
     if (ignore_notifications) return;
     _ = title;
 }
-export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
+export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.c) bool {
     if (ignore_notifications) return false;
     _ = trackid;
     _ = isPan;
     return false;
 }
-export fn zSetAutoMode(mode: c_int) callconv(.C) void {
+export fn zSetAutoMode(mode: c_int) callconv(.c) void {
     if (ignore_notifications) return;
     _ = mode;
 }
 
-export fn zResetCachedVolPanStates() callconv(.C) void {
+export fn zResetCachedVolPanStates() callconv(.c) void {
     if (ignore_notifications) return;
     var globals = getGlobals();
     _ = &globals;
     globals.state.fx_ctrl.vol_lastpos = 0;
 }
 
-export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
+export fn zOnTrackSelection(trackid: MediaTrack) callconv(.c) void {
     if (ignore_notifications) return;
     // FIXME: should we be using this ?
     actions.dispatch(getGlobals(), .{ .fx_ctrl = .{ .on_track_entry = trackid } });
 }
-export fn zIsKeyDown(key: c_int) callconv(.C) bool {
+export fn zIsKeyDown(key: c_int) callconv(.c) bool {
     if (ignore_notifications) return false;
     _ = key;
     return false;
@@ -276,7 +276,7 @@ const Extended = enum(c_int) {
     unknown,
 };
 
-export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.C) c_int {
+export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c_void) callconv(.c) c_int {
     if (ignore_notifications) return 1;
     switch (call) {
 
@@ -332,10 +332,10 @@ export fn zExtended(call: Extended, parm1: ?*c_void, parm2: ?*c_void, parm3: ?*c
             var globals = getGlobals();
             _ = &globals;
 
-            const f: c_int = @as(*c_int, @alignCast(@ptrCast(parm2))).*;
+            const f: c_int = @as(*c_int, @ptrCast(@alignCast(parm2))).*;
             const fxidx: c_int = (f >> 16) & 0xFFFF;
             const prmidx: c_int = f & 0xFFFF;
-            const value = @as(*f64, @alignCast(@ptrCast(parm3))).*;
+            const value = @as(*f64, @ptrCast(@alignCast(parm3))).*;
 
             // Diagnostic: cb_value is the value REAPER reported, live_value is the
             // parameter read back immediately, pt0_value is the envelope's first
@@ -398,7 +398,7 @@ fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, l
     return c.SendMessage.?(c.GetDlgItem.?(hwnd, idx), msg, wparam, lparam);
 }
 
-fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.C) c.WDL_DLGRET {
+fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.c) c.WDL_DLGRET {
     switch (uMsg) {
         c.WM_INITDIALOG => {
             var parms: [4]i32 = undefined;
@@ -481,7 +481,7 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
 
                 // Format config string
                 var tmp: [512:0]u8 = undefined;
-                _ = std.fmt.bufPrintZ(&tmp, "{d} {d} {d} {d}", .{ offs, size, indev, outdev }) catch return 0;
+                _ = std.mem.printSentinel(&tmp, "{d} {d} {d} {d}", .{ offs, size, indev, outdev }, 0) catch return 0;
 
                 _ = c.lstrcpyn.?(lParam, &tmp, @intCast(wParam));
             }
@@ -495,7 +495,7 @@ fn makeIntResource(x: anytype) [*c]const u8 {
     return @ptrFromInt(@as(u32, @intCast(x)));
 }
 
-pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND {
+pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.c) c.HWND {
     _ = type_string;
     const cast: c.LPARAM = @intCast(@intFromPtr(initConfigString));
     // const cast: c.LPARAM = @intCast(initConfigString);
@@ -521,7 +521,7 @@ fn parseParms(str: [*c]const c_char, parms: *[4]i32) void {
     }
 }
 
-fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
+fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, errStats: *c_int) callconv(.c) c.C_ControlSurface {
     _ = type_string;
     var parms: [4]i32 = undefined;
     parseParms(configString, &parms);
@@ -534,8 +534,8 @@ const reaper_csurf_reg_t = extern struct {
     //
     type_string: [*:0]const u8,
     desc_string: [*:0]const u8,
-    IReaperControlSurface: *const fn (type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface,
-    ShowConfig: *const fn (type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND,
+    IReaperControlSurface: *const fn (type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.c) c.C_ControlSurface,
+    ShowConfig: *const fn (type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.c) c.HWND,
 };
 
 pub const c1_reg = reaper_csurf_reg_t{

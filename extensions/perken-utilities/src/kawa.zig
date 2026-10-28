@@ -354,19 +354,19 @@ fn legato(_: *actions.RunCtx) void {
     const all = collected.notes;
     const any_selected = collected.any_selected;
 
-    var targets = std.ArrayList(helpers.PpqNote).init(helpers.allocator);
-    defer targets.deinit();
+    var targets: std.ArrayList(helpers.PpqNote) = .empty;
+    defer targets.deinit(helpers.allocator);
     for (all) |r| {
-        if (!any_selected or r.selected) targets.append(r) catch return;
+        if (!any_selected or r.selected) targets.append(helpers.allocator, r) catch return;
     }
     if (targets.items.len == 0) return;
 
     // The starts of the notes that are not targets: the last chord stops
     // before the next of them.
-    var others = std.ArrayList(f64).init(helpers.allocator);
-    defer others.deinit();
+    var others: std.ArrayList(f64) = .empty;
+    defer others.deinit(helpers.allocator);
     for (all) |r| {
-        if (any_selected and !r.selected) others.append(r.start) catch return;
+        if (any_selected and !r.selected) others.append(helpers.allocator, r.start) catch return;
     }
 
     const spans = helpers.allocator.alloc(Span, targets.items.len) catch return;

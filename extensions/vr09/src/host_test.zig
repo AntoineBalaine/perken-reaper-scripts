@@ -54,27 +54,27 @@ const MockHost = struct {
         self.output_count = 0;
     }
 
-    pub fn getExtension(host: [*c]const c.clap_host_t, id: [*c]const u8) callconv(.C) ?*const anyopaque {
+    pub fn getExtension(host: [*c]const c.clap_host_t, id: [*c]const u8) callconv(.c) ?*const anyopaque {
         _ = host;
         _ = id;
         return null;
     }
 
-    pub fn noop(host: [*c]const c.clap_host_t) callconv(.C) void {
+    pub fn noop(host: [*c]const c.clap_host_t) callconv(.c) void {
         _ = host;
     }
 
-    pub fn inputSize(list: [*c]const c.clap_input_events_t) callconv(.C) u32 {
+    pub fn inputSize(list: [*c]const c.clap_input_events_t) callconv(.c) u32 {
         const self: *MockHost = @ptrCast(@alignCast(list.*.ctx));
         return @intCast(self.input_count);
     }
 
-    pub fn inputGet(list: [*c]const c.clap_input_events_t, index: u32) callconv(.C) [*c]const c.clap_event_header_t {
+    pub fn inputGet(list: [*c]const c.clap_input_events_t, index: u32) callconv(.c) [*c]const c.clap_event_header_t {
         const self: *MockHost = @ptrCast(@alignCast(list.*.ctx));
         return self.input[index].header();
     }
 
-    pub fn outputPush(list: [*c]const c.clap_output_events_t, event: [*c]const c.clap_event_header_t) callconv(.C) bool {
+    pub fn outputPush(list: [*c]const c.clap_output_events_t, event: [*c]const c.clap_event_header_t) callconv(.c) bool {
         const self: *MockHost = @ptrCast(@alignCast(list.*.ctx));
         if (self.output_count == self.output.len) return false;
         const slot = &self.output[self.output_count];
@@ -126,8 +126,8 @@ const MockHost = struct {
 
     /// Runs one block of 512 frames of silence.
     pub fn process(self: *MockHost, p: P) void {
-        var left: [512]f32 = [_]f32{0} ** 512;
-        var right: [512]f32 = [_]f32{0} ** 512;
+        var left: [512]f32 = @splat(0);
+        var right: [512]f32 = @splat(0);
         var out_left: [512]f32 = undefined;
         var out_right: [512]f32 = undefined;
         var in_ptrs = [_][*c]f32{ &left, &right };
@@ -722,8 +722,8 @@ test "saving and deleting a preset adds and removes its row, in the order of the
     library.addPreset(self, "organ.vr09");
     library.addPreset(self, "Zed.vr09");
     library.addPreset(self, "Pad.vr09");
-    var names = std.ArrayList([]const u8).init(std.testing.allocator);
-    defer names.deinit();
+    var names: std.ArrayList([]const u8) = .empty;
+    defer names.deinit(std.testing.allocator);
     try presetNames(self, &names);
     try std.testing.expectEqual(@as(usize, 3), names.items.len);
     try std.testing.expectEqualStrings("organ", names.items[0]);
@@ -976,8 +976,8 @@ test "a notice that is too long keeps its beginning" {
     const p = createPlugin(&host);
     defer destroyPlugin(p);
     const self = plugin.Plugin.from(p);
-    const long = "x" ** 400;
-    self.ui.notice("Exported to {s}.", .{long}, false);
+    const long: [400]u8 = @splat('x');
+    self.ui.notice("Exported to {s}.", .{&long}, false);
     try std.testing.expect(std.mem.startsWith(u8, std.mem.sliceTo(&self.ui.notice_text, 0), "Exported to xxx"));
     try std.testing.expectEqual(self.ui.notice_text.len, std.mem.sliceTo(&self.ui.notice_text, 0).len);
 }
@@ -1108,14 +1108,14 @@ const TestStream = struct {
     bytes: std.ArrayList(u8),
     pos: usize = 0,
 
-    pub fn write(s: [*c]const c.clap_ostream_t, buffer: ?*const anyopaque, size: u64) callconv(.C) i64 {
+    pub fn write(s: [*c]const c.clap_ostream_t, buffer: ?*const anyopaque, size: u64) callconv(.c) i64 {
         const self_: *TestStream = @ptrCast(@alignCast(s.*.ctx));
         const b: [*]const u8 = @ptrCast(buffer.?);
         self_.bytes.appendSlice(b[0..size]) catch return -1;
         return @intCast(size);
     }
 
-    pub fn read(s: [*c]const c.clap_istream_t, buffer: ?*anyopaque, size: u64) callconv(.C) i64 {
+    pub fn read(s: [*c]const c.clap_istream_t, buffer: ?*anyopaque, size: u64) callconv(.c) i64 {
         const self_: *TestStream = @ptrCast(@alignCast(s.*.ctx));
         const n = @min(size, self_.bytes.items.len - self_.pos);
         const b: [*]u8 = @ptrCast(buffer.?);

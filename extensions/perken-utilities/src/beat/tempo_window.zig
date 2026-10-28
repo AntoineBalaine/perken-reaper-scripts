@@ -101,13 +101,13 @@ pub fn discardJob() void {
 
 pub fn ensureTimer() void {
     if (state.timer_registered) return;
-    _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    _ = Reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
     state.timer_registered = true;
 }
 
 pub fn stopTimer() void {
     if (!state.timer_registered) return;
-    _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+    _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
     state.timer_registered = false;
 }
 
@@ -121,7 +121,7 @@ pub fn ensureImgui() void {
     state.imgui_state = .present;
 }
 
-pub fn onTimer() callconv(.C) void {
+pub fn onTimer() callconv(.c) void {
     ensureImgui();
     if (state.imgui_state == .missing) {
         if (state.open) {
@@ -296,7 +296,7 @@ pub fn closeAndDiscard() void {
 }
 
 pub fn fmtZ(buf: *[256:0]u8, comptime fmt: []const u8, args: anytype) [:0]const u8 {
-    return std.fmt.bufPrintZ(buf, fmt, args) catch "…";
+    return std.mem.printSentinel(buf, fmt, args, 0) catch "…";
 }
 
 // ---- take markers ----
@@ -320,9 +320,9 @@ pub fn addPreviewMarkers(job: *analysis.Job, beats: []const beat.Beat) void {
         if (b.beat_in_bar == 1) bar += 1;
         var name_buf: [32:0]u8 = undefined;
         const name = if (b.beat_in_bar == 0)
-            std.fmt.bufPrintZ(&name_buf, marker_prefix, .{}) catch continue
+            std.mem.printSentinel(&name_buf, marker_prefix, .{}, 0) catch continue
         else
-            std.fmt.bufPrintZ(&name_buf, marker_prefix ++ "{d}.{d}", .{ bar, b.beat_in_bar }) catch continue;
+            std.mem.printSentinel(&name_buf, marker_prefix ++ "{d}.{d}", .{ bar, b.beat_in_bar }, 0) catch continue;
         var srcpos = offset + (job.start_time + b.time) * rate;
         var color: c_int = 0; // REAPER's default marker color
         _ = Reaper.SetTakeMarker(job.take, -1, name, &srcpos, &color);
@@ -339,7 +339,7 @@ pub fn addGridMarkers(job: *analysis.Job, beats: []const grid.GridBeat) void {
     Reaper.Undo_BeginBlock();
     for (beats) |b| {
         var name_buf: [32:0]u8 = undefined;
-        const name = std.fmt.bufPrintZ(&name_buf, marker_prefix ++ "{d}.{d}", .{ b.bar, b.beat_in_bar }) catch continue;
+        const name = std.mem.printSentinel(&name_buf, marker_prefix ++ "{d}.{d}", .{ b.bar, b.beat_in_bar }, 0) catch continue;
         var srcpos = offset + (job.start_time + b.time) * rate;
         var color: c_int = 0; // REAPER's default marker color
         _ = Reaper.SetTakeMarker(job.take, -1, name, &srcpos, &color);
@@ -353,7 +353,7 @@ pub fn removePreviewMarkers(take: *Reaper.MediaItem_Take) void {
     Reaper.Undo_BeginBlock();
     var i = Reaper.GetNumTakeMarkers(take) - 1;
     while (i >= 0) : (i -= 1) {
-        var name_buf: [64]u8 = [_]u8{0} ** 64;
+        var name_buf: [64]u8 = @splat(0);
         var color: c_int = 0;
         _ = Reaper.GetTakeMarker(take, i, @ptrCast(&name_buf), name_buf.len, &color);
         if (std.mem.startsWith(u8, std.mem.sliceTo(&name_buf, 0), marker_prefix)) {

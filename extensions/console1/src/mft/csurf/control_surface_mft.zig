@@ -73,30 +73,30 @@ pub fn deinit(csurf: c.C_ControlSurface) void {
     c.ControlSurface_Destroy(csurf);
 }
 
-export fn zGetTypeString() callconv(.C) [*]const u8 {
+export fn zGetTypeString() callconv(.c) [*]const u8 {
     return constants.CONTROLLER_NAME;
 }
 
-export fn zGetDescString() callconv(.C) [*]const u8 {
+export fn zGetDescString() callconv(.c) [*]const u8 {
     return reaper.LocalizeString("Perken MFT", "csurf", 1);
 }
 
 var config_buf: [512:0]u8 = undefined;
-export fn zGetConfigString() callconv(.C) [*]const u8 {
+export fn zGetConfigString() callconv(.c) [*]const u8 {
     const globals = MftGlobals.get();
-    _ = std.fmt.bufPrintZ(&config_buf, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }) catch {
+    _ = std.mem.printSentinel(&config_buf, "0 0 {d} {d}", .{ globals.m_midi_in_dev.?, globals.m_midi_out_dev.? }, 0) catch {
         return "0 0 0 0";
     };
     return &config_buf;
 }
 
-export fn zCloseNoReset() callconv(.C) void {
+export fn zCloseNoReset() callconv(.c) void {
     deinit(my_csurf);
 }
 
 var led_test_running = false;
 
-export fn zRun() callconv(.C) void {
+export fn zRun() callconv(.c) void {
     if (ignore_notifications) return;
     const globals = MftGlobals.get();
     if (globals.m_midi_in) |midi_in| {
@@ -124,60 +124,60 @@ export fn zRun() callconv(.C) void {
     }
 }
 
-export fn zSetTrackListChange() callconv(.C) void {}
-export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.C) void {
+export fn zSetTrackListChange() callconv(.c) void {}
+export fn zSetSurfaceVolume(trackid: MediaTrack, volume: f64) callconv(.c) void {
     _ = trackid;
     _ = volume;
 }
-export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.C) void {
+export fn zSetSurfacePan(trackid: MediaTrack, pan: f64) callconv(.c) void {
     _ = trackid;
     _ = pan;
 }
-export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.C) void {
+export fn zSetSurfaceMute(trackid: MediaTrack, mute: bool) callconv(.c) void {
     _ = trackid;
     _ = mute;
 }
-export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.C) void {
+export fn zSetSurfaceSelected(trackid: MediaTrack, selected: bool) callconv(.c) void {
     _ = trackid;
     _ = selected;
 }
-export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.C) void {
+export fn zSetSurfaceSolo(trackid: MediaTrack, solo: bool) callconv(.c) void {
     _ = trackid;
     _ = solo;
 }
-export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.C) void {
+export fn zSetSurfaceRecArm(trackid: MediaTrack, recarm: bool) callconv(.c) void {
     _ = trackid;
     _ = recarm;
 }
-export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.C) void {
+export fn zSetPlayState(play: bool, pause: bool, rec: bool) callconv(.c) void {
     _ = play;
     _ = pause;
     _ = rec;
 }
-export fn zSetRepeatState(rep: bool) callconv(.C) void {
+export fn zSetRepeatState(rep: bool) callconv(.c) void {
     _ = rep;
 }
-export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.C) void {
+export fn zSetTrackTitle(trackid: MediaTrack, title: [*]const u8) callconv(.c) void {
     _ = trackid;
     _ = title;
 }
-export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.C) bool {
+export fn zGetTouchState(trackid: *MediaTrack, isPan: c_int) callconv(.c) bool {
     _ = trackid;
     _ = isPan;
     return false;
 }
-export fn zSetAutoMode(mode: c_int) callconv(.C) void {
+export fn zSetAutoMode(mode: c_int) callconv(.c) void {
     _ = mode;
 }
-export fn zResetCachedVolPanStates() callconv(.C) void {}
-export fn zOnTrackSelection(trackid: MediaTrack) callconv(.C) void {
+export fn zResetCachedVolPanStates() callconv(.c) void {}
+export fn zOnTrackSelection(trackid: MediaTrack) callconv(.c) void {
     _ = trackid;
 }
-export fn zIsKeyDown(key: c_int) callconv(.C) bool {
+export fn zIsKeyDown(key: c_int) callconv(.c) bool {
     _ = key;
     return false;
 }
-export fn zExtended(call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.C) c_int {
+export fn zExtended(call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.c) c_int {
     _ = parm2;
     _ = parm3;
     if (call == CSURF_EXT_SETLASTTOUCHEDTRACK) {
@@ -192,7 +192,7 @@ fn sendDlgItemMessage(hwnd: c.HWND, idx: c_int, msg: c.UINT, wparam: c.WPARAM, l
     return c.SendMessage.?(c.GetDlgItem.?(hwnd, idx), msg, wparam, lparam);
 }
 
-fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.C) c.WDL_DLGRET {
+fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.c) c.WDL_DLGRET {
     switch (uMsg) {
         c.WM_INITDIALOG => {
             var parms: [4]i32 = undefined;
@@ -248,7 +248,7 @@ fn dlgProc(hwndDlg: c.HWND, uMsg: c_uint, wParam: c.WPARAM, lParam: c.LPARAM) ca
                 if (r != c.CB_ERR) outdev = sendDlgItemMessage(hwndDlg, c.IDC_COMBO3, c.CB_GETITEMDATA, @as(c.WPARAM, @intCast(r)), 0);
 
                 var tmp: [512:0]u8 = undefined;
-                _ = std.fmt.bufPrintZ(&tmp, "{d} {d} {d} {d}", .{ offs, size, indev, outdev }) catch return 0;
+                _ = std.mem.printSentinel(&tmp, "{d} {d} {d} {d}", .{ offs, size, indev, outdev }, 0) catch return 0;
                 _ = c.lstrcpyn.?(lParam, &tmp, @intCast(wParam));
             }
         },
@@ -261,7 +261,7 @@ fn makeIntResource(x: anytype) [*c]const u8 {
     return @ptrFromInt(@as(u32, @intCast(x)));
 }
 
-pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND {
+pub fn configFunc(type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.c) c.HWND {
     _ = type_string;
     const cast: c.LPARAM = @intCast(@intFromPtr(initConfigString));
     return c.SWELL_CreateDialog.?(c.SWELL_curmodule_dialogresource_head, makeIntResource(c.IDD_SURFACEEDIT_MCU), parent, &dlgProc, cast);
@@ -284,7 +284,7 @@ fn parseParms(str: [*c]const c_char, parms: *[4]i32) void {
     }
 }
 
-fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface {
+fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, errStats: *c_int) callconv(.c) c.C_ControlSurface {
     _ = type_string;
     var parms: [4]i32 = undefined;
     parseParms(configString, &parms);
@@ -294,8 +294,8 @@ fn createFunc(type_string: [*c]const c_char, configString: [*c]const c_char, err
 const reaper_csurf_reg_t = extern struct {
     type_string: [*:0]const u8,
     desc_string: [*:0]const u8,
-    IReaperControlSurface: *const fn (type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.C) c.C_ControlSurface,
-    ShowConfig: *const fn (type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.C) c.HWND,
+    IReaperControlSurface: *const fn (type_string: [*:0]const c_char, configString: [*:0]const c_char, errStats: *c_int) callconv(.c) c.C_ControlSurface,
+    ShowConfig: *const fn (type_string: [*c]const u8, parent: c.HWND, initConfigString: [*c]const u8) callconv(.c) c.HWND,
 };
 
 pub const mft_reg = reaper_csurf_reg_t{

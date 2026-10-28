@@ -7,7 +7,7 @@ values: [256]u7,
 
 // Singleton instance for tests
 pub var instance: ?@This() = null;
-pub const default: @This() = .{ .values = [_]u7{0} ** 256 };
+pub const default: @This() = .{ .values = @splat(0) };
 
 /// Initialize a new C1Model with all values set to 0
 /// Reset the model to its initial state
@@ -33,7 +33,7 @@ pub fn updateValue(self: *C1Model, cc: c1.CCs, value: u7) void {
         value;
 
     // Store in the array using the CC enum value as index
-    self.values[@intFromEnum(cc) % std.enums.values(c1.CCs).len] = validValue;
+    self.values[@backingInt(cc) % std.enums.values(c1.CCs).len] = validValue;
 }
 
 test updateValue {
@@ -53,7 +53,7 @@ test updateValue {
 
 /// Get the current value of a control
 pub fn getValue(self: *const C1Model, cc: c1.CCs) u7 {
-    return self.values[@intFromEnum(cc) % std.enums.values(c1.CCs).len];
+    return self.values[@backingInt(cc) % std.enums.values(c1.CCs).len];
 }
 
 test getValue {

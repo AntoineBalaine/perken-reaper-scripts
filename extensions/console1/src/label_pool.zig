@@ -9,7 +9,7 @@ pub const COUNT = 41;
 
 pub const empty: Self = .{};
 
-buffer: [COUNT * ENTRY_SIZE]u8 = [_]u8{0} ** (COUNT * ENTRY_SIZE),
+buffer: [COUNT * ENTRY_SIZE]u8 = @splat(0),
 
 pub fn indexOf(cc: CCs) ?u8 {
     return switch (cc) {

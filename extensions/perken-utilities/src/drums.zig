@@ -13,7 +13,7 @@ const log = std.log.scoped(.engine);
 
 /// AddMediaItemToTrack can return NULL; the binding types it non-optional.
 fn addMediaItemToTrack(tp: *Reaper.MediaTrack) ?*Reaper.MediaItem {
-    const f: *const fn (tr: *Reaper.MediaTrack) callconv(.C) ?*Reaper.MediaItem = @ptrCast(Reaper.AddMediaItemToTrack);
+    const f: *const fn (tr: *Reaper.MediaTrack) callconv(.c) ?*Reaper.MediaItem = @ptrCast(Reaper.AddMediaItemToTrack);
     return f(tp);
 }
 
@@ -23,17 +23,17 @@ fn addMediaItemToTrack(tp: *Reaper.MediaTrack) ?*Reaper.MediaItem {
 /// below (flam adds items to the track) cannot disturb the iteration, exactly
 /// like the Lua's pre-collected list.
 fn selectedItemsInTrack(alloc: std.mem.Allocator, tp: *Reaper.MediaTrack) ![]*Reaper.MediaItem {
-    var list = std.ArrayList(*Reaper.MediaItem).init(alloc);
-    errdefer list.deinit();
+    var list: std.ArrayList(*Reaper.MediaItem) = .empty;
+    errdefer list.deinit(alloc);
     const n = Reaper.GetTrackNumMediaItems(tp);
     var i: c_int = 0;
     while (i < n) : (i += 1) {
         const item = Reaper.GetTrackMediaItem(tp, i);
         if (@intFromPtr(item) == 0) continue;
         if (!Reaper.IsMediaItemSelected(item)) continue;
-        try list.append(item);
+        try list.append(alloc, item);
     }
-    return list.toOwnedSlice();
+    return list.toOwnedSlice(alloc);
 }
 
 // ---- chunk-based item copy (utils.CopyMediaItemToTrack) -----------------------

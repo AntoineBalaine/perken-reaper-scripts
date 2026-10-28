@@ -304,7 +304,7 @@ pub const CountSelectedMediaItems = function(&reaper.CountSelectedMediaItems, 1,
 /// CountSelectedTracks
 /// Count the number of selected tracks in the project (proj=0 for active project). This function ignores the master track, see CountSelectedTracks2.
 ///-- @param proj ReaProject
-pub const CountSelectedTracks = function(&reaper.CountSelectedTracks, 1, &.{ ?ReaProject});
+pub const CountSelectedTracks = function(&reaper.CountSelectedTracks, 1, &.{?ReaProject});
 
 /// CountSelectedTracks2
 /// Count the number of selected tracks in the project (proj=0 for active project).
@@ -346,7 +346,7 @@ pub const CountTrackMediaItems = function(&reaper.CountTrackMediaItems, 1, &.{Me
 /// CountTracks
 /// count the number of tracks in the project (proj=0 for active project)
 ///-- @param projOptional ReaProject
-pub const CountTracks = function(&reaper.CountTracks, 1, &.{ ?ReaProject});
+pub const CountTracks = function(&reaper.CountTracks, 1, &.{?ReaProject});
 
 /// CreateLocalOscHandler
 /// callback is a function pointer: void (*callback)(*void obj, [*:0]const u8 msg, c_int msglen), which handles OSC messages sent from REAPER. The function return is a local osc handler. See SendLocalOscMessage, DestroyOscHandler.
@@ -1152,7 +1152,7 @@ pub const GetAudioDeviceInfo = function(&reaper.GetAudioDeviceInfo, 3, &.{ [*:0]
 
 /// GetColorTheme
 /// Deprecated, see GetColorThemeStruct.
-// GetColorTheme: *fn(idx: c_int, defval:  c_int) callconv(.C) c_int_PTR ,
+// GetColorTheme: *fn(idx: c_int, defval:  c_int) callconv(.c) c_int_PTR ,
 
 /// GetColorThemeStruct
 /// returns the whole color theme (icontheme.h) and the size
@@ -4475,7 +4475,7 @@ pub const PlayTrackPreview2 = function(&reaper.PlayTrackPreview2, 2, &.{ ?ReaPro
 pub const PlayTrackPreview2Ex = function(&reaper.PlayTrackPreview2Ex, 4, &.{ ?ReaProject, *preview_register_t, c_int, f64 });
 
 /// plugin_getapi
-// pub var plugin_getapi: *fn (name: [*:0]const u8) callconv(.C) *void = undefined;
+// pub var plugin_getapi: *fn (name: [*:0]const u8) callconv(.c) *void = undefined;
 
 /// plugin_getFilterList
 /// Returns a f64-NULL terminated list of importable media files, suitable for passing to GetOpenFileName() etc. Includes *.* (All files).
@@ -4487,7 +4487,7 @@ pub const plugin_getImportableProjectFilterList = function(&reaper.plugin_getImp
 
 /// plugin_register
 /// Alias for reaper_plugin_info_t::Register, see reaper_plugin.h for documented uses.
-// pub var plugin_register: *fn (name: [*:0]const u8, infostruct: *void) callconv(.C) c_int = undefined;
+// pub var plugin_register: *fn (name: [*:0]const u8, infostruct: *void) callconv(.c) c_int = undefined;
 
 /// PluginWantsAlwaysRunFx
 ///-- @param amt c_int
@@ -6514,7 +6514,7 @@ fn returnType(comptime func: anytype) type {
 fn function(comptime func: anytype, min_argc: comptime_int, comptime arg_types: []const type) fn (args: anytype) callconv(.Inline) returnType(func) {
     return struct {
         inline fn wrapper(args: anytype) returnType(func) {
-            var cast_args: std.meta.Tuple(arg_types) = undefined;
+            var cast_args: @Tuple(arg_types) = undefined;
             if (args.len < min_argc) {
                 @compileError(std.fmt.comptimePrint("{s}: expected {}..{} arguments, got {}", .{ @typeName(@TypeOf(func.*)), min_argc, cast_args.len, args.len }));
             }

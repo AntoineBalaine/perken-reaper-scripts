@@ -26,18 +26,18 @@ pub const KeyTrie = trie_mod.Trie(BindingValue);
 
 /// Per-(context, action_type) tries with global already merged underneath.
 pub const BindingTables = struct {
-    tries: [std.meta.fields(grammar.Context).len][std.meta.fields(grammar.ActionType).len]KeyTrie,
+    tries: [@typeInfo(grammar.Context).@"struct".field_names.len][@typeInfo(grammar.ActionType).@"struct".field_names.len]KeyTrie,
     /// The motion that a doubled track operator ("dd", "MM") composes with.
     /// It is resolved from the registry at config load; when it is null,
     /// doubled operators are not recognized.
     current_track: ?BindingValue = null,
 
     pub fn get(self: *const BindingTables, ctx: grammar.Context, t: grammar.ActionType) *const KeyTrie {
-        return &self.tries[@intFromEnum(ctx)][@intFromEnum(t)];
+        return &self.tries[@backingInt(ctx)][@backingInt(t)];
     }
 
     pub fn getMut(self: *BindingTables, ctx: grammar.Context, t: grammar.ActionType) *KeyTrie {
-        return &self.tries[@intFromEnum(ctx)][@intFromEnum(t)];
+        return &self.tries[@backingInt(ctx)][@backingInt(t)];
     }
 };
 
@@ -369,8 +369,8 @@ const TestEnv = struct {
     }
 
     fn bind(env: *TestEnv, ctx: grammar.Context, t: grammar.ActionType, seq: []const u8, name: []const u8) !void {
-        var keys = std.ArrayList(Key).init(env.alloc);
-        defer keys.deinit();
+        var keys: std.ArrayList(Key) = .empty;
+        defer keys.deinit(env.alloc);
         try keymod.parseSequence(seq, &keys);
         const def = env.reg.get(name).?;
         try env.tables.getMut(ctx, t).insert(keys.items, .{ .name = name, .def = def });
@@ -381,8 +381,8 @@ const TestEnv = struct {
     }
 
     fn parseIn(env: *const TestEnv, mode: grammar.Mode, seq: []const u8) !?Command {
-        var keys = std.ArrayList(Key).init(std.testing.allocator);
-        defer keys.deinit();
+        var keys: std.ArrayList(Key) = .empty;
+        defer keys.deinit(std.testing.allocator);
         try keymod.parseSequence(seq, &keys);
         return build(&env.tables, .main, mode, keys.items);
     }
@@ -475,8 +475,8 @@ test "completions: pending prefix and next chunk" {
 
     var buf: [16]Completion = undefined;
 
-    var keys = std.ArrayList(Key).init(std.testing.allocator);
-    defer keys.deinit();
+    var keys: std.ArrayList(Key) = .empty;
+    defer keys.deinit(std.testing.allocator);
     try keymod.parseSequence("g", &keys);
     const after_g = completions(&env.tables, .main, .normal, keys.items, &buf);
     try std.testing.expectEqual(@as(usize, 1), after_g.len); // 'g' -> gg
@@ -515,8 +515,8 @@ test "completions: a lone operator offers itself again" {
     defer env.deinit();
 
     var buf: [16]Completion = undefined;
-    var keys = std.ArrayList(Key).init(std.testing.allocator);
-    defer keys.deinit();
+    var keys: std.ArrayList(Key) = .empty;
+    defer keys.deinit(std.testing.allocator);
     try keymod.parseSequence("M", &keys);
     const after_m = completions(&env.tables, .main, .normal, keys.items, &buf);
     var found = false;

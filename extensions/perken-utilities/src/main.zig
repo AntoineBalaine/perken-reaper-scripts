@@ -44,47 +44,46 @@ const log = std.log.scoped(.extension);
 // (reaziglib.reaper.initSubset). This covers the action modules and the
 // shared reaper_helpers module from reaziglib.
 const reaper_api = [_][:0]const u8{
-    "AddMediaItemToTrack",          "CountEnvelopePoints",              "CountSelectedMediaItems",
-    "CountSelectedTracks",          "CountTakes",                       "CountTracks",
-    "CreateTrackSend",              "DeleteEnvelopePointRange",         "DeleteTrack",
-    "EnumProjectMarkers",           "EnumProjects",                     "GetProjectPath",
-    "GetActiveTake",                "GetCursorPosition",                "GetEnvelopePoint",
-    "GetEnvelopeScalingMode",       "GetEnvelopeStateChunk",            "GetExtState",
-    "GetItemStateChunk",            "GetLastMarkerAndCurRegion",        "GetMediaItemInfo_Value",
-    "GetMediaItemTakeInfo_Value",   "GetMediaTrackInfo_Value",          "GetParentTrack",
-    "GetProjectLength",             "GetResourcePath",                  "GetSelectedEnvelope",
-    "GetSelectedMediaItem",         "GetSelectedTrack",                 "GetSetMediaTrackInfo_String",
-    "GetSet_LoopTimeRange",         "GetTake",                          "GetToggleCommandStateEx",
-    "GetTrack",                     "GetTrackMediaItem",                "GetTrackNumMediaItems",
-    "GetTrackNumSends",             "GetUserInputs",                    "InsertEnvelopePoint",
-    "InsertTrackAtIndex",           "IsMediaItemSelected",              "kbd_enumerateActions",
-    "SectionFromUniqueID",          "MIDIEditor_GetActive",             "MIDI_GetGrid",
-    "MIDIEditor_GetTake",           "MIDIEditor_LastFocused_OnCommand", "MIDIEditor_OnCommand",
-    "MIDI_CountEvts",               "MIDI_GetNote",                     "MIDI_GetPPQPosFromProjQN",
-    "MIDI_GetProjQNFromPPQPos",     "MIDI_GetProjTimeFromPPQPos",       "MIDI_InsertNote",
-    "MIDI_SetNote",                 "MIDI_Sort",                        "Main_OnCommand",
-    "MIDI_GetPPQPos_StartOfMeasure",
-    "MoveEditCursor",               "NamedCommandLookup",               "PreventUIRefresh",
-    "ScaleToEnvelopeMode",          "SetEnvelopePoint",                 "SetExtState",
-    "SetItemStateChunk",            "SetMediaItemInfo_Value",           "SetMediaItemTakeInfo_Value",
-    "SetMediaTrackInfo_Value",      "ShowMessageBox",                   "SnapToGrid",
-    "SplitMediaItem",               "TakeIsMIDI",                       "TimeMap2_beatsToTime",
-    "TrackFX_GetFXName",            "TrackFX_GetInstrument",            "TrackFX_GetPreset",
-    "Undo_BeginBlock",              "Undo_EndBlock",                    "UpdateArrange",
-    "UpdateItemInProject",          "get_config_var",                   "plugin_register",
-    "plugin_getapi",                "GetFXEnvelope",                    "GetGlobalAutomationOverride",
-    "TrackFX_GetParam",             "SetOnlyTrackSelected",             "CountTrackEnvelopes",
-    "GetTrackEnvelope",             "Envelope_GetParentTrack",          "GetLastTouchedFX",
-    "CreateTakeAudioAccessor",      "GetAudioAccessorSamples",          "DestroyAudioAccessor",
-    "GetAudioAccessorStartTime",    "GetAudioAccessorEndTime",          "GetMediaItemTake_Source",
-    "GetMediaSourceNumChannels",    "SetTakeMarker",                    "DeleteTakeMarker",
-    "GetNumTakeMarkers",            "GetTakeMarker",                    "ValidatePtr2",
-    "GetTakeName",                  "TimeMap2_timeToQN",                "TimeMap2_QNToTime",
-    "TimeMap2_timeToBeats",         "GetTakeNumStretchMarkers",         "SetTakeStretchMarker",
-    "CountTempoTimeSigMarkers",     "GetMediaItemTake_Item",            "SetCurrentBPM",
-    "TimeMap2_GetDividedBpmAtTime", "SetTempoTimeSigMarker",            "UpdateTimeline",
-    "TimeMap_GetTimeSigAtTime",     "AddProjectMarker2",                "SetProjectMarker",
-    "GetMediaSourceFileName",
+    "AddMediaItemToTrack",           "CountEnvelopePoints",              "CountSelectedMediaItems",
+    "CountSelectedTracks",           "CountTakes",                       "CountTracks",
+    "CreateTrackSend",               "DeleteEnvelopePointRange",         "DeleteTrack",
+    "EnumProjectMarkers",            "EnumProjects",                     "GetProjectPath",
+    "GetActiveTake",                 "GetCursorPosition",                "GetEnvelopePoint",
+    "GetEnvelopeScalingMode",        "GetEnvelopeStateChunk",            "GetExtState",
+    "GetItemStateChunk",             "GetLastMarkerAndCurRegion",        "GetMediaItemInfo_Value",
+    "GetMediaItemTakeInfo_Value",    "GetMediaTrackInfo_Value",          "GetParentTrack",
+    "GetProjectLength",              "GetResourcePath",                  "GetSelectedEnvelope",
+    "GetSelectedMediaItem",          "GetSelectedTrack",                 "GetSetMediaTrackInfo_String",
+    "GetSet_LoopTimeRange",          "GetTake",                          "GetToggleCommandStateEx",
+    "GetTrack",                      "GetTrackMediaItem",                "GetTrackNumMediaItems",
+    "GetTrackNumSends",              "GetUserInputs",                    "InsertEnvelopePoint",
+    "InsertTrackAtIndex",            "IsMediaItemSelected",              "kbd_enumerateActions",
+    "SectionFromUniqueID",           "MIDIEditor_GetActive",             "MIDI_GetGrid",
+    "MIDIEditor_GetTake",            "MIDIEditor_LastFocused_OnCommand", "MIDIEditor_OnCommand",
+    "MIDI_CountEvts",                "MIDI_GetNote",                     "MIDI_GetPPQPosFromProjQN",
+    "MIDI_GetProjQNFromPPQPos",      "MIDI_GetProjTimeFromPPQPos",       "MIDI_InsertNote",
+    "MIDI_SetNote",                  "MIDI_Sort",                        "Main_OnCommand",
+    "MIDI_GetPPQPos_StartOfMeasure", "MoveEditCursor",                   "NamedCommandLookup",
+    "PreventUIRefresh",              "ScaleToEnvelopeMode",              "SetEnvelopePoint",
+    "SetExtState",                   "SetItemStateChunk",                "SetMediaItemInfo_Value",
+    "SetMediaItemTakeInfo_Value",    "SetMediaTrackInfo_Value",          "ShowMessageBox",
+    "SnapToGrid",                    "SplitMediaItem",                   "TakeIsMIDI",
+    "TimeMap2_beatsToTime",          "TrackFX_GetFXName",                "TrackFX_GetInstrument",
+    "TrackFX_GetPreset",             "Undo_BeginBlock",                  "Undo_EndBlock",
+    "UpdateArrange",                 "UpdateItemInProject",              "get_config_var",
+    "plugin_register",               "plugin_getapi",                    "GetFXEnvelope",
+    "GetGlobalAutomationOverride",   "TrackFX_GetParam",                 "SetOnlyTrackSelected",
+    "CountTrackEnvelopes",           "GetTrackEnvelope",                 "Envelope_GetParentTrack",
+    "GetLastTouchedFX",              "CreateTakeAudioAccessor",          "GetAudioAccessorSamples",
+    "DestroyAudioAccessor",          "GetAudioAccessorStartTime",        "GetAudioAccessorEndTime",
+    "GetMediaItemTake_Source",       "GetMediaSourceNumChannels",        "SetTakeMarker",
+    "DeleteTakeMarker",              "GetNumTakeMarkers",                "GetTakeMarker",
+    "ValidatePtr2",                  "GetTakeName",                      "TimeMap2_timeToQN",
+    "TimeMap2_QNToTime",             "TimeMap2_timeToBeats",             "GetTakeNumStretchMarkers",
+    "SetTakeStretchMarker",          "CountTempoTimeSigMarkers",         "GetMediaItemTake_Item",
+    "SetCurrentBPM",                 "TimeMap2_GetDividedBpmAtTime",     "SetTempoTimeSigMarker",
+    "UpdateTimeline",                "TimeMap_GetTimeSigAtTime",         "AddProjectMarker2",
+    "SetProjectMarker",              "GetMediaSourceFileName",
 };
 
 /// Every action this extension provides.
@@ -112,7 +111,7 @@ const registrations = blk: {
 };
 
 /// Command ids REAPER assigned to the registrations, in the same order.
-var cmd_ids = [_]c_int{0} ** all_entries.len;
+var cmd_ids: [all_entries.len]c_int = @splat(0);
 
 export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_info_t) c_int {
     _ = instance;
@@ -129,17 +128,17 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
         return 0;
 
     for (&registrations, 0..) |*reg, i| {
-        cmd_ids[i] = Reaper.plugin_register("custom_action", @constCast(@ptrCast(reg)));
+        cmd_ids[i] = Reaper.plugin_register("custom_action", @ptrCast(@constCast(reg)));
         if (cmd_ids[i] == 0) log.err("failed to register action {s}", .{reg.id_str});
     }
-    _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
-    _ = Reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
+    _ = Reaper.plugin_register("hookcommand2", @ptrCast(@constCast(&onCommand)));
+    _ = Reaper.plugin_register("toggleaction", @ptrCast(@constCast(&toggleActionHook)));
 
     log.info("v{s} loaded {d} actions (search \"Perken:\" in the action list)", .{ build_options.version, all_entries.len });
     return 1;
 }
 
-fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: Reaper.HWND) callconv(.C) c_char {
+fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: Reaper.HWND) callconv(.c) c_char {
     _ = .{ sec, val, val2hw, relmode, hwnd };
     if (command == 0) return 0;
     for (cmd_ids, 0..) |id, i| {
@@ -163,7 +162,7 @@ fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_
 
 /// Reports on/off actions' state: -1 = not ours or not a toggle, 0 = off,
 /// 1 = on.
-fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
+fn toggleActionHook(command_id: c_int) callconv(.c) c_int {
     if (command_id == 0) return -1;
     for (cmd_ids, 0..) |id, i| {
         if (id != command_id) continue;
@@ -219,8 +218,8 @@ test "every REAPER function the sources call is in reaper_api" {
     // runs. This test reads the sources and fails on such a name instead.
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
-    var unlisted = std.ArrayList([]const u8).init(std.testing.allocator);
-    defer unlisted.deinit();
+    var unlisted: std.ArrayList([]const u8) = .empty;
+    defer unlisted.deinit(std.testing.allocator);
     const api = @import("reaper");
     try api.unlistedCallsInPaths(arena.allocator(), @import("test_paths").sources, &reaper_api, &unlisted);
     for (unlisted.items) |name| std.debug.print("REAPER function used but missing from reaper_api: {s}\n", .{name});

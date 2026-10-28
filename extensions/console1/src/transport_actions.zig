@@ -15,7 +15,7 @@ pub const TransportState = @import("action_types.zig").TransportState;
 
 pub fn transportAction(globals: *Globals, action: TransportAction) void {
     switch (action) {
-        .automation_mode => |mode| reaper.SetAutomationMode(@intFromEnum(mode), false),
+        .automation_mode => |mode| reaper.SetAutomationMode(@backingInt(mode), false),
         .grid => |new_pos| {
             var pos_rel: u8 = globals.state.transport.grid;
             if (utils.calculateClampedDelta(c_int, &globals.state.transport.grid, &pos_rel, new_pos, 127, null)) |delta| {

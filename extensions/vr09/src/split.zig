@@ -27,7 +27,7 @@ fn routed(channel: u8) bool {
 /// Runs on the audio thread. It remembers the channel each held note went to,
 /// so that its note off follows it even if the split changes meanwhile.
 pub const Router = struct {
-    held: [16][128]u8 = [_][128]u8{[_]u8{none} ** 128} ** 16,
+    held: [16][128]u8 = @splat(@splat(none)),
 
     /// Writes the messages to send for `msg` into `out` and returns how many.
     pub fn route(self: *Router, split: bool, msg: [3]u8, out: *[2][3]u8) usize {
@@ -86,18 +86,18 @@ pub fn setSplit(allocator: std.mem.Allocator, path: []const u8, name: []const u8
         else => return err,
     };
     defer allocator.free(old);
-    var out = std.ArrayList(u8).init(allocator);
-    defer out.deinit();
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(allocator);
     var lines = std.mem.splitScalar(u8, old, '\n');
     while (lines.next()) |raw| {
         const line = std.mem.trimRight(u8, raw, "\r");
         if (line.len == 0 or std.mem.eql(u8, line, name)) continue;
-        try out.appendSlice(line);
-        try out.append('\n');
+        try out.appendSlice(allocator, line);
+        try out.append(allocator, '\n');
     }
     if (on) {
-        try out.appendSlice(name);
-        try out.append('\n');
+        try out.appendSlice(allocator, name);
+        try out.append(allocator, '\n');
     }
     if (std.fs.path.dirname(path)) |dir| try fileio.makePath(dir);
     try fileio.writeAll(path, out.items);

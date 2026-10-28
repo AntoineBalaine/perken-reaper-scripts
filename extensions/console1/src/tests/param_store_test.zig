@@ -16,8 +16,8 @@ test "StringPool - basic operations" {
     const offset2 = try pool.intern(allocator, "World");
     const offset3 = try pool.intern(allocator, "Test");
 
-    try testing.expect(@intFromEnum(offset2) > @intFromEnum(offset1));
-    try testing.expect(@intFromEnum(offset3) > @intFromEnum(offset2));
+    try testing.expect(@backingInt(offset2) > @backingInt(offset1));
+    try testing.expect(@backingInt(offset3) > @backingInt(offset2));
 
     // Test get retrieves correct strings
     try testing.expectEqualStrings("Hello", pool.get(offset1));

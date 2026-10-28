@@ -28,7 +28,7 @@ pub fn FrameRing(comptime capacity: usize) type {
     return struct {
         const Self = @This();
 
-        frames: [capacity]Frame = [_]Frame{.{ 0, 0 }} ** capacity,
+        frames: [capacity]Frame = @splat(.{ 0, 0 }),
         head: Atomic(usize) = Atomic(usize).init(0),
         tail: Atomic(usize) = Atomic(usize).init(0),
 
@@ -130,10 +130,10 @@ pub const HostBuffers = struct {
 /// The slots of every plugin instance in this process, and the hook that
 /// serves them.
 pub const Bridge = struct {
-    slots: [max_slots]Slot = [_]Slot{.{}} ** max_slots,
+    slots: [max_slots]Slot = @splat(.{}),
     /// The state of each slot: free, being made ready by `claim`, or claimed. Because the hook acts on a slot as
     /// soon as it sees it claimed, `claim` resets the slot while it is only being prepared.
-    claimed: [max_slots]Atomic(u8) = [_]Atomic(u8){Atomic(u8).init(slot_free)} ** max_slots,
+    claimed: [max_slots]Atomic(u8) = @splat(Atomic(u8).init(slot_free)),
     /// Counts the hook's post callbacks, so that a plugin can tell whether the
     /// audio device is running (it is not during an offline render).
     ticks: Atomic(u32) = Atomic(u32).init(0),
@@ -505,8 +505,8 @@ test "the loop measures the true round trip and returns the audio with that dela
     defer device.history.deinit();
 
     const B = FakeDevice.block;
-    var in_l: [B]f32 = [_]f32{0} ** B;
-    var in_r: [B]f32 = [_]f32{0} ** B;
+    var in_l: [B]f32 = @splat(0);
+    var in_r: [B]f32 = @splat(0);
     var out_l: [B]f32 = undefined;
     var out_r: [B]f32 = undefined;
 
@@ -522,10 +522,10 @@ test "the loop measures the true round trip and returns the audio with that dela
 
     // A ramp through the same path must come back exactly `measured` frames
     // later. The first values are skipped while the rings settle.
-    var sent = std.ArrayList(f32).init(allocator);
-    defer sent.deinit();
-    var received = std.ArrayList(f32).init(allocator);
-    defer received.deinit();
+    var sent: std.ArrayList(f32) = .empty;
+    defer sent.deinit(allocator);
+    var received: std.ArrayList(f32) = .empty;
+    defer received.deinit(allocator);
     var k: usize = 0;
     for (0..60) |_| {
         for (0..B) |i| {
@@ -536,8 +536,8 @@ test "the loop measures the true round trip and returns the audio with that dela
         loop.process(true, &in_l, &in_r, &out_l, &out_r);
         try device.after(bridge);
         for (0..B) |i| {
-            try sent.append(in_l[i]);
-            try received.append(out_l[i]);
+            try sent.append(allocator, in_l[i]);
+            try received.append(allocator, out_l[i]);
         }
         k += B;
     }
@@ -578,7 +578,7 @@ test "turning the loop off leaves the hook's side of the ring to the hook" {
     const slot = bridge.claim().?;
     var loop = Loop.init(bridge, slot);
     // The loop was running: the plugin pushed a block, and the hook had started taking from the ring.
-    const block = [_]f32{0.25} ** 64;
+    const block: [64]f32 = @splat(0.25);
     slot.active.store(true, .release);
     try std.testing.expect(slot.out_ring.push(&block, &block));
     slot.out_primed = true;
@@ -607,7 +607,7 @@ test "a measurement is asked for by any thread and begins in the audio thread" {
     loop.startPing();
     try std.testing.expectEqual(PingState.idle, loop.ping.state);
     try std.testing.expect(loop.ping_requested.load(.acquire));
-    const block = [_]f32{0} ** 16;
+    const block: [16]f32 = @splat(0);
     var out_l: [16]f32 = undefined;
     var out_r: [16]f32 = undefined;
     loop.process(true, &block, &block, &out_l, &out_r);
@@ -620,7 +620,7 @@ test "the hook leaves a slot alone while it is being prepared" {
     defer allocator.destroy(bridge);
     // A claim that has reserved the slot and has not finished resetting it: the hook must not clear its ring.
     bridge.claimed[0].store(slot_preparing, .release);
-    const block = [_]f32{0.5} ** 32;
+    const block: [32]f32 = @splat(0.5);
     try std.testing.expect(bridge.slots[0].out_ring.push(&block, &block));
     var unused: u8 = 0;
     bridge.onBuffer(true, 32, .{ .ctx = &unused, .input_nch = 0, .output_nch = 0, .get = noBuffers });

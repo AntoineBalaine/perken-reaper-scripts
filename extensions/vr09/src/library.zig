@@ -79,7 +79,7 @@ fn registrationRow(p: *Plugin, parsed: registrations.Parsed, file_name: [:0]cons
         .value = registrations.patchValue(parsed),
         .name = p.strings.intern(registrations.displayName(&display, parsed.name)),
         .group = strings.empty,
-        .number = p.strings.intern(std.fmt.bufPrintZ(&number, "{d}-{d}", .{ parsed.bank, parsed.slot }) catch ""),
+        .number = p.strings.intern(std.mem.printSentinel(&number, "{d}-{d}", .{ parsed.bank, parsed.slot }, 0) catch ""),
         .file = p.strings.intern(file_name),
     };
 }

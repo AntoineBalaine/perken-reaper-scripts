@@ -161,7 +161,7 @@ fn countFields(comptime T: type) comptime_int {
                 // If it's an EnumArray, count the enum variants
                 if (std.mem.eql(u8, field.name, "default_fx")) {
                     const enum_type = @import("statemachine.zig").ModulesList;
-                    count += @typeInfo(enum_type).@"enum".fields.len;
+                    count += @typeInfo(enum_type).@"enum".field_names.len;
                 } else {
                     // Recursively count fields for nested structs
                     count += countFields(field.type);

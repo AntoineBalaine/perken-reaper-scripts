@@ -293,8 +293,8 @@ test "parse named keys and escapes" {
 }
 
 test "parse sequence" {
-    var keys = std.ArrayList(Key).init(std.testing.allocator);
-    defer keys.deinit();
+    var keys: std.ArrayList(Key) = .empty;
+    defer keys.deinit(std.testing.allocator);
     try parseSequence("g<C-w>5J", &keys);
     try std.testing.expectEqual(@as(usize, 4), keys.items.len);
     try std.testing.expectEqual(@as(u8, 'G'), keys.items[0].vk);

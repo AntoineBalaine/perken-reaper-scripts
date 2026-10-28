@@ -9,8 +9,8 @@ const c1_theme = @import("theme/c1_theme.zig");
 // need a static location to store the value between frames.
 var last_action: action_types.ModeAction = undefined;
 
-export fn ui_init(plugin_getapi_opaque: *anyopaque) callconv(.C) bool {
-    const plugin_getapi: *fn ([*:0]const u8) callconv(.C) ?*anyopaque = @ptrCast(@alignCast(plugin_getapi_opaque));
+export fn ui_init(plugin_getapi_opaque: *anyopaque) callconv(.c) bool {
+    const plugin_getapi: *fn ([*:0]const u8) callconv(.c) ?*anyopaque = @ptrCast(@alignCast(plugin_getapi_opaque));
     imgui.init(plugin_getapi) catch return false;
     return true;
 }
@@ -24,7 +24,7 @@ export fn ui_render(
     win_flags: c_int,
     ui_state: *UiState,
     style_manager: *styles.StyleManager,
-) callconv(.C) c_int {
+) callconv(.c) c_int {
     // Because the host and UI lib are separate compilation units, the UI lib
     // has its own copy of c1_theme.fonts that needs to be synced from the host's
     // font pointers each frame.
@@ -42,6 +42,6 @@ export fn ui_render(
     }
 }
 
-export fn ui_get_last_action() callconv(.C) *const action_types.ModeAction {
+export fn ui_get_last_action() callconv(.c) *const action_types.ModeAction {
     return &last_action;
 }

@@ -83,18 +83,18 @@ pub const Window = struct {
     // A tab to bring to the front on the next frame (0 for none, else the
     // tab's number from 1), so that a script can drive the panel.
     select_tab: u8 = 0,
-    save_name: [name_cap:0]u8 = [_:0]u8{0} ** name_cap,
-    export_path: [fileio.max_path:0]u8 = [_:0]u8{0} ** fileio.max_path,
+    save_name: [name_cap:0]u8 = @splat(0),
+    export_path: [fileio.max_path:0]u8 = @splat(0),
 
     // The devices, refreshed a few times a second.
     device_refresh_at: u32 = 0,
-    output_names: [max_devices]DeviceName = [_]DeviceName{[_:0]u8{0} ** device_name_cap} ** max_devices,
-    output_present: [max_devices]bool = [_]bool{false} ** max_devices,
-    input_names: [max_devices]DeviceName = [_]DeviceName{[_:0]u8{0} ** device_name_cap} ** max_devices,
-    input_present: [max_devices]bool = [_]bool{false} ** max_devices,
+    output_names: [max_devices]DeviceName = @splat(@splat(0)),
+    output_present: [max_devices]bool = @splat(false),
+    input_names: [max_devices]DeviceName = @splat(@splat(0)),
+    input_present: [max_devices]bool = @splat(false),
 
     // The last notice to the user.
-    notice_text: [160:0]u8 = [_:0]u8{0} ** 160,
+    notice_text: [160:0]u8 = @splat(0),
     notice_until: u32 = 0,
     notice_is_error: bool = false,
 
@@ -102,7 +102,7 @@ pub const Window = struct {
     pub fn notice(self: *Window, comptime fmt: []const u8, args: anytype, is_error: bool) void {
         // A text that does not fit keeps its beginning, which says what happened: the buffer is filled to its end,
         // and the terminator that comes after it is put back.
-        _ = std.fmt.bufPrintZ(&self.notice_text, fmt, args) catch {
+        _ = std.mem.printSentinel(&self.notice_text, fmt, args, 0) catch {
             self.notice_text[self.notice_text.len] = 0;
         };
         self.notice_until = self.frame + 240;
@@ -225,7 +225,7 @@ fn draw(p: *Plugin) void {
         // The name is unique to each context: two contexts of the same name
         // may share a native window, and the end of the old one would take
         // the new one's window with it.
-        const title = std.fmt.bufPrintZ(&title_buf, "VR-09 {x}-{d}", .{ @intFromPtr(p), w.contexts_created + 1 }) catch "VR-09";
+        const title = std.mem.printSentinel(&title_buf, "VR-09 {x}-{d}", .{ @intFromPtr(p), w.contexts_created + 1 }, 0) catch "VR-09";
         w.ctx = imgui.api.CreateContext(title, &config);
         if (w.ctx == null) {
             w.open = false;
@@ -265,9 +265,9 @@ fn draw(p: *Plugin) void {
     var title: [80:0]u8 = undefined;
     const track_number: u32 = if (p.track != null) @intFromFloat(Reaper.GetMediaTrackInfo_Value(p.track, "IP_TRACKNUMBER")) else 0;
     const label = if (track_number > 0)
-        std.fmt.bufPrintZ(&title, "VR-09, track {d}##{x}-{d}", .{ track_number, @intFromPtr(p), w.contexts_created }) catch "VR-09"
+        std.mem.printSentinel(&title, "VR-09, track {d}##{x}-{d}", .{ track_number, @intFromPtr(p), w.contexts_created }, 0) catch "VR-09"
     else
-        std.fmt.bufPrintZ(&title, "VR-09##{x}-{d}", .{ @intFromPtr(p), w.contexts_created }) catch "VR-09";
+        std.mem.printSentinel(&title, "VR-09##{x}-{d}", .{ @intFromPtr(p), w.contexts_created }, 0) catch "VR-09";
     var action: ?action_types.Action = null;
     if (imgui.api.Begin(ctx, label, &is_open, &flags)) {
         action = drawContent(p, ctx);
@@ -390,7 +390,7 @@ fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
     defer widgets.endCard(kit);
     const s = p.shared;
     const connected = s.connected.load(.acquire);
-    const mode: roland.MidiInMode = @enumFromInt(s.mode.load(.monotonic));
+    const mode: roland.MidiInMode = @fromBackingInt(@intCast(s.mode.load(.monotonic)));
     var color = theme.red;
     var text: [:0]const u8 = "The keyboard does not answer: see the MIDI tab";
     if (connected) {
@@ -416,19 +416,19 @@ fn drawHeader(p: *Plugin, ctx: imgui.ContextPtr) void {
     imgui.api.SameLine(ctx, null, null);
     imgui.api.TextColored(ctx, color, text);
 
-    const job: engine.JobKind = @enumFromInt(s.job.load(.monotonic));
+    const job: engine.JobKind = @fromBackingInt(@intCast(s.job.load(.monotonic)));
     if (job != .idle) {
         const done = s.progress_done.load(.monotonic);
         const total = s.progress_total.load(.monotonic);
         var caption_buf: [64:0]u8 = undefined;
-        const caption = std.fmt.bufPrintZ(&caption_buf, "{s} {d}/{d}", .{ if (job == .reading) "Reading" else "Writing", done, total }) catch "";
+        const caption = std.mem.printSentinel(&caption_buf, "{s} {d}/{d}", .{ if (job == .reading) "Reading" else "Writing", done, total }, 0) catch "";
         const fraction: f64 = if (total == 0) 0 else @as(f64, @floatFromInt(done)) / @as(f64, @floatFromInt(total));
         var width: f64 = 420;
         imgui.api.ProgressBar(ctx, fraction, &width, null, caption);
     }
     const preset = p.settings.presetName();
     var name: [96:0]u8 = undefined;
-    const shown = std.fmt.bufPrintZ(&name, "{s}", .{if (preset.len == 0) "(none)" else preset}) catch "Patch";
+    const shown = std.mem.printSentinel(&name, "{s}", .{if (preset.len == 0) "(none)" else preset}, 0) catch "Patch";
     imgui.api.TextColored(ctx, theme.label, "Patch");
     imgui.api.SameLine(ctx, null, null);
     widgets.display(kit, shown, theme.amber, 260);
@@ -443,13 +443,12 @@ fn drawControls(p: *Plugin) ?action_types.Action {
 // ---- the audio loop ----
 
 fn drawChannelPairCombo(kit: *widgets.Panel, id: [:0]const u8, dir: glue.Direction, current: i32, out: *i32) bool {
-
     var preview: [96:0]u8 = undefined;
     const count = glue.audioChannelCount(dir);
     const preview_text = if (current < 0 or current + 1 >= count)
-        std.fmt.bufPrintZ(&preview, "none", .{}) catch "none"
+        std.mem.printSentinel(&preview, "none", .{}, 0) catch "none"
     else
-        std.fmt.bufPrintZ(&preview, "{s} + {s}", .{ glue.audioChannelName(dir, @intCast(current)), glue.audioChannelName(dir, @intCast(current + 1)) }) catch "?";
+        std.mem.printSentinel(&preview, "{s} + {s}", .{ glue.audioChannelName(dir, @intCast(current)), glue.audioChannelName(dir, @intCast(current + 1)) }, 0) catch "?";
     var changed = false;
     if (widgets.beginPickList(kit, id, preview_text, 320)) {
         if (widgets.pickItem(kit, "none", current < 0, true)) {
@@ -459,7 +458,7 @@ fn drawChannelPairCombo(kit: *widgets.Panel, id: [:0]const u8, dir: glue.Directi
         var ch: usize = 0;
         while (ch + 1 < count) : (ch += 2) {
             var label: [128:0]u8 = undefined;
-            const text = std.fmt.bufPrintZ(&label, "{s} + {s}##{d}", .{ glue.audioChannelName(dir, ch), glue.audioChannelName(dir, ch + 1), ch }) catch continue;
+            const text = std.mem.printSentinel(&label, "{s} + {s}##{d}", .{ glue.audioChannelName(dir, ch), glue.audioChannelName(dir, ch + 1), ch }, 0) catch continue;
             if (widgets.pickItem(kit, text, current == @as(i32, @intCast(ch)), true)) {
                 out.* = @intCast(ch);
                 changed = true;
@@ -501,7 +500,7 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
     labelNote(kit, "The loop sends this track's audio to the keyboard's audio input and takes the keyboard's output back, the way ReaInsert does for outboard gear. Wire the interface's output to the keyboard's input, and the keyboard's output to the interface's input.", 560);
     imgui.api.Spacing(ctx);
 
-    const loop_state: audio.LoopState = @enumFromInt(p.loop_state.load(.monotonic));
+    const loop_state: audio.LoopState = @fromBackingInt(@intCast(p.loop_state.load(.monotonic)));
     if (widgets.beginCard(kit, "Loop", null, null, null)) {
         const brackets = [_]widgets.Bracket{.{ .label = "Levels", .from = 2, .to = 3 }};
         widgets.bracketRow(kit, &brackets, 3);
@@ -534,7 +533,7 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
         });
         if (p.slot) |slot| {
             var drops: [96:0]u8 = undefined;
-            imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&drops, "Dropouts: send {d}, return {d}", .{ slot.out_underruns.load(.monotonic), slot.in_overruns.load(.monotonic) }) catch "");
+            imgui.api.TextColored(ctx, theme.grey, std.mem.printSentinel(&drops, "Dropouts: send {d}, return {d}", .{ slot.out_underruns.load(.monotonic), slot.in_overruns.load(.monotonic) }, 0) catch "");
         } else {
             imgui.api.TextColored(ctx, theme.grey, "The plugin is not active yet.");
         }
@@ -553,7 +552,7 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
 
     if (widgets.beginCard(kit, "Latency", null, null, null)) {
         labelNote(kit, "The plugin tells REAPER how long the round trip takes, and REAPER's delay compensation lines the track up. Measuring sends a short click to the keyboard's audio input, so turn the keyboard's volume down first.", 420);
-        const ping: audio.PingState = @enumFromInt(p.ping_state.load(.acquire));
+        const ping: audio.PingState = @fromBackingInt(@intCast(p.ping_state.load(.acquire)));
         const busy = ping == .listening_noise or ping == .sending or ping == .listening;
         if (busy) imgui.api.BeginDisabled(ctx, null);
         if (widgets.pushButton(kit, "Measure the round trip", 0)) action = .measure_latency;
@@ -578,7 +577,7 @@ fn drawAudioLoop(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
 
 fn latencyText(buf: []u8, frames: u32, rate: u32) [:0]const u8 {
     const ms: f64 = if (rate == 0) 0 else @as(f64, @floatFromInt(frames)) * 1000.0 / @as(f64, @floatFromInt(rate));
-    return std.fmt.bufPrintZ(buf, "{d} samples ({d:.1} ms)", .{ frames, ms }) catch "?";
+    return std.mem.printSentinel(buf, "{d} samples ({d:.1} ms)", .{ frames, ms }, 0) catch "?";
 }
 
 // ---- the MIDI tab ----
@@ -589,9 +588,9 @@ fn drawDeviceCombo(w: *Window, id: [:0]const u8, dir: glue.Direction, current: ?
     const present = if (dir == .output) &w.output_present else &w.input_present;
     var preview: [128:0]u8 = undefined;
     const preview_text = if (current) |c|
-        (if (c < max_devices and present[c]) std.fmt.bufPrintZ(&preview, "{s}", .{std.mem.sliceTo(&names[c], 0)}) catch "?" else std.fmt.bufPrintZ(&preview, "device {d} (not present)", .{c}) catch "?")
+        (if (c < max_devices and present[c]) std.mem.printSentinel(&preview, "{s}", .{std.mem.sliceTo(&names[c], 0)}, 0) catch "?" else std.mem.printSentinel(&preview, "device {d} (not present)", .{c}, 0) catch "?")
     else
-        std.fmt.bufPrintZ(&preview, "none", .{}) catch "none";
+        std.mem.printSentinel(&preview, "none", .{}, 0) catch "none";
     var changed = false;
     if (widgets.beginPickList(kit, id, preview_text, 360)) {
         if (dir == .output and widgets.pickItem(kit, "none", current == null, true)) {
@@ -601,7 +600,7 @@ fn drawDeviceCombo(w: *Window, id: [:0]const u8, dir: glue.Direction, current: ?
         for (0..max_devices) |i| {
             if (!present[i]) continue;
             var label: [160:0]u8 = undefined;
-            const text = std.fmt.bufPrintZ(&label, "{s}##{d}", .{ std.mem.sliceTo(&names[i], 0), i }) catch continue;
+            const text = std.mem.printSentinel(&label, "{s}##{d}", .{ std.mem.sliceTo(&names[i], 0), i }, 0) catch continue;
             // Because a track's device field is too narrow for the later entries, they are shown but cannot be chosen.
             if (widgets.pickItem(kit, text, current != null and current.? == i, glue.addressable(dir, i))) {
                 out.* = i;
@@ -657,7 +656,7 @@ fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
         const dropped = s.midi_dropped.load(.monotonic);
         if (!pass and dropped > 0) {
             var note: [128:0]u8 = undefined;
-            imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&note, "{d} MIDI messages on this track were not passed on.", .{dropped}) catch "");
+            imgui.api.TextColored(ctx, theme.grey, std.mem.printSentinel(&note, "{d} MIDI messages on this track were not passed on.", .{dropped}, 0) catch "");
         }
         var bare = p.settings.sysex_bare.load(.monotonic);
         if (widgets.toggle(kit, "Send SysEx without its F0 and F7 bytes", &bare)) action = .{ .set_sysex_bare = bare };
@@ -668,12 +667,12 @@ fn drawMidi(p: *Plugin, ctx: imgui.ContextPtr) ?action_types.Action {
     if (widgets.beginCard(kit, "Connection", null, null, null)) {
         if (widgets.pushButton(kit, "Look for the keyboard again", 0)) action = .reconnect;
         var text: [160:0]u8 = undefined;
-        widgets.display(kit, std.fmt.bufPrintZ(&text, "sent {d}   received {d}   bad checksums {d}", .{ s.tx_count.load(.monotonic), s.rx_count.load(.monotonic), s.bad_count.load(.monotonic) }) catch "", theme.amber, 360);
-        imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "SysEx events: from the host {d}, accepted by the host {d}, refused {d}", .{ s.host_sysex_in.load(.monotonic), s.host_sysex_out.load(.monotonic), s.host_sysex_refused.load(.monotonic) }) catch "");
+        widgets.display(kit, std.mem.printSentinel(&text, "sent {d}   received {d}   bad checksums {d}", .{ s.tx_count.load(.monotonic), s.rx_count.load(.monotonic), s.bad_count.load(.monotonic) }, 0) catch "", theme.amber, 360);
+        imgui.api.TextColored(ctx, theme.grey, std.mem.printSentinel(&text, "SysEx events: from the host {d}, accepted by the host {d}, refused {d}", .{ s.host_sysex_in.load(.monotonic), s.host_sysex_out.load(.monotonic), s.host_sysex_refused.load(.monotonic) }, 0) catch "");
         var trace: [96]u8 = undefined;
-        imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "First received: {s}", .{s.trace_in.format(&trace)}) catch "");
-        imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "First sent: {s}", .{s.trace_out.format(&trace)}) catch "");
-        imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&text, "Known keyboard bytes: {d} of {d}, blocks that never answered: {d}", .{ s.mirror_known.load(.monotonic), dump.total_bytes, s.blocks_failed.load(.monotonic) }) catch "");
+        imgui.api.TextColored(ctx, theme.grey, std.mem.printSentinel(&text, "First received: {s}", .{s.trace_in.format(&trace)}, 0) catch "");
+        imgui.api.TextColored(ctx, theme.grey, std.mem.printSentinel(&text, "First sent: {s}", .{s.trace_out.format(&trace)}, 0) catch "");
+        imgui.api.TextColored(ctx, theme.grey, std.mem.printSentinel(&text, "Known keyboard bytes: {d} of {d}, blocks that never answered: {d}", .{ s.mirror_known.load(.monotonic), dump.total_bytes, s.blocks_failed.load(.monotonic) }, 0) catch "");
         widgets.endCard(kit);
     }
     return action;

@@ -29,7 +29,7 @@ const template_name_cap = 64;
 pub const State = struct {
     /// Because the rows change places while one is dragged, each is known by an ID of its scene, which moves
     /// with it. The IDs are the panel's own: the plugin's scenes have none.
-    uids: [scenes.max_scenes]u32 = [_]u32{0} ** scenes.max_scenes,
+    uids: [scenes.max_scenes]u32 = @splat(0),
     uid_count: usize = 0,
     next_uid: u32 = 1,
     /// True while a row is dragged, so that the click that ends the drag does not select a scene.
@@ -37,9 +37,9 @@ pub const State = struct {
     /// The ID of the scene whose name is being edited, or 0, and the text of the field.
     editing: u32 = 0,
     focus: bool = false,
-    edit_text: [scenes.max_name:0]u8 = [_:0]u8{0} ** scenes.max_name,
-    template_name: [template_name_cap:0]u8 = [_:0]u8{0} ** template_name_cap,
-    template_selected: [template_name_cap:0]u8 = [_:0]u8{0} ** template_name_cap,
+    edit_text: [scenes.max_name:0]u8 = @splat(0),
+    template_name: [template_name_cap:0]u8 = @splat(0),
+    template_selected: [template_name_cap:0]u8 = @splat(0),
     templates: ?std.ArrayListUnmanaged(strings.Ref) = null,
     templates_at: u32 = 0,
 };
@@ -120,13 +120,13 @@ fn nameCell(p: *Plugin, ctx: imgui.ContextPtr, scene: *const scenes.Scene, posit
     if (w.editing != uid) {
         var shown_buf: [scenes.max_name + 16:0]u8 = undefined;
         const name = if (scene.name().len > 0) scene.name() else "(no name)";
-        const shown = std.fmt.bufPrintZ(&shown_buf, "{s}##scenename", .{name}) catch "?";
+        const shown = std.mem.printSentinel(&shown_buf, "{s}##scenename", .{name}, 0) catch "?";
         var flags: c_int = imgui.SelectableFlags_AllowOverlap;
         const clicked = imgui.api.Selectable(ctx, shown, null, &flags, null, null);
         if (imgui.api.IsItemHovered(ctx, null) and imgui.api.IsMouseDoubleClicked(ctx, 0)) {
             w.editing = uid;
             w.focus = true;
-            _ = std.fmt.bufPrintZ(&w.edit_text, "{s}", .{scene.name()}) catch {};
+            _ = std.mem.printSentinel(&w.edit_text, "{s}", .{scene.name()}, 0) catch {};
         }
         return .{ .clicked = clicked };
     }
@@ -178,7 +178,7 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
             const uid = w.uids[position - 1];
             // Because the rows change places while one is dragged, each is known by the ID of its scene.
             var id: [16:0]u8 = undefined;
-            imgui.api.PushID(ctx, std.fmt.bufPrintZ(&id, "{d}", .{uid}) catch "row");
+            imgui.api.PushID(ctx, std.mem.printSentinel(&id, "{d}", .{uid}, 0) catch "row");
             imgui.api.TableNextRow(ctx, null, null);
             _ = imgui.api.TableNextColumn(ctx);
             // Because ImGui knows an item by its label, the label must not hold the position: a row that
@@ -192,7 +192,7 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
             const clicked = imgui.api.Selectable(ctx, "##grab", &selected, &flags, null, null);
             const step = dragStep(ctx);
             var number: [8:0]u8 = undefined;
-            imgui.api.DrawList_AddText(imgui.api.GetWindowDrawList(ctx), cell.x + 4, cell.y, theme.text, std.fmt.bufPrintZ(&number, "{d}", .{position}) catch "");
+            imgui.api.DrawList_AddText(imgui.api.GetWindowDrawList(ctx), cell.x + 4, cell.y, theme.text, std.mem.printSentinel(&number, "{d}", .{position}, 0) catch "");
             const target_position = @as(i64, @intCast(position)) + step;
             if (step != 0 and target_position >= 1 and target_position <= count) {
                 move_from = position;
@@ -209,7 +209,7 @@ fn sceneRows(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
             _ = imgui.api.TableNextColumn(ctx);
             var label: [scenes.max_name + 1:0]u8 = undefined;
             const patch_name = if (scene.label().len > 0) scene.label() else "(the plugin's state)";
-            imgui.api.TextColored(ctx, theme.grey, std.fmt.bufPrintZ(&label, "{s}", .{patch_name}) catch "");
+            imgui.api.TextColored(ctx, theme.grey, std.mem.printSentinel(&label, "{s}", .{patch_name}, 0) catch "");
             _ = imgui.api.TableNextColumn(ctx);
             if (imgui.api.SmallButton(ctx, "Remove")) remove_at = position;
             imgui.api.PopID(ctx);
@@ -279,9 +279,9 @@ fn drawTemplates(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
                 const name = file_name[0 .. file_name.len - template_extension.len];
                 var label: [template_name_cap + 24:0]u8 = undefined;
                 var selected = std.mem.eql(u8, std.mem.sliceTo(&w.template_selected, 0), name);
-                if (imgui.api.Selectable(ctx, std.fmt.bufPrintZ(&label, "{s}##tpl{s}", .{ name, name }) catch "?", &selected, null, null, null)) {
-                    _ = std.fmt.bufPrintZ(&w.template_selected, "{s}", .{name}) catch {};
-                    _ = std.fmt.bufPrintZ(&w.template_name, "{s}", .{name}) catch {};
+                if (imgui.api.Selectable(ctx, std.mem.printSentinel(&label, "{s}##tpl{s}", .{ name, name }, 0) catch "?", &selected, null, null, null)) {
+                    _ = std.mem.printSentinel(&w.template_selected, "{s}", .{name}, 0) catch {};
+                    _ = std.mem.printSentinel(&w.template_name, "{s}", .{name}, 0) catch {};
                 }
             }
         }
@@ -320,7 +320,7 @@ pub fn draw(p: *Plugin, ctx: imgui.ContextPtr) ?types.Action {
     const current = p.scene.load(.monotonic);
     const scene = p.scene_list.get(current);
     var line: [96:0]u8 = undefined;
-    imgui.api.Text(ctx, std.fmt.bufPrintZ(&line, "Scene parameter: {d}  {s}", .{ current, if (scene) |s| s.name() else "(no scene)" }) catch "");
+    imgui.api.Text(ctx, std.mem.printSentinel(&line, "Scene parameter: {d}  {s}", .{ current, if (scene) |s| s.name() else "(no scene)" }, 0) catch "");
     if (widgets.pushButton(kit, "Insert a lane point at the cursor", 0)) action = types.first(action, .insert_lane_point);
     widgets.tooltip(kit, "Puts a square point on the Scene parameter's lane at the edit cursor, set to the selected scene. The lane is created if the track does not have one yet.");
     action = types.first(action, drawTemplates(p, ctx));

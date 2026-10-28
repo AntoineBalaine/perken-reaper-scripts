@@ -61,7 +61,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
                 .multi_fx => {},
             }
 
-            const phys_module: PhysicalModule = @enumFromInt(@intFromEnum(current_module));
+            const phys_module: PhysicalModule = @fromBackingInt(@intCast(@backingInt(current_module)));
             const insert_idx = determineInsertionIndex(&globals.state, track, phys_module, globals.preferences.preferred_module_order);
 
             var loaded_mapping: ?MapStore.TaggedMapping = null;
@@ -83,7 +83,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             {
                 const module_char = current_module.toModulePrefix();
                 var name_buf: [512:0]u8 = undefined;
-                const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }) catch {
+                const new_name = std.mem.printSentinel(&name_buf, "{s} (C1-{s})", .{ plugin.name, module_char }, 0) catch {
                     log.err("Failed to format FX name with suffix", .{});
                     _ = pReaper.TrackFX_Delete(.{ track, new_fx_index });
                     dispatch(globals, .{ .change_mode = .fx_ctrl });
@@ -110,7 +110,7 @@ pub fn fxSelActions(globals: *Globals, sel_action: FxSelActions) void {
             const old_loc_opt = switch (current_module) {
                 .STRIP => null,
                 inline else => |phys| switch (track_state.mode) {
-                    .multi_fx => |locs| locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys)))),
+                    .multi_fx => |locs| locs.get(@as(PhysicalModule, @fromBackingInt(@intCast(@backingInt(phys))))),
                     .channel_strip => null,
                 },
             };
@@ -280,7 +280,7 @@ fn handleStripPlugin(globals: *Globals, name: [:0]const u8, mapping_name: ?[:0]c
 
     {
         var name_buf: [512:0]u8 = undefined;
-        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-X)", .{name}) catch {
+        const new_name = std.mem.printSentinel(&name_buf, "{s} (C1-X)", .{name}, 0) catch {
             _ = pReaper.TrackFX_Delete(.{ track, new_fx_index });
             dispatch(globals, .{ .change_mode = .fx_ctrl });
             return;

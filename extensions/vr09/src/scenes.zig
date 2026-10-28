@@ -15,12 +15,12 @@ pub const max_scenes = 127;
 pub const max_name = 48;
 
 pub const Scene = struct {
-    name_buf: [max_name:0]u8 = [_:0]u8{0} ** max_name,
+    name_buf: [max_name:0]u8 = @splat(0),
     /// Which patch of the library the scene was made from, and a short text for the panel to show. They
     /// let a panel list the scenes, and save them as a template, without reading the dump. A scene made
     /// from the plugin's own state has no patch ID (0).
     patch_id: u16 = 0,
-    label_buf: [max_name:0]u8 = [_:0]u8{0} ** max_name,
+    label_buf: [max_name:0]u8 = @splat(0),
     patch: dump.Dump = .{},
 
     pub fn name(self: *const Scene) [:0]const u8 {
@@ -179,7 +179,7 @@ pub const List = struct {
             try writer.writeInt(u16, scene.patch_id, .little);
             try writer.writeByte(@intCast(scene.label().len));
             try writer.writeAll(scene.label());
-            var bits: [bitmap_bytes]u8 = [_]u8{0} ** bitmap_bytes;
+            var bits: [bitmap_bytes]u8 = @splat(0);
             for (scene.patch.known, 0..) |k, i| {
                 if (k) bits[i / 8] |= @as(u8, 1) << @intCast(i % 8);
             }
@@ -300,7 +300,8 @@ test "long names are cut, and renaming works" {
     const list = try testList();
     defer std.testing.allocator.destroy(list);
     const p = testPatch(0);
-    _ = try list.add("a" ** 100, &p);
+    const long_name: [100]u8 = @splat('a');
+    _ = try list.add(&long_name, &p);
     try std.testing.expectEqual(@as(usize, max_name), list.get(1).?.name().len);
     try std.testing.expect(list.rename(1, "Solo"));
     try std.testing.expectEqualStrings("Solo", list.get(1).?.name());
@@ -314,8 +315,8 @@ test "the list survives the saved state, and an old state gives none" {
     const b = testPatch(6);
     _ = try list.addFrom("Verse", &a, 12, "Registration 1-2");
     _ = try list.add("Chorus", &b);
-    var buf = std.ArrayList(u8).init(std.testing.allocator);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(std.testing.allocator);
     try list.write(buf.writer());
 
     const back = try testList();

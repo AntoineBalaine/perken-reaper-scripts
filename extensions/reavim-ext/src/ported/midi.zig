@@ -177,7 +177,7 @@ fn openInMidiEditor(_: *actions.RunCtx) void {
         var end_: f64 = 0;
         Reaper.GetSet_ArrangeView2(null, false, 0, 0, &start, &end_);
         arrange_restore = .{ .start = start, .end = end_, .watching = true };
-        _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&watchMidiEditorClose)));
+        _ = Reaper.plugin_register("timer", @ptrCast(@constCast(&watchMidiEditorClose)));
     }
     helpers.runNamedCommand("_SWS_HZOOMITEMS");
     Reaper.Main_OnCommand(40153, 0); // Item: Open in built-in MIDI editor
@@ -186,7 +186,7 @@ fn openInMidiEditor(_: *actions.RunCtx) void {
 /// Timer callback: because the editor can be closed by a key, the mouse or
 /// the window's close button, we poll for it to disappear rather than hook
 /// each way of closing it.
-fn watchMidiEditorClose() callconv(.C) void {
+fn watchMidiEditorClose() callconv(.c) void {
     if (helpers.midiEditorActive() != null) {
         arrange_restore.editor_seen = true;
         return;
@@ -199,7 +199,7 @@ fn watchMidiEditorClose() callconv(.C) void {
         Reaper.UpdateArrange();
     }
     arrange_restore.watching = false;
-    _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&watchMidiEditorClose)));
+    _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(&watchMidiEditorClose)));
 }
 
 // ---- registry entries -------------------------------------------------------------

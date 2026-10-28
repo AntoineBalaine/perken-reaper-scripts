@@ -31,7 +31,6 @@ pub const Rational = @import("rational.zig").Rational;
 pub const meter = @import("meter.zig");
 pub const Context = meter.Context;
 
-
 pub const Kind = enum { note, rest };
 
 pub const Event = struct {
@@ -213,8 +212,8 @@ pub fn isLegalSymbol(ctx: Context, onset: Rational, dur: Rational) bool {
 /// back as tied pieces. Staccato notes pass through untouched, since
 /// collapsePass shortened them deliberately.
 fn retilePass(allocator: std.mem.Allocator, ctx: Context, start: Rational, events: []const Event) !struct { out: []Event, changed: bool } {
-    var out = std.ArrayList(Event).init(allocator);
-    errdefer out.deinit();
+    var out: std.ArrayList(Event) = .empty;
+    errdefer out.deinit(allocator);
     var onset = start;
     var changed = false;
     var i: usize = 0;
@@ -236,7 +235,7 @@ fn retilePass(allocator: std.mem.Allocator, ctx: Context, start: Rational, event
 
         const e = events[i];
         if (e.staccato) {
-            try out.append(e);
+            try out.append(allocator, e);
             onset = onset.add(e.dur);
             i += 1;
             continue;
@@ -248,7 +247,7 @@ fn retilePass(allocator: std.mem.Allocator, ctx: Context, start: Rational, event
         onset = onset.add(e.dur);
         i += 1;
     }
-    return .{ .out = try out.toOwnedSlice(), .changed = changed };
+    return .{ .out = try out.toOwnedSlice(allocator), .changed = changed };
 }
 
 fn differs(a: []const Event, b: []const Event) bool {

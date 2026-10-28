@@ -6,9 +6,9 @@ const action_types = @import("action_types.zig");
 
 const log = std.log.scoped(.hotreload);
 
-const UiInitFn = *const fn (*anyopaque) callconv(.C) bool;
-const UiRenderFn = *const fn (imgui.ContextPtr, c_int, *UiState, *styles.StyleManager) callconv(.C) c_int;
-const UiGetLastActionFn = *const fn () callconv(.C) *const action_types.ModeAction;
+const UiInitFn = *const fn (*anyopaque) callconv(.c) bool;
+const UiRenderFn = *const fn (imgui.ContextPtr, c_int, *UiState, *styles.StyleManager) callconv(.c) c_int;
+const UiGetLastActionFn = *const fn () callconv(.c) *const action_types.ModeAction;
 
 pub const RenderResult = union(enum) {
     no_action,

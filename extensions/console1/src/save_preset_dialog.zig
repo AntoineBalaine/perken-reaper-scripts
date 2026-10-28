@@ -30,7 +30,7 @@ pub fn drawSavePresetDialog(
         try imgui.Text(.{ ctx, tr(translations, .preset_existing) });
         var preset_buf: [512:0]u8 = undefined;
         for (save_state.existing_presets.items) |preset_name| {
-            const formatted = std.fmt.bufPrintZ(&preset_buf, "  {s}", .{preset_name}) catch continue;
+            const formatted = std.mem.printSentinel(&preset_buf, "  {s}", .{preset_name}, 0) catch continue;
             try imgui.Text(.{ ctx, formatted });
         }
         try imgui.Separator(.{ctx});

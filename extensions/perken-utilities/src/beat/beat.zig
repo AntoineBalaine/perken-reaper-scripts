@@ -205,7 +205,7 @@ test "detected beats land on the clicks" {
 
 test "audio that is too short reports an error instead of crashing" {
     const alloc = std.testing.allocator;
-    const audio = [_]f32{0} ** 100;
+    const audio: [100]f32 = @splat(0);
     try std.testing.expectError(error.AnalysisFailed, track(alloc, &audio, 44100, .{}));
 }
 

@@ -53,9 +53,9 @@ pub fn draw(ctx: imgui.ContextPtr, style_manager: *styles.StyleManager) !?SaveAc
 
 fn drawColorList(ctx: imgui.ContextPtr, style_struct: *StyleStruct) void {
     @setEvalBranchQuota(10_000);
-    inline for (@typeInfo(ColorsEnum).@"enum".fields) |field| {
-        const color = style_struct.colors.getPtr(@enumFromInt(field.value));
-        _ = imgui.ColorEdit4(.{ ctx, field.name, color, imgui.ColorEditFlags_NoInputs }) catch {};
+    inline for (@typeInfo(ColorsEnum).@"enum".field_names, @typeInfo(ColorsEnum).@"enum".field_values) |field_name, field_value| {
+        const color = style_struct.colors.getPtr(@fromBackingInt(@intCast(field_value)));
+        _ = imgui.ColorEdit4(.{ ctx, field_name, color, imgui.ColorEditFlags_NoInputs }) catch {};
     }
 }
 

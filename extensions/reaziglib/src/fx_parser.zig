@@ -105,13 +105,13 @@ fn parseFX(name: [:0]const u8) ?FxType {
 fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) !void {
     var cur_section: ?[]const u8 = null;
 
-    var categoryNames = std.ArrayList([]const u8).init(allocator);
+    var categoryNames: std.ArrayList([]const u8) = .empty;
     parseLoop: while (try parser.*.next()) |record| {
         switch (record) {
             .section => |heading| {
-                inline for (@typeInfo(@TypeOf(fxtags.*)).@"struct".fields) |field| {
-                    if (std.mem.eql(u8, heading, field.name)) {
-                        cur_section = field.name;
+                inline for (@typeInfo(@TypeOf(fxtags.*)).@"struct".field_names) |field_name| {
+                    if (std.mem.eql(u8, heading, field_name)) {
+                        cur_section = field_name;
                         continue :parseLoop;
                     }
                 }
@@ -124,7 +124,7 @@ fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) 
                     var iterator = std.mem.splitScalar(u8, catStr, '|');
                     while (iterator.next()) |tag| {
                         std.debug.assert(!std.mem.eql(u8, tag, "")); // assume there's never two '|' next to each other in cat
-                        try categoryNames.append(tag);
+                        try categoryNames.append(allocator, tag);
                     }
                     for (categoryNames.items) |tag| {
                         const isCategory = std.mem.eql(u8, section, "category"); // category or dev
@@ -152,7 +152,7 @@ fn readToFxTags(fxtags: *FxTags, parser: anytype, allocator: std.mem.Allocator) 
             .enumeration => {},
         }
     }
-    categoryNames.deinit();
+    categoryNames.deinit(allocator);
 }
 
 fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
@@ -177,8 +177,8 @@ fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
     };
 
     try readToFxTags(&fxtags, &parser, allocator);
-    inline for (std.meta.fields(@TypeOf(fxtags))) |field| {
-        var tagList = &@field(fxtags, field.name);
+    inline for (@typeInfo(@TypeOf(fxtags)).@"struct".field_names) |field_name| {
+        var tagList = &@field(fxtags, field_name);
         var iterator = tagList.iterator();
         while (iterator.next()) |entry| {
             entry.value_ptr.*.sort(StrArrHshMpCtx{ .keys = entry.value_ptr.*.keys() });
@@ -190,9 +190,9 @@ fn parseFXTags(allocator: std.mem.Allocator) !FxTags {
 }
 
 fn deinitFXTags(self: *FxTags, allocator: std.mem.Allocator) void {
-    inline for (@typeInfo(@TypeOf(self.*)).@"struct".fields) |field| {
+    inline for (@typeInfo(@TypeOf(self.*)).@"struct".field_names) |field_name| {
         // categories or devs
-        var taglist = @field(self, field.name);
+        var taglist = @field(self, field_name);
 
         var tagListIt = taglist.iterator();
         while (tagListIt.next()) |entry| {

@@ -29,7 +29,7 @@ pub fn init(gpa: std.mem.Allocator, track_count: usize, max_tracks: usize) !@Thi
     for (0..track_count) |i| {
         var track: Track.Track = .default;
         var buf: [1024:0]u8 = undefined;
-        const track_name = std.fmt.bufPrintZ(&buf, "Track {d}", .{i + 1}) catch unreachable;
+        const track_name = std.mem.printSentinel(&buf, "Track {d}", .{i + 1}, 0) catch unreachable;
         track.name = try self.string_pool.intern(gpa, track_name);
         try self.tracks.append(gpa, track);
     }

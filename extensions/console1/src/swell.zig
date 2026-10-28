@@ -9,14 +9,14 @@ extern "C" var BrowseForSaveFile: ?*const fn (
     extlist: [*:0]const u8,
     fn_out: [*]u8,
     fn_out_size: c_int,
-) callconv(.C) bool;
+) callconv(.c) bool;
 
 extern "C" var BrowseForDirectory: ?*const fn (
     text: [*:0]const u8,
     initialdir: [*:0]const u8,
     fn_out: [*]u8,
     fn_out_size: c_int,
-) callconv(.C) bool;
+) callconv(.c) bool;
 
 pub fn isAvailable() bool {
     return BrowseForSaveFile != null;

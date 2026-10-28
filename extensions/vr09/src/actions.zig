@@ -91,7 +91,7 @@ fn previousScene() void {
 /// Because the real ABI of EnumProjectMarkers takes a `const char **` for the name, and reaziglib
 /// types it as a plain string pointer, it is re-typed here.
 fn enumProjectMarkers(idx: c_int, pos: *f64, name: *[*:0]const u8) c_int {
-    const f: *const fn (idx: c_int, isrgnOut: ?*bool, posOut: ?*f64, rgnendOut: ?*f64, nameOut: ?*[*:0]const u8, markrgnindexnumberOut: ?*c_int) callconv(.C) c_int = @ptrCast(Reaper.EnumProjectMarkers);
+    const f: *const fn (idx: c_int, isrgnOut: ?*bool, posOut: ?*f64, rgnendOut: ?*f64, nameOut: ?*[*:0]const u8, markrgnindexnumberOut: ?*c_int) callconv(.c) c_int = @ptrCast(Reaper.EnumProjectMarkers);
     return f(idx, null, pos, null, name, null);
 }
 
@@ -170,7 +170,7 @@ fn scenePointsFromMarkers() void {
     // Because a message box would stop REAPER until someone closed it, the unmatched markers are reported
     // on the console, which does not wait for anyone. Only a failure that stops the action has a box.
     var msg: [160:0]u8 = undefined;
-    const text = std.fmt.bufPrintZ(&msg, "VR-09: put {d} scene points on the lane; {d} markers did not match a scene.\n", .{ placed, skipped }) catch return;
+    const text = std.mem.printSentinel(&msg, "VR-09: put {d} scene points on the lane; {d} markers did not match a scene.\n", .{ placed, skipped }, 0) catch return;
     log.info("put {d} scene points, {d} markers did not match a scene", .{ placed, skipped });
     if (skipped > 0) Reaper.ShowConsoleMsg(text.ptr);
 }
@@ -198,10 +198,10 @@ const registrations = blk: {
     break :blk regs;
 };
 
-var command_ids = [_]c_int{0} ** definitions.len;
+var command_ids: [definitions.len]c_int = @splat(0);
 var registered = false;
 
-fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: Reaper.HWND) callconv(.C) c_char {
+fn onCommand(sec: ?Reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: Reaper.HWND) callconv(.c) c_char {
     _ = .{ sec, val, val2hw, relmode, hwnd };
     if (command == 0) return 0;
     for (command_ids, 0..) |id, i| {
@@ -217,10 +217,10 @@ pub fn register() void {
     if (registered or !glue.ready) return;
     registered = true;
     for (&registrations, 0..) |*reg, i| {
-        command_ids[i] = Reaper.plugin_register("custom_action", @constCast(@ptrCast(reg)));
+        command_ids[i] = Reaper.plugin_register("custom_action", @ptrCast(@constCast(reg)));
         if (command_ids[i] == 0) log.warn("the action {s} could not be registered", .{reg.id_str});
     }
-    _ = Reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
+    _ = Reaper.plugin_register("hookcommand2", @ptrCast(@constCast(&onCommand)));
 }
 
 /// Stops handling the actions. REAPER cannot remove an action it was given, but it must not call a
@@ -228,7 +228,7 @@ pub fn register() void {
 pub fn unregister() void {
     if (!registered) return;
     registered = false;
-    _ = Reaper.plugin_register("-hookcommand2", @constCast(@ptrCast(&onCommand)));
+    _ = Reaper.plugin_register("-hookcommand2", @ptrCast(@constCast(&onCommand)));
 }
 
 // ---- tests ------------------------------------------------------------------
@@ -266,4 +266,3 @@ test "a lane value scales across the range that REAPER reports" {
     try std.testing.expectEqual(@as(f64, 2), laneValue(2, 0, 127));
     try std.testing.expectApproxEqAbs(@as(f64, 2.0 / 127.0), laneValue(2, 0, 1), 1e-12);
 }
-

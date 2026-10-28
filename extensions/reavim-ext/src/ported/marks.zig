@@ -93,7 +93,7 @@ fn parseMark(payload: []const u8) ?Mark {
 
 fn writePayload(writer: anytype, m: Mark) !void {
     try writer.print("{c}|{d}|{d}|{d}|{d}|{s}|{s}", .{
-        @intFromEnum(m.typ), m.index, m.left, m.right, m.position, m.last_guid, m.guids,
+        @backingInt(m.typ), m.index, m.left, m.right, m.position, m.last_guid, m.guids,
     });
 }
 
@@ -154,16 +154,16 @@ fn mark(ctx: *actions.RunCtx) void {
     else
         "";
 
-    var guids = std.ArrayList(u8).init(helpers.allocator);
-    defer guids.deinit();
+    var guids: std.ArrayList(u8) = .empty;
+    defer guids.deinit(helpers.allocator);
     const n_sel = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
     while (i < n_sel) : (i += 1) {
         const track = Reaper.GetSelectedTrack(null, i) orelse continue;
         var guid_buf: [64]u8 = undefined;
         const g = helpers.getTrackString(track, "GUID", &guid_buf) orelse continue;
-        if (guids.items.len > 0) guids.append(',') catch return;
-        guids.appendSlice(g) catch return;
+        if (guids.items.len > 0) guids.append(helpers.allocator, ',') catch return;
+        guids.appendSlice(helpers.allocator, g) catch return;
     }
 
     var marker_name = [_:0]u8{register};
@@ -192,10 +192,10 @@ fn mark(ctx: *actions.RunCtx) void {
     var old_buf: [payload_max]u8 = undefined;
     if (loadMark(register, &old_buf)) |old| deleteMarkIndication(old);
 
-    var payload = std.ArrayList(u8).init(helpers.allocator);
-    defer payload.deinit();
+    var payload: std.ArrayList(u8) = .empty;
+    defer payload.deinit(helpers.allocator);
     writePayload(payload.writer(), new_mark) catch return;
-    const z = payload.toOwnedSliceSentinel(0) catch return;
+    const z = payload.toOwnedSliceSentinel(helpers.allocator, 0) catch return;
     defer helpers.allocator.free(z);
     setMarkPayload(register, z.ptr);
 
@@ -291,8 +291,8 @@ test "mark payload round-trips" {
         .last_guid = "{01234567-89AB-CDEF-0123-456789ABCDEF}",
         .guids = "{A},{B},{C}",
     };
-    var list = std.ArrayList(u8).init(std.testing.allocator);
-    defer list.deinit();
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(std.testing.allocator);
     try writePayload(list.writer(), original);
 
     const parsed = parseMark(list.items).?;

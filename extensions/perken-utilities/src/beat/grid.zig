@@ -45,9 +45,9 @@ pub const ConstRegion = struct {
 /// retrieveConstRegions). The last region has a zero beat length and marks
 /// the end, so region i spans [regions[i].first_beat, regions[i+1].first_beat).
 pub fn constRegions(alloc: std.mem.Allocator, beats: []const f64) ![]ConstRegion {
-    var regions = std.ArrayList(ConstRegion).init(alloc);
-    errdefer regions.deinit();
-    if (beats.len < 2) return regions.toOwnedSlice();
+    var regions: std.ArrayList(ConstRegion) = .empty;
+    errdefer regions.deinit(alloc);
+    if (beats.len < 2) return regions.toOwnedSlice(alloc);
 
     var left: usize = 0;
     var right: usize = beats.len - 1;
@@ -80,7 +80,7 @@ pub fn constRegions(alloc: std.mem.Allocator, beats: []const f64) ![]ConstRegion
                 border_error = @abs(first_len + last_len - 2 * mean_beat_length);
             }
             if (border_error < max_phase_error / 2) {
-                try regions.append(.{ .first_beat = beats[left], .beat_length = mean_beat_length });
+                try regions.append(alloc, .{ .first_beat = beats[left], .beat_length = mean_beat_length });
                 left = right;
                 right = beats.len - 1;
                 continue;
@@ -89,8 +89,8 @@ pub fn constRegions(alloc: std.mem.Allocator, beats: []const f64) ![]ConstRegion
         // Try a region shorter by one beat.
         right -= 1;
     }
-    try regions.append(.{ .first_beat = beats[beats.len - 1], .beat_length = 0 });
-    return regions.toOwnedSlice();
+    try regions.append(alloc, .{ .first_beat = beats[beats.len - 1], .beat_length = 0 });
+    return regions.toOwnedSlice(alloc);
 }
 
 pub const ConstTempo = struct {
@@ -291,20 +291,20 @@ pub fn gridBeats(alloc: std.mem.Allocator, tempo: ConstTempo, duration: f64, bea
         if (v > votes[downbeat_slot]) downbeat_slot = i;
     }
 
-    var list = std.ArrayList(GridBeat).init(alloc);
-    errdefer list.deinit();
+    var list: std.ArrayList(GridBeat) = .empty;
+    errdefer list.deinit(alloc);
     var k: usize = 0;
     while (true) : (k += 1) {
         const t = tempo.first_beat + @as(f64, @floatFromInt(k)) * period;
         if (t > duration) break;
         if (k < downbeat_slot) {
-            try list.append(.{ .time = t, .bar = 0, .beat_in_bar = @intCast(bpb - downbeat_slot + k + 1) });
+            try list.append(alloc, .{ .time = t, .bar = 0, .beat_in_bar = @intCast(bpb - downbeat_slot + k + 1) });
         } else {
             const n = k - downbeat_slot;
-            try list.append(.{ .time = t, .bar = @intCast(n / bpb + 1), .beat_in_bar = @intCast(n % bpb + 1) });
+            try list.append(alloc, .{ .time = t, .bar = @intCast(n / bpb + 1), .beat_in_bar = @intCast(n % bpb + 1) });
         }
     }
-    return list.toOwnedSlice();
+    return list.toOwnedSlice(alloc);
 }
 
 /// A stretch where the tracker's beats do not follow the constant grid.
@@ -313,9 +313,9 @@ pub const Passage = struct { start: f64, end: f64, bpm: f64 };
 /// Consecutive regions whose tempo is more than `tolerance` away from the
 /// grid's, merged into passages, with their duration-weighted tempo.
 pub fn offGridPassages(alloc: std.mem.Allocator, regions: []const ConstRegion, grid_bpm: f64, tolerance: f64) ![]Passage {
-    var list = std.ArrayList(Passage).init(alloc);
-    errdefer list.deinit();
-    if (regions.len < 2 or !(grid_bpm > 0)) return list.toOwnedSlice();
+    var list: std.ArrayList(Passage) = .empty;
+    errdefer list.deinit(alloc);
+    if (regions.len < 2 or !(grid_bpm > 0)) return list.toOwnedSlice(alloc);
     var open: ?Passage = null;
     var weighted: f64 = 0;
     for (0..regions.len - 1) |i| {
@@ -331,12 +331,12 @@ pub fn offGridPassages(alloc: std.mem.Allocator, regions: []const ConstRegion, g
             }
             weighted += r.bpm() * (end - r.first_beat);
         } else if (open) |o| {
-            try list.append(.{ .start = o.start, .end = o.end, .bpm = weighted / (o.end - o.start) });
+            try list.append(alloc, .{ .start = o.start, .end = o.end, .bpm = weighted / (o.end - o.start) });
             open = null;
         }
     }
-    if (open) |o| try list.append(.{ .start = o.start, .end = o.end, .bpm = weighted / (o.end - o.start) });
-    return list.toOwnedSlice();
+    if (open) |o| try list.append(alloc, .{ .start = o.start, .end = o.end, .bpm = weighted / (o.end - o.start) });
+    return list.toOwnedSlice(alloc);
 }
 
 // ---- tests ----
@@ -370,21 +370,21 @@ test "quantized beats of a whole-BPM tempo are ironed back to that tempo" {
 
 test "a section on a 4/3 grid does not change the tempo" {
     const alloc = std.testing.allocator;
-    var list = std.ArrayList(f64).init(alloc);
-    defer list.deinit();
+    var list: std.ArrayList(f64) = .empty;
+    defer list.deinit(alloc);
     const step = 256.0 / 22050.0;
     var t: f64 = 0.3;
     // 120 beats at 88 BPM, 40 beats at 4/3 of that, then 120 at 88 again.
     for (0..120) |_| {
-        try list.append(@floor(t / step) * step);
+        try list.append(alloc, @floor(t / step) * step);
         t += 60.0 / 88.0;
     }
     for (0..40) |_| {
-        try list.append(@floor(t / step) * step);
+        try list.append(alloc, @floor(t / step) * step);
         t += 60.0 / (88.0 * 4.0 / 3.0);
     }
     for (0..120) |_| {
-        try list.append(@floor(t / step) * step);
+        try list.append(alloc, @floor(t / step) * step);
         t += 60.0 / 88.0;
     }
     var g = try analyze(alloc, list.items);

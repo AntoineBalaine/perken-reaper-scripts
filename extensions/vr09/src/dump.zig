@@ -113,8 +113,8 @@ pub fn isUnmappedSlot(block: usize) bool {
 /// The values of every block, with a flag per byte that says whether the value
 /// was read (or loaded), because a keyboard that never answered leaves gaps.
 pub const Dump = struct {
-    values: [total_bytes]u8 = [_]u8{0} ** total_bytes,
-    known: [total_bytes]bool = [_]bool{false} ** total_bytes,
+    values: [total_bytes]u8 = @splat(0),
+    known: [total_bytes]bool = @splat(false),
 
     pub fn set(self: *Dump, kind: roland.Kind, address: u32, value: u8) bool {
         const slot = locate(kind, address) orelse return false;
@@ -282,10 +282,10 @@ fn lessJsonEntry(_: void, a: JsonEntry, b: JsonEntry) bool {
 }
 
 pub fn writeJson(allocator: std.mem.Allocator, dump: *const Dump, writer: anytype) !void {
-    var entries = std.ArrayList(JsonEntry).init(allocator);
+    var entries: std.ArrayList(JsonEntry) = .empty;
     defer {
         for (entries.items) |e| allocator.free(e.key);
-        entries.deinit();
+        entries.deinit(allocator);
     }
     for (blocks, 0..) |b, bi| {
         var i: usize = 0;
@@ -293,7 +293,7 @@ pub fn writeJson(allocator: std.mem.Allocator, dump: *const Dump, writer: anytyp
             const idx = block_offsets[bi] + i;
             if (!dump.known[idx]) continue;
             const key = try std.fmt.allocPrint(allocator, "{s}:{X:0>8}", .{ b.name, b.start + @as(u32, @intCast(i)) });
-            try entries.append(.{ .key = key, .value = dump.values[idx] });
+            try entries.append(allocator, .{ .key = key, .value = dump.values[idx] });
         }
     }
     std.mem.sort(JsonEntry, entries.items, {}, lessJsonEntry);
@@ -390,8 +390,8 @@ test "diff skips a group that is not fully known" {
 test "json round trip keeps every byte and the python key format" {
     var dump = Dump{};
     fillDump(&dump, 5);
-    var buf = std.ArrayList(u8).init(std.testing.allocator);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(std.testing.allocator);
     try writeJson(std.testing.allocator, &dump, buf.writer());
     try std.testing.expect(std.mem.indexOf(u8, buf.items, "\"organ_upper:00008000\": 5") != null);
     var loaded = Dump{};

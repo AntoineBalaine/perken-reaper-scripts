@@ -66,7 +66,7 @@ fn evaluate(step: Step, channel: u8, cc: u8, val: u8) Status {
 pub const WizardState = struct {
     active: bool = false,
     current: usize = 0,
-    results: [STEP_COUNT]Result = [_]Result{.{}} ** STEP_COUNT,
+    results: [STEP_COUNT]Result = @splat(.{}),
     // LED test: cycles colours and sweeps the rings so the feedback path can be
     // eyeballed. `led_frame` advances once per panel frame.
     led_test_active: bool = false,
@@ -75,7 +75,7 @@ pub const WizardState = struct {
     pub fn start(self: *WizardState) void {
         self.active = true;
         self.current = 0;
-        self.results = [_]Result{.{}} ** STEP_COUNT;
+        self.results = @splat(.{});
         log.info("calibration started", .{});
     }
 
@@ -132,23 +132,23 @@ pub const WizardState = struct {
 // Format the instruction for a step into buf. Returns a null-terminated slice.
 pub fn describe(step: Step, buf: [:0]u8) [:0]const u8 {
     return switch (step.kind) {
-        .rotate => std.fmt.bufPrintZ(buf, "Turn encoder {d} one click clockwise", .{step.index + 1}) catch buf[0..0 :0],
-        .press => std.fmt.bufPrintZ(buf, "Press encoder {d}", .{step.index + 1}) catch buf[0..0 :0],
-        .side => std.fmt.bufPrintZ(buf, "Press side button {d} of 6", .{step.index + 1}) catch buf[0..0 :0],
+        .rotate => std.mem.printSentinel(buf, "Turn encoder {d} one click clockwise", .{step.index + 1}, 0) catch buf[0..0 :0],
+        .press => std.mem.printSentinel(buf, "Press encoder {d}", .{step.index + 1}, 0) catch buf[0..0 :0],
+        .side => std.mem.printSentinel(buf, "Press side button {d} of 6", .{step.index + 1}, 0) catch buf[0..0 :0],
     };
 }
 
 pub fn expectedText(step: Step, buf: [:0]u8) [:0]const u8 {
     return switch (step.kind) {
-        .rotate => std.fmt.bufPrintZ(buf, "expect ch{d} cc{d}, positive delta", .{ mft.ENCODER_ROT_CHANNEL, step.index }) catch buf[0..0 :0],
-        .press => std.fmt.bufPrintZ(buf, "expect ch{d} cc{d}, value 127", .{ mft.ENCODER_BTN_CHANNEL, step.index }) catch buf[0..0 :0],
-        .side => std.fmt.bufPrintZ(buf, "expect ch{d}, cc unknown (capturing)", .{mft.SIDE_BTN_CHANNEL}) catch buf[0..0 :0],
+        .rotate => std.mem.printSentinel(buf, "expect ch{d} cc{d}, positive delta", .{ mft.ENCODER_ROT_CHANNEL, step.index }, 0) catch buf[0..0 :0],
+        .press => std.mem.printSentinel(buf, "expect ch{d} cc{d}, value 127", .{ mft.ENCODER_BTN_CHANNEL, step.index }, 0) catch buf[0..0 :0],
+        .side => std.mem.printSentinel(buf, "expect ch{d}, cc unknown (capturing)", .{mft.SIDE_BTN_CHANNEL}, 0) catch buf[0..0 :0],
     };
 }
 
 pub fn observedText(r: Result, buf: [:0]u8) [:0]const u8 {
-    if (!r.captured) return std.fmt.bufPrintZ(buf, "waiting...", .{}) catch buf[0..0 :0];
-    return std.fmt.bufPrintZ(buf, "ch{d} cc{d} val{d}", .{ r.obs_channel, r.obs_cc, r.obs_val }) catch buf[0..0 :0];
+    if (!r.captured) return std.mem.printSentinel(buf, "waiting...", .{}, 0) catch buf[0..0 :0];
+    return std.mem.printSentinel(buf, "ch{d} cc{d} val{d}", .{ r.obs_channel, r.obs_cc, r.obs_val }, 0) catch buf[0..0 :0];
 }
 
 // Write a markdown report of the run to <dir>/wizard_report.md.

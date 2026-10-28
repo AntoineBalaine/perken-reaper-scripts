@@ -225,7 +225,7 @@ pub const FakeGrid = struct {
 
     pub fn source(self: *const FakeGrid) BarSource {
         return .{
-            .ctx = @constCast(@ptrCast(self)),
+            .ctx = @ptrCast(@constCast(self)),
             .barStartQn = &fakeBarStart,
             .nextBarStartQn = &fakeNextBarStart,
             .sigAtQn = &fakeSigAt,

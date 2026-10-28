@@ -179,7 +179,7 @@ fn processIniFile(ctx: *WalkContext, dir: std.fs.Dir, file_name: []const u8) voi
     // Extract mapping name (filename without .ini extension)
     const mapping_name_slice = file_name[0 .. file_name.len - 4];
     var name_buf: [256:0]u8 = undefined;
-    const mapping_name = std.fmt.bufPrintZ(&name_buf, "{s}", .{mapping_name_slice}) catch return;
+    const mapping_name = std.mem.printSentinel(&name_buf, "{s}", .{mapping_name_slice}, 0) catch return;
 
     // Build absolute file path
     const sep = std.fs.path.sep_str;
@@ -281,8 +281,8 @@ test "StringPool offsets remain valid after buffer reallocation" {
     defer strings.deinit(allocator);
 
     // Intern multiple strings to force buffer reallocation
-    var offsets = std.ArrayList(StringPool.StringRef).init(allocator);
-    defer offsets.deinit();
+    var offsets: std.ArrayList(StringPool.StringRef) = .empty;
+    defer offsets.deinit(allocator);
 
     const test_strings = [_][:0]const u8{
         "JS: RBJ Highpass/Lowpass Filters",
@@ -298,7 +298,7 @@ test "StringPool offsets remain valid after buffer reallocation" {
     // Store all offsets
     for (test_strings) |str| {
         const offset = try strings.intern(allocator, str);
-        try offsets.append(offset);
+        try offsets.append(allocator, offset);
     }
 
     // Verify all strings can be retrieved correctly using their offsets
@@ -330,19 +330,19 @@ test "mappings_list stores FX names with slashes correctly" {
         "JS: RBJ Highpass/Lowpass Filters",
     };
 
-    var stored_offsets = std.ArrayList(StringPool.StringRef).init(allocator);
-    defer stored_offsets.deinit();
+    var stored_offsets: std.ArrayList(StringPool.StringRef) = .empty;
+    defer stored_offsets.deinit(allocator);
 
     for (fx_names) |fx_name| {
         const fx_offset = try strings.intern(allocator, fx_name);
-        try stored_offsets.append(fx_offset);
+        try stored_offsets.append(allocator, fx_offset);
 
         // Create a MapEntry with a dummy mapping
         const mapping_name_offset = try strings.intern(allocator, "default");
         const path_offset = try strings.intern(allocator, "/some/path/default.ini");
 
-        var entries = std.ArrayList(MapEntry).init(allocator);
-        try entries.append(.{
+        var entries: std.ArrayList(MapEntry) = .empty;
+        try entries.append(allocator, .{
             .name_offset = mapping_name_offset,
             .path_offset = path_offset,
         });

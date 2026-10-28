@@ -185,19 +185,19 @@ pub fn fromSections(
     from: Rational,
     sections: []const Section,
 ) !Context {
-    var bars = std.ArrayList(Bar).init(allocator);
-    errdefer bars.deinit();
+    var bars: std.ArrayList(Bar) = .empty;
+    errdefer bars.deinit(allocator);
     var pos = from;
     for (sections) |section| {
         const hierarchy = hierarchyFor(section.num, section.denom);
         var b: u32 = 0;
         while (b < section.bars) : (b += 1) {
             const next = pos.add(hierarchy.len);
-            try bars.append(.{ .start = pos, .end = next, .hierarchy = hierarchy });
+            try bars.append(allocator, .{ .start = pos, .end = next, .hierarchy = hierarchy });
             pos = next;
         }
     }
-    return .{ .bars = try bars.toOwnedSlice() };
+    return .{ .bars = try bars.toOwnedSlice(allocator) };
 }
 
 /// Frees a context built by `fromSections`.
@@ -266,8 +266,8 @@ test "every derived hierarchy's divisions multiply back to the bar" {
     // The tree has to partition the bar exactly, or tiling could place a
     // node outside it.
     const cases = [_][2]u32{
-        .{ 4, 4 }, .{ 3, 4 }, .{ 2, 4 }, .{ 5, 4 }, .{ 6, 8 },
-        .{ 9, 8 }, .{ 12, 8 }, .{ 7, 8 }, .{ 3, 8 }, .{ 2, 2 },
+        .{ 4, 4 },  .{ 3, 4 },  .{ 2, 4 }, .{ 5, 4 }, .{ 6, 8 },
+        .{ 9, 8 },  .{ 12, 8 }, .{ 7, 8 }, .{ 3, 8 }, .{ 2, 2 },
         .{ 6, 16 }, .{ 1, 4 },
     };
     for (cases) |c| {

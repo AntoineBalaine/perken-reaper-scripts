@@ -163,16 +163,16 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
     try writer.print("language = {s}\n", .{self.language});
 
     // Use comptime field iteration to write boolean settings
-    inline for (std.meta.fields(Preferences)) |field| {
-        switch (field.type) {
+    inline for (@typeInfo(Preferences).@"struct".field_names, @typeInfo(Preferences).@"struct".field_types) |field_name, field_type| {
+        switch (field_type) {
             bool => {
                 // Skip resource management fields
-                if (!(std.mem.eql(u8, field.name, "default_fx"))) {
+                if (!(std.mem.eql(u8, field_name, "default_fx"))) {
                     try writer.print(
                         "{s} = {s}\n",
                         .{
-                            field.name,
-                            if (@field(self, field.name)) "true" else "false",
+                            field_name,
+                            if (@field(self, field_name)) "true" else "false",
                         },
                     );
                 }
@@ -181,8 +181,8 @@ pub fn saveToDisk(self: *Preferences, resource_path: [:0]const u8) !void {
                 try writer.print(
                     "{s} = {s}\n",
                     .{
-                        field.name,
-                        @tagName(@field(self, field.name)),
+                        field_name,
+                        @tagName(@field(self, field_name)),
                     },
                 );
             },
@@ -223,21 +223,21 @@ pub fn parsePreferences(self: *Preferences, parser: anytype, g_arena: std.mem.Al
                 if (cur_section_kind == .none) {
 
                     // Set the preference value based on its type
-                    inline for (std.meta.fields(Preferences)) |field| {
-                        if (std.mem.eql(u8, field.name, prop.key)) {
-                            switch (field.type) {
+                    inline for (@typeInfo(Preferences).@"struct".field_names, @typeInfo(Preferences).@"struct".field_types) |field_name, field_type| {
+                        if (std.mem.eql(u8, field_name, prop.key)) {
+                            switch (field_type) {
                                 bool => {
-                                    @field(self, field.name) =
+                                    @field(self, field_name) =
                                         std.mem.eql(u8, prop.value, "true");
                                 },
                                 [:0]const u8 => {
-                                    if (std.mem.eql(u8, field.name, "language")) {
-                                        @field(self, field.name) = try g_arena.dupeZ(u8, prop.value);
+                                    if (std.mem.eql(u8, field_name, "language")) {
+                                        @field(self, field_name) = try g_arena.dupeZ(u8, prop.value);
                                     }
                                 },
                                 ModulesOrder => {
-                                    @field(self, field.name) = std.meta.stringToEnum(ModulesOrder, prop.value) orelse blk: {
-                                        log.warn("Invalid value '{s}' for {s}, using default S-C-EQ", .{ prop.value, field.name });
+                                    @field(self, field_name) = std.meta.stringToEnum(ModulesOrder, prop.value) orelse blk: {
+                                        log.warn("Invalid value '{s}' for {s}, using default S-C-EQ", .{ prop.value, field_name });
                                         break :blk .@"S-C-EQ";
                                     };
                                 },

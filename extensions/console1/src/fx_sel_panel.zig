@@ -84,9 +84,9 @@ fn PluginsByType(ctx: imgui.ContextPtr, ui: *UiState, translations: *Translation
 
 fn FxTags(ctx: imgui.ContextPtr, ui: *UiState) !?fx_sel_actions.FxSelActions {
     var rv: ?fx_sel_actions.FxSelActions = null;
-    inline for (@typeInfo(fx_types.FxTags).@"struct".fields) |field| {
-        var tagList = @field(ui.fx_tags.*, field.name);
-        if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(field.name)), null })) {
+    inline for (@typeInfo(fx_types.FxTags).@"struct".field_names) |field_name| {
+        var tagList = @field(ui.fx_tags.*, field_name);
+        if (try imgui.BeginMenu(.{ ctx, @as([*:0]const u8, @ptrCast(field_name)), null })) {
             defer imgui.EndMenu(.{ctx}) catch {};
             var iterator = tagList.iterator();
             while (iterator.next()) |entry| {

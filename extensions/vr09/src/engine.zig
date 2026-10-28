@@ -126,7 +126,7 @@ pub const MidiRecord = struct {
 /// The first bytes of one message, written once by the audio thread.
 pub const Trace = struct {
     pub const capacity = 24;
-    bytes: [capacity]Atomic(u8) = [_]Atomic(u8){Atomic(u8).init(0)} ** capacity,
+    bytes: [capacity]Atomic(u8) = @splat(Atomic(u8).init(0)),
     /// Zero until a message was captured; the total length of the message in
     /// its low bits, so that the reader knows how much of it it holds.
     length: Atomic(u32) = Atomic(u32).init(0),
@@ -157,11 +157,11 @@ pub const Trace = struct {
 };
 
 pub const Shared = struct {
-    desired: [dump.total_bytes]Atomic(u8) = [_]Atomic(u8){Atomic(u8).init(0)} ** dump.total_bytes,
-    desired_known: [dump.total_bytes]Atomic(bool) = [_]Atomic(bool){Atomic(bool).init(false)} ** dump.total_bytes,
+    desired: [dump.total_bytes]Atomic(u8) = @splat(Atomic(u8).init(0)),
+    desired_known: [dump.total_bytes]Atomic(bool) = @splat(Atomic(bool).init(false)),
     /// The last value sent for each control change parameter. A CC changes no
     /// stored parameter, so it lives only here.
-    cc_values: [param_count]Atomic(u8) = [_]Atomic(u8){Atomic(u8).init(0)} ** param_count,
+    cc_values: [param_count]Atomic(u8) = @splat(Atomic(u8).init(0)),
 
     /// The user interface bumps this after it replaces `desired`, and the
     /// engine then recalls the new state.
@@ -183,8 +183,8 @@ pub const Shared = struct {
 
     // What the user interface displays.
     connected: Atomic(bool) = Atomic(bool).init(false),
-    mode: Atomic(u8) = Atomic(u8).init(@intFromEnum(roland.MidiInMode.unknown)),
-    job: Atomic(u8) = Atomic(u8).init(@intFromEnum(JobKind.idle)),
+    mode: Atomic(u8) = Atomic(u8).init(@backingInt(roland.MidiInMode.unknown)),
+    job: Atomic(u8) = Atomic(u8).init(@backingInt(JobKind.idle)),
     progress_done: Atomic(u32) = Atomic(u32).init(0),
     progress_total: Atomic(u32) = Atomic(u32).init(0),
     pending_writes: Atomic(u32) = Atomic(u32).init(0),
@@ -208,7 +208,7 @@ pub const Shared = struct {
     /// The last MIDI events the host delivered, packed in one word each:
     /// flags (16 bits), port (16), status, two data bytes, and the low byte of
     /// the time offset. They show the user, and the log, what the host sends.
-    midi_log: [midi_log_capacity]Atomic(u64) = [_]Atomic(u64){Atomic(u64).init(0)} ** midi_log_capacity,
+    midi_log: [midi_log_capacity]Atomic(u64) = @splat(Atomic(u64).init(0)),
     midi_log_count: Atomic(u32) = Atomic(u32).init(0),
 
     pub fn setDesired(self: *Shared, kind: roland.Kind, address: u32, value: u8) bool {
@@ -339,7 +339,7 @@ pub const Engine = struct {
     gap: u64 = 96,
 
     mirror: dump.Dump = .{},
-    dirty: [param_count]bool = [_]bool{false} ** param_count,
+    dirty: [param_count]bool = @splat(false),
 
     job: JobKind = .idle,
     auto: AutoStep = .start,
@@ -351,7 +351,7 @@ pub const Engine = struct {
     read_tries: u8 = 0,
     read_deadline: u64 = 0,
     read_request_pending: bool = false,
-    read_seen: [dump.total_bytes]bool = [_]bool{false} ** dump.total_bytes,
+    read_seen: [dump.total_bytes]bool = @splat(false),
     read_then: ReadThen = .nothing,
     read_any_answer: bool = false,
 
@@ -365,9 +365,9 @@ pub const Engine = struct {
 
     // A notification raised outside a block waits here until `run` can hand
     // it to the sink.
-    notify_list: [param_count]u8 = [_]u8{0} ** param_count,
-    notify_pending: [param_count]bool = [_]bool{false} ** param_count,
-    notify_gesture: [param_count]bool = [_]bool{false} ** param_count,
+    notify_list: [param_count]u8 = @splat(0),
+    notify_pending: [param_count]bool = @splat(false),
+    notify_gesture: [param_count]bool = @splat(false),
 
     // What `nextMessage` built, which `afterSend` needs once the host took it.
     sent_kind: Sent = .none,
@@ -402,7 +402,7 @@ pub const Engine = struct {
     pub fn onSysex(self: *Engine, bytes: []const u8) void {
         if (roland.identityMode(bytes)) |mode| {
             self.shared.rx_count.store(self.shared.rx_count.load(.monotonic) +% 1, .monotonic);
-            self.shared.mode.store(@intFromEnum(mode), .monotonic);
+            self.shared.mode.store(@backingInt(mode), .monotonic);
             self.shared.connected.store(true, .release);
             return;
         }
@@ -612,7 +612,7 @@ pub const Engine = struct {
     }
 
     pub fn beginSync(self: *Engine) void {
-        const mode: roland.MidiInMode = @enumFromInt(self.shared.mode.load(.monotonic));
+        const mode: roland.MidiInMode = @fromBackingInt(@intCast(self.shared.mode.load(.monotonic)));
         if (mode == .mode1) {
             self.auto = .done;
             return;
@@ -826,7 +826,7 @@ pub const Engine = struct {
 
     pub fn publish(self: *Engine) void {
         const s = self.shared;
-        s.job.store(@intFromEnum(self.job), .monotonic);
+        s.job.store(@backingInt(self.job), .monotonic);
         switch (self.job) {
             .reading => {
                 s.progress_done.store(@intCast(self.read_block), .monotonic);
@@ -995,7 +995,7 @@ test "start-up reads the keyboard and adopts it when nothing is desired" {
 
     h.runSeconds(2.0);
     try std.testing.expect(shared.connected.load(.acquire));
-    try std.testing.expectEqual(roland.MidiInMode.mode2, @as(roland.MidiInMode, @enumFromInt(shared.mode.load(.monotonic))));
+    try std.testing.expectEqual(roland.MidiInMode.mode2, @as(roland.MidiInMode, @fromBackingInt(@intCast(shared.mode.load(.monotonic)))));
     try std.testing.expectEqual(@as(u32, dump.total_bytes), shared.mirror_known.load(.monotonic));
     try std.testing.expectEqual(@as(usize, dump.total_bytes), shared.desiredKnownCount());
     // The knobs show the keyboard's values.
@@ -1279,8 +1279,8 @@ test "a scene change during a read waits for the read, which still ends" {
 
     try std.testing.expect(shared.sendCommand(.capture_keyboard));
     var blocks: usize = 0;
-    while (shared.job.load(.monotonic) != @intFromEnum(JobKind.reading) and blocks < 50) : (blocks += 1) h.step();
-    try std.testing.expectEqual(@intFromEnum(JobKind.reading), shared.job.load(.monotonic));
+    while (shared.job.load(.monotonic) != @backingInt(JobKind.reading) and blocks < 50) : (blocks += 1) h.step();
+    try std.testing.expectEqual(@backingInt(JobKind.reading), shared.job.load(.monotonic));
 
     // A scene is selected while the keyboard is being read.
     var scene: dump.Dump = undefined;
@@ -1292,7 +1292,7 @@ test "a scene change during a read waits for the read, which still ends" {
 
     // The read ended and was counted, and the engine is free again.
     try std.testing.expectEqual(@as(u32, 1), shared.captures_done.load(.acquire));
-    try std.testing.expectEqual(@intFromEnum(JobKind.idle), shared.job.load(.monotonic));
+    try std.testing.expectEqual(@backingInt(JobKind.idle), shared.job.load(.monotonic));
 }
 
 test "parameter ids are stable hashes and unique" {
@@ -1306,9 +1306,9 @@ test "parameter ids are stable hashes and unique" {
 pub fn valueText(buf: []u8, p: catalog.Param, value: f64) ?[:0]const u8 {
     const v: i64 = @intFromFloat(@round(value));
     if (p.names.len > 0 and v >= p.low and v - p.low < @as(i64, @intCast(p.names.len))) {
-        return std.fmt.bufPrintZ(buf, "{s}", .{p.names[@intCast(v - p.low)]}) catch null;
+        return std.mem.printSentinel(buf, "{s}", .{p.names[@intCast(v - p.low)]}, 0) catch null;
     }
-    return std.fmt.bufPrintZ(buf, "{d}", .{v}) catch null;
+    return std.mem.printSentinel(buf, "{d}", .{v}, 0) catch null;
 }
 
 test "every list of names covers the range of its parameter" {

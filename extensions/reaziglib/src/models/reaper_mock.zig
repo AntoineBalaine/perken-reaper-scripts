@@ -106,8 +106,8 @@ pub fn setupMockReaperAPI(model: *Session) Mocks {
     // Create a Mocks struct to store original functions
     var origFuncs: Mocks = undefined;
 
-    inline for (std.meta.fields(Mocks)) |field| {
-        const name = field.name;
+    inline for (@typeInfo(Mocks).@"struct".field_names) |field_name| {
+        const name = field_name;
         // Store the original function
         @field(origFuncs, name) = @field(reaper, name);
 
@@ -122,8 +122,8 @@ pub fn setupMockReaperAPI(model: *Session) Mocks {
 }
 
 pub fn restoreMockReaperAPI(origFuncs: anytype) void {
-    inline for (std.meta.fields(Mocks)) |field| {
-        const name = field.name;
+    inline for (@typeInfo(Mocks).@"struct".field_names) |field_name| {
+        const name = field_name;
         @constCast(&@field(reaper, name)).* = @constCast(&@field(origFuncs, name)).*;
     }
 
@@ -135,8 +135,8 @@ pub fn restoreMockReaperAPI(origFuncs: anytype) void {
 /// the mocks. The caller restores them with restoreGenericMockAPI.
 pub fn setupGenericMockAPI(comptime MockSet: type, comptime mock_source: type) MockSet {
     var originals: MockSet = undefined;
-    inline for (std.meta.fields(MockSet)) |field| {
-        const name = field.name;
+    inline for (@typeInfo(MockSet).@"struct".field_names) |field_name| {
+        const name = field_name;
         @field(originals, name) = @field(reaper, name);
         if (@hasDecl(mock_source, name)) {
             @constCast(&@field(reaper, name)).* = @constCast(&@field(mock_source, name));
@@ -150,14 +150,14 @@ pub fn setupGenericMockAPI(comptime MockSet: type, comptime mock_source: type) M
 /// Generic restore: given original function pointers saved by setupGenericMockAPI,
 /// restores them back onto the reaper API.
 pub fn restoreGenericMockAPI(comptime MockSet: type, originals: MockSet) void {
-    inline for (std.meta.fields(MockSet)) |field| {
-        const name = field.name;
+    inline for (@typeInfo(MockSet).@"struct".field_names) |field_name| {
+        const name = field_name;
         @constCast(&@field(reaper, name)).* = @field(originals, name);
     }
 }
 
 // Mock REAPER API functions with the same signatures as the real API
-fn InsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
+fn InsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.c) void {
     _ = wantDefaults;
     const model = g_session.?;
     const gpa = model.arena_alloc;
@@ -180,7 +180,7 @@ fn InsertTrackAtIndex(idx: c_int, wantDefaults: bool) callconv(.C) void {
 // NOTE: there is the case in which we try to add an fx which
 // doesn't exist on the user's system, in which case reaper returns -1
 // TODO: implement model fx library
-fn TrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.C) c_int {
+fn TrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: bool, instantiate: c_int) callconv(.c) c_int {
     _ = recFX;
     const session = g_session.?;
 
@@ -221,7 +221,7 @@ fn TrackFX_AddByName(track: reaper.MediaTrack, fxname: [*:0]const u8, recFX: boo
     return @intCast(insert_pos);
 }
 
-fn TrackFX_Delete(track: reaper.MediaTrack, fx: c_int) callconv(.C) bool {
+fn TrackFX_Delete(track: reaper.MediaTrack, fx: c_int) callconv(.c) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -233,7 +233,7 @@ fn TrackFX_Delete(track: reaper.MediaTrack, fx: c_int) callconv(.C) bool {
     return true;
 }
 
-fn TrackFX_GetCount(track: reaper.MediaTrack) callconv(.C) c_int {
+fn TrackFX_GetCount(track: reaper.MediaTrack) callconv(.c) c_int {
     // Cast to optional pointer and check for null
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return -1;
@@ -243,7 +243,7 @@ fn TrackFX_GetCount(track: reaper.MediaTrack) callconv(.C) c_int {
     return @intCast(tr.fx_list.items.len);
 }
 
-fn TrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.C) bool {
+fn TrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.c) bool {
     // Cast to optional pointer and check for null
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
@@ -262,7 +262,7 @@ fn TrackFX_GetFXName(track: reaper.MediaTrack, fx: c_int, bufOut: [*:0]u8, bufOu
     return true;
 }
 
-fn TrackFX_GetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:0]const u8, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.C) bool {
+fn TrackFX_GetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:0]const u8, bufOut: [*:0]u8, bufOut_sz: c_int) callconv(.c) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -294,7 +294,7 @@ fn TrackFX_GetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:
     return true;
 }
 
-fn TrackFX_SetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:0]const u8, value: [*:0]const u8) callconv(.C) bool {
+fn TrackFX_SetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:0]const u8, value: [*:0]const u8) callconv(.c) bool {
     const session = g_session.?;
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
@@ -327,7 +327,7 @@ fn TrackFX_SetNamedConfigParm(track: reaper.MediaTrack, fx: c_int, parmname: [*:
     return false;
 }
 
-fn TrackFX_GetFXGUID(track: reaper.MediaTrack, fx: c_int) callconv(.C) *reaper.GUID {
+fn TrackFX_GetFXGUID(track: reaper.MediaTrack, fx: c_int) callconv(.c) *reaper.GUID {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) @panic("Invalid track pointer");
 
@@ -339,7 +339,7 @@ fn TrackFX_GetFXGUID(track: reaper.MediaTrack, fx: c_int) callconv(.C) *reaper.G
     return @ptrCast(@alignCast(&fx_item.guid.bytes));
 }
 
-fn TrackFX_CopyToTrack(source_track: reaper.MediaTrack, source_fx: c_int, dest_track: reaper.MediaTrack, dest_fx: c_int, is_move: bool) callconv(.C) void {
+fn TrackFX_CopyToTrack(source_track: reaper.MediaTrack, source_fx: c_int, dest_track: reaper.MediaTrack, dest_fx: c_int, is_move: bool) callconv(.c) void {
     const session = g_session.?;
     const src_ptr: ?*Track = @ptrCast(@alignCast(source_track));
     const dst_ptr: ?*Track = @ptrCast(@alignCast(dest_track));
@@ -364,7 +364,7 @@ fn TrackFX_CopyToTrack(source_track: reaper.MediaTrack, source_fx: c_int, dest_t
     }
 }
 
-fn TrackFX_GetEnabled(track: reaper.MediaTrack, fx: c_int) callconv(.C) bool {
+fn TrackFX_GetEnabled(track: reaper.MediaTrack, fx: c_int) callconv(.c) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -376,7 +376,7 @@ fn TrackFX_GetEnabled(track: reaper.MediaTrack, fx: c_int) callconv(.C) bool {
     return fx_item.enabled;
 }
 
-fn TrackFX_SetEnabled(track: reaper.MediaTrack, fx: c_int, enabled: bool) callconv(.C) void {
+fn TrackFX_SetEnabled(track: reaper.MediaTrack, fx: c_int, enabled: bool) callconv(.c) void {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return;
 
@@ -387,7 +387,7 @@ fn TrackFX_SetEnabled(track: reaper.MediaTrack, fx: c_int, enabled: bool) callco
     tr.fx_list.items[@intCast(fx)].enabled = enabled;
 }
 
-fn TrackFX_GetNumParams(track: reaper.MediaTrack, fx_idx: c_int) callconv(.C) c_int {
+fn TrackFX_GetNumParams(track: reaper.MediaTrack, fx_idx: c_int) callconv(.c) c_int {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return 0;
 
@@ -399,7 +399,7 @@ fn TrackFX_GetNumParams(track: reaper.MediaTrack, fx_idx: c_int) callconv(.C) c_
     return @intCast(fx.params.len);
 }
 
-fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, buf_out: [*:0]const u8, buf_size: c_int) callconv(.C) bool {
+fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, buf_out: [*:0]const u8, buf_size: c_int) callconv(.c) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -419,7 +419,7 @@ fn TrackFX_GetParamName(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_in
     return true;
 }
 
-fn TrackFX_GetFormattedParamValue(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, buf_out: [*:0]u8, buf_size: c_int) callconv(.C) bool {
+fn TrackFX_GetFormattedParamValue(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, buf_out: [*:0]u8, buf_size: c_int) callconv(.c) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -437,7 +437,7 @@ fn TrackFX_GetFormattedParamValue(track: reaper.MediaTrack, fx_idx: c_int, param
     return true;
 }
 
-fn TrackFX_GetParameterStepSizes(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, step_out: *f64, small_step_out: *f64, large_step_out: *f64, is_toggle_out: *bool) callconv(.C) bool {
+fn TrackFX_GetParameterStepSizes(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, step_out: *f64, small_step_out: *f64, large_step_out: *f64, is_toggle_out: *bool) callconv(.c) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -456,7 +456,7 @@ fn TrackFX_GetParameterStepSizes(track: reaper.MediaTrack, fx_idx: c_int, param_
     return true;
 }
 
-fn TrackFX_GetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int) callconv(.C) f64 {
+fn TrackFX_GetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int) callconv(.c) f64 {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return -1.0;
 
@@ -469,7 +469,7 @@ fn TrackFX_GetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int)
     return fx_item.params[@intCast(param)].normalized_value;
 }
 
-fn TrackFX_SetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int, value: f64) callconv(.C) bool {
+fn TrackFX_SetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int, value: f64) callconv(.c) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -483,7 +483,7 @@ fn TrackFX_SetParamNormalized(track: reaper.MediaTrack, fx: c_int, param: c_int,
     return true;
 }
 
-fn TrackFX_GetParamEx(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, min_out: *f64, max_out: *f64, mid_out: *f64) callconv(.C) f64 {
+fn TrackFX_GetParamEx(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, min_out: *f64, max_out: *f64, mid_out: *f64) callconv(.c) f64 {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return 0.0;
 
@@ -502,7 +502,7 @@ fn TrackFX_GetParamEx(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int,
     return p.normalized_value * (p.max_val - p.min_val) + p.min_val;
 }
 
-fn TrackFX_SetParam(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, val: f64) callconv(.C) bool {
+fn TrackFX_SetParam(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, val: f64) callconv(.c) bool {
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
     if (track_ptr == null) return false;
 
@@ -519,7 +519,7 @@ fn TrackFX_SetParam(track: reaper.MediaTrack, fx_idx: c_int, param_idx: c_int, v
     return true;
 }
 
-fn CSurf_TrackFromID(idx: c_int, mcpView: bool) callconv(.C) MediaTrack {
+fn CSurf_TrackFromID(idx: c_int, mcpView: bool) callconv(.c) MediaTrack {
     _ = mcpView;
     const session = g_session.?;
     if (idx < 0 or idx >= session.tracks.items.len) return null;
@@ -529,49 +529,49 @@ fn CSurf_TrackFromID(idx: c_int, mcpView: bool) callconv(.C) MediaTrack {
 // Transport and control surface no-op/default mocks.
 // These exist so that transport_actions and fx_ctrl panel_input special CCs
 // can execute without crashing. They do not simulate REAPER behavior.
-fn Main_OnCommand(command: c_int, flag: c_int) callconv(.C) void {
+fn Main_OnCommand(command: c_int, flag: c_int) callconv(.c) void {
     _ = command;
     _ = flag;
 }
-fn CSurf_OnPlay() callconv(.C) void {}
-fn CSurf_OnRecord() callconv(.C) void {}
-fn CSurf_OnStop() callconv(.C) void {}
-fn CSurf_OnRewFwd(seekplay: c_int, dir: c_int) callconv(.C) void {
+fn CSurf_OnPlay() callconv(.c) void {}
+fn CSurf_OnRecord() callconv(.c) void {}
+fn CSurf_OnStop() callconv(.c) void {}
+fn CSurf_OnRewFwd(seekplay: c_int, dir: c_int) callconv(.c) void {
     _ = seekplay;
     _ = dir;
 }
-fn CSurf_OnZoom(xdir: c_int, ydir: c_int) callconv(.C) void {
+fn CSurf_OnZoom(xdir: c_int, ydir: c_int) callconv(.c) void {
     _ = xdir;
     _ = ydir;
 }
-fn CSurf_OnPlayRateChange(playrate: f64) callconv(.C) void {
+fn CSurf_OnPlayRateChange(playrate: f64) callconv(.c) void {
     _ = playrate;
 }
-fn CSurf_OnRecArmChange(trackid: MediaTrack, recarm: c_int) callconv(.C) bool {
+fn CSurf_OnRecArmChange(trackid: MediaTrack, recarm: c_int) callconv(.c) bool {
     _ = trackid;
     _ = recarm;
     return true;
 }
-fn GetToggleCommandState(command_id: c_int) callconv(.C) c_int {
+fn GetToggleCommandState(command_id: c_int) callconv(.c) c_int {
     _ = command_id;
     return 0;
 }
-fn SetAutomationMode(mode: c_int, onlySel: bool) callconv(.C) void {
+fn SetAutomationMode(mode: c_int, onlySel: bool) callconv(.c) void {
     _ = mode;
     _ = onlySel;
 }
-fn PreventUIRefresh(prevent_count: c_int) callconv(.C) void {
+fn PreventUIRefresh(prevent_count: c_int) callconv(.c) void {
     _ = prevent_count;
 }
-fn GetCursorPosition() callconv(.C) f64 {
+fn GetCursorPosition() callconv(.c) f64 {
     return g_session.?.cursor_position;
 }
-fn SetEditCurPos(time: f64, moveview: bool, seekplay: bool) callconv(.C) void {
+fn SetEditCurPos(time: f64, moveview: bool, seekplay: bool) callconv(.c) void {
     _ = moveview;
     _ = seekplay;
     g_session.?.cursor_position = time;
 }
-fn GetSetProjectGrid(project: ?ReaProject, set: bool, divisionInOutOptional: ?*f64, swingmodeInOutOptional: ?*c_int, swingamtInOutOptional: ?*f64) callconv(.C) c_int {
+fn GetSetProjectGrid(project: ?ReaProject, set: bool, divisionInOutOptional: ?*f64, swingmodeInOutOptional: ?*c_int, swingamtInOutOptional: ?*f64) callconv(.c) c_int {
     _ = project;
     _ = set;
     if (divisionInOutOptional) |d| d.* = 0.25; // quarter note
@@ -579,16 +579,16 @@ fn GetSetProjectGrid(project: ?ReaProject, set: bool, divisionInOutOptional: ?*f
     if (swingamtInOutOptional) |s| s.* = 0.0;
     return 0;
 }
-fn CountTempoTimeSigMarkers(proj: ?ReaProject) callconv(.C) c_int {
+fn CountTempoTimeSigMarkers(proj: ?ReaProject) callconv(.c) c_int {
     _ = proj;
     return 0;
 }
-fn FindTempoTimeSigMarker(project: ?ReaProject, time: f64) callconv(.C) c_int {
+fn FindTempoTimeSigMarker(project: ?ReaProject, time: f64) callconv(.c) c_int {
     _ = project;
     _ = time;
     return 0;
 }
-fn GetTempoTimeSigMarker(proj: ?ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.C) bool {
+fn GetTempoTimeSigMarker(proj: ?ReaProject, ptidx: c_int, timeposOut: *f64, measureposOut: *c_int, beatposOut: *f64, bpmOut: *f64, timesig_numOut: *c_int, timesig_denomOut: *c_int, lineartempoOut: *bool) callconv(.c) bool {
     _ = proj;
     _ = ptidx;
     timeposOut.* = 0.0;
@@ -600,94 +600,94 @@ fn GetTempoTimeSigMarker(proj: ?ReaProject, ptidx: c_int, timeposOut: *f64, meas
     lineartempoOut.* = false;
     return true;
 }
-fn Master_GetTempo() callconv(.C) f64 {
+fn Master_GetTempo() callconv(.c) f64 {
     return 120.0;
 }
-fn Master_GetPlayRate(project: ?ReaProject) callconv(.C) f64 {
+fn Master_GetPlayRate(project: ?ReaProject) callconv(.c) f64 {
     _ = project;
     return 1.0;
 }
-fn Master_NormalizePlayRate(playrate: f64, isnormalized: bool) callconv(.C) f64 {
+fn Master_NormalizePlayRate(playrate: f64, isnormalized: bool) callconv(.c) f64 {
     _ = isnormalized;
     return playrate;
 }
-fn SnapToGrid(project: ?ReaProject, time_pos: f64) callconv(.C) f64 {
+fn SnapToGrid(project: ?ReaProject, time_pos: f64) callconv(.c) f64 {
     _ = project;
     return time_pos;
 }
-fn NamedCommandLookup(command_name: [*:0]const u8) callconv(.C) c_int {
+fn NamedCommandLookup(command_name: [*:0]const u8) callconv(.c) c_int {
     _ = command_name;
     return 0;
 }
-fn TimeMap_curFrameRate(proj: ?ReaProject, dropFrameOut: *bool) callconv(.C) f64 {
+fn TimeMap_curFrameRate(proj: ?ReaProject, dropFrameOut: *bool) callconv(.c) f64 {
     _ = proj;
     dropFrameOut.* = false;
     return 30.0;
 }
-fn TrackFX_Show(track: MediaTrack, index: c_int, showFlag: c_int) callconv(.C) void {
+fn TrackFX_Show(track: MediaTrack, index: c_int, showFlag: c_int) callconv(.c) void {
     _ = track;
     _ = index;
     _ = showFlag;
 }
-fn CSurf_OnMuteChange(trackid: MediaTrack, mute: c_int) callconv(.C) bool {
+fn CSurf_OnMuteChange(trackid: MediaTrack, mute: c_int) callconv(.c) bool {
     _ = trackid;
     _ = mute;
     return true;
 }
-fn CSurf_OnSoloChange(trackid: MediaTrack, solo: c_int) callconv(.C) bool {
+fn CSurf_OnSoloChange(trackid: MediaTrack, solo: c_int) callconv(.c) bool {
     _ = trackid;
     _ = solo;
     return true;
 }
-fn CSurf_OnVolumeChange(trackid: MediaTrack, volume: f64, relative: bool) callconv(.C) f64 {
+fn CSurf_OnVolumeChange(trackid: MediaTrack, volume: f64, relative: bool) callconv(.c) f64 {
     _ = trackid;
     _ = relative;
     return volume;
 }
-fn CSurf_OnPanChange(trackid: MediaTrack, pan: f64, relative: bool) callconv(.C) f64 {
+fn CSurf_OnPanChange(trackid: MediaTrack, pan: f64, relative: bool) callconv(.c) f64 {
     _ = trackid;
     _ = relative;
     return pan;
 }
-fn CSurf_SetSurfaceMute(trackid: MediaTrack, mute: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.C) void {
+fn CSurf_SetSurfaceMute(trackid: MediaTrack, mute: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
     _ = trackid;
     _ = mute;
     _ = ignoresurf;
 }
-fn CSurf_SetSurfaceSolo(trackid: MediaTrack, solo: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.C) void {
+fn CSurf_SetSurfaceSolo(trackid: MediaTrack, solo: bool, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
     _ = trackid;
     _ = solo;
     _ = ignoresurf;
 }
-fn CSurf_SetSurfaceVolume(trackid: MediaTrack, volume: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.C) void {
+fn CSurf_SetSurfaceVolume(trackid: MediaTrack, volume: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
     _ = trackid;
     _ = volume;
     _ = ignoresurf;
 }
-fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.C) void {
+fn CSurf_SetSurfacePan(trackid: MediaTrack, pan: f64, ignoresurf: ?reaper.IReaperControlSurface) callconv(.c) void {
     _ = trackid;
     _ = pan;
     _ = ignoresurf;
 }
-fn SetMixerScroll(leftmosttrack: reaper.MediaTrack) callconv(.C) *reaper.MediaTrack {
+fn SetMixerScroll(leftmosttrack: reaper.MediaTrack) callconv(.c) *reaper.MediaTrack {
     _ = leftmosttrack;
     return @constCast(&@as(reaper.MediaTrack, null));
 }
-fn TrackList_AdjustWindows(isMinor: bool) callconv(.C) void {
+fn TrackList_AdjustWindows(isMinor: bool) callconv(.c) void {
     _ = isMinor;
 }
 
-fn TrackFX_GetParamFromIdent(_: MediaTrack, _: c_int, _: [*:0]const u8) callconv(.C) c_int {
+fn TrackFX_GetParamFromIdent(_: MediaTrack, _: c_int, _: [*:0]const u8) callconv(.c) c_int {
     return -1;
 }
 
 pub var resource_path: [:0]const u8 = "";
 
-fn GetResourcePath() callconv(.C) [*:0]const u8 {
+fn GetResourcePath() callconv(.c) [*:0]const u8 {
     return resource_path.ptr;
 }
 
-fn CSurf_TrackToID(track: MediaTrack, mcpView: bool) callconv(.C) c_int {
+fn CSurf_TrackToID(track: MediaTrack, mcpView: bool) callconv(.c) c_int {
     _ = mcpView;
     const session = g_session.?;
     const track_ptr: ?*Track = @ptrCast(@alignCast(track));
@@ -699,7 +699,7 @@ fn CSurf_TrackToID(track: MediaTrack, mcpView: bool) callconv(.C) c_int {
     return -1;
 }
 
-fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
+fn DeleteTrack(tr: reaper.MediaTrack) callconv(.c) void {
     const model = g_session.?;
 
     // Cast to optional pointer and check for null
@@ -747,29 +747,29 @@ fn DeleteTrack(tr: reaper.MediaTrack) callconv(.C) void {
 }
 
 // Mock REAPER API functions
-fn GetNumTracks() callconv(.C) c_int {
+fn GetNumTracks() callconv(.c) c_int {
     return @intCast(g_session.?.tracks.items.len - 1); // Don't count master track
 }
 
-fn CountTracks(project: ?ReaProject) callconv(.C) c_int {
+fn CountTracks(project: ?ReaProject) callconv(.c) c_int {
     _ = project;
     return @intCast(g_session.?.tracks.items.len); // Count all tracks including master
 }
 
-fn GetTrack(project: ?ReaProject, trackidx: c_int) callconv(.C) MediaTrack {
+fn GetTrack(project: ?ReaProject, trackidx: c_int) callconv(.c) MediaTrack {
     _ = project;
     if (trackidx < 0 or trackidx >= g_session.?.tracks.items.len - 1) return null;
     const track = &g_session.?.tracks.items[@as(usize, @intCast(trackidx)) + 1];
     return @ptrCast(track);
 }
 
-fn GetMasterTrack(project: ?ReaProject) callconv(.C) MediaTrack {
+fn GetMasterTrack(project: ?ReaProject) callconv(.c) MediaTrack {
     _ = project;
     const track = &g_session.?.tracks.items[0];
     return @ptrCast(track);
 }
 
-fn GetTrackName(tr: MediaTrack, buf: [*:0]u8, bufsz: c_int) callconv(.C) bool {
+fn GetTrackName(tr: MediaTrack, buf: [*:0]u8, bufsz: c_int) callconv(.c) bool {
     var track: ?*Track = @ptrCast(@alignCast(tr));
     _ = &track;
     if (track == null or bufsz <= 0) return false;
@@ -781,7 +781,7 @@ fn GetTrackName(tr: MediaTrack, buf: [*:0]u8, bufsz: c_int) callconv(.C) bool {
     return true;
 }
 
-fn SetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8, newvalue: f64) callconv(.C) bool {
+fn SetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8, newvalue: f64) callconv(.c) bool {
     var track: ?*Track = @ptrCast(@alignCast(tr));
     _ = &track;
     if (track == null) return false;
@@ -806,14 +806,14 @@ fn SetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8, newvalue: f6
         track.?.info.fx_enabled = newvalue > 0.5;
         return true;
     } else if (std.mem.eql(u8, param, "I_AUTOMODE")) {
-        track.?.automation_mode = @enumFromInt(@as(c_int, @intFromFloat(newvalue)));
+        track.?.automation_mode = @fromBackingInt(@intCast(@as(c_int, @intFromFloat(newvalue))));
         return true;
     }
 
     return false;
 }
 
-fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv(.C) f64 {
+fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv(.c) f64 {
     var track: ?*Track = @ptrCast(@alignCast(tr));
     _ = &track;
     if (track == null) return 0;
@@ -832,13 +832,13 @@ fn GetMediaTrackInfo_Value(tr: MediaTrack, parmname: [*:0]const u8) callconv(.C)
     } else if (std.mem.eql(u8, param, "I_FXEN")) {
         return if (track.?.info.fx_enabled) 1.0 else 0.0;
     } else if (std.mem.eql(u8, param, "I_AUTOMODE")) {
-        return @floatFromInt(@intFromEnum(track.?.automation_mode));
+        return @floatFromInt(@backingInt(track.?.automation_mode));
     }
 
     return 0;
 }
 
-fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.C) void {
+fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.c) void {
     var track: ?*Track = @ptrCast(@alignCast(tr));
     _ = &track;
     if (track == null) return;
@@ -869,7 +869,7 @@ fn SetTrackSelected(tr: MediaTrack, selected: bool) callconv(.C) void {
     }
 }
 
-fn GetSelectedTrack(proj: ?ReaProject, seltrackidx: c_int) callconv(.C) MediaTrack {
+fn GetSelectedTrack(proj: ?ReaProject, seltrackidx: c_int) callconv(.c) MediaTrack {
     _ = proj;
     if (seltrackidx < 0 or seltrackidx >= g_session.?.selected_tracks.items.len) return null;
 

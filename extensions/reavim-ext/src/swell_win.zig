@@ -20,7 +20,7 @@ const log = std.log.scoped(.swell);
 
 const HWND = Reaper.HWND;
 // Nullable name: the macOS version handshake is GetFunc(NULL) == 0x100.
-const GetFuncT = *const fn (name: ?[*:0]const u8) callconv(.C) ?*anyopaque;
+const GetFuncT = *const fn (name: ?[*:0]const u8) callconv(.c) ?*anyopaque;
 
 const is_windows = builtin.os.tag == .windows;
 
@@ -30,25 +30,25 @@ const is_windows = builtin.os.tag == .windows;
 // name to match against (classHandlesOwnKeys in vim.zig), the same tradeoff
 // SWELL's own GetClassName makes on the other platforms.
 const user32 = if (is_windows) struct {
-    extern "user32" fn GetFocus() callconv(.C) ?HWND;
-    extern "user32" fn GetParent(hWnd: HWND) callconv(.C) ?HWND;
-    extern "user32" fn IsChild(hWndParent: HWND, hWnd: HWND) callconv(.C) c_int;
-    extern "user32" fn GetClassNameA(hWnd: HWND, lpClassName: [*]u8, nMaxCount: c_int) callconv(.C) c_int;
-    extern "user32" fn GetAsyncKeyState(vKey: c_int) callconv(.C) i16;
+    extern "user32" fn GetFocus() callconv(.c) ?HWND;
+    extern "user32" fn GetParent(hWnd: HWND) callconv(.c) ?HWND;
+    extern "user32" fn IsChild(hWndParent: HWND, hWnd: HWND) callconv(.c) c_int;
+    extern "user32" fn GetClassNameA(hWnd: HWND, lpClassName: [*]u8, nMaxCount: c_int) callconv(.c) c_int;
+    extern "user32" fn GetAsyncKeyState(vKey: c_int) callconv(.c) i16;
 } else struct {};
 
 // Signatures from WDL/swell/swell-functions.h (Linux/macOS only).
-var fnGetFocus: ?*const fn () callconv(.C) ?HWND = null;
-var fnGetParent: ?*const fn (hwnd: HWND) callconv(.C) ?HWND = null;
-var fnIsChild: ?*const fn (parent: HWND, child: HWND) callconv(.C) c_int = null;
-var fnGetClassName: ?*const fn (hwnd: HWND, buf: [*]u8, bufsz: c_int) callconv(.C) c_int = null;
-var fnSetFocus: ?*const fn (hwnd: HWND) callconv(.C) void = null;
-var fnGetDlgItem: ?*const fn (hwnd: HWND, idx: c_int) callconv(.C) ?HWND = null;
-var fnGetAsyncKeyState: ?*const fn (key: c_int) callconv(.C) u16 = null;
+var fnGetFocus: ?*const fn () callconv(.c) ?HWND = null;
+var fnGetParent: ?*const fn (hwnd: HWND) callconv(.c) ?HWND = null;
+var fnIsChild: ?*const fn (parent: HWND, child: HWND) callconv(.c) c_int = null;
+var fnGetClassName: ?*const fn (hwnd: HWND, buf: [*]u8, bufsz: c_int) callconv(.c) c_int = null;
+var fnSetFocus: ?*const fn (hwnd: HWND) callconv(.c) void = null;
+var fnGetDlgItem: ?*const fn (hwnd: HWND, idx: c_int) callconv(.c) ?HWND = null;
+var fnGetAsyncKeyState: ?*const fn (key: c_int) callconv(.c) u16 = null;
 
 const DLL_PROCESS_ATTACH: c_uint = 1;
 
-export fn SWELL_dllMain(hInst: ?*anyopaque, callMode: c_uint, getFunc: ?*anyopaque) callconv(.C) c_int {
+export fn SWELL_dllMain(hInst: ?*anyopaque, callMode: c_uint, getFunc: ?*anyopaque) callconv(.c) c_int {
     _ = hInst;
     if (callMode == DLL_PROCESS_ATTACH) {
         // The third parameter is the SWELL resolver on Linux only. On macOS
@@ -80,10 +80,10 @@ export fn SWELL_dllMain(hInst: ?*anyopaque, callMode: c_uint, getFunc: ?*anyopaq
 fn macosHostGetFunc() ?GetFuncT {
     if (builtin.os.tag != .macos) return null;
 
-    const MsgSend0 = *const fn (?*anyopaque, ?*anyopaque) callconv(.C) ?*anyopaque;
-    const MsgSendBool = *const fn (?*anyopaque, ?*anyopaque, ?*anyopaque) callconv(.C) bool;
-    const GetClass = *const fn ([*:0]const u8) callconv(.C) ?*anyopaque;
-    const SelName = *const fn ([*:0]const u8) callconv(.C) ?*anyopaque;
+    const MsgSend0 = *const fn (?*anyopaque, ?*anyopaque) callconv(.c) ?*anyopaque;
+    const MsgSendBool = *const fn (?*anyopaque, ?*anyopaque, ?*anyopaque) callconv(.c) bool;
+    const GetClass = *const fn ([*:0]const u8) callconv(.c) ?*anyopaque;
+    const SelName = *const fn ([*:0]const u8) callconv(.c) ?*anyopaque;
 
     // dlsym's pseudo-handle for "search everything" is (void*)-2, not NULL.
     const RTLD_DEFAULT: ?*anyopaque = @ptrFromInt(@as(usize, @bitCast(@as(isize, -2))));

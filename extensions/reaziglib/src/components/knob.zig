@@ -208,7 +208,7 @@ pub fn drawWidget(
             try imgui.SetKeyboardFocusHere(.{ctx});
 
             var val_edit_id_buf: [48]u8 = undefined;
-            const val_edit_id = std.fmt.bufPrintZ(&val_edit_id_buf, "##val_edit_{s}", .{label_id.id}) catch "##val_edit";
+            const val_edit_id = std.mem.printSentinel(&val_edit_id_buf, "##val_edit_{s}", .{label_id.id}, 0) catch "##val_edit";
 
             const enter_pressed = try imgui.InputText(.{
                 ctx,
@@ -232,7 +232,7 @@ pub fn drawWidget(
         } else {
             // Render static value text
             var buf: [24]u8 = undefined;
-            const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| (if (vt.len == 0) "-" else vt) else try std.fmt.bufPrintZ(&buf, "{d:.2}", .{value.*});
+            const val_fmt: [:0]const u8 = if (label_id.value_text) |vt| (if (vt.len == 0) "-" else vt) else try std.mem.printSentinel(&buf, "{d:.2}", .{value.*}, 0);
             var txt_size: Size = .{ .w = undefined, .h = undefined };
             try imgui.CalcTextSize(.{ ctx, val_fmt.ptr, &txt_size.w, &txt_size.h });
             try imgui.DrawList_AddText(.{ drwls, center_x - txt_size.w / 2.0, label_y, try imgui.GetStyleColor(.{ ctx, imgui.Col_Text }), val_fmt });
@@ -242,7 +242,7 @@ pub fn drawWidget(
             try imgui.SetNextItemAllowOverlap(.{ctx});
 
             var val_dclick_id_buf: [48]u8 = undefined;
-            const val_dclick_id = std.fmt.bufPrintZ(&val_dclick_id_buf, "##val_dc_{s}", .{label_id.id}) catch "##val_dc";
+            const val_dclick_id = std.mem.printSentinel(&val_dclick_id_buf, "##val_dc_{s}", .{label_id.id}, 0) catch "##val_dc";
 
             _ = try imgui.InvisibleButton(.{ ctx, val_dclick_id, txt_size.w, txt_size.h });
             if (try imgui.IsItemHovered(.{ctx}) and try imgui.IsMouseDoubleClicked(.{ ctx, imgui.MouseButton_Left })) {
@@ -260,7 +260,7 @@ pub fn drawWidget(
     return result;
 }
 
-pub fn YControl(ctx: imgui.ContextPtr, id: [:0]const u8, value: *f64, w: f64, h: f64, min_val: f64, max_val: f64, flags: YControlFlags) !std.meta.Tuple(&[_]type{ bool, bool }) {
+pub fn YControl(ctx: imgui.ContextPtr, id: [:0]const u8, value: *f64, w: f64, h: f64, min_val: f64, max_val: f64, flags: YControlFlags) !@Tuple(&[_]type{ bool, bool }) {
     try imgui.SetNextItemAllowOverlap(.{ctx});
     if (flags.invisible) {
         _ = try imgui.InvisibleButton(.{ ctx, id, w, h });

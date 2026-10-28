@@ -45,7 +45,7 @@ pub const Job = struct {
     grid: ?grid.Grid = null,
     grid_beats: []grid.GridBeat = &.{},
     passages: []grid.Passage = &.{},
-    failure: [160]u8 = [_]u8{0} ** 160,
+    failure: [160]u8 = @splat(0),
 
     /// Fraction of the work done, for the progress bar. Reading is shown as
     /// the whole bar; the analysis itself has no progress to report.
@@ -192,11 +192,11 @@ pub const passage_tolerance: f64 = 0.05;
 pub fn computeGrid(job: *Job, result: beat.Result) !void {
     const times = try job.alloc.alloc(f64, result.beats.len);
     defer job.alloc.free(times);
-    var downbeats = std.ArrayList(f64).init(job.alloc);
-    defer downbeats.deinit();
+    var downbeats: std.ArrayList(f64) = .empty;
+    defer downbeats.deinit(job.alloc);
     for (result.beats, times) |b, *t| {
         t.* = b.time;
-        if (b.beat_in_bar == 1) try downbeats.append(b.time);
+        if (b.beat_in_bar == 1) try downbeats.append(job.alloc, b.time);
     }
     var g = try grid.analyze(job.alloc, times);
     errdefer g.deinit(job.alloc);

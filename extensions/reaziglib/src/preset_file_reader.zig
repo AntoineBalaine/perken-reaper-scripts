@@ -31,8 +31,8 @@ pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool
     var parser = ini.parse(temp_arena.allocator(), file.reader());
     defer parser.deinit();
 
-    var offsets = std.ArrayList(StringPool.StringRef).init(allocator);
-    errdefer offsets.deinit();
+    var offsets: std.ArrayList(StringPool.StringRef) = .empty;
+    errdefer offsets.deinit(allocator);
 
     var in_preset_section = false;
 
@@ -44,14 +44,14 @@ pub fn readPresetNames(allocator: std.mem.Allocator, preset_strings: *StringPool
             .property => |kv| {
                 if (in_preset_section and std.mem.eql(u8, kv.key, "Name") and kv.value.len > 0) {
                     const offset = try preset_strings.intern(allocator, kv.value);
-                    try offsets.append(offset);
+                    try offsets.append(allocator, offset);
                 }
             },
             .enumeration => {},
         }
     }
 
-    return offsets.toOwnedSlice();
+    return offsets.toOwnedSlice(allocator);
 }
 
 pub const PresetData = struct {

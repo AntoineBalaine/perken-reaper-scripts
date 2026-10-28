@@ -29,8 +29,8 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             var browse_state = statemachine.BrowseState.init(globals.state.mapping_panel.gpa_int.allocator());
             const browse_allocator = browse_state.arena.allocator();
 
-            inline for (std.meta.fields(ModulesList), 0..) |field, i| {
-                const module = @field(ModulesList, field.name);
+            inline for (@typeInfo(ModulesList).@"struct".field_names, 0..) |field_name, i| {
+                const module = @field(ModulesList, field_name);
                 const module_name = @tagName(module);
 
                 // Because STRIP resolves its FX from channel_strip state
@@ -42,7 +42,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                         .multi_fx => null,
                     }
                 else blk: {
-                    const phys: PhysicalModule = @enumFromInt(@intFromEnum(module));
+                    const phys: PhysicalModule = @fromBackingInt(@intCast(@backingInt(module)));
                     break :blk switch (globals.state.fx_ctrl.track_state.mode) {
                         .multi_fx => |locs| if (locs.get(phys)) |loc| loc.fx_index else null,
                         .channel_strip => null,
@@ -96,7 +96,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     .multi_fx => null,
                 },
                 inline else => |phys| switch (globals.state.fx_ctrl.track_state.mode) {
-                    .multi_fx => |locs| if (locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys))))) |loc| loc.fx_index else null,
+                    .multi_fx => |locs| if (locs.get(@as(PhysicalModule, @fromBackingInt(@intCast(@backingInt(phys)))))) |loc| loc.fx_index else null,
                     .channel_strip => null,
                 },
             };
@@ -136,7 +136,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                     },
                     inline else => |phys| switch (globals.state.fx_ctrl.track_state.mode) {
                         .multi_fx => |locs| {
-                            if (locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys))))) |loc| {
+                            if (locs.get(@as(PhysicalModule, @fromBackingInt(@intCast(@backingInt(phys)))))) |loc| {
                                 if (loc.mapping) |tagged_mapping| {
                                     assign_state.current_mappings = tagged_mapping;
                                 }
@@ -156,7 +156,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
             // Set target_fx from the cached name for the selected module.
             if (module != .STRIP) {
-                const phys: PhysicalModule = @enumFromInt(@intFromEnum(module));
+                const phys: PhysicalModule = @fromBackingInt(@intCast(@backingInt(module)));
                 if (assign_state.module_fx_names.get(phys)) |name| {
                     assign_state.target_fx = assign_allocator.dupeZ(u8, name) catch return;
                 }
@@ -255,7 +255,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
         },
 
         .assign_update_knob => |knob| {
-            globals.state.mapping_panel.mode.assign.knob_values[@intFromEnum(knob.cc)] = knob.value;
+            globals.state.mapping_panel.mode.assign.knob_values[@backingInt(knob.cc)] = knob.value;
         },
 
         .assign_add_mapping => |mapping| {
@@ -319,11 +319,11 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 },
                 .STRIP => |*strip| {
                     const cc_name = @tagName(mapping.control);
-                    inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
-                        if (comptime std.mem.eql(u8, field.name, "version")) continue;
-                        if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
-                        if (std.mem.eql(u8, cc_name, field.name)) {
-                            @field(strip, field.name) = mapping.param;
+                    inline for (@typeInfo(mappings.ChannelStripMapping).@"struct".field_names) |field_name| {
+                        if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                        if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                        if (std.mem.eql(u8, cc_name, field_name)) {
+                            @field(strip, field_name) = mapping.param;
                         }
                     }
                 },
@@ -392,11 +392,11 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 },
                 .STRIP => |*strip| {
                     const cc_name = @tagName(control);
-                    inline for (std.meta.fields(mappings.ChannelStripMapping)) |field| {
-                        if (comptime std.mem.eql(u8, field.name, "version")) continue;
-                        if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
-                        if (std.mem.eql(u8, cc_name, field.name)) {
-                            @field(strip, field.name) = null;
+                    inline for (@typeInfo(mappings.ChannelStripMapping).@"struct".field_names) |field_name| {
+                        if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                        if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                        if (std.mem.eql(u8, cc_name, field_name)) {
+                            @field(strip, field_name) = null;
                         }
                     }
                 },
@@ -415,7 +415,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             // Update target_fx from the cached module names.
             if (new_module == .STRIP) {
                 assign_state.target_fx = "";
-            } else if (assign_state.module_fx_names.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(new_module))))) |name| {
+            } else if (assign_state.module_fx_names.get(@as(PhysicalModule, @fromBackingInt(@intCast(@backingInt(new_module)))))) |name| {
                 const alloc = assign_state.arena.allocator();
                 assign_state.target_fx = alloc.dupeZ(u8, name) catch return;
             } else {
@@ -426,7 +426,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
             const switch_loc = switch (new_module) {
                 .STRIP => null,
                 inline else => |phys| switch (globals.state.fx_ctrl.track_state.mode) {
-                    .multi_fx => |locs| locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys)))),
+                    .multi_fx => |locs| locs.get(@as(PhysicalModule, @fromBackingInt(@intCast(@backingInt(phys))))),
                     .channel_strip => null,
                 },
             };
@@ -465,10 +465,10 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
 
             // Build the maps root path for the initial directory
             var maps_root_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-            const maps_root = std.fmt.bufPrintZ(&maps_root_buf, "{s}{s}maps", .{
+            const maps_root = std.mem.printSentinel(&maps_root_buf, "{s}{s}maps", .{
                 @as([]const u8, globals.resource_path),
                 std.fs.path.sep_str,
-            }) catch return;
+            }, 0) catch return;
 
             var path_buf: [std.fs.max_path_bytes]u8 = undefined;
             const dialog_title = tr(&globals.translations, .save_dialog_title);
@@ -502,7 +502,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                 const tagged_mapping = assign_state.current_mappings;
 
                 var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-                const save_path: [:0]const u8 = std.fmt.bufPrintZ(&save_path_buf, "{s}", .{path}) catch return;
+                const save_path: [:0]const u8 = std.mem.printSentinel(&save_path_buf, "{s}", .{path}, 0) catch return;
 
                 const basename = std.fs.path.basename(path);
                 const alloc = assign_state.arena.allocator();
@@ -539,7 +539,7 @@ pub fn mappingPanelActions(globals: *Globals, action: MappingPanelAction) void {
                         }
                     },
                     inline else => |mod| {
-                        const phys_module: PhysicalModule = @enumFromInt(@intFromEnum(mod));
+                        const phys_module: PhysicalModule = @fromBackingInt(@intCast(@backingInt(mod)));
                         if (globals.state.fx_ctrl.track_state.getModuleLocations()) |locs| {
                             if (locs.get(phys_module)) |existing_loc| {
                                 locs.set(phys_module, .{
@@ -619,14 +619,14 @@ fn populateKnobValues(
         if (locs.get(module)) |location| {
             if (location.mapping) |tagged_mapping| {
                 const mapping = @field(tagged_mapping, @tagName(module));
-                inline for (std.meta.fields(@TypeOf(mapping))) |field| {
-                    if (comptime std.mem.eql(u8, field.name, "version")) continue;
-                    if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
-                    if (@field(mapping, field.name)) |param_idx| {
-                        const cc = @field(c1.CCs, field.name);
+                inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
+                    if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                    if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                    if (@field(mapping, field_name)) |param_idx| {
+                        const cc = @field(c1.CCs, field_name);
                         const val = pReaper.TrackFX_GetParamNormalized(.{ track, location.fx_index, param_idx });
                         if (val >= 0) {
-                            assign_state.knob_values[@intFromEnum(cc)] = @floatCast(val);
+                            assign_state.knob_values[@backingInt(cc)] = @floatCast(val);
                         }
                     }
                 }
@@ -655,7 +655,7 @@ fn resolveEmbeddedPreset(
             .multi_fx => null,
         },
         inline else => |phys| switch (track_state.mode) {
-            .multi_fx => |locs| if (locs.get(@as(PhysicalModule, @enumFromInt(@intFromEnum(phys))))) |loc| loc.fx_index else null,
+            .multi_fx => |locs| if (locs.get(@as(PhysicalModule, @fromBackingInt(@intCast(@backingInt(phys)))))) |loc| loc.fx_index else null,
             .channel_strip => null,
         },
     };

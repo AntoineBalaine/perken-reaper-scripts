@@ -82,7 +82,7 @@ pub fn getControllerPath(allocator: Allocator) ![*:0]const u8 {
 
 test getControllerPath {
     const some_struct = struct {
-        pub fn mockResourcePath() callconv(.C) [*:0]const u8 {
+        pub fn mockResourcePath() callconv(.c) [*:0]const u8 {
             return "home/perken/.config/REAPER/";
         }
     };
@@ -186,11 +186,11 @@ pub fn migrateFolderNames(parent_dir: []const u8) !void {
     // the names first.
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-    var names = std.ArrayList([]const u8).init(arena.allocator());
+    var names: std.ArrayList([]const u8) = .empty;
     var iter = dir.iterate();
     while (try iter.next()) |entry| {
         if (entry.kind != .directory) continue;
-        try names.append(try arena.allocator().dupe(u8, entry.name));
+        try names.append(arena.allocator(), try arena.allocator().dupe(u8, entry.name));
     }
 
     var buf: [512:0]u8 = undefined;
@@ -216,11 +216,11 @@ pub fn migrateFolderNamesRecursive(root_dir: []const u8) !void {
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-    var children = std.ArrayList([]const u8).init(arena.allocator());
+    var children: std.ArrayList([]const u8) = .empty;
     var iter = dir.iterate();
     while (try iter.next()) |entry| {
         if (entry.kind != .directory) continue;
-        try children.append(try std.fs.path.join(arena.allocator(), &.{ root_dir, entry.name }));
+        try children.append(arena.allocator(), try std.fs.path.join(arena.allocator(), &.{ root_dir, entry.name }));
     }
     for (children.items) |child| try migrateFolderNamesRecursive(child);
 }
@@ -256,7 +256,7 @@ test "sanitizeFxName" {
 
 test "sanitizeFxName rejects names longer than the buffer" {
     var buf: [512:0]u8 = undefined;
-    const long = [_]u8{'a'} ** 513;
+    const long: [513]u8 = @splat('a');
     try std.testing.expectError(error.NoSpaceLeft, sanitizeFxName(&buf, &long));
 }
 

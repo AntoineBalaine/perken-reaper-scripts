@@ -12,7 +12,7 @@ pub const SlotTarget = struct {
 // Per-encoder routing for the active module. Each of the eight top-row
 // encoders either points at an (fx, param) pair or is unmapped.
 pub const SlotRouting = struct {
-    targets: [8]?SlotTarget = [_]?SlotTarget{null} ** 8,
+    targets: [8]?SlotTarget = @splat(null),
 
     // Fill this routing's empty slots from a mapping belonging to one FX.
     // Slots already claimed by an earlier FX are left untouched, so the first
@@ -43,7 +43,7 @@ pub const ModuleSlot = enum {
 
     // Canonical track order: input, gate, eq, comp, output.
     pub fn rank(self: ModuleSlot) u8 {
-        return @intFromEnum(self);
+        return @backingInt(self);
     }
 
     pub fn suffixChar(self: ModuleSlot) u8 {
@@ -213,7 +213,7 @@ fn findUnsuffixedFx(track: reaper.MediaTrack, name: [:0]const u8) ?c_int {
 
 fn setSlotSuffix(track: reaper.MediaTrack, fx: c_int, name: [:0]const u8, slot: ModuleSlot) void {
     var buf: [560:0]u8 = undefined;
-    const renamed = std.fmt.bufPrintZ(&buf, "{s} (C1-{c})", .{ name, slot.suffixChar() }) catch return;
+    const renamed = std.mem.printSentinel(&buf, "{s} (C1-{c})", .{ name, slot.suffixChar() }, 0) catch return;
     _ = reaper.TrackFX_SetNamedConfigParm(track, fx, "renamed_name", renamed);
 }
 

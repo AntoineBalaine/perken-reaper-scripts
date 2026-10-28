@@ -80,7 +80,7 @@ fn writeHeader(out: []u8, kind: Kind, command: Command) usize {
     const model = kind.model();
     @memcpy(out[n .. n + model.len], model);
     n += model.len;
-    out[n] = @intFromEnum(command);
+    out[n] = @backingInt(command);
     return n + 1;
 }
 
@@ -177,7 +177,7 @@ pub fn parseDt1(message: []const u8) ParseError!Dt1 {
     // command, address, at least no data, checksum
     const addr_len = kind.addressLen();
     if (rest.len < model_len + 1 + addr_len + 1) return error.TooShort;
-    if (rest[model_len] != @intFromEnum(Command.dt1)) return error.NotDt1;
+    if (rest[model_len] != @backingInt(Command.dt1)) return error.NotDt1;
     const payload = rest[model_len + 1 ..];
     const given = payload[payload.len - 1];
     const covered = payload[0 .. payload.len - 1];

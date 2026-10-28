@@ -87,8 +87,8 @@ pub fn writeVlq(w: anytype, value: u32) !void {
 /// the time signatures and note events interleaved in tick order. The
 /// caller sorts `events` first.
 pub fn writeSmf(w: anytype, alloc: std.mem.Allocator, timing: Timing, events: []const Event) !void {
-    var track = std.ArrayList(u8).init(alloc);
-    defer track.deinit();
+    var track: std.ArrayList(u8) = .empty;
+    defer track.deinit(alloc);
     const t = track.writer();
 
     const micros_per_qn: u24 = @intFromFloat(@round(60_000_000.0 / timing.bpm));
@@ -174,20 +174,20 @@ pub fn collectEvents(
     item_end_ppq: f64,
     origin_ppq: f64,
 ) !std.ArrayList(Event) {
-    var events = std.ArrayList(Event).init(alloc);
-    errdefer events.deinit();
+    var events: std.ArrayList(Event) = .empty;
+    errdefer events.deinit(alloc);
 
     // Because closing a gap needs to know where the later notes start, we
     // first collect the start of every kept note, in ascending order.
-    var starts = std.ArrayList(u32).init(alloc);
-    defer starts.deinit();
+    var starts: std.ArrayList(u32) = .empty;
+    defer starts.deinit(alloc);
     for (notes) |n| {
         if (!isKept(n, item_start_ppq, item_end_ppq)) continue;
-        try starts.append(@intFromFloat(@max(0, @round(n.start_ppq - origin_ppq))));
+        try starts.append(alloc, @intFromFloat(@max(0, @round(n.start_ppq - origin_ppq))));
     }
     // Because Legato runs the last chord up to the end of the item, that end
     // counts as a boundary too.
-    try starts.append(@intFromFloat(@max(0, @round(item_end_ppq - origin_ppq))));
+    try starts.append(alloc, @intFromFloat(@max(0, @round(item_end_ppq - origin_ppq))));
     std.mem.sort(u32, starts.items, {}, std.sort.asc(u32));
 
     for (notes) |n| {
@@ -201,8 +201,8 @@ pub fn collectEvents(
         const channel: u8 = @intCast(std.math.clamp(n.chan, 0, 15));
         const pitch: u8 = @intCast(std.math.clamp(n.pitch, 0, 127));
         const velocity: u8 = @intCast(std.math.clamp(n.vel, 1, 127));
-        try events.append(.{ .tick = start, .is_on = true, .channel = channel, .pitch = pitch, .velocity = velocity });
-        try events.append(.{ .tick = end, .is_on = false, .channel = channel, .pitch = pitch, .velocity = 0 });
+        try events.append(alloc, .{ .tick = start, .is_on = true, .channel = channel, .pitch = pitch, .velocity = velocity });
+        try events.append(alloc, .{ .tick = end, .is_on = false, .channel = channel, .pitch = pitch, .velocity = 0 });
     }
     std.mem.sort(Event, events.items, {}, Event.lessThan);
     return events;
@@ -395,7 +395,7 @@ pub fn copyToClipboard(alloc: std.mem.Allocator, clipboard: []const u8, text: []
 
 pub fn showError(message: []const u8) void {
     var buf: [max_error_bytes + 256:0]u8 = undefined;
-    const text = std.fmt.bufPrintZ(&buf, "{s}", .{message}) catch return;
+    const text = std.mem.printSentinel(&buf, "{s}", .{message}, 0) catch return;
     _ = Reaper.ShowMessageBox(text, dialog_title, 0);
 }
 
@@ -501,8 +501,8 @@ pub fn itemSignatures(
     to_qn: f64,
     base_ppq: f64,
 ) ![]SigChange {
-    var out = std.ArrayList(SigChange).init(alloc);
-    errdefer out.deinit();
+    var out: std.ArrayList(SigChange) = .empty;
+    errdefer out.deinit(alloc);
 
     var it = timemap.walkBars(src, from_qn, to_qn);
     var previous: ?timemap.Signature = null;
@@ -511,7 +511,7 @@ pub fn itemSignatures(
             if (p.num == bar.sig.num and p.denom == bar.sig.denom) continue;
         }
         previous = bar.sig;
-        try out.append(.{
+        try out.append(alloc, .{
             // The opening signature belongs at tick 0 even when the item
             // starts mid-bar, so the file never begins without one.
             .tick = if (out.items.len == 0) 0 else tickAtQn(take, base_ppq, bar.start_qn),
@@ -519,8 +519,8 @@ pub fn itemSignatures(
             .denominator = @intCast(std.math.clamp(bar.sig.denom, 1, 128)),
         });
     }
-    if (out.items.len == 0) try out.append(.{ .tick = 0, .numerator = 4, .denominator = 4 });
-    return out.toOwnedSlice();
+    if (out.items.len == 0) try out.append(alloc, .{ .tick = 0, .numerator = 4, .denominator = 4 });
+    return out.toOwnedSlice(alloc);
 }
 
 /// Writes the item's notes to `path` as a standard MIDI file. Returns false
@@ -548,8 +548,8 @@ pub fn writeItemMidi(alloc: std.mem.Allocator, item: *Reaper.MediaItem, path: []
     const sigs = try itemSignatures(alloc, take, timemap.reaperBarSource(), qn_start, timemap.timeToQn(item_end), base_ppq);
     defer alloc.free(sigs);
 
-    var bytes = std.ArrayList(u8).init(alloc);
-    defer bytes.deinit();
+    var bytes: std.ArrayList(u8) = .empty;
+    defer bytes.deinit(alloc);
     try writeSmf(bytes.writer(), alloc, .{
         .ticks_per_qn = @intFromFloat(@round(ticks_per_qn)),
         .bpm = commit.tempoAt(item_start),
@@ -569,8 +569,8 @@ pub fn convertSelection(alloc: std.mem.Allocator, settings: config.Settings) ?[]
         return null;
     }
 
-    var found = std.ArrayList(u8).init(alloc);
-    defer found.deinit();
+    var found: std.ArrayList(u8) = .empty;
+    defer found.deinit(alloc);
     const cli: Cli = if (settings.abc_command.len > 0)
         .{ .command = settings.abc_command }
     else
@@ -579,8 +579,8 @@ pub fn convertSelection(alloc: std.mem.Allocator, settings: config.Settings) ?[]
             return null;
         };
 
-    var document = std.ArrayList(u8).init(alloc);
-    errdefer document.deinit();
+    var document: std.ArrayList(u8) = .empty;
+    errdefer document.deinit(alloc);
     var tunes: usize = 0;
     for (selected) |item| {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
@@ -604,18 +604,18 @@ pub fn convertSelection(alloc: std.mem.Allocator, settings: config.Settings) ?[]
             var msg: [max_error_bytes + 128]u8 = undefined;
             const text = std.fmt.bufPrint(&msg, "Because the conversion failed, nothing was produced.\n\n{s}", .{captured.stderr}) catch "Because the conversion failed, nothing was produced.";
             showError(text);
-            document.deinit();
+            document.deinit(alloc);
             return null;
         }
         appendTune(document.writer(), captured.stdout, tunes) catch continue;
         tunes += 1;
     }
     if (tunes == 0) {
-        document.deinit();
+        document.deinit(alloc);
         showError("Because the selected items hold no audible notes, there is nothing to convert.");
         return null;
     }
-    return document.toOwnedSlice() catch null;
+    return document.toOwnedSlice(alloc) catch null;
 }
 
 pub fn copyItemsAsAbc(_: *actions.RunCtx) void {
@@ -761,8 +761,8 @@ test "an item produces a one-track file with ordered events" {
     try std.testing.expect(events.items[2].is_on);
     try std.testing.expectEqual(@as(u32, 480), events.items[2].tick);
 
-    var out = std.ArrayList(u8).init(alloc);
-    defer out.deinit();
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(alloc);
     try writeSmf(out.writer(), alloc, .{
         .ticks_per_qn = 960,
         .bpm = 120,
@@ -837,9 +837,9 @@ test "the one-tick gaps that Legato leaves are closed" {
     };
     var events = try collectEvents(alloc, &notes, 0, 9999, 0);
     defer events.deinit();
-    var ends = std.ArrayList(u32).init(alloc);
-    defer ends.deinit();
-    for (events.items) |e| if (!e.is_on) try ends.append(e.tick);
+    var ends: std.ArrayList(u32) = .empty;
+    defer ends.deinit(alloc);
+    for (events.items) |e| if (!e.is_on) try ends.append(alloc, e.tick);
     try std.testing.expectEqualSlices(u32, &.{ 960, 960, 1439, 1900 }, ends.items);
 }
 
@@ -883,8 +883,8 @@ test "a meter change inside the item is written as a second signature event" {
         .{ .tick = 3840, .is_on = true, .channel = 0, .pitch = 62, .velocity = 96 },
         .{ .tick = 4320, .is_on = false, .channel = 0, .pitch = 62, .velocity = 0 },
     };
-    var out = std.ArrayList(u8).init(alloc);
-    defer out.deinit();
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(alloc);
     try writeSmf(out.writer(), alloc, .{
         .ticks_per_qn = 960,
         .bpm = 120,
@@ -911,8 +911,8 @@ test "a signature past the last note is still written, for the trailing bars" {
         .{ .tick = 0, .is_on = true, .channel = 0, .pitch = 60, .velocity = 96 },
         .{ .tick = 480, .is_on = false, .channel = 0, .pitch = 60, .velocity = 0 },
     };
-    var out = std.ArrayList(u8).init(alloc);
-    defer out.deinit();
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(alloc);
     try writeSmf(out.writer(), alloc, .{
         .ticks_per_qn = 960,
         .bpm = 120,

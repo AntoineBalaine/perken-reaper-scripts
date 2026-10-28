@@ -97,7 +97,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     }
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        const routing: SCRouting = @enumFromInt(@as(u8, @intFromFloat(input.value)));
+                        const routing: SCRouting = @fromBackingInt(@intCast(@as(u8, @intFromFloat(input.value))));
                         globals.state.fx_ctrl.validateTrack(
                             null,
                             media_track,
@@ -118,7 +118,7 @@ pub fn fxCtrlActions(globals: *Globals, fx_action: FxCtrlAction) void {
                     }
                     if (globals.state.current_tr_id) |tr_id| {
                         const media_track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
-                        const order: ModulesOrder = @enumFromInt(@as(u8, @intFromFloat(input.value)));
+                        const order: ModulesOrder = @fromBackingInt(@intCast(@as(u8, @intFromFloat(input.value))));
                         globals.state.fx_ctrl.validateTrack(
                             order,
                             media_track,

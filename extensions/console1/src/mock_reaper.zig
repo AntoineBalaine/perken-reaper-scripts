@@ -70,7 +70,7 @@ pub fn mockTrackFX_GetNamedConfigParm(
     parm_name: [*:0]const u8,
     parm_value: [*:0]u8,
     parm_value_sz: c_int,
-) callconv(.C) bool {
+) callconv(.c) bool {
     _ = track;
     const idx = @as(usize, @intCast(fx_index));
     if (idx >= fx_chain.items.len) return false;
@@ -94,7 +94,7 @@ pub fn mockTrackFX_SetNamedConfigParm(
     fx_index: c_int,
     parm_name: [*:0]const u8,
     parm_value: [*:0]const u8,
-) callconv(.C) bool {
+) callconv(.c) bool {
     _ = track;
     const idx = @as(usize, @intCast(fx_index));
     if (idx >= fx_chain.items.len) return false;
@@ -111,7 +111,7 @@ pub fn mockTrackFX_SetNamedConfigParm(
 pub fn mockTrackFX_Delete(
     track: MediaTrack,
     fx_index: c_int,
-) callconv(.C) bool {
+) callconv(.c) bool {
     _ = track;
     const idx = @as(usize, @intCast(fx_index));
     if (idx >= fx_chain.items.len) return false;
@@ -128,7 +128,7 @@ pub fn mockTrackFX_CopyToTrack(
     dest_track: MediaTrack,
     dest_fx: c_int,
     delete: bool,
-) callconv(.C) void {
+) callconv(.c) void {
     _ = track;
     _ = dest_track;
     const src_idx = @as(usize, @intCast(src_fx));
@@ -152,7 +152,7 @@ pub fn mockTrackFX_AddByName(
     fx_name: [*:0]const u8,
     recfx: bool,
     pos: c_int,
-) callconv(.C) c_int {
+) callconv(.c) c_int {
     _ = track;
     _ = recfx;
 
@@ -171,8 +171,8 @@ pub fn mockTrackFX_AddByName(
 }
 
 pub fn getChainState() ![]const FxInfo {
-    var state = std.ArrayList(FxInfo).init(std.testing.allocator);
-    defer state.deinit();
-    try state.appendSlice(fx_chain.items);
-    return state.toOwnedSlice();
+    var state: std.ArrayList(FxInfo) = .empty;
+    defer state.deinit(std.testing.allocator);
+    try state.appendSlice(std.testing.allocator, fx_chain.items);
+    return state.toOwnedSlice(std.testing.allocator);
 }

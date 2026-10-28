@@ -119,15 +119,15 @@ fn totalDur(events: []const rs.Event) rs.Rational {
 /// continuation of the previous attack, not a new one, so it doesn't
 /// count. This is what has to match between input and output.
 fn attackOnsets(allocator: std.mem.Allocator, start: rs.Rational, events: []const rs.Event) ![]rs.Rational {
-    var onsets = std.ArrayList(rs.Rational).init(allocator);
+    var onsets: std.ArrayList(rs.Rational) = .empty;
     var onset = start;
     var prev_tied = false;
     for (events) |e| {
-        if (e.kind == .note and !prev_tied) try onsets.append(onset);
+        if (e.kind == .note and !prev_tied) try onsets.append(allocator, onset);
         prev_tied = e.kind == .note and e.tied_to_next;
         onset = onset.add(e.dur);
     }
-    return onsets.toOwnedSlice();
+    return onsets.toOwnedSlice(allocator);
 }
 
 fn checkSignature(allocator: std.mem.Allocator, ctx: hegel.Ctx, first_sig: [2]u32) !void {

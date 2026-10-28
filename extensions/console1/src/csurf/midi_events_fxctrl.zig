@@ -86,7 +86,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
                     0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(
                         null,
                         tr,
-                        @enumFromInt(val),
+                        @fromBackingInt(@intCast(val)),
                         globals.preferences.manual_routing,
                         globals.preferences.default_fx,
                         &globals.map_store,
@@ -108,7 +108,7 @@ pub fn onMidiEvent_FxCtrl(cc: c1.CCs, val: u8, globals: *Globals) void {
             if (getTrack(globals.state.current_tr_id)) |tr| {
                 switch (val) {
                     0x0, 0x3f, 0x7f => globals.state.fx_ctrl.validateTrack(
-                        @enumFromInt(val),
+                        @fromBackingInt(@intCast(val)),
                         tr,
                         null,
                         globals.preferences.manual_routing,
@@ -292,6 +292,6 @@ pub fn syncFilterKnobs(globals: *Globals) void {
 }
 
 inline fn getTrackIndex(cc: c1.CCs, page_offset: u8) usize {
-    const button_idx = @intFromEnum(cc) - @intFromEnum(c1.CCs.Tr_tr1);
+    const button_idx = @backingInt(cc) - @backingInt(c1.CCs.Tr_tr1);
     return page_offset * TrackList.PageSize + button_idx;
 }

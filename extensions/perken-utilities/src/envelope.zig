@@ -14,7 +14,7 @@ const helpers = @import("reaper_helpers");
 // ---- ABI shim: SetEnvelopePoint's In parameters take NULL for "keep" ----------
 
 fn setEnvelopePoint(env: *Reaper.TrackEnvelope, ptidx: c_int, time: ?*f64, value: ?*f64, shape: ?*c_int, tension: ?*f64, selected: ?*bool, no_sort: ?*bool) bool {
-    const f: *const fn (envelope: *Reaper.TrackEnvelope, ptidx: c_int, timeInOptional: ?*f64, valueInOptional: ?*f64, shapeInOptional: ?*c_int, tensionInOptional: ?*f64, selectedInOptional: ?*bool, noSortInOptional: ?*bool) callconv(.C) bool = @ptrCast(Reaper.SetEnvelopePoint);
+    const f: *const fn (envelope: *Reaper.TrackEnvelope, ptidx: c_int, timeInOptional: ?*f64, valueInOptional: ?*f64, shapeInOptional: ?*c_int, tensionInOptional: ?*f64, selectedInOptional: ?*bool, noSortInOptional: ?*bool) callconv(.c) bool = @ptrCast(Reaper.SetEnvelopePoint);
     return f(env, ptidx, time, value, shape, tension, selected, no_sort);
 }
 

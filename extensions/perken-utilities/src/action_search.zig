@@ -166,7 +166,7 @@ pub fn start() void {
     session.waiting = true;
     session.ticks = 0;
     if (!session.timer_registered) {
-        _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+        _ = Reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
         session.timer_registered = true;
     }
 }
@@ -174,12 +174,12 @@ pub fn start() void {
 fn stopTimer() void {
     session.waiting = false;
     if (session.timer_registered) {
-        _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+        _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
         session.timer_registered = false;
     }
 }
 
-pub fn onTimer() callconv(.C) void {
+pub fn onTimer() callconv(.c) void {
     if (!session.waiting) return;
     session.ticks += 1;
     if (session.ticks % POLL_EVERY_TICKS == 0) pollDone();

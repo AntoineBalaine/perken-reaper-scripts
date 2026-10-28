@@ -73,16 +73,16 @@ fn transportEntry(midi_out: reaper.midi_Output) void {
 fn clearAllLEDs(midi_out: reaper.midi_Output) void {
     inline for (comptime std.enums.values(c1.CCs)) |f| {
         if (f == c1.CCs.Comp_Mtr or f == c1.CCs.Shp_Mtr) {
-            c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x7f, -1);
+            c.MidiOut_Send(midi_out, 0xb0, @backingInt(f), 0x7f, -1);
         } else {
-            c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(f), 0x0, -1);
+            c.MidiOut_Send(midi_out, 0xb0, @backingInt(f), 0x0, -1);
         }
     }
 }
 
 fn setButtonLED(cc: c1.CCs, is_on: bool, midi_out: reaper.midi_Output) void {
     const value: u8 = if (is_on) 0x7f else 0x0;
-    c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(cc), value, -1);
+    c.MidiOut_Send(midi_out, 0xb0, @backingInt(cc), value, -1);
 }
 
 // Add these to track feedback state
@@ -118,7 +118,7 @@ pub fn updateTrackListLEDs(globals: *Globals, midi_out: reaper.midi_Output) void
             .Tr_pg_dn,
             .Tr_pg_up,
             => {
-                c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(cc), 0x0, -1);
+                c.MidiOut_Send(midi_out, 0xb0, @backingInt(cc), 0x0, -1);
             },
             else => {},
         }
@@ -131,7 +131,7 @@ pub fn updateTrackListLEDs(globals: *Globals, midi_out: reaper.midi_Output) void
         const track_id = entry.key_ptr.*;
         if (track_id >= page_start and track_id < page_start + 20) {
             const button_idx = track_id - page_start;
-            const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
+            const cc = @backingInt(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
             c.MidiOut_Send(midi_out, 0xb0, cc, 0x7f, -1);
         }
     }
@@ -154,7 +154,7 @@ pub fn blinkSelectedTrks(globals: *Globals, midi_out: reaper.midi_Output) void {
 
             if (track_idx >= page_start and track_idx < page_start + 20) {
                 const button_idx = track_idx - page_start;
-                const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
+                const cc = @backingInt(c1.CCs.Tr_tr1) + @as(u8, @intCast(button_idx));
                 c.MidiOut_Send(midi_out, 0xb0, cc, if (blink_state) 0x7f else 0x0, -1);
             }
         }
@@ -162,16 +162,16 @@ pub fn blinkSelectedTrks(globals: *Globals, midi_out: reaper.midi_Output) void {
 }
 
 pub inline fn setParamLED(cc: c1.CCs, value: u8, midi_out: reaper.midi_Output) void {
-    c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(cc), value, -1);
+    c.MidiOut_Send(midi_out, 0xb0, @backingInt(cc), value, -1);
 }
 
 pub fn resetMeters(midi_out: reaper.midi_Output) void {
-    c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrLft), 0x0, -1);
-    c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(c1.CCs.Inpt_MtrRgt), 0x0, -1);
-    c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), 0x0, -1);
-    c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), 0x0, -1);
-    c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), 0x7f, -1);
-    c.MidiOut_Send(midi_out, 0xb0, @intFromEnum(c1.CCs.Shp_Mtr), 0x7f, -1);
+    c.MidiOut_Send(midi_out, 0xb0, @backingInt(c1.CCs.Inpt_MtrLft), 0x0, -1);
+    c.MidiOut_Send(midi_out, 0xb0, @backingInt(c1.CCs.Inpt_MtrRgt), 0x0, -1);
+    c.MidiOut_Send(midi_out, 0xb0, @backingInt(c1.CCs.Out_MtrLft), 0x0, -1);
+    c.MidiOut_Send(midi_out, 0xb0, @backingInt(c1.CCs.Out_MtrRgt), 0x0, -1);
+    c.MidiOut_Send(midi_out, 0xb0, @backingInt(c1.CCs.Comp_Mtr), 0x7f, -1);
+    c.MidiOut_Send(midi_out, 0xb0, @backingInt(c1.CCs.Shp_Mtr), 0x7f, -1);
 }
 
 test {
@@ -185,7 +185,7 @@ fn fxCtrlEntry(globals: *Globals, midi_out: reaper.midi_Output) void {
     if (globals.state.current_tr_id) |tr_id| {
         const track = reaper.CSurf_TrackFromID(tr_id, constants.g_csurf_mcpmode);
         sendTrkCtrlFdb(midi_out, track);
-        setParamLED(c1.CCs.Tr_order, @intFromEnum(globals.state.fx_ctrl.track_state.getModulesOrder()), midi_out);
+        setParamLED(c1.CCs.Tr_order, @backingInt(globals.state.fx_ctrl.track_state.getModulesOrder()), midi_out);
         updateAllModuleParams(globals, midi_out, track);
     }
 
@@ -326,8 +326,8 @@ fn queryMeters(globals: *Globals, midiOut: reaper.midi_Output) void {
     const right = reaper.Track_GetPeakInfo(mediaTrack, 1);
     const left_midi: u8 = if (left > 1.0) 127 else @intFromFloat(left * 127);
     const right_midi: u8 = if (right > 1.0) 127 else @intFromFloat(right * 127);
-    c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrLft), left_midi, -1);
-    c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Out_MtrRgt), right_midi, -1);
+    c.MidiOut_Send(midiOut, 0xb0, @backingInt(c1.CCs.Out_MtrLft), left_midi, -1);
+    c.MidiOut_Send(midiOut, 0xb0, @backingInt(c1.CCs.Out_MtrRgt), right_midi, -1);
     const meter_fx_index: ?c_int = switch (globals.state.fx_ctrl.track_state.mode) {
         .multi_fx => |locs| if (locs.get(.COMP)) |comp| comp.fx_index else null,
         .channel_strip => |strip| strip.fx_index,
@@ -343,7 +343,7 @@ fn queryMeters(globals: *Globals, midiOut: reaper.midi_Output) void {
             if (gainReduction) |GR| {
                 // not quite 1:1 with the console's meter, but good enough for jazz
                 const conv: u8 = @intFromFloat(utils.DB2VAL(GR) * 127);
-                c.MidiOut_Send(midiOut, 0xb0, @intFromEnum(c1.CCs.Comp_Mtr), conv, -1);
+                c.MidiOut_Send(midiOut, 0xb0, @backingInt(c1.CCs.Comp_Mtr), conv, -1);
             } else {
                 log.err("failed to parse gain reduction", .{});
             }

@@ -64,7 +64,7 @@ pub fn register() void {
         return;
     }
     if (isImGuiAvailable()) {
-        _ = reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+        _ = reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
     } else {
         promptInstallImGui();
     }
@@ -89,7 +89,7 @@ pub fn reset() void {
     hot_reloader = null;
 
     ctx = null;
-    _ = reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+    _ = reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
 }
 
 fn handleGuiError(err: anyerror) void {
@@ -113,7 +113,7 @@ fn handleGuiError(err: anyerror) void {
 /// Allow loading all other extensions prior to starting the gui
 var ready = false;
 
-fn onTimer() callconv(.C) void {
+fn onTimer() callconv(.c) void {
     if (!ready) {
         ready = true;
         return;
@@ -190,7 +190,7 @@ pub fn registerForTest() void {
         log.err("ReaImGui not available, cannot enable UI", .{});
         return;
     }
-    _ = reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    _ = reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
     log.info("UI render loop enabled via test API", .{});
 }
 

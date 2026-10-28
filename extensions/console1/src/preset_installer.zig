@@ -100,7 +100,7 @@ pub fn installPresets(
 
             // Phase 2: deduplicate against existing preset file
             var target_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-            const target_path = std.fmt.bufPrintZ(&target_path_buf, "{s}/{s}", .{ preset_dir, pf }) catch continue;
+            const target_path = std.mem.printSentinel(&target_path_buf, "{s}/{s}", .{ preset_dir, pf }, 0) catch continue;
 
             var existing_count: u32 = 0;
             if (std.fs.openFileAbsolute(target_path, .{})) |existing_file| {
@@ -155,23 +155,23 @@ fn appendPresetsToFile(
 ) !void {
     // Because we need to update NbPresets in [General], we read the existing content,
     // append new sections, and rewrite the file
-    var content = std.ArrayList(u8).init(allocator);
-    defer content.deinit();
+    var content: std.ArrayList(u8) = .empty;
+    defer content.deinit(allocator);
 
     // Read existing content if the file exists
     if (std.fs.openFileAbsolute(target_path, .{})) |existing_file| {
         defer existing_file.close();
         const stat = try existing_file.stat();
-        try content.ensureTotalCapacity(@intCast(stat.size + 4096));
+        try content.ensureTotalCapacity(allocator, @intCast(stat.size + 4096));
         var buf: [4096]u8 = undefined;
         while (true) {
             const n = try existing_file.read(&buf);
             if (n == 0) break;
-            try content.appendSlice(buf[0..n]);
+            try content.appendSlice(allocator, buf[0..n]);
         }
     } else |_| {
         // Because the file doesn't exist, we create the [General] header
-        try content.appendSlice("[General]\nNbPresets=0\n");
+        try content.appendSlice(allocator, "[General]\nNbPresets=0\n");
     }
 
     // Append new preset sections
@@ -183,7 +183,7 @@ fn appendPresetsToFile(
 
         var section_buf: [64]u8 = undefined;
         const section_header = std.fmt.bufPrint(&section_buf, "\n[Preset{d}]\n", .{existing_count.*}) catch continue;
-        try content.appendSlice(section_header);
+        try content.appendSlice(allocator, section_header);
         try content.writer().print("Name={s}\n", .{info.name});
         try content.writer().print("Data={s}\n", .{info.data});
         try content.writer().print("Len={d}\n", .{info.len});
@@ -203,7 +203,7 @@ fn appendPresetsToFile(
         // Replace the old value with the new count
         var count_buf: [16]u8 = undefined;
         const count_str = std.fmt.bufPrint(&count_buf, "{d}", .{existing_count.*}) catch return;
-        try content.replaceRange(value_start, value_end - value_start, count_str);
+        try content.replaceRange(allocator, value_start, value_end - value_start, count_str);
     }
 
     // Create parent directory if needed

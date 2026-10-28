@@ -34,7 +34,7 @@ pub fn drawModuleSelectionPanel(
             const display_text = if (browse_state.available_modules[i]) |cached|
                 cached
             else
-                std.fmt.bufPrintZ(&fx_name_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }) catch module_name;
+                std.mem.printSentinel(&fx_name_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }, 0) catch module_name;
 
             if (try imgui.Selectable(.{ ctx, display_text })) {
                 rv = .{ .enter_assign = module };

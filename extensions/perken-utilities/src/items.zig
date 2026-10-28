@@ -12,17 +12,17 @@ const helpers = @import("reaper_helpers");
 const getActiveTake = helpers.getActiveTake;
 
 fn getTake(item: *Reaper.MediaItem, takeidx: c_int) ?*Reaper.MediaItem_Take {
-    const f: *const fn (item: *Reaper.MediaItem, takeidx: c_int) callconv(.C) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.GetTake);
+    const f: *const fn (item: *Reaper.MediaItem, takeidx: c_int) callconv(.c) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.GetTake);
     return f(item, takeidx);
 }
 
 fn splitMediaItem(item: *Reaper.MediaItem, position: f64) ?*Reaper.MediaItem {
-    const f: *const fn (item: *Reaper.MediaItem, position: f64) callconv(.C) ?*Reaper.MediaItem = @ptrCast(Reaper.SplitMediaItem);
+    const f: *const fn (item: *Reaper.MediaItem, position: f64) callconv(.c) ?*Reaper.MediaItem = @ptrCast(Reaper.SplitMediaItem);
     return f(item, position);
 }
 
 fn getTakeSource(take: *Reaper.MediaItem_Take) ?*Reaper.PCM_source {
-    const f: *const fn (take: *Reaper.MediaItem_Take) callconv(.C) ?*Reaper.PCM_source = @ptrCast(Reaper.GetMediaItemTake_Source);
+    const f: *const fn (take: *Reaper.MediaItem_Take) callconv(.c) ?*Reaper.PCM_source = @ptrCast(Reaper.GetMediaItemTake_Source);
     return f(take);
 }
 
@@ -30,7 +30,7 @@ fn getTakeSource(take: *Reaper.MediaItem_Take) ?*Reaper.PCM_source {
 /// name, and reaziglib types it as a plain string pointer, we re-type it here
 /// so that the unused outputs can be null.
 fn enumProjectMarkers(idx: c_int, is_region: *bool, pos: *f64, number: *c_int) bool {
-    const f: *const fn (idx: c_int, isrgnOut: ?*bool, posOut: ?*f64, rgnendOut: ?*f64, nameOut: ?*[*:0]const u8, markrgnindexnumberOut: ?*c_int) callconv(.C) c_int = @ptrCast(Reaper.EnumProjectMarkers);
+    const f: *const fn (idx: c_int, isrgnOut: ?*bool, posOut: ?*f64, rgnendOut: ?*f64, nameOut: ?*[*:0]const u8, markrgnindexnumberOut: ?*c_int) callconv(.c) c_int = @ptrCast(Reaper.EnumProjectMarkers);
     return f(idx, is_region, pos, null, null, number) != 0;
 }
 
@@ -121,8 +121,8 @@ fn splitItemsAtNoteStart(_: *actions.RunCtx) void {
 
         // deduped note-start times in project seconds (notes come back in
         // ppq order, so the list stays sorted)
-        var times = std.ArrayList(f64).init(helpers.allocator);
-        defer times.deinit();
+        var times: std.ArrayList(f64) = .empty;
+        defer times.deinit(helpers.allocator);
         var ni: c_int = 0;
         while (ni < notes) : (ni += 1) {
             var selected = false;
@@ -136,7 +136,7 @@ fn splitItemsAtNoteStart(_: *actions.RunCtx) void {
                 continue;
             const t = Reaper.MIDI_GetProjTimeFromPPQPos(take, startppq);
             if (std.mem.indexOfScalar(f64, times.items, t) == null)
-                times.append(t) catch return;
+                times.append(helpers.allocator, t) catch return;
         }
 
         // split at every note start except the first (the item already starts there)

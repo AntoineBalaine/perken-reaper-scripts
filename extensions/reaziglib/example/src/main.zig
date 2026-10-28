@@ -18,7 +18,7 @@ export fn ReaperPluginEntry(instance: Reaper.HINSTANCE, rec: ?*Reaper.plugin_inf
     // Register the timer unconditionally. ImGui init is deferred to the first
     // timer tick because ReaImGui may not have loaded yet at plugin entry time
     // (REAPER loads plugins alphabetically, and reaper_hello < reaper_imgui).
-    _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    _ = Reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
 
     return 1;
 }
@@ -28,7 +28,7 @@ fn loadImGui() bool {
     return true;
 }
 
-fn onTimer() callconv(.C) void {
+fn onTimer() callconv(.c) void {
     if (!imgui_available) {
         imgui_available = loadImGui();
         if (!imgui_available) return;
@@ -46,7 +46,7 @@ fn onTimer() callconv(.C) void {
 
         const track_count = Reaper.CountTracks(null);
         var buf: [256]u8 = undefined;
-        const label = std.fmt.bufPrintZ(&buf, "Track count: {d}", .{track_count}) catch "?";
+        const label = std.mem.printSentinel(&buf, "Track count: {d}", .{track_count}, 0) catch "?";
         imgui.api.Text(ctx, label);
 
         if (imgui.api.Button(ctx, "Print to console", null, null)) {
@@ -59,7 +59,7 @@ fn onTimer() callconv(.C) void {
     if (!is_open) {
         ctx = null;
         is_open = true;
-        _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+        _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
     }
 }
 

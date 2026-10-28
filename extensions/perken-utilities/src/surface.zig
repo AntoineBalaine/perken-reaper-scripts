@@ -58,15 +58,15 @@ pub fn release() void {
     }
 }
 
-fn typeString(_: ?*anyopaque) callconv(.C) [*:0]const u8 {
+fn typeString(_: ?*anyopaque) callconv(.c) [*:0]const u8 {
     return "PERKENUTIL";
 }
 
-fn descString(_: ?*anyopaque) callconv(.C) [*:0]const u8 {
+fn descString(_: ?*anyopaque) callconv(.c) [*:0]const u8 {
     return "Perken Utilities (internal)";
 }
 
-fn extended(_: ?*anyopaque, call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.C) c_int {
+fn extended(_: ?*anyopaque, call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.c) c_int {
     if (ignore_notifications) return 0;
     if (!auto_lane_watcher.isActive()) return 0;
 
@@ -87,7 +87,7 @@ fn extended(_: ?*anyopaque, call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque,
         // parm2=(int*)(fxidx<<16|paramidx).
         csurf.ext.SETFXPARAM => {
             const track = parm1 orelse return 0;
-            const packed_ids: c_int = (@as(*c_int, @alignCast(@ptrCast(parm2 orelse return 0)))).*;
+            const packed_ids: c_int = (@as(*c_int, @ptrCast(@alignCast(parm2 orelse return 0)))).*;
             const fx_index: c_int = (packed_ids >> 16) & 0xFFFF;
             const param_index: c_int = packed_ids & 0xFFFF;
             auto_lane_watcher.onFxParamChanged(@ptrCast(track), fx_index, param_index);

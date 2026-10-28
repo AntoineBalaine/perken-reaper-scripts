@@ -69,18 +69,18 @@ pub fn rationalToQn(r: Rational) f64 {
 /// source reports them, so a meter change or a partial bar inside the span
 /// is described rather than assumed away.
 pub fn contextForSpan(allocator: std.mem.Allocator, src: timemap.BarSource, from_qn: f64, to_qn: f64) !meter.Context {
-    var bars = std.ArrayList(meter.Bar).init(allocator);
-    errdefer bars.deinit();
+    var bars: std.ArrayList(meter.Bar) = .empty;
+    errdefer bars.deinit(allocator);
 
     var it = timemap.walkBars(src, from_qn, to_qn);
     while (it.next()) |bar| {
-        try bars.append(.{
+        try bars.append(allocator, .{
             .start = qnToRational(bar.start_qn),
             .end = qnToRational(bar.end_qn),
             .hierarchy = meter.hierarchyFor(bar.sig.num, bar.sig.denom),
         });
     }
-    return .{ .bars = try bars.toOwnedSlice() };
+    return .{ .bars = try bars.toOwnedSlice(allocator) };
 }
 
 pub fn freeContext(allocator: std.mem.Allocator, ctx: meter.Context) void {
@@ -111,8 +111,8 @@ pub const Attack = struct {
 /// a chord is. Independent polyphony in one take would need a voice split
 /// first, and is not handled.
 pub fn attacksOf(allocator: std.mem.Allocator, notes: []const helpers.QnNote) ![]Attack {
-    var out = std.ArrayList(Attack).init(allocator);
-    errdefer out.deinit();
+    var out: std.ArrayList(Attack) = .empty;
+    errdefer out.deinit(allocator);
 
     var i: usize = 0;
     while (i < notes.len) {
@@ -123,7 +123,7 @@ pub fn attacksOf(allocator: std.mem.Allocator, notes: []const helpers.QnNote) ![
             end_qn = @max(end_qn, notes[i].end_qn);
             i += 1;
         }
-        try out.append(.{
+        try out.append(allocator, .{
             .first = first,
             .count = i - first,
             .start = qnToRational(start_qn),
@@ -134,15 +134,15 @@ pub fn attacksOf(allocator: std.mem.Allocator, notes: []const helpers.QnNote) ![
     // Clip each attack to the next, and drop any left with no length (two
     // attacks snapping onto the same position), since a zero-length symbol
     // is not notatable and would break the tiling's advance.
-    var kept = std.ArrayList(Attack).init(allocator);
-    errdefer kept.deinit();
+    var kept: std.ArrayList(Attack) = .empty;
+    errdefer kept.deinit(allocator);
     for (out.items, 0..) |attack, k| {
         var a = attack;
         if (k + 1 < out.items.len) a.end = Rational.min(a.end, out.items[k + 1].start);
-        if (a.start.lt(a.end)) try kept.append(a);
+        if (a.start.lt(a.end)) try kept.append(allocator, a);
     }
-    out.deinit();
-    return kept.toOwnedSlice();
+    out.deinit(allocator);
+    return kept.toOwnedSlice(allocator);
 }
 
 /// The note/rest sequence a list of attacks reads as: each attack's span as
@@ -153,15 +153,15 @@ pub fn attacksOf(allocator: std.mem.Allocator, notes: []const helpers.QnNote) ![
 /// the same silence after them would come out different lengths purely
 /// because one happened to be last.
 pub fn eventsOf(allocator: std.mem.Allocator, attacks: []const Attack, until: ?Rational) ![]rs.Event {
-    var out = std.ArrayList(rs.Event).init(allocator);
-    errdefer out.deinit();
+    var out: std.ArrayList(rs.Event) = .empty;
+    errdefer out.deinit(allocator);
     for (attacks, 0..) |a, i| {
-        try out.append(.{ .kind = .note, .dur = a.end.sub(a.start) });
+        try out.append(allocator, .{ .kind = .note, .dur = a.end.sub(a.start) });
         const next_start = if (i + 1 < attacks.len) attacks[i + 1].start else until orelse continue;
         const gap = next_start.sub(a.end);
-        if (Rational.zero().lt(gap)) try out.append(.{ .kind = .rest, .dur = gap });
+        if (Rational.zero().lt(gap)) try out.append(allocator, .{ .kind = .rest, .dur = gap });
     }
-    return out.toOwnedSlice();
+    return out.toOwnedSlice(allocator);
 }
 
 /// The notated duration of each attack in a simplified event list: a tied
@@ -170,8 +170,8 @@ pub fn eventsOf(allocator: std.mem.Allocator, attacks: []const Attack, until: ?R
 /// added or lost one — writing lengths back from a mismatched list could
 /// put them on the wrong notes, so it is refused rather than guessed.
 pub fn attackDurations(allocator: std.mem.Allocator, events: []const rs.Event, expected: usize) ![]Rational {
-    var out = std.ArrayList(Rational).init(allocator);
-    errdefer out.deinit();
+    var out: std.ArrayList(Rational) = .empty;
+    errdefer out.deinit(allocator);
 
     var i: usize = 0;
     while (i < events.len) {
@@ -187,11 +187,11 @@ pub fn attackDurations(allocator: std.mem.Allocator, events: []const rs.Event, e
             i += 1;
             if (!tied) break;
         }
-        try out.append(total);
+        try out.append(allocator, total);
     }
 
     if (out.items.len != expected) return error.AttackCountMismatch;
-    return out.toOwnedSlice();
+    return out.toOwnedSlice(allocator);
 }
 
 // ---- the action ---------------------------------------------------------------

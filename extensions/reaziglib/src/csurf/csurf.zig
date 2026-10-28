@@ -19,27 +19,27 @@ const Reaper = @import("reaper").reaper;
 
 pub const Callbacks = extern struct {
     ctx: ?*anyopaque = null,
-    get_type_string: *const fn (ctx: ?*anyopaque) callconv(.C) [*:0]const u8,
-    get_desc_string: *const fn (ctx: ?*anyopaque) callconv(.C) [*:0]const u8,
-    get_config_string: ?*const fn (ctx: ?*anyopaque) callconv(.C) [*:0]const u8 = null,
-    close_no_reset: ?*const fn (ctx: ?*anyopaque) callconv(.C) void = null,
-    run: ?*const fn (ctx: ?*anyopaque) callconv(.C) void = null,
-    set_track_list_change: ?*const fn (ctx: ?*anyopaque) callconv(.C) void = null,
-    set_surface_volume: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, volume: f64) callconv(.C) void = null,
-    set_surface_pan: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, pan: f64) callconv(.C) void = null,
-    set_surface_mute: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, mute: bool) callconv(.C) void = null,
-    set_surface_selected: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, selected: bool) callconv(.C) void = null,
-    set_surface_solo: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, solo: bool) callconv(.C) void = null,
-    set_surface_rec_arm: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, recarm: bool) callconv(.C) void = null,
-    set_play_state: ?*const fn (ctx: ?*anyopaque, play: bool, pause: bool, rec: bool) callconv(.C) void = null,
-    set_repeat_state: ?*const fn (ctx: ?*anyopaque, rep: bool) callconv(.C) void = null,
-    set_track_title: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, title: [*:0]const u8) callconv(.C) void = null,
-    get_touch_state: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, is_pan: c_int) callconv(.C) bool = null,
-    set_auto_mode: ?*const fn (ctx: ?*anyopaque, mode: c_int) callconv(.C) void = null,
-    reset_cached_vol_pan_states: ?*const fn (ctx: ?*anyopaque) callconv(.C) void = null,
-    on_track_selection: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque) callconv(.C) void = null,
-    is_key_down: ?*const fn (ctx: ?*anyopaque, key: c_int) callconv(.C) bool = null,
-    extended: ?*const fn (ctx: ?*anyopaque, call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.C) c_int = null,
+    get_type_string: *const fn (ctx: ?*anyopaque) callconv(.c) [*:0]const u8,
+    get_desc_string: *const fn (ctx: ?*anyopaque) callconv(.c) [*:0]const u8,
+    get_config_string: ?*const fn (ctx: ?*anyopaque) callconv(.c) [*:0]const u8 = null,
+    close_no_reset: ?*const fn (ctx: ?*anyopaque) callconv(.c) void = null,
+    run: ?*const fn (ctx: ?*anyopaque) callconv(.c) void = null,
+    set_track_list_change: ?*const fn (ctx: ?*anyopaque) callconv(.c) void = null,
+    set_surface_volume: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, volume: f64) callconv(.c) void = null,
+    set_surface_pan: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, pan: f64) callconv(.c) void = null,
+    set_surface_mute: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, mute: bool) callconv(.c) void = null,
+    set_surface_selected: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, selected: bool) callconv(.c) void = null,
+    set_surface_solo: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, solo: bool) callconv(.c) void = null,
+    set_surface_rec_arm: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, recarm: bool) callconv(.c) void = null,
+    set_play_state: ?*const fn (ctx: ?*anyopaque, play: bool, pause: bool, rec: bool) callconv(.c) void = null,
+    set_repeat_state: ?*const fn (ctx: ?*anyopaque, rep: bool) callconv(.c) void = null,
+    set_track_title: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, title: [*:0]const u8) callconv(.c) void = null,
+    get_touch_state: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque, is_pan: c_int) callconv(.c) bool = null,
+    set_auto_mode: ?*const fn (ctx: ?*anyopaque, mode: c_int) callconv(.c) void = null,
+    reset_cached_vol_pan_states: ?*const fn (ctx: ?*anyopaque) callconv(.c) void = null,
+    on_track_selection: ?*const fn (ctx: ?*anyopaque, track: ?*anyopaque) callconv(.c) void = null,
+    is_key_down: ?*const fn (ctx: ?*anyopaque, key: c_int) callconv(.c) bool = null,
+    extended: ?*const fn (ctx: ?*anyopaque, call: c_int, parm1: ?*anyopaque, parm2: ?*anyopaque, parm3: ?*anyopaque) callconv(.c) c_int = null,
 };
 
 extern fn zcsurf_create(callbacks: *const Callbacks) ?*anyopaque;
@@ -114,18 +114,18 @@ pub const TestRecorder = struct {
     last_mute: ?bool = null,
 };
 
-fn testTypeString(_: ?*anyopaque) callconv(.C) [*:0]const u8 {
+fn testTypeString(_: ?*anyopaque) callconv(.c) [*:0]const u8 {
     return "TESTSURFACE";
 }
 
-fn testExtended(ctx: ?*anyopaque, call: c_int, _: ?*anyopaque, _: ?*anyopaque, _: ?*anyopaque) callconv(.C) c_int {
+fn testExtended(ctx: ?*anyopaque, call: c_int, _: ?*anyopaque, _: ?*anyopaque, _: ?*anyopaque) callconv(.c) c_int {
     const rec: *TestRecorder = @ptrCast(@alignCast(ctx.?));
     rec.extended_calls += 1;
     rec.last_call = call;
     return 7;
 }
 
-fn testMute(ctx: ?*anyopaque, _: ?*anyopaque, mute: bool) callconv(.C) void {
+fn testMute(ctx: ?*anyopaque, _: ?*anyopaque, mute: bool) callconv(.c) void {
     const rec: *TestRecorder = @ptrCast(@alignCast(ctx.?));
     rec.last_mute = mute;
 }

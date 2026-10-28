@@ -20,7 +20,7 @@ pub const std_options = std.Options{
 // Command id of the "MFT: Toggle UI" custom action, so it can be bound to a key.
 var toggle_ui_cmd_id: c_int = undefined;
 
-fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, valhw: c_int, relmode: c_int, hwnd: ?reaper.HWND) callconv(.C) bool {
+fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, valhw: c_int, relmode: c_int, hwnd: ?reaper.HWND) callconv(.c) bool {
     _ = .{ sec, val, valhw, relmode, hwnd };
     if (command == toggle_ui_cmd_id) {
         const g = MftGlobals.get();
@@ -31,7 +31,7 @@ fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, valhw: c_i
 }
 
 // Report the toggle state so the action shows a checkmark in menus.
-fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
+fn toggleActionHook(command_id: c_int) callconv(.c) c_int {
     if (command_id == toggle_ui_cmd_id) {
         return if (MftGlobals.get().mft.panel_visible) 1 else 0;
     }
@@ -44,9 +44,9 @@ fn registerActions() void {
         .id_str = "PRKN_MFT_TOGGLE_UI",
         .name = "MFT: Toggle UI",
     };
-    toggle_ui_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&toggle_action)));
-    _ = reaper.plugin_register("hookcommand2", @constCast(@ptrCast(&onCommand)));
-    _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
+    toggle_ui_cmd_id = reaper.plugin_register("custom_action", @ptrCast(@constCast(&toggle_action)));
+    _ = reaper.plugin_register("hookcommand2", @ptrCast(@constCast(&onCommand)));
+    _ = reaper.plugin_register("toggleaction", @ptrCast(@constCast(&toggleActionHook)));
 }
 
 fn init() !void {

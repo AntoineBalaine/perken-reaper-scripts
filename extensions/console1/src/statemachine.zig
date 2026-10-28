@@ -146,7 +146,7 @@ pub const BrowseState = struct {
     selected_module: ModulesList = .INPUT,
     scroll_position_abs: u8 = 0,
     scroll_position_rel: usize = 0,
-    available_modules: [std.enums.values(ModulesList).len]?[:0]const u8 = [_]?[:0]const u8{null} ** std.enums.values(ModulesList).len,
+    available_modules: [std.enums.values(ModulesList).len]?[:0]const u8 = @splat(null),
     arena: std.heap.ArenaAllocator,
 
     pub fn init(gpa: std.mem.Allocator) BrowseState {
@@ -251,7 +251,7 @@ pub const AssignState = struct {
         .assign_fx_index = null,
         .param_store = undefined,
         .arena = undefined,
-        .knob_values = [_]f32{0.5} ** 128,
+        .knob_values = @splat(0.5),
         .module_fx_names = std.EnumArray(PhysicalModule, ?[:0]const u8).initFill(null),
         .save_error = null,
         .preset_strings = undefined,

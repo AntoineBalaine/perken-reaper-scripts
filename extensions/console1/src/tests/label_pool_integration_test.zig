@@ -59,7 +59,7 @@ fn setupTrackWithFx(reaper_teardown: anytype, alloc: std.mem.Allocator) !void {
 fn setupMapsForTrack(track_state: *TrackState, alloc: std.mem.Allocator) void {
     track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
-        const module_idx: c_int = @intCast(@intFromEnum(module));
+        const module_idx: c_int = @intCast(@backingInt(module));
         track_state.mode.multi_fx.set(module, .{
             .fx_index = module_idx,
             .mapping = switch (module) {

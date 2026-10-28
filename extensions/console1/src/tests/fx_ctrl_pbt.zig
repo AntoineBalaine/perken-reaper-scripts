@@ -123,7 +123,7 @@ const SetTrackCmd = struct {
         // maps to param index 0 (all params share index 0 for simplicity).
         sut.globals.state.fx_ctrl.track_state.mode = .{ .multi_fx = TrackState.ModuleLocations.initFill(null) };
         inline for (comptime std.enums.values(PhysicalModule)) |module| {
-            const module_idx: c_int = @intCast(@intFromEnum(module));
+            const module_idx: c_int = @intCast(@backingInt(module));
             sut.globals.state.fx_ctrl.track_state.mode.multi_fx.set(module, .{
                 .fx_index = module_idx,
                 .mapping = switch (module) {
@@ -424,7 +424,7 @@ const testable_button_ccs = [_]c1.CCs{
 // Must match the module -> fx_index mapping set up in SetTrackCmd.
 fn getFxIdx(cc: c1.CCs) ?c_int {
     const module = cc.toModule() orelse return null;
-    return @intCast(@intFromEnum(module));
+    return @intCast(@backingInt(module));
 }
 
 // Returns the param_index for a given CC based on the mapping set up in SetTrackCmd.

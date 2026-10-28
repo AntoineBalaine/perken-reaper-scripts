@@ -27,8 +27,8 @@ const TestCommandIds = struct {
     pub fn init() @This() {
         var self: @This() = .{ .map = std.EnumMap(reentrancy.TestApiCall, ?c_int).init(.{}) };
         // Initialize all entries as null
-        inline for (std.meta.fields(reentrancy.TestApiCall)) |field| {
-            const variant = @field(reentrancy.TestApiCall, field.name);
+        inline for (@typeInfo(reentrancy.TestApiCall).@"struct".field_names) |field_name| {
+            const variant = @field(reentrancy.TestApiCall, field_name);
             self.map.put(variant, null);
         }
         return self;
@@ -44,7 +44,7 @@ const TestCommandIds = struct {
 };
 
 // Command handler
-pub fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.C) c_char {
+pub fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw: c_int, relmode: c_int, hwnd: reaper.HWND) callconv(.c) c_char {
     _ = .{ sec, val, val2hw, relmode, hwnd };
 
     if (command == suspend_cmd_id) {
@@ -81,8 +81,8 @@ pub fn onCommand(sec: ?reaper.KbdSectionInfo, command: c_int, val: c_int, val2hw
         return 1;
     } else if (debugconfig.@"test") {
         // Check if command matches any of our test command IDs
-        inline for (std.meta.fields(reentrancy.TestApiCall)) |field| {
-            const variant = @field(reentrancy.TestApiCall, field.name);
+        inline for (@typeInfo(reentrancy.TestApiCall).@"struct".field_names) |field_name| {
+            const variant = @field(reentrancy.TestApiCall, field_name);
             if (testCommandIds.get(variant)) |cmd_id| {
                 if (command == cmd_id) {
                     reentrancy.runSingleTest(variant) catch |err| {
@@ -110,7 +110,7 @@ pub fn runInstallPresets(globals: *Globals) void {
 
     var preset_dir_buf: [std.fs.max_path_bytes:0]u8 = undefined;
     const resource_path = std.mem.span(reaper.GetResourcePath());
-    const preset_dir = std.fmt.bufPrintZ(&preset_dir_buf, "{s}/presets", .{resource_path}) catch return;
+    const preset_dir = std.mem.printSentinel(&preset_dir_buf, "{s}/presets", .{resource_path}, 0) catch return;
 
     const result = preset_installer.installPresets(
         &globals.mappings_list,
@@ -122,14 +122,14 @@ pub fn runInstallPresets(globals: *Globals) void {
     };
 
     var msg_buf: [512:0]u8 = undefined;
-    const result_msg = std.fmt.bufPrintZ(&msg_buf, "{s} {d} presets -> {d} files.\n{s} {d} duplicates.\n\n{s}", .{
+    const result_msg = std.mem.printSentinel(&msg_buf, "{s} {d} presets -> {d} files.\n{s} {d} duplicates.\n\n{s}", .{
         tr(&globals.translations, .install_presets_installed),
         result.installed,
         result.files_written,
         tr(&globals.translations, .install_presets_skipped),
         result.skipped,
         tr(&globals.translations, .install_presets_restart),
-    }) catch return;
+    }, 0) catch return;
     _ = reaper.ShowMessageBox(result_msg, title, 0);
 }
 
@@ -140,28 +140,28 @@ pub fn registerCommands() void {
         .id_str = "C1_SUSPEND",
         .name = "Console1: Suspend",
     };
-    suspend_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&suspend_action)));
+    suspend_cmd_id = reaper.plugin_register("custom_action", @ptrCast(@constCast(&suspend_action)));
 
     const toggle_gui_action: reaper.custom_action_register_t = .{
         .section = 0,
         .id_str = "C1_HIDE_GUI",
         .name = "Console1: Hide FX Control Window",
     };
-    toggle_gui_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&toggle_gui_action)));
+    toggle_gui_cmd_id = reaper.plugin_register("custom_action", @ptrCast(@constCast(&toggle_gui_action)));
 
     const install_presets_action: reaper.custom_action_register_t = .{
         .section = 0,
         .id_str = "C1_INSTALL_MAP_PRESETS",
         .name = "Console1: Install Map Presets",
     };
-    install_presets_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&install_presets_action)));
+    install_presets_cmd_id = reaper.plugin_register("custom_action", @ptrCast(@constCast(&install_presets_action)));
 
     const save_theme_action: reaper.custom_action_register_t = .{
         .section = 0,
         .id_str = "C1_SAVE_THEME",
         .name = "Console1: Save Theme Colors to INI",
     };
-    save_theme_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&save_theme_action)));
+    save_theme_cmd_id = reaper.plugin_register("custom_action", @ptrCast(@constCast(&save_theme_action)));
 
     if (debugconfig.@"test") {
         testCommandIds = TestCommandIds.init();
@@ -174,7 +174,7 @@ pub fn registerCommands() void {
                 .id_str = id_str,
                 .name = name,
             };
-            const cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&action)));
+            const cmd_id = reaper.plugin_register("custom_action", @ptrCast(@constCast(&action)));
             testCommandIds.set(variant, cmd_id);
         }
 
@@ -183,9 +183,9 @@ pub fn registerCommands() void {
             .id_str = "C1_REENTRANCY_TEST",
             .name = "Console1: Run Reentrancy Tests",
         };
-        reentrancy_test_cmd_id = reaper.plugin_register("custom_action", @constCast(@ptrCast(&reentrancy_test_action)));
+        reentrancy_test_cmd_id = reaper.plugin_register("custom_action", @ptrCast(@constCast(&reentrancy_test_action)));
     }
-    _ = reaper.plugin_register("toggleaction", @constCast(@ptrCast(&toggleActionHook)));
+    _ = reaper.plugin_register("toggleaction", @ptrCast(@constCast(&toggleActionHook)));
 
     if (debugconfig.@"test") {
         test_api.registerTestApis();
@@ -196,7 +196,7 @@ pub fn registerCommands() void {
 // -1 = action does not belong to this extension, or does not toggle
 //  0 = action belongs to this extension and is currently set to "off"
 //  1 = action belongs to this extension and is currently set to "on"
-pub export fn toggleActionHook(command_id: c_int) callconv(.C) c_int {
+pub export fn toggleActionHook(command_id: c_int) callconv(.c) c_int {
     if (command_id == suspend_cmd_id) {
         // Check if we're disconnected
         return if (getGlobals().state.current_mode == .suspended) 1 else 0;

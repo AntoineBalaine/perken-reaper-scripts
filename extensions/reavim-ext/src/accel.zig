@@ -20,7 +20,7 @@ pub const MSG = extern struct {
 ///  -666  force to the main window's accel table (except ESC)
 ///  -667  force to the main window's accel table, even from a text field
 pub const accelerator_register_t = extern struct {
-    translateAccel: *const fn (msg: *MSG, ctx: *accelerator_register_t) callconv(.C) c_int,
+    translateAccel: *const fn (msg: *MSG, ctx: *accelerator_register_t) callconv(.c) c_int,
     isLocal: bool,
     user: ?*anyopaque,
 };

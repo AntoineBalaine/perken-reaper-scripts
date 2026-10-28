@@ -73,7 +73,7 @@ pub const Context = enum(c_int) {
 
 pub var ready: bool = false;
 var rec: ?*Reaper.plugin_info_t = null;
-const GetContextFn = *const fn (host: [*c]const c.clap_host_t, sel: c_int) callconv(.C) ?*anyopaque;
+const GetContextFn = *const fn (host: [*c]const c.clap_host_t, sel: c_int) callconv(.c) ?*anyopaque;
 var get_context: ?GetContextFn = null;
 
 /// Resolves REAPER's API once. False when the host is not REAPER, in which
@@ -82,7 +82,7 @@ pub fn init(host: [*c]const c.clap_host_t) bool {
     if (ready) return true;
     const get_ext = host.*.get_extension orelse return false;
     const ptr = get_ext(host, "cockos.reaper_extension") orelse return false;
-    const info: *Reaper.plugin_info_t = @constCast(@ptrCast(@alignCast(ptr)));
+    const info: *Reaper.plugin_info_t = @ptrCast(@alignCast(@constCast(ptr)));
     if (!Reaper.initSubset(info, &reaper_api)) {
         log.warn("REAPER's API could not be resolved", .{});
         return false;
@@ -101,7 +101,7 @@ pub fn init(host: [*c]const c.clap_host_t) bool {
 pub fn trackOf(host: [*c]const c.clap_host_t) Reaper.MediaTrack {
     if (!ready) return null;
     const f = get_context orelse return null;
-    return @ptrCast(f(host, @intFromEnum(Context.track)));
+    return @ptrCast(f(host, @backingInt(Context.track)));
 }
 
 /// The plugin's index in its track's FX chain, or null when REAPER does not say. REAPER answers with the index
@@ -109,7 +109,7 @@ pub fn trackOf(host: [*c]const c.clap_host_t) Reaper.MediaTrack {
 pub fn fxIndexOf(host: [*c]const c.clap_host_t) ?u32 {
     if (!ready) return null;
     const f = get_context orelse return null;
-    const v = @intFromPtr(f(host, @intFromEnum(Context.fx_index)));
+    const v = @intFromPtr(f(host, @backingInt(Context.fx_index)));
     if (v == 0) return null;
     return @intCast((v - 1) & 0xFFFFFF);
 }
@@ -259,14 +259,14 @@ pub fn audioChannelName(dir: Direction, index: usize) []const u8 {
 
 // ---- the user interface's timer ----
 
-pub fn registerTimer(callback: *const fn () callconv(.C) void) void {
+pub fn registerTimer(callback: *const fn () callconv(.c) void) void {
     if (!ready) return;
-    _ = Reaper.plugin_register("timer", @constCast(@ptrCast(callback)));
+    _ = Reaper.plugin_register("timer", @ptrCast(@constCast(callback)));
 }
 
-pub fn unregisterTimer(callback: *const fn () callconv(.C) void) void {
+pub fn unregisterTimer(callback: *const fn () callconv(.c) void) void {
     if (!ready) return;
-    _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(callback)));
+    _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(callback)));
 }
 
 /// The usable area of the screen that holds the point (the screen without its
@@ -292,12 +292,12 @@ pub fn mousePosition() struct { x: i32, y: i32 } {
 
 /// The layout of `audio_hook_register_t` in `reaper_plugin.h`.
 pub const HookRegister = extern struct {
-    on_audio_buffer: ?*const fn (is_post: bool, len: c_int, srate: f64, reg: *HookRegister) callconv(.C) void,
+    on_audio_buffer: ?*const fn (is_post: bool, len: c_int, srate: f64, reg: *HookRegister) callconv(.c) void,
     userdata1: ?*anyopaque,
     userdata2: ?*anyopaque,
     input_nch: c_int,
     output_nch: c_int,
-    get_buffer: ?*const fn (is_output: bool, idx: c_int) callconv(.C) ?[*]f64,
+    get_buffer: ?*const fn (is_output: bool, idx: c_int) callconv(.c) ?[*]f64,
 };
 
 pub var bridge: ?*audio.Bridge = null;
@@ -317,7 +317,7 @@ fn hookGet(ctx: *anyopaque, is_output: bool, index: usize) ?[*]f64 {
     return f(is_output, @intCast(index));
 }
 
-fn onAudioBuffer(is_post: bool, len: c_int, srate: f64, reg: *HookRegister) callconv(.C) void {
+fn onAudioBuffer(is_post: bool, len: c_int, srate: f64, reg: *HookRegister) callconv(.c) void {
     _ = srate;
     const b = bridge orelse return;
     if (len <= 0) return;
@@ -369,8 +369,8 @@ test "every REAPER function the sources call is in reaper_api" {
     // called. This test reads the sources and fails on such a name instead.
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
-    var unlisted = std.ArrayList([]const u8).init(std.testing.allocator);
-    defer unlisted.deinit();
+    var unlisted: std.ArrayList([]const u8) = .empty;
+    defer unlisted.deinit(std.testing.allocator);
     const api = @import("reaper");
     try api.unlistedCallsInPaths(arena.allocator(), @import("test_paths").sources, &reaper_api, &unlisted);
     for (unlisted.items) |name| std.debug.print("REAPER function used but missing from reaper_api: {s}\n", .{name});

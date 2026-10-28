@@ -323,8 +323,8 @@ pub fn runAllTests() !void {
     }
 
     // Then run FX tests with more delay
-    inline for (std.meta.fields(TestApiCall)) |field| {
-        const api_call = @field(TestApiCall, field.name);
+    inline for (@typeInfo(TestApiCall).@"struct".field_names) |field_name| {
+        const api_call = @field(TestApiCall, field_name);
         if (isFXRelatedTest(api_call)) {
             try test_.runTest(api_call, tracks.test_track, tracks.witness_track);
             std.time.sleep(100 * std.time.ns_per_ms);

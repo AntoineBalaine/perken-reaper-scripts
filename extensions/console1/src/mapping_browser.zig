@@ -18,16 +18,16 @@ pub fn getMappingNames(
     while (iter.next()) |map_entry| {
         const stored_fx_name = mappings_list.strings.get(map_entry.key_ptr.*);
         if (std.mem.eql(u8, stored_fx_name, fx_name)) {
-            var list = std.ArrayList([:0]const u8).init(allocator);
-            errdefer list.deinit();
+            var list: std.ArrayList([:0]const u8) = .empty;
+            errdefer list.deinit(allocator);
 
             for (map_entry.value_ptr.items) |entry| {
                 const name = mappings_list.strings.get(entry.name_offset);
                 const owned_name = try allocator.dupeZ(u8, name);
-                try list.append(owned_name);
+                try list.append(allocator, owned_name);
             }
 
-            return list.toOwnedSlice();
+            return list.toOwnedSlice(allocator);
         }
     }
 

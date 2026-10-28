@@ -17,7 +17,7 @@ const string_pool = @import("string_pool");
 pub const Ref = string_pool.StringPool.StringRef;
 
 /// The ID of the empty text.
-pub const empty: Ref = @enumFromInt(0);
+pub const empty: Ref = @fromBackingInt(@intCast(0));
 
 /// The room of the buffers that format a text before it is stored. Names and file names are far shorter.
 pub const max_text = 255;
@@ -81,8 +81,8 @@ test "a text is stored once, and the first string is the empty one" {
 test "a text that is not terminated is copied, cut at the limit and at a zero byte" {
     var strings = Strings.init(std.testing.allocator);
     defer strings.deinit();
-    const long = "x" ** 400;
-    try std.testing.expectEqual(@as(usize, max_text), strings.get(strings.internSlice(long)).len);
+    const long: [400]u8 = @splat('x');
+    try std.testing.expectEqual(@as(usize, max_text), strings.get(strings.internSlice(&long)).len);
     try std.testing.expectEqualStrings("ab", strings.get(strings.internSlice("ab\x00cd")));
     try std.testing.expectEqual(strings.intern("Pad"), strings.internSlice("Pad 2"[0..3]));
 }

@@ -23,15 +23,15 @@ pub fn saveThemeToFile() void {
     writeWindowColors(&writer, "[main]", &c1_theme.theme.main) catch return;
 
     var msg_buf: [512]u8 = undefined;
-    const msg = std.fmt.bufPrintZ(&msg_buf, "Theme saved to:\n{s}", .{path}) catch "Theme saved.";
+    const msg = std.mem.printSentinel(&msg_buf, "Theme saved to:\n{s}", .{path}, 0) catch "Theme saved.";
     _ = reaper.ShowMessageBox(msg, "Theme Save", 0);
 }
 
 fn writeWindowColors(writer: anytype, header: []const u8, colors: *const WindowColors) !void {
     try writer.writeAll(header);
     try writer.writeAll("\n");
-    inline for (std.meta.fields(WindowColors)) |field| {
-        const val: u32 = @bitCast(@field(colors, field.name));
-        try writer.print("{s} = {X:0>8}\n", .{ field.name, val });
+    inline for (@typeInfo(WindowColors).@"struct".field_names) |field_name| {
+        const val: u32 = @bitCast(@field(colors, field_name));
+        try writer.print("{s} = {X:0>8}\n", .{ field_name, val });
     }
 }

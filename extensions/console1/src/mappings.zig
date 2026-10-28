@@ -340,10 +340,10 @@ pub fn saveStripToFile(
         try writer.print("fx_preset={s}\n", .{self.preset_strings.get(offset)});
     }
 
-    inline for (std.meta.fields(ChannelStripMapping)) |field| {
-        if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
-        try writer.print("{s} = ", .{field.name});
-        try formatOptionalU8(@field(mapping, field.name), writer);
+    inline for (@typeInfo(ChannelStripMapping).@"struct".field_names) |field_name| {
+        if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+        try writer.print("{s} = ", .{field_name});
+        try formatOptionalU8(@field(mapping, field_name), writer);
         try writer.writeByte('\n');
     }
 
@@ -764,18 +764,18 @@ fn readToU8Struct(ret_struct: anytype, parser: anytype, found_module: *?ModulesL
                     }
                 }
 
-                inline for (std.meta.fields(T)) |ns_info| {
+                inline for (@typeInfo(T).@"struct".field_names) |ns_info_name| {
                     // Because fx_preset is handled above, we skip it here
-                    if (comptime std.mem.eql(u8, ns_info.name, "fx_preset")) continue;
+                    if (comptime std.mem.eql(u8, ns_info_name, "fx_preset")) continue;
 
-                    if (std.mem.eql(u8, ns_info.name, kv.key)) {
-                        const field_type = @TypeOf(@field(ret_struct, ns_info.name));
+                    if (std.mem.eql(u8, ns_info_name, kv.key)) {
+                        const field_type = @TypeOf(@field(ret_struct, ns_info_name));
                         if (field_type == ?u16 or field_type == u16 or field_type == ?u8 or field_type == u8) {
                             const ParsedInt = if (field_type == ?u16 or field_type == u16) u16 else u8;
                             const parsed = std.fmt.parseInt(ParsedInt, kv.value, 10) catch null;
                             if (parsed) |val| {
-                                @field(ret_struct, ns_info.name) = val;
-                                if (std.mem.eql(u8, ns_info.name, "version")) {
+                                @field(ret_struct, ns_info_name) = val;
+                                if (std.mem.eql(u8, ns_info_name, "version")) {
                                     version_found = true;
                                     // A mapping file from a newer build is a problem with the
                                     // user's input, not an internal failure, so it is logged as
@@ -882,10 +882,10 @@ pub fn saveToFile(
                 try writer.print("fx_preset={s}\n", .{self.preset_strings.get(offset)});
             }
 
-            inline for (std.meta.fields(@TypeOf(m))) |field| {
-                if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
-                try writer.print("{s} = ", .{field.name});
-                try formatOptionalU8(@field(m, field.name), writer);
+            inline for (@typeInfo(@TypeOf(m)).@"struct".field_names) |field_name| {
+                if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
+                try writer.print("{s} = ", .{field_name});
+                try formatOptionalU8(@field(m, field_name), writer);
                 try writer.writeByte('\n');
             }
         },

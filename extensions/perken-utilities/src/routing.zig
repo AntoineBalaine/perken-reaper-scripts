@@ -16,7 +16,7 @@ const bus_names = [_][]const u8{
 /// GetParentTrack returns NULL for top-level tracks; the binding's return
 /// type is non-optional, so re-type it (ABI identical).
 fn getParentTrack(track: Reaper.MediaTrack) ?*Reaper.MediaTrack {
-    const f: *const fn (track: Reaper.MediaTrack) callconv(.C) ?*Reaper.MediaTrack = @ptrCast(Reaper.GetParentTrack);
+    const f: *const fn (track: Reaper.MediaTrack) callconv(.c) ?*Reaper.MediaTrack = @ptrCast(Reaper.GetParentTrack);
     return f(track);
 }
 
@@ -42,8 +42,8 @@ fn sendColorToMatchingBus(bus: Reaper.MediaTrack) void {
 /// Route all tracks whose name contains "bus" (case-sensitive, like the Lua
 /// string.find) to receive from same-colored tracks.
 fn routeTracksToBusses(_: *actions.RunCtx) void {
-    var busses = std.ArrayList(Reaper.MediaTrack).init(helpers.allocator);
-    defer busses.deinit();
+    var busses: std.ArrayList(Reaper.MediaTrack) = .empty;
+    defer busses.deinit(helpers.allocator);
 
     const n = Reaper.CountTracks(null);
     var i: c_int = 0;
@@ -52,7 +52,7 @@ fn routeTracksToBusses(_: *actions.RunCtx) void {
         var name_buf: [512]u8 = undefined;
         const name = helpers.getTrackString(track, "P_NAME", &name_buf) orelse continue;
         if (std.mem.indexOf(u8, name, "bus") != null)
-            busses.append(track) catch return;
+            busses.append(helpers.allocator, track) catch return;
     }
 
     for (busses.items) |bus| sendColorToMatchingBus(bus);

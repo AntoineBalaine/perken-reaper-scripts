@@ -215,15 +215,15 @@ pub fn parse(
     stub_def.* = .{ .steps = &.{}, .desc = "(stub)" };
 
     // Pass 1: read all entries, keeping global separate.
-    var entries = std.ArrayList(RawEntry).init(gpa);
-    defer entries.deinit();
+    var entries: std.ArrayList(RawEntry) = .empty;
+    defer entries.deinit(gpa);
 
     var parser = ini.parse(gpa, reader);
     defer parser.deinit();
 
     var section: CurSection = .unknown;
-    var keybuf = std.ArrayList(keymod.Key).init(gpa);
-    defer keybuf.deinit();
+    var keybuf: std.ArrayList(keymod.Key) = .empty;
+    defer keybuf.deinit(gpa);
 
     while (try parser.next()) |record| {
         switch (record) {
@@ -277,7 +277,7 @@ pub fn parse(
                         log.warn("bad value '{s}' for '{s}': {s} — skipped", .{ kv.value, kv.key, @errorName(err) });
                         continue;
                     };
-                    try entries.append(.{
+                    try entries.append(gpa, .{
                         .section = sec,
                         .keys = try arena.dupe(keymod.Key, keybuf.items),
                         .value = value,
@@ -418,8 +418,8 @@ test "quoted keys with comment chars bind" {
     var b = try parseString(std.testing.allocator, &reg, text);
     defer b.deinit();
 
-    var keys = std.ArrayList(keymod.Key).init(std.testing.allocator);
-    defer keys.deinit();
+    var keys: std.ArrayList(keymod.Key) = .empty;
+    defer keys.deinit(std.testing.allocator);
 
     try keymod.parseSequence(";", &keys);
     const semi = builder.build(&b.tables, .main, .normal, keys.items).?;
@@ -443,8 +443,8 @@ test "unbind drops a global binding in one context only" {
     defer reg.deinit();
     var b = try parseString(std.testing.allocator, &reg, text);
     defer b.deinit();
-    var keys = std.ArrayList(keymod.Key).init(std.testing.allocator);
-    defer keys.deinit();
+    var keys: std.ArrayList(keymod.Key) = .empty;
+    defer keys.deinit(std.testing.allocator);
     try keymod.parseSequence("j", &keys);
     try std.testing.expect(builder.build(&b.tables, .main, .normal, keys.items) != null);
     try std.testing.expect(builder.build(&b.tables, .midi, .normal, keys.items) == null);
@@ -474,8 +474,8 @@ test "parse new format with registry names, raw ids, global merge and shadowing"
     var b = try parseString(std.testing.allocator, &reg, text);
     defer b.deinit();
 
-    var keys = std.ArrayList(keymod.Key).init(std.testing.allocator);
-    defer keys.deinit();
+    var keys: std.ArrayList(keymod.Key) = .empty;
+    defer keys.deinit(std.testing.allocator);
 
     // dj builds as track_op_motion through the grammar
     try keymod.parseSequence("dj", &keys);

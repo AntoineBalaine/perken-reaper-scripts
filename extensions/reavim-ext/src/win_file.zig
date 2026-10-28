@@ -33,25 +33,25 @@ const kernel32 = struct {
         dwCreationDisposition: u32,
         dwFlagsAndAttributes: u32,
         hTemplateFile: ?*anyopaque,
-    ) callconv(.C) HANDLE;
+    ) callconv(.c) HANDLE;
     extern "kernel32" fn ReadFile(
         hFile: HANDLE,
         lpBuffer: [*]u8,
         nNumberOfBytesToRead: u32,
         lpNumberOfBytesRead: *u32,
         lpOverlapped: ?*anyopaque,
-    ) callconv(.C) c_int;
+    ) callconv(.c) c_int;
     extern "kernel32" fn WriteFile(
         hFile: HANDLE,
         lpBuffer: [*]const u8,
         nNumberOfBytesToWrite: u32,
         lpNumberOfBytesWritten: *u32,
         lpOverlapped: ?*anyopaque,
-    ) callconv(.C) c_int;
-    extern "kernel32" fn CloseHandle(hObject: HANDLE) callconv(.C) c_int;
-    extern "kernel32" fn GetFileSizeEx(hFile: HANDLE, lpFileSize: *i64) callconv(.C) c_int;
-    extern "kernel32" fn CreateDirectoryA(lpPathName: [*:0]const u8, lpSecurityAttributes: ?*anyopaque) callconv(.C) c_int;
-    extern "kernel32" fn GetFileAttributesA(lpFileName: [*:0]const u8) callconv(.C) u32;
+    ) callconv(.c) c_int;
+    extern "kernel32" fn CloseHandle(hObject: HANDLE) callconv(.c) c_int;
+    extern "kernel32" fn GetFileSizeEx(hFile: HANDLE, lpFileSize: *i64) callconv(.c) c_int;
+    extern "kernel32" fn CreateDirectoryA(lpPathName: [*:0]const u8, lpSecurityAttributes: ?*anyopaque) callconv(.c) c_int;
+    extern "kernel32" fn GetFileAttributesA(lpFileName: [*:0]const u8) callconv(.c) u32;
 };
 
 /// path must be a valid Zig string; a NUL-terminated copy is made on the

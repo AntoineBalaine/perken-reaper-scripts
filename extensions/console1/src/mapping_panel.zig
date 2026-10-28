@@ -146,12 +146,12 @@ fn isParamMapped(state: *const State, param_idx: usize) bool {
     };
     switch (current_mappings) {
         inline else => |mapping| {
-            inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+            inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
                 // Skip non-parameter fields because they are not optional u16 values
-                if (comptime std.mem.eql(u8, field.name, "version")) continue;
-                if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
+                if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
 
-                if (@field(mapping, field.name)) |mapped_param| {
+                if (@field(mapping, field_name)) |mapped_param| {
                     if (mapped_param == param) return true;
                 }
             }
@@ -168,13 +168,13 @@ fn getControlMapping(state: *const State, cc: c1.CCs) ?u32 {
     };
     switch (current_mappings) {
         inline else => |mapping| {
-            inline for (std.meta.fields(@TypeOf(mapping))) |field| {
+            inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
                 // Skip non-parameter fields because they are not optional u16 values
-                if (comptime std.mem.eql(u8, field.name, "version")) continue;
-                if (comptime std.mem.eql(u8, field.name, "fx_preset")) continue;
+                if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                if (comptime std.mem.eql(u8, field_name, "fx_preset")) continue;
 
-                if (std.mem.eql(u8, field.name, cc_name)) {
-                    if (@field(mapping, field.name)) |param| {
+                if (std.mem.eql(u8, field_name, cc_name)) {
+                    if (@field(mapping, field_name)) |param| {
                         return @intCast(param);
                     }
                 }
@@ -207,12 +207,12 @@ fn formControls(
                 const module_name = @tagName(module);
                 const display_text: [:0]const u8 = blk: {
                     if (module != .STRIP) {
-                        const phys: PhysicalModule = @enumFromInt(@intFromEnum(module));
+                        const phys: PhysicalModule = @fromBackingInt(@intCast(@backingInt(module)));
                         if (assign_state.module_fx_names.get(phys)) |fx_name| {
-                            break :blk std.fmt.bufPrintZ(&dropdown_buf, "{s}    [{s}]", .{ module_name, fx_name }) catch module_name;
+                            break :blk std.mem.printSentinel(&dropdown_buf, "{s}    [{s}]", .{ module_name, fx_name }, 0) catch module_name;
                         }
                     }
-                    break :blk std.fmt.bufPrintZ(&dropdown_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }) catch module_name;
+                    break :blk std.mem.printSentinel(&dropdown_buf, "{s}    {s}", .{ module_name, tr(translations, .mapping_no_fx) }, 0) catch module_name;
                 };
 
                 if (try imgui.Selectable(.{ ctx, display_text })) {
@@ -285,21 +285,21 @@ fn formControls(
         const has_param = assign_state.learned_param != null;
 
         if (has_cc and !has_param) {
-            const text = std.fmt.bufPrintZ(&text_buf, "CC: {s} -- {s}", .{
+            const text = std.mem.printSentinel(&text_buf, "CC: {s} -- {s}", .{
                 @tagName(assign_state.selected_control.?),
                 tr(translations, .mapping_midi_learn_touch_param),
-            }) catch "";
+            }, 0) catch "";
             try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(text.ptr)) });
         } else if (has_param and !has_cc) {
             const param_name = if (assign_state.learned_param.? < assign_state.param_store.len())
                 assign_state.param_store.getName(@intCast(assign_state.learned_param.?))
             else
                 "?";
-            const text = std.fmt.bufPrintZ(&text_buf, "Param: {s} (#{d}) -- {s}", .{
+            const text = std.mem.printSentinel(&text_buf, "Param: {s} (#{d}) -- {s}", .{
                 param_name,
                 assign_state.learned_param.?,
                 tr(translations, .mapping_midi_learn_move_control),
-            }) catch "";
+            }, 0) catch "";
             try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(text.ptr)) });
         } else {
             try imgui.Text(.{ ctx, tr(translations, .mapping_midi_learn_waiting) });
@@ -342,31 +342,31 @@ fn assignmentList(
 
     switch (assign_state.current_mappings) {
         inline else => |mapping| {
-            inline for (std.meta.fields(@TypeOf(mapping))) |field| {
-                if (comptime std.mem.eql(u8, field.name, "version")) continue;
-                if (comptime !@hasField(c1.CCs, field.name)) continue;
+            inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
+                if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                if (comptime !@hasField(c1.CCs, field_name)) continue;
 
-                if (@field(mapping, field.name)) |param_idx| {
+                if (@field(mapping, field_name)) |param_idx| {
                     const param_name = if (param_idx < assign_state.param_store.len())
                         assign_state.param_store.getName(@intCast(param_idx))
                     else
                         "?";
-                    const label = std.fmt.bufPrintZ(buf, "{s} -> {s} (#{d})", .{
-                        field.name,
+                    const label = std.mem.printSentinel(buf, "{s} -> {s} (#{d})", .{
+                        field_name,
                         param_name,
                         param_idx,
-                    }) catch "";
+                    }, 0) catch "";
                     try imgui.Text(.{ ctx, @as([*:0]const u8, @ptrCast(label.ptr)) });
 
                     try imgui.SameLine(.{ctx});
                     {
                         try imgui.PushFont(.{ ctx, c1_theme.fonts.ICON_FONT_SMALL });
                         defer imgui.PopFont(.{ctx}) catch {};
-                        const btn_label = std.fmt.bufPrintZ(buf, "{s}##rm_{s}", .{
-                            c1_theme.Icons.get(.close), field.name,
-                        }) catch "x";
+                        const btn_label = std.mem.printSentinel(buf, "{s}##rm_{s}", .{
+                            c1_theme.Icons.get(.close), field_name,
+                        }, 0) catch "x";
                         if (try imgui.SmallButton(.{ ctx, @as([*:0]const u8, @ptrCast(btn_label.ptr)) })) {
-                            rv = .{ .assign_remove_mapping = @field(c1.CCs, field.name) };
+                            rv = .{ .assign_remove_mapping = @field(c1.CCs, field_name) };
                         }
                     }
                 }
@@ -415,7 +415,7 @@ fn mappingWidget(
                 .label = label,
                 .id = @tagName(cc),
             };
-            const knob_value = assign_state.knob_values[@intFromEnum(cc)];
+            const knob_value = assign_state.knob_values[@backingInt(cc)];
             break :blk try mappingKnob.drawWidget(ctx, knob_value, label_id, .{ .disabled = disabled, .knob_bg = try imgui.GetStyleColor(.{ ctx, imgui.Col_PlotLinesHovered }) }, cc, assignment_label, &assign_state.param_store, translations);
         },
     };

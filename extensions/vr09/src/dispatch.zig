@@ -372,7 +372,7 @@ pub fn writePreset(folder: []const u8, raw_name: []const u8, scene: *const dump.
     var path_buf: [fileio.max_path]u8 = undefined;
     const path = try state.presetPath(&path_buf, folder, name);
     try state.savePresetFile(plugin.allocator, path, scene);
-    return std.fmt.bufPrintZ(file_out, "{s}{s}", .{ name, state.preset_extension });
+    return std.mem.printSentinel(file_out, "{s}{s}", .{ name, state.preset_extension }, 0);
 }
 
 /// Saves a dump as a preset of the presets folder, and tells the rest of the plugin: the preset becomes the
@@ -387,7 +387,7 @@ pub fn storePreset(p: *Plugin, folder: []const u8, raw_name: []const u8, scene: 
 /// Asks for a file with REAPER's dialog and loads it. Returns its name, or null when the player cancelled.
 fn importFile(p: *Plugin) !?strings.Ref {
     if (!glue.ready) return error.NoResourceFolder;
-    var path: [4096:0]u8 = [_:0]u8{0} ** 4096;
+    var path: [4096:0]u8 = @splat(0);
     if (!Reaper.GetUserFileNameForRead(@ptrCast(&path), "Import a VR-09 dump or preset", "json")) return null;
     const chosen = std.mem.sliceTo(&path, 0);
     const base = chosen[chosen.len - std.fs.path.basename(chosen).len ..];
@@ -490,8 +490,8 @@ fn saveTemplate(p: *Plugin, wanted: []const u8) !SavedTemplate {
     var clean_buf: [name_cap]u8 = undefined;
     const clean = cleanTemplateName(&clean_buf, wanted);
     if (clean.len == 0) return error.EmptyName;
-    var text = std.ArrayList(u8).init(plugin.allocator);
-    defer text.deinit();
+    var text: std.ArrayList(u8) = .empty;
+    defer text.deinit(plugin.allocator);
     const written = try templateText(p.scene_list, &text);
     // Because a template of no scenes would replace a good one of the same name, it is not written.
     if (written == 0) return error.NothingToSave;
@@ -521,8 +521,8 @@ fn loadTemplate(p: *Plugin, name: []const u8, append: bool) !TemplateResult {
 /// Makes the scenes of a template's text. Every line is looked up first, so that a template that gives nothing
 /// back does not take the scenes away.
 pub fn loadTemplateText(p: *Plugin, text: []const u8, append: bool) !TemplateResult {
-    var patches = std.ArrayList(Patch).init(plugin.allocator);
-    defer patches.deinit();
+    var patches: std.ArrayList(Patch) = .empty;
+    defer patches.deinit(plugin.allocator);
     var result = TemplateResult{};
     var lines = std.mem.tokenizeScalar(u8, text, '\n');
     while (lines.next()) |line| {
@@ -540,7 +540,7 @@ pub fn loadTemplateText(p: *Plugin, text: []const u8, append: bool) !TemplateRes
         };
         // Because a line is a piece of the file, its name is not terminated, and is copied to be stored.
         patch.name = p.strings.internSlice(line[0..tab]);
-        patches.append(patch) catch {
+        patches.append(plugin.allocator, patch) catch {
             result.failed += 1;
             continue;
         };

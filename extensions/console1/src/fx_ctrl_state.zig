@@ -128,7 +128,7 @@ pub fn deinit(self: *@This()) void {
 }
 
 // Tuple contains: isLoaded, idxInContainer
-pub const ModuleCheck = std.EnumArray(PhysicalModule, std.meta.Tuple(&.{ bool, u8 }));
+pub const ModuleCheck = std.EnumArray(PhysicalModule, @Tuple(&.{ bool, u8 }));
 // TODO: this is in top scope because I couldn't figure out how to pass the buffer as a fn param. the constness of fn params doesn't let me use the buffer
 
 pub const Track = @This();

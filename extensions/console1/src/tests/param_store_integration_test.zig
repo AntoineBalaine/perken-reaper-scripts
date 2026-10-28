@@ -18,7 +18,7 @@ fn createTestFX(allocator: std.mem.Allocator, param_names: []const [:0]const u8)
     }
 
     return .{
-        .guid = .{ .bytes = [_]u8{0} ** 16 },
+        .guid = .{ .bytes = @splat(0) },
         .enabled = true,
         .params = params,
         .named_configs = .{

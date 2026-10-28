@@ -53,10 +53,10 @@ fn setupChainInOrder(globals: *Globals, order: []const ModulesList) reaper.Media
         const fx = module_fx.get(module);
         _ = reaper.TrackFX_AddByName(track, fx.name, false, -1);
         var name_buf: [512:0]u8 = undefined;
-        const full_name = std.fmt.bufPrintZ(&name_buf, "{s} {s}", .{
+        const full_name = std.mem.printSentinel(&name_buf, "{s} {s}", .{
             std.mem.span(fx.name),
             std.mem.span(fx.suffix),
-        }) catch unreachable;
+        }, 0) catch unreachable;
         _ = reaper.TrackFX_SetNamedConfigParm(track, @intCast(i), "renamed_name", full_name);
     }
 

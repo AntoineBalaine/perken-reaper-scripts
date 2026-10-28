@@ -89,7 +89,7 @@ pub const embedded_height = 64;
 pub const max_instances = 64;
 
 /// All live instances. Only the main thread touches this list.
-pub var instances: [max_instances]?*Plugin = [_]?*Plugin{null} ** max_instances;
+pub var instances: [max_instances]?*Plugin = @splat(null);
 pub var shared_bridge: ?*audio.Bridge = null;
 var timer_registered: bool = false;
 
@@ -103,13 +103,13 @@ pub const SaveJob = struct {
     /// How many saves have begun. The panel tells the result of a save once, by this number.
     serial: u32 = 0,
     /// The name to save under. Like the file and the message, it is null-terminated, so the length is not kept.
-    name: [96:0]u8 = [_:0]u8{0} ** 96,
+    name: [96:0]u8 = @splat(0),
     /// The number of finished captures when the save began, so that the end of this one is told apart.
     baseline: u32 = 0,
     started_ms: i64 = 0,
-    file: [128:0]u8 = [_:0]u8{0} ** 128,
+    file: [128:0]u8 = @splat(0),
     known: usize = 0,
-    message: [96:0]u8 = [_:0]u8{0} ** 96,
+    message: [96:0]u8 = @splat(0),
 
     /// The name to save under.
     pub fn savedName(self: *const SaveJob) [:0]const u8 {
@@ -238,8 +238,8 @@ pub const Plugin = struct {
         self.processing = false;
         self.slot = null;
         self.loop = null;
-        self.ping_state = std.atomic.Value(u8).init(@intFromEnum(audio.PingState.idle));
-        self.loop_state = std.atomic.Value(u8).init(@intFromEnum(audio.LoopState.off));
+        self.ping_state = std.atomic.Value(u8).init(@backingInt(audio.PingState.idle));
+        self.loop_state = std.atomic.Value(u8).init(@backingInt(audio.LoopState.off));
         self.latency_dirty = std.atomic.Value(bool).init(false);
         self.host_params = null;
         self.host_latency = null;
@@ -257,7 +257,7 @@ pub const Plugin = struct {
         self.scene_confirmed = 0;
         self.loop_flag_dirty = std.atomic.Value(bool).init(false);
         self.pending_scene = std.atomic.Value(u8).init(0);
-        self.loop_state_logged = @intFromEnum(audio.LoopState.off);
+        self.loop_state_logged = @backingInt(audio.LoopState.off);
         self.engine_events = .{};
         self.forward_events = .{};
         self.arena = .{};
@@ -338,7 +338,7 @@ pub const Plugin = struct {
     pub fn startPing(self: *Plugin) void {
         if (self.loop) |loop| {
             loop.startPing();
-            self.ping_state.store(@intFromEnum(audio.PingState.listening_noise), .release);
+            self.ping_state.store(@backingInt(audio.PingState.listening_noise), .release);
         }
     }
 
@@ -520,7 +520,7 @@ pub const Plugin = struct {
     /// Writes a line when the audio loop changes state.
     pub fn logLoopState(self: *Plugin) void {
         if (self.slot) |slot| {
-            if (self.ticks % 300 == 0 and self.loop_state.load(.monotonic) == @intFromEnum(audio.LoopState.running)) {
+            if (self.ticks % 300 == 0 and self.loop_state.load(.monotonic) == @backingInt(audio.LoopState.running)) {
                 const ticks = if (shared_bridge) |b| b.ticks.load(.monotonic) else 0;
                 log.info("audio loop: {d} device callbacks, send underruns {d}, return overruns {d}", .{ ticks, slot.out_underruns.load(.monotonic), slot.in_overruns.load(.monotonic) });
             }
@@ -528,7 +528,7 @@ pub const Plugin = struct {
         const current = self.loop_state.load(.monotonic);
         if (current == self.loop_state_logged) return;
         self.loop_state_logged = current;
-        const state_value: audio.LoopState = @enumFromInt(current);
+        const state_value: audio.LoopState = @fromBackingInt(@intCast(current));
         log.info("audio loop: {s}", .{@tagName(state_value)});
     }
 
@@ -619,7 +619,7 @@ pub const descriptor = blk: {
 
 // ---- the plugin callbacks ----
 
-fn pluginInit(p: P) callconv(.C) bool {
+fn pluginInit(p: P) callconv(.c) bool {
     const self = Plugin.from(p);
     const in_reaper = glue.init(self.host);
     self.track = glue.trackOf(self.host);
@@ -643,7 +643,7 @@ fn pluginInit(p: P) callconv(.C) bool {
     return true;
 }
 
-fn pluginDestroy(p: P) callconv(.C) void {
+fn pluginDestroy(p: P) callconv(.c) void {
     const self = Plugin.from(p);
     ui.close(self);
     for (&instances) |*slot| {
@@ -661,7 +661,7 @@ fn pluginDestroy(p: P) callconv(.C) void {
     allocator.destroy(self);
 }
 
-fn pluginActivate(p: P, sample_rate: f64, min_frames: u32, max_frames: u32) callconv(.C) bool {
+fn pluginActivate(p: P, sample_rate: f64, min_frames: u32, max_frames: u32) callconv(.c) bool {
     _ = min_frames;
     _ = max_frames;
     const self = Plugin.from(p);
@@ -684,7 +684,7 @@ fn pluginActivate(p: P, sample_rate: f64, min_frames: u32, max_frames: u32) call
     return true;
 }
 
-fn pluginDeactivate(p: P) callconv(.C) void {
+fn pluginDeactivate(p: P) callconv(.c) void {
     const self = Plugin.from(p);
     self.active = false;
     if (self.slot) |slot| {
@@ -698,21 +698,21 @@ fn pluginDeactivate(p: P) callconv(.C) void {
     }
 }
 
-fn pluginStartProcessing(p: P) callconv(.C) bool {
+fn pluginStartProcessing(p: P) callconv(.c) bool {
     Plugin.from(p).processing = true;
     log.info("start processing", .{});
     return true;
 }
 
-fn pluginStopProcessing(p: P) callconv(.C) void {
+fn pluginStopProcessing(p: P) callconv(.c) void {
     Plugin.from(p).processing = false;
 }
 
-fn pluginReset(p: P) callconv(.C) void {
+fn pluginReset(p: P) callconv(.c) void {
     _ = p;
 }
 
-fn pluginOnMainThread(p: P) callconv(.C) void {
+fn pluginOnMainThread(p: P) callconv(.c) void {
     const self = Plugin.from(p);
     if (!self.latency_dirty.swap(false, .acq_rel)) return;
     if (self.host_latency != null) {
@@ -731,7 +731,7 @@ fn isKeyboardMessage(bytes: []const u8) bool {
     return body.len >= 3 and body[0] == 0x7E and body[2] == 0x06;
 }
 
-fn pluginProcess(p: P, proc: [*c]const c.clap_process_t) callconv(.C) c.clap_process_status {
+fn pluginProcess(p: P, proc: [*c]const c.clap_process_t) callconv(.c) c.clap_process_status {
     const self = Plugin.from(p);
     const frames = proc.*.frames_count;
     self.engine_events.clear();
@@ -856,10 +856,10 @@ fn processAudio(self: *Plugin, proc: [*c]const c.clap_process_t) void {
     loop.send_gain = state.dbToGain(self.settings.sendDb());
     loop.return_gain = state.dbToGain(self.settings.returnDb());
     loop.process(self.settings.loop_enabled.load(.monotonic), in_l, in_r, out_l, out_r);
-    self.loop_state.store(@intFromEnum(loop.state), .monotonic);
+    self.loop_state.store(@backingInt(loop.state), .monotonic);
 
     const previous = self.ping_state.load(.acquire);
-    const current = @intFromEnum(loop.ping.state);
+    const current = @backingInt(loop.ping.state);
     if (current != previous) {
         self.ping_state.store(current, .release);
         if (loop.ping.state == .done) {
@@ -964,7 +964,7 @@ const gui_ext = c.clap_plugin_gui_t{
     .hide = guiHide,
 };
 
-fn pluginGetExtension(p: P, id: [*c]const u8) callconv(.C) ?*const anyopaque {
+fn pluginGetExtension(p: P, id: [*c]const u8) callconv(.c) ?*const anyopaque {
     _ = p;
     const name = std.mem.span(id);
     if (std.mem.eql(u8, name, clap.s(c.CLAP_EXT_AUDIO_PORTS))) return &audio_ports_ext;
@@ -977,13 +977,13 @@ fn pluginGetExtension(p: P, id: [*c]const u8) callconv(.C) ?*const anyopaque {
     return null;
 }
 
-fn audioPortsCount(p: P, is_input: bool) callconv(.C) u32 {
+fn audioPortsCount(p: P, is_input: bool) callconv(.c) u32 {
     _ = p;
     _ = is_input;
     return 1;
 }
 
-fn audioPortsGet(p: P, index: u32, is_input: bool, info: [*c]c.clap_audio_port_info_t) callconv(.C) bool {
+fn audioPortsGet(p: P, index: u32, is_input: bool, info: [*c]c.clap_audio_port_info_t) callconv(.c) bool {
     _ = p;
     _ = is_input;
     if (index != 0) return false;
@@ -996,13 +996,13 @@ fn audioPortsGet(p: P, index: u32, is_input: bool, info: [*c]c.clap_audio_port_i
     return true;
 }
 
-fn notePortsCount(p: P, is_input: bool) callconv(.C) u32 {
+fn notePortsCount(p: P, is_input: bool) callconv(.c) u32 {
     _ = p;
     _ = is_input;
     return 1;
 }
 
-fn notePortsGet(p: P, index: u32, is_input: bool, info: [*c]c.clap_note_port_info_t) callconv(.C) bool {
+fn notePortsGet(p: P, index: u32, is_input: bool, info: [*c]c.clap_note_port_info_t) callconv(.c) bool {
     _ = p;
     if (index != 0) return false;
     info.*.id = 0;
@@ -1012,12 +1012,12 @@ fn notePortsGet(p: P, index: u32, is_input: bool, info: [*c]c.clap_note_port_inf
     return true;
 }
 
-fn paramsCount(p: P) callconv(.C) u32 {
+fn paramsCount(p: P) callconv(.c) u32 {
     _ = p;
     return total_params;
 }
 
-fn paramsGetInfo(p: P, index: u32, info: [*c]c.clap_param_info_t) callconv(.C) bool {
+fn paramsGetInfo(p: P, index: u32, info: [*c]c.clap_param_info_t) callconv(.c) bool {
     _ = p;
     if (index >= total_params) return false;
     info.*.cookie = null;
@@ -1043,7 +1043,7 @@ fn paramsGetInfo(p: P, index: u32, info: [*c]c.clap_param_info_t) callconv(.C) b
     return true;
 }
 
-fn paramsGetValue(p: P, id: c.clap_id, out: [*c]f64) callconv(.C) bool {
+fn paramsGetValue(p: P, id: c.clap_id, out: [*c]f64) callconv(.c) bool {
     const self = Plugin.from(p);
     if (engine.paramIndexOfId(id)) |index| {
         out.* = @floatFromInt(self.shared.paramValue(index));
@@ -1062,7 +1062,7 @@ fn paramsGetValue(p: P, id: c.clap_id, out: [*c]f64) callconv(.C) bool {
     return false;
 }
 
-fn paramsValueToText(p: P, id: c.clap_id, value: f64, out: [*c]u8, capacity: u32) callconv(.C) bool {
+fn paramsValueToText(p: P, id: c.clap_id, value: f64, out: [*c]u8, capacity: u32) callconv(.c) bool {
     const self = Plugin.from(p);
     const buf = out[0..capacity];
     if (engine.paramIndexOfId(id)) |index| {
@@ -1072,25 +1072,25 @@ fn paramsValueToText(p: P, id: c.clap_id, value: f64, out: [*c]u8, capacity: u32
     }
     if (extraIndexOfId(id)) |extra| {
         switch (extra) {
-            0, extra_split => _ = std.fmt.bufPrintZ(buf, "{s}", .{if (value >= 0.5) "On" else "Off"}) catch return false,
+            0, extra_split => _ = std.mem.printSentinel(buf, "{s}", .{if (value >= 0.5) "On" else "Off"}, 0) catch return false,
             extra_scene => {
                 const v: u8 = @intFromFloat(std.math.clamp(@round(value), 0, scenes.max_scenes));
                 if (v == 0) {
-                    _ = std.fmt.bufPrintZ(buf, "None", .{}) catch return false;
+                    _ = std.mem.printSentinel(buf, "None", .{}, 0) catch return false;
                 } else if (self.scene_list.get(v)) |scene| {
-                    _ = std.fmt.bufPrintZ(buf, "{d} {s}", .{ v, scene.name() }) catch return false;
+                    _ = std.mem.printSentinel(buf, "{d} {s}", .{ v, scene.name() }, 0) catch return false;
                 } else {
-                    _ = std.fmt.bufPrintZ(buf, "{d} (empty)", .{v}) catch return false;
+                    _ = std.mem.printSentinel(buf, "{d} (empty)", .{v}, 0) catch return false;
                 }
             },
-            else => _ = std.fmt.bufPrintZ(buf, "{d:.1} dB", .{value}) catch return false,
+            else => _ = std.mem.printSentinel(buf, "{d:.1} dB", .{value}, 0) catch return false,
         }
         return true;
     }
     return false;
 }
 
-fn paramsTextToValue(p: P, id: c.clap_id, text: [*c]const u8, out: [*c]f64) callconv(.C) bool {
+fn paramsTextToValue(p: P, id: c.clap_id, text: [*c]const u8, out: [*c]f64) callconv(.c) bool {
     _ = p;
     _ = id;
     const s = std.mem.trim(u8, std.mem.span(text), " ");
@@ -1110,7 +1110,7 @@ fn paramsTextToValue(p: P, id: c.clap_id, text: [*c]const u8, out: [*c]f64) call
 
 /// Parameter changes that arrive while the plugin is not processing: they are
 /// stored, and a recall is queued for when processing resumes.
-fn paramsFlush(p: P, in_events: [*c]const c.clap_input_events_t, out_events: [*c]const c.clap_output_events_t) callconv(.C) void {
+fn paramsFlush(p: P, in_events: [*c]const c.clap_input_events_t, out_events: [*c]const c.clap_output_events_t) callconv(.c) void {
     _ = out_events;
     const self = Plugin.from(p);
     if (self.processing) return;
@@ -1136,14 +1136,14 @@ fn paramsFlush(p: P, in_events: [*c]const c.clap_input_events_t, out_events: [*c
     if (changed) _ = self.shared.scene_gen.fetchAdd(1, .release);
 }
 
-fn latencyGet(p: P) callconv(.C) u32 {
+fn latencyGet(p: P) callconv(.c) u32 {
     return Plugin.from(p).latencyFrames();
 }
 
-fn stateSave(p: P, stream: [*c]const c.clap_ostream_t) callconv(.C) bool {
+fn stateSave(p: P, stream: [*c]const c.clap_ostream_t) callconv(.c) bool {
     const self = Plugin.from(p);
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(allocator);
     state.write(buf.writer(), self.shared, &self.settings, self.scene_list) catch return false;
     const write = stream.*.write orelse return false;
     var done: usize = 0;
@@ -1155,17 +1155,17 @@ fn stateSave(p: P, stream: [*c]const c.clap_ostream_t) callconv(.C) bool {
     return true;
 }
 
-fn stateLoad(p: P, stream: [*c]const c.clap_istream_t) callconv(.C) bool {
+fn stateLoad(p: P, stream: [*c]const c.clap_istream_t) callconv(.c) bool {
     const self = Plugin.from(p);
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(allocator);
     const read = stream.*.read orelse return false;
     var chunk: [4096]u8 = undefined;
     while (true) {
         const n = read(stream, &chunk, chunk.len);
         if (n < 0) return false;
         if (n == 0) break;
-        buf.appendSlice(chunk[0..@intCast(n)]) catch return false;
+        buf.appendSlice(allocator, chunk[0..@intCast(n)]) catch return false;
     }
     var reader = std.io.fixedBufferStream(buf.items);
     state.read(reader.reader(), self.shared, &self.settings, self.scene_list) catch |err| {
@@ -1180,7 +1180,7 @@ fn stateLoad(p: P, stream: [*c]const c.clap_istream_t) callconv(.C) bool {
     return true;
 }
 
-fn presetFromLocation(p: P, kind: u32, location: [*c]const u8, load_key: [*c]const u8) callconv(.C) bool {
+fn presetFromLocation(p: P, kind: u32, location: [*c]const u8, load_key: [*c]const u8) callconv(.c) bool {
     _ = load_key;
     if (kind != c.CLAP_PRESET_DISCOVERY_LOCATION_FILE) return false;
     const self = Plugin.from(p);
@@ -1193,7 +1193,7 @@ fn presetFromLocation(p: P, kind: u32, location: [*c]const u8, load_key: [*c]con
     return true;
 }
 
-fn guiIsApiSupported(p: P, api: [*c]const u8, is_floating: bool) callconv(.C) bool {
+fn guiIsApiSupported(p: P, api: [*c]const u8, is_floating: bool) callconv(.c) bool {
     _ = p;
     log.info("gui api asked: {s}, floating {}", .{ std.mem.span(api), is_floating });
     return std.mem.eql(u8, std.mem.span(api), platformApi());
@@ -1207,7 +1207,7 @@ fn platformApi() []const u8 {
     };
 }
 
-fn guiGetPreferredApi(p: P, api: [*c][*c]const u8, is_floating: [*c]bool) callconv(.C) bool {
+fn guiGetPreferredApi(p: P, api: [*c][*c]const u8, is_floating: [*c]bool) callconv(.c) bool {
     _ = p;
     api.* = switch (@import("builtin").os.tag) {
         .macos => &c.CLAP_WINDOW_API_COCOA,
@@ -1218,81 +1218,81 @@ fn guiGetPreferredApi(p: P, api: [*c][*c]const u8, is_floating: [*c]bool) callco
     return true;
 }
 
-fn guiCreate(p: P, api: [*c]const u8, is_floating: bool) callconv(.C) bool {
+fn guiCreate(p: P, api: [*c]const u8, is_floating: bool) callconv(.c) bool {
     _ = p;
     log.info("gui create: api {s}, floating {}", .{ std.mem.span(api), is_floating });
     return std.mem.eql(u8, std.mem.span(api), platformApi());
 }
 
-fn guiDestroy(p: P) callconv(.C) void {
+fn guiDestroy(p: P) callconv(.c) void {
     const self = Plugin.from(p);
     log.info("gui destroy (tick {d}, panel open {})", .{ self.ticks, self.ui.open });
     ui.close(self);
 }
 
-fn guiSetScale(p: P, scale: f64) callconv(.C) bool {
+fn guiSetScale(p: P, scale: f64) callconv(.c) bool {
     _ = p;
     _ = scale;
     return false;
 }
 
-fn guiGetSize(p: P, width: [*c]u32, height: [*c]u32) callconv(.C) bool {
+fn guiGetSize(p: P, width: [*c]u32, height: [*c]u32) callconv(.c) bool {
     _ = p;
     width.* = embedded_width;
     height.* = embedded_height;
     return true;
 }
 
-fn guiCanResize(p: P) callconv(.C) bool {
+fn guiCanResize(p: P) callconv(.c) bool {
     _ = p;
     return false;
 }
 
-fn guiGetResizeHints(p: P, hints: [*c]c.clap_gui_resize_hints_t) callconv(.C) bool {
+fn guiGetResizeHints(p: P, hints: [*c]c.clap_gui_resize_hints_t) callconv(.c) bool {
     _ = p;
     _ = hints;
     return false;
 }
 
-fn guiAdjustSize(p: P, width: [*c]u32, height: [*c]u32) callconv(.C) bool {
+fn guiAdjustSize(p: P, width: [*c]u32, height: [*c]u32) callconv(.c) bool {
     _ = p;
     width.* = embedded_width;
     height.* = embedded_height;
     return true;
 }
 
-fn guiSetSize(p: P, width: u32, height: u32) callconv(.C) bool {
+fn guiSetSize(p: P, width: u32, height: u32) callconv(.c) bool {
     _ = p;
     _ = width;
     _ = height;
     return true;
 }
 
-fn guiSetParent(p: P, window: [*c]const c.clap_window_t) callconv(.C) bool {
+fn guiSetParent(p: P, window: [*c]const c.clap_window_t) callconv(.c) bool {
     _ = window;
     log.info("gui set_parent (tick {d})", .{Plugin.from(p).ticks});
     return true;
 }
 
-fn guiSetTransient(p: P, window: [*c]const c.clap_window_t) callconv(.C) bool {
+fn guiSetTransient(p: P, window: [*c]const c.clap_window_t) callconv(.c) bool {
     _ = p;
     _ = window;
     return true;
 }
 
-fn guiSuggestTitle(p: P, title: [*c]const u8) callconv(.C) void {
+fn guiSuggestTitle(p: P, title: [*c]const u8) callconv(.c) void {
     _ = p;
     _ = title;
 }
 
-fn guiShow(p: P) callconv(.C) bool {
+fn guiShow(p: P) callconv(.c) bool {
     const self = Plugin.from(p);
     log.info("gui show (tick {d}, panel open {})", .{ self.ticks, self.ui.open });
     ui.open(self);
     return true;
 }
 
-fn guiHide(p: P) callconv(.C) bool {
+fn guiHide(p: P) callconv(.c) bool {
     const self = Plugin.from(p);
     log.info("gui hide (tick {d}, panel open {})", .{ self.ticks, self.ui.open });
     ui.close(self);
@@ -1302,7 +1302,7 @@ fn guiHide(p: P) callconv(.C) bool {
 // ---- REAPER's timer ----
 
 /// Runs on REAPER's main thread about thirty times a second.
-pub fn onTimer() callconv(.C) void {
+pub fn onTimer() callconv(.c) void {
     for (instances) |maybe| {
         const self = maybe orelse continue;
         self.tickMain();

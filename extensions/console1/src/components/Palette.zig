@@ -25,18 +25,20 @@ var titleBuf: [512:0]u8 = undefined;
 pub fn Palette(ctx: imgui.ContextPtr, cur_col: *c_int, name: [:0]const u8) !bool {
     var rv = false;
 
-    const popupTitle = try std.fmt.bufPrintZ(
+    const popupTitle = try std.mem.printSentinel(
         &titleBuf,
         "{s}{s}",
         .{ content.themePalette, name },
+        0,
     );
     {
         try imgui.PushStyleColor(.{ ctx, imgui.Col_Button, cur_col.* });
         defer imgui.PopStyleColor(.{ctx}) catch {};
-        const themePaletteTag = try std.fmt.bufPrintZ(
+        const themePaletteTag = try std.mem.printSentinel(
             &buf,
             "{s}{s}",
             .{ content.themePaletteTag, name },
+            0,
         );
         if (try imgui.Button(.{ ctx, @as(
             [*:0]const u8,
@@ -52,10 +54,11 @@ pub fn Palette(ctx: imgui.ContextPtr, cur_col: *c_int, name: [:0]const u8) !bool
         defer imgui.EndPopup(.{ctx}) catch {};
         try imgui.Separator(.{ctx});
 
-        const pickerTag = try std.fmt.bufPrintZ(
+        const pickerTag = try std.mem.printSentinel(
             &buf,
             "{s}{s}",
             .{ content.pickerTag, name },
+            0,
         );
         if (try imgui.ColorPicker4(.{ ctx, @as([*:0]const u8, pickerTag), cur_col, imgui.ColorEditFlags_NoSidePreview | imgui.ColorEditFlags_NoSmallPreview })) {
             cur_col.* = try imgui.ColorConvertNative(.{cur_col.*});

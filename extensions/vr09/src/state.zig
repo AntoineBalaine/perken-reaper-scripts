@@ -49,10 +49,10 @@ pub const Settings = struct {
     /// Whether the current patch splits the keyboard at middle C, which
     /// decides the part each note goes to (see split.zig).
     split: Atomic(bool) = Atomic(bool).init(false),
-    preset_name: [64:0]u8 = [_:0]u8{0} ** 64,
+    preset_name: [64:0]u8 = @splat(0),
     /// The name under which the current patch's split is remembered. It is the patch's name, except for a scene
     /// of the library, whose name the player may change while its patch keeps the key it was loaded under.
-    split_key: [64:0]u8 = [_:0]u8{0} ** 64,
+    split_key: [64:0]u8 = @splat(0),
 
     pub fn sendDb(self: *const Settings) f32 {
         return @bitCast(self.send_db_bits.load(.monotonic));
@@ -105,7 +105,7 @@ pub fn write(writer: anytype, shared: *const engine.Shared, settings: *const Set
 
     var scene: dump.Dump = undefined;
     shared.desiredSnapshot(&scene);
-    var bits: [(dump.total_bytes + 7) / 8]u8 = [_]u8{0} ** ((dump.total_bytes + 7) / 8);
+    var bits: [(dump.total_bytes + 7) / 8]u8 = @splat(0);
     for (scene.known, 0..) |k, i| {
         if (k) bits[i / 8] |= @as(u8, 1) << @intCast(i % 8);
     }
@@ -257,10 +257,10 @@ pub fn loadPresetFile(allocator: std.mem.Allocator, path: []const u8, out: *dump
 }
 
 pub fn savePresetFile(allocator: std.mem.Allocator, path: []const u8, scene: *const dump.Dump) !void {
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(allocator);
     try dump.writeJson(allocator, scene, buf.writer());
-    try buf.append('\n');
+    try buf.append(allocator, '\n');
     try fileio.writeAll(path, buf.items);
 }
 
@@ -308,8 +308,8 @@ test "the project state survives a round trip" {
     _ = patch.set(.kb, 0x02 << 14 | 5, 3);
     _ = try list.add("Verse", &patch);
 
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
+    var buf: std.ArrayList(u8) = .empty;
+    defer buf.deinit(allocator);
     try write(buf.writer(), shared, &settings, list);
 
     const shared2 = try allocator.create(engine.Shared);

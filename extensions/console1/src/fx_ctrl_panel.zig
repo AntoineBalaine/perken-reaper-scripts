@@ -96,7 +96,7 @@ fn toWidgetInput(result: Knobs.KnobResult, cc: c1.CCs, normalized: f64, fx_state
         .active => return .{ .cc = cc, .value = normalized },
         .value_dclick => {
             fx_state.editing_cc = cc;
-            const written = std.fmt.bufPrintZ(&fx_state.edit_buf, "{d:.4}", .{normalized}) catch "";
+            const written = std.mem.printSentinel(&fx_state.edit_buf, "{d:.4}", .{normalized}, 0) catch "";
             @memset(fx_state.edit_buf[written.len..], 0);
             return null;
         },
@@ -191,7 +191,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
         const gain_no_val_display = gain_disabled or value_display_disabled;
         const label_id = Knobs.LabelId{
             .label = if (gain_is_fx) pool.getPrmLabel(.Inpt_Gain) else "-",
-            .id = try std.fmt.bufPrintZ(id_buf, "Inpt_Gain", .{}),
+            .id = try std.mem.printSentinel(id_buf, "Inpt_Gain", .{}, 0),
             .value_text = if (gain_is_fx) pool.getFmtValue(.Inpt_Gain) else null,
         };
         var offsets = [_]?f64{null};
@@ -247,7 +247,7 @@ fn inputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transpo
             const hicut_no_val_display = hicut_disabled or value_display_disabled;
             const hicut_label_id = Knobs.LabelId{
                 .label = if (hicut_is_fx) inpt_pool.getPrmLabel(hicut_pool_cc) else if (hicut_is_transport) tr(translations, .trsprt_Inpt_HiCut) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Inpt_HiCut", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Inpt_HiCut", .{}, 0),
                 .value_text = if (hicut_is_fx) inpt_pool.getFmtValue(hicut_pool_cc) else null,
             };
 
@@ -358,7 +358,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
             const gate_no_val_display = gate_disabled or value_display_disabled;
             const label_id = Knobs.LabelId{
                 .label = if (gate_is_fx) pool.getPrmLabel(.Shp_Gate) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Shp_Gate", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Shp_Gate", .{}, 0),
                 .value_text = if (gate_is_fx) pool.getFmtValue(.Shp_Gate) else null,
             };
             var offsets = [_]?f64{null};
@@ -397,7 +397,7 @@ fn gatePanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
             const release_no_val_display = release_disabled or value_display_disabled;
             const release_label_id = Knobs.LabelId{
                 .label = if (shp_is_fx) shp_pool.getPrmLabel(.Shp_GateRelease) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Shp_GateRelease", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Shp_GateRelease", .{}, 0),
                 .value_text = if (shp_is_fx) shp_pool.getFmtValue(.Shp_GateRelease) else null,
             };
 
@@ -491,7 +491,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             const lofreq_no_val_display = lofreq_disabled or value_display_disabled;
             const lofreq_label_id = Knobs.LabelId{
                 .label = if (eq_is_fx) eq_pool.getPrmLabel(.Eq_LoFrq) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Eq_LoFrq", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Eq_LoFrq", .{}, 0),
                 .value_text = if (eq_is_fx) eq_pool.getFmtValue(.Eq_LoFrq) else null,
             };
 
@@ -549,7 +549,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             const lomidq_no_val_display = lomidq_disabled or value_display_disabled;
             const lomidq_label_id = Knobs.LabelId{
                 .label = if (eq2_is_fx) eq2_pool.getPrmLabel(.Eq_LoMidQ) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Eq_LoMidQ", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Eq_LoMidQ", .{}, 0),
                 .value_text = if (eq2_is_fx) eq2_pool.getFmtValue(.Eq_LoMidQ) else null,
             };
 
@@ -628,7 +628,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             const himidq_no_val_display = himidq_disabled or value_display_disabled;
             const himidq_label_id = Knobs.LabelId{
                 .label = if (eq3_is_fx) eq3_pool.getPrmLabel(.Eq_HiMidQ) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Eq_HiMidQ", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Eq_HiMidQ", .{}, 0),
                 .value_text = if (eq3_is_fx) eq3_pool.getFmtValue(.Eq_HiMidQ) else null,
             };
 
@@ -713,7 +713,7 @@ fn eqPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transport:
             const hifreq_no_val_display = hifreq_disabled or value_display_disabled;
             const hifreq_label_id = Knobs.LabelId{
                 .label = if (eq4_is_fx) eq4_pool.getPrmLabel(.Eq_HiFrq) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Eq_HiFrq", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Eq_HiFrq", .{}, 0),
                 .value_text = if (eq4_is_fx) eq4_pool.getFmtValue(.Eq_HiFrq) else null,
             };
 
@@ -786,7 +786,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
             const ratio_no_val_display = ratio_disabled or value_display_disabled;
             const ratio_label_id = Knobs.LabelId{
                 .label = if (comp_is_fx) comp_pool.getPrmLabel(.Comp_Ratio) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Comp_Ratio", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Comp_Ratio", .{}, 0),
                 .value_text = if (comp_is_fx) comp_pool.getFmtValue(.Comp_Ratio) else null,
             };
 
@@ -842,7 +842,7 @@ fn compPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, id_buf: 
             const attack_no_val_display = attack_disabled or value_display_disabled;
             const attack_label_id = Knobs.LabelId{
                 .label = if (comp2_is_fx) comp2_pool.getPrmLabel(.Comp_Attack) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Comp_Attack", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Comp_Attack", .{}, 0),
                 .value_text = if (comp2_is_fx) comp2_pool.getFmtValue(.Comp_Attack) else null,
             };
 
@@ -945,7 +945,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                     .@"S-C-EQ" => .@"S-EQ-C",
                     .@"S-EQ-C" => .@"EQ-S-C",
                 };
-                rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@intFromEnum(next_order))) };
+                rv = .{ .cc = .Tr_order, .value = @as(f64, @floatFromInt(@backingInt(next_order))) };
             }
         }
         {
@@ -957,7 +957,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const drive_no_val_display = drive_disabled or value_display_disabled;
             const drive_label_id = Knobs.LabelId{
                 .label = if (out_is_fx) out_pool.getPrmLabel(.Out_Drive) else if (out_is_transport) tr(translations, .trsprt_Out_Drive) else "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Out_Drive", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Out_Drive", .{}, 0),
                 .value_text = if (out_is_fx) out_pool.getFmtValue(.Out_Drive) else null,
             };
 
@@ -1065,7 +1065,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
                     .toShape => .toComp,
                     .toComp => .off,
                 };
-                rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@intFromEnum(next_routing))) };
+                rv = .{ .cc = .Tr_ext_sidechain, .value = @as(f64, @floatFromInt(@backingInt(next_routing))) };
             }
         }
         {
@@ -1109,7 +1109,7 @@ fn outputPanel(ctx: imgui.ContextPtr, mode: Mode, fx_state: *FxCtrlState, transp
             const vol_no_val_display = vol_disabled or value_display_disabled;
             const label_id = Knobs.LabelId{
                 .label = vol_label orelse "-",
-                .id = try std.fmt.bufPrintZ(id_buf, "Out_Vol", .{}),
+                .id = try std.mem.printSentinel(id_buf, "Out_Vol", .{}, 0),
             };
             var offsets = [_]?f64{null};
             const max_width = try getMaxLabelWidth(ctx, &[_][:0]const u8{label_id.label}, &offsets);

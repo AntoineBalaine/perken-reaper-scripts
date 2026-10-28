@@ -58,7 +58,7 @@ pub fn trackListAction(globals: *Globals, action: TrackListAction) void {
 
                 // If track is selected, blink its LED
                 if (globals.state.selectedTracks.contains(track_id)) {
-                    const cc = @intFromEnum(c1.CCs.Tr_tr1) + @as(u8, @intCast(i));
+                    const cc = @backingInt(c1.CCs.Tr_tr1) + @as(u8, @intCast(i));
                     const value: u8 = if (led_state.blink_state) 0x7f else 0x0;
                     c.MidiOut_Send(led_state.midi_out, 0xb0, cc, value, -1);
                 }
@@ -86,7 +86,7 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
             if (track_num >= page_start and
                 track_num < page_start + TrackList.PageSize)
             {
-                const cc = @intFromEnum(c1.Tracks.Tr_tr1) +
+                const cc = @backingInt(c1.Tracks.Tr_tr1) +
                     (track_num - page_start);
                 try midi_out.send(0xB0, cc, 0x7F);
             }
@@ -98,7 +98,7 @@ fn updateTrackLEDs(state: *State, midi_out: *reaper.midi_Output) !void {
         if (track_id >= page_start and
             track_id < page_start + TrackList.PageSize)
         {
-            const cc = @intFromEnum(c1.Tracks.Tr_tr1) +
+            const cc = @backingInt(c1.Tracks.Tr_tr1) +
                 (track_id - page_start);
             try midi_out.send(0xB0, cc, 0x7F);
         }
@@ -199,8 +199,8 @@ fn focusPageTracks(globals: *Globals) void {
 /// plugin_getapi at runtime) followed by SendMessage(WM_VSCROLL) to
 /// match the pattern used by the SWS extension.
 fn scrollArrangeTCPToTrack(arrange_hwnd: c.HWND, target_csurf_id: c_int) void {
-    const CoolSB_SetScrollInfoFn = *fn (c.HWND, c_int, *c.SCROLLINFO, c_int) callconv(.C) c_int;
-    const CoolSB_GetScrollInfoFn = *fn (c.HWND, c_int, *c.SCROLLINFO) callconv(.C) c_int;
+    const CoolSB_SetScrollInfoFn = *fn (c.HWND, c_int, *c.SCROLLINFO, c_int) callconv(.c) c_int;
+    const CoolSB_GetScrollInfoFn = *fn (c.HWND, c_int, *c.SCROLLINFO) callconv(.c) c_int;
 
     const set_fn_ptr = reaper.plugin_getapi("CoolSB_SetScrollInfo");
     const get_fn_ptr = reaper.plugin_getapi("CoolSB_GetScrollInfo");

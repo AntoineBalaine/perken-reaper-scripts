@@ -80,7 +80,7 @@ mode: TrackMode = .{ .multi_fx = ModuleLocations.initFill(null) },
 reverse_map: std.AutoArrayHashMapUnmanaged(u32, c1.CCs) = .empty,
 forward_map: std.AutoArrayHashMapUnmanaged(c1.CCs, FxParam) = .empty,
 label_pool: LabelPool = .empty,
-step_accum: [LabelPool.COUNT]f64 = [_]f64{0.0} ** LabelPool.COUNT,
+step_accum: [LabelPool.COUNT]f64 = @splat(0.0),
 
 pub fn deinitMaps(self: *TrackState, allocator: std.mem.Allocator) void {
     self.reverse_map.deinit(allocator);
@@ -397,7 +397,7 @@ fn tryInsertDefaultStrip(
     if (new_idx < 0) return false;
 
     var name_buf: [512:0]u8 = undefined;
-    const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-X)", .{strip_fx_name}) catch return false;
+    const new_name = std.mem.printSentinel(&name_buf, "{s} (C1-X)", .{strip_fx_name}, 0) catch return false;
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ mediaTrack, new_idx, "renamed_name", new_name });
 
     const strip_name_z: [:0]const u8 = strip_fx_name;
@@ -432,15 +432,15 @@ pub fn populateMapsFromMapping(
 ) void {
     switch (tagged_mapping) {
         inline else => |mapping| {
-            inline for (std.meta.fields(@TypeOf(mapping))) |field| {
-                if (comptime std.mem.eql(u8, field.name, "version")) continue;
-                if (comptime !@hasField(c1.CCs, field.name)) continue;
-                if (@field(mapping, field.name)) |param_idx| {
+            inline for (@typeInfo(@TypeOf(mapping)).@"struct".field_names) |field_name| {
+                if (comptime std.mem.eql(u8, field_name, "version")) continue;
+                if (comptime !@hasField(c1.CCs, field_name)) continue;
+                if (@field(mapping, field_name)) |param_idx| {
                     const key: u32 = @bitCast(ParamKey{
                         .fx_index = @intCast(fx_index),
                         .param_index = param_idx,
                     });
-                    const cc = @field(c1.CCs, field.name);
+                    const cc = @field(c1.CCs, field_name);
                     reverse_map.put(allocator, key, cc) catch {};
                     forward_map.put(allocator, cc, .{
                         .fx_index = fx_index,
@@ -862,7 +862,7 @@ test "reorderFx2 - empty track to full chain" {
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
-        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
+        default_fx.set(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module)))), fallback_map.get(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module))))));
     }
 
     const result_coverage = reorderFx2(empty_coverage, track, default_fx, .empty);
@@ -909,7 +909,7 @@ test "reorderFx2 - partial chain with INPUT and OUTPT" {
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
-        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
+        default_fx.set(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module)))), fallback_map.get(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module))))));
     }
 
     const result_coverage = reorderFx2(partial_coverage, track, default_fx, .empty);
@@ -976,7 +976,7 @@ test "reorderFx2 - chain already in correct order" {
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
-        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
+        default_fx.set(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module)))), fallback_map.get(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module))))));
     }
 
     const result_coverage = reorderFx2(correct_coverage, track, default_fx, .empty);
@@ -1038,7 +1038,7 @@ test "reorderFx2 - wrong order needs reordering" {
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
-        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
+        default_fx.set(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module)))), fallback_map.get(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module))))));
     }
 
     const result_coverage = reorderFx2(wrong_coverage, track, default_fx, .empty);
@@ -1095,7 +1095,7 @@ test "updateTrackState - module_locations populated correctly" {
     const fallback_map = settings_mod.fallback_defaults;
     var default_fx = DefaultFx.initFill(null);
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
-        default_fx.set(@as(ModulesList, @enumFromInt(@intFromEnum(module))), fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))));
+        default_fx.set(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module)))), fallback_map.get(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module))))));
     }
 
     // proper absolute path for MapStore
@@ -1308,16 +1308,16 @@ pub fn removeDuplicateModule(fx_index: i32, media_track: MediaTrack) void {
     }
 
     // Remove suffix and maintain proper spacing
-    _ = std.fmt.bufPrintZ(&buf, "{s}{s}", .{
+    _ = std.mem.printSentinel(&buf, "{s}{s}", .{
         fx_name[0..prefix_end],
         if (suffix_end + 1 < fx_name.len) fx_name[suffix_end + 1 ..] else "",
-    }) catch return;
+    }, 0) catch return;
 
     _ = pReaper.TrackFX_SetNamedConfigParm(.{ media_track, fx_index, "renamed_name", @as([:0]const u8, @ptrCast(&buf)) });
 }
 
 fn moduleToSuffix(buf: *[64:0]u8, comptime field_name: []const u8) ![:0]const u8 {
-    return std.fmt.bufPrintZ(
+    return std.mem.printSentinel(
         buf,
         "(C1-{c})",
         .{if (comptime std.mem.eql(u8, field_name, "INPUT"))
@@ -1332,6 +1332,7 @@ fn moduleToSuffix(buf: *[64:0]u8, comptime field_name: []const u8) ![:0]const u8
             'O'
         else
             unreachable},
+        0,
     );
 }
 
@@ -1348,8 +1349,8 @@ pub fn updateTrackState(
     track_state.fx_count = 0;
     var locs = ModuleLocations.initFill(null);
 
-    inline for (std.meta.fields(ModuleCoverage)) |field| {
-        if (@field(coverage, field.name)) |location| {
+    inline for (@typeInfo(ModuleCoverage).@"struct".field_names) |field_name| {
+        if (@field(coverage, field_name)) |location| {
             _ = reaper.TrackFX_GetNamedConfigParm(
                 mediaTrack,
                 location.index,
@@ -1358,8 +1359,8 @@ pub fn updateTrackState(
                 buf.len,
             );
 
-            const phys_module = @field(PhysicalModule, field.name);
-            const module = @field(ModulesList, field.name);
+            const phys_module = @field(PhysicalModule, field_name);
+            const module = @field(ModulesList, field_name);
             const tagged_mapping = map_store.get(std.mem.span(@as([*:0]const u8, buf)), module, mappings_list);
             locs.set(phys_module, .{
                 .fx_index = location.index,
@@ -1379,7 +1380,7 @@ pub fn updateTrackState(
             }
 
             var modules = ActiveModules{};
-            @field(modules, field.name) = true;
+            @field(modules, field_name) = true;
 
             track_state.fx_states[track_state.fx_count] = .{
                 .fx_index = location.index,
@@ -1412,7 +1413,7 @@ fn insertModuleLinkedFx(
     if (add_result >= 0) {
         // Set module suffix
         var name_buf: [512:0]u8 = undefined;
-        const new_name = std.fmt.bufPrintZ(&name_buf, "{s} (C1-{s})", .{ fx_name, module.toModulePrefix() }) catch {
+        const new_name = std.mem.printSentinel(&name_buf, "{s} (C1-{s})", .{ fx_name, module.toModulePrefix() }, 0) catch {
             _ = reaper.TrackFX_Delete(mediaTrack, add_result);
             return null;
         };
@@ -1450,8 +1451,8 @@ fn insertModuleLinkedFx(
 /// REAPER's TrackFX_CopyToTrack destination index is the final position after the move,
 /// not pre-removal. So moving from 0 to 2 places the FX at index 2.
 fn applyMove(coverage: *ModuleCoverage, from_index: i32, to_index: i32) void {
-    inline for (std.meta.fields(ModuleCoverage)) |field| {
-        const field_ptr = &@field(coverage, field.name);
+    inline for (@typeInfo(ModuleCoverage).@"struct".field_names) |field_name| {
+        const field_ptr = &@field(coverage, field_name);
         if (field_ptr.*) |*loc| {
             if (from_index < to_index) {
                 // Moving right: items in (from_index, to_index] shift left by 1
@@ -1472,8 +1473,8 @@ fn applyMove(coverage: *ModuleCoverage, from_index: i32, to_index: i32) void {
 /// Because inserting an FX shifts all subsequent FX to the right,
 /// this affects indices of FX at or after the insert position.
 fn applyInsert(coverage: *ModuleCoverage, insert_index: i32) void {
-    inline for (std.meta.fields(ModuleCoverage)) |field| {
-        const field_ptr = &@field(coverage, field.name);
+    inline for (@typeInfo(ModuleCoverage).@"struct".field_names) |field_name| {
+        const field_ptr = &@field(coverage, field_name);
         if (field_ptr.*) |*loc| {
             // Items at or after insert position shift right by 1
             if (loc.index >= insert_index) {
@@ -1493,8 +1494,8 @@ fn updateCoveragePositions(coverage: *ModuleCoverage, mediaTrack: MediaTrack) vo
 
         // Check if this FX matches any of our covered modules
         blk: {
-            inline for (std.meta.fields(ModuleCoverage)) |field| {
-                if (@field(coverage, field.name)) |*location| {
+            inline for (@typeInfo(ModuleCoverage).@"struct".field_names) |field_name| {
+                if (@field(coverage, field_name)) |*location| {
                     if (std.mem.eql(u8, &guid.bytes, &location.guid.bytes)) {
                         location.index = i;
                         break :blk; // Break out of the comparison block once we find a match
@@ -1516,8 +1517,8 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
             const insert_pos = blk: {
                 var min_pos: i32 = std.math.maxInt(i32);
                 var found_any = false;
-                inline for (std.meta.fields(ModuleCoverage)) |field| {
-                    if (@field(coverage, field.name)) |pos| {
+                inline for (@typeInfo(ModuleCoverage).@"struct".field_names) |field_name| {
+                    if (@field(coverage, field_name)) |pos| {
                         min_pos = @min(min_pos, pos.index);
                         found_any = true;
                     }
@@ -1604,8 +1605,8 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
         if (coverage.OUTPT == null) {
             const insert_pos = blk: {
                 var high_pos: i32 = -1;
-                inline for (std.meta.fields(ModuleCoverage)) |field| {
-                    if (@field(coverage, field.name)) |pos| {
+                inline for (@typeInfo(ModuleCoverage).@"struct".field_names) |field_name| {
+                    if (@field(coverage, field_name)) |pos| {
                         high_pos = @max(high_pos, pos.index);
                     }
                 }
@@ -1680,9 +1681,9 @@ pub fn reorderFx2(cvrg: ModuleCoverage, mediaTrack: MediaTrack, default_fx: Defa
         if (coverage.OUTPT) |outpt| {
             // Find the highest index among other modules
             var max_other_index: i32 = -1;
-            inline for (std.meta.fields(ModuleCoverage)) |field| {
-                if (!std.mem.eql(u8, field.name, "OUTPT")) {
-                    if (@field(coverage, field.name)) |loc| {
+            inline for (@typeInfo(ModuleCoverage).@"struct".field_names) |field_name| {
+                if (!std.mem.eql(u8, field_name, "OUTPT")) {
+                    if (@field(coverage, field_name)) |loc| {
                         max_other_index = @max(max_other_index, loc.index);
                     }
                 }
@@ -1718,9 +1719,9 @@ fn toOrderedSuffix(current_modules: ActiveModules, new_module: ModulesList, buf:
 
     var len: usize = 0;
     // Fields are already defined in the desired order: INPUT, GATE, EQ, COMP, OUTPT
-    inline for (std.meta.fields(ActiveModules)) |field| {
-        if (@field(active_modules, field.name)) {
-            const module = @field(ModulesList, field.name);
+    inline for (@typeInfo(ActiveModules).@"struct".field_names) |field_name| {
+        if (@field(active_modules, field_name)) {
+            const module = @field(ModulesList, field_name);
             buf[len] = module.toModulePrefixChar();
             len += 1;
         }
@@ -1840,8 +1841,8 @@ fn createDefaultFx() DefaultFx {
     var default_fx = DefaultFx.initFill(null);
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
         default_fx.set(
-            @as(ModulesList, @enumFromInt(@intFromEnum(module))),
-            fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))),
+            @as(ModulesList, @fromBackingInt(@intCast(@backingInt(module)))),
+            fallback_map.get(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module))))),
         );
     }
     return default_fx;
@@ -1886,10 +1887,10 @@ test "reorderFx2 - property-based ordering validation" {
 
             // Set module suffix
             var buf: [256:0]u8 = undefined;
-            const renamed = std.fmt.bufPrintZ(&buf, "{s} (C1-{s})", .{
+            const renamed = std.mem.printSentinel(&buf, "{s} (C1-{s})", .{
                 fx_name,
                 module.toModulePrefix(),
-            }) catch unreachable;
+            }, 0) catch unreachable;
             _ = reaper.TrackFX_SetNamedConfigParm(track, idx, "renamed_name", renamed);
         }
 
@@ -1949,8 +1950,8 @@ test "reorderFx2 - auto_insert_modules disabled" {
     var default_fx = DefaultFx.initFill(null);
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
         default_fx.set(
-            @as(ModulesList, @enumFromInt(@intFromEnum(module))),
-            fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))),
+            @as(ModulesList, @fromBackingInt(@intCast(@backingInt(module)))),
+            fallback_map.get(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module))))),
         );
     }
 
@@ -1981,8 +1982,8 @@ test "reorderFx2 - auto_reorder_modules disabled" {
     var default_fx = DefaultFx.initFill(null);
     inline for (comptime std.enums.values(PhysicalModule)) |module| {
         default_fx.set(
-            @as(ModulesList, @enumFromInt(@intFromEnum(module))),
-            fallback_map.get(@as(ModulesList, @enumFromInt(@intFromEnum(module)))),
+            @as(ModulesList, @fromBackingInt(@intCast(@backingInt(module)))),
+            fallback_map.get(@as(ModulesList, @fromBackingInt(@intCast(@backingInt(module))))),
         );
     }
 

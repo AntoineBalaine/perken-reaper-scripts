@@ -24,16 +24,16 @@ const tone_picker = @import("tone_picker.zig");
 pub const State = struct {
     /// The tone chosen for each part, and the text of its search field. The plugin has no tone parameter
     /// yet, so the choice is only shown.
-    tone_keys: [8]u64 = [_]u64{0} ** 8,
-    tone_index: [8]usize = [_]usize{0} ** 8,
-    tone_filter: [8][tone_picker.tone_filter_cap:0]u8 = [_][tone_picker.tone_filter_cap:0]u8{[_:0]u8{0} ** tone_picker.tone_filter_cap} ** 8,
+    tone_keys: [8]u64 = @splat(0),
+    tone_index: [8]usize = @splat(0),
+    tone_filter: [8][tone_picker.tone_filter_cap:0]u8 = @splat(@splat(0)),
     /// The values that the user gave to the extras, which only the screen keeps. An extra that was not
     /// touched shows its default.
-    extra_values: [extras.params.len]i32 = [_]i32{0} ** extras.params.len,
-    extra_touched: [extras.params.len]bool = [_]bool{false} ** extras.params.len,
+    extra_values: [extras.params.len]i32 = @splat(0),
+    extra_touched: [extras.params.len]bool = @splat(false),
     /// The parts whose "Part on" switch was turned off, by the hash of the part's name.
-    part_keys: [16]u64 = [_]u64{0} ** 16,
-    part_off: [16]bool = [_]bool{false} ** 16,
+    part_keys: [16]u64 = @splat(0),
+    part_off: [16]bool = @splat(false),
 };
 
 /// What every card draws with.
@@ -175,7 +175,7 @@ const as_list_ids = [_][]const u8{ "footswitch-left", "footswitch-right", "engin
 /// otherwise, and writes the new value back. `bipolar` is true for a knob whose value rests in the middle.
 fn drawRef(ui: Ui, ref: Ref, label: []const u8, bipolar: bool) ?types.Action {
     var id: [64:0]u8 = undefined;
-    imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "ref");
+    imgui.api.PushID(ui.ctx, std.mem.printSentinel(&id, "{s}", .{ref.control.id}, 0) catch "ref");
     const value = valueOf(ui, ref);
     const change = if (ref.control.names.len > 0)
         widgets.stopKnob(ui.kit, ref.control, value, label, idIn(&as_list_ids, ref.control.id))
@@ -352,7 +352,7 @@ fn cardOfDrawbars(ui: Ui, group: []const u8, height: ?f64) ?types.Action {
     const count = collectGroup(group, &refs);
     for (refs[0..count], 0..) |ref, i| {
         var id: [64:0]u8 = undefined;
-        imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "bar");
+        imgui.api.PushID(ui.ctx, std.mem.printSentinel(&id, "{s}", .{ref.control.id}, 0) catch "bar");
         const change = widgets.drawbar(ui.kit, ref.control, valueOf(ui, ref), shortDrawbarName(ref.label), capColors(ref.control.id), false);
         imgui.api.PopID(ui.ctx);
         if (change.changed) action = setValue(ui, ref, change.value);
@@ -373,7 +373,7 @@ fn cardOfRotary(ui: Ui, height: ?f64) ?types.Action {
     for (refs[0..count], 0..) |ref, i| {
         if (i == 0) {
             var id: [64:0]u8 = undefined;
-            imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "rotary");
+            imgui.api.PushID(ui.ctx, std.mem.printSentinel(&id, "{s}", .{ref.control.id}, 0) catch "rotary");
             const change = widgets.switchControl(ui.kit, valueOf(ui, ref), "speaker speed", "FAST", "SLOW");
             imgui.api.PopID(ui.ctx);
             if (change.changed) action = setValue(ui, ref, change.value);
@@ -565,8 +565,8 @@ fn cardsOfPianoShaping(ui: Ui) ?types.Action {
 /// The controllers that rest in the middle of their range (64) are bipolar knobs: the vibrato, the pan, the
 /// cutoff, the resonance and the envelope. The others, the sends and the expression, are levels.
 const bipolar_controllers = [_][]const u8{
-    "cc-upper-vibrato-depth", "cc-upper-vibrato-rate", "cc-upper-pan",     "cc-upper-cutoff", "cc-upper-resonance",
-    "cc-upper-release",       "cc-upper-attack",       "cc-upper-decay",   "cc-lower-cutoff", "cc-lower-pan",
+    "cc-upper-vibrato-depth", "cc-upper-vibrato-rate", "cc-upper-pan",   "cc-upper-cutoff", "cc-upper-resonance",
+    "cc-upper-release",       "cc-upper-attack",       "cc-upper-decay", "cc-lower-cutoff", "cc-lower-pan",
 };
 
 /// The upper part has twelve controllers, in two rows of six, and seven on the first row once the channel
@@ -710,7 +710,7 @@ fn cardOfOrganVoicing(ui: Ui, height: ?f64) ?types.Action {
     };
     for (switches, 0..) |item, i| {
         var label: [64:0]u8 = undefined;
-        action = types.first(action, extraToggle(ui, item.id, std.fmt.bufPrintZ(&label, "{s}", .{item.text}) catch ""));
+        action = types.first(action, extraToggle(ui, item.id, std.mem.printSentinel(&label, "{s}", .{item.text}, 0) catch ""));
         if (i + 1 < switches.len) sameLine(ui.ctx);
     }
     widgets.endCard(ui.kit);
@@ -728,7 +728,7 @@ fn cardOfOrganPedal(ui: Ui, height: ?f64) void {
         first = false;
         const ref = refOfExtra(extra);
         var id: [64:0]u8 = undefined;
-        imgui.api.PushID(ui.ctx, std.fmt.bufPrintZ(&id, "{s}", .{ref.control.id}) catch "pedal");
+        imgui.api.PushID(ui.ctx, std.mem.printSentinel(&id, "{s}", .{ref.control.id}, 0) catch "pedal");
         _ = widgets.drawbar(ui.kit, ref.control, valueOf(ui, ref), shortDrawbarName(ref.label), capColors(ref.control.id), true);
         imgui.api.PopID(ui.ctx);
     }

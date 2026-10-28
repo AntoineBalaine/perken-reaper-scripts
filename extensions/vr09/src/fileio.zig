@@ -55,7 +55,7 @@ pub fn exists(path: []const u8) bool {
 /// The names (without folder) of the files in `dir` whose name ends with one
 /// of `extensions`. The names are null-terminated. The caller owns the list and the names.
 pub fn listFiles(allocator: std.mem.Allocator, dir: []const u8, extensions: []const []const u8) !std.ArrayList([:0]u8) {
-    var names = std.ArrayList([:0]u8).init(allocator);
+    var names: std.ArrayList([:0]u8) = .empty;
     errdefer freeList(allocator, &names);
     if (is_windows) {
         try win.listFilesWin(allocator, dir, extensions, &names);
@@ -67,7 +67,7 @@ pub fn listFiles(allocator: std.mem.Allocator, dir: []const u8, extensions: []co
     while (try it.next()) |entry| {
         if (entry.kind != .file) continue;
         if (!hasExtension(entry.name, extensions)) continue;
-        try names.append(try allocator.dupeZ(u8, entry.name));
+        try names.append(allocator, try allocator.dupeZ(u8, entry.name));
     }
     return names;
 }
@@ -120,18 +120,18 @@ const win = if (is_windows) struct {
         alternate: [14]u8,
     };
 
-    extern "kernel32" fn CreateFileA(name: [*:0]const u8, access: u32, share: u32, security: ?*anyopaque, disposition: u32, flags: u32, template: ?*anyopaque) callconv(.C) HANDLE;
-    extern "kernel32" fn ReadFile(h: HANDLE, buf: [*]u8, n: u32, read: *u32, overlapped: ?*anyopaque) callconv(.C) c_int;
-    extern "kernel32" fn WriteFile(h: HANDLE, buf: [*]const u8, n: u32, written: *u32, overlapped: ?*anyopaque) callconv(.C) c_int;
-    extern "kernel32" fn CloseHandle(h: HANDLE) callconv(.C) c_int;
-    extern "kernel32" fn GetFileSizeEx(h: HANDLE, size: *i64) callconv(.C) c_int;
-    extern "kernel32" fn CreateDirectoryA(name: [*:0]const u8, security: ?*anyopaque) callconv(.C) c_int;
-    extern "kernel32" fn DeleteFileA(name: [*:0]const u8) callconv(.C) c_int;
-    extern "kernel32" fn GetFileAttributesA(name: [*:0]const u8) callconv(.C) u32;
-    extern "kernel32" fn FindFirstFileA(pattern: [*:0]const u8, data: *WIN32_FIND_DATAA) callconv(.C) HANDLE;
-    extern "kernel32" fn FindNextFileA(h: HANDLE, data: *WIN32_FIND_DATAA) callconv(.C) c_int;
-    extern "kernel32" fn FindClose(h: HANDLE) callconv(.C) c_int;
-    extern "kernel32" fn GetEnvironmentVariableA(name: [*:0]const u8, buf: [*]u8, size: u32) callconv(.C) u32;
+    extern "kernel32" fn CreateFileA(name: [*:0]const u8, access: u32, share: u32, security: ?*anyopaque, disposition: u32, flags: u32, template: ?*anyopaque) callconv(.c) HANDLE;
+    extern "kernel32" fn ReadFile(h: HANDLE, buf: [*]u8, n: u32, read: *u32, overlapped: ?*anyopaque) callconv(.c) c_int;
+    extern "kernel32" fn WriteFile(h: HANDLE, buf: [*]const u8, n: u32, written: *u32, overlapped: ?*anyopaque) callconv(.c) c_int;
+    extern "kernel32" fn CloseHandle(h: HANDLE) callconv(.c) c_int;
+    extern "kernel32" fn GetFileSizeEx(h: HANDLE, size: *i64) callconv(.c) c_int;
+    extern "kernel32" fn CreateDirectoryA(name: [*:0]const u8, security: ?*anyopaque) callconv(.c) c_int;
+    extern "kernel32" fn DeleteFileA(name: [*:0]const u8) callconv(.c) c_int;
+    extern "kernel32" fn GetFileAttributesA(name: [*:0]const u8) callconv(.c) u32;
+    extern "kernel32" fn FindFirstFileA(pattern: [*:0]const u8, data: *WIN32_FIND_DATAA) callconv(.c) HANDLE;
+    extern "kernel32" fn FindNextFileA(h: HANDLE, data: *WIN32_FIND_DATAA) callconv(.c) c_int;
+    extern "kernel32" fn FindClose(h: HANDLE) callconv(.c) c_int;
+    extern "kernel32" fn GetEnvironmentVariableA(name: [*:0]const u8, buf: [*]u8, size: u32) callconv(.c) u32;
 
     pub fn getenvWin(name: [:0]const u8, buf: []u8) ?[]const u8 {
         const n = GetEnvironmentVariableA(name, buf.ptr, @intCast(buf.len));
@@ -204,7 +204,7 @@ const win = if (is_windows) struct {
 
     pub fn listFilesWin(allocator: std.mem.Allocator, dir: []const u8, extensions: []const []const u8, names: *std.ArrayList([:0]u8)) !void {
         var pb: [max_path]u8 = undefined;
-        const pattern = std.fmt.bufPrintZ(&pb, "{s}\\*", .{dir}) catch return error.NameTooLong;
+        const pattern = std.mem.printSentinel(&pb, "{s}\\*", .{dir}, 0) catch return error.NameTooLong;
         var data: WIN32_FIND_DATAA = undefined;
         const h = FindFirstFileA(pattern, &data);
         if (h == INVALID_HANDLE_VALUE) return;
@@ -212,7 +212,7 @@ const win = if (is_windows) struct {
         while (true) {
             if (data.attributes & FILE_ATTRIBUTE_DIRECTORY == 0) {
                 const name = std.mem.sliceTo(&data.file_name, 0);
-                if (hasExtension(name, extensions)) try names.append(try allocator.dupeZ(u8, name));
+                if (hasExtension(name, extensions)) try names.append(allocator, try allocator.dupeZ(u8, name));
             }
             if (FindNextFileA(h, &data) == 0) break;
         }

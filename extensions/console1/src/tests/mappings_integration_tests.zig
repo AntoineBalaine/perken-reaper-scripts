@@ -93,7 +93,7 @@ test "Integration - loading a saved mapping reads the correct data" {
 
     // Construct save path
     var save_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-    const save_path = try std.fmt.bufPrintZ(&save_path_buf, "{s}/maps/test_plugin/{s}.ini", .{ config_path_z, test_mapping_name });
+    const save_path = try std.mem.printSentinel(&save_path_buf, "{s}/maps/test_plugin/{s}.ini", .{ config_path_z, test_mapping_name }, 0);
 
     // Save the mapping to disk
     try store.saveToFile(fs_ops, .COMP, test_fx, test_mapping, save_path, null);
@@ -151,10 +151,10 @@ test "Integration - the preferred mapping is used when loading an FX" {
 
     // Construct save paths
     var default_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-    const default_path = try std.fmt.bufPrintZ(&default_path_buf, "{s}/maps/test_plugin2/default.ini", .{config_path_z});
+    const default_path = try std.mem.printSentinel(&default_path_buf, "{s}/maps/test_plugin2/default.ini", .{config_path_z}, 0);
 
     var custom_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
-    const custom_path = try std.fmt.bufPrintZ(&custom_path_buf, "{s}/maps/test_plugin2/custom.ini", .{config_path_z});
+    const custom_path = try std.mem.printSentinel(&custom_path_buf, "{s}/maps/test_plugin2/custom.ini", .{config_path_z}, 0);
 
     // Create two different mappings
     const default_comp = MapStore.Comp{
@@ -287,7 +287,7 @@ test "Integration - multiple mappings per FX workflow" {
     var save_paths: [3][:0]const u8 = undefined;
 
     for (mapping_names, 0..) |mname, i| {
-        save_paths[i] = try std.fmt.bufPrintZ(&path_bufs[i], "{s}/maps/multi_test/{s}.ini", .{ config_path_z, mname });
+        save_paths[i] = try std.mem.printSentinel(&path_bufs[i], "{s}/maps/multi_test/{s}.ini", .{ config_path_z, mname }, 0);
         try store.saveToFile(fs_ops, .COMP, test_fx, TaggedMapping{ .COMP = comps[i] }, save_paths[i], null);
         try ml.registerPath(.COMP, test_fx, mname, save_paths[i]);
     }

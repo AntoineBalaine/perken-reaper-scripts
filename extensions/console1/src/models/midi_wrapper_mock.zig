@@ -50,7 +50,7 @@ fn queueEvent(cc: c1.CCs, value: u8) void {
     event_queue[event_queue_size] = .{
         .frame_offset = 0,
         .size = 3,
-        .midi_message = [3]u8{ 0xb0, @intFromEnum(cc), value },
+        .midi_message = [3]u8{ 0xb0, @backingInt(cc), value },
     };
     event_queue_size += 1;
 }
@@ -85,7 +85,7 @@ pub export fn MidiOut_Send(midi_out: midi_Output_w, status: u8, d1: u8, d2: u8, 
     if (status == 0xB0) {
         // Try to convert the d1 value to a CCs enum
         for (std.enums.values(c1.CCs)) |cc| {
-            if (@intFromEnum(cc) == d1) {
+            if (@backingInt(cc) == d1) {
                 getModelInstance().updateValue(cc, @truncate(d2));
                 break;
             }
@@ -101,19 +101,19 @@ test MidiOut_Send {
         C1Model.instance = .default;
     }
 
-    const midi_out: midi_Output_w = @alignCast(@ptrCast(&dummy_midi_output));
+    const midi_out: midi_Output_w = @ptrCast(@alignCast(&dummy_midi_output));
 
     // CC message
-    MidiOut_Send(midi_out, 0xB0, @intFromEnum(c1.CCs.Out_Vol), 100, -1);
+    MidiOut_Send(midi_out, 0xB0, @backingInt(c1.CCs.Out_Vol), 100, -1);
     try std.testing.expectEqual(@as(u8, 100), C1Model.instance.?.getValue(c1.CCs.Out_Vol));
 
     // Button message
-    MidiOut_Send(midi_out, 0xB0, @intFromEnum(c1.CCs.Out_mute), 127, -1);
+    MidiOut_Send(midi_out, 0xB0, @backingInt(c1.CCs.Out_mute), 127, -1);
     try std.testing.expectEqual(@as(u8, 127), C1Model.instance.?.getValue(c1.CCs.Out_mute));
 
     // Test sending a non-CC message (should not update the model)
     C1Model.instance.?.reset();
-    MidiOut_Send(midi_out, 0x90, @intFromEnum(c1.CCs.Out_Vol), 100, -1);
+    MidiOut_Send(midi_out, 0x90, @backingInt(c1.CCs.Out_Vol), 100, -1);
 
     // Verify the model was not updated
     try std.testing.expectEqual(@as(u8, 0), C1Model.instance.?.getValue(c1.CCs.Out_Vol));
@@ -144,7 +144,7 @@ pub export fn CreateThreadedMIDIOutput(output: midi_Output_w) midi_Output_w {
 
 test CreateThreadedMIDIOutput {
     // Create a dummy MIDI output
-    const midi_out: midi_Output_w = @alignCast(@ptrCast(&dummy_midi_output));
+    const midi_out: midi_Output_w = @ptrCast(@alignCast(&dummy_midi_output));
 
     // Test CreateThreadedMIDIOutput
     const threaded_output = CreateThreadedMIDIOutput(midi_out);
@@ -308,8 +308,8 @@ pub fn setupMidiMocks(reaper_api: anytype) struct {
 }
 
 fn restoreReaperMidiFns(origFuncs: anytype) void {
-    inline for (std.meta.fields(MidiFuncs)) |field| {
-        const name = field.name;
+    inline for (@typeInfo(MidiFuncs).@"struct".field_names) |field_name| {
+        const name = field_name;
         @constCast(&@field(reaper, name)).* = @constCast(&@field(origFuncs, name)).*;
     }
 }

@@ -18,7 +18,7 @@ pub const StringPool = struct {
         }
 
         pub fn hash(ctx: @This(), key: StringRef) u64 {
-            return std.hash_map.hashString(std.mem.sliceTo(ctx.bytes[@intFromEnum(key)..], 0));
+            return std.hash_map.hashString(std.mem.sliceTo(ctx.bytes[@backingInt(key)..], 0));
         }
     };
 
@@ -26,7 +26,7 @@ pub const StringPool = struct {
         bytes: []const u8,
 
         pub fn eql(ctx: @This(), a: []const u8, b: StringRef) bool {
-            return std.mem.eql(u8, a, std.mem.sliceTo(ctx.bytes[@intFromEnum(b)..], 0));
+            return std.mem.eql(u8, a, std.mem.sliceTo(ctx.bytes[@backingInt(b)..], 0));
         }
 
         pub fn hash(_: @This(), adapted_key: []const u8) u64 {
@@ -51,7 +51,7 @@ pub const StringPool = struct {
         if (gop.found_existing) return gop.key_ptr.*;
         try self.bytes.ensureUnusedCapacity(allocator, str.len + 1);
 
-        const new_ref: StringRef = @enumFromInt(self.bytes.items.len);
+        const new_ref: StringRef = @fromBackingInt(@intCast(self.bytes.items.len));
 
         self.bytes.appendSliceAssumeCapacity(str);
         self.bytes.appendAssumeCapacity(0);
@@ -61,7 +61,7 @@ pub const StringPool = struct {
     }
 
     pub fn get(self: *const StringPool, ref: StringRef) [:0]const u8 {
-        const start_slice = self.bytes.items[@intFromEnum(ref)..];
+        const start_slice = self.bytes.items[@backingInt(ref)..];
         return start_slice[0..std.mem.indexOfScalar(u8, start_slice, 0).? :0];
     }
 

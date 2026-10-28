@@ -30,12 +30,12 @@ pub fn timeMap2BeatsToTime(tpos: f64, measures: c_int) f64 {
 /// MIDIEditor_GetActive returns NULL when no editor is open; the binding's
 /// return type is non-optional, so re-type it.
 pub fn midiEditorActive() ?Reaper.HWND {
-    const f: *const fn () callconv(.C) ?Reaper.HWND = @ptrCast(Reaper.MIDIEditor_GetActive);
+    const f: *const fn () callconv(.c) ?Reaper.HWND = @ptrCast(Reaper.MIDIEditor_GetActive);
     return f();
 }
 
 pub fn midiEditorTake(editor: Reaper.HWND) ?*Reaper.MediaItem_Take {
-    const f: *const fn (midieditor: Reaper.HWND) callconv(.C) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.MIDIEditor_GetTake);
+    const f: *const fn (midieditor: Reaper.HWND) callconv(.c) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.MIDIEditor_GetTake);
     return f(editor);
 }
 
@@ -134,8 +134,8 @@ fn leftLessThan(_: void, a: ItemPosition, b: ItemPosition) bool {
 /// ran 0..count writing GetSelectedTrack(null, i-1) — off by one that only
 /// worked through Lua's 1-based `#`; indexed cleanly here.
 pub fn getItemPositionsOnSelectedTracks(alloc: std.mem.Allocator) ![]ItemPosition {
-    var list = std.ArrayList(ItemPosition).init(alloc);
-    errdefer list.deinit();
+    var list: std.ArrayList(ItemPosition) = .empty;
+    errdefer list.deinit(alloc);
 
     const n_tracks = Reaper.CountSelectedTracks(null);
     var i: c_int = 0;
@@ -149,11 +149,11 @@ pub fn getItemPositionsOnSelectedTracks(alloc: std.mem.Allocator) ![]ItemPositio
             if (@intFromPtr(item) == 0) continue;
             const start = Reaper.GetMediaItemInfo_Value(item, "D_POSITION");
             const length = Reaper.GetMediaItemInfo_Value(item, "D_LENGTH");
-            try list.append(.{ .left = start, .right = start + length });
+            try list.append(alloc, .{ .left = start, .right = start + length });
         }
     }
 
-    const slice = try list.toOwnedSlice();
+    const slice = try list.toOwnedSlice(alloc);
     std.mem.sort(ItemPosition, slice, {}, leftLessThan);
     return slice;
 }
@@ -161,19 +161,19 @@ pub fn getItemPositionsOnSelectedTracks(alloc: std.mem.Allocator) ![]ItemPositio
 /// Merge overlapping/contiguous spans into "big items" — the single pass from
 /// utils.getBigItemPositionsOnSelectedTracks, split out so it is testable.
 pub fn mergeBigItems(alloc: std.mem.Allocator, items: []const ItemPosition) ![]ItemPosition {
-    var big = std.ArrayList(ItemPosition).init(alloc);
-    errdefer big.deinit();
+    var big: std.ArrayList(ItemPosition) = .empty;
+    errdefer big.deinit(alloc);
     if (items.len > 0) {
-        try big.append(items[0]);
+        try big.append(alloc, items[0]);
         for (items) |next| {
             const cur = &big.items[big.items.len - 1];
             if (next.left <= cur.right and next.right > cur.right)
                 cur.right = next.right;
             if (next.left > cur.right)
-                try big.append(next);
+                try big.append(alloc, next);
         }
     }
-    return big.toOwnedSlice();
+    return big.toOwnedSlice(alloc);
 }
 
 pub fn getBigItemPositionsOnSelectedTracks(alloc: std.mem.Allocator) ![]ItemPosition {
@@ -200,7 +200,7 @@ pub fn getTrackIndex(tracknumber: f64) ?c_int {
 pub fn selectRegion(id: c_int) bool {
     // Real ABI of EnumProjectMarkers: nameOut is const char** (reaziglib types
     // it as a plain string ptr); re-type so we can pass null for unused outs.
-    const f: *const fn (idx: c_int, isrgnOut: ?*bool, posOut: ?*f64, rgnendOut: ?*f64, nameOut: ?*[*:0]const u8, markrgnindexnumberOut: ?*c_int) callconv(.C) c_int = @ptrCast(Reaper.EnumProjectMarkers);
+    const f: *const fn (idx: c_int, isrgnOut: ?*bool, posOut: ?*f64, rgnendOut: ?*f64, nameOut: ?*[*:0]const u8, markrgnindexnumberOut: ?*c_int) callconv(.c) c_int = @ptrCast(Reaper.EnumProjectMarkers);
     var is_region = false;
     var start: f64 = 0;
     var end_: f64 = 0;
@@ -233,9 +233,9 @@ pub fn pushCursorPosition(pos: f64) void {
     var buf: [stack_buf_len:0]u8 = undefined;
     const old = cursorStackString();
     const printed = if (old.len == 0)
-        std.fmt.bufPrintZ(&buf, "{d}", .{pos})
+        std.mem.printSentinel(&buf, "{d}", .{pos}, 0)
     else
-        std.fmt.bufPrintZ(&buf, "{s},{d}", .{ old, pos });
+        std.mem.printSentinel(&buf, "{s},{d}", .{ old, pos }, 0);
     const new = printed catch {
         log.warn("cursorPositionStack full — position not stored", .{});
         return;
@@ -271,7 +271,7 @@ pub fn popCursorPosition() ?f64 {
 /// variable via the raw get_config_var API (which Lua cannot dereference —
 /// the only reason the original needed SWS).
 pub fn getIntConfigVar(name: [*:0]const u8, fallback: c_int) c_int {
-    const f: *const fn (name: [*:0]const u8, szOut: *c_int) callconv(.C) ?*anyopaque = @ptrCast(Reaper.get_config_var);
+    const f: *const fn (name: [*:0]const u8, szOut: *c_int) callconv(.c) ?*anyopaque = @ptrCast(Reaper.get_config_var);
     var sz: c_int = 0;
     const p = f(name, &sz) orelse return fallback;
     if (sz != @sizeOf(c_int)) return fallback;
@@ -385,7 +385,7 @@ pub fn collectNotes(alloc: std.mem.Allocator, take: *Reaper.MediaItem_Take) ![]N
 /// GetActiveTake returns NULL for items without takes; the binding's return
 /// type is non-optional, so re-type it.
 pub fn getActiveTake(item: *Reaper.MediaItem) ?*Reaper.MediaItem_Take {
-    const f: *const fn (item: *Reaper.MediaItem) callconv(.C) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.GetActiveTake);
+    const f: *const fn (item: *Reaper.MediaItem) callconv(.c) ?*Reaper.MediaItem_Take = @ptrCast(Reaper.GetActiveTake);
     return f(item);
 }
 
@@ -486,8 +486,8 @@ pub fn collectAs(comptime T: type, alloc: std.mem.Allocator, take: *Reaper.Media
     var n_sysex: c_int = 0;
     _ = Reaper.MIDI_CountEvts(take, &n_notes, &n_cc, &n_sysex);
 
-    var list = std.ArrayList(T).init(alloc);
-    errdefer list.deinit();
+    var list: std.ArrayList(T) = .empty;
+    errdefer list.deinit(alloc);
     var any_selected = false;
     var i: c_int = 0;
     while (i < n_notes) : (i += 1) {
@@ -495,9 +495,9 @@ pub fn collectAs(comptime T: type, alloc: std.mem.Allocator, take: *Reaper.Media
         if (!Reaper.MIDI_GetNote(take, i, &raw.selected, &raw.muted, &raw.start, &raw.end, &raw.chan, &raw.pitch, &raw.vel))
             continue;
         if (raw.selected) any_selected = true;
-        try list.append(noteAs(T, take, i, raw));
+        try list.append(alloc, noteAs(T, take, i, raw));
     }
-    const notes = try list.toOwnedSlice();
+    const notes = try list.toOwnedSlice(alloc);
     if (T == QnNote) sortChordOrder(notes);
     return .{ .notes = notes, .any_selected = any_selected };
 }

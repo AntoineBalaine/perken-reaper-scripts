@@ -62,7 +62,7 @@ fn getLanguageDisplayNameFromFile(allocator: std.mem.Allocator, dir: std.fs.Dir,
 }
 
 pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const u8) ![]LanguageInfo {
-    var languages = std.ArrayList(LanguageInfo).init(g_arena);
+    var languages: std.ArrayList(LanguageInfo) = .empty;
 
     var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const lang_dir = fs_helpers.joinStrings(&path_buffer, &.{
@@ -76,10 +76,10 @@ pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const 
             std.fs.makeDirAbsolute(lang_dir) catch |make_err| {
                 log.warn("Failed to create language directory: {s}, error: {s}", .{ lang_dir, @errorName(make_err) });
             };
-            return try languages.toOwnedSlice();
+            return try languages.toOwnedSlice(g_arena);
         }
         log.warn("Failed to open language directory: {s}, error: {s}", .{ lang_dir, @errorName(err) });
-        return try languages.toOwnedSlice();
+        return try languages.toOwnedSlice(g_arena);
     };
     defer dir.close();
 
@@ -98,7 +98,7 @@ pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const 
                 continue;
             };
 
-            languages.append(.{
+            languages.append(g_arena, .{
                 .code = code,
                 .display_name = display_name,
             }) catch |err| {
@@ -108,7 +108,7 @@ pub fn getAvailableLanguages(g_arena: std.mem.Allocator, resource_path: []const 
         }
     }
 
-    return try languages.toOwnedSlice();
+    return try languages.toOwnedSlice(g_arena);
 }
 
 /// Comptime-generic translation engine. Instantiate with a concrete key enum
@@ -135,16 +135,16 @@ pub fn TranslationEngine(
             }
 
             pub fn getString(self: *const StringStore, key: Key) [:0]const u8 {
-                const index = @intFromEnum(key);
+                const index = @backingInt(key);
                 const entry = self.entries[index];
                 const start_slice = self.strings.items[entry.offset..];
                 return start_slice[0..std.mem.indexOfScalar(u8, start_slice, 0).? :0];
             }
 
             pub fn loadDefaults(self: *StringStore, g_arena: std.mem.Allocator) !void {
-                inline for (std.meta.fields(Key)) |field| {
-                    const key = @field(Key, field.name);
-                    if (default_strings.get(field.name)) |value| {
+                inline for (@typeInfo(Key).@"struct".field_names) |field_name| {
+                    const key = @field(Key, field_name);
+                    if (default_strings.get(field_name)) |value| {
                         try self.addString(g_arena, key, value);
                     }
                 }
@@ -154,7 +154,7 @@ pub fn TranslationEngine(
                 const offset = self.strings.items.len;
                 try self.strings.appendSlice(g_arena, value);
                 try self.strings.append(g_arena, '\x00');
-                const index = @intFromEnum(key);
+                const index = @backingInt(key);
                 self.entries[index] = .{
                     .offset = @intCast(offset),
                 };
@@ -178,11 +178,11 @@ pub fn TranslationEngine(
                 while (try parser.next()) |record| {
                     switch (record) {
                         .section => |section| {
-                            current_section = try std.fmt.bufPrintZ(&section_buf, "{s}", .{section});
+                            current_section = try std.mem.printSentinel(&section_buf, "{s}", .{section}, 0);
                         },
                         .property => |kv| {
                             if (current_section) |section| {
-                                const key_str = try std.fmt.bufPrintZ(&buf, "{s}_{s}", .{ section, kv.key });
+                                const key_str = try std.mem.printSentinel(&buf, "{s}_{s}", .{ section, kv.key }, 0);
 
                                 if (std.meta.stringToEnum(Key, key_str)) |enum_key| {
                                     try self.addString(g_arena, enum_key, kv.value);
@@ -211,9 +211,9 @@ pub fn TranslationEngine(
             pub fn writeToFile(self: *const StringStore, writer: anytype) !void {
                 var current_section: ?[]const u8 = null;
 
-                var keys: [std.meta.fields(Key).len]Key = undefined;
+                var keys: [@typeInfo(Key).@"struct".field_names.len]Key = undefined;
                 for (&keys, 0..) |*key, i| {
-                    key.* = @enumFromInt(i);
+                    key.* = @fromBackingInt(@intCast(i));
                 }
                 std.sort.heap(Key, &keys, {}, struct {
                     fn lessThan(_: void, a: Key, b: Key) bool {

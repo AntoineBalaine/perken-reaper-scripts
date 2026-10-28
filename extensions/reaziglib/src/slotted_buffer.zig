@@ -40,7 +40,7 @@ pub fn SlottedBuffer(comptime slot_sizes: []const usize) type {
 
         const sizes: [slot_sizes.len]usize = slot_sizes[0..slot_sizes.len].*;
 
-        buffer: [total_size]u8 = [_]u8{0} ** total_size,
+        buffer: [total_size]u8 = @splat(0),
 
         /// Returns a sentinel-terminated slice of the slot's content,
         /// spanning from the slot start up to the first zero byte.

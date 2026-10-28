@@ -72,11 +72,11 @@ pub fn rebuild(
     index.ctx = ctx;
     index.mode = mode;
 
-    var seen = [_]bool{false} ** std.meta.fields(grammar.ActionType).len;
+    var seen: [@typeInfo(grammar.ActionType).@"struct".field_names.len]bool = @splat(false);
     for (grammar.candidatesFor(ctx, mode)) |cand| {
         const t = cand.types[0];
-        if (seen[@intFromEnum(t)]) continue;
-        seen[@intFromEnum(t)] = true;
+        if (seen[@backingInt(t)]) continue;
+        seen[@backingInt(t)] = true;
         var wctx = WalkCtx{
             .index = index,
             .trie = tables.get(ctx, t),
@@ -142,12 +142,12 @@ pub fn addEntry(wctx: *WalkCtx, path: []const Key, value: builder.BindingValue) 
     }
     const a = index.arena.allocator();
 
-    var text = std.ArrayList(u8).init(a);
+    var text: std.ArrayList(u8) = .empty;
     for (path) |k| {
         var kb: [16]u8 = undefined;
-        try text.appendSlice(keymod.format(k, &kb));
+        try text.appendSlice(a, keymod.format(k, &kb));
     }
-    const keys_text = try text.toOwnedSlice();
+    const keys_text = try text.toOwnedSlice(a);
 
     var dbuf: [256:0]u8 = undefined;
     const desc = try a.dupe(u8, wctx.desc_fn(value, index.ctx, &dbuf));
@@ -217,8 +217,8 @@ const test_defs = [_]actions.Entry{
 };
 
 fn bindTest(reg: *const actions.Registry, tables: *builder.BindingTables, t: grammar.ActionType, seq: []const u8, name: []const u8) !void {
-    var keys = std.ArrayList(Key).init(std.testing.allocator);
-    defer keys.deinit();
+    var keys: std.ArrayList(Key) = .empty;
+    defer keys.deinit(std.testing.allocator);
     try keymod.parseSequence(seq, &keys);
     try tables.getMut(.main, t).insert(keys.items, .{ .name = name, .def = reg.get(name).? });
 }

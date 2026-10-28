@@ -132,9 +132,9 @@ pub fn parseTheme(parser: anytype) C1Theme {
 }
 
 fn setField(comptime T: type, target: *T, key: [:0]const u8, color: c_int) void {
-    inline for (std.meta.fields(T)) |field| {
-        if (std.mem.eql(u8, key, field.name)) {
-            @field(target, field.name) = color;
+    inline for (@typeInfo(T).@"struct".field_names) |field_name| {
+        if (std.mem.eql(u8, key, field_name)) {
+            @field(target, field_name) = color;
             return;
         }
     }

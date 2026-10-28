@@ -153,7 +153,7 @@ pub fn drawWidget(
     return rv;
 }
 
-pub fn YControl(ctx: imgui.ContextPtr, id: [:0]const u8, w: f64, h: f64, flags: YControlFlags) !std.meta.Tuple(&[_]type{ bool, bool }) {
+pub fn YControl(ctx: imgui.ContextPtr, id: [:0]const u8, w: f64, h: f64, flags: YControlFlags) !@Tuple(&[_]type{ bool, bool }) {
     try imgui.SetNextItemAllowOverlap(.{ctx});
     var clicked: bool = false;
 

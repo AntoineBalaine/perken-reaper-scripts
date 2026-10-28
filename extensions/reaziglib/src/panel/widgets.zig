@@ -36,11 +36,11 @@ pub const Panel = struct {
     /// How many colors the card being drawn has pushed, which `endCard` pops.
     card_colors: c_int = 2,
     /// The title of the card being drawn.
-    card_title: [96:0]u8 = [_:0]u8{0} ** 96,
+    card_title: [96:0]u8 = @splat(0),
     /// The knob drag that is going on: a drag moves the value relative to where it started.
     drag: Drag = .{},
     /// The heights that the cards needed when they were last drawn.
-    heights: [natural_capacity]NaturalHeight = [_]NaturalHeight{.{}} ** natural_capacity,
+    heights: [natural_capacity]NaturalHeight = @splat(.{}),
 };
 
 fn titleKey(title: []const u8) u64 {
@@ -226,7 +226,7 @@ pub fn display(panel: *Panel, text: [:0]const u8, color: c_int, min_width: f64) 
 
 /// The id of a widget that has no label of its own in ImGui: a prefix and the visible label.
 fn widgetId(buf: []u8, prefix: []const u8, label: []const u8) [:0]const u8 {
-    return std.fmt.bufPrintZ(buf, "##{s}{s}", .{ prefix, label }) catch "##widget";
+    return std.mem.printSentinel(buf, "##{s}{s}", .{ prefix, label }, 0) catch "##widget";
 }
 
 /// A push button: a raised key of dark metal with a lit upper edge, that sinks while it is held, with
@@ -466,7 +466,7 @@ fn shiftIsDown(panel: *Panel) bool {
 pub fn shownValue(buf: []u8, control: Control, value: i32) [:0]const u8 {
     const shown = (value + control.shift) * control.scale;
     const sign: []const u8 = if (control.signed and shown >= 0) "+" else "";
-    return std.fmt.bufPrintZ(buf, "{s}{d}{s}", .{ sign, shown, control.unit }) catch "?";
+    return std.mem.printSentinel(buf, "{s}{d}{s}", .{ sign, shown, control.unit }, 0) catch "?";
 }
 
 /// Shows the text in a tooltip while the mouse is over the last item.
@@ -503,16 +503,16 @@ pub fn centeredLabel(panel: *Panel, text: []const u8, width: f64, reserved_lines
     while (words.next()) |word| {
         var candidate: [label_line_cap:0]u8 = undefined;
         const joined = (if (current_len == 0)
-            std.fmt.bufPrintZ(&candidate, "{s}", .{word})
+            std.mem.printSentinel(&candidate, "{s}", .{word}, 0)
         else
-            std.fmt.bufPrintZ(&candidate, "{s} {s}", .{ current[0..current_len], word })) catch continue;
+            std.mem.printSentinel(&candidate, "{s} {s}", .{ current[0..current_len], word }, 0)) catch continue;
         if (current_len > 0 and textSize(panel, joined).w > width) {
             if (count < label_lines_max) {
                 @memcpy(lines[count][0..current_len], current[0..current_len]);
                 lines[count][current_len] = 0;
                 count += 1;
             }
-            const first = std.fmt.bufPrintZ(&current, "{s}", .{word}) catch continue;
+            const first = std.mem.printSentinel(&current, "{s}", .{word}, 0) catch continue;
             current_len = first.len;
         } else {
             @memcpy(current[0..joined.len], joined);
@@ -567,7 +567,7 @@ pub fn drawbar(panel: *Panel, control: Control, value: i32, name: []const u8, ca
 
     // The value is drawn in the label font, like the numbers of the knobs.
     var value_buf: [16]u8 = undefined;
-    const value_text = std.fmt.bufPrintZ(&value_buf, "{d}", .{value}) catch "?";
+    const value_text = std.mem.printSentinel(&value_buf, "{d}", .{value}, 0) catch "?";
     centeredValue(panel, value_text, drawbar_w, if (disabled) theme.text_dim else accent(panel));
 
     const at = cursorScreenPos(panel);
@@ -623,7 +623,7 @@ pub fn drawbar(panel: *Panel, control: Control, value: i32, name: []const u8, ca
     }
 
     var name_buf: [64:0]u8 = undefined;
-    const shown_name = std.fmt.bufPrintZ(&name_buf, "{s}", .{name}) catch "";
+    const shown_name = std.mem.printSentinel(&name_buf, "{s}", .{name}, 0) catch "";
     const pushed = pushLabelFont(panel);
     imgui.api.SetCursorPosX(ctx, imgui.api.GetCursorPosX(ctx) + (drawbar_w - textSize(panel, shown_name).w) / 2);
     imgui.api.TextColored(ctx, if (disabled) theme.text_dim else theme.label, shown_name);
@@ -773,7 +773,7 @@ pub fn knob(panel: *Panel, control: Control, value: i32, label: []const u8, bipo
     if (!disabled and imgui.api.IsItemActive(ctx)) {
         var tip_buf: [96:0]u8 = undefined;
         var shown_buf: [48]u8 = undefined;
-        const tip = std.fmt.bufPrintZ(&tip_buf, "{s}: {s}", .{ label, shownValue(&shown_buf, control, result) }) catch "";
+        const tip = std.mem.printSentinel(&tip_buf, "{s}: {s}", .{ label, shownValue(&shown_buf, control, result) }, 0) catch "";
         imgui.api.SetTooltip(ctx, tip);
     }
 
@@ -865,7 +865,7 @@ fn stopsOf(control: Control, out: *[stops_cap]Stop) usize {
         if (count == stops_cap) break;
         const value: i32 = if (i < control.values.len) control.values[i] else control.low + @as(i32, @intCast(i));
         out[count].value = value;
-        _ = std.fmt.bufPrintZ(&out[count].name, "{s}", .{name}) catch {
+        _ = std.mem.printSentinel(&out[count].name, "{s}", .{name}, 0) catch {
             @memcpy(out[count].name[0 .. stop_name_cap - 1], name[0 .. stop_name_cap - 1]);
             out[count].name[stop_name_cap - 1] = 0;
         };
@@ -1003,7 +1003,7 @@ pub fn stopKnob(panel: *Panel, control: Control, value: i32, label: []const u8, 
     // The buttons come first: the knob, and a label for each stop that selects it when clicked.
     var clicked: ?usize = null;
     var id: [64:0]u8 = undefined;
-    imgui.api.PushID(ctx, std.fmt.bufPrintZ(&id, "{s}", .{control.id}) catch "stop");
+    imgui.api.PushID(ctx, std.mem.printSentinel(&id, "{s}", .{control.id}, 0) catch "stop");
     imgui.api.SetCursorScreenPos(ctx, cx - r - 4, cy - r - 4);
     _ = imgui.api.InvisibleButton(ctx, "##stopknob", 2 * r + 8, 2 * r + 8, null);
     if (control.disabled) |reason| tooltip(panel, reason);
@@ -1062,7 +1062,7 @@ pub fn stopKnob(panel: *Panel, control: Control, value: i32, label: []const u8, 
             boxes[i] = .{ .x = bx, .y = by };
             imgui.api.SetCursorScreenPos(ctx, bx, by);
             var stop_id: [16:0]u8 = undefined;
-            const clicked_here = imgui.api.InvisibleButton(ctx, std.fmt.bufPrintZ(&stop_id, "##stop{d}", .{i}) catch "##stop", text_w, text_line, null);
+            const clicked_here = imgui.api.InvisibleButton(ctx, std.mem.printSentinel(&stop_id, "##stop{d}", .{i}, 0) catch "##stop", text_w, text_line, null);
             if (!disabled and clicked_here) clicked = i;
         }
     }
@@ -1117,7 +1117,7 @@ pub fn stopKnob(panel: *Panel, control: Control, value: i32, label: []const u8, 
     // The list of every stop, under the display, with the selected one in the accent color. It must be
     // begun under the same id as the click that opened it.
     if (!labelled) {
-        imgui.api.PushID(ctx, std.fmt.bufPrintZ(&id, "{s}", .{control.id}) catch "stop");
+        imgui.api.PushID(ctx, std.mem.printSentinel(&id, "{s}", .{control.id}, 0) catch "stop");
         var appearing: c_int = imgui.Cond_Appearing;
         imgui.api.SetNextWindowPos(ctx, display_x, display_y + display_h + 2, &appearing, null, null);
         if (imgui.api.BeginPopup(ctx, "##stoplist", null)) {
@@ -1127,7 +1127,7 @@ pub fn stopKnob(panel: *Panel, control: Control, value: i32, label: []const u8, 
                 const selected = i == result;
                 if (selected) imgui.api.PushStyleColor(ctx, imgui.Col_Text, tint);
                 var item_id: [64:0]u8 = undefined;
-                const item = std.fmt.bufPrintZ(&item_id, "{s}##s{d}", .{ stopName(stop), i }) catch "?";
+                const item = std.mem.printSentinel(&item_id, "{s}##s{d}", .{ stopName(stop), i }, 0) catch "?";
                 if (imgui.api.Selectable(ctx, item, null, null, null, null)) result = i;
                 if (selected) {
                     var one: c_int = 1;
@@ -1274,11 +1274,11 @@ pub fn envelope(panel: *Panel, controls: [3]Control, values: [3]i32) EnvelopeCha
     var result = EnvelopeChange{ .values = values };
     var hot: ?usize = null;
     var id: [64:0]u8 = undefined;
-    imgui.api.PushID(ctx, std.fmt.bufPrintZ(&id, "{s}", .{controls[0].id}) catch "envelope");
+    imgui.api.PushID(ctx, std.mem.printSentinel(&id, "{s}", .{controls[0].id}, 0) catch "envelope");
     for (0..3) |i| {
         imgui.api.SetCursorScreenPos(ctx, points[corners[i]].x - 9, points[corners[i]].y - 9);
         var handle_id: [16:0]u8 = undefined;
-        _ = imgui.api.InvisibleButton(ctx, std.fmt.bufPrintZ(&handle_id, "##handle{d}", .{i}) catch "##handle", 18, 18, null);
+        _ = imgui.api.InvisibleButton(ctx, std.mem.printSentinel(&handle_id, "##handle{d}", .{i}, 0) catch "##handle", 18, 18, null);
         const active = imgui.api.IsItemActive(ctx);
         const hovered = imgui.api.IsItemHovered(ctx, null);
         if (imgui.api.IsItemActivated(ctx) and altIsDown(panel)) {
@@ -1351,7 +1351,7 @@ pub fn envelope(panel: *Panel, controls: [3]Control, values: [3]i32) EnvelopeCha
     // The three values are read at the top of the screen, in the label font.
     const pushed = pushLabelFont(panel);
     var readout: [48:0]u8 = undefined;
-    const text = std.fmt.bufPrintZ(&readout, "A {d:>3}  D {d:>3}  R {d:>3}", .{ a, d, r }) catch "";
+    const text = std.mem.printSentinel(&readout, "A {d:>3}  D {d:>3}  R {d:>3}", .{ a, d, r }, 0) catch "";
     imgui.api.DrawList_AddText(dl, at.x + env_pad_x, at.y + 5, accent(panel), text);
     popFont(panel, pushed);
     drawGlass(dl, at.x, at.y, at.x + width, at.y + height);
@@ -1371,10 +1371,10 @@ pub fn beginPickList(panel: *Panel, id: [:0]const u8, preview: [:0]const u8, wid
     const at = cursorScreenPos(panel);
     const height = text_line + 12;
     var button_id: [96:0]u8 = undefined;
-    _ = imgui.api.InvisibleButton(ctx, std.fmt.bufPrintZ(&button_id, "##pick{s}", .{id}) catch "##pick", width, height, null);
+    _ = imgui.api.InvisibleButton(ctx, std.mem.printSentinel(&button_id, "##pick{s}", .{id}, 0) catch "##pick", width, height, null);
     const hot = imgui.api.IsItemHovered(ctx, null);
     var popup_id: [96:0]u8 = undefined;
-    const popup = std.fmt.bufPrintZ(&popup_id, "##picklist{s}", .{id}) catch "##picklist";
+    const popup = std.mem.printSentinel(&popup_id, "##picklist{s}", .{id}, 0) catch "##picklist";
     if (imgui.api.IsItemClicked(ctx, null)) imgui.api.OpenPopup(ctx, popup, null);
     const dl = imgui.api.GetWindowDrawList(ctx);
     rectFilled(dl, at.x, at.y, at.x + width, at.y + height, theme.slot_bg, 3);

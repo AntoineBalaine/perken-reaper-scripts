@@ -41,9 +41,9 @@ pub const State = struct {
     /// that actions added since (scripts, extensions) appear.
     arena: ?std.heap.ArenaAllocator = null,
     entries: []Entry = &.{},
-    query: [QUERY_CAP:0]u8 = [_:0]u8{0} ** QUERY_CAP,
+    query: [QUERY_CAP:0]u8 = @splat(0),
     /// The query the current results were computed for.
-    shown_query: [QUERY_CAP:0]u8 = [_:0]u8{0} ** QUERY_CAP,
+    shown_query: [QUERY_CAP:0]u8 = @splat(0),
     results: [MAX_RESULTS]fuzzy.Ranked = undefined,
     result_count: usize = 0,
     selected: usize = 0,
@@ -122,7 +122,7 @@ fn loadEntries() bool {
         log.warn("REAPER has no main actions section", .{});
         return false;
     };
-    var list = std.ArrayList(Entry).init(alloc);
+    var list: std.ArrayList(Entry) = .empty;
     var idx: c_int = 0;
     while (idx < MAX_ACTIONS) : (idx += 1) {
         var name: ?[*:0]const u8 = null;
@@ -131,7 +131,7 @@ fn loadEntries() bool {
         const text = if (name) |n| std.mem.span(n) else "";
         if (text.len == 0) continue; // unnamed commands cannot be searched for
         const owned = alloc.dupeZ(u8, text) catch return false;
-        list.append(.{ .id = id, .name = owned }) catch return false;
+        list.append(alloc, .{ .id = id, .name = owned }) catch return false;
     }
     state.entries = list.items;
     return state.entries.len > 0;
@@ -158,13 +158,13 @@ fn refilter() void {
 
 fn ensureTimer() void {
     if (state.timer_registered) return;
-    _ = Reaper.plugin_register("timer", @constCast(@ptrCast(&onTimer)));
+    _ = Reaper.plugin_register("timer", @ptrCast(@constCast(&onTimer)));
     state.timer_registered = true;
 }
 
 fn stopTimer() void {
     if (!state.timer_registered) return;
-    _ = Reaper.plugin_register("-timer", @constCast(@ptrCast(&onTimer)));
+    _ = Reaper.plugin_register("-timer", @ptrCast(@constCast(&onTimer)));
     state.timer_registered = false;
 }
 
@@ -178,7 +178,7 @@ fn ensureImgui() void {
     state.imgui_state = .present;
 }
 
-pub fn onTimer() callconv(.C) void {
+pub fn onTimer() callconv(.c) void {
     if (state.pending_cmd != 0) {
         const id = state.pending_cmd;
         state.pending_cmd = 0;
@@ -264,7 +264,7 @@ fn drawContent(ctx: imgui.ContextPtr) void {
 
     var label_buf: [MAX_RESULTS_LABEL:0]u8 = undefined;
     var counter: [64:0]u8 = undefined;
-    const counter_text = std.fmt.bufPrintZ(&counter, "{d} of {d} actions", .{ state.result_count, state.entries.len }) catch "";
+    const counter_text = std.mem.printSentinel(&counter, "{d} of {d} actions", .{ state.result_count, state.entries.len }, 0) catch "";
     imgui.api.Text(ctx, counter_text);
 
     var chosen: ?usize = null;
@@ -278,7 +278,7 @@ fn drawContent(ctx: imgui.ContextPtr) void {
         var i: usize = 0;
         while (i < state.result_count) : (i += 1) {
             const entry = state.entries[state.results[i].index];
-            const label = std.fmt.bufPrintZ(&label_buf, "{s}##{d}", .{ entry.name, entry.id }) catch continue;
+            const label = std.mem.printSentinel(&label_buf, "{s}##{d}", .{ entry.name, entry.id }, 0) catch continue;
             // Because Selectable writes its click back into `is_selected`,
             // the push and the matching pop test a separate copy.
             const highlighted = i == state.selected;

@@ -14,30 +14,30 @@ pub const std_options: std.Options = .{ .logFn = debug_api.logFn };
 
 var init_count: u32 = 0;
 
-fn entryInit(path: [*c]const u8) callconv(.C) bool {
+fn entryInit(path: [*c]const u8) callconv(.c) bool {
     _ = path;
     init_count += 1;
     return true;
 }
 
-fn entryDeinit() callconv(.C) void {
+fn entryDeinit() callconv(.c) void {
     if (init_count == 0) return;
     init_count -= 1;
     if (init_count == 0) plugin.shutdown();
 }
 
-fn factoryCount(factory: [*c]const c.clap_plugin_factory_t) callconv(.C) u32 {
+fn factoryCount(factory: [*c]const c.clap_plugin_factory_t) callconv(.c) u32 {
     _ = factory;
     return 1;
 }
 
-fn factoryDescriptor(factory: [*c]const c.clap_plugin_factory_t, index: u32) callconv(.C) [*c]const c.clap_plugin_descriptor_t {
+fn factoryDescriptor(factory: [*c]const c.clap_plugin_factory_t, index: u32) callconv(.c) [*c]const c.clap_plugin_descriptor_t {
     _ = factory;
     if (index != 0) return null;
     return &plugin.descriptor;
 }
 
-fn factoryCreate(factory: [*c]const c.clap_plugin_factory_t, host: [*c]const c.clap_host_t, plugin_id: [*c]const u8) callconv(.C) [*c]const c.clap_plugin_t {
+fn factoryCreate(factory: [*c]const c.clap_plugin_factory_t, host: [*c]const c.clap_host_t, plugin_id: [*c]const u8) callconv(.c) [*c]const c.clap_plugin_t {
     _ = factory;
     if (!std.mem.eql(u8, std.mem.span(plugin_id), plugin.plugin_id)) return null;
     if (!clap.isCompatible(host.*.clap_version)) return null;
@@ -51,7 +51,7 @@ const plugin_factory = c.clap_plugin_factory_t{
     .create_plugin = factoryCreate,
 };
 
-fn getFactory(factory_id: [*c]const u8) callconv(.C) ?*const anyopaque {
+fn getFactory(factory_id: [*c]const u8) callconv(.c) ?*const anyopaque {
     const id = std.mem.span(factory_id);
     std.log.scoped(.entry).info("the host asks for the factory {s}", .{id});
     if (std.mem.eql(u8, id, clap.s(c.CLAP_PLUGIN_FACTORY_ID))) return &plugin_factory;

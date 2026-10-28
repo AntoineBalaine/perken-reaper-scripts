@@ -7,7 +7,7 @@ const BrowseForSaveFileFn = *fn (
     file_len: c_int,
     title: [*:0]const u8,
     filter: [*:0]const u8,
-) callconv(.C) bool;
+) callconv(.c) bool;
 
 var browse_fn: ?BrowseForSaveFileFn = null;
 var resolved: bool = false;

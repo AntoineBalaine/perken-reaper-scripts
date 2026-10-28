@@ -335,7 +335,7 @@ test "Guid conversion" {
 }
 
 pub fn safePrint(buf: [:0]u8, comptime fmt: []const u8, args: anytype) [:0]const u8 {
-    return std.fmt.bufPrintZ(buf, fmt, args) catch |err| switch (err) {
+    return std.mem.printSentinel(buf, fmt, args, 0) catch |err| switch (err) {
         error.NoSpaceLeft => blk: {
             const ellipsis = "…";
             const end = buf.len - ellipsis.len - 1;
