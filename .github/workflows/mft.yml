@@ -96,6 +96,12 @@ jobs:
           mkdir -p release-binaries
           cp "zig-out/reaper_mft.${{ matrix.ext }}" "release-binaries/reaper_mft-${{ matrix.name }}.${{ matrix.ext }}"
 
+      # The panel embeds fonts under the SIL Open Font License, which asks that its text travels with them. Every
+      # row builds the same fonts, so one row uploads the license files, and the release has them once.
+      - name: Add the font licenses
+        if: matrix.name == 'linux-x86_64'
+        run: cp ../reaziglib/assets/fonts/*.txt release-binaries/
+
       - uses: actions/upload-artifact@v4
         with:
           name: mft-${{ matrix.name }}
