@@ -17,7 +17,8 @@ pub const MftPreferences = struct {
     sensitivity: f32 = 1.0,
     // Hue positions on the MFT color wheel (channel 2).
     color_io: u8 = 0x0F,
-    color_gate: u8 = 0x5A,
+    // Pinker than the comp's red, which 0x5A (90) was too close to.
+    color_gate: u8 = 0x5E,
     color_eq: u8 = 0x3C,
     color_comp: u8 = 0x56,
     color_settings: u8 = 0x49,
@@ -151,5 +152,5 @@ test "MftPreferences: parse round-trip fields" {
     try t.expectEqualStrings("JS: My Input", prefs.default_input);
     try t.expectEqualStrings("VST: My EQ", prefs.default_eq);
     // Unspecified fields keep their defaults.
-    try t.expectEqual(@as(u8, 0x5A), prefs.color_gate);
+    try t.expectEqual(@as(u8, 0x5E), prefs.color_gate);
 }
