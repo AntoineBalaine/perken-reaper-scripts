@@ -199,6 +199,7 @@ pub fn build(b: *std.Build) void {
         "src/panel/theme.zig",
         "src/panel/fonts.zig",
         "src/panel/widgets.zig",
+        "src/models/mock_imgui.zig",
     };
     const test_imports = [_]struct { name: []const u8, mod: *std.Build.Module }{
         .{ .name = "reaper", .mod = reaper_mod },
@@ -210,6 +211,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "session", .mod = session_mod },
         .{ .name = "automation_mode", .mod = automation_mode_mod },
         .{ .name = "reaper_imgui", .mod = reaper_imgui_mod },
+        .{ .name = "mock_imgui", .mod = mock_imgui_mod },
         .{ .name = "ui_palette", .mod = ui_palette_mod },
         .{ .name = "panel_theme", .mod = panel_theme_mod },
         .{ .name = "panel_fonts", .mod = panel_fonts_mod },

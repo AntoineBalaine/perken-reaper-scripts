@@ -653,6 +653,62 @@ pub const Drag = struct {
     fine: bool = false,
 };
 
+/// The picture of a knob: the ring that fills up to the value, the scale around it, the metal cap and its pointer. The
+/// interactive knob and the display-only dial both draw it. `at` is the top left of the knob's area, `lit` is the
+/// color of the ring, and `hot` outlines the cap in the accent, as it is while the mouse is on a knob.
+fn drawKnobFace(panel: *Panel, at: Point, control: Control, value: i32, bipolar: bool, lit: c_int, hot: bool) void {
+    const ctx = panel.ctx;
+    const range: f64 = @floatFromInt(control.high - control.low);
+    const dl = imgui.api.GetWindowDrawList(ctx);
+    const cx = at.x + knob_w / 2;
+    const cy = at.y + 4 + knob_d / 2;
+    const r = knob_d / 2;
+    const t = @as(f64, @floatFromInt(value - control.low)) / range;
+    const angle = knob_from + t * (knob_to - knob_from);
+
+    // The ring: a dark track cut into the panel, and the lit part up to the value.
+    var flags: c_int = imgui.DrawFlags_None;
+    var thickness: f64 = 5;
+    imgui.api.DrawList_PathArcTo(dl, cx, cy, r, knob_from, knob_to, null);
+    imgui.api.DrawList_PathStroke(dl, theme.slot_bg, &flags, &thickness);
+    const fill_from = if (bipolar) (knob_from + knob_to) / 2 else knob_from;
+    if (angle != fill_from) {
+        thickness = 3;
+        imgui.api.DrawList_PathArcTo(dl, cx, cy, r, @min(fill_from, angle), @max(fill_from, angle), null);
+        imgui.api.DrawList_PathStroke(dl, lit, &flags, &thickness);
+    }
+
+    // The scale around the ring. A bipolar knob has a longer tick in the middle too.
+    var i: i32 = 0;
+    while (i <= knob_ticks) : (i += 1) {
+        const a = knob_from + (knob_to - knob_from) * @as(f64, @floatFromInt(i)) / knob_ticks;
+        const long = i == 0 or i == knob_ticks or (bipolar and i == @divFloor(knob_ticks, 2));
+        const inner = r + 3;
+        const outer = r + (if (long) @as(f64, 8) else 6);
+        line(dl, cx + @cos(a) * inner, cy + @sin(a) * inner, cx + @cos(a) * outer, cy + @sin(a) * outer, if (long) theme.label else theme.text_dim, 1);
+    }
+
+    // The body stands out of the panel, with a shadow under it and a lit edge on its upper left.
+    const body = r - 7;
+    circleFilled(dl, cx + 1, cy + 3, body + 1, rgba(0x00000099));
+    circleFilled(dl, cx, cy, body, theme.knob_body);
+    circleFilled(dl, cx - 1, cy - 1, body - 4, theme.knob_top);
+    circle(dl, cx, cy, body, if (hot) accent(panel) else theme.knob_edge, 1);
+
+    // The metal of the cap: two fine concentric grooves, a lit edge on its upper left, and a shine.
+    circle(dl, cx, cy, body - 3, rgba(0xFFFFFF14), 1);
+    circle(dl, cx, cy, body - 6, rgba(0x00000040), 1);
+    thickness = 1.5;
+    imgui.api.DrawList_PathArcTo(dl, cx, cy, body - 0.5, std.math.pi, std.math.pi * 1.5, null);
+    imgui.api.DrawList_PathStroke(dl, rgba(0xFFFFFF40), &flags, &thickness);
+    circleFilled(dl, cx - body * 0.35, cy - body * 0.4, body * 0.22, rgba(0xFFFFFF1E));
+
+    // The pointer runs from near the center toward the ring.
+    const cos_a = @cos(angle);
+    const sin_a = @sin(angle);
+    line(dl, cx + cos_a * body * 0.25, cy + sin_a * body * 0.25, cx + cos_a * body * 0.9, cy + sin_a * body * 0.9, theme.text, 2);
+}
+
 /// A rotary knob: the value above it, a ring that fills as the value rises, a pointer, and the label
 /// under it. The user drags up or down, or turns the mouse wheel over it. When `bipolar` is true, the
 /// value rests in the middle of the range, so that the ring fills from the top, to the left or to the
@@ -701,55 +757,8 @@ pub fn knob(panel: *Panel, control: Control, value: i32, label: []const u8, bipo
         }
     }
 
-    const dl = imgui.api.GetWindowDrawList(ctx);
-    const cx = at.x + knob_w / 2;
-    const cy = at.y + 4 + knob_d / 2;
-    const r = knob_d / 2;
-    const t = @as(f64, @floatFromInt(result - control.low)) / range;
-    const angle = knob_from + t * (knob_to - knob_from);
-
-    // The ring: a dark track cut into the panel, and the lit part up to the value.
-    var flags: c_int = imgui.DrawFlags_None;
-    var thickness: f64 = 5;
-    imgui.api.DrawList_PathArcTo(dl, cx, cy, r, knob_from, knob_to, null);
-    imgui.api.DrawList_PathStroke(dl, theme.slot_bg, &flags, &thickness);
-    const fill_from = if (bipolar) (knob_from + knob_to) / 2 else knob_from;
-    if (angle != fill_from) {
-        thickness = 3;
-        imgui.api.DrawList_PathArcTo(dl, cx, cy, r, @min(fill_from, angle), @max(fill_from, angle), null);
-        imgui.api.DrawList_PathStroke(dl, lit, &flags, &thickness);
-    }
-
-    // The scale around the ring. A bipolar knob has a longer tick in the middle too.
-    var i: i32 = 0;
-    while (i <= knob_ticks) : (i += 1) {
-        const a = knob_from + (knob_to - knob_from) * @as(f64, @floatFromInt(i)) / knob_ticks;
-        const long = i == 0 or i == knob_ticks or (bipolar and i == @divFloor(knob_ticks, 2));
-        const inner = r + 3;
-        const outer = r + (if (long) @as(f64, 8) else 6);
-        line(dl, cx + @cos(a) * inner, cy + @sin(a) * inner, cx + @cos(a) * outer, cy + @sin(a) * outer, if (long) theme.label else theme.text_dim, 1);
-    }
-
-    // The body stands out of the panel, with a shadow under it and a lit edge on its upper left.
-    const body = r - 7;
-    circleFilled(dl, cx + 1, cy + 3, body + 1, rgba(0x00000099));
-    circleFilled(dl, cx, cy, body, theme.knob_body);
-    circleFilled(dl, cx - 1, cy - 1, body - 4, theme.knob_top);
     const hot = !disabled and (imgui.api.IsItemHovered(ctx, null) or imgui.api.IsItemActive(ctx));
-    circle(dl, cx, cy, body, if (hot) accent(panel) else theme.knob_edge, 1);
-
-    // The metal of the cap: two fine concentric grooves, a lit edge on its upper left, and a shine.
-    circle(dl, cx, cy, body - 3, rgba(0xFFFFFF14), 1);
-    circle(dl, cx, cy, body - 6, rgba(0x00000040), 1);
-    thickness = 1.5;
-    imgui.api.DrawList_PathArcTo(dl, cx, cy, body - 0.5, std.math.pi, std.math.pi * 1.5, null);
-    imgui.api.DrawList_PathStroke(dl, rgba(0xFFFFFF40), &flags, &thickness);
-    circleFilled(dl, cx - body * 0.35, cy - body * 0.4, body * 0.22, rgba(0xFFFFFF1E));
-
-    // The pointer runs from near the center toward the ring.
-    const cos_a = @cos(angle);
-    const sin_a = @sin(angle);
-    line(dl, cx + cos_a * body * 0.25, cy + sin_a * body * 0.25, cx + cos_a * body * 0.9, cy + sin_a * body * 0.9, theme.text, 2);
+    drawKnobFace(panel, at, control, result, bipolar, lit, hot);
 
     // While the user drags the knob, its value is shown by the mouse, since the hand covers the knob.
     if (!disabled and imgui.api.IsItemActive(ctx)) {
@@ -764,6 +773,24 @@ pub fn knob(panel: *Panel, control: Control, value: i32, label: []const u8, bipo
     centeredLabel(panel, caption, knob_w, knob_label_lines);
     imgui.api.EndGroup(ctx);
     return .{ .changed = result != value, .value = result };
+}
+
+/// A knob that only shows a value: the same picture as `knob`, without the mouse. A panel that mirrors a controller
+/// draws its encoders with it, because the player turns the real ones. `lit` is the color of the ring and of the value,
+/// or the card's accent when it is null. Nothing is returned, since nothing can change.
+pub fn dial(panel: *Panel, control: Control, value: i32, label: []const u8, lit: ?c_int) void {
+    const ctx = panel.ctx;
+    const color = lit orelse accent(panel);
+    imgui.api.BeginGroup(ctx);
+    var value_buf: [48]u8 = undefined;
+    centeredValue(panel, shownValue(&value_buf, control, value), knob_w, color);
+    const at = cursorScreenPos(panel);
+    imgui.api.Dummy(ctx, knob_w, knob_d + 8);
+    drawKnobFace(panel, at, control, std.math.clamp(value, control.low, control.high), false, color, false);
+    var upper: [label_line_cap * 2]u8 = undefined;
+    const caption = std.ascii.upperString(&upper, label[0..@min(label.len, upper.len)]);
+    centeredLabel(panel, caption, knob_w, knob_label_lines);
+    imgui.api.EndGroup(ctx);
 }
 
 /// A switch with a lamp, for a parameter that is either 0 or 1. The lamp is lit and the on text is shown
@@ -1408,6 +1435,22 @@ test "a card's accent belongs to its panel" {
     first.accent = 0x11223344;
     try std.testing.expectEqual(@as(c_int, 0x11223344), accent(&first));
     try std.testing.expectEqual(theme.amber, accent(&second));
+}
+
+test "a dial draws a value without taking part in the mouse, and the stacks balance" {
+    const MockImGui = @import("mock_imgui").MockImGui;
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var panel = Panel{};
+    const control = Control{ .id = "k", .low = 0, .high = 100, .unit = "%" };
+    dial(&panel, control, 40, "Cutoff", theme.green);
+    // A value outside the range is held to it, and a dial with no color takes the card's accent.
+    dial(&panel, control, 250, "Resonance", null);
+    dial(&panel, control, 0, "K3", theme.text_dim);
+    try mock.assertBalanced();
 }
 
 test "every component compiles" {

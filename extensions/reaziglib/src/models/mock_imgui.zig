@@ -91,6 +91,16 @@ pub const WidgetKind = enum {
     input_text,
     set_keyboard_focus_here,
     is_key_pressed,
+    attach_font,
+    begin_tooltip,
+    end_tooltip,
+    create_font,
+    draw_list_add_rect_filled_multi_color,
+    draw_list_path_line_to,
+    push_text_wrap_pos,
+    pop_text_wrap_pos,
+    set_next_window_pos,
+    set_mouse_cursor,
 };
 
 pub const TraceEntry = struct {
@@ -241,6 +251,25 @@ const ImguiMocks = struct {
     InputText: @TypeOf(imgui.api.InputText),
     SetKeyboardFocusHere: @TypeOf(imgui.api.SetKeyboardFocusHere),
     IsKeyPressed: @TypeOf(imgui.api.IsKeyPressed),
+    // The panel kit (reaziglib's panel_widgets)
+    Attach: @TypeOf(imgui.api.Attach),
+    BeginTooltip: @TypeOf(imgui.api.BeginTooltip),
+    CreateFont: @TypeOf(imgui.api.CreateFont),
+    CreateFontFromMem: @TypeOf(imgui.api.CreateFontFromMem),
+    DrawList_AddRectFilledMultiColor: @TypeOf(imgui.api.DrawList_AddRectFilledMultiColor),
+    DrawList_PathLineTo: @TypeOf(imgui.api.DrawList_PathLineTo),
+    EndTooltip: @TypeOf(imgui.api.EndTooltip),
+    GetContentRegionAvail: @TypeOf(imgui.api.GetContentRegionAvail),
+    GetKeyMods: @TypeOf(imgui.api.GetKeyMods),
+    GetMousePos: @TypeOf(imgui.api.GetMousePos),
+    GetMouseWheel: @TypeOf(imgui.api.GetMouseWheel),
+    GetTextLineHeight: @TypeOf(imgui.api.GetTextLineHeight),
+    IsItemActivated: @TypeOf(imgui.api.IsItemActivated),
+    IsItemClicked: @TypeOf(imgui.api.IsItemClicked),
+    PopTextWrapPos: @TypeOf(imgui.api.PopTextWrapPos),
+    PushTextWrapPos: @TypeOf(imgui.api.PushTextWrapPos),
+    SetMouseCursor: @TypeOf(imgui.api.SetMouseCursor),
+    SetNextWindowPos: @TypeOf(imgui.api.SetNextWindowPos),
 };
 
 // -- Push/Pop pair tracking --
@@ -267,6 +296,7 @@ pub const PairCategory = enum {
     tab_item,
     table,
     drag_drop_target,
+    text_wrap,
 };
 
 // -- MockImGui struct --
@@ -606,7 +636,113 @@ pub const MockImGui = struct {
     const InputText = &mockInputText;
     const SetKeyboardFocusHere = &mockSetKeyboardFocusHere;
     const IsKeyPressed = &mockIsKeyPressed;
+    // The panel kit
+    const Attach = &mockAttach;
+    const BeginTooltip = &mockBeginTooltip;
+    const CreateFont = &mockCreateFont;
+    const CreateFontFromMem = &mockCreateFontFromMem;
+    const DrawList_AddRectFilledMultiColor = &mockDL_AddRectFilledMultiColor;
+    const DrawList_PathLineTo = &mockDL_PathLineTo;
+    const EndTooltip = &mockEndTooltip;
+    const GetContentRegionAvail = &mockGetContentRegionAvail;
+    const GetKeyMods = &mockGetKeyMods;
+    const GetMousePos = &mockGetMousePos;
+    const GetMouseWheel = &mockGetMouseWheel;
+    const GetTextLineHeight = &mockGetTextLineHeight;
+    const IsItemActivated = &mockIsItemActivated;
+    const IsItemClicked = &mockIsItemClicked;
+    const PopTextWrapPos = &mockPopTextWrapPos;
+    const PushTextWrapPos = &mockPushTextWrapPos;
+    const SetMouseCursor = &mockSetMouseCursor;
+    const SetNextWindowPos = &mockSetNextWindowPos;
 };
+
+// -- The functions that the panel kit (reaziglib's panel_widgets) calls --
+// Queries answer with a fixed, plausible value, so that the widgets lay out as they would in a window. The tooltip is
+// never shown, because the mouse is never over an item here.
+
+fn mockAttach(_: imgui.ContextPtr, _: imgui.ResourcePtr) callconv(.C) void {
+    trace(.attach_font, "");
+}
+
+fn mockBeginTooltip(_: imgui.ContextPtr) callconv(.C) bool {
+    trace(.begin_tooltip, "");
+    return false;
+}
+
+fn mockEndTooltip(_: imgui.ContextPtr) callconv(.C) void {
+    trace(.end_tooltip, "");
+}
+
+var mock_font_byte: u8 = 0;
+
+fn mockCreateFont(_: [*:0]const u8, _: c_int, _: ?*c_int) callconv(.C) imgui.FontPtr {
+    trace(.create_font, "");
+    return @ptrCast(&mock_font_byte);
+}
+
+fn mockCreateFontFromMem(_: [*:0]const u8, _: c_int, _: c_int, _: ?*c_int) callconv(.C) imgui.FontPtr {
+    trace(.create_font, "");
+    return @ptrCast(&mock_font_byte);
+}
+
+fn mockDL_AddRectFilledMultiColor(_: imgui.DrawListPtr, _: f64, _: f64, _: f64, _: f64, _: c_int, _: c_int, _: c_int, _: c_int) callconv(.C) void {
+    trace(.draw_list_add_rect_filled_multi_color, "");
+}
+
+fn mockDL_PathLineTo(_: imgui.DrawListPtr, _: f64, _: f64) callconv(.C) void {
+    trace(.draw_list_path_line_to, "");
+}
+
+fn mockGetContentRegionAvail(_: imgui.ContextPtr, w: *f64, h: *f64) callconv(.C) void {
+    w.* = 400.0;
+    h.* = 300.0;
+}
+
+fn mockGetKeyMods(_: imgui.ContextPtr) callconv(.C) c_int {
+    return 0;
+}
+
+fn mockGetMousePos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
+    x.* = 0.0;
+    y.* = 0.0;
+}
+
+fn mockGetMouseWheel(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
+    x.* = 0.0;
+    y.* = 0.0;
+}
+
+fn mockGetTextLineHeight(_: imgui.ContextPtr) callconv(.C) f64 {
+    // The same height that `mockCalcTextSize` gives a line of text.
+    return 16.0;
+}
+
+fn mockIsItemActivated(_: imgui.ContextPtr) callconv(.C) bool {
+    return false;
+}
+
+fn mockIsItemClicked(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) bool {
+    return false;
+}
+
+fn mockPushTextWrapPos(_: imgui.ContextPtr, _: ?*f64) callconv(.C) void {
+    trace(.push_text_wrap_pos, "");
+    pushPair(.text_wrap);
+}
+
+fn mockPopTextWrapPos(_: imgui.ContextPtr) callconv(.C) void {
+    trace(.pop_text_wrap_pos, "");
+    popPair(.text_wrap);
+}
+
+fn mockSetMouseCursor(_: imgui.ContextPtr, _: c_int) callconv(.C) void {
+    trace(.set_mouse_cursor, "");
+}
+
+fn mockSetNextWindowPos(_: imgui.ContextPtr, _: f64, _: f64, _: ?*c_int, _: ?*f64, _: ?*f64) callconv(.C) void {
+    trace(.set_next_window_pos, "");
+}
 
 // -- Panic stub for unmocked functions --
 
@@ -1183,4 +1319,37 @@ fn mockEndTabItem(_: imgui.ContextPtr) callconv(.C) void {
 
 fn mockColorEdit4(_: imgui.ContextPtr, _: [*:0]const u8, _: *c_int, _: ?*c_int) callconv(.C) bool {
     return false;
+}
+
+test "the functions of the panel kit are mocked, and the pairs balance" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    const ctx: imgui.ContextPtr = null;
+    const font = imgui.api.CreateFontFromMem("ttf", 3, 14, null);
+    try std.testing.expect(font != null);
+    try std.testing.expect(imgui.api.CreateFont("sans-serif", 14, null) != null);
+    imgui.api.Attach(ctx, @ptrCast(font));
+
+    var wrap: f64 = 320;
+    imgui.api.PushTextWrapPos(ctx, &wrap);
+    imgui.api.PopTextWrapPos(ctx);
+    try std.testing.expect(!imgui.api.BeginTooltip(ctx));
+
+    var x: f64 = 1;
+    var y: f64 = 1;
+    imgui.api.GetMousePos(ctx, &x, &y);
+    imgui.api.GetMouseWheel(ctx, &x, &y);
+    imgui.api.GetContentRegionAvail(ctx, &x, &y);
+    try std.testing.expectEqual(@as(c_int, 0), imgui.api.GetKeyMods(ctx));
+    try std.testing.expectEqual(@as(f64, 16.0), imgui.api.GetTextLineHeight(ctx));
+    try std.testing.expect(!imgui.api.IsItemActivated(ctx));
+    try std.testing.expect(!imgui.api.IsItemClicked(ctx, null));
+    imgui.api.SetMouseCursor(ctx, 0);
+    imgui.api.SetNextWindowPos(ctx, 10, 10, null, null, null);
+    imgui.api.DrawList_AddRectFilledMultiColor(null, 0, 0, 1, 1, 0, 0, 0, 0);
+    imgui.api.DrawList_PathLineTo(null, 0, 0);
+    try mock.assertBalanced();
 }
