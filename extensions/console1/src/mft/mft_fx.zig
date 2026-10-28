@@ -125,15 +125,22 @@ fn fxBaseName(track: reaper.MediaTrack, fx: c_int, buf: *[512:0]u8) ?[:0]const u
     return buf[0..base_len :0];
 }
 
+// The value of `TrackFX_GetChainVisible` when the chain window is hidden. A visible chain gives the index of the
+// effect shown, or -2 when no effect is selected.
+const CHAIN_HIDDEN: c_int = -1;
+
+// The `showFlag` of `TrackFX_Show` that a press of the chain key sends. Because the chain is visible whenever the
+// state is not CHAIN_HIDDEN, whether the window has the focus or not, a visible chain is hidden (0) and a hidden one is
+// shown (1).
+pub fn chainShowFlag(chain_visible: c_int) c_int {
+    return if (chain_visible != CHAIN_HIDDEN) 0 else 1;
+}
+
 // Toggle the track's FX chain window, focused on the given FX. Matches the
 // Console One, which opens the whole chain rather than a single floating window.
-// showFlag 1 shows the chain (with fx_index selected), 0 hides it.
+// The state is the chain's own visibility, and not the "open" state of the FX, which follows the focus.
 pub fn toggleFxChain(track: reaper.MediaTrack, fx_index: c_int) void {
-    if (reaper.TrackFX_GetOpen(track, fx_index)) {
-        reaper.TrackFX_Show(track, fx_index, 0);
-    } else {
-        reaper.TrackFX_Show(track, fx_index, 1);
-    }
+    reaper.TrackFX_Show(track, fx_index, chainShowFlag(reaper.TrackFX_GetChainVisible(track)));
 }
 
 // The FX whose window L1 should toggle for the active module: the last-tweaked
@@ -307,4 +314,12 @@ test "SlotRouting.merge: first FX to claim a slot wins" {
     routing.merge(2, second);
 
     try t.expectEqual(@as(?SlotTarget, .{ .fx_index = 1, .param = 9 }), routing.targets[0]);
+}
+
+test "the chain key hides a visible chain, focused or not, and shows a hidden one" {
+    try std.testing.expectEqual(@as(c_int, 1), chainShowFlag(CHAIN_HIDDEN));
+    // The chain is visible with an effect selected, or with none selected.
+    try std.testing.expectEqual(@as(c_int, 0), chainShowFlag(0));
+    try std.testing.expectEqual(@as(c_int, 0), chainShowFlag(3));
+    try std.testing.expectEqual(@as(c_int, 0), chainShowFlag(-2));
 }

@@ -7,27 +7,16 @@ const MftActiveModule = @import("mft_state.zig").MftActiveModule;
 const mappings = @import("mft_mappings.zig");
 const MappableModule = mappings.MappableModule;
 const mft_fx = @import("mft_fx.zig");
-const mft_transport = @import("mft_transport.zig");
 const mft_settings = @import("mft_settings.zig");
 const theme = @import("panel_theme");
 const panel_fonts = @import("panel_fonts");
 const widgets = @import("panel_widgets");
 const wizard = @import("mft_wizard.zig");
+const device = @import("mft_device.zig");
+const colors = @import("mft_colors.zig");
 const log = std.log.scoped(.mft_imgui);
 
 const plugin_name = "MFT";
-// The width of a cell's screen, and the distance from one column of cells to the next.
-const CELL_W: f64 = 96.0;
-const CELL_PITCH: f64 = 108.0;
-const SIDE_W: f64 = 72.0;
-const WINDOW_W: f64 = 640.0;
-const WINDOW_H: f64 = 620.0;
-
-// A dial shows a normalized parameter as a percentage.
-const dial_control = widgets.Control{ .id = "mft-dial", .low = 0, .high = 100, .unit = "%" };
-
-const left_labels = [3][:0]const u8{ "L1 Chain", "L2 Hide", "L3 FXsel" };
-const right_labels = [3][:0]const u8{ "R1 Mute", "R2 Solo", "R3 Phase" };
 
 var ctx: imgui.ContextPtr = null;
 var disabled = false;
@@ -36,82 +25,112 @@ var ready = false;
 // in it, so both are made and dropped with the context.
 var fonts: panel_fonts.Fonts = .{};
 var kit: widgets.Panel = .{};
+// Whether the device is folded to its header row. Because the player folds the panel for the whole session, the state
+// is kept when the context is dropped.
+var folded = false;
+// When each top encoder was last turned, so that the pop-up of its value can show for a moment after the turn.
+var activity: Activity = .{};
+// The formatted values of the knobs that show one, kept until the value changes.
+var formatted_values: FormattedValues = .{};
 
-// Short module names shown on the bottom-row selector cells.
-const module_labels = [6][:0]const u8{ "IO", "GATE", "EQ", "COMP", "SETTINGS", "TRANSPORT" };
-
-// Convert an HSV color (h in degrees, s and v in 0..1) to a packed 0xRRGGBBAA
-// ImGui color.
-fn hsvToRgb(h: f32, s: f32, v: f32) c_int {
-    const c = v * s;
-    const hp = h / 60.0;
-    const x = c * (1.0 - @abs(@mod(hp, 2.0) - 1.0));
-    var r: f32 = 0;
-    var g: f32 = 0;
-    var b: f32 = 0;
-    if (hp < 1.0) {
-        r = c;
-        g = x;
-    } else if (hp < 2.0) {
-        r = x;
-        g = c;
-    } else if (hp < 3.0) {
-        g = c;
-        b = x;
-    } else if (hp < 4.0) {
-        g = x;
-        b = c;
-    } else if (hp < 5.0) {
-        r = x;
-        b = c;
-    } else {
-        r = c;
-        b = x;
-    }
-    const m = v - c;
-    const ri: u32 = @intFromFloat(std.math.clamp((r + m) * 255.0, 0.0, 255.0));
-    const gi: u32 = @intFromFloat(std.math.clamp((g + m) * 255.0, 0.0, 255.0));
-    const bi: u32 = @intFromFloat(std.math.clamp((b + m) * 255.0, 0.0, 255.0));
-    return @bitCast((ri << 24) | (gi << 16) | (bi << 8) | 0xFF);
-}
-
-// Map the MFT color-wheel hue (0-127) to an RGB color for the panel, so the UI
-// matches the controller's color code. On the wheel red sits near 0x56 (86);
-// increasing hue moves toward blue below it and purple above, so the HSV angle
-// is roughly (86 - hue) * (360/128).
-fn hueToRgb(hue: u8) c_int {
-    const deg = @mod((86.0 - @as(f32, @floatFromInt(hue))) * (360.0 / 128.0), 360.0);
-    return hsvToRgb(deg, 1.0, 1.0);
-}
+const KnobInfo = device.KnobInfo;
 
 fn moduleColor(globals: *MftGlobals, module: MftActiveModule) c_int {
-    return hueToRgb(globals.preferences.colorForModule(module));
+    return colors.hueToRgb(globals.preferences.colorForModule(module));
 }
 
-// Per-frame display data for the eight top-row knobs of the active module.
-const KnobInfo = struct {
-    vals: [8]f64 = [_]f64{0.0} ** 8,
-    mapped: [8]bool = [_]bool{false} ** 8,
-    name_bufs: [8][64:0]u8 = undefined,
-    has_name: [8]bool = [_]bool{false} ** 8,
+/// How long the pop-up of a value stays after the last moment that its knob was hovered, held or turned, in
+/// milliseconds. Because the pop-up must not flicker when the mouse crosses the gap between two knobs or a turn pauses,
+/// it lingers for a short time.
+pub const value_linger_ms: i64 = @import("mft_state.zig").linger_ms;
 
-    fn name(self: *const KnobInfo, slot: usize) [:0]const u8 {
-        return std.mem.sliceTo(&self.name_bufs[slot], 0);
+/// Remembers when each of the top encoders was last engaged, which is when the mouse was over it, it was held, or its
+/// value changed. Because the panel mirrors the controller, a turn is only known by the value changing between two
+/// frames.
+pub const Activity = struct {
+    last: [8]f64 = [_]f64{0.0} ** 8,
+    engaged_at: [8]i64 = [_]i64{never} ** 8,
+    module: ?MftActiveModule = null,
+    track: reaper.MediaTrack = null,
+
+    /// The time of an encoder that has never been engaged.
+    pub const never: i64 = std.math.minInt(i64) / 2;
+    /// The smallest change of a value that is a turn, and not the noise of a parameter that reports itself again.
+    pub const threshold: f64 = 0.0005;
+
+    /// Compares the values of this frame with those of the last one. `engaged` has a bit for each encoder that the
+    /// mouse is over or that is held right now. Returns a bit for each mapped encoder that was engaged or turned less
+    /// than `value_linger_ms` ago. Because a new module or a new track brings other values that nobody turned, the
+    /// comparison starts again when either one changes.
+    pub fn update(self: *Activity, module: MftActiveModule, track: reaper.MediaTrack, info: *const KnobInfo, engaged: u8, now_ms: i64) u8 {
+        if (self.module != module or self.track != track) {
+            self.module = module;
+            self.track = track;
+            self.last = info.vals;
+            self.engaged_at = [_]i64{never} ** 8;
+        }
+        var bits: u8 = 0;
+        for (0..8) |slot| {
+            const turned = info.mapped[slot] and @abs(info.vals[slot] - self.last[slot]) > threshold;
+            const bit = @as(u8, 1) << @intCast(slot);
+            if (turned or engaged & bit != 0) self.engaged_at[slot] = now_ms;
+            self.last[slot] = info.vals[slot];
+            if (info.mapped[slot] and now_ms - self.engaged_at[slot] < value_linger_ms) bits |= bit;
+        }
+        return bits;
     }
 };
 
-// The module a bottom-row encoder selects, or null for the two reserved cells.
-fn moduleForCell(idx: usize) ?MftActiveModule {
-    return switch (idx) {
-        8 => .IO,
-        9 => .GATE,
-        10 => .EQ,
-        11 => .COMP,
-        12 => .SETTINGS,
-        13 => .TRANSPORT,
-        else => null,
-    };
+/// Asks the plugin for the text of a parameter value, as REAPER displays it. Returns false when the plugin has none.
+pub const FormatSource = *const fn (track: reaper.MediaTrack, fx: c_int, param: c_int, buf: *[formatted_len:0]u8) bool;
+
+const formatted_len = device.formatted_len;
+
+fn reaperFormat(track: reaper.MediaTrack, fx: c_int, param: c_int, buf: *[formatted_len:0]u8) bool {
+    buf[0] = 0;
+    return reaper.TrackFX_GetFormattedParamValue(track, fx, param, buf, formatted_len + 1);
 }
+
+/// The formatted values of the top encoders. Because formatting calls into the plugin, a value is asked for only when
+/// its knob shows one, and again only when the value changed since it was asked. Owning the buffers here keeps them
+/// out of the frame's data until the panel copies them in.
+pub const FormattedValues = struct {
+    bufs: [8][formatted_len:0]u8 = undefined,
+    ok: [8]bool = [_]bool{false} ** 8,
+    asked_for: [8]f64 = [_]f64{-1.0} ** 8,
+    module: ?MftActiveModule = null,
+    track: reaper.MediaTrack = null,
+    source: FormatSource = &reaperFormat,
+    /// How many times the plugin was asked, which the tests count.
+    asks: usize = 0,
+
+    /// Fills the formatted values of `info` for the encoders in `wanted`, one bit each. An empty text or a failed call
+    /// leaves the encoder with its percentage.
+    pub fn fill(self: *FormattedValues, module: MftActiveModule, track: reaper.MediaTrack, info: *KnobInfo, wanted: u8) void {
+        if (self.module != module or self.track != track) {
+            self.module = module;
+            self.track = track;
+            self.ok = [_]bool{false} ** 8;
+            self.asked_for = [_]f64{-1.0} ** 8;
+        }
+        const track_ptr = track orelse return;
+        for (0..8) |slot| {
+            const bit = @as(u8, 1) << @intCast(slot);
+            if (!info.mapped[slot] or wanted & bit == 0) continue;
+            if (self.asked_for[slot] != info.vals[slot]) {
+                self.asked_for[slot] = info.vals[slot];
+                self.asks += 1;
+                // A source that writes nothing must not leave the text of the last value behind.
+                self.bufs[slot][0] = 0;
+                self.ok[slot] = self.source(track_ptr, info.fx_index[slot], info.param[slot], &self.bufs[slot]) and self.bufs[slot][0] != 0;
+            }
+            if (self.ok[slot]) {
+                info.formatted_bufs[slot] = self.bufs[slot];
+                info.has_formatted[slot] = true;
+            }
+        }
+    }
+};
 
 pub fn register() void {
     if (comptime builtin.is_test) return;
@@ -170,6 +189,15 @@ fn dropContext() void {
     kit = .{};
 }
 
+/// Where the window opens the first time, in pixels from the top left of the screen.
+const window_x: f64 = 80;
+const window_y: f64 = 60;
+/// The roundness of the window's corners, which is the roundness of the device's body, so that the body fills the window
+/// to its edges.
+const window_rounding: f64 = 16;
+/// The room between the device and the cards under it.
+const cards_gap: f64 = 10;
+
 fn draw(globals: *MftGlobals) !void {
     // Only called while the panel is visible: onTimer owns the hide/show cycle by
     // dropping the context when hidden, so draw always submits the window.
@@ -182,42 +210,87 @@ fn draw(globals: *MftGlobals) !void {
     if (fonts.text != null) imgui.api.PushFont(ctx, fonts.text);
     defer if (fonts.text != null) imgui.api.PopFont(ctx);
 
-    imgui.api.SetNextWindowSize(ctx, WINDOW_W, WINDOW_H, &imgui.Cond_FirstUseEver);
-    if (try imgui.Begin(.{ ctx, plugin_name })) {
-        defer imgui.End(.{ctx}) catch {};
+    // The window has no title bar, because the device has its own close and fold buttons, and the window moves when
+    // the mouse drags an empty part of it. It sizes itself to what the panel shows, so that folding the device shrinks
+    // the window.
+    imgui.api.SetNextWindowPos(ctx, window_x, window_y, &imgui.Cond_FirstUseEver, null, null);
+    const flags: c_int = imgui.WindowFlags_NoCollapse | imgui.WindowFlags_NoTitleBar | imgui.WindowFlags_AlwaysAutoResize;
+    // The device fills the window to its edges: while the window begins, it has no padding and no border, and its
+    // corners are rounded like the body's. Because the window keeps what it read when it began, the style is popped
+    // right after `Begin`, and the cards inside the window have their own padding and corners.
+    theme.pushVar2(ctx, imgui.StyleVar_WindowPadding, 0, 0);
+    theme.pushVar(ctx, imgui.StyleVar_WindowBorderSize, 0);
+    theme.pushVar(ctx, imgui.StyleVar_WindowRounding, window_rounding);
+    const visible = try imgui.Begin(.{ ctx, plugin_name, null, flags });
+    var window_vars: c_int = 3;
+    imgui.api.PopStyleVar(ctx, &window_vars);
+    if (!visible) return;
+    defer imgui.End(.{ctx}) catch {};
 
-        const active = globals.mft.active_module;
-        const accent = moduleColor(globals, active);
-        std.debug.assert(accent != 0);
-
-        // Because a card that is not drawn is not followed by `endCard`, each card is closed by a defer inside the
-        // branch that opened it.
-        if (widgets.beginCard(&kit, plugin_name, null, null, accent)) {
-            defer widgets.endCard(&kit);
-            widgets.display(&kit, @tagName(active), accent, 160);
-        }
-
-        // Settings mode draws its form above the grid; otherwise the buffers stay
-        // synced from preferences for the next time it is opened.
-        if (active == .SETTINGS) {
-            try mft_settings.drawForm(&kit, globals, accent);
-        } else {
-            mft_settings.markUnsynced();
-        }
-
-        const info = readKnobInfo(globals, active);
-
-        if (widgets.beginCard(&kit, "Encoders", null, null, accent)) {
-            defer widgets.endCard(&kit);
-            drawSideColumn(&left_labels);
-            imgui.api.SameLine(ctx, null, null);
-            drawGrid(globals, &info, active, accent);
-            imgui.api.SameLine(ctx, null, null);
-            drawSideColumn(&right_labels);
-        }
-
-        drawWizard(globals);
+    const active = globals.mft.active_module;
+    std.debug.assert(moduleColor(globals, active) != 0);
+    var view = readView(globals);
+    const now_ms = std.time.milliTimestamp();
+    for (0..8) |i| {
+        const bit = @as(u8, 1) << @intCast(i);
+        if (globals.mft.activity.turnLit(i, now_ms)) view.turn_lit |= bit;
+        if (globals.mft.activity.pressLit(i, now_ms)) view.press_lit |= bit;
     }
+    for (0..3) |i| view.left_lit[i] = globals.mft.activity.sideLit(i, now_ms);
+    // The pop-ups of the values follow the mouse and the held encoders, and linger for a moment after them.
+    const engaged = device.hoveredKnobs(&kit, widgets.cursorScreenPos(&kit), &view) | @as(u8, @truncate(view.held));
+    view.show_value = activity.update(active, globals.current_track, &view.knobs, engaged, now_ms);
+    // Only the knobs that show a value ask the plugin for its text. The other modes than the pop-up show it always.
+    const wanted: u8 = if (view.value_mode == .popup) view.show_value else 0xFF;
+    formatted_values.fill(active, globals.current_track, &view.knobs, wanted);
+    const response = device.draw(&kit, &view);
+    if (response.close) globals.mft.panel_visible = false;
+    if (response.fold) folded = !folded;
+
+    // The settings form and the calibration card belong to the settings mode, and are not shown in the others, unless
+    // a calibration is under way. Because a folded device is its header row alone, nothing is under it then.
+    const show_cards = !folded and (active == .SETTINGS or globals.wizard.active);
+    if (show_cards) {
+        imgui.api.SetCursorScreenPos(ctx, response.left, response.bottom + cards_gap);
+        imgui.api.Dummy(ctx, 1, 1);
+    }
+    // Settings mode draws its form under the device; otherwise the buffers stay synced from preferences for the next
+    // time it is opened.
+    if (show_cards and active == .SETTINGS) {
+        try mft_settings.drawForm(&kit, globals, moduleColor(globals, active));
+    } else {
+        mft_settings.markUnsynced();
+    }
+    if (show_cards) drawWizard(globals);
+}
+
+/// What the device shows this frame: the colors of the modules, the parameters of the active module, the encoders that
+/// are held, and the state of the track's mute, solo and phase.
+fn readView(globals: *MftGlobals) device.View {
+    var module_colors: [6]c_int = undefined;
+    inline for (@typeInfo(MftActiveModule).@"enum".fields, 0..) |field, i| {
+        module_colors[i] = moduleColor(globals, @enumFromInt(field.value));
+    }
+    const active = globals.mft.active_module;
+    const view = device.View{
+        .active = active,
+        .colors = module_colors,
+        .knobs = readKnobInfo(globals, active),
+        .held = globals.mft.held_encoders,
+        .side_lit = readSideLit(globals),
+        .collapsed = folded,
+    };
+    return view;
+}
+
+// Reads whether the track is muted, soloed and phase-inverted, which the keys on the right of the device show.
+fn readSideLit(globals: *MftGlobals) [3]bool {
+    const track = globals.current_track orelse return [_]bool{false} ** 3;
+    return .{
+        reaper.GetMediaTrackInfo_Value(track, "B_MUTE") != 0,
+        reaper.GetMediaTrackInfo_Value(track, "I_SOLO") != 0,
+        reaper.GetMediaTrackInfo_Value(track, "B_PHASE") != 0,
+    };
 }
 
 // Reads the eight top-row parameter values and names for the active module.
@@ -230,90 +303,13 @@ fn readKnobInfo(globals: *MftGlobals, active: MftActiveModule) KnobInfo {
         const target = maybe_target orelse continue;
         info.vals[slot] = reaper.TrackFX_GetParamNormalized(track, target.fx_index, @intCast(target.param));
         info.mapped[slot] = true;
+        info.fx_index[slot] = target.fx_index;
+        info.param[slot] = @intCast(target.param);
         if (reaper.TrackFX_GetParamName(track, target.fx_index, @intCast(target.param), @ptrCast(&info.name_bufs[slot]), 64)) {
             info.has_name[slot] = true;
         }
     }
     return info;
-}
-
-// A column of the side buttons, each shown on a recessed screen with the function it has. Because the panel mirrors
-// the controller, they are screens and not buttons: a button that answers the mouse and does nothing would mislead.
-fn drawSideColumn(labels: *const [3][:0]const u8) void {
-    imgui.api.BeginGroup(ctx);
-    defer imgui.api.EndGroup(ctx);
-    for (labels) |label| widgets.display(&kit, label, theme.text, SIDE_W);
-}
-
-// The 4x4 grid of the encoders. Each column starts at a fixed distance from the first, so that the cells line up
-// whatever the width of their text.
-fn drawGrid(globals: *MftGlobals, info: *const KnobInfo, active: MftActiveModule, accent: c_int) void {
-    imgui.api.BeginGroup(ctx);
-    defer imgui.api.EndGroup(ctx);
-    for (0..4) |row| {
-        for (0..4) |col| {
-            if (col > 0) {
-                var offset = @as(f64, @floatFromInt(col)) * CELL_PITCH;
-                imgui.api.SameLine(ctx, &offset, null);
-            }
-            drawCell(globals, row * 4 + col, info, active, accent);
-        }
-    }
-}
-
-// Draws one cell of the grid: a dial or the transport functions for the top eight encoders, and the module selector
-// for the bottom eight.
-fn drawCell(globals: *MftGlobals, idx: usize, info: *const KnobInfo, active: MftActiveModule, accent: c_int) void {
-    imgui.api.BeginGroup(ctx);
-    defer imgui.api.EndGroup(ctx);
-    var lbl_buf: [8:0]u8 = undefined;
-    const klabel = std.fmt.bufPrintZ(&lbl_buf, "K{d}", .{idx + 1}) catch "K";
-    if (idx < 8) {
-        drawKnobCell(idx, info, active, accent, klabel);
-    } else {
-        drawModuleCell(globals, idx, active, klabel);
-    }
-}
-
-// One of the top eight encoders.
-fn drawKnobCell(idx: usize, info: *const KnobInfo, active: MftActiveModule, accent: c_int, klabel: [:0]const u8) void {
-    switch (active) {
-        // Transport mode shows each encoder's rotation and press function.
-        .TRANSPORT => {
-            widgets.centeredValue(&kit, klabel, CELL_W, theme.label);
-            widgets.centeredValue(&kit, mft_transport.rotationLabel(idx), CELL_W, theme.text);
-            widgets.centeredValue(&kit, mft_transport.pressLabel(idx), CELL_W, theme.text_dim);
-        },
-        .SETTINGS => {
-            widgets.centeredValue(&kit, klabel, CELL_W, theme.label);
-            widgets.centeredValue(&kit, "-", CELL_W, theme.text_dim);
-        },
-        // A mappable module: the mapped parameter's name is the dial's label. An encoder with nothing mapped shows
-        // a dim dial at zero under its own number.
-        else => {
-            const name: []const u8 = if (info.has_name[idx]) info.name(idx) else klabel;
-            const normalized = std.math.clamp(info.vals[idx], 0.0, 1.0);
-            const percent: i32 = @intFromFloat(@round(normalized * 100.0));
-            widgets.dial(&kit, dial_control, if (info.mapped[idx]) percent else 0, name, if (info.mapped[idx]) accent else theme.text_dim);
-            widgets.tooltip(&kit, "Hold the encoder while turning for fine adjustment");
-        },
-    }
-}
-
-// One of the bottom eight encoders: a module selector, with a lamp in the module's color that is lit for the active
-// module, or a reserved cell.
-fn drawModuleCell(globals: *MftGlobals, idx: usize, active: MftActiveModule, klabel: [:0]const u8) void {
-    const module = moduleForCell(idx) orelse {
-        widgets.centeredValue(&kit, klabel, CELL_W, theme.label);
-        widgets.display(&kit, "-", theme.text_dim, CELL_W);
-        return;
-    };
-    const color = moduleColor(globals, module);
-    const lit = module == active;
-    widgets.lamp(&kit, color, lit);
-    imgui.api.SameLine(ctx, null, null);
-    widgets.centeredValue(&kit, klabel, CELL_W - 24, theme.label);
-    widgets.display(&kit, module_labels[idx - 8], if (lit) color else theme.text_dim, CELL_W);
 }
 
 // The calibration wizard is a card of its own: the LED test is a toggle, the step's status is a lamp and a screen in
@@ -395,29 +391,31 @@ test "panel balanced across modes" {
     try assertPanelBalanced(.TRANSPORT, false);
     try assertPanelBalanced(.SETTINGS, false);
     try assertPanelBalanced(.IO, true);
+    try assertPanelBalanced(.SETTINGS, true);
 }
 
-test "every cell of the grid leaves the stacks balanced, mapped or not, in every kind of mode" {
+test "a folded panel is balanced too, with the cards of the settings mode hidden under the header row" {
+    folded = true;
+    defer folded = false;
+    try assertPanelBalanced(.SETTINGS, true);
+    try assertPanelBalanced(.TRANSPORT, false);
+}
+
+test "the buttons of the corner fold the device and hide the panel" {
     var mock = MockImGui.init(std.testing.allocator);
     defer mock.deinit();
     mock.install();
     defer mock.restore();
 
     var globals: MftGlobals = .{};
-    var info = KnobInfo{};
-    // The first encoder has a parameter mapped, with a name, and the second has one without a name.
-    info.mapped[0] = true;
-    info.vals[0] = 0.5;
-    info.has_name[0] = true;
-    @memcpy(info.name_bufs[0][0..4], "Gain");
-    info.name_bufs[0][4] = 0;
-    info.mapped[1] = true;
-    info.vals[1] = 2.0;
-
-    for ([_]MftActiveModule{ .IO, .TRANSPORT, .SETTINGS }) |module| {
-        const accent = moduleColor(&globals, module);
-        for (0..16) |idx| drawCell(&globals, idx, &info, module, accent);
-    }
+    defer folded = false;
+    mock.click("##cornerfold");
+    try draw(&globals);
+    try std.testing.expect(folded);
+    try std.testing.expect(globals.mft.panel_visible);
+    mock.click("##cornerclose");
+    try draw(&globals);
+    try std.testing.expect(!globals.mft.panel_visible);
     try mock.assertBalanced();
 }
 
@@ -444,4 +442,114 @@ test "the settings form leaves the stacks balanced wherever the cursor is" {
         try draw(&globals);
     }
     try mock.assertBalanced();
+}
+
+test "a value shows in its pop-up while the knob is turned, hovered or held, and for the linger time after" {
+    var tracker = Activity{};
+    var info = KnobInfo{};
+    info.mapped[0] = true;
+    info.mapped[1] = true;
+    info.vals = .{ 0.2, 0.7, 0, 0, 0, 0, 0, 0 };
+    const first: u8 = 0b01;
+    const linger = value_linger_ms;
+
+    // The first frame of a module only learns the values, because nobody turned anything.
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0, 1000));
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0, 1016));
+    // The first encoder turns, and its pop-up stays for the linger time.
+    info.vals[0] = 0.3;
+    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, 0, 2000));
+    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, 0, 2000 + linger - 1));
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0, 2000 + linger));
+    // The mouse hovers over the first encoder: the pop-up stays as long as the mouse is there, then lingers.
+    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, first, 5000));
+    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, first, 9000));
+    try std.testing.expectEqual(first, tracker.update(.IO, null, &info, 0, 9000 + linger - 1));
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0, 9000 + linger));
+    // An encoder with nothing mapped never shows a value, and a change of module brings values nobody turned.
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.IO, null, &info, 0b100, 12000));
+    info.vals[1] = 0.9;
+    try std.testing.expectEqual(@as(u8, 0), tracker.update(.GATE, null, &info, 0, 13000));
+}
+
+test "the mouse over a knob is found, and a folded device has no knob to hover" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var panel = widgets.Panel{};
+    var view = device.View{ .active = .IO, .colors = [_]c_int{0x11} ** 6 };
+    // The mock's cursor is at the origin, so that the second knob of the first row is at this place.
+    const cell = device.cellAt(1, device.pad + device.side_w + device.side_gap, device.pad + device.header_h, view.value_mode);
+    mock.mouse_x = cell.cx;
+    mock.mouse_y = cell.cy;
+    try std.testing.expectEqual(@as(u8, 0b10), device.hoveredKnobs(&panel, .{ .x = 0, .y = 0 }, &view));
+    view.collapsed = true;
+    try std.testing.expectEqual(@as(u8, 0), device.hoveredKnobs(&panel, .{ .x = 0, .y = 0 }, &view));
+}
+
+const FakeFormat = struct {
+    var calls: usize = 0;
+    var empty = false;
+    fn format(_: reaper.MediaTrack, _: c_int, param: c_int, buf: *[formatted_len:0]u8) bool {
+        calls += 1;
+        if (empty) return true;
+        _ = std.fmt.bufPrintZ(buf, "{d}.0 dB", .{param}) catch return false;
+        return true;
+    }
+};
+
+test "the plugin's text is asked for the knobs that show a value, once per value, and the percentage is the fallback" {
+    var values = FormattedValues{ .source = &FakeFormat.format };
+    const track: reaper.MediaTrack = @ptrFromInt(0x10);
+    var info = KnobInfo{};
+    for (0..3) |slot| {
+        info.mapped[slot] = true;
+        info.param[slot] = @intCast(slot + 5);
+        info.vals[slot] = 0.5;
+    }
+    FakeFormat.calls = 0;
+    // Only the first and third knobs show a value.
+    values.fill(.COMP, track, &info, 0b101);
+    try std.testing.expectEqual(@as(usize, 2), FakeFormat.calls);
+    try std.testing.expect(info.has_formatted[0] and !info.has_formatted[1] and info.has_formatted[2]);
+    try std.testing.expectEqualStrings("5.0 dB", info.formatted(0));
+    try std.testing.expectEqualStrings("7.0 dB", info.formatted(2));
+    // The same values in the next frame are not asked for again, and are still shown.
+    var next = KnobInfo{ .mapped = info.mapped, .vals = info.vals, .param = info.param };
+    values.fill(.COMP, track, &next, 0b101);
+    try std.testing.expectEqual(@as(usize, 2), FakeFormat.calls);
+    try std.testing.expectEqualStrings("5.0 dB", next.formatted(0));
+    // A value that changed is asked for again.
+    next.vals[0] = 0.6;
+    values.fill(.COMP, track, &next, 0b101);
+    try std.testing.expectEqual(@as(usize, 3), FakeFormat.calls);
+    // A plugin that gives an empty text leaves the percentage, and no track leaves everything as it is.
+    FakeFormat.empty = true;
+    defer FakeFormat.empty = false;
+    var other = KnobInfo{ .mapped = info.mapped, .vals = info.vals, .param = info.param };
+    values.fill(.EQ, track, &other, 0xFF);
+    try std.testing.expect(!other.has_formatted[0]);
+    var no_track = KnobInfo{ .mapped = info.mapped };
+    values.fill(.EQ, null, &no_track, 0xFF);
+    try std.testing.expect(!no_track.has_formatted[0]);
+}
+
+test "a transport turn, a press and a left key light the panel while they last, and the stacks balance" {
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    var globals: MftGlobals = .{};
+    globals.mft.active_module = .TRANSPORT;
+    const now = std.time.milliTimestamp();
+    globals.mft.activity.markTurn(0, now);
+    globals.mft.activity.markPress(1, true, now);
+    globals.mft.activity.markSide(2, true, now);
+    try draw(&globals);
+    try mock.assertBalanced();
+    try std.testing.expect(globals.mft.activity.turnLit(0, now));
+    try std.testing.expect(globals.mft.activity.sideLit(2, now + 10 * value_linger_ms));
 }

@@ -62,6 +62,7 @@ fn onEncoderRotation(cc: u8, val: u8, globals: *MftGlobals) void {
     // yet. Only a mappable module routes to FX parameters.
     switch (globals.mft.active_module) {
         .TRANSPORT => {
+            globals.mft.activity.markTurn(slot, std.time.milliTimestamp());
             // Knob 3 held + turned does vertical zoom instead of horizontal.
             if (slot == 2 and globals.mft.isHeld(2)) {
                 globals.mft.transport_turned = true;
@@ -118,41 +119,26 @@ fn settingsRotate(globals: *MftGlobals, slot: u3, delta: i8) void {
 }
 
 fn adjustSelectedSetting(globals: *MftGlobals, delta: i8) void {
-    const p = &globals.preferences;
-    const hue: ?u8 = switch (globals.mft.settings_cursor) {
-        0 => blk: {
-            p.color_io = wrapHue(p.color_io, delta);
-            break :blk p.color_io;
-        },
-        1 => blk: {
-            p.color_gate = wrapHue(p.color_gate, delta);
-            break :blk p.color_gate;
-        },
-        2 => blk: {
-            p.color_eq = wrapHue(p.color_eq, delta);
-            break :blk p.color_eq;
-        },
-        3 => blk: {
-            p.color_comp = wrapHue(p.color_comp, delta);
-            break :blk p.color_comp;
-        },
-        4 => blk: {
-            p.color_settings = wrapHue(p.color_settings, delta);
-            break :blk p.color_settings;
-        },
-        5 => blk: {
-            p.color_transport = wrapHue(p.color_transport, delta);
-            break :blk p.color_transport;
-        },
-        6 => blk: {
-            p.sensitivity = std.math.clamp(p.sensitivity + @as(f32, @floatFromInt(delta)) * 0.05, 0.1, 4.0);
-            break :blk null;
-        },
-        else => null, // plugin-name rows: keyboard only
-    };
-    if (hue) |h| {
-        if (globals.m_midi_out) |mo| midi_out.sendAllColors(mo, h);
+    const cursor = globals.mft.settings_cursor;
+    // The six colors come first, in the order of the modules, then the sensitivity; the rest are plugin-name rows,
+    // which only the keyboard edits. The mouse of the panel changes the same values through the same functions.
+    if (cursor < 6) {
+        const module: MftActiveModule = @enumFromInt(cursor);
+        const hue = wrapHue(globals.preferences.colorForModule(module), delta);
+        mft_settings.setHue(globals, module, hue);
+    } else if (cursor == 6) {
+        const next = globals.preferences.sensitivity + @as(f32, @floatFromInt(delta)) * mft_settings.SENSITIVITY_STEP;
+        mft_settings.setSensitivity(globals, next);
     }
+}
+
+// Sends a hue to the LEDs of the controller, when it is connected. The settings install it as the way to send colors.
+fn sendHue(globals: *MftGlobals, hue: u8) void {
+    if (globals.m_midi_out) |mo| midi_out.sendAllColors(mo, hue);
+}
+
+pub fn installSettingsHook() void {
+    mft_settings.send_hue = &sendHue;
 }
 
 // Knob 3 uses press-and-turn for vertical zoom, so its click action (fit
@@ -180,7 +166,10 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
         // Presses on the top two rows depend on the active mode. In a mappable
         // module they arm fine-tune; in transport mode they drive transport.
         switch (globals.mft.active_module) {
-            .TRANSPORT => transportButton(globals, @intCast(cc), pressed),
+            .TRANSPORT => {
+                globals.mft.activity.markPress(cc, pressed, std.time.milliTimestamp());
+                transportButton(globals, @intCast(cc), pressed);
+            },
             .SETTINGS => {},
             else => if (pressed) globals.mft.setHeld(cc) else globals.mft.clearHeld(cc),
         }
@@ -212,6 +201,10 @@ fn onEncoderButton(cc: u8, val: u8, globals: *MftGlobals) void {
 }
 
 fn onSideButton(cc: u8, val: u8, globals: *MftGlobals) void {
+    // The panel lights a key while it is down and for a moment after, so the release counts too.
+    for (mft.SIDE_BUTTON_CCS, 0..) |key_cc, key| {
+        if (key_cc == cc) globals.mft.activity.markSide(key, val == 127, std.time.milliTimestamp());
+    }
     if (val != 127) return;
     // Side buttons on channel 4, CCs 8-13: L1-L3 then R1-R3. L2 (panel toggle)
     // needs no track; the others act on the current track when there is one.

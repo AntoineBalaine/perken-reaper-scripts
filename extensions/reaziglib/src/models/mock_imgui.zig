@@ -206,6 +206,8 @@ const ImguiMocks = struct {
     IsItemActive: @TypeOf(imgui.api.IsItemActive),
     IsItemHovered: @TypeOf(imgui.api.IsItemHovered),
     IsMouseDoubleClicked: @TypeOf(imgui.api.IsMouseDoubleClicked),
+    IsMouseHoveringRect: @TypeOf(imgui.api.IsMouseHoveringRect),
+    IsWindowHovered: @TypeOf(imgui.api.IsWindowHovered),
     IsKeyDown: @TypeOf(imgui.api.IsKeyDown),
     GetMouseDragDelta: @TypeOf(imgui.api.GetMouseDragDelta),
     ResetMouseDragDelta: @TypeOf(imgui.api.ResetMouseDragDelta),
@@ -314,6 +316,9 @@ pub const MockImGui = struct {
     key_press_targets: std.AutoArrayHashMap(c_int, void),
     input_text_enter: std.StringHashMapUnmanaged(void),
     last_invisible_button_label: []const u8 = "",
+    /// Where the mouse is, which a test moves to hover over a part of the panel. It starts far from every widget.
+    mouse_x: f64 = -10000,
+    mouse_y: f64 = -10000,
     allocator: std.mem.Allocator,
     orig_funcs: ImguiMocks,
     orig_get_error: @TypeOf(imgui.getError),
@@ -595,6 +600,8 @@ pub const MockImGui = struct {
     const IsItemActive = &mockIsItemActive;
     const IsItemHovered = &mockIsItemHovered;
     const IsMouseDoubleClicked = &mockIsMouseDoubleClicked;
+    const IsMouseHoveringRect = &mockIsMouseHoveringRect;
+    const IsWindowHovered = &mockIsWindowHovered;
     const IsKeyDown = &mockIsKeyDown;
     const GetMouseDragDelta = &mockGetMouseDragDelta;
     const ResetMouseDragDelta = &mockResetMouseDragDelta;
@@ -704,8 +711,22 @@ fn mockGetKeyMods(_: imgui.ContextPtr) callconv(.C) c_int {
 }
 
 fn mockGetMousePos(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
-    x.* = 0.0;
-    y.* = 0.0;
+    const m = g_mock orelse {
+        x.* = 0.0;
+        y.* = 0.0;
+        return;
+    };
+    x.* = m.mouse_x;
+    y.* = m.mouse_y;
+}
+
+fn mockIsMouseHoveringRect(_: imgui.ContextPtr, x1: f64, y1: f64, x2: f64, y2: f64, _: ?*bool) callconv(.C) bool {
+    const m = g_mock orelse return false;
+    return m.mouse_x >= x1 and m.mouse_x <= x2 and m.mouse_y >= y1 and m.mouse_y <= y2;
+}
+
+fn mockIsWindowHovered(_: imgui.ContextPtr, _: ?*c_int) callconv(.C) bool {
+    return true;
 }
 
 fn mockGetMouseWheel(_: imgui.ContextPtr, x: *f64, y: *f64) callconv(.C) void {
@@ -1341,6 +1362,8 @@ test "the functions of the panel kit are mocked, and the pairs balance" {
     var x: f64 = 1;
     var y: f64 = 1;
     imgui.api.GetMousePos(ctx, &x, &y);
+    try std.testing.expect(!imgui.api.IsMouseHoveringRect(ctx, 0, 0, 1, 1, null));
+    try std.testing.expect(imgui.api.IsWindowHovered(ctx, null));
     imgui.api.GetMouseWheel(ctx, &x, &y);
     imgui.api.GetContentRegionAvail(ctx, &x, &y);
     try std.testing.expectEqual(@as(c_int, 0), imgui.api.GetKeyMods(ctx));

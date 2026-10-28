@@ -142,24 +142,41 @@ default plugin per slot.
 
 ## On-screen panel
 
-When ReaImGui is present, a panel mirrors the hardware: a 4x4 grid of encoders
-with three labeled side screens on each edge (L1 chain, L2 hide, L3 FX select,
-R1 mute, R2 solo, R3 phase). The top eight encoders are rotary dials. In an
-FX-control mode a mapped dial shows the mapped parameter's name as its label and
-its value as a percentage, and an encoder with nothing mapped shows a dim dial.
-In transport mode the top eight cells show the rotation and press functions. The
-bottom eight cells are the module selectors: each has a lamp in the module's
-color, lit for the active module, and a screen with the mode it selects.
+When ReaImGui is present, a panel draws the hardware as an object, as an object. The window has no title bar: a dark metal body with a screw in
+each corner, a header row, a recessed faceplate with the sixteen encoders in four rows of four, and three keys on each
+side (L1 chain, L2 hide, L3 FX select on the left; R1 mute, R2 solo, R3 phase on the right).
 
-The active-mode card, the dials and the lamps use the controller's own color
-code for that mode (the LED hue converted to RGB), so the panel matches the
-hardware colors.
+- Each encoder is a round rubber cap in a well, ringed by eleven white LEDs that light up to the value. The window under
+  an encoder sits where the controller's color LED is: it is lit in the color of the module, and that color is the
+  accent of the module's knobs. The color of each module is the controller's own color code for it (the LED hue
+  converted to RGB), so the panel matches the hardware.
+- In a module that maps parameters, a mapped encoder shows the name of its parameter under it, and an encoder with
+  nothing mapped has a dark ring and an unlit window. The value shows as the plugin formats it ("-12.0 dB", "1.5 kHz", read with
+  `TrackFX_GetFormattedParamValue`, only for the knobs that show one and again only when the value changed), or as a
+  percentage when the plugin gives no text. It appears in a small pop-up over the knob while the mouse is
+  over the knob or the encoder is held or turned, and for 500 ms after the last of these (`value_linger_ms` in
+  `mft_imgui.zig`).
+- In transport mode, the caps carry an icon for the function of their rotation, and the window under the knob has two
+  lines: what a turn does, with a curved arrow, and under it what a press does, with a ring and a dot. A turn of the
+  encoder lights the turn line, and a press lights the press line and sinks the cap, for as long as the encoder is held
+  and for 500 ms (`linger_ms` in `mft_state.zig`) after the last message from it. The keys on the left light the same way
+  while they are held.
+- The bottom eight encoders select the module. The first six have the press line alone, lit in the color of the module,
+  and the cap of the module in use is sunk. The last two are reserved.
+- The keys on the right light up while the track is muted, soloed or phase-inverted.
+- The header row has the card of the module in use on the left, the name of the controller in the middle with a green
+  lamp (hover over it to read what the panel is), and two buttons on the right: the chevron folds the device to its
+  header row, or opens it again, and the cross hides the panel (the L2 key or the action "MFT: Toggle UI" shows it).
+- The settings form and the calibration card are drawn under the device, in the settings mode only (the calibration
+  card also while a calibration is under way). The form shows the hue of each module on a bar that has the controller's
+  color wheel, and the sensitivity on a plain bar. A click or a drag on a bar sets the value through the same code as
+  the encoders, so the LED color is sent to the controller and the preference is updated.
 
-The look comes from the shared panel kit of `reaziglib` (`panel_theme`,
-`panel_fonts` and `panel_widgets`), the same one that the VR-09 plugin uses:
-engraved cards, dials, lamps and recessed screens, in the embedded Saira
-Condensed and Librestile fonts. The panel only mirrors the controller, so none of
-the dials or the side screens answers the mouse.
+The look comes from the shared panel kit of `reaziglib` (`panel_theme`, `panel_fonts` and `panel_widgets`), the same one
+that the VR-09 plugin uses, in the embedded Saira Condensed and Librestile fonts. The drawing of the device is in
+`mft_device.zig`, and the transport icons, drawn with geometry, are in `mft_icons.zig`. The panel only mirrors the
+controller, so the encoders and the keys do not answer the mouse. The only parts that do are the two buttons of
+the corner, the settings form (the bars, the drop-downs, Save and Cancel), and the calibration card.
 
 ## Calibration
 

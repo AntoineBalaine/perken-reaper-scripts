@@ -107,6 +107,15 @@ pub fn circle(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, color: c_int
     imgui.api.DrawList_AddCircle(dl, cx, cy, radius, color, null, &t);
 }
 
+/// An arc stroked as a line, from one angle to another. ImGui's angles start at the right and grow clockwise on
+/// the screen. Because the path is stroked at once, no path is left open in the draw list.
+pub fn arc(dl: imgui.DrawListPtr, cx: f64, cy: f64, radius: f64, from: f64, to: f64, color: c_int, thickness: f64) void {
+    var flags: c_int = imgui.DrawFlags_None;
+    var t = thickness;
+    imgui.api.DrawList_PathArcTo(dl, cx, cy, radius, from, to, null);
+    imgui.api.DrawList_PathStroke(dl, color, &flags, &t);
+}
+
 /// The size of a text in the current font.
 pub const TextSize = struct { w: f64, h: f64 };
 
@@ -1450,6 +1459,18 @@ test "a dial draws a value without taking part in the mouse, and the stacks bala
     // A value outside the range is held to it, and a dial with no color takes the card's accent.
     dial(&panel, control, 250, "Resonance", null);
     dial(&panel, control, 0, "K3", theme.text_dim);
+    try mock.assertBalanced();
+}
+
+test "the drawing calls draw into a list and leave the stacks balanced" {
+    const MockImGui = @import("mock_imgui").MockImGui;
+    var mock = MockImGui.init(std.testing.allocator);
+    defer mock.deinit();
+    mock.install();
+    defer mock.restore();
+
+    const dl: imgui.DrawListPtr = null;
+    arc(dl, 5, 5, 4, std.math.pi, std.math.pi * 1.5, theme.text, 1.5);
     try mock.assertBalanced();
 }
 

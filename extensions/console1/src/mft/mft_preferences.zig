@@ -17,8 +17,8 @@ pub const MftPreferences = struct {
     sensitivity: f32 = 1.0,
     // Hue positions on the MFT color wheel (channel 2).
     color_io: u8 = 0x0F,
-    // Pinker than the comp's red, which 0x5A (90) was too close to.
-    color_gate: u8 = 0x5E,
+    // Pinker than the comp's red, which 0x5A (90) and 0x5E (94) were too close to.
+    color_gate: u8 = 0x62,
     color_eq: u8 = 0x3C,
     color_comp: u8 = 0x56,
     color_settings: u8 = 0x49,
@@ -33,6 +33,17 @@ pub const MftPreferences = struct {
             .SETTINGS => self.color_settings,
             .TRANSPORT => self.color_transport,
         };
+    }
+
+    pub fn setColorForModule(self: *MftPreferences, module: MftActiveModule, hue: u8) void {
+        switch (module) {
+            .IO => self.color_io = hue,
+            .GATE => self.color_gate = hue,
+            .EQ => self.color_eq = hue,
+            .COMP => self.color_comp = hue,
+            .SETTINGS => self.color_settings = hue,
+            .TRANSPORT => self.color_transport = hue,
+        }
     }
 
     // Load preferences from <dir>/preferences.ini. Returns an error if the file
@@ -152,5 +163,5 @@ test "MftPreferences: parse round-trip fields" {
     try t.expectEqualStrings("JS: My Input", prefs.default_input);
     try t.expectEqualStrings("VST: My EQ", prefs.default_eq);
     // Unspecified fields keep their defaults.
-    try t.expectEqual(@as(u8, 0x5E), prefs.color_gate);
+    try t.expectEqual(@as(u8, 0x62), prefs.color_gate);
 }

@@ -14,4 +14,7 @@ test {
     _ = @import("mft_preferences.zig");
     _ = @import("mft_settings.zig");
     _ = @import("mft_plugin_list.zig");
+    _ = @import("mft_icons.zig");
+    _ = @import("mft_colors.zig");
+    _ = @import("mft_device.zig");
 }

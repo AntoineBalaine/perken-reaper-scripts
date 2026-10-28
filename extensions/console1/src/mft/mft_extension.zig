@@ -6,6 +6,7 @@ const defaults_mft = @import("defaults_mft.zig");
 const fs_helpers = @import("fs_helpers");
 const MftGlobals = @import("mft_globals.zig").MftGlobals;
 const mft_imgui = @import("mft_imgui.zig");
+const midi_events = @import("csurf/midi_events_mft.zig");
 
 pub const std_options = std.Options{
     .log_level = switch (@import("builtin").mode) {
@@ -51,6 +52,7 @@ fn registerActions() void {
 fn init() !void {
     defaults_mft.ensureConfigPath(fs_helpers.RealFileSystem.fileSystemOps()) catch {};
     MftGlobals.get().init();
+    midi_events.installSettingsHook();
 }
 
 export fn ReaperPluginEntry(instance: reaper.HINSTANCE, rec: ?*reaper.plugin_info_t) c_int {
